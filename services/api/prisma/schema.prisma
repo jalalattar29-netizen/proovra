@@ -1,0 +1,139 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum EvidenceType {
+  VIDEO
+  AUDIO
+  PHOTO
+}
+
+enum EvidenceStatus {
+  CREATED
+  UPLOADING
+  UPLOADED
+  SIGNED
+  REPORTED
+}
+
+enum CustodyEventType {
+  EVIDENCE_CREATED
+  UPLOAD_STARTED
+  UPLOAD_COMPLETED
+  SIGNATURE_APPLIED
+  REPORT_GENERATED
+  EVIDENCE_VIEWED
+  EVIDENCE_DOWNLOADED
+}
+
+model Evidence {
+  id        String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  type      EvidenceType
+  status    EvidenceStatus  @default(CREATED)
+
+  ownerUserId     String  @map("owner_user_id")
+  organizationId  String? @map("organization_id") @db.Uuid
+
+  mimeType     String? @map("mime_type") @db.VarChar(128)
+  sizeBytes    BigInt? @map("size_bytes")
+  durationSec  Float?  @map("duration_sec")
+  fileSha256   String? @map("file_sha256") @db.VarChar(64)
+
+  storageBucket String? @map("storage_bucket") @db.VarChar(255)
+  storageKey    String? @map("storage_key") @db.VarChar(512)
+
+  lat            Float? @db.DoublePrecision
+  lng            Float? @db.DoublePrecision
+  accuracyMeters Float? @map("accuracy_meters") @db.DoublePrecision
+
+  capturedAtUtc       DateTime? @map("captured_at_utc") @db.Timestamptz(6)
+  deviceTimeIso       String?   @map("device_time_iso") @db.VarChar(64)
+
+  uploadedAtUtc        DateTime? @map("uploaded_at_utc") @db.Timestamptz(6)
+  signedAtUtc          DateTime? @map("signed_at_utc") @db.Timestamptz(6)
+  reportGeneratedAtUtc DateTime? @map("report_generated_at_utc") @db.Timestamptz(6)
+
+  fingerprintCanonicalJson String? @map("fingerprint_canonical_json") @db.Text
+  fingerprintHash          String? @map("fingerprint_hash") @db.VarChar(64)
+
+  signatureBase64  String? @map("signature_base64") @db.VarChar(256)
+  signingKeyId     String? @map("signing_key_id") @db.VarChar(64)
+  signingKeyVersion Int?   @map("signing_key_version")
+
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(6)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  custodyEvents CustodyEvent[]
+  reports       Report[]
+
+  @@index([ownerUserId, createdAt(sort: Desc)])
+  @@index([ownerUserId, status])
+  @@index([organizationId, createdAt(sort: Desc)])
+  @@index([fileSha256])
+  @@index([fingerprintHash])
+  @@index([status])
+  @@index([deletedAt])
+  @@map("evidence")
+}
+
+model CustodyEvent {
+  id         String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  evidenceId String           @map("evidence_id") @db.Uuid
+  eventType  CustodyEventType @map("event_type")
+  atUtc      DateTime         @map("at_utc") @db.Timestamptz(6)
+
+  sequence   Int              @map("sequence")
+
+  payload   Json? @db.JsonB
+
+  ip        String? @db.VarChar(45)
+  userAgent String? @map("user_agent") @db.VarChar(512)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  evidence Evidence @relation(fields: [evidenceId], references: [id], onDelete: Restrict)
+
+  @@unique([evidenceId, sequence])
+  @@index([evidenceId, sequence])
+  @@index([evidenceId, atUtc(sort: Asc)])
+  @@index([evidenceId])
+  @@index([eventType])
+  @@map("custody_events")
+}
+
+model Report {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  evidenceId     String   @map("evidence_id") @db.Uuid
+  version        Int
+
+  storageBucket  String   @map("storage_bucket") @db.VarChar(255)
+  storageKey     String   @map("storage_key") @db.VarChar(512)
+
+  generatedAtUtc DateTime @map("generated_at_utc") @db.Timestamptz(6)
+
+  evidence Evidence @relation(fields: [evidenceId], references: [id], onDelete: Restrict)
+
+  @@unique([evidenceId, version])
+  @@index([evidenceId])
+  @@index([generatedAtUtc(sort: Desc)])
+  @@map("reports")
+}
+
+model SigningKey {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  keyId        String   @map("key_id") @db.VarChar(64)
+  version      Int
+  publicKeyPem String   @map("public_key_pem") @db.Text
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  revokedAt    DateTime? @map("revoked_at") @db.Timestamptz(6)
+
+  @@unique([keyId, version])
+  @@index([revokedAt])
+  @@map("signing_keys")
+}
