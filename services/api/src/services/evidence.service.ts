@@ -1,6 +1,6 @@
-import { prisma } from "../db";
-import { presignPutObject } from "../storage";
-import { EvidenceStatus, EvidenceType } from "@prisma/client";
+import { prisma } from "../db.js";
+import { presignPutObject } from "../storage.js";
+import * as prismaPkg from "@prisma/client";
 
 function must(name: string): string {
   const v = process.env[name];
@@ -8,9 +8,11 @@ function must(name: string): string {
   return v;
 }
 
+const { EvidenceStatus } = prismaPkg;
+
 export async function createEvidence(params: {
   ownerUserId: string;
-  type: EvidenceType;
+  type: prismaPkg.EvidenceType;
   mimeType?: string;
 }) {
   const bucket = must("S3_BUCKET");

@@ -1,0 +1,123 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: dw
+      POSTGRES_PASSWORD: dw_password
+      POSTGRES_DB: dw
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U dw -d dw"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  minio:
+    image: minio/minio:latest
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: minio
+      MINIO_ROOT_PASSWORD: minio_password
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  minio-init:
+    image: minio/mc:latest
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint:
+      [
+        "/bin/sh",
+        "-c",
+        "mc alias set local http://minio:9000 minio minio_password && mc mb --ignore-existing local/dw-evidence && mc anonymous set download local/dw-evidence"
+      ]
+
+  api:
+    build:
+      context: ../..
+      dockerfile: services/api/Dockerfile
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully
+    environment:
+      NODE_ENV: production
+      PORT: 8080
+      DATABASE_URL: postgresql://dw:dw_password@postgres:5432/dw
+      REDIS_URL: redis://redis:6379
+      S3_ENDPOINT: http://minio:9000
+      S3_REGION: auto
+      S3_ACCESS_KEY: minio
+      S3_SECRET_KEY: minio_password
+      S3_BUCKET: dw-evidence
+      S3_PUBLIC_BASE_URL: http://minio:9000/dw-evidence
+      SIGNING_KEY_ID: dw_ed25519
+      SIGNING_KEY_VERSION: 1
+      SIGNING_PRIVATE_KEY_PATH: keys/signing-private.pem
+      SIGNING_PUBLIC_KEY_PATH: keys/signing-public.pem
+      CORS_ORIGINS: ""
+      VERIFY_RATE_LIMIT_MAX: 60
+      VERIFY_RATE_LIMIT_WINDOW_MS: 60000
+    ports:
+      - "8080:8080"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/health || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  worker:
+    build:
+      context: ../..
+      dockerfile: services/worker/Dockerfile
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://dw:dw_password@postgres:5432/dw
+      REDIS_URL: redis://redis:6379
+      S3_ENDPOINT: http://minio:9000
+      S3_REGION: auto
+      S3_ACCESS_KEY: minio
+      S3_SECRET_KEY: minio_password
+      S3_BUCKET: dw-evidence
+      S3_PUBLIC_BASE_URL: http://minio:9000/dw-evidence
+      WORKER_BUILD_INFO: docker
+      WORKER_PORT: 8090
+    ports:
+      - "8090:8090"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8090/health || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 10

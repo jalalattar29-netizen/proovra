@@ -1,14 +1,15 @@
+import "./env-loader.js";
 import { Worker } from "bullmq";
-import { logger, withJobContext } from "./logger";
+import { logger, withJobContext } from "./logger.js";
 import {
   generateReportJobName,
   redisConnection,
   reportDlqQueue,
   reportQueue,
   reportQueueName,
-} from "./queue";
-import { processGenerateReport } from "./processor";
-import { startHealthServer, type HealthServer } from "./health";
+} from "./queue.js";
+import { processGenerateReport } from "./processor.js";
+import { startHealthServer, type HealthServer } from "./health.js";
 
 type JobData = { evidenceId?: string };
 

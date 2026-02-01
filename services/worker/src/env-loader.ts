@@ -19,7 +19,7 @@ function loadEnvFile(path: string) {
 }
 
 const cwdEnv = resolve(process.cwd(), ".env");
-const serviceEnv = resolve(process.cwd(), "services/api/.env");
+const serviceEnv = resolve(process.cwd(), "services/worker/.env");
 
 loadEnvFile(cwdEnv);
 if (serviceEnv !== cwdEnv) {

@@ -1,6 +1,6 @@
 import { Queue } from "bullmq";
 import IORedis from "ioredis";
-import { env } from "./config";
+import { env } from "./config.js";
 
 export const reportQueueName = "report";
 export const reportDlqQueueName = "report-dlq";

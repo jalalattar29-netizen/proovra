@@ -1,18 +1,54 @@
-import type { FastifyInstance, FastifyRequest } from "fastify";
+import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { z } from "zod";
-import { getDevUserId } from "../auth";
-import { createEvidence } from "../services/evidence.service";
-import { completeEvidence } from "../services/evidence-complete.service";
-import { EvidenceType } from "@prisma/client";
-import { prisma } from "../db";
-import { presignGetObject } from "../storage";
+import { getDevUserId } from "../auth.js";
+import { createEvidence } from "../services/evidence.service.js";
+import { completeEvidence } from "../services/evidence-complete.service.js";
+import * as prismaPkg from "@prisma/client";
+import { prisma } from "../db.js";
+import { presignGetObject } from "../storage.js";
 
 const CreateEvidenceBody = z.object({
-  type: z.nativeEnum(EvidenceType),
+  type: z.nativeEnum(prismaPkg.EvidenceType),
   mimeType: z.string().min(1).max(128).optional(),
 });
 
 type ParamsId = { id: string };
+
+type RateLimitEntry = { count: number; windowStartMs: number };
+const verifyRateLimitStore = new Map<string, RateLimitEntry>();
+
+function readRateLimitMax(): number {
+  const raw = process.env.VERIFY_RATE_LIMIT_MAX;
+  const value = raw ? Number.parseInt(raw, 10) : 60;
+  return Number.isFinite(value) && value > 0 ? value : 60;
+}
+
+function readRateLimitWindowMs(): number {
+  const raw = process.env.VERIFY_RATE_LIMIT_WINDOW_SEC;
+  const value = raw ? Number.parseInt(raw, 10) : 60;
+  return (Number.isFinite(value) && value > 0 ? value : 60) * 1000;
+}
+
+function enforceVerifyRateLimit(
+  req: FastifyRequest,
+  reply: FastifyReply
+): boolean {
+  const max = readRateLimitMax();
+  const windowMs = readRateLimitWindowMs();
+  const key = req.ip;
+  const now = Date.now();
+  const entry = verifyRateLimitStore.get(key);
+  if (!entry || now - entry.windowStartMs >= windowMs) {
+    verifyRateLimitStore.set(key, { count: 1, windowStartMs: now });
+    return true;
+  }
+  if (entry.count >= max) {
+    reply.code(429).send({ message: "Rate limit exceeded" });
+    return false;
+  }
+  entry.count += 1;
+  return true;
+}
 
 export async function evidenceRoutes(app: FastifyInstance) {
   function buildPublicUrl(key: string): string | null {
@@ -94,6 +130,9 @@ export async function evidenceRoutes(app: FastifyInstance) {
   );
 
   app.get("/public/verify/:id", async (req: FastifyRequest, reply) => {
+    if (!enforceVerifyRateLimit(req, reply)) {
+      return;
+    }
     const id = z.string().uuid().parse((req.params as ParamsId).id);
 
     const evidence = await prisma.evidence.findFirst({

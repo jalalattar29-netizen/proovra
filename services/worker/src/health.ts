@@ -1,7 +1,7 @@
 import Fastify from "fastify";
-import { env } from "./config";
-import { logger } from "./logger";
-import { redisConnection, reportDlqQueue, reportQueue } from "./queue";
+import { env } from "./config.js";
+import { logger } from "./logger.js";
+import { redisConnection, reportDlqQueue, reportQueue } from "./queue.js";
 
 export type HealthServer = {
   close: () => Promise<void>;

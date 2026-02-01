@@ -1,5 +1,5 @@
-import "./env";
-import { buildServer } from "./server";
+import "./env.js";
+import { buildServer } from "./server.js";
 
 const port = Number(process.env.PORT ?? 8080);
 

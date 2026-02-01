@@ -1,9 +1,13 @@
-import { prisma } from "../db";
-import { canonicalJson, sha256Hex, ed25519SignHexWithKeyPath } from "../crypto";
-import { getObjectStream, headObject } from "../storage";
-import { sha256HexFromStream } from "../stream-hash";
-import { EvidenceStatus } from "@prisma/client";
-import { enqueueGenerateReportJob } from "../queue/report-queue";
+import { prisma } from "../db.js";
+import {
+  canonicalJson,
+  sha256Hex,
+  ed25519SignHexWithKeyPath,
+} from "../crypto.js";
+import { getObjectStream, headObject } from "../storage.js";
+import { sha256HexFromStream } from "../stream-hash.js";
+import * as prismaPkg from "@prisma/client";
+import { enqueueGenerateReportJob } from "../queue/report-queue.js";
 import { Readable } from "stream";
 
 type HttpError = Error & { statusCode: number };
@@ -26,6 +30,8 @@ function mustInt(name: string): number {
   }
   return v;
 }
+
+const { EvidenceStatus } = prismaPkg;
 
 export async function completeEvidence(params: {
   evidenceId: string;

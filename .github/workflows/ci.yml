@@ -1,0 +1,73 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  build-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: "10.28.2"
+
+      - name: Install
+        run: pnpm install
+
+      - name: Lint
+        run: pnpm -r lint
+
+      - name: Typecheck
+        run: pnpm -r typecheck
+
+      - name: Test
+        run: pnpm -r test
+
+      - name: Start full stack
+        run: docker compose -f infra/docker/docker-compose.full.yml up -d
+
+      - name: Wait for health
+        run: |
+          set -e
+          api_id=$(docker compose -f infra/docker/docker-compose.full.yml ps -q api)
+          worker_id=$(docker compose -f infra/docker/docker-compose.full.yml ps -q worker)
+          for i in {1..60}; do
+            api_status=$(docker inspect -f '{{.State.Health.Status}}' "$api_id" 2>/dev/null || true)
+            worker_status=$(docker inspect -f '{{.State.Health.Status}}' "$worker_id" 2>/dev/null || true)
+            if [ "$api_status" = "healthy" ] && [ "$worker_status" = "healthy" ]; then
+              exit 0
+            fi
+            sleep 2
+          done
+          docker compose -f infra/docker/docker-compose.full.yml ps
+          exit 1
+
+      - name: E2E smoke
+        run: |
+          set -euo pipefail
+          base="http://localhost:8080"
+          create=$(curl -sS -H "content-type: application/json" -d '{"type":"PHOTO","mimeType":"text/plain"}' "$base/v1/evidence")
+          id=$(echo "$create" | jq -r '.id')
+          putUrl=$(echo "$create" | jq -r '.upload.putUrl')
+          curl -sS -X PUT --upload-file services/api/fixtures/sample.txt -H "content-type: text/plain" "$putUrl"
+          curl -sS -H "content-type: application/json" -d '{}' "$base/v1/evidence/$id/complete" > /tmp/complete.json
+          for i in {1..30}; do
+            if curl -sS "$base/v1/evidence/$id/report/latest" > /tmp/report.json; then
+              break
+            fi
+            sleep 2
+          done
+          url=$(jq -r '.url' /tmp/report.json)
+          curl -sS -f -o /tmp/report.pdf "$url"
+          curl -sS -f "$base/public/verify/$id" > /tmp/verify.json
+
+      - name: Logs on failure
+        if: failure()
+        run: docker compose -f infra/docker/docker-compose.full.yml logs

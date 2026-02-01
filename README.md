@@ -7,6 +7,11 @@
 docker compose -f infra/docker/docker-compose.yml up -d
 ```
 
+### Start full stack (prod-like)
+```
+docker compose -f infra/docker/docker-compose.full.yml up -d
+```
+
 ### Create MinIO bucket (local)
 ```
 docker exec dw_minio mc alias set local http://localhost:9000 minio minio_password
@@ -18,7 +23,7 @@ docker exec dw_minio mc anonymous set download local/dw-evidence
 ```
 pnpm --filter api prisma:generate
 pnpm --filter api prisma:migrate
-pnpm --filter api seed:key
+pnpm --filter api prisma:seed
 ```
 
 ### Run API
@@ -38,6 +43,18 @@ pnpm --filter worker dev
 4) Worker generates report asynchronously  
 5) Fetch report: `GET /v1/evidence/:id/report/latest` (download PDF from `url`)  
 6) Public verify: `GET /public/verify/:id`  
+
+Example curl:
+```
+BASE="http://127.0.0.1:8080"
+CREATE=$(curl -sS -H "content-type: application/json" -d '{"type":"PHOTO","mimeType":"text/plain"}' "$BASE/v1/evidence")
+ID=$(echo "$CREATE" | jq -r '.id')
+PUT_URL=$(echo "$CREATE" | jq -r '.upload.putUrl')
+curl -sS -X PUT --upload-file services/api/fixtures/sample.txt -H "content-type: text/plain" "$PUT_URL"
+curl -sS -H "content-type: application/json" -d '{}' "$BASE/v1/evidence/$ID/complete"
+curl -sS "$BASE/v1/evidence/$ID/report/latest"
+curl -sS "$BASE/public/verify/$ID"
+```
 
 Example PowerShell:
 ```

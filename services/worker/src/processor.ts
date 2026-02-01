@@ -1,13 +1,17 @@
 import type { Job } from "bullmq";
 import type { Readable } from "node:stream";
-import { EvidenceStatus } from "@prisma/client";
-import { prisma } from "./db";
-import { env } from "./config";
-import { logger, withJobContext } from "./logger";
-import { getObjectStream, headObject, putObjectBuffer } from "./storage";
-import { sha256HexFromStream } from "./stream-hash";
-import { buildReportPdf } from "./pdf/report";
-import { generateReportJobName, reportDlqQueue, reportQueue } from "./queue";
+import * as prismaPkg from "@prisma/client";
+import { prisma } from "./db.js";
+import { env } from "./config.js";
+import { logger, withJobContext } from "./logger.js";
+import { getObjectStream, headObject, putObjectBuffer } from "./storage.js";
+import { sha256HexFromStream } from "./stream-hash.js";
+import { buildReportPdf } from "./pdf/report.js";
+import {
+  generateReportJobName,
+  reportDlqQueue,
+  reportQueue,
+} from "./queue.js";
 
 type GenerateReportJobData = {
   evidenceId: string;
@@ -62,6 +66,8 @@ function isRetriableError(error: unknown): boolean {
   }
   return true;
 }
+
+const { EvidenceStatus } = prismaPkg;
 
 export async function processGenerateReport(job: Job<GenerateReportJobData>) {
   const start = Date.now();
