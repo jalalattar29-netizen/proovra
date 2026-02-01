@@ -20,3 +20,7 @@ apps/mobile/.dart_tool
 Thumbs.db
 _tmp_*
 _tmp_report.pdf
+
+# allow API prisma migrations to be committed (required for dev/CI)
+!services/api/prisma/migrations/
+!services/api/prisma/migrations/**
