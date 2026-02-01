@@ -3,10 +3,12 @@ import { logger, withJobContext } from "./logger";
 import {
   generateReportJobName,
   redisConnection,
+  reportDlqQueue,
+  reportQueue,
   reportQueueName,
 } from "./queue";
 import { processGenerateReport } from "./processor";
-import { startHealthServer } from "./health";
+import { startHealthServer, type HealthServer } from "./health";
 
 type JobData = { evidenceId?: string };
 
@@ -14,6 +16,8 @@ const worker = new Worker(reportQueueName, processGenerateReport, {
   connection: redisConnection,
   concurrency: 2,
 });
+let healthServer: HealthServer | null = null;
+let shuttingDown = false;
 
 worker.on("completed", (job) => {
   const durationMs =
@@ -62,23 +66,64 @@ worker.on("error", (err) => {
   logger.error({ err }, "Worker error");
 });
 
-startHealthServer().catch((err) => {
-  logger.error({ err }, "Health server failed to start");
-  process.exit(1);
+async function shutdown(exitCode: number) {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  logger.info({ exitCode }, "Shutting down worker");
+  try {
+    await worker.pause(true);
+  } catch (err) {
+    logger.error({ err }, "Failed to pause worker");
+  }
+  try {
+    await worker.close();
+  } catch (err) {
+    logger.error({ err }, "Failed to close worker");
+  }
+  try {
+    await reportQueue.close();
+    await reportDlqQueue.close();
+  } catch (err) {
+    logger.error({ err }, "Failed to close queues");
+  }
+  try {
+    await redisConnection.quit();
+  } catch (err) {
+    logger.error({ err }, "Failed to close redis connection");
+  }
+  try {
+    await healthServer?.close();
+  } catch (err) {
+    logger.error({ err }, "Failed to close health server");
+  }
+  process.exit(exitCode);
+}
+
+startHealthServer()
+  .then((server) => {
+    healthServer = server;
+  })
+  .catch((err) => {
+    logger.error({ err }, "Health server failed to start");
+    void shutdown(1);
+  });
+
+process.on("SIGINT", () => {
+  void shutdown(0);
 });
 
-process.on("SIGINT", async () => {
-  logger.info("Shutting down worker");
-  await worker.close();
-  await redisConnection.quit();
-  process.exit(0);
+process.on("SIGTERM", () => {
+  void shutdown(0);
 });
 
-process.on("SIGTERM", async () => {
-  logger.info("Shutting down worker");
-  await worker.close();
-  await redisConnection.quit();
-  process.exit(0);
+process.on("unhandledRejection", (reason) => {
+  logger.error({ err: reason }, "Unhandled promise rejection");
+  void shutdown(1);
+});
+
+process.on("uncaughtException", (err) => {
+  logger.error({ err }, "Uncaught exception");
+  void shutdown(1);
 });
 
 logger.info({ job: generateReportJobName }, "Worker started");

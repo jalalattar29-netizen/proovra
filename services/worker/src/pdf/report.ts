@@ -61,6 +61,17 @@ export async function buildReportPdf(params: {
   buildInfo?: string | null;
 }): Promise<Buffer> {
   const doc = new PDFDocument({ autoFirstPage: true, margin: 50 });
+  const buildToken = params.buildInfo ? `;DW_BUILD=${params.buildInfo}` : "";
+  doc.info = {
+    Title: "Digital Witness — Verifiable Evidence Report",
+    Subject:
+      "DW_SECTION_ORDER: Evidence Summary > Cryptographic Details > Chain of Custody > Appendix A > Appendix B > Report Footer",
+    Keywords: `DW_REPORT_VERSION=${params.version};DW_GENERATED_AT=${params.generatedAtUtc}${buildToken}`,
+    Creator: "Digital Witness",
+    Producer: "Digital Witness",
+    CreationDate: new Date(params.generatedAtUtc),
+    ModDate: new Date(params.generatedAtUtc),
+  };
   const chunks: Buffer[] = [];
 
   doc.on("data", (chunk) => chunks.push(chunk));

@@ -29,9 +29,7 @@ export async function enqueueGenerateReportJob(evidenceId: string) {
   const existing = await reportQueue.getJob(jobId);
   if (existing) {
     const state = await existing.getState();
-    if (state !== "completed") {
-      return { enqueued: false, reason: `job_${state}` };
-    }
+    return { enqueued: false, reason: `job_${state}` };
   }
 
   await reportQueue.add(

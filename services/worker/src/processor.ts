@@ -70,6 +70,7 @@ export async function processGenerateReport(job: Job<GenerateReportJobData>) {
     jobId: job.id,
     evidenceId,
     attempt: job.attemptsMade + 1,
+    status: "started",
   });
 
   logger.info(ctx, "GenerateReportJob started");
@@ -283,13 +284,16 @@ export async function processGenerateReport(job: Job<GenerateReportJobData>) {
         { removeOnComplete: true, removeOnFail: false }
       );
       logger.error(
-        withJobContext({
-          jobId: job.id,
-          evidenceId,
-          attempt: job.attemptsMade + 1,
-          durationMs,
-          status: "dlq",
-        }),
+        {
+          ...withJobContext({
+            jobId: job.id,
+            evidenceId,
+            attempt: job.attemptsMade + 1,
+            durationMs,
+            status: "dlq",
+          }),
+          moved_to_dlq: true,
+        },
         "GenerateReportJob moved to DLQ (non-retriable)"
       );
       throw error;
@@ -308,13 +312,16 @@ export async function processGenerateReport(job: Job<GenerateReportJobData>) {
         { removeOnComplete: true, removeOnFail: false }
       );
       logger.error(
-        withJobContext({
-          jobId: job.id,
-          evidenceId,
-          attempt: job.attemptsMade + 1,
-          durationMs,
-          status: "dlq",
-        }),
+        {
+          ...withJobContext({
+            jobId: job.id,
+            evidenceId,
+            attempt: job.attemptsMade + 1,
+            durationMs,
+            status: "dlq",
+          }),
+          moved_to_dlq: true,
+        },
         "GenerateReportJob moved to DLQ"
       );
     }
@@ -328,9 +335,7 @@ export async function enqueueReportJob(evidenceId: string) {
   const existing = await reportQueue.getJob(jobId);
   if (existing) {
     const state = await existing.getState();
-    if (state !== "completed") {
-      return { enqueued: false, reason: `job_${state}` };
-    }
+    return { enqueued: false, reason: `job_${state}` };
   }
 
   await reportQueue.add(
