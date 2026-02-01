@@ -1,4 +1,4 @@
-import type { FastifyInstance } from "fastify";
+import type { FastifyInstance, FastifyRequest } from "fastify";
 import { z } from "zod";
 import { getDevUserId } from "../auth";
 import { createEvidence } from "../services/evidence.service";
@@ -12,11 +12,13 @@ const CreateEvidenceBody = z.object({
   mimeType: z.string().min(1).max(128).optional(),
 });
 
+type ParamsId = { id: string };
+
 export async function evidenceRoutes(app: FastifyInstance) {
   function buildPublicUrl(key: string): string | null {
     const base = process.env.S3_PUBLIC_BASE_URL;
     if (!base) return null;
-    return `${base.replace(/\\/+$/, "")}/${key}`;
+    return `${base.replace(/\/+$/, "")}/${key}`;
   }
 
   app.post("/v1/evidence", async (req, reply) => {
@@ -32,64 +34,67 @@ export async function evidenceRoutes(app: FastifyInstance) {
     return reply.code(201).send(result);
   });
 
-  app.post("/v1/evidence/:id/complete", async (req, reply) => {
+  app.post("/v1/evidence/:id/complete", async (req: FastifyRequest, reply) => {
     const ownerUserId = getDevUserId(req);
-    const id = z.string().uuid().parse((req.params as any).id);
+    const id = z.string().uuid().parse((req.params as ParamsId).id);
 
     const result = await completeEvidence({ evidenceId: id, ownerUserId });
 
     return reply.code(200).send(result);
   });
 
-  app.get("/v1/evidence/:id/report/latest", async (req, reply) => {
-    const ownerUserId = getDevUserId(req);
-    const id = z.string().uuid().parse((req.params as any).id);
+  app.get(
+    "/v1/evidence/:id/report/latest",
+    async (req: FastifyRequest, reply) => {
+      const ownerUserId = getDevUserId(req);
+      const id = z.string().uuid().parse((req.params as ParamsId).id);
 
-    const evidence = await prisma.evidence.findFirst({
-      where: { id, ownerUserId, deletedAt: null },
-      select: { id: true },
-    });
-    if (!evidence) {
-      return reply.code(404).send({ message: "Evidence not found" });
-    }
+      const evidence = await prisma.evidence.findFirst({
+        where: { id, ownerUserId, deletedAt: null },
+        select: { id: true },
+      });
+      if (!evidence) {
+        return reply.code(404).send({ message: "Evidence not found" });
+      }
 
-    const latest = await prisma.report.findFirst({
-      where: { evidenceId: id },
-      orderBy: { version: "desc" },
-      select: {
-        version: true,
-        storageBucket: true,
-        storageKey: true,
-        generatedAtUtc: true,
-      },
-    });
+      const latest = await prisma.report.findFirst({
+        where: { evidenceId: id },
+        orderBy: { version: "desc" },
+        select: {
+          version: true,
+          storageBucket: true,
+          storageKey: true,
+          generatedAtUtc: true,
+        },
+      });
 
-    if (!latest) {
-      return reply.code(404).send({ message: "Report not found" });
-    }
+      if (!latest) {
+        return reply.code(404).send({ message: "Report not found" });
+      }
 
-    const publicUrl = buildPublicUrl(latest.storageKey);
-    const url =
-      publicUrl ??
-      (await presignGetObject({
+      const publicUrl = buildPublicUrl(latest.storageKey);
+      const url =
+        publicUrl ??
+        (await presignGetObject({
+          bucket: latest.storageBucket,
+          key: latest.storageKey,
+          expiresInSeconds: 600,
+        }));
+
+      return reply.code(200).send({
+        evidenceId: id,
+        version: latest.version,
         bucket: latest.storageBucket,
         key: latest.storageKey,
-        expiresInSeconds: 600,
-      }));
+        url,
+        publicUrl,
+        generatedAtUtc: latest.generatedAtUtc.toISOString(),
+      });
+    }
+  );
 
-    return reply.code(200).send({
-      evidenceId: id,
-      version: latest.version,
-      bucket: latest.storageBucket,
-      key: latest.storageKey,
-      url,
-      publicUrl,
-      generatedAtUtc: latest.generatedAtUtc.toISOString(),
-    });
-  });
-
-  app.get("/public/verify/:id", async (req, reply) => {
-    const id = z.string().uuid().parse((req.params as any).id);
+  app.get("/public/verify/:id", async (req: FastifyRequest, reply) => {
+    const id = z.string().uuid().parse((req.params as ParamsId).id);
 
     const evidence = await prisma.evidence.findFirst({
       where: { id, deletedAt: null },

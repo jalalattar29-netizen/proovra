@@ -1,4 +1,5 @@
 import type { Job } from "bullmq";
+import type { Readable } from "node:stream";
 import { EvidenceStatus } from "@prisma/client";
 import { prisma } from "./db";
 import { env } from "./config";
@@ -6,30 +7,60 @@ import { logger, withJobContext } from "./logger";
 import { getObjectStream, headObject, putObjectBuffer } from "./storage";
 import { sha256HexFromStream } from "./stream-hash";
 import { buildReportPdf } from "./pdf/report";
-import {
-  generateReportJobName,
-  reportDlqQueue,
-  reportQueue,
-} from "./queue";
+import { generateReportJobName, reportDlqQueue, reportQueue } from "./queue";
 
 type GenerateReportJobData = {
   evidenceId: string;
 };
 
+type WorkerError = Error & {
+  code: string;
+  retriable: boolean;
+};
+
 function buildPublicUrl(key: string): string | null {
   if (!env.S3_PUBLIC_BASE_URL) return null;
-  return `${env.S3_PUBLIC_BASE_URL.replace(/\\/+$/, "")}/${key}`;
+  return `${env.S3_PUBLIC_BASE_URL.replace(/\/+$/, "")}/${key}`;
+}
+
+function stableStringify(value: unknown): string {
+  if (value === null || typeof value !== "object") {
+    return JSON.stringify(value);
+  }
+  if (Array.isArray(value)) {
+    return `[${value.map((item) => stableStringify(item)).join(",")}]`;
+  }
+  const obj = value as Record<string, unknown>;
+  const keys = Object.keys(obj).sort();
+  const entries = keys.map(
+    (key) => `${JSON.stringify(key)}:${stableStringify(obj[key])}`
+  );
+  return `{${entries.join(",")}}`;
 }
 
 function summarizePayload(payload: unknown): string {
   if (!payload) return "N/A";
   try {
-    const json = JSON.stringify(payload);
+    const json = stableStringify(payload);
     if (json.length <= 200) return json;
     return `${json.slice(0, 197)}...`;
   } catch {
     return "UNSERIALIZABLE_PAYLOAD";
   }
+}
+
+function createWorkerError(code: string, retriable: boolean): WorkerError {
+  const err = new Error(code) as WorkerError;
+  err.code = code;
+  err.retriable = retriable;
+  return err;
+}
+
+function isRetriableError(error: unknown): boolean {
+  if (error && typeof error === "object" && "retriable" in error) {
+    return (error as WorkerError).retriable === true;
+  }
+  return true;
 }
 
 export async function processGenerateReport(job: Job<GenerateReportJobData>) {
@@ -49,28 +80,31 @@ export async function processGenerateReport(job: Job<GenerateReportJobData>) {
     });
 
     if (!evidence) {
-      throw new Error("EVIDENCE_NOT_FOUND");
+      throw createWorkerError("EVIDENCE_NOT_FOUND", false);
     }
     if (evidence.status !== EvidenceStatus.SIGNED) {
-      throw new Error(`EVIDENCE_NOT_SIGNED:${evidence.status}`);
+      throw createWorkerError(`EVIDENCE_NOT_SIGNED:${evidence.status}`, false);
     }
     if (!evidence.storageBucket || !evidence.storageKey) {
-      throw new Error("EVIDENCE_STORAGE_NOT_SET");
+      throw createWorkerError("EVIDENCE_STORAGE_NOT_SET", false);
     }
     if (!evidence.fileSha256) {
-      throw new Error("EVIDENCE_FILE_SHA256_MISSING");
+      throw createWorkerError("EVIDENCE_FILE_SHA256_MISSING", false);
     }
     if (!evidence.fingerprintCanonicalJson) {
-      throw new Error("EVIDENCE_FINGERPRINT_CANONICAL_JSON_MISSING");
+      throw createWorkerError(
+        "EVIDENCE_FINGERPRINT_CANONICAL_JSON_MISSING",
+        false
+      );
     }
     if (!evidence.fingerprintHash) {
-      throw new Error("EVIDENCE_FINGERPRINT_HASH_MISSING");
+      throw createWorkerError("EVIDENCE_FINGERPRINT_HASH_MISSING", false);
     }
     if (!evidence.signatureBase64) {
-      throw new Error("EVIDENCE_SIGNATURE_MISSING");
+      throw createWorkerError("EVIDENCE_SIGNATURE_MISSING", false);
     }
     if (!evidence.signingKeyId || !evidence.signingKeyVersion) {
-      throw new Error("EVIDENCE_SIGNING_KEY_MISSING");
+      throw createWorkerError("EVIDENCE_SIGNING_KEY_MISSING", false);
     }
 
     const head = await headObject({
@@ -78,7 +112,7 @@ export async function processGenerateReport(job: Job<GenerateReportJobData>) {
       key: evidence.storageKey,
     });
     if (!head.sizeBytes || head.sizeBytes <= 0) {
-      throw new Error("EVIDENCE_OBJECT_NOT_FOUND");
+      throw createWorkerError("EVIDENCE_OBJECT_NOT_FOUND", true);
     }
 
     const body = await getObjectStream({
@@ -86,9 +120,9 @@ export async function processGenerateReport(job: Job<GenerateReportJobData>) {
       key: evidence.storageKey,
     });
 
-    const fileSha256 = await sha256HexFromStream(body as any);
+    const fileSha256 = await sha256HexFromStream(body as unknown as Readable);
     if (fileSha256 !== evidence.fileSha256) {
-      throw new Error("EVIDENCE_FILE_SHA256_MISMATCH");
+      throw createWorkerError("EVIDENCE_FILE_SHA256_MISMATCH", false);
     }
 
     const custodyEvents = await prisma.custodyEvent.findMany({
@@ -119,7 +153,7 @@ export async function processGenerateReport(job: Job<GenerateReportJobData>) {
       },
     });
     if (!signingKey) {
-      throw new Error("SIGNING_KEY_NOT_FOUND");
+      throw createWorkerError("SIGNING_KEY_NOT_FOUND", false);
     }
 
     const now = new Date();
@@ -161,6 +195,7 @@ export async function processGenerateReport(job: Job<GenerateReportJobData>) {
       })),
       version,
       generatedAtUtc: now.toISOString(),
+      buildInfo: env.WORKER_BUILD_INFO ?? null,
     });
 
     await putObjectBuffer({
@@ -218,18 +253,48 @@ export async function processGenerateReport(job: Job<GenerateReportJobData>) {
   } catch (error) {
     const durationMs = Date.now() - start;
     logger.error(
-      withJobContext({
-        jobId: job.id,
-        evidenceId,
-        attempt: job.attemptsMade + 1,
-        durationMs,
-        status: "failed",
-      }),
-      error,
+      {
+        ...withJobContext({
+          jobId: job.id,
+          evidenceId,
+          attempt: job.attemptsMade + 1,
+          durationMs,
+          status: "failed",
+        }),
+        err: error,
+      },
       "GenerateReportJob failed"
     );
 
     const attempts = job.opts.attempts ?? 1;
+    const retriable = isRetriableError(error);
+
+    if (!retriable) {
+      await job.discard();
+      await reportDlqQueue.add(
+        "ReportDLQ",
+        {
+          evidenceId,
+          jobId: job.id,
+          errorMessage: (error as Error).message,
+          errorStack: (error as Error).stack ?? null,
+          retriable: false,
+        },
+        { removeOnComplete: true, removeOnFail: false }
+      );
+      logger.error(
+        withJobContext({
+          jobId: job.id,
+          evidenceId,
+          attempt: job.attemptsMade + 1,
+          durationMs,
+          status: "dlq",
+        }),
+        "GenerateReportJob moved to DLQ (non-retriable)"
+      );
+      throw error;
+    }
+
     if (job.attemptsMade + 1 >= attempts) {
       await reportDlqQueue.add(
         "ReportDLQ",
@@ -238,6 +303,7 @@ export async function processGenerateReport(job: Job<GenerateReportJobData>) {
           jobId: job.id,
           errorMessage: (error as Error).message,
           errorStack: (error as Error).stack ?? null,
+          retriable: true,
         },
         { removeOnComplete: true, removeOnFail: false }
       );

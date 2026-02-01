@@ -4,10 +4,11 @@ import {
   generateReportJobName,
   redisConnection,
   reportQueueName,
-  reportQueueScheduler,
 } from "./queue";
 import { processGenerateReport } from "./processor";
 import { startHealthServer } from "./health";
+
+type JobData = { evidenceId?: string };
 
 const worker = new Worker(reportQueueName, processGenerateReport, {
   connection: redisConnection,
@@ -15,11 +16,17 @@ const worker = new Worker(reportQueueName, processGenerateReport, {
 });
 
 worker.on("completed", (job) => {
+  const durationMs =
+    job.finishedOn && job.processedOn
+      ? job.finishedOn - job.processedOn
+      : null;
+
   logger.info(
     withJobContext({
       jobId: job.id,
-      evidenceId: (job.data as any).evidenceId,
-      attempt: job.attemptsMade,
+      evidenceId: (job.data as JobData | undefined)?.evidenceId,
+      attempt: job.attemptsMade + 1,
+      durationMs: durationMs ?? undefined,
       status: "completed",
     }),
     "Job completed"
@@ -28,14 +35,25 @@ worker.on("completed", (job) => {
 
 worker.on("failed", (job, err) => {
   if (!job) return;
+
+  const durationMs =
+    job.finishedOn && job.processedOn
+      ? job.finishedOn - job.processedOn
+      : job.processedOn
+        ? Date.now() - job.processedOn
+        : null;
+
   logger.error(
-    withJobContext({
-      jobId: job.id,
-      evidenceId: (job.data as any).evidenceId,
-      attempt: job.attemptsMade,
-      status: "failed",
-    }),
-    err,
+    {
+      ...withJobContext({
+        jobId: job.id,
+        evidenceId: (job.data as JobData | undefined)?.evidenceId,
+        attempt: job.attemptsMade + 1,
+        durationMs: durationMs ?? undefined,
+        status: "failed",
+      }),
+      err,
+    },
     "Job failed"
   );
 });
@@ -52,7 +70,6 @@ startHealthServer().catch((err) => {
 process.on("SIGINT", async () => {
   logger.info("Shutting down worker");
   await worker.close();
-  await reportQueueScheduler.close();
   await redisConnection.quit();
   process.exit(0);
 });
@@ -60,7 +77,6 @@ process.on("SIGINT", async () => {
 process.on("SIGTERM", async () => {
   logger.info("Shutting down worker");
   await worker.close();
-  await reportQueueScheduler.close();
   await redisConnection.quit();
   process.exit(0);
 });

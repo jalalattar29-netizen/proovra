@@ -1,4 +1,4 @@
-import { Queue, QueueScheduler } from "bullmq";
+import { Queue } from "bullmq";
 import IORedis from "ioredis";
 import { env } from "./config";
 
@@ -26,8 +26,4 @@ export const reportDlqQueue = new Queue(reportDlqQueueName, {
     removeOnComplete: true,
     removeOnFail: false,
   },
-});
-
-export const reportQueueScheduler = new QueueScheduler(reportQueueName, {
-  connection: redisConnection,
 });

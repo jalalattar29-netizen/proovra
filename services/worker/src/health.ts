@@ -1,7 +1,7 @@
 import Fastify from "fastify";
 import { env } from "./config";
 import { logger } from "./logger";
-import { redisConnection, reportQueue } from "./queue";
+import { redisConnection, reportDlqQueue, reportQueue } from "./queue";
 
 export async function startHealthServer() {
   const app = Fastify({ logger: false });
@@ -14,12 +14,14 @@ export async function startHealthServer() {
       "failed",
       "delayed"
     );
+    const dlq = await reportDlqQueue.getJobCounts("waiting", "failed", "delayed");
     const redisStatus = await redisConnection.ping();
     return {
       ok: true,
       worker: "digital-witness-worker",
       queues: {
         report: queues,
+        reportDlq: dlq,
       },
       redis: redisStatus === "PONG" ? "ok" : "degraded",
     };

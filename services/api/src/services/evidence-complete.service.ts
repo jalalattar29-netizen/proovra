@@ -5,6 +5,8 @@ import { sha256HexFromStream } from "../stream-hash";
 import { EvidenceStatus } from "@prisma/client";
 import { enqueueGenerateReportJob } from "../queue/report-queue";
 
+type HttpError = Error & { statusCode: number };
+
 function must(name: string): string {
   const v = process.env[name];
   if (!v) throw new Error(`${name} is not set`);
@@ -38,8 +40,9 @@ export async function completeEvidence(params: {
   });
 
   if (!evidence) {
-    const err = new Error("NOT_FOUND");
-    (err as any).statusCode = 404;
+    const err: HttpError = Object.assign(new Error("NOT_FOUND"), {
+      statusCode: 404,
+    });
     throw err;
   }
 
@@ -71,8 +74,9 @@ export async function completeEvidence(params: {
   }
 
   if (!evidence.storageBucket || !evidence.storageKey) {
-    const err = new Error("EVIDENCE_STORAGE_NOT_SET");
-    (err as any).statusCode = 400;
+    const err: HttpError = Object.assign(new Error("EVIDENCE_STORAGE_NOT_SET"), {
+      statusCode: 400,
+    });
     throw err;
   }
 
@@ -82,9 +86,11 @@ export async function completeEvidence(params: {
     key: evidence.storageKey,
   });
 
-  if (!meta.sizeBytes || meta.sizeBytes <= 0) {
-    const err = new Error("OBJECT_NOT_FOUND");
-    (err as any).statusCode = 404;
+  const sizeBytesNum = meta.sizeBytes;
+  if (!sizeBytesNum || sizeBytesNum <= 0) {
+    const err: HttpError = Object.assign(new Error("OBJECT_NOT_FOUND"), {
+      statusCode: 404,
+    });
     throw err;
   }
 
@@ -94,7 +100,8 @@ export async function completeEvidence(params: {
     key: evidence.storageKey,
   });
 
-  const fileSha256 = await sha256HexFromStream(body as any);
+  // بدون any: نمرره كـ ReadableStream عام
+  const fileSha256 = await sha256HexFromStream(body as unknown as Readable);
 
   // 4) Build fingerprint canonical JSON
   const now = new Date();
@@ -105,7 +112,7 @@ export async function completeEvidence(params: {
     file: {
       bucket: evidence.storageBucket,
       key: evidence.storageKey,
-      sizeBytes: meta.sizeBytes,
+      sizeBytes: sizeBytesNum,
       mimeType: meta.contentType ?? evidence.mimeType ?? null,
       sha256: fileSha256,
       etag: meta.etag ?? null,
@@ -152,7 +159,7 @@ export async function completeEvidence(params: {
         status: EvidenceStatus.SIGNED,
         uploadedAtUtc: now,
         signedAtUtc: now,
-        sizeBytes: BigInt(meta.sizeBytes!),
+        sizeBytes: BigInt(sizeBytesNum),
         mimeType: meta.contentType ?? evidence.mimeType ?? null,
         fileSha256,
         fingerprintCanonicalJson: canonical,
@@ -179,7 +186,10 @@ export async function completeEvidence(params: {
           eventType: "UPLOAD_COMPLETED",
           atUtc: now,
           sequence: ++seq,
-          payload: { sizeBytes: meta.sizeBytes, contentType: meta.contentType ?? null },
+          payload: {
+            sizeBytes: sizeBytesNum,
+            contentType: meta.contentType ?? null,
+          },
         },
         {
           evidenceId: evidence.id,

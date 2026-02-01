@@ -1,5 +1,7 @@
 import PDFDocument from "pdfkit";
 
+type PDFDoc = InstanceType<typeof PDFDocument>;
+
 export type ReportEvidence = {
   id: string;
   status: string;
@@ -34,14 +36,19 @@ export type ReportCustodyEvent = {
   payloadSummary: string;
 };
 
-function addSectionTitle(doc: PDFDocument, title: string) {
+function summarizeText(value: string, maxLength: number) {
+  if (value.length <= maxLength) return value;
+  return `${value.slice(0, Math.max(0, maxLength - 3))}...`;
+}
+
+function addSectionTitle(doc: PDFDoc, title: string) {
   doc.moveDown(0.5);
   doc.fontSize(14).text(title, { underline: true });
   doc.moveDown(0.2);
   doc.fontSize(10);
 }
 
-function addKeyValue(doc: PDFDocument, label: string, value: string | null) {
+function addKeyValue(doc: PDFDoc, label: string, value: string | null) {
   const safe = value ?? "N/A";
   doc.text(`${label}: ${safe}`);
 }
@@ -51,6 +58,7 @@ export async function buildReportPdf(params: {
   custodyEvents: ReportCustodyEvent[];
   version: number;
   generatedAtUtc: string;
+  buildInfo?: string | null;
 }): Promise<Buffer> {
   const doc = new PDFDocument({ autoFirstPage: true, margin: 50 });
   const chunks: Buffer[] = [];
@@ -69,7 +77,11 @@ export async function buildReportPdf(params: {
   addKeyValue(doc, "Captured At (UTC)", params.evidence.capturedAtUtc);
   addKeyValue(doc, "Uploaded At (UTC)", params.evidence.uploadedAtUtc);
   addKeyValue(doc, "Signed At (UTC)", params.evidence.signedAtUtc);
-  addKeyValue(doc, "Report Generated At (UTC)", params.evidence.reportGeneratedAtUtc);
+  addKeyValue(
+    doc,
+    "Report Generated At (UTC)",
+    params.evidence.reportGeneratedAtUtc
+  );
   addKeyValue(doc, "MIME Type", params.evidence.mimeType);
   addKeyValue(doc, "Size Bytes", params.evidence.sizeBytes);
   addKeyValue(doc, "Duration Seconds", params.evidence.durationSec);
@@ -82,10 +94,19 @@ export async function buildReportPdf(params: {
 
   addSectionTitle(doc, "Cryptographic Details");
   addKeyValue(doc, "File SHA-256", params.evidence.fileSha256);
+  addKeyValue(
+    doc,
+    "Fingerprint Canonical JSON (Summary)",
+    summarizeText(params.evidence.fingerprintCanonicalJson, 200)
+  );
   addKeyValue(doc, "Fingerprint Hash", params.evidence.fingerprintHash);
   addKeyValue(doc, "Signature (Base64)", params.evidence.signatureBase64);
   addKeyValue(doc, "Signing Key ID", params.evidence.signingKeyId);
-  addKeyValue(doc, "Signing Key Version", `${params.evidence.signingKeyVersion}`);
+  addKeyValue(
+    doc,
+    "Signing Key Version",
+    `${params.evidence.signingKeyVersion}`
+  );
 
   doc.moveDown(0.3);
   doc.text("Verification Instructions:", { underline: true });
@@ -98,9 +119,7 @@ export async function buildReportPdf(params: {
   doc.text("Sequence | At (UTC) | Event Type | Payload Summary");
   doc.moveDown(0.2);
   for (const ev of params.custodyEvents) {
-    doc.text(
-      `${ev.sequence} | ${ev.atUtc} | ${ev.eventType} | ${ev.payloadSummary}`
-    );
+    doc.text(`${ev.sequence} | ${ev.atUtc} | ${ev.eventType} | ${ev.payloadSummary}`);
   }
 
   doc.addPage();
@@ -116,6 +135,9 @@ export async function buildReportPdf(params: {
   addKeyValue(doc, "Report Version", `${params.version}`);
   addKeyValue(doc, "Generated At (UTC)", params.generatedAtUtc);
   addKeyValue(doc, "System", "Digital Witness");
+  if (params.buildInfo) {
+    addKeyValue(doc, "Build", params.buildInfo);
+  }
 
   doc.end();
 
