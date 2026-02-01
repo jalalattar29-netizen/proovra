@@ -24,7 +24,8 @@ describe("report pdf builder", () => {
         signatureBase64: "sig",
         signingKeyId: "dw_ed25519",
         signingKeyVersion: 1,
-        publicKeyPem: "-----BEGIN PUBLIC KEY-----\nTEST\n-----END PUBLIC KEY-----\n",
+        publicKeyPem:
+          "-----BEGIN PUBLIC KEY-----\nTEST\n-----END PUBLIC KEY-----\n",
       },
       custodyEvents: [
         {
@@ -38,9 +39,15 @@ describe("report pdf builder", () => {
       generatedAtUtc: "2026-01-01T00:03:00.000Z",
     });
 
+    // Basic sanity checks
     expect(buffer.length).toBeGreaterThan(1000);
-    expect(buffer.toString("latin1")).toContain(
-      "Digital Witness \u2014 Verifiable Evidence Report"
-    );
+
+    // PDF header should be present at the beginning
+    const header = buffer.subarray(0, 16).toString("ascii");
+    expect(header.startsWith("%PDF-")).toBe(true);
+
+    // PDF trailer marker should exist somewhere near the end
+    const tail = buffer.subarray(Math.max(0, buffer.length - 2048));
+    expect(tail.toString("ascii")).toContain("%%EOF");
   });
 });

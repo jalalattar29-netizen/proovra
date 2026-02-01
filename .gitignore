@@ -18,3 +18,5 @@ apps/mobile/.dart_tool
 
 .DS_Store
 Thumbs.db
+_tmp_*
+_tmp_report.pdf

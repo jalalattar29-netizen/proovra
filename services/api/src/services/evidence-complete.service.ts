@@ -4,6 +4,7 @@ import { getObjectStream, headObject } from "../storage";
 import { sha256HexFromStream } from "../stream-hash";
 import { EvidenceStatus } from "@prisma/client";
 import { enqueueGenerateReportJob } from "../queue/report-queue";
+import { Readable } from "stream";
 
 type HttpError = Error & { statusCode: number };
 

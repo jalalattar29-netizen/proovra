@@ -25,7 +25,7 @@ export const reportQueue = new Queue(reportQueueName, {
 });
 
 export async function enqueueGenerateReportJob(evidenceId: string) {
-  const jobId = `report:${evidenceId}`;
+  const jobId = `report-${evidenceId}`;
   const existing = await reportQueue.getJob(jobId);
   if (existing) {
     const state = await existing.getState();
