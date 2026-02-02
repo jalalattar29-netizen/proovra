@@ -1,4 +1,4 @@
-# Digital Witness
+# Proovra
 
 ## Local Development
 
@@ -7,16 +7,31 @@
 docker compose -f infra/docker/docker-compose.yml up -d
 ```
 
+Create a `.env` in the repo root with `POSTGRES_USER`, `POSTGRES_PASSWORD`,
+`POSTGRES_DB`, `MINIO_ROOT_USER`, `MINIO_ROOT_PASSWORD`, and the standard
+app env vars from `services/api/.env.example` and `services/worker/.env.example`.
+For local MinIO over HTTP, set `S3_ALLOW_INSECURE=true`.
+Leave `S3_PUBLIC_BASE_URL` empty to force signed downloads.
+
 ### Start full stack (prod-like)
 ```
 docker compose -f infra/docker/docker-compose.full.yml up -d
 ```
 
-### Create MinIO bucket (local)
+Uses the same `.env` in the repo root.
+
+### Production (Docker, external services)
+For Hetzner deployment, use external Neon Postgres, Redis, and Cloudflare R2.
+Create a `.env` in the repo root with production values (see
+`services/api/.env.example` and `services/worker/.env.example`) and run:
 ```
-docker exec dw_minio mc alias set local http://localhost:9000 minio minio_password
-docker exec dw_minio mc mb --ignore-existing local/dw-evidence
-docker exec dw_minio mc anonymous set download local/dw-evidence
+docker compose -f infra/docker/docker-compose.prod.yml up -d --build
+```
+
+### Create MinIO bucket (local only)
+```
+docker compose -f infra/docker/docker-compose.yml exec minio mc alias set local http://localhost:9000 "$MINIO_ROOT_USER" "$MINIO_ROOT_PASSWORD"
+docker compose -f infra/docker/docker-compose.yml exec minio mc mb --ignore-existing local/proovra-prod-assets
 ```
 
 ### Prisma (generate + migrate + seed)
@@ -65,3 +80,11 @@ Invoke-RestMethod -Method Post -Uri "$base/v1/evidence/$($e.id)/complete" -Conte
 Invoke-RestMethod -Method Get -Uri "$base/v1/evidence/$($e.id)/report/latest"
 Invoke-RestMethod -Method Get -Uri "$base/public/verify/$($e.id)"
 ```
+
+### Production notes (Proovra)
+- Domain: `proovra.com`
+- Database: Neon Postgres (Frankfurt)
+- Object storage: Cloudflare R2 (`proovra-prod-assets`)
+- Redis: managed Redis via `REDIS_URL`
+- Use `prisma migrate deploy` in production
+# proovra
