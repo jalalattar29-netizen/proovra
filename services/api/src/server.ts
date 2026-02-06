@@ -1,8 +1,14 @@
 import { randomUUID } from "node:crypto";
 import Fastify from "fastify";
 import cors from "@fastify/cors";
+import cookie from "@fastify/cookie";
 import { prisma } from "./db.js";
 import { evidenceRoutes } from "./routes/evidence.routes.js";
+import { authRoutes } from "./routes/auth.routes.js";
+import { teamsRoutes } from "./routes/teams.routes.js";
+import { billingRoutes } from "./routes/billing.routes.js";
+import { webhooksRoutes } from "./routes/webhooks.routes.js";
+import { casesRoutes } from "./routes/cases.routes.js";
 
 function parseCorsOrigins(): string[] {
   const raw = process.env.CORS_ORIGINS ?? "";
@@ -21,6 +27,7 @@ export async function buildServer() {
   const allowlist = parseCorsOrigins();
   const isProd = process.env.NODE_ENV === "production";
   await app.register(cors, {
+    credentials: true,
     origin: (origin, cb) => {
       if (!origin) return cb(null, true);
       if (allowlist.length === 0) {
@@ -29,6 +36,8 @@ export async function buildServer() {
       return cb(null, allowlist.includes(origin));
     },
   });
+
+  await app.register(cookie);
 
   app.addHook("onRequest", async (req, reply) => {
     reply.header("x-request-id", req.id);
@@ -43,6 +52,11 @@ export async function buildServer() {
     }
   });
 
+  await app.register(authRoutes);
+  await app.register(teamsRoutes);
+  await app.register(billingRoutes);
+  await app.register(webhooksRoutes, { prefix: "/webhooks" });
+  await app.register(casesRoutes);
   await app.register(evidenceRoutes);
 
   return app;

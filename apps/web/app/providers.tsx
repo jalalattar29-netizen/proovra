@@ -22,6 +22,7 @@ type AuthContextValue = {
   ensureGuest: () => Promise<void>;
   setToken: (token: string | null) => void;
   authReady: boolean;
+  hasSession: boolean;
 };
 
 type LocaleContextValue = {
@@ -101,17 +102,14 @@ export function Providers({ children }: { children: React.ReactNode }) {
       }
     };
 
-    return { token, user, ensureGuest, setToken, authReady };
+    const hasSession = Boolean(user || token);
+    return { token, user, ensureGuest, setToken, authReady, hasSession };
   }, [token, user, authReady]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
     const stored = localStorage.getItem("proovra-token");
-    if (!stored) {
-      setAuthReady(true);
-      return;
-    }
-    setTokenState(stored);
+    if (stored) setTokenState(stored);
     void (async () => {
       try {
         const me = await apiFetch("/v1/auth/me", { method: "GET" });

@@ -6,6 +6,7 @@ import { useEffect } from "react";
 import { TopBar } from "../../components/ui";
 import { translations } from "../../lib/i18n";
 import { useAuth, useLocale } from "../providers";
+import { apiFetch } from "../../lib/api";
 
 type NavKey = keyof (typeof translations)["en"];
 const NAV_ITEMS: Array<{ href: string; label: NavKey }> = [
@@ -17,7 +18,7 @@ const NAV_ITEMS: Array<{ href: string; label: NavKey }> = [
 ];
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
-  const { token, setToken, authReady } = useAuth();
+  const { setToken, authReady, hasSession } = useAuth();
   const { t } = useLocale();
   const router = useRouter();
   const pathname = usePathname();
@@ -26,8 +27,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (!authReady) return;
-    if (!token) router.replace("/login");
-  }, [authReady, token, router]);
+    if (!hasSession) router.replace("/login");
+  }, [authReady, hasSession, router]);
 
   if (!authReady) {
     return (
@@ -37,7 +38,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     );
   }
 
-  if (!token) {
+  if (!hasSession) {
     return null;
   }
 
@@ -47,7 +48,19 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         <TopBar
           title={t("brand")}
           right={
-            <button className="btn secondary" type="button" onClick={() => setToken(null)}>
+            <button
+              className="btn secondary"
+              type="button"
+              onClick={async () => {
+                try {
+                  await apiFetch("/v1/auth/logout", { method: "POST" });
+                } catch {
+                  // ignore
+                } finally {
+                  setToken(null);
+                }
+              }}
+            >
               {t("logout")}
             </button>
           }

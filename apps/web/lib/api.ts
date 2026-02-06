@@ -6,10 +6,17 @@ export async function apiFetch(path: string, init: RequestInit = {}) {
   if (!headers.has("content-type") && init.body) {
     headers.set("content-type", "application/json");
   }
+  if (typeof window !== "undefined") {
+    headers.set("x-web-client", "1");
+  }
   if (token) {
     headers.set("authorization", `Bearer ${token}`);
   }
-  const res = await fetch(`${API_BASE}${path}`, { ...init, headers });
+  const res = await fetch(`${API_BASE}${path}`, {
+    ...init,
+    headers,
+    credentials: "include"
+  });
   if (!res.ok) {
     const text = await res.text();
     throw new Error(text || "API error");
