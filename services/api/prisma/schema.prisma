@@ -28,6 +28,46 @@ enum CustodyEventType {
   REPORT_GENERATED
   EVIDENCE_VIEWED
   EVIDENCE_DOWNLOADED
+  EVIDENCE_CLAIMED
+}
+
+enum AuthProvider {
+  GOOGLE
+  APPLE
+  GUEST
+}
+
+enum TeamRole {
+  OWNER
+  ADMIN
+  MEMBER
+  VIEWER
+}
+
+enum PlanType {
+  FREE
+  PAYG
+  PRO
+  TEAM
+}
+
+enum PaymentProvider {
+  STRIPE
+  PAYPAL
+}
+
+enum PaymentStatus {
+  PENDING
+  SUCCEEDED
+  FAILED
+  REFUNDED
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  PAST_DUE
+  CANCELED
+  TRIALING
 }
 
 model Evidence {
@@ -37,6 +77,9 @@ model Evidence {
 
   ownerUserId     String  @map("owner_user_id")
   organizationId  String? @map("organization_id") @db.Uuid
+  caseId          String? @map("case_id") @db.Uuid
+  teamId          String? @map("team_id") @db.Uuid
+  guestIdentityId String? @map("guest_identity_id") @db.Uuid
 
   mimeType     String? @map("mime_type") @db.VarChar(128)
   sizeBytes    BigInt? @map("size_bytes")
@@ -71,15 +114,31 @@ model Evidence {
 
   custodyEvents CustodyEvent[]
   reports       Report[]
+  guestIdentity GuestIdentity? @relation(fields: [guestIdentityId], references: [id], onDelete: SetNull)
 
   @@index([ownerUserId, createdAt(sort: Desc)])
   @@index([ownerUserId, status])
   @@index([organizationId, createdAt(sort: Desc)])
+  @@index([teamId])
+  @@index([guestIdentityId])
   @@index([fileSha256])
   @@index([fingerprintHash])
   @@index([status])
   @@index([deletedAt])
   @@map("evidence")
+}
+
+model Case {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name       String   @db.VarChar(120)
+  ownerUserId String  @map("owner_user_id")
+  teamId     String?  @map("team_id") @db.Uuid
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt  DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@index([ownerUserId])
+  @@index([teamId])
+  @@map("cases")
 }
 
 model CustodyEvent {
@@ -136,4 +195,140 @@ model SigningKey {
   @@unique([keyId, version])
   @@index([revokedAt])
   @@map("signing_keys")
+}
+
+model User {
+  id              String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email           String?      @db.VarChar(320)
+  displayName     String?      @map("display_name") @db.VarChar(120)
+  provider        AuthProvider
+  providerUserId  String       @map("provider_user_id") @db.VarChar(128)
+  createdAt       DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime     @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  teamMembers     TeamMember[]
+  entitlements    Entitlement[]
+  subscriptions   Subscription[]
+  payments        Payment[]
+  guestIdentity   GuestIdentity?
+  claimedGuestIdentities GuestIdentity[] @relation("GuestClaimedBy")
+
+  @@unique([provider, providerUserId])
+  @@index([email])
+  @@map("users")
+}
+
+model Team {
+  id          String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name        String       @db.VarChar(120)
+  ownerUserId String       @map("owner_user_id")
+  createdAt   DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime     @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  members     TeamMember[]
+  invites     TeamInvite[]
+
+  @@index([ownerUserId])
+  @@map("teams")
+}
+
+model TeamMember {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  teamId    String   @map("team_id") @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  role      TeamRole
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  team Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([teamId, userId])
+  @@index([userId])
+  @@map("team_members")
+}
+
+model TeamInvite {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  teamId         String   @map("team_id") @db.Uuid
+  email          String   @db.VarChar(320)
+  role           TeamRole
+  token          String   @db.VarChar(128)
+  invitedByUserId String  @map("invited_by_user_id")
+  expiresAt      DateTime @map("expires_at") @db.Timestamptz(6)
+  acceptedAt     DateTime? @map("accepted_at") @db.Timestamptz(6)
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  team Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
+
+  @@unique([token])
+  @@index([teamId])
+  @@index([email])
+  @@map("team_invites")
+}
+
+model GuestIdentity {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId          String   @map("user_id") @db.Uuid
+  claimedByUserId String?  @map("claimed_by_user_id") @db.Uuid
+  claimedAt       DateTime? @map("claimed_at") @db.Timestamptz(6)
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  user            User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  claimedBy       User?  @relation("GuestClaimedBy", fields: [claimedByUserId], references: [id], onDelete: SetNull)
+
+  @@unique([userId])
+  @@index([claimedByUserId])
+  @@map("guest_identities")
+}
+
+model Entitlement {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  plan      PlanType
+  credits   Int      @default(0)
+  teamSeats Int      @default(0) @map("team_seats")
+  active    Boolean  @default(true)
+  validUntil DateTime? @map("valid_until") @db.Timestamptz(6)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("entitlements")
+}
+
+model Subscription {
+  id             String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId         String             @map("user_id") @db.Uuid
+  provider       PaymentProvider
+  providerSubId  String             @map("provider_sub_id") @db.VarChar(128)
+  status         SubscriptionStatus
+  plan           PlanType
+  currentPeriodEnd DateTime?        @map("current_period_end") @db.Timestamptz(6)
+  createdAt      DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime           @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerSubId])
+  @@index([userId])
+  @@map("subscriptions")
+}
+
+model Payment {
+  id            String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId        String         @map("user_id") @db.Uuid
+  provider      PaymentProvider
+  providerPaymentId String     @map("provider_payment_id") @db.VarChar(128)
+  amountCents   Int            @map("amount_cents")
+  currency      String         @db.VarChar(8)
+  status        PaymentStatus
+  createdAt     DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerPaymentId])
+  @@index([userId])
+  @@map("payments")
 }

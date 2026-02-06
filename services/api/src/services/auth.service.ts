@@ -210,6 +210,16 @@ export async function createGuestProfile(): Promise<AuthProfile> {
   };
 }
 
+export async function ensureGuestIdentity(userId: string) {
+  const existing = await prisma.guestIdentity.findUnique({
+    where: { userId }
+  });
+  if (existing) return existing;
+  return prisma.guestIdentity.create({
+    data: { userId }
+  });
+}
+
 export async function upsertUser(profile: AuthProfile) {
   return upsertUserWithEmailLink(profile);
 }

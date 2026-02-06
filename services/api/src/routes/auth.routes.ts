@@ -3,6 +3,7 @@ import { z } from "zod";
 import {
   createGuestProfile,
   exchangeAppleCodeForIdToken,
+  ensureGuestIdentity,
   upsertUser,
   upsertUserWithEmailLink,
   verifyAppleIdToken,
@@ -41,6 +42,7 @@ export async function authRoutes(app: FastifyInstance) {
   app.post("/v1/auth/guest", async (req, reply) => {
     const profile = await createGuestProfile();
     const user = await upsertUser(profile);
+    await ensureGuestIdentity(user.id);
     const token = signJwt(
       {
         sub: user.id,

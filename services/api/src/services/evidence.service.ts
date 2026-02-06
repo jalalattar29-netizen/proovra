@@ -1,6 +1,7 @@
 import { prisma } from "../db.js";
 import { presignPutObject } from "../storage.js";
 import * as prismaPkg from "@prisma/client";
+import { ensureGuestIdentity } from "./auth.service.js";
 
 function must(name: string): string {
   const v = process.env[name];
@@ -15,6 +16,36 @@ export async function createEvidence(params: {
   type: prismaPkg.EvidenceType;
   mimeType?: string;
 }) {
+  const owner = await prisma.user.findUnique({
+    where: { id: params.ownerUserId },
+    select: { provider: true }
+  });
+  const guestIdentity =
+    owner?.provider === prismaPkg.AuthProvider.GUEST
+      ? await ensureGuestIdentity(params.ownerUserId)
+      : null;
+
+  const entitlement = await prisma.entitlement.findFirst({
+    where: { userId: params.ownerUserId, active: true }
+  });
+  if (entitlement?.plan === prismaPkg.PlanType.PAYG && entitlement.credits <= 0) {
+    throw new Error("PAYG_CREDITS_REQUIRED");
+  }
+  if (entitlement?.plan === prismaPkg.PlanType.FREE) {
+    const limit = Number.parseInt(process.env.FREE_EVIDENCE_LIMIT ?? "3", 10);
+    const monthStart = new Date();
+    monthStart.setUTCDate(1);
+    monthStart.setUTCHours(0, 0, 0, 0);
+    const count = await prisma.evidence.count({
+      where: {
+        ownerUserId: params.ownerUserId,
+        createdAt: { gte: monthStart }
+      }
+    });
+    if (count >= limit) {
+      throw new Error("FREE_LIMIT_REACHED");
+    }
+  }
   const bucket = must("S3_BUCKET");
   const publicBase = process.env.S3_PUBLIC_BASE_URL ?? null;
 
@@ -26,6 +57,7 @@ export async function createEvidence(params: {
       status: EvidenceStatus.CREATED,
       mimeType: params.mimeType ?? null,
       capturedAtUtc: new Date(),
+      guestIdentityId: guestIdentity?.id ?? null
     },
     select: {
       id: true,

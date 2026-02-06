@@ -1,15 +1,22 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { z } from "zod";
-import { getDevUserId } from "../auth.js";
+import { requireAuth } from "../middleware/auth.js";
+import { getAuthUserId } from "../auth.js";
 import { createEvidence } from "../services/evidence.service.js";
 import { completeEvidence } from "../services/evidence-complete.service.js";
 import * as prismaPkg from "@prisma/client";
 import { prisma } from "../db.js";
 import { presignGetObject } from "../storage.js";
+import { verifyJwt } from "../services/jwt.js";
 
 const CreateEvidenceBody = z.object({
   type: z.nativeEnum(prismaPkg.EvidenceType),
   mimeType: z.string().min(1).max(128).optional(),
+});
+
+const ClaimBody = z.object({
+  guestToken: z.string().min(1).optional(),
+  evidenceIds: z.array(z.string().uuid()).optional()
 });
 
 type ParamsId = { id: string };
@@ -57,32 +64,140 @@ export async function evidenceRoutes(app: FastifyInstance) {
     return `${base.replace(/\/+$/, "")}/${key}`;
   }
 
-  app.post("/v1/evidence", async (req, reply) => {
+  app.post("/v1/evidence", { preHandler: requireAuth }, async (req, reply) => {
     const body = CreateEvidenceBody.parse(req.body);
-    const ownerUserId = getDevUserId(req);
+    const ownerUserId = getAuthUserId(req);
+    try {
+      const result = await createEvidence({
+        ownerUserId,
+        type: body.type,
+        mimeType: body.mimeType
+      });
+      return reply.code(201).send(result);
+    } catch (err) {
+      if (err instanceof Error && err.message === "PAYG_CREDITS_REQUIRED") {
+        return reply.code(402).send({ message: "Pay-per-evidence credits required" });
+      }
+      if (err instanceof Error && err.message === "FREE_LIMIT_REACHED") {
+        return reply.code(402).send({ message: "Free plan limit reached" });
+      }
+      throw err;
+    }
+  });
 
-    const result = await createEvidence({
-      ownerUserId,
-      type: body.type,
-      mimeType: body.mimeType,
+  app.post("/v1/evidence/claim", { preHandler: requireAuth }, async (req, reply) => {
+    const body = ClaimBody.parse(req.body);
+    if (!body.guestToken) {
+      return reply.code(400).send({ message: "guest_token_required" });
+    }
+    const secret = process.env.AUTH_JWT_SECRET;
+    if (!secret) {
+      return reply.code(500).send({ message: "AUTH_JWT_SECRET is not set" });
+    }
+    const payload = verifyJwt(body.guestToken, secret);
+    if (payload.provider !== "GUEST") {
+      return reply.code(400).send({ message: "invalid_guest_token" });
+    }
+    const guestUserId = payload.sub;
+    const userId = getAuthUserId(req);
+
+    const where = {
+      ownerUserId: guestUserId,
+      deletedAt: null,
+      ...(body.evidenceIds?.length ? { id: { in: body.evidenceIds } } : {})
+    };
+
+    const evidence = await prisma.evidence.findMany({
+      where,
+      select: { id: true }
     });
 
-    return reply.code(201).send(result);
+    if (evidence.length === 0) {
+      return reply.code(200).send({ claimed: 0 });
+    }
+
+    await prisma.evidence.updateMany({
+      where,
+      data: { ownerUserId: userId }
+    });
+
+    await prisma.guestIdentity.updateMany({
+      where: { userId: guestUserId },
+      data: { claimedByUserId: userId, claimedAt: new Date() }
+    });
+
+    for (const item of evidence) {
+      const last = await prisma.custodyEvent.findFirst({
+        where: { evidenceId: item.id },
+        orderBy: { sequence: "desc" },
+        select: { sequence: true }
+      });
+      const nextSeq = (last?.sequence ?? 0) + 1;
+      await prisma.custodyEvent.create({
+        data: {
+          evidenceId: item.id,
+          eventType: "EVIDENCE_CLAIMED",
+          atUtc: new Date(),
+          sequence: nextSeq,
+          payload: { fromUserId: guestUserId, toUserId: userId }
+        }
+      });
+    }
+
+    return reply.code(200).send({ claimed: evidence.length });
   });
 
-  app.post("/v1/evidence/:id/complete", async (req: FastifyRequest, reply) => {
-    const ownerUserId = getDevUserId(req);
+  app.get("/v1/evidence", { preHandler: requireAuth }, async (req, reply) => {
+    const ownerUserId = getAuthUserId(req);
+    const items = await prisma.evidence.findMany({
+      where: { ownerUserId, deletedAt: null },
+      orderBy: { createdAt: "desc" },
+      take: 20,
+      select: {
+        id: true,
+        type: true,
+        status: true,
+        createdAt: true
+      }
+    });
+    return reply.code(200).send({ items });
+  });
+
+  app.get("/v1/evidence/:id", { preHandler: requireAuth }, async (req, reply) => {
     const id = z.string().uuid().parse((req.params as ParamsId).id);
-
-    const result = await completeEvidence({ evidenceId: id, ownerUserId });
-
-    return reply.code(200).send(result);
+    const ownerUserId = getAuthUserId(req);
+    const evidence = await prisma.evidence.findFirst({
+      where: { id, ownerUserId, deletedAt: null }
+    });
+    if (!evidence) return reply.code(404).send({ message: "Evidence not found" });
+    return reply.code(200).send({ evidence });
   });
+
+  app.post(
+    "/v1/evidence/:id/complete",
+    { preHandler: requireAuth },
+    async (req: FastifyRequest, reply) => {
+      const ownerUserId = getAuthUserId(req);
+      const id = z.string().uuid().parse((req.params as ParamsId).id);
+      try {
+        const result = await completeEvidence({ evidenceId: id, ownerUserId });
+        return reply.code(200).send(result);
+      } catch (err) {
+        if (err instanceof Error && err.message === "PAYG_CREDITS_REQUIRED") {
+          return reply
+            .code(402)
+            .send({ message: "Pay-per-evidence credits required" });
+        }
+        throw err;
+      }
+    }
+  );
 
   app.get(
     "/v1/evidence/:id/report/latest",
+    { preHandler: requireAuth },
     async (req: FastifyRequest, reply) => {
-      const ownerUserId = getDevUserId(req);
+      const ownerUserId = getAuthUserId(req);
       const id = z.string().uuid().parse((req.params as ParamsId).id);
 
       const evidence = await prisma.evidence.findFirst({
@@ -209,6 +324,56 @@ export async function evidenceRoutes(app: FastifyInstance) {
         eventType: ev.eventType,
         payload: ev.payload,
       })),
+    });
+  });
+
+  app.get("/public/share/:id", async (req: FastifyRequest, reply) => {
+    const id = z.string().uuid().parse((req.params as ParamsId).id);
+    const evidence = await prisma.evidence.findFirst({
+      where: { id, deletedAt: null },
+      select: {
+        id: true,
+        status: true,
+        type: true,
+        createdAt: true
+      }
+    });
+    if (!evidence) {
+      return reply.code(404).send({ message: "Evidence not found" });
+    }
+    const latest = await prisma.report.findFirst({
+      where: { evidenceId: id },
+      orderBy: { version: "desc" },
+      select: {
+        version: true,
+        storageBucket: true,
+        storageKey: true,
+        generatedAtUtc: true
+      }
+    });
+    const publicUrl = latest ? buildPublicUrl(latest.storageKey) : null;
+    const url =
+      latest && !publicUrl
+        ? await presignGetObject({
+            bucket: latest.storageBucket,
+            key: latest.storageKey,
+            expiresInSeconds: 600
+          })
+        : publicUrl;
+
+    return reply.code(200).send({
+      evidenceId: evidence.id,
+      status: evidence.status,
+      type: evidence.type,
+      createdAtUtc: evidence.createdAt.toISOString(),
+      report: latest
+        ? {
+            version: latest.version,
+            url,
+            publicUrl,
+            generatedAtUtc: latest.generatedAtUtc.toISOString()
+          }
+        : null
     });
   });
 }
