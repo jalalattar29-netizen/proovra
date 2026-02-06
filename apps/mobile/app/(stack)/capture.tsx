@@ -4,6 +4,7 @@ import { Badge, ListRow, Tabs } from "../../components/ui";
 import { useLocale } from "../../src/locale-context";
 import { useState } from "react";
 import { apiFetch } from "../../src/api";
+import { enqueueUpload, processQueue } from "../../src/upload-queue";
 import * as ImagePicker from "expo-image-picker";
 import * as DocumentPicker from "expo-document-picker";
 import * as FileSystem from "expo-file-system";
@@ -65,22 +66,14 @@ export default function CaptureScreen() {
     setBusy(true);
     setError(null);
     try {
-      const data = await apiFetch("/v1/evidence", {
-        method: "POST",
-        body: JSON.stringify({ type: activeType, mimeType: asset.mimeType })
+      enqueueUpload({
+        id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+        type: activeType,
+        uri: asset.uri,
+        mimeType: asset.mimeType
       });
-
-      await FileSystem.uploadAsync(data.upload.putUrl, asset.uri, {
-        httpMethod: "PUT",
-        headers: { "content-type": asset.mimeType },
-        uploadType: FileSystem.FileSystemUploadType.BINARY_CONTENT
-      });
-
-      await apiFetch(`/v1/evidence/${data.id}/complete`, {
-        method: "POST",
-        body: "{}"
-      });
-      router.push(`/evidence/${data.id}`);
+      await processQueue();
+      router.push("/(tabs)");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Upload failed");
     } finally {
