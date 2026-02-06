@@ -6,6 +6,10 @@ import { Button, TopBar } from "../components/ui";
 
 export default function HomePage() {
   const { t, locale, setLocale } = useLocale();
+  const appBase = process.env.NEXT_PUBLIC_APP_BASE ?? "";
+  const appHome = appBase ? `${appBase}/home` : "/home";
+  const appLogin = appBase ? `${appBase}/login` : "/login";
+  const appRegister = appBase ? `${appBase}/register` : "/register";
 
   return (
     <div className="page landing-page">
@@ -19,9 +23,9 @@ export default function HomePage() {
                 <Link href="#features">{t("navFeatures")}</Link>
                 <Link href="/verify/demo">{t("navVerify")}</Link>
                 <Link href="#about">{t("navAbout")}</Link>
-                <Link href="/home">{t("navDashboard")}</Link>
-                <Link href="/login">{t("login")}</Link>
-                <Link href="/register">{t("register")}</Link>
+                <a href={appHome}>{t("navDashboard")}</a>
+                <a href={appLogin}>{t("login")}</a>
+                <a href={appRegister}>{t("register")}</a>
                 {locale !== "en" && (
                   <button type="button" className="lang-button" onClick={() => setLocale("en")}>
                     EN
@@ -35,9 +39,9 @@ export default function HomePage() {
           <div>
             <h1 className="hero-title">{t("headline")}</h1>
             <p className="hero-subtitle">{t("bullets")}</p>
-            <Link href="/home">
+            <a href={appHome}>
               <Button>{t("ctaStart")}</Button>
-            </Link>
+            </a>
             <div className="hero-bullets">
               <span>Photos</span>
               <span>Videos</span>
@@ -143,6 +147,7 @@ export default function HomePage() {
           <Link href="/terms">Terms</Link>
           <Link href="/legal/cookies">Cookies</Link>
           <Link href="/legal/security">Security</Link>
+          <Link href="/support">Support</Link>
         </div>
       </footer>
     </div>

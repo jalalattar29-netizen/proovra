@@ -37,6 +37,9 @@ async function startPayPal(plan: PlanType) {
 
 export default function PricingPage() {
   const { t } = useLocale();
+  const appBase = process.env.NEXT_PUBLIC_APP_BASE ?? "";
+  const appLogin = appBase ? `${appBase}/login` : "/login";
+  const appRegister = appBase ? `${appBase}/register` : "/register";
   return (
     <div className="page">
       <div className="container">
@@ -45,8 +48,8 @@ export default function PricingPage() {
           right={
             <div className="nav-links">
               <Link href="/">{t("home")}</Link>
-              <Link href="/login">{t("login")}</Link>
-              <Link href="/register">{t("register")}</Link>
+              <a href={appLogin}>{t("login")}</a>
+              <a href={appRegister}>{t("register")}</a>
             </div>
           }
         />
