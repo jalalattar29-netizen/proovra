@@ -114,6 +114,7 @@ model Evidence {
 
   custodyEvents CustodyEvent[]
   reports       Report[]
+  parts         EvidencePart[]
   guestIdentity GuestIdentity? @relation(fields: [guestIdentityId], references: [id], onDelete: SetNull)
 
   @@index([ownerUserId, createdAt(sort: Desc)])
@@ -126,6 +127,25 @@ model Evidence {
   @@index([status])
   @@index([deletedAt])
   @@map("evidence")
+}
+
+model EvidencePart {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  evidenceId    String   @map("evidence_id") @db.Uuid
+  partIndex     Int      @map("part_index")
+  storageBucket String   @map("storage_bucket") @db.VarChar(255)
+  storageKey    String   @map("storage_key") @db.VarChar(512)
+  sizeBytes     BigInt?  @map("size_bytes")
+  mimeType      String?  @map("mime_type") @db.VarChar(128)
+  sha256        String?  @map("sha256") @db.VarChar(64)
+  durationMs    Int?     @map("duration_ms")
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  evidence Evidence @relation(fields: [evidenceId], references: [id], onDelete: Cascade)
+
+  @@unique([evidenceId, partIndex])
+  @@index([evidenceId])
+  @@map("evidence_parts")
 }
 
 model Case {

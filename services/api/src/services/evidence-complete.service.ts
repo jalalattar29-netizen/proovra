@@ -80,35 +80,98 @@ export async function completeEvidence(params: {
     };
   }
 
-  if (!evidence.storageBucket || !evidence.storageKey) {
+  const parts = await prisma.evidencePart.findMany({
+    where: { evidenceId: evidence.id },
+    orderBy: { partIndex: "asc" }
+  });
+  if (parts.length === 0 && (!evidence.storageBucket || !evidence.storageKey)) {
     const err: HttpError = Object.assign(new Error("EVIDENCE_STORAGE_NOT_SET"), {
       statusCode: 400,
     });
     throw err;
   }
 
-  // 2) Verify object exists + get size/content-type
-  const meta = await headObject({
-    bucket: evidence.storageBucket,
-    key: evidence.storageKey,
+  const entitlement = await prisma.entitlement.findFirst({
+    where: { userId: params.ownerUserId, active: true }
   });
-
-  const sizeBytesNum = meta.sizeBytes;
-  if (!sizeBytesNum || sizeBytesNum <= 0) {
-    const err: HttpError = Object.assign(new Error("OBJECT_NOT_FOUND"), {
-      statusCode: 404,
+  if (entitlement?.plan === prismaPkg.PlanType.PAYG && entitlement.credits <= 0) {
+    const err: HttpError = Object.assign(new Error("PAYG_CREDITS_REQUIRED"), {
+      statusCode: 402
     });
     throw err;
   }
 
-  // 3) Hash file stream (SHA-256)
-  const body = await getObjectStream({
-    bucket: evidence.storageBucket,
-    key: evidence.storageKey,
-  });
+  // 2) Verify object(s) + hash
+  let sizeBytesNum = 0;
+  let fileSha256 = "";
+  let primaryBucket = evidence.storageBucket ?? null;
+  let primaryKey = evidence.storageKey ?? null;
+  let primaryMimeType = evidence.mimeType ?? null;
 
-  // بدون any: نمرره كـ ReadableStream عام
-  const fileSha256 = await sha256HexFromStream(body as unknown as Readable);
+  if (parts.length > 0) {
+    const updatedParts = [];
+    for (const part of parts) {
+      const meta = await headObject({
+        bucket: part.storageBucket,
+        key: part.storageKey
+      });
+      const size = meta.sizeBytes;
+      if (!size || size <= 0) {
+        const err: HttpError = Object.assign(new Error("OBJECT_NOT_FOUND"), {
+          statusCode: 404,
+        });
+        throw err;
+      }
+      const body = await getObjectStream({
+        bucket: part.storageBucket,
+        key: part.storageKey
+      });
+      const sha256 = await sha256HexFromStream(body as unknown as Readable);
+      sizeBytesNum += size;
+      updatedParts.push({
+        id: part.id,
+        sizeBytes: BigInt(size),
+        sha256,
+        mimeType: meta.contentType ?? part.mimeType ?? null
+      });
+      if (!primaryBucket) primaryBucket = part.storageBucket;
+      if (!primaryKey) primaryKey = part.storageKey;
+      if (!primaryMimeType) primaryMimeType = meta.contentType ?? part.mimeType ?? null;
+    }
+    const combined = updatedParts.map((p) => p.sha256).join("|");
+    fileSha256 = sha256Hex(combined);
+    await prisma.$transaction(
+      updatedParts.map((part) =>
+        prisma.evidencePart.update({
+          where: { id: part.id },
+          data: {
+            sizeBytes: part.sizeBytes,
+            sha256: part.sha256,
+            mimeType: part.mimeType
+          }
+        })
+      )
+    );
+  } else {
+    const meta = await headObject({
+      bucket: evidence.storageBucket!,
+      key: evidence.storageKey!,
+    });
+    const size = meta.sizeBytes;
+    if (!size || size <= 0) {
+      const err: HttpError = Object.assign(new Error("OBJECT_NOT_FOUND"), {
+        statusCode: 404,
+      });
+      throw err;
+    }
+    sizeBytesNum = size;
+    primaryMimeType = meta.contentType ?? evidence.mimeType ?? null;
+    const body = await getObjectStream({
+      bucket: evidence.storageBucket!,
+      key: evidence.storageKey!,
+    });
+    fileSha256 = await sha256HexFromStream(body as unknown as Readable);
+  }
 
   // 4) Build fingerprint canonical JSON
   const now = new Date();
@@ -116,14 +179,30 @@ export async function completeEvidence(params: {
     v: 1,
     evidenceId: evidence.id,
     type: evidence.type,
-    file: {
-      bucket: evidence.storageBucket,
-      key: evidence.storageKey,
-      sizeBytes: sizeBytesNum,
-      mimeType: meta.contentType ?? evidence.mimeType ?? null,
-      sha256: fileSha256,
-      etag: meta.etag ?? null,
-    },
+    file: parts.length
+      ? {
+          multipart: true,
+          parts: await prisma.evidencePart.findMany({
+            where: { evidenceId: evidence.id },
+            orderBy: { partIndex: "asc" },
+            select: {
+              partIndex: true,
+              storageBucket: true,
+              storageKey: true,
+              sizeBytes: true,
+              mimeType: true,
+              sha256: true
+            }
+          })
+        }
+      : {
+          bucket: evidence.storageBucket,
+          key: evidence.storageKey,
+          sizeBytes: sizeBytesNum,
+          mimeType: primaryMimeType,
+          sha256: fileSha256,
+          etag: null,
+        },
     capturedAtUtc: asIso(evidence.capturedAtUtc),
     deviceTimeIso: evidence.deviceTimeIso ?? null,
     gps: {
@@ -160,6 +239,13 @@ export async function completeEvidence(params: {
 
   // 7) Transaction: update evidence + append custody events
   const updated = await prisma.$transaction(async (tx) => {
+    if (entitlement?.plan === prismaPkg.PlanType.PAYG) {
+      await tx.entitlement.updateMany({
+        where: { userId: params.ownerUserId, active: true },
+        data: { credits: { decrement: 1 } }
+      });
+    }
+
     const ev = await tx.evidence.update({
       where: { id: evidence.id },
       data: {
@@ -167,13 +253,15 @@ export async function completeEvidence(params: {
         uploadedAtUtc: now,
         signedAtUtc: now,
         sizeBytes: BigInt(sizeBytesNum),
-        mimeType: meta.contentType ?? evidence.mimeType ?? null,
+        mimeType: primaryMimeType,
         fileSha256,
         fingerprintCanonicalJson: canonical,
         fingerprintHash,
         signatureBase64,
         signingKeyId,
         signingKeyVersion,
+        storageBucket: primaryBucket ?? evidence.storageBucket,
+        storageKey: primaryKey ?? evidence.storageKey
       },
       select: {
         id: true,

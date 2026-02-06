@@ -6,6 +6,7 @@ import { env } from "./config.js";
 import { logger, withJobContext } from "./logger.js";
 import { getObjectStream, headObject, putObjectBuffer } from "./storage.js";
 import { sha256HexFromStream } from "./stream-hash.js";
+import { createHash } from "node:crypto";
 import { buildReportPdf } from "./pdf/report.js";
 import {
   generateReportJobName,
@@ -53,6 +54,15 @@ function summarizePayload(payload: unknown): string {
   }
 }
 
+function sha256HexFromStrings(parts: string[]) {
+  const hash = createHash("sha256");
+  for (const part of parts) {
+    hash.update(part);
+    hash.update("|");
+  }
+  return hash.digest("hex");
+}
+
 function createWorkerError(code: string, retriable: boolean): WorkerError {
   const err = new Error(code) as WorkerError;
   err.code = code;
@@ -92,7 +102,11 @@ export async function processGenerateReport(job: Job<GenerateReportJobData>) {
     if (evidence.status !== EvidenceStatus.SIGNED) {
       throw createWorkerError(`EVIDENCE_NOT_SIGNED:${evidence.status}`, false);
     }
-    if (!evidence.storageBucket || !evidence.storageKey) {
+    const parts = await prisma.evidencePart.findMany({
+      where: { evidenceId: evidence.id },
+      orderBy: { partIndex: "asc" }
+    });
+    if (parts.length === 0 && (!evidence.storageBucket || !evidence.storageKey)) {
       throw createWorkerError("EVIDENCE_STORAGE_NOT_SET", false);
     }
     if (!evidence.fileSha256) {
@@ -114,22 +128,49 @@ export async function processGenerateReport(job: Job<GenerateReportJobData>) {
       throw createWorkerError("EVIDENCE_SIGNING_KEY_MISSING", false);
     }
 
-    const head = await headObject({
-      bucket: evidence.storageBucket,
-      key: evidence.storageKey,
-    });
-    if (!head.sizeBytes || head.sizeBytes <= 0) {
-      throw createWorkerError("EVIDENCE_OBJECT_NOT_FOUND", true);
-    }
+    let storageBucket = evidence.storageBucket ?? null;
+    let storageKey = evidence.storageKey ?? null;
+    let fileSha256 = "";
 
-    const body = await getObjectStream({
-      bucket: evidence.storageBucket,
-      key: evidence.storageKey,
-    });
-
-    const fileSha256 = await sha256HexFromStream(body as unknown as Readable);
-    if (fileSha256 !== evidence.fileSha256) {
-      throw createWorkerError("EVIDENCE_FILE_SHA256_MISMATCH", false);
+    if (parts.length > 0) {
+      const hashes: string[] = [];
+      for (const part of parts) {
+        const head = await headObject({
+          bucket: part.storageBucket,
+          key: part.storageKey
+        });
+        if (!head.sizeBytes || head.sizeBytes <= 0) {
+          throw createWorkerError("EVIDENCE_OBJECT_NOT_FOUND", true);
+        }
+        const body = await getObjectStream({
+          bucket: part.storageBucket,
+          key: part.storageKey
+        });
+        const partSha = await sha256HexFromStream(body as unknown as Readable);
+        hashes.push(partSha);
+      }
+      fileSha256 = sha256HexFromStrings(hashes);
+      if (fileSha256 !== evidence.fileSha256) {
+        throw createWorkerError("EVIDENCE_FILE_SHA256_MISMATCH", false);
+      }
+      storageBucket = storageBucket ?? parts[0]?.storageBucket ?? null;
+      storageKey = storageKey ?? parts[0]?.storageKey ?? null;
+    } else {
+      const head = await headObject({
+        bucket: evidence.storageBucket!,
+        key: evidence.storageKey!,
+      });
+      if (!head.sizeBytes || head.sizeBytes <= 0) {
+        throw createWorkerError("EVIDENCE_OBJECT_NOT_FOUND", true);
+      }
+      const body = await getObjectStream({
+        bucket: evidence.storageBucket!,
+        key: evidence.storageKey!,
+      });
+      fileSha256 = await sha256HexFromStream(body as unknown as Readable);
+      if (fileSha256 !== evidence.fileSha256) {
+        throw createWorkerError("EVIDENCE_FILE_SHA256_MISMATCH", false);
+      }
     }
 
     const custodyEvents = await prisma.custodyEvent.findMany({
@@ -165,7 +206,7 @@ export async function processGenerateReport(job: Job<GenerateReportJobData>) {
 
     const now = new Date();
     const reportKey = `reports/${evidence.id}/v${version}.pdf`;
-    const publicUrl = buildPublicUrl(evidence.storageKey);
+    const publicUrl = storageKey ? buildPublicUrl(storageKey) : null;
 
     const reportPdf = await buildReportPdf({
       evidence: {
@@ -178,8 +219,8 @@ export async function processGenerateReport(job: Job<GenerateReportJobData>) {
         mimeType: evidence.mimeType,
         sizeBytes: evidence.sizeBytes?.toString() ?? null,
         durationSec: evidence.durationSec?.toString() ?? null,
-        storageBucket: evidence.storageBucket,
-        storageKey: evidence.storageKey,
+        storageBucket: storageBucket ?? "unknown",
+        storageKey: storageKey ?? "multipart",
         publicUrl,
         gps: {
           lat: evidence.lat?.toString() ?? null,

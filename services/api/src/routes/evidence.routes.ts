@@ -6,7 +6,7 @@ import { createEvidence } from "../services/evidence.service.js";
 import { completeEvidence } from "../services/evidence-complete.service.js";
 import * as prismaPkg from "@prisma/client";
 import { prisma } from "../db.js";
-import { presignGetObject } from "../storage.js";
+import { presignGetObject, presignPutObject } from "../storage.js";
 import { verifyJwt } from "../services/jwt.js";
 
 const CreateEvidenceBody = z.object({
@@ -17,6 +17,12 @@ const CreateEvidenceBody = z.object({
 const ClaimBody = z.object({
   guestToken: z.string().min(1).optional(),
   evidenceIds: z.array(z.string().uuid()).optional()
+});
+
+const CreatePartBody = z.object({
+  partIndex: z.number().int().min(0),
+  mimeType: z.string().min(1).max(128).optional(),
+  durationMs: z.number().int().positive().optional()
 });
 
 type ParamsId = { id: string };
@@ -58,6 +64,11 @@ function enforceVerifyRateLimit(
 }
 
 export async function evidenceRoutes(app: FastifyInstance) {
+  function must(name: string): string {
+    const v = process.env[name];
+    if (!v) throw new Error(`${name} is not set`);
+    return v;
+  }
   function buildPublicUrl(key: string): string | null {
     const base = process.env.S3_PUBLIC_BASE_URL;
     if (!base) return null;
@@ -84,6 +95,73 @@ export async function evidenceRoutes(app: FastifyInstance) {
       throw err;
     }
   });
+
+  app.post(
+    "/v1/evidence/:id/parts",
+    { preHandler: requireAuth },
+    async (req: FastifyRequest, reply) => {
+      const ownerUserId = getAuthUserId(req);
+      const id = z.string().uuid().parse((req.params as ParamsId).id);
+      const body = CreatePartBody.parse(req.body);
+
+      const evidence = await prisma.evidence.findFirst({
+        where: { id, ownerUserId, deletedAt: null },
+        select: { id: true }
+      });
+      if (!evidence) return reply.code(404).send({ message: "Evidence not found" });
+
+      const existing = await prisma.evidencePart.findFirst({
+        where: { evidenceId: id, partIndex: body.partIndex }
+      });
+      if (existing) {
+        return reply.code(200).send({ part: existing });
+      }
+
+      const bucket = must("S3_BUCKET");
+      const key = `evidence/${id}/parts/${body.partIndex}`;
+      const putUrl = await presignPutObject({
+        bucket,
+        key,
+        contentType: body.mimeType ?? "application/octet-stream",
+        expiresInSeconds: 600
+      });
+
+      const part = await prisma.evidencePart.create({
+        data: {
+          evidenceId: id,
+          partIndex: body.partIndex,
+          storageBucket: bucket,
+          storageKey: key,
+          mimeType: body.mimeType ?? null,
+          durationMs: body.durationMs ?? null
+        }
+      });
+
+      return reply.code(201).send({
+        part,
+        upload: { bucket, key, putUrl, expiresInSeconds: 600 }
+      });
+    }
+  );
+
+  app.get(
+    "/v1/evidence/:id/parts",
+    { preHandler: requireAuth },
+    async (req: FastifyRequest, reply) => {
+      const ownerUserId = getAuthUserId(req);
+      const id = z.string().uuid().parse((req.params as ParamsId).id);
+      const evidence = await prisma.evidence.findFirst({
+        where: { id, ownerUserId, deletedAt: null },
+        select: { id: true }
+      });
+      if (!evidence) return reply.code(404).send({ message: "Evidence not found" });
+      const parts = await prisma.evidencePart.findMany({
+        where: { evidenceId: id },
+        orderBy: { partIndex: "asc" }
+      });
+      return reply.code(200).send({ parts });
+    }
+  );
 
   app.post("/v1/evidence/claim", { preHandler: requireAuth }, async (req, reply) => {
     const body = ClaimBody.parse(req.body);
