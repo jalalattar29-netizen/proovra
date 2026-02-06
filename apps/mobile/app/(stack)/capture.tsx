@@ -2,7 +2,7 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { colors, spacing, typography } from "@proovra/ui";
 import { Badge, ListRow, Tabs } from "../../components/ui";
 import { useLocale } from "../../src/locale-context";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { apiFetch } from "../../src/api";
 import { enqueueUpload, processQueue } from "../../src/upload-queue";
 import * as ImagePicker from "expo-image-picker";
@@ -15,7 +15,13 @@ export default function CaptureScreen() {
   const [activeIndex, setActiveIndex] = useState(0);
   const typeMap = ["PHOTO", "VIDEO", "DOCUMENT"] as const;
   const activeType = typeMap[activeIndex];
-  const [asset, setAsset] = useState<{ uri: string; mimeType: string } | null>(null);
+  const [asset, setAsset] = useState<{ uri: string; mimeType: string; durationMs?: number } | null>(
+    null
+  );
+  const [segments, setSegments] = useState<
+    Array<{ uri: string; mimeType: string; durationMs?: number }>
+  >([]);
+  const [extendedMode, setExtendedMode] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
@@ -44,14 +50,22 @@ export default function CaptureScreen() {
           activeType === "VIDEO"
             ? ImagePicker.MediaTypeOptions.Videos
             : ImagePicker.MediaTypeOptions.Images,
-        quality: 0.9
+        quality: 0.9,
+        videoMaxDuration: activeType === "VIDEO" && extendedMode ? 1800 : undefined
       });
       if (!result.canceled && result.assets?.[0]) {
         const file = result.assets[0];
-        setAsset({
+        const durationMs = file.duration ? Math.round(file.duration * 1000) : undefined;
+        const next = {
           uri: file.uri,
-          mimeType: file.mimeType ?? (activeType === "VIDEO" ? "video/mp4" : "image/jpeg")
-        });
+          mimeType: file.mimeType ?? (activeType === "VIDEO" ? "video/mp4" : "image/jpeg"),
+          durationMs
+        };
+        if (activeType === "VIDEO" && extendedMode) {
+          setSegments((prev) => [...prev, next]);
+        } else {
+          setAsset(next);
+        }
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to capture");
@@ -59,27 +73,65 @@ export default function CaptureScreen() {
   };
 
   const handleCapture = async () => {
-    if (!asset) {
+    if (activeType === "VIDEO" && extendedMode) {
+      if (segments.length === 0) {
+        setError("Record at least one segment.");
+        return;
+      }
+    } else if (!asset) {
       setError("Please capture or select a file first.");
       return;
     }
     setBusy(true);
     setError(null);
     try {
-      enqueueUpload({
-        id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
-        type: activeType,
-        uri: asset.uri,
-        mimeType: asset.mimeType
-      });
-      await processQueue();
-      router.push("/(tabs)");
+      if (activeType === "VIDEO" && extendedMode) {
+        const created = await apiFetch("/v1/evidence", {
+          method: "POST",
+          body: JSON.stringify({ type: activeType, mimeType: "video/mp4" })
+        });
+        for (let i = 0; i < segments.length; i += 1) {
+          const seg = segments[i];
+          const part = await apiFetch(`/v1/evidence/${created.id}/parts`, {
+            method: "POST",
+            body: JSON.stringify({
+              partIndex: i,
+              mimeType: seg.mimeType,
+              durationMs: seg.durationMs
+            })
+          });
+          await FileSystem.uploadAsync(part.upload.putUrl, seg.uri, {
+            httpMethod: "PUT",
+            headers: { "content-type": seg.mimeType },
+            uploadType: FileSystem.FileSystemUploadType.BINARY_CONTENT
+          });
+        }
+        await apiFetch(`/v1/evidence/${created.id}/complete`, {
+          method: "POST",
+          body: "{}"
+        });
+        router.push(`/evidence/${created.id}`);
+      } else {
+        enqueueUpload({
+          id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+          type: activeType,
+          uri: asset!.uri,
+          mimeType: asset!.mimeType
+        });
+        await processQueue();
+        router.push("/(tabs)");
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Upload failed");
     } finally {
       setBusy(false);
     }
   };
+
+  const totalDuration = useMemo(() => {
+    if (segments.length === 0) return 0;
+    return segments.reduce((sum, seg) => sum + (seg.durationMs ?? 0), 0);
+  }, [segments]);
   return (
     <View style={styles.container}>
       <View style={styles.header}>
@@ -94,11 +146,27 @@ export default function CaptureScreen() {
           onSelect={(index) => {
             setActiveIndex(index);
             setAsset(null);
+            setSegments([]);
+            setExtendedMode(false);
           }}
         />
+        {activeType === "VIDEO" ? (
+          <Pressable
+            style={[styles.captureBar, { backgroundColor: extendedMode ? colors.teal : colors.primaryNavy }]}
+            onPress={() => setExtendedMode((prev) => !prev)}
+          >
+            <Text style={styles.uploadText}>
+              {extendedMode ? "Extended mode ON (30 min segments)" : "Extended mode OFF"}
+            </Text>
+          </Pressable>
+        ) : null}
         <View style={styles.preview}>
           <Text style={styles.previewText}>
-            {asset ? "File selected" : "No file selected"}
+            {activeType === "VIDEO" && extendedMode
+              ? `Segments: ${segments.length} | Total ${(totalDuration / 1000 / 60).toFixed(1)} min`
+              : asset
+              ? "File selected"
+              : "No file selected"}
           </Text>
         </View>
         <View style={styles.listCard}>

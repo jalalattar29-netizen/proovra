@@ -19,12 +19,23 @@ export default function LoginPage() {
   const handleAuth = async (path: string, idToken?: string) => {
     setBusy(true);
     setError(null);
+    const guestToken = typeof window !== "undefined" ? localStorage.getItem("proovra-token") : null;
     try {
       const data = await apiFetch(path, {
         method: "POST",
         body: idToken ? JSON.stringify({ idToken }) : JSON.stringify({})
       });
       setToken(data.token);
+      if (guestToken) {
+        try {
+          await apiFetch("/v1/evidence/claim", {
+            method: "POST",
+            body: JSON.stringify({ guestToken })
+          });
+        } catch {
+          // ignore claim failures
+        }
+      }
       router.push("/home");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Login failed");
