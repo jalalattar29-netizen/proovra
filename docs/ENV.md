@@ -1,0 +1,53 @@
+# Proovra Environment Variables
+
+## Server (API + Worker) — `/opt/proovra/env/.env`
+Required:
+- `DATABASE_URL`
+- `REDIS_URL`
+- `S3_ENDPOINT`
+- `S3_REGION`
+- `S3_ACCESS_KEY`
+- `S3_SECRET_KEY`
+- `S3_BUCKET`
+- `S3_ALLOW_INSECURE`
+- `AUTH_JWT_SECRET`
+- `GOOGLE_CLIENT_ID`
+- `APPLE_CLIENT_ID`
+- `APPLE_TEAM_ID`
+- `APPLE_KEY_ID`
+- `APPLE_PRIVATE_KEY`
+- `APPLE_REDIRECT_URI`
+- `SIGNING_KEY_ID`
+- `SIGNING_KEY_VERSION`
+- `SIGNING_PRIVATE_KEY_PATH`
+- `SIGNING_PUBLIC_KEY_PATH`
+- `CORS_ORIGINS`
+- `VERIFY_RATE_LIMIT_MAX`
+- `VERIFY_RATE_LIMIT_WINDOW_SEC`
+- `FREE_EVIDENCE_LIMIT`
+- `STRIPE_SECRET_KEY`
+- `STRIPE_WEBHOOK_SECRET`
+- `STRIPE_PAYG_PRICE_ID`
+- `STRIPE_PRO_PRICE_ID`
+- `STRIPE_TEAM_PRICE_ID`
+- `STRIPE_PAYG_PRICE_CENTS`
+- `STRIPE_PRO_PRICE_CENTS`
+- `STRIPE_TEAM_PRICE_CENTS`
+- `PAYPAL_CLIENT_ID`
+- `PAYPAL_SECRET`
+- `PAYPAL_WEBHOOK_ID`
+- `PAYPAL_API_BASE`
+- `WEB_BASE_URL`
+- `APP_BASE_URL`
+
+## Vercel (apps/web)
+Required:
+- `NEXT_PUBLIC_API_BASE=https://api.proovra.com`
+- `NEXT_PUBLIC_WEB_BASE=https://www.proovra.com`
+- `NEXT_PUBLIC_APP_BASE=https://app.proovra.com`
+- `NEXT_PUBLIC_VERIFY_DEMO_TOKEN` (optional demo token)
+
+## Expo (apps/mobile)
+Required:
+- `EXPO_PUBLIC_API_BASE=https://api.proovra.com`
+- `EXPO_PUBLIC_WEB_BASE=https://www.proovra.com`
