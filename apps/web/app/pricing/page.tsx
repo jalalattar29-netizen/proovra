@@ -13,6 +13,13 @@ function resolveCurrency() {
   return "USD";
 }
 
+function formatPrice(amountUsd: number) {
+  const currency = resolveCurrency();
+  return new Intl.NumberFormat(undefined, {
+    style: "currency",
+    currency
+  }).format(amountUsd);
+}
 async function startCheckout(plan: PlanType) {
   const data = await apiFetch("/v1/billing/checkout/stripe", {
     method: "POST",
@@ -56,6 +63,7 @@ export default function PricingPage() {
       </div>
       <div className="section container">
         <h2 style={{ marginTop: 0 }}>Pricing</h2>
+        <p className="page-subtitle">Displayed in local currency. Charged in USD.</p>
         <div
           style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 16 }}
         >
@@ -66,7 +74,7 @@ export default function PricingPage() {
         </Card>
         <Card>
           <h3>Pay-per-evidence</h3>
-          <p>Buy credits as needed</p>
+          <p>{formatPrice(5)} / evidence (charged USD)</p>
           <div style={{ display: "flex", gap: 8 }}>
             <Button onClick={() => startCheckout("PAYG")}>Stripe</Button>
             <Button variant="secondary" onClick={() => startPayPal("PAYG")}>
@@ -76,7 +84,7 @@ export default function PricingPage() {
         </Card>
         <Card>
           <h3>Pro</h3>
-          <p>Unlimited evidence, priority signing</p>
+          <p>{formatPrice(19)} / month (charged USD)</p>
           <div style={{ display: "flex", gap: 8 }}>
             <Button onClick={() => startCheckout("PRO")}>Stripe</Button>
             <Button variant="secondary" onClick={() => startPayPal("PRO")}>
@@ -86,7 +94,7 @@ export default function PricingPage() {
         </Card>
         <Card>
           <h3>Team</h3>
-          <p>5 seats with team management</p>
+          <p>{formatPrice(79)} / month (charged USD)</p>
           <div style={{ display: "flex", gap: 8 }}>
             <Button onClick={() => startCheckout("TEAM")}>Stripe</Button>
             <Button variant="secondary" onClick={() => startPayPal("TEAM")}>

@@ -68,7 +68,13 @@ export async function completeEvidence(params: {
 
   // If already signed, be idempotent but ensure report job is enqueued
   if (evidence.status === EvidenceStatus.SIGNED) {
-    await enqueueGenerateReportJob(evidence.id);
+    const entitlement = await prisma.entitlement.findFirst({
+      where: { userId: params.ownerUserId, active: true }
+    });
+    const plan = entitlement?.plan ?? prismaPkg.PlanType.FREE;
+    if (plan !== prismaPkg.PlanType.FREE) {
+      await enqueueGenerateReportJob(evidence.id);
+    }
     return {
       id: evidence.id,
       status: evidence.status,
@@ -94,6 +100,7 @@ export async function completeEvidence(params: {
   const entitlement = await prisma.entitlement.findFirst({
     where: { userId: params.ownerUserId, active: true }
   });
+  const plan = entitlement?.plan ?? prismaPkg.PlanType.FREE;
   if (entitlement?.plan === prismaPkg.PlanType.PAYG && entitlement.credits <= 0) {
     const err: HttpError = Object.assign(new Error("PAYG_CREDITS_REQUIRED"), {
       statusCode: 402
@@ -299,6 +306,8 @@ export async function completeEvidence(params: {
     return ev;
   });
 
-  await enqueueGenerateReportJob(updated.id);
+  if (plan !== prismaPkg.PlanType.FREE) {
+    await enqueueGenerateReportJob(updated.id);
+  }
   return updated;
 }
