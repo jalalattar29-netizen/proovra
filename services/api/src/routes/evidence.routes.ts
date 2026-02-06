@@ -18,6 +18,9 @@ const ClaimBody = z.object({
   guestToken: z.string().min(1).optional(),
   evidenceIds: z.array(z.string().uuid()).optional()
 });
+const LockBody = z.object({
+  locked: z.boolean().optional().default(true)
+});
 
 const CreatePartBody = z.object({
   partIndex: z.number().int().min(0),
@@ -224,6 +227,34 @@ export async function evidenceRoutes(app: FastifyInstance) {
 
     return reply.code(200).send({ claimed: evidence.length });
   });
+
+  app.post(
+    "/v1/evidence/:id/lock",
+    { preHandler: requireAuth },
+    async (req: FastifyRequest, reply) => {
+      const ownerUserId = getAuthUserId(req);
+      const id = z.string().uuid().parse((req.params as ParamsId).id);
+      const body = LockBody.parse(req.body);
+      const evidence = await prisma.evidence.findFirst({
+        where: { id, deletedAt: null }
+      });
+      if (!evidence) return reply.code(404).send({ message: "Evidence not found" });
+      if (evidence.ownerUserId !== ownerUserId) {
+        return reply.code(403).send({ message: "Forbidden" });
+      }
+      if (evidence.status !== prismaPkg.EvidenceStatus.SIGNED && evidence.status !== prismaPkg.EvidenceStatus.REPORTED) {
+        return reply.code(400).send({ message: "Evidence must be signed before lock" });
+      }
+      if (body.locked) {
+        const updated = await prisma.evidence.update({
+          where: { id },
+          data: { lockedAt: new Date(), lockedByUserId: ownerUserId }
+        });
+        return reply.code(200).send({ evidence: updated });
+      }
+      return reply.code(400).send({ message: "Unlock is not allowed" });
+    }
+  );
 
   app.get("/v1/evidence", { preHandler: requireAuth }, async (req, reply) => {
     const ownerUserId = getAuthUserId(req);

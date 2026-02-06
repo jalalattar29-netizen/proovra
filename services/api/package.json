@@ -26,6 +26,7 @@
     "@fastify/cors": "^11.2.0",
     "@prisma/adapter-pg": "^7.3.0",
     "@prisma/client": "^7.3.0",
+    "archiver": "^7.0.1",
     "bullmq": "^5.52.2",
     "canonicalize": "^2.1.0",
     "fastify": "^5.7.2",

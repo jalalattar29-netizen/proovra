@@ -44,6 +44,12 @@ enum TeamRole {
   VIEWER
 }
 
+enum RetentionPolicy {
+  YEAR_1
+  YEAR_5
+  FOREVER
+}
+
 enum PlanType {
   FREE
   PAYG
@@ -80,6 +86,8 @@ model Evidence {
   caseId          String? @map("case_id") @db.Uuid
   teamId          String? @map("team_id") @db.Uuid
   guestIdentityId String? @map("guest_identity_id") @db.Uuid
+  lockedAt        DateTime? @map("locked_at") @db.Timestamptz(6)
+  lockedByUserId  String? @map("locked_by_user_id")
 
   mimeType     String? @map("mime_type") @db.VarChar(128)
   sizeBytes    BigInt? @map("size_bytes")
@@ -122,6 +130,7 @@ model Evidence {
   @@index([organizationId, createdAt(sort: Desc)])
   @@index([teamId])
   @@index([guestIdentityId])
+  @@index([lockedAt])
   @@index([fileSha256])
   @@index([fingerprintHash])
   @@index([status])
@@ -155,6 +164,8 @@ model Case {
   teamId     String?  @map("team_id") @db.Uuid
   createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt  DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  access     CaseAccess[]
 
   @@index([ownerUserId])
   @@index([teamId])
@@ -242,6 +253,12 @@ model Team {
   id          String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   name        String       @db.VarChar(120)
   ownerUserId String       @map("owner_user_id")
+  legalName   String?      @map("legal_name") @db.VarChar(180)
+  address     String?      @db.Text
+  logoUrl     String?      @map("logo_url") @db.VarChar(512)
+  timezone    String?      @db.VarChar(64)
+  legalEmail  String?      @map("legal_email") @db.VarChar(320)
+  retentionPolicy RetentionPolicy @default(FOREVER) @map("retention_policy")
   createdAt   DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt   DateTime     @updatedAt @map("updated_at") @db.Timestamptz(6)
 
@@ -265,6 +282,20 @@ model TeamMember {
   @@unique([teamId, userId])
   @@index([userId])
   @@map("team_members")
+}
+
+model CaseAccess {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  caseId    String   @map("case_id") @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  case Case @relation(fields: [caseId], references: [id], onDelete: Cascade)
+
+  @@unique([caseId, userId])
+  @@index([caseId])
+  @@index([userId])
+  @@map("case_access")
 }
 
 model TeamInvite {

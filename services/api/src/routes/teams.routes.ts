@@ -16,6 +16,14 @@ const InviteBody = z.object({
   email: z.string().email(),
   role: z.nativeEnum(prismaPkg.TeamRole).optional()
 });
+const UpdateTeamBody = z.object({
+  legalName: z.string().min(1).max(180).optional(),
+  address: z.string().min(1).optional(),
+  logoUrl: z.string().url().optional(),
+  timezone: z.string().min(1).max(64).optional(),
+  legalEmail: z.string().email().optional(),
+  retentionPolicy: z.nativeEnum(prismaPkg.RetentionPolicy).optional()
+});
 
 export async function teamsRoutes(app: FastifyInstance) {
   app.post("/v1/teams", { preHandler: requireAuth }, async (req, reply) => {
@@ -63,6 +71,34 @@ export async function teamsRoutes(app: FastifyInstance) {
       const member = team.members.find((m) => m.userId === ownerUserId);
       if (!member) return reply.code(403).send({ message: "Forbidden" });
       return reply.code(200).send(team);
+    }
+  );
+
+  app.patch(
+    "/v1/teams/:id",
+    { preHandler: requireAuth },
+    async (req: FastifyRequest, reply) => {
+      const id = z.string().uuid().parse((req.params as { id: string }).id);
+      const body = UpdateTeamBody.parse(req.body);
+      const ownerUserId = getAuthUserId(req);
+      const member = await prisma.teamMember.findUnique({
+        where: { teamId_userId: { teamId: id, userId: ownerUserId } }
+      });
+      if (!member || !hasRole(member.role, prismaPkg.TeamRole.ADMIN)) {
+        return reply.code(403).send({ message: "Forbidden" });
+      }
+      const updated = await prisma.team.update({
+        where: { id },
+        data: {
+          legalName: body.legalName ?? undefined,
+          address: body.address ?? undefined,
+          logoUrl: body.logoUrl ?? undefined,
+          timezone: body.timezone ?? undefined,
+          legalEmail: body.legalEmail ?? undefined,
+          retentionPolicy: body.retentionPolicy ?? undefined
+        }
+      });
+      return reply.code(200).send(updated);
     }
   );
 
