@@ -108,7 +108,20 @@ export default async function LegalPage({
   return (
     <div className="page">
       <TopBar title="Proovra" right={<Link href="/">{locale === "ar" ? "الصفحة الرئيسية" : "Home"}</Link>} />
-      <section className="section legal-page">{renderMarkdown(content)}</section>
+      <section className="section legal-page">
+        <div style={{ display: "flex", gap: 8, marginBottom: 16, flexWrap: "wrap" }}>
+          {(["en", "ar", "de"] as const).map((lang) => (
+            <Link
+              key={lang}
+              href={`/legal/${params.slug}?lang=${lang}`}
+              className={`lang-button ${lang === locale ? "active" : ""}`}
+            >
+              {lang.toUpperCase()}
+            </Link>
+          ))}
+        </div>
+        {renderMarkdown(content)}
+      </section>
     </div>
   );
 }

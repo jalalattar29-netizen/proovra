@@ -17,7 +17,7 @@ export default function HomePage() {
             right={
               <div className="nav-links">
                 <Link href="#features">{t("navFeatures")}</Link>
-                <Link href="/verify/sample">{t("navVerify")}</Link>
+                <Link href="/verify/demo">{t("navVerify")}</Link>
                 <Link href="#about">{t("navAbout")}</Link>
                 <Link href="/home">{t("navDashboard")}</Link>
                 <Link href="/login">{t("login")}</Link>
