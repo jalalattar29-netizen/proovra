@@ -3,7 +3,6 @@
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import {
   type Locale,
-  defaultLocale,
   resolveInitialLocale,
   translations
 } from "../lib/i18n";
@@ -71,7 +70,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
     const isRTL = false;
     const t = (key: keyof (typeof translations)["en"]) =>
       translations.en[key];
-    const setLocale = (_next: Locale) => {
+    const setLocale = () => {
       setLocaleState("en");
     };
     return { locale: "en", setLocale, t, isRTL };

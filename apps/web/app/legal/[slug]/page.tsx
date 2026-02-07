@@ -60,11 +60,9 @@ function renderMarkdown(md: string) {
 }
 
 export default async function LegalPage({
-  params,
-  searchParams
+  params
 }: {
   params?: Promise<{ slug: string }>;
-  searchParams?: Promise<{ lang?: string }>;
 }) {
   const resolvedParams = (await params) ?? { slug: "" };
   if (!ALLOWED_SLUGS.has(resolvedParams.slug)) return notFound();

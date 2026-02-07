@@ -1,25 +1,38 @@
 "use client";
 
 import { Button, Card } from "../../../components/ui";
-import { useAuth, useLocale } from "../../providers";
+import { useLocale } from "../../providers";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { apiFetch } from "../../../lib/api";
-import { getDeviceLocale } from "../../../lib/i18n";
 import { PlanType } from "../../pricing/types";
+
+type Subscription = {
+  status?: string | null;
+};
+
+type PaymentItem = {
+  id: string;
+  provider: string;
+  status: string;
+  amountCents: number;
+  currency: string;
+};
+
+type PayPalLink = {
+  rel: string;
+  href: string;
+};
 
 export default function SettingsPage() {
   const { t } = useLocale();
-  const { setToken } = useAuth();
   const [plan, setPlan] = useState("FREE");
   const [credits, setCredits] = useState(0);
   const [teamSeats, setTeamSeats] = useState(0);
-  const [deviceLocale, setDeviceLocale] = useState<"en">("en");
-  const [subscription, setSubscription] = useState<any>(null);
-  const [payments, setPayments] = useState<any[]>([]);
+  const [subscription, setSubscription] = useState<Subscription | null>(null);
+  const [payments, setPayments] = useState<PaymentItem[]>([]);
 
   useEffect(() => {
-    setDeviceLocale(getDeviceLocale());
     apiFetch("/v1/billing/status")
       .then((data) => {
         setPlan(data.entitlement?.plan ?? "FREE");
@@ -49,7 +62,9 @@ export default function SettingsPage() {
       method: "POST",
       body: JSON.stringify({ plan: planType, currency: "USD" })
     });
-    const approve = data.order?.links?.find((link: { rel: string }) => link.rel === "approve");
+    const approve = (data.order?.links as PayPalLink[] | undefined)?.find(
+      (link) => link.rel === "approve"
+    );
     if (approve?.href) window.location.href = approve.href;
   };
   return (

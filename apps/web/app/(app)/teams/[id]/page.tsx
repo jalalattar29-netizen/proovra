@@ -5,10 +5,33 @@ import { useParams } from "next/navigation";
 import { Button, Card } from "../../../../components/ui";
 import { apiFetch } from "../../../../lib/api";
 
+type TeamMember = {
+  userId: string;
+  role: string;
+};
+
+type Team = {
+  id: string;
+  name?: string | null;
+  legalName?: string | null;
+  address?: string | null;
+  logoUrl?: string | null;
+  timezone?: string | null;
+  legalEmail?: string | null;
+  retentionPolicy?: string | null;
+  members?: TeamMember[];
+};
+
+type TeamInvite = {
+  id: string;
+  email: string;
+  role: string;
+};
+
 export default function TeamDetailPage() {
   const params = useParams<{ id: string }>();
-  const [team, setTeam] = useState<any>(null);
-  const [invites, setInvites] = useState<any[]>([]);
+  const [team, setTeam] = useState<Team | null>(null);
+  const [invites, setInvites] = useState<TeamInvite[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [inviteEmail, setInviteEmail] = useState("");
@@ -58,13 +81,13 @@ export default function TeamDetailPage() {
         method: "PATCH",
         body: JSON.stringify({ role })
       });
-      setTeam((prev: any) => {
+      setTeam((prev) => {
         if (!prev) return prev;
         return {
           ...prev,
-          members: prev.members.map((m: any) =>
+          members: prev.members?.map((m) =>
             m.userId === userId ? { ...m, role: data.member.role } : m
-          )
+          ) ?? []
         };
       });
     } catch (err) {
@@ -165,7 +188,7 @@ export default function TeamDetailPage() {
             <Card>
               <div style={{ fontWeight: 600, marginBottom: 12 }}>Members</div>
               <div style={{ display: "grid", gap: 8 }}>
-                {team?.members?.map((member: any) => (
+                {team?.members?.map((member) => (
                   <div
                     key={member.userId}
                     style={{ display: "flex", alignItems: "center", gap: 12 }}
