@@ -3,9 +3,30 @@ import { NextResponse, type NextRequest } from "next/server";
 const APP_BASE = process.env.NEXT_PUBLIC_APP_BASE;
 const WEB_BASE = process.env.NEXT_PUBLIC_WEB_BASE;
 
-function normalizeHost(url: string | undefined) {
-  if (!url) return null;
-  return url.replace(/^https?:\/\//, "").replace(/\/+$/, "");
+function parseHost(base: string | undefined) {
+  if (!base) return null;
+  try {
+    return new URL(base).host;
+  } catch {
+    try {
+      return new URL(`https://${base}`).host;
+    } catch {
+      return null;
+    }
+  }
+}
+
+function normalizeBaseUrl(base: string | undefined) {
+  if (!base) return null;
+  try {
+    return new URL(base).toString();
+  } catch {
+    try {
+      return new URL(`https://${base}`).toString();
+    } catch {
+      return null;
+    }
+  }
 }
 
 export function middleware(req: NextRequest) {
@@ -14,8 +35,10 @@ export function middleware(req: NextRequest) {
     return NextResponse.next();
   }
 
-  const appHost = normalizeHost(APP_BASE);
-  const webHost = normalizeHost(WEB_BASE);
+  const appHost = parseHost(APP_BASE);
+  const webHost = parseHost(WEB_BASE);
+  const appBaseUrl = normalizeBaseUrl(APP_BASE);
+  const webBaseUrl = normalizeBaseUrl(WEB_BASE);
   const pathname = req.nextUrl.pathname;
 
   const isAppHost = appHost && host.includes(appHost);
@@ -35,8 +58,8 @@ export function middleware(req: NextRequest) {
       pathname === "/pricing" ||
       pathname === "/support"
     ) {
-      if (WEB_BASE) {
-        return NextResponse.redirect(new URL(pathname, WEB_BASE));
+      if (webBaseUrl) {
+        return NextResponse.redirect(new URL(pathname, webBaseUrl));
       }
     }
   }
@@ -51,8 +74,8 @@ export function middleware(req: NextRequest) {
       pathname.startsWith("/settings") ||
       pathname === "/dashboard"
     ) {
-      if (APP_BASE) {
-        return NextResponse.redirect(new URL(pathname, APP_BASE));
+      if (appBaseUrl) {
+        return NextResponse.redirect(new URL(pathname, appBaseUrl));
       }
     }
   }
