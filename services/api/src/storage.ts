@@ -7,9 +7,23 @@ function must(name: string): string {
   return v;
 }
 
+function requireTls(endpoint: string) {
+  const allowInsecure = process.env.S3_ALLOW_INSECURE === "true";
+  if (
+    process.env.NODE_ENV === "production" &&
+    endpoint.startsWith("http://") &&
+    !allowInsecure
+  ) {
+    throw new Error("S3_ENDPOINT must use https in production");
+  }
+}
+
+const endpoint = must("S3_ENDPOINT");
+requireTls(endpoint);
+
 export const s3 = new S3Client({
   region: process.env.S3_REGION ?? "auto",
-  endpoint: must("S3_ENDPOINT"),
+  endpoint,
   credentials: {
     accessKeyId: must("S3_ACCESS_KEY"),
     secretAccessKey: must("S3_SECRET_KEY"),

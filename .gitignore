@@ -15,6 +15,7 @@ services/**/prisma/migrations
 # flutter
 apps/mobile/build
 apps/mobile/.dart_tool
+apps/mobile/.expo
 
 .DS_Store
 Thumbs.db

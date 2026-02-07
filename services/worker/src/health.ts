@@ -24,7 +24,7 @@ export async function startHealthServer(): Promise<HealthServer> {
 
     return {
       ok: true,
-      worker: "digital-witness-worker",
+      worker: "proovra-worker",
       buildInfo: env.WORKER_BUILD_INFO ?? null,
       queues: {
         report: queues,

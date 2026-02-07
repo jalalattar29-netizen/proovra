@@ -21,6 +21,9 @@
     "paths": {
       "@proovra/ui": [
         "../../packages/ui/src/index.ts"
+      ],
+      "@proovra/shared": [
+        "../../packages/shared/src/index.ts"
       ]
     },
     "plugins": [

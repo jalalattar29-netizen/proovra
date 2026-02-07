@@ -6,21 +6,52 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { apiFetch } from "../../../lib/api";
 import { getDeviceLocale } from "../../../lib/i18n";
+import { PlanType } from "../../pricing/types";
 
 export default function SettingsPage() {
-  const { t, locale, setLocale } = useLocale();
+  const { t } = useLocale();
   const { setToken } = useAuth();
-  const [plan, setPlan] = useState("Free");
-  const [googleToken, setGoogleToken] = useState("");
-  const [appleToken, setAppleToken] = useState("");
-  const [deviceLocale, setDeviceLocale] = useState<"en" | "ar" | "de">("en");
+  const [plan, setPlan] = useState("FREE");
+  const [credits, setCredits] = useState(0);
+  const [teamSeats, setTeamSeats] = useState(0);
+  const [deviceLocale, setDeviceLocale] = useState<"en">("en");
+  const [subscription, setSubscription] = useState<any>(null);
+  const [payments, setPayments] = useState<any[]>([]);
 
   useEffect(() => {
     setDeviceLocale(getDeviceLocale());
     apiFetch("/v1/billing/status")
-      .then((data) => setPlan(data.entitlement?.plan ?? "Free"))
-      .catch(() => setPlan("Free"));
+      .then((data) => {
+        setPlan(data.entitlement?.plan ?? "FREE");
+        setCredits(data.entitlement?.credits ?? 0);
+        setTeamSeats(data.entitlement?.teamSeats ?? 0);
+      })
+      .catch(() => setPlan("FREE"));
+    apiFetch("/v1/billing/subscription")
+      .then((data) => setSubscription(data.subscription ?? null))
+      .catch(() => setSubscription(null));
+    apiFetch("/v1/billing/payments")
+      .then((data) => setPayments(data.items ?? []))
+      .catch(() => setPayments([]));
   }, []);
+
+  const startCheckout = async (planType: PlanType) => {
+    const data = await apiFetch("/v1/billing/checkout/stripe", {
+      method: "POST",
+      body: JSON.stringify({ plan: planType, currency: "USD" })
+    });
+    const url = data.session?.url as string | undefined;
+    if (url) window.location.href = url;
+  };
+
+  const startPayPal = async (planType: PlanType) => {
+    const data = await apiFetch("/v1/billing/checkout/paypal", {
+      method: "POST",
+      body: JSON.stringify({ plan: planType, currency: "USD" })
+    });
+    const approve = data.order?.links?.find((link: { rel: string }) => link.rel === "approve");
+    if (approve?.href) window.location.href = approve.href;
+  };
   return (
     <div className="section">
       <div className="page-title">
@@ -32,71 +63,68 @@ export default function SettingsPage() {
       <div style={{ display: "grid", gap: 16 }}>
         <Card>
           <div style={{ fontWeight: 600, marginBottom: 12 }}>{t("language")}</div>
-          <div style={{ display: "flex", gap: 8 }}>
-            {locale !== "en" && (
-              <button type="button" className="lang-button" onClick={() => setLocale("en")}>
-                {t("switchToEnglish")}
-              </button>
-            )}
-            {locale !== deviceLocale && (
-              <button type="button" className="lang-button" onClick={() => setLocale(deviceLocale)}>
-                {t("deviceLanguage")}
-              </button>
-            )}
-          </div>
+          <div style={{ color: "#64748b" }}>English only</div>
         </Card>
         <Card>
           <div style={{ fontWeight: 600, marginBottom: 12 }}>Subscription</div>
-          <p>{plan} plan</p>
-          <div style={{ display: "flex", gap: 10 }}>
+          <p style={{ margin: 0 }}>{plan} plan</p>
+          {plan === "PAYG" && <p style={{ marginTop: 6 }}>Credits: {credits}</p>}
+          {plan === "TEAM" && <p style={{ marginTop: 6 }}>Team seats: {teamSeats}</p>}
+          <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 10 }}>
             <Link href="/pricing">
               <Button>View Pricing</Button>
             </Link>
+            <Button variant="secondary" onClick={() => startCheckout("PAYG")}>
+              Buy Pay‑Per‑Evidence
+            </Button>
+            <Button variant="secondary" onClick={() => startCheckout("PRO")}>
+              Upgrade to Pro
+            </Button>
+            <Button variant="secondary" onClick={() => startCheckout("TEAM")}>
+              Upgrade to Team
+            </Button>
+            <Button variant="secondary" onClick={() => startPayPal("PAYG")}>
+              PayPal PAYG
+            </Button>
             <Button
               variant="secondary"
               onClick={() => apiFetch("/v1/billing/restore", { method: "POST" })}
             >
               Restore Purchases
             </Button>
+            {subscription?.status === "ACTIVE" && (
+              <Button
+                variant="secondary"
+                onClick={() => apiFetch("/v1/billing/subscription/cancel", { method: "POST" })}
+              >
+                Cancel Subscription
+              </Button>
+            )}
           </div>
+        </Card>
+        <Card>
+          <div style={{ fontWeight: 600, marginBottom: 12 }}>Payments</div>
+          {payments.length === 0 ? (
+            <div>No payments yet.</div>
+          ) : (
+            <div style={{ display: "grid", gap: 8 }}>
+              {payments.map((item) => (
+                <div key={item.id} style={{ fontSize: 12 }}>
+                  {item.provider} · {item.status} · {(item.amountCents / 100).toFixed(2)}{" "}
+                  {item.currency}
+                </div>
+              ))}
+            </div>
+          )}
         </Card>
         <Card>
           <div style={{ fontWeight: 600, marginBottom: 12 }}>Sign in</div>
           <div style={{ display: "grid", gap: 8 }}>
-            <input
-              placeholder="Google idToken"
-              value={googleToken}
-              onChange={(e) => setGoogleToken(e.target.value)}
-              style={{ padding: 10, borderRadius: 10, border: "1px solid #E2E8F0" }}
-            />
-            <Button
-              onClick={async () => {
-                const data = await apiFetch("/v1/auth/google", {
-                  method: "POST",
-                  body: JSON.stringify({ idToken: googleToken })
-                });
-                setToken(data.token);
-              }}
-            >
-              Sign in with Google
-            </Button>
-            <input
-              placeholder="Apple idToken"
-              value={appleToken}
-              onChange={(e) => setAppleToken(e.target.value)}
-              style={{ padding: 10, borderRadius: 10, border: "1px solid #E2E8F0" }}
-            />
-            <Button
-              variant="secondary"
-              onClick={async () => {
-                const data = await apiFetch("/v1/auth/apple", {
-                  method: "POST",
-                  body: JSON.stringify({ idToken: appleToken })
-                });
-                setToken(data.token);
-              }}
-            >
-              Sign in with Apple
+            <Link href="/login">
+              <Button>Manage sign‑in</Button>
+            </Link>
+            <Button variant="secondary" onClick={() => apiFetch("/v1/auth/logout", { method: "POST" })}>
+              Logout
             </Button>
           </div>
         </Card>

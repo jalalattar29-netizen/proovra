@@ -31,6 +31,14 @@ function mustInt(name: string): number {
   return v;
 }
 
+function readMaxEvidenceSizeBytes(): number {
+  const raw = process.env.MAX_EVIDENCE_SIZE_MB;
+  if (!raw) return 1024 * 1024 * 1024;
+  const mb = Number.parseInt(raw, 10);
+  if (!Number.isFinite(mb) || mb <= 0) return 1024 * 1024 * 1024;
+  return mb * 1024 * 1024;
+}
+
 const { EvidenceStatus } = prismaPkg;
 
 export async function completeEvidence(params: {
@@ -145,6 +153,13 @@ export async function completeEvidence(params: {
       if (!primaryKey) primaryKey = part.storageKey;
       if (!primaryMimeType) primaryMimeType = meta.contentType ?? part.mimeType ?? null;
     }
+    const maxBytes = readMaxEvidenceSizeBytes();
+    if (sizeBytesNum > maxBytes) {
+      const err: HttpError = Object.assign(new Error("EVIDENCE_TOO_LARGE"), {
+        statusCode: 413
+      });
+      throw err;
+    }
     const combined = updatedParts.map((p) => p.sha256).join("|");
     fileSha256 = sha256Hex(combined);
     await prisma.$transaction(
@@ -172,6 +187,13 @@ export async function completeEvidence(params: {
       throw err;
     }
     sizeBytesNum = size;
+    const maxBytes = readMaxEvidenceSizeBytes();
+    if (sizeBytesNum > maxBytes) {
+      const err: HttpError = Object.assign(new Error("EVIDENCE_TOO_LARGE"), {
+        statusCode: 413
+      });
+      throw err;
+    }
     primaryMimeType = meta.contentType ?? evidence.mimeType ?? null;
     const body = await getObjectStream({
       bucket: evidence.storageBucket!,

@@ -8,13 +8,23 @@ import { hasRole } from "../services/rbac.js";
 import { getAuthUserId } from "../auth.js";
 
 const CreateTeamBody = z.object({ name: z.string().min(1).max(120) });
+const TeamRoleSchema = prismaPkg.TeamRole
+  ? z.nativeEnum(prismaPkg.TeamRole)
+  : z.enum(["OWNER", "ADMIN", "MEMBER", "VIEWER"]);
+const RetentionPolicySchema = prismaPkg.RetentionPolicy
+  ? z.nativeEnum(prismaPkg.RetentionPolicy)
+  : z.enum(["YEAR_1", "YEAR_5", "FOREVER"]);
+
 const AddMemberBody = z.object({
   userId: z.string().uuid(),
-  role: z.nativeEnum(prismaPkg.TeamRole)
+  role: TeamRoleSchema
 });
 const InviteBody = z.object({
   email: z.string().email(),
-  role: z.nativeEnum(prismaPkg.TeamRole).optional()
+  role: TeamRoleSchema.optional()
+});
+const UpdateMemberBody = z.object({
+  role: TeamRoleSchema
 });
 const UpdateTeamBody = z.object({
   legalName: z.string().min(1).max(180).optional(),
@@ -22,7 +32,7 @@ const UpdateTeamBody = z.object({
   logoUrl: z.string().url().optional(),
   timezone: z.string().min(1).max(64).optional(),
   legalEmail: z.string().email().optional(),
-  retentionPolicy: z.nativeEnum(prismaPkg.RetentionPolicy).optional()
+  retentionPolicy: RetentionPolicySchema.optional()
 });
 
 export async function teamsRoutes(app: FastifyInstance) {
@@ -71,6 +81,26 @@ export async function teamsRoutes(app: FastifyInstance) {
       const member = team.members.find((m) => m.userId === ownerUserId);
       if (!member) return reply.code(403).send({ message: "Forbidden" });
       return reply.code(200).send(team);
+    }
+  );
+
+  app.get(
+    "/v1/teams/:id/invites",
+    { preHandler: requireAuth },
+    async (req: FastifyRequest, reply) => {
+      const id = z.string().uuid().parse((req.params as { id: string }).id);
+      const ownerUserId = getAuthUserId(req);
+      const member = await prisma.teamMember.findUnique({
+        where: { teamId_userId: { teamId: id, userId: ownerUserId } }
+      });
+      if (!member || !hasRole(member.role, prismaPkg.TeamRole.ADMIN)) {
+        return reply.code(403).send({ message: "Forbidden" });
+      }
+      const invites = await prisma.teamInvite.findMany({
+        where: { teamId: id },
+        orderBy: { createdAt: "desc" }
+      });
+      return reply.code(200).send({ invites });
     }
   );
 
@@ -123,6 +153,31 @@ export async function teamsRoutes(app: FastifyInstance) {
         }
       });
       return reply.code(201).send(created);
+    }
+  );
+
+  app.patch(
+    "/v1/teams/:id/members/:userId",
+    { preHandler: requireAuth },
+    async (req: FastifyRequest, reply) => {
+      const id = z.string().uuid().parse((req.params as { id: string }).id);
+      const targetUserId = z
+        .string()
+        .uuid()
+        .parse((req.params as { userId: string }).userId);
+      const body = UpdateMemberBody.parse(req.body);
+      const ownerUserId = getAuthUserId(req);
+      const member = await prisma.teamMember.findUnique({
+        where: { teamId_userId: { teamId: id, userId: ownerUserId } }
+      });
+      if (!member || !hasRole(member.role, prismaPkg.TeamRole.ADMIN)) {
+        return reply.code(403).send({ message: "Forbidden" });
+      }
+      const updated = await prisma.teamMember.update({
+        where: { teamId_userId: { teamId: id, userId: targetUserId } },
+        data: { role: body.role }
+      });
+      return reply.code(200).send({ member: updated });
     }
   );
 

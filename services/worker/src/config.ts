@@ -8,7 +8,12 @@ const EnvSchema = z.object({
   S3_ACCESS_KEY: z.string().min(1),
   S3_SECRET_KEY: z.string().min(1),
   S3_BUCKET: z.string().min(1),
-  S3_PUBLIC_BASE_URL: z.string().min(1).optional(),
+  S3_PUBLIC_BASE_URL: z.preprocess(
+    (value) =>
+      typeof value === "string" && value.trim() === "" ? undefined : value,
+    z.string().min(1).optional()
+  ),
+  SENTRY_DSN: z.string().min(1).optional(),
   WORKER_BUILD_INFO: z.string().min(1).optional(),
   WORKER_PORT: z.coerce.number().int().positive().default(8090),
 });

@@ -1,7 +1,7 @@
-# Digital Witness – Official Project Context
+# Proovra – Official Project Context
 
 ## Goal
-Build a production-grade, company-level Digital Witness platform.
+Build a production-grade, company-level Proovra platform for proovra.com.
 
 ## Product
 A mobile app + web platform that allows users to:
@@ -24,7 +24,7 @@ A mobile app + web platform that allows users to:
 ## Tech Stack
 - Monorepo
 - Fastify API (TypeScript)
-- Prisma + PostgreSQL
+- Prisma + PostgreSQL (Neon in production)
 - Redis + BullMQ
 - Cloudflare R2 (prod) / MinIO (local)
 - Next.js Web (Verify + Landing)

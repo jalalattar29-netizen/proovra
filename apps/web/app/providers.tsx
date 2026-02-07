@@ -8,6 +8,7 @@ import {
   translations
 } from "../lib/i18n";
 import { apiFetch } from "../lib/api";
+import { initSentry } from "../lib/sentry";
 
 type AuthUser = {
   id: string;
@@ -48,28 +49,32 @@ export function useAuth() {
 }
 
 export function Providers({ children }: { children: React.ReactNode }) {
-  const [locale, setLocale] = useState<Locale>(defaultLocale);
+  const [locale, setLocaleState] = useState<Locale>("en");
   const [token, setTokenState] = useState<string | null>(null);
   const [user, setUser] = useState<AuthUser | null>(null);
   const [authReady, setAuthReady] = useState(false);
 
   useEffect(() => {
+    initSentry();
     const resolved = resolveInitialLocale();
-    setLocale(resolved);
+    setLocaleState(resolved);
   }, []);
 
   useEffect(() => {
     if (typeof document === "undefined") return;
-    document.documentElement.lang = locale;
-    document.documentElement.dir = locale === "ar" ? "rtl" : "ltr";
-    localStorage.setItem("proovra-locale", locale);
+    document.documentElement.lang = "en";
+    document.documentElement.dir = "ltr";
+    localStorage.setItem("proovra-locale", "en");
   }, [locale]);
 
   const value = useMemo<LocaleContextValue>(() => {
-    const isRTL = locale === "ar";
+    const isRTL = false;
     const t = (key: keyof (typeof translations)["en"]) =>
-      translations[locale]?.[key] ?? translations.en[key];
-    return { locale, setLocale, t, isRTL };
+      translations.en[key];
+    const setLocale = (_next: Locale) => {
+      setLocaleState("en");
+    };
+    return { locale: "en", setLocale, t, isRTL };
   }, [locale]);
 
   const authValue = useMemo<AuthContextValue>(() => {

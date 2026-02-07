@@ -42,6 +42,15 @@ a {
   text-decoration: none;
 }
 
+a:focus-visible,
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid #1ecad3;
+  outline-offset: 2px;
+}
+
 .page {
   min-height: 100vh;
   display: flex;
@@ -648,6 +657,15 @@ a {
   font-size: 12px;
 }
 
+.drop-zone {
+  border: 1px dashed #cbd5f5;
+  border-radius: 14px;
+  padding: 18px;
+  background: #f8fafc;
+  cursor: pointer;
+  text-align: center;
+}
+
 .legal-page {
   max-width: 860px;
   margin: 0 auto;
@@ -676,6 +694,43 @@ a {
 .auth-card {
   width: min(520px, 100%);
   padding: 28px;
+}
+
+.auth-card .btn {
+  width: 100%;
+}
+
+.auth-google-button {
+  display: flex;
+  justify-content: center;
+}
+
+.google-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+
+.google-icon {
+  width: 18px;
+  height: 18px;
+  background: conic-gradient(
+    #ea4335 0deg 90deg,
+    #fbbc05 90deg 180deg,
+    #34a853 180deg 270deg,
+    #4285f4 270deg 360deg
+  );
+  border-radius: 50%;
+  position: relative;
+}
+
+.google-icon::after {
+  content: "";
+  position: absolute;
+  inset: 4px;
+  background: #fff;
+  border-radius: 50%;
 }
 
 .auth-divider {

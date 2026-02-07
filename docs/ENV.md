@@ -12,6 +12,8 @@ Required:
 - `S3_ALLOW_INSECURE`
 - `AUTH_JWT_SECRET`
 - `GOOGLE_CLIENT_ID`
+- `GOOGLE_CLIENT_SECRET`
+- `GOOGLE_REDIRECT_URI`
 - `APPLE_CLIENT_ID`
 - `APPLE_TEAM_ID`
 - `APPLE_KEY_ID`
@@ -25,6 +27,7 @@ Required:
 - `VERIFY_RATE_LIMIT_MAX`
 - `VERIFY_RATE_LIMIT_WINDOW_SEC`
 - `FREE_EVIDENCE_LIMIT`
+- `MAX_EVIDENCE_SIZE_MB`
 - `STRIPE_SECRET_KEY`
 - `STRIPE_WEBHOOK_SECRET`
 - `STRIPE_PAYG_PRICE_ID`
@@ -40,14 +43,27 @@ Required:
 - `WEB_BASE_URL`
 - `APP_BASE_URL`
 
+Optional:
+- `SENTRY_DSN` (API + Worker error monitoring)
+
 ## Vercel (apps/web)
 Required:
 - `NEXT_PUBLIC_API_BASE=https://api.proovra.com`
 - `NEXT_PUBLIC_WEB_BASE=https://www.proovra.com`
 - `NEXT_PUBLIC_APP_BASE=https://app.proovra.com`
 - `NEXT_PUBLIC_VERIFY_DEMO_TOKEN` (optional demo token)
+- `NEXT_PUBLIC_GOOGLE_CLIENT_ID`
+- `NEXT_PUBLIC_GOOGLE_REDIRECT_URI`
+- `NEXT_PUBLIC_APPLE_CLIENT_ID`
+- `NEXT_PUBLIC_APPLE_REDIRECT_URI`
+
+Optional:
+- `NEXT_PUBLIC_SENTRY_DSN`
 
 ## Expo (apps/mobile)
 Required:
 - `EXPO_PUBLIC_API_BASE=https://api.proovra.com`
 - `EXPO_PUBLIC_WEB_BASE=https://www.proovra.com`
+
+Optional:
+- `EXPO_PUBLIC_SENTRY_DSN`

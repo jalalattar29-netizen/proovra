@@ -26,6 +26,7 @@ export async function requireAuth(req: FastifyRequest, reply: FastifyReply) {
     if (!secret) throw new Error("AUTH_JWT_SECRET is not set");
     const payload = verifyJwt(token, secret);
     req.user = { sub: payload.sub, provider: payload.provider, email: payload.email };
+    req.log = req.log.child({ userId: payload.sub });
   } catch {
     reply.code(401).send({ message: "Unauthorized" });
     return;

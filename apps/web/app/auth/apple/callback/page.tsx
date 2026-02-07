@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { useAuth } from "../../../providers";
 
 type Provider = "apple" | "google";
@@ -42,27 +42,27 @@ function inferProviderFromIdToken(idToken: string | null): Provider | null {
 
 export default function AppleCallbackPage() {
   const router = useRouter();
-  const params = useSearchParams();
   const { setToken } = useAuth();
   const [error, setError] = useState<string | null>(null);
 
-  const query = useMemo(() => {
-    const provider = params.get("provider");
-    const idToken = params.get("id_token");
-    const code = params.get("code");
-    const state = params.get("state");
-    return { provider, idToken, code, state };
-  }, [params]);
-
   useEffect(() => {
-    const hashParams =
-      typeof window !== "undefined" ? parseHashParams(window.location.hash) : new URLSearchParams();
-    const idToken = query.idToken ?? hashParams.get("id_token");
-    const code = query.code ?? hashParams.get("code");
-    const providerRaw = query.provider ?? hashParams.get("provider");
+    if (typeof window === "undefined") return;
+    const searchParams = new URLSearchParams(window.location.search);
+    const hashParams = parseHashParams(window.location.hash);
+    const idToken = searchParams.get("id_token") ?? hashParams.get("id_token");
+    const code = searchParams.get("code") ?? hashParams.get("code");
+    const providerRaw =
+      searchParams.get("provider") ?? hashParams.get("provider");
+    const state = searchParams.get("state") ?? hashParams.get("state");
+    const storedState = sessionStorage.getItem("proovra-apple-state");
+    if (state && storedState && state !== storedState) {
+      setError("OAuth state mismatch.");
+      return;
+    }
 
     let provider: Provider | null = null;
     if (providerRaw === "apple" || providerRaw === "google") provider = providerRaw;
+    if (!provider && state === "google") provider = "google";
     if (!provider) provider = inferProviderFromIdToken(idToken);
     if (!provider) provider = "apple";
 
@@ -72,17 +72,24 @@ export default function AppleCallbackPage() {
       return;
     }
 
+    const apiBase = process.env.NEXT_PUBLIC_API_BASE ?? "https://api.proovra.com";
     const endpoint =
       provider === "google"
-        ? "https://api.proovra.com/v1/auth/google"
-        : "https://api.proovra.com/v1/auth/apple";
+        ? `${apiBase}/v1/auth/google`
+        : `${apiBase}/v1/auth/apple`;
+    const body =
+      provider === "apple" && code
+        ? { code }
+        : provider === "google" && code
+          ? { code }
+          : { idToken: tokenToSend };
 
     void (async () => {
       try {
         const res = await fetch(endpoint, {
           method: "POST",
           headers: { "content-type": "application/json" },
-          body: JSON.stringify({ idToken: tokenToSend })
+          body: JSON.stringify(body)
         });
         if (!res.ok) {
           const text = await res.text();
@@ -96,7 +103,7 @@ export default function AppleCallbackPage() {
         setError(err instanceof Error ? err.message : "Sign-in failed");
       }
     })();
-  }, [query, router, setToken]);
+  }, [router, setToken]);
 
   if (error) {
     return <div style={{ padding: 32 }}>{error}</div>;

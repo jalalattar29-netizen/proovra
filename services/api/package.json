@@ -11,6 +11,7 @@
     "prisma:migrate": "prisma migrate deploy",
     "prisma:seed": "tsx src/seed-signing-key.ts",
     "seed:key": "tsx src/seed-signing-key.ts",
+    "retention:run": "tsx src/retention-cleanup.ts",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "test": "vitest run"
@@ -26,6 +27,7 @@
     "@fastify/cors": "^11.2.0",
     "@prisma/adapter-pg": "^7.3.0",
     "@prisma/client": "^7.3.0",
+    "@sentry/node": "^10.38.0",
     "archiver": "^7.0.1",
     "bullmq": "^5.52.2",
     "canonicalize": "^2.1.0",

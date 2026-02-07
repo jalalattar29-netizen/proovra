@@ -110,6 +110,30 @@ export async function verifyGoogleIdToken(idToken: string): Promise<AuthProfile>
   };
 }
 
+export async function exchangeGoogleCodeForIdToken(code: string): Promise<string> {
+  const clientId = must("GOOGLE_CLIENT_ID");
+  const clientSecret = must("GOOGLE_CLIENT_SECRET");
+  const redirectUri = must("GOOGLE_REDIRECT_URI");
+  const body = new URLSearchParams();
+  body.set("code", code);
+  body.set("client_id", clientId);
+  body.set("client_secret", clientSecret);
+  body.set("redirect_uri", redirectUri);
+  body.set("grant_type", "authorization_code");
+  const res = await fetch("https://oauth2.googleapis.com/token", {
+    method: "POST",
+    headers: { "content-type": "application/x-www-form-urlencoded" },
+    body
+  });
+  const json = (await res.json()) as { id_token?: string; error?: string };
+  if (!res.ok) {
+    if (json.error === "invalid_grant") throw new Error("invalid_code");
+    throw new Error("token_exchange_failed");
+  }
+  if (!json.id_token) throw new Error("token_exchange_failed");
+  return json.id_token;
+}
+
 export async function verifyAppleIdToken(idToken: string): Promise<AuthProfile> {
   if (!appleJwksCache) {
     try {

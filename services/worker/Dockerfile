@@ -10,14 +10,16 @@ COPY services/worker/package.json services/worker/package.json
 RUN pnpm install --frozen-lockfile --prod=false --node-linker=hoisted
 
 FROM deps AS build
-ENV DATABASE_URL=postgresql://dw:dw_password@localhost:5432/dw
+ARG DATABASE_URL
+ENV DATABASE_URL=$DATABASE_URL
+RUN test -n "$DATABASE_URL"
 COPY services/api/prisma services/api/prisma
 COPY services/api/prisma.config.ts services/api/prisma.config.ts
 COPY services/worker/src services/worker/src
 COPY services/worker/tsconfig.json services/worker/tsconfig.json
 COPY services/worker/tsconfig.build.json services/worker/tsconfig.build.json
-RUN pnpm --filter api prisma:generate
-RUN pnpm --filter worker build
+RUN pnpm --filter proovra-api prisma:generate
+RUN pnpm --filter proovra-worker build
 
 FROM node:20-alpine AS runner
 RUN apk add --no-cache wget

@@ -5,6 +5,7 @@ export const logger = pino({
 });
 
 export function withJobContext(params: {
+  requestId?: string;
   jobId?: string | number | null;
   evidenceId?: string;
   attempt?: number;
@@ -12,6 +13,7 @@ export function withJobContext(params: {
   status?: string;
 }) {
   return {
+    requestId: params.requestId ?? null,
     jobId: params.jobId ?? null,
     evidenceId: params.evidenceId ?? null,
     attempt: params.attempt ?? null,

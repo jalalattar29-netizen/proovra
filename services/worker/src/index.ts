@@ -1,4 +1,5 @@
 import "./env-loader.js";
+import { randomUUID } from "node:crypto";
 import { Worker } from "bullmq";
 import { logger, withJobContext } from "./logger.js";
 import {
@@ -10,8 +11,11 @@ import {
 } from "./queue.js";
 import { processGenerateReport } from "./processor.js";
 import { startHealthServer, type HealthServer } from "./health.js";
+import { captureException, initSentry } from "./sentry.js";
 
 type JobData = { evidenceId?: string };
+
+initSentry();
 
 const worker = new Worker(reportQueueName, processGenerateReport, {
   connection: redisConnection,
@@ -21,6 +25,7 @@ let healthServer: HealthServer | null = null;
 let shuttingDown = false;
 
 worker.on("completed", (job) => {
+  const requestId = randomUUID();
   const durationMs =
     job.finishedOn && job.processedOn
       ? job.finishedOn - job.processedOn
@@ -28,6 +33,7 @@ worker.on("completed", (job) => {
 
   logger.info(
     withJobContext({
+      requestId,
       jobId: job.id,
       evidenceId: (job.data as JobData | undefined)?.evidenceId,
       attempt: job.attemptsMade + 1,
@@ -40,6 +46,7 @@ worker.on("completed", (job) => {
 
 worker.on("failed", (job, err) => {
   if (!job) return;
+  const requestId = randomUUID();
 
   const durationMs =
     job.finishedOn && job.processedOn
@@ -51,6 +58,7 @@ worker.on("failed", (job, err) => {
   logger.error(
     {
       ...withJobContext({
+        requestId,
         jobId: job.id,
         evidenceId: (job.data as JobData | undefined)?.evidenceId,
         attempt: job.attemptsMade + 1,
@@ -61,41 +69,58 @@ worker.on("failed", (job, err) => {
     },
     "Job failed"
   );
+  captureException(err, {
+    requestId,
+    evidenceId: (job.data as JobData | undefined)?.evidenceId,
+    jobId: job.id ?? null
+  });
 });
 
 worker.on("error", (err) => {
-  logger.error({ err }, "Worker error");
+  const requestId = randomUUID();
+  logger.error({ requestId, err }, "Worker error");
+  captureException(err, { requestId });
 });
 
 async function shutdown(exitCode: number) {
   if (shuttingDown) return;
   shuttingDown = true;
-  logger.info({ exitCode }, "Shutting down worker");
+  logger.info({ requestId: randomUUID(), exitCode }, "Shutting down worker");
   try {
     await worker.pause(true);
   } catch (err) {
-    logger.error({ err }, "Failed to pause worker");
+    const requestId = randomUUID();
+    logger.error({ requestId, err }, "Failed to pause worker");
+    captureException(err, { requestId });
   }
   try {
     await worker.close();
   } catch (err) {
-    logger.error({ err }, "Failed to close worker");
+    const requestId = randomUUID();
+    logger.error({ requestId, err }, "Failed to close worker");
+    captureException(err, { requestId });
   }
   try {
     await reportQueue.close();
     await reportDlqQueue.close();
   } catch (err) {
-    logger.error({ err }, "Failed to close queues");
+    const requestId = randomUUID();
+    logger.error({ requestId, err }, "Failed to close queues");
+    captureException(err, { requestId });
   }
   try {
     await redisConnection.quit();
   } catch (err) {
-    logger.error({ err }, "Failed to close redis connection");
+    const requestId = randomUUID();
+    logger.error({ requestId, err }, "Failed to close redis connection");
+    captureException(err, { requestId });
   }
   try {
     await healthServer?.close();
   } catch (err) {
-    logger.error({ err }, "Failed to close health server");
+    const requestId = randomUUID();
+    logger.error({ requestId, err }, "Failed to close health server");
+    captureException(err, { requestId });
   }
   process.exit(exitCode);
 }
@@ -105,7 +130,9 @@ startHealthServer()
     healthServer = server;
   })
   .catch((err) => {
-    logger.error({ err }, "Health server failed to start");
+    const requestId = randomUUID();
+    logger.error({ requestId, err }, "Health server failed to start");
+    captureException(err, { requestId });
     void shutdown(1);
   });
 
@@ -118,13 +145,20 @@ process.on("SIGTERM", () => {
 });
 
 process.on("unhandledRejection", (reason) => {
-  logger.error({ err: reason }, "Unhandled promise rejection");
+  const requestId = randomUUID();
+  logger.error({ requestId, err: reason }, "Unhandled promise rejection");
+  captureException(reason, { requestId });
   void shutdown(1);
 });
 
 process.on("uncaughtException", (err) => {
-  logger.error({ err }, "Uncaught exception");
+  const requestId = randomUUID();
+  logger.error({ requestId, err }, "Uncaught exception");
+  captureException(err, { requestId });
   void shutdown(1);
 });
 
-logger.info({ job: generateReportJobName }, "Worker started");
+logger.info(
+  { requestId: randomUUID(), job: generateReportJobName },
+  "Worker started"
+);

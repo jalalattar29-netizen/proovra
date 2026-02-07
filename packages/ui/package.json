@@ -1,0 +1,22 @@
+{
+  "name": "@proovra/ui",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "test": "echo \"(no tests)\""
+  },
+  "devDependencies": {
+    "@eslint/js": "^8.57.1",
+    "@types/node": "^25.1.0",
+    "@typescript-eslint/eslint-plugin": "^8.42.0",
+    "@typescript-eslint/parser": "^8.42.0",
+    "eslint": "^8.57.0",
+    "typescript": "^5.9.3"
+  }
+}

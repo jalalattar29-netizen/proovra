@@ -1,13 +1,14 @@
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Pressable, ScrollView, StyleSheet, Text, View, Switch } from "react-native";
 import { colors, spacing, typography } from "@proovra/ui";
 import { Badge, ListRow, Tabs } from "../../components/ui";
 import { useLocale } from "../../src/locale-context";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { apiFetch } from "../../src/api";
 import { enqueueUpload, processQueue } from "../../src/upload-queue";
 import * as ImagePicker from "expo-image-picker";
 import * as DocumentPicker from "expo-document-picker";
 import * as FileSystem from "expo-file-system";
+import * as Location from "expo-location";
 import { useRouter } from "expo-router";
 
 export default function CaptureScreen() {
@@ -24,6 +25,10 @@ export default function CaptureScreen() {
   const [extendedMode, setExtendedMode] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [useLocation, setUseLocation] = useState(false);
+  const [recent, setRecent] = useState<
+    Array<{ id: string; type: string; status: string; createdAt: string }>
+  >([]);
   const router = useRouter();
 
   const handlePick = async () => {
@@ -85,10 +90,28 @@ export default function CaptureScreen() {
     setBusy(true);
     setError(null);
     try {
+      let gps: { lat: number; lng: number; accuracyMeters?: number } | undefined;
+      const deviceTimeIso = new Date().toISOString();
+      if (useLocation) {
+        const permission = await Location.requestForegroundPermissionsAsync();
+        if (!permission.granted) {
+          setError("Location permission denied");
+          setBusy(false);
+          return;
+        }
+        const pos = await Location.getCurrentPositionAsync({
+          accuracy: Location.Accuracy.Balanced
+        });
+        gps = {
+          lat: pos.coords.latitude,
+          lng: pos.coords.longitude,
+          accuracyMeters: pos.coords.accuracy ?? undefined
+        };
+      }
       if (activeType === "VIDEO" && extendedMode) {
         const created = await apiFetch("/v1/evidence", {
           method: "POST",
-          body: JSON.stringify({ type: activeType, mimeType: "video/mp4" })
+          body: JSON.stringify({ type: activeType, mimeType: "video/mp4", deviceTimeIso, gps })
         });
         for (let i = 0; i < segments.length; i += 1) {
           const seg = segments[i];
@@ -116,7 +139,11 @@ export default function CaptureScreen() {
           id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
           type: activeType,
           uri: asset!.uri,
-          mimeType: asset!.mimeType
+          mimeType: asset!.mimeType,
+          deviceTimeIso,
+          gpsLat: gps?.lat ?? null,
+          gpsLng: gps?.lng ?? null,
+          gpsAccuracyMeters: gps?.accuracyMeters ?? null
         });
         await processQueue();
         router.push("/(tabs)");
@@ -132,6 +159,12 @@ export default function CaptureScreen() {
     if (segments.length === 0) return 0;
     return segments.reduce((sum, seg) => sum + (seg.durationMs ?? 0), 0);
   }, [segments]);
+
+  useEffect(() => {
+    apiFetch("/v1/evidence")
+      .then((data) => setRecent(data.items ?? []))
+      .catch(() => setRecent([]));
+  }, []);
   return (
     <View style={styles.container}>
       <View style={styles.header}>
@@ -160,6 +193,10 @@ export default function CaptureScreen() {
             </Text>
           </Pressable>
         ) : null}
+        <View style={styles.toggleRow}>
+          <Text style={styles.toggleLabel}>Include location metadata</Text>
+          <Switch value={useLocation} onValueChange={setUseLocation} />
+        </View>
         <View style={styles.preview}>
           <Text style={styles.previewText}>
             {activeType === "VIDEO" && extendedMode
@@ -170,21 +207,26 @@ export default function CaptureScreen() {
           </Text>
         </View>
         <View style={styles.listCard}>
-          <ListRow
-            title={t("video")}
-            subtitle="3 minutes ago"
-            badge={<Badge tone="signed" label={t("statusSigned")} />}
-          />
-          <ListRow
-            title={t("statusProcessing")}
-            subtitle="Today, 09:45"
-            badge={<Badge tone="processing" label={t("statusProcessing")} />}
-          />
-          <ListRow
-            title={t("document")}
-            subtitle="Yesterday"
-            badge={<Badge tone="ready" label={t("statusReady")} />}
-          />
+          {recent.length === 0 ? (
+            <Text style={styles.previewText}>No evidence yet.</Text>
+          ) : (
+            recent.map((item) => (
+              <ListRow
+                key={item.id}
+                title={item.type}
+                subtitle={new Date(item.createdAt).toLocaleString()}
+                badge={
+                  item.status === "SIGNED" ? (
+                    <Badge tone="signed" label={t("statusSigned")} />
+                  ) : item.status === "PROCESSING" ? (
+                    <Badge tone="processing" label={t("statusProcessing")} />
+                  ) : (
+                    <Badge tone="ready" label={t("statusReady")} />
+                  )
+                }
+              />
+            ))
+          )}
         </View>
         <Pressable style={styles.captureBar} onPress={handlePick}>
           <View style={styles.captureCircle} />
@@ -235,6 +277,19 @@ const styles = StyleSheet.create({
   previewText: {
     color: "#64748b",
     padding: spacing.md
+  },
+  toggleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: colors.white,
+    borderRadius: 14,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm
+  },
+  toggleLabel: {
+    color: colors.textDark,
+    fontSize: 14
   },
   listCard: {
     backgroundColor: colors.white,

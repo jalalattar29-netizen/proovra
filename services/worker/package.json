@@ -1,7 +1,7 @@
 {
-  "name": "worker",
+  "name": "proovra-worker",
   "version": "1.0.0",
-  "description": "Digital Witness background worker",
+  "description": "Proovra background worker",
   "main": "index.js",
   "scripts": {
     "dev": "tsx watch src/index.ts",
@@ -21,6 +21,7 @@
     "@aws-sdk/s3-request-presigner": "^3.980.0",
     "@prisma/adapter-pg": "^7.3.0",
     "@prisma/client": "^7.3.0",
+    "@sentry/node": "^10.38.0",
     "bullmq": "^5.52.2",
     "fastify": "^5.7.2",
     "ioredis": "^5.7.0",

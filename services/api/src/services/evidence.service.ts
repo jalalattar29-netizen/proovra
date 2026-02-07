@@ -15,6 +15,8 @@ export async function createEvidence(params: {
   ownerUserId: string;
   type: prismaPkg.EvidenceType;
   mimeType?: string;
+  deviceTimeIso?: string;
+  gps?: { lat: number; lng: number; accuracyMeters?: number };
 }) {
   const owner = await prisma.user.findUnique({
     where: { id: params.ownerUserId },
@@ -57,6 +59,10 @@ export async function createEvidence(params: {
       status: EvidenceStatus.CREATED,
       mimeType: params.mimeType ?? null,
       capturedAtUtc: new Date(),
+      deviceTimeIso: params.deviceTimeIso ?? null,
+      lat: params.gps?.lat ?? null,
+      lng: params.gps?.lng ?? null,
+      accuracyMeters: params.gps?.accuracyMeters ?? null,
       guestIdentityId: guestIdentity?.id ?? null
     },
     select: {

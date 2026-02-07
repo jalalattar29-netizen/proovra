@@ -6,6 +6,19 @@ import {
 } from "@aws-sdk/client-s3";
 import { env } from "./config.js";
 
+function requireTls(endpoint: string) {
+  const allowInsecure = process.env.S3_ALLOW_INSECURE === "true";
+  if (
+    process.env.NODE_ENV === "production" &&
+    endpoint.startsWith("http://") &&
+    !allowInsecure
+  ) {
+    throw new Error("S3_ENDPOINT must use https in production");
+  }
+}
+
+requireTls(env.S3_ENDPOINT);
+
 export const s3 = new S3Client({
   region: env.S3_REGION,
   endpoint: env.S3_ENDPOINT,

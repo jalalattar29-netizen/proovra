@@ -10,6 +10,7 @@ enum EvidenceType {
   VIDEO
   AUDIO
   PHOTO
+  DOCUMENT
 }
 
 enum EvidenceStatus {
@@ -29,6 +30,10 @@ enum CustodyEventType {
   EVIDENCE_VIEWED
   EVIDENCE_DOWNLOADED
   EVIDENCE_CLAIMED
+  EVIDENCE_DELETED
+  EVIDENCE_LOCKED
+  VERIFY_VIEWED
+  REPORT_DOWNLOADED
 }
 
 enum AuthProvider {
@@ -116,6 +121,8 @@ model Evidence {
   signingKeyVersion Int?   @map("signing_key_version")
 
   deletedAt DateTime? @map("deleted_at") @db.Timestamptz(6)
+  deletedAtUtc DateTime? @map("deleted_at_utc") @db.Timestamptz(6)
+  retentionUntilUtc DateTime? @map("retention_until_utc") @db.Timestamptz(6)
 
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
@@ -135,6 +142,7 @@ model Evidence {
   @@index([fingerprintHash])
   @@index([status])
   @@index([deletedAt])
+  @@index([deletedAtUtc])
   @@map("evidence")
 }
 

@@ -6,13 +6,14 @@ import { env } from "./config.js";
 import { logger, withJobContext } from "./logger.js";
 import { getObjectStream, headObject, putObjectBuffer } from "./storage.js";
 import { sha256HexFromStream } from "./stream-hash.js";
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { buildReportPdf } from "./pdf/report.js";
 import {
   generateReportJobName,
   reportDlqQueue,
   reportQueue,
 } from "./queue.js";
+import { captureException } from "./sentry.js";
 
 type GenerateReportJobData = {
   evidenceId: string;
@@ -82,7 +83,9 @@ const { EvidenceStatus } = prismaPkg;
 export async function processGenerateReport(job: Job<GenerateReportJobData>) {
   const start = Date.now();
   const evidenceId = job.data.evidenceId;
+  const requestId = randomUUID();
   const ctx = withJobContext({
+    requestId,
     jobId: job.id,
     evidenceId,
     attempt: job.attemptsMade + 1,
@@ -290,6 +293,7 @@ export async function processGenerateReport(job: Job<GenerateReportJobData>) {
     const durationMs = Date.now() - start;
     logger.info(
       withJobContext({
+        requestId,
         jobId: job.id,
         evidenceId,
         attempt: job.attemptsMade + 1,
@@ -299,10 +303,12 @@ export async function processGenerateReport(job: Job<GenerateReportJobData>) {
       "GenerateReportJob completed"
     );
   } catch (error) {
+    captureException(error, { requestId, evidenceId, jobId: job.id ?? null });
     const durationMs = Date.now() - start;
     logger.error(
       {
         ...withJobContext({
+          requestId,
           jobId: job.id,
           evidenceId,
           attempt: job.attemptsMade + 1,
@@ -333,6 +339,7 @@ export async function processGenerateReport(job: Job<GenerateReportJobData>) {
       logger.error(
         {
           ...withJobContext({
+            requestId,
             jobId: job.id,
             evidenceId,
             attempt: job.attemptsMade + 1,
@@ -361,6 +368,7 @@ export async function processGenerateReport(job: Job<GenerateReportJobData>) {
       logger.error(
         {
           ...withJobContext({
+            requestId,
             jobId: job.id,
             evidenceId,
             attempt: job.attemptsMade + 1,

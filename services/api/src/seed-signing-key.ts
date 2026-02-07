@@ -29,7 +29,7 @@ if (serviceEnv !== cwdEnv) {
 }
 
 async function main() {
-  const keyId = process.env.SIGNING_KEY_ID ?? "dw_ed25519";
+  const keyId = process.env.SIGNING_KEY_ID ?? "proovra_ed25519";
   const versionRaw = process.env.SIGNING_KEY_VERSION ?? "1";
   const version = Number.parseInt(versionRaw, 10);
   if (!Number.isFinite(version)) {

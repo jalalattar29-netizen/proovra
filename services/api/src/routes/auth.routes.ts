@@ -3,6 +3,7 @@ import { z } from "zod";
 import {
   createGuestProfile,
   exchangeAppleCodeForIdToken,
+  exchangeGoogleCodeForIdToken,
   ensureGuestIdentity,
   upsertUser,
   upsertUserWithEmailLink,
@@ -14,7 +15,11 @@ import { prisma } from "../db.js";
 import { signJwt } from "../services/jwt.js";
 import { getAuthUserId } from "../auth.js";
 
-const TokenBody = z.object({ idToken: z.string().min(1) });
+const TokenBody = z.object({
+  idToken: z.string().min(1).optional(),
+  id_token: z.string().min(1).optional(),
+  code: z.string().min(1).optional()
+});
 const AppleBody = z.object({
   idToken: z.string().min(1).optional(),
   id_token: z.string().min(1).optional(),
@@ -59,7 +64,14 @@ export async function authRoutes(app: FastifyInstance) {
   app.post("/v1/auth/google", async (req, reply) => {
     try {
       const body = TokenBody.parse(req.body);
-      const profile = await verifyGoogleIdToken(body.idToken);
+      let idToken = body.idToken ?? body.id_token ?? null;
+      if (body.code) {
+        idToken = await exchangeGoogleCodeForIdToken(body.code);
+      }
+      if (!idToken) {
+        return reply.code(400).send({ message: "invalid_id_token" });
+      }
+      const profile = await verifyGoogleIdToken(idToken);
       const user = await upsertUser(profile);
       const token = signJwt(
         {
@@ -72,8 +84,15 @@ export async function authRoutes(app: FastifyInstance) {
       );
       maybeSetWebCookie(req, reply, token);
       return reply.code(200).send({ token, user });
-    } catch {
-      return reply.code(401).send({ message: "Invalid Google token" });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "invalid_id_token";
+      if (message === "invalid_code") {
+        return reply.code(400).send({ message: "invalid_code" });
+      }
+      if (message === "token_exchange_failed") {
+        return reply.code(502).send({ message: "token_exchange_failed" });
+      }
+      return reply.code(401).send({ message: "invalid_id_token" });
     }
   });
 

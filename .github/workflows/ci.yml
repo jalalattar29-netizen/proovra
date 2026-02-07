@@ -7,6 +7,31 @@ on:
 jobs:
   build-test:
     runs-on: ubuntu-latest
+    env:
+      POSTGRES_USER: proovra
+      POSTGRES_PASSWORD: proovra_password
+      POSTGRES_DB: proovra
+      MINIO_ROOT_USER: minio
+      MINIO_ROOT_PASSWORD: minio_password
+      DATABASE_URL: postgresql://proovra:proovra_password@postgres:5432/proovra
+      DIRECT_URL: postgresql://proovra:proovra_password@postgres:5432/proovra
+      REDIS_URL: redis://redis:6379
+      S3_ENDPOINT: http://minio:9000
+      S3_REGION: auto
+      S3_ACCESS_KEY: minio
+      S3_SECRET_KEY: minio_password
+      S3_BUCKET: proovra-prod-assets
+      S3_PUBLIC_BASE_URL: ""
+      S3_ALLOW_INSECURE: "true"
+      SIGNING_KEY_ID: proovra_ed25519
+      SIGNING_KEY_VERSION: "1"
+      SIGNING_PRIVATE_KEY_PATH: keys/signing-private.pem
+      SIGNING_PUBLIC_KEY_PATH: keys/signing-public.pem
+      CORS_ORIGINS: ""
+      VERIFY_RATE_LIMIT_MAX: "60"
+      VERIFY_RATE_LIMIT_WINDOW_SEC: "60"
+      WORKER_BUILD_INFO: ci
+      WORKER_PORT: "8090"
     steps:
       - uses: actions/checkout@v4
 
@@ -30,14 +55,26 @@ jobs:
       - name: Test
         run: pnpm -r test
 
+      - name: Build Shared
+        run: pnpm --filter @proovra/shared build
+
+      - name: Build API
+        run: pnpm --filter proovra-api build
+
+      - name: Build Worker
+        run: pnpm --filter proovra-worker build
+
+      - name: Build Web
+        run: pnpm --filter proovra-web build
+
       - name: Start full stack
         run: docker compose -f infra/docker/docker-compose.full.yml up -d
 
       - name: Wait for health
         run: |
           set -e
-          api_id=$(docker compose -f infra/docker/docker-compose.full.yml ps -q api)
-          worker_id=$(docker compose -f infra/docker/docker-compose.full.yml ps -q worker)
+          api_id=$(docker compose -f infra/docker/docker-compose.full.yml ps -q proovra-api)
+          worker_id=$(docker compose -f infra/docker/docker-compose.full.yml ps -q proovra-worker)
           for i in {1..60}; do
             api_status=$(docker inspect -f '{{.State.Health.Status}}' "$api_id" 2>/dev/null || true)
             worker_status=$(docker inspect -f '{{.State.Health.Status}}' "$worker_id" 2>/dev/null || true)

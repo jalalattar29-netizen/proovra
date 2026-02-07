@@ -9,7 +9,7 @@ import {
   recordPayment,
   setPlan
 } from "../services/billing.service.js";
-import { stripeRequest } from "../services/stripe.service.js";
+import { stripeRequest, stripeRequestRaw } from "../services/stripe.service.js";
 import { paypalRequest } from "../services/paypal.service.js";
 import { prisma } from "../db.js";
 
@@ -20,8 +20,12 @@ const PricingResponse = {
   team: { plan: "TEAM", seats: 5 }
 };
 
+const PlanTypeSchema = prismaPkg.PlanType
+  ? z.nativeEnum(prismaPkg.PlanType)
+  : z.enum(["FREE", "PAYG", "PRO", "TEAM"]);
+
 const CheckoutBody = z.object({
-  plan: z.nativeEnum(prismaPkg.PlanType),
+  plan: PlanTypeSchema,
   currency: z.string().min(3).max(3).optional()
 });
 
@@ -60,6 +64,53 @@ export async function billingRoutes(app: FastifyInstance) {
     const entitlement = await ensureEntitlement(userId);
     return reply.code(200).send({ entitlement });
   });
+
+  app.get("/v1/billing/payments", { preHandler: requireAuth }, async (req, reply) => {
+    const userId = getAuthUserId(req);
+    const items = await prisma.payment.findMany({
+      where: { userId },
+      orderBy: { createdAt: "desc" },
+      take: 20
+    });
+    return reply.code(200).send({ items });
+  });
+
+  app.get(
+    "/v1/billing/subscription",
+    { preHandler: requireAuth },
+    async (req, reply) => {
+      const userId = getAuthUserId(req);
+      const subscription = await prisma.subscription.findFirst({
+        where: { userId },
+        orderBy: { createdAt: "desc" }
+      });
+      return reply.code(200).send({ subscription });
+    }
+  );
+
+  app.post(
+    "/v1/billing/subscription/cancel",
+    { preHandler: requireAuth },
+    async (req, reply) => {
+      const userId = getAuthUserId(req);
+      const subscription = await prisma.subscription.findFirst({
+        where: { userId, status: prismaPkg.SubscriptionStatus.ACTIVE }
+      });
+      if (!subscription) {
+        return reply.code(404).send({ message: "No active subscription" });
+      }
+      if (subscription.provider !== prismaPkg.PaymentProvider.STRIPE) {
+        return reply.code(400).send({ message: "Unsupported provider" });
+      }
+      await stripeRequestRaw(`/subscriptions/${subscription.providerSubId}`, "DELETE");
+      const updated = await prisma.subscription.update({
+        where: { id: subscription.id },
+        data: { status: prismaPkg.SubscriptionStatus.CANCELED }
+      });
+      await ensureEntitlement(userId);
+      return reply.code(200).send({ subscription: updated });
+    }
+  );
 
   app.post("/v1/billing/restore", { preHandler: requireAuth }, async (req, reply) => {
     const userId = getAuthUserId(req);
@@ -160,7 +211,7 @@ export async function billingRoutes(app: FastifyInstance) {
     "/v1/billing/plan",
     { preHandler: requireAuth },
     async (req, reply) => {
-      const body = z.object({ plan: z.nativeEnum(prismaPkg.PlanType) }).parse(req.body);
+      const body = z.object({ plan: PlanTypeSchema }).parse(req.body);
       const userId = getAuthUserId(req);
       await setPlan(userId, body.plan);
       const entitlement = await prisma.entitlement.findFirst({

@@ -4,23 +4,14 @@ import Link from "next/link";
 import { headers } from "next/headers";
 import { notFound } from "next/navigation";
 import { TopBar } from "../../../components/ui";
+import type { ReactNode } from "react";
 
 const ALLOWED_SLUGS = new Set(["privacy", "terms", "cookies", "security"]);
-const LOCALES = ["en", "ar", "de"] as const;
-type Locale = (typeof LOCALES)[number];
-
-function pickLocale(acceptLanguage: string | null, forced?: string): Locale {
-  if (forced && LOCALES.includes(forced as Locale)) return forced as Locale;
-  if (!acceptLanguage) return "en";
-  const lower = acceptLanguage.toLowerCase();
-  if (lower.includes("ar")) return "ar";
-  if (lower.includes("de")) return "de";
-  return "en";
-}
+type Locale = "en";
 
 function renderMarkdown(md: string) {
   const lines = md.split("\n");
-  const nodes: Array<JSX.Element> = [];
+  const nodes: ReactNode[] = [];
   let listItems: string[] = [];
 
   const flushList = () => {
@@ -72,19 +63,20 @@ export default async function LegalPage({
   params,
   searchParams
 }: {
-  params: { slug: string };
-  searchParams?: { lang?: string };
+  params?: Promise<{ slug: string }>;
+  searchParams?: Promise<{ lang?: string }>;
 }) {
-  if (!ALLOWED_SLUGS.has(params.slug)) return notFound();
+  const resolvedParams = (await params) ?? { slug: "" };
+  if (!ALLOWED_SLUGS.has(resolvedParams.slug)) return notFound();
 
-  const acceptLanguage = headers().get("accept-language");
-  const locale = pickLocale(acceptLanguage, searchParams?.lang);
+  await headers();
+  const locale: Locale = "en";
   const filePath = path.join(
     process.cwd(),
     "content",
     "legal",
     locale,
-    `${params.slug}.md`
+    `${resolvedParams.slug}.md`
   );
 
   let content = "";
@@ -97,7 +89,7 @@ export default async function LegalPage({
         "content",
         "legal",
         "en",
-        `${params.slug}.md`
+        `${resolvedParams.slug}.md`
       );
       content = await readFile(fallbackPath, "utf8");
     } else {
@@ -107,19 +99,8 @@ export default async function LegalPage({
 
   return (
     <div className="page">
-      <TopBar title="Proovra" right={<Link href="/">{locale === "ar" ? "الصفحة الرئيسية" : "Home"}</Link>} />
+      <TopBar title="Proovra" right={<Link href="/">Home</Link>} />
       <section className="section legal-page">
-        <div style={{ display: "flex", gap: 8, marginBottom: 16, flexWrap: "wrap" }}>
-          {(["en", "ar", "de"] as const).map((lang) => (
-            <Link
-              key={lang}
-              href={`/legal/${params.slug}?lang=${lang}`}
-              className={`lang-button ${lang === locale ? "active" : ""}`}
-            >
-              {lang.toUpperCase()}
-            </Link>
-          ))}
-        </div>
         {renderMarkdown(content)}
       </section>
     </div>

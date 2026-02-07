@@ -3,6 +3,7 @@ import Fastify from "fastify";
 import cors from "@fastify/cors";
 import cookie from "@fastify/cookie";
 import { prisma } from "./db.js";
+import { captureException, initSentry } from "./observability/sentry.js";
 import { evidenceRoutes } from "./routes/evidence.routes.js";
 import { authRoutes } from "./routes/auth.routes.js";
 import { teamsRoutes } from "./routes/teams.routes.js";
@@ -19,9 +20,13 @@ function parseCorsOrigins(): string[] {
 }
 
 export async function buildServer() {
+  initSentry();
   const app = Fastify({
-    logger: true,
+    logger: {
+      level: process.env.LOG_LEVEL ?? "info",
+    },
     genReqId: () => randomUUID(),
+    disableRequestLogging: true,
   });
 
   const allowlist = parseCorsOrigins();
@@ -40,7 +45,53 @@ export async function buildServer() {
   await app.register(cookie);
 
   app.addHook("onRequest", async (req, reply) => {
+    (req as typeof req & { startTimeMs?: number }).startTimeMs = Date.now();
+    req.log = req.log.child({ requestId: req.id });
     reply.header("x-request-id", req.id);
+    reply.header("x-content-type-options", "nosniff");
+    reply.header("x-frame-options", "DENY");
+    reply.header("referrer-policy", "same-origin");
+    reply.header("permissions-policy", "geolocation=(self)");
+    if (process.env.NODE_ENV === "production") {
+      reply.header(
+        "strict-transport-security",
+        "max-age=63072000; includeSubDomains; preload"
+      );
+    }
+  });
+
+  app.addHook("onResponse", async (req, reply) => {
+    const start = (req as typeof req & { startTimeMs?: number }).startTimeMs;
+    const durationMs = typeof start === "number" ? Date.now() - start : null;
+    const logContext: Record<string, unknown> = {
+      requestId: req.id,
+      statusCode: reply.statusCode,
+      method: req.method,
+      url: req.url,
+      durationMs,
+    };
+    if (req.user?.sub) logContext.userId = req.user.sub;
+    if ((req as typeof req & { evidenceId?: string }).evidenceId) {
+      logContext.evidenceId = (req as typeof req & { evidenceId?: string })
+        .evidenceId;
+    }
+    req.log.info(logContext, "request.completed");
+  });
+
+  app.setErrorHandler((err, req, reply) => {
+    const context: Record<string, unknown> = {
+      requestId: req.id,
+      method: req.method,
+      url: req.url,
+    };
+    if (req.user?.sub) context.userId = req.user.sub;
+    if ((req as typeof req & { evidenceId?: string }).evidenceId) {
+      context.evidenceId = (req as typeof req & { evidenceId?: string })
+        .evidenceId;
+    }
+    captureException(err, context);
+    req.log.error(context, "request.failed");
+    reply.send(err);
   });
 
   app.get("/health", async () => {

@@ -30,7 +30,7 @@ describe("report pdf builder", () => {
         mimeType: "text/plain",
         sizeBytes: "12",
         durationSec: null,
-        storageBucket: "dw-evidence",
+        storageBucket: "test-bucket",
         storageKey: "evidence/evidence-1/original",
         publicUrl: null,
         gps: { lat: null, lng: null, accuracyMeters: null },
@@ -38,7 +38,7 @@ describe("report pdf builder", () => {
         fingerprintCanonicalJson: "{\"a\":1}",
         fingerprintHash: "def",
         signatureBase64: "sig",
-        signingKeyId: "dw_ed25519",
+        signingKeyId: "proovra_ed25519",
         signingKeyVersion: 1,
         publicKeyPem:
           "-----BEGIN PUBLIC KEY-----\nTEST\n-----END PUBLIC KEY-----\n",
@@ -79,7 +79,7 @@ describe("report pdf builder", () => {
         mimeType: "text/plain",
         sizeBytes: "12",
         durationSec: "0",
-        storageBucket: "dw-evidence",
+        storageBucket: "test-bucket",
         storageKey: "evidence/evidence-2/original",
         publicUrl: "http://example.com/evidence-2",
         gps: { lat: "1.0", lng: "2.0", accuracyMeters: "3.0" },
@@ -87,7 +87,7 @@ describe("report pdf builder", () => {
         fingerprintCanonicalJson: "{\"a\":1,\"b\":2}",
         fingerprintHash: "def",
         signatureBase64: "sig",
-        signingKeyId: "dw_ed25519",
+        signingKeyId: "proovra_ed25519",
         signingKeyVersion: 1,
         publicKeyPem:
           "-----BEGIN PUBLIC KEY-----\nTEST\n-----END PUBLIC KEY-----\n",
@@ -106,7 +106,7 @@ describe("report pdf builder", () => {
     });
 
     const text = extractText(buffer);
-    expect(text).toContain("DW_SECTION_ORDER:");
+    expect(text).toContain("PROOVRA_SECTION_ORDER:");
     expectInOrder(text, [
       "Evidence Summary",
       "Cryptographic Details",
@@ -116,8 +116,8 @@ describe("report pdf builder", () => {
       "Report Footer",
     ]);
 
-    expect(text).toContain("DW_REPORT_VERSION=1");
-    expect(text).toContain("DW_GENERATED_AT=2026-01-01T00:03:00.000Z");
-    expect(text).toContain("DW_BUILD=build-123");
+    expect(text).toContain("PROOVRA_REPORT_VERSION=1");
+    expect(text).toContain("PROOVRA_GENERATED_AT=2026-01-01T00:03:00.000Z");
+    expect(text).toContain("PROOVRA_BUILD=build-123");
   });
 });
