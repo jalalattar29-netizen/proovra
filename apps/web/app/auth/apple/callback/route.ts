@@ -5,7 +5,7 @@ export async function POST(request: Request) {
   const code = formData.get("code")?.toString() ?? "";
   const idToken = formData.get("id_token")?.toString() ?? "";
   const state = formData.get("state")?.toString() ?? "";
-  const redirectUrl = new URL("/auth/apple/callback", request.url);
+  const redirectUrl = new URL("/auth/apple/callback/ui", request.url);
   if (code) redirectUrl.searchParams.set("code", code);
   if (idToken) redirectUrl.searchParams.set("id_token", idToken);
   if (state) redirectUrl.searchParams.set("state", state);
