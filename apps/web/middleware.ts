@@ -3,19 +3,6 @@ import { NextResponse, type NextRequest } from "next/server";
 const APP_BASE = process.env.NEXT_PUBLIC_APP_BASE;
 const WEB_BASE = process.env.NEXT_PUBLIC_WEB_BASE;
 
-function parseHost(base: string | undefined) {
-  if (!base) return null;
-  try {
-    return new URL(base).host;
-  } catch {
-    try {
-      return new URL(`https://${base}`).host;
-    } catch {
-      return null;
-    }
-  }
-}
-
 function normalizeBaseUrl(base: string | undefined) {
   if (!base) return null;
   try {
@@ -29,6 +16,15 @@ function normalizeBaseUrl(base: string | undefined) {
   }
 }
 
+function getHost(baseUrl: string | null) {
+  if (!baseUrl) return null;
+  try {
+    return new URL(baseUrl).host;
+  } catch {
+    return null;
+  }
+}
+
 export function middleware(req: NextRequest) {
   try {
     const host = req.headers.get("host");
@@ -36,14 +32,18 @@ export function middleware(req: NextRequest) {
       return NextResponse.next();
     }
 
-    const appHost = parseHost(APP_BASE);
-    const webHost = parseHost(WEB_BASE);
     const appBaseUrl = normalizeBaseUrl(APP_BASE);
     const webBaseUrl = normalizeBaseUrl(WEB_BASE);
+    if (!appBaseUrl && !webBaseUrl) {
+      return NextResponse.next();
+    }
+
+    const appHost = getHost(appBaseUrl);
+    const webHost = getHost(webBaseUrl);
     const pathname = req.nextUrl.pathname;
 
-    const isAppHost = appHost && host.includes(appHost);
-    const isWebHost = webHost && host.includes(webHost);
+    const isAppHost = appHost ? host.endsWith(appHost) : false;
+    const isWebHost = webHost ? host.endsWith(webHost) : false;
 
     if (isAppHost) {
       if (pathname === "/") {
@@ -60,7 +60,9 @@ export function middleware(req: NextRequest) {
         pathname === "/support"
       ) {
         if (webBaseUrl) {
-          return NextResponse.redirect(new URL(pathname, webBaseUrl));
+          const target = new URL(webBaseUrl);
+          target.pathname = pathname;
+          return NextResponse.redirect(target);
         }
       }
     }
@@ -76,7 +78,9 @@ export function middleware(req: NextRequest) {
         pathname === "/dashboard"
       ) {
         if (appBaseUrl) {
-          return NextResponse.redirect(new URL(pathname, appBaseUrl));
+          const target = new URL(appBaseUrl);
+          target.pathname = pathname;
+          return NextResponse.redirect(target);
         }
       }
     }
