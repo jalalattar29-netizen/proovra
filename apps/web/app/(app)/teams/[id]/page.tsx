@@ -39,6 +39,17 @@ export default function TeamDetailPage() {
   const [saving, setSaving] = useState(false);
 
   const roles = useMemo(() => ["OWNER", "ADMIN", "MEMBER", "VIEWER"], []);
+  const profileFields = useMemo(
+    () =>
+      [
+        { label: "Legal name", key: "legalName" },
+        { label: "Address", key: "address" },
+        { label: "Logo URL", key: "logoUrl" },
+        { label: "Timezone", key: "timezone" },
+        { label: "Legal email", key: "legalEmail" }
+      ] as const satisfies ReadonlyArray<{ label: string; key: keyof Team }>,
+    []
+  );
 
   useEffect(() => {
     if (!params?.id) return;
@@ -130,13 +141,7 @@ export default function TeamDetailPage() {
             <Card>
               <div style={{ fontWeight: 600, marginBottom: 12 }}>Organization profile</div>
               <div style={{ display: "grid", gap: 10 }}>
-                {[
-                  { label: "Legal name", key: "legalName" },
-                  { label: "Address", key: "address" },
-                  { label: "Logo URL", key: "logoUrl" },
-                  { label: "Timezone", key: "timezone" },
-                  { label: "Legal email", key: "legalEmail" }
-                ].map((item) => (
+                {profileFields.map((item) => (
                   <label key={item.key} style={{ display: "grid", gap: 6 }}>
                     <span style={{ fontSize: 12, color: "#64748b" }}>{item.label}</span>
                     <input
