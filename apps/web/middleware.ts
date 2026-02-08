@@ -31,6 +31,9 @@ export function middleware(req: NextRequest) {
     if (!host || host.includes("localhost") || host.includes("127.0.0.1")) {
       return NextResponse.next();
     }
+    if (host.endsWith(".vercel.app")) {
+      return NextResponse.next();
+    }
 
     const appBaseUrl = normalizeBaseUrl(APP_BASE);
     const webBaseUrl = normalizeBaseUrl(WEB_BASE);
