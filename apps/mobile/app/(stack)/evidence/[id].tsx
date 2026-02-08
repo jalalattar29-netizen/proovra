@@ -1,14 +1,15 @@
 import { Linking, ScrollView, StyleSheet, Text, View } from "react-native";
 import { colors, spacing, typography } from "@proovra/ui";
-import { BottomNav, Button } from "../../../components/ui";
+import { Badge, BottomNav, Button, Card, StatusPill } from "../../../components/ui";
 import { useLocale } from "../../../src/locale-context";
 import { useLocalSearchParams } from "expo-router";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { apiFetch } from "../../../src/api";
 
 export default function EvidenceDetailScreen() {
-  const { t, fontFamilyBold, isRTL } = useLocale();
+  const { t, fontFamilyBold, fontFamily, isRTL } = useLocale();
   const params = useLocalSearchParams<{ id?: string }>();
+
   const [status, setStatus] = useState<string>("SIGNED");
   const [reportUrl, setReportUrl] = useState<string | null>(null);
   const [createdAt, setCreatedAt] = useState<string | null>(null);
@@ -18,6 +19,7 @@ export default function EvidenceDetailScreen() {
 
   useEffect(() => {
     if (!params.id) return;
+
     apiFetch(`/v1/evidence/${params.id}`)
       .then((data) => {
         setStatus(data.evidence?.status ?? "SIGNED");
@@ -27,10 +29,18 @@ export default function EvidenceDetailScreen() {
         setFingerprintHash(data.evidence?.fingerprintHash ?? null);
       })
       .catch(() => setStatus("SIGNED"));
+
     apiFetch(`/v1/evidence/${params.id}/report/latest`)
       .then((data) => setReportUrl(data.url ?? null))
       .catch(() => setReportUrl(null));
   }, [params.id]);
+
+  const statusTone = useMemo(() => {
+    if (status === "SIGNED") return "signed" as const;
+    if (status === "PROCESSING") return "processing" as const;
+    return "ready" as const;
+  }, [status]);
+
   return (
     <View style={styles.container}>
       <View style={styles.header}>
@@ -40,63 +50,61 @@ export default function EvidenceDetailScreen() {
         </Text>
         <Text style={styles.headerIcon}>⋮</Text>
       </View>
-      <ScrollView contentContainerStyle={styles.scroll}>
-        <View style={styles.statusCard}>
-          <View style={styles.statusBadge}>
-            <View style={styles.statusHex} />
-          </View>
-          <Text style={[styles.statusType, { fontFamily: fontFamilyBold }]}>{type}</Text>
-          <Text style={styles.statusText}>
-            {status === "SIGNED" ? t("statusSigned") : status}
+
+      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+        <View style={styles.banner}>
+          <StatusPill label={status === "SIGNED" ? "SIGNED" : status} />
+          <Text style={[styles.bannerType, { fontFamily: fontFamilyBold }]}>{type}</Text>
+          <Text style={[styles.bannerSub, { fontFamily, textAlign: isRTL ? "right" : "left" }]}>
+            {createdAt ? `Created ${new Date(createdAt).toISOString()}` : "—"}
           </Text>
         </View>
-        <View style={styles.detailsCard}>
-          <Text style={[styles.timestamp, { textAlign: isRTL ? "right" : "left" }]}>
-            {createdAt ? new Date(createdAt).toISOString() : "—"}
-          </Text>
-          <View style={styles.hashRow}>
-            <Text style={[styles.hashLabel, { textAlign: isRTL ? "right" : "left" }]}>
+
+        <Card style={{ marginTop: spacing.md }}>
+          <View style={styles.detailsTop}>
+            <Text style={[styles.detailsTitle, { fontFamily: fontFamilyBold }]}>Details</Text>
+            <Badge label={status === "SIGNED" ? t("statusSigned") : status} tone={statusTone} />
+          </View>
+
+          <View style={styles.row}>
+            <Text style={[styles.k, { fontFamily, textAlign: isRTL ? "right" : "left" }]}>
               SHA-256
             </Text>
-            <Text style={[styles.hashValue, { fontFamily: fontFamilyBold }]}>
-              {fileSha ? `${fileSha.slice(0, 24)}...` : "—"}
+            <Text style={[styles.v, { fontFamily: fontFamilyBold }]}>
+              {fileSha ? `${fileSha.slice(0, 28)}…` : "—"}
             </Text>
           </View>
-          <View style={styles.hashRow}>
-            <Text style={[styles.hashLabel, { textAlign: isRTL ? "right" : "left" }]}>
+
+          <View style={styles.row}>
+            <Text style={[styles.k, { fontFamily, textAlign: isRTL ? "right" : "left" }]}>
               Ed25519
             </Text>
-            <Text style={[styles.hashValue, { fontFamily: fontFamilyBold }]}>
-              {fingerprintHash ? `${fingerprintHash.slice(0, 24)}...` : "—"}
+            <Text style={[styles.v, { fontFamily: fontFamilyBold }]}>
+              {fingerprintHash ? `${fingerprintHash.slice(0, 28)}…` : "—"}
             </Text>
           </View>
-        </View>
+        </Card>
+
         <View style={styles.buttonRow}>
           <Button
             label={t("downloadReport")}
             onPress={() => {
-              if (reportUrl) {
-                void Linking.openURL(reportUrl);
-              }
+              if (reportUrl) void Linking.openURL(reportUrl);
             }}
           />
           <Button label={t("shareLink")} variant="secondary" />
         </View>
       </ScrollView>
+
       <BottomNav />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.lightBg
-  },
-  scroll: {
-    paddingHorizontal: spacing.xl,
-    paddingBottom: spacing.xl
-  },
+  container: { flex: 1, backgroundColor: colors.lightBg },
+  scroll: { paddingHorizontal: spacing.xl, paddingBottom: spacing.xl },
+
   header: {
     flexDirection: "row",
     alignItems: "center",
@@ -104,69 +112,39 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.xl,
     paddingTop: spacing.lg
   },
-  headerTitle: {
-    fontSize: typography.size.h3,
-    color: colors.textDark
+  headerTitle: { fontSize: typography.size.h3, color: colors.textDark },
+  headerIcon: { fontSize: 18, color: "#94A3B8" },
+
+  banner: {
+    backgroundColor: colors.primaryNavy,
+    borderRadius: 20,
+    padding: spacing.xl,
+    marginTop: spacing.md,
+    shadowColor: "#000",
+    shadowOpacity: 0.10,
+    shadowRadius: 28,
+    shadowOffset: { width: 0, height: 16 },
+    elevation: 2
   },
-  headerIcon: {
-    fontSize: 18,
-    color: "#94A3B8"
-  },
-  statusCard: {
-    backgroundColor: "#0B1F53",
-    borderRadius: 18,
-    padding: spacing.lg,
+  bannerType: { color: colors.white, fontSize: typography.size.h2, marginTop: spacing.sm },
+  bannerSub: { marginTop: spacing.xs, color: "rgba(255,255,255,0.75)" },
+
+  detailsTop: {
+    flexDirection: "row",
     alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: spacing.md
+  },
+  detailsTitle: { fontSize: 14, color: colors.textDark },
+
+  row: {
+    borderTopWidth: 1,
+    borderTopColor: "rgba(15,23,42,0.06)",
+    paddingTop: spacing.md,
     marginTop: spacing.md
   },
-  statusBadge: {
-    width: 54,
-    height: 54,
-    borderRadius: 16,
-    backgroundColor: "rgba(255,255,255,0.2)",
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: spacing.sm
-  },
-  statusHex: {
-    width: 32,
-    height: 32,
-    borderRadius: 8,
-    backgroundColor: colors.white
-  },
-  statusType: {
-    color: colors.white,
-    fontSize: typography.size.h3
-  },
-  statusText: {
-    color: colors.white,
-    opacity: 0.8
-  },
-  detailsCard: {
-    backgroundColor: colors.white,
-    borderRadius: 18,
-    padding: spacing.lg,
-    marginTop: spacing.md,
-    borderWidth: 1,
-    borderColor: colors.border
-  },
-  timestamp: {
-    marginTop: spacing.md,
-    color: "#64748b"
-  },
-  hashRow: {
-    marginTop: spacing.sm
-  },
-  hashLabel: {
-    fontSize: 11,
-    color: "#64748b"
-  },
-  hashValue: {
-    fontSize: 13,
-    color: colors.textDark
-  },
-  buttonRow: {
-    marginTop: spacing.lg,
-    gap: spacing.sm
-  }
+  k: { fontSize: 11, color: "#64748b" },
+  v: { marginTop: 4, fontSize: 13, color: colors.textDark },
+
+  buttonRow: { marginTop: spacing.lg, gap: spacing.sm }
 });

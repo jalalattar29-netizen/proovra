@@ -3,8 +3,8 @@ export function buildGoogleAuthUrl(params: { state: string }): string {
   const redirectUri =
     process.env.NEXT_PUBLIC_GOOGLE_REDIRECT_URI ??
     (typeof window !== "undefined"
-      ? `${window.location.origin}/auth/apple/callback`
-      : "https://www.proovra.com/auth/apple/callback");
+      ? `${window.location.origin}/auth/callback`
+      : "https://www.proovra.com/auth/callback");
   const url = new URL("https://accounts.google.com/o/oauth2/v2/auth");
   url.searchParams.set("client_id", clientId);
   url.searchParams.set("redirect_uri", redirectUri);
@@ -16,6 +16,51 @@ export function buildGoogleAuthUrl(params: { state: string }): string {
   return url.toString();
 }
 
+let googleScriptPromise: Promise<void> | null = null;
+let appleScriptPromise: Promise<void> | null = null;
+
+function loadScriptOnce(src: string): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (typeof document === "undefined") return resolve();
+    const existing = document.querySelector(`script[src="${src}"]`) as HTMLScriptElement | null;
+    if (existing?.dataset.loaded === "true") {
+      resolve();
+      return;
+    }
+    if (existing) {
+      existing.addEventListener("load", () => resolve());
+      existing.addEventListener("error", () => reject(new Error(`Failed to load ${src}`)));
+      return;
+    }
+    const script = document.createElement("script");
+    script.src = src;
+    script.async = true;
+    script.defer = true;
+    script.addEventListener("load", () => {
+      script.dataset.loaded = "true";
+      resolve();
+    });
+    script.addEventListener("error", () => reject(new Error(`Failed to load ${src}`)));
+    document.head.appendChild(script);
+  });
+}
+
+export function loadGoogleIdentity(): Promise<void> {
+  if (!googleScriptPromise) {
+    googleScriptPromise = loadScriptOnce("https://accounts.google.com/gsi/client");
+  }
+  return googleScriptPromise;
+}
+
+export function loadAppleIdentity(): Promise<void> {
+  if (!appleScriptPromise) {
+    appleScriptPromise = loadScriptOnce(
+      "https://appleid.cdn-apple.com/appleauth/static/jsapi/appleid/1/en_US/appleid.auth.js"
+    );
+  }
+  return appleScriptPromise;
+}
+
 export function buildAppleAuthUrl(params: {
   state: string;
   scope?: string;
@@ -24,8 +69,8 @@ export function buildAppleAuthUrl(params: {
   const redirectUri =
     process.env.NEXT_PUBLIC_APPLE_REDIRECT_URI ??
     (typeof window !== "undefined"
-      ? `${window.location.origin}/auth/apple/callback`
-      : "https://www.proovra.com/auth/apple/callback");
+      ? `${window.location.origin}/auth/callback`
+      : "https://www.proovra.com/auth/callback");
   const scope = params.scope ?? "name email";
   const url = new URL("https://appleid.apple.com/auth/authorize");
   url.searchParams.set("response_type", "code id_token");

@@ -72,7 +72,12 @@ export default function AppleCallbackPage() {
       return;
     }
 
-    const apiBase = process.env.NEXT_PUBLIC_API_BASE ?? "https://api.proovra.com";
+    const apiBase =
+      process.env.NEXT_PUBLIC_API_BASE ??
+      (typeof window !== "undefined" &&
+      (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1")
+        ? "http://localhost:8081"
+        : "https://api.proovra.com");
     const endpoint =
       provider === "google"
         ? `${apiBase}/v1/auth/google`

@@ -9,6 +9,7 @@ type AuthContextValue = {
   user: AuthUser | null;
   ensureGuest: () => Promise<void>;
   setToken: (token: string | null) => void;
+  authReady: boolean;
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -22,6 +23,7 @@ export function useAuth() {
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [token, setTokenState] = useState<string | null>(null);
   const [user, setUser] = useState<AuthUser | null>(null);
+  const [authReady, setAuthReady] = useState(false);
 
   const ensureGuest = async () => {
     if (token) return;
@@ -29,6 +31,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (stored) {
       setTokenState(stored);
       setAuthToken(stored);
+      try {
+        const me = await apiFetch("/v1/auth/me", { method: "GET" });
+        setUser(me.user ?? null);
+      } catch {
+        setUser(null);
+      } finally {
+        setAuthReady(true);
+      }
       return;
     }
     const data = await apiFetch("/v1/auth/guest", { method: "POST" });
@@ -36,6 +46,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(data.user);
     setAuthToken(data.token);
     await SecureStore.setItemAsync("proovra-token", data.token);
+    setAuthReady(true);
   };
 
   const setToken = (next: string | null) => {
@@ -49,12 +60,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   useEffect(() => {
-    void ensureGuest();
+    void (async () => {
+      const stored = await SecureStore.getItemAsync("proovra-token");
+      if (stored) {
+        setTokenState(stored);
+        setAuthToken(stored);
+        try {
+          const me = await apiFetch("/v1/auth/me", { method: "GET" });
+          setUser(me.user ?? null);
+        } catch {
+          setUser(null);
+        } finally {
+          setAuthReady(true);
+        }
+        return;
+      }
+      setAuthReady(true);
+    })();
   }, []);
 
   const value = useMemo<AuthContextValue>(
-    () => ({ token, user, ensureGuest, setToken }),
-    [token, user]
+    () => ({ token, user, ensureGuest, setToken, authReady }),
+    [token, user, authReady]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

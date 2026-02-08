@@ -2,14 +2,14 @@ import { Pressable, ScrollView, StyleSheet, Text, View, Switch } from "react-nat
 import { colors, spacing, typography } from "@proovra/ui";
 import { Badge, ListRow, Tabs } from "../../components/ui";
 import { useLocale } from "../../src/locale-context";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { apiFetch } from "../../src/api";
 import { enqueueUpload, processQueue } from "../../src/upload-queue";
-import * as ImagePicker from "expo-image-picker";
 import * as DocumentPicker from "expo-document-picker";
 import * as FileSystem from "expo-file-system";
 import * as Location from "expo-location";
 import { useRouter } from "expo-router";
+import { CameraView, useCameraPermissions, useMicrophonePermissions } from "expo-camera";
 
 export default function CaptureScreen() {
   const { t, fontFamilyBold } = useLocale();
@@ -23,12 +23,30 @@ export default function CaptureScreen() {
     Array<{ uri: string; mimeType: string; durationMs?: number }>
   >([]);
   const [extendedMode, setExtendedMode] = useState(false);
+  const [cameraOpen, setCameraOpen] = useState(false);
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordSeconds, setRecordSeconds] = useState(0);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [useLocation, setUseLocation] = useState(false);
   const [recent, setRecent] = useState<
     Array<{ id: string; type: string; status: string; createdAt: string }>
   >([]);
+  const cameraRef = useRef<CameraView>(null);
+  const [cameraPermission, requestCameraPermission] = useCameraPermissions();
+  const [micPermission, requestMicPermission] = useMicrophonePermissions();
+
+  const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+  const pollReport = async (evidenceId: string) => {
+    for (let attempt = 0; attempt < 8; attempt += 1) {
+      try {
+        await apiFetch(`/v1/evidence/${evidenceId}/report/latest`, { method: "GET" });
+        return;
+      } catch {
+        await sleep(2000);
+      }
+    }
+  };
   const router = useRouter();
 
   const handlePick = async () => {
@@ -45,36 +63,77 @@ export default function CaptureScreen() {
         }
         return;
       }
-      const permission = await ImagePicker.requestCameraPermissionsAsync();
-      if (!permission.granted) {
-        setError("Camera permission denied");
-        return;
+      const cam = cameraPermission?.granted ?? false;
+      const mic = micPermission?.granted ?? false;
+      if (!cam) {
+        const res = await requestCameraPermission();
+        if (!res.granted) {
+          setError("Camera permission denied");
+          return;
+        }
       }
-      const result = await ImagePicker.launchCameraAsync({
-        mediaTypes:
-          activeType === "VIDEO"
-            ? ImagePicker.MediaTypeOptions.Videos
-            : ImagePicker.MediaTypeOptions.Images,
-        quality: 0.9,
-        videoMaxDuration: activeType === "VIDEO" && extendedMode ? 1800 : undefined
+      if (activeType === "VIDEO" && !mic) {
+        const res = await requestMicPermission();
+        if (!res.granted) {
+          setError("Microphone permission denied");
+          return;
+        }
+      }
+      setCameraOpen(true);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to open camera");
+    }
+  };
+
+  const handleTakePhoto = async () => {
+    if (!cameraRef.current) return;
+    setError(null);
+    try {
+      const result = await cameraRef.current.takePictureAsync({ quality: 0.9 });
+      if (result?.uri) {
+        setAsset({
+          uri: result.uri,
+          mimeType: "image/jpeg"
+        });
+        setCameraOpen(false);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to capture photo");
+    }
+  };
+
+  const handleStartRecording = async () => {
+    if (!cameraRef.current) return;
+    setError(null);
+    setIsRecording(true);
+    try {
+      const startedAt = Date.now();
+      const result = await cameraRef.current.recordAsync({
+        maxDuration: 1800
       });
-      if (!result.canceled && result.assets?.[0]) {
-        const file = result.assets[0];
-        const durationMs = file.duration ? Math.round(file.duration * 1000) : undefined;
+      const durationMs = Math.max(0, Date.now() - startedAt);
+      if (result?.uri) {
         const next = {
-          uri: file.uri,
-          mimeType: file.mimeType ?? (activeType === "VIDEO" ? "video/mp4" : "image/jpeg"),
+          uri: result.uri,
+          mimeType: "video/mp4",
           durationMs
         };
-        if (activeType === "VIDEO" && extendedMode) {
+        if (extendedMode) {
           setSegments((prev) => [...prev, next]);
         } else {
           setAsset(next);
         }
+        setCameraOpen(false);
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to capture");
+      setError(err instanceof Error ? err.message : "Failed to record video");
+    } finally {
+      setIsRecording(false);
     }
+  };
+
+  const handleStopRecording = () => {
+    cameraRef.current?.stopRecording();
   };
 
   const handleCapture = async () => {
@@ -133,6 +192,7 @@ export default function CaptureScreen() {
           method: "POST",
           body: "{}"
         });
+        await pollReport(created.id);
         router.push(`/evidence/${created.id}`);
       } else {
         enqueueUpload({
@@ -159,6 +219,17 @@ export default function CaptureScreen() {
     if (segments.length === 0) return 0;
     return segments.reduce((sum, seg) => sum + (seg.durationMs ?? 0), 0);
   }, [segments]);
+
+  useEffect(() => {
+    if (!isRecording) {
+      setRecordSeconds(0);
+      return;
+    }
+    const id = setInterval(() => {
+      setRecordSeconds((value) => value + 1);
+    }, 1000);
+    return () => clearInterval(id);
+  }, [isRecording]);
 
   useEffect(() => {
     apiFetch("/v1/evidence")
@@ -193,6 +264,33 @@ export default function CaptureScreen() {
             </Text>
           </Pressable>
         ) : null}
+        {cameraOpen ? (
+          <View style={styles.cameraCard}>
+            <CameraView ref={cameraRef} style={styles.cameraPreview} />
+            <View style={styles.cameraControls}>
+              {activeType === "VIDEO" ? (
+                <>
+                  <Text style={styles.timerText}>
+                    {isRecording ? `Recording ${recordSeconds}s` : "Ready to record"}
+                  </Text>
+                  <Pressable
+                    style={[styles.captureBar, { backgroundColor: isRecording ? "#ef4444" : colors.primaryNavy }]}
+                    onPress={isRecording ? handleStopRecording : handleStartRecording}
+                  >
+                    <Text style={styles.uploadText}>{isRecording ? "Stop recording" : "Start recording"}</Text>
+                  </Pressable>
+                </>
+              ) : (
+                <Pressable style={styles.captureBar} onPress={handleTakePhoto}>
+                  <Text style={styles.uploadText}>Capture photo</Text>
+                </Pressable>
+              )}
+              <Pressable style={[styles.captureBar, styles.secondaryBar]} onPress={() => setCameraOpen(false)}>
+                <Text style={styles.secondaryText}>Cancel</Text>
+              </Pressable>
+            </View>
+          </View>
+        ) : (
         <View style={styles.toggleRow}>
           <Text style={styles.toggleLabel}>Include location metadata</Text>
           <Switch value={useLocation} onValueChange={setUseLocation} />
@@ -239,6 +337,7 @@ export default function CaptureScreen() {
           <Text style={styles.uploadText}>{busy ? "Uploading..." : "Upload & Sign"}</Text>
         </Pressable>
         {error ? <Text style={styles.errorText}>{error}</Text> : null}
+        )}
       </ScrollView>
     </View>
   );
@@ -273,6 +372,33 @@ const styles = StyleSheet.create({
     height: 180,
     borderRadius: 18,
     backgroundColor: "#E2E8F0"
+  },
+  cameraCard: {
+    backgroundColor: colors.white,
+    borderRadius: 18,
+    overflow: "hidden",
+    borderWidth: 1,
+    borderColor: colors.border
+  },
+  cameraPreview: {
+    height: 360,
+    width: "100%"
+  },
+  cameraControls: {
+    padding: spacing.md,
+    gap: spacing.sm
+  },
+  timerText: {
+    color: "#64748b",
+    fontSize: 12,
+    textAlign: "center"
+  },
+  secondaryBar: {
+    backgroundColor: "#EEF2F7"
+  },
+  secondaryText: {
+    color: colors.primaryNavy,
+    fontWeight: "600"
   },
   previewText: {
     color: "#64748b",

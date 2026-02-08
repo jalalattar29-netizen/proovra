@@ -20,6 +20,18 @@ export default function CapturePage() {
   const [progress, setProgress] = useState<number>(0);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
+  const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+  const pollReport = async (evidenceId: string) => {
+    for (let attempt = 0; attempt < 8; attempt += 1) {
+      try {
+        await apiFetch(`/v1/evidence/${evidenceId}/report/latest`, { method: "GET" });
+        return;
+      } catch {
+        await sleep(2000);
+      }
+    }
+  };
+
   const handleCapture = async () => {
     setError(null);
     setBusy(true);
@@ -68,6 +80,7 @@ export default function CapturePage() {
       });
 
       await apiFetch(`/v1/evidence/${data.id}/complete`, { method: "POST", body: "{}" });
+      await pollReport(data.id);
       router.push(`/evidence/${data.id}`);
     } catch (err) {
       captureException(err, { feature: "web_capture" });

@@ -4,10 +4,13 @@ const nextConfig = {
   output: process.env.NEXT_STANDALONE === "false" ? undefined : "standalone",
   transpilePackages: ["@proovra/shared", "@proovra/ui"],
   async headers() {
+    if (process.env.NODE_ENV !== "production") {
+      return [];
+    }
     const apiBase = process.env.NEXT_PUBLIC_API_BASE ?? "https://api.proovra.com";
     const csp = [
       "default-src 'self'",
-      "script-src 'self' https://accounts.google.com",
+      "script-src 'self' https://accounts.google.com https://appleid.cdn-apple.com",
       "style-src 'self' 'unsafe-inline'",
       "img-src 'self' data: https:",
       "connect-src 'self' " + apiBase,

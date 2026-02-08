@@ -44,7 +44,11 @@ async function startPayPal(plan: PlanType) {
 
 export default function PricingPage() {
   const { t } = useLocale();
-  const appBase = process.env.NEXT_PUBLIC_APP_BASE ?? "";
+  const appBase =
+    typeof window !== "undefined" &&
+    (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1")
+      ? window.location.origin
+      : process.env.NEXT_PUBLIC_APP_BASE ?? "";
   const appLogin = appBase ? `${appBase}/login` : "/login";
   const appRegister = appBase ? `${appBase}/register` : "/register";
   return (

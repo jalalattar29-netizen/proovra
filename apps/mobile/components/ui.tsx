@@ -1,6 +1,6 @@
-import { colors, radius, spacing } from "@proovra/ui";
+import { colors, radius, spacing, typography } from "@proovra/ui";
 import React from "react";
-import { Image, Pressable, StyleSheet, Text, View } from "react-native";
+import { Image, Pressable, StyleSheet, Text, View, ViewStyle } from "react-native";
 import { useLocale } from "../src/locale-context";
 import appIcon from "../assets/icon.png";
 import { usePathname, useRouter } from "expo-router";
@@ -15,45 +15,59 @@ export function TopBar({ title }: { title: string }) {
   );
 }
 
+export function Card({
+  children,
+  style
+}: {
+  children: React.ReactNode;
+  style?: ViewStyle;
+}) {
+  return <View style={[styles.card, style]}>{children}</View>;
+}
+
 export function Button({
   label,
   variant = "primary",
-  onPress
+  onPress,
+  left
 }: {
   label: string;
   variant?: "primary" | "secondary";
   onPress?: () => void;
+  left?: React.ReactNode;
 }) {
   const { fontFamilyBold } = useLocale();
+  const isPrimary = variant === "primary";
   return (
     <Pressable
-      style={[
+      style={({ pressed }) => [
         styles.button,
-        variant === "primary" ? styles.buttonPrimary : styles.buttonSecondary
+        isPrimary ? styles.buttonPrimary : styles.buttonSecondary,
+        pressed && { opacity: 0.92 }
       ]}
       onPress={onPress}
     >
-      <Text
-        style={[
-          styles.buttonText,
-          { fontFamily: fontFamilyBold },
-          variant === "secondary" && { color: colors.primaryNavy }
-        ]}
-      >
-        {label}
-      </Text>
+      <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+        {left}
+        <Text
+          style={[
+            styles.buttonText,
+            { fontFamily: fontFamilyBold },
+            !isPrimary && { color: colors.primaryNavy }
+          ]}
+        >
+          {label}
+        </Text>
+      </View>
     </Pressable>
   );
-}
-
-export function Card({ children }: { children: React.ReactNode }) {
-  return <View style={styles.card}>{children}</View>;
 }
 
 export function StatusPill({ label }: { label: string }) {
   const { fontFamilyBold } = useLocale();
   return (
     <View style={styles.pill}>
+      <View style={styles.pillDot} />
       <Text style={[styles.pillText, { fontFamily: fontFamilyBold }]}>{label}</Text>
     </View>
   );
@@ -67,15 +81,20 @@ export function Badge({
   tone: "signed" | "processing" | "ready";
 }) {
   const { fontFamilyBold } = useLocale();
+
   const toneStyle =
     tone === "signed"
-      ? styles.badgeSigned
+      ? { bg: "rgba(31,153,85,0.12)", border: "rgba(31,153,85,0.25)", dot: colors.greenValid, fg: colors.greenValid }
       : tone === "processing"
-      ? styles.badgeProcessing
-      : styles.badgeReady;
+      ? { bg: "rgba(47,125,170,0.12)", border: "rgba(47,125,170,0.25)", dot: colors.blueInfo ?? "#2F7DAA", fg: colors.blueInfo ?? "#2F7DAA" }
+      : { bg: "rgba(11,31,83,0.10)", border: "rgba(11,31,83,0.20)", dot: colors.primaryNavy, fg: colors.primaryNavy };
+
   return (
-    <View style={[styles.badge, toneStyle]}>
-      <Text style={[styles.badgeText, { fontFamily: fontFamilyBold }]}>{label}</Text>
+    <View style={[styles.badge, { backgroundColor: toneStyle.bg, borderColor: toneStyle.border }]}>
+      <View style={[styles.badgeDot, { backgroundColor: toneStyle.dot }]} />
+      <Text style={[styles.badgeText, { fontFamily: fontFamilyBold, color: toneStyle.fg }]}>
+        {label}
+      </Text>
     </View>
   );
 }
@@ -92,26 +111,30 @@ export function Tabs({
   const { fontFamilyBold } = useLocale();
   return (
     <View style={styles.tabs}>
-      {items.map((item, idx) => (
-        <Pressable
-          key={item}
-          onPress={() => onSelect?.(idx)}
-          style={[
-            styles.tab,
-            idx === activeIndex ? styles.tabActive : styles.tabInactive
-          ]}
-        >
-          <Text
-            style={[
-              styles.tabText,
-              { fontFamily: fontFamilyBold },
-              idx === activeIndex ? { color: colors.white } : { color: "#475569" }
+      {items.map((item, idx) => {
+        const active = idx === activeIndex;
+        return (
+          <Pressable
+            key={item}
+            onPress={() => onSelect?.(idx)}
+            style={({ pressed }) => [
+              styles.tab,
+              active ? styles.tabActive : styles.tabInactive,
+              pressed && { opacity: 0.95 }
             ]}
           >
-            {item}
-          </Text>
-        </Pressable>
-      ))}
+            <Text
+              style={[
+                styles.tabText,
+                { fontFamily: fontFamilyBold },
+                active ? { color: colors.primaryNavy } : { color: "#475569" }
+              ]}
+            >
+              {item}
+            </Text>
+          </Pressable>
+        );
+      })}
     </View>
   );
 }
@@ -119,36 +142,44 @@ export function Tabs({
 export function ListRow({
   title,
   subtitle,
-  badge
+  badge,
+  onPress
 }: {
   title: string;
   subtitle: string;
   badge: React.ReactNode;
+  onPress?: () => void;
 }) {
   const { fontFamilyBold, fontFamily, isRTL } = useLocale();
+
   return (
-    <View style={[styles.listRow, { flexDirection: isRTL ? "row-reverse" : "row" }]}>
-      <View style={styles.thumbnail} />
-      <View style={{ flex: 1 }}>
-        <Text
-          style={[
-            styles.listTitle,
-            { fontFamily: fontFamilyBold, textAlign: isRTL ? "right" : "left" }
-          ]}
-        >
-          {title}
-        </Text>
-        <Text
-          style={[
-            styles.listSubtitle,
-            { fontFamily, textAlign: isRTL ? "right" : "left" }
-          ]}
-        >
-          {subtitle}
-        </Text>
+    <Pressable
+      onPress={onPress}
+      style={({ pressed }) => [styles.listRow, pressed && { opacity: 0.94 }]}
+    >
+      <View style={[styles.listRowInner, { flexDirection: isRTL ? "row-reverse" : "row" }]}>
+        <View style={styles.thumbnail} />
+        <View style={{ flex: 1 }}>
+          <Text
+            style={[
+              styles.listTitle,
+              { fontFamily: fontFamilyBold, textAlign: isRTL ? "right" : "left" }
+            ]}
+          >
+            {title}
+          </Text>
+          <Text
+            style={[
+              styles.listSubtitle,
+              { fontFamily, textAlign: isRTL ? "right" : "left" }
+            ]}
+          >
+            {subtitle}
+          </Text>
+        </View>
+        {badge}
       </View>
-      {badge}
-    </View>
+    </Pressable>
   );
 }
 
@@ -218,7 +249,6 @@ export function BottomNav() {
 
 const styles = StyleSheet.create({
   topBar: {
-    flexDirection: "row",
     alignItems: "center",
     gap: 12,
     paddingHorizontal: spacing.lg,
@@ -226,7 +256,7 @@ const styles = StyleSheet.create({
     paddingBottom: spacing.sm
   },
   topBarTitle: {
-    fontSize: 20,
+    fontSize: typography.size.h3,
     color: colors.textDark
   },
   logo: {
@@ -234,6 +264,20 @@ const styles = StyleSheet.create({
     height: 34,
     borderRadius: 10
   },
+
+  card: {
+    backgroundColor: colors.white,
+    borderRadius: 18,
+    padding: spacing.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    shadowColor: "#000",
+    shadowOpacity: 0.06,
+    shadowRadius: 20,
+    shadowOffset: { width: 0, height: 12 },
+    elevation: 2
+  },
+
   button: {
     paddingVertical: 12,
     paddingHorizontal: 18,
@@ -245,81 +289,85 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primaryNavy
   },
   buttonSecondary: {
-    backgroundColor: "#EEF2F7"
+    backgroundColor: "#EEF2F7",
+    borderWidth: 1,
+    borderColor: "rgba(15,23,42,0.08)"
   },
   buttonText: {
     fontSize: 14,
     color: colors.white
   },
-  card: {
-    backgroundColor: colors.white,
-    borderRadius: radius.md,
-    padding: spacing.md,
-    borderWidth: 1,
-    borderColor: colors.border
-  },
+
   pill: {
-    backgroundColor: colors.primaryNavy,
+    backgroundColor: "rgba(255,255,255,0.18)",
     paddingVertical: 6,
     paddingHorizontal: 12,
-    borderRadius: radius.pill
+    borderRadius: 999,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8
+  },
+  pillDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 99,
+    backgroundColor: "rgba(255,255,255,0.9)"
   },
   pillText: {
     color: colors.white,
-    fontSize: 12
-  },
-  badge: {
-    paddingVertical: 4,
-    paddingHorizontal: 10,
-    borderRadius: radius.pill
-  },
-  badgeText: {
     fontSize: 11
   },
-  badgeSigned: {
-    backgroundColor: "rgba(31,153,85,0.12)",
-    borderColor: "rgba(31,153,85,0.25)",
-    borderWidth: 1
+
+  badge: {
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 999,
+    borderWidth: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8
   },
-  badgeProcessing: {
-    backgroundColor: "rgba(47,125,170,0.12)",
-    borderColor: "rgba(47,125,170,0.25)",
-    borderWidth: 1
-  },
-  badgeReady: {
-    backgroundColor: "rgba(11,31,83,0.1)",
-    borderColor: "rgba(11,31,83,0.2)",
-    borderWidth: 1
-  },
+  badgeDot: { width: 8, height: 8, borderRadius: 99 },
+  badgeText: { fontSize: 11 },
+
   tabs: {
     flexDirection: "row",
-    gap: 10
+    gap: 10,
+    backgroundColor: "rgba(17,21,39,0.06)",
+    padding: 4,
+    borderRadius: 999
   },
   tab: {
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderRadius: radius.pill,
-    borderWidth: 1,
-    borderColor: "#E2E8F0"
+    flex: 1,
+    paddingVertical: 8,
+    borderRadius: 999,
+    alignItems: "center"
   },
   tabActive: {
-    backgroundColor: colors.primaryNavy
+    backgroundColor: colors.white,
+    borderWidth: 1,
+    borderColor: colors.border
   },
   tabInactive: {
-    backgroundColor: colors.white
+    backgroundColor: "transparent"
   },
   tabText: {
     fontSize: 12
   },
+
   listRow: {
-    flexDirection: "row",
+    borderTopWidth: 1,
+    borderTopColor: "rgba(15,23,42,0.06)",
+    paddingTop: spacing.md
+  },
+  listRowInner: {
     alignItems: "center",
     gap: 12
   },
   thumbnail: {
-    width: 50,
-    height: 50,
-    borderRadius: 14,
+    width: 54,
+    height: 54,
+    borderRadius: 16,
     backgroundColor: "#DCE3F1"
   },
   listTitle: {
@@ -327,14 +375,15 @@ const styles = StyleSheet.create({
   },
   listSubtitle: {
     fontSize: 11,
-    color: "#64748b"
+    color: "#64748b",
+    marginTop: 3
   },
+
   timeline: {
     marginTop: 12,
     gap: 10
   },
   timelineRow: {
-    flexDirection: "row",
     alignItems: "center",
     gap: 10
   },
@@ -348,6 +397,7 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: "#4b5563"
   },
+
   bottomNav: {
     flexDirection: "row",
     justifyContent: "space-between",

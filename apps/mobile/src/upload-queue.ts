@@ -59,6 +59,21 @@ function nowIso() {
   return new Date().toISOString();
 }
 
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function pollReport(evidenceId: string) {
+  for (let attempt = 0; attempt < 8; attempt += 1) {
+    try {
+      await apiFetch(`/v1/evidence/${evidenceId}/report/latest`, { method: "GET" });
+      return;
+    } catch {
+      await sleep(2000);
+    }
+  }
+}
+
 export function enqueueUpload(item: Omit<UploadItem, "status" | "createdAt">) {
   const id = item.id;
   const stmt = db.prepareSync(
@@ -142,6 +157,7 @@ export async function processQueue() {
         method: "POST",
         body: "{}"
       });
+      await pollReport(created.id);
       updateStatus(item.id, "DONE");
     } catch (err) {
       captureException(err, { feature: "mobile_upload_queue", itemId: item.id });

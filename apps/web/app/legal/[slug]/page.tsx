@@ -3,7 +3,6 @@ import path from "node:path";
 import Link from "next/link";
 import { headers } from "next/headers";
 import { notFound } from "next/navigation";
-import { TopBar } from "../../../components/ui";
 import type { ReactNode } from "react";
 
 const ALLOWED_SLUGS = new Set(["privacy", "terms", "cookies", "security"]);
@@ -95,12 +94,27 @@ export default async function LegalPage({
     }
   }
 
+  const title = resolvedParams.slug.charAt(0).toUpperCase() + resolvedParams.slug.slice(1);
+
   return (
-    <div className="page">
-      <TopBar title="Proovra" right={<Link href="/">Home</Link>} />
-      <section className="section legal-page">
-        {renderMarkdown(content)}
-      </section>
+    <div className="blue-shell auth-screen">
+      <div className="container">
+        <header className="auth-top">
+          <Link href="/" className="auth-brand">
+            <img src="/brand/logo-white.svg" alt="Proovra" />
+            <span>Proovra</span>
+          </Link>
+          <nav className="auth-top-links">
+            <Link href="/">{title}</Link>
+          </nav>
+        </header>
+        <main className="auth-main">
+          <section className="auth-card legal-page">
+            <h2 className="auth-title">{title}</h2>
+            {renderMarkdown(content)}
+          </section>
+        </main>
+      </div>
     </div>
   );
 }

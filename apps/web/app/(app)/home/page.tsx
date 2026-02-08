@@ -20,7 +20,7 @@ export default function HomePage() {
 
   return (
     <div className="section">
-      <div className="page-title">
+      <div className="page-title" style={{ alignItems: "center" }}>
         <div>
           <h1 style={{ margin: 0 }}>{t("home")}</h1>
           <p className="page-subtitle">{t("bullets")}</p>
@@ -29,49 +29,37 @@ export default function HomePage() {
           <Button>{t("ctaCapture")}</Button>
         </Link>
       </div>
+
       <div className="grid-2">
         <Card>
           <div style={{ fontWeight: 700, marginBottom: 12 }}>{t("recentEvidence")}</div>
           <div style={{ display: "grid", gap: 10 }}>
             {items.length === 0 ? (
-              <>
-                <ListRow
-                  title={t("photo")}
-                  subtitle="3 minutes ago"
-                  badge={<Badge tone="signed">{t("statusSigned")}</Badge>}
-                />
-                <ListRow
-                  title={t("video")}
-                  subtitle="Today, 09:45"
-                  badge={<Badge tone="processing">{t("statusProcessing")}</Badge>}
-                />
-                <ListRow
-                  title={t("document")}
-                  subtitle="Yesterday"
-                  badge={<Badge tone="ready">{t("statusReady")}</Badge>}
-                />
-              </>
+              <div style={{ color: "#64748b", fontSize: 13 }}>
+                No evidence yet. Capture your first file to see it here.
+              </div>
             ) : (
-            items.map((item) => (
-              <Link key={item.id} href={`/evidence/${item.id}`}>
-                <ListRow
-                  title={item.type}
-                  subtitle={new Date(item.createdAt).toLocaleString()}
-                  badge={
-                    item.status === "SIGNED" ? (
-                      <Badge tone="signed">{t("statusSigned")}</Badge>
-                    ) : item.status === "PROCESSING" ? (
-                      <Badge tone="processing">{t("statusProcessing")}</Badge>
-                    ) : (
-                      <Badge tone="ready">{t("statusReady")}</Badge>
-                    )
-                  }
-                />
-              </Link>
-            ))
+              items.map((item) => (
+                <Link key={item.id} href={`/evidence/${item.id}`}>
+                  <ListRow
+                    title={item.type}
+                    subtitle={new Date(item.createdAt).toLocaleString()}
+                    badge={
+                      item.status === "SIGNED" ? (
+                        <Badge tone="signed">{t("statusSigned")}</Badge>
+                      ) : item.status === "PROCESSING" ? (
+                        <Badge tone="processing">{t("statusProcessing")}</Badge>
+                      ) : (
+                        <Badge tone="ready">{t("statusReady")}</Badge>
+                      )
+                    }
+                  />
+                </Link>
+              ))
             )}
           </div>
         </Card>
+
         <Card>
           <div style={{ fontWeight: 700, marginBottom: 12 }}>Quick Actions</div>
           <div style={{ display: "grid", gap: 10 }}>
@@ -84,6 +72,28 @@ export default function HomePage() {
             <Link href="/settings">
               <Button variant="secondary">Manage Settings</Button>
             </Link>
+          </div>
+
+          <div style={{ marginTop: 18 }} className="status-banner">
+            <div
+              style={{
+                width: 44,
+                height: 44,
+                borderRadius: 14,
+                background: "rgba(255,255,255,0.18)",
+                display: "grid",
+                placeItems: "center",
+                fontWeight: 800
+              }}
+            >
+              ✓
+            </div>
+            <div>
+              <div style={{ fontWeight: 700 }}>Trusted chain of custody</div>
+              <div style={{ fontSize: 12, opacity: 0.8 }}>
+                Capture → Sign → Report → Share
+              </div>
+            </div>
           </div>
         </Card>
       </div>

@@ -334,6 +334,7 @@ model GuestIdentity {
 
   user            User   @relation(fields: [userId], references: [id], onDelete: Cascade)
   claimedBy       User?  @relation("GuestClaimedBy", fields: [claimedByUserId], references: [id], onDelete: SetNull)
+  evidence        Evidence[]
 
   @@unique([userId])
   @@index([claimedByUserId])

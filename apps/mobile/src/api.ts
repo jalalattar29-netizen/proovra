@@ -9,7 +9,7 @@ export function getAuthToken() {
 }
 
 export async function apiFetch(path: string, init: RequestInit = {}) {
-  const base = process.env.EXPO_PUBLIC_API_BASE ?? "http://localhost:8080";
+  const base = process.env.EXPO_PUBLIC_API_BASE ?? "http://localhost:8081";
   const headers = new Headers(init.headers);
   if (!headers.has("content-type") && init.body) {
     headers.set("content-type", "application/json");
