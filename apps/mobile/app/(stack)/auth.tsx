@@ -4,17 +4,13 @@ import { Button, Card, TopBar } from "../../components/ui";
 import { colors, spacing, typography } from "@proovra/ui";
 import { useAuth } from "../../src/auth-context";
 import * as AppleAuthentication from "expo-apple-authentication";
+import * as Google from "expo-auth-session/providers/google";
 import * as AuthSession from "expo-auth-session";
 import { apiFetch } from "../../src/api";
 import { useRouter } from "expo-router";
 
-const googleDiscovery = {
-  authorizationEndpoint: "https://accounts.google.com/o/oauth2/v2/auth",
-  tokenEndpoint: "https://oauth2.googleapis.com/token"
-};
-
 export default function AuthScreen() {
-  const { setToken } = useAuth();
+  const { setSession } = useAuth();
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -22,15 +18,13 @@ export default function AuthScreen() {
   const googleClientId = process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID ?? "";
   const [appleAvailable, setAppleAvailable] = useState(false);
 
-  const [googleRequest, googleResponse, promptGoogle] = AuthSession.useAuthRequest(
-    {
-      clientId: googleClientId,
-      responseType: AuthSession.ResponseType.IdToken,
-      scopes: ["openid", "email", "profile"],
-      redirectUri: AuthSession.makeRedirectUri({ useProxy: true })
-    },
-    googleDiscovery
-  );
+  const redirectUri = AuthSession.makeRedirectUri({ useProxy: true });
+  const [googleRequest, googleResponse, promptGoogle] = Google.useAuthRequest({
+    clientId: googleClientId,
+    responseType: AuthSession.ResponseType.IdToken,
+    scopes: ["openid", "email", "profile"],
+    redirectUri
+  });
 
   useEffect(() => {
     void AppleAuthentication.isAvailableAsync()
@@ -54,7 +48,7 @@ export default function AuthScreen() {
           method: "POST",
           body: JSON.stringify({ idToken })
         });
-        setToken(data.token);
+        setSession({ token: data.token, user: data.user ?? null, mode: "google" });
         router.replace("/(tabs)");
       } catch (err) {
         setError(err instanceof Error ? err.message : "Google login failed");
@@ -70,7 +64,7 @@ export default function AuthScreen() {
     setStatus("Signing in as guest...");
     try {
       const data = await apiFetch("/v1/auth/guest", { method: "POST" });
-      setToken(data.token);
+      setSession({ token: data.token, user: data.user ?? null, mode: "guest" });
       router.replace("/(tabs)");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Guest login failed");
@@ -97,7 +91,7 @@ export default function AuthScreen() {
         method: "POST",
         body: JSON.stringify({ idToken: result.identityToken })
       });
-      setToken(data.token);
+      setSession({ token: data.token, user: data.user ?? null, mode: "apple" });
       router.replace("/(tabs)");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Apple login failed");

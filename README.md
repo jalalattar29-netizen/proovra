@@ -68,6 +68,13 @@ pnpm --filter proovra-web dev
 pnpm --filter proovra-mobile dev
 ```
 
+### Mobile runtime smoke test (dev-only)
+1) Set env: `EXPO_PUBLIC_DEBUG_SMOKE=1`
+2) Launch the app and open Settings (tab)
+3) Run "Runtime Smoke Test"
+4) Confirm logs show: auth → create → PUT → complete → report
+5) Ensure signed PUT returns 200/201 and report URL opens
+
 ### Dev shortcuts
 ```
 pnpm dev:web

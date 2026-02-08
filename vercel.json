@@ -1,0 +1,6 @@
+{
+  "framework": "nextjs",
+  "installCommand": "pnpm install",
+  "buildCommand": "pnpm --filter proovra-web build",
+  "devCommand": "pnpm --filter proovra-web dev"
+}

@@ -1,4 +1,4 @@
-import { Pressable, ScrollView, StyleSheet, Text, View, Switch } from "react-native";
+import { Linking, Pressable, ScrollView, StyleSheet, Text, View, Switch } from "react-native";
 import { colors, spacing, typography } from "@proovra/ui";
 import { Badge, ListRow, Tabs } from "../../components/ui";
 import { useLocale } from "../../src/locale-context";
@@ -10,17 +10,22 @@ import * as FileSystem from "expo-file-system";
 import * as Location from "expo-location";
 import { useRouter } from "expo-router";
 import { CameraView, useCameraPermissions, useMicrophonePermissions } from "expo-camera";
+import { ensureFileUri, uploadWithPut } from "../../src/upload-utils";
 
 export default function CaptureScreen() {
   const { t, fontFamilyBold } = useLocale();
   const [activeIndex, setActiveIndex] = useState(0);
   const typeMap = ["PHOTO", "VIDEO", "DOCUMENT"] as const;
   const activeType = typeMap[activeIndex];
-  const [asset, setAsset] = useState<{ uri: string; mimeType: string; durationMs?: number } | null>(
-    null
-  );
+  const [asset, setAsset] = useState<{
+    uri: string;
+    mimeType: string;
+    durationMs?: number;
+    sizeBytes?: number;
+    originalFilename?: string;
+  } | null>(null);
   const [segments, setSegments] = useState<
-    Array<{ uri: string; mimeType: string; durationMs?: number }>
+    Array<{ uri: string; mimeType: string; durationMs?: number; sizeBytes?: number; originalFilename?: string }>
   >([]);
   const [extendedMode, setExtendedMode] = useState(false);
   const [cameraOpen, setCameraOpen] = useState(false);
@@ -28,6 +33,8 @@ export default function CaptureScreen() {
   const [recordSeconds, setRecordSeconds] = useState(0);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [info, setInfo] = useState<string | null>(null);
+  const [showSettingsLink, setShowSettingsLink] = useState(false);
   const [useLocation, setUseLocation] = useState(false);
   const [recent, setRecent] = useState<
     Array<{ id: string; type: string; status: string; createdAt: string }>
@@ -38,27 +45,44 @@ export default function CaptureScreen() {
 
   const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
   const pollReport = async (evidenceId: string) => {
-    for (let attempt = 0; attempt < 8; attempt += 1) {
+    const delays = [2000, 3000, 5000, 8000, 12000, 15000, 15000, 15000];
+    for (let attempt = 0; attempt < delays.length; attempt += 1) {
       try {
         await apiFetch(`/v1/evidence/${evidenceId}/report/latest`, { method: "GET" });
+        setInfo(null);
         return;
       } catch {
-        await sleep(2000);
+        setInfo("Report still generating...");
+        await sleep(delays[attempt]);
       }
     }
+    setInfo("Report is still generating. Try again in a moment.");
   };
   const router = useRouter();
 
+  const getFilename = (uri: string, fallback: string) => {
+    const name = uri.split("/").pop();
+    return name && name.length > 0 ? name : fallback;
+  };
+
   const handlePick = async () => {
     setError(null);
+    setInfo(null);
+    setShowSettingsLink(false);
     try {
       if (activeType === "DOCUMENT") {
-        const result = await DocumentPicker.getDocumentAsync({ copyToCacheDirectory: true });
+        const result = await DocumentPicker.getDocumentAsync({
+          copyToCacheDirectory: true,
+          type: "*/*"
+        });
         if (!result.canceled && result.assets?.[0]) {
           const file = result.assets[0];
+          const info = await FileSystem.getInfoAsync(file.uri);
           setAsset({
             uri: file.uri,
-            mimeType: file.mimeType ?? "application/octet-stream"
+            mimeType: file.mimeType ?? "application/octet-stream",
+            sizeBytes: file.size ?? (info.exists ? info.size : undefined),
+            originalFilename: file.name ?? getFilename(file.uri, `document-${Date.now()}`)
           });
         }
         return;
@@ -69,6 +93,7 @@ export default function CaptureScreen() {
         const res = await requestCameraPermission();
         if (!res.granted) {
           setError("Camera permission denied");
+          setShowSettingsLink(true);
           return;
         }
       }
@@ -76,6 +101,7 @@ export default function CaptureScreen() {
         const res = await requestMicPermission();
         if (!res.granted) {
           setError("Microphone permission denied");
+          setShowSettingsLink(true);
           return;
         }
       }
@@ -88,12 +114,16 @@ export default function CaptureScreen() {
   const handleTakePhoto = async () => {
     if (!cameraRef.current) return;
     setError(null);
+    setInfo(null);
     try {
       const result = await cameraRef.current.takePictureAsync({ quality: 0.9 });
       if (result?.uri) {
+        const info = await FileSystem.getInfoAsync(result.uri);
         setAsset({
           uri: result.uri,
-          mimeType: "image/jpeg"
+          mimeType: "image/jpeg",
+          sizeBytes: info.exists ? info.size : undefined,
+          originalFilename: getFilename(result.uri, `photo-${Date.now()}.jpg`)
         });
         setCameraOpen(false);
       }
@@ -105,18 +135,23 @@ export default function CaptureScreen() {
   const handleStartRecording = async () => {
     if (!cameraRef.current) return;
     setError(null);
+    setInfo(null);
     setIsRecording(true);
     try {
       const startedAt = Date.now();
-      const result = await cameraRef.current.recordAsync({
-        maxDuration: 1800
-      });
-      const durationMs = Math.max(0, Date.now() - startedAt);
+      const result = await cameraRef.current.recordAsync();
+      const durationMs =
+        typeof result?.duration === "number"
+          ? Math.max(0, Math.round(result.duration * 1000))
+          : Math.max(0, Date.now() - startedAt);
       if (result?.uri) {
+        const info = await FileSystem.getInfoAsync(result.uri);
         const next = {
           uri: result.uri,
           mimeType: "video/mp4",
-          durationMs
+          durationMs,
+          sizeBytes: info.exists ? info.size : undefined,
+          originalFilename: getFilename(result.uri, `video-${Date.now()}.mp4`)
         };
         if (extendedMode) {
           setSegments((prev) => [...prev, next]);
@@ -148,6 +183,7 @@ export default function CaptureScreen() {
     }
     setBusy(true);
     setError(null);
+    setInfo(null);
     try {
       let gps: { lat: number; lng: number; accuracyMeters?: number } | undefined;
       const deviceTimeIso = new Date().toISOString();
@@ -168,12 +204,27 @@ export default function CaptureScreen() {
         };
       }
       if (activeType === "VIDEO" && extendedMode) {
+        const baseFilename = `video-${Date.now()}.mp4`;
         const created = await apiFetch("/v1/evidence", {
           method: "POST",
-          body: JSON.stringify({ type: activeType, mimeType: "video/mp4", deviceTimeIso, gps })
+          body: JSON.stringify({
+            type: activeType,
+            mimeType: "video/mp4",
+            originalFilename: baseFilename,
+            deviceTimeIso,
+            gps
+          })
         });
+        const segmentSizes: number[] = [];
         for (let i = 0; i < segments.length; i += 1) {
           const seg = segments[i];
+          const segUri = await ensureFileUri(seg.uri);
+          if (!seg.sizeBytes) {
+            const info = await FileSystem.getInfoAsync(segUri);
+            segmentSizes.push(info.exists ? info.size ?? 0 : 0);
+          } else {
+            segmentSizes.push(seg.sizeBytes ?? 0);
+          }
           const part = await apiFetch(`/v1/evidence/${created.id}/parts`, {
             method: "POST",
             body: JSON.stringify({
@@ -182,15 +233,19 @@ export default function CaptureScreen() {
               durationMs: seg.durationMs
             })
           });
-          await FileSystem.uploadAsync(part.upload.putUrl, seg.uri, {
-            httpMethod: "PUT",
-            headers: { "content-type": seg.mimeType },
-            uploadType: FileSystem.FileSystemUploadType.BINARY_CONTENT
+          await uploadWithPut({
+            putUrl: part.upload.putUrl,
+            uri: segUri,
+            mimeType: seg.mimeType
           });
         }
         await apiFetch(`/v1/evidence/${created.id}/complete`, {
           method: "POST",
-          body: "{}"
+          body: JSON.stringify({
+            sizeBytes: segmentSizes.reduce((sum, value) => sum + value, 0),
+            durationMs: segments.reduce((sum, seg) => sum + (seg.durationMs ?? 0), 0),
+            originalFilename: baseFilename
+          })
         });
         await pollReport(created.id);
         router.push(`/evidence/${created.id}`);
@@ -200,6 +255,9 @@ export default function CaptureScreen() {
           type: activeType,
           uri: asset!.uri,
           mimeType: asset!.mimeType,
+          originalFilename: asset!.originalFilename,
+          sizeBytes: asset!.sizeBytes,
+          durationMs: asset!.durationMs,
           deviceTimeIso,
           gpsLat: gps?.lat ?? null,
           gpsLng: gps?.lng ?? null,
@@ -260,7 +318,7 @@ export default function CaptureScreen() {
             onPress={() => setExtendedMode((prev) => !prev)}
           >
             <Text style={styles.uploadText}>
-              {extendedMode ? "Extended mode ON (30 min segments)" : "Extended mode OFF"}
+              {extendedMode ? "Segmented mode ON (stop to add a segment)" : "Segmented mode OFF"}
             </Text>
           </Pressable>
         ) : null}
@@ -273,6 +331,11 @@ export default function CaptureScreen() {
                   <Text style={styles.timerText}>
                     {isRecording ? `Recording ${recordSeconds}s` : "Ready to record"}
                   </Text>
+                  {isRecording && recordSeconds >= 1800 ? (
+                    <Text style={styles.warningText}>
+                      Recording for long durations may consume battery & storage.
+                    </Text>
+                  ) : null}
                   <Pressable
                     style={[styles.captureBar, { backgroundColor: isRecording ? "#ef4444" : colors.primaryNavy }]}
                     onPress={isRecording ? handleStopRecording : handleStartRecording}
@@ -337,6 +400,12 @@ export default function CaptureScreen() {
           <Text style={styles.uploadText}>{busy ? "Uploading..." : "Upload & Sign"}</Text>
         </Pressable>
         {error ? <Text style={styles.errorText}>{error}</Text> : null}
+        {showSettingsLink ? (
+          <Pressable style={[styles.captureBar, styles.secondaryBar]} onPress={() => Linking.openSettings()}>
+            <Text style={styles.secondaryText}>Open Settings</Text>
+          </Pressable>
+        ) : null}
+        {info ? <Text style={styles.infoText}>{info}</Text> : null}
         )}
       </ScrollView>
     </View>
@@ -393,6 +462,11 @@ const styles = StyleSheet.create({
     fontSize: 12,
     textAlign: "center"
   },
+  warningText: {
+    color: "#f59e0b",
+    fontSize: 12,
+    textAlign: "center"
+  },
   secondaryBar: {
     backgroundColor: "#EEF2F7"
   },
@@ -444,6 +518,10 @@ const styles = StyleSheet.create({
   },
   errorText: {
     color: "#ef4444",
+    paddingHorizontal: spacing.xl
+  },
+  infoText: {
+    color: "#0f172a",
     paddingHorizontal: spacing.xl
   }
 });
