@@ -1,10 +1,10 @@
 import type { ReactNode } from "react";
-import { Inter, Noto_Sans_Arabic, Manrope } from "next/font/google";
+import { Inter, Montserrat, Noto_Sans_Arabic } from "next/font/google";
 import "./globals.css";
 import { Providers } from "./providers";
 
 export const metadata = {
-  title: "Proovra",
+  title: "PROO✓RA",
   description: "Capture truth. Prove it forever."
 };
 
@@ -14,18 +14,18 @@ const inter = Inter({
   display: "swap"
 });
 
+const headerFont = Montserrat({
+  subsets: ["latin"],
+  variable: "--font-header",
+  display: "swap"
+});
+
 const notoArabic = Noto_Sans_Arabic({
   subsets: ["arabic"],
   variable: "--font-arabic",
   display: "swap"
 });
 
-const brand = Manrope({
-  subsets: ["latin"],
-  variable: "--font-brand",
-  weight: ["400", "500", "600", "700"],
-  display: "swap"
-});
 
 /**
  * ✅ CSS Tokens ثابتة (بدون @proovra/ui) لتختفي أخطاء الألوان نهائياً
@@ -78,7 +78,11 @@ const tokenCss = `
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html lang="en" dir="ltr" className={`${inter.variable} ${notoArabic.variable} ${brand.variable}`}>
+    <html
+      lang="en"
+      dir="ltr"
+      className={`${inter.variable} ${headerFont.variable} ${notoArabic.variable}`}
+    >
       <head>
         <style>{tokenCss}</style>
 

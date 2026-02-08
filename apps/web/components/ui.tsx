@@ -104,7 +104,7 @@ export function TopBar({
   return (
     <div className="nav">
       <div className="nav-left">
-        <img src={logoSrc} alt="Proovra" width={34} height={34} />
+        <img src={logoSrc} alt="PROO✓RA" width={34} height={34} />
         <span className="logo">{title}</span>
       </div>
       {right}

@@ -12,6 +12,9 @@ export default function HomePage() {
     Array<{ id: string; type: string; status: string; createdAt: string }>
   >([]);
 
+  const isUuid = (value: string) =>
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+
   useEffect(() => {
     apiFetch("/v1/evidence")
       .then((data) => setItems(data.items ?? []))
@@ -39,8 +42,8 @@ export default function HomePage() {
                 No evidence yet. Capture your first file to see it here.
               </div>
             ) : (
-              items.map((item) => (
-                <Link key={item.id} href={`/evidence/${item.id}`}>
+              items.map((item) => {
+                const row = (
                   <ListRow
                     title={item.type}
                     subtitle={new Date(item.createdAt).toLocaleString()}
@@ -54,8 +57,15 @@ export default function HomePage() {
                       )
                     }
                   />
-                </Link>
-              ))
+                );
+                return isUuid(item.id) ? (
+                  <Link key={item.id} href={`/evidence/${item.id}`}>
+                    {row}
+                  </Link>
+                ) : (
+                  <div key={item.id}>{row}</div>
+                );
+              })
             )}
           </div>
         </Card>

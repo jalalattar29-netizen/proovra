@@ -34,6 +34,9 @@ export default function CasesPage() {
     }
   };
 
+  const isUuid = (value: string) =>
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+
   return (
     <div className="section">
       <div className="page-title">
@@ -49,11 +52,16 @@ export default function CasesPage() {
         ) : error ? (
           <Card>{error}</Card>
         ) : cases.length === 0 ? (
-          <Card>No cases yet. Create one to organize evidence.</Card>
+          <Card>
+            <div style={{ display: "grid", gap: 12 }}>
+              <div>No cases yet. Create one to organize evidence.</div>
+              <Button onClick={handleCreate}>Create Case</Button>
+            </div>
+          </Card>
         ) : (
           cases.map((item) => (
             <Card key={item.id}>
-              <Link href={`/cases/${item.id}`}>{item.name}</Link>
+              {isUuid(item.id) ? <Link href={`/cases/${item.id}`}>{item.name}</Link> : item.name}
             </Card>
           ))
         )}

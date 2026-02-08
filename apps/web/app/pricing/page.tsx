@@ -1,46 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { Button, Card, TopBar } from "../../components/ui";
+import { Button, Card } from "../../components/ui";
+import { SilverWatermarkSection } from "../../components/SilverWatermarkSection";
 import { useLocale } from "../providers";
-import { apiFetch } from "../../lib/api";
-import { PlanType } from "./types";
-
-function resolveCurrency() {
-  const lang = navigator.language?.toLowerCase() ?? "en";
-  if (lang.startsWith("de")) return "EUR";
-  if (lang.startsWith("en-gb")) return "GBP";
-  return "USD";
-}
-
-function formatPrice(amountUsd: number) {
-  const currency = resolveCurrency();
-  return new Intl.NumberFormat(undefined, {
-    style: "currency",
-    currency
-  }).format(amountUsd);
-}
-async function startCheckout(plan: PlanType) {
-  const data = await apiFetch("/v1/billing/checkout/stripe", {
-    method: "POST",
-    body: JSON.stringify({ plan, currency: resolveCurrency() })
-  });
-  const url = data.session?.url as string | undefined;
-  if (url) {
-    window.location.href = url;
-  }
-}
-
-async function startPayPal(plan: PlanType) {
-  const data = await apiFetch("/v1/billing/checkout/paypal", {
-    method: "POST",
-    body: JSON.stringify({ plan, currency: resolveCurrency() })
-  });
-  const approve = data.order?.links?.find((link: { rel: string }) => link.rel === "approve");
-  if (approve?.href) {
-    window.location.href = approve.href;
-  }
-}
 
 export default function PricingPage() {
   const { t } = useLocale();
@@ -51,63 +14,175 @@ export default function PricingPage() {
       : process.env.NEXT_PUBLIC_APP_BASE ?? "";
   const appLogin = appBase ? `${appBase}/login` : "/login";
   const appRegister = appBase ? `${appBase}/register` : "/register";
+
   return (
-    <div className="page">
-      <div className="container">
-        <TopBar
-          title={t("brand")}
-          right={
-            <div className="nav-links">
-              <Link href="/">{t("home")}</Link>
-              <a href={appLogin}>{t("login")}</a>
-              <a href={appRegister}>{t("register")}</a>
+    <div className="page landing-page">
+      <div className="blue-shell">
+        <div className="landing-nav-bar">
+          <div className="container">
+            <div className="nav">
+              <div className="nav-left">
+                <Link href="/" className="logo">
+                  <img src="/brand/logo-white.svg" alt="PROO✓RA" />
+                  <span>{t("brand")}</span>
+                </Link>
+              </div>
+              <div className="nav-links">
+                <Link href="/about">About</Link>
+                <Link href="/pricing">Pricing</Link>
+                <Link href="/verify">Verify</Link>
+                <a className="pill" href={appBase ? `${appBase}/home` : "/home"}>
+                  {t("navDashboard")}
+                </a>
+                <a href={appLogin}>{t("login")}</a>
+                <a href={appRegister}>{t("register")}</a>
+              </div>
             </div>
-          }
-        />
+          </div>
+        </div>
+
+        <section className="section container" style={{ paddingTop: 36 }}>
+          <h1 className="hero-title" style={{ color: "#ffffff" }}>
+            Pricing designed for real-world scrutiny.
+          </h1>
+        </section>
       </div>
-      <div className="section container">
-        <h2 style={{ marginTop: 0 }}>Pricing</h2>
-        <p className="page-subtitle">Displayed in local currency. Charged in USD.</p>
-        <div
-          style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 16 }}
-        >
-        <Card>
-          <h3>Free</h3>
-          <p>Limited evidence per month</p>
-          <Button>{t("ctaCapture")}</Button>
-        </Card>
-        <Card>
-          <h3>Pay-per-evidence</h3>
-          <p>{formatPrice(5)} / evidence (charged USD)</p>
-          <div style={{ display: "flex", gap: 8 }}>
-            <Button onClick={() => startCheckout("PAYG")}>Stripe</Button>
-            <Button variant="secondary" onClick={() => startPayPal("PAYG")}>
-              PayPal
-            </Button>
+
+      <SilverWatermarkSection className="section">
+        <div className="container">
+          <h2 style={{ marginTop: 0 }}>Pricing designed for real-world scrutiny.</h2>
+          <p className="page-subtitle">
+            PROO✓RA is built for situations where authenticity matters. Choose a plan based on how often you
+            need verifiable reports and structured custody — not on storage limits.
+          </p>
+          <div
+            style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 16 }}
+          >
+            <Card>
+              <h3>FREE</h3>
+              <p>$0</p>
+              <ul style={{ margin: "12px 0 16px", paddingLeft: 18, color: "#475569", lineHeight: 1.7 }}>
+                <li>Capture photos, videos, and documents</li>
+                <li>Cryptographic fingerprint and integrity record</li>
+                <li>Basic verification view</li>
+                <li>Ownership and organization basics</li>
+                <li>PDF reports not included</li>
+              </ul>
+              <a href={appRegister}>
+                <Button>Choose Free</Button>
+              </a>
+            </Card>
+            <Card>
+              <h3>PAY-PER-EVIDENCE</h3>
+              <p>$5 / evidence</p>
+              <ul style={{ margin: "12px 0 16px", paddingLeft: 18, color: "#475569", lineHeight: 1.7 }}>
+                <li>Everything in Free</li>
+                <li>Verifiable PDF report for the purchased evidence</li>
+                <li>Shareable verification link</li>
+                <li>Audit-ready integrity fields (hashes, signatures)</li>
+                <li>Ideal for occasional high-stakes captures</li>
+              </ul>
+              <a href={appLogin}>
+                <Button>Choose Pay-per-evidence</Button>
+              </a>
+            </Card>
+            <Card>
+              <h3>PRO</h3>
+              <p>$19 / month</p>
+              <ul style={{ margin: "12px 0 16px", paddingLeft: 18, color: "#475569", lineHeight: 1.7 }}>
+                <li>Unlimited evidence capture</li>
+                <li>PDF reports included</li>
+                <li>Faster workflows for frequent verification needs</li>
+                <li>Designed for individual professionals</li>
+                <li>Priority reliability features as they ship</li>
+              </ul>
+              <a href={appLogin}>
+                <Button>Choose Pro</Button>
+              </a>
+            </Card>
+            <Card>
+              <h3>TEAM (5 seats)</h3>
+              <p>$79 / month</p>
+              <ul style={{ margin: "12px 0 16px", paddingLeft: 18, color: "#475569", lineHeight: 1.7 }}>
+                <li>5 team members included</li>
+                <li>Shared ownership and structured access control</li>
+                <li>Team-ready evidence organization</li>
+                <li>PDF reports included</li>
+                <li>Built for organizations and high-responsibility workflows</li>
+              </ul>
+              <a href={appLogin}>
+                <Button>Choose Team</Button>
+              </a>
+            </Card>
           </div>
-        </Card>
-        <Card>
-          <h3>Pro</h3>
-          <p>{formatPrice(19)} / month (charged USD)</p>
-          <div style={{ display: "flex", gap: 8 }}>
-            <Button onClick={() => startCheckout("PRO")}>Stripe</Button>
-            <Button variant="secondary" onClick={() => startPayPal("PRO")}>
-              PayPal
-            </Button>
+
+          <div style={{ marginTop: 24, fontSize: 12, color: "#64748b", lineHeight: 1.6 }}>
+            PROO✓RA is a technical integrity platform. It does not provide legal advice and does not
+            guarantee admissibility of evidence in any jurisdiction. Legal evaluation remains the
+            responsibility of qualified professionals.
           </div>
-        </Card>
-        <Card>
-          <h3>Team</h3>
-          <p>{formatPrice(79)} / month (charged USD)</p>
-          <div style={{ display: "flex", gap: 8 }}>
-            <Button onClick={() => startCheckout("TEAM")}>Stripe</Button>
-            <Button variant="secondary" onClick={() => startPayPal("TEAM")}>
-              PayPal
-            </Button>
+
+          <div style={{ marginTop: 24 }}>
+            <h3 style={{ marginBottom: 8 }}>FAQ</h3>
+            <div style={{ display: "grid", gap: 12 }}>
+              <Card>
+                <div style={{ fontWeight: 700, marginBottom: 6 }}>
+                  Q: Does verification require sharing the original file?
+                </div>
+                <div style={{ color: "#475569", lineHeight: 1.7 }}>
+                  A: No. Verification can confirm integrity using fingerprints and signed records without
+                  publicly exposing the original content.
+                </div>
+              </Card>
+              <Card>
+                <div style={{ fontWeight: 700, marginBottom: 6 }}>
+                  Q: Is a PROO✓RA report “legal proof”?
+                </div>
+                <div style={{ color: "#475569", lineHeight: 1.7 }}>
+                  A: PROO✓RA provides technical integrity data and a custody timeline. Legal admissibility
+                  and interpretation depend on jurisdiction and qualified professionals.
+                </div>
+              </Card>
+              <Card>
+                <div style={{ fontWeight: 700, marginBottom: 6 }}>Q: Can I start free and upgrade later?</div>
+                <div style={{ color: "#475569", lineHeight: 1.7 }}>
+                  A: Yes. You can capture and verify on Free, then upgrade when you need reports and
+                  higher-volume workflows.
+                </div>
+              </Card>
+              <Card>
+                <div style={{ fontWeight: 700, marginBottom: 6 }}>
+                  Q: What’s the difference between Pay-per-evidence and Pro?
+                </div>
+                <div style={{ color: "#475569", lineHeight: 1.7 }}>
+                  A: Pay-per-evidence is for occasional reports. Pro is for consistent usage with reports
+                  included.
+                </div>
+              </Card>
+              <Card>
+                <div style={{ fontWeight: 700, marginBottom: 6 }}>Q: Do teams have to use cases?</div>
+                <div style={{ color: "#475569", lineHeight: 1.7 }}>
+                  A: No. Cases are optional. You can organize evidence in the way that fits your workflow.
+                </div>
+              </Card>
+            </div>
           </div>
-        </Card>
-      </div>
-    </div>
+        </div>
+      </SilverWatermarkSection>
+
+      <footer className="landing-footer container">
+        <div className="footer-left">
+          <div className="footer-brand">PROO✓RA</div>
+          <a href="mailto:support@proovra.com">support@proovra.com</a>
+        </div>
+        <div className="footer-links">
+          <Link href="/privacy">Privacy Policy</Link>
+          <Link href="/terms">Terms</Link>
+          <Link href="/legal/cookies">Cookies</Link>
+          <Link href="/legal/security">Security</Link>
+          <Link href="/support">Support</Link>
+        </div>
+      </footer>
     </div>
   );
 }

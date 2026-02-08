@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
-import { Button, Card, Badge } from "../../../../components/ui";
+import { Button, Card } from "../../../../components/ui";
 import { useLocale } from "../../../providers";
 import { apiFetch } from "../../../../lib/api";
 
@@ -46,12 +46,6 @@ export default function EvidenceDetailPage() {
       .then((data) => setReportUrl(data.url ?? null))
       .catch(() => setReportUrl(null));
   }, [params?.id]);
-
-  const statusLabel = useMemo(() => {
-    if (status === "SIGNED") return t("statusSigned");
-    if (status === "PROCESSING") return t("statusProcessing");
-    return status;
-  }, [status, t]);
 
   const handleLock = async () => {
     if (!params?.id) return;

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useLocale } from "./providers";
 import { Button } from "../components/ui";
+import { SilverWatermarkSection } from "../components/SilverWatermarkSection";
 
 export default function HomePage() {
   const { t, locale, setLocale } = useLocale();
@@ -27,15 +28,16 @@ export default function HomePage() {
             <div className="nav">
               <div className="nav-left">
                 <Link href="/" className="logo">
-                  <img src="/brand/logo-white.svg" alt="Proovra" />
+                  <img src="/brand/logo-white.svg" alt="PROO✓RA" />
                   <span>{t("brand")}</span>
                 </Link>
               </div>
 
               <div className="nav-links">
                 <Link href="#features">{t("navFeatures")}</Link>
-                <Link href="/verify/demo">{t("navVerify")}</Link>
-                <Link href="#about">{t("navAbout")}</Link>
+                <Link href="/about">About</Link>
+                <Link href="/pricing">Pricing</Link>
+                <Link href="/verify">{t("navVerify")}</Link>
                 <a className="pill" href={appHome}>
                   {t("navDashboard")}
                 </a>
@@ -55,20 +57,29 @@ export default function HomePage() {
         {/* HERO */}
         <section className="landing-hero container">
           <div className="landing-hero-copy">
-            <h1 className="hero-title">{t("headline")}</h1>
-            <p className="hero-subtitle">{t("bullets")}</p>
+            <div style={{ color: "rgba(255,255,255,0.82)", fontSize: 13, letterSpacing: 0.3 }}>
+              Capture truth. Prove it forever.
+            </div>
+            <h1 className="hero-title">Capture digital evidence that can stand up to scrutiny.</h1>
+            <p className="hero-subtitle">
+              PROO✓RA preserves the integrity of photos, videos, and documents with cryptographic
+              fingerprints, transparent custody timelines, and verifiable reports — designed for legal,
+              compliance, investigations, and journalism.
+            </p>
 
-            <a href={appHome}>
-              <Button>{t("ctaStart")}</Button>
-            </a>
+            <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+              <a href={appHome}>
+                <Button>Open Dashboard</Button>
+              </a>
+              <Link href="/verify">
+                <Button variant="secondary">Verify Evidence</Button>
+              </Link>
+            </div>
 
             <div className="hero-bullets">
-              <span>Photos</span>
-              <span>Videos</span>
-              <span>Documents</span>
-              <span>Signed</span>
-              <span>Verified</span>
-              <span>Trusted</span>
+              <span>Verifiable integrity — not just storage</span>
+              <span>Chain-of-custody built for review</span>
+              <span>Shareable verification without exposing originals</span>
             </div>
           </div>
 
@@ -118,103 +129,107 @@ export default function HomePage() {
       </div>
 
       {/* ICON STRIP */}
-      <section className="landing-strip container">
-        <div className="landing-strip-item">
-          <span className="landing-strip-icon" aria-hidden="true">
-            {/* camera */}
-            <svg viewBox="0 0 24 24" fill="none">
-              <path
-                d="M8 7l1.3-2h5.4L16 7h2a3 3 0 013 3v7a3 3 0 01-3 3H6a3 3 0 01-3-3v-7a3 3 0 013-3h2z"
-                stroke="currentColor"
-                strokeWidth="1.8"
-              />
-              <path
-                d="M12 17a4 4 0 100-8 4 4 0 000 8z"
-                stroke="currentColor"
-                strokeWidth="1.8"
-              />
-            </svg>
-          </span>
-          <div>
-            <div className="landing-strip-title">Capture</div>
-            <div className="landing-strip-sub">Photos & videos</div>
+      <SilverWatermarkSection className="section">
+        <div className="landing-strip container">
+          <div className="landing-strip-item">
+            <span className="landing-strip-icon" aria-hidden="true">
+              {/* camera */}
+              <svg viewBox="0 0 24 24" fill="none">
+                <path
+                  d="M8 7l1.3-2h5.4L16 7h2a3 3 0 013 3v7a3 3 0 01-3 3H6a3 3 0 01-3-3v-7a3 3 0 013-3h2z"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                />
+                <path
+                  d="M12 17a4 4 0 100-8 4 4 0 000 8z"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                />
+              </svg>
+            </span>
+            <div>
+              <div className="landing-strip-title">Capture</div>
+              <div className="landing-strip-sub">Photos & videos</div>
+            </div>
+          </div>
+
+          <div className="landing-strip-item">
+            <span className="landing-strip-icon" aria-hidden="true">
+              {/* shield */}
+              <svg viewBox="0 0 24 24" fill="none">
+                <path
+                  d="M12 2l8 4v7c0 5-3.4 9.4-8 11-4.6-1.6-8-6-8-11V6l8-4z"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                />
+                <path
+                  d="M8.5 12.5l2.2 2.2L15.8 9.6"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                />
+              </svg>
+            </span>
+            <div>
+              <div className="landing-strip-title">Sign</div>
+              <div className="landing-strip-sub">Cryptographic proofs</div>
+            </div>
+          </div>
+
+          <div className="landing-strip-item">
+            <span className="landing-strip-icon" aria-hidden="true">
+              {/* share */}
+              <svg viewBox="0 0 24 24" fill="none">
+                <path
+                  d="M15 8a3 3 0 10-2.8-4H12a3 3 0 003 3zM6 14a3 3 0 10.2 6H6a3 3 0 000-6zm12-1a3 3 0 10.2 6H18a3 3 0 000-6z"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                />
+                <path
+                  d="M8.6 14.6l6.8-3.6M8.6 18l6.8 3.4"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                />
+              </svg>
+            </span>
+            <div>
+              <div className="landing-strip-title">Share</div>
+              <div className="landing-strip-sub">Instant verification</div>
+            </div>
           </div>
         </div>
 
-        <div className="landing-strip-item">
-          <span className="landing-strip-icon" aria-hidden="true">
-            {/* shield */}
-            <svg viewBox="0 0 24 24" fill="none">
-              <path
-                d="M12 2l8 4v7c0 5-3.4 9.4-8 11-4.6-1.6-8-6-8-11V6l8-4z"
-                stroke="currentColor"
-                strokeWidth="1.8"
-              />
-              <path
-                d="M8.5 12.5l2.2 2.2L15.8 9.6"
-                stroke="currentColor"
-                strokeWidth="1.8"
-              />
-            </svg>
-          </span>
-          <div>
-            <div className="landing-strip-title">Sign</div>
-            <div className="landing-strip-sub">Cryptographic proofs</div>
+        <div id="features" className="section">
+          <div className="container">
+            <div>
+              <h2>Built for proof</h2>
+              <p className="page-subtitle">
+                Capture, sign, and verify evidence with a clear chain of custody.
+              </p>
+              <div className="card" style={{ marginTop: 16, width: "100%", maxWidth: 420 }}>
+                <ul style={{ margin: 0, paddingLeft: 18, color: "#475569", lineHeight: 1.7 }}>
+                  <li>Cryptographic signing</li>
+                  <li>Timestamped reports</li>
+                  <li>Shareable verification links</li>
+                </ul>
+              </div>
+            </div>
           </div>
         </div>
 
-        <div className="landing-strip-item">
-          <span className="landing-strip-icon" aria-hidden="true">
-            {/* share */}
-            <svg viewBox="0 0 24 24" fill="none">
-              <path
-                d="M15 8a3 3 0 10-2.8-4H12a3 3 0 003 3zM6 14a3 3 0 10.2 6H6a3 3 0 000-6zm12-1a3 3 0 10.2 6H18a3 3 0 000-6z"
-                stroke="currentColor"
-                strokeWidth="1.8"
-              />
-              <path
-                d="M8.6 14.6l6.8-3.6M8.6 18l6.8 3.4"
-                stroke="currentColor"
-                strokeWidth="1.8"
-              />
-            </svg>
-          </span>
-          <div>
-            <div className="landing-strip-title">Share</div>
-            <div className="landing-strip-sub">Instant verification</div>
-          </div>
-        </div>
-      </section>
-
-      <section id="features" className="section container">
-        <div className="grid-2">
-          <div>
-            <h2>Built for proof</h2>
-            <p className="page-subtitle">
-              Capture, sign, and verify evidence with a clear chain of custody.
+        <div id="about" className="section">
+          <div className="container">
+            <h2>About PROO✓RA</h2>
+            <p className="page-subtitle" style={{ maxWidth: 720 }}>
+              PROO✓RA helps teams capture trusted evidence and generate verifiable reports for
+              investigations, compliance, and dispute resolution.
             </p>
           </div>
-          <div className="card">
-            <ul style={{ margin: 0, paddingLeft: 18, color: "#475569", lineHeight: 1.7 }}>
-              <li>Cryptographic signing</li>
-              <li>Timestamped reports</li>
-              <li>Shareable verification links</li>
-            </ul>
-          </div>
         </div>
-      </section>
-
-      <section id="about" className="section container">
-        <h2>About Proovra</h2>
-        <p className="page-subtitle" style={{ maxWidth: 720 }}>
-          Proovra helps teams capture trusted evidence and generate verifiable reports for
-          investigations, compliance, and dispute resolution.
-        </p>
-      </section>
+      </SilverWatermarkSection>
 
       <footer className="landing-footer container">
         <div className="footer-left">
-          <div className="footer-brand">Proovra</div>
+          <div className="footer-brand">PROO✓RA</div>
           <a href="mailto:support@proovra.com">support@proovra.com</a>
         </div>
         <div className="footer-links">

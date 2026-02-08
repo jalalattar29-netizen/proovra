@@ -124,12 +124,23 @@ export default function RegisterPage() {
 
     try {
       sessionStorage.setItem("proovra-apple-state", nextAppleState);
-    } catch {}
+    } catch (err) {
+      void err;
+    }
 
     loadGoogleIdentity()
       .then(() => {
         const google = (window as typeof window & {
-          google?: { accounts?: { id?: { initialize: Function } } };
+          google?: {
+            accounts?: {
+              id?: {
+                initialize: (options: {
+                  client_id: string;
+                  callback: (response: { credential?: string }) => void;
+                }) => void;
+              };
+            };
+          };
         }).google;
 
         if (!google?.accounts?.id || !process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID) {
@@ -151,8 +162,18 @@ export default function RegisterPage() {
 
     loadAppleIdentity()
       .then(() => {
-        const AppleID = (window as typeof window & { AppleID?: { auth?: { init: Function } } })
-          .AppleID;
+        const AppleID = (window as typeof window & {
+          AppleID?: {
+            auth?: {
+              init: (options: {
+                clientId: string;
+                scope: string;
+                redirectURI: string;
+                usePopup: boolean;
+              }) => void;
+            };
+          };
+        }).AppleID;
 
         if (!AppleID?.auth || !process.env.NEXT_PUBLIC_APPLE_CLIENT_ID) {
           setAppleReady(false);
@@ -183,7 +204,7 @@ export default function RegisterPage() {
         <header className="auth-top">
           {/* ✅ clickable brand */}
           <Link href="/" className="auth-brand">
-            <img src="/brand/logo-white.svg" alt="Proovra" />
+            <img src="/brand/logo-white.svg" alt="PROO✓RA" />
             <span>{t("brand")}</span>
           </Link>
 
@@ -208,7 +229,7 @@ export default function RegisterPage() {
                   if (googleReady) {
                     event.preventDefault();
                     const google = (window as typeof window & {
-                      google?: { accounts?: { id?: { prompt: Function } } };
+                      google?: { accounts?: { id?: { prompt: () => void } } };
                     }).google;
                     google?.accounts?.id?.prompt?.();
                     return;

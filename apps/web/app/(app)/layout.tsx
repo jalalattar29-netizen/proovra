@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect } from "react";
 import { TopBar } from "../../components/ui";
+import { SilverWatermarkSection } from "../../components/SilverWatermarkSection";
 import { translations } from "../../lib/i18n";
 import { useAuth, useLocale } from "../providers";
 import { apiFetch } from "../../lib/api";
@@ -81,7 +82,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             Pricing
           </Link>
         </nav>
-        <main className="app-content">{children}</main>
+        <SilverWatermarkSection as="main" className="app-content">
+          {children}
+        </SilverWatermarkSection>
       </div>
     </div>
   );

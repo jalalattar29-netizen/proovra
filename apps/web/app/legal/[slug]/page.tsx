@@ -101,11 +101,12 @@ export default async function LegalPage({
       <div className="container">
         <header className="auth-top">
           <Link href="/" className="auth-brand">
-            <img src="/brand/logo-white.svg" alt="Proovra" />
-            <span>Proovra</span>
+            <img src="/brand/logo-white.svg" alt="PROO✓RA" />
+            <span>PROO✓RA</span>
           </Link>
           <nav className="auth-top-links">
-            <Link href="/">{title}</Link>
+            <Link href="/login">Login</Link>
+            <Link href="/register">Register</Link>
           </nav>
         </header>
         <main className="auth-main">

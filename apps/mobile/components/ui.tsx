@@ -391,7 +391,7 @@ const styles = StyleSheet.create({
     width: 10,
     height: 10,
     borderRadius: 5,
-    backgroundColor: colors.greenValid
+    backgroundColor: colors.greenValid 
   },
   timelineText: {
     fontSize: 12,

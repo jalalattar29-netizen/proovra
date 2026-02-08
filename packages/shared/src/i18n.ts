@@ -5,7 +5,7 @@ export const defaultLocale: Locale = "en";
 
 export const dict = {
   en: {
-    brand: "Proovra",
+    brand: "PROO✓RA",
     headline: "Capture truth. Prove it forever.",
     ctaStart: "Start Capturing",
     ctaCapture: "+ Capture Evidence",
@@ -49,7 +49,7 @@ export const dict = {
     logout: "Logout"
   },
   ar: {
-    brand: "بروفرا",
+    brand: "PROO✓RA",
     headline: "التقط الحقيقة. اثبتها إلى الأبد.",
     ctaStart: "ابدأ الالتقاط",
     ctaCapture: "+ التقط دليلاً",
@@ -93,7 +93,7 @@ export const dict = {
     logout: "تسجيل الخروج"
   },
   de: {
-    brand: "Proovra",
+    brand: "PROO✓RA",
     headline: "Fange die Wahrheit ein. Beweise sie für immer.",
     ctaStart: "Jetzt aufnehmen",
     ctaCapture: "+ Beweis erfassen",

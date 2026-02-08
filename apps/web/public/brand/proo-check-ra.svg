@@ -1,0 +1,16 @@
+<svg width="210" height="32" viewBox="0 0 210 32" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="PROO✓RA">
+  <!-- Text: PROO -->
+  <text x="0" y="23" fill="currentColor"
+        font-family="Space Grotesk, Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif"
+        font-size="22" font-weight="700" letter-spacing="2">PROO</text>
+
+  <!-- Checkmark (✓) -->
+  <path d="M122 18.2 L128.2 23.8 L141.8 10.8"
+        stroke="currentColor" stroke-width="3.2"
+        stroke-linecap="round" stroke-linejoin="round"/>
+
+  <!-- Text: RA -->
+  <text x="150" y="23" fill="currentColor"
+        font-family="Space Grotesk, Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif"
+        font-size="22" font-weight="700" letter-spacing="2">RA</text>
+</svg>

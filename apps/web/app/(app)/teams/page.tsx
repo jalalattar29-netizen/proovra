@@ -33,6 +33,9 @@ export default function TeamsPage() {
       setError(err instanceof Error ? err.message : "Failed to create team");
     }
   };
+
+  const isUuid = (value: string) =>
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
   return (
     <div className="section">
       <div className="page-title">
@@ -48,11 +51,16 @@ export default function TeamsPage() {
         ) : error ? (
           <Card>{error}</Card>
         ) : teams.length === 0 ? (
-          <Card>No teams yet. Create one to manage members.</Card>
+          <Card>
+            <div style={{ display: "grid", gap: 12 }}>
+              <div>No teams yet. Create one to manage members.</div>
+              <Button onClick={handleCreate}>Create Team</Button>
+            </div>
+          </Card>
         ) : (
           teams.map((item) => (
             <Card key={item.id}>
-              <Link href={`/teams/${item.id}`}>{item.name}</Link>
+              {isUuid(item.id) ? <Link href={`/teams/${item.id}`}>{item.name}</Link> : item.name}
             </Card>
           ))
         )}

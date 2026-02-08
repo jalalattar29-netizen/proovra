@@ -26,7 +26,7 @@ h3,
 h4,
 h5,
 h6 {
-  font-family: var(--font-brand), var(--font-inter), system-ui, sans-serif;
+  font-family: var(--font-header), var(--font-inter), system-ui, -apple-system, sans-serif;
   letter-spacing: 0.3px;
   color: #0f1d36;
 }
@@ -78,6 +78,33 @@ p {
   
   .section {
     padding: 48px 0 80px;
+  }
+
+  /* =========================
+     SILVER WATERMARK (LIGHT)
+     ========================= */
+  .silver-watermark-section {
+    position: relative;
+    overflow: hidden;
+  }
+
+  .silver-watermark-content {
+    position: relative;
+    z-index: 1;
+  }
+
+  .silver-watermark-image {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 100%;
+    height: auto;
+    transform: translate(-50%, -50%);
+    pointer-events: none;
+    user-select: none;
+    opacity: 0.34;
+    filter: blur(0.2px);
+    z-index: 0;
   }
   
   /* =========================
@@ -172,8 +199,8 @@ p {
   display: inline-flex;
   align-items: center;
   gap: 12px;
-  font-family: var(--font-brand), var(--font-inter), system-ui, sans-serif;
-  font-weight: 700;
+  font-family: var(--font-header), var(--font-inter), system-ui, -apple-system, sans-serif;
+  font-weight: 500;
   font-size: 18px;
   letter-spacing: 0.8px;
   text-transform: uppercase;
@@ -196,7 +223,8 @@ p {
     gap: 10px;
     font-size: 13px;
     color: rgba(255,255,255,0.78);
-    font-weight: 700;
+  font-weight: 500;
+    font-family: var(--font-header), var(--font-inter), system-ui, -apple-system, sans-serif;
   }
   
   .nav-links a,
@@ -235,13 +263,14 @@ p {
     font-size: var(--text-hero);
     line-height: var(--lh-hero);
     font-weight: 900;
+  color: #ffffff;
     margin: 0 0 14px;
   }
   
   .hero-subtitle {
     font-size: var(--text-body-lg);
     line-height: var(--lh-body-lg);
-    color: rgba(255, 255, 255, 0.72);
+  color: #ffffff;
     margin: 0 0 20px;
   }
   
@@ -670,6 +699,11 @@ p {
     .footer-links {
       justify-content: flex-start;
     }
+
+    .silver-watermark-image {
+      opacity: 0.34;
+      width: clamp(420px, 95vw, 640px);
+    }
   }
   
   /* =========================
@@ -678,7 +712,7 @@ p {
 
 /* اسم الموقع بالهيدر العام (landing) */
 .logo {
-  font-family: var(--font-brand), var(--font-inter), system-ui, sans-serif;
+  font-family: var(--font-header), var(--font-inter), system-ui, -apple-system, sans-serif;
   font-weight: 600;
   letter-spacing: 0.3px;
 }
@@ -688,13 +722,18 @@ p {
   display: inline-flex;
   align-items: center;
   gap: 12px;
-  font-family: var(--font-brand), var(--font-inter), system-ui, sans-serif;
-  font-weight: 800;
+  font-family: var(--font-header), var(--font-inter), system-ui, -apple-system, sans-serif;
+  font-weight: 500;
   letter-spacing: 1px;
   font-size: 18px;
   text-transform: uppercase;
   color: #ffffff;
   text-shadow: 0 10px 26px rgba(0, 0, 0, 0.30);
+}
+
+.auth-top-links {
+  font-family: var(--font-header), var(--font-inter), system-ui, -apple-system, sans-serif;
+  font-weight: 500;
 }
 
 /* لما يكون auth-brand رابط (أنت عاملها Link) */

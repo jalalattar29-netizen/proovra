@@ -25,7 +25,6 @@ export default function LoginPage() {
   const [googleHref, setGoogleHref] = useState<string>("");
   const [appleHref, setAppleHref] = useState<string>("");
   const [mounted, setMounted] = useState(false);
-  const [appleState, setAppleState] = useState("apple");
   const [debugGoogleHref, setDebugGoogleHref] = useState<string>("");
   const [debugAppleHref, setDebugAppleHref] = useState<string>("");
   const apiBase = process.env.NEXT_PUBLIC_API_BASE ?? "";
@@ -70,7 +69,6 @@ export default function LoginPage() {
 
     const nextAppleState =
       window.crypto?.randomUUID?.() ?? `apple-${Date.now()}-${Math.random().toString(16).slice(2)}`;
-    setAppleState(nextAppleState);
 
     const googleClientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID ?? "";
     const appleClientId = process.env.NEXT_PUBLIC_APPLE_CLIENT_ID ?? "";
@@ -123,12 +121,23 @@ export default function LoginPage() {
 
     try {
       sessionStorage.setItem("proovra-apple-state", nextAppleState);
-    } catch {}
+    } catch (err) {
+      void err;
+    }
 
     loadGoogleIdentity()
       .then(() => {
         const google = (window as typeof window & {
-          google?: { accounts?: { id?: { initialize: Function } } };
+          google?: {
+            accounts?: {
+              id?: {
+                initialize: (options: {
+                  client_id: string;
+                  callback: (response: { credential?: string }) => void;
+                }) => void;
+              };
+            };
+          };
         }).google;
         if (!google?.accounts?.id || !process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID) {
           setGoogleReady(false);
@@ -147,8 +156,18 @@ export default function LoginPage() {
 
     loadAppleIdentity()
       .then(() => {
-        const AppleID = (window as typeof window & { AppleID?: { auth?: { init: Function } } })
-          .AppleID;
+        const AppleID = (window as typeof window & {
+          AppleID?: {
+            auth?: {
+              init: (options: {
+                clientId: string;
+                scope: string;
+                redirectURI: string;
+                usePopup: boolean;
+              }) => void;
+            };
+          };
+        }).AppleID;
         if (!AppleID?.auth || !process.env.NEXT_PUBLIC_APPLE_CLIENT_ID) {
           setAppleReady(false);
           return;
@@ -175,7 +194,7 @@ export default function LoginPage() {
         <header className="auth-top">
           {/* ✅ clickable brand */}
           <Link href="/" className="auth-brand">
-            <img src="/brand/logo-white.svg" alt="Proovra" />
+            <img src="/brand/logo-white.svg" alt="PROO✓RA" />
             <span>{t("brand")}</span>
           </Link>
 
@@ -200,7 +219,7 @@ export default function LoginPage() {
                   if (googleReady) {
                     event.preventDefault();
                     const google = (window as typeof window & {
-                      google?: { accounts?: { id?: { prompt: Function } } };
+                      google?: { accounts?: { id?: { prompt: () => void } } };
                     }).google;
                     google?.accounts?.id?.prompt?.();
                     return;
