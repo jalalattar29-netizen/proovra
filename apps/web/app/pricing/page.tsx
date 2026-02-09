@@ -51,8 +51,9 @@ export default function PricingPage() {
         </section>
       </div>
 
-      <SilverWatermarkSection className="section section-body" style={{ paddingTop: 200 }}>
-        <div className="container">
+      <SilverWatermarkSection className="section section-body" style={{ paddingTop: 240 }}>
+        <div className="container pricing-body-content">
+          <div className="pricing-body-spacer" />
           <h2 className="pricing-title" style={{ letterSpacing: "0.35px" }}>
             Pricing designed for real-world scrutiny.
           </h2>

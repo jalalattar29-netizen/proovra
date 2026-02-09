@@ -280,7 +280,7 @@ p {
   }
 
   .section-body {
-    padding-top: 200px;
+    padding-top: 240px;
   }
   
   .hero-subtitle {
@@ -771,6 +771,7 @@ p {
     grid-template-columns: minmax(200px, 240px) 1fr;
     gap: 32px;
     padding: 32px 0 96px;
+    margin-top: 18px;
   }
 
   .app-nav {
@@ -813,7 +814,7 @@ p {
 
   .app-content {
     min-height: 520px;
-    padding: 12px 0;
+    padding: 28px 0 12px;
   }
 
   .app-loading {
@@ -962,6 +963,14 @@ p {
     background: #0b1f53 !important;
     color: #fff !important;
     border-color: #0b1f53 !important;
+  }
+
+  .pricing-body-content {
+    margin-top: 24px;
+  }
+
+  .pricing-body-spacer {
+    height: 48px;
   }
 
 /* اسم الموقع باللوغ إن/ريجيستر */
