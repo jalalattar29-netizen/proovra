@@ -42,6 +42,16 @@ function applySecurityHeaders(response: NextResponse, nonce: string, relaxed: bo
   response.headers.set("x-nonce", nonce);
 }
 
+function nextWithNonce(req: NextRequest, nonce: string) {
+  const requestHeaders = new Headers(req.headers);
+  requestHeaders.set("x-nonce", nonce);
+  return NextResponse.next({
+    request: {
+      headers: requestHeaders
+    }
+  });
+}
+
 function normalizeBaseUrl(base: string | undefined) {
   if (!base) return null;
   try {
@@ -76,12 +86,12 @@ export function middleware(req: NextRequest) {
 
     const host = req.headers.get("host");
     if (!host || host.includes("localhost") || host.includes("127.0.0.1")) {
-      const res = NextResponse.next();
+      const res = nextWithNonce(req, nonce);
       if (isProd) applySecurityHeaders(res, nonce, relaxed);
       return res;
     }
     if (host.endsWith(".vercel.app")) {
-      const res = NextResponse.next();
+      const res = nextWithNonce(req, nonce);
       if (isProd) applySecurityHeaders(res, nonce, relaxed);
       return res;
     }
@@ -89,7 +99,7 @@ export function middleware(req: NextRequest) {
     const appBaseUrl = normalizeBaseUrl(APP_BASE);
     const webBaseUrl = normalizeBaseUrl(WEB_BASE);
     if (!appBaseUrl && !webBaseUrl) {
-      const res = NextResponse.next();
+      const res = nextWithNonce(req, nonce);
       if (isProd) applySecurityHeaders(res, nonce, relaxed);
       return res;
     }
@@ -147,7 +157,7 @@ export function middleware(req: NextRequest) {
       }
     }
 
-    const res = NextResponse.next();
+    const res = nextWithNonce(req, nonce);
     if (isProd) applySecurityHeaders(res, nonce, relaxed);
     return res;
   } catch {
