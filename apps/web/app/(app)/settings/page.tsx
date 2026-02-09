@@ -68,14 +68,16 @@ export default function SettingsPage() {
     if (approve?.href) window.location.href = approve.href;
   };
   return (
-    <div className="section">
-      <div className="page-title">
-        <div>
-          <h1 style={{ margin: 0 }}>{t("settings")}</h1>
-          <p className="page-subtitle">Manage your plan, language, and sign-in.</p>
+    <div className="section app-section">
+      <div className="app-hero">
+        <div className="page-title" style={{ marginBottom: 0 }}>
+          <div>
+            <h1 style={{ margin: 0 }}>{t("settings")}</h1>
+            <p className="page-subtitle">Manage your plan, language, and sign-in.</p>
+          </div>
         </div>
       </div>
-      <div style={{ display: "grid", gap: 16 }}>
+      <div className="app-body" style={{ display: "grid", gap: 16 }}>
         <Card>
           <div style={{ fontWeight: 600, marginBottom: 12 }}>{t("language")}</div>
           <div style={{ color: "#64748b" }}>English only</div>

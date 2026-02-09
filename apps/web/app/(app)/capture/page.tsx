@@ -91,15 +91,18 @@ export default function CapturePage() {
   };
 
   return (
-    <div className="section">
-      <div className="page-title">
-        <div>
-          <h1 style={{ margin: 0 }}>{t("capture")}</h1>
-          <p className="page-subtitle">Upload a file and generate a signed report.</p>
+    <div className="section app-section">
+      <div className="app-hero">
+        <div className="page-title" style={{ marginBottom: 0 }}>
+          <div>
+            <h1 style={{ margin: 0 }}>{t("capture")}</h1>
+            <p className="page-subtitle">Upload a file and generate a signed report.</p>
+          </div>
         </div>
       </div>
-      <Card>
-        <div style={{ display: "grid", gap: 16 }}>
+      <div className="app-body">
+        <Card>
+          <div style={{ display: "grid", gap: 16 }}>
           <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
             {([
               { label: t("photo"), value: "PHOTO" },
@@ -164,7 +167,8 @@ export default function CapturePage() {
             </Button>
           </div>
         </div>
-      </Card>
+        </Card>
+      </div>
     </div>
   );
 }

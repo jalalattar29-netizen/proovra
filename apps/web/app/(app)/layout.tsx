@@ -45,28 +45,30 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="page app-page">
-      <div className="container app-top-bar">
-        <TopBar
-          title={t("brand")}
-          logoHref="/home"
-          right={
-            <button
-              className="btn secondary"
-              type="button"
-              onClick={async () => {
-                try {
-                  await apiFetch("/v1/auth/logout", { method: "POST" });
-                } catch {
-                  // ignore
-                } finally {
-                  setToken(null);
-                }
-              }}
-            >
-              {t("logout")}
-            </button>
-          }
-        />
+      <div className="app-top-bar">
+        <div className="container">
+          <TopBar
+            title={t("brand")}
+            logoHref="/home"
+            right={
+              <button
+                className="btn secondary"
+                type="button"
+                onClick={async () => {
+                  try {
+                    await apiFetch("/v1/auth/logout", { method: "POST" });
+                  } catch {
+                    // ignore
+                  } finally {
+                    setToken(null);
+                  }
+                }}
+              >
+                {t("logout")}
+              </button>
+            }
+          />
+        </div>
       </div>
       <div className="app-shell container">
         <nav className="app-nav">

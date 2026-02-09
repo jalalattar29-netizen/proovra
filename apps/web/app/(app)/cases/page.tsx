@@ -38,15 +38,17 @@ export default function CasesPage() {
     /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
 
   return (
-    <div className="section">
-      <div className="page-title">
-        <div>
-          <h1 style={{ margin: 0 }}>Cases</h1>
-          <p className="page-subtitle">Organize evidence into cases.</p>
+    <div className="section app-section">
+      <div className="app-hero">
+        <div className="page-title" style={{ marginBottom: 0 }}>
+          <div>
+            <h1 style={{ margin: 0 }}>Cases</h1>
+            <p className="page-subtitle">Organize evidence into cases.</p>
+          </div>
+          <Button onClick={handleCreate}>Create Case</Button>
         </div>
-        <Button onClick={handleCreate}>Create Case</Button>
       </div>
-      <div style={{ display: "grid", gap: 16 }}>
+      <div className="app-body" style={{ display: "grid", gap: 16 }}>
         {loading ? (
           <Card>Loading cases...</Card>
         ) : error ? (
