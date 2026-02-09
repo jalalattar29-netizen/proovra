@@ -2,10 +2,10 @@
    BASE
    ========================= */
   :root {
-    --navy-900: #0a1b45;
-    --navy-800: #09163a;
-    --navy-700: #07112f;
-    --navy-900-rgb: 10, 27, 69;
+    --navy-900: #0b1f53;
+    --navy-800: #0a1a45;
+    --navy-700: #081435;
+    --navy-900-rgb: 11, 31, 83;
     --surface: #ffffff;
     --page-bg: #f5f7fb;
     --border-soft: rgba(15, 23, 42, 0.08);
