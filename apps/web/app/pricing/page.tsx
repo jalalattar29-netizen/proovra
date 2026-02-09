@@ -36,7 +36,7 @@ export default function PricingPage() {
                 <Link href="/about">About</Link>
                 <Link href="/pricing">Pricing</Link>
                 <Link href="/verify">Verify</Link>
-                <a className="pill" href={appBase ? `${appBase}/home` : "/home"}>
+                <a className="pill" href={webBase ? `${webBase}/home` : "/home"}>
                   {t("navDashboard")}
                 </a>
                 <a href={appLogin}>{t("login")}</a>

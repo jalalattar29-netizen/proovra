@@ -16,7 +16,7 @@ export default function AboutPage() {
     (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1")
       ? window.location.origin
       : process.env.NEXT_PUBLIC_WEB_BASE ?? "";
-  const appHome = appBase ? `${appBase}/home` : "/home";
+  const appHome = webBase ? `${webBase}/home` : "/home";
   const appLogin = webBase ? `${webBase}/login` : "/login";
   const appRegister = webBase ? `${webBase}/register` : "/register";
 

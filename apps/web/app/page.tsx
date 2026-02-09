@@ -19,7 +19,7 @@ export default function HomePage() {
       ? window.location.origin
       : process.env.NEXT_PUBLIC_WEB_BASE ?? "";
 
-  const appHome = appBase ? `${appBase}/home` : "/home";
+  const appHome = webBase ? `${webBase}/home` : "/home";
   const appLogin = webBase ? `${webBase}/login` : "/login";
   const appRegister = webBase ? `${webBase}/register` : "/register";
 
