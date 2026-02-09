@@ -170,7 +170,7 @@ export async function casesRoutes(app: FastifyInstance) {
             bucket: report.storageBucket,
             key: report.storageKey
           });
-          archive.append(stream as NodeJS.ReadableStream, {
+          archive.append(stream as unknown as NodeJS.ReadableStream, {
             name: `reports/${ev.id}/v${report.version}.pdf`
           });
         }

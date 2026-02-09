@@ -88,7 +88,9 @@ async function appendCustodyEvent(params: {
       eventType: params.eventType,
       atUtc: new Date(),
       sequence: nextSeq,
-      payload: params.payload ?? undefined,
+      payload: params.payload
+        ? (params.payload as prismaPkg.Prisma.InputJsonValue)
+        : prismaPkg.Prisma.JsonNull,
       ip: params.ip ?? null,
       userAgent: params.userAgent ?? null
     }
