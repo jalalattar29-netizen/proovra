@@ -16,7 +16,7 @@ function buildCsp(nonce: string, relaxed: boolean, allowEval: boolean) {
     "frame-src 'self' https://accounts.google.com https://appleid.apple.com",
     "form-action 'self' https://appleid.apple.com",
     "style-src-attr 'unsafe-inline'",
-    "style-src-elem 'self' https://accounts.google.com https://appleid.cdn-apple.com"
+    "style-src-elem 'self' 'unsafe-inline' https://accounts.google.com https://appleid.cdn-apple.com"
   ];
 
   if (relaxed) {

@@ -11,18 +11,24 @@ import { billingRoutes } from "./routes/billing.routes.js";
 import { webhooksRoutes } from "./routes/webhooks.routes.js";
 import { casesRoutes } from "./routes/cases.routes.js";
 
+const REQUIRED_ORIGINS = [
+  "https://www.proovra.com",
+  "https://proovra.com",
+  "https://app.proovra.com"
+];
+
+function normalizeOrigin(origin: string) {
+  return origin.trim().toLowerCase().replace(/\/+$/, "");
+}
+
 function parseCorsOrigins(): string[] {
   const raw = process.env.CORS_ORIGINS ?? "";
   const parsed = raw
     .split(",")
     .map((value) => value.trim())
     .filter(Boolean);
-  if (parsed.length > 0) return parsed;
-  return [
-    "https://www.proovra.com",
-    "https://proovra.com",
-    "https://app.proovra.com"
-  ];
+  const merged = [...parsed, ...REQUIRED_ORIGINS];
+  return Array.from(new Set(merged.map(normalizeOrigin)));
 }
 
 export async function buildServer() {
@@ -44,7 +50,7 @@ export async function buildServer() {
       if (allowlist.length === 0) {
         return cb(null, !isProd);
       }
-      return cb(null, allowlist.includes(origin));
+      return cb(null, allowlist.includes(normalizeOrigin(origin)));
     },
   });
 
