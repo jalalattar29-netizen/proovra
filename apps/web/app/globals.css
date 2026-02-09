@@ -78,7 +78,7 @@ p {
   }
   
   .section {
-    padding: 96px 0 120px;
+    padding: 120px 0 160px;
   }
 
   /* =========================
@@ -191,7 +191,7 @@ p {
   }
 
   .landing-nav-bar .nav {
-    padding: 6px 0;
+    padding: 3px 0;
   }
   
   .nav-left {
@@ -234,7 +234,7 @@ p {
   
   .nav-links a,
   .nav-links button {
-    padding: 10px 12px;
+    padding: 4px 8px;
     border-radius: 12px;
     transition: background 160ms ease, color 160ms ease, transform 160ms ease;
   }
@@ -256,7 +256,7 @@ p {
     display: grid;
     grid-template-columns: 1.05fr 0.95fr;
     gap: 84px;
-    padding: 42px 0 50px;
+    padding: 28px 0 36px;
     align-items: center;
   }
   
@@ -275,12 +275,12 @@ p {
   }
 
   .hero-section-tight {
-    padding-top: 4px;
-    padding-bottom: 10px;
+    padding-top: 0;
+    padding-bottom: 0;
   }
 
   .section-body {
-    padding-top: 140px;
+    padding-top: 200px;
   }
   
   .hero-subtitle {
@@ -763,25 +763,26 @@ p {
   }
 
   .app-top-bar .nav {
-    padding: 6px 0;
+    padding: 4px 0;
   }
 
   .app-shell {
     display: grid;
     grid-template-columns: minmax(200px, 240px) 1fr;
-    gap: 28px;
-    padding: 24px 0 72px;
+    gap: 32px;
+    padding: 32px 0 96px;
   }
 
   .app-nav {
     display: flex;
     flex-direction: column;
     gap: 8px;
-    background: #fff;
+    background: #ffffff;
     border: 1px solid var(--color-border);
     border-radius: var(--radius-md);
-    padding: 12px;
+    padding: 14px;
     align-self: start;
+    box-shadow: 0 12px 30px rgba(15, 23, 42, 0.06);
   }
 
   .nav-link {
@@ -812,7 +813,7 @@ p {
 
   .app-content {
     min-height: 520px;
-    padding: 6px 0;
+    padding: 12px 0;
   }
 
   .app-loading {
@@ -948,13 +949,19 @@ p {
   }
 
   .choose-btn {
-    background: #0b1f53;
-    color: #fff;
-    border-color: #0b1f53;
+    background: #0b1f53 !important;
+    color: #fff !important;
+    border-color: #0b1f53 !important;
   }
 
   .choose-btn .choose-icon {
-    color: #fff;
+    color: #fff !important;
+  }
+
+  .btn.secondary.choose-btn {
+    background: #0b1f53 !important;
+    color: #fff !important;
+    border-color: #0b1f53 !important;
   }
 
 /* اسم الموقع باللوغ إن/ريجيستر */

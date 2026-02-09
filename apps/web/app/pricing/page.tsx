@@ -41,7 +41,7 @@ export default function PricingPage() {
           </div>
         </div>
 
-        <section className="section container hero-section-tight" style={{ paddingTop: 8, paddingBottom: 16 }}>
+        <section className="section container hero-section-tight" style={{ paddingTop: 0, paddingBottom: 6 }}>
           <h1
             className="hero-title pricing-hero-title"
             style={{ marginTop: 0, marginBottom: 10, letterSpacing: "0.7px" }}
@@ -51,7 +51,7 @@ export default function PricingPage() {
         </section>
       </div>
 
-      <SilverWatermarkSection className="section section-body" style={{ paddingTop: 104 }}>
+      <SilverWatermarkSection className="section section-body" style={{ paddingTop: 200 }}>
         <div className="container">
           <h2 className="pricing-title" style={{ letterSpacing: "0.35px" }}>
             Pricing designed for real-world scrutiny.
