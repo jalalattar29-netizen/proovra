@@ -159,3 +159,19 @@ Invoke-RestMethod -Method Get -Uri "$base/public/verify/$($e.id)"
 - Object storage: Cloudflare R2 (`proovra-prod-assets`)
 - Redis: managed Redis via `REDIS_URL`
 - Use `prisma migrate deploy` in production
+
+## CSP (Web)
+- CSP is set in `apps/web/middleware.ts` (single source of truth).
+- A per-request nonce is generated and exposed as `x-nonce` for App Router.
+- Strict mode (default): no `unsafe-inline`/`unsafe-eval` for scripts.
+- Relaxed mode: set `CSP_RELAXED=true` on Vercel to allow
+  `unsafe-inline` and `unsafe-eval` for scripts.
+- Required domains in CSP:
+  - `https://api.proovra.com`
+  - `https://accounts.google.com`
+  - `https://appleid.apple.com`
+  - `https://appleid.cdn-apple.com`
+- To debug CSP:
+  - Check response headers for `Content-Security-Policy`.
+  - Confirm `x-nonce` exists on HTML responses.
+  - Inspect browser console for blocked script/style sources.

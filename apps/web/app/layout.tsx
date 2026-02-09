@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { headers } from "next/headers";
 import { Inter, Montserrat, Noto_Sans_Arabic } from "next/font/google";
 import "./globals.css";
 import { Providers } from "./providers";
@@ -76,7 +77,8 @@ const tokenCss = `
 }
 `;
 
-export default function RootLayout({ children }: { children: ReactNode }) {
+export default async function RootLayout({ children }: { children: ReactNode }) {
+  const nonce = (await headers()).get("x-nonce") ?? undefined;
   return (
     <html
       lang="en"
@@ -84,7 +86,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
       className={`${inter.variable} ${headerFont.variable} ${notoArabic.variable}`}
     >
       <head>
-        <style>{tokenCss}</style>
+        <style nonce={nonce}>{tokenCss}</style>
 
         {/* ✅ أيقونات التطبيق والمتصفح */}
         <link rel="icon" href="/brand/favicon.ico" />
