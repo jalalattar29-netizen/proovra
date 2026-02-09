@@ -13,10 +13,15 @@ export default function HomePage() {
     (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1")
       ? window.location.origin
       : process.env.NEXT_PUBLIC_APP_BASE ?? "";
+  const webBase =
+    typeof window !== "undefined" &&
+    (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1")
+      ? window.location.origin
+      : process.env.NEXT_PUBLIC_WEB_BASE ?? "";
 
   const appHome = appBase ? `${appBase}/home` : "/home";
-  const appLogin = appBase ? `${appBase}/login` : "/login";
-  const appRegister = appBase ? `${appBase}/register` : "/register";
+  const appLogin = webBase ? `${webBase}/login` : "/login";
+  const appRegister = webBase ? `${webBase}/register` : "/register";
 
   return (
     <div className="page landing-page">
