@@ -92,7 +92,7 @@ export default function CapturePage() {
 
   return (
     <div className="section app-section">
-      <div className="app-hero">
+      <div className="app-hero app-hero-contained">
         <div className="page-title" style={{ marginBottom: 0 }}>
           <div>
             <h1 style={{ margin: 0 }}>{t("capture")}</h1>

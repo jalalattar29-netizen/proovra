@@ -852,12 +852,12 @@ p {
   }
 
 .app-section {
-  padding: 20px 0 80px;
+  padding: 0 0 80px;
 }
 
 .app-hero {
   position: relative;
-  overflow: visible;
+  overflow: hidden;
   color: #ffffff;
   padding: 28px 0;
   border-radius: 0;
@@ -869,9 +869,6 @@ p {
   content: "";
   position: absolute;
   inset: 0;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 100vw;
   pointer-events: none;
   background: var(--hero-bg);
   z-index: 0;
@@ -881,9 +878,6 @@ p {
   content: "";
   position: absolute;
   inset: 0;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 100vw;
   pointer-events: none;
   background-image: var(--hero-overlay), radial-gradient(circle at 55% 18%, rgba(255,255,255,0.10), transparent 60%);
   background-repeat: no-repeat;
@@ -899,9 +893,6 @@ p {
   z-index: 1;
   padding-left: var(--container-gutter);
   padding-right: var(--container-gutter);
-  max-width: var(--container-max);
-  margin-left: auto;
-  margin-right: auto;
 }
 
 .app-hero h1,
@@ -929,7 +920,7 @@ p {
 }
 
 .app-body {
-  margin-top: 18px;
+  margin-top: 16px;
 }
 
 .app-shell {
@@ -938,7 +929,7 @@ p {
   --app-gap: 32px;
   grid-template-columns: minmax(200px, var(--app-nav-width)) 1fr;
   gap: var(--app-gap);
-  padding: 32px 0 96px;
+  padding: 0 0 96px;
   margin-top: 0;
   overflow: visible;
 }
@@ -985,7 +976,7 @@ p {
 
 .app-content {
   min-height: 520px;
-  padding: 16px 0 12px;
+  padding: 0 0 12px;
   position: relative;
   z-index: 2;
   overflow: visible;
@@ -1011,10 +1002,6 @@ p {
       flex-direction: row;
       flex-wrap: wrap;
     }
-  .app-hero > * {
-    padding-left: var(--container-gutter);
-    padding-right: var(--container-gutter);
-  }
   }
   
   /* Legal content typography */

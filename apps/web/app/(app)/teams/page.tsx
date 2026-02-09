@@ -38,7 +38,7 @@ export default function TeamsPage() {
     /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
   return (
     <div className="section app-section">
-      <div className="app-hero">
+      <div className="app-hero app-hero-contained">
         <div className="page-title" style={{ marginBottom: 0 }}>
           <div>
             <h1 style={{ margin: 0 }}>Teams</h1>

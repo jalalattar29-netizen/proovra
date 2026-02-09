@@ -23,7 +23,7 @@ export default function HomePage() {
 
   return (
     <div className="section app-section">
-      <div className="app-hero">
+      <div className="app-hero app-hero-contained">
         <div className="page-title" style={{ alignItems: "center", marginBottom: 0 }}>
           <div>
             <h1 style={{ margin: 0 }}>{t("home")}</h1>
