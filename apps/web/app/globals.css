@@ -3,9 +3,9 @@
    ========================= */
   :root {
     --navy-900: #040c20;
-    --navy-800: #0a1a45;
-    --navy-700: #081435;
-    --navy-900-rgb: 11, 31, 83;
+    --navy-800: #050f2a;
+    --navy-700: #061334;
+    --navy-900-rgb: 4, 12, 32;
     --surface: #ffffff;
     --page-bg: #f5f7fb;
     --border-soft: rgba(15, 23, 42, 0.08);
@@ -31,7 +31,7 @@
     --color-primary: var(--navy-900);
     --color-primary-hover: var(--navy-800);
     --color-primary-active: var(--navy-700);
-    --nav-bg: #0b1f53;
+    --nav-bg: var(--navy-900);
     --nav-border: rgba(255, 255, 255, 0.10);
     --hero-bg: radial-gradient(circle at 20% 12%, rgba(255,255,255,0.08), transparent 60%),
       linear-gradient(180deg, var(--hero-grad-top) 0%, var(--hero-grad-mid) 35%, var(--hero-grad-bottom) 100%);
@@ -434,19 +434,19 @@ p {
   
   .btn:disabled { opacity: 0.6; cursor: not-allowed; }
 .btn.primary {
-  background: #040c20;
+  background: var(--navy-900);
   color: #fff;
   box-shadow: var(--shadow-button);
 }
-.btn.primary:hover { background: #0a1a45; }
-.btn.primary:active { background: #081435; }
+.btn.primary:hover { background: var(--navy-800); }
+.btn.primary:active { background: var(--navy-700); }
 .btn.secondary {
-  background: #0b1f53;
+  background: var(--navy-900);
   color: #fff;
-  border-color: #0b1f53;
+  border-color: var(--navy-900);
 }
-.btn.secondary:hover { background: #0a1a45; }
-.btn.secondary:active { background: #081435; }
+.btn.secondary:hover { background: var(--navy-800); }
+.btn.secondary:active { background: var(--navy-700); }
   
   /* Strip */
   .landing-strip {
@@ -690,7 +690,7 @@ p {
   }
   
   .auth-switch a {
-    color: #0b1f53;
+  color: var(--navy-900);
     font-weight: 950;
   }
 
@@ -979,7 +979,12 @@ p {
     padding: 28px 0 12px;
   position: relative;
   z-index: 2;
+  overflow: visible;
   }
+
+.app-content.silver-watermark-section {
+  overflow: visible;
+}
 
   .app-loading {
     display: grid;
