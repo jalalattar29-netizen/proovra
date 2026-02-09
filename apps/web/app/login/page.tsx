@@ -219,9 +219,28 @@ export default function LoginPage() {
                   if (googleReady) {
                     event.preventDefault();
                     const google = (window as typeof window & {
-                      google?: { accounts?: { id?: { prompt: () => void } } };
+                      google?: {
+                        accounts?: {
+                          id?: {
+                            prompt: (callback?: (notification: {
+                              isNotDisplayed?: () => boolean;
+                              isSkippedMoment?: () => boolean;
+                              isDismissedMoment?: () => boolean;
+                            }) => void) => void;
+                          };
+                        };
+                      };
                     }).google;
-                    google?.accounts?.id?.prompt?.();
+                    google?.accounts?.id?.prompt?.((notification) => {
+                      if (
+                        notification?.isNotDisplayed?.() ||
+                        notification?.isSkippedMoment?.() ||
+                        notification?.isDismissedMoment?.()
+                      ) {
+                        if (googleHref) window.location.href = googleHref;
+                        else setError("Google login is not ready yet.");
+                      }
+                    });
                     return;
                   }
                   if (!googleHref) {
