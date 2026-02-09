@@ -36,24 +36,21 @@ export async function casesRoutes(app: FastifyInstance) {
 
   app.get("/v1/cases", { preHandler: requireAuth }, async (req, reply) => {
     const ownerUserId = getAuthUserId(req);
+    const memberTeams = await prisma.teamMember.findMany({
+      where: { userId: ownerUserId },
+      select: { teamId: true }
+    });
+    const memberTeamIds = memberTeams.map((team) => team.teamId);
     const items = await prisma.case.findMany({
       where: {
         OR: [
           { ownerUserId },
           {
-            teamId: {
-              not: null
-            },
             access: { some: { userId: ownerUserId } }
           },
           {
-            teamId: {
-              not: null
-            },
-            access: { none: {} },
-            team: {
-              members: { some: { userId: ownerUserId } }
-            }
+            teamId: memberTeamIds.length > 0 ? { in: memberTeamIds } : undefined,
+            access: { none: {} }
           }
         ]
       },
@@ -70,16 +67,18 @@ export async function casesRoutes(app: FastifyInstance) {
       const ownerUserId = getAuthUserId(req);
       const item = await prisma.case.findUnique({
         where: { id },
-        include: { access: true, team: { include: { members: true } } }
+        include: { access: true }
       });
       if (!item) return reply.code(404).send({ message: "Case not found" });
       if (item.ownerUserId === ownerUserId) return reply.code(200).send({ case: item });
       if (item.access.some((a) => a.userId === ownerUserId)) {
         return reply.code(200).send({ case: item });
       }
-      if (item.team && item.access.length === 0) {
-        const isMember = item.team.members.some((m) => m.userId === ownerUserId);
-        if (isMember) return reply.code(200).send({ case: item });
+      if (item.teamId && item.access.length === 0) {
+        const member = await prisma.teamMember.findUnique({
+          where: { teamId_userId: { teamId: item.teamId, userId: ownerUserId } }
+        });
+        if (member) return reply.code(200).send({ case: item });
       }
       return reply.code(403).send({ message: "Forbidden" });
     }
@@ -94,11 +93,13 @@ export async function casesRoutes(app: FastifyInstance) {
       const ownerUserId = getAuthUserId(req);
       const item = await prisma.case.findUnique({
         where: { id },
-        include: { team: { include: { members: true } } }
+        select: { id: true, teamId: true }
       });
       if (!item) return reply.code(404).send({ message: "Case not found" });
-      if (!item.team) return reply.code(400).send({ message: "Case is not a team case" });
-      const actor = item.team.members.find((m) => m.userId === ownerUserId);
+      if (!item.teamId) return reply.code(400).send({ message: "Case is not a team case" });
+      const actor = await prisma.teamMember.findUnique({
+        where: { teamId_userId: { teamId: item.teamId, userId: ownerUserId } }
+      });
       if (!actor || !hasRole(actor.role, prismaPkg.TeamRole.ADMIN)) {
         return reply.code(403).send({ message: "Forbidden" });
       }
@@ -119,15 +120,17 @@ export async function casesRoutes(app: FastifyInstance) {
       const ownerUserId = getAuthUserId(req);
       const item = await prisma.case.findUnique({
         where: { id },
-        include: { access: true, team: { include: { members: true } } }
+        include: { access: true }
       });
       if (!item) return reply.code(404).send({ message: "Case not found" });
       if (item.ownerUserId !== ownerUserId) {
-        const hasAccess =
-          item.access.some((a) => a.userId === ownerUserId) ||
-          (item.team &&
-            item.access.length === 0 &&
-            item.team.members.some((m) => m.userId === ownerUserId));
+        let hasAccess = item.access.some((a) => a.userId === ownerUserId);
+        if (!hasAccess && item.teamId && item.access.length === 0) {
+          const member = await prisma.teamMember.findUnique({
+            where: { teamId_userId: { teamId: item.teamId, userId: ownerUserId } }
+          });
+          hasAccess = Boolean(member);
+        }
         if (!hasAccess) return reply.code(403).send({ message: "Forbidden" });
       }
 

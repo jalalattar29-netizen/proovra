@@ -45,9 +45,11 @@ export async function enforceRateLimit(params: {
   const pipeline = redisClient.pipeline();
   pipeline.incr(params.key);
   pipeline.pttl(params.key);
-  const [[, count], [, ttlMs]] = await pipeline.exec();
-  const current = Number(count ?? 0);
-  const ttl = Number(ttlMs ?? -1);
+  const result = await pipeline.exec();
+  const countRaw = result?.[0]?.[1];
+  const ttlRaw = result?.[1]?.[1];
+  const current = Number(countRaw ?? 0);
+  const ttl = Number(ttlRaw ?? -1);
   if (current === 1 || ttl < 0) {
     await redisClient.pexpire(params.key, params.windowSec * 1000);
   }

@@ -88,7 +88,7 @@ async function appendCustodyEvent(params: {
       eventType: params.eventType,
       atUtc: new Date(),
       sequence: nextSeq,
-      payload: params.payload ?? null,
+      payload: params.payload ?? undefined,
       ip: params.ip ?? null,
       userAgent: params.userAgent ?? null
     }
@@ -98,7 +98,7 @@ async function appendCustodyEvent(params: {
 async function assertCaseAccess(userId: string, caseId: string) {
   const item = await prisma.case.findUnique({
     where: { id: caseId },
-    include: { access: true, team: { include: { members: true } } }
+    include: { access: true }
   });
   if (!item) {
     const err: Error & { statusCode?: number } = new Error("Case not found");
@@ -107,9 +107,11 @@ async function assertCaseAccess(userId: string, caseId: string) {
   }
   if (item.ownerUserId === userId) return;
   if (item.access.some((a) => a.userId === userId)) return;
-  if (item.team && item.access.length === 0) {
-    const isMember = item.team.members.some((m) => m.userId === userId);
-    if (isMember) return;
+  if (item.teamId && item.access.length === 0) {
+    const member = await prisma.teamMember.findUnique({
+      where: { teamId_userId: { teamId: item.teamId, userId } }
+    });
+    if (member) return;
   }
   const err: Error & { statusCode?: number } = new Error("Forbidden");
   err.statusCode = 403;

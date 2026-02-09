@@ -122,6 +122,7 @@ export async function completeEvidence(params: {
   let primaryBucket = evidence.storageBucket ?? null;
   let primaryKey = evidence.storageKey ?? null;
   let primaryMimeType = evidence.mimeType ?? null;
+  let uploadContentType: string | null = null;
 
   if (parts.length > 0) {
     const updatedParts = [];
@@ -152,6 +153,7 @@ export async function completeEvidence(params: {
       if (!primaryBucket) primaryBucket = part.storageBucket;
       if (!primaryKey) primaryKey = part.storageKey;
       if (!primaryMimeType) primaryMimeType = meta.contentType ?? part.mimeType ?? null;
+      if (!uploadContentType) uploadContentType = meta.contentType ?? part.mimeType ?? null;
     }
     const maxBytes = readMaxEvidenceSizeBytes();
     if (sizeBytesNum > maxBytes) {
@@ -195,6 +197,7 @@ export async function completeEvidence(params: {
       throw err;
     }
     primaryMimeType = meta.contentType ?? evidence.mimeType ?? null;
+    uploadContentType = meta.contentType ?? evidence.mimeType ?? null;
     const body = await getObjectStream({
       bucket: evidence.storageBucket!,
       key: evidence.storageKey!,
@@ -312,7 +315,7 @@ export async function completeEvidence(params: {
           sequence: ++seq,
           payload: {
             sizeBytes: sizeBytesNum,
-            contentType: meta.contentType ?? null,
+            contentType: uploadContentType ?? null,
           },
         },
         {
