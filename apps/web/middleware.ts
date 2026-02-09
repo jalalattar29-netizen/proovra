@@ -111,49 +111,12 @@ export function middleware(req: NextRequest) {
     const isAppHost = appHost ? host.endsWith(appHost) : false;
     const isWebHost = webHost ? host.endsWith(webHost) : false;
 
-    if (isAppHost) {
-      if (pathname === "/") {
-        const url = req.nextUrl.clone();
-        url.pathname = "/home";
-        const res = NextResponse.redirect(url);
-        if (isProd) applySecurityHeaders(res, nonce, relaxed);
-        return res;
-      }
-      if (
-        pathname.startsWith("/legal") ||
-        pathname.startsWith("/privacy") ||
-        pathname.startsWith("/terms") ||
-        pathname.startsWith("/verify") ||
-        pathname === "/pricing" ||
-        pathname === "/support"
-      ) {
-        if (webBaseUrl) {
-          const target = new URL(webBaseUrl);
-          target.pathname = pathname;
-          const res = NextResponse.redirect(target);
-          if (isProd) applySecurityHeaders(res, nonce, relaxed);
-          return res;
-        }
-      }
-    }
-
-    if (isWebHost) {
-      if (
-        pathname.startsWith("/capture") ||
-        pathname.startsWith("/evidence") ||
-        pathname.startsWith("/cases") ||
-        pathname.startsWith("/teams") ||
-        pathname.startsWith("/settings") ||
-        pathname === "/dashboard"
-      ) {
-        if (appBaseUrl) {
-          const target = new URL(appBaseUrl);
-          target.pathname = pathname;
-          const res = NextResponse.redirect(target);
-          if (isProd) applySecurityHeaders(res, nonce, relaxed);
-          return res;
-        }
-      }
+    if (isAppHost && webBaseUrl) {
+      const target = new URL(webBaseUrl);
+      target.pathname = pathname;
+      const res = NextResponse.redirect(target);
+      if (isProd) applySecurityHeaders(res, nonce, relaxed);
+      return res;
     }
 
     const res = nextWithNonce(req, nonce);
