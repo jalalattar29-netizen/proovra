@@ -1,4 +1,5 @@
 import type { FastifyInstance, FastifyRequest } from "fastify";
+import { Readable } from "node:stream";
 import { z } from "zod";
 import { prisma } from "../db.js";
 import { hasRole } from "../services/rbac.js";
@@ -166,11 +167,11 @@ export async function casesRoutes(app: FastifyInstance) {
       for (const ev of evidence) {
         const report = ev.reports?.[0];
         if (report) {
-          const stream: NodeJS.ReadableStream = await getObjectStream({
+          const stream = await getObjectStream({
             bucket: report.storageBucket,
             key: report.storageKey
           });
-          archive.append(stream as unknown as NodeJS.ReadableStream, {
+          archive.append(stream as unknown as Readable, {
             name: `reports/${ev.id}/v${report.version}.pdf`
           });
         }
