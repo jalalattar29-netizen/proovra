@@ -50,6 +50,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           <TopBar
             title={t("brand")}
             logoHref="/home"
+            logoSrc="/brand/logo-white.svg"
             right={
               <button
                 className="btn secondary"

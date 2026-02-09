@@ -1,6 +1,48 @@
 /* =========================
    BASE
    ========================= */
+  :root {
+    --navy-900: #0a1b45;
+    --navy-800: #09163a;
+    --navy-700: #07112f;
+    --navy-900-rgb: 10, 27, 69;
+    --surface: #ffffff;
+    --page-bg: #f5f7fb;
+    --border-soft: rgba(15, 23, 42, 0.08);
+    --shadow-soft: 0 10px 24px rgba(15, 23, 42, 0.08);
+    --radius-lg: 18px;
+    --text-on-dark: #ffffff;
+    --text-on-dark-muted: rgba(255, 255, 255, 0.78);
+    --surface-muted: rgba(var(--navy-900-rgb), 0.06);
+    --surface-muted-hover: rgba(var(--navy-900-rgb), 0.10);
+    --surface-muted-active: rgba(var(--navy-900-rgb), 0.14);
+    --nav-pill-bg: rgba(255, 255, 255, 0.12);
+    --nav-pill-border: rgba(255, 255, 255, 0.16);
+    --outline-on-dark: rgba(255, 255, 255, 0.55);
+    --hero-grad-top: #0a1224;
+    --hero-grad-mid: #0b1a33;
+    --hero-grad-bottom: #0f1d36;
+
+    --color-bg: var(--page-bg);
+    --color-card: var(--surface);
+    --color-text: #0f1d36;
+    --color-muted: #64748b;
+    --color-border: var(--border-soft);
+    --color-primary: var(--navy-900);
+    --color-primary-hover: var(--navy-800);
+    --color-primary-active: var(--navy-700);
+    --nav-bg: rgba(var(--navy-900-rgb), 0.74);
+    --nav-border: rgba(255, 255, 255, 0.10);
+    --hero-bg: radial-gradient(circle at 20% 12%, rgba(255,255,255,0.08), transparent 60%),
+      linear-gradient(180deg, var(--hero-grad-top) 0%, var(--hero-grad-mid) 35%, var(--hero-grad-bottom) 100%);
+    --hero-overlay: url("/brand/hero-paper.png"),
+      radial-gradient(circle at 70% 20%, rgba(255,255,255,0.08), transparent 55%);
+    --shadow-card: var(--shadow-soft);
+    --shadow-button: 0 14px 28px rgba(10, 20, 35, 0.20);
+    --radius-md: var(--radius-lg);
+    --header-padding-y: 8px;
+  }
+
    * {
     box-sizing: border-box;
   }
@@ -9,7 +51,7 @@
   body {
     padding: 0;
     margin: 0;
-    background: #f5f7fb;
+    background: var(--color-bg);
     color: var(--color-text);
   font-family: var(--font-inter), system-ui, -apple-system, sans-serif;
   -webkit-font-smoothing: antialiased;
@@ -117,9 +159,7 @@ p {
     color: #fff;
   
     /* خلفية كحلي غامقة (أغمق من قبل) */
-    background:
-      radial-gradient(circle at 20% 12%, rgba(255,255,255,0.08), transparent 60%),
-      linear-gradient(180deg, #0a1224 0%, #0b1a33 35%, #0f1d36 100%);
+  background: var(--hero-bg);
   }
   
   /* ✅ Overlay: صورة الأوراق/الأقلام الحقيقية */
@@ -164,7 +204,7 @@ p {
      LANDING
      ========================= */
   .landing-page {
-  background: #f5f7fb;
+    background: var(--color-bg);
     color: var(--color-text);
   }
   
@@ -176,9 +216,9 @@ p {
   
     /* شريط كامل بعرض الشاشة */
     width: 100%;
-  background: rgba(6, 12, 24, 0.74);
-  backdrop-filter: blur(12px);
-  border-bottom: 1px solid rgba(255,255,255,0.10);
+    background: var(--nav-bg);
+    backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--nav-border);
   }
   
   .nav {
@@ -187,11 +227,11 @@ p {
     justify-content: space-between;
   
     /* padding داخلي للشريط */
-    padding: 10px 0;
+  padding: var(--header-padding-y) 0;
   }
 
   .landing-nav-bar .nav {
-  padding: 8px 0;
+  padding: var(--header-padding-y) 0;
   }
   
   .nav-left {
@@ -241,14 +281,14 @@ p {
   
   .nav-links a:hover,
   .nav-links button:hover {
-    background: rgba(255,255,255,0.10);
-    color: #fff;
+  background: rgba(255,255,255,0.10);
+  color: var(--text-on-dark);
     transform: translateY(-1px);
   }
   
   .nav-links .pill {
-    background: rgba(255,255,255,0.12);
-    border: 1px solid rgba(255,255,255,0.16);
+  background: var(--nav-pill-bg);
+  border: 1px solid var(--nav-pill-border);
   }
   
   /* HERO */
@@ -270,7 +310,7 @@ p {
     line-height: var(--lh-hero);
     font-weight: 800;
     letter-spacing: 0.2px;
-    color: #ffffff;
+  color: var(--text-on-dark);
     margin: 0 0 14px;
   }
 
@@ -282,13 +322,19 @@ p {
   .section-body {
   padding-top: 0;
   }
+
+.pricing-hero-section {
+  padding-top: 0;
+  padding-bottom: clamp(90px, 16vh, 190px);
+  min-height: clamp(260px, 30vh, 420px);
+}
   
   .hero-subtitle {
     font-size: var(--text-body-lg);
     line-height: var(--lh-body-lg);
     font-family: var(--font-header), var(--font-inter), system-ui, -apple-system, sans-serif;
     letter-spacing: 0.2px;
-    color: #ffffff;
+  color: var(--text-on-dark);
     margin: 0 0 20px;
   }
   
@@ -376,20 +422,29 @@ p {
     border: none;
     cursor: pointer;
     padding: 12px 18px;
-    border-radius: 14px;
+  border-radius: 14px;
     font-weight: 800;
     font-size: 14px;
+  transition: background 160ms ease, color 160ms ease, box-shadow 160ms ease,
+    transform 160ms ease;
+  border: 1px solid transparent;
   }
   
   .btn:disabled { opacity: 0.6; cursor: not-allowed; }
-  .btn.primary { background: var(--color-primary); color: #fff; }
-  .btn.secondary { background: #eef2f7; color: var(--color-primary); }
-  
-  .landing-page .btn.primary {
-    background: #e8edf5;
-    color: #1b2a4a;
-    box-shadow: 0 14px 28px rgba(10, 20, 35, 0.22);
-  }
+.btn.primary {
+  background: var(--color-primary);
+  color: #fff;
+  box-shadow: var(--shadow-button);
+}
+.btn.primary:hover { background: var(--color-primary-hover); }
+.btn.primary:active { background: var(--color-primary-active); }
+.btn.secondary {
+  background: var(--surface-muted);
+  color: var(--color-primary);
+  border-color: var(--border-soft);
+}
+.btn.secondary:hover { background: var(--surface-muted-hover); }
+.btn.secondary:active { background: var(--surface-muted-active); }
   
   /* Strip */
   .landing-strip {
@@ -487,11 +542,11 @@ p {
   }
   
   .card {
-    background: #fff;
-    border-radius: var(--radius-md);
+  background: var(--color-card);
+  border-radius: var(--radius-md);
     padding: 20px;
     border: 1px solid var(--color-border);
-    box-shadow: 0 8px 22px rgba(15, 23, 42, 0.08);
+  box-shadow: var(--shadow-card);
   }
   
   .page-title {
@@ -504,7 +559,7 @@ p {
   
   .page-subtitle {
     margin: 6px 0 0;
-    color: #64748b;
+  color: var(--color-muted);
   }
   
   /* =========================
@@ -754,19 +809,19 @@ p {
      APP SHELL (after login)
      ========================= */
   .app-page {
-    background: #f5f7fb;
-    color: #0f1d36;
+  background: var(--color-bg);
+  color: var(--color-text);
   }
 
   .app-top-bar {
   width: 100%;
-  background: rgba(6, 12, 24, 0.74);
+  background: var(--nav-bg);
   backdrop-filter: blur(12px);
-  border-bottom: 1px solid rgba(255,255,255,0.10);
+  border-bottom: 1px solid var(--nav-border);
   }
 
   .app-top-bar .nav {
-  padding: 8px 0;
+  padding: var(--header-padding-y) 0;
   }
 
   .app-top-bar .logo {
@@ -775,13 +830,13 @@ p {
   }
 
 .app-top-bar .btn.secondary {
-  background: transparent;
-  color: #ffffff;
-  border: 1px solid rgba(255,255,255,0.35);
+  background: var(--nav-pill-bg);
+  color: var(--text-on-dark);
+  border: 1px solid var(--nav-pill-border);
 }
 
 .app-top-bar .btn.secondary:hover {
-  background: rgba(255,255,255,0.12);
+  background: rgba(255,255,255,0.18);
 }
 
   .app-page h1,
@@ -801,9 +856,7 @@ p {
 .app-hero {
   position: relative;
   overflow: hidden;
-  background:
-    radial-gradient(circle at 20% 12%, rgba(255,255,255,0.08), transparent 60%),
-    linear-gradient(180deg, #0a1224 0%, #0b1a33 35%, #0f1d36 100%);
+  background: var(--hero-bg);
   color: #ffffff;
   padding: 28px 32px;
   border-radius: 0;
@@ -818,9 +871,7 @@ p {
   position: absolute;
   inset: 0;
   pointer-events: none;
-  background-image:
-    url("/brand/hero-paper.png"),
-    radial-gradient(circle at 70% 20%, rgba(255,255,255,0.08), transparent 55%);
+  background-image: var(--hero-overlay);
   background-repeat: no-repeat;
   background-position: center;
   background-size: cover;
@@ -842,20 +893,33 @@ p {
   z-index: 1;
 }
 
+.app-hero h1,
+.app-hero h2 {
+  color: #ffffff;
+}
+
+.app-hero h1 {
+  font-size: 36px;
+  line-height: 1.15;
+  font-weight: 800;
+  letter-spacing: 0.2px;
+}
+
 .app-hero .page-subtitle {
-  color: rgba(255,255,255,0.78);
+  color: var(--text-on-dark-muted);
+  font-size: 15px;
 }
 
 .app-hero .btn {
   background: #ffffff;
-  color: #0b1f53;
+  color: var(--color-primary);
   border-color: #ffffff;
 }
 
 .app-hero .btn.secondary {
   background: transparent;
-  color: #ffffff;
-  border-color: rgba(255,255,255,0.55);
+  color: var(--text-on-dark);
+  border-color: var(--outline-on-dark);
 }
 
 .app-body {
@@ -877,12 +941,12 @@ p {
     display: flex;
     flex-direction: column;
     gap: 8px;
-    background: #ffffff;
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius-md);
-    padding: 14px;
+  background: transparent;
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-lg);
+  padding: 12px;
     align-self: start;
-    box-shadow: 0 12px 30px rgba(15, 23, 42, 0.06);
+  box-shadow: none;
   position: relative;
   z-index: 2;
   }
@@ -895,22 +959,22 @@ p {
     border-radius: 12px;
     font-weight: 700;
     font-size: 13px;
-    color: #475569;
-    background: transparent;
-    border: 1px solid transparent;
+  color: var(--color-muted);
+  background: transparent;
+  border: 1px solid transparent;
     transition: background 160ms ease, color 160ms ease, transform 160ms ease;
   }
 
   .nav-link:hover {
-    background: #eef2f7;
-    color: #0b1f53;
+  background: var(--surface-muted);
+  color: var(--color-primary);
     transform: translateY(-1px);
   }
 
   .nav-link.active {
-    background: #0b1f53;
-    color: #fff;
-    border-color: #0b1f53;
+  background: rgba(var(--navy-900-rgb), 0.14);
+  color: var(--color-primary);
+  border-color: rgba(var(--navy-900-rgb), 0.22);
   }
 
   .app-content {
@@ -1034,7 +1098,7 @@ p {
     font-family: var(--font-header), var(--font-inter), system-ui, -apple-system, sans-serif;
   font-weight: 600;
     letter-spacing: 0.6px;
-    color: #ffffff;
+  color: var(--text-on-dark);
   }
 
   .pricing-title {
@@ -1042,25 +1106,26 @@ p {
     font-family: var(--font-header), var(--font-inter), system-ui, -apple-system, sans-serif;
     font-weight: 800;
     letter-spacing: 0.2px;
-    color: #0f1d36;
+  color: var(--color-text);
   }
 
   .pricing-subtitle {
     font-family: var(--font-header), var(--font-inter), system-ui, -apple-system, sans-serif;
     font-size: 15px;
     letter-spacing: 0.2px;
+  color: var(--text-on-dark-muted);
   }
 
   .choose-icon {
     margin-left: 6px;
-    color: #0b1f53;
+  color: var(--color-primary);
     font-weight: 900;
   }
 
   .choose-btn {
-    background: #0b1f53 !important;
+  background: var(--color-primary) !important;
     color: #fff !important;
-    border-color: #0b1f53 !important;
+  border-color: var(--color-primary) !important;
     min-width: 200px;
     width: 100%;
     display: inline-flex;
@@ -1068,14 +1133,34 @@ p {
     justify-content: center;
   }
 
+.choose-btn:hover {
+  background: var(--color-primary-hover) !important;
+  border-color: var(--color-primary-hover) !important;
+}
+
+.choose-btn:active {
+  background: var(--color-primary-active) !important;
+  border-color: var(--color-primary-active) !important;
+}
+
+.choose-btn:hover {
+  background: var(--color-primary-hover) !important;
+  border-color: var(--color-primary-hover) !important;
+}
+
+.choose-btn:active {
+  background: var(--color-primary-active) !important;
+  border-color: var(--color-primary-active) !important;
+}
+
   .choose-btn .choose-icon {
     color: #fff !important;
   }
 
   .btn.secondary.choose-btn {
-    background: #0b1f53 !important;
+  background: var(--color-primary) !important;
     color: #fff !important;
-    border-color: #0b1f53 !important;
+  border-color: var(--color-primary) !important;
   }
 
   .pricing-grid {
@@ -1097,14 +1182,34 @@ p {
   }
 
 .action-btn {
-  background: #0b1f53 !important;
+  background: var(--color-primary) !important;
   color: #fff !important;
-  border-color: #0b1f53 !important;
+  border-color: var(--color-primary) !important;
   min-width: 200px;
   width: 100%;
   display: inline-flex;
   align-items: center;
   justify-content: center;
+}
+
+.action-btn:hover {
+  background: var(--color-primary-hover) !important;
+  border-color: var(--color-primary-hover) !important;
+}
+
+.action-btn:active {
+  background: var(--color-primary-active) !important;
+  border-color: var(--color-primary-active) !important;
+}
+
+.action-btn:hover {
+  background: var(--color-primary-hover) !important;
+  border-color: var(--color-primary-hover) !important;
+}
+
+.action-btn:active {
+  background: var(--color-primary-active) !important;
+  border-color: var(--color-primary-active) !important;
 }
 
   .pricing-body-spacer {

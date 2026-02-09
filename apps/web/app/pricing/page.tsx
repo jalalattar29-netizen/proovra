@@ -41,7 +41,7 @@ export default function PricingPage() {
           </div>
         </div>
 
-        <section className="section container hero-section-tight" style={{ paddingTop: 0, paddingBottom: 32 }}>
+        <section className="section container hero-section-tight pricing-hero-section">
           <h1
             className="hero-title pricing-hero-title"
             style={{ marginTop: 0, marginBottom: 10, letterSpacing: "0.7px" }}
@@ -50,7 +50,7 @@ export default function PricingPage() {
           </h1>
           <p
             className="page-subtitle pricing-subtitle"
-            style={{ color: "rgba(255,255,255,0.78)", marginTop: 0, maxWidth: 720 }}
+            style={{ marginTop: 0, maxWidth: 720 }}
           >
             PROO✓RA is built for situations where authenticity matters. Choose a plan based on how often you
             need verifiable reports and structured custody — not on storage limits.
