@@ -139,9 +139,6 @@ export function middleware(req: NextRequest) {
 
     if (isWebHost) {
       if (
-        pathname.startsWith("/login") ||
-        pathname.startsWith("/register") ||
-        pathname.startsWith("/auth") ||
         pathname.startsWith("/capture") ||
         pathname.startsWith("/evidence") ||
         pathname.startsWith("/cases") ||
