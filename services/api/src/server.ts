@@ -31,6 +31,11 @@ function parseCorsOrigins(): string[] {
   return Array.from(new Set(merged.map(normalizeOrigin)));
 }
 
+function isProovraOrigin(origin: string) {
+  const value = normalizeOrigin(origin);
+  return value === "https://proovra.com" || value.endsWith(".proovra.com");
+}
+
 export async function buildServer() {
   initSentry();
   const app = Fastify({
@@ -50,7 +55,9 @@ export async function buildServer() {
       if (allowlist.length === 0) {
         return cb(null, !isProd);
       }
-      return cb(null, allowlist.includes(normalizeOrigin(origin)));
+      const normalized = normalizeOrigin(origin);
+      if (isProovraOrigin(normalized)) return cb(null, true);
+      return cb(null, allowlist.includes(normalized));
     },
   });
 
