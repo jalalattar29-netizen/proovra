@@ -13,10 +13,16 @@ import { casesRoutes } from "./routes/cases.routes.js";
 
 function parseCorsOrigins(): string[] {
   const raw = process.env.CORS_ORIGINS ?? "";
-  return raw
+  const parsed = raw
     .split(",")
     .map((value) => value.trim())
     .filter(Boolean);
+  if (parsed.length > 0) return parsed;
+  return [
+    "https://www.proovra.com",
+    "https://proovra.com",
+    "https://app.proovra.com"
+  ];
 }
 
 export async function buildServer() {
