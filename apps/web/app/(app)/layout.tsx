@@ -45,7 +45,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="page app-page">
-      <div className="container">
+      <div className="container app-top-bar">
         <TopBar
           title={t("brand")}
           right={

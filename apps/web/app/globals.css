@@ -756,6 +756,16 @@ p {
     color: #0f1d36;
   }
 
+  .app-page h1,
+  .app-page h2 {
+    font-family: var(--font-header), var(--font-inter), system-ui, -apple-system, sans-serif;
+    letter-spacing: 0.4px;
+  }
+
+  .app-top-bar .nav {
+    padding: 8px 0;
+  }
+
   .app-shell {
     display: grid;
     grid-template-columns: minmax(200px, 240px) 1fr;
