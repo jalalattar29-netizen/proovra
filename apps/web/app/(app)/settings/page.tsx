@@ -89,21 +89,22 @@ export default function SettingsPage() {
           {plan === "TEAM" && <p style={{ marginTop: 6 }}>Team seats: {teamSeats}</p>}
           <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 10 }}>
             <Link href="/pricing">
-              <Button>View Pricing</Button>
+              <Button className="navy-btn">View Pricing</Button>
             </Link>
-            <Button variant="secondary" onClick={() => startCheckout("PAYG")}>
+            <Button className="navy-btn" variant="secondary" onClick={() => startCheckout("PAYG")}>
               Buy Pay‑Per‑Evidence
             </Button>
-            <Button variant="secondary" onClick={() => startCheckout("PRO")}>
+            <Button className="navy-btn" variant="secondary" onClick={() => startCheckout("PRO")}>
               Upgrade to Pro
             </Button>
-            <Button variant="secondary" onClick={() => startCheckout("TEAM")}>
+            <Button className="navy-btn" variant="secondary" onClick={() => startCheckout("TEAM")}>
               Upgrade to Team
             </Button>
-            <Button variant="secondary" onClick={() => startPayPal("PAYG")}>
+            <Button className="navy-btn" variant="secondary" onClick={() => startPayPal("PAYG")}>
               PayPal PAYG
             </Button>
             <Button
+              className="navy-btn"
               variant="secondary"
               onClick={() => apiFetch("/v1/billing/restore", { method: "POST" })}
             >
@@ -111,6 +112,7 @@ export default function SettingsPage() {
             </Button>
             {subscription?.status === "ACTIVE" && (
               <Button
+                className="navy-btn"
                 variant="secondary"
                 onClick={() => apiFetch("/v1/billing/subscription/cancel", { method: "POST" })}
               >

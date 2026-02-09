@@ -30,7 +30,7 @@ export default function HomePage() {
             <p className="page-subtitle">{t("bullets")}</p>
           </div>
           <Link href="/capture">
-            <Button>{t("ctaCapture")}</Button>
+            <Button className="navy-btn">{t("ctaCapture")}</Button>
           </Link>
         </div>
       </div>

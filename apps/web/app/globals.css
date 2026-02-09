@@ -869,6 +869,8 @@ p {
   content: "";
   position: absolute;
   inset: 0;
+  left: calc(-1 * (var(--app-nav-width) + var(--app-gap)));
+  width: calc(100% + var(--app-nav-width) + var(--app-gap));
   pointer-events: none;
   background: var(--hero-bg);
   z-index: 0;
@@ -878,6 +880,8 @@ p {
   content: "";
   position: absolute;
   inset: 0;
+  left: calc(-1 * (var(--app-nav-width) + var(--app-gap)));
+  width: calc(100% + var(--app-nav-width) + var(--app-gap));
   pointer-events: none;
   background-image: var(--hero-overlay), radial-gradient(circle at 55% 18%, rgba(255,255,255,0.10), transparent 60%);
   background-repeat: no-repeat;
@@ -1002,7 +1006,28 @@ p {
       flex-direction: row;
       flex-wrap: wrap;
     }
+  .app-hero::before,
+  .app-hero::after {
+    left: 0;
+    width: 100%;
   }
+  }
+
+.navy-btn {
+  background: var(--navy-900);
+  color: #fff;
+  border-color: var(--navy-900);
+}
+
+.navy-btn:hover {
+  background: var(--navy-800);
+  border-color: var(--navy-800);
+}
+
+.navy-btn:active {
+  background: var(--navy-700);
+  border-color: var(--navy-700);
+}
   
   /* Legal content typography */
   .legal-page h1,

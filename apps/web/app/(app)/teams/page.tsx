@@ -44,7 +44,7 @@ export default function TeamsPage() {
             <h1 style={{ margin: 0 }}>Teams</h1>
             <p className="page-subtitle">Manage access and members.</p>
           </div>
-          <Button onClick={handleCreate}>Create Team</Button>
+          <Button className="navy-btn" onClick={handleCreate}>Create Team</Button>
         </div>
       </div>
       <div className="app-body" style={{ display: "grid", gap: 16 }}>
@@ -56,7 +56,7 @@ export default function TeamsPage() {
           <Card>
             <div style={{ display: "grid", gap: 12 }}>
               <div>No teams yet. Create one to manage members.</div>
-              <Button onClick={handleCreate}>Create Team</Button>
+              <Button className="navy-btn" onClick={handleCreate}>Create Team</Button>
             </div>
           </Card>
         ) : (
