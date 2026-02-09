@@ -50,6 +50,8 @@ export async function buildServer() {
   const isProd = process.env.NODE_ENV === "production";
   await app.register(cors, {
     credentials: true,
+    methods: ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allowedHeaders: ["content-type", "authorization", "x-web-client"],
     origin: (origin, cb) => {
       if (!origin) return cb(null, true);
       if (allowlist.length === 0) {
