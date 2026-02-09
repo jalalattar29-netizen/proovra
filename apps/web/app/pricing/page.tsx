@@ -41,26 +41,25 @@ export default function PricingPage() {
           </div>
         </div>
 
-        <section className="section container hero-section-tight" style={{ paddingTop: 0, paddingBottom: 6 }}>
+        <section className="section container hero-section-tight" style={{ paddingTop: 0, paddingBottom: 32 }}>
           <h1
             className="hero-title pricing-hero-title"
             style={{ marginTop: 0, marginBottom: 10, letterSpacing: "0.7px" }}
           >
             Pricing designed for real-world scrutiny.
           </h1>
-        </section>
-      </div>
-
-      <SilverWatermarkSection className="section section-body" style={{ paddingTop: 240 }}>
-        <div className="container pricing-body-content">
-          <div className="pricing-body-spacer" />
-          <h2 className="pricing-title" style={{ letterSpacing: "0.35px" }}>
-            Pricing designed for real-world scrutiny.
-          </h2>
-          <p className="page-subtitle pricing-subtitle">
+          <p
+            className="page-subtitle pricing-subtitle"
+            style={{ color: "rgba(255,255,255,0.78)", marginTop: 0, maxWidth: 720 }}
+          >
             PROO✓RA is built for situations where authenticity matters. Choose a plan based on how often you
             need verifiable reports and structured custody — not on storage limits.
           </p>
+        </section>
+      </div>
+
+      <SilverWatermarkSection className="section section-body" style={{ paddingTop: 48 }}>
+        <div className="container">
           <div
             style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 16 }}
           >
