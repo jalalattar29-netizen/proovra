@@ -41,14 +41,14 @@ export default function PricingPage() {
           </div>
         </div>
 
-        <section className="section container pricing-hero">
+        <section className="section container hero-section-tight">
           <h1 className="hero-title pricing-hero-title">
             Pricing designed for real-world scrutiny.
           </h1>
         </section>
       </div>
 
-      <SilverWatermarkSection className="section pricing-body">
+      <SilverWatermarkSection className="section section-body">
         <div className="container">
           <h2 className="pricing-title">Pricing designed for real-world scrutiny.</h2>
           <p className="page-subtitle pricing-subtitle">

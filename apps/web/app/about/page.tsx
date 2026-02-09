@@ -46,14 +46,14 @@ export default function AboutPage() {
           </div>
         </div>
 
-        <section className="section container" style={{ paddingTop: 36 }}>
-          <h1 className="hero-title" style={{ color: "#ffffff" }}>
+        <section className="section container hero-section-tight">
+          <h1 className="hero-title">
             ABOUT PROO✓RA
           </h1>
         </section>
       </div>
 
-      <SilverWatermarkSection className="section">
+      <SilverWatermarkSection className="section section-body">
         <div className="container">
           <p>
             In a world where digital content can be altered, disputed, or dismissed in seconds, trust has
