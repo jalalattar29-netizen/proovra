@@ -1,3 +1,4 @@
+import { Readable } from "node:stream";
 import { S3Client, PutObjectCommand, HeadObjectCommand, GetObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
@@ -81,5 +82,10 @@ export async function getObjectStream(params: { bucket: string; key: string }) {
     })
   );
   if (!res.Body) throw new Error("S3 returned empty body");
-  return res.Body; // Node.js Readable
+  const body = res.Body as unknown;
+  if (body instanceof Readable) return body;
+  if (body && typeof (body as { getReader?: () => unknown }).getReader === "function") {
+    return Readable.fromWeb(body as ReadableStream);
+  }
+  return Readable.from(body as Iterable<Uint8Array>);
 }

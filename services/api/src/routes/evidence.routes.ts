@@ -72,7 +72,7 @@ async function getUserPlan(userId: string) {
 async function appendCustodyEvent(params: {
   evidenceId: string;
   eventType: prismaPkg.CustodyEventType;
-  payload?: Record<string, unknown> | null;
+  payload?: prismaPkg.Prisma.InputJsonValue | null;
   ip?: string | null;
   userAgent?: string | null;
 }) {
@@ -88,9 +88,7 @@ async function appendCustodyEvent(params: {
       eventType: params.eventType,
       atUtc: new Date(),
       sequence: nextSeq,
-      payload: params.payload
-        ? (params.payload as prismaPkg.Prisma.InputJsonValue)
-        : prismaPkg.Prisma.JsonNull,
+      payload: params.payload ?? prismaPkg.Prisma.JsonNull,
       ip: params.ip ?? null,
       userAgent: params.userAgent ?? null
     }
