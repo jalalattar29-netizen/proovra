@@ -623,6 +623,119 @@ p {
   }
 
   /* =========================
+     UI HELPERS (APP PAGES)
+     ========================= */
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 4px 10px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+  }
+  .badge.signed { background: #2bb673; color: #fff; }
+  .badge.processing { background: #3b82f6; color: #fff; }
+  .badge.ready { background: #94a3b8; color: #fff; }
+
+  .status-banner {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 16px;
+    background: rgba(255,255,255,0.18);
+    border-radius: 16px;
+  }
+
+  .pill-button {
+    padding: 8px 16px;
+    border-radius: 999px;
+    border: 1px solid var(--color-border);
+    background: #fff;
+    font-weight: 700;
+    font-size: 13px;
+    cursor: pointer;
+    transition: all 160ms ease;
+  }
+  .pill-button.active {
+    background: var(--color-primary);
+    color: #fff;
+    border-color: var(--color-primary);
+  }
+
+  .drop-zone {
+    border: 2px dashed var(--color-border);
+    border-radius: var(--radius-md);
+    padding: 32px;
+    text-align: center;
+    transition: border-color 160ms ease;
+  }
+  .drop-zone:hover {
+    border-color: var(--color-primary);
+  }
+
+  .row {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 16px;
+    padding: 14px 0;
+    border-top: 1px solid var(--color-border);
+  }
+  .rowTitle {
+    font-weight: 700;
+    font-size: 13px;
+    color: #0f1d36;
+  }
+  .rowSub {
+    font-size: 12px;
+    color: #64748b;
+    margin-top: 4px;
+  }
+
+  .footer-actions {
+    display: flex;
+    gap: 10px;
+    margin-top: 18px;
+  }
+
+  .lang-button {
+    padding: 6px 12px;
+    border-radius: 8px;
+    border: 1px solid rgba(255,255,255,0.2);
+    background: rgba(255,255,255,0.1);
+    color: #fff;
+    font-weight: 700;
+    font-size: 12px;
+    cursor: pointer;
+  }
+
+  .timeline {
+    display: grid;
+    gap: 12px;
+  }
+  .timeline-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .timeline-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--color-primary);
+  }
+
+  .phone-pill {
+    display: inline-block;
+    padding: 4px 8px;
+    border-radius: 999px;
+    background: #eef2f7;
+    font-size: 10px;
+    font-weight: 700;
+  }
+
+  /* =========================
      APP SHELL (after login)
      ========================= */
   .app-page {
