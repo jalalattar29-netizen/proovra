@@ -8,11 +8,6 @@ import { SilverWatermarkSection } from "../components/SilverWatermarkSection";
 export default function HomePage() {
   const { t, locale, setLocale } = useLocale();
 
-  const appBase =
-    typeof window !== "undefined" &&
-    (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1")
-      ? window.location.origin
-      : process.env.NEXT_PUBLIC_APP_BASE ?? "";
   const webBase =
     typeof window !== "undefined" &&
     (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1")
