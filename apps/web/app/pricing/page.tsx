@@ -74,7 +74,7 @@ export default function PricingPage() {
                 <li>PDF reports not included</li>
               </ul>
               <a href={appRegister}>
-                <Button variant="secondary">
+                <Button variant="secondary" className="choose-btn">
                   Choose Free <span className="choose-icon">›</span>
                 </Button>
               </a>
@@ -90,7 +90,7 @@ export default function PricingPage() {
                 <li>Ideal for occasional high-stakes captures</li>
               </ul>
               <a href={appLogin}>
-                <Button variant="secondary">
+                <Button variant="secondary" className="choose-btn">
                   Choose Pay-per-evidence <span className="choose-icon">›</span>
                 </Button>
               </a>
@@ -106,7 +106,7 @@ export default function PricingPage() {
                 <li>Priority reliability features as they ship</li>
               </ul>
               <a href={appLogin}>
-                <Button variant="secondary">
+                <Button variant="secondary" className="choose-btn">
                   Choose Pro <span className="choose-icon">›</span>
                 </Button>
               </a>
@@ -122,7 +122,7 @@ export default function PricingPage() {
                 <li>Built for organizations and high-responsibility workflows</li>
               </ul>
               <a href={appLogin}>
-                <Button variant="secondary">
+                <Button variant="secondary" className="choose-btn">
                   Choose Team <span className="choose-icon">›</span>
                 </Button>
               </a>

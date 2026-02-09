@@ -78,7 +78,7 @@ p {
   }
   
   .section {
-    padding: 72px 0 96px;
+    padding: 96px 0 120px;
   }
 
   /* =========================
@@ -191,7 +191,7 @@ p {
   }
 
   .landing-nav-bar .nav {
-    padding: 8px 0;
+    padding: 6px 0;
   }
   
   .nav-left {
@@ -256,7 +256,7 @@ p {
     display: grid;
     grid-template-columns: 1.05fr 0.95fr;
     gap: 84px;
-    padding: 50px 0 56px;
+    padding: 42px 0 50px;
     align-items: center;
   }
   
@@ -275,12 +275,12 @@ p {
   }
 
   .hero-section-tight {
-    padding-top: 18px;
-    padding-bottom: 22px;
+    padding-top: 4px;
+    padding-bottom: 10px;
   }
 
   .section-body {
-    padding-top: 88px;
+    padding-top: 140px;
   }
   
   .hero-subtitle {
@@ -763,20 +763,25 @@ p {
   }
 
   .app-top-bar .nav {
-    padding: 8px 0;
+    padding: 6px 0;
   }
 
   .app-shell {
     display: grid;
     grid-template-columns: minmax(200px, 240px) 1fr;
-    gap: 24px;
-    padding: 18px 0 60px;
+    gap: 28px;
+    padding: 24px 0 72px;
   }
 
   .app-nav {
     display: flex;
     flex-direction: column;
     gap: 8px;
+    background: #fff;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    padding: 12px;
+    align-self: start;
   }
 
   .nav-link {
@@ -807,6 +812,7 @@ p {
 
   .app-content {
     min-height: 520px;
+    padding: 6px 0;
   }
 
   .app-loading {
@@ -939,6 +945,16 @@ p {
     margin-left: 6px;
     color: #0b1f53;
     font-weight: 900;
+  }
+
+  .choose-btn {
+    background: #0b1f53;
+    color: #fff;
+    border-color: #0b1f53;
+  }
+
+  .choose-btn .choose-icon {
+    color: #fff;
   }
 
 /* اسم الموقع باللوغ إن/ريجيستر */
