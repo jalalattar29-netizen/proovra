@@ -164,7 +164,7 @@ p {
      LANDING
      ========================= */
   .landing-page {
-    background: #f7f9fc;
+  background: #f5f7fb;
     color: var(--color-text);
   }
   
@@ -176,9 +176,8 @@ p {
   
     /* شريط كامل بعرض الشاشة */
     width: 100%;
-    background: rgba(6, 12, 24, 0.74);
-    backdrop-filter: blur(12px);
-    border-bottom: 1px solid rgba(255,255,255,0.10);
+  background: #0b1f53;
+  border-bottom: 1px solid rgba(255,255,255,0.12);
   }
   
   .nav {
@@ -191,7 +190,7 @@ p {
   }
 
   .landing-nav-bar .nav {
-    padding: 8px 0;
+  padding: 8px 0;
   }
   
   .nav-left {
@@ -276,11 +275,11 @@ p {
 
   .hero-section-tight {
     padding-top: 0;
-    padding-bottom: 120px;
+  padding-bottom: 180px;
   }
 
   .section-body {
-    padding-top: 24px;
+  padding-top: 0;
   }
   
   .hero-subtitle {
@@ -759,18 +758,28 @@ p {
   }
 
   .app-top-bar {
-    background: #ffffff;
-    border-bottom: 1px solid var(--color-border);
+  background: #0b1f53;
+  border-bottom: 1px solid rgba(255,255,255,0.12);
   }
 
   .app-top-bar .nav {
-    padding: 10px 0;
+  padding: 8px 0;
   }
 
   .app-top-bar .logo {
-    color: #0f1d36;
+  color: #ffffff;
     text-transform: uppercase;
   }
+
+.app-top-bar .btn.secondary {
+  background: transparent;
+  color: #ffffff;
+  border: 1px solid rgba(255,255,255,0.35);
+}
+
+.app-top-bar .btn.secondary:hover {
+  background: rgba(255,255,255,0.12);
+}
 
   .app-page h1,
   .app-page h2 {
@@ -779,7 +788,7 @@ p {
   }
 
   .app-top-bar .nav {
-    padding: 4px 0;
+  padding: 8px 0;
   }
 
   .app-shell {
@@ -941,7 +950,7 @@ p {
      ========================= */
   .pricing-hero-title {
     font-family: var(--font-header), var(--font-inter), system-ui, -apple-system, sans-serif;
-    font-weight: 900;
+  font-weight: 600;
     letter-spacing: 0.6px;
     color: #ffffff;
   }
@@ -1002,8 +1011,19 @@ p {
   }
 
   .pricing-body-content {
-    margin-top: -80px;
+  margin-top: 0;
   }
+
+.action-btn {
+  background: #0b1f53 !important;
+  color: #fff !important;
+  border-color: #0b1f53 !important;
+  min-width: 200px;
+  width: 100%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
 
   .pricing-body-spacer {
     height: 12px;

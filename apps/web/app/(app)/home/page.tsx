@@ -74,13 +74,15 @@ export default function HomePage() {
           <div style={{ fontWeight: 700, marginBottom: 12 }}>Quick Actions</div>
           <div style={{ display: "grid", gap: 10 }}>
             <Link href="/capture">
-              <Button>New Capture</Button>
+              <Button className="action-btn">New Capture</Button>
             </Link>
             <Link href="/cases">
-              <Button variant="secondary">View Cases</Button>
+              <Button variant="secondary" className="action-btn">View Cases</Button>
             </Link>
             <Link href="/settings">
-              <Button variant="secondary">Manage Settings</Button>
+              <Button variant="secondary" className="action-btn">
+                Manage Settings
+              </Button>
             </Link>
           </div>
 
