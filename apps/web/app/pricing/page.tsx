@@ -41,17 +41,17 @@ export default function PricingPage() {
           </div>
         </div>
 
-        <section className="section container" style={{ paddingTop: 36 }}>
-          <h1 className="hero-title" style={{ color: "#ffffff" }}>
+        <section className="section container pricing-hero">
+          <h1 className="hero-title pricing-hero-title">
             Pricing designed for real-world scrutiny.
           </h1>
         </section>
       </div>
 
-      <SilverWatermarkSection className="section">
+      <SilverWatermarkSection className="section pricing-body">
         <div className="container">
-          <h2 style={{ marginTop: 0 }}>Pricing designed for real-world scrutiny.</h2>
-          <p className="page-subtitle">
+          <h2 className="pricing-title">Pricing designed for real-world scrutiny.</h2>
+          <p className="page-subtitle pricing-subtitle">
             PROO✓RA is built for situations where authenticity matters. Choose a plan based on how often you
             need verifiable reports and structured custody — not on storage limits.
           </p>
@@ -69,7 +69,9 @@ export default function PricingPage() {
                 <li>PDF reports not included</li>
               </ul>
               <a href={appRegister}>
-                <Button>Choose Free</Button>
+                <Button variant="secondary">
+                  Choose Free <span className="choose-icon">›</span>
+                </Button>
               </a>
             </Card>
             <Card>
@@ -83,7 +85,9 @@ export default function PricingPage() {
                 <li>Ideal for occasional high-stakes captures</li>
               </ul>
               <a href={appLogin}>
-                <Button>Choose Pay-per-evidence</Button>
+                <Button variant="secondary">
+                  Choose Pay-per-evidence <span className="choose-icon">›</span>
+                </Button>
               </a>
             </Card>
             <Card>
@@ -97,7 +101,9 @@ export default function PricingPage() {
                 <li>Priority reliability features as they ship</li>
               </ul>
               <a href={appLogin}>
-                <Button>Choose Pro</Button>
+                <Button variant="secondary">
+                  Choose Pro <span className="choose-icon">›</span>
+                </Button>
               </a>
             </Card>
             <Card>
@@ -111,7 +117,9 @@ export default function PricingPage() {
                 <li>Built for organizations and high-responsibility workflows</li>
               </ul>
               <a href={appLogin}>
-                <Button>Choose Team</Button>
+                <Button variant="secondary">
+                  Choose Team <span className="choose-icon">›</span>
+                </Button>
               </a>
             </Card>
           </div>

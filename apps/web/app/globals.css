@@ -78,7 +78,7 @@ p {
   }
   
   .section {
-    padding: 48px 0 80px;
+    padding: 64px 0 90px;
   }
 
   /* =========================
@@ -187,7 +187,7 @@ p {
     justify-content: space-between;
   
     /* padding داخلي للشريط */
-    padding: 14px 0;
+    padding: 10px 0;
   }
   
   .nav-left {
@@ -261,10 +261,12 @@ p {
   }
   
   .hero-title {
+    font-family: var(--font-header), var(--font-inter), system-ui, -apple-system, sans-serif;
     font-size: var(--text-hero);
     line-height: var(--lh-hero);
     font-weight: 900;
-  color: #ffffff;
+    letter-spacing: 0.6px;
+    color: #ffffff;
     margin: 0 0 14px;
   }
   
@@ -619,6 +621,75 @@ p {
     color: #0b1f53;
     font-weight: 950;
   }
+
+  /* =========================
+     APP SHELL (after login)
+     ========================= */
+  .app-page {
+    background: #f5f7fb;
+    color: #0f1d36;
+  }
+
+  .app-shell {
+    display: grid;
+    grid-template-columns: minmax(200px, 240px) 1fr;
+    gap: 24px;
+    padding: 18px 0 60px;
+  }
+
+  .app-nav {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .nav-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    border-radius: 12px;
+    font-weight: 700;
+    font-size: 13px;
+    color: #475569;
+    background: transparent;
+    border: 1px solid transparent;
+    transition: background 160ms ease, color 160ms ease, transform 160ms ease;
+  }
+
+  .nav-link:hover {
+    background: #eef2f7;
+    color: #0b1f53;
+    transform: translateY(-1px);
+  }
+
+  .nav-link.active {
+    background: #0b1f53;
+    color: #fff;
+    border-color: #0b1f53;
+  }
+
+  .app-content {
+    min-height: 520px;
+  }
+
+  .app-loading {
+    display: grid;
+    place-items: center;
+    min-height: 60vh;
+    color: #64748b;
+    font-weight: 700;
+  }
+
+  @media (max-width: 980px) {
+    .app-shell {
+      grid-template-columns: 1fr;
+    }
+    .app-nav {
+      flex-direction: row;
+      flex-wrap: wrap;
+    }
+  }
   
   /* Legal content typography */
   .legal-page h1,
@@ -704,6 +775,44 @@ p {
   font-weight: 600;
   letter-spacing: 0.3px;
 }
+
+  /* =========================
+     PRICING
+     ========================= */
+  .pricing-hero {
+    padding-top: 16px;
+    padding-bottom: 24px;
+  }
+
+  .pricing-hero-title {
+    font-family: var(--font-header), var(--font-inter), system-ui, -apple-system, sans-serif;
+    font-weight: 900;
+    letter-spacing: 0.6px;
+    color: #ffffff;
+  }
+
+  .pricing-body {
+    padding-top: 72px;
+  }
+
+  .pricing-title {
+    margin-top: 0;
+    font-family: var(--font-header), var(--font-inter), system-ui, -apple-system, sans-serif;
+    font-weight: 800;
+    letter-spacing: 0.2px;
+    color: #0f1d36;
+  }
+
+  .pricing-subtitle {
+    font-family: var(--font-header), var(--font-inter), system-ui, -apple-system, sans-serif;
+    font-size: 15px;
+  }
+
+  .choose-icon {
+    margin-left: 6px;
+    color: #0b1f53;
+    font-weight: 900;
+  }
 
 /* اسم الموقع باللوغ إن/ريجيستر */
 .auth-brand {

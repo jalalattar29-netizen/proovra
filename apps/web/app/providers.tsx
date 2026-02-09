@@ -79,8 +79,12 @@ export function Providers({ children }: { children: React.ReactNode }) {
   const authValue = useMemo<AuthContextValue>(() => {
     const setToken = (next: string | null) => {
       setTokenState(next);
-      if (next) localStorage.setItem("proovra-token", next);
-      else localStorage.removeItem("proovra-token");
+      if (next) {
+        localStorage.setItem("proovra-token", next);
+      } else {
+        localStorage.removeItem("proovra-token");
+        setUser(null);
+      }
     };
 
     const ensureGuest = async () => {
