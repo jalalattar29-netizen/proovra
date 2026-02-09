@@ -73,7 +73,9 @@ export async function headObject(params: { bucket: string; key: string }) {
   };
 }
 
-export async function getObjectStream(params: { bucket: string; key: string }) {
+export async function getObjectStream(
+  params: { bucket: string; key: string }
+): Promise<NodeJS.ReadableStream> {
   const res = await s3.send(
     new GetObjectCommand({
       Bucket: params.bucket,

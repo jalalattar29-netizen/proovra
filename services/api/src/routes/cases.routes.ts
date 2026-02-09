@@ -166,7 +166,7 @@ export async function casesRoutes(app: FastifyInstance) {
       for (const ev of evidence) {
         const report = ev.reports?.[0];
         if (report) {
-          const stream = await getObjectStream({
+          const stream: NodeJS.ReadableStream = await getObjectStream({
             bucket: report.storageBucket,
             key: report.storageKey
           });
