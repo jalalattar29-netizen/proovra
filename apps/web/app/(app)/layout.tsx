@@ -48,6 +48,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       <div className="container app-top-bar">
         <TopBar
           title={t("brand")}
+          logoHref="/home"
           right={
             <button
               className="btn secondary"

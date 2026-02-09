@@ -265,11 +265,11 @@ p {
   }
   
   .hero-title {
-    font-family: var(--font-header), var(--font-inter), system-ui, -apple-system, sans-serif;
-    font-size: var(--text-hero);
+    font-family: var(--font-inter), system-ui, -apple-system, sans-serif;
+    font-size: 36px;
     line-height: var(--lh-hero);
-    font-weight: 900;
-    letter-spacing: 0.6px;
+    font-weight: 800;
+    letter-spacing: 0.2px;
     color: #ffffff;
     margin: 0 0 14px;
   }
@@ -758,6 +758,20 @@ p {
     color: #0f1d36;
   }
 
+  .app-top-bar {
+    background: #ffffff;
+    border-bottom: 1px solid var(--color-border);
+  }
+
+  .app-top-bar .nav {
+    padding: 10px 0;
+  }
+
+  .app-top-bar .logo {
+    color: #0f1d36;
+    text-transform: uppercase;
+  }
+
   .app-page h1,
   .app-page h2 {
     font-family: var(--font-header), var(--font-inter), system-ui, -apple-system, sans-serif;
@@ -956,7 +970,8 @@ p {
     background: #0b1f53 !important;
     color: #fff !important;
     border-color: #0b1f53 !important;
-    min-width: 180px;
+    min-width: 200px;
+    width: 100%;
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -970,6 +985,20 @@ p {
     background: #0b1f53 !important;
     color: #fff !important;
     border-color: #0b1f53 !important;
+  }
+
+  .pricing-grid {
+    align-items: stretch;
+  }
+
+  .pricing-card {
+    display: flex;
+    flex-direction: column;
+    min-height: 100%;
+  }
+
+  .pricing-cta {
+    margin-top: auto;
   }
 
   .pricing-body-content {

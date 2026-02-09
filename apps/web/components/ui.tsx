@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import Link from "next/link";
 
 export function Button({
   children,
@@ -97,17 +98,28 @@ export function ListRow({
 export function TopBar({
   title,
   right,
-  logoSrc = "/brand/logo.svg"
+  logoSrc = "/brand/logo.svg",
+  logoHref
 }: {
   title: string;
   right?: ReactNode;
   logoSrc?: string;
+  logoHref?: string;
 }) {
   return (
     <div className="nav">
       <div className="nav-left">
-        <img src={logoSrc} alt="PROO✓RA" width={34} height={34} />
-        <span className="logo">{title}</span>
+        {logoHref ? (
+          <Link className="logo" href={logoHref}>
+            <img src={logoSrc} alt="PROO✓RA" width={34} height={34} />
+            <span>{title}</span>
+          </Link>
+        ) : (
+          <div className="logo">
+            <img src={logoSrc} alt="PROO✓RA" width={34} height={34} />
+            <span>{title}</span>
+          </div>
+        )}
       </div>
       {right}
     </div>

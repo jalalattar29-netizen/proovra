@@ -61,9 +61,10 @@ export default function PricingPage() {
       <SilverWatermarkSection className="section section-body" style={{ paddingTop: 48 }}>
         <div className="container">
           <div
+            className="pricing-grid"
             style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 16 }}
           >
-            <Card>
+            <Card className="pricing-card">
               <h3>FREE</h3>
               <p>$0</p>
               <ul style={{ margin: "12px 0 16px", paddingLeft: 18, color: "#475569", lineHeight: 1.7 }}>
@@ -73,13 +74,15 @@ export default function PricingPage() {
                 <li>Ownership and organization basics</li>
                 <li>PDF reports not included</li>
               </ul>
-              <a href={appRegister}>
-                <Button variant="secondary" className="choose-btn">
-                  Choose Free <span className="choose-icon">›</span>
-                </Button>
-              </a>
+              <div className="pricing-cta">
+                <a href={appRegister}>
+                  <Button variant="secondary" className="choose-btn">
+                    Choose Free <span className="choose-icon">›</span>
+                  </Button>
+                </a>
+              </div>
             </Card>
-            <Card>
+            <Card className="pricing-card">
               <h3>PAY-PER-EVIDENCE</h3>
               <p>$5 / evidence</p>
               <ul style={{ margin: "12px 0 16px", paddingLeft: 18, color: "#475569", lineHeight: 1.7 }}>
@@ -89,13 +92,15 @@ export default function PricingPage() {
                 <li>Audit-ready integrity fields (hashes, signatures)</li>
                 <li>Ideal for occasional high-stakes captures</li>
               </ul>
-              <a href={appLogin}>
-                <Button variant="secondary" className="choose-btn">
-                  Choose Pay-per-evidence <span className="choose-icon">›</span>
-                </Button>
-              </a>
+              <div className="pricing-cta">
+                <a href={appLogin}>
+                  <Button variant="secondary" className="choose-btn">
+                    Choose Pay-per-evidence <span className="choose-icon">›</span>
+                  </Button>
+                </a>
+              </div>
             </Card>
-            <Card>
+            <Card className="pricing-card">
               <h3>PRO</h3>
               <p>$19 / month</p>
               <ul style={{ margin: "12px 0 16px", paddingLeft: 18, color: "#475569", lineHeight: 1.7 }}>
@@ -105,13 +110,15 @@ export default function PricingPage() {
                 <li>Designed for individual professionals</li>
                 <li>Priority reliability features as they ship</li>
               </ul>
-              <a href={appLogin}>
-                <Button variant="secondary" className="choose-btn">
-                  Choose Pro <span className="choose-icon">›</span>
-                </Button>
-              </a>
+              <div className="pricing-cta">
+                <a href={appLogin}>
+                  <Button variant="secondary" className="choose-btn">
+                    Choose Pro <span className="choose-icon">›</span>
+                  </Button>
+                </a>
+              </div>
             </Card>
-            <Card>
+            <Card className="pricing-card">
               <h3>TEAM (5 seats)</h3>
               <p>$79 / month</p>
               <ul style={{ margin: "12px 0 16px", paddingLeft: 18, color: "#475569", lineHeight: 1.7 }}>
@@ -121,11 +128,13 @@ export default function PricingPage() {
                 <li>PDF reports included</li>
                 <li>Built for organizations and high-responsibility workflows</li>
               </ul>
-              <a href={appLogin}>
-                <Button variant="secondary" className="choose-btn">
-                  Choose Team <span className="choose-icon">›</span>
-                </Button>
-              </a>
+              <div className="pricing-cta">
+                <a href={appLogin}>
+                  <Button variant="secondary" className="choose-btn">
+                    Choose Team <span className="choose-icon">›</span>
+                  </Button>
+                </a>
+              </div>
             </Card>
           </div>
 
