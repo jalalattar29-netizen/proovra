@@ -852,19 +852,16 @@ p {
   }
 
 .app-section {
-  padding: 40px 0 80px;
+  padding: 20px 0 80px;
 }
 
 .app-hero {
   position: relative;
-  overflow: hidden;
-  background: var(--hero-bg);
+  overflow: visible;
   color: #ffffff;
-  padding: 32px max(var(--container-gutter), calc((100vw - var(--container-max)) / 2));
+  padding: 28px 0;
   border-radius: 0;
   box-shadow: none;
-  margin-left: calc(50% - 50vw);
-  width: 100vw;
   z-index: 1;
 }
 
@@ -872,27 +869,39 @@ p {
   content: "";
   position: absolute;
   inset: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 100vw;
   pointer-events: none;
-  background-image: var(--hero-overlay);
-  background-repeat: no-repeat;
-  background-position: center;
-  background-size: cover;
-  opacity: 0.28;
-  filter: blur(0.2px);
+  background: var(--hero-bg);
+  z-index: 0;
 }
 
 .app-hero::after {
   content: "";
   position: absolute;
   inset: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 100vw;
   pointer-events: none;
-  background: radial-gradient(circle at 55% 18%, rgba(255,255,255,0.10), transparent 60%);
+  background-image: var(--hero-overlay), radial-gradient(circle at 55% 18%, rgba(255,255,255,0.10), transparent 60%);
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: cover;
   opacity: 0.45;
+  filter: blur(0.2px);
+  z-index: 0;
 }
 
 .app-hero > * {
   position: relative;
   z-index: 1;
+  padding-left: var(--container-gutter);
+  padding-right: var(--container-gutter);
+  max-width: var(--container-max);
+  margin-left: auto;
+  margin-right: auto;
 }
 
 .app-hero h1,
@@ -914,13 +923,13 @@ p {
 
 .app-hero .btn,
 .app-hero .btn.secondary {
-  background: #040c20;
+  background: var(--navy-900);
   color: #ffffff;
-  border-color: #020a1e;
+  border-color: var(--navy-900);
 }
 
 .app-body {
-  margin-top: 22px;
+  margin-top: 18px;
 }
 
 .app-shell {
@@ -930,7 +939,7 @@ p {
   grid-template-columns: minmax(200px, var(--app-nav-width)) 1fr;
   gap: var(--app-gap);
   padding: 32px 0 96px;
-  margin-top: 18px;
+  margin-top: 0;
   overflow: visible;
 }
 
@@ -974,9 +983,9 @@ p {
   border-color: rgba(var(--navy-900-rgb), 0.22);
   }
 
-  .app-content {
-    min-height: 520px;
-    padding: 28px 0 12px;
+.app-content {
+  min-height: 520px;
+  padding: 16px 0 12px;
   position: relative;
   z-index: 2;
   overflow: visible;
@@ -1002,9 +1011,9 @@ p {
       flex-direction: row;
       flex-wrap: wrap;
     }
-  .app-hero {
-    margin-left: calc(50% - 50vw);
-    width: 100vw;
+  .app-hero > * {
+    padding-left: var(--container-gutter);
+    padding-right: var(--container-gutter);
   }
   }
   
