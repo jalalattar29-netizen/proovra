@@ -114,7 +114,7 @@ export default function CasesPage() {
                     {creating ? "Creating..." : "Create Case"}
                   </Button>
                 )}
-              </EmptyState>
+              />
             </Card>
           ) : (
             cases.map((item) => (
