@@ -17,18 +17,6 @@ interface BatchJob {
   progress: number;
 }
 
-interface BatchDetails extends BatchJob {
-  description?: string;
-  startedAt?: string;
-  estimatedCompletion?: string;
-  items: Array<{
-    evidenceId: string;
-    status: string;
-    progress?: number;
-    error?: string;
-  }>;
-}
-
 export default function BatchAnalysisPage() {
   const { user, token } = useAuth();
   const { addToast } = useToast();
