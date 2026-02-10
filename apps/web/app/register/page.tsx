@@ -283,7 +283,7 @@ export default function RegisterPage() {
                         if (idToken || code) void handleAuth("/v1/auth/apple", idToken, code);
                         else setError("Apple sign-up failed: No authentication token received. Please try again.");
                       })
-                      .catch((err: any) => {
+                      .catch((err: Error & { code?: string }) => {
                         // Handle specific Apple error codes
                         const errorCode = err?.code || err?.message || "";
                         let friendlyMessage = "Apple sign-up failed. Please try again.";
