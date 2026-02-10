@@ -67,9 +67,9 @@ export default function HomePage() {
               <div style={{ display: "grid", gap: 10 }}>
                 {loading ? (
                   <div style={{ display: "grid", gap: 8 }}>
-                    <Skeleton width="100%" height={20} />
-                    <Skeleton width="100%" height={20} />
-                    <Skeleton width="100%" height={20} />
+                    <Skeleton width="100%" height="20px" />
+                    <Skeleton width="100%" height="20px" />
+                    <Skeleton width="100%" height="20px" />
                   </div>
                 ) : error ? (
                   <div style={{

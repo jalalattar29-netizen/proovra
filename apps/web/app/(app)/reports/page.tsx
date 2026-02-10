@@ -58,9 +58,9 @@ export default function ReportsPage() {
         <div className="container" style={{ display: "grid", gap: 16 }}>
           {loading ? (
             <div style={{ display: "grid", gap: 8 }}>
-              <Skeleton width="100%" height={40} />
-              <Skeleton width="100%" height={40} />
-              <Skeleton width="100%" height={40} />
+              <Skeleton width="100%" height="40px" />
+              <Skeleton width="100%" height="40px" />
+              <Skeleton width="100%" height="40px" />
             </div>
           ) : error ? (
             <Card>
