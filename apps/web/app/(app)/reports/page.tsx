@@ -1,11 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { apiFetch } from "@/lib/api";
-import { captureException } from "@/lib/sentry";
 import Link from "next/link";
 import { Card, ListRow, Badge, useToast, EmptyState, Skeleton, Button } from "../../../components/ui";
 import { useLocale } from "../../providers";
+import { apiFetch } from "../../../lib/api";
+import { captureException } from "../../../lib/sentry";
 
 export default function ReportsPage() {
   const { t } = useLocale();
@@ -24,11 +24,11 @@ export default function ReportsPage() {
     setError(null);
     
     apiFetch("/v1/evidence")
-      .then((data) => {
+      .then((data: any) => {
         setItems(data.items ?? []);
         addToast("Reports loaded successfully", "success");
       })
-      .catch((err) => {
+      .catch((err: any) => {
         const errorMessage = err?.message || "Failed to load reports";
         setError(errorMessage);
         setItems([]);
@@ -86,28 +86,30 @@ export default function ReportsPage() {
             />
           ) : (
             withReports.map((item) => (
-              <Card key={item.id} style={{ cursor: "pointer", transition: "all 0.2s" }}>
-                {isUuid(item.id) ? (
-                  <Link href={`/evidence/${item.id}`} style={{ display: "block", textDecoration: "none" }}>
+              <div key={item.id} style={{ cursor: "pointer", transition: "all 0.2s" }}>
+                <Card>
+                  {isUuid(item.id) ? (
+                    <Link href={`/evidence/${item.id}`} style={{ display: "block", textDecoration: "none" }}>
+                      <ListRow
+                        title={item.type}
+                        subtitle={new Date(item.createdAt).toLocaleString()}
+                        badge={
+                          item.status === "SIGNED" ? (
+                            <Badge tone="signed">{t("statusSigned")}</Badge>
+                          ) : (
+                            <Badge tone="ready">{t("statusReady")}</Badge>
+                          )}
+                      />
+                    </Link>
+                  ) : (
                     <ListRow
                       title={item.type}
                       subtitle={new Date(item.createdAt).toLocaleString()}
-                      badge={
-                        item.status === "SIGNED" ? (
-                          <Badge tone="signed">{t("statusSigned")}</Badge>
-                        ) : (
-                          <Badge tone="ready">{t("statusReady")}</Badge>
-                        )}
+                      badge={<Badge tone="ready">{item.status}</Badge>}
                     />
-                  </Link>
-                ) : (
-                  <ListRow
-                    title={item.type}
-                    subtitle={new Date(item.createdAt).toLocaleString()}
-                    badge={<Badge tone="ready">{item.status}</Badge>}
-                  />
-                )}
-              </Card>
+                  )}
+                </Card>
+              </div>
             ))
           )}
         </div>
