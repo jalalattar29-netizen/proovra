@@ -10,6 +10,8 @@ import { teamsRoutes } from "./routes/teams.routes.js";
 import { billingRoutes } from "./routes/billing.routes.js";
 import { webhooksRoutes } from "./routes/webhooks.routes.js";
 import { casesRoutes } from "./routes/cases.routes.js";
+import { searchRoutes } from "./routes/search.routes.js";
+import { AppError, isAppError, createErrorResponse } from "./errors.js";
 
 const REQUIRED_ORIGINS = [
   "https://www.proovra.com",
@@ -110,9 +112,34 @@ export async function buildServer() {
       context.evidenceId = (req as typeof req & { evidenceId?: string })
         .evidenceId;
     }
+
+    // Handle AppError with structured response
+    if (isAppError(err)) {
+      captureException(err, { ...context, errorCode: err.code });
+      req.log.warn({ ...context, errorCode: err.code }, "request.app_error");
+      
+      const errorResponse = createErrorResponse(
+        err.code,
+        req.id,
+        err.details,
+        err.message
+      );
+      
+      reply.code(err.statusCode).send(errorResponse);
+      return;
+    }
+
+    // Handle other errors
     captureException(err, context);
     req.log.error(context, "request.failed");
-    reply.send(err);
+
+    // Send generic error response
+    const errorResponse = createErrorResponse(
+      "INTERNAL_SERVER_ERROR" as any,
+      req.id
+    );
+    
+    reply.code(500).send(errorResponse);
   });
 
   app.get("/health", async () => {
@@ -130,6 +157,7 @@ export async function buildServer() {
   await app.register(webhooksRoutes, { prefix: "/webhooks" });
   await app.register(casesRoutes);
   await app.register(evidenceRoutes);
+  await app.register(searchRoutes);
 
   return app;
 }
