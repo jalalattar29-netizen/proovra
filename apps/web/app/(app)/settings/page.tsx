@@ -13,7 +13,9 @@ export default function SettingsPage() {
   const { user, setToken } = useAuth();
   const router = useRouter();
   const [plan, setPlan] = useState("FREE");
-  const [selectedLanguage, setSelectedLanguage] = useState<"en" | "ar">(locale);
+  const [selectedLanguage, setSelectedLanguage] = useState<"en" | "ar">(
+    (locale === "en" || locale === "ar") ? locale : "en"
+  );
 
   useEffect(() => {
     apiFetch("/v1/billing/status")
