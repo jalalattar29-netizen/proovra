@@ -1,16 +1,18 @@
 "use client";
 
-import { Button, Card } from "../../../components/ui";
+import { Button, Card, useToast } from "../../../components/ui";
 import { useAuth, useLocale } from "../../providers";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { apiFetch } from "../../../lib/api";
+import { captureException } from "../../../lib/sentry";
 import { Icons } from "../../../components/icons";
 
 export default function SettingsPage() {
   const { t, locale } = useLocale();
   const { user, setToken } = useAuth();
+  const { addToast } = useToast();
   const router = useRouter();
   const [plan, setPlan] = useState("FREE");
   const [selectedLanguage, setSelectedLanguage] = useState<"en" | "ar">(
@@ -20,17 +22,26 @@ export default function SettingsPage() {
   useEffect(() => {
     apiFetch("/v1/billing/status")
       .then((data) => setPlan(data.entitlement?.plan ?? "FREE"))
-      .catch(() => setPlan("FREE"));
-  }, []);
+      .catch((err) => {
+        captureException(err, { feature: "web_settings_billing" });
+        setPlan("FREE");
+        addToast("Could not load subscription status", "warning");
+      });
+  }, [addToast]);
 
   const handleSignOut = async () => {
     try {
+      addToast("Signing out...", "info");
       await apiFetch("/v1/auth/logout", { method: "POST" });
-    } catch {
-      // ignore
+      addToast("Signed out successfully", "success");
+    } catch (err) {
+      captureException(err, { feature: "web_settings_logout" });
+      addToast("Sign out failed", "error");
     } finally {
       setToken(null);
-      router.replace("/");
+      setTimeout(() => {
+        router.replace("/");
+      }, 500);
     }
   };
 
@@ -59,6 +70,31 @@ export default function SettingsPage() {
               <span>Profile</span>
             </div>
             <div className="settings-section-body">
+              {/* Profile Avatar */}
+              <div style={{ marginBottom: 16, display: "flex", alignItems: "center", gap: 12 }}>
+                <div
+                  style={{
+                    width: 64,
+                    height: 64,
+                    borderRadius: 32,
+                    background: "linear-gradient(135deg, #0B1F2A 0%, #0B7BE5 100%)",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    color: "#fff",
+                    fontSize: 28,
+                    fontWeight: 600
+                  }}
+                >
+                  {user?.displayName?.[0]?.toUpperCase() || user?.email?.[0]?.toUpperCase() || "?"}
+                </div>
+                <div>
+                  <div style={{ fontSize: 14, color: "#999" }}>Account</div>
+                  <div style={{ fontSize: 16, fontWeight: 600 }}>
+                    {user?.displayName || user?.email || "Guest User"}
+                  </div>
+                </div>
+              </div>
               {user?.displayName && (
                 <div className="settings-row">
                   <span className="settings-label">Name</span>
