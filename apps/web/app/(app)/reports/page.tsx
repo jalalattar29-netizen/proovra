@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { apiFetch } from "@/lib/api";
+import { captureException } from "@/lib/sentry";
 import Link from "next/link";
 import { Card, ListRow, Badge, useToast, EmptyState, Skeleton, Button } from "../../../components/ui";
 import { useLocale } from "../../providers";
@@ -63,28 +65,25 @@ export default function ReportsPage() {
               <Skeleton width="100%" height="40px" />
             </div>
           ) : error ? (
-            <Card>
-              <div style={{
-                padding: 16,
-                background: "#FEE2E2",
-                borderRadius: 8,
-                color: "#991B1B",
-                fontSize: 12
-              }}>
-                {error}
-              </div>
-            </Card>
+            <div style={{
+              padding: 16,
+              background: "#FEE2E2",
+              borderRadius: 8,
+              color: "#991B1B",
+              fontSize: 12
+            }}>
+              {error}
+            </div>
           ) : withReports.length === 0 ? (
-            <Card>
-              <EmptyState
-                title="No reports yet"
-                subtitle="Capture evidence and complete signing to generate verifiable reports."
-              >
+            <EmptyState
+              title="No reports yet"
+              subtitle="Capture evidence and complete signing to generate verifiable reports."
+              action={() => (
                 <Link href="/capture">
                   <Button>{t("ctaCapture")}</Button>
                 </Link>
-              </EmptyState>
-            </Card>
+              )}
+            />
           ) : (
             withReports.map((item) => (
               <Card key={item.id} style={{ cursor: "pointer", transition: "all 0.2s" }}>
