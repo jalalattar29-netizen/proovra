@@ -46,7 +46,8 @@ export default function APIKeysPage() {
       const data = await apiFetch("/v1/api-keys");
       setKeys(data.data || []);
     } catch (err) {
-      addToast("Failed to load API keys", "error");
+      const message = err instanceof Error ? err.message : "Failed to load API keys";
+      addToast(message, "error");
     } finally {
       setLoading(false);
     }
@@ -81,7 +82,8 @@ export default function APIKeysPage() {
         addToast("API key generated successfully", "success");
       }
     } catch (err) {
-      addToast("Failed to generate API key", "error");
+      const message = err instanceof Error ? err.message : "Failed to generate API key";
+      addToast(message, "error");
     }
   };
 
@@ -95,7 +97,8 @@ export default function APIKeysPage() {
       await loadKeys();
       addToast("API key revoked successfully", "success");
     } catch (err) {
-      addToast("Failed to revoke API key", "error");
+      const message = err instanceof Error ? err.message : "Failed to revoke API key";
+      addToast(message, "error");
     }
   };
 
@@ -120,7 +123,8 @@ export default function APIKeysPage() {
         addToast("API key rotated successfully", "success");
       }
     } catch (err) {
-      addToast("Failed to rotate API key", "error");
+      const message = err instanceof Error ? err.message : "Failed to rotate API key";
+      addToast(message, "error");
     }
   };
 

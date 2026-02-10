@@ -4,8 +4,6 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Button, Card, useToast, Skeleton } from "../../../components/ui";
 import { useAuth } from "../../providers";
-import { apiFetch } from "../../../lib/api";
-import { captureException } from "../../../lib/sentry";
 
 interface AdminStats {
   totalUsers: number;

@@ -54,7 +54,7 @@ export async function apiFetch(path: string, init: RequestInit = {}) {
       }
       // Fallback for non-JSON errors
       const text = await res.text();
-      const error = new Error(text || `HTTP ${res.status}: API error`) as any;
+      const error = new Error(text || `HTTP ${res.status}: API error`) as Error & { code: string; statusCode: number };
       error.code = "NETWORK_ERROR";
       error.statusCode = res.status;
       throw error;
@@ -63,8 +63,8 @@ export async function apiFetch(path: string, init: RequestInit = {}) {
 
   try {
     return await res.json();
-  } catch (e) {
-    const error = new Error("Invalid response format") as any;
+  } catch {
+    const error = new Error("Invalid response format") as Error & { code: string };
     error.code = "PARSE_ERROR";
     throw error;
   }

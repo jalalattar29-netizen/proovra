@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Button, Card, useToast, EmptyState, Skeleton } from "../../../components/ui";
+import { Button, Card, useToast, Skeleton } from "../../../components/ui";
 import { apiFetch } from "../../../lib/api";
 import { captureException } from "../../../lib/sentry";
 import { PlanType } from "../../pricing/types";

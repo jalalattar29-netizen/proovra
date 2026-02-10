@@ -4,9 +4,6 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Card, ListRow, Badge, useToast, EmptyState, Skeleton, Button } from "../../../components/ui";
 import { useLocale } from "../../providers";
-import { apiFetch } from "../../../lib/api";
-import { captureException } from "../../../lib/sentry";
-import { Icons } from "../../../components/icons";
 
 export default function ReportsPage() {
   const { t } = useLocale();

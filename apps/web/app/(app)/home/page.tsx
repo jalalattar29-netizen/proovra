@@ -4,7 +4,6 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Badge, Button, Card, ListRow, useToast, EmptyState, Skeleton } from "../../../components/ui";
 import { useLocale } from "../../providers";
-import { Icons } from "../../../components/icons";
 import { apiFetch } from "../../../lib/api";
 import { captureException } from "../../../lib/sentry";
 

@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Button, Card, useToast, EmptyState, Skeleton } from "../../../components/ui";
-import { Icons } from "../../../components/icons";
 import { apiFetch } from "../../../lib/api";
 import { captureException } from "../../../lib/sentry";
 

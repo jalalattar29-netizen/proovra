@@ -33,7 +33,6 @@ export default function BatchAnalysisPage() {
   const { user, token } = useAuth();
   const { addToast } = useToast();
   const [jobs, setJobs] = useState<BatchJob[]>([]);
-  const [selectedJob, setSelectedJob] = useState<BatchDetails | null>(null);
   const [loading, setLoading] = useState(true);
   const [showNewJobForm, setShowNewJobForm] = useState(false);
   const [evidenceIds, setEvidenceIds] = useState("");
@@ -52,6 +51,7 @@ export default function BatchAnalysisPage() {
       setJobs(data.data || []);
     } catch (err) {
       // Silently fail for polling
+      console.debug("Failed to load jobs", err);
     } finally {
       setLoading(false);
     }
@@ -98,7 +98,8 @@ export default function BatchAnalysisPage() {
         addToast("Batch job created and processing started", "success");
       }
     } catch (err) {
-      addToast("Failed to create batch job", "error");
+      const message = err instanceof Error ? err.message : "Failed to create batch job";
+      addToast(message, "error");
     }
   };
 
@@ -112,7 +113,8 @@ export default function BatchAnalysisPage() {
       await loadJobs();
       addToast("Batch job cancelled", "success");
     } catch (err) {
-      addToast("Failed to cancel batch job", "error");
+      const message = err instanceof Error ? err.message : "Failed to cancel batch job";
+      addToast(message, "error");
     }
   };
 
@@ -133,7 +135,8 @@ export default function BatchAnalysisPage() {
       window.URL.revokeObjectURL(url);
       addToast("Results exported successfully", "success");
     } catch (err) {
-      addToast("Failed to export results", "error");
+      const message = err instanceof Error ? err.message : "Failed to export results";
+      addToast(message, "error");
     }
   };
 
