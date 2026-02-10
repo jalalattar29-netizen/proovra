@@ -15,7 +15,8 @@ export default function RootLayout() {
             <Stack.Screen name="(tabs)" />
             <Stack.Screen name="(stack)/auth" />
             <Stack.Screen name="(stack)/capture" />
-          <Stack.Screen name="(stack)/case/[id]" />
+            <Stack.Screen name="(stack)/billing" />
+            <Stack.Screen name="(stack)/case/[id]" />
             <Stack.Screen name="(stack)/evidence/[id]" />
             <Stack.Screen name="verify" />
           </Stack>

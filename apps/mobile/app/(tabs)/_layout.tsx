@@ -5,6 +5,7 @@ export default function TabsLayout() {
     <Tabs screenOptions={{ headerShown: false, tabBarStyle: { display: "none" } }}>
       <Tabs.Screen name="index" />
       <Tabs.Screen name="cases" />
+      <Tabs.Screen name="reports" />
       <Tabs.Screen name="teams" />
       <Tabs.Screen name="settings" />
     </Tabs>

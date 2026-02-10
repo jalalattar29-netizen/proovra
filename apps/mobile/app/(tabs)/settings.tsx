@@ -1,16 +1,19 @@
-import { Linking, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { ScrollView, StyleSheet, Text, View, Pressable } from "react-native";
 import { colors, radius, spacing, typography } from "@proovra/ui";
 import { BottomNav, TopBar } from "../../components/ui";
 import { useLocale } from "../../src/locale-context";
 import { useMemo, useState } from "react";
 import { apiFetch } from "../../src/api";
 import { useAuth } from "../../src/auth-context";
+import { useRouter } from "expo-router";
 import * as FileSystem from "expo-file-system/legacy";
 import { uploadWithPut } from "../../src/upload-utils";
+import { Linking } from "react-native";
 
 export default function SettingsScreen() {
   const { t, locale, setLocale, fontFamilyBold } = useLocale();
   const { setToken, token, authReady } = useAuth();
+  const router = useRouter();
   const [googleToken, setGoogleToken] = useState("");
   const [appleToken, setAppleToken] = useState("");
   const [smokeLogs, setSmokeLogs] = useState<string[]>([]);
@@ -127,6 +130,9 @@ export default function SettingsScreen() {
         </View>
         <Pressable style={[styles.langButton, { marginTop: spacing.lg }]} onPress={() => Linking.openURL("https://www.proovra.com/pricing")}>
           <Text style={styles.langText}>View Pricing</Text>
+        </Pressable>
+        <Pressable style={[styles.langButton, { marginTop: spacing.sm }]} onPress={() => router.push("/(stack)/billing")}>
+          <Text style={styles.langText}>Manage Billing</Text>
         </Pressable>
         {showSmoke ? (
           <View style={styles.smokeCard}>

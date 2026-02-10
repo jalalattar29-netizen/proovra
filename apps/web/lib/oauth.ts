@@ -1,10 +1,9 @@
-export function buildGoogleAuthUrl(params: { state: string }): string {
+export function buildGoogleAuthUrl(params: { state: string; origin?: string }): string {
   const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID ?? "";
+  const origin = params.origin ?? (typeof window !== "undefined" ? window.location.origin : "");
   const redirectUri =
     process.env.NEXT_PUBLIC_GOOGLE_REDIRECT_URI ??
-    (typeof window !== "undefined"
-      ? `${window.location.origin}/auth/callback`
-      : "https://www.proovra.com/auth/callback");
+    (origin ? `${origin}/auth/callback` : "https://www.proovra.com/auth/callback");
   const url = new URL("https://accounts.google.com/o/oauth2/v2/auth");
   url.searchParams.set("client_id", clientId);
   url.searchParams.set("redirect_uri", redirectUri);
@@ -64,13 +63,13 @@ export function loadAppleIdentity(): Promise<void> {
 export function buildAppleAuthUrl(params: {
   state: string;
   scope?: string;
+  origin?: string;
 }): string {
   const clientId = process.env.NEXT_PUBLIC_APPLE_CLIENT_ID ?? "com.proovra.web";
+  const origin = params.origin ?? (typeof window !== "undefined" ? window.location.origin : "");
   const redirectUri =
     process.env.NEXT_PUBLIC_APPLE_REDIRECT_URI ??
-    (typeof window !== "undefined"
-      ? `${window.location.origin}/auth/callback`
-      : "https://www.proovra.com/auth/callback");
+    (origin ? `${origin}/auth/callback` : "https://www.proovra.com/auth/callback");
   const scope = params.scope ?? "name email";
   const url = new URL("https://appleid.apple.com/auth/authorize");
   url.searchParams.set("response_type", "code id_token");

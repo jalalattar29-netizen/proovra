@@ -2,8 +2,8 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
 import { Button } from "../../components/ui";
+import { MarketingHeader } from "../../components/header";
 
 export default function VerifyIntroPage() {
   const [token, setToken] = useState("");
@@ -17,18 +17,9 @@ export default function VerifyIntroPage() {
 
   return (
     <div className="blue-shell auth-screen">
+      <MarketingHeader />
       <div className="container">
-        <header className="auth-top">
-          <Link href="/" className="auth-brand">
-            <img src="/brand/logo-white.svg" alt="PROO✓RA" />
-            <span>PROO✓RA</span>
-          </Link>
-          <nav className="auth-top-links">
-            <Link href="/login">Login</Link>
-            <Link href="/register">Register</Link>
-          </nav>
-        </header>
-        <main className="auth-main">
+        <main className="auth-main" style={{ paddingTop: 48 }}>
           <section className="auth-card legal-page">
             <h2 className="auth-title">Verify Evidence</h2>
             <p className="page-subtitle">

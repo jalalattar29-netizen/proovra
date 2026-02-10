@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { Button, Card, ListRow, Badge } from "../../../../components/ui";
+import { Icons } from "../../../../components/icons";
 import { apiFetch } from "../../../../lib/api";
 
 export default function CaseDetailPage() {
@@ -109,7 +110,7 @@ export default function CaseDetailPage() {
               <div style={{ fontWeight: 600, marginBottom: 12 }}>Evidence</div>
               {evidence.length === 0 ? (
                 <div className="empty-state">
-                  <div className="empty-state-icon">📎</div>
+                  <div className="empty-state-icon empty-state-icon-svg"><Icons.Evidence /></div>
                   <div>No evidence in this case yet.</div>
                 </div>
               ) : (

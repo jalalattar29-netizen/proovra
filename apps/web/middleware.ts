@@ -133,7 +133,7 @@ export function middleware(req: NextRequest) {
       return res;
     }
 
-    if (isWebHost && ["/home", "/capture", "/cases", "/teams", "/billing", "/settings"].some((p) => pathname === p || pathname.startsWith(`${p}/`))) {
+    if (isWebHost && ["/home", "/capture", "/cases", "/teams", "/reports", "/billing", "/settings"].some((p) => pathname === p || pathname.startsWith(`${p}/`))) {
       if (appBaseUrl) {
         const target = new URL(appBaseUrl);
         target.pathname = pathname;

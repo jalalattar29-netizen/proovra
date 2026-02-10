@@ -1,236 +1,166 @@
 "use client";
 
 import Link from "next/link";
-import { useLocale } from "./providers";
 import { Button } from "../components/ui";
 import { SilverWatermarkSection } from "../components/SilverWatermarkSection";
+import { MarketingHeader } from "../components/header";
+import { Icons } from "../components/icons";
+
+function getAppBase() {
+  if (typeof window === "undefined") return "";
+  const { hostname } = window.location;
+  if (hostname === "localhost" || hostname === "127.0.0.1") return window.location.origin;
+  return process.env.NEXT_PUBLIC_APP_BASE ?? process.env.NEXT_PUBLIC_WEB_BASE ?? "";
+}
 
 export default function HomePage() {
-  const { t, locale, setLocale } = useLocale();
+  const appBase = getAppBase();
+  const appRegister = appBase ? `${appBase}/register` : "/register";
 
-  const webBase =
-    typeof window !== "undefined" &&
-    (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1")
-      ? window.location.origin
-      : process.env.NEXT_PUBLIC_WEB_BASE ?? "";
-
-  const appHome = webBase ? `${webBase}/home` : "/home";
-  const appLogin = webBase ? `${webBase}/login` : "/login";
-  const appRegister = webBase ? `${webBase}/register` : "/register";
+  const sampleReportUrl = "/brand/sample-report.pdf";
 
   return (
     <div className="page landing-page">
-      {/* BLUE HERO SHELL (with paper overlay via globals.css) */}
       <div className="blue-shell">
-        {/* FULL WIDTH NAV BAR */}
-        <div className="landing-nav-bar">
-          <div className="container">
-            <div className="nav">
-              <div className="nav-left">
-                <Link href="/" className="logo">
-                  <img src="/brand/logo-white.svg" alt="PROO✓RA" />
-                  <span>{t("brand")}</span>
-                </Link>
-              </div>
+        <MarketingHeader />
 
-              <div className="nav-links">
-                <Link href="#features">{t("navFeatures")}</Link>
-                <Link href="/about">About</Link>
-                <Link href="/pricing">Pricing</Link>
-                <Link href="/verify">{t("navVerify")}</Link>
-                <a className="pill" href={appHome}>
-                  {t("navDashboard")}
-                </a>
-                <a href={appLogin}>{t("login")}</a>
-                <a href={appRegister}>{t("register")}</a>
-
-                {locale !== "en" && (
-                  <button type="button" className="lang-button" onClick={() => setLocale("en")}>
-                    EN
-                  </button>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* HERO */}
-        <section className="landing-hero container">
+        <section className="landing-hero container" style={{ paddingTop: 48, paddingBottom: 64 }}>
           <div className="landing-hero-copy">
             <div style={{ color: "rgba(255,255,255,0.82)", fontSize: 13, letterSpacing: 0.3 }}>
               Capture truth. Prove it forever.
             </div>
-            <h1 className="hero-title">Capture digital evidence that can stand up to scrutiny.</h1>
+            <h1 className="hero-title">
+              Verifiable digital evidence for legal, compliance, and investigations.
+            </h1>
             <p className="hero-subtitle">
-              PROO✓RA preserves the integrity of photos, videos, and documents with cryptographic
-              fingerprints, transparent custody timelines, and verifiable reports — designed for legal,
-              compliance, investigations, and journalism.
+              PROO✓RA preserves integrity with cryptographic fingerprints, custody timelines, and
+              verifiable reports. Built for teams who need audit-ready proof.
             </p>
-
             <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
-              <a href={appHome}>
-                <Button>Open Dashboard</Button>
+              <a href={appRegister}>
+                <Button>Start capturing evidence</Button>
               </a>
-              <Link href="/verify">
-                <Button variant="secondary">Verify Evidence</Button>
-              </Link>
-            </div>
-
-            <div className="hero-bullets">
-              <span>Verifiable integrity — not just storage</span>
-              <span>Chain-of-custody built for review</span>
-              <span>Shareable verification without exposing originals</span>
+              <a href={sampleReportUrl} target="_blank" rel="noopener noreferrer">
+                <Button variant="secondary">View sample report</Button>
+              </a>
             </div>
           </div>
-
-          {/* RIGHT CARD */}
-          <div className="hero-card">
-            <div className="hero-card-title">Evidence Timeline</div>
-
-            <div className="hero-card-list">
-              <div className="hero-card-row">
+          <div className="hero-mockup">
+            <div className="hero-mockup-card">
+              <div className="hero-mockup-title">Dashboard</div>
+              <div className="hero-mockup-row">
                 <span className="hero-dot success" />
-                <div>
-                  <div className="hero-card-row-title">Capture completed</div>
-                  <div className="hero-card-row-sub">2 minutes ago</div>
-                </div>
-                <span className="hero-pill">SIGNED</span>
+                <span>Capture completed</span>
               </div>
-
-              <div className="hero-card-row">
+              <div className="hero-mockup-row">
                 <span className="hero-dot info" />
-                <div>
-                  <div className="hero-card-row-title">Report generated</div>
-                  <div className="hero-card-row-sub">1 minute ago</div>
-                </div>
-                <span className="hero-pill">READY</span>
+                <span>Report generated</span>
               </div>
-
-              <div className="hero-card-row">
+              <div className="hero-mockup-row">
                 <span className="hero-dot neutral" />
-                <div>
-                  <div className="hero-card-row-title">Share link created</div>
-                  <div className="hero-card-row-sub">Just now</div>
-                </div>
-                <span className="hero-pill">ACTIVE</span>
+                <span>Share link created</span>
               </div>
-            </div>
-
-            <div className="hero-card-actions">
-              <Link href="/verify">
-                <button className="btn primary" type="button" title="Enter a verification link to view evidence">
-                  View Evidence
-                </button>
-              </Link>
-              <button
-                className="btn secondary"
-                type="button"
-                title="Requires a verification link"
-                disabled
-              >
-                Download Report
-              </button>
             </div>
           </div>
         </section>
       </div>
 
-      {/* ICON STRIP */}
-      <SilverWatermarkSection className="section">
-        <div className="landing-strip container">
-          <Link href="#features" className="landing-strip-item" style={{ textDecoration: "none", color: "inherit" }}>
-            <span className="landing-strip-icon" aria-hidden="true">
-              {/* camera */}
-              <svg viewBox="0 0 24 24" fill="none">
-                <path
-                  d="M8 7l1.3-2h5.4L16 7h2a3 3 0 013 3v7a3 3 0 01-3 3H6a3 3 0 01-3-3v-7a3 3 0 013-3h2z"
-                  stroke="currentColor"
-                  strokeWidth="1.8"
-                />
-                <path
-                  d="M12 17a4 4 0 100-8 4 4 0 000 8z"
-                  stroke="currentColor"
-                  strokeWidth="1.8"
-                />
-              </svg>
-            </span>
-            <div>
-              <div className="landing-strip-title">Capture</div>
-              <div className="landing-strip-sub">Photos & videos</div>
-            </div>
-          </Link>
-
-          <Link href="#features" className="landing-strip-item" style={{ textDecoration: "none", color: "inherit" }}>
-            <span className="landing-strip-icon" aria-hidden="true">
-              {/* shield */}
-              <svg viewBox="0 0 24 24" fill="none">
-                <path
-                  d="M12 2l8 4v7c0 5-3.4 9.4-8 11-4.6-1.6-8-6-8-11V6l8-4z"
-                  stroke="currentColor"
-                  strokeWidth="1.8"
-                />
-                <path
-                  d="M8.5 12.5l2.2 2.2L15.8 9.6"
-                  stroke="currentColor"
-                  strokeWidth="1.8"
-                />
-              </svg>
-            </span>
-            <div>
-              <div className="landing-strip-title">Sign</div>
-              <div className="landing-strip-sub">Cryptographic proofs</div>
-            </div>
-          </Link>
-
-          <Link href="#features" className="landing-strip-item" style={{ textDecoration: "none", color: "inherit" }}>
-            <span className="landing-strip-icon" aria-hidden="true">
-              {/* share */}
-              <svg viewBox="0 0 24 24" fill="none">
-                <path
-                  d="M15 8a3 3 0 10-2.8-4H12a3 3 0 003 3zM6 14a3 3 0 10.2 6H6a3 3 0 000-6zm12-1a3 3 0 10.2 6H18a3 3 0 000-6z"
-                  stroke="currentColor"
-                  strokeWidth="1.8"
-                />
-                <path
-                  d="M8.6 14.6l6.8-3.6M8.6 18l6.8 3.4"
-                  stroke="currentColor"
-                  strokeWidth="1.8"
-                />
-              </svg>
-            </span>
-            <div>
-              <div className="landing-strip-title">Share</div>
-              <div className="landing-strip-sub">Instant verification</div>
-            </div>
-          </Link>
-        </div>
-
-        <div id="features" className="section">
-          <div className="container">
-            <div>
-              <h2>Built for proof</h2>
-              <p className="page-subtitle">
-                Capture, sign, and verify evidence with a clear chain of custody.
-              </p>
-              <div className="card" style={{ marginTop: 16, width: "100%", maxWidth: 420 }}>
-                <ul style={{ margin: 0, paddingLeft: 18, color: "#475569", lineHeight: 1.7 }}>
-                  <li>Cryptographic signing</li>
-                  <li>Timestamped reports</li>
-                  <li>Shareable verification links</li>
-                </ul>
+      <SilverWatermarkSection className="section" style={{ paddingTop: 64, paddingBottom: 64 }}>
+        <div id="how-it-works" className="container">
+          <h2 style={{ marginBottom: 8 }}>How PROO✓RA works</h2>
+          <p className="page-subtitle" style={{ marginBottom: 32 }}>
+            Four steps from capture to verification.
+          </p>
+          <div className="how-it-works-grid">
+            <div className="how-it-works-step">
+              <div className="how-it-works-icon">
+                <Icons.Capture />
               </div>
+              <h3>Capture</h3>
+              <p>Photos, videos, and documents with metadata and timestamps.</p>
+            </div>
+            <div className="how-it-works-step">
+              <div className="how-it-works-icon">
+                <Icons.Fingerprint />
+              </div>
+              <h3>Fingerprint</h3>
+              <p>SHA-256 hashes and Ed25519 signatures lock integrity.</p>
+            </div>
+            <div className="how-it-works-step">
+              <div className="how-it-works-icon">
+                <Icons.Verify />
+              </div>
+              <h3>Verify</h3>
+              <p>Anyone can confirm authenticity without exposing originals.</p>
+            </div>
+            <div className="how-it-works-step">
+              <div className="how-it-works-icon">
+                <Icons.Share />
+              </div>
+              <h3>Share</h3>
+              <p>Verification links and PDF reports for audit and compliance.</p>
             </div>
           </div>
         </div>
 
-        <div id="about" className="section">
-          <div className="container">
-            <h2>About PROO✓RA</h2>
-            <p className="page-subtitle" style={{ maxWidth: 720 }}>
-              PROO✓RA helps teams capture trusted evidence and generate verifiable reports for
-              investigations, compliance, and dispute resolution.
-            </p>
+        <div className="container" style={{ marginTop: 72 }}>
+          <h2 style={{ marginBottom: 8 }}>Who it&apos;s for</h2>
+          <p className="page-subtitle" style={{ marginBottom: 32 }}>
+            Built for teams who need verifiable proof.
+          </p>
+          <div className="who-it-for-grid">
+            <div className="who-it-for-card">
+              <Icons.Lawyers />
+              <h3>Lawyers</h3>
+              <p>Evidence that stands up in court.</p>
+            </div>
+            <div className="who-it-for-card">
+              <Icons.Journalists />
+              <h3>Journalists</h3>
+              <p>Source verification and provenance.</p>
+            </div>
+            <div className="who-it-for-card">
+              <Icons.Compliance />
+              <h3>Compliance teams</h3>
+              <p>Audit-ready documentation.</p>
+            </div>
+            <div className="who-it-for-card">
+              <Icons.Enterprises />
+              <h3>Enterprises</h3>
+              <p>Internal investigations and disputes.</p>
+            </div>
           </div>
+        </div>
+
+        <div className="container" style={{ marginTop: 72 }}>
+          <h2 style={{ marginBottom: 8 }}>Trust indicators</h2>
+          <p className="page-subtitle" style={{ marginBottom: 32 }}>
+            Enterprise-grade integrity and security.
+          </p>
+          <div className="trust-indicators">
+            <div className="trust-item">
+              <Icons.Security />
+              <span>Security</span>
+            </div>
+            <div className="trust-item">
+              <Icons.Evidence />
+              <span>Chain of custody</span>
+            </div>
+            <div className="trust-item">
+              <Icons.Verify />
+              <span>Audit-ready</span>
+            </div>
+            <div className="trust-item">
+              <Icons.Fingerprint />
+              <span>Tamper-proof</span>
+            </div>
+          </div>
+        </div>
+
+        <div className="container" style={{ marginTop: 72, textAlign: "center" }}>
+          <Link href="/pricing">
+            <Button>View pricing</Button>
+          </Link>
         </div>
       </SilverWatermarkSection>
 

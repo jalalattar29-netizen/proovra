@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Badge, Button, Card, ListRow } from "../../../components/ui";
 import { useLocale } from "../../providers";
+import { Icons } from "../../../components/icons";
 import { apiFetch } from "../../../lib/api";
 
 export default function HomePage() {
@@ -49,7 +50,9 @@ export default function HomePage() {
           <div style={{ display: "grid", gap: 10 }}>
             {items.length === 0 ? (
               <div className="empty-state">
-                <div className="empty-state-icon">📷</div>
+                <div className="empty-state-icon empty-state-icon-svg">
+                  <Icons.Capture />
+                </div>
                 <div>No evidence yet. Capture your first file to see it here.</div>
                 <div style={{ marginTop: 12 }}>
                   <Link href="/capture">

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Button, Card } from "../../../components/ui";
+import { Icons } from "../../../components/icons";
 import { apiFetch } from "../../../lib/api";
 
 export default function CasesPage() {
@@ -63,7 +64,7 @@ export default function CasesPage() {
         ) : cases.length === 0 ? (
           <Card>
             <div className="empty-state">
-              <div className="empty-state-icon">📁</div>
+              <div className="empty-state-icon empty-state-icon-svg"><Icons.Evidence /></div>
               <div>No cases yet. Create one to organize evidence.</div>
               <div style={{ marginTop: 16 }}>
                 <Button className="navy-btn" onClick={handleCreate}>Create Case</Button>

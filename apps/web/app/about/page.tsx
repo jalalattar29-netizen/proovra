@@ -1,50 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { useLocale } from "../providers";
 import { SilverWatermarkSection } from "../../components/SilverWatermarkSection";
+import { MarketingHeader } from "../../components/header";
 
 export default function AboutPage() {
-  const { t, locale, setLocale } = useLocale();
-  const webBase =
-    typeof window !== "undefined" &&
-    (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1")
-      ? window.location.origin
-      : process.env.NEXT_PUBLIC_WEB_BASE ?? "";
-  const appHome = webBase ? `${webBase}/home` : "/home";
-  const appLogin = webBase ? `${webBase}/login` : "/login";
-  const appRegister = webBase ? `${webBase}/register` : "/register";
-
   return (
     <div className="page landing-page">
       <div className="blue-shell">
-        <div className="landing-nav-bar">
-          <div className="container">
-            <div className="nav">
-              <div className="nav-left">
-                <Link href="/" className="logo">
-                  <img src="/brand/logo-white.svg" alt="PROO✓RA" />
-                  <span>{t("brand")}</span>
-                </Link>
-              </div>
-              <div className="nav-links">
-                <Link href="/about">About</Link>
-                <Link href="/pricing">Pricing</Link>
-                <Link href="/verify">Verify</Link>
-                <a className="pill" href={appHome}>
-                  {t("navDashboard")}
-                </a>
-                <a href={appLogin}>{t("login")}</a>
-                <a href={appRegister}>{t("register")}</a>
-                {locale !== "en" && (
-                  <button type="button" className="lang-button" onClick={() => setLocale("en")}>
-                    EN
-                  </button>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
+        <MarketingHeader />
 
         <section className="section container hero-section-tight">
           <h1 className="hero-title">

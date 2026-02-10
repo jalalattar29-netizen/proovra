@@ -214,6 +214,7 @@ export function BottomNav() {
   const items = [
     { label: t("home"), href: "/" },
     { label: t("cases"), href: "/cases" },
+    { label: t("reports"), href: "/reports" },
     { label: t("teams"), href: "/teams" },
     { label: t("settings"), href: "/settings" }
   ];

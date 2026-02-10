@@ -85,7 +85,7 @@ export default function RegisterPage() {
     let nextGoogleHref = "";
     let nextAppleHref = "";
     try {
-      nextGoogleHref = buildGoogleAuthUrl({ state: "google" });
+      nextGoogleHref = buildGoogleAuthUrl({ state: "google", origin: window.location.origin });
     } catch {
       nextGoogleHref = "";
     }
@@ -103,7 +103,7 @@ export default function RegisterPage() {
     }
 
     try {
-      nextAppleHref = buildAppleAuthUrl({ state: nextAppleState });
+      nextAppleHref = buildAppleAuthUrl({ state: nextAppleState, origin: window.location.origin });
     } catch {
       nextAppleHref = "";
     }
@@ -281,9 +281,25 @@ export default function RegisterPage() {
                         const idToken = response.authorization?.id_token;
                         const code = response.authorization?.code;
                         if (idToken || code) void handleAuth("/v1/auth/apple", idToken, code);
-                        else setError("Apple login failed.");
+                        else setError("Apple sign-up failed: No authentication token received. Please try again.");
                       })
-                      .catch(() => setError("Apple login failed."));
+                      .catch((err: any) => {
+                        // Handle specific Apple error codes
+                        const errorCode = err?.code || err?.message || "";
+                        let friendlyMessage = "Apple sign-up failed. Please try again.";
+                        
+                        if (errorCode.includes("POPUP_BLOCKED") || errorCode === "popup_closed_by_user") {
+                          friendlyMessage = "Apple sign-up popup was blocked. Please check your browser settings.";
+                        } else if (errorCode.includes("TIMEOUT") || errorCode === "timeout") {
+                          friendlyMessage = "Apple sign-up request timed out. Please try again.";
+                        } else if (errorCode.includes("INVALID") || errorCode === "invalid_request") {
+                          friendlyMessage = "Apple sign-up configuration error. Please contact support.";
+                        } else if (errorCode.includes("NETWORK") || errorCode === "network_error") {
+                          friendlyMessage = "Network error during Apple sign-up. Please check your connection.";
+                        }
+                        
+                        setError(friendlyMessage);
+                      });
 
                     return;
                   }

@@ -3,7 +3,8 @@
 import Link from "next/link";
 import { Button, Card } from "../../components/ui";
 import { SilverWatermarkSection } from "../../components/SilverWatermarkSection";
-import { useLocale } from "../providers";
+import { MarketingHeader } from "../../components/header";
+import { useAuth } from "../providers";
 
 function getAppBase() {
   if (typeof window === "undefined") return "";
@@ -13,38 +14,15 @@ function getAppBase() {
 }
 
 export default function MarketingPricingPage() {
-  const { t } = useLocale();
+  const { hasSession } = useAuth();
   const appBase = getAppBase();
   const appBilling = appBase ? `${appBase}/billing` : "/billing";
-  const appLogin = appBase ? `${appBase}/login` : "/login";
+  const appRegister = appBase ? `${appBase}/register` : "/register";
 
   return (
     <div className="page landing-page">
       <div className="blue-shell">
-        <div className="landing-nav-bar">
-          <div className="container">
-            <div className="nav">
-              <div className="nav-left">
-                <Link href="/" className="logo">
-                  <img src="/brand/logo-white.svg" alt="PROO✓RA" />
-                  <span>{t("brand")}</span>
-                </Link>
-              </div>
-              <div className="nav-links">
-                <Link href="/#features">{t("navFeatures")}</Link>
-                <Link href="/about">About</Link>
-                <Link href="/pricing">Pricing</Link>
-                <Link href="/verify">{t("navVerify")}</Link>
-                <a className="pill" href={appBase ? `${appBase}/home` : "/home"}>
-                  {t("navDashboard")}
-                </a>
-                <a href={appLogin}>{t("login")}</a>
-                <a href={appBase ? `${appBase}/register` : "/register"}>{t("register")}</a>
-              </div>
-            </div>
-          </div>
-        </div>
-
+        <MarketingHeader />
         <section className="section container hero-section-tight pricing-hero-section">
           <h1 className="hero-title pricing-hero-title">Pricing designed for real-world scrutiny.</h1>
           <p className="page-subtitle pricing-subtitle" style={{ maxWidth: 720 }}>
@@ -71,13 +49,12 @@ export default function MarketingPricingPage() {
                 <li>3 evidence limit</li>
                 <li>Cryptographic fingerprint and integrity record</li>
                 <li>Basic verification view</li>
-                <li>Ownership and organization basics</li>
                 <li>PDF reports not included</li>
               </ul>
               <div className="pricing-cta">
-                <a href={appBilling}>
+                <a href={hasSession ? appBilling : appRegister}>
                   <Button variant="secondary" className="choose-btn">
-                    Go to Billing <span className="choose-icon">›</span>
+                    {hasSession ? "Go to Billing" : "Sign up"} ›
                   </Button>
                 </a>
               </div>
@@ -90,12 +67,11 @@ export default function MarketingPricingPage() {
                 <li>Verifiable PDF report per purchase</li>
                 <li>Shareable verification link</li>
                 <li>Audit-ready integrity fields</li>
-                <li>Ideal for occasional high-stakes captures</li>
               </ul>
               <div className="pricing-cta">
-                <a href={`${appLogin}?next=${encodeURIComponent("/billing")}`}>
+                <a href={hasSession ? appBilling : appRegister}>
                   <Button variant="secondary" className="choose-btn">
-                    Sign in to continue <span className="choose-icon">›</span>
+                    {hasSession ? "Go to Billing" : "Sign up"} ›
                   </Button>
                 </a>
               </div>
@@ -106,14 +82,13 @@ export default function MarketingPricingPage() {
               <ul style={{ margin: "12px 0 16px", paddingLeft: 18, color: "#475569", lineHeight: 1.7 }}>
                 <li>Unlimited evidence capture</li>
                 <li>PDF reports included</li>
-                <li>Faster workflows for frequent verification needs</li>
+                <li>Faster workflows for frequent verification</li>
                 <li>Designed for individual professionals</li>
-                <li>Priority reliability features</li>
               </ul>
               <div className="pricing-cta">
-                <a href={`${appLogin}?next=${encodeURIComponent("/billing")}`}>
+                <a href={hasSession ? appBilling : appRegister}>
                   <Button variant="secondary" className="choose-btn">
-                    Sign in to continue <span className="choose-icon">›</span>
+                    {hasSession ? "Go to Billing" : "Sign up"} ›
                   </Button>
                 </a>
               </div>
@@ -123,15 +98,14 @@ export default function MarketingPricingPage() {
               <p>$79 / month</p>
               <ul style={{ margin: "12px 0 16px", paddingLeft: 18, color: "#475569", lineHeight: 1.7 }}>
                 <li>5 team members included</li>
-                <li>Shared ownership and structured access control</li>
+                <li>Shared ownership and access control</li>
                 <li>Team-ready evidence organization</li>
                 <li>PDF reports included</li>
-                <li>Built for organizations and high-responsibility workflows</li>
               </ul>
               <div className="pricing-cta">
-                <a href={`${appLogin}?next=${encodeURIComponent("/billing")}`}>
+                <a href={hasSession ? appBilling : appRegister}>
                   <Button variant="secondary" className="choose-btn">
-                    Sign in to continue <span className="choose-icon">›</span>
+                    {hasSession ? "Go to Billing" : "Sign up"} ›
                   </Button>
                 </a>
               </div>
@@ -139,37 +113,7 @@ export default function MarketingPricingPage() {
           </div>
 
           <div style={{ marginTop: 24, fontSize: 12, color: "#64748b", lineHeight: 1.6 }}>
-            PROO✓RA is a technical integrity platform. It does not provide legal advice and does not
-            guarantee admissibility of evidence in any jurisdiction.
-          </div>
-
-          <div style={{ marginTop: 24 }}>
-            <h3 style={{ marginBottom: 8 }}>FAQ</h3>
-            <div style={{ display: "grid", gap: 12 }}>
-              <Card>
-                <div style={{ fontWeight: 700, marginBottom: 6 }}>
-                  Q: Does verification require sharing the original file?
-                </div>
-                <div style={{ color: "#475569", lineHeight: 1.7 }}>
-                  A: No. Verification can confirm integrity using fingerprints and signed records
-                  without publicly exposing the original content.
-                </div>
-              </Card>
-              <Card>
-                <div style={{ fontWeight: 700, marginBottom: 6 }}>Q: Is a PROO✓RA report "legal proof"?</div>
-                <div style={{ color: "#475569", lineHeight: 1.7 }}>
-                  A: PROO✓RA provides technical integrity data and a custody timeline. Legal
-                  admissibility and interpretation depend on jurisdiction and qualified professionals.
-                </div>
-              </Card>
-              <Card>
-                <div style={{ fontWeight: 700, marginBottom: 6 }}>Q: Can I start free and upgrade later?</div>
-                <div style={{ color: "#475569", lineHeight: 1.7 }}>
-                  A: Yes. You can capture and verify on Free, then upgrade when you need reports and
-                  higher-volume workflows.
-                </div>
-              </Card>
-            </div>
+            PROO✓RA is a technical integrity platform. It does not provide legal advice.
           </div>
         </div>
       </SilverWatermarkSection>

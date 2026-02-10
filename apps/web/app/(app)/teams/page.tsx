@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Card, Button } from "../../../components/ui";
+import { Icons } from "../../../components/icons";
 import { apiFetch } from "../../../lib/api";
 
 export default function TeamsPage() {
@@ -62,7 +63,7 @@ export default function TeamsPage() {
         ) : teams.length === 0 ? (
           <Card>
             <div className="empty-state">
-              <div className="empty-state-icon">👥</div>
+              <div className="empty-state-icon empty-state-icon-svg"><Icons.Teams /></div>
               <div>No teams yet. Create one to manage members.</div>
               <div style={{ marginTop: 16 }}>
                 <Button className="navy-btn" onClick={handleCreate}>Create Team</Button>
