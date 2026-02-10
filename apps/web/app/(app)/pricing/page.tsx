@@ -1,11 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { Button, Card } from "../../components/ui";
-import { SilverWatermarkSection } from "../../components/SilverWatermarkSection";
-import { useLocale } from "../providers";
+import { Button, Card } from "../../../components/ui";
+import { useLocale } from "../../providers";
 
-export default function PricingPage() {
+export default function AppPricingPage() {
   const { t } = useLocale();
   const webBase =
     typeof window !== "undefined" &&
@@ -16,53 +15,32 @@ export default function PricingPage() {
   const appRegister = webBase ? `${webBase}/register` : "/register";
 
   return (
-    <div className="page landing-page">
-      <div className="blue-shell">
-        <div className="landing-nav-bar">
-          <div className="container">
-            <div className="nav">
-              <div className="nav-left">
-                <Link href="/" className="logo">
-                  <img src="/brand/logo-white.svg" alt="PROO✓RA" />
-                  <span>{t("brand")}</span>
-                </Link>
-              </div>
-              <div className="nav-links">
-                <Link href="/about">About</Link>
-                <Link href="/pricing">Pricing</Link>
-                <Link href="/verify">Verify</Link>
-                <a className="pill" href={webBase ? `${webBase}/home` : "/home"}>
-                  {t("navDashboard")}
-                </a>
-                <a href={appLogin}>{t("login")}</a>
-                <a href={appRegister}>{t("register")}</a>
-              </div>
+    <div className="section app-section">
+      <div className="app-hero app-hero-full">
+        <div className="container">
+          <div className="page-title" style={{ marginBottom: 0 }}>
+            <div>
+              <h1 className="hero-title pricing-hero-title" style={{ margin: 0 }}>
+                Pricing designed for real-world scrutiny.
+              </h1>
+              <p className="page-subtitle pricing-subtitle" style={{ marginTop: 6 }}>
+                PROO✓RA is built for situations where authenticity matters. Choose a plan based on
+                how often you need verifiable reports and structured custody — not on storage limits.
+              </p>
             </div>
           </div>
         </div>
-
-        <section className="section container hero-section-tight pricing-hero-section">
-          <h1
-            className="hero-title pricing-hero-title"
-            style={{ marginTop: 0, marginBottom: 10, letterSpacing: "0.7px" }}
-          >
-            Pricing designed for real-world scrutiny.
-          </h1>
-          <p
-            className="page-subtitle pricing-subtitle"
-            style={{ marginTop: 0, maxWidth: 720 }}
-          >
-            PROO✓RA is built for situations where authenticity matters. Choose a plan based on how often you
-            need verifiable reports and structured custody — not on storage limits.
-          </p>
-        </section>
       </div>
 
-      <SilverWatermarkSection className="section section-body" style={{ paddingTop: 48 }}>
-        <div className="container">
+      <div className="app-body app-body-full">
+        <div className="container" style={{ display: "grid", gap: 24 }}>
           <div
             className="pricing-grid"
-            style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 16 }}
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
+              gap: 16
+            }}
           >
             <Card className="pricing-card">
               <h3>FREE</h3>
@@ -138,13 +116,12 @@ export default function PricingPage() {
             </Card>
           </div>
 
-          <div style={{ marginTop: 24, fontSize: 12, color: "#64748b", lineHeight: 1.6 }}>
-            PROO✓RA is a technical integrity platform. It does not provide legal advice and does not
-            guarantee admissibility of evidence in any jurisdiction. Legal evaluation remains the
-            responsibility of qualified professionals.
+          <div style={{ fontSize: 12, color: "#64748b", lineHeight: 1.6 }}>
+            PROO✓RA is a technical integrity platform. It does not provide legal advice and does
+            not guarantee admissibility of evidence in any jurisdiction.
           </div>
 
-          <div style={{ marginTop: 24 }}>
+          <div>
             <h3 style={{ marginBottom: 8 }}>FAQ</h3>
             <div style={{ display: "grid", gap: 12 }}>
               <Card>
@@ -152,17 +129,15 @@ export default function PricingPage() {
                   Q: Does verification require sharing the original file?
                 </div>
                 <div style={{ color: "#475569", lineHeight: 1.7 }}>
-                  A: No. Verification can confirm integrity using fingerprints and signed records without
-                  publicly exposing the original content.
+                  A: No. Verification can confirm integrity using fingerprints and signed records
+                  without publicly exposing the original content.
                 </div>
               </Card>
               <Card>
-                <div style={{ fontWeight: 700, marginBottom: 6 }}>
-                  Q: Is a PROO✓RA report “legal proof”?
-                </div>
+                <div style={{ fontWeight: 700, marginBottom: 6 }}>Q: Is a PROO✓RA report "legal proof"?</div>
                 <div style={{ color: "#475569", lineHeight: 1.7 }}>
-                  A: PROO✓RA provides technical integrity data and a custody timeline. Legal admissibility
-                  and interpretation depend on jurisdiction and qualified professionals.
+                  A: PROO✓RA provides technical integrity data and a custody timeline. Legal
+                  admissibility and interpretation depend on jurisdiction and qualified professionals.
                 </div>
               </Card>
               <Card>
@@ -174,37 +149,24 @@ export default function PricingPage() {
               </Card>
               <Card>
                 <div style={{ fontWeight: 700, marginBottom: 6 }}>
-                  Q: What’s the difference between Pay-per-evidence and Pro?
+                  Q: What's the difference between Pay-per-evidence and Pro?
                 </div>
                 <div style={{ color: "#475569", lineHeight: 1.7 }}>
-                  A: Pay-per-evidence is for occasional reports. Pro is for consistent usage with reports
-                  included.
+                  A: Pay-per-evidence is for occasional reports. Pro is for consistent usage with
+                  reports included.
                 </div>
               </Card>
               <Card>
                 <div style={{ fontWeight: 700, marginBottom: 6 }}>Q: Do teams have to use cases?</div>
                 <div style={{ color: "#475569", lineHeight: 1.7 }}>
-                  A: No. Cases are optional. You can organize evidence in the way that fits your workflow.
+                  A: No. Cases are optional. You can organize evidence in the way that fits your
+                  workflow.
                 </div>
               </Card>
             </div>
           </div>
         </div>
-      </SilverWatermarkSection>
-
-      <footer className="landing-footer container">
-        <div className="footer-left">
-          <div className="footer-brand">PROO✓RA</div>
-          <a href="mailto:support@proovra.com">support@proovra.com</a>
-        </div>
-        <div className="footer-links">
-          <Link href="/privacy">Privacy Policy</Link>
-          <Link href="/terms">Terms</Link>
-          <Link href="/legal/cookies">Cookies</Link>
-          <Link href="/legal/security">Security</Link>
-          <Link href="/support">Support</Link>
-        </div>
-      </footer>
+      </div>
     </div>
   );
 }

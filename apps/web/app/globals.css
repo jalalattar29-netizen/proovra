@@ -326,7 +326,7 @@ p {
   }
 
 .pricing-hero-section {
-  padding-top: 0;
+  padding-top: 40px;
   padding-bottom: clamp(90px, 16vh, 190px);
   min-height: clamp(260px, 30vh, 420px);
 }
@@ -819,7 +819,7 @@ p {
 
   .app-top-bar {
   width: 100%;
-  background: var(--nav-bg);
+  background: var(--hero-bg);
   backdrop-filter: blur(12px);
   border-bottom: 1px solid var(--nav-border);
   }
@@ -873,6 +873,12 @@ p {
   background: rgba(255, 255, 255, 0.18);
   }
 
+  .app-header-auth-links {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  }
+
   .app-top-bar .logo {
   color: #ffffff;
     text-transform: uppercase;
@@ -899,7 +905,10 @@ p {
   }
 
 .app-section {
-  padding: 0 0 80px;
+  padding: 0 0 48px;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
 }
 
 .app-hero {
@@ -984,6 +993,9 @@ p {
 
 .app-body {
   margin-top: 32px;
+  flex: 1;
+  display: flex;
+  align-items: center;
 }
 
 .app-hero-full {
@@ -994,6 +1006,8 @@ p {
   margin-left: 0;
   width: 100%;
   position: relative;
+  display: flex;
+  align-items: center;
 }
 
 .app-body-full .container {
@@ -1014,16 +1028,65 @@ p {
 }
 
 .app-content {
-  min-height: 520px;
-  padding: 0 0 96px;
+  min-height: calc(100vh - 56px);
+  padding: 0 0 0;
   position: relative;
   z-index: 2;
   overflow: visible;
   width: 100%;
+  display: flex;
+  flex-direction: column;
 }
 
 .app-content.silver-watermark-section {
   overflow: visible;
+}
+
+.app-footer {
+  padding: 32px 0 48px;
+  border-top: 1px solid rgba(15, 23, 42, 0.08);
+  background: var(--page-bg);
+}
+
+.app-footer-container {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 32px;
+  flex-wrap: wrap;
+}
+
+.app-footer-inner {
+  display: grid;
+  gap: 6px;
+  color: #64748b;
+  font-size: 13px;
+}
+
+.app-footer-brand {
+  font-weight: 800;
+  color: var(--color-text);
+}
+
+.app-footer-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  font-size: 12px;
+  color: #475569;
+}
+
+.app-footer-links a {
+  padding: 6px 8px;
+  border-radius: 10px;
+  transition: background 140ms ease, color 140ms ease;
+  text-decoration: none;
+  color: inherit;
+}
+
+.app-footer-links a:hover {
+  background: rgba(15, 23, 42, 0.06);
+  color: #0f1d36;
 }
 
   .app-loading {

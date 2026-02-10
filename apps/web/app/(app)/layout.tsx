@@ -24,12 +24,14 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
 
-  const isActive = (href: string) => pathname === href || pathname?.startsWith(`${href}/`);
+  const isActive = (href: string) =>
+    pathname === href || (href !== "/pricing" && pathname?.startsWith(`${href}/`));
+  const isPricingActive = pathname === "/pricing";
 
   useEffect(() => {
     if (!authReady) return;
-    if (!hasSession) router.replace("/login");
-  }, [authReady, hasSession, router]);
+    if (!hasSession && pathname !== "/pricing") router.replace("/login");
+  }, [authReady, hasSession, router, pathname]);
 
   if (!authReady) {
     return (
@@ -39,7 +41,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     );
   }
 
-  if (!hasSession) {
+  if (!hasSession && pathname !== "/pricing") {
     return null;
   }
 
@@ -49,7 +51,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         <div className="container app-top-bar-inner">
           <TopBar
             title={t("brand")}
-            logoHref="/home"
+            logoHref="/"
             logoSrc="/brand/logo-white.svg"
             center={
               <nav className="app-header-nav">
@@ -62,27 +64,41 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                     {t(item.label)}
                   </Link>
                 ))}
-                <Link href="/pricing" className="app-header-nav-link">
+                <Link
+                  href="/pricing"
+                  className={`app-header-nav-link ${isPricingActive ? "active" : ""}`}
+                >
                   Pricing
                 </Link>
               </nav>
             }
             right={
-              <button
-                className="btn secondary"
-                type="button"
-                onClick={async () => {
-                  try {
-                    await apiFetch("/v1/auth/logout", { method: "POST" });
-                  } catch {
-                    // ignore
-                  } finally {
-                    setToken(null);
-                  }
-                }}
-              >
-                {t("logout")}
-              </button>
+              hasSession ? (
+                <button
+                  className="btn secondary"
+                  type="button"
+                  onClick={async () => {
+                    try {
+                      await apiFetch("/v1/auth/logout", { method: "POST" });
+                    } catch {
+                      // ignore
+                    } finally {
+                      setToken(null);
+                    }
+                  }}
+                >
+                  {t("logout")}
+                </button>
+              ) : (
+                <div className="app-header-auth-links">
+                  <Link href="/login" className="app-header-nav-link">
+                    {t("login")}
+                  </Link>
+                  <Link href="/register" className="btn secondary">
+                    {t("register")}
+                  </Link>
+                </div>
+              )
             }
           />
         </div>
@@ -90,6 +106,21 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       <SilverWatermarkSection as="main" className="app-content">
         {children}
       </SilverWatermarkSection>
+      <footer className="app-footer">
+        <div className="container app-footer-container">
+          <div className="app-footer-inner">
+            <div className="app-footer-brand">PROO✓RA</div>
+            <a href="mailto:support@proovra.com">support@proovra.com</a>
+          </div>
+          <div className="app-footer-links">
+            <Link href="/privacy">Privacy Policy</Link>
+            <Link href="/terms">Terms</Link>
+            <Link href="/legal/cookies">Cookies</Link>
+            <Link href="/legal/security">Security</Link>
+            <Link href="/support">Support</Link>
+          </div>
+        </div>
+      </footer>
     </div>
   );
 }
