@@ -71,7 +71,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           />
         </div>
       </div>
-      <div className="app-shell container">
+      <div className="app-shell">
         <nav className="app-nav">
           {NAV_ITEMS.map((item) => (
             <Link

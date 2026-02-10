@@ -124,14 +124,23 @@ export default function TeamDetailPage() {
     }
   };
   return (
-    <div className="section">
-      <div className="page-title">
-        <div>
-          <h1 style={{ margin: 0 }}>{team?.name ?? "Team"}</h1>
-          <p className="page-subtitle">Manage members and roles.</p>
+    <div className="section app-section">
+      <div className="app-hero app-hero-full">
+        <div className="container">
+          <div className="page-title" style={{ marginBottom: 0 }}>
+            <div>
+              <h1 className="hero-title pricing-hero-title" style={{ margin: 0 }}>
+                {team?.name ?? "Team"}
+              </h1>
+              <p className="page-subtitle pricing-subtitle" style={{ marginTop: 6 }}>
+                Manage members and roles.
+              </p>
+            </div>
+          </div>
         </div>
       </div>
-      <div style={{ display: "grid", gap: 16 }}>
+      <div className="app-body app-body-full">
+        <div className="container" style={{ display: "grid", gap: 16 }}>
         {loading ? (
           <Card>Loading team...</Card>
         ) : error ? (
@@ -231,6 +240,7 @@ export default function TeamDetailPage() {
             </Card>
           </>
         )}
+        </div>
       </div>
     </div>
   );

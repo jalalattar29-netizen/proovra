@@ -54,15 +54,24 @@ export default function CaseDetailPage() {
     window.open(`/v1/cases/${params.id}/export`, "_blank");
   };
   return (
-    <div className="section">
-      <div className="page-title">
-        <div>
-          <h1 style={{ margin: 0 }}>{name}</h1>
-          <p className="page-subtitle">Evidence grouped under this case.</p>
+    <div className="section app-section">
+      <div className="app-hero app-hero-full">
+        <div className="container">
+          <div className="page-title" style={{ marginBottom: 0 }}>
+            <div>
+              <h1 className="hero-title pricing-hero-title" style={{ margin: 0 }}>
+                {name}
+              </h1>
+              <p className="page-subtitle pricing-subtitle" style={{ marginTop: 6 }}>
+                Evidence grouped under this case.
+              </p>
+            </div>
+            <Button className="navy-btn" onClick={handleExport}>Export ZIP</Button>
+          </div>
         </div>
-        <Button onClick={handleExport}>Export ZIP</Button>
       </div>
-      <div style={{ display: "grid", gap: 16 }}>
+      <div className="app-body app-body-full">
+        <div className="container" style={{ display: "grid", gap: 16 }}>
         {loading ? (
           <Card>Loading case...</Card>
         ) : error ? (
@@ -127,6 +136,7 @@ export default function CaseDetailPage() {
             </Card>
           </>
         )}
+        </div>
       </div>
     </div>
   );
