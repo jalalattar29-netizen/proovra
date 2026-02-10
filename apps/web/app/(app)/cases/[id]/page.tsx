@@ -108,7 +108,10 @@ export default function CaseDetailPage() {
             <Card>
               <div style={{ fontWeight: 600, marginBottom: 12 }}>Evidence</div>
               {evidence.length === 0 ? (
-                <div>No evidence in this case yet.</div>
+                <div className="empty-state">
+                  <div className="empty-state-icon">📎</div>
+                  <div>No evidence in this case yet.</div>
+                </div>
               ) : (
                 <div style={{ display: "grid", gap: 8 }}>
                   {evidence.map((item) => (

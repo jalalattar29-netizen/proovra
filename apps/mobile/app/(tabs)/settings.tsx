@@ -5,7 +5,7 @@ import { useLocale } from "../../src/locale-context";
 import { useMemo, useState } from "react";
 import { apiFetch } from "../../src/api";
 import { useAuth } from "../../src/auth-context";
-import * as FileSystem from "expo-file-system";
+import * as FileSystem from "expo-file-system/legacy";
 import { uploadWithPut } from "../../src/upload-utils";
 
 export default function SettingsScreen() {

@@ -125,12 +125,22 @@ export function middleware(req: NextRequest) {
     const isAppHost = appHost ? host.endsWith(appHost) : false;
     const isWebHost = webHost ? host.endsWith(webHost) : false;
 
-    if (isAppHost && webBaseUrl) {
-      const target = new URL(webBaseUrl);
-      target.pathname = pathname;
+    if (isAppHost && pathname === "/") {
+      const target = new URL(req.url);
+      target.pathname = "/home";
       const res = NextResponse.redirect(target);
       if (isProd) applySecurityHeaders(res, nonce, relaxed, allowEval);
       return res;
+    }
+
+    if (isWebHost && ["/home", "/capture", "/cases", "/teams", "/billing", "/settings"].some((p) => pathname === p || pathname.startsWith(`${p}/`))) {
+      if (appBaseUrl) {
+        const target = new URL(appBaseUrl);
+        target.pathname = pathname;
+        const res = NextResponse.redirect(target);
+        if (isProd) applySecurityHeaders(res, nonce, relaxed, allowEval);
+        return res;
+      }
     }
 
     const res = nextWithNonce(req, nonce);

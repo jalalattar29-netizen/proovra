@@ -9,6 +9,7 @@ export const baseColors = {
   muted: "rgba(17, 21, 39, 0.60)",
   green: "#1F9955",
   red: "#C53030",
+  teal: "#0D9488",
 } as const;
 
 /**

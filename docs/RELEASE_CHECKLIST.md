@@ -29,3 +29,8 @@
 - [ ] `S3_PUBLIC_BASE_URL` unset in production
 - [ ] TLS enforced for `S3_ENDPOINT`
 - [ ] CORS allowlist set to production domains
+
+## Domain routing (see DEPLOYMENT.md)
+- [ ] `app.proovra.com` → app shell; `/` redirects to `/home`
+- [ ] `www.proovra.com` → marketing; app routes redirect to app.proovra.com
+- [ ] `NEXT_PUBLIC_APP_BASE` and `NEXT_PUBLIC_WEB_BASE` set correctly

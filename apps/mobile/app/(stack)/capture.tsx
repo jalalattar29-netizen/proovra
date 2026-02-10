@@ -140,9 +140,10 @@ export default function CaptureScreen() {
     try {
       const startedAt = Date.now();
       const result = await cameraRef.current.recordAsync();
+      const r = result as { uri?: string; duration?: number };
       const durationMs =
-        typeof result?.duration === "number"
-          ? Math.max(0, Math.round(result.duration * 1000))
+        typeof r?.duration === "number"
+          ? Math.max(0, Math.round(r.duration * 1000))
           : Math.max(0, Date.now() - startedAt);
       if (result?.uri) {
         const info = await FileSystem.getInfoAsync(result.uri);
@@ -354,6 +355,7 @@ export default function CaptureScreen() {
             </View>
           </View>
         ) : (
+        <>
         <View style={styles.toggleRow}>
           <Text style={styles.toggleLabel}>Include location metadata</Text>
           <Switch value={useLocation} onValueChange={setUseLocation} />
@@ -406,6 +408,7 @@ export default function CaptureScreen() {
           </Pressable>
         ) : null}
         {info ? <Text style={styles.infoText}>{info}</Text> : null}
+        </>
         )}
       </ScrollView>
     </View>

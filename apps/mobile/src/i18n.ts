@@ -1,5 +1,6 @@
 import { dict, defaultLocale, supportedLocales, type Locale } from "@proovra/shared";
 
+export type { Locale };
 export const translations = dict;
 
 export function resolveInitialLocale(deviceLocale?: string): Locale {

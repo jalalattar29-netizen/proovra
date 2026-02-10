@@ -48,8 +48,14 @@ export default function HomePage() {
           <div style={{ fontWeight: 700, marginBottom: 12 }}>{t("recentEvidence")}</div>
           <div style={{ display: "grid", gap: 10 }}>
             {items.length === 0 ? (
-              <div style={{ color: "#64748b", fontSize: 13 }}>
-                No evidence yet. Capture your first file to see it here.
+              <div className="empty-state">
+                <div className="empty-state-icon">📷</div>
+                <div>No evidence yet. Capture your first file to see it here.</div>
+                <div style={{ marginTop: 12 }}>
+                  <Link href="/capture">
+                    <Button className="navy-btn" variant="secondary">{t("ctaCapture")}</Button>
+                  </Link>
+                </div>
               </div>
             ) : (
               items.map((item) => {

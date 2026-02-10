@@ -117,10 +117,17 @@ export default function HomePage() {
             </div>
 
             <div className="hero-card-actions">
-              <button className="btn primary" type="button">
-                View Evidence
-              </button>
-              <button className="btn secondary" type="button">
+              <Link href="/verify">
+                <button className="btn primary" type="button" title="Enter a verification link to view evidence">
+                  View Evidence
+                </button>
+              </Link>
+              <button
+                className="btn secondary"
+                type="button"
+                title="Requires a verification link"
+                disabled
+              >
                 Download Report
               </button>
             </div>
@@ -131,7 +138,7 @@ export default function HomePage() {
       {/* ICON STRIP */}
       <SilverWatermarkSection className="section">
         <div className="landing-strip container">
-          <div className="landing-strip-item">
+          <Link href="#features" className="landing-strip-item" style={{ textDecoration: "none", color: "inherit" }}>
             <span className="landing-strip-icon" aria-hidden="true">
               {/* camera */}
               <svg viewBox="0 0 24 24" fill="none">
@@ -151,9 +158,9 @@ export default function HomePage() {
               <div className="landing-strip-title">Capture</div>
               <div className="landing-strip-sub">Photos & videos</div>
             </div>
-          </div>
+          </Link>
 
-          <div className="landing-strip-item">
+          <Link href="#features" className="landing-strip-item" style={{ textDecoration: "none", color: "inherit" }}>
             <span className="landing-strip-icon" aria-hidden="true">
               {/* shield */}
               <svg viewBox="0 0 24 24" fill="none">
@@ -173,9 +180,9 @@ export default function HomePage() {
               <div className="landing-strip-title">Sign</div>
               <div className="landing-strip-sub">Cryptographic proofs</div>
             </div>
-          </div>
+          </Link>
 
-          <div className="landing-strip-item">
+          <Link href="#features" className="landing-strip-item" style={{ textDecoration: "none", color: "inherit" }}>
             <span className="landing-strip-icon" aria-hidden="true">
               {/* share */}
               <svg viewBox="0 0 24 24" fill="none">
@@ -195,7 +202,7 @@ export default function HomePage() {
               <div className="landing-strip-title">Share</div>
               <div className="landing-strip-sub">Instant verification</div>
             </div>
-          </div>
+          </Link>
         </div>
 
         <div id="features" className="section">

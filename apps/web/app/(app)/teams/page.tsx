@@ -61,9 +61,12 @@ export default function TeamsPage() {
           <Card>{error}</Card>
         ) : teams.length === 0 ? (
           <Card>
-            <div style={{ display: "grid", gap: 12 }}>
+            <div className="empty-state">
+              <div className="empty-state-icon">👥</div>
               <div>No teams yet. Create one to manage members.</div>
-              <Button className="navy-btn" onClick={handleCreate}>Create Team</Button>
+              <div style={{ marginTop: 16 }}>
+                <Button className="navy-btn" onClick={handleCreate}>Create Team</Button>
+              </div>
             </div>
           </Card>
         ) : (

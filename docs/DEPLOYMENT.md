@@ -32,6 +32,23 @@ curl -sS http://127.0.0.1:8090/health
 ## Caddy routing (production)
 Recommended routing:
 - `api.proovra.com` -> API container
-- `app.proovra.com` -> Web container
-- `www.proovra.com` -> Web container
+- `app.proovra.com` -> Web container (app shell: /home, /capture, /cases, /teams, /billing, /settings)
+- `www.proovra.com` -> Web container (marketing: landing, pricing, about, verify)
 - `proovra.com` -> redirect to `www.proovra.com`
+
+## Domain routing verification
+After deploy, verify host-based routing:
+
+1. **app.proovra.com** (app shell)
+   - `/` redirects to `/home`
+   - `/home`, `/capture`, `/cases`, `/teams`, `/billing`, `/settings` are served
+   - Unauthenticated users redirect to `/login?next={pathname}`
+
+2. **www.proovra.com** (marketing shell)
+   - `/` shows landing page
+   - `/pricing` shows marketing pricing
+   - `/home`, `/capture`, `/cases`, `/teams`, `/billing`, `/settings` redirect to `app.proovra.com`
+
+3. **Environment**
+   - `NEXT_PUBLIC_APP_BASE` = `https://app.proovra.com`
+   - `NEXT_PUBLIC_WEB_BASE` = `https://www.proovra.com`

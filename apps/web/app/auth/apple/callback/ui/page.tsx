@@ -103,6 +103,10 @@ export default function AppleCallbackPage() {
         const data = (await res.json()) as { token?: string };
         if (!data.token) throw new Error("Missing access token");
         setToken(data.token);
+        const meRes = await fetch(`${apiBase}/v1/auth/me`, {
+          headers: { authorization: `Bearer ${data.token}` }
+        });
+        if (!meRes.ok) throw new Error("Session not confirmed");
         let redirectTo = "/home";
         try {
           const stored = sessionStorage.getItem("proovra-return-url");

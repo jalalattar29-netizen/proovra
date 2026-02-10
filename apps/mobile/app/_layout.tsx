@@ -11,6 +11,7 @@ export default function RootLayout() {
       <LocaleProvider>
         <AuthProvider>
           <Stack screenOptions={{ headerShown: false }}>
+            <Stack.Screen name="index" options={{ headerShown: false }} />
             <Stack.Screen name="(tabs)" />
             <Stack.Screen name="(stack)/auth" />
             <Stack.Screen name="(stack)/capture" />

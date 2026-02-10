@@ -18,7 +18,7 @@ export default function LoginPage() {
   const { setToken } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
-  const returnUrl = searchParams.get("returnUrl") || "/home";
+  const nextUrl = searchParams.get("next") || searchParams.get("returnUrl") || "/home";
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);
@@ -44,6 +44,11 @@ export default function LoginPage() {
       });
       setToken(data.token);
 
+      const me = await apiFetch("/v1/auth/me", { method: "GET" });
+      if (!me?.user && !data.token) {
+        throw new Error("Session not confirmed");
+      }
+
       if (guestToken) {
         try {
           await apiFetch("/v1/evidence/claim", {
@@ -55,9 +60,11 @@ export default function LoginPage() {
         }
       }
 
-      router.push(returnUrl);
+      router.replace(nextUrl);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Login failed");
+      const msg = err instanceof Error ? err.message : "Login failed";
+      const provider = path.includes("google") ? "Google" : path.includes("apple") ? "Apple" : "";
+      setError(provider ? `${provider} sign-in failed: ${msg}` : msg);
       setStatus("Sign in failed.");
     } finally {
       setBusy(false);
@@ -149,7 +156,7 @@ export default function LoginPage() {
           client_id: process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID,
           callback: (response: { credential?: string }) => {
             if (response.credential) void handleAuth("/v1/auth/google", response.credential);
-            else setError("Google login failed.");
+            else setError("Google sign-in failed: No credential returned.");
           }
         });
         setGoogleReady(true);
@@ -215,7 +222,7 @@ export default function LoginPage() {
                 href={mounted ? googleHref || "#" : "#"}
                 onClick={(event) => {
                   try {
-                    sessionStorage.setItem("proovra-return-url", returnUrl);
+                    sessionStorage.setItem("proovra-return-url", nextUrl);
                   } catch {
                     void 0;
                   }
@@ -245,14 +252,14 @@ export default function LoginPage() {
                         notification?.isDismissedMoment?.()
                       ) {
                         if (googleHref) window.location.href = googleHref;
-                        else setError("Google login is not ready yet.");
+                        else setError("Google sign-in failed: Redirect URL not ready.");
                       }
                     });
                     return;
                   }
                   if (!googleHref) {
                     event.preventDefault();
-                    setError("Google login is not ready yet.");
+                    setError("Google sign-in failed: Not ready yet.");
                   }
                 }}
               >
@@ -265,7 +272,7 @@ export default function LoginPage() {
                 href={mounted ? appleHref || "#" : "#"}
                 onClick={(event) => {
                   try {
-                    sessionStorage.setItem("proovra-return-url", returnUrl);
+                    sessionStorage.setItem("proovra-return-url", nextUrl);
                   } catch {
                     void 0;
                   }
@@ -291,9 +298,9 @@ export default function LoginPage() {
                         const idToken = response.authorization?.id_token;
                         const code = response.authorization?.code;
                         if (idToken || code) void handleAuth("/v1/auth/apple", idToken, code);
-                        else setError("Apple login failed.");
+                        else setError("Apple sign-in failed: No token returned.");
                       })
-                      .catch(() => setError("Apple login failed."));
+                      .catch(() => setError("Apple sign-in failed: Authorization failed."));
                     return;
                   }
                   if (!appleHref) {

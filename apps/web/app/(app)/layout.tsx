@@ -15,6 +15,7 @@ const NAV_ITEMS: Array<{ href: string; label: NavKey }> = [
   { href: "/capture", label: "capture" },
   { href: "/cases", label: "cases" },
   { href: "/teams", label: "teams" },
+  { href: "/billing", label: "billing" },
   { href: "/settings", label: "settings" }
 ];
 
@@ -25,12 +26,14 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
 
   const isActive = (href: string) =>
-    pathname === href || (href !== "/pricing" && pathname?.startsWith(`${href}/`));
-  const isPricingActive = pathname === "/pricing";
+    pathname === href || (href !== "/billing" && pathname?.startsWith(`${href}/`));
 
   useEffect(() => {
     if (!authReady) return;
-    if (!hasSession && pathname !== "/pricing") router.replace("/login");
+    if (!hasSession) {
+      const next = pathname ? `?next=${encodeURIComponent(pathname)}` : "";
+      router.replace(`/login${next}`);
+    }
   }, [authReady, hasSession, router, pathname]);
 
   if (!authReady) {
@@ -41,7 +44,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     );
   }
 
-  if (!hasSession && pathname !== "/pricing") {
+  if (!hasSession) {
     return null;
   }
 
@@ -64,12 +67,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                     {t(item.label)}
                   </Link>
                 ))}
-                <Link
-                  href="/pricing"
-                  className={`app-header-nav-link ${isPricingActive ? "active" : ""}`}
-                >
-                  Pricing
-                </Link>
               </nav>
             }
             right={

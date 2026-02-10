@@ -62,9 +62,12 @@ export default function CasesPage() {
           <Card>{error}</Card>
         ) : cases.length === 0 ? (
           <Card>
-            <div style={{ display: "grid", gap: 12 }}>
+            <div className="empty-state">
+              <div className="empty-state-icon">📁</div>
               <div>No cases yet. Create one to organize evidence.</div>
-              <Button className="navy-btn" onClick={handleCreate}>Create Case</Button>
+              <div style={{ marginTop: 16 }}>
+                <Button className="navy-btn" onClick={handleCreate}>Create Case</Button>
+              </div>
             </div>
           </Card>
         ) : (

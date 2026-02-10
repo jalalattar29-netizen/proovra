@@ -12,14 +12,6 @@ type Subscription = {
   status?: string | null;
 };
 
-type PaymentItem = {
-  id: string;
-  provider: string;
-  status: string;
-  amountCents: number;
-  currency: string;
-};
-
 type PayPalLink = {
   rel: string;
   href: string;
@@ -33,7 +25,6 @@ export default function SettingsPage() {
   const [credits, setCredits] = useState(0);
   const [teamSeats, setTeamSeats] = useState(0);
   const [subscription, setSubscription] = useState<Subscription | null>(null);
-  const [payments, setPayments] = useState<PaymentItem[]>([]);
 
   useEffect(() => {
     apiFetch("/v1/billing/status")
@@ -46,9 +37,6 @@ export default function SettingsPage() {
     apiFetch("/v1/billing/subscription")
       .then((data) => setSubscription(data.subscription ?? null))
       .catch(() => setSubscription(null));
-    apiFetch("/v1/billing/payments")
-      .then((data) => setPayments(data.items ?? []))
-      .catch(() => setPayments([]));
   }, []);
 
   const startCheckout = async (planType: PlanType) => {
@@ -80,7 +68,7 @@ export default function SettingsPage() {
                 {t("settings")}
               </h1>
               <p className="page-subtitle pricing-subtitle" style={{ marginTop: 6 }}>
-                Manage your plan, language, and sign-in.
+                Profile, plan, language, and security.
               </p>
             </div>
           </div>
@@ -89,7 +77,7 @@ export default function SettingsPage() {
       <div className="app-body app-body-full">
         <div className="container" style={{ display: "grid", gap: 16 }}>
         <Card>
-          <div style={{ fontWeight: 600, marginBottom: 12 }}>Account</div>
+          <div style={{ fontWeight: 600, marginBottom: 12 }}>Profile</div>
           <div style={{ display: "grid", gap: 6 }}>
             {user?.email && (
               <div style={{ fontSize: 14, color: "#475569" }}>
@@ -103,26 +91,42 @@ export default function SettingsPage() {
             )}
             {user?.provider && (
               <div style={{ fontSize: 12, color: "#94a3b8" }}>
-                Signed in via {user.provider}
+                Auth provider: {user.provider}
               </div>
             )}
             {!user?.email && !user?.displayName && (
               <div style={{ color: "#64748b", fontSize: 14 }}>Guest or minimal profile</div>
             )}
           </div>
+          <div style={{ marginTop: 12 }}>
+            <Button
+              variant="secondary"
+              onClick={async () => {
+                try {
+                  await apiFetch("/v1/auth/logout", { method: "POST" });
+                } catch {
+                  // ignore
+                } finally {
+                  setToken(null);
+                  router.replace("/");
+                }
+              }}
+            >
+              Sign out
+            </Button>
+          </div>
         </Card>
         <Card>
-          <div style={{ fontWeight: 600, marginBottom: 12 }}>{t("language")}</div>
-          <div style={{ color: "#64748b" }}>English only</div>
-        </Card>
-        <Card>
-          <div style={{ fontWeight: 600, marginBottom: 12 }}>Subscription</div>
+          <div style={{ fontWeight: 600, marginBottom: 12 }}>Plan</div>
           <p style={{ margin: 0 }}>{plan} plan</p>
           {plan === "PAYG" && <p style={{ marginTop: 6 }}>Credits: {credits}</p>}
           {plan === "TEAM" && <p style={{ marginTop: 6 }}>Team seats: {teamSeats}</p>}
           <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 10 }}>
             <Link href="/pricing">
-              <Button className="navy-btn">View Pricing</Button>
+              <Button className="navy-btn">View full pricing</Button>
+            </Link>
+            <Link href="/billing">
+              <Button className="navy-btn" variant="secondary">Go to Billing</Button>
             </Link>
             <Button className="navy-btn" variant="secondary" onClick={() => startCheckout("PAYG")}>
               Buy Pay‑Per‑Evidence
@@ -155,41 +159,18 @@ export default function SettingsPage() {
           </div>
         </Card>
         <Card>
-          <div style={{ fontWeight: 600, marginBottom: 12 }}>Payments</div>
-          {payments.length === 0 ? (
-            <div>No payments yet.</div>
-          ) : (
-            <div style={{ display: "grid", gap: 8 }}>
-              {payments.map((item) => (
-                <div key={item.id} style={{ fontSize: 12 }}>
-                  {item.provider} · {item.status} · {(item.amountCents / 100).toFixed(2)}{" "}
-                  {item.currency}
-                </div>
-              ))}
-            </div>
-          )}
+          <div style={{ fontWeight: 600, marginBottom: 12 }}>{t("language")}</div>
+          <p style={{ margin: 0 }}>English</p>
         </Card>
         <Card>
-          <div style={{ fontWeight: 600, marginBottom: 12 }}>Sign in</div>
-          <div style={{ display: "grid", gap: 8 }}>
-            <Link href="/login">
-              <Button>Manage sign‑in</Button>
+          <div style={{ fontWeight: 600, marginBottom: 12 }}>Security</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            <Link href="/legal/security" style={{ color: "#0369a1", textDecoration: "underline" }}>
+              Security policy
             </Link>
-            <Button
-              variant="secondary"
-              onClick={async () => {
-                try {
-                  await apiFetch("/v1/auth/logout", { method: "POST" });
-                } catch {
-                  // ignore
-                } finally {
-                  setToken(null);
-                  router.replace("/");
-                }
-              }}
-            >
-              Logout
-            </Button>
+            <a href="mailto:security@proovra.com" style={{ color: "#0369a1", textDecoration: "underline" }}>
+              security@proovra.com
+            </a>
           </div>
         </Card>
         </div>

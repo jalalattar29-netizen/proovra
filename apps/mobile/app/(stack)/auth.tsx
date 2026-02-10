@@ -18,7 +18,7 @@ export default function AuthScreen() {
   const googleClientId = process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID ?? "";
   const [appleAvailable, setAppleAvailable] = useState(false);
 
-  const redirectUri = AuthSession.makeRedirectUri({ useProxy: true });
+  const redirectUri = AuthSession.makeRedirectUri({ scheme: "proovra" });
   const [googleRequest, googleResponse, promptGoogle] = Google.useAuthRequest({
     clientId: googleClientId,
     responseType: AuthSession.ResponseType.IdToken,
@@ -48,7 +48,12 @@ export default function AuthScreen() {
           method: "POST",
           body: JSON.stringify({ idToken })
         });
-        setSession({ token: data.token, user: data.user ?? null, mode: "google" });
+        if (!data.token) throw new Error("Missing access token");
+        const me = await apiFetch("/v1/auth/me", {
+          headers: { authorization: `Bearer ${data.token}` }
+        });
+        if (!me?.user) throw new Error("Session not confirmed");
+        setSession({ token: data.token, user: me.user ?? data.user ?? null, mode: "google" });
         router.replace("/(tabs)");
       } catch (err) {
         setError(err instanceof Error ? err.message : "Google login failed");
@@ -56,7 +61,7 @@ export default function AuthScreen() {
         setBusy(false);
       }
     })();
-  }, [googleResponse, router, setToken]);
+  }, [googleResponse, router, setSession]);
 
   const handleGuest = async () => {
     setBusy(true);
@@ -91,7 +96,12 @@ export default function AuthScreen() {
         method: "POST",
         body: JSON.stringify({ idToken: result.identityToken })
       });
-      setSession({ token: data.token, user: data.user ?? null, mode: "apple" });
+      if (!data.token) throw new Error("Missing access token");
+      const me = await apiFetch("/v1/auth/me", {
+        headers: { authorization: `Bearer ${data.token}` }
+      });
+      if (!me?.user) throw new Error("Session not confirmed");
+      setSession({ token: data.token, user: me.user ?? data.user ?? null, mode: "apple" });
       router.replace("/(tabs)");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Apple login failed");
