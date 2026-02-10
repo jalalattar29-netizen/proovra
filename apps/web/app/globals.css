@@ -822,6 +822,11 @@ p {
   border-bottom: 1px solid var(--nav-border);
   }
 
+.app-top-bar .container {
+  padding-left: 12px;
+  padding-right: var(--container-gutter);
+}
+
   .app-top-bar .nav {
   padding: var(--header-padding-y) 0;
   }
@@ -942,11 +947,24 @@ p {
 .app-body-full {
   margin-left: 0;
   width: 100%;
+  position: relative;
 }
 
 .app-body-full .container {
   padding-left: var(--container-gutter);
   padding-right: var(--container-gutter);
+  position: relative;
+  z-index: 1;
+}
+
+.app-body-full::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  left: calc(-1 * (var(--app-nav-width) + var(--app-gap)));
+  width: calc(100% + var(--app-nav-width) + var(--app-gap));
+  background: var(--page-bg);
+  z-index: 0;
 }
 
 .app-shell {
