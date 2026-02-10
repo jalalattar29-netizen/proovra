@@ -901,9 +901,9 @@ p {
 
 .app-hero-full::before,
 .app-hero-full::after {
-  left: 50%;
-  transform: translateX(-50%);
-  width: 100vw;
+  left: 0;
+  transform: none;
+  width: 100%;
 }
 
 .app-hero-full > * {
@@ -940,8 +940,8 @@ p {
 }
 
 .app-body-full {
-  margin-left: calc(-1 * (var(--app-nav-width) + var(--app-gap)));
-  width: calc(100% + var(--app-nav-width) + var(--app-gap));
+  margin-left: 0;
+  width: 100%;
 }
 
 .app-body-full .container {
@@ -957,10 +957,10 @@ p {
   gap: var(--app-gap);
   padding: 0 0 96px;
   margin-top: 0;
-  overflow: visible;
+  overflow: hidden;
 }
 
-  .app-nav {
+.app-nav {
     display: flex;
     flex-direction: column;
     gap: 8px;
@@ -971,7 +971,7 @@ p {
     align-self: start;
   box-shadow: none;
   position: relative;
-  z-index: 2;
+  z-index: 10;
   }
 
   .nav-link {
