@@ -1,4 +1,4 @@
-import { AppError, ErrorCode } from '../utils/app-error.js';
+import { AppError, ErrorCode } from '../errors.js';
 
 // Audit log actions
 export enum AuditAction {

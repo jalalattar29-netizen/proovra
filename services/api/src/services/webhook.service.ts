@@ -1,5 +1,5 @@
 import crypto from 'crypto';
-import { AppError, ErrorCode } from '../utils/app-error.js';
+import { AppError, ErrorCode } from '../errors.js';
 
 // Webhook event types
 export enum WebhookEventType {

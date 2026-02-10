@@ -1,5 +1,5 @@
 import nodemailer from 'nodemailer';
-import { AppError, ErrorCode } from '../utils/app-error.js';
+import { AppError, ErrorCode } from '../errors.js';
 
 // Email template types
 export enum EmailType {
