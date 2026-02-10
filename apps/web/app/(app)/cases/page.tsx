@@ -118,19 +118,21 @@ export default function CasesPage() {
             </Card>
           ) : (
             cases.map((item) => (
-              <Card key={item.id} style={{ padding: 16, cursor: "pointer", transition: "all 0.2s" }}>
-                {isUuid(item.id) ? (
-                  <Link href={`/cases/${item.id}`} style={{ textDecoration: "none" }}>
+              <div key={item.id} style={{ padding: 16, cursor: "pointer", transition: "all 0.2s" }}>
+                <Card>
+                  {isUuid(item.id) ? (
+                    <Link href={`/cases/${item.id}`} style={{ textDecoration: "none" }}>
+                      <div style={{ fontWeight: 600, fontSize: 16, color: "#0B1F2A" }}>
+                        {item.name}
+                      </div>
+                    </Link>
+                  ) : (
                     <div style={{ fontWeight: 600, fontSize: 16, color: "#0B1F2A" }}>
                       {item.name}
                     </div>
-                  </Link>
-                ) : (
-                  <div style={{ fontWeight: 600, fontSize: 16, color: "#0B1F2A" }}>
-                    {item.name}
-                  </div>
-                )}
-              </Card>
+                  )}
+                </Card>
+              </div>
             ))
           )}
         </div>
