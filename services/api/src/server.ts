@@ -13,6 +13,7 @@ import { casesRoutes } from "./routes/cases.routes.js";
 import { searchRoutes } from "./routes/search.routes.js";
 import { aiRoutes } from "./routes/ai.routes.js";
 import { enterpriseRoutes } from "./routes/enterprise.routes.js";
+import { teamManagementRoutes } from "./routes/team-management.routes.js";
 import { AppError, isAppError, createErrorResponse } from "./errors.js";
 
 const REQUIRED_ORIGINS = [
@@ -162,6 +163,7 @@ export async function buildServer() {
   await app.register(searchRoutes);
   await app.register(aiRoutes);
   await app.register(enterpriseRoutes);
+  await app.register(teamManagementRoutes);
 
   return app;
 }
