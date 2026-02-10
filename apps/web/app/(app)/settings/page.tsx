@@ -40,9 +40,11 @@ export default function SettingsPage() {
         setTeamSeats(data.entitlement?.teamSeats ?? 0);
       })
       .catch(() => setPlan("FREE"));
+
     apiFetch("/v1/billing/subscription")
       .then((data) => setSubscription(data.subscription ?? null))
       .catch(() => setSubscription(null));
+
     apiFetch("/v1/billing/payments")
       .then((data) => setPayments(data.items ?? []))
       .catch(() => setPayments([]));
@@ -62,14 +64,13 @@ export default function SettingsPage() {
       method: "POST",
       body: JSON.stringify({ plan: planType, currency: "USD" })
     });
-    const approve = (data.order?.links as PayPalLink[] | undefined)?.find(
-      (link) => link.rel === "approve"
-    );
+    const approve = (data.order?.links as PayPalLink[] | undefined)?.find((link) => link.rel === "approve");
     if (approve?.href) window.location.href = approve.href;
   };
+
   return (
     <div className="section app-section">
-      <div className="app-hero app-hero-contained">
+      <div className="app-hero">
         <div className="page-title" style={{ marginBottom: 0 }}>
           <div>
             <h1 style={{ margin: 0 }}>{t("settings")}</h1>
@@ -77,22 +78,26 @@ export default function SettingsPage() {
           </div>
         </div>
       </div>
+
       <div className="app-body" style={{ display: "grid", gap: 16 }}>
         <Card>
-          <div style={{ fontWeight: 600, marginBottom: 12 }}>{t("language")}</div>
+          <div style={{ fontWeight: 800, marginBottom: 12 }}>{t("language")}</div>
           <div style={{ color: "#64748b" }}>English only</div>
         </Card>
+
         <Card>
-          <div style={{ fontWeight: 600, marginBottom: 12 }}>Subscription</div>
+          <div style={{ fontWeight: 800, marginBottom: 12 }}>Subscription</div>
           <p style={{ margin: 0 }}>{plan} plan</p>
           {plan === "PAYG" && <p style={{ marginTop: 6 }}>Credits: {credits}</p>}
           {plan === "TEAM" && <p style={{ marginTop: 6 }}>Team seats: {teamSeats}</p>}
+
           <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 10 }}>
             <Link href="/pricing">
               <Button className="navy-btn">View Pricing</Button>
             </Link>
+
             <Button className="navy-btn" variant="secondary" onClick={() => startCheckout("PAYG")}>
-              Buy Pay‑Per‑Evidence
+              Buy Pay-Per-Evidence
             </Button>
             <Button className="navy-btn" variant="secondary" onClick={() => startCheckout("PRO")}>
               Upgrade to Pro
@@ -103,13 +108,11 @@ export default function SettingsPage() {
             <Button className="navy-btn" variant="secondary" onClick={() => startPayPal("PAYG")}>
               PayPal PAYG
             </Button>
-            <Button
-              className="navy-btn"
-              variant="secondary"
-              onClick={() => apiFetch("/v1/billing/restore", { method: "POST" })}
-            >
+
+            <Button className="navy-btn" variant="secondary" onClick={() => apiFetch("/v1/billing/restore", { method: "POST" })}>
               Restore Purchases
             </Button>
+
             {subscription?.status === "ACTIVE" && (
               <Button
                 className="navy-btn"
@@ -121,28 +124,29 @@ export default function SettingsPage() {
             )}
           </div>
         </Card>
+
         <Card>
-          <div style={{ fontWeight: 600, marginBottom: 12 }}>Payments</div>
+          <div style={{ fontWeight: 800, marginBottom: 12 }}>Payments</div>
           {payments.length === 0 ? (
             <div>No payments yet.</div>
           ) : (
             <div style={{ display: "grid", gap: 8 }}>
               {payments.map((item) => (
                 <div key={item.id} style={{ fontSize: 12 }}>
-                  {item.provider} · {item.status} · {(item.amountCents / 100).toFixed(2)}{" "}
-                  {item.currency}
+                  {item.provider} · {item.status} · {(item.amountCents / 100).toFixed(2)} {item.currency}
                 </div>
               ))}
             </div>
           )}
         </Card>
+
         <Card>
-          <div style={{ fontWeight: 600, marginBottom: 12 }}>Sign in</div>
+          <div style={{ fontWeight: 800, marginBottom: 12 }}>Sign in</div>
           <div style={{ display: "grid", gap: 8 }}>
             <Link href="/login">
-              <Button>Manage sign‑in</Button>
+              <Button className="navy-btn">Manage sign-in</Button>
             </Link>
-            <Button variant="secondary" onClick={() => apiFetch("/v1/auth/logout", { method: "POST" })}>
+            <Button className="navy-btn" variant="secondary" onClick={() => apiFetch("/v1/auth/logout", { method: "POST" })}>
               Logout
             </Button>
           </div>

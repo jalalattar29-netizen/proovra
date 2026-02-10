@@ -116,12 +116,16 @@ export default function HomePage() {
               </div>
             </div>
 
+            {/* ✅ 3 connected colored buttons (phone style) */}
             <div className="hero-card-actions">
-              <button className="btn primary" type="button">
-                View Evidence
+              <button className="btn accent-capture" type="button">
+                Capture
               </button>
-              <button className="btn secondary" type="button">
-                Download Report
+              <button className="btn accent-report" type="button">
+                Generate Report
+              </button>
+              <button className="btn accent-share" type="button">
+                Share Link
               </button>
             </div>
           </div>

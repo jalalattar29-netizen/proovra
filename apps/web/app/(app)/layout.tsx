@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect } from "react";
+
+/** ✅ KEEP YOUR ORIGINAL IMPORTS (these should match your project) */
 import { TopBar } from "../../components/ui";
 import { SilverWatermarkSection } from "../../components/SilverWatermarkSection";
 import { translations } from "../../lib/i18n";
@@ -39,9 +41,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     );
   }
 
-  if (!hasSession) {
-    return null;
-  }
+  if (!hasSession) return null;
 
   return (
     <div className="page app-page">
@@ -71,6 +71,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           />
         </div>
       </div>
+
       <div className="app-shell container">
         <nav className="app-nav">
           {NAV_ITEMS.map((item) => (
@@ -82,10 +83,12 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
               {t(item.label)}
             </Link>
           ))}
-          <Link href="/pricing" className="nav-link">
+
+          <Link href="/pricing" className={`nav-link ${isActive("/pricing") ? "active" : ""}`}>
             Pricing
           </Link>
         </nav>
+
         <SilverWatermarkSection as="main" className="app-content">
           {children}
         </SilverWatermarkSection>
