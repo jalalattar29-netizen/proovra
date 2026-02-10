@@ -103,7 +103,17 @@ export default function AppleCallbackPage() {
         const data = (await res.json()) as { token?: string };
         if (!data.token) throw new Error("Missing access token");
         setToken(data.token);
-        router.replace("/dashboard");
+        let redirectTo = "/home";
+        try {
+          const stored = sessionStorage.getItem("proovra-return-url");
+          if (stored && stored.startsWith("/")) {
+            redirectTo = stored;
+            sessionStorage.removeItem("proovra-return-url");
+          }
+        } catch {
+          void 0;
+        }
+        router.replace(redirectTo);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Sign-in failed");
       }

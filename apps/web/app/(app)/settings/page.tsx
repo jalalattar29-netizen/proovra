@@ -1,8 +1,9 @@
 "use client";
 
 import { Button, Card } from "../../../components/ui";
-import { useLocale } from "../../providers";
+import { useAuth, useLocale } from "../../providers";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { apiFetch } from "../../../lib/api";
 import { PlanType } from "../../pricing/types";
@@ -26,6 +27,8 @@ type PayPalLink = {
 
 export default function SettingsPage() {
   const { t } = useLocale();
+  const { user, setToken } = useAuth();
+  const router = useRouter();
   const [plan, setPlan] = useState("FREE");
   const [credits, setCredits] = useState(0);
   const [teamSeats, setTeamSeats] = useState(0);
@@ -85,6 +88,29 @@ export default function SettingsPage() {
       </div>
       <div className="app-body app-body-full">
         <div className="container" style={{ display: "grid", gap: 16 }}>
+        <Card>
+          <div style={{ fontWeight: 600, marginBottom: 12 }}>Account</div>
+          <div style={{ display: "grid", gap: 6 }}>
+            {user?.email && (
+              <div style={{ fontSize: 14, color: "#475569" }}>
+                <span style={{ color: "#64748b" }}>Email:</span> {user.email}
+              </div>
+            )}
+            {user?.displayName && (
+              <div style={{ fontSize: 14, color: "#475569" }}>
+                <span style={{ color: "#64748b" }}>Name:</span> {user.displayName}
+              </div>
+            )}
+            {user?.provider && (
+              <div style={{ fontSize: 12, color: "#94a3b8" }}>
+                Signed in via {user.provider}
+              </div>
+            )}
+            {!user?.email && !user?.displayName && (
+              <div style={{ color: "#64748b", fontSize: 14 }}>Guest or minimal profile</div>
+            )}
+          </div>
+        </Card>
         <Card>
           <div style={{ fontWeight: 600, marginBottom: 12 }}>{t("language")}</div>
           <div style={{ color: "#64748b" }}>English only</div>
@@ -149,7 +175,19 @@ export default function SettingsPage() {
             <Link href="/login">
               <Button>Manage sign‑in</Button>
             </Link>
-            <Button variant="secondary" onClick={() => apiFetch("/v1/auth/logout", { method: "POST" })}>
+            <Button
+              variant="secondary"
+              onClick={async () => {
+                try {
+                  await apiFetch("/v1/auth/logout", { method: "POST" });
+                } catch {
+                  // ignore
+                } finally {
+                  setToken(null);
+                  router.replace("/");
+                }
+              }}
+            >
               Logout
             </Button>
           </div>

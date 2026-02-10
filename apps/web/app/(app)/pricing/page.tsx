@@ -1,8 +1,18 @@
 "use client";
 
+import { useState } from "react";
+import Link from "next/link";
 import { Button, Card } from "../../../components/ui";
+import { useAuth } from "../../providers";
+import { apiFetch } from "../../../lib/api";
+import { PlanType } from "../../pricing/types";
+
+type PayPalLink = { rel: string; href: string };
 
 export default function AppPricingPage() {
+  const { hasSession } = useAuth();
+  const [checkoutBusy, setCheckoutBusy] = useState<string | null>(null);
+
   const webBase =
     typeof window !== "undefined" &&
     (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1")
@@ -10,6 +20,36 @@ export default function AppPricingPage() {
       : process.env.NEXT_PUBLIC_WEB_BASE ?? "";
   const appLogin = webBase ? `${webBase}/login` : "/login";
   const appRegister = webBase ? `${webBase}/register` : "/register";
+  const loginWithReturn = `${appLogin}?returnUrl=${encodeURIComponent("/settings")}`;
+  const registerWithReturn = `${appRegister}?returnUrl=${encodeURIComponent("/settings")}`;
+
+  const startStripeCheckout = async (plan: PlanType) => {
+    setCheckoutBusy(plan);
+    try {
+      const data = await apiFetch("/v1/billing/checkout/stripe", {
+        method: "POST",
+        body: JSON.stringify({ plan, currency: "USD" })
+      });
+      const url = data.session?.url as string | undefined;
+      if (url) window.location.href = url;
+    } finally {
+      setCheckoutBusy(null);
+    }
+  };
+
+  const startPayPalCheckout = async (plan: PlanType) => {
+    setCheckoutBusy(plan);
+    try {
+      const data = await apiFetch("/v1/billing/checkout/paypal", {
+        method: "POST",
+        body: JSON.stringify({ plan, currency: "USD" })
+      });
+      const approve = (data.order?.links as PayPalLink[] | undefined)?.find((l) => l.rel === "approve");
+      if (approve?.href) window.location.href = approve.href;
+    } finally {
+      setCheckoutBusy(null);
+    }
+  };
 
   return (
     <div className="section app-section">
@@ -50,11 +90,11 @@ export default function AppPricingPage() {
                 <li>PDF reports not included</li>
               </ul>
               <div className="pricing-cta">
-                <a href={appRegister}>
+                <Link href={hasSession ? "/settings" : registerWithReturn}>
                   <Button variant="secondary" className="choose-btn">
-                    Choose Free <span className="choose-icon">›</span>
+                    {hasSession ? "View in Settings" : "Choose Free"} <span className="choose-icon">›</span>
                   </Button>
-                </a>
+                </Link>
               </div>
             </Card>
             <Card className="pricing-card">
@@ -67,12 +107,33 @@ export default function AppPricingPage() {
                 <li>Audit-ready integrity fields (hashes, signatures)</li>
                 <li>Ideal for occasional high-stakes captures</li>
               </ul>
-              <div className="pricing-cta">
-                <a href={appLogin}>
-                  <Button variant="secondary" className="choose-btn">
-                    Choose Pay-per-evidence <span className="choose-icon">›</span>
-                  </Button>
-                </a>
+              <div className="pricing-cta" style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {hasSession ? (
+                  <>
+                    <Button
+                      variant="secondary"
+                      className="choose-btn"
+                      disabled={!!checkoutBusy}
+                      onClick={() => startStripeCheckout("PAYG")}
+                    >
+                      {checkoutBusy === "PAYG" ? "..." : "Choose Pay-per-evidence ›"}
+                    </Button>
+                    <Button
+                      variant="secondary"
+                      className="choose-btn"
+                      disabled={!!checkoutBusy}
+                      onClick={() => startPayPalCheckout("PAYG")}
+                    >
+                      PayPal PAYG
+                    </Button>
+                  </>
+                ) : (
+                  <a href={loginWithReturn}>
+                    <Button variant="secondary" className="choose-btn">
+                      Sign in to choose <span className="choose-icon">›</span>
+                    </Button>
+                  </a>
+                )}
               </div>
             </Card>
             <Card className="pricing-card">
@@ -86,11 +147,22 @@ export default function AppPricingPage() {
                 <li>Priority reliability features as they ship</li>
               </ul>
               <div className="pricing-cta">
-                <a href={appLogin}>
-                  <Button variant="secondary" className="choose-btn">
-                    Choose Pro <span className="choose-icon">›</span>
+                {hasSession ? (
+                  <Button
+                    variant="secondary"
+                    className="choose-btn"
+                    disabled={!!checkoutBusy}
+                    onClick={() => startStripeCheckout("PRO")}
+                  >
+                    {checkoutBusy === "PRO" ? "..." : "Choose Pro"} <span className="choose-icon">›</span>
                   </Button>
-                </a>
+                ) : (
+                  <a href={loginWithReturn}>
+                    <Button variant="secondary" className="choose-btn">
+                      Sign in to choose <span className="choose-icon">›</span>
+                    </Button>
+                  </a>
+                )}
               </div>
             </Card>
             <Card className="pricing-card">
@@ -104,11 +176,22 @@ export default function AppPricingPage() {
                 <li>Built for organizations and high-responsibility workflows</li>
               </ul>
               <div className="pricing-cta">
-                <a href={appLogin}>
-                  <Button variant="secondary" className="choose-btn">
-                    Choose Team <span className="choose-icon">›</span>
+                {hasSession ? (
+                  <Button
+                    variant="secondary"
+                    className="choose-btn"
+                    disabled={!!checkoutBusy}
+                    onClick={() => startStripeCheckout("TEAM")}
+                  >
+                    {checkoutBusy === "TEAM" ? "..." : "Choose Team"} <span className="choose-icon">›</span>
                   </Button>
-                </a>
+                ) : (
+                  <a href={loginWithReturn}>
+                    <Button variant="secondary" className="choose-btn">
+                      Sign in to choose <span className="choose-icon">›</span>
+                    </Button>
+                  </a>
+                )}
               </div>
             </Card>
           </div>

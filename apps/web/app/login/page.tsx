@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "../../components/ui";
 import { useAuth, useLocale } from "../providers";
 import { apiFetch } from "../../lib/api";
@@ -17,6 +17,8 @@ export default function LoginPage() {
   const { t } = useLocale();
   const { setToken } = useAuth();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const returnUrl = searchParams.get("returnUrl") || "/home";
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);
@@ -53,7 +55,7 @@ export default function LoginPage() {
         }
       }
 
-      router.push("/home");
+      router.push(returnUrl);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Login failed");
       setStatus("Sign in failed.");
@@ -212,6 +214,11 @@ export default function LoginPage() {
                 className="social-btn"
                 href={mounted ? googleHref || "#" : "#"}
                 onClick={(event) => {
+                  try {
+                    sessionStorage.setItem("proovra-return-url", returnUrl);
+                  } catch {
+                    void 0;
+                  }
                   if (busy) {
                     event.preventDefault();
                     return;
@@ -257,6 +264,11 @@ export default function LoginPage() {
                 className="social-btn"
                 href={mounted ? appleHref || "#" : "#"}
                 onClick={(event) => {
+                  try {
+                    sessionStorage.setItem("proovra-return-url", returnUrl);
+                  } catch {
+                    void 0;
+                  }
                   if (busy) {
                     event.preventDefault();
                     return;
