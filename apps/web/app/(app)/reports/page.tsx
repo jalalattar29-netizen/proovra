@@ -24,12 +24,12 @@ export default function ReportsPage() {
     setError(null);
     
     apiFetch("/v1/evidence")
-      .then((data: any) => {
+      .then((data: { items?: Array<{ id: string; type: string; status: string; createdAt: string }> }) => {
         setItems(data.items ?? []);
         addToast("Reports loaded successfully", "success");
       })
-      .catch((err: any) => {
-        const errorMessage = err?.message || "Failed to load reports";
+      .catch((err: Error | unknown) => {
+        const errorMessage = err instanceof Error ? err.message : "Failed to load reports";
         setError(errorMessage);
         setItems([]);
         captureException(err, { feature: "reports_page_list" });
