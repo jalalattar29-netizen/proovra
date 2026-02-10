@@ -75,15 +75,15 @@ export default function VerifyPage() {
                 <div style={{ display: "grid", gap: 12 }}>
                   <div>
                     <div style={{ fontSize: 12, color: "#999", marginBottom: 4 }}>Loading...</div>
-                    <Skeleton width="100%" height={20} />
+                    <Skeleton width="100%" height="20px" />
                   </div>
                   <div>
                     <div style={{ fontSize: 12, color: "#999", marginBottom: 4 }}>Hash</div>
-                    <Skeleton width="100%" height={16} />
+                    <Skeleton width="100%" height="16px" />
                   </div>
                   <div>
                     <div style={{ fontSize: 12, color: "#999", marginBottom: 4 }}>Signature</div>
-                    <Skeleton width="100%" height={16} />
+                    <Skeleton width="100%" height="16px" />
                   </div>
                 </div>
               </Card>
@@ -93,22 +93,24 @@ export default function VerifyPage() {
               <EmptyState
                 title="Verification Failed"
                 subtitle={error}
-              >
-                <Button onClick={() => window.location.reload()}>
-                  Try Again
-                </Button>
-              </EmptyState>
+                action={() => (
+                  <Button onClick={() => window.location.reload()}>
+                    Try Again
+                  </Button>
+                )}
+              />
             </Card>
           ) : !hash && !signature ? (
             <Card>
               <EmptyState
                 title="Evidence Not Found"
                 subtitle="The evidence token is invalid or has expired."
-              >
-                <Button onClick={() => window.location.href = "/"}>
-                  Back to Home
-                </Button>
-              </EmptyState>
+                action={() => (
+                  <Button onClick={() => window.location.href = "/"}>
+                    Back to Home
+                  </Button>
+                )}
+              />
             </Card>
           ) : (
             <div style={{ display: "grid", gap: 20 }}>

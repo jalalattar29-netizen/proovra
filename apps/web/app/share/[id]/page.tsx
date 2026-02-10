@@ -104,11 +104,11 @@ export default function SharePage() {
             </p>
           </div>
         </div>
-        <div style={{ marginTop: 20 }}>
+        <div style={{ marginTop: 20, width: "100%" }}>
           <Button
             onClick={() => reportUrl && window.open(reportUrl, "_blank")}
             disabled={!reportUrl}
-            style={{ width: "100%" }}
+            className="w-full"
           >
             {reportUrl ? "Download Report" : "Report Unavailable"}
           </Button>
