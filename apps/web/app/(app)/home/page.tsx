@@ -22,8 +22,8 @@ export default function HomePage() {
   }, []);
 
   return (
-    <div className="app-page-wrap">
-      <div className="app-hero">
+    <div className="section app-section">
+      <div className="app-hero app-hero-contained">
         <div className="page-title" style={{ alignItems: "center", marginBottom: 0 }}>
           <div>
             <h1 style={{ margin: 0 }}>{t("home")}</h1>
@@ -35,82 +35,82 @@ export default function HomePage() {
         </div>
       </div>
 
-      <div className="app-body" style={{ marginTop: 0, paddingTop: 18 }}>
+      <div className="app-body">
         <div className="grid-2">
-          <Card>
-            <div style={{ fontWeight: 800, marginBottom: 12 }}>{t("recentEvidence")}</div>
-            <div style={{ display: "grid", gap: 10 }}>
-              {items.length === 0 ? (
-                <div style={{ color: "#64748b", fontSize: 13 }}>
-                  No evidence yet. Capture your first file to see it here.
-                </div>
-              ) : (
-                items.map((item) => {
-                  const row = (
-                    <ListRow
-                      title={item.type}
-                      subtitle={new Date(item.createdAt).toLocaleString()}
-                      badge={
-                        item.status === "SIGNED" ? (
-                          <Badge tone="signed">{t("statusSigned")}</Badge>
-                        ) : item.status === "PROCESSING" ? (
-                          <Badge tone="processing">{t("statusProcessing")}</Badge>
-                        ) : (
-                          <Badge tone="ready">{t("statusReady")}</Badge>
-                        )
-                      }
-                    />
-                  );
-                  return isUuid(item.id) ? (
-                    <Link key={item.id} href={`/evidence/${item.id}`}>
-                      {row}
-                    </Link>
-                  ) : (
-                    <div key={item.id}>{row}</div>
-                  );
-                })
-              )}
-            </div>
-          </Card>
-
-          <Card>
-            <div style={{ fontWeight: 800, marginBottom: 12 }}>Quick Actions</div>
-            <div style={{ display: "grid", gap: 10 }}>
-              <Link href="/capture">
-                <Button className="navy-btn">New Capture</Button>
-              </Link>
-              <Link href="/cases">
-                <Button variant="secondary" className="navy-btn">
-                  View Cases
-                </Button>
-              </Link>
-              <Link href="/settings">
-                <Button variant="secondary" className="navy-btn">
-                  Manage Settings
-                </Button>
-              </Link>
-            </div>
-
-            <div style={{ marginTop: 18 }} className="status-banner">
-              <div
-                style={{
-                  width: 44,
-                  height: 44,
-                  borderRadius: 14,
-                  background: "rgba(255,255,255,0.18)",
-                  display: "grid",
-                  placeItems: "center",
-                  fontWeight: 900
-                }}
-              >
-                ✓
+        <Card>
+          <div style={{ fontWeight: 700, marginBottom: 12 }}>{t("recentEvidence")}</div>
+          <div style={{ display: "grid", gap: 10 }}>
+            {items.length === 0 ? (
+              <div style={{ color: "#64748b", fontSize: 13 }}>
+                No evidence yet. Capture your first file to see it here.
               </div>
-              <div>
-                <div style={{ fontWeight: 800 }}>Trusted chain of custody</div>
-                <div style={{ fontSize: 12, opacity: 0.85 }}>Capture → Sign → Report → Share</div>
+            ) : (
+              items.map((item) => {
+                const row = (
+                  <ListRow
+                    title={item.type}
+                    subtitle={new Date(item.createdAt).toLocaleString()}
+                    badge={
+                      item.status === "SIGNED" ? (
+                        <Badge tone="signed">{t("statusSigned")}</Badge>
+                      ) : item.status === "PROCESSING" ? (
+                        <Badge tone="processing">{t("statusProcessing")}</Badge>
+                      ) : (
+                        <Badge tone="ready">{t("statusReady")}</Badge>
+                      )
+                    }
+                  />
+                );
+                return isUuid(item.id) ? (
+                  <Link key={item.id} href={`/evidence/${item.id}`}>
+                    {row}
+                  </Link>
+                ) : (
+                  <div key={item.id}>{row}</div>
+                );
+              })
+            )}
+          </div>
+        </Card>
+
+        <Card>
+          <div style={{ fontWeight: 700, marginBottom: 12 }}>Quick Actions</div>
+          <div style={{ display: "grid", gap: 10 }}>
+            <Link href="/capture">
+              <Button className="action-btn">New Capture</Button>
+            </Link>
+            <Link href="/cases">
+              <Button variant="secondary" className="action-btn">View Cases</Button>
+            </Link>
+            <Link href="/settings">
+              <Button variant="secondary" className="action-btn">
+                Manage Settings
+              </Button>
+            </Link>
+          </div>
+
+          <div style={{ marginTop: 18 }} className="status-banner">
+            <div
+              style={{
+                width: 44,
+                height: 44,
+                borderRadius: 14,
+                background: "rgba(255,255,255,0.18)",
+                display: "grid",
+                placeItems: "center",
+                fontWeight: 800
+              }}
+            >
+              ✓
+            </div>
+            <div>
+              <div style={{ fontWeight: 700 }}>Trusted chain of custody</div>
+              <div style={{ fontSize: 12, opacity: 0.8 }}>
+                Capture → Sign → Report → Share
               </div>
             </div>
-          </Card>
+          </div>
+        </Card>
         </div>
       </div>
     </div>

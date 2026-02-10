@@ -39,7 +39,6 @@ export default function CapturePage() {
       const mimeType = file?.type || "text/plain";
       const deviceTimeIso = new Date().toISOString();
       let gps: { lat: number; lng: number; accuracyMeters?: number } | undefined;
-
       if (useLocation && typeof navigator !== "undefined" && navigator.geolocation) {
         gps = await new Promise((resolve, reject) => {
           navigator.geolocation.getCurrentPosition(
@@ -54,7 +53,6 @@ export default function CapturePage() {
           );
         });
       }
-
       const data = await apiFetch("/v1/evidence", {
         method: "POST",
         body: JSON.stringify({ type, mimeType, deviceTimeIso, gps })
@@ -74,7 +72,10 @@ export default function CapturePage() {
         xhr.onerror = () => reject(new Error("Upload failed"));
         xhr.onload = () => resolve();
         xhr.open("PUT", data.upload.putUrl);
-        xhr.setRequestHeader("content-type", uploadFile.type || "application/octet-stream");
+        xhr.setRequestHeader(
+          "content-type",
+          uploadFile.type || "application/octet-stream"
+        );
         xhr.send(uploadFile);
       });
 
@@ -90,8 +91,8 @@ export default function CapturePage() {
   };
 
   return (
-    <div className="app-page-wrap">
-      <div className="app-hero">
+    <div className="section app-section">
+      <div className="app-hero app-hero-contained">
         <div className="page-title" style={{ marginBottom: 0 }}>
           <div>
             <h1 style={{ margin: 0 }}>{t("capture")}</h1>
@@ -99,78 +100,73 @@ export default function CapturePage() {
           </div>
         </div>
       </div>
-
-      <div className="app-body" style={{ marginTop: 0, paddingTop: 18 }}>
+      <div className="app-body">
         <Card>
           <div style={{ display: "grid", gap: 16 }}>
-            <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-              {([
-                { label: t("photo"), value: "PHOTO" },
-                { label: t("video"), value: "VIDEO" },
-                { label: t("document"), value: "DOCUMENT" }
-              ] as const).map((item) => (
-                <button
-                  key={item.value}
-                  type="button"
-                  className={`pill-button ${type === item.value ? "active" : ""}`}
-                  onClick={() => setType(item.value)}
-                >
-                  {item.label}
-                </button>
-              ))}
-            </div>
-
-            <input
-              type="file"
-              aria-label="Upload evidence file"
-              onChange={(event) => setFile(event.target.files?.[0] ?? null)}
-              ref={fileInputRef}
-              style={{ display: "none" }}
-            />
-
-            <div
-              className="drop-zone"
-              onDragOver={(event) => event.preventDefault()}
-              onDrop={(event) => {
-                event.preventDefault();
-                const dropped = event.dataTransfer.files?.[0] ?? null;
-                if (dropped) setFile(dropped);
-              }}
-              onClick={() => fileInputRef.current?.click()}
-            >
-              {file ? (
-                <div>
-                  <div style={{ fontWeight: 800 }}>{file.name}</div>
-                  <div style={{ fontSize: 12, color: "#64748b" }}>
-                    {(file.size / 1024 / 1024).toFixed(2)} MB
-                  </div>
-                </div>
-              ) : (
-                <div style={{ color: "#64748b" }}>Drag & drop or click to select</div>
-              )}
-            </div>
-
-            <label style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <input
-                type="checkbox"
-                checked={useLocation}
-                onChange={(event) => setUseLocation(event.target.checked)}
-              />
-              Include location metadata (optional)
-            </label>
-
-            {busy ? (
-              <div style={{ fontSize: 12, color: "#64748b" }}>Uploading… {progress}%</div>
-            ) : null}
-
-            {error && <div className="error-text">{error}</div>}
-
-            <div>
-              <Button className="navy-btn" onClick={handleCapture} disabled={busy}>
-                {busy ? "Capturing..." : "Capture & Sign"}
-              </Button>
-            </div>
+          <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+            {([
+              { label: t("photo"), value: "PHOTO" },
+              { label: t("video"), value: "VIDEO" },
+              { label: t("document"), value: "DOCUMENT" }
+            ] as const).map((item) => (
+              <button
+                key={item.value}
+                type="button"
+                className={`pill-button ${type === item.value ? "active" : ""}`}
+                onClick={() => setType(item.value)}
+              >
+                {item.label}
+              </button>
+            ))}
           </div>
+          <input
+            type="file"
+            aria-label="Upload evidence file"
+            onChange={(event) => setFile(event.target.files?.[0] ?? null)}
+            ref={fileInputRef}
+            style={{ display: "none" }}
+          />
+          <div
+            className="drop-zone"
+            onDragOver={(event) => event.preventDefault()}
+            onDrop={(event) => {
+              event.preventDefault();
+              const dropped = event.dataTransfer.files?.[0] ?? null;
+              if (dropped) setFile(dropped);
+            }}
+            onClick={() => fileInputRef.current?.click()}
+          >
+            {file ? (
+              <div>
+                <div style={{ fontWeight: 600 }}>{file.name}</div>
+                <div style={{ fontSize: 12, color: "#64748b" }}>
+                  {(file.size / 1024 / 1024).toFixed(2)} MB
+                </div>
+              </div>
+            ) : (
+              <div style={{ color: "#64748b" }}>Drag & drop or click to select</div>
+            )}
+          </div>
+          <label style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <input
+              type="checkbox"
+              checked={useLocation}
+              onChange={(event) => setUseLocation(event.target.checked)}
+            />
+            Include location metadata (optional)
+          </label>
+          {busy ? (
+            <div style={{ fontSize: 12, color: "#64748b" }}>
+              Uploading… {progress}%
+            </div>
+          ) : null}
+          {error && <div className="error-text">{error}</div>}
+          <div>
+            <Button onClick={handleCapture} disabled={busy}>
+              {busy ? "Capturing..." : "Capture & Sign"}
+            </Button>
+          </div>
+        </div>
         </Card>
       </div>
     </div>

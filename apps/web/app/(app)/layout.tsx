@@ -71,7 +71,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           />
         </div>
       </div>
-
       <div className="app-shell container">
         <nav className="app-nav">
           {NAV_ITEMS.map((item) => (
@@ -83,13 +82,11 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
               {t(item.label)}
             </Link>
           ))}
-          <Link href="/pricing" className={`nav-link ${isActive("/pricing") ? "active" : ""}`}>
+          <Link href="/pricing" className="nav-link">
             Pricing
           </Link>
         </nav>
-
-        {/* ✅ Important: this class activates full-bleed hero styling safely */}
-        <SilverWatermarkSection as="main" className="app-content app-shell-main">
+        <SilverWatermarkSection as="main" className="app-content">
           {children}
         </SilverWatermarkSection>
       </div>
