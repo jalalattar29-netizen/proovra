@@ -4,6 +4,7 @@ import React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Icons } from "./icons";
+import { LanguageSwitcher } from "./language-switcher";
 
 type MarketingNavItem = {
   href: string;
@@ -61,6 +62,7 @@ export function MarketingHeader() {
               <span>{item.label}</span>
             </Link>
           ))}
+          <LanguageSwitcher />
           <a href={appLogin} className="proovra-nav-link">
             <Icons.Login />
             <span>Login</span>
@@ -105,6 +107,7 @@ export function AppHeader({
               <span>{item.label}</span>
             </Link>
           ))}
+          <LanguageSwitcher />
           {hasSession && (
             <button type="button" className="proovra-nav-link proovra-logout-btn" onClick={onLogout}>
               Sign out
