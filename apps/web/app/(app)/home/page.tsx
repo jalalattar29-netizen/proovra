@@ -85,11 +85,12 @@ export default function HomePage() {
                   <EmptyState
                     title="No evidence yet"
                     subtitle="Capture your first file to see it here."
-                  >
-                    <Link href="/capture">
-                      <Button>{t("ctaCapture")}</Button>
-                    </Link>
-                  </EmptyState>
+                    action={() => (
+                      <Link href="/capture">
+                        <Button>{t("ctaCapture")}</Button>
+                      </Link>
+                    )}
+                  />
                 ) : (
                   items.map((item) => {
                     const row = (
