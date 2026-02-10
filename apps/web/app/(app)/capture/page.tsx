@@ -12,18 +12,15 @@ type EvidenceType = "PHOTO" | "VIDEO" | "DOCUMENT";
 export default function CapturePage() {
   const { t } = useLocale();
   const router = useRouter();
-
   const [type, setType] = useState<EvidenceType>("PHOTO");
   const [file, setFile] = useState<File | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [useLocation, setUseLocation] = useState(false);
   const [progress, setProgress] = useState<number>(0);
-
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
-
   const pollReport = async (evidenceId: string) => {
     for (let attempt = 0; attempt < 8; attempt += 1) {
       try {
@@ -36,17 +33,12 @@ export default function CapturePage() {
   };
 
   const handleCapture = async () => {
-    if (busy) return;
     setError(null);
     setBusy(true);
-
     try {
       const mimeType = file?.type || "text/plain";
       const deviceTimeIso = new Date().toISOString();
-
-      let gps:
-        | { lat: number; lng: number; accuracyMeters?: number }
-        | undefined;
+      let gps: { lat: number; lng: number; accuracyMeters?: number } | undefined;
 
       if (useLocation && typeof navigator !== "undefined" && navigator.geolocation) {
         gps = await new Promise((resolve, reject) => {
@@ -69,13 +61,9 @@ export default function CapturePage() {
       });
 
       const uploadFile =
-        file ??
-        new File([`Proovra ${type} capture`], "capture.txt", {
-          type: "text/plain"
-        });
+        file ?? new File([`Proovra ${type} capture`], "capture.txt", { type: "text/plain" });
 
       setProgress(0);
-
       await new Promise<void>((resolve, reject) => {
         const xhr = new XMLHttpRequest();
         xhr.upload.onprogress = (event) => {
@@ -86,20 +74,12 @@ export default function CapturePage() {
         xhr.onerror = () => reject(new Error("Upload failed"));
         xhr.onload = () => resolve();
         xhr.open("PUT", data.upload.putUrl);
-        xhr.setRequestHeader(
-          "content-type",
-          uploadFile.type || "application/octet-stream"
-        );
+        xhr.setRequestHeader("content-type", uploadFile.type || "application/octet-stream");
         xhr.send(uploadFile);
       });
 
-      await apiFetch(`/v1/evidence/${data.id}/complete`, {
-        method: "POST",
-        body: "{}"
-      });
-
+      await apiFetch(`/v1/evidence/${data.id}/complete`, { method: "POST", body: "{}" });
       await pollReport(data.id);
-
       router.push(`/evidence/${data.id}`);
     } catch (err) {
       captureException(err, { feature: "web_capture" });
@@ -111,23 +91,18 @@ export default function CapturePage() {
 
   return (
     <div className="section app-section">
-      {/* HERO */}
       <div className="app-hero">
         <div className="page-title" style={{ marginBottom: 0 }}>
           <div>
             <h1 style={{ margin: 0 }}>{t("capture")}</h1>
-            <p className="page-subtitle">
-              Upload a file and generate a signed report.
-            </p>
+            <p className="page-subtitle">Upload a file and generate a signed report.</p>
           </div>
         </div>
       </div>
 
-      {/* BODY */}
       <div className="app-body">
         <Card>
-          <div style={{ display: "grid", gap: 18 }}>
-            {/* TYPE SELECT */}
+          <div style={{ display: "grid", gap: 16 }}>
             <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
               {([
                 { label: t("photo"), value: "PHOTO" },
@@ -145,75 +120,54 @@ export default function CapturePage() {
               ))}
             </div>
 
-            {/* FILE INPUT (HIDDEN) */}
             <input
-              ref={fileInputRef}
               type="file"
               aria-label="Upload evidence file"
               onChange={(event) => setFile(event.target.files?.[0] ?? null)}
+              ref={fileInputRef}
               style={{ display: "none" }}
             />
 
-            {/* DROP ZONE */}
             <div
               className="drop-zone"
-              onDragOver={(e) => e.preventDefault()}
-              onDrop={(e) => {
-                e.preventDefault();
-                const dropped = e.dataTransfer.files?.[0] ?? null;
+              onDragOver={(event) => event.preventDefault()}
+              onDrop={(event) => {
+                event.preventDefault();
+                const dropped = event.dataTransfer.files?.[0] ?? null;
                 if (dropped) setFile(dropped);
               }}
               onClick={() => fileInputRef.current?.click()}
             >
               {file ? (
                 <div>
-                  <div style={{ fontWeight: 700 }}>{file.name}</div>
+                  <div style={{ fontWeight: 800 }}>{file.name}</div>
                   <div style={{ fontSize: 12, color: "#64748b" }}>
                     {(file.size / 1024 / 1024).toFixed(2)} MB
                   </div>
                 </div>
               ) : (
-                <div style={{ color: "#64748b" }}>
-                  Drag & drop or click to select a file
-                </div>
+                <div style={{ color: "#64748b" }}>Drag & drop or click to select</div>
               )}
             </div>
 
-            {/* LOCATION */}
-            <label
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 8,
-                fontSize: 13
-              }}
-            >
+            <label style={{ display: "flex", alignItems: "center", gap: 8 }}>
               <input
                 type="checkbox"
                 checked={useLocation}
-                onChange={(e) => setUseLocation(e.target.checked)}
+                onChange={(event) => setUseLocation(event.target.checked)}
               />
               Include location metadata (optional)
             </label>
 
-            {/* PROGRESS */}
-            {busy && (
-              <div style={{ fontSize: 12, color: "#64748b" }}>
-                Uploading… {progress}%
-              </div>
-            )}
+            {busy ? (
+              <div style={{ fontSize: 12, color: "#64748b" }}>Uploading… {progress}%</div>
+            ) : null}
 
-            {/* ERROR */}
             {error && <div className="error-text">{error}</div>}
 
-            {/* ACTION */}
             <div>
-              <Button
-                className="navy-btn"
-                onClick={handleCapture}
-                disabled={busy}
-              >
-                {busy ? "Capturing…" : "Capture & Sign"}
+              <Button className="navy-btn" onClick={handleCapture} disabled={busy}>
+                {busy ? "Capturing..." : "Capture & Sign"}
               </Button>
             </div>
           </div>

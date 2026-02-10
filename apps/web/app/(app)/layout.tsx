@@ -3,8 +3,6 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect } from "react";
-
-/** ✅ KEEP YOUR ORIGINAL IMPORTS (these should match your project) */
 import { TopBar } from "../../components/ui";
 import { SilverWatermarkSection } from "../../components/SilverWatermarkSection";
 import { translations } from "../../lib/i18n";
@@ -12,6 +10,7 @@ import { useAuth, useLocale } from "../providers";
 import { apiFetch } from "../../lib/api";
 
 type NavKey = keyof (typeof translations)["en"];
+
 const NAV_ITEMS: Array<{ href: string; label: NavKey }> = [
   { href: "/home", label: "home" },
   { href: "/capture", label: "capture" },
@@ -83,8 +82,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
               {t(item.label)}
             </Link>
           ))}
-
-          <Link href="/pricing" className={`nav-link ${isActive("/pricing") ? "active" : ""}`}>
+          <Link href="/pricing" className="nav-link">
             Pricing
           </Link>
         </nav>

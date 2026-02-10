@@ -40,12 +40,11 @@ export default function TeamsPage() {
   return (
     <div className="section app-section">
       <div className="app-hero">
-        <div className="page-title" style={{ marginBottom: 0, alignItems: "center" }}>
+        <div className="page-title" style={{ marginBottom: 0 }}>
           <div>
             <h1 style={{ margin: 0 }}>Teams</h1>
             <p className="page-subtitle">Manage access and members.</p>
           </div>
-
           <Button className="navy-btn" onClick={handleCreate}>
             Create Team
           </Button>

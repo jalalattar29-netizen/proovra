@@ -20,7 +20,7 @@ export default function HomePage() {
 
   return (
     <div className="page landing-page">
-      {/* BLUE HERO SHELL (with paper overlay via globals.css) */}
+      {/* BLUE HERO SHELL (background overlay comes from globals.css) */}
       <div className="blue-shell">
         {/* FULL WIDTH NAV BAR */}
         <div className="landing-nav-bar">
@@ -60,7 +60,9 @@ export default function HomePage() {
             <div style={{ color: "rgba(255,255,255,0.82)", fontSize: 13, letterSpacing: 0.3 }}>
               Capture truth. Prove it forever.
             </div>
+
             <h1 className="hero-title">Capture digital evidence that can stand up to scrutiny.</h1>
+
             <p className="hero-subtitle">
               PROO✓RA preserves the integrity of photos, videos, and documents with cryptographic
               fingerprints, transparent custody timelines, and verifiable reports — designed for legal,
@@ -83,8 +85,19 @@ export default function HomePage() {
             </div>
           </div>
 
-          {/* RIGHT CARD */}
+          {/* RIGHT CARD (phone-like) */}
           <div className="hero-card">
+            <div style={{ display: "flex", justifyContent: "center", marginBottom: 10 }}>
+              <div
+                style={{
+                  width: 82,
+                  height: 10,
+                  borderRadius: 999,
+                  background: "rgba(15,23,42,0.10)"
+                }}
+              />
+            </div>
+
             <div className="hero-card-title">Evidence Timeline</div>
 
             <div className="hero-card-list">
@@ -116,15 +129,15 @@ export default function HomePage() {
               </div>
             </div>
 
-            {/* ✅ 3 connected colored buttons (phone style) */}
-            <div className="hero-card-actions">
-              <button className="btn accent-capture" type="button">
+            {/* 3 action buttons like your reference (Capture / Generate Report / Share Link) */}
+            <div style={{ marginTop: 16, display: "grid", gap: 10 }}>
+              <button className="btn primary" type="button" style={{ width: "100%" }}>
                 Capture
               </button>
-              <button className="btn accent-report" type="button">
+              <button className="btn primary" type="button" style={{ width: "100%" }}>
                 Generate Report
               </button>
-              <button className="btn accent-share" type="button">
+              <button className="btn primary" type="button" style={{ width: "100%" }}>
                 Share Link
               </button>
             </div>
@@ -137,7 +150,6 @@ export default function HomePage() {
         <div className="landing-strip container">
           <div className="landing-strip-item">
             <span className="landing-strip-icon" aria-hidden="true">
-              {/* camera */}
               <svg viewBox="0 0 24 24" fill="none">
                 <path
                   d="M8 7l1.3-2h5.4L16 7h2a3 3 0 013 3v7a3 3 0 01-3 3H6a3 3 0 01-3-3v-7a3 3 0 013-3h2z"
@@ -159,7 +171,6 @@ export default function HomePage() {
 
           <div className="landing-strip-item">
             <span className="landing-strip-icon" aria-hidden="true">
-              {/* shield */}
               <svg viewBox="0 0 24 24" fill="none">
                 <path
                   d="M12 2l8 4v7c0 5-3.4 9.4-8 11-4.6-1.6-8-6-8-11V6l8-4z"
@@ -181,7 +192,6 @@ export default function HomePage() {
 
           <div className="landing-strip-item">
             <span className="landing-strip-icon" aria-hidden="true">
-              {/* share */}
               <svg viewBox="0 0 24 24" fill="none">
                 <path
                   d="M15 8a3 3 0 10-2.8-4H12a3 3 0 003 3zM6 14a3 3 0 10.2 6H6a3 3 0 000-6zm12-1a3 3 0 10.2 6H18a3 3 0 000-6z"
@@ -206,14 +216,14 @@ export default function HomePage() {
           <div className="container">
             <div>
               <h2>Built for proof</h2>
-              <p className="page-subtitle">
-                Capture, sign, and verify evidence with a clear chain of custody.
-              </p>
-              <div className="card" style={{ marginTop: 16, width: "100%", maxWidth: 420 }}>
+              <p className="page-subtitle">Capture, sign, and verify evidence with a clear chain of custody.</p>
+
+              <div className="card" style={{ marginTop: 16, width: "100%", maxWidth: 520 }}>
                 <ul style={{ margin: 0, paddingLeft: 18, color: "#475569", lineHeight: 1.7 }}>
                   <li>Cryptographic signing</li>
                   <li>Timestamped reports</li>
                   <li>Shareable verification links</li>
+                  <li>Audit-friendly chain-of-custody</li>
                 </ul>
               </div>
             </div>
@@ -224,8 +234,8 @@ export default function HomePage() {
           <div className="container">
             <h2>About PROO✓RA</h2>
             <p className="page-subtitle" style={{ maxWidth: 720 }}>
-              PROO✓RA helps teams capture trusted evidence and generate verifiable reports for
-              investigations, compliance, and dispute resolution.
+              PROO✓RA helps teams capture trusted evidence and generate verifiable reports for investigations,
+              compliance, and dispute resolution.
             </p>
           </div>
         </div>
@@ -236,6 +246,7 @@ export default function HomePage() {
           <div className="footer-brand">PROO✓RA</div>
           <a href="mailto:support@proovra.com">support@proovra.com</a>
         </div>
+
         <div className="footer-links">
           <Link href="/privacy">Privacy Policy</Link>
           <Link href="/terms">Terms</Link>

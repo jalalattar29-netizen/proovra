@@ -7,9 +7,7 @@ import { useEffect, useState } from "react";
 import { apiFetch } from "../../../lib/api";
 import { PlanType } from "../../pricing/types";
 
-type Subscription = {
-  status?: string | null;
-};
+type Subscription = { status?: string | null };
 
 type PaymentItem = {
   id: string;
@@ -19,10 +17,7 @@ type PaymentItem = {
   currency: string;
 };
 
-type PayPalLink = {
-  rel: string;
-  href: string;
-};
+type PayPalLink = { rel: string; href: string };
 
 export default function SettingsPage() {
   const { t } = useLocale();
@@ -64,7 +59,9 @@ export default function SettingsPage() {
       method: "POST",
       body: JSON.stringify({ plan: planType, currency: "USD" })
     });
-    const approve = (data.order?.links as PayPalLink[] | undefined)?.find((link) => link.rel === "approve");
+    const approve = (data.order?.links as PayPalLink[] | undefined)?.find(
+      (link) => link.rel === "approve"
+    );
     if (approve?.href) window.location.href = approve.href;
   };
 
@@ -109,7 +106,11 @@ export default function SettingsPage() {
               PayPal PAYG
             </Button>
 
-            <Button className="navy-btn" variant="secondary" onClick={() => apiFetch("/v1/billing/restore", { method: "POST" })}>
+            <Button
+              className="navy-btn"
+              variant="secondary"
+              onClick={() => apiFetch("/v1/billing/restore", { method: "POST" })}
+            >
               Restore Purchases
             </Button>
 
@@ -133,7 +134,8 @@ export default function SettingsPage() {
             <div style={{ display: "grid", gap: 8 }}>
               {payments.map((item) => (
                 <div key={item.id} style={{ fontSize: 12 }}>
-                  {item.provider} · {item.status} · {(item.amountCents / 100).toFixed(2)} {item.currency}
+                  {item.provider} · {item.status} · {(item.amountCents / 100).toFixed(2)}{" "}
+                  {item.currency}
                 </div>
               ))}
             </div>
@@ -144,9 +146,12 @@ export default function SettingsPage() {
           <div style={{ fontWeight: 800, marginBottom: 12 }}>Sign in</div>
           <div style={{ display: "grid", gap: 8 }}>
             <Link href="/login">
-              <Button className="navy-btn">Manage sign-in</Button>
+              <Button>Manage sign-in</Button>
             </Link>
-            <Button className="navy-btn" variant="secondary" onClick={() => apiFetch("/v1/auth/logout", { method: "POST" })}>
+            <Button
+              variant="secondary"
+              onClick={() => apiFetch("/v1/auth/logout", { method: "POST" })}
+            >
               Logout
             </Button>
           </div>

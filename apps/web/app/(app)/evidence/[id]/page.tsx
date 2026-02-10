@@ -77,15 +77,6 @@ export default function EvidenceDetailPage() {
     }
   };
 
-  const statusBadge =
-    status === "SIGNED" ? (
-      <span className="badge signed">{t("statusSigned")}</span>
-    ) : status === "PROCESSING" ? (
-      <span className="badge processing">{t("statusProcessing")}</span>
-    ) : (
-      <span className="badge ready">{status}</span>
-    );
-
   return (
     <div className="section app-section">
       <div className="app-hero">
@@ -117,7 +108,15 @@ export default function EvidenceDetailPage() {
 
               <div style={{ flex: 1 }}>
                 <div style={{ fontWeight: 900, fontSize: 14 }}>{type}</div>
-                <div style={{ marginTop: 6 }}>{statusBadge}</div>
+                <div style={{ marginTop: 6 }}>
+                  {status === "SIGNED" ? (
+                    <span className="badge signed">{t("statusSigned")}</span>
+                  ) : status === "PROCESSING" ? (
+                    <span className="badge processing">{t("statusProcessing")}</span>
+                  ) : (
+                    <span className="badge ready">{status}</span>
+                  )}
+                </div>
                 <div style={{ fontSize: 12, opacity: 0.85, marginTop: 8 }}>
                   {createdAt ? `Created ${new Date(createdAt).toLocaleString()}` : "—"}
                 </div>
@@ -133,7 +132,15 @@ export default function EvidenceDetailPage() {
                 <div style={{ display: "grid", gap: 10 }}>
                   <div className="row" style={{ borderTop: "none", paddingTop: 0 }}>
                     <div className="rowTitle">Status</div>
-                    <div style={{ display: "flex", justifyContent: "flex-end" }}>{statusBadge}</div>
+                    <div style={{ display: "flex", justifyContent: "flex-end" }}>
+                      {status === "SIGNED" ? (
+                        <span className="badge signed">{t("statusSigned")}</span>
+                      ) : status === "PROCESSING" ? (
+                        <span className="badge processing">{t("statusProcessing")}</span>
+                      ) : (
+                        <span className="badge ready">{status}</span>
+                      )}
+                    </div>
                   </div>
 
                   <div className="row">
@@ -157,7 +164,7 @@ export default function EvidenceDetailPage() {
           <Card>
             <div style={{ fontWeight: 900, marginBottom: 12 }}>Actions</div>
 
-            <div className="footer-actions" style={{ flexWrap: "wrap" }}>
+            <div className="footer-actions">
               <Button
                 className="navy-btn"
                 onClick={() => reportUrl && window.open(reportUrl, "_blank")}
@@ -167,7 +174,7 @@ export default function EvidenceDetailPage() {
               </Button>
 
               <Link href={`/share/${evidenceId}`}>
-                <Button className="navy-btn" variant="secondary">
+                <Button variant="secondary" className="navy-btn">
                   {t("shareLink")}
                 </Button>
               </Link>
@@ -181,21 +188,18 @@ export default function EvidenceDetailPage() {
 
             <div style={{ display: "grid", gap: 10, marginTop: 14 }}>
               <Button
-                className="navy-btn"
                 variant="secondary"
                 onClick={handleLock}
-                disabled={actionBusy || Boolean(lockedAt) || !(status === "SIGNED" || status === "REPORTED")}
+                disabled={
+                  actionBusy || Boolean(lockedAt) || !(status === "SIGNED" || status === "REPORTED")
+                }
               >
                 {lockedAt ? "Locked" : "Lock Evidence"}
               </Button>
 
-              <Button className="navy-btn" variant="secondary" onClick={handleDelete} disabled={actionBusy}>
+              <Button variant="secondary" onClick={handleDelete} disabled={actionBusy}>
                 Delete Evidence
               </Button>
-
-              <Link href="/home" style={{ marginTop: 4 }}>
-                <span style={{ fontSize: 12, color: "#64748b" }}>← Back to Home</span>
-              </Link>
             </div>
           </Card>
         </div>
