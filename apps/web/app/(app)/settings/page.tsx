@@ -69,15 +69,22 @@ export default function SettingsPage() {
   };
   return (
     <div className="section app-section">
-      <div className="app-hero app-hero-contained">
-        <div className="page-title" style={{ marginBottom: 0 }}>
-          <div>
-            <h1 style={{ margin: 0 }}>{t("settings")}</h1>
-            <p className="page-subtitle">Manage your plan, language, and sign-in.</p>
+      <div className="app-hero app-hero-full">
+        <div className="container">
+          <div className="page-title" style={{ marginBottom: 0 }}>
+            <div>
+              <h1 className="hero-title pricing-hero-title" style={{ margin: 0 }}>
+                {t("settings")}
+              </h1>
+              <p className="page-subtitle pricing-subtitle" style={{ marginTop: 6 }}>
+                Manage your plan, language, and sign-in.
+              </p>
+            </div>
           </div>
         </div>
       </div>
-      <div className="app-body" style={{ display: "grid", gap: 16 }}>
+      <div className="app-body app-body-full">
+        <div className="container" style={{ display: "grid", gap: 16 }}>
         <Card>
           <div style={{ fontWeight: 600, marginBottom: 12 }}>{t("language")}</div>
           <div style={{ color: "#64748b" }}>English only</div>
@@ -147,6 +154,7 @@ export default function SettingsPage() {
             </Button>
           </div>
         </Card>
+        </div>
       </div>
     </div>
   );

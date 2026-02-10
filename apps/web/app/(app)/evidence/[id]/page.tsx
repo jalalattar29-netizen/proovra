@@ -78,15 +78,25 @@ export default function EvidenceDetailPage() {
   };
 
   return (
-    <div className="section">
-      <div className="page-title" style={{ marginBottom: 18 }}>
-        <div>
-          <h1 style={{ margin: 0 }}>Evidence #{evidenceId}</h1>
-          <p className="page-subtitle">{type}</p>
+    <div className="section app-section">
+      <div className="app-hero app-hero-full">
+        <div className="container">
+          <div className="page-title" style={{ marginBottom: 0 }}>
+            <div>
+              <h1 className="hero-title pricing-hero-title" style={{ margin: 0 }}>
+                Evidence #{evidenceId}
+              </h1>
+              <p className="page-subtitle pricing-subtitle" style={{ marginTop: 6 }}>
+                {type}
+              </p>
+            </div>
+          </div>
         </div>
       </div>
 
-      <div className="grid-2">
+      <div className="app-body app-body-full">
+        <div className="container">
+          <div className="grid-2">
         <Card>
           <div className="status-banner">
             <div
@@ -197,6 +207,8 @@ export default function EvidenceDetailPage() {
             </Button>
           </div>
         </Card>
+          </div>
+        </div>
       </div>
     </div>
   );

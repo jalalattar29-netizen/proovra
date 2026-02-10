@@ -92,17 +92,24 @@ export default function CapturePage() {
 
   return (
     <div className="section app-section">
-      <div className="app-hero app-hero-contained">
-        <div className="page-title" style={{ marginBottom: 0 }}>
-          <div>
-            <h1 style={{ margin: 0 }}>{t("capture")}</h1>
-            <p className="page-subtitle">Upload a file and generate a signed report.</p>
+      <div className="app-hero app-hero-full">
+        <div className="container">
+          <div className="page-title" style={{ marginBottom: 0 }}>
+            <div>
+              <h1 className="hero-title pricing-hero-title" style={{ margin: 0 }}>
+                {t("capture")}
+              </h1>
+              <p className="page-subtitle pricing-subtitle" style={{ marginTop: 6 }}>
+                Upload a file and generate a signed report.
+              </p>
+            </div>
           </div>
         </div>
       </div>
-      <div className="app-body">
-        <Card>
-          <div style={{ display: "grid", gap: 16 }}>
+      <div className="app-body app-body-full">
+        <div className="container">
+          <Card>
+            <div style={{ display: "grid", gap: 16 }}>
           <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
             {([
               { label: t("photo"), value: "PHOTO" },
@@ -166,8 +173,9 @@ export default function CapturePage() {
               {busy ? "Capturing..." : "Capture & Sign"}
             </Button>
           </div>
+            </div>
+          </Card>
         </div>
-        </Card>
       </div>
     </div>
   );

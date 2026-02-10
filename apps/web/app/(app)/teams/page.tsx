@@ -38,16 +38,23 @@ export default function TeamsPage() {
     /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
   return (
     <div className="section app-section">
-      <div className="app-hero app-hero-contained">
-        <div className="page-title" style={{ marginBottom: 0 }}>
-          <div>
-            <h1 style={{ margin: 0 }}>Teams</h1>
-            <p className="page-subtitle">Manage access and members.</p>
+      <div className="app-hero app-hero-full">
+        <div className="container">
+          <div className="page-title" style={{ marginBottom: 0 }}>
+            <div>
+              <h1 className="hero-title pricing-hero-title" style={{ margin: 0 }}>
+                Teams
+              </h1>
+              <p className="page-subtitle pricing-subtitle" style={{ marginTop: 6 }}>
+                Manage access and members.
+              </p>
+            </div>
+            <Button className="navy-btn" onClick={handleCreate}>Create Team</Button>
           </div>
-          <Button className="navy-btn" onClick={handleCreate}>Create Team</Button>
         </div>
       </div>
-      <div className="app-body" style={{ display: "grid", gap: 16 }}>
+      <div className="app-body app-body-full">
+        <div className="container" style={{ display: "grid", gap: 16 }}>
         {loading ? (
           <Card>Loading teams...</Card>
         ) : error ? (
@@ -66,6 +73,7 @@ export default function TeamsPage() {
             </Card>
           ))
         )}
+        </div>
       </div>
     </div>
   );

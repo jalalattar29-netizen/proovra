@@ -23,20 +23,27 @@ export default function HomePage() {
 
   return (
     <div className="section app-section">
-      <div className="app-hero app-hero-contained">
-        <div className="page-title" style={{ alignItems: "center", marginBottom: 0 }}>
-          <div>
-            <h1 style={{ margin: 0 }}>{t("home")}</h1>
-            <p className="page-subtitle">{t("bullets")}</p>
+      <div className="app-hero app-hero-full">
+        <div className="container">
+          <div className="page-title" style={{ alignItems: "center", marginBottom: 0 }}>
+            <div>
+              <h1 className="hero-title pricing-hero-title" style={{ margin: 0 }}>
+                {t("home")}
+              </h1>
+              <p className="page-subtitle pricing-subtitle" style={{ marginTop: 6 }}>
+                {t("bullets")}
+              </p>
+            </div>
+            <Link href="/capture">
+              <Button className="navy-btn">{t("ctaCapture")}</Button>
+            </Link>
           </div>
-          <Link href="/capture">
-            <Button className="navy-btn">{t("ctaCapture")}</Button>
-          </Link>
         </div>
       </div>
 
-      <div className="app-body">
-        <div className="grid-2">
+      <div className="app-body app-body-full">
+        <div className="container">
+          <div className="grid-2">
         <Card>
           <div style={{ fontWeight: 700, marginBottom: 12 }}>{t("recentEvidence")}</div>
           <div style={{ display: "grid", gap: 10 }}>
@@ -111,6 +118,7 @@ export default function HomePage() {
             </div>
           </div>
         </Card>
+          </div>
         </div>
       </div>
     </div>

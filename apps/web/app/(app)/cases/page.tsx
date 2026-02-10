@@ -39,16 +39,23 @@ export default function CasesPage() {
 
   return (
     <div className="section app-section">
-      <div className="app-hero app-hero-contained">
-        <div className="page-title" style={{ marginBottom: 0 }}>
-          <div>
-            <h1 style={{ margin: 0 }}>Cases</h1>
-            <p className="page-subtitle">Organize evidence into cases.</p>
+      <div className="app-hero app-hero-full">
+        <div className="container">
+          <div className="page-title" style={{ marginBottom: 0 }}>
+            <div>
+              <h1 className="hero-title pricing-hero-title" style={{ margin: 0 }}>
+                Cases
+              </h1>
+              <p className="page-subtitle pricing-subtitle" style={{ marginTop: 6 }}>
+                Organize evidence into cases.
+              </p>
+            </div>
+            <Button className="navy-btn" onClick={handleCreate}>Create Case</Button>
           </div>
-          <Button className="navy-btn" onClick={handleCreate}>Create Case</Button>
         </div>
       </div>
-      <div className="app-body" style={{ display: "grid", gap: 16 }}>
+      <div className="app-body app-body-full">
+        <div className="container" style={{ display: "grid", gap: 16 }}>
         {loading ? (
           <Card>Loading cases...</Card>
         ) : error ? (
@@ -67,6 +74,7 @@ export default function CasesPage() {
             </Card>
           ))
         )}
+        </div>
       </div>
     </div>
   );

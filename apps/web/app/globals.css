@@ -899,6 +899,18 @@ p {
   padding-right: var(--container-gutter);
 }
 
+.app-hero-full::before,
+.app-hero-full::after {
+  left: 50%;
+  transform: translateX(-50%);
+  width: 100vw;
+}
+
+.app-hero-full > * {
+  padding-left: 0;
+  padding-right: 0;
+}
+
 .app-hero h1,
 .app-hero h2 {
   color: #ffffff;
@@ -925,6 +937,16 @@ p {
 
 .app-body {
   margin-top: 16px;
+}
+
+.app-body-full {
+  margin-left: calc(-1 * (var(--app-nav-width) + var(--app-gap)));
+  width: calc(100% + var(--app-nav-width) + var(--app-gap));
+}
+
+.app-body-full .container {
+  padding-left: var(--container-gutter);
+  padding-right: var(--container-gutter);
 }
 
 .app-shell {
