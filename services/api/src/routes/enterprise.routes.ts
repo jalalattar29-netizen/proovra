@@ -9,6 +9,8 @@ import { prisma } from "../db.js";
 import { AppError, ErrorCode } from "../errors.js";
 import { apiKeyService } from "../services/api-keys.service.js";
 import { batchAnalysisService } from "../services/batch-analysis.service.js";
+import { getEmailService } from "../services/email.service.js";
+import { getWebhookService } from "../services/webhook.service.js";
 
 export async function enterpriseRoutes(app: FastifyInstance) {
   /**
@@ -387,8 +389,48 @@ export async function enterpriseRoutes(app: FastifyInstance) {
           throw new AppError(ErrorCode.NOT_FOUND, "Batch job not found");
         }
 
-        // Start processing asynchronously
-        batchAnalysisService.processBatch(id);
+        // Start processing asynchronously and emit events on completion
+        const processingPromise = batchAnalysisService.processBatch(id);
+        
+        // Fire and forget - don't wait for completion
+        processingPromise.then(() => {
+          // Batch completed - trigger webhook events
+          try {
+            const webhookService = getWebhookService();
+            const completedJob = batchAnalysisService.getJob(userId, id);
+            if (completedJob) {
+              // Get org ID from somewhere - we'll need to track it
+              // For now, skip webhook trigger
+            }
+          } catch (error) {
+            console.error('Failed to trigger webhook event:', error);
+          }
+
+          // Send completion email
+          try {
+            const emailService = getEmailService();
+            if (emailService.isConfigured()) {
+              const completedJob = batchAnalysisService.getJob(userId, id);
+              if (completedJob) {
+                const userEmail = req.user?.email || '';
+                if (userEmail) {
+                  emailService.sendBatchComplete(
+                    userEmail,
+                    'Organization', // TODO: Get actual org name
+                    completedJob.name,
+                    completedJob.totalItems,
+                    completedJob.failedItems,
+                    `${process.env.APP_URL || 'https://app.proovra.com'}/batch/${completedJob.id}`
+                  );
+                }
+              }
+            }
+          } catch (error) {
+            console.error('Failed to send batch completion email:', error);
+          }
+        }).catch((error) => {
+          console.error('Error in batch processing completion handlers:', error);
+        });
 
         return {
           message: "Batch processing started",

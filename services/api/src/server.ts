@@ -4,6 +4,7 @@ import cors from "@fastify/cors";
 import cookie from "@fastify/cookie";
 import { prisma } from "./db.js";
 import { captureException, initSentry } from "./observability/sentry.js";
+import { auditMiddleware } from "./middleware/audit.middleware.js";
 import { evidenceRoutes } from "./routes/evidence.routes.js";
 import { authRoutes } from "./routes/auth.routes.js";
 import { teamsRoutes } from "./routes/teams.routes.js";
@@ -87,6 +88,9 @@ export async function buildServer() {
       );
     }
   });
+
+  // Add audit logging middleware for state-changing requests
+  app.addHook("onRequest", auditMiddleware);
 
   app.addHook("onResponse", async (req, reply) => {
     const start = (req as typeof req & { startTimeMs?: number }).startTimeMs;

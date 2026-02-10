@@ -7,6 +7,7 @@ import type { FastifyInstance } from "fastify";
 import { requireAuth } from "../middleware/auth.js";
 import { AppError, ErrorCode } from "../errors.js";
 import { teamManagementService, TeamRole } from "../services/team-management.service.js";
+import { getEmailService } from "../services/email.service.js";
 
 export async function teamManagementRoutes(app: FastifyInstance) {
   /**
@@ -239,6 +240,22 @@ export async function teamManagementRoutes(app: FastifyInstance) {
           role,
           userId
         );
+
+        // Send invitation email if email service is configured
+        try {
+          const emailService = getEmailService();
+          if (emailService.isConfigured()) {
+            const org = teamManagementService.getOrganization(id);
+            await emailService.sendTeamInvitation(
+              email,
+              org?.name || "Digital Witness",
+              invitation.token
+            );
+          }
+        } catch (emailError) {
+          console.error('Failed to send invitation email:', emailError);
+          // Continue anyway - invitation was created successfully
+        }
 
         return {
           data: {
