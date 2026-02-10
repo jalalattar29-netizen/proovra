@@ -106,13 +106,14 @@ export default function CasesPage() {
               <EmptyState
                 title="No cases yet"
                 subtitle="Create one to organize your evidence by investigation."
-              >
-                <Button 
-                  onClick={handleCreate}
-                  disabled={creating}
-                >
-                  {creating ? "Creating..." : "Create Case"}
-                </Button>
+                action={() => (
+                  <Button 
+                    onClick={handleCreate}
+                    disabled={creating}
+                  >
+                    {creating ? "Creating..." : "Create Case"}
+                  </Button>
+                )}
               </EmptyState>
             </Card>
           ) : (
