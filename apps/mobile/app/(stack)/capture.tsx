@@ -2,6 +2,7 @@ import { Linking, Pressable, ScrollView, StyleSheet, Text, View, Switch } from "
 import { colors, spacing, typography } from "@proovra/ui";
 import { Badge, ListRow, Tabs } from "../../components/ui";
 import { useLocale } from "../../src/locale-context";
+import { useToast } from "../../src/toast-context";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { apiFetch } from "../../src/api";
 import { enqueueUpload, processQueue } from "../../src/upload-queue";
@@ -14,6 +15,7 @@ import { ensureFileUri, uploadWithPut } from "../../src/upload-utils";
 
 export default function CaptureScreen() {
   const { t, fontFamilyBold } = useLocale();
+  const { addToast } = useToast();
   const [activeIndex, setActiveIndex] = useState(0);
   const typeMap = ["PHOTO", "VIDEO", "DOCUMENT"] as const;
   const activeType = typeMap[activeIndex];
@@ -70,6 +72,7 @@ export default function CaptureScreen() {
     setInfo(null);
     setShowSettingsLink(false);
     try {
+      addToast("Opening file picker...", "info");
       if (activeType === "DOCUMENT") {
         const result = await DocumentPicker.getDocumentAsync({
           copyToCacheDirectory: true,
@@ -84,6 +87,7 @@ export default function CaptureScreen() {
             sizeBytes: file.size ?? (info.exists ? info.size : undefined),
             originalFilename: file.name ?? getFilename(file.uri, `document-${Date.now()}`)
           });
+          addToast(`Document selected: ${file.name}`, "success");
         }
         return;
       }
@@ -93,6 +97,7 @@ export default function CaptureScreen() {
         const res = await requestCameraPermission();
         if (!res.granted) {
           setError("Camera permission denied");
+          addToast("Camera permission denied", "error");
           setShowSettingsLink(true);
           return;
         }
@@ -101,13 +106,17 @@ export default function CaptureScreen() {
         const res = await requestMicPermission();
         if (!res.granted) {
           setError("Microphone permission denied");
+          addToast("Microphone permission denied", "error");
           setShowSettingsLink(true);
           return;
         }
       }
+      addToast(`Opening ${activeType.toLowerCase()} camera...`, "info");
       setCameraOpen(true);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to open camera");
+      const errorMsg = err instanceof Error ? err.message : "Failed to open camera";
+      setError(errorMsg);
+      addToast(errorMsg, "error");
     }
   };
 
@@ -115,6 +124,7 @@ export default function CaptureScreen() {
     if (!cameraRef.current) return;
     setError(null);
     setInfo(null);
+    addToast("Capturing photo...", "info");
     try {
       const result = await cameraRef.current.takePictureAsync({ quality: 0.9 });
       if (result?.uri) {
@@ -125,10 +135,13 @@ export default function CaptureScreen() {
           sizeBytes: info.exists ? info.size : undefined,
           originalFilename: getFilename(result.uri, `photo-${Date.now()}.jpg`)
         });
+        addToast("Photo captured successfully", "success");
         setCameraOpen(false);
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to capture photo");
+      const errorMsg = err instanceof Error ? err.message : "Failed to capture photo";
+      setError(errorMsg);
+      addToast(errorMsg, "error");
     }
   };
 
@@ -137,6 +150,7 @@ export default function CaptureScreen() {
     setError(null);
     setInfo(null);
     setIsRecording(true);
+    addToast("Recording started...", "info");
     try {
       const startedAt = Date.now();
       const result = await cameraRef.current.recordAsync();
@@ -156,13 +170,17 @@ export default function CaptureScreen() {
         };
         if (extendedMode) {
           setSegments((prev) => [...prev, next]);
+          addToast("Segment recorded successfully", "success");
         } else {
           setAsset(next);
+          addToast("Video recorded successfully", "success");
         }
         setCameraOpen(false);
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to record video");
+      const errorMsg = err instanceof Error ? err.message : "Failed to record video";
+      setError(errorMsg);
+      addToast(errorMsg, "error");
     } finally {
       setIsRecording(false);
     }
@@ -176,22 +194,27 @@ export default function CaptureScreen() {
     if (activeType === "VIDEO" && extendedMode) {
       if (segments.length === 0) {
         setError("Record at least one segment.");
+        addToast("Record at least one segment", "error");
         return;
       }
     } else if (!asset) {
       setError("Please capture or select a file first.");
+      addToast("Please capture or select a file first", "error");
       return;
     }
     setBusy(true);
     setError(null);
     setInfo(null);
+    addToast("Creating evidence record...", "info");
     try {
       let gps: { lat: number; lng: number; accuracyMeters?: number } | undefined;
       const deviceTimeIso = new Date().toISOString();
       if (useLocation) {
+        addToast("Requesting location...", "info");
         const permission = await Location.requestForegroundPermissionsAsync();
         if (!permission.granted) {
           setError("Location permission denied");
+          addToast("Location permission denied", "error");
           setBusy(false);
           return;
         }
@@ -203,6 +226,7 @@ export default function CaptureScreen() {
           lng: pos.coords.longitude,
           accuracyMeters: pos.coords.accuracy ?? undefined
         };
+        addToast("Location captured", "success");
       }
       if (activeType === "VIDEO" && extendedMode) {
         const baseFilename = `video-${Date.now()}.mp4`;
@@ -218,6 +242,7 @@ export default function CaptureScreen() {
         });
         const segmentSizes: number[] = [];
         for (let i = 0; i < segments.length; i += 1) {
+          addToast(`Uploading segment ${i + 1}/${segments.length}...`, "info");
           const seg = segments[i];
           const segUri = await ensureFileUri(seg.uri);
           if (!seg.sizeBytes) {
@@ -240,6 +265,7 @@ export default function CaptureScreen() {
             mimeType: seg.mimeType
           });
         }
+        addToast("Finalizing evidence...", "info");
         await apiFetch(`/v1/evidence/${created.id}/complete`, {
           method: "POST",
           body: JSON.stringify({
@@ -249,8 +275,10 @@ export default function CaptureScreen() {
           })
         });
         await pollReport(created.id);
+        addToast("Evidence captured successfully!", "success", 2000);
         router.push(`/evidence/${created.id}`);
       } else {
+        addToast("Uploading file...", "info");
         enqueueUpload({
           id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
           type: activeType,
@@ -265,10 +293,13 @@ export default function CaptureScreen() {
           gpsAccuracyMeters: gps?.accuracyMeters ?? null
         });
         await processQueue();
+        addToast("Evidence captured successfully!", "success", 2000);
         router.push("/(tabs)");
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Upload failed");
+      const errorMsg = err instanceof Error ? err.message : "Upload failed";
+      setError(errorMsg);
+      addToast(errorMsg, "error");
     } finally {
       setBusy(false);
     }
