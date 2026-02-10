@@ -90,7 +90,7 @@ export default function CapturePage() {
   };
 
   return (
-    <div className="section app-section">
+    <div className="app-page-wrap">
       <div className="app-hero">
         <div className="page-title" style={{ marginBottom: 0 }}>
           <div>
@@ -100,7 +100,7 @@ export default function CapturePage() {
         </div>
       </div>
 
-      <div className="app-body">
+      <div className="app-body" style={{ marginTop: 0, paddingTop: 18 }}>
         <Card>
           <div style={{ display: "grid", gap: 16 }}>
             <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>

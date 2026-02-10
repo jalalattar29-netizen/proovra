@@ -59,14 +59,12 @@ export default function SettingsPage() {
       method: "POST",
       body: JSON.stringify({ plan: planType, currency: "USD" })
     });
-    const approve = (data.order?.links as PayPalLink[] | undefined)?.find(
-      (link) => link.rel === "approve"
-    );
+    const approve = (data.order?.links as PayPalLink[] | undefined)?.find((l) => l.rel === "approve");
     if (approve?.href) window.location.href = approve.href;
   };
 
   return (
-    <div className="section app-section">
+    <div className="app-page-wrap">
       <div className="app-hero">
         <div className="page-title" style={{ marginBottom: 0 }}>
           <div>
@@ -76,7 +74,7 @@ export default function SettingsPage() {
         </div>
       </div>
 
-      <div className="app-body" style={{ display: "grid", gap: 16 }}>
+      <div className="app-body" style={{ marginTop: 0, paddingTop: 18, display: "grid", gap: 16 }}>
         <Card>
           <div style={{ fontWeight: 800, marginBottom: 12 }}>{t("language")}</div>
           <div style={{ color: "#64748b" }}>English only</div>
@@ -88,7 +86,7 @@ export default function SettingsPage() {
           {plan === "PAYG" && <p style={{ marginTop: 6 }}>Credits: {credits}</p>}
           {plan === "TEAM" && <p style={{ marginTop: 6 }}>Team seats: {teamSeats}</p>}
 
-          <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 10 }}>
+          <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 12 }}>
             <Link href="/pricing">
               <Button className="navy-btn">View Pricing</Button>
             </Link>
@@ -134,8 +132,7 @@ export default function SettingsPage() {
             <div style={{ display: "grid", gap: 8 }}>
               {payments.map((item) => (
                 <div key={item.id} style={{ fontSize: 12 }}>
-                  {item.provider} · {item.status} · {(item.amountCents / 100).toFixed(2)}{" "}
-                  {item.currency}
+                  {item.provider} · {item.status} · {(item.amountCents / 100).toFixed(2)} {item.currency}
                 </div>
               ))}
             </div>
@@ -146,12 +143,9 @@ export default function SettingsPage() {
           <div style={{ fontWeight: 800, marginBottom: 12 }}>Sign in</div>
           <div style={{ display: "grid", gap: 8 }}>
             <Link href="/login">
-              <Button>Manage sign-in</Button>
+              <Button className="navy-btn">Manage sign-in</Button>
             </Link>
-            <Button
-              variant="secondary"
-              onClick={() => apiFetch("/v1/auth/logout", { method: "POST" })}
-            >
+            <Button className="navy-btn" variant="secondary" onClick={() => apiFetch("/v1/auth/logout", { method: "POST" })}>
               Logout
             </Button>
           </div>

@@ -22,7 +22,7 @@ export default function HomePage() {
   }, []);
 
   return (
-    <div className="section app-section">
+    <div className="app-page-wrap">
       <div className="app-hero">
         <div className="page-title" style={{ alignItems: "center", marginBottom: 0 }}>
           <div>
@@ -35,7 +35,7 @@ export default function HomePage() {
         </div>
       </div>
 
-      <div className="app-body">
+      <div className="app-body" style={{ marginTop: 0, paddingTop: 18 }}>
         <div className="grid-2">
           <Card>
             <div style={{ fontWeight: 800, marginBottom: 12 }}>{t("recentEvidence")}</div>
@@ -61,7 +61,6 @@ export default function HomePage() {
                       }
                     />
                   );
-
                   return isUuid(item.id) ? (
                     <Link key={item.id} href={`/evidence/${item.id}`}>
                       {row}
@@ -108,7 +107,7 @@ export default function HomePage() {
               </div>
               <div>
                 <div style={{ fontWeight: 800 }}>Trusted chain of custody</div>
-                <div style={{ fontSize: 12, opacity: 0.8 }}>Capture → Sign → Report → Share</div>
+                <div style={{ fontSize: 12, opacity: 0.85 }}>Capture → Sign → Report → Share</div>
               </div>
             </div>
           </Card>

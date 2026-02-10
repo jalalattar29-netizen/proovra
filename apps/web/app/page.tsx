@@ -20,9 +20,7 @@ export default function HomePage() {
 
   return (
     <div className="page landing-page">
-      {/* BLUE HERO SHELL (background overlay comes from globals.css) */}
       <div className="blue-shell">
-        {/* FULL WIDTH NAV BAR */}
         <div className="landing-nav-bar">
           <div className="container">
             <div className="nav">
@@ -54,7 +52,6 @@ export default function HomePage() {
           </div>
         </div>
 
-        {/* HERO */}
         <section className="landing-hero container">
           <div className="landing-hero-copy">
             <div style={{ color: "rgba(255,255,255,0.82)", fontSize: 13, letterSpacing: 0.3 }}>
@@ -71,7 +68,7 @@ export default function HomePage() {
 
             <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
               <a href={appHome}>
-                <Button>Open Dashboard</Button>
+                <Button className="navy-btn">Open Dashboard</Button>
               </a>
               <Link href="/verify">
                 <Button variant="secondary">Verify Evidence</Button>
@@ -85,59 +82,56 @@ export default function HomePage() {
             </div>
           </div>
 
-          {/* RIGHT CARD (phone-like) */}
-          <div className="hero-card">
-            <div style={{ display: "flex", justifyContent: "center", marginBottom: 10 }}>
-              <div
-                style={{
-                  width: 82,
-                  height: 10,
-                  borderRadius: 999,
-                  background: "rgba(15,23,42,0.10)"
-                }}
-              />
+          {/* Phone Mock */}
+          <div className="phone-mock" aria-label="Phone mock evidence timeline">
+            <div className="phone-notch" />
+
+            <div className="phone-header">
+              <div>
+                <div className="phone-title">Evidence Timeline</div>
+                <div className="phone-sub">A clean, reviewable custody trail.</div>
+              </div>
+              <span className="phone-pill">LIVE</span>
             </div>
 
-            <div className="hero-card-title">Evidence Timeline</div>
-
-            <div className="hero-card-list">
-              <div className="hero-card-row">
-                <span className="hero-dot success" />
+            <div className="phone-list">
+              <div className="phone-row">
+                <span className="phone-dot success" />
                 <div>
-                  <div className="hero-card-row-title">Capture completed</div>
-                  <div className="hero-card-row-sub">2 minutes ago</div>
+                  <div className="phone-row-title">Capture completed</div>
+                  <div className="phone-row-sub">2 minutes ago</div>
                 </div>
-                <span className="hero-pill">SIGNED</span>
+                <span className="phone-pill">SIGNED</span>
               </div>
 
-              <div className="hero-card-row">
-                <span className="hero-dot info" />
+              <div className="phone-row">
+                <span className="phone-dot info" />
                 <div>
-                  <div className="hero-card-row-title">Report generated</div>
-                  <div className="hero-card-row-sub">1 minute ago</div>
+                  <div className="phone-row-title">Report generated</div>
+                  <div className="phone-row-sub">1 minute ago</div>
                 </div>
-                <span className="hero-pill">READY</span>
+                <span className="phone-pill">READY</span>
               </div>
 
-              <div className="hero-card-row">
-                <span className="hero-dot neutral" />
+              <div className="phone-row">
+                <span className="phone-dot neutral" />
                 <div>
-                  <div className="hero-card-row-title">Share link created</div>
-                  <div className="hero-card-row-sub">Just now</div>
+                  <div className="phone-row-title">Share link created</div>
+                  <div className="phone-row-sub">Just now</div>
                 </div>
-                <span className="hero-pill">ACTIVE</span>
+                <span className="phone-pill">ACTIVE</span>
               </div>
             </div>
 
-            {/* 3 action buttons like your reference (Capture / Generate Report / Share Link) */}
-            <div style={{ marginTop: 16, display: "grid", gap: 10 }}>
-              <button className="btn primary" type="button" style={{ width: "100%" }}>
+            {/* Stacked connected buttons (NO purple) */}
+            <div className="phone-actions">
+              <button type="button" className="phone-action-btn phone-action-capture">
                 Capture
               </button>
-              <button className="btn primary" type="button" style={{ width: "100%" }}>
+              <button type="button" className="phone-action-btn phone-action-report">
                 Generate Report
               </button>
-              <button className="btn primary" type="button" style={{ width: "100%" }}>
+              <button type="button" className="phone-action-btn phone-action-share">
                 Share Link
               </button>
             </div>
@@ -145,7 +139,6 @@ export default function HomePage() {
         </section>
       </div>
 
-      {/* ICON STRIP */}
       <SilverWatermarkSection className="section">
         <div className="landing-strip container">
           <div className="landing-strip-item">
@@ -216,7 +209,9 @@ export default function HomePage() {
           <div className="container">
             <div>
               <h2>Built for proof</h2>
-              <p className="page-subtitle">Capture, sign, and verify evidence with a clear chain of custody.</p>
+              <p className="page-subtitle">
+                Capture, sign, and verify evidence with a clear chain of custody.
+              </p>
 
               <div className="card" style={{ marginTop: 16, width: "100%", maxWidth: 520 }}>
                 <ul style={{ margin: 0, paddingLeft: 18, color: "#475569", lineHeight: 1.7 }}>
@@ -234,8 +229,8 @@ export default function HomePage() {
           <div className="container">
             <h2>About PROO✓RA</h2>
             <p className="page-subtitle" style={{ maxWidth: 720 }}>
-              PROO✓RA helps teams capture trusted evidence and generate verifiable reports for investigations,
-              compliance, and dispute resolution.
+              PROO✓RA helps teams capture trusted evidence and generate verifiable reports for
+              investigations, compliance, and dispute resolution.
             </p>
           </div>
         </div>
@@ -246,7 +241,6 @@ export default function HomePage() {
           <div className="footer-brand">PROO✓RA</div>
           <a href="mailto:support@proovra.com">support@proovra.com</a>
         </div>
-
         <div className="footer-links">
           <Link href="/privacy">Privacy Policy</Link>
           <Link href="/terms">Terms</Link>

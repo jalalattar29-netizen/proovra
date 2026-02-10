@@ -78,7 +78,7 @@ export default function EvidenceDetailPage() {
   };
 
   return (
-    <div className="section app-section">
+    <div className="app-page-wrap">
       <div className="app-hero">
         <div className="page-title" style={{ marginBottom: 0 }}>
           <div>
@@ -88,7 +88,7 @@ export default function EvidenceDetailPage() {
         </div>
       </div>
 
-      <div className="app-body">
+      <div className="app-body" style={{ marginTop: 0, paddingTop: 18 }}>
         <div className="grid-2">
           <Card>
             <div className="status-banner">
@@ -105,7 +105,6 @@ export default function EvidenceDetailPage() {
               >
                 ✓
               </div>
-
               <div style={{ flex: 1 }}>
                 <div style={{ fontWeight: 900, fontSize: 14 }}>{type}</div>
                 <div style={{ marginTop: 6 }}>
@@ -174,7 +173,7 @@ export default function EvidenceDetailPage() {
               </Button>
 
               <Link href={`/share/${evidenceId}`}>
-                <Button variant="secondary" className="navy-btn">
+                <Button className="navy-btn" variant="secondary">
                   {t("shareLink")}
                 </Button>
               </Link>
@@ -188,16 +187,15 @@ export default function EvidenceDetailPage() {
 
             <div style={{ display: "grid", gap: 10, marginTop: 14 }}>
               <Button
+                className="navy-btn"
                 variant="secondary"
                 onClick={handleLock}
-                disabled={
-                  actionBusy || Boolean(lockedAt) || !(status === "SIGNED" || status === "REPORTED")
-                }
+                disabled={actionBusy || Boolean(lockedAt) || !(status === "SIGNED" || status === "REPORTED")}
               >
                 {lockedAt ? "Locked" : "Lock Evidence"}
               </Button>
 
-              <Button variant="secondary" onClick={handleDelete} disabled={actionBusy}>
+              <Button className="navy-btn" variant="secondary" onClick={handleDelete} disabled={actionBusy}>
                 Delete Evidence
               </Button>
             </div>

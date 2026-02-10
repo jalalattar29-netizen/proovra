@@ -10,7 +10,6 @@ import { useAuth, useLocale } from "../providers";
 import { apiFetch } from "../../lib/api";
 
 type NavKey = keyof (typeof translations)["en"];
-
 const NAV_ITEMS: Array<{ href: string; label: NavKey }> = [
   { href: "/home", label: "home" },
   { href: "/capture", label: "capture" },
@@ -40,7 +39,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     );
   }
 
-  if (!hasSession) return null;
+  if (!hasSession) {
+    return null;
+  }
 
   return (
     <div className="page app-page">
@@ -82,12 +83,13 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
               {t(item.label)}
             </Link>
           ))}
-          <Link href="/pricing" className="nav-link">
+          <Link href="/pricing" className={`nav-link ${isActive("/pricing") ? "active" : ""}`}>
             Pricing
           </Link>
         </nav>
 
-        <SilverWatermarkSection as="main" className="app-content">
+        {/* ✅ Important: this class activates full-bleed hero styling safely */}
+        <SilverWatermarkSection as="main" className="app-content app-shell-main">
           {children}
         </SilverWatermarkSection>
       </div>
