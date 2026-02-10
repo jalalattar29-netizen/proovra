@@ -53,8 +53,7 @@ export default function MarketingPricingPage() {
               gap: 16
             }}
           >
-            <Card 
-              className="pricing-card"
+            <div
               onMouseEnter={() => setHoveredPlan("FREE")}
               onMouseLeave={() => setHoveredPlan(null)}
               style={{
@@ -63,24 +62,25 @@ export default function MarketingPricingPage() {
                 boxShadow: hoveredPlan === "FREE" ? "0 8px 16px rgba(0,0,0,0.1)" : "none"
               }}
             >
-              <h3>FREE</h3>
-              <p>$0</p>
-              <ul style={{ margin: "12px 0 16px", paddingLeft: 18, color: "#475569", lineHeight: 1.7 }}>
-                <li>3 evidence limit</li>
-                <li>Cryptographic fingerprint and integrity record</li>
-                <li>Basic verification view</li>
-                <li>PDF reports not included</li>
-              </ul>
-              <div className="pricing-cta">
-                <a href={hasSession ? appBilling : appRegister} onClick={() => handlePlanSelect("FREE")}>
+              <Card className="pricing-card">
+                <h3>FREE</h3>
+                <p>$0</p>
+                <ul style={{ margin: "12px 0 16px", paddingLeft: 18, color: "#475569", lineHeight: 1.7 }}>
+                  <li>3 evidence limit</li>
+                  <li>Cryptographic fingerprint and integrity record</li>
+                  <li>Basic verification view</li>
+                  <li>PDF reports not included</li>
+                </ul>
+                <div className="pricing-cta">
+                  <a href={hasSession ? appBilling : appRegister} onClick={() => handlePlanSelect("FREE")}>
                   <Button variant="secondary" className="choose-btn">
                     {hasSession ? "Go to Billing" : "Sign up"} ›
                   </Button>
                 </a>
               </div>
-            </Card>
-            <Card 
-              className="pricing-card"
+              </Card>
+            </div>
+            <div
               onMouseEnter={() => setHoveredPlan("PAYG")}
               onMouseLeave={() => setHoveredPlan(null)}
               style={{
@@ -90,24 +90,25 @@ export default function MarketingPricingPage() {
                 border: "2px solid #0B7BE5"
               }}
             >
-              <h3>PAY-PER-EVIDENCE</h3>
-              <p>$5 / evidence</p>
-              <ul style={{ margin: "12px 0 16px", paddingLeft: 18, color: "#475569", lineHeight: 1.7 }}>
-                <li>Everything in Free</li>
-                <li>Verifiable PDF report per purchase</li>
-                <li>Shareable verification link</li>
-                <li>Audit-ready integrity fields</li>
-              </ul>
-              <div className="pricing-cta">
-                <a href={hasSession ? appBilling : appRegister} onClick={() => handlePlanSelect("PAY-PER-EVIDENCE")}>
-                  <Button className="choose-btn">
-                    {hasSession ? "Go to Billing" : "Sign up"} ›
-                  </Button>
-                </a>
-              </div>
-            </Card>
-            <Card 
-              className="pricing-card"
+              <Card className="pricing-card">
+                <h3>PAY-PER-EVIDENCE</h3>
+                <p>$5 / evidence</p>
+                <ul style={{ margin: "12px 0 16px", paddingLeft: 18, color: "#475569", lineHeight: 1.7 }}>
+                  <li>Everything in Free</li>
+                  <li>Verifiable PDF report per purchase</li>
+                  <li>Shareable verification link</li>
+                  <li>Audit-ready integrity fields</li>
+                </ul>
+                <div className="pricing-cta">
+                  <a href={hasSession ? appBilling : appRegister} onClick={() => handlePlanSelect("PAY-PER-EVIDENCE")}>
+                    <Button className="choose-btn">
+                      {hasSession ? "Go to Billing" : "Sign up"} ›
+                    </Button>
+                  </a>
+                </div>
+              </Card>
+            </div>
+            <div
               onMouseEnter={() => setHoveredPlan("PRO")}
               onMouseLeave={() => setHoveredPlan(null)}
               style={{
@@ -116,24 +117,25 @@ export default function MarketingPricingPage() {
                 boxShadow: hoveredPlan === "PRO" ? "0 8px 16px rgba(0,0,0,0.1)" : "none"
               }}
             >
-              <h3>PRO</h3>
-              <p>$19 / month</p>
-              <ul style={{ margin: "12px 0 16px", paddingLeft: 18, color: "#475569", lineHeight: 1.7 }}>
-                <li>Unlimited evidence capture</li>
-                <li>PDF reports included</li>
-                <li>Faster workflows for frequent verification</li>
-                <li>Designed for individual professionals</li>
-              </ul>
-              <div className="pricing-cta">
-                <a href={hasSession ? appBilling : appRegister} onClick={() => handlePlanSelect("PRO")}>
-                  <Button variant="secondary" className="choose-btn">
-                    {hasSession ? "Go to Billing" : "Sign up"} ›
-                  </Button>
-                </a>
-              </div>
-            </Card>
-            <Card 
-              className="pricing-card"
+              <Card className="pricing-card">
+                <h3>PRO</h3>
+                <p>$19 / month</p>
+                <ul style={{ margin: "12px 0 16px", paddingLeft: 18, color: "#475569", lineHeight: 1.7 }}>
+                  <li>Unlimited evidence capture</li>
+                  <li>PDF reports included</li>
+                  <li>Faster workflows for frequent verification</li>
+                  <li>Designed for individual professionals</li>
+                </ul>
+                <div className="pricing-cta">
+                  <a href={hasSession ? appBilling : appRegister} onClick={() => handlePlanSelect("PRO")}>
+                    <Button variant="secondary" className="choose-btn">
+                      {hasSession ? "Go to Billing" : "Sign up"} ›
+                    </Button>
+                  </a>
+                </div>
+              </Card>
+            </div>
+            <div
               onMouseEnter={() => setHoveredPlan("TEAM")}
               onMouseLeave={() => setHoveredPlan(null)}
               style={{
@@ -142,22 +144,24 @@ export default function MarketingPricingPage() {
                 boxShadow: hoveredPlan === "TEAM" ? "0 8px 16px rgba(0,0,0,0.1)" : "none"
               }}
             >
-              <h3>TEAM (5 seats)</h3>
-              <p>$79 / month</p>
-              <ul style={{ margin: "12px 0 16px", paddingLeft: 18, color: "#475569", lineHeight: 1.7 }}>
-                <li>5 team members included</li>
-                <li>Shared ownership and access control</li>
-                <li>Team-ready evidence organization</li>
-                <li>PDF reports included</li>
-              </ul>
-              <div className="pricing-cta">
-                <a href={hasSession ? appBilling : appRegister} onClick={() => handlePlanSelect("TEAM")}>
-                  <Button variant="secondary" className="choose-btn">
-                    {hasSession ? "Go to Billing" : "Sign up"} ›
-                  </Button>
-                </a>
-              </div>
-            </Card>
+              <Card className="pricing-card">
+                <h3>TEAM (5 seats)</h3>
+                <p>$79 / month</p>
+                <ul style={{ margin: "12px 0 16px", paddingLeft: 18, color: "#475569", lineHeight: 1.7 }}>
+                  <li>5 team members included</li>
+                  <li>Shared ownership and access control</li>
+                  <li>Team-ready evidence organization</li>
+                  <li>PDF reports included</li>
+                </ul>
+                <div className="pricing-cta">
+                  <a href={hasSession ? appBilling : appRegister} onClick={() => handlePlanSelect("TEAM")}>
+                    <Button variant="secondary" className="choose-btn">
+                      {hasSession ? "Go to Billing" : "Sign up"} ›
+                    </Button>
+                  </a>
+                </div>
+              </Card>
+            </div>
           </div>
 
           <div style={{ marginTop: 24, fontSize: 12, color: "#64748b", lineHeight: 1.6 }}>
