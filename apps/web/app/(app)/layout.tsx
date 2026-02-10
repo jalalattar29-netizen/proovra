@@ -46,11 +46,27 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="page app-page">
       <div className="app-top-bar">
-        <div className="container">
+        <div className="container app-top-bar-inner">
           <TopBar
             title={t("brand")}
             logoHref="/home"
             logoSrc="/brand/logo-white.svg"
+            center={
+              <nav className="app-header-nav">
+                {NAV_ITEMS.map((item) => (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    className={`app-header-nav-link ${isActive(item.href) ? "active" : ""}`}
+                  >
+                    {t(item.label)}
+                  </Link>
+                ))}
+                <Link href="/pricing" className="app-header-nav-link">
+                  Pricing
+                </Link>
+              </nav>
+            }
             right={
               <button
                 className="btn secondary"
@@ -71,25 +87,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           />
         </div>
       </div>
-      <div className="app-shell">
-        <nav className="app-nav">
-          {NAV_ITEMS.map((item) => (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={`nav-link ${isActive(item.href) ? "active" : ""}`}
-            >
-              {t(item.label)}
-            </Link>
-          ))}
-          <Link href="/pricing" className="nav-link">
-            Pricing
-          </Link>
-        </nav>
-        <SilverWatermarkSection as="main" className="app-content">
-          {children}
-        </SilverWatermarkSection>
-      </div>
+      <SilverWatermarkSection as="main" className="app-content">
+        {children}
+      </SilverWatermarkSection>
     </div>
   );
 }

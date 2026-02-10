@@ -97,11 +97,13 @@ export function ListRow({
 
 export function TopBar({
   title,
+  center,
   right,
   logoSrc = "/brand/logo.svg",
   logoHref
 }: {
   title: string;
+  center?: ReactNode;
   right?: ReactNode;
   logoSrc?: string;
   logoHref?: string;
@@ -121,6 +123,7 @@ export function TopBar({
           </div>
         )}
       </div>
+      {center && <div className="nav-center">{center}</div>}
       {right}
     </div>
   );

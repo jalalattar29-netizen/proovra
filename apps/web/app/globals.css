@@ -813,6 +813,8 @@ p {
   .app-page {
   background: var(--color-bg);
   color: var(--color-text);
+  --app-nav-width: 0;
+  --app-gap: 0;
   }
 
   .app-top-bar {
@@ -822,13 +824,53 @@ p {
   border-bottom: 1px solid var(--nav-border);
   }
 
-.app-top-bar .container {
-  padding-left: 12px;
+.app-top-bar .container.app-top-bar-inner {
+  padding-left: var(--container-gutter);
   padding-right: var(--container-gutter);
+  max-width: none;
+  width: 100%;
 }
 
   .app-top-bar .nav {
   padding: var(--header-padding-y) 0;
+  }
+
+  .app-top-bar .nav-center {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: 24px;
+  margin-right: 24px;
+  }
+
+  .app-header-nav {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+  }
+
+  .app-header-nav-link {
+  display: inline-flex;
+  align-items: center;
+  padding: 8px 14px;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.82);
+  text-decoration: none;
+  transition: background 160ms ease, color 160ms ease;
+  }
+
+  .app-header-nav-link:hover {
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.12);
+  }
+
+  .app-header-nav-link.active {
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.18);
   }
 
   .app-top-bar .logo {
@@ -864,7 +906,7 @@ p {
   position: relative;
   overflow: hidden;
   color: #ffffff;
-  padding: 28px 0;
+  padding: 40px 0;
   border-radius: 0;
   box-shadow: none;
   z-index: 1;
@@ -874,8 +916,8 @@ p {
   content: "";
   position: absolute;
   inset: 0;
-  left: calc(-1 * (var(--app-nav-width) + var(--app-gap)));
-  width: calc(100% + var(--app-nav-width) + var(--app-gap));
+  left: 0;
+  width: 100%;
   pointer-events: none;
   background: var(--hero-bg);
   z-index: 0;
@@ -885,8 +927,8 @@ p {
   content: "";
   position: absolute;
   inset: 0;
-  left: calc(-1 * (var(--app-nav-width) + var(--app-gap)));
-  width: calc(100% + var(--app-nav-width) + var(--app-gap));
+  left: 0;
+  width: 100%;
   pointer-events: none;
   background-image: var(--hero-overlay), radial-gradient(circle at 55% 18%, rgba(255,255,255,0.10), transparent 60%);
   background-repeat: no-repeat;
@@ -941,7 +983,11 @@ p {
 }
 
 .app-body {
-  margin-top: 16px;
+  margin-top: 32px;
+}
+
+.app-hero-full {
+  min-height: clamp(200px, 26vh, 320px);
 }
 
 .app-body-full {
@@ -961,70 +1007,20 @@ p {
   content: "";
   position: absolute;
   inset: 0;
-  left: calc(-1 * (var(--app-nav-width) + var(--app-gap)));
-  width: calc(100% + var(--app-nav-width) + var(--app-gap));
+  left: 0;
+  width: 100%;
   background: var(--page-bg);
   z-index: 0;
 }
 
-.app-shell {
-  display: grid;
-  --app-nav-width: 240px;
-  --app-gap: 32px;
-  grid-template-columns: minmax(200px, var(--app-nav-width)) 1fr;
-  gap: var(--app-gap);
-  padding: 0 0 96px;
-  margin-top: 0;
-  overflow: hidden;
-}
-
-.app-nav {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-  background: transparent;
-  border: 1px solid var(--border-soft);
-  border-radius: var(--radius-lg);
-  padding: 12px;
-    align-self: start;
-  box-shadow: none;
-  position: relative;
-  z-index: 10;
-  }
-
-  .nav-link {
-    display: inline-flex;
-    align-items: center;
-    gap: 10px;
-    padding: 10px 12px;
-    border-radius: 12px;
-    font-weight: 700;
-    font-size: 13px;
-  color: var(--color-muted);
-  background: transparent;
-  border: 1px solid transparent;
-    transition: background 160ms ease, color 160ms ease, transform 160ms ease;
-  }
-
-  .nav-link:hover {
-  background: var(--surface-muted);
-  color: var(--color-primary);
-    transform: translateY(-1px);
-  }
-
-  .nav-link.active {
-  background: rgba(var(--navy-900-rgb), 0.14);
-  color: var(--color-primary);
-  border-color: rgba(var(--navy-900-rgb), 0.22);
-  }
-
 .app-content {
   min-height: 520px;
-  padding: 0 0 12px;
+  padding: 0 0 96px;
   position: relative;
   z-index: 2;
   overflow: visible;
-  }
+  width: 100%;
+}
 
 .app-content.silver-watermark-section {
   overflow: visible;
@@ -1039,17 +1035,17 @@ p {
   }
 
   @media (max-width: 980px) {
-    .app-shell {
-      grid-template-columns: 1fr;
-    }
-    .app-nav {
-      flex-direction: row;
-      flex-wrap: wrap;
-    }
-  .app-hero::before,
-  .app-hero::after {
-    left: 0;
-    width: 100%;
+  .app-top-bar .nav-center {
+    justify-content: flex-start;
+    margin-left: 12px;
+    margin-right: 12px;
+  }
+  .app-header-nav {
+    gap: 2px;
+  }
+  .app-header-nav-link {
+    padding: 6px 10px;
+    font-size: 13px;
   }
   }
 
