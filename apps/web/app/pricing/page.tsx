@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { Button, Card } from "../../components/ui";
+import { useState } from "react";
+import { Button, Card, useToast } from "../../components/ui";
 import { SilverWatermarkSection } from "../../components/SilverWatermarkSection";
 import { MarketingHeader } from "../../components/header";
 import { useAuth } from "../providers";
@@ -14,10 +15,20 @@ function getAppBase() {
 }
 
 export default function MarketingPricingPage() {
+  const { addToast } = useToast();
   const { hasSession } = useAuth();
+  const [hoveredPlan, setHoveredPlan] = useState<string | null>(null);
   const appBase = getAppBase();
   const appBilling = appBase ? `${appBase}/billing` : "/billing";
   const appRegister = appBase ? `${appBase}/register` : "/register";
+
+  const handlePlanSelect = (plan: string) => {
+    if (hasSession) {
+      addToast(`Redirecting to billing for ${plan} plan...`, "info");
+    } else {
+      addToast(`Creating account to select ${plan} plan...`, "info");
+    }
+  };
 
   return (
     <div className="page landing-page">
@@ -42,7 +53,16 @@ export default function MarketingPricingPage() {
               gap: 16
             }}
           >
-            <Card className="pricing-card">
+            <Card 
+              className="pricing-card"
+              onMouseEnter={() => setHoveredPlan("FREE")}
+              onMouseLeave={() => setHoveredPlan(null)}
+              style={{
+                transition: "all 0.3s",
+                transform: hoveredPlan === "FREE" ? "translateY(-4px)" : "none",
+                boxShadow: hoveredPlan === "FREE" ? "0 8px 16px rgba(0,0,0,0.1)" : "none"
+              }}
+            >
               <h3>FREE</h3>
               <p>$0</p>
               <ul style={{ margin: "12px 0 16px", paddingLeft: 18, color: "#475569", lineHeight: 1.7 }}>
@@ -52,14 +72,24 @@ export default function MarketingPricingPage() {
                 <li>PDF reports not included</li>
               </ul>
               <div className="pricing-cta">
-                <a href={hasSession ? appBilling : appRegister}>
+                <a href={hasSession ? appBilling : appRegister} onClick={() => handlePlanSelect("FREE")}>
                   <Button variant="secondary" className="choose-btn">
                     {hasSession ? "Go to Billing" : "Sign up"} ›
                   </Button>
                 </a>
               </div>
             </Card>
-            <Card className="pricing-card">
+            <Card 
+              className="pricing-card"
+              onMouseEnter={() => setHoveredPlan("PAYG")}
+              onMouseLeave={() => setHoveredPlan(null)}
+              style={{
+                transition: "all 0.3s",
+                transform: hoveredPlan === "PAYG" ? "translateY(-4px)" : "none",
+                boxShadow: hoveredPlan === "PAYG" ? "0 8px 16px rgba(0,0,0,0.1)" : "none",
+                border: "2px solid #0B7BE5"
+              }}
+            >
               <h3>PAY-PER-EVIDENCE</h3>
               <p>$5 / evidence</p>
               <ul style={{ margin: "12px 0 16px", paddingLeft: 18, color: "#475569", lineHeight: 1.7 }}>
@@ -69,14 +99,23 @@ export default function MarketingPricingPage() {
                 <li>Audit-ready integrity fields</li>
               </ul>
               <div className="pricing-cta">
-                <a href={hasSession ? appBilling : appRegister}>
-                  <Button variant="secondary" className="choose-btn">
+                <a href={hasSession ? appBilling : appRegister} onClick={() => handlePlanSelect("PAY-PER-EVIDENCE")}>
+                  <Button className="choose-btn">
                     {hasSession ? "Go to Billing" : "Sign up"} ›
                   </Button>
                 </a>
               </div>
             </Card>
-            <Card className="pricing-card">
+            <Card 
+              className="pricing-card"
+              onMouseEnter={() => setHoveredPlan("PRO")}
+              onMouseLeave={() => setHoveredPlan(null)}
+              style={{
+                transition: "all 0.3s",
+                transform: hoveredPlan === "PRO" ? "translateY(-4px)" : "none",
+                boxShadow: hoveredPlan === "PRO" ? "0 8px 16px rgba(0,0,0,0.1)" : "none"
+              }}
+            >
               <h3>PRO</h3>
               <p>$19 / month</p>
               <ul style={{ margin: "12px 0 16px", paddingLeft: 18, color: "#475569", lineHeight: 1.7 }}>
@@ -86,14 +125,23 @@ export default function MarketingPricingPage() {
                 <li>Designed for individual professionals</li>
               </ul>
               <div className="pricing-cta">
-                <a href={hasSession ? appBilling : appRegister}>
+                <a href={hasSession ? appBilling : appRegister} onClick={() => handlePlanSelect("PRO")}>
                   <Button variant="secondary" className="choose-btn">
                     {hasSession ? "Go to Billing" : "Sign up"} ›
                   </Button>
                 </a>
               </div>
             </Card>
-            <Card className="pricing-card">
+            <Card 
+              className="pricing-card"
+              onMouseEnter={() => setHoveredPlan("TEAM")}
+              onMouseLeave={() => setHoveredPlan(null)}
+              style={{
+                transition: "all 0.3s",
+                transform: hoveredPlan === "TEAM" ? "translateY(-4px)" : "none",
+                boxShadow: hoveredPlan === "TEAM" ? "0 8px 16px rgba(0,0,0,0.1)" : "none"
+              }}
+            >
               <h3>TEAM (5 seats)</h3>
               <p>$79 / month</p>
               <ul style={{ margin: "12px 0 16px", paddingLeft: 18, color: "#475569", lineHeight: 1.7 }}>
@@ -103,7 +151,7 @@ export default function MarketingPricingPage() {
                 <li>PDF reports included</li>
               </ul>
               <div className="pricing-cta">
-                <a href={hasSession ? appBilling : appRegister}>
+                <a href={hasSession ? appBilling : appRegister} onClick={() => handlePlanSelect("TEAM")}>
                   <Button variant="secondary" className="choose-btn">
                     {hasSession ? "Go to Billing" : "Sign up"} ›
                   </Button>
