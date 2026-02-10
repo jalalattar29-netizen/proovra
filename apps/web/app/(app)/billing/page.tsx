@@ -115,8 +115,8 @@ export default function BillingPage() {
             <Card>
               <div style={{ fontWeight: 600, marginBottom: 12 }}>Current plan</div>
               <div style={{ display: "grid", gap: 8 }}>
-                <Skeleton width="100%" height={20} />
-                <Skeleton width="60%" height={16} />
+                <Skeleton width="100%" height="20px" />
+                <Skeleton width="60%" height="16px" />
               </div>
             </Card>
           ) : error ? (
@@ -145,8 +145,8 @@ export default function BillingPage() {
             <div style={{ fontWeight: 600, marginBottom: 12 }}>Upgrade or switch plan</div>
             {loading ? (
               <div style={{ display: "grid", gap: 8 }}>
-                <Skeleton width="100%" height={40} />
-                <Skeleton width="100%" height={40} />
+                <Skeleton width="100%" height="40px" />
+                <Skeleton width="100%" height="40px" />
               </div>
             ) : (
               <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
