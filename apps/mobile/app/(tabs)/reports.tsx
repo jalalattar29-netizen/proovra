@@ -30,7 +30,7 @@ export default function ReportsScreen() {
 
   return (
     <View style={styles.container}>
-      <TopBar title={t("reports")} />
+      <TopBar title={t("cases")} />
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
         {reports.length === 0 ? (
           <View style={styles.emptyState}>
@@ -90,7 +90,7 @@ const styles = StyleSheet.create({
     paddingBottom: spacing.xl
   },
   emptyState: {
-    marginTop: spacing.xxl,
+    marginTop: spacing["2xl"],
     alignItems: "center",
     paddingHorizontal: spacing.xl
   },

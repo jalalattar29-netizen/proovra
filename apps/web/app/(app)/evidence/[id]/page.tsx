@@ -3,13 +3,15 @@
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
-import { Button, Card } from "../../../../components/ui";
+import { Button, Card, useToast } from "../../../../components/ui";
 import { useLocale } from "../../../providers";
 import { apiFetch } from "../../../../lib/api";
+import { captureException } from "../../../../lib/sentry";
 
 export default function EvidenceDetailPage() {
   const { t } = useLocale();
   const params = useParams<{ id: string }>();
+  const { addToast } = useToast();
   const evidenceId = params?.id ?? "unknown";
 
   const [status, setStatus] = useState("SIGNED");
@@ -51,13 +53,18 @@ export default function EvidenceDetailPage() {
     if (!params?.id) return;
     setActionBusy(true);
     try {
+      addToast("Locking evidence...", "info");
       const data = await apiFetch(`/v1/evidence/${params.id}/lock`, {
         method: "POST",
         body: JSON.stringify({ locked: true })
       });
       setLockedAt(data.evidence?.lockedAt ?? new Date().toISOString());
+      addToast("Evidence locked", "success");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to lock evidence");
+      captureException(err, { feature: "web_evidence_lock", evidenceId: params.id });
+      const message = err instanceof Error ? err.message : "Failed to lock evidence";
+      setError(message);
+      addToast(message, "error");
     } finally {
       setActionBusy(false);
     }
@@ -68,12 +75,34 @@ export default function EvidenceDetailPage() {
     if (!window.confirm("Delete this evidence? This cannot be undone.")) return;
     setActionBusy(true);
     try {
+      addToast("Deleting evidence...", "info");
       await apiFetch(`/v1/evidence/${params.id}`, { method: "DELETE" });
-      window.location.href = "/home";
+      addToast("Evidence deleted", "success");
+      setTimeout(() => {
+        window.location.href = "/home";
+      }, 500);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to delete evidence");
+      captureException(err, { feature: "web_evidence_delete", evidenceId: params.id });
+      const message = err instanceof Error ? err.message : "Failed to delete evidence";
+      setError(message);
+      addToast(message, "error");
     } finally {
       setActionBusy(false);
+    }
+  };
+
+  const handleDownloadReport = async () => {
+    if (!reportUrl) {
+      addToast("Report not available", "info");
+      return;
+    }
+    try {
+      addToast("Downloading report...", "info");
+      window.open(reportUrl, "_blank");
+      addToast("Report downloaded", "success");
+    } catch (err) {
+      captureException(err, { feature: "web_evidence_download", evidenceId: params?.id });
+      addToast("Failed to download report", "error");
     }
   };
 
@@ -172,7 +201,7 @@ export default function EvidenceDetailPage() {
 
           <div className="footer-actions">
             <Button
-              onClick={() => reportUrl && window.open(reportUrl, "_blank")}
+              onClick={handleDownloadReport}
               disabled={!reportUrl || plan === "FREE"}
             >
               {t("downloadReport")}

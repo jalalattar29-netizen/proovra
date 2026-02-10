@@ -175,25 +175,47 @@ export function StatusPill({ children }: { children: ReactNode }) {
   return <span className="phone-pill">{children}</span>;
 }
 
-export function Tabs({ items }: { items: string[] }) {
+export function Tabs({
+  items,
+  active,
+  onChange
+}: {
+  items: Array<{ label: string; value: string; icon?: ReactNode }> | string[];
+  active?: string;
+  onChange?: (value: string) => void;
+}) {
+  const tabItems = items.map((item) =>
+    typeof item === "string" ? { label: item, value: item } : item
+  );
+
   return (
-    <div style={{ display: "flex", gap: 10 }}>
-      {items.map((item, idx) => (
-        <div
-          key={item}
-          style={{
-            padding: "6px 12px",
-            borderRadius: 999,
-            border: "1px solid #E2E8F0",
-            background: idx === 0 ? "var(--color-primary)" : "#fff",
-            color: idx === 0 ? "#fff" : "#475569",
-            fontSize: 12,
-            fontWeight: 600
-          }}
-        >
-          {item}
-        </div>
-      ))}
+    <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+      {tabItems.map((item, idx) => {
+        const isActive = active ? item.value === active : idx === 0;
+        return (
+          <button
+            key={item.value}
+            onClick={() => onChange?.(item.value)}
+            style={{
+              padding: "8px 16px",
+              borderRadius: 8,
+              border: "1px solid #E2E8F0",
+              background: isActive ? "var(--color-primary)" : "#fff",
+              color: isActive ? "#fff" : "#475569",
+              fontSize: 14,
+              fontWeight: 600,
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              transition: "all 0.2s"
+            }}
+          >
+            {item.icon && <span>{item.icon}</span>}
+            {item.label}
+          </button>
+        );
+      })}
     </div>
   );
 }

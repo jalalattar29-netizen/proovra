@@ -8,6 +8,7 @@ import {
 } from "../lib/i18n";
 import { apiFetch } from "../lib/api";
 import { initSentry } from "../lib/sentry";
+import { ToastProvider } from "../components/ui";
 
 type AuthUser = {
   id: string;
@@ -132,7 +133,11 @@ export function Providers({ children }: { children: React.ReactNode }) {
 
   return (
     <AuthContext.Provider value={authValue}>
-      <LocaleContext.Provider value={value}>{children}</LocaleContext.Provider>
+      <LocaleContext.Provider value={value}>
+        <ToastProvider>
+          {children}
+        </ToastProvider>
+      </LocaleContext.Provider>
     </AuthContext.Provider>
   );
 }

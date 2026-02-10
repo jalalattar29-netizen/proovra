@@ -2,7 +2,7 @@
 
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Button, Card } from "../../../components/ui";
+import { Button, Card, useToast } from "../../../components/ui";
 import { useLocale } from "../../providers";
 import { apiFetch } from "../../../lib/api";
 import { captureException } from "../../../lib/sentry";
@@ -12,6 +12,7 @@ type EvidenceType = "PHOTO" | "VIDEO" | "DOCUMENT";
 export default function CapturePage() {
   const { t } = useLocale();
   const router = useRouter();
+  const { addToast } = useToast();
   const [type, setType] = useState<EvidenceType>("PHOTO");
   const [file, setFile] = useState<File | null>(null);
   const [busy, setBusy] = useState(false);
@@ -36,10 +37,12 @@ export default function CapturePage() {
     setError(null);
     setBusy(true);
     try {
+      addToast("Creating evidence record...", "info");
       const mimeType = file?.type || "text/plain";
       const deviceTimeIso = new Date().toISOString();
       let gps: { lat: number; lng: number; accuracyMeters?: number } | undefined;
       if (useLocation && typeof navigator !== "undefined" && navigator.geolocation) {
+        addToast("Requesting location...", "info");
         gps = await new Promise((resolve, reject) => {
           navigator.geolocation.getCurrentPosition(
             (pos) =>
@@ -61,6 +64,7 @@ export default function CapturePage() {
       const uploadFile =
         file ?? new File([`Proovra ${type} capture`], "capture.txt", { type: "text/plain" });
 
+      addToast("Uploading file...", "info");
       setProgress(0);
       await new Promise<void>((resolve, reject) => {
         const xhr = new XMLHttpRequest();
@@ -79,12 +83,16 @@ export default function CapturePage() {
         xhr.send(uploadFile);
       });
 
+      addToast("Finalizing evidence...", "info");
       await apiFetch(`/v1/evidence/${data.id}/complete`, { method: "POST", body: "{}" });
       await pollReport(data.id);
+      addToast("Evidence captured successfully!", "success");
       router.push(`/evidence/${data.id}`);
     } catch (err) {
       captureException(err, { feature: "web_capture" });
-      setError(err instanceof Error ? err.message : "Capture failed");
+      const message = err instanceof Error ? err.message : "Capture failed";
+      setError(message);
+      addToast(message, "error");
     } finally {
       setBusy(false);
     }
