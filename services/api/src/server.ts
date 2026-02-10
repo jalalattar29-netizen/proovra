@@ -11,6 +11,7 @@ import { billingRoutes } from "./routes/billing.routes.js";
 import { webhooksRoutes } from "./routes/webhooks.routes.js";
 import { casesRoutes } from "./routes/cases.routes.js";
 import { searchRoutes } from "./routes/search.routes.js";
+import { aiRoutes } from "./routes/ai.routes.js";
 import { AppError, isAppError, createErrorResponse } from "./errors.js";
 
 const REQUIRED_ORIGINS = [
@@ -158,6 +159,7 @@ export async function buildServer() {
   await app.register(casesRoutes);
   await app.register(evidenceRoutes);
   await app.register(searchRoutes);
+  await app.register(aiRoutes);
 
   return app;
 }
