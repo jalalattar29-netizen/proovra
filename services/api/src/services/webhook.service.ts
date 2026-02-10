@@ -70,18 +70,16 @@ export class WebhookService {
     const urlObj = new URL(url);
     if (process.env.NODE_ENV === 'production' && urlObj.protocol !== 'https:') {
       throw new AppError(
-        'Webhook URL must be HTTPS',
         ErrorCode.VALIDATION_ERROR,
-        400
+        'Webhook URL must be HTTPS'
       );
     }
 
     // Validate events
     if (!events || events.length === 0) {
       throw new AppError(
-        'At least one event type must be specified',
         ErrorCode.VALIDATION_ERROR,
-        400
+        'At least one event type must be specified'
       );
     }
 
@@ -131,7 +129,7 @@ export class WebhookService {
   ): Webhook {
     const webhook = this.webhooks.get(webhookId);
     if (!webhook) {
-      throw new AppError('Webhook not found', ErrorCode.NOT_FOUND, 404);
+      throw new AppError(ErrorCode.NOT_FOUND, 'Webhook not found');
     }
 
     const updated = {
@@ -188,7 +186,7 @@ export class WebhookService {
   ): Promise<void> {
     const webhook = this.getWebhook(webhookId);
     if (!webhook) {
-      throw new AppError('Webhook not found', ErrorCode.NOT_FOUND, 404);
+      throw new AppError(ErrorCode.NOT_FOUND, 'Webhook not found');
     }
 
     const eventId = `evt_${crypto.randomBytes(16).toString('hex')}`;
@@ -359,7 +357,7 @@ export class WebhookService {
   async testWebhook(webhookId: string): Promise<void> {
     const webhook = this.getWebhook(webhookId);
     if (!webhook) {
-      throw new AppError('Webhook not found', ErrorCode.NOT_FOUND, 404);
+      throw new AppError(ErrorCode.NOT_FOUND, 'Webhook not found');
     }
 
     const testPayload = {

@@ -333,9 +333,8 @@ export class AuditService {
   setRetentionDays(days: number): void {
     if (days < 1) {
       throw new AppError(
-        'Retention period must be at least 1 day',
         ErrorCode.VALIDATION_ERROR,
-        400
+        'Retention period must be at least 1 day'
       );
     }
     this.retentionDays = days;

@@ -53,9 +53,8 @@ export async function auditRoutes(app: FastifyInstance) {
       );
       if (!canView) {
         throw new AppError(
-          'You do not have permission to view audit logs',
           ErrorCode.FORBIDDEN,
-          403
+          'You do not have permission to view audit logs'
         );
       }
 
@@ -96,9 +95,8 @@ export async function auditRoutes(app: FastifyInstance) {
         };
       } catch (error) {
         throw new AppError(
-          'Failed to retrieve audit logs',
           ErrorCode.INTERNAL_SERVER_ERROR,
-          500
+          'Failed to retrieve audit logs'
         );
       }
     }
@@ -127,9 +125,8 @@ export async function auditRoutes(app: FastifyInstance) {
       );
       if (!isMember) {
         throw new AppError(
-          'You do not have access to this organization',
           ErrorCode.FORBIDDEN,
-          403
+          'You do not have access to this organization'
         );
       }
 
@@ -173,9 +170,8 @@ export async function auditRoutes(app: FastifyInstance) {
       );
       if (!canView) {
         throw new AppError(
-          'You do not have permission to view activity',
           ErrorCode.FORBIDDEN,
-          403
+          'You do not have permission to view activity'
         );
       }
 
@@ -216,9 +212,8 @@ export async function auditRoutes(app: FastifyInstance) {
       );
       if (!canView) {
         throw new AppError(
-          'You do not have permission to view statistics',
           ErrorCode.FORBIDDEN,
-          403
+          'You do not have permission to view statistics'
         );
       }
 
@@ -272,9 +267,8 @@ export async function auditRoutes(app: FastifyInstance) {
       );
       if (!canView) {
         throw new AppError(
-          'You do not have permission to export audit logs',
           ErrorCode.FORBIDDEN,
-          403
+          'You do not have permission to export audit logs'
         );
       }
 
@@ -299,9 +293,8 @@ export async function auditRoutes(app: FastifyInstance) {
         return csv;
       } catch (error) {
         throw new AppError(
-          'Failed to export audit logs',
           ErrorCode.INTERNAL_SERVER_ERROR,
-          500
+          'Failed to export audit logs'
         );
       }
     }
@@ -328,7 +321,7 @@ export async function auditRoutes(app: FastifyInstance) {
 
       const log = result.logs.find((l) => l.id === logId);
       if (!log) {
-        throw new AppError('Audit log not found', ErrorCode.NOT_FOUND, 404);
+        throw new AppError(ErrorCode.NOT_FOUND, 'Audit log not found');
       }
 
       // Verify user is admin of the organization (if specified)
@@ -340,9 +333,8 @@ export async function auditRoutes(app: FastifyInstance) {
         );
         if (!canView) {
           throw new AppError(
-            'You do not have permission to view this log',
             ErrorCode.FORBIDDEN,
-            403
+            'You do not have permission to view this log'
           );
         }
       }

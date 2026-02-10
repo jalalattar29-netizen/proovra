@@ -108,9 +108,8 @@ export class EmailService {
     } catch (error) {
       console.error(`Failed to send email to ${content.to}:`, error);
       throw new AppError(
-        'Failed to send email',
         ErrorCode.INTERNAL_SERVER_ERROR,
-        500,
+        'Failed to send email',
         { originalError: error instanceof Error ? error.message : String(error) }
       );
     }

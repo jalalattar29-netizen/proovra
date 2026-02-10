@@ -32,9 +32,8 @@ export async function webhookRoutes(app: FastifyInstance) {
       const org = await teamManagementService.getOrganization(orgId);
       if (!org) {
         throw new AppError(
-          'Organization not found',
           ErrorCode.NOT_FOUND,
-          404
+          'Organization not found'
         );
       }
 
@@ -45,18 +44,16 @@ export async function webhookRoutes(app: FastifyInstance) {
       );
       if (!canManage) {
         throw new AppError(
-          'You do not have permission to manage webhooks',
           ErrorCode.FORBIDDEN,
-          403
+          'You do not have permission to manage webhooks'
         );
       }
 
       // Validate input
       if (!url || !events || events.length === 0) {
         throw new AppError(
-          'URL and at least one event type are required',
           ErrorCode.VALIDATION_ERROR,
-          400
+          'URL and at least one event type are required'
         );
       }
 
@@ -80,9 +77,8 @@ export async function webhookRoutes(app: FastifyInstance) {
           throw error;
         }
         throw new AppError(
-          'Failed to create webhook',
           ErrorCode.INTERNAL_SERVER_ERROR,
-          500
+          'Failed to create webhook'
         );
       }
     }
@@ -109,9 +105,8 @@ export async function webhookRoutes(app: FastifyInstance) {
       );
       if (!isMember) {
         throw new AppError(
-          'You do not have access to this organization',
           ErrorCode.FORBIDDEN,
-          403
+          'You do not have access to this organization'
         );
       }
 
@@ -154,16 +149,15 @@ export async function webhookRoutes(app: FastifyInstance) {
       );
       if (!canManage) {
         throw new AppError(
-          'You do not have permission to view webhooks',
           ErrorCode.FORBIDDEN,
-          403
+          'You do not have permission to view webhooks'
         );
       }
 
       const webhookService = getWebhookService();
       const webhook = webhookService.getWebhook(webhookId);
       if (!webhook || webhook.organizationId !== orgId) {
-        throw new AppError('Webhook not found', ErrorCode.NOT_FOUND, 404);
+        throw new AppError(ErrorCode.NOT_FOUND, 'Webhook not found');
       }
 
       return {
@@ -204,16 +198,15 @@ export async function webhookRoutes(app: FastifyInstance) {
       );
       if (!canManage) {
         throw new AppError(
-          'You do not have permission to manage webhooks',
           ErrorCode.FORBIDDEN,
-          403
+          'You do not have permission to manage webhooks'
         );
       }
 
       const webhookService = getWebhookService();
       const webhook = webhookService.getWebhook(webhookId);
       if (!webhook || webhook.organizationId !== orgId) {
-        throw new AppError('Webhook not found', ErrorCode.NOT_FOUND, 404);
+        throw new AppError(ErrorCode.NOT_FOUND, 'Webhook not found');
       }
 
       try {
@@ -239,9 +232,8 @@ export async function webhookRoutes(app: FastifyInstance) {
           throw error;
         }
         throw new AppError(
-          'Failed to update webhook',
           ErrorCode.INTERNAL_SERVER_ERROR,
-          500
+          'Failed to update webhook'
         );
       }
     }
@@ -268,16 +260,15 @@ export async function webhookRoutes(app: FastifyInstance) {
       );
       if (!canManage) {
         throw new AppError(
-          'You do not have permission to manage webhooks',
           ErrorCode.FORBIDDEN,
-          403
+          'You do not have permission to manage webhooks'
         );
       }
 
       const webhookService = getWebhookService();
       const webhook = webhookService.getWebhook(webhookId);
       if (!webhook || webhook.organizationId !== orgId) {
-        throw new AppError('Webhook not found', ErrorCode.NOT_FOUND, 404);
+        throw new AppError(ErrorCode.NOT_FOUND, 'Webhook not found');
       }
 
       webhookService.deleteWebhook(webhookId);
@@ -311,16 +302,15 @@ export async function webhookRoutes(app: FastifyInstance) {
       );
       if (!canManage) {
         throw new AppError(
-          'You do not have permission to view webhook logs',
           ErrorCode.FORBIDDEN,
-          403
+          'You do not have permission to view webhook logs'
         );
       }
 
       const webhookService = getWebhookService();
       const webhook = webhookService.getWebhook(webhookId);
       if (!webhook || webhook.organizationId !== orgId) {
-        throw new AppError('Webhook not found', ErrorCode.NOT_FOUND, 404);
+        throw new AppError(ErrorCode.NOT_FOUND, 'Webhook not found');
       }
 
       const events = webhookService.getWebhookEvents(
@@ -364,16 +354,15 @@ export async function webhookRoutes(app: FastifyInstance) {
       );
       if (!canManage) {
         throw new AppError(
-          'You do not have permission to test webhooks',
           ErrorCode.FORBIDDEN,
-          403
+          'You do not have permission to test webhooks'
         );
       }
 
       const webhookService = getWebhookService();
       const webhook = webhookService.getWebhook(webhookId);
       if (!webhook || webhook.organizationId !== orgId) {
-        throw new AppError('Webhook not found', ErrorCode.NOT_FOUND, 404);
+        throw new AppError(ErrorCode.NOT_FOUND, 'Webhook not found');
       }
 
       try {
@@ -383,9 +372,8 @@ export async function webhookRoutes(app: FastifyInstance) {
         };
       } catch (error) {
         throw new AppError(
-          'Failed to send test webhook',
           ErrorCode.INTERNAL_SERVER_ERROR,
-          500
+          'Failed to send test webhook'
         );
       }
     }
