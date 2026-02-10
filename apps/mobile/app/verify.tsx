@@ -2,12 +2,14 @@ import { Linking, ScrollView, StyleSheet, Text, View } from "react-native";
 import { colors, spacing, typography } from "@proovra/ui";
 import { BottomNav, Button, TimelineBlock } from "../components/ui";
 import { useLocale } from "../src/locale-context";
+import { useToast } from "../src/toast-context";
 import { useLocalSearchParams } from "expo-router";
 import { useEffect, useState } from "react";
 import { apiFetch } from "../src/api";
 
 export default function VerifyScreen() {
   const { t, fontFamilyBold, isRTL } = useLocale();
+  const { addToast } = useToast();
   const params = useLocalSearchParams<{ id?: string }>();
   const [timeline, setTimeline] = useState<string[]>([
     "12:05 Created",
@@ -16,9 +18,21 @@ export default function VerifyScreen() {
     "12:15 Report Generated"
   ]);
   const [reportUrl, setReportUrl] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!params.id) return;
+    if (!params.id) {
+      setLoading(false);
+      setError("No verification token provided");
+      addToast("No verification token provided", "error");
+      return;
+    }
+    
+    setLoading(true);
+    setError(null);
+    addToast("Verifying evidence...", "info");
+    
     apiFetch(`/public/verify/${params.id}`)
       .then((data) => {
         setTimeline(
@@ -28,8 +42,15 @@ export default function VerifyScreen() {
           )
         );
         setReportUrl(data.publicUrl ?? null);
+        addToast("Evidence verified successfully!", "success");
+        setError(null);
       })
-      .catch(() => {});
+      .catch((err) => {
+        const errorMsg = err instanceof Error ? err.message : "Verification failed";
+        setError(errorMsg);
+        addToast(errorMsg, "error");
+      })
+      .finally(() => setLoading(false));
   }, [params.id]);
   return (
     <View style={styles.container}>
@@ -38,6 +59,17 @@ export default function VerifyScreen() {
         <Text style={[styles.headerTitle, { fontFamily: fontFamilyBold }]}>{t("verifyTitle")}</Text>
         <Text style={styles.headerIcon}>⋮</Text>
       </View>
+      {error && (
+        <View style={{ backgroundColor: "#FEE2E2", padding: spacing.md, marginHorizontal: spacing.md, marginTop: spacing.md, borderRadius: 8 }}>
+          <Text style={{ color: "#991B1B", fontSize: 12 }}>{error}</Text>
+        </View>
+      )}
+      {loading && (
+        <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
+          <Text style={{ fontSize: 14, color: "#666" }}>Loading verification...</Text>
+        </View>
+      )}
+      {!loading && !error && (
       <ScrollView contentContainerStyle={styles.scroll}>
         <Text
           style={[styles.valid, { fontFamily: fontFamilyBold, textAlign: isRTL ? "right" : "left" }]}
@@ -82,12 +114,17 @@ export default function VerifyScreen() {
             label={t("downloadReport")}
             onPress={() => {
               if (reportUrl) {
+                addToast("Opening report...", "info");
                 void Linking.openURL(reportUrl);
+                addToast("Report opened", "success");
+              } else {
+                addToast("Report not available", "warning");
               }
             }}
           />
         </View>
       </ScrollView>
+      )}
       <BottomNav />
     </View>
   );
