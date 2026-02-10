@@ -1,11 +1,8 @@
 "use client";
 
-import Link from "next/link";
 import { Button, Card } from "../../../components/ui";
-import { useLocale } from "../../providers";
 
 export default function AppPricingPage() {
-  const { t } = useLocale();
   const webBase =
     typeof window !== "undefined" &&
     (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1")
