@@ -2,24 +2,41 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Card, ListRow, Badge } from "../../../components/ui";
+import { Card, ListRow, Badge, useToast, EmptyState, Skeleton, Button } from "../../../components/ui";
 import { useLocale } from "../../providers";
 import { apiFetch } from "../../../lib/api";
+import { captureException } from "../../../lib/sentry";
 import { Icons } from "../../../components/icons";
 
 export default function ReportsPage() {
   const { t } = useLocale();
+  const { addToast } = useToast();
   const [items, setItems] = useState<
     Array<{ id: string; type: string; status: string; createdAt: string }>
   >([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   const isUuid = (value: string) =>
     /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
 
   useEffect(() => {
+    setLoading(true);
+    setError(null);
+    
     apiFetch("/v1/evidence")
-      .then((data) => setItems(data.items ?? []))
-      .catch(() => setItems([]));
+      .then((data) => {
+        setItems(data.items ?? []);
+        addToast("Reports loaded successfully", "success");
+      })
+      .catch((err) => {
+        const errorMessage = err?.message || "Failed to load reports";
+        setError(errorMessage);
+        setItems([]);
+        captureException(err, { feature: "reports_page_list" });
+        addToast(errorMessage, "error");
+      })
+      .finally(() => setLoading(false));
   }, []);
 
   const withReports = items.filter((i) => i.status === "REPORTED" || i.status === "SIGNED");
@@ -42,27 +59,40 @@ export default function ReportsPage() {
       </div>
       <div className="app-body app-body-full">
         <div className="container" style={{ display: "grid", gap: 16 }}>
-          {withReports.length === 0 ? (
+          {loading ? (
+            <div style={{ display: "grid", gap: 8 }}>
+              <Skeleton width="100%" height={40} />
+              <Skeleton width="100%" height={40} />
+              <Skeleton width="100%" height={40} />
+            </div>
+          ) : error ? (
             <Card>
-              <div className="empty-state">
-                <div className="empty-state-icon" style={{ display: "flex" }}>
-                  <Icons.Reports />
-                </div>
-                <div>No reports yet. Capture evidence and complete signing to generate reports.</div>
-                <div style={{ marginTop: 16 }}>
-                  <Link href="/capture">
-                    <button className="btn primary" type="button">
-                      {t("ctaCapture")}
-                    </button>
-                  </Link>
-                </div>
+              <div style={{
+                padding: 16,
+                background: "#FEE2E2",
+                borderRadius: 8,
+                color: "#991B1B",
+                fontSize: 12
+              }}>
+                {error}
               </div>
+            </Card>
+          ) : withReports.length === 0 ? (
+            <Card>
+              <EmptyState
+                title="No reports yet"
+                subtitle="Capture evidence and complete signing to generate verifiable reports."
+              >
+                <Link href="/capture">
+                  <Button>{t("ctaCapture")}</Button>
+                </Link>
+              </EmptyState>
             </Card>
           ) : (
             withReports.map((item) => (
-              <Card key={item.id}>
+              <Card key={item.id} style={{ cursor: "pointer", transition: "all 0.2s" }}>
                 {isUuid(item.id) ? (
-                  <Link href={`/evidence/${item.id}`} style={{ display: "block" }}>
+                  <Link href={`/evidence/${item.id}`} style={{ display: "block", textDecoration: "none" }}>
                     <ListRow
                       title={item.type}
                       subtitle={new Date(item.createdAt).toLocaleString()}
