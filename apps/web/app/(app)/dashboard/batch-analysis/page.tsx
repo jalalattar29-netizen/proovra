@@ -1,10 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useAuth } from "@/src/auth-context";
-import { apiFetch, ApiError } from "@/lib/api";
-import { useToast } from "@/components/ui";
-import { Skeleton, EmptyState, Card, Button, Progress } from "@/components/ui";
+import { useAuth } from "../../../providers";
+import { apiFetch } from "../../../../lib/api";
+import { useToast, Skeleton, EmptyState, Card, Button } from "../../../../components/ui";
 
 interface BatchJob {
   id: string;
@@ -31,7 +30,7 @@ interface BatchDetails extends BatchJob {
 }
 
 export default function BatchAnalysisPage() {
-  const { user } = useAuth();
+  const { user, token } = useAuth();
   const { addToast } = useToast();
   const [jobs, setJobs] = useState<BatchJob[]>([]);
   const [selectedJob, setSelectedJob] = useState<BatchDetails | null>(null);
@@ -121,7 +120,7 @@ export default function BatchAnalysisPage() {
     try {
       const response = await fetch(
         `/api/v1/batch-analysis/${jobId}/export`,
-        { headers: { Authorization: `Bearer ${user?.token}` } }
+        { headers: { Authorization: `Bearer ${token}` } }
       );
       const csv = await response.text();
 
@@ -171,8 +170,8 @@ export default function BatchAnalysisPage() {
   if (loading && jobs.length === 0) {
     return (
       <div className="space-y-4 p-6">
-        <Skeleton width="100%" height={60} />
-        <Skeleton width="100%" height={200} />
+        <Skeleton width="100%" height="60px" />
+        <Skeleton width="100%" height="200px" />
       </div>
     );
   }
@@ -237,11 +236,11 @@ export default function BatchAnalysisPage() {
             </div>
 
             <div className="flex gap-2">
-              <Button type="submit" className="flex-1">
+              <Button className="flex-1">
                 Create & Start Batch
               </Button>
               <Button
-                type="button"
+
                 onClick={() => setShowNewJobForm(false)}
                 variant="secondary"
                 className="flex-1"
@@ -257,12 +256,8 @@ export default function BatchAnalysisPage() {
       {jobs.length === 0 ? (
         <EmptyState
           title="No Batch Jobs"
-          description="Create your first batch job to analyze multiple evidence items"
-          action={
-            <Button onClick={() => setShowNewJobForm(true)}>
-              Create Batch Job
-            </Button>
-          }
+          subtitle="Create your first batch job to analyze multiple evidence items"
+          action={() => <Button onClick={() => setShowNewJobForm(true)}>Create Batch Job</Button>}
         />
       ) : (
         <div className="space-y-4">
@@ -294,7 +289,12 @@ export default function BatchAnalysisPage() {
                       {job.processedItems + job.failedItems} / {job.totalItems}
                     </span>
                   </div>
-                  <Progress value={job.progress} />
+                  <div className="w-full bg-gray-200 rounded-full h-2">
+                    <div
+                      className="bg-blue-600 h-2 rounded-full"
+                      style={{ width: `${job.progress}%` }}
+                    />
+                  </div>
                 </div>
 
                 {/* Stats */}

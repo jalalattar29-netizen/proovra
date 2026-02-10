@@ -1,9 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useAuth } from "@/src/auth-context";
-import { apiFetch } from "@/lib/api";
-import { Skeleton, Card } from "@/components/ui";
+import { useAuth } from "../../../providers";
+import { apiFetch } from "../../../../lib/api";
+import { Skeleton, Card } from "../../../../components/ui";
 
 interface Quotas {
   analyses: { limit: number; used: number; remaining: number; resetDate: string };
@@ -87,8 +87,8 @@ export default function QuotasPage() {
   if (loading) {
     return (
       <div className="space-y-4 p-6">
-        <Skeleton width="100%" height={300} />
-        <Skeleton width="100%" height={300} />
+        <Skeleton width="100%" height="300px" />
+        <Skeleton width="100%" height="300px" />
       </div>
     );
   }

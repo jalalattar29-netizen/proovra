@@ -1,10 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useAuth } from "@/src/auth-context";
-import { apiFetch, ApiError } from "@/lib/api";
-import { useToast } from "@/components/ui";
-import { Skeleton, EmptyState, Card, Button } from "@/components/ui";
+import { useAuth } from "../../../providers";
+import { apiFetch } from "../../../../lib/api";
+import { useToast, Skeleton, EmptyState, Card, Button } from "../../../../components/ui";
 import Link from "next/link";
 
 interface Insights {
@@ -42,13 +41,9 @@ export default function InsightsPage() {
         const data = await apiFetch("/v1/insights");
         setInsights(data.data);
       } catch (err) {
-        if (err instanceof ApiError) {
-          setError(err.message);
-          addToast(err.message, "error");
-        } else {
-          setError("Failed to load insights");
-          addToast("Failed to load insights", "error");
-        }
+        const message = err instanceof Error ? err.message : "Failed to load insights";
+        setError(message);
+        addToast(message, "error");
       } finally {
         setLoading(false);
       }
@@ -62,9 +57,9 @@ export default function InsightsPage() {
   if (loading) {
     return (
       <div className="space-y-6 p-6">
-        <Skeleton width="100%" height={200} />
-        <Skeleton width="100%" height={200} />
-        <Skeleton width="100%" height={200} />
+        <Skeleton width="100%" height="200px" />
+        <Skeleton width="100%" height="200px" />
+        <Skeleton width="100%" height="200px" />
       </div>
     );
   }
@@ -73,12 +68,8 @@ export default function InsightsPage() {
     return (
       <EmptyState
         title="Error Loading Insights"
-        description={error}
-        action={
-          <Button onClick={() => window.location.reload()}>
-            Try Again
-          </Button>
-        }
+        subtitle={error}
+        action={() => window.location.reload()}
       />
     );
   }
@@ -87,12 +78,12 @@ export default function InsightsPage() {
     return (
       <EmptyState
         title="No Insights Yet"
-        description="Start analyzing your evidence to see insights and AI-powered analytics."
-        action={
+        subtitle="Start analyzing your evidence to see insights and AI-powered analytics."
+        action={() => (
           <Link href="/dashboard">
             <Button>Go to Dashboard</Button>
           </Link>
-        }
+        )}
       />
     );
   }

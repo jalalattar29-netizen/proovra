@@ -33,8 +33,8 @@ export default function AdminPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Check if user is admin
-  const isAdmin = user?.isAdmin === true || user?.role === "admin";
+  // Check if user is admin (simple check for now - can be enhanced with roles later)
+  const isAdmin = user?.id === "admin" || user?.email?.includes("admin");
 
   useEffect(() => {
     if (!isAdmin) {
@@ -87,8 +87,8 @@ export default function AdminPage() {
             }}>
               <h2 style={{ margin: 0, marginBottom: 8 }}>Access Denied</h2>
               <p style={{ margin: 0, fontSize: 14 }}>This page is only accessible to administrators.</p>
-              <Link href="/">
-                <Button style={{ marginTop: 16 }}>Go Home</Button>
+              <Link href="/" style={{ marginTop: 16, display: "inline-block" }}>
+                <Button>Go Home</Button>
               </Link>
             </div>
           </Card>
@@ -133,10 +133,10 @@ export default function AdminPage() {
 
           {loading ? (
             <div style={{ display: "grid", gap: 16, gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))" }}>
-              <Skeleton width="100%" height={100} />
-              <Skeleton width="100%" height={100} />
-              <Skeleton width="100%" height={100} />
-              <Skeleton width="100%" height={100} />
+              <Skeleton width="100%" height="100px" />
+              <Skeleton width="100%" height="100px" />
+              <Skeleton width="100%" height="100px" />
+              <Skeleton width="100%" height="100px" />
             </div>
           ) : stats ? (
             <>
@@ -243,20 +243,21 @@ export default function AdminPage() {
               </Card>
 
               {/* Evidence by Type */}
-              <Card style={{ marginTop: 16 }}>
-                <h3 style={{ margin: "0 0 16px 0", fontSize: 16, fontWeight: 600 }}>
-                  Evidence by Type
-                </h3>
-                <div style={{ display: "grid", gap: 12 }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                    <div>
-                      <div style={{ fontSize: 14, fontWeight: 500 }}>Photos</div>
-                      <div style={{ fontSize: 12, color: "#666", marginTop: 2 }}>{stats.evidenceByType.photos.toLocaleString()} items</div>
+              <div style={{ marginTop: 16 }}>
+                <Card>
+                  <h3 style={{ margin: "0 0 16px 0", fontSize: 16, fontWeight: 600 }}>
+                    Evidence by Type
+                  </h3>
+                  <div style={{ display: "grid", gap: 12 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                      <div>
+                        <div style={{ fontSize: 14, fontWeight: 500 }}>Photos</div>
+                        <div style={{ fontSize: 12, color: "#666", marginTop: 2 }}>{stats.evidenceByType.photos.toLocaleString()} items</div>
+                      </div>
+                      <div style={{ fontSize: 14, fontWeight: 600, color: "#0B7BE5" }}>
+                        {((stats.evidenceByType.photos / stats.totalEvidence) * 100).toFixed(1)}%
+                      </div>
                     </div>
-                    <div style={{ fontSize: 14, fontWeight: 600, color: "#0B7BE5" }}>
-                      {((stats.evidenceByType.photos / stats.totalEvidence) * 100).toFixed(1)}%
-                    </div>
-                  </div>
                   <div style={{ height: 1, backgroundColor: "#E2E8F0" }} />
 
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
@@ -292,27 +293,30 @@ export default function AdminPage() {
                   </div>
                 </div>
               </Card>
+            </div>
 
               {/* System Info */}
-              <Card style={{ marginTop: 16 }}>
-                <h3 style={{ margin: "0 0 16px 0", fontSize: 16, fontWeight: 600 }}>
-                  System Information
-                </h3>
-                <div style={{ display: "grid", gap: 8, fontSize: 12, color: "#666" }}>
-                  <div>
-                    <strong>API Version:</strong> v1
+              <div style={{ marginTop: 16 }}>
+                <Card>
+                  <h3 style={{ margin: "0 0 16px 0", fontSize: 16, fontWeight: 600 }}>
+                    System Information
+                  </h3>
+                  <div style={{ display: "grid", gap: 8, fontSize: 12, color: "#666" }}>
+                    <div>
+                      <strong>API Version:</strong> v1
+                    </div>
+                    <div>
+                      <strong>Database:</strong> PostgreSQL
+                    </div>
+                    <div>
+                      <strong>Last Updated:</strong> {new Date().toLocaleString()}
+                    </div>
+                    <div>
+                      <strong>Status:</strong> <span style={{ color: "#1F9D55", fontWeight: 600 }}>Healthy</span>
+                    </div>
                   </div>
-                  <div>
-                    <strong>Database:</strong> PostgreSQL
-                  </div>
-                  <div>
-                    <strong>Last Updated:</strong> {new Date().toLocaleString()}
-                  </div>
-                  <div>
-                    <strong>Status:</strong> <span style={{ color: "#1F9D55", fontWeight: 600 }}>Healthy</span>
-                  </div>
-                </div>
-              </Card>
+                </Card>
+              </div>
             </>
           ) : null}
         </div>

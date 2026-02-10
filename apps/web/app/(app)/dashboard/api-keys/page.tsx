@@ -1,10 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useAuth } from "@/src/auth-context";
-import { apiFetch, ApiError } from "@/lib/api";
-import { useToast } from "@/components/ui";
-import { Skeleton, EmptyState, Card, Button } from "@/components/ui";
+import { useAuth } from "../../../providers";
+import { apiFetch } from "../../../../lib/api";
+import { useToast, Skeleton, EmptyState, Card, Button } from "../../../../components/ui";
 
 interface APIKey {
   id: string;
@@ -128,9 +127,9 @@ export default function APIKeysPage() {
   if (loading) {
     return (
       <div className="space-y-4 p-6">
-        <Skeleton width="100%" height={60} />
-        <Skeleton width="100%" height={200} />
-        <Skeleton width="100%" height={200} />
+        <Skeleton width="100%" height="60px" />
+        <Skeleton width="100%" height="200px" />
+        <Skeleton width="100%" height="200px" />
       </div>
     );
   }
@@ -212,11 +211,10 @@ export default function APIKeysPage() {
             </div>
 
             <div className="flex gap-2">
-              <Button type="submit" className="flex-1">
+              <Button className="flex-1">
                 Generate Key
               </Button>
               <Button
-                type="button"
                 onClick={() => setShowNewKeyForm(false)}
                 variant="secondary"
                 className="flex-1"
@@ -232,10 +230,8 @@ export default function APIKeysPage() {
       {keys.length === 0 ? (
         <EmptyState
           title="No API Keys"
-          description="Create your first API key to integrate with third-party services"
-          action={
-            <Button onClick={() => setShowNewKeyForm(true)}>Create API Key</Button>
-          }
+          subtitle="Create your first API key to integrate with third-party services"
+          action={() => <Button onClick={() => setShowNewKeyForm(true)}>Create API Key</Button>}
         />
       ) : (
         <div className="space-y-4">
