@@ -73,18 +73,14 @@ export default function LoginPage() {
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    if (!process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID) setError("Google client ID is missing.");
-    if (!process.env.NEXT_PUBLIC_APPLE_CLIENT_ID) setError("Apple client ID is missing.");
 
     const nextAppleState =
       window.crypto?.randomUUID?.() ?? `apple-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 
-    const googleClientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID ?? "";
-    const appleClientId = process.env.NEXT_PUBLIC_APPLE_CLIENT_ID ?? "";
-    const googleRedirect =
-      process.env.NEXT_PUBLIC_GOOGLE_REDIRECT_URI ?? `${window.location.origin}/auth/callback`;
-    const appleRedirect =
-      process.env.NEXT_PUBLIC_APPLE_REDIRECT_URI ?? `${window.location.origin}/auth/callback`;
+    const googleClientId = "548168595768-8uddhhcmdgl9108juth8fke4boncenut.apps.googleusercontent.com";
+    const appleClientId = "com.proovra.web";
+    const googleRedirect = "https://www.proovra.com/auth/callback";
+    const appleRedirect = "https://www.proovra.com/auth/callback";
 
     let nextGoogleHref = "";
     let nextAppleHref = "";
@@ -177,16 +173,14 @@ export default function LoginPage() {
             };
           };
         }).AppleID;
-        if (!AppleID?.auth || !process.env.NEXT_PUBLIC_APPLE_CLIENT_ID) {
+        if (!AppleID?.auth) {
           setAppleReady(false);
           return;
         }
-        const redirectUri =
-          process.env.NEXT_PUBLIC_APPLE_REDIRECT_URI ?? `${window.location.origin}/auth/callback`;
         AppleID.auth.init({
-          clientId: process.env.NEXT_PUBLIC_APPLE_CLIENT_ID,
+          clientId: "com.proovra.web",
           scope: "name email",
-          redirectURI: redirectUri,
+          redirectURI: "https://www.proovra.com/auth/callback",
           usePopup: true
         });
         setAppleReady(true);
