@@ -6,7 +6,7 @@ import { useMemo, useState } from "react";
 import { apiFetch } from "../../src/api";
 import { useAuth } from "../../src/auth-context";
 import { useRouter } from "expo-router";
-import * as FileSystem from "expo-file-system/legacy";
+import * as FileSystem from "expo-file-system";
 import { uploadWithPut } from "../../src/upload-utils";
 import { Linking } from "react-native";
 

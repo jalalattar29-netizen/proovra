@@ -5,7 +5,7 @@ import { useLocale } from "../../../src/locale-context";
 import { useLocalSearchParams } from "expo-router";
 import { useEffect, useState } from "react";
 import { apiFetch, getAuthToken } from "../../../src/api";
-import * as FileSystem from "expo-file-system/legacy";
+import * as FileSystem from "expo-file-system";
 
 export default function CaseDetailScreen() {
   const { fontFamilyBold } = useLocale();

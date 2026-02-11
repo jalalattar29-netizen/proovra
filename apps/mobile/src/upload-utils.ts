@@ -1,4 +1,4 @@
-import * as FileSystem from "expo-file-system/legacy";
+import * as FileSystem from "expo-file-system";
 
 function cachePath(prefix: string) {
   const stamp = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
