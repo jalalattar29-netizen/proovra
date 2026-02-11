@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useCallback, useRef } from "react";
+import { createContext, useContext, useState, useCallback, useRef, ReactNode, useEffect } from "react";
 import { Animated, View, Text, StyleSheet, TouchableOpacity } from "react-native";
 
 interface Toast {
@@ -81,7 +81,7 @@ interface ToastItemProps {
 function ToastItem({ toast, onDismiss }: ToastItemProps) {
   const scaleAnim = useRef(new Animated.Value(0)).current;
 
-  React.useEffect(() => {
+  useEffect(() => {
     Animated.spring(scaleAnim, {
       toValue: 1,
       useNativeDriver: true,
@@ -139,7 +139,7 @@ function ToastOverlay({ toasts, onDismiss }: ToastOverlayProps) {
 }
 
 interface ToastProviderProps {
-  children: React.ReactNode;
+  children: ReactNode;
 }
 
 export function ToastProvider({ children }: ToastProviderProps) {
