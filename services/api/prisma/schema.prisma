@@ -392,3 +392,98 @@ model Payment {
   @@index([userId])
   @@map("payments")
 }
+
+enum AuditAction {
+  EVIDENCE_CREATED
+  EVIDENCE_UPDATED
+  EVIDENCE_DELETED
+  EVIDENCE_VERIFIED
+  EVIDENCE_SHARED
+  MEMBER_INVITED
+  MEMBER_JOINED
+  MEMBER_REMOVED
+  MEMBER_ROLE_CHANGED
+  ORGANIZATION_CREATED
+  ORGANIZATION_UPDATED
+  API_KEY_GENERATED
+  API_KEY_ROTATED
+  API_KEY_REVOKED
+  BATCH_CREATED
+  BATCH_PROCESSED
+  BATCH_CANCELLED
+  USER_LOGIN
+  USER_LOGOUT
+  PASSWORD_CHANGED
+  WEBHOOK_CREATED
+  WEBHOOK_DELETED
+  WEBHOOK_TEST
+  SETTINGS_CHANGED
+}
+
+enum WebhookStatus {
+  PENDING
+  DELIVERED
+  FAILED
+}
+
+model AuditLog {
+  id              String   @id @default(cuid())
+  userId          String
+  action          AuditAction
+  resourceType    String
+  resourceId      String?
+  organizationId  String?  @db.Uuid
+  changes         Json?
+  status          String   // 'success' | 'failure'
+  errorMessage    String?  @db.VarChar(512)
+  ipAddress       String?  @db.VarChar(45)
+  userAgent       String?  @db.VarChar(512)
+  metadata        Json?
+  createdAt       DateTime @default(now()) @db.Timestamptz(6)
+
+  @@index([userId, createdAt(sort: Desc)])
+  @@index([organizationId, createdAt(sort: Desc)])
+  @@index([action, createdAt(sort: Desc)])
+  @@index([createdAt]) // For retention cleanup
+  @@map("audit_logs")
+}
+
+model Webhook {
+  id              String   @id @default(cuid())
+  organizationId  String   @db.Uuid
+  url             String   @db.VarChar(2048)
+  events          String[] // Array of event types
+  secret          String   @db.VarChar(256) // HMAC-SHA256 signing key
+  isActive        Boolean  @default(true)
+  failureCount    Int      @default(0)
+  lastTriggeredAt DateTime?
+  createdAt       DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt       DateTime @updatedAt @db.Timestamptz(6)
+
+  events_rel      WebhookEvent[]
+
+  @@index([organizationId, isActive])
+  @@index([isActive])
+  @@map("webhooks")
+}
+
+model WebhookEvent {
+  id              String   @id @default(cuid())
+  webhookId       String
+  type            String   // WebhookEventType
+  payload         Json     @db.JsonB
+  status          WebhookStatus
+  attempt         Int      @default(1)
+  nextRetryAt     DateTime?
+  httpStatus      Int?
+  errorMessage    String?  @db.VarChar(512)
+  createdAt       DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt       DateTime @updatedAt @db.Timestamptz(6)
+
+  webhook         Webhook @relation(fields: [webhookId], references: [id], onDelete: Cascade)
+
+  @@index([webhookId, status])
+  @@index([status, nextRetryAt]) // For processing pending events
+  @@index([createdAt]) // For cleanup/retention
+  @@map("webhook_events")
+}

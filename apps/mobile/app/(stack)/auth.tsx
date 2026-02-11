@@ -12,7 +12,6 @@ import { useRouter } from "expo-router";
 export default function AuthScreen() {
   const { setSession } = useAuth();
   const router = useRouter();
-  const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);
   const googleClientId = process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID ?? "";
@@ -40,7 +39,6 @@ export default function AuthScreen() {
       return;
     }
     void (async () => {
-      setBusy(true);
       setError(null);
       setStatus("Signing in with Google...");
       try {
@@ -57,14 +55,11 @@ export default function AuthScreen() {
         router.replace("/(tabs)");
       } catch (err) {
         setError(err instanceof Error ? err.message : "Google login failed");
-      } finally {
-        setBusy(false);
       }
     })();
   }, [googleResponse, router, setSession]);
 
   const handleGuest = async () => {
-    setBusy(true);
     setError(null);
     setStatus("Signing in as guest...");
     try {
@@ -73,13 +68,10 @@ export default function AuthScreen() {
       router.replace("/(tabs)");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Guest login failed");
-    } finally {
-      setBusy(false);
     }
   };
 
   const handleApple = async () => {
-    setBusy(true);
     setError(null);
     setStatus("Signing in with Apple...");
     try {
@@ -105,8 +97,6 @@ export default function AuthScreen() {
       router.replace("/(tabs)");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Apple login failed");
-    } finally {
-      setBusy(false);
     }
   };
 

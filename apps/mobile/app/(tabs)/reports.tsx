@@ -1,13 +1,13 @@
 import { ScrollView, StyleSheet, Text, View, Pressable } from "react-native";
-import { colors, spacing, typography } from "@proovra/ui";
-import { BottomNav, TopBar, Card } from "../../components/ui";
+import { colors, spacing } from "@proovra/ui";
+import { BottomNav, TopBar } from "../../components/ui";
 import { useLocale } from "../../src/locale-context";
 import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import { apiFetch } from "../../src/api";
 
 export default function ReportsScreen() {
-  const { t, fontFamilyBold, isRTL } = useLocale();
+  const { t, fontFamilyBold } = useLocale();
   const router = useRouter();
   const [reports, setReports] = useState<
     Array<{ id: string; evidenceId: string; status: string; createdAt: string }>
@@ -17,7 +17,7 @@ export default function ReportsScreen() {
     apiFetch("/v1/evidence")
       .then((data) => {
         // Extract evidence with reports
-        const reportsData = data.items?.map((item: any) => ({
+        const reportsData = data.items?.map((item: { id: string; status: string; createdAt: string }) => ({
           id: item.id,
           evidenceId: item.id,
           status: item.status,

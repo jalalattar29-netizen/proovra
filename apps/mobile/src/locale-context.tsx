@@ -33,7 +33,7 @@ export function LocaleProvider({ children }: { children: React.ReactNode }) {
     void load();
   }, []);
 
-  const setLocale = (_next: Locale) => {
+  const setLocale = () => {
     setLocaleState("en");
     globalThis.__PROOVRA_LOCALE = "en";
   };

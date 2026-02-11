@@ -48,25 +48,39 @@ function initDb() {
   `);
   try {
     db.execSync(`ALTER TABLE upload_queue ADD COLUMN original_filename TEXT;`);
-  } catch {}
+  } catch {
+    // Column may already exist
+  }
   try {
     db.execSync(`ALTER TABLE upload_queue ADD COLUMN size_bytes REAL;`);
-  } catch {}
+  } catch {
+    // Column may already exist
+  }
   try {
     db.execSync(`ALTER TABLE upload_queue ADD COLUMN duration_ms REAL;`);
-  } catch {}
+  } catch {
+    // Column may already exist
+  }
   try {
     db.execSync(`ALTER TABLE upload_queue ADD COLUMN device_time_iso TEXT;`);
-  } catch {}
+  } catch {
+    // Column may already exist
+  }
   try {
     db.execSync(`ALTER TABLE upload_queue ADD COLUMN gps_lat REAL;`);
-  } catch {}
+  } catch {
+    // Column may already exist
+  }
   try {
     db.execSync(`ALTER TABLE upload_queue ADD COLUMN gps_lng REAL;`);
-  } catch {}
+  } catch {
+    // Column may already exist
+  }
   try {
     db.execSync(`ALTER TABLE upload_queue ADD COLUMN gps_accuracy_meters REAL;`);
-  } catch {}
+  } catch {
+    // Column may already exist
+  }
 }
 
 initDb();

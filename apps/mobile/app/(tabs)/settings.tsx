@@ -1,4 +1,4 @@
-import { ScrollView, StyleSheet, Text, View, Pressable } from "react-native";
+import { StyleSheet, Text, View, Pressable, TextInput } from "react-native";
 import { colors, radius, spacing, typography } from "@proovra/ui";
 import { BottomNav, TopBar } from "../../components/ui";
 import { useLocale } from "../../src/locale-context";

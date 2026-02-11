@@ -1,4 +1,4 @@
-import { colors, radius, spacing, typography } from "@proovra/ui";
+import { colors, spacing, typography } from "@proovra/ui";
 import React from "react";
 import { Image, Pressable, StyleSheet, Text, View, ViewStyle } from "react-native";
 import { useLocale } from "../src/locale-context";
@@ -214,7 +214,6 @@ export function BottomNav() {
   const items = [
     { label: t("home"), href: "/" },
     { label: t("cases"), href: "/cases" },
-    { label: t("reports"), href: "/reports" },
     { label: t("teams"), href: "/teams" },
     { label: t("settings"), href: "/settings" }
   ];

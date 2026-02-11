@@ -1,6 +1,6 @@
 import { ScrollView, StyleSheet, Text, View, Pressable } from "react-native";
 import { colors, spacing, typography } from "@proovra/ui";
-import { BottomNav, Button, ListRow } from "../../../components/ui";
+import { BottomNav, ListRow } from "../../../components/ui";
 import { useLocale } from "../../../src/locale-context";
 import { useLocalSearchParams } from "expo-router";
 import { useEffect, useState } from "react";
@@ -8,7 +8,7 @@ import { apiFetch, getAuthToken } from "../../../src/api";
 import * as FileSystem from "expo-file-system/legacy";
 
 export default function CaseDetailScreen() {
-  const { t, fontFamilyBold } = useLocale();
+  const { fontFamilyBold } = useLocale();
   const params = useLocalSearchParams<{ id?: string }>();
   const [name, setName] = useState("Case");
   const [evidence, setEvidence] = useState<

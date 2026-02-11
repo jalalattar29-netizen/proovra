@@ -54,7 +54,7 @@ export default function HomeScreen() {
               onPress={() => router.push("/evidence/1")}
             />
           ) : (
-            items.map((item, idx) => (
+            items.map((item) => (
               <ListRow
                 key={item.id}
                 title={item.type}

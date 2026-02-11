@@ -1,4 +1,4 @@
-import { dict, defaultLocale, supportedLocales, type Locale } from "@proovra/shared";
+import { dict, defaultLocale, type Locale } from "@proovra/shared";
 
 export type { Locale };
 export const translations = dict;

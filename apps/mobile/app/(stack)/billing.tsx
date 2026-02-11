@@ -1,5 +1,5 @@
 import { ScrollView, StyleSheet, Text, View, Pressable } from "react-native";
-import { colors, spacing, typography } from "@proovra/ui";
+import { colors, spacing } from "@proovra/ui";
 import { TopBar } from "../../components/ui";
 import { useLocale } from "../../src/locale-context";
 import { useRouter } from "expo-router";
