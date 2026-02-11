@@ -81,6 +81,10 @@ export default function LoginPage() {
 
     const googleClientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID ?? "";
     const appleClientId = process.env.NEXT_PUBLIC_APPLE_CLIENT_ID ?? "";
+    const googleRedirect =
+      process.env.NEXT_PUBLIC_GOOGLE_REDIRECT_URI ?? `${window.location.origin}/auth/callback`;
+    const appleRedirect =
+      process.env.NEXT_PUBLIC_APPLE_REDIRECT_URI ?? `${window.location.origin}/auth/callback`;
 
     let nextGoogleHref = "";
     let nextAppleHref = "";
@@ -92,7 +96,7 @@ export default function LoginPage() {
     if (!nextGoogleHref) {
       const params = new URLSearchParams({
         client_id: googleClientId,
-        redirect_uri: "https://www.proovra.com/auth/callback",
+        redirect_uri: googleRedirect,
         response_type: "code",
         scope: "openid email profile",
         state: "google",
@@ -112,7 +116,7 @@ export default function LoginPage() {
         response_type: "code id_token",
         response_mode: "form_post",
         client_id: appleClientId,
-        redirect_uri: "https://www.proovra.com/auth/callback",
+        redirect_uri: appleRedirect,
         scope: "name email",
         state: nextAppleState
       });
@@ -177,10 +181,10 @@ export default function LoginPage() {
           setAppleReady(false);
           return;
         }
-        // Always use production redirect URI - Apple only accepts pre-registered URIs
-        const redirectUri = "https://www.proovra.com/auth/callback";
+        const redirectUri =
+          process.env.NEXT_PUBLIC_APPLE_REDIRECT_URI ?? `${window.location.origin}/auth/callback`;
         AppleID.auth.init({
-          clientId: "com.proovra.web",
+          clientId: process.env.NEXT_PUBLIC_APPLE_CLIENT_ID,
           scope: "name email",
           redirectURI: redirectUri,
           usePopup: true
@@ -294,25 +298,9 @@ export default function LoginPage() {
                         const idToken = response.authorization?.id_token;
                         const code = response.authorization?.code;
                         if (idToken || code) void handleAuth("/v1/auth/apple", idToken, code);
-                        else setError("Apple sign-in failed: No authentication token received. Please try again.");
+                        else setError("Apple sign-in failed: No token returned.");
                       })
-                      .catch((err: Error & { code?: string }) => {
-                        // Handle specific Apple error codes
-                        const errorCode = err?.code || err?.message || "";
-                        let friendlyMessage = "Apple sign-in failed. Please try again.";
-                        
-                        if (errorCode.includes("POPUP_BLOCKED") || errorCode === "popup_closed_by_user") {
-                          friendlyMessage = "Apple sign-in popup was blocked. Please check your browser settings.";
-                        } else if (errorCode.includes("TIMEOUT") || errorCode === "timeout") {
-                          friendlyMessage = "Apple sign-in request timed out. Please try again.";
-                        } else if (errorCode.includes("INVALID") || errorCode === "invalid_request") {
-                          friendlyMessage = "Apple sign-in configuration error. Please contact support.";
-                        } else if (errorCode.includes("NETWORK") || errorCode === "network_error") {
-                          friendlyMessage = "Network error during Apple sign-in. Please check your connection.";
-                        }
-                        
-                        setError(friendlyMessage);
-                      });
+                      .catch(() => setError("Apple sign-in failed: Authorization failed."));
                     return;
                   }
                   if (!appleHref) {
