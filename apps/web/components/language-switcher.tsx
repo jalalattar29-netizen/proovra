@@ -5,7 +5,7 @@ import { useLocale } from "../app/providers";
 import type { Locale } from "@proovra/shared";
 
 export function LanguageSwitcher() {
-  const { locale, setLocale } = useLocale();
+  const { locale, setLocale, mode, setLocaleMode } = useLocale();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -23,16 +23,17 @@ export function LanguageSwitcher() {
   }, [open]);
 
   const languages = [
-    { code: "en", label: "English", flag: "🇺🇸" },
-    { code: "ar", label: "العربية", flag: "🇸🇦" },
-    { code: "de", label: "Deutsch", flag: "🇩🇪" },
-    { code: "fr", label: "Français", flag: "🇫🇷" },
-    { code: "es", label: "Español", flag: "🇪🇸" },
-    { code: "tr", label: "Türkçe", flag: "🇹🇷" },
-    { code: "ru", label: "Русский", flag: "🇷🇺" }
+    { code: "auto" as const, label: "Auto", display: "AUTO" },
+    { code: "en", label: "English", display: "EN" },
+    { code: "ar", label: "العربية", display: "AR" },
+    { code: "de", label: "Deutsch", display: "DE" },
+    { code: "fr", label: "Français", display: "FR" },
+    { code: "es", label: "Español", display: "ES" },
+    { code: "tr", label: "Türkçe", display: "TR" },
+    { code: "ru", label: "Русский", display: "RU" }
   ] as const;
 
-  const currentLanguage = languages.find((l) => l.code === locale) || languages[0];
+  const displayCode = mode === "auto" ? "AUTO" : locale.toUpperCase();
 
   return (
     <div ref={ref} style={{ position: "relative" }}>
@@ -53,8 +54,8 @@ export function LanguageSwitcher() {
         }}
         title="Language selector"
       >
-        <span style={{ fontSize: 16 }}>{currentLanguage.flag}</span>
-        {currentLanguage.code.toUpperCase()}
+        <span style={{ fontSize: 16 }}>🌐</span>
+        {displayCode}
       </button>
 
       {open && (
@@ -76,7 +77,12 @@ export function LanguageSwitcher() {
             <button
               key={lang.code}
               onClick={() => {
-                setLocale(lang.code as Locale);
+                if (lang.code === "auto") {
+                  setLocaleMode("auto");
+                } else {
+                  setLocaleMode("manual");
+                  setLocale(lang.code as Locale);
+                }
                 setOpen(false);
               }}
               style={{
@@ -86,17 +92,38 @@ export function LanguageSwitcher() {
                 width: "100%",
                 padding: "10px 12px",
                 border: "none",
-                background: locale === lang.code ? "#F0F4F8" : "#fff",
+                background:
+                  lang.code === "auto"
+                    ? mode === "auto"
+                      ? "#F0F4F8"
+                      : "#fff"
+                    : locale === lang.code && mode === "manual"
+                    ? "#F0F4F8"
+                    : "#fff",
                 cursor: "pointer",
                 fontSize: 12,
-                color: locale === lang.code ? "#0B1F2A" : "#475569",
-                fontWeight: locale === lang.code ? 600 : 500,
+                color:
+                  lang.code === "auto"
+                    ? mode === "auto"
+                      ? "#0B1F2A"
+                      : "#475569"
+                    : locale === lang.code && mode === "manual"
+                    ? "#0B1F2A"
+                    : "#475569",
+                fontWeight:
+                  lang.code === "auto"
+                    ? mode === "auto"
+                      ? 600
+                      : 500
+                    : locale === lang.code && mode === "manual"
+                    ? 600
+                    : 500,
                 borderBottom: lang.code !== languages[languages.length - 1].code ? "1px solid #E2E8F0" : "none",
                 justifyContent: "flex-start"
               }}
             >
-              <span style={{ fontSize: 16 }}>{lang.flag}</span>
-              <span>{lang.label}</span>
+              <span>{lang.display}</span>
+              <span style={{ fontSize: 13 }}>{lang.label}</span>
             </button>
           ))}
         </div>

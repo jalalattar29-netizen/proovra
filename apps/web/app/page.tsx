@@ -104,7 +104,7 @@ export default function HomePage() {
         </div>
 
         <div className="container" style={{ marginTop: 72 }}>
-          <h2 style={{ marginBottom: 8 }}>Who it&apos;s for</h2>
+          <h2 style={{ marginBottom: 8 }}>Who is it for?</h2>
           <p className="page-subtitle" style={{ marginBottom: 32 }}>
             Built for teams who need verifiable proof.
           </p>

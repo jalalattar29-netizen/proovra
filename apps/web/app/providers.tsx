@@ -3,6 +3,7 @@
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import {
   type Locale,
+  type LocaleMode,
   resolveInitialLocale,
   translations
 } from "../lib/i18n";
@@ -28,7 +29,9 @@ type AuthContextValue = {
 
 type LocaleContextValue = {
   locale: Locale;
+  mode: LocaleMode;
   setLocale: (locale: Locale) => void;
+  setLocaleMode: (mode: LocaleMode) => void;
   t: (key: keyof (typeof translations)["en"]) => string;
   isRTL: boolean;
 };
@@ -50,21 +53,18 @@ export function useAuth() {
 
 export function Providers({ children }: { children: React.ReactNode }) {
   const [locale, setLocaleState] = useState<Locale>("en");
+  const [mode, setModeState] = useState<LocaleMode>("auto");
   const [token, setTokenState] = useState<string | null>(null);
   const [user, setUser] = useState<AuthUser | null>(null);
   const [authReady, setAuthReady] = useState(false);
 
   useEffect(() => {
     initSentry();
-    // Initialize locale from localStorage or browser language
+    // Initialize locale and mode from localStorage or browser language
     if (typeof window === "undefined") return;
-    const stored = localStorage.getItem("proovra-locale");
-    if (stored && ["en", "ar", "de"].includes(stored)) {
-      setLocaleState(stored as Locale);
-    } else {
-      const resolved = resolveInitialLocale();
-      setLocaleState(resolved);
-    }
+    const { locale: resolvedLocale, mode: resolvedMode } = resolveInitialLocale();
+    setLocaleState(resolvedLocale);
+    setModeState(resolvedMode);
   }, []);
 
   useEffect(() => {
@@ -73,7 +73,8 @@ export function Providers({ children }: { children: React.ReactNode }) {
     document.documentElement.lang = locale;
     document.documentElement.dir = isRTL ? "rtl" : "ltr";
     localStorage.setItem("proovra-locale", locale);
-  }, [locale]);
+    localStorage.setItem("proovra-locale-mode", mode);
+  }, [locale, mode]);
 
   const value = useMemo<LocaleContextValue>(() => {
     const isRTL = locale === "ar";
@@ -84,8 +85,11 @@ export function Providers({ children }: { children: React.ReactNode }) {
     const setLocale = (newLocale: Locale) => {
       setLocaleState(newLocale);
     };
-    return { locale, setLocale, t, isRTL };
-  }, [locale]);
+    const setLocaleMode = (newMode: LocaleMode) => {
+      setModeState(newMode);
+    };
+    return { locale, mode, setLocale, setLocaleMode, t, isRTL };
+  }, [locale, mode]);
 
   const authValue = useMemo<AuthContextValue>(() => {
     const setToken = (next: string | null) => {
