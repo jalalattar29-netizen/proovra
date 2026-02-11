@@ -1,0 +1,19 @@
+# Build and dependency artifacts
+.next/
+node_modules/
+next-env.d.ts
+
+# IDE and OS
+.vscode/
+.idea/
+.DS_Store
+*.swp
+
+# Test coverage
+coverage/
+.nyc_output/
+
+# Environment
+.env
+.env.local
+.env.*.local
