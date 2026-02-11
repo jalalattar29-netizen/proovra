@@ -178,9 +178,9 @@ export default function LoginPage() {
           return;
         }
         // Always use production redirect URI - Apple only accepts pre-registered URIs
-        const redirectUri = process.env.NEXT_PUBLIC_APPLE_REDIRECT_URI ?? "https://www.proovra.com/auth/callback";
+        const redirectUri = "https://www.proovra.com/auth/callback";
         AppleID.auth.init({
-          clientId: process.env.NEXT_PUBLIC_APPLE_CLIENT_ID,
+          clientId: "com.proovra.web",
           scope: "name email",
           redirectURI: redirectUri,
           usePopup: true
