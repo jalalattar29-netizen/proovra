@@ -11,7 +11,7 @@ import { uploadWithPut } from "../../src/upload-utils";
 import { Linking } from "react-native";
 
 export default function SettingsScreen() {
-  const { t, locale, setLocale, fontFamilyBold } = useLocale();
+  const { t, locale, mode, setLocale, setLocaleMode, fontFamilyBold } = useLocale();
   const { setToken, token, authReady } = useAuth();
   const router = useRouter();
   const [googleToken, setGoogleToken] = useState("");
@@ -111,16 +111,33 @@ export default function SettingsScreen() {
       <View style={styles.content}>
         <Text style={[styles.label, { fontFamily: fontFamilyBold }]}>{t("language")}</Text>
         <View style={styles.row}>
+          <Pressable
+            key="auto"
+            onPress={() => setLocaleMode("auto")}
+            style={[styles.langButton, mode === "auto" && styles.langButtonActive]}
+          >
+            <Text
+              style={[
+                styles.langText,
+                mode === "auto" && { color: colors.white }
+              ]}
+            >
+              AUTO
+            </Text>
+          </Pressable>
           {(["en", "ar", "de", "fr", "es", "tr", "ru"] as const).map((lng) => (
             <Pressable
               key={lng}
-              onPress={() => setLocale(lng)}
-              style={[styles.langButton, locale === lng && styles.langButtonActive]}
+              onPress={() => {
+                setLocaleMode("manual");
+                setLocale(lng);
+              }}
+              style={[styles.langButton, locale === lng && mode === "manual" && styles.langButtonActive]}
             >
               <Text
                 style={[
                   styles.langText,
-                  locale === lng && { color: colors.white }
+                  locale === lng && mode === "manual" && { color: colors.white }
                 ]}
               >
                 {lng.toUpperCase()}

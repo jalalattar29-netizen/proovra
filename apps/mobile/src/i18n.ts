@@ -1,6 +1,7 @@
 import { dict, defaultLocale, supportedLocales, type Locale } from "@proovra/shared";
 
 export type { Locale };
+export type LocaleMode = "auto" | "manual";
 export const translations = dict;
 
 export function getDeviceLocale(): Locale {
@@ -26,13 +27,13 @@ export function getDeviceLocale(): Locale {
   }
 }
 
-export function resolveInitialLocale(deviceLocale?: string): Locale {
+export function resolveInitialLocale(deviceLocale?: string): { locale: Locale; mode: LocaleMode } {
   // Use provided device locale or auto-detect
   const lang = deviceLocale ? deviceLocale.slice(0, 2).toLowerCase() : getDeviceLocale();
   
   if (supportedLocales.includes(lang as Locale)) {
-    return lang as Locale;
+    return { locale: lang as Locale, mode: "auto" };
   }
   
-  return defaultLocale;
+  return { locale: defaultLocale, mode: "auto" };
 }

@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
-import { type Locale, translations, resolveInitialLocale } from "./i18n";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { type Locale, type LocaleMode, translations, resolveInitialLocale } from "./i18n";
 
 declare global {
   // eslint-disable-next-line no-var
@@ -8,7 +9,9 @@ declare global {
 
 type LocaleContextValue = {
   locale: Locale;
+  mode: LocaleMode;
   setLocale: (locale: Locale) => void;
+  setLocaleMode: (mode: LocaleMode) => void;
   t: (key: keyof (typeof translations)["en"]) => string;
   isRTL: boolean;
   fontFamily: string;
@@ -25,28 +28,78 @@ export function useLocale() {
 
 export function LocaleProvider({ children }: { children: React.ReactNode }) {
   const [locale, setLocaleState] = useState<Locale>("en");
+  const [mode, setModeState] = useState<LocaleMode>("auto");
   const [ready, setReady] = useState(false);
 
+  // Initialize from AsyncStorage on mount
   useEffect(() => {
-    try {
-      // Initialize with device language detection
-      const resolved = resolveInitialLocale();
-      setLocaleState(resolved);
-      globalThis.__PROOVRA_LOCALE = resolved;
-      setReady(true);
-    } catch (error) {
-      // Fall back to EN if anything fails
-      setLocaleState("en");
-      globalThis.__PROOVRA_LOCALE = "en";
-      setReady(true);
-    }
+    const initializeLocale = async () => {
+      try {
+        // Read both keys from AsyncStorage
+        const storedMode = (await AsyncStorage.getItem("proovra-locale-mode")) as LocaleMode | null;
+        const storedLocale = await AsyncStorage.getItem("proovra-locale");
+        
+        // Determine initial locale and mode
+        let initialLocale: Locale = "en";
+        let initialMode: LocaleMode = "auto";
+        
+        if (storedMode === "manual" && storedLocale) {
+          // User set manual mode with a specific locale
+          initialLocale = storedLocale as Locale;
+          initialMode = "manual";
+        } else if (storedMode === "auto" || !storedMode) {
+          // Auto mode or first launch - resolve device language
+          const { locale: deviceLocale } = resolveInitialLocale();
+          initialLocale = deviceLocale;
+          initialMode = "auto";
+        }
+        
+        setLocaleState(initialLocale);
+        setModeState(initialMode);
+        globalThis.__PROOVRA_LOCALE = initialLocale;
+        setReady(true);
+      } catch (error) {
+        // Fall back to EN if AsyncStorage fails
+        console.warn("Failed to initialize locale from AsyncStorage:", error);
+        setLocaleState("en");
+        setModeState("auto");
+        globalThis.__PROOVRA_LOCALE = "en";
+        setReady(true);
+      }
+    };
+    
+    void initializeLocale();
   }, []);
+
+  // Persist locale and mode to AsyncStorage whenever they change
+  useEffect(() => {
+    if (!ready) return;
+    
+    const persistLocale = async () => {
+      try {
+        await AsyncStorage.setItem("proovra-locale", locale);
+        await AsyncStorage.setItem("proovra-locale-mode", mode);
+      } catch (error) {
+        console.warn("Failed to persist locale to AsyncStorage:", error);
+      }
+    };
+    
+    void persistLocale();
+  }, [locale, mode, ready]);
 
   const setLocale = (newLocale: Locale) => {
     setLocaleState(newLocale);
     globalThis.__PROOVRA_LOCALE = newLocale;
-    // Note: Persistence would require AsyncStorage dependency
-    // For now, language resets on app restart (can be added if dependency is installed)
+  };
+
+  const setLocaleMode = (newMode: LocaleMode) => {
+    setModeState(newMode);
+    if (newMode === "auto") {
+      // When switching to auto mode, resolve device language
+      const { locale: deviceLocale } = resolveInitialLocale();
+      setLocaleState(deviceLocale);
+      globalThis.__PROOVRA_LOCALE = deviceLocale;
+    }
   };
 
   const value = useMemo<LocaleContextValue>(() => {
@@ -57,8 +110,13 @@ export function LocaleProvider({ children }: { children: React.ReactNode }) {
       (translations.en[key] as string);
     const fontFamily = isRTL ? "Noto Sans Arabic" : "Inter";
     const fontFamilyBold = isRTL ? "Noto Sans Arabic" : "Inter";
-    return { locale, setLocale, t, isRTL, fontFamily, fontFamilyBold };
-  }, [locale]);
+    return { locale, mode, setLocale, setLocaleMode, t, isRTL, fontFamily, fontFamilyBold };
+  }, [locale, mode]);
+
+  if (!ready) {
+    // Don't render until AsyncStorage is initialized
+    return null;
+  }
 
   return <LocaleContext.Provider value={value}>{children}</LocaleContext.Provider>;
 }
