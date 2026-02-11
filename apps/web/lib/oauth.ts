@@ -1,9 +1,8 @@
 export function buildGoogleAuthUrl(params: { state: string; origin?: string }): string {
   const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID ?? "";
-  const origin = params.origin ?? (typeof window !== "undefined" ? window.location.origin : "");
-  const redirectUri =
-    process.env.NEXT_PUBLIC_GOOGLE_REDIRECT_URI ??
-    (origin ? `${origin}/auth/callback` : "https://www.proovra.com/auth/callback");
+  // Always use the canonical redirect URI registered with Google
+  // Do not use preview/localhost domains - Google only accepts registered URIs
+  const redirectUri = process.env.NEXT_PUBLIC_GOOGLE_REDIRECT_URI ?? "https://www.proovra.com/auth/callback";
   const url = new URL("https://accounts.google.com/o/oauth2/v2/auth");
   url.searchParams.set("client_id", clientId);
   url.searchParams.set("redirect_uri", redirectUri);
@@ -66,10 +65,9 @@ export function buildAppleAuthUrl(params: {
   origin?: string;
 }): string {
   const clientId = process.env.NEXT_PUBLIC_APPLE_CLIENT_ID ?? "com.proovra.web";
-  const origin = params.origin ?? (typeof window !== "undefined" ? window.location.origin : "");
-  const redirectUri =
-    process.env.NEXT_PUBLIC_APPLE_REDIRECT_URI ??
-    (origin ? `${origin}/auth/callback` : "https://www.proovra.com/auth/callback");
+  // Always use the canonical redirect URI registered with Apple
+  // Do not use preview/localhost domains - Apple only accepts registered URIs
+  const redirectUri = process.env.NEXT_PUBLIC_APPLE_REDIRECT_URI ?? "https://www.proovra.com/auth/callback";
   const scope = params.scope ?? "name email";
   const url = new URL("https://appleid.apple.com/auth/authorize");
   url.searchParams.set("response_type", "code id_token");
