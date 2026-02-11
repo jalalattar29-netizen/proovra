@@ -81,22 +81,18 @@ export default function LoginPage() {
 
     const googleClientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID ?? "";
     const appleClientId = process.env.NEXT_PUBLIC_APPLE_CLIENT_ID ?? "";
-    const googleRedirect =
-      process.env.NEXT_PUBLIC_GOOGLE_REDIRECT_URI ?? `${window.location.origin}/auth/callback`;
-    const appleRedirect =
-      process.env.NEXT_PUBLIC_APPLE_REDIRECT_URI ?? `${window.location.origin}/auth/callback`;
 
     let nextGoogleHref = "";
     let nextAppleHref = "";
     try {
-      nextGoogleHref = buildGoogleAuthUrl({ state: "google", origin: window.location.origin });
+      nextGoogleHref = buildGoogleAuthUrl({ state: "google" });
     } catch {
       nextGoogleHref = "";
     }
     if (!nextGoogleHref) {
       const params = new URLSearchParams({
         client_id: googleClientId,
-        redirect_uri: googleRedirect,
+        redirect_uri: "https://www.proovra.com/auth/callback",
         response_type: "code",
         scope: "openid email profile",
         state: "google",
@@ -107,7 +103,7 @@ export default function LoginPage() {
     }
 
     try {
-      nextAppleHref = buildAppleAuthUrl({ state: nextAppleState, origin: window.location.origin });
+      nextAppleHref = buildAppleAuthUrl({ state: nextAppleState });
     } catch {
       nextAppleHref = "";
     }
@@ -116,7 +112,7 @@ export default function LoginPage() {
         response_type: "code id_token",
         response_mode: "form_post",
         client_id: appleClientId,
-        redirect_uri: appleRedirect,
+        redirect_uri: "https://www.proovra.com/auth/callback",
         scope: "name email",
         state: nextAppleState
       });
