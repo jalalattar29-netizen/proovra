@@ -203,6 +203,8 @@ export async function exchangeAppleCodeForIdToken(code: string): Promise<string>
   const redirectUri = must("APPLE_REDIRECT_URI");
   const clientSecret = await createAppleClientSecret();
 
+  console.log("[Apple Token Exchange] clientId:", clientId, "redirectUri:", redirectUri);
+  
   const body = new URLSearchParams();
   body.set("grant_type", "authorization_code");
   body.set("code", code);
@@ -210,6 +212,7 @@ export async function exchangeAppleCodeForIdToken(code: string): Promise<string>
   body.set("client_secret", clientSecret);
   body.set("redirect_uri", redirectUri);
 
+  console.log("[Apple Token Exchange] Calling appleid.apple.com/auth/token...");
   const res = await fetch("https://appleid.apple.com/auth/token", {
     method: "POST",
     headers: { "content-type": "application/x-www-form-urlencoded" },
@@ -217,11 +220,21 @@ export async function exchangeAppleCodeForIdToken(code: string): Promise<string>
   });
 
   const json = (await res.json()) as { id_token?: string; error?: string };
+  console.log("[Apple Token Exchange] Response status:", res.status, "body:", json);
+  
   if (!res.ok) {
-    if (json.error === "invalid_grant") throw new Error("invalid_code");
+    if (json.error === "invalid_grant") {
+      console.error("[Apple Token Exchange] Invalid grant (code may be invalid/expired)");
+      throw new Error("invalid_code");
+    }
+    console.error("[Apple Token Exchange] Token exchange failed:", json.error);
     throw new Error("token_exchange_failed");
   }
-  if (!json.id_token) throw new Error("token_exchange_failed");
+  if (!json.id_token) {
+    console.error("[Apple Token Exchange] No id_token in response");
+    throw new Error("token_exchange_failed");
+  }
+  console.log("[Apple Token Exchange] Success, got id_token");
   return json.id_token;
 }
 

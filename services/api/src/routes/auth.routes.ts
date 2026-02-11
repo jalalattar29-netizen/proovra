@@ -101,13 +101,19 @@ export async function authRoutes(app: FastifyInstance) {
       const body = AppleBody.parse(req.body);
       let idToken = body.idToken ?? body.id_token ?? null;
       if (body.code) {
+        console.log("[Apple Auth] Exchanging code for id_token...");
         idToken = await exchangeAppleCodeForIdToken(body.code);
+        console.log("[Apple Auth] Code exchange success, got id_token");
       }
       if (!idToken) {
+        console.log("[Apple Auth] Missing id_token after exchange");
         return reply.code(400).send({ message: "invalid_id_token" });
       }
+      console.log("[Apple Auth] Verifying id_token...");
       const profile = await verifyAppleIdToken(idToken);
+      console.log("[Apple Auth] Token verified, profile:", { provider: profile.provider, email: profile.email });
       const user = await upsertUserWithEmailLink(profile);
+      console.log("[Apple Auth] User created/updated:", { id: user.id, email: user.email });
       const token = signJwt(
         {
           sub: user.id,
@@ -121,6 +127,7 @@ export async function authRoutes(app: FastifyInstance) {
       return reply.code(200).send({ token, user });
     } catch (err) {
       const message = err instanceof Error ? err.message : "invalid_id_token";
+      console.error("[Apple Auth] Error:", message, err instanceof Error ? err.stack : "");
       if (message === "invalid_code") {
         return reply.code(400).send({ message: "invalid_code" });
       }
