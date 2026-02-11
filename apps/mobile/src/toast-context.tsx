@@ -12,7 +12,7 @@ interface ToastContextType {
   addToast: (message: string, type: Toast["type"], duration?: number) => void;
 }
 
-const ToastContext = createContext<ToastContextType | undefined>(undefined);
+const ToastContext = createContext<ToastContextType>(null!);
 
 export function useToast() {
   const context = useContext(ToastContext);
