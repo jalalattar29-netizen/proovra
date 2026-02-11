@@ -55,7 +55,9 @@ export default function AppleCallbackPage() {
       searchParams.get("provider") ?? hashParams.get("provider");
     const state = searchParams.get("state") ?? hashParams.get("state");
     const storedState = sessionStorage.getItem("proovra-apple-state");
-    if (state && storedState && state !== storedState) {
+    
+    // Only validate state for Apple (Google uses static state="google")
+    if (state && state !== "google" && storedState && state !== storedState) {
       setError("OAuth state mismatch.");
       return;
     }
