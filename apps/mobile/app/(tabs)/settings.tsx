@@ -111,7 +111,7 @@ export default function SettingsScreen() {
       <View style={styles.content}>
         <Text style={[styles.label, { fontFamily: fontFamilyBold }]}>{t("language")}</Text>
         <View style={styles.row}>
-          {(["en", "ar", "de"] as const).map((lng) => (
+          {(["en", "ar", "de", "fr", "es", "tr", "ru"] as const).map((lng) => (
             <Pressable
               key={lng}
               onPress={() => setLocale(lng)}
