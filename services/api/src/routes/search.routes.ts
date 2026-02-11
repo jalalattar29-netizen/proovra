@@ -240,7 +240,7 @@ export async function searchRoutes(app: FastifyInstance) {
         });
 
         suggestions.push(
-          ...evidence.map((e) => ({
+          ...evidence.map((e: { id: string; type: string; createdAt: Date }) => ({
             type: "evidence",
             id: e.id,
             title: `${e.type} - ${new Date(e.createdAt).toLocaleDateString()}`,
@@ -258,7 +258,7 @@ export async function searchRoutes(app: FastifyInstance) {
         });
 
         suggestions.push(
-          ...cases.map((c) => ({
+          ...cases.map((c: { id: string; name: string }) => ({
             type: "case",
             id: c.id,
             title: c.name,

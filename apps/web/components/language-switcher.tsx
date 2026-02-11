@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import { useLocale } from "../app/providers";
+import type { Locale } from "@proovra/shared";
 
 export function LanguageSwitcher() {
   const { locale, setLocale } = useLocale();
@@ -23,7 +24,12 @@ export function LanguageSwitcher() {
 
   const languages = [
     { code: "en", label: "English", flag: "🇺🇸" },
-    { code: "ar", label: "العربية", flag: "🇸🇦" }
+    { code: "ar", label: "العربية", flag: "🇸🇦" },
+    { code: "de", label: "Deutsch", flag: "🇩🇪" },
+    { code: "fr", label: "Français", flag: "🇫🇷" },
+    { code: "es", label: "Español", flag: "🇪🇸" },
+    { code: "tr", label: "Türkçe", flag: "🇹🇷" },
+    { code: "ru", label: "Русский", flag: "🇷🇺" }
   ] as const;
 
   const currentLanguage = languages.find((l) => l.code === locale) || languages[0];
@@ -45,9 +51,10 @@ export function LanguageSwitcher() {
           fontWeight: 500,
           color: "#475569"
         }}
+        title="Language selector"
       >
         <span style={{ fontSize: 16 }}>{currentLanguage.flag}</span>
-        {currentLanguage.label}
+        {currentLanguage.code.toUpperCase()}
       </button>
 
       {open && (
@@ -62,14 +69,14 @@ export function LanguageSwitcher() {
             borderRadius: 8,
             boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
             zIndex: 1000,
-            minWidth: 140
+            minWidth: 160
           }}
         >
           {languages.map((lang) => (
             <button
               key={lang.code}
               onClick={() => {
-                setLocale(lang.code as "en" | "ar");
+                setLocale(lang.code as Locale);
                 setOpen(false);
               }}
               style={{
@@ -84,11 +91,12 @@ export function LanguageSwitcher() {
                 fontSize: 12,
                 color: locale === lang.code ? "#0B1F2A" : "#475569",
                 fontWeight: locale === lang.code ? 600 : 500,
-                borderBottom: lang.code !== languages[languages.length - 1].code ? "1px solid #E2E8F0" : "none"
+                borderBottom: lang.code !== languages[languages.length - 1].code ? "1px solid #E2E8F0" : "none",
+                justifyContent: "flex-start"
               }}
             >
               <span style={{ fontSize: 16 }}>{lang.flag}</span>
-              {lang.label}
+              <span>{lang.label}</span>
             </button>
           ))}
         </div>
@@ -96,3 +104,4 @@ export function LanguageSwitcher() {
     </div>
   );
 }
+

@@ -56,25 +56,35 @@ export function Providers({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     initSentry();
-    const resolved = resolveInitialLocale();
-    setLocaleState(resolved);
+    // Initialize locale from localStorage or browser language
+    if (typeof window === "undefined") return;
+    const stored = localStorage.getItem("proovra-locale");
+    if (stored && ["en", "ar", "de"].includes(stored)) {
+      setLocaleState(stored as Locale);
+    } else {
+      const resolved = resolveInitialLocale();
+      setLocaleState(resolved);
+    }
   }, []);
 
   useEffect(() => {
     if (typeof document === "undefined") return;
-    document.documentElement.lang = "en";
-    document.documentElement.dir = "ltr";
-    localStorage.setItem("proovra-locale", "en");
+    const isRTL = locale === "ar";
+    document.documentElement.lang = locale;
+    document.documentElement.dir = isRTL ? "rtl" : "ltr";
+    localStorage.setItem("proovra-locale", locale);
   }, [locale]);
 
   const value = useMemo<LocaleContextValue>(() => {
-    const isRTL = false;
+    const isRTL = locale === "ar";
+    const currentTranslations = translations[locale] || translations.en;
     const t = (key: keyof (typeof translations)["en"]) =>
+      currentTranslations[key as keyof (typeof translations)[Locale]] ||
       translations.en[key];
-    const setLocale = () => {
-      setLocaleState("en");
+    const setLocale = (newLocale: Locale) => {
+      setLocaleState(newLocale);
     };
-    return { locale: "en", setLocale, t, isRTL };
+    return { locale, setLocale, t, isRTL };
   }, [locale]);
 
   const authValue = useMemo<AuthContextValue>(() => {
