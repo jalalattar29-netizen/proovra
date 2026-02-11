@@ -27,8 +27,11 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!authReady) return;
     if (!hasSession) {
-      const next = pathname ? `?next=${encodeURIComponent(pathname)}` : "";
-      router.replace(`/login${next}`);
+      const webBase = process.env.NEXT_PUBLIC_WEB_BASE || "https://www.proovra.com";
+      const next = pathname ? encodeURIComponent(pathname) : "";
+      const returnUrl = next ? `returnUrl=${next}` : "";
+      const separator = returnUrl ? "?" : "";
+      window.location.href = `${webBase}/login${separator}${returnUrl}`;
     }
   }, [authReady, hasSession, router, pathname]);
 
