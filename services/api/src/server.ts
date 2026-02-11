@@ -22,7 +22,10 @@ import { AppError, isAppError, createErrorResponse } from "./errors.js";
 const REQUIRED_ORIGINS = [
   "https://www.proovra.com",
   "https://proovra.com",
-  "https://app.proovra.com"
+  "https://app.proovra.com",
+  "http://localhost:3000",
+  "http://localhost:3001",
+  "http://localhost:8081"
 ];
 
 function normalizeOrigin(origin: string) {
@@ -41,7 +44,12 @@ function parseCorsOrigins(): string[] {
 
 function isProovraOrigin(origin: string) {
   const value = normalizeOrigin(origin);
-  return value === "https://proovra.com" || value.endsWith(".proovra.com");
+  // Allow all proovra.com domains + Vercel preview deployments
+  return (
+    value === "https://proovra.com" ||
+    value.endsWith(".proovra.com") ||
+    value.endsWith(".vercel.app")
+  );
 }
 
 export async function buildServer() {
