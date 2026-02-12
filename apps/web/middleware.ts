@@ -133,6 +133,15 @@ export function middleware(req: NextRequest) {
       return res;
     }
 
+    if (isAppHost && (pathname === "/login" || pathname === "/register")) {
+      const target = new URL(webBaseUrl ?? "https://www.proovra.com");
+      target.pathname = pathname;
+      req.nextUrl.searchParams.forEach((v, k) => target.searchParams.set(k, v));
+      const res = NextResponse.redirect(target);
+      if (isProd) applySecurityHeaders(res, nonce, relaxed, allowEval);
+      return res;
+    }
+
     if (isWebHost && ["/home", "/capture", "/cases", "/teams", "/reports", "/billing", "/settings"].some((p) => pathname === p || pathname.startsWith(`${p}/`))) {
       if (appBaseUrl) {
         const target = new URL(appBaseUrl);

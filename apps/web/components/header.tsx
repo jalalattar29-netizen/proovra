@@ -43,10 +43,17 @@ function getAppBase() {
   return process.env.NEXT_PUBLIC_APP_BASE ?? process.env.NEXT_PUBLIC_WEB_BASE ?? "";
 }
 
+function getWebBase() {
+  if (typeof window === "undefined") return "";
+  const { hostname } = window.location;
+  if (hostname === "localhost" || hostname === "127.0.0.1") return window.location.origin;
+  return process.env.NEXT_PUBLIC_WEB_BASE ?? process.env.NEXT_PUBLIC_APP_BASE ?? "";
+}
+
 export function MarketingHeader() {
-  const appBase = getAppBase();
-  const appLogin = appBase ? `${appBase}/login` : "/login";
-  const appRegister = appBase ? `${appBase}/register` : "/register";
+  const webBase = getWebBase();
+  const appLogin = webBase ? `${webBase}/login` : "/login";
+  const appRegister = webBase ? `${webBase}/register` : "/register";
 
   return (
     <header className="proovra-header">
