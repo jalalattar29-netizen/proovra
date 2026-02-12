@@ -924,7 +924,8 @@ p {
     gap: 10px;
   }
   
-  .auth-actions .btn {
+  .auth-actions .btn,
+  .auth-actions .social-btn {
     width: 100%;
   }
   

@@ -194,61 +194,55 @@ export default function LoginPage() {
             <h2 className="auth-title">{t("signInTitle")}</h2>
 
             <div className="auth-actions">
-              <a
+              <button
+                type="button"
                 className="social-btn"
-                href={mounted && googleHref ? googleHref : "#"}
-                onClick={(event) => {
+                disabled={busy}
+                onClick={() => {
                   logDebug("Google click");
                   authLogger.log("AUTH_START", "provider=google", {});
                   try {
                     sessionStorage.setItem("proovra-return-url", nextUrl);
                   } catch { void 0; }
-                  if (busy) {
-                    event.preventDefault();
-                    return;
-                  }
+                  if (busy) return;
                   if (!googleHref) {
-                    event.preventDefault();
                     const msg = "Google sign-in failed: Redirect URL not ready.";
                     setError(msg);
                     addToast(msg, "error");
                     return;
                   }
-                  // Let anchor navigate (redirect flow) — no preventDefault
+                  window.location.href = googleHref;
                 }}
               >
                 <span className="google-icon" aria-hidden="true" />
                 Continue with Google
-              </a>
+              </button>
 
-              <a
+              <button
+                type="button"
                 className="social-btn"
-                href={mounted && appleHref ? appleHref : "#"}
-                onClick={(event) => {
+                disabled={busy}
+                onClick={() => {
                   logDebug("Apple click");
                   authLogger.log("AUTH_START", "provider=apple", {});
                   try {
                     sessionStorage.setItem("proovra-return-url", nextUrl);
                   } catch { void 0; }
-                  if (busy) {
-                    event.preventDefault();
-                    return;
-                  }
+                  if (busy) return;
                   if (!appleHref) {
-                    event.preventDefault();
                     const msg = "Apple sign-in failed: Redirect URL not ready.";
                     setError(msg);
                     addToast(msg, "error");
                     return;
                   }
-                  // Let anchor navigate (redirect flow) — no preventDefault
+                  window.location.href = appleHref;
                 }}
               >
                 <span className="apple-icon" aria-hidden="true">
                   
                 </span>
                 {t("signInApple")}
-              </a>
+              </button>
 
               <div className="auth-divider">{t("orDivider")}</div>
 
