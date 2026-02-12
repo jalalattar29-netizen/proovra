@@ -8,7 +8,8 @@ import { useAuth, useLocale } from "../providers";
 import { apiFetch } from "../../lib/api";
 import {
   buildAppleAuthUrl,
-  buildGoogleAuthUrl
+  buildGoogleAuthUrl,
+  loadGoogleIdentity
 } from "../../lib/oauth";
 
 export default function LoginPage() {
@@ -131,11 +132,50 @@ export default function LoginPage() {
       void err;
     }
 
+    let cancelled = false;
+    
+    loadGoogleIdentity()
+      .then(() => {
+        if (cancelled) return;
+        const google = (window as typeof window & {
+          google?: {
+            accounts?: {
+              id?: {
+                initialize: (options: {
+                  client_id: string;
+                  callback: (response: { credential?: string }) => void;
+                }) => void;
+              };
+            };
+          };
+        }).google;
+        if (!google?.accounts?.id) {
+          setGoogleReady(false);
+          return;
+        }
+        google.accounts.id.initialize({
+          client_id: googleClientId,
+          callback: (response: { credential?: string }) => {
+            if (response.credential) void handleAuth("/v1/auth/google", response.credential);
+            else setError("Google sign-in failed: No credential returned.");
+          }
+        });
+        setGoogleReady(true);
+      })
+      .catch(() => {
+        if (!cancelled) setGoogleReady(false);
+      });
+    
     // Set ready states based on hrefs
-    if (nextGoogleHref) setGoogleReady(true);
+    if (nextAppleHref) setAppleReady(true);
 
     setStatus(null);
     setMounted(true);
+
+    // Cleanup: cancel pending promises if component unmounts
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   return (
