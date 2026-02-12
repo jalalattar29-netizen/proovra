@@ -1,7 +1,7 @@
 # PROOVRA Auth Architecture & Debug Guide
 
 **Branch:** `fix/auth-regressions-cursor`  
-**Last updated:** Phase 4 — cancel/dismiss handling
+**Last updated:** Auth web fixes — redirect flow, Apple button, toasts, debug mode
 
 ---
 
@@ -12,7 +12,7 @@
 | Component | Detail |
 |-----------|--------|
 | **Library** | Custom OAuth (no NextAuth). Google Identity Services (GSI) script + Apple JS SDK. |
-| **Google** | `lib/oauth.ts`: `loadGoogleIdentity()` loads `https://accounts.google.com/gsi/client`. `buildGoogleAuthUrl()` builds redirect URL. Login page uses BOTH: (1) GSI one-tap `google.accounts.id.prompt()` for credential, (2) fallback `<a href={googleHref}>` for redirect flow. |
+| **Google** | `lib/oauth.ts`: `buildGoogleAuthUrl()` builds redirect URL. Login uses **redirect-only** flow: `<a href={googleHref}>` — no GSI one-tap (avoids FedCM warning, reliable on mobile web). |
 | **Apple** | `lib/oauth.ts`: `loadAppleIdentity()` loads Apple JS SDK. `buildAppleAuthUrl()` builds redirect URL. Login uses `<a href={appleHref}>` — full redirect flow. |
 | **OAuth callback route** | `apps/web/app/auth/callback/route.ts` — handles GET (Google) and POST (Apple form_post). Redirects to `apps/web/app/auth/callback/ui/page.tsx`. |
 | **Callback UI** | `apps/web/app/auth/callback/ui/page.tsx` — receives `?code=` or `?id_token=`, exchanges with API, sets token, calls `/v1/auth/me`, redirects to `/home` or `sessionStorage.proovra-return-url`. |

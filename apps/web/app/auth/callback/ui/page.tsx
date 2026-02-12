@@ -1,11 +1,14 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "../../../providers";
+import { useToast } from "../../../../components/ui";
 import { authLogger } from "../../../../lib/auth-logger";
 
 type Provider = "apple" | "google";
+
+const DEBUG_AUTH = process.env.NEXT_PUBLIC_DEBUG_AUTH === "1";
 
 function parseHashParams(hash: string) {
   const cleaned = hash.startsWith("#") ? hash.slice(1) : hash;
@@ -44,7 +47,9 @@ function inferProviderFromIdToken(idToken: string | null): Provider | null {
 export default function AppleCallbackPage() {
   const router = useRouter();
   const { setToken } = useAuth();
+  const { addToast } = useToast();
   const [error, setError] = useState<string | null>(null);
+  const isMountedRef = useRef(true);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -57,6 +62,12 @@ export default function AppleCallbackPage() {
     const state = searchParams.get("state") ?? hashParams.get("state");
     const storedState = sessionStorage.getItem("proovra-apple-state");
     
+    authLogger.log("AUTH_CALLBACK_RECEIVED", `provider=${providerRaw ?? "unknown"}`, {
+      hasCode: !!code,
+      hasIdToken: !!idToken,
+      hasState: !!state,
+      hasStoredState: !!storedState
+    });
     authLogger.logCallbackReceived({
       idToken: !!idToken,
       code: !!code,
@@ -64,11 +75,15 @@ export default function AppleCallbackPage() {
       state: !!state,
       storedState: !!storedState
     });
+    if (DEBUG_AUTH) {
+      console.info("[Auth] Callback received:", { provider: providerRaw, hasCode: !!code, hasIdToken: !!idToken });
+    }
     
     // Only validate state for Apple (Google uses static state="google")
     if (state && state !== "google" && storedState && state !== storedState) {
       authLogger.logError("callback_state_mismatch", `state=${state}, stored=${storedState}`);
       setError("OAuth state mismatch.");
+      addToast("OAuth state mismatch. Please try again.", "error");
       return;
     }
 
@@ -86,9 +101,11 @@ export default function AppleCallbackPage() {
       if (oauthError === "access_denied" || oauthError === "user_cancelled_authorize" || oauthError === "user_cancelled_login") {
         authLogger.log("CALLBACK", "user_cancelled", { error: oauthError }, provider ?? "unknown");
         setError("Sign-in was cancelled.");
+        addToast("Sign-in was cancelled.", "info");
       } else {
         authLogger.logError("callback_no_token", "Neither idToken nor code provided");
         setError("Missing OAuth token.");
+        addToast("Sign-in failed: Missing OAuth token.", "error");
       }
       return;
     }
@@ -120,7 +137,7 @@ export default function AppleCallbackPage() {
       try {
         const res = await fetch(endpoint, {
           method: "POST",
-          headers: { "content-type": "application/json" },
+          headers: { "content-type": "application/json", "x-web-client": "1" },
           body: JSON.stringify(body)
         });
         
@@ -131,8 +148,14 @@ export default function AppleCallbackPage() {
 
         if (!res.ok) {
           const text = await res.text();
+          let requestId: string | undefined;
+          try {
+            const errJson = JSON.parse(text) as { error?: { requestId?: string; message?: string } };
+            requestId = errJson.error?.requestId;
+          } catch { void 0; }
           authLogger.logError("callback_exchange_failed", `${res.status}: ${text}`);
-          throw new Error(text || "Sign-in failed");
+          authLogger.log("AUTH_SESSION_FAILED", "error", { code: "token_exchange", status: res.status, requestId }, provider);
+          throw new Error(requestId ? `Sign-in failed (requestId: ${requestId})` : text || "Sign-in failed");
         }
         const data = (await res.json()) as { token?: string };
         if (!data.token) {
@@ -141,6 +164,7 @@ export default function AppleCallbackPage() {
         }
         
         authLogger.log("CALLBACK", "token_received", {}, provider);
+        if (!isMountedRef.current) return;
         setToken(data.token);
         
         const meRes = await fetch(`${apiBase}/v1/auth/me`, {
@@ -168,15 +192,24 @@ export default function AppleCallbackPage() {
           void 0;
         }
         
+        const meData = await meRes.json().catch(() => ({}));
+        const userId = meData?.user?.id;
+        authLogger.log("AUTH_SESSION_SUCCESS", `userId=${userId ?? "unknown"}`, { provider, redirectTo }, provider);
         authLogger.log("CALLBACK", "success", { redirectTo }, provider);
+        if (!isMountedRef.current) return;
         router.replace(redirectTo);
       } catch (err) {
         const msg = err instanceof Error ? err.message : "Sign-in failed";
         authLogger.logError("callback_error", msg);
+        authLogger.log("AUTH_SESSION_FAILED", "error", { code: "callback_error", message: msg }, provider);
+        if (!isMountedRef.current) return;
         setError(msg);
+        addToast(msg, "error", 6000);
       }
     })();
-  }, [router, setToken]);
+
+    return () => { isMountedRef.current = false; };
+  }, [router, setToken, addToast]);
 
   if (error) {
     return (
