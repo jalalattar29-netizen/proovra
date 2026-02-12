@@ -7,7 +7,8 @@
 
 - **Cause:** Callback useEffect ran multiple times (React Strict Mode / re-mounts), sending the same OAuth code repeatedly. Codes are one-time use; only the first exchange succeeds.
 - **Fix:** `processedTokens` Set guards against duplicate processing; each code/idToken is exchanged only once.
-- **Backend:** Ensure `GOOGLE_REDIRECT_URI` and `APPLE_REDIRECT_URI` match exactly: `https://www.proovra.com/auth/callback`.
+- **id_token preferred:** When Apple returns both code and id_token (form_post), we send id_token to skip the exchange and avoid 401.
+- **Backend env (services/api/.env):** Must have `GOOGLE_REDIRECT_URI` and `APPLE_REDIRECT_URI` (not NEXT_PUBLIC_). Both = `https://www.proovra.com/auth/callback`. Console config uses NEXT_PUBLIC_* in web app; API uses the non-prefixed vars.
 
 ### "A listener indicated an asynchronous response..." (Chrome)
 

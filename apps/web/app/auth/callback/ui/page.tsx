@@ -130,11 +130,11 @@ export default function AppleCallbackPage() {
         ? `${apiBase}/v1/auth/google`
         : `${apiBase}/v1/auth/apple`;
     const body =
-      provider === "apple" && code
-        ? { code }
-        : provider === "google" && code
+      idToken
+        ? { idToken }
+        : code
           ? { code }
-          : { idToken: tokenToSend };
+          : {};
 
     authLogger.log("CALLBACK", "request_start", {
       endpoint,
@@ -157,14 +157,14 @@ export default function AppleCallbackPage() {
 
         if (!res.ok) {
           const text = await res.text();
-          let requestId: string | undefined;
+          let errMsg = "Sign-in failed";
           try {
-            const errJson = JSON.parse(text) as { error?: { requestId?: string; message?: string } };
-            requestId = errJson.error?.requestId;
+            const errJson = JSON.parse(text) as { message?: string; hint?: string; error?: { message?: string } };
+            errMsg = [errJson.message, errJson.hint].filter(Boolean).join(" — ") || errJson.error?.message || errMsg;
           } catch { void 0; }
           authLogger.logError("callback_exchange_failed", `${res.status}: ${text}`);
-          authLogger.log("AUTH_SESSION_FAILED", "error", { code: "token_exchange", status: res.status, requestId }, provider);
-          throw new Error(requestId ? `Sign-in failed (requestId: ${requestId})` : text || "Sign-in failed");
+          authLogger.log("AUTH_SESSION_FAILED", "error", { code: "token_exchange", status: res.status, message: errMsg }, provider);
+          throw new Error(errMsg);
         }
         const data = (await res.json()) as { token?: string };
         if (!data.token) {

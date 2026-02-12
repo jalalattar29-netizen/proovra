@@ -125,9 +125,11 @@ export async function exchangeGoogleCodeForIdToken(code: string): Promise<string
     headers: { "content-type": "application/x-www-form-urlencoded" },
     body
   });
-  const json = (await res.json()) as { id_token?: string; error?: string };
+  const json = (await res.json()) as { id_token?: string; error?: string; error_description?: string };
   if (!res.ok) {
+    console.error("[Google Token Exchange] Failed:", res.status, json.error, json.error_description);
     if (json.error === "invalid_grant") throw new Error("invalid_code");
+    if (json.error === "redirect_uri_mismatch") throw new Error("redirect_uri_mismatch");
     throw new Error("token_exchange_failed");
   }
   if (!json.id_token) throw new Error("token_exchange_failed");
@@ -219,15 +221,19 @@ export async function exchangeAppleCodeForIdToken(code: string): Promise<string>
     body
   });
 
-  const json = (await res.json()) as { id_token?: string; error?: string };
+  const json = (await res.json()) as { id_token?: string; error?: string; error_description?: string };
   console.log("[Apple Token Exchange] Response status:", res.status, "body:", json);
   
   if (!res.ok) {
     if (json.error === "invalid_grant") {
-      console.error("[Apple Token Exchange] Invalid grant (code may be invalid/expired)");
+      console.error("[Apple Token Exchange] Invalid grant (code may be invalid/expired):", json.error_description);
       throw new Error("invalid_code");
     }
-    console.error("[Apple Token Exchange] Token exchange failed:", json.error);
+    if (json.error === "invalid_client" || (json.error_description?.toLowerCase().includes("redirect"))) {
+      console.error("[Apple Token Exchange] Redirect URI mismatch:", json.error_description);
+      throw new Error("redirect_uri_mismatch");
+    }
+    console.error("[Apple Token Exchange] Token exchange failed:", json.error, json.error_description);
     throw new Error("token_exchange_failed");
   }
   if (!json.id_token) {

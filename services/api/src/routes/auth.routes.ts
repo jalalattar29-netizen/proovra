@@ -90,7 +90,10 @@ export async function authRoutes(app: FastifyInstance) {
     } catch (err) {
       const message = err instanceof Error ? err.message : "invalid_id_token";
       if (message === "invalid_code") {
-        return reply.code(400).send({ message: "invalid_code" });
+        return reply.code(400).send({ message: "invalid_code", hint: "Code may be expired or already used. Ensure GOOGLE_REDIRECT_URI matches exactly." });
+      }
+      if (message === "redirect_uri_mismatch") {
+        return reply.code(400).send({ message: "redirect_uri_mismatch", hint: "GOOGLE_REDIRECT_URI in API .env must match exactly: https://www.proovra.com/auth/callback" });
       }
       if (message === "token_exchange_failed") {
         return reply.code(502).send({ message: "token_exchange_failed" });
@@ -132,16 +135,16 @@ export async function authRoutes(app: FastifyInstance) {
       const message = err instanceof Error ? err.message : "invalid_id_token";
       console.error("[Apple Auth] Error:", message, err instanceof Error ? err.stack : "");
       if (message === "invalid_code") {
-        return reply.code(400).send({ message: "invalid_code" });
+        return reply.code(400).send({ message: "invalid_code", hint: "Code may be expired or already used. Ensure APPLE_REDIRECT_URI matches exactly." });
+      }
+      if (message === "redirect_uri_mismatch") {
+        return reply.code(400).send({ message: "redirect_uri_mismatch", hint: "APPLE_REDIRECT_URI in API .env must match exactly: https://www.proovra.com/auth/callback" });
       }
       if (message === "token_exchange_failed") {
         return reply.code(502).send({ message: "token_exchange_failed" });
       }
       if (message === "apple_jwks_fetch_failed") {
         return reply.code(502).send({ message: "apple_jwks_fetch_failed" });
-      }
-      if (message === "invalid_id_token") {
-        return reply.code(401).send({ message: "invalid_id_token" });
       }
       return reply.code(401).send({ message: "invalid_id_token" });
     }
