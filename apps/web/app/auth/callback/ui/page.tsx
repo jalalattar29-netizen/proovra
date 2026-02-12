@@ -10,6 +10,9 @@ type Provider = "apple" | "google";
 
 const DEBUG_AUTH = process.env.NEXT_PUBLIC_DEBUG_AUTH === "1";
 
+/** Prevents duplicate token exchange (React Strict Mode / re-mounts consume OAuth codes) */
+const processedTokens = new Set<string>();
+
 function parseHashParams(hash: string) {
   const cleaned = hash.startsWith("#") ? hash.slice(1) : hash;
   const params = new URLSearchParams(cleaned);
@@ -97,6 +100,12 @@ export default function AppleCallbackPage() {
 
     const oauthError = searchParams.get("error") ?? hashParams.get("error");
     const tokenToSend = idToken ?? code;
+    if (tokenToSend && processedTokens.has(tokenToSend)) {
+      if (DEBUG_AUTH) console.info("[Auth] Callback already processed for this token, skipping duplicate");
+      return;
+    }
+    if (tokenToSend) processedTokens.add(tokenToSend);
+
     if (!tokenToSend) {
       if (oauthError === "access_denied" || oauthError === "user_cancelled_authorize" || oauthError === "user_cancelled_login") {
         authLogger.log("CALLBACK", "user_cancelled", { error: oauthError }, provider ?? "unknown");

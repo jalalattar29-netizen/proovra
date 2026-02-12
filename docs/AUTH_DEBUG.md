@@ -1,7 +1,17 @@
 # PROOVRA Auth Architecture & Debug Guide
 
 **Branch:** `fix/auth-regressions-cursor`  
-**Last updated:** Auth web fixes — redirect flow, Apple button, toasts, debug mode
+**Last updated:** Auth web fixes — redirect flow, Apple button, toasts, debug mode, duplicate callback guard
+
+### 401/400 on token exchange
+
+- **Cause:** Callback useEffect ran multiple times (React Strict Mode / re-mounts), sending the same OAuth code repeatedly. Codes are one-time use; only the first exchange succeeds.
+- **Fix:** `processedTokens` Set guards against duplicate processing; each code/idToken is exchanged only once.
+- **Backend:** Ensure `GOOGLE_REDIRECT_URI` and `APPLE_REDIRECT_URI` match exactly: `https://www.proovra.com/auth/callback`.
+
+### "A listener indicated an asynchronous response..." (Chrome)
+
+- This is a **browser extension** error, not from the app. Disable extensions or ignore.
 
 ---
 
