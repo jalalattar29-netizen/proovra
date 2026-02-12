@@ -133,10 +133,11 @@ export default function LoginPage() {
     }
 
     let cancelled = false;
+    let scriptAborted = false;
     
     loadGoogleIdentity()
       .then(() => {
-        if (cancelled) return;
+        if (cancelled || scriptAborted) return;
         const google = (window as typeof window & {
           google?: {
             accounts?: {
@@ -150,31 +151,37 @@ export default function LoginPage() {
           };
         }).google;
         if (!google?.accounts?.id) {
-          setGoogleReady(false);
+          if (!cancelled) setGoogleReady(false);
           return;
         }
         google.accounts.id.initialize({
           client_id: googleClientId,
           callback: (response: { credential?: string }) => {
+            if (cancelled || scriptAborted) return;
             if (response.credential) void handleAuth("/v1/auth/google", response.credential);
-            else setError("Google sign-in failed: No credential returned.");
+            else if (!cancelled && !scriptAborted) setError("Google sign-in failed: No credential returned.");
           }
         });
-        setGoogleReady(true);
+        if (!cancelled && !scriptAborted) setGoogleReady(true);
       })
-      .catch(() => {
-        if (!cancelled) setGoogleReady(false);
+      .catch((err) => {
+        if (!cancelled && !scriptAborted) {
+          console.warn("[Auth] Google SDK failed to load:", err);
+          setGoogleReady(false);
+        }
       });
-    
-    // Set ready states based on hrefs
-    if (nextAppleHref) setAppleReady(true);
 
     setStatus(null);
     setMounted(true);
 
-    // Cleanup: cancel pending promises if component unmounts
+    // Cleanup: suppress any pending operations if component unmounts or page navigates
     return () => {
       cancelled = true;
+      scriptAborted = true;
+      // Give a small window for pending callbacks to check the flag
+      setTimeout(() => {
+        scriptAborted = true;
+      }, 100);
     };
   }, []);
 

@@ -32,29 +32,52 @@ export default function AuthScreen() {
   }, []);
 
   useEffect(() => {
-    if (googleResponse?.type !== "success") return;
-    const idToken = googleResponse.params?.id_token;
-    if (!idToken) {
-      setError("Google login failed.");
+    if (!googleResponse) return;
+    
+    // Handle cancel/dismiss
+    if (googleResponse.type === "dismiss") {
+      setStatus(null);
       return;
     }
+    
+    if (googleResponse.type === "error") {
+      setError(`Google login error: ${googleResponse.params?.error || "Unknown error"}`);
+      setStatus(null);
+      return;
+    }
+
+    if (googleResponse.type !== "success") return;
+    
+    const idToken = googleResponse.params?.id_token;
+    if (!idToken) {
+      setError("Google login failed: No ID token received.");
+      setStatus(null);
+      return;
+    }
+    
     void (async () => {
       setError(null);
       setStatus("Signing in with Google...");
       try {
+        console.log("[Mobile Auth] Starting Google token exchange...");
         const data = await apiFetch("/v1/auth/google", {
           method: "POST",
           body: JSON.stringify({ idToken })
         });
         if (!data.token) throw new Error("Missing access token");
+        console.log("[Mobile Auth] Got session token, fetching user...");
         const me = await apiFetch("/v1/auth/me", {
           headers: { authorization: `Bearer ${data.token}` }
         });
         if (!me?.user) throw new Error("Session not confirmed");
+        console.log("[Mobile Auth] Google sign-in success, navigating...");
         setSession({ token: data.token, user: me.user ?? data.user ?? null, mode: "google" });
+        setStatus(null);
         router.replace("/(tabs)");
       } catch (err) {
+        console.error("[Mobile Auth] Google sign-in failed:", err);
         setError(err instanceof Error ? err.message : "Google login failed");
+        setStatus(null);
       }
     })();
   }, [googleResponse, router, setSession]);
@@ -75,28 +98,50 @@ export default function AuthScreen() {
     setError(null);
     setStatus("Signing in with Apple...");
     try {
+      console.log("[Mobile Auth] Starting Apple sign-in...");
       const result = await AppleAuthentication.signInAsync({
         requestedScopes: [
           AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
           AppleAuthentication.AppleAuthenticationScope.EMAIL
         ]
       });
+      
+      console.log("[Mobile Auth] Apple sign-in completed, got identity token");
+      
       if (!result.identityToken) {
-        throw new Error("Apple login failed");
+        throw new Error("Apple login failed: No identity token received");
       }
+      
+      console.log("[Mobile Auth] Exchanging Apple identity token...");
       const data = await apiFetch("/v1/auth/apple", {
         method: "POST",
         body: JSON.stringify({ idToken: result.identityToken })
       });
-      if (!data.token) throw new Error("Missing access token");
+      
+      if (!data.token) throw new Error("Missing access token from server");
+      
+      console.log("[Mobile Auth] Got session token, fetching user...");
       const me = await apiFetch("/v1/auth/me", {
         headers: { authorization: `Bearer ${data.token}` }
       });
+      
       if (!me?.user) throw new Error("Session not confirmed");
+      
+      console.log("[Mobile Auth] Apple sign-in success, navigating...");
       setSession({ token: data.token, user: me.user ?? data.user ?? null, mode: "apple" });
+      setStatus(null);
       router.replace("/(tabs)");
     } catch (err) {
+      // Distinguish between user cancel and real errors
+      if (err instanceof Error && err.message === "User canceled the sign-in flow") {
+        console.log("[Mobile Auth] Apple sign-in was cancelled by user");
+        setError(null);
+        setStatus(null);
+        return;
+      }
+      console.error("[Mobile Auth] Apple sign-in failed:", err);
       setError(err instanceof Error ? err.message : "Apple login failed");
+      setStatus(null);
     }
   };
 
