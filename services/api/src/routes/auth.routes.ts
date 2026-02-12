@@ -35,11 +35,14 @@ export async function authRoutes(app: FastifyInstance) {
   function maybeSetWebCookie(req: FastifyRequest, reply: FastifyReply, token: string) {
     if (req.headers["x-web-client"] !== "1") return;
     const secure = process.env.NODE_ENV === "production";
+    const domain = process.env.NODE_ENV === "production" ? ".proovra.com" : undefined;
+    console.log("[Auth] Setting web cookie", { domain, secure });
     reply.setCookie("proovra_session", token, {
       httpOnly: true,
       sameSite: "lax",
       secure,
       path: "/",
+      domain, // Allow cross-subdomain access (api.proovra.com → www.proovra.com)
       maxAge: 60 * 60 * 24 * 30
     });
   }
