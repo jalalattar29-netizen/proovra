@@ -9,7 +9,6 @@ import { apiFetch } from "../../lib/api";
 import {
   buildAppleAuthUrl,
   buildGoogleAuthUrl,
-  loadAppleIdentity,
   loadGoogleIdentity
 } from "../../lib/oauth";
 
@@ -123,6 +122,10 @@ export default function LoginPage() {
     setGoogleHref(nextGoogleHref);
     setDebugGoogleHref(nextGoogleHref);
     setDebugAppleHref(nextAppleHref);
+    
+    // Set ready states based on hrefs
+    if (nextAppleHref) setAppleReady(true);
+    if (nextGoogleHref) setGoogleReady(false); // Will be set to true after SDK loads
 
     try {
       sessionStorage.setItem("proovra-apple-state", nextAppleState);
@@ -144,12 +147,12 @@ export default function LoginPage() {
             };
           };
         }).google;
-        if (!google?.accounts?.id || !process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID) {
+        if (!google?.accounts?.id) {
           setGoogleReady(false);
           return;
         }
         google.accounts.id.initialize({
-          client_id: process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID,
+          client_id: googleClientId,
           callback: (response: { credential?: string }) => {
             if (response.credential) void handleAuth("/v1/auth/google", response.credential);
             else setError("Google sign-in failed: No credential returned.");
@@ -158,34 +161,6 @@ export default function LoginPage() {
         setGoogleReady(true);
       })
       .catch(() => setGoogleReady(false));
-
-    loadAppleIdentity()
-      .then(() => {
-        const AppleID = (window as typeof window & {
-          AppleID?: {
-            auth?: {
-              init: (options: {
-                clientId: string;
-                scope: string;
-                redirectURI: string;
-                usePopup: boolean;
-              }) => void;
-            };
-          };
-        }).AppleID;
-        if (!AppleID?.auth) {
-          setAppleReady(false);
-          return;
-        }
-        AppleID.auth.init({
-          clientId: "com.proovra.web",
-          scope: "name email",
-          redirectURI: "https://www.proovra.com/auth/callback",
-          usePopup: true
-        });
-        setAppleReady(true);
-      })
-      .catch(() => setAppleReady(false));
 
     setStatus(null);
     setMounted(true);
@@ -276,25 +251,7 @@ export default function LoginPage() {
                   }
                   if (appleReady) {
                     event.preventDefault();
-                    const AppleID = (window as typeof window & {
-                      AppleID?: {
-                        auth?: {
-                          signIn: () => Promise<{
-                            authorization?: { code?: string; id_token?: string };
-                          }>;
-                        };
-                      };
-                    }).AppleID;
-
-                    AppleID?.auth
-                      ?.signIn()
-                      .then((response) => {
-                        const idToken = response.authorization?.id_token;
-                        const code = response.authorization?.code;
-                        if (idToken || code) void handleAuth("/v1/auth/apple", idToken, code);
-                        else setError("Apple sign-in failed: No token returned.");
-                      })
-                      .catch(() => setError("Apple sign-in failed: Authorization failed."));
+                    // With usePopup: false, just navigate to the href
                     return;
                   }
                   if (!appleHref) {
