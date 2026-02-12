@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "../../../providers";
-import { authLogger } from "../../../lib/auth-logger";
+import { authLogger } from "../../../../lib/auth-logger";
 
 type Provider = "apple" | "google";
 
