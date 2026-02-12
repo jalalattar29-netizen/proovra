@@ -2,7 +2,8 @@ import { registerRootComponent } from "expo";
 import { ExpoRoot } from "expo-router";
 
 export function App() {
-  return <ExpoRoot context={(require as unknown as (path: string) => { keys: () => string[] }).context("./app")} />;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- require.context is Metro/bundler-specific
+return <ExpoRoot context={(require as any).context("./app")} />;
 }
 
 registerRootComponent(App);
