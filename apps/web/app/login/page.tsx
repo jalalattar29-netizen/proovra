@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "../../components/ui";
@@ -31,8 +31,10 @@ export default function LoginPage() {
   const [debugGoogleHref, setDebugGoogleHref] = useState<string>("");
   const [debugAppleHref, setDebugAppleHref] = useState<string>("");
   const apiBase = process.env.NEXT_PUBLIC_API_BASE ?? "";
+  const isMountedRef = useRef(true);
 
   const handleAuth = async (path: string, idToken?: string, code?: string) => {
+    if (!isMountedRef.current) return;
     setBusy(true);
     setError(null);
     const provider = path.includes("google") ? "google" : path.includes("apple") ? "apple" : "guest";
@@ -55,6 +57,7 @@ export default function LoginPage() {
       });
 
       authLogger.logTokenExchangeSuccess(provider, data);
+      if (!isMountedRef.current) return;
       setToken(data.token);
 
       const me = await apiFetch("/v1/auth/me", { method: "GET" });
@@ -76,15 +79,17 @@ export default function LoginPage() {
       }
 
       authLogger.log("LOGIN", "success", { provider, redirectTo: nextUrl }, provider);
+      if (!isMountedRef.current) return;
       router.replace(nextUrl);
     } catch (err) {
+      if (!isMountedRef.current) return;
       const msg = err instanceof Error ? err.message : "Login failed";
       authLogger.logTokenExchangeError(provider, msg);
       const providerLabel = provider === "guest" ? "" : provider.charAt(0).toUpperCase() + provider.slice(1);
       setError(providerLabel ? `${providerLabel} sign-in failed: ${msg}` : msg);
       setStatus("Sign in failed.");
     } finally {
-      setBusy(false);
+      if (isMountedRef.current) setBusy(false);
     }
   };
 
@@ -167,7 +172,8 @@ export default function LoginPage() {
 
     let cancelled = false;
     let scriptAborted = false;
-    
+    isMountedRef.current = true;
+
     loadGoogleIdentity()
       .then(() => {
         if (cancelled || scriptAborted) return;
@@ -199,10 +205,8 @@ export default function LoginPage() {
             if (response.credential) {
               authLogger.log("GOOGLE_SDK", "callback_credential_received", {});
               void handleAuth("/v1/auth/google", response.credential);
-            }
-            else if (!cancelled && !scriptAborted) {
-              authLogger.logError("google_sdk_callback", "No credential returned");
-              setError("Google sign-in failed: No credential returned.");
+            } else {
+              authLogger.log("GOOGLE_SDK", "callback_no_credential", { note: "user dismissed/cancelled" });
             }
           }
         });
@@ -223,6 +227,7 @@ export default function LoginPage() {
     // Cleanup: suppress any pending operations if component unmounts or page navigates
     return () => {
       authLogger.log("CLEANUP", "unmount", {});
+      isMountedRef.current = false;
       cancelled = true;
       scriptAborted = true;
       // Give a small window for pending callbacks to check the flag

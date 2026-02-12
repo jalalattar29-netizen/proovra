@@ -135,8 +135,11 @@ export default function AuthScreen() {
       setStatus(null);
       router.replace("/(tabs)");
     } catch (err) {
-      // Distinguish between user cancel and real errors
-      if (err instanceof Error && err.message === "User canceled the sign-in flow") {
+      // Distinguish between user cancel and real errors (ERR_REQUEST_CANCELED or message variants)
+      const isCancel =
+        (err as { code?: string })?.code === "ERR_REQUEST_CANCELED" ||
+        (err instanceof Error && /cancel/i.test(err.message ?? ""));
+      if (isCancel) {
         console.log("[Mobile Auth] Apple sign-in was cancelled by user");
         setError(null);
         setStatus(null);

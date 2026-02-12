@@ -1,7 +1,7 @@
 # PROOVRA Auth Architecture & Debug Guide
 
 **Branch:** `fix/auth-regressions-cursor`  
-**Last updated:** Phase 0–1 mapping
+**Last updated:** Phase 4 — cancel/dismiss handling
 
 ---
 
@@ -79,6 +79,19 @@
 2. **Web Apple:** User clicks → redirect to `appleid.apple.com` → form POST to `https://www.proovra.com/auth/callback` → route.ts POST redirects to `/auth/callback/ui?code=...&provider=apple` → UI exchanges with API → API uses `APPLE_REDIRECT_URI`.
 3. **Mobile Google:** `promptGoogle()` opens browser → OAuth → redirect to `redirectUri` (from makeRedirectUri) → app receives response in `googleResponse`.
 4. **Mobile Apple:** Native sheet → returns `identityToken` → no redirect.
+
+---
+
+## Phase 4 — Cancel / Dismiss Handling
+
+| Area | Behavior |
+|------|----------|
+| **Web GSI** | When user dismisses one-tap (no credential): no error shown; logs `callback_no_credential` with note "user dismissed/cancelled". |
+| **Web callback UI** | When OAuth returns `error=access_denied` or `user_cancelled_*` and no token: shows "Sign-in was cancelled." + "Back to sign in" link. |
+| **Apple POST callback** | Route forwards `error` and `error_description` form params to UI for cancel detection. |
+| **Mobile Apple** | Catches `ERR_REQUEST_CANCELED` or message containing "cancel"; clears error, no status. |
+| **Mobile Google** | `googleResponse.type === "dismiss"` already handled; no error set. |
+| **Login page** | `handleAuth` guards all `setState` / `router.replace` with `isMountedRef` to avoid updates after unmount. |
 
 ---
 

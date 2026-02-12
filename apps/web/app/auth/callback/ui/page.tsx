@@ -80,10 +80,16 @@ export default function AppleCallbackPage() {
 
     authLogger.log("CALLBACK", "provider_detected", { provider }, provider);
 
+    const oauthError = searchParams.get("error") ?? hashParams.get("error");
     const tokenToSend = idToken ?? code;
     if (!tokenToSend) {
-      authLogger.logError("callback_no_token", "Neither idToken nor code provided");
-      setError("Missing OAuth token.");
+      if (oauthError === "access_denied" || oauthError === "user_cancelled_authorize" || oauthError === "user_cancelled_login") {
+        authLogger.log("CALLBACK", "user_cancelled", { error: oauthError }, provider ?? "unknown");
+        setError("Sign-in was cancelled.");
+      } else {
+        authLogger.logError("callback_no_token", "Neither idToken nor code provided");
+        setError("Missing OAuth token.");
+      }
       return;
     }
 
@@ -173,7 +179,14 @@ export default function AppleCallbackPage() {
   }, [router, setToken]);
 
   if (error) {
-    return <div style={{ padding: 32 }}>{error}</div>;
+    return (
+      <div style={{ padding: 32 }}>
+        <p>{error}</p>
+        <a href="/login" style={{ marginTop: 16, display: "inline-block", color: "#2563eb" }}>
+          Back to sign in
+        </a>
+      </div>
+    );
   }
 
   return <div style={{ padding: 32 }}>Signing you in…</div>;
