@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "../../components/ui";
 import { useAuth, useLocale } from "../providers";
 import { apiFetch } from "../../lib/api";
+import { formatBuildInfo } from "../../lib/build-info";
 import {
   buildAppleAuthUrl,
   buildGoogleAuthUrl,
@@ -314,6 +315,10 @@ export default function LoginPage() {
             <div className="auth-switch">
               <span>{t("register")}? </span>
               <Link href="/register">{t("register")}</Link>
+            </div>
+
+            <div style={{ marginTop: 20, paddingTop: 20, borderTop: "1px solid #e2e8f0", fontSize: 10, color: "#94a3b8", textAlign: "center" }}>
+              {formatBuildInfo()}
             </div>
           </div>
         </main>
