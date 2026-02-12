@@ -125,7 +125,6 @@ export default function LoginPage() {
     
     // Set ready states based on hrefs
     if (nextAppleHref) setAppleReady(true);
-    if (nextGoogleHref) setGoogleReady(false); // Will be set to true after SDK loads
 
     try {
       sessionStorage.setItem("proovra-apple-state", nextAppleState);
@@ -133,8 +132,10 @@ export default function LoginPage() {
       void err;
     }
 
+    let cancelled = false;
     loadGoogleIdentity()
       .then(() => {
+        if (cancelled) return;
         const google = (window as typeof window & {
           google?: {
             accounts?: {
@@ -160,10 +161,17 @@ export default function LoginPage() {
         });
         setGoogleReady(true);
       })
-      .catch(() => setGoogleReady(false));
+      .catch(() => {
+        if (!cancelled) setGoogleReady(false);
+      });
 
     setStatus(null);
     setMounted(true);
+
+    // Cleanup: cancel pending promises if component unmounts
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   return (
