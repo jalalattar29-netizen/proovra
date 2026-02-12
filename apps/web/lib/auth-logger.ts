@@ -15,7 +15,7 @@ interface AuthLogEntry {
   timestamp: string;
   stage: string;
   event: string;
-  data?: Record<string, any>;
+  data?: Record<string, unknown>;
   provider?: string;
 }
 
@@ -26,7 +26,7 @@ class AuthLogger {
   constructor() {
     if (typeof window !== "undefined") {
       // Export globally for console access
-      (window as any).__authLogs = this;
+      (window as unknown as Record<string, unknown>).__authLogs = this;
     }
   }
 
@@ -38,7 +38,7 @@ class AuthLogger {
     this.isEnabled = false;
   }
 
-  log(stage: string, event: string, data?: Record<string, any>, provider?: string) {
+  log(stage: string, event: string, data?: Record<string, unknown>, provider?: string) {
     if (!this.isEnabled) return;
 
     const entry: AuthLogEntry = {
@@ -58,7 +58,7 @@ class AuthLogger {
     }
   }
 
-  logUrlBuilt(provider: string, url: string, params: Record<string, any>) {
+  logUrlBuilt(provider: string, url: string, params: Record<string, unknown>) {
     this.log("URL_BUILD", provider, {
       url_length: url.length,
       has_client_id: url.includes("client_id="),
@@ -68,7 +68,7 @@ class AuthLogger {
     }, provider);
   }
 
-  logCallbackReceived(params: Record<string, any>, provider?: string) {
+  logCallbackReceived(params: Record<string, unknown>, provider?: string) {
     this.log("CALLBACK", "received", {
       has_code: "code" in params,
       has_id_token: "id_token" in params,
@@ -85,13 +85,13 @@ class AuthLogger {
     }, provider);
   }
 
-  logTokenExchangeSuccess(provider: string, response: Record<string, any>) {
+  logTokenExchangeSuccess(provider: string, response: Record<string, unknown>) {
     this.log("TOKEN_EXCHANGE", "success", {
       provider,
       has_token: "token" in response,
       has_user: "user" in response,
-      user_id: response.user?.id ? "redacted" : "missing",
-      user_email: response.user?.email ? "redacted" : "missing"
+      user_id: typeof response.user === "object" && response.user && "id" in response.user ? "redacted" : "missing",
+      user_email: typeof response.user === "object" && response.user && "email" in response.user ? "redacted" : "missing"
     }, provider);
   }
 
@@ -102,11 +102,11 @@ class AuthLogger {
     }, provider);
   }
 
-  logSessionValidation(endpoint: string, response: Record<string, any>) {
+  logSessionValidation(endpoint: string, response: Record<string, unknown>) {
     this.log("SESSION", "validation", {
       endpoint,
       has_user: "user" in response,
-      user_id: response.user?.id ? "redacted" : "missing"
+      user_id: typeof response.user === "object" && response.user && "id" in response.user ? "redacted" : "missing"
     });
   }
 
