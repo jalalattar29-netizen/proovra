@@ -1,8 +1,12 @@
+const GOOGLE_CLIENT_ID_FALLBACK =
+  "548168595768-8uddhhcmdgl9108juth8fke4boncenut.apps.googleusercontent.com";
+
 export function buildGoogleAuthUrl(params: { state: string; origin?: string }): string {
-  const clientId = "548168595768-8uddhhcmdgl9108juth8fke4boncenut.apps.googleusercontent.com";
-  // HARDCODED: Google only accepts pre-registered URIs
-  // Must match exactly what's registered in Google Console
-  const redirectUri = "https://www.proovra.com/auth/callback";
+  const clientId =
+    process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID ?? GOOGLE_CLIENT_ID_FALLBACK;
+  // Must match API GOOGLE_CLIENT_ID and GOOGLE_REDIRECT_URI=https://www.proovra.com/auth/callback
+  const redirectUri =
+    process.env.NEXT_PUBLIC_GOOGLE_REDIRECT_URI ?? "https://www.proovra.com/auth/callback";
   const url = new URL("https://accounts.google.com/o/oauth2/v2/auth");
   url.searchParams.set("client_id", clientId);
   url.searchParams.set("redirect_uri", redirectUri);

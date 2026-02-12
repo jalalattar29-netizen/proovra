@@ -21,6 +21,16 @@ export async function requireAuth(req: FastifyRequest, reply: FastifyReply) {
       readCookie(req.headers.cookie, "proovra_session");
     const token = headerToken || cookieToken;
     if (!token) {
+      req.log.info(
+        {
+          hasAuthHeader: !!req.headers.authorization,
+          hasCookie: !!req.headers.cookie,
+          cookiePresent: !!cookieToken,
+          host: req.headers.host,
+          origin: req.headers.origin
+        },
+        "[Auth] 401: no token (check cookie domain, credentials: include)"
+      );
       reply.code(401).send({ message: "Unauthorized" });
       return;
     }

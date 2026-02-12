@@ -38,7 +38,9 @@ export async function authRoutes(app: FastifyInstance) {
       return;
     }
     const host = req.headers.host ?? "";
-    const isProductionDomain = host.includes("proovra.com");
+    const origin = req.headers.origin ?? "";
+    const isProductionDomain =
+      host.includes("proovra.com") || origin.includes("proovra.com");
     const cookieOpts = isProductionDomain
       ? {
           httpOnly: true,
@@ -57,11 +59,11 @@ export async function authRoutes(app: FastifyInstance) {
           maxAge: 60 * 60 * 24 * 30
         };
     console.log("[Auth] Setting cookie", {
-      domain: cookieOpts.domain ?? "(none)",
+      host,
+      origin,
+      cookieDomain: cookieOpts.domain ?? "(none)",
       secure: cookieOpts.secure,
-      sameSite: cookieOpts.sameSite,
-      origin: req.headers.origin,
-      "x-web-client": req.headers["x-web-client"]
+      sameSite: cookieOpts.sameSite
     });
     reply.setCookie("proovra_session", token, cookieOpts);
   }
@@ -172,7 +174,9 @@ export async function authRoutes(app: FastifyInstance) {
   app.post("/v1/auth/logout", async (req, reply) => {
     if (req.headers["x-web-client"] === "1") {
       const host = req.headers.host ?? "";
-      const isProductionDomain = host.includes("proovra.com");
+      const origin = req.headers.origin ?? "";
+      const isProductionDomain =
+        host.includes("proovra.com") || origin.includes("proovra.com");
       reply.clearCookie("proovra_session", {
         path: "/",
         domain: isProductionDomain ? ".proovra.com" : undefined

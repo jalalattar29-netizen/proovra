@@ -114,6 +114,12 @@ export async function exchangeGoogleCodeForIdToken(code: string): Promise<string
   const clientId = must("GOOGLE_CLIENT_ID");
   const clientSecret = must("GOOGLE_CLIENT_SECRET");
   const redirectUri = must("GOOGLE_REDIRECT_URI");
+  console.log("[Google Token Exchange] Request params", {
+    client_id: clientId,
+    redirect_uri: redirectUri,
+    grant_type: "authorization_code",
+    code_length: code?.length ?? 0
+  });
   const body = new URLSearchParams();
   body.set("code", code);
   body.set("client_id", clientId);
@@ -125,11 +131,25 @@ export async function exchangeGoogleCodeForIdToken(code: string): Promise<string
     headers: { "content-type": "application/x-www-form-urlencoded" },
     body
   });
-  const json = (await res.json()) as { id_token?: string; error?: string; error_description?: string };
+  const json = (await res.json()) as {
+    id_token?: string;
+    error?: string;
+    error_description?: string;
+  };
   if (!res.ok) {
-    console.error("[Google Token Exchange] Failed:", res.status, json.error, json.error_description);
+    console.error("[Google Token Exchange] Failed:", {
+      status: res.status,
+      error: json.error,
+      error_description: json.error_description,
+      raw: JSON.stringify(json)
+    });
     if (json.error === "invalid_grant") throw new Error("invalid_code");
-    if (json.error === "redirect_uri_mismatch") throw new Error("redirect_uri_mismatch");
+    if (
+      json.error === "redirect_uri_mismatch" ||
+      json.error_description?.toLowerCase().includes("redirect")
+    ) {
+      throw new Error("redirect_uri_mismatch");
+    }
     throw new Error("token_exchange_failed");
   }
   if (!json.id_token) throw new Error("token_exchange_failed");
