@@ -11,6 +11,7 @@ const DEBUG_AUTH = process.env.NEXT_PUBLIC_DEBUG_AUTH === "1";
 
 /** Prevents duplicate token exchange (React Strict Mode / re-mounts consume OAuth codes) */
 const processedTokens = new Set<string>();
+let callbackProcessing = false;
 
 function parseHashParams(hash: string) {
   const cleaned = hash.startsWith("#") ? hash.slice(1) : hash;
@@ -54,6 +55,9 @@ export default function AppleCallbackPage() {
 
   useEffect(() => {
     if (typeof window === "undefined") return;
+    if (callbackProcessing) return;
+    callbackProcessing = true;
+
     const searchParams = new URLSearchParams(window.location.search);
     const hashParams = parseHashParams(window.location.hash);
     const idToken = searchParams.get("id_token") ?? hashParams.get("id_token");
@@ -207,7 +211,9 @@ export default function AppleCallbackPage() {
         authLogger.log("CALLBACK", "success", { redirectTo }, provider);
         if (!isMountedRef.current) return;
         const appBase = process.env.NEXT_PUBLIC_APP_BASE ?? "https://app.proovra.com";
-        window.location.href = `${appBase}${redirectTo}`;
+        const target = `${appBase}${redirectTo}`;
+        authLogger.log("CALLBACK", "redirecting", { target }, provider);
+        window.location.replace(target);
       } catch (err) {
         const msg = err instanceof Error ? err.message : "Sign-in failed";
         authLogger.logError("callback_error", msg);

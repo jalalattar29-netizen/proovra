@@ -35,3 +35,11 @@
 - **Cookie:** `proovra_session` (domain `.proovra.com`, httpOnly, sameSite: lax)
 - **API:** Accepts either `Authorization: Bearer` header or `proovra_session` cookie
 - **App on app.proovra.com:** Uses `apiFetch` with `credentials: "include"` → cookie sent → session valid
+
+## 6. Console Errors (Not From Our Code)
+
+| Error | Source | Action |
+|-------|--------|--------|
+| "A listener indicated an asynchronous response..." | Chrome extension | Disable extensions or ignore |
+| "Access to font at apple.com... blocked by CORS" | Apple's appleid.apple.com page | Apple's internal; cannot fix |
+| "Cannot read properties of undefined (reading 'call')" | Bundled app.js (React/Next) | May occur during unmount on redirect; `callbackProcessing` guard prevents duplicate runs |
