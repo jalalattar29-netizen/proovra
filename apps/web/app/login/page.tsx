@@ -99,6 +99,15 @@ export default function LoginPage() {
     const googleRedirect = "https://www.proovra.com/auth/callback";
     const appleRedirect = "https://www.proovra.com/auth/callback";
 
+    if (process.env.NODE_ENV !== "production" || process.env.NEXT_PUBLIC_DEBUG_AUTH === "1") {
+      console.log("[Auth] Web redirect URIs:", {
+        google: googleRedirect,
+        apple: appleRedirect,
+        hostname: window.location.hostname,
+        origin: window.location.origin
+      });
+    }
+
     let nextGoogleHref = "";
     let nextAppleHref = "";
     try {

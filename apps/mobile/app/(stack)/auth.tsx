@@ -18,6 +18,9 @@ export default function AuthScreen() {
   const [appleAvailable, setAppleAvailable] = useState(false);
 
   const redirectUri = AuthSession.makeRedirectUri({ scheme: "proovra" });
+  if (__DEV__) {
+    console.log("[Auth] Mobile redirectUri:", redirectUri, "scheme: proovra");
+  }
   const [googleRequest, googleResponse, promptGoogle] = Google.useAuthRequest({
     clientId: googleClientId,
     responseType: AuthSession.ResponseType.IdToken,
