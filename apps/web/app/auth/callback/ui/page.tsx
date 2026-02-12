@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "../../../providers";
+import { authLogger } from "../../../lib/auth-logger";
 
 type Provider = "apple" | "google";
 
@@ -56,8 +57,17 @@ export default function AppleCallbackPage() {
     const state = searchParams.get("state") ?? hashParams.get("state");
     const storedState = sessionStorage.getItem("proovra-apple-state");
     
+    authLogger.logCallbackReceived({
+      idToken: !!idToken,
+      code: !!code,
+      provider: providerRaw,
+      state: !!state,
+      storedState: !!storedState
+    });
+    
     // Only validate state for Apple (Google uses static state="google")
     if (state && state !== "google" && storedState && state !== storedState) {
+      authLogger.logError("callback_state_mismatch", `state=${state}, stored=${storedState}`);
       setError("OAuth state mismatch.");
       return;
     }
@@ -68,8 +78,11 @@ export default function AppleCallbackPage() {
     if (!provider) provider = inferProviderFromIdToken(idToken);
     if (!provider) provider = "apple";
 
+    authLogger.log("CALLBACK", "provider_detected", { provider }, provider);
+
     const tokenToSend = idToken ?? code;
     if (!tokenToSend) {
+      authLogger.logError("callback_no_token", "Neither idToken nor code provided");
       setError("Missing OAuth token.");
       return;
     }
@@ -91,6 +104,12 @@ export default function AppleCallbackPage() {
           ? { code }
           : { idToken: tokenToSend };
 
+    authLogger.log("CALLBACK", "request_start", {
+      endpoint,
+      has_code: !!code,
+      has_idToken: !!idToken
+    }, provider);
+
     void (async () => {
       try {
         const res = await fetch(endpoint, {
@@ -98,17 +117,40 @@ export default function AppleCallbackPage() {
           headers: { "content-type": "application/json" },
           body: JSON.stringify(body)
         });
+        
+        authLogger.log("CALLBACK", "token_exchange_response", {
+          status: res.status,
+          ok: res.ok
+        }, provider);
+
         if (!res.ok) {
           const text = await res.text();
+          authLogger.logError("callback_exchange_failed", `${res.status}: ${text}`);
           throw new Error(text || "Sign-in failed");
         }
         const data = (await res.json()) as { token?: string };
-        if (!data.token) throw new Error("Missing access token");
+        if (!data.token) {
+          authLogger.logError("callback_no_token_in_response", "Response missing token");
+          throw new Error("Missing access token");
+        }
+        
+        authLogger.log("CALLBACK", "token_received", {}, provider);
         setToken(data.token);
+        
         const meRes = await fetch(`${apiBase}/v1/auth/me`, {
           headers: { authorization: `Bearer ${data.token}` }
         });
-        if (!meRes.ok) throw new Error("Session not confirmed");
+        
+        authLogger.log("CALLBACK", "session_validation", {
+          status: meRes.status,
+          ok: meRes.ok
+        }, provider);
+
+        if (!meRes.ok) {
+          authLogger.logError("callback_session_validation_failed", `/me returned ${meRes.status}`);
+          throw new Error("Session not confirmed");
+        }
+        
         let redirectTo = "/home";
         try {
           const stored = sessionStorage.getItem("proovra-return-url");
@@ -119,9 +161,13 @@ export default function AppleCallbackPage() {
         } catch {
           void 0;
         }
+        
+        authLogger.log("CALLBACK", "success", { redirectTo }, provider);
         router.replace(redirectTo);
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Sign-in failed");
+        const msg = err instanceof Error ? err.message : "Sign-in failed";
+        authLogger.logError("callback_error", msg);
+        setError(msg);
       }
     })();
   }, [router, setToken]);

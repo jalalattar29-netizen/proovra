@@ -7,6 +7,7 @@ import { Button } from "../../components/ui";
 import { useAuth, useLocale } from "../providers";
 import { apiFetch } from "../../lib/api";
 import { formatBuildInfo } from "../../lib/build-info";
+import { authLogger } from "../../lib/auth-logger";
 import {
   buildAppleAuthUrl,
   buildGoogleAuthUrl,
@@ -34,17 +35,31 @@ export default function LoginPage() {
   const handleAuth = async (path: string, idToken?: string, code?: string) => {
     setBusy(true);
     setError(null);
-    setStatus(`Signing in via ${path}...`);
+    const provider = path.includes("google") ? "google" : path.includes("apple") ? "apple" : "guest";
+    setStatus(`Signing in via ${provider}...`);
     const guestToken = typeof window !== "undefined" ? localStorage.getItem("proovra-token") : null;
+    
+    authLogger.logTokenExchangeStart(provider, path);
+    
     try {
       const payload = idToken ? { idToken } : code ? { code } : {};
+      authLogger.log("TOKEN_EXCHANGE", "request_payload", {
+        has_idToken: !!idToken,
+        has_code: !!code,
+        endpoint: path
+      }, provider);
+
       const data = await apiFetch(path, {
         method: "POST",
         body: JSON.stringify(payload)
       });
+
+      authLogger.logTokenExchangeSuccess(provider, data);
       setToken(data.token);
 
       const me = await apiFetch("/v1/auth/me", { method: "GET" });
+      authLogger.logSessionValidation("/v1/auth/me", me);
+      
       if (!me?.user && !data.token) {
         throw new Error("Session not confirmed");
       }
@@ -60,11 +75,13 @@ export default function LoginPage() {
         }
       }
 
+      authLogger.log("LOGIN", "success", { provider, redirectTo: nextUrl }, provider);
       router.replace(nextUrl);
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Login failed";
-      const provider = path.includes("google") ? "Google" : path.includes("apple") ? "Apple" : "";
-      setError(provider ? `${provider} sign-in failed: ${msg}` : msg);
+      authLogger.logTokenExchangeError(provider, msg);
+      const providerLabel = provider === "guest" ? "" : provider.charAt(0).toUpperCase() + provider.slice(1);
+      setError(providerLabel ? `${providerLabel} sign-in failed: ${msg}` : msg);
       setStatus("Sign in failed.");
     } finally {
       setBusy(false);
@@ -86,7 +103,9 @@ export default function LoginPage() {
     let nextAppleHref = "";
     try {
       nextGoogleHref = buildGoogleAuthUrl({ state: "google" });
-    } catch {
+      authLogger.logUrlBuilt("google", nextGoogleHref, { state: "google" });
+    } catch (e) {
+      authLogger.logError("url_build_google", e instanceof Error ? e.message : "unknown");
       nextGoogleHref = "";
     }
     if (!nextGoogleHref) {
@@ -100,11 +119,14 @@ export default function LoginPage() {
         prompt: "consent"
       });
       nextGoogleHref = `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
+      authLogger.logUrlBuilt("google", nextGoogleHref, { state: "google" });
     }
 
     try {
       nextAppleHref = buildAppleAuthUrl({ state: nextAppleState });
-    } catch {
+      authLogger.logUrlBuilt("apple", nextAppleHref, { state: nextAppleState });
+    } catch (e) {
+      authLogger.logError("url_build_apple", e instanceof Error ? e.message : "unknown");
       nextAppleHref = "";
     }
     if (!nextAppleHref) {
@@ -117,6 +139,7 @@ export default function LoginPage() {
         state: nextAppleState
       });
       nextAppleHref = `https://appleid.apple.com/auth/authorize?${params.toString()}`;
+      authLogger.logUrlBuilt("apple", nextAppleHref, { state: nextAppleState });
     }
 
     setAppleHref(nextAppleHref);
@@ -139,6 +162,7 @@ export default function LoginPage() {
     loadGoogleIdentity()
       .then(() => {
         if (cancelled || scriptAborted) return;
+        authLogger.log("GOOGLE_SDK", "loaded", {});
         const google = (window as typeof window & {
           google?: {
             accounts?: {
@@ -152,20 +176,32 @@ export default function LoginPage() {
           };
         }).google;
         if (!google?.accounts?.id) {
+          authLogger.logError("google_sdk_init", "google.accounts.id not available");
           if (!cancelled) setGoogleReady(false);
           return;
         }
         google.accounts.id.initialize({
           client_id: googleClientId,
           callback: (response: { credential?: string }) => {
-            if (cancelled || scriptAborted) return;
-            if (response.credential) void handleAuth("/v1/auth/google", response.credential);
-            else if (!cancelled && !scriptAborted) setError("Google sign-in failed: No credential returned.");
+            if (cancelled || scriptAborted) {
+              authLogger.log("GOOGLE_SDK", "callback_ignored_cleanup", {});
+              return;
+            }
+            if (response.credential) {
+              authLogger.log("GOOGLE_SDK", "callback_credential_received", {});
+              void handleAuth("/v1/auth/google", response.credential);
+            }
+            else if (!cancelled && !scriptAborted) {
+              authLogger.logError("google_sdk_callback", "No credential returned");
+              setError("Google sign-in failed: No credential returned.");
+            }
           }
         });
+        authLogger.log("GOOGLE_SDK", "initialized", { client_id: googleClientId });
         if (!cancelled && !scriptAborted) setGoogleReady(true);
       })
       .catch((err) => {
+        authLogger.logError("google_sdk_load", err instanceof Error ? err.message : String(err));
         if (!cancelled && !scriptAborted) {
           console.warn("[Auth] Google SDK failed to load:", err);
           setGoogleReady(false);
@@ -177,6 +213,7 @@ export default function LoginPage() {
 
     // Cleanup: suppress any pending operations if component unmounts or page navigates
     return () => {
+      authLogger.log("CLEANUP", "unmount", {});
       cancelled = true;
       scriptAborted = true;
       // Give a small window for pending callbacks to check the flag
