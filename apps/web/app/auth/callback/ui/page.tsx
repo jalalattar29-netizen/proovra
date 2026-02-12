@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
 import { useAuth } from "../../../providers";
 import { useToast } from "../../../../components/ui";
 import { authLogger } from "../../../../lib/auth-logger";
@@ -48,7 +47,6 @@ function inferProviderFromIdToken(idToken: string | null): Provider | null {
 }
 
 export default function AppleCallbackPage() {
-  const router = useRouter();
   const { setToken } = useAuth();
   const { addToast } = useToast();
   const [error, setError] = useState<string | null>(null);
@@ -147,7 +145,8 @@ export default function AppleCallbackPage() {
         const res = await fetch(endpoint, {
           method: "POST",
           headers: { "content-type": "application/json", "x-web-client": "1" },
-          body: JSON.stringify(body)
+          body: JSON.stringify(body),
+          credentials: "include"
         });
         
         authLogger.log("CALLBACK", "token_exchange_response", {
@@ -177,7 +176,8 @@ export default function AppleCallbackPage() {
         setToken(data.token);
         
         const meRes = await fetch(`${apiBase}/v1/auth/me`, {
-          headers: { authorization: `Bearer ${data.token}` }
+          headers: { authorization: `Bearer ${data.token}`, "x-web-client": "1" },
+          credentials: "include"
         });
         
         authLogger.log("CALLBACK", "session_validation", {
@@ -206,7 +206,8 @@ export default function AppleCallbackPage() {
         authLogger.log("AUTH_SESSION_SUCCESS", `userId=${userId ?? "unknown"}`, { provider, redirectTo }, provider);
         authLogger.log("CALLBACK", "success", { redirectTo }, provider);
         if (!isMountedRef.current) return;
-        router.replace(redirectTo);
+        const appBase = process.env.NEXT_PUBLIC_APP_BASE ?? "https://app.proovra.com";
+        window.location.href = `${appBase}${redirectTo}`;
       } catch (err) {
         const msg = err instanceof Error ? err.message : "Sign-in failed";
         authLogger.logError("callback_error", msg);
@@ -218,7 +219,7 @@ export default function AppleCallbackPage() {
     })();
 
     return () => { isMountedRef.current = false; };
-  }, [router, setToken, addToast]);
+  }, [setToken, addToast]);
 
   if (error) {
     return (
