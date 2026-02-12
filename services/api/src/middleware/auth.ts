@@ -16,7 +16,9 @@ export async function requireAuth(req: FastifyRequest, reply: FastifyReply) {
   try {
     const auth = req.headers.authorization ?? "";
     const [, headerToken] = auth.split(" ");
-    const cookieToken = readCookie(req.headers.cookie, "proovra_session");
+    const cookieToken =
+      (req.cookies as { proovra_session?: string } | undefined)?.proovra_session ??
+      readCookie(req.headers.cookie, "proovra_session");
     const token = headerToken || cookieToken;
     if (!token) {
       reply.code(401).send({ message: "Unauthorized" });

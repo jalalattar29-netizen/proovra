@@ -33,18 +33,37 @@ export async function authRoutes(app: FastifyInstance) {
   }
 
   function maybeSetWebCookie(req: FastifyRequest, reply: FastifyReply, token: string) {
-    if (req.headers["x-web-client"] !== "1") return;
-    const secure = process.env.NODE_ENV === "production";
-    const domain = process.env.NODE_ENV === "production" ? ".proovra.com" : undefined;
-    console.log("[Auth] Setting web cookie", { domain, secure });
-    reply.setCookie("proovra_session", token, {
-      httpOnly: true,
-      sameSite: "lax",
-      secure,
-      path: "/",
-      domain, // Allow cross-subdomain access (api.proovra.com → www.proovra.com)
-      maxAge: 60 * 60 * 24 * 30
+    if (req.headers["x-web-client"] !== "1") {
+      console.log("[Auth] Skipping cookie: x-web-client not set");
+      return;
+    }
+    const host = req.headers.host ?? "";
+    const isProductionDomain = host.includes("proovra.com");
+    const cookieOpts = isProductionDomain
+      ? {
+          httpOnly: true,
+          secure: true,
+          sameSite: "lax" as const,
+          path: "/",
+          domain: ".proovra.com",
+          maxAge: 60 * 60 * 24 * 30
+        }
+      : {
+          httpOnly: true,
+          secure: false,
+          sameSite: "lax" as const,
+          path: "/",
+          domain: undefined,
+          maxAge: 60 * 60 * 24 * 30
+        };
+    console.log("[Auth] Setting cookie", {
+      domain: cookieOpts.domain ?? "(none)",
+      secure: cookieOpts.secure,
+      sameSite: cookieOpts.sameSite,
+      origin: req.headers.origin,
+      "x-web-client": req.headers["x-web-client"]
     });
+    reply.setCookie("proovra_session", token, cookieOpts);
   }
 
   app.post("/v1/auth/guest", async (req, reply) => {
@@ -152,7 +171,12 @@ export async function authRoutes(app: FastifyInstance) {
 
   app.post("/v1/auth/logout", async (req, reply) => {
     if (req.headers["x-web-client"] === "1") {
-      reply.clearCookie("proovra_session", { path: "/" });
+      const host = req.headers.host ?? "";
+      const isProductionDomain = host.includes("proovra.com");
+      reply.clearCookie("proovra_session", {
+        path: "/",
+        domain: isProductionDomain ? ".proovra.com" : undefined
+      });
     }
     return reply.code(200).send({ ok: true });
   });

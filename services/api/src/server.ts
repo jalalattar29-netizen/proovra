@@ -64,18 +64,23 @@ export async function buildServer() {
 
   const allowlist = parseCorsOrigins();
   const isProd = process.env.NODE_ENV === "production";
+  const ALLOWED_WEB_ORIGINS = [
+    "https://www.proovra.com",
+    "https://proovra.com",
+    "https://app.proovra.com"
+  ];
   await app.register(cors, {
     credentials: true,
     methods: ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allowedHeaders: ["content-type", "authorization", "x-web-client"],
     origin: (origin, cb) => {
       if (!origin) return cb(null, true);
-      if (allowlist.length === 0) {
-        return cb(null, !isProd);
-      }
       const normalized = normalizeOrigin(origin);
+      if (ALLOWED_WEB_ORIGINS.includes(normalized)) return cb(null, true);
       if (isProovraOrigin(normalized)) return cb(null, true);
-      return cb(null, allowlist.includes(normalized));
+      if (allowlist.length > 0 && allowlist.includes(normalized)) return cb(null, true);
+      if (!isProd) return cb(null, true);
+      return cb(null, false);
     },
   });
 

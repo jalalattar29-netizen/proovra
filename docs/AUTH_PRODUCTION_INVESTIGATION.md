@@ -36,7 +36,15 @@
 - **API:** Accepts either `Authorization: Bearer` header or `proovra_session` cookie
 - **App on app.proovra.com:** Uses `apiFetch` with `credentials: "include"` → cookie sent → session valid
 
-## 6. Console Errors (Not From Our Code)
+## 6. Cookie Fix (Production Subdomain)
+
+**Fix applied:** `maybeSetWebCookie` now uses host-based detection:
+- When `host` includes `proovra.com` → `domain: ".proovra.com"`, `secure: true`
+- `clearCookie` on logout includes same domain for proper clearing
+- Auth middleware reads from `req.cookies.proovra_session` (parsed) with fallback to `Cookie` header
+- CORS explicitly allows `www.proovra.com`, `proovra.com`, `app.proovra.com`
+
+## 7. Console Errors (Not From Our Code)
 
 | Error | Source | Action |
 |-------|--------|--------|
