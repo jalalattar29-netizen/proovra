@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "../../components/ui";
@@ -10,37 +10,15 @@ import {
   buildAppleAuthUrl,
   buildGoogleAuthUrl,
   loadAppleIdentity,
-  loadGoogleIdentity,
+  loadGoogleIdentity
 } from "../../lib/oauth";
-
-/** ===== Types (no any) ===== */
-type AppleSignInResponse = {
-  authorization?: { code?: string; id_token?: string };
-};
-
-type AppleIDGlobal = typeof window & {
-  AppleID?: {
-    auth?: {
-      init: (options: {
-        clientId: string;
-        scope: string;
-        redirectURI: string;
-        usePopup: boolean;
-      }) => void;
-      signIn: () => Promise<AppleSignInResponse>;
-    };
-  };
-};
 
 export default function RegisterPage() {
   const { t } = useLocale();
   const { setToken } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
-
-  const returnUrl = useMemo(() => {
-    return searchParams.get("returnUrl") || "/home";
-  }, [searchParams]);
+  const returnUrl = searchParams.get("returnUrl") || "/home";
 
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -52,23 +30,19 @@ export default function RegisterPage() {
   const [appleHref, setAppleHref] = useState<string>("");
 
   const [mounted, setMounted] = useState(false);
-
+  const [debugGoogleHref, setDebugGoogleHref] = useState<string>("");
+  const [debugAppleHref, setDebugAppleHref] = useState<string>("");
   const apiBase = process.env.NEXT_PUBLIC_API_BASE ?? "";
 
   const handleAuth = async (path: string, idToken?: string, code?: string) => {
     setBusy(true);
     setError(null);
     setStatus(`Signing in via ${path}...`);
-
-    const guestToken =
-      typeof window !== "undefined" ? localStorage.getItem("proovra-token") : null;
+    const guestToken = typeof window !== "undefined" ? localStorage.getItem("proovra-token") : null;
 
     try {
       const payload = idToken ? { idToken } : code ? { code } : {};
-      const data: { token: string } = await apiFetch(path, {
-        method: "POST",
-        body: JSON.stringify(payload),
-      });
+      const data = await apiFetch(path, { method: "POST", body: JSON.stringify(payload) });
 
       setToken(data.token);
 
@@ -76,7 +50,7 @@ export default function RegisterPage() {
         try {
           await apiFetch("/v1/evidence/claim", {
             method: "POST",
-            body: JSON.stringify({ guestToken }),
+            body: JSON.stringify({ guestToken })
           });
         } catch {
           // ignore
@@ -95,27 +69,21 @@ export default function RegisterPage() {
   useEffect(() => {
     if (typeof window === "undefined") return;
 
-    setMounted(true);
+    if (!process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID) setError("Google client ID is missing.");
+    if (!process.env.NEXT_PUBLIC_APPLE_CLIENT_ID) setError("Apple client ID is missing.");
+
+    const nextAppleState =
+      window.crypto?.randomUUID?.() ?? `apple-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 
     const googleClientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID ?? "";
     const appleClientId = process.env.NEXT_PUBLIC_APPLE_CLIENT_ID ?? "";
-
-    if (!googleClientId) setError("Google client ID is missing.");
-    if (!appleClientId) setError("Apple client ID is missing.");
-
-    const nextAppleState =
-      window.crypto?.randomUUID?.() ??
-      `apple-${Date.now()}-${Math.random().toString(16).slice(2)}`;
-
     const googleRedirect =
       process.env.NEXT_PUBLIC_GOOGLE_REDIRECT_URI ?? `${window.location.origin}/auth/callback`;
     const appleRedirect =
       process.env.NEXT_PUBLIC_APPLE_REDIRECT_URI ?? `${window.location.origin}/auth/callback`;
 
-    // Build hrefs (fallback always exists)
     let nextGoogleHref = "";
     let nextAppleHref = "";
-
     try {
       nextGoogleHref = buildGoogleAuthUrl({ state: "google", origin: window.location.origin });
     } catch {
@@ -129,7 +97,7 @@ export default function RegisterPage() {
         scope: "openid email profile",
         state: "google",
         access_type: "offline",
-        prompt: "consent",
+        prompt: "consent"
       });
       nextGoogleHref = `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
     }
@@ -146,42 +114,70 @@ export default function RegisterPage() {
         client_id: appleClientId,
         redirect_uri: appleRedirect,
         scope: "name email",
-        state: nextAppleState,
+        state: nextAppleState
       });
       nextAppleHref = `https://appleid.apple.com/auth/authorize?${params.toString()}`;
     }
 
     setGoogleHref(nextGoogleHref);
     setAppleHref(nextAppleHref);
+    setDebugGoogleHref(nextGoogleHref);
+    setDebugAppleHref(nextAppleHref);
 
     try {
       sessionStorage.setItem("proovra-apple-state", nextAppleState);
-    } catch {
-      // ignore
+    } catch (err) {
+      void err;
     }
 
-    /**
-     * ✅ Google: only load SDK to mark "ready",
-     * BUT we DO NOT use google.accounts.id.prompt() here (it fails silently sometimes).
-     * We always redirect using googleHref when clicking.
-     */
     loadGoogleIdentity()
       .then(() => {
-        if (!googleClientId) {
+        const google = (window as typeof window & {
+          google?: {
+            accounts?: {
+              id?: {
+                initialize: (options: {
+                  client_id: string;
+                  callback: (response: { credential?: string }) => void;
+                }) => void;
+              };
+            };
+          };
+        }).google;
+
+        if (!google?.accounts?.id || !process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID) {
           setGoogleReady(false);
           return;
         }
+
+        google.accounts.id.initialize({
+          client_id: process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID,
+          callback: (response: { credential?: string }) => {
+            if (response.credential) void handleAuth("/v1/auth/google", response.credential);
+            else setError("Google login failed.");
+          }
+        });
+
         setGoogleReady(true);
       })
       .catch(() => setGoogleReady(false));
 
-    /**
-     * ✅ Apple: popup flow via SDK
-     */
     loadAppleIdentity()
       .then(() => {
-        const AppleID = (window as AppleIDGlobal).AppleID;
-        if (!AppleID?.auth || !appleClientId) {
+        const AppleID = (window as typeof window & {
+          AppleID?: {
+            auth?: {
+              init: (options: {
+                clientId: string;
+                scope: string;
+                redirectURI: string;
+                usePopup: boolean;
+              }) => void;
+            };
+          };
+        }).AppleID;
+
+        if (!AppleID?.auth || !process.env.NEXT_PUBLIC_APPLE_CLIENT_ID) {
           setAppleReady(false);
           return;
         }
@@ -190,10 +186,10 @@ export default function RegisterPage() {
           process.env.NEXT_PUBLIC_APPLE_REDIRECT_URI ?? `${window.location.origin}/auth/callback`;
 
         AppleID.auth.init({
-          clientId: appleClientId,
+          clientId: process.env.NEXT_PUBLIC_APPLE_CLIENT_ID,
           scope: "name email",
           redirectURI: redirectUri,
-          usePopup: true,
+          usePopup: true
         });
 
         setAppleReady(true);
@@ -201,12 +197,14 @@ export default function RegisterPage() {
       .catch(() => setAppleReady(false));
 
     setStatus(null);
+    setMounted(true);
   }, []);
 
   return (
     <div className="blue-shell auth-screen">
       <div className="container">
         <header className="auth-top">
+          {/* ✅ clickable brand */}
           <Link href="/" className="auth-brand">
             <img src="/brand/logo-white.svg" alt="PROO✓RA" />
             <span>{t("brand")}</span>
@@ -222,7 +220,6 @@ export default function RegisterPage() {
             <h2 className="auth-title">{t("createAccountTitle")}</h2>
 
             <div className="auth-actions">
-              {/* ✅ GOOGLE (redirect - guaranteed) */}
               <a
                 className="social-btn"
                 href={mounted ? googleHref || "#" : "#"}
@@ -230,26 +227,23 @@ export default function RegisterPage() {
                   try {
                     sessionStorage.setItem("proovra-return-url", returnUrl);
                   } catch {
-                    // ignore
+                    void 0;
                   }
-
                   if (busy) {
                     event.preventDefault();
                     return;
                   }
-
-                  // if href missing (should not happen), block and show error
-                  if (!googleHref) {
+                  if (googleReady) {
                     event.preventDefault();
-                    setError("Google login link is not ready yet.");
+                    const google = (window as typeof window & {
+                      google?: { accounts?: { id?: { prompt: () => void } } };
+                    }).google;
+                    google?.accounts?.id?.prompt?.();
                     return;
                   }
-
-                  // IMPORTANT: do not preventDefault -> allow redirect
-                  // also: keep googleReady only as debug/status
-                  if (!googleReady) {
-                    // still allow redirect, but optionally show info
-                    // no blocking
+                  if (!googleHref) {
+                    event.preventDefault();
+                    setError("Google login is not ready yet.");
                   }
                 }}
               >
@@ -257,7 +251,6 @@ export default function RegisterPage() {
                 Continue with Google
               </a>
 
-              {/* ✅ APPLE (popup) */}
               <a
                 className="social-btn"
                 href={mounted ? appleHref || "#" : "#"}
@@ -265,9 +258,8 @@ export default function RegisterPage() {
                   try {
                     sessionStorage.setItem("proovra-return-url", returnUrl);
                   } catch {
-                    // ignore
+                    void 0;
                   }
-
                   if (busy) {
                     event.preventDefault();
                     return;
@@ -275,7 +267,13 @@ export default function RegisterPage() {
 
                   if (appleReady) {
                     event.preventDefault();
-                    const AppleID = (window as AppleIDGlobal).AppleID;
+                    const AppleID = (window as typeof window & {
+                      AppleID?: {
+                        auth?: {
+                          signIn: () => Promise<{ authorization?: { code?: string; id_token?: string } }>;
+                        };
+                      };
+                    }).AppleID;
 
                     AppleID?.auth
                       ?.signIn()
@@ -283,14 +281,24 @@ export default function RegisterPage() {
                         const idToken = response.authorization?.id_token;
                         const code = response.authorization?.code;
                         if (idToken || code) void handleAuth("/v1/auth/apple", idToken, code);
-                        else
-                          setError(
-                            "Apple sign-up failed: No authentication token received. Please try again."
-                          );
+                        else setError("Apple sign-up failed: No authentication token received. Please try again.");
                       })
-                      .catch((err: unknown) => {
-                        const message = err instanceof Error ? err.message : "Apple sign-up failed.";
-                        setError(message);
+                      .catch((err: Error & { code?: string }) => {
+                        // Handle specific Apple error codes
+                        const errorCode = err?.code || err?.message || "";
+                        let friendlyMessage = "Apple sign-up failed. Please try again.";
+                        
+                        if (errorCode.includes("POPUP_BLOCKED") || errorCode === "popup_closed_by_user") {
+                          friendlyMessage = "Apple sign-up popup was blocked. Please check your browser settings.";
+                        } else if (errorCode.includes("TIMEOUT") || errorCode === "timeout") {
+                          friendlyMessage = "Apple sign-up request timed out. Please try again.";
+                        } else if (errorCode.includes("INVALID") || errorCode === "invalid_request") {
+                          friendlyMessage = "Apple sign-up configuration error. Please contact support.";
+                        } else if (errorCode.includes("NETWORK") || errorCode === "network_error") {
+                          friendlyMessage = "Network error during Apple sign-up. Please check your connection.";
+                        }
+                        
+                        setError(friendlyMessage);
                       });
 
                     return;
@@ -310,22 +318,26 @@ export default function RegisterPage() {
 
               <div className="auth-divider">{t("orDivider")}</div>
 
-              {/* ✅ GUEST */}
-              <Button variant="secondary" onClick={() => void handleAuth("/v1/auth/guest")} disabled={busy}>
+              <Button variant="secondary" onClick={() => handleAuth("/v1/auth/guest")} disabled={busy}>
                 {t("continueGuest")}
               </Button>
 
               {error && <div className="error-text">{error}</div>}
               {status && <div style={{ fontSize: 12, color: "#64748b" }}>{status}</div>}
 
-              {/* Debug (dev only) */}
               {mounted && process.env.NODE_ENV !== "production" && (
                 <div style={{ fontSize: 11, color: "#94a3b8" }}>
                   API: {apiBase || "missing"}
-                  {" · "}Google SDK: {googleReady ? "ready" : "missing"}
-                  {" · "}Apple SDK: {appleReady ? "ready" : "missing"}
+                  {" · "}Google URL: {googleReady ? "ready" : "missing"}
+                  {" · "}Apple URL: {appleReady ? "ready" : "missing"}
                   {" · "}Google HREF: {googleHref ? "set" : "missing"}
                   {" · "}Apple HREF: {appleHref ? "set" : "missing"}
+                  <div style={{ marginTop: 6, wordBreak: "break-all" }}>
+                    Google URL: {debugGoogleHref || "(empty)"}
+                  </div>
+                  <div style={{ wordBreak: "break-all" }}>
+                    Apple URL: {debugAppleHref || "(empty)"}
+                  </div>
                 </div>
               )}
             </div>
