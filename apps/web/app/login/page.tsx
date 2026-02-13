@@ -14,8 +14,6 @@ import {
 } from "../../lib/oauth";
 
 /** ===== Types (no any) ===== */
-type GoogleCredentialResponse = { credential?: string };
-
 type AppleSignInResponse = {
   authorization?: { code?: string; id_token?: string };
 };
@@ -342,3 +340,4 @@ export default function RegisterPage() {
     </div>
   );
 }
+
