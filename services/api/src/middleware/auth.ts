@@ -15,11 +15,11 @@ function readCookie(header: string | undefined, name: string): string | null {
 export async function requireAuth(req: FastifyRequest, reply: FastifyReply) {
   try {
     const auth = req.headers.authorization ?? "";
-    const [, headerToken] = auth.split(" ");
+    const bearerToken = auth.startsWith("Bearer ") ? auth.slice(7).trim() : "";
     const cookieToken =
       (req.cookies as { proovra_session?: string } | undefined)?.proovra_session ??
       readCookie(req.headers.cookie, "proovra_session");
-    const token = headerToken || cookieToken;
+    const token = bearerToken || cookieToken;
     if (!token) {
       req.log.info(
         {

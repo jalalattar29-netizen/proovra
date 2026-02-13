@@ -52,10 +52,13 @@ export default function AppleCallbackPage() {
   const { addToast } = useToast();
   const [error, setError] = useState<string | null>(null);
   const isMountedRef = useRef(true);
+  const exchangedRef = useRef(false);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
+    if (exchangedRef.current) return;
     if (callbackProcessing) return;
+    exchangedRef.current = true;
     callbackProcessing = true;
 
     const searchParams = new URLSearchParams(window.location.search);

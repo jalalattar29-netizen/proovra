@@ -65,6 +65,8 @@ export async function authRoutes(app: FastifyInstance) {
       secure: cookieOpts.secure,
       sameSite: cookieOpts.sameSite
     });
+    reply.clearCookie("proovra_session", { path: "/", domain: ".proovra.com" });
+    reply.clearCookie("proovra_session", { path: "/" });
     reply.setCookie("proovra_session", token, cookieOpts);
   }
 
