@@ -1,15 +1,30 @@
 version: "3.9"
 
 services:
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
   proovra-api:
     build:
       context: ../..
       dockerfile: services/api/Dockerfile
       args:
         DATABASE_URL: ${DATABASE_URL}
+    depends_on:
+      redis:
+        condition: service_healthy
     environment:
       NODE_ENV: production
-      PORT: 8080
+      PORT: "8080"
+      AUTH_JWT_SECRET: ${AUTH_JWT_SECRET}
       DATABASE_URL: ${DATABASE_URL}
       DIRECT_URL: ${DIRECT_URL}
       REDIS_URL: ${REDIS_URL}
@@ -27,9 +42,8 @@ services:
       CORS_ORIGINS: ${CORS_ORIGINS}
       VERIFY_RATE_LIMIT_MAX: ${VERIFY_RATE_LIMIT_MAX}
       VERIFY_RATE_LIMIT_WINDOW_SEC: ${VERIFY_RATE_LIMIT_WINDOW_SEC}
-      AUTH_JWT_SECRET: ${AUTH_JWT_SECRET}
     ports:
-      - "8080:8080"
+      - "127.0.0.1:8080:8080"
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:8080/health || exit 1"]
       interval: 10s
@@ -43,6 +57,9 @@ services:
       dockerfile: services/worker/Dockerfile
       args:
         DATABASE_URL: ${DATABASE_URL}
+    depends_on:
+      redis:
+        condition: service_healthy
     environment:
       NODE_ENV: production
       DATABASE_URL: ${DATABASE_URL}
@@ -57,10 +74,27 @@ services:
       WORKER_BUILD_INFO: ${WORKER_BUILD_INFO}
       WORKER_PORT: ${WORKER_PORT}
     ports:
-      - "8090:8090"
+      - "127.0.0.1:8090:8090"
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:8090/health || exit 1"]
       interval: 10s
       timeout: 3s
       retries: 10
     restart: unless-stopped
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ../caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+volumes:
+  caddy_data:
+  caddy_config:
