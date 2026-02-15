@@ -1,0 +1,7 @@
+{
+  email no-reply@proovra.com
+}
+
+api.proovra.com {
+  reverse_proxy proovra-api:8080
+}
