@@ -1,82 +1,55 @@
 import { Resend } from "resend";
 
-function getResendClient(): Resend {
-  const apiKey = process.env.RESEND_API_KEY;
+export type EmailService = {
+  sendPasswordResetEmail: (email: string, resetUrl: string) => Promise<unknown>;
+};
 
-  if (!apiKey) {
-    throw new Error("RESEND_API_KEY is not set");
-  }
-
-  return new Resend(apiKey);
+function requireEnv(name: string): string {
+  const v = process.env[name];
+  if (!v || !v.trim()) throw new Error(`${name} not set`);
+  return v.trim();
 }
 
-function getFromEmail(): string {
-  const email = process.env.EMAIL_FROM;
-  const name = process.env.EMAIL_FROM_NAME ?? "Proovra";
+function getFromHeader(): string {
+  // Prefer explicit EMAIL_FROM (you set: "Proovra <no-reply@proovra.com>")
+  const emailFrom = process.env.EMAIL_FROM?.trim();
+  if (emailFrom) return emailFrom;
 
-  if (!email) {
-    throw new Error("EMAIL_FROM is not set");
-  }
-
-  return `${name} <${email}>`;
+  // Fallback
+  const name = (process.env.EMAIL_FROM_NAME ?? "Proovra").trim() || "Proovra";
+  return `${name} <no-reply@proovra.com>`;
 }
 
-export async function sendPasswordResetEmail(
-  email: string,
-  resetUrl: string
-) {
-  const resend = getResendClient();
-  const from = getFromEmail();
+let singleton: EmailService | null = null;
 
-  console.log("[Email] Sending password reset email", {
-    to: email,
-    from,
-  });
+export function getEmailService(): EmailService {
+  if (singleton) return singleton;
 
-  const { data, error } = await resend.emails.send({
-    from,
-    to: email,
-    subject: "Reset your Proovra password",
-    html: `
-      <div style="font-family: Arial, sans-serif; max-width: 520px; margin: auto;">
-        <h2>Reset your password</h2>
+  const apiKey = requireEnv("RESEND_API_KEY");
+  const resend = new Resend(apiKey);
+  const from = getFromHeader();
 
-        <p>You requested a password reset for your Proovra account.</p>
+  singleton = {
+    async sendPasswordResetEmail(email: string, resetUrl: string) {
+      return resend.emails.send({
+        from,
+        to: email,
+        subject: "Reset your Proovra password",
+        html: `
+          <div style="font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,Noto Sans,sans-serif">
+            <h2 style="margin:0 0 12px 0">Reset your password</h2>
+            <p style="margin:0 0 12px 0">Click the link below to reset your password:</p>
+            <p style="margin:0 0 16px 0">
+              <a href="${resetUrl}" style="display:inline-block;padding:10px 14px;border-radius:8px;text-decoration:none;border:1px solid #ddd">
+                Reset Password
+              </a>
+            </p>
+            <p style="margin:0;color:#666">If you didn't request this, ignore this email.</p>
+          </div>
+        `
+      });
+    }
+  };
 
-        <p>
-          <a
-            href="${resetUrl}"
-            style="
-              display: inline-block;
-              padding: 12px 20px;
-              background-color: #111827;
-              color: #ffffff;
-              text-decoration: none;
-              border-radius: 6px;
-              font-weight: bold;
-            "
-          >
-            Reset Password
-          </a>
-        </p>
-
-        <p>If you did not request this, you can safely ignore this email.</p>
-
-        <p style="margin-top: 24px; font-size: 12px; color: #6b7280;">
-          © ${new Date().getFullYear()} Proovra
-        </p>
-      </div>
-    `,
-  });
-
-  if (error) {
-    console.error("[Email] Resend error:", error);
-    throw new Error("failed_to_send_email");
-  }
-
-  console.log("[Email] Password reset email sent", {
-    id: data?.id,
-  });
-
-  return data;
+  return singleton;
 }
