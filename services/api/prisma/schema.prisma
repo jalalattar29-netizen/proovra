@@ -40,6 +40,7 @@ enum AuthProvider {
   GOOGLE
   APPLE
   GUEST
+  EMAIL
 }
 
 enum TeamRole {
@@ -82,22 +83,22 @@ enum SubscriptionStatus {
 }
 
 model Evidence {
-  id        String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  type      EvidenceType
-  status    EvidenceStatus  @default(CREATED)
+  id     String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  type   EvidenceType
+  status EvidenceStatus @default(CREATED)
 
-  ownerUserId     String  @map("owner_user_id")
-  organizationId  String? @map("organization_id") @db.Uuid
-  caseId          String? @map("case_id") @db.Uuid
-  teamId          String? @map("team_id") @db.Uuid
-  guestIdentityId String? @map("guest_identity_id") @db.Uuid
+  ownerUserId     String    @map("owner_user_id")
+  organizationId  String?   @map("organization_id") @db.Uuid
+  caseId          String?   @map("case_id") @db.Uuid
+  teamId          String?   @map("team_id") @db.Uuid
+  guestIdentityId String?   @map("guest_identity_id") @db.Uuid
   lockedAt        DateTime? @map("locked_at") @db.Timestamptz(6)
-  lockedByUserId  String? @map("locked_by_user_id")
+  lockedByUserId  String?   @map("locked_by_user_id")
 
-  mimeType     String? @map("mime_type") @db.VarChar(128)
-  sizeBytes    BigInt? @map("size_bytes")
-  durationSec  Float?  @map("duration_sec")
-  fileSha256   String? @map("file_sha256") @db.VarChar(64)
+  mimeType    String? @map("mime_type") @db.VarChar(128)
+  sizeBytes   BigInt? @map("size_bytes")
+  durationSec Float?  @map("duration_sec")
+  fileSha256  String? @map("file_sha256") @db.VarChar(64)
 
   storageBucket String? @map("storage_bucket") @db.VarChar(255)
   storageKey    String? @map("storage_key") @db.VarChar(512)
@@ -106,8 +107,8 @@ model Evidence {
   lng            Float? @db.DoublePrecision
   accuracyMeters Float? @map("accuracy_meters") @db.DoublePrecision
 
-  capturedAtUtc       DateTime? @map("captured_at_utc") @db.Timestamptz(6)
-  deviceTimeIso       String?   @map("device_time_iso") @db.VarChar(64)
+  capturedAtUtc DateTime? @map("captured_at_utc") @db.Timestamptz(6)
+  deviceTimeIso String?   @map("device_time_iso") @db.VarChar(64)
 
   uploadedAtUtc        DateTime? @map("uploaded_at_utc") @db.Timestamptz(6)
   signedAtUtc          DateTime? @map("signed_at_utc") @db.Timestamptz(6)
@@ -116,12 +117,12 @@ model Evidence {
   fingerprintCanonicalJson String? @map("fingerprint_canonical_json") @db.Text
   fingerprintHash          String? @map("fingerprint_hash") @db.VarChar(64)
 
-  signatureBase64  String? @map("signature_base64") @db.VarChar(256)
-  signingKeyId     String? @map("signing_key_id") @db.VarChar(64)
-  signingKeyVersion Int?   @map("signing_key_version")
+  signatureBase64   String? @map("signature_base64") @db.VarChar(256)
+  signingKeyId      String? @map("signing_key_id") @db.VarChar(64)
+  signingKeyVersion Int?    @map("signing_key_version")
 
-  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(6)
-  deletedAtUtc DateTime? @map("deleted_at_utc") @db.Timestamptz(6)
+  deletedAt         DateTime? @map("deleted_at") @db.Timestamptz(6)
+  deletedAtUtc      DateTime? @map("deleted_at_utc") @db.Timestamptz(6)
   retentionUntilUtc DateTime? @map("retention_until_utc") @db.Timestamptz(6)
 
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
@@ -166,14 +167,14 @@ model EvidencePart {
 }
 
 model Case {
-  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  name       String   @db.VarChar(120)
-  ownerUserId String  @map("owner_user_id")
-  teamId     String?  @map("team_id") @db.Uuid
-  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt  DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name        String   @db.VarChar(120)
+  ownerUserId String   @map("owner_user_id")
+  teamId      String?  @map("team_id") @db.Uuid
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  access     CaseAccess[]
+  access CaseAccess[]
 
   @@index([ownerUserId])
   @@index([teamId])
@@ -186,9 +187,9 @@ model CustodyEvent {
   eventType  CustodyEventType @map("event_type")
   atUtc      DateTime         @map("at_utc") @db.Timestamptz(6)
 
-  sequence   Int              @map("sequence")
+  sequence Int @map("sequence")
 
-  payload   Json? @db.JsonB
+  payload Json? @db.JsonB
 
   ip        String? @db.VarChar(45)
   userAgent String? @map("user_agent") @db.VarChar(512)
@@ -206,12 +207,12 @@ model CustodyEvent {
 }
 
 model Report {
-  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  evidenceId     String   @map("evidence_id") @db.Uuid
-  version        Int
+  id         String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  evidenceId String @map("evidence_id") @db.Uuid
+  version    Int
 
-  storageBucket  String   @map("storage_bucket") @db.VarChar(255)
-  storageKey     String   @map("storage_key") @db.VarChar(512)
+  storageBucket String @map("storage_bucket") @db.VarChar(255)
+  storageKey    String @map("storage_key") @db.VarChar(512)
 
   generatedAtUtc DateTime @map("generated_at_utc") @db.Timestamptz(6)
 
@@ -224,11 +225,11 @@ model Report {
 }
 
 model SigningKey {
-  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  keyId        String   @map("key_id") @db.VarChar(64)
+  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  keyId        String    @map("key_id") @db.VarChar(64)
   version      Int
-  publicKeyPem String   @map("public_key_pem") @db.Text
-  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  publicKeyPem String    @map("public_key_pem") @db.Text
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
   revokedAt    DateTime? @map("revoked_at") @db.Timestamptz(6)
 
   @@unique([keyId, version])
@@ -237,19 +238,23 @@ model SigningKey {
 }
 
 model User {
-  id              String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  email           String?      @db.VarChar(320)
-  displayName     String?      @map("display_name") @db.VarChar(120)
-  provider        AuthProvider
-  providerUserId  String       @map("provider_user_id") @db.VarChar(128)
-  createdAt       DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt       DateTime     @updatedAt @map("updated_at") @db.Timestamptz(6)
+  id           String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email        String? @db.VarChar(320)
+  displayName  String? @map("display_name") @db.VarChar(120)
+  passwordHash String? @map("password_hash") @db.Text
 
-  teamMembers     TeamMember[]
-  entitlements    Entitlement[]
-  subscriptions   Subscription[]
-  payments        Payment[]
-  guestIdentity   GuestIdentity?
+  passwordResetTokens PasswordResetToken[]
+
+  provider       AuthProvider
+  providerUserId String       @map("provider_user_id") @db.VarChar(128)
+  createdAt      DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime     @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  teamMembers            TeamMember[]
+  entitlements           Entitlement[]
+  subscriptions          Subscription[]
+  payments               Payment[]
+  guestIdentity          GuestIdentity?
   claimedGuestIdentities GuestIdentity[] @relation("GuestClaimedBy")
 
   @@unique([provider, providerUserId])
@@ -258,20 +263,20 @@ model User {
 }
 
 model Team {
-  id          String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  name        String       @db.VarChar(120)
-  ownerUserId String       @map("owner_user_id")
-  legalName   String?      @map("legal_name") @db.VarChar(180)
-  address     String?      @db.Text
-  logoUrl     String?      @map("logo_url") @db.VarChar(512)
-  timezone    String?      @db.VarChar(64)
-  legalEmail  String?      @map("legal_email") @db.VarChar(320)
+  id              String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name            String          @db.VarChar(120)
+  ownerUserId     String          @map("owner_user_id")
+  legalName       String?         @map("legal_name") @db.VarChar(180)
+  address         String?         @db.Text
+  logoUrl         String?         @map("logo_url") @db.VarChar(512)
+  timezone        String?         @db.VarChar(64)
+  legalEmail      String?         @map("legal_email") @db.VarChar(320)
   retentionPolicy RetentionPolicy @default(FOREVER) @map("retention_policy")
-  createdAt   DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt   DateTime     @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdAt       DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime        @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  members     TeamMember[]
-  invites     TeamInvite[]
+  members TeamMember[]
+  invites TeamInvite[]
 
   @@index([ownerUserId])
   @@map("teams")
@@ -307,15 +312,15 @@ model CaseAccess {
 }
 
 model TeamInvite {
-  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  teamId         String   @map("team_id") @db.Uuid
-  email          String   @db.VarChar(320)
-  role           TeamRole
-  token          String   @db.VarChar(128)
-  invitedByUserId String  @map("invited_by_user_id")
-  expiresAt      DateTime @map("expires_at") @db.Timestamptz(6)
-  acceptedAt     DateTime? @map("accepted_at") @db.Timestamptz(6)
-  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  teamId          String    @map("team_id") @db.Uuid
+  email           String    @db.VarChar(320)
+  role            TeamRole
+  token           String    @db.VarChar(128)
+  invitedByUserId String    @map("invited_by_user_id")
+  expiresAt       DateTime  @map("expires_at") @db.Timestamptz(6)
+  acceptedAt      DateTime? @map("accepted_at") @db.Timestamptz(6)
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
 
   team Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
 
@@ -326,15 +331,15 @@ model TeamInvite {
 }
 
 model GuestIdentity {
-  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  userId          String   @map("user_id") @db.Uuid
-  claimedByUserId String?  @map("claimed_by_user_id") @db.Uuid
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId          String    @map("user_id") @db.Uuid
+  claimedByUserId String?   @map("claimed_by_user_id") @db.Uuid
   claimedAt       DateTime? @map("claimed_at") @db.Timestamptz(6)
-  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
 
-  user            User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-  claimedBy       User?  @relation("GuestClaimedBy", fields: [claimedByUserId], references: [id], onDelete: SetNull)
-  evidence        Evidence[]
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  claimedBy User?      @relation("GuestClaimedBy", fields: [claimedByUserId], references: [id], onDelete: SetNull)
+  evidence  Evidence[]
 
   @@unique([userId])
   @@index([claimedByUserId])
@@ -342,15 +347,15 @@ model GuestIdentity {
 }
 
 model Entitlement {
-  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  userId    String   @map("user_id") @db.Uuid
-  plan      PlanType
-  credits   Int      @default(0)
-  teamSeats Int      @default(0) @map("team_seats")
-  active    Boolean  @default(true)
+  id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId     String    @map("user_id") @db.Uuid
+  plan       PlanType
+  credits    Int       @default(0)
+  teamSeats  Int       @default(0) @map("team_seats")
+  active     Boolean   @default(true)
   validUntil DateTime? @map("valid_until") @db.Timestamptz(6)
-  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt  DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -359,15 +364,15 @@ model Entitlement {
 }
 
 model Subscription {
-  id             String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  userId         String             @map("user_id") @db.Uuid
-  provider       PaymentProvider
-  providerSubId  String             @map("provider_sub_id") @db.VarChar(128)
-  status         SubscriptionStatus
-  plan           PlanType
-  currentPeriodEnd DateTime?        @map("current_period_end") @db.Timestamptz(6)
-  createdAt      DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt      DateTime           @updatedAt @map("updated_at") @db.Timestamptz(6)
+  id               String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId           String             @map("user_id") @db.Uuid
+  provider         PaymentProvider
+  providerSubId    String             @map("provider_sub_id") @db.VarChar(128)
+  status           SubscriptionStatus
+  plan             PlanType
+  currentPeriodEnd DateTime?          @map("current_period_end") @db.Timestamptz(6)
+  createdAt        DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime           @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -377,14 +382,14 @@ model Subscription {
 }
 
 model Payment {
-  id            String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  userId        String         @map("user_id") @db.Uuid
-  provider      PaymentProvider
-  providerPaymentId String     @map("provider_payment_id") @db.VarChar(128)
-  amountCents   Int            @map("amount_cents")
-  currency      String         @db.VarChar(8)
-  status        PaymentStatus
-  createdAt     DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+  id                String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId            String          @map("user_id") @db.Uuid
+  provider          PaymentProvider
+  providerPaymentId String          @map("provider_payment_id") @db.VarChar(128)
+  amountCents       Int             @map("amount_cents")
+  currency          String          @db.VarChar(8)
+  status            PaymentStatus
+  createdAt         DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -427,19 +432,19 @@ enum WebhookStatus {
 }
 
 model AuditLog {
-  id              String   @id @default(cuid())
-  userId          String
-  action          AuditAction
-  resourceType    String
-  resourceId      String?
-  organizationId  String?  @db.Uuid
-  changes         Json?
-  status          String   // 'success' | 'failure'
-  errorMessage    String?  @db.VarChar(512)
-  ipAddress       String?  @db.VarChar(45)
-  userAgent       String?  @db.VarChar(512)
-  metadata        Json?
-  createdAt       DateTime @default(now()) @db.Timestamptz(6)
+  id             String      @id @default(cuid())
+  userId         String
+  action         AuditAction
+  resourceType   String
+  resourceId     String?
+  organizationId String?     @db.Uuid
+  changes        Json?
+  status         String // 'success' | 'failure'
+  errorMessage   String?     @db.VarChar(512)
+  ipAddress      String?     @db.VarChar(45)
+  userAgent      String?     @db.VarChar(512)
+  metadata       Json?
+  createdAt      DateTime    @default(now()) @db.Timestamptz(6)
 
   @@index([userId, createdAt(sort: Desc)])
   @@index([organizationId, createdAt(sort: Desc)])
@@ -449,18 +454,18 @@ model AuditLog {
 }
 
 model Webhook {
-  id              String   @id @default(cuid())
-  organizationId  String   @db.Uuid
-  url             String   @db.VarChar(2048)
+  id              String    @id @default(cuid())
+  organizationId  String    @db.Uuid
+  url             String    @db.VarChar(2048)
   events          String[] // Array of event types
-  secret          String   @db.VarChar(256) // HMAC-SHA256 signing key
-  isActive        Boolean  @default(true)
-  failureCount    Int      @default(0)
+  secret          String    @db.VarChar(256) // HMAC-SHA256 signing key
+  isActive        Boolean   @default(true)
+  failureCount    Int       @default(0)
   lastTriggeredAt DateTime?
-  createdAt       DateTime @default(now()) @db.Timestamptz(6)
-  updatedAt       DateTime @updatedAt @db.Timestamptz(6)
+  createdAt       DateTime  @default(now()) @db.Timestamptz(6)
+  updatedAt       DateTime  @updatedAt @db.Timestamptz(6)
 
-  events_rel      WebhookEvent[]
+  events_rel WebhookEvent[]
 
   @@index([organizationId, isActive])
   @@index([isActive])
@@ -468,22 +473,40 @@ model Webhook {
 }
 
 model WebhookEvent {
-  id              String   @id @default(cuid())
-  webhookId       String
-  type            String   // WebhookEventType
-  payload         Json     @db.JsonB
-  status          WebhookStatus
-  attempt         Int      @default(1)
-  nextRetryAt     DateTime?
-  httpStatus      Int?
-  errorMessage    String?  @db.VarChar(512)
-  createdAt       DateTime @default(now()) @db.Timestamptz(6)
-  updatedAt       DateTime @updatedAt @db.Timestamptz(6)
+  id           String        @id @default(cuid())
+  webhookId    String
+  type         String // WebhookEventType
+  payload      Json          @db.JsonB
+  status       WebhookStatus
+  attempt      Int           @default(1)
+  nextRetryAt  DateTime?
+  httpStatus   Int?
+  errorMessage String?       @db.VarChar(512)
+  createdAt    DateTime      @default(now()) @db.Timestamptz(6)
+  updatedAt    DateTime      @updatedAt @db.Timestamptz(6)
 
-  webhook         Webhook @relation(fields: [webhookId], references: [id], onDelete: Cascade)
+  webhook Webhook @relation(fields: [webhookId], references: [id], onDelete: Cascade)
 
   @@index([webhookId, status])
   @@index([status, nextRetryAt]) // For processing pending events
   @@index([createdAt]) // For cleanup/retention
   @@map("webhook_events")
+}
+
+model PasswordResetToken {
+  id     String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId String @map("user_id") @db.Uuid
+
+  tokenHash String    @map("token_hash") @db.VarChar(64)
+  expiresAt DateTime  @map("expires_at") @db.Timestamptz(6)
+  usedAt    DateTime? @map("used_at") @db.Timestamptz(6)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt(sort: Desc)])
+  @@index([tokenHash])
+  @@index([expiresAt])
+  @@map("password_reset_tokens")
 }
