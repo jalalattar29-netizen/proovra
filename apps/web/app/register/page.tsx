@@ -8,6 +8,34 @@ import { useAuth, useLocale } from "../providers";
 import { apiFetch } from "../../lib/api";
 import { buildAppleAuthUrl, buildGoogleAuthUrl, loadAppleIdentity, loadGoogleIdentity } from "../../lib/oauth";
 
+type GoogleCredentialResponse = { credential?: string };
+
+type GoogleAccountsId = {
+  initialize: (options: { client_id: string; callback: (response: GoogleCredentialResponse) => void }) => void;
+  prompt: () => void;
+};
+
+type GoogleGlobal = Window & {
+  google?: {
+    accounts?: {
+      id?: GoogleAccountsId;
+    };
+  };
+};
+
+type AppleSignInResponse = { authorization?: { code?: string; id_token?: string } };
+
+type AppleAuth = {
+  init: (options: { clientId: string; scope: string; redirectURI: string; usePopup: boolean }) => void;
+  signIn: () => Promise<AppleSignInResponse>;
+};
+
+type AppleGlobal = Window & {
+  AppleID?: {
+    auth?: AppleAuth;
+  };
+};
+
 export default function RegisterPage() {
   const { t } = useLocale();
   const { setToken } = useAuth();
@@ -23,19 +51,15 @@ export default function RegisterPage() {
   const [appleReady, setAppleReady] = useState(false);
   const [googleHref, setGoogleHref] = useState<string>("");
   const [appleHref, setAppleHref] = useState<string>("");
-
   const [mounted, setMounted] = useState(false);
-
-  // ✅ NEW: email/password register form
-  const [displayName, setDisplayName] = useState("");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [confirm, setConfirm] = useState("");
 
   const handleAuth = async (path: string, idToken?: string, code?: string) => {
     setBusy(true);
     setError(null);
-    setStatus(`Signing in via ${path}...`);
+
+    const provider = path.includes("google") ? "google" : path.includes("apple") ? "apple" : "guest";
+    setStatus(`Signing in via ${provider}...`);
+
     const guestToken = typeof window !== "undefined" ? localStorage.getItem("proovra-token") : null;
 
     try {
@@ -48,7 +72,7 @@ export default function RegisterPage() {
         try {
           await apiFetch("/v1/evidence/claim", {
             method: "POST",
-            body: JSON.stringify({ guestToken }),
+            body: JSON.stringify({ guestToken })
           });
         } catch {
           // ignore
@@ -64,80 +88,29 @@ export default function RegisterPage() {
     }
   };
 
-  // ✅ NEW: email/password register
-  const handleEmailRegister = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (busy) return;
-
-    const cleanEmail = email.trim().toLowerCase();
-    if (!cleanEmail || !password) {
-      setError("Please enter your email and password.");
-      return;
-    }
-    if (password !== confirm) {
-      setError("Passwords do not match.");
-      return;
-    }
-
-    setBusy(true);
-    setError(null);
-    setStatus("Creating your account...");
-
-    const guestToken = typeof window !== "undefined" ? localStorage.getItem("proovra-token") : null;
-
-    try {
-      const data = await apiFetch("/v1/auth/email/register", {
-        method: "POST",
-        body: JSON.stringify({
-          email: cleanEmail,
-          password,
-          displayName: displayName.trim() || undefined,
-        }),
-      });
-
-      setToken(data.token);
-
-      if (guestToken) {
-        try {
-          await apiFetch("/v1/evidence/claim", {
-            method: "POST",
-            body: JSON.stringify({ guestToken }),
-          });
-        } catch {
-          // ignore
-        }
-      }
-
-      router.push(returnUrl);
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : "Registration failed";
-      setError(msg === "email_already_exists" ? "This email is already registered." : msg);
-      setStatus("Registration failed.");
-    } finally {
-      setBusy(false);
-    }
-  };
-
   useEffect(() => {
     if (typeof window === "undefined") return;
 
-    if (!process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID) setError("Google client ID is missing.");
-    if (!process.env.NEXT_PUBLIC_APPLE_CLIENT_ID) setError("Apple client ID is missing.");
+    const googleClientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID ?? "";
+    const appleClientId = process.env.NEXT_PUBLIC_APPLE_CLIENT_ID ?? "";
+
+    if (!googleClientId) setError("Google client ID is missing.");
+    if (!appleClientId) setError("Apple client ID is missing.");
 
     const nextAppleState =
       window.crypto?.randomUUID?.() ?? `apple-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 
-    const googleClientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID ?? "";
-    const appleClientId = process.env.NEXT_PUBLIC_APPLE_CLIENT_ID ?? "";
     const googleRedirect = process.env.NEXT_PUBLIC_GOOGLE_REDIRECT_URI ?? `${window.location.origin}/auth/callback`;
     const appleRedirect = process.env.NEXT_PUBLIC_APPLE_REDIRECT_URI ?? `${window.location.origin}/auth/callback`;
 
+    // Build fallback hrefs (in case GIS/Apple popup isn't ready)
     let nextGoogleHref = "";
     let nextAppleHref = "";
+
     try {
       nextGoogleHref = buildGoogleAuthUrl({ state: "google", origin: window.location.origin });
     } catch {
-      nextGoogleHref = "";
+      // ignore
     }
     if (!nextGoogleHref) {
       const params = new URLSearchParams({
@@ -147,7 +120,7 @@ export default function RegisterPage() {
         scope: "openid email profile",
         state: "google",
         access_type: "offline",
-        prompt: "consent",
+        prompt: "consent"
       });
       nextGoogleHref = `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
     }
@@ -155,7 +128,7 @@ export default function RegisterPage() {
     try {
       nextAppleHref = buildAppleAuthUrl({ state: nextAppleState, origin: window.location.origin });
     } catch {
-      nextAppleHref = "";
+      // ignore
     }
     if (!nextAppleHref) {
       const params = new URLSearchParams({
@@ -164,7 +137,7 @@ export default function RegisterPage() {
         client_id: appleClientId,
         redirect_uri: appleRedirect,
         scope: "name email",
-        state: nextAppleState,
+        state: nextAppleState
       });
       nextAppleHref = `https://appleid.apple.com/auth/authorize?${params.toString()}`;
     }
@@ -178,55 +151,55 @@ export default function RegisterPage() {
       // ignore
     }
 
+    // Google GIS
     loadGoogleIdentity()
       .then(() => {
-        const google = (window as typeof window & {
-          google?: { accounts?: { id?: { initialize: (options: any) => void } } };
-        }).google;
+        const google = (window as GoogleGlobal).google;
+        const id = google?.accounts?.id;
 
-        if (!google?.accounts?.id || !process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID) {
+        if (!id || !googleClientId) {
           setGoogleReady(false);
           return;
         }
 
-        google.accounts.id.initialize({
-          client_id: process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID,
-          callback: (response: { credential?: string }) => {
+        id.initialize({
+          client_id: googleClientId,
+          callback: (response: GoogleCredentialResponse) => {
             if (response.credential) void handleAuth("/v1/auth/google", response.credential);
             else setError("Google login failed.");
-          },
+          }
         });
 
         setGoogleReady(true);
       })
       .catch(() => setGoogleReady(false));
 
+    // Apple popup
     loadAppleIdentity()
       .then(() => {
-        const AppleID = (window as any).AppleID as
-          | { auth?: { init: (options: any) => void } }
-          | undefined;
+        const AppleID = (window as AppleGlobal).AppleID;
+        const auth = AppleID?.auth;
 
-        if (!AppleID?.auth || !process.env.NEXT_PUBLIC_APPLE_CLIENT_ID) {
+        if (!auth || !appleClientId) {
           setAppleReady(false);
           return;
         }
 
         const redirectUri = process.env.NEXT_PUBLIC_APPLE_REDIRECT_URI ?? `${window.location.origin}/auth/callback`;
 
-        AppleID.auth.init({
-          clientId: process.env.NEXT_PUBLIC_APPLE_CLIENT_ID,
+        auth.init({
+          clientId: appleClientId,
           scope: "name email",
           redirectURI: redirectUri,
-          usePopup: true,
+          usePopup: true
         });
 
         setAppleReady(true);
       })
       .catch(() => setAppleReady(false));
 
-    setStatus(null);
     setMounted(true);
+    setStatus(null);
   }, []);
 
   return (
@@ -263,7 +236,7 @@ export default function RegisterPage() {
                   }
                   if (googleReady) {
                     event.preventDefault();
-                    const google = (window as any).google as { accounts?: { id?: { prompt: () => void } } } | undefined;
+                    const google = (window as GoogleGlobal).google;
                     google?.accounts?.id?.prompt?.();
                     return;
                   }
@@ -293,9 +266,7 @@ export default function RegisterPage() {
 
                   if (appleReady) {
                     event.preventDefault();
-                    const AppleID = (window as any).AppleID as
-                      | { auth?: { signIn: () => Promise<{ authorization?: { code?: string; id_token?: string } }> } }
-                      | undefined;
+                    const AppleID = (window as AppleGlobal).AppleID;
 
                     AppleID?.auth
                       ?.signIn()
@@ -305,8 +276,9 @@ export default function RegisterPage() {
                         if (idToken || code) void handleAuth("/v1/auth/apple", idToken, code);
                         else setError("Apple sign-up failed: No authentication token received. Please try again.");
                       })
-                      .catch(() => {
-                        setError("Apple sign-up failed. Please try again.");
+                      .catch((err: unknown) => {
+                        const msg = err instanceof Error ? err.message : "Apple sign-up failed. Please try again.";
+                        setError(msg);
                       });
 
                     return;
@@ -325,82 +297,6 @@ export default function RegisterPage() {
               </a>
 
               <div className="auth-divider">{t("orDivider")}</div>
-
-              {/* ✅ NEW: Email/password register */}
-              <form id="email-register-form" onSubmit={handleEmailRegister} style={{ width: "100%", display: "grid", gap: 10 }}>
-                <input
-                  type="text"
-                  placeholder="Name (optional)"
-                  autoComplete="name"
-                  value={displayName}
-                  onChange={(e) => setDisplayName(e.target.value)}
-                  disabled={busy}
-                  className="auth-input"
-                  style={{
-                    width: "100%",
-                    height: 44,
-                    borderRadius: 10,
-                    border: "1px solid #e2e8f0",
-                    padding: "0 12px",
-                    background: "white",
-                  }}
-                />
-                <input
-                  type="email"
-                  placeholder="Email"
-                  autoComplete="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  disabled={busy}
-                  className="auth-input"
-                  style={{
-                    width: "100%",
-                    height: 44,
-                    borderRadius: 10,
-                    border: "1px solid #e2e8f0",
-                    padding: "0 12px",
-                    background: "white",
-                  }}
-                />
-                <input
-                  type="password"
-                  placeholder="Password"
-                  autoComplete="new-password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  disabled={busy}
-                  className="auth-input"
-                  style={{
-                    width: "100%",
-                    height: 44,
-                    borderRadius: 10,
-                    border: "1px solid #e2e8f0",
-                    padding: "0 12px",
-                    background: "white",
-                  }}
-                />
-                <input
-                  type="password"
-                  placeholder="Confirm password"
-                  autoComplete="new-password"
-                  value={confirm}
-                  onChange={(e) => setConfirm(e.target.value)}
-                  disabled={busy}
-                  className="auth-input"
-                  style={{
-                    width: "100%",
-                    height: 44,
-                    borderRadius: 10,
-                    border: "1px solid #e2e8f0",
-                    padding: "0 12px",
-                    background: "white",
-                  }}
-                />
-
-                <Button variant="primary" disabled={busy} onClick={() => (document.getElementById("email-register-form") as HTMLFormElement | null)?.requestSubmit()}>
-                  Create account with Email
-                </Button>
-              </form>
 
               <Button variant="secondary" onClick={() => handleAuth("/v1/auth/guest")} disabled={busy}>
                 {t("continueGuest")}
