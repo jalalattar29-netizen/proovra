@@ -1,44 +1,49 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { FormEvent, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Button } from "../../components/ui";
+import { Button, useToast } from "../../components/ui";
 import { useAuth, useLocale } from "../providers";
-import { apiFetch } from "../../lib/api";
-import { buildAppleAuthUrl, buildGoogleAuthUrl, loadAppleIdentity, loadGoogleIdentity } from "../../lib/oauth";
+import { apiFetch, ApiError } from "../../lib/api";
+import { authLogger } from "../../lib/auth-logger";
+import { loadAppleIdentity, loadGoogleIdentity } from "../../lib/oauth";
 
 type GoogleCredentialResponse = { credential?: string };
 
 type GoogleAccountsId = {
-  initialize: (options: { client_id: string; callback: (response: GoogleCredentialResponse) => void }) => void;
+  initialize: (options: {
+    client_id: string;
+    callback: (response: GoogleCredentialResponse) => void;
+    cancel_on_tap_outside?: boolean;
+  }) => void;
   prompt: () => void;
 };
 
 type GoogleGlobal = Window & {
-  google?: {
-    accounts?: {
-      id?: GoogleAccountsId;
-    };
-  };
+  google?: { accounts?: { id?: GoogleAccountsId } };
 };
 
 type AppleSignInResponse = { authorization?: { code?: string; id_token?: string } };
 
 type AppleAuth = {
-  init: (options: { clientId: string; scope: string; redirectURI: string; usePopup: boolean }) => void;
+  init: (options: {
+    clientId: string;
+    scope: string;
+    redirectURI: string;
+    usePopup: boolean;
+  }) => void;
   signIn: () => Promise<AppleSignInResponse>;
 };
 
 type AppleGlobal = Window & {
-  AppleID?: {
-    auth?: AppleAuth;
-  };
+  AppleID?: { auth?: AppleAuth };
 };
 
 export default function RegisterPage() {
   const { t } = useLocale();
   const { setToken } = useAuth();
+  const { addToast } = useToast();
   const router = useRouter();
   const searchParams = useSearchParams();
   const returnUrl = searchParams.get("returnUrl") || "/home";
@@ -49,21 +54,34 @@ export default function RegisterPage() {
 
   const [googleReady, setGoogleReady] = useState(false);
   const [appleReady, setAppleReady] = useState(false);
-  const [googleHref, setGoogleHref] = useState<string>("");
-  const [appleHref, setAppleHref] = useState<string>("");
-  const [mounted, setMounted] = useState(false);
 
-  const handleAuth = async (path: string, idToken?: string, code?: string) => {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [password2, setPassword2] = useState("");
+
+  const inFlightRef = useRef(false);
+  const googleInitOnceRef = useRef(false);
+
+  const handleAuth = async (path: string, idToken?: string, code?: string, extraBody?: Record<string, unknown>) => {
+    if (inFlightRef.current) return;
+    inFlightRef.current = true;
+
     setBusy(true);
     setError(null);
 
-    const provider = path.includes("google") ? "google" : path.includes("apple") ? "apple" : "guest";
+    const provider = path.includes("google") ? "google" : path.includes("apple") ? "apple" : path.includes("guest") ? "guest" : "email";
     setStatus(`Signing in via ${provider}...`);
 
     const guestToken = typeof window !== "undefined" ? localStorage.getItem("proovra-token") : null;
 
     try {
-      const payload = idToken ? { idToken } : code ? { code } : {};
+      try {
+        sessionStorage.setItem("proovra-return-url", returnUrl);
+      } catch {
+        // ignore
+      }
+
+      const payload = extraBody ?? (idToken ? { idToken } : code ? { code } : {});
       const data = await apiFetch(path, { method: "POST", body: JSON.stringify(payload) });
 
       setToken(data.token);
@@ -72,7 +90,7 @@ export default function RegisterPage() {
         try {
           await apiFetch("/v1/evidence/claim", {
             method: "POST",
-            body: JSON.stringify({ guestToken })
+            body: JSON.stringify({ guestToken }),
           });
         } catch {
           // ignore
@@ -81,109 +99,59 @@ export default function RegisterPage() {
 
       router.push(returnUrl);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Registration failed");
+      const msg = err instanceof Error ? err.message : "Registration failed";
+      const requestId = err instanceof ApiError ? err.requestId : undefined;
+
+      authLogger.log("AUTH_SESSION_FAILED", "error", { message: msg, requestId }, provider);
+      setError(requestId ? `${msg} (requestId: ${requestId})` : msg);
       setStatus("Sign in failed.");
+      addToast(requestId ? `${msg} (requestId: ${requestId})` : msg, "error", 6000);
     } finally {
       setBusy(false);
+      inFlightRef.current = false;
     }
   };
 
   useEffect(() => {
     if (typeof window === "undefined") return;
 
-    const googleClientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID ?? "";
-    const appleClientId = process.env.NEXT_PUBLIC_APPLE_CLIENT_ID ?? "";
-
-    if (!googleClientId) setError("Google client ID is missing.");
-    if (!appleClientId) setError("Apple client ID is missing.");
-
-    const nextAppleState =
-      window.crypto?.randomUUID?.() ?? `apple-${Date.now()}-${Math.random().toString(16).slice(2)}`;
-
-    const googleRedirect = process.env.NEXT_PUBLIC_GOOGLE_REDIRECT_URI ?? `${window.location.origin}/auth/callback`;
-    const appleRedirect = process.env.NEXT_PUBLIC_APPLE_REDIRECT_URI ?? `${window.location.origin}/auth/callback`;
-
-    // Build fallback hrefs (in case GIS/Apple popup isn't ready)
-    let nextGoogleHref = "";
-    let nextAppleHref = "";
-
-    try {
-      nextGoogleHref = buildGoogleAuthUrl({ state: "google", origin: window.location.origin });
-    } catch {
-      // ignore
-    }
-    if (!nextGoogleHref) {
-      const params = new URLSearchParams({
-        client_id: googleClientId,
-        redirect_uri: googleRedirect,
-        response_type: "code",
-        scope: "openid email profile",
-        state: "google",
-        access_type: "offline",
-        prompt: "consent"
-      });
-      nextGoogleHref = `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
-    }
-
-    try {
-      nextAppleHref = buildAppleAuthUrl({ state: nextAppleState, origin: window.location.origin });
-    } catch {
-      // ignore
-    }
-    if (!nextAppleHref) {
-      const params = new URLSearchParams({
-        response_type: "code id_token",
-        response_mode: "form_post",
-        client_id: appleClientId,
-        redirect_uri: appleRedirect,
-        scope: "name email",
-        state: nextAppleState
-      });
-      nextAppleHref = `https://appleid.apple.com/auth/authorize?${params.toString()}`;
-    }
-
-    setGoogleHref(nextGoogleHref);
-    setAppleHref(nextAppleHref);
-
-    try {
-      sessionStorage.setItem("proovra-apple-state", nextAppleState);
-    } catch {
-      // ignore
-    }
-
-    // Google GIS
     loadGoogleIdentity()
       .then(() => {
+        const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID ?? "";
+        if (!clientId) return setGoogleReady(false);
+
         const google = (window as GoogleGlobal).google;
         const id = google?.accounts?.id;
+        if (!id?.initialize) return setGoogleReady(false);
 
-        if (!id || !googleClientId) {
-          setGoogleReady(false);
-          return;
+        if (!googleInitOnceRef.current) {
+          googleInitOnceRef.current = true;
+          id.initialize({
+            client_id: clientId,
+            cancel_on_tap_outside: true,
+            callback: (response: GoogleCredentialResponse) => {
+              const idToken = response.credential;
+              if (!idToken) {
+                setError("Google sign-up failed.");
+                return;
+              }
+              void handleAuth("/v1/auth/google", idToken);
+            },
+          });
         }
-
-        id.initialize({
-          client_id: googleClientId,
-          callback: (response: GoogleCredentialResponse) => {
-            if (response.credential) void handleAuth("/v1/auth/google", response.credential);
-            else setError("Google login failed.");
-          }
-        });
 
         setGoogleReady(true);
       })
       .catch(() => setGoogleReady(false));
 
-    // Apple popup
     loadAppleIdentity()
       .then(() => {
+        const appleClientId = process.env.NEXT_PUBLIC_APPLE_CLIENT_ID ?? "";
+        if (!appleClientId) return setAppleReady(false);
+
         const AppleID = (window as AppleGlobal).AppleID;
         const auth = AppleID?.auth;
-
-        if (!auth || !appleClientId) {
-          setAppleReady(false);
-          return;
-        }
+        if (!auth?.init) return setAppleReady(false);
 
         const redirectUri = process.env.NEXT_PUBLIC_APPLE_REDIRECT_URI ?? `${window.location.origin}/auth/callback`;
 
@@ -191,16 +159,87 @@ export default function RegisterPage() {
           clientId: appleClientId,
           scope: "name email",
           redirectURI: redirectUri,
-          usePopup: true
+          usePopup: true,
         });
 
         setAppleReady(true);
       })
       .catch(() => setAppleReady(false));
+  }, [returnUrl]);
 
-    setMounted(true);
-    setStatus(null);
-  }, []);
+  const startGoogle = () => {
+    try {
+      sessionStorage.setItem("proovra-return-url", returnUrl);
+    } catch {
+      // ignore
+    }
+    if (busy || inFlightRef.current) return;
+
+    const google = (window as GoogleGlobal).google;
+    const id = google?.accounts?.id;
+
+    if (!googleReady || !id?.prompt) {
+      const msg = "Google sign-up is not ready yet.";
+      setError(msg);
+      addToast(msg, "error");
+      return;
+    }
+
+    id.prompt();
+  };
+
+  const startApple = async () => {
+    try {
+      sessionStorage.setItem("proovra-return-url", returnUrl);
+    } catch {
+      // ignore
+    }
+    if (busy || inFlightRef.current) return;
+
+    const AppleID = (window as AppleGlobal).AppleID;
+    const auth = AppleID?.auth;
+
+    if (!appleReady || !auth?.signIn) {
+      const msg = "Apple sign-up is not ready yet.";
+      setError(msg);
+      addToast(msg, "error");
+      return;
+    }
+
+    try {
+      const response = await auth.signIn();
+      const idToken = response.authorization?.id_token;
+      const code = response.authorization?.code;
+
+      if (!idToken && !code) {
+        const msg = "Apple sign-up failed: No token received.";
+        setError(msg);
+        addToast(msg, "error");
+        return;
+      }
+
+      await handleAuth("/v1/auth/apple", idToken, code);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Apple sign-up failed";
+      setError(msg);
+      addToast(msg, "error");
+    }
+  };
+
+  const onEmailRegister = (e: FormEvent) => {
+    e.preventDefault();
+    if (!email || !password || !password2) {
+      setError("Please fill email and password.");
+      return;
+    }
+    if (password !== password2) {
+      setError("Passwords do not match.");
+      return;
+    }
+
+    // افترضنا endpoint هذا (إذا عندك اسم مختلف بالـ API غيّره بسطر واحد)
+    void handleAuth("/v1/auth/email/register", undefined, undefined, { email, password });
+  };
 
   return (
     <div className="blue-shell auth-screen">
@@ -221,82 +260,52 @@ export default function RegisterPage() {
             <h2 className="auth-title">{t("createAccountTitle")}</h2>
 
             <div className="auth-actions">
-              <a
-                className="social-btn"
-                href={mounted ? googleHref || "#" : "#"}
-                onClick={(event) => {
-                  try {
-                    sessionStorage.setItem("proovra-return-url", returnUrl);
-                  } catch {
-                    // ignore
-                  }
-                  if (busy) {
-                    event.preventDefault();
-                    return;
-                  }
-                  if (googleReady) {
-                    event.preventDefault();
-                    const google = (window as GoogleGlobal).google;
-                    google?.accounts?.id?.prompt?.();
-                    return;
-                  }
-                  if (!googleHref) {
-                    event.preventDefault();
-                    setError("Google login is not ready yet.");
-                  }
-                }}
-              >
+              <button type="button" className="social-btn" disabled={busy} onClick={startGoogle}>
                 <span className="google-icon" aria-hidden="true" />
                 Continue with Google
-              </a>
+              </button>
 
-              <a
-                className="social-btn"
-                href={mounted ? appleHref || "#" : "#"}
-                onClick={(event) => {
-                  try {
-                    sessionStorage.setItem("proovra-return-url", returnUrl);
-                  } catch {
-                    // ignore
-                  }
-                  if (busy) {
-                    event.preventDefault();
-                    return;
-                  }
-
-                  if (appleReady) {
-                    event.preventDefault();
-                    const AppleID = (window as AppleGlobal).AppleID;
-
-                    AppleID?.auth
-                      ?.signIn()
-                      .then((response) => {
-                        const idToken = response.authorization?.id_token;
-                        const code = response.authorization?.code;
-                        if (idToken || code) void handleAuth("/v1/auth/apple", idToken, code);
-                        else setError("Apple sign-up failed: No authentication token received. Please try again.");
-                      })
-                      .catch((err: unknown) => {
-                        const msg = err instanceof Error ? err.message : "Apple sign-up failed. Please try again.";
-                        setError(msg);
-                      });
-
-                    return;
-                  }
-
-                  if (!appleHref) {
-                    event.preventDefault();
-                    setError("Apple login is not ready yet.");
-                  }
-                }}
-              >
-                <span className="apple-icon" aria-hidden="true">
-                  
-                </span>
-                {t("signInApple")}
-              </a>
+              <button type="button" className="social-btn" disabled={busy} onClick={() => void startApple()}>
+                <span className="apple-icon" aria-hidden="true"></span>
+                Continue with Apple
+              </button>
 
               <div className="auth-divider">{t("orDivider")}</div>
+
+              {/* Email register */}
+              <form onSubmit={onEmailRegister} style={{ display: "grid", gap: 10 }}>
+                <input
+                  className="auth-input"
+                  placeholder="Email"
+                  type="email"
+                  autoComplete="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  disabled={busy}
+                />
+                <input
+                  className="auth-input"
+                  placeholder="Password"
+                  type="password"
+                  autoComplete="new-password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  disabled={busy}
+                />
+                <input
+                  className="auth-input"
+                  placeholder="Confirm password"
+                  type="password"
+                  autoComplete="new-password"
+                  value={password2}
+                  onChange={(e) => setPassword2(e.target.value)}
+                  disabled={busy}
+                />
+
+                <button className="social-btn" type="submit" disabled={busy}>
+                  Create account with Email
+                </button>
+              </form>
 
               <Button variant="secondary" onClick={() => handleAuth("/v1/auth/guest")} disabled={busy}>
                 {t("continueGuest")}

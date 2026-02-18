@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { FormEvent, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Button, useToast } from "../../components/ui";
@@ -34,7 +34,12 @@ type GoogleGlobal = Window & {
 type AppleSignInResponse = { authorization?: { code?: string; id_token?: string } };
 
 type AppleAuth = {
-  init: (options: { clientId: string; scope: string; redirectURI: string; usePopup: boolean }) => void;
+  init: (options: {
+    clientId: string;
+    scope: string;
+    redirectURI: string;
+    usePopup: boolean;
+  }) => void;
   signIn: () => Promise<AppleSignInResponse>;
 };
 
@@ -59,7 +64,6 @@ export default function LoginPage() {
   const [googleReady, setGoogleReady] = useState(false);
   const [appleReady, setAppleReady] = useState(false);
 
-  // Email/password form
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
@@ -71,7 +75,7 @@ export default function LoginPage() {
     if (DEBUG_AUTH) console.info(`[Auth] ${msg}`);
   };
 
-  const handleAuth = async (path: string, idToken?: string, code?: string) => {
+  const handleAuth = async (path: string, idToken?: string, code?: string, extraBody?: Record<string, unknown>) => {
     if (!isMountedRef.current) return;
     if (inFlightRef.current) return;
 
@@ -79,7 +83,7 @@ export default function LoginPage() {
     setBusy(true);
     setError(null);
 
-    const provider = path.includes("google") ? "google" : path.includes("apple") ? "apple" : "guest";
+    const provider = path.includes("google") ? "google" : path.includes("apple") ? "apple" : path.includes("guest") ? "guest" : "email";
     setStatus(`Signing in via ${provider}...`);
 
     const guestToken = typeof window !== "undefined" ? localStorage.getItem("proovra-token") : null;
@@ -93,12 +97,13 @@ export default function LoginPage() {
         // ignore
       }
 
-      const payload = idToken ? { idToken } : code ? { code } : {};
+      const payload =
+        extraBody ?? (idToken ? { idToken } : code ? { code } : {});
 
       authLogger.log(
         "TOKEN_EXCHANGE",
         "request_payload",
-        { has_idToken: !!idToken, has_code: !!code, endpoint: path },
+        { endpoint: path, has_idToken: !!idToken, has_code: !!code },
         provider
       );
 
@@ -128,18 +133,6 @@ export default function LoginPage() {
         }
       }
 
-      const userId =
-        me?.user && typeof me.user === "object" && "id" in me.user ? (me.user as { id: string }).id : undefined;
-
-      authLogger.log(
-        "AUTH_SESSION_SUCCESS",
-        `userId=${userId ?? "unknown"}`,
-        { provider, redirectTo: nextUrl },
-        provider
-      );
-      authLogger.log("LOGIN", "success", { provider, redirectTo: nextUrl }, provider);
-
-      if (!isMountedRef.current) return;
       router.replace(nextUrl);
     } catch (err) {
       if (!isMountedRef.current) return;
@@ -147,15 +140,11 @@ export default function LoginPage() {
       const msg = err instanceof Error ? err.message : "Login failed";
       const requestId = err instanceof ApiError ? err.requestId : undefined;
 
-      authLogger.log(
-        "AUTH_SESSION_FAILED",
-        "error",
-        { code: "token_exchange_failed", message: msg, requestId },
-        provider
-      );
+      authLogger.log("AUTH_SESSION_FAILED", "error", { message: msg, requestId }, provider);
       authLogger.logTokenExchangeError(provider, msg);
 
-      const providerLabel = provider === "guest" ? "" : provider.charAt(0).toUpperCase() + provider.slice(1);
+      const providerLabel =
+        provider === "guest" ? "" : provider.charAt(0).toUpperCase() + provider.slice(1);
       const displayMsg = providerLabel ? `${providerLabel} sign-in failed: ${msg}` : msg;
 
       setError(displayMsg);
@@ -167,89 +156,18 @@ export default function LoginPage() {
     }
   };
 
-  // ✅ NEW: email/password login
-  const handleEmailLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (busy || inFlightRef.current) return;
-
-    const cleanEmail = email.trim().toLowerCase();
-    if (!cleanEmail || !password) {
-      setError("Please enter your email and password.");
-      return;
-    }
-
-    inFlightRef.current = true;
-    setBusy(true);
-    setError(null);
-    setStatus("Signing in with email...");
-
-    const guestToken = typeof window !== "undefined" ? localStorage.getItem("proovra-token") : null;
-
-    try {
-      try {
-        sessionStorage.setItem("proovra-return-url", nextUrl);
-      } catch {
-        // ignore
-      }
-
-      const data = await apiFetch("/v1/auth/email/login", {
-        method: "POST",
-        body: JSON.stringify({ email: cleanEmail, password }),
-      });
-
-      setToken(data.token);
-
-      // confirm session (cookie) + claim guest evidence (same behavior as other providers)
-      const me = await apiFetch("/v1/auth/me", { method: "GET" });
-      if (!me?.user && !data.token) throw new Error("Session not confirmed");
-
-      if (guestToken) {
-        try {
-          await apiFetch("/v1/evidence/claim", {
-            method: "POST",
-            body: JSON.stringify({ guestToken }),
-          });
-        } catch {
-          // ignore
-        }
-      }
-
-      router.replace(nextUrl);
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : "Login failed";
-      const requestId = err instanceof ApiError ? err.requestId : undefined;
-      const displayMsg = msg === "invalid_credentials" ? "Invalid email or password." : msg;
-
-      setError(displayMsg);
-      setStatus("Sign in failed.");
-      addToast(requestId ? `${displayMsg} (requestId: ${requestId})` : displayMsg, "error", 6000);
-    } finally {
-      setBusy(false);
-      inFlightRef.current = false;
-    }
-  };
-
   useEffect(() => {
     if (typeof window === "undefined") return;
-
     isMountedRef.current = true;
 
-    // GOOGLE init (GIS)
     loadGoogleIdentity()
       .then(() => {
         const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID ?? "";
-        if (!clientId) {
-          setGoogleReady(false);
-          return;
-        }
+        if (!clientId) return setGoogleReady(false);
 
         const google = (window as GoogleGlobal).google;
         const id = google?.accounts?.id;
-
-        if (!id?.initialize) {
-          setGoogleReady(false);
-          return;
-        }
+        if (!id?.initialize) return setGoogleReady(false);
 
         if (!googleInitOnceRef.current) {
           googleInitOnceRef.current = true;
@@ -271,21 +189,14 @@ export default function LoginPage() {
       })
       .catch(() => setGoogleReady(false));
 
-    // APPLE init (popup)
     loadAppleIdentity()
       .then(() => {
         const appleClientId = process.env.NEXT_PUBLIC_APPLE_CLIENT_ID ?? "";
-        if (!appleClientId) {
-          setAppleReady(false);
-          return;
-        }
+        if (!appleClientId) return setAppleReady(false);
 
         const AppleID = (window as AppleGlobal).AppleID;
         const auth = AppleID?.auth;
-        if (!auth?.init) {
-          setAppleReady(false);
-          return;
-        }
+        if (!auth?.init) return setAppleReady(false);
 
         const redirectUri = process.env.NEXT_PUBLIC_APPLE_REDIRECT_URI ?? `${window.location.origin}/auth/callback`;
 
@@ -304,18 +215,16 @@ export default function LoginPage() {
       authLogger.log("CLEANUP", "unmount", {});
       isMountedRef.current = false;
     };
-  }, []);
+  }, [nextUrl]);
 
   const startGoogle = () => {
     logDebug("Google click");
     authLogger.log("AUTH_START", "provider=google", {});
-
     try {
       sessionStorage.setItem("proovra-return-url", nextUrl);
     } catch {
       // ignore
     }
-
     if (busy || inFlightRef.current) return;
 
     const google = (window as GoogleGlobal).google;
@@ -334,13 +243,11 @@ export default function LoginPage() {
   const startApple = async () => {
     logDebug("Apple click");
     authLogger.log("AUTH_START", "provider=apple", {});
-
     try {
       sessionStorage.setItem("proovra-return-url", nextUrl);
     } catch {
       // ignore
     }
-
     if (busy || inFlightRef.current) return;
 
     const AppleID = (window as AppleGlobal).AppleID;
@@ -373,6 +280,15 @@ export default function LoginPage() {
     }
   };
 
+  const onEmailLogin = (e: FormEvent) => {
+    e.preventDefault();
+    if (!email || !password) {
+      setError("Please enter email and password.");
+      return;
+    }
+    void handleAuth("/v1/auth/email/login", undefined, undefined, { email, password });
+  };
+
   return (
     <div className="blue-shell auth-screen">
       <div className="container">
@@ -398,63 +314,46 @@ export default function LoginPage() {
               </button>
 
               <button type="button" className="social-btn" disabled={busy} onClick={() => void startApple()}>
-                <span className="apple-icon" aria-hidden="true">
-                  
-                </span>
+                <span className="apple-icon" aria-hidden="true"></span>
                 {t("signInApple")}
               </button>
 
               <div className="auth-divider">{t("orDivider")}</div>
 
-              {/* ✅ NEW: Email/password login */}
-              <form id="email-login-form" onSubmit={handleEmailLogin} style={{ width: "100%", display: "grid", gap: 10 }}>
+              {/* Email login */}
+              <form onSubmit={onEmailLogin} className="auth-email-form" style={{ display: "grid", gap: 10 }}>
                 <input
-                  type="email"
+                  className="auth-input"
                   placeholder="Email"
+                  type="email"
                   autoComplete="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   disabled={busy}
-                  className="auth-input"
-                  style={{
-                    width: "100%",
-                    height: 44,
-                    borderRadius: 10,
-                    border: "1px solid #e2e8f0",
-                    padding: "0 12px",
-                    background: "white",
-                  }}
                 />
-                <input
-                  type="password"
-                  placeholder="Password"
-                  autoComplete="current-password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  disabled={busy}
-                  className="auth-input"
-                  style={{
-                    width: "100%",
-                    height: 44,
-                    borderRadius: 10,
-                    border: "1px solid #e2e8f0",
-                    padding: "0 12px",
-                    background: "white",
-                  }}
-                />
-
-                <Button variant="primary" disabled={busy} onClick={() => (document.getElementById("email-login-form") as HTMLFormElement | null)?.requestSubmit()}>
-                  Sign in with Email
-                </Button>
-
-                <div style={{ display: "flex", justifyContent: "flex-end" }}>
-                  <Link href={`/forgot-password?returnUrl=${encodeURIComponent(nextUrl)}`} style={{ fontSize: 12 }}>
-                    Forgot password?
-                  </Link>
+                <div style={{ display: "grid", gap: 6 }}>
+                  <input
+                    className="auth-input"
+                    placeholder="Password"
+                    type="password"
+                    autoComplete="current-password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    disabled={busy}
+                  />
+                  <div style={{ textAlign: "right", fontSize: 12 }}>
+                    <Link href="/forgot-password" style={{ color: "#334155" }}>
+                      Forgot password?
+                    </Link>
+                  </div>
                 </div>
+
+                {/* NOTE: Button component ممكن ما يدعم type عندك، لذلك خليتها native button */}
+                <button className="social-btn" type="submit" disabled={busy}>
+                  Sign in with Email
+                </button>
               </form>
 
-              {/* Keep guest as-is */}
               <Button variant="secondary" onClick={() => handleAuth("/v1/auth/guest")} disabled={busy}>
                 {t("continueGuest")}
               </Button>
