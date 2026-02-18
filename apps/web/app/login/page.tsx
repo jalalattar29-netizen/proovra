@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useRef, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Button, useToast } from "../../components/ui";
@@ -21,6 +21,19 @@ type GoogleAccountsId = {
     cancel_on_tap_outside?: boolean;
   }) => void;
   prompt: () => void;
+  renderButton: (
+    parent: HTMLElement,
+    options: {
+      type?: "standard" | "icon";
+      theme?: "outline" | "filled_blue" | "filled_black";
+      size?: "large" | "medium" | "small";
+      text?: "signin_with" | "signup_with" | "continue_with" | "signin";
+      shape?: "rectangular" | "pill" | "circle" | "square";
+      logo_alignment?: "left" | "center";
+      width?: number;
+      locale?: string;
+    }
+  ) => void;
 };
 
 type GoogleGlobal = Window & {
@@ -34,20 +47,35 @@ type GoogleGlobal = Window & {
 type AppleSignInResponse = { authorization?: { code?: string; id_token?: string } };
 
 type AppleAuth = {
-  init: (options: {
-    clientId: string;
-    scope: string;
-    redirectURI: string;
-    usePopup: boolean;
-  }) => void;
+  init: (options: { clientId: string; scope: string; redirectURI: string; usePopup: boolean }) => void;
   signIn: () => Promise<AppleSignInResponse>;
 };
 
 type AppleGlobal = Window & {
-  AppleID?: {
-    auth?: AppleAuth;
-  };
+  AppleID?: { auth?: AppleAuth };
 };
+
+function EmailIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <path
+        fill="currentColor"
+        d="M20 4H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2Zm0 4.236-8 4.8-8-4.8V6l8 4.8L20 6v2.236Z"
+      />
+    </svg>
+  );
+}
+
+function LockIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <path
+        fill="currentColor"
+        d="M17 9h-1V7a4 4 0 0 0-8 0v2H7a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-9a2 2 0 0 0-2-2Zm-7-2a2 2 0 0 1 4 0v2h-4V7Zm3 10.73V19h-2v-1.27a2 2 0 1 1 2 0Z"
+      />
+    </svg>
+  );
+}
 
 export default function LoginPage() {
   const { t } = useLocale();
@@ -70,9 +98,24 @@ export default function LoginPage() {
   const isMountedRef = useRef(true);
   const inFlightRef = useRef(false);
   const googleInitOnceRef = useRef(false);
+  const googleBtnWrapRef = useRef<HTMLDivElement | null>(null);
+
+  const ui = useMemo(() => {
+    const cardShadow = "0 10px 40px rgba(2, 6, 23, 0.12)";
+    const border = "1px solid rgba(148, 163, 184, 0.35)";
+    return { cardShadow, border };
+  }, []);
 
   const logDebug = (msg: string) => {
     if (DEBUG_AUTH) console.info(`[Auth] ${msg}`);
+  };
+
+  const setReturnUrl = (url: string) => {
+    try {
+      sessionStorage.setItem("proovra-return-url", url);
+    } catch {
+      // ignore
+    }
   };
 
   const handleAuth = async (path: string, idToken?: string, code?: string, extraBody?: Record<string, unknown>) => {
@@ -83,36 +126,28 @@ export default function LoginPage() {
     setBusy(true);
     setError(null);
 
-    const provider = path.includes("google") ? "google" : path.includes("apple") ? "apple" : path.includes("guest") ? "guest" : "email";
+    const provider = path.includes("google")
+      ? "google"
+      : path.includes("apple")
+      ? "apple"
+      : path.includes("guest")
+      ? "guest"
+      : "email";
+
     setStatus(`Signing in via ${provider}...`);
 
     const guestToken = typeof window !== "undefined" ? localStorage.getItem("proovra-token") : null;
-
     authLogger.logTokenExchangeStart(provider, path);
 
     try {
-      try {
-        sessionStorage.setItem("proovra-return-url", nextUrl);
-      } catch {
-        // ignore
-      }
+      setReturnUrl(nextUrl);
 
-      const payload =
-        extraBody ?? (idToken ? { idToken } : code ? { code } : {});
+      const payload = extraBody ?? (idToken ? { idToken } : code ? { code } : {});
+      authLogger.log("TOKEN_EXCHANGE", "request_payload", { endpoint: path, has_idToken: !!idToken, has_code: !!code }, provider);
 
-      authLogger.log(
-        "TOKEN_EXCHANGE",
-        "request_payload",
-        { endpoint: path, has_idToken: !!idToken, has_code: !!code },
-        provider
-      );
-
-      const data = await apiFetch(path, {
-        method: "POST",
-        body: JSON.stringify(payload),
-      });
-
+      const data = await apiFetch(path, { method: "POST", body: JSON.stringify(payload) });
       authLogger.logTokenExchangeSuccess(provider, data);
+
       if (!isMountedRef.current) return;
 
       setToken(data.token);
@@ -124,10 +159,7 @@ export default function LoginPage() {
 
       if (guestToken) {
         try {
-          await apiFetch("/v1/evidence/claim", {
-            method: "POST",
-            body: JSON.stringify({ guestToken }),
-          });
+          await apiFetch("/v1/evidence/claim", { method: "POST", body: JSON.stringify({ guestToken }) });
         } catch {
           // ignore
         }
@@ -143,8 +175,7 @@ export default function LoginPage() {
       authLogger.log("AUTH_SESSION_FAILED", "error", { message: msg, requestId }, provider);
       authLogger.logTokenExchangeError(provider, msg);
 
-      const providerLabel =
-        provider === "guest" ? "" : provider.charAt(0).toUpperCase() + provider.slice(1);
+      const providerLabel = provider === "guest" ? "" : provider.charAt(0).toUpperCase() + provider.slice(1);
       const displayMsg = providerLabel ? `${providerLabel} sign-in failed: ${msg}` : msg;
 
       setError(displayMsg);
@@ -160,14 +191,21 @@ export default function LoginPage() {
     if (typeof window === "undefined") return;
     isMountedRef.current = true;
 
+    // GOOGLE (GIS) init + renderButton (fix bottom prompt issue)
     loadGoogleIdentity()
       .then(() => {
         const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID ?? "";
-        if (!clientId) return setGoogleReady(false);
+        if (!clientId) {
+          setGoogleReady(false);
+          return;
+        }
 
         const google = (window as GoogleGlobal).google;
         const id = google?.accounts?.id;
-        if (!id?.initialize) return setGoogleReady(false);
+        if (!id?.initialize) {
+          setGoogleReady(false);
+          return;
+        }
 
         if (!googleInitOnceRef.current) {
           googleInitOnceRef.current = true;
@@ -185,28 +223,42 @@ export default function LoginPage() {
           });
         }
 
+        // Render official button (account chooser UX)
+        if (googleBtnWrapRef.current && id.renderButton) {
+          googleBtnWrapRef.current.innerHTML = "";
+          id.renderButton(googleBtnWrapRef.current, {
+            type: "standard",
+            theme: "outline",
+            size: "large",
+            text: "continue_with",
+            shape: "pill",
+            logo_alignment: "left",
+            width: 380,
+          });
+        }
+
         setGoogleReady(true);
       })
       .catch(() => setGoogleReady(false));
 
+    // APPLE init (popup)
     loadAppleIdentity()
       .then(() => {
         const appleClientId = process.env.NEXT_PUBLIC_APPLE_CLIENT_ID ?? "";
-        if (!appleClientId) return setAppleReady(false);
+        if (!appleClientId) {
+          setAppleReady(false);
+          return;
+        }
 
         const AppleID = (window as AppleGlobal).AppleID;
         const auth = AppleID?.auth;
-        if (!auth?.init) return setAppleReady(false);
+        if (!auth?.init) {
+          setAppleReady(false);
+          return;
+        }
 
         const redirectUri = process.env.NEXT_PUBLIC_APPLE_REDIRECT_URI ?? `${window.location.origin}/auth/callback`;
-
-        auth.init({
-          clientId: appleClientId,
-          scope: "name email",
-          redirectURI: redirectUri,
-          usePopup: true,
-        });
-
+        auth.init({ clientId: appleClientId, scope: "name email", redirectURI: redirectUri, usePopup: true });
         setAppleReady(true);
       })
       .catch(() => setAppleReady(false));
@@ -217,37 +269,11 @@ export default function LoginPage() {
     };
   }, [nextUrl]);
 
-  const startGoogle = () => {
-    logDebug("Google click");
-    authLogger.log("AUTH_START", "provider=google", {});
-    try {
-      sessionStorage.setItem("proovra-return-url", nextUrl);
-    } catch {
-      // ignore
-    }
-    if (busy || inFlightRef.current) return;
-
-    const google = (window as GoogleGlobal).google;
-    const id = google?.accounts?.id;
-
-    if (!googleReady || !id?.prompt) {
-      const msg = "Google sign-in is not ready yet.";
-      setError(msg);
-      addToast(msg, "error");
-      return;
-    }
-
-    id.prompt();
-  };
-
   const startApple = async () => {
     logDebug("Apple click");
     authLogger.log("AUTH_START", "provider=apple", {});
-    try {
-      sessionStorage.setItem("proovra-return-url", nextUrl);
-    } catch {
-      // ignore
-    }
+    setReturnUrl(nextUrl);
+
     if (busy || inFlightRef.current) return;
 
     const AppleID = (window as AppleGlobal).AppleID;
@@ -282,6 +308,7 @@ export default function LoginPage() {
 
   const onEmailLogin = (e: FormEvent) => {
     e.preventDefault();
+    setError(null);
     if (!email || !password) {
       setError("Please enter email and password.");
       return;
@@ -304,52 +331,138 @@ export default function LoginPage() {
         </header>
 
         <main className="auth-main">
-          <div className="auth-card">
+          <div
+            className="auth-card"
+            style={{
+              boxShadow: ui.cardShadow,
+              border: ui.border,
+              backdropFilter: "blur(10px)",
+            }}
+          >
             <h2 className="auth-title">{t("signInTitle")}</h2>
 
-            <div className="auth-actions">
-              <button type="button" className="social-btn" disabled={busy} onClick={startGoogle}>
-                <span className="google-icon" aria-hidden="true" />
-                Continue with Google
-              </button>
+            <div className="auth-actions" style={{ display: "grid", gap: 12 }}>
+              {/* Google (official GIS rendered button) */}
+              <div
+                style={{
+                  width: "100%",
+                  display: "flex",
+                  justifyContent: "center",
+                }}
+                aria-label="Continue with Google"
+              >
+                <div
+                  ref={googleBtnWrapRef}
+                  style={{
+                    width: "100%",
+                    display: "flex",
+                    justifyContent: "center",
+                    opacity: busy ? 0.7 : 1,
+                    pointerEvents: busy ? "none" : "auto",
+                  }}
+                />
+              </div>
 
-              <button type="button" className="social-btn" disabled={busy} onClick={() => void startApple()}>
-                <span className="apple-icon" aria-hidden="true"></span>
+              {/* Apple */}
+              <button
+                type="button"
+                className="social-btn"
+                disabled={busy}
+                onClick={() => void startApple()}
+                style={{ borderRadius: 9999, height: 44 }}
+              >
+                <span className="apple-icon" aria-hidden="true" style={{ fontSize: 18, lineHeight: "18px" }}>
+                  
+                </span>
                 {t("signInApple")}
               </button>
 
               <div className="auth-divider">{t("orDivider")}</div>
 
               {/* Email login */}
-              <form onSubmit={onEmailLogin} className="auth-email-form" style={{ display: "grid", gap: 10 }}>
-                <input
-                  className="auth-input"
-                  placeholder="Email"
-                  type="email"
-                  autoComplete="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  disabled={busy}
-                />
-                <div style={{ display: "grid", gap: 6 }}>
+              <form onSubmit={onEmailLogin} style={{ display: "grid", gap: 10 }}>
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 10,
+                    border: "1px solid #e2e8f0",
+                    borderRadius: 12,
+                    padding: "0 12px",
+                    height: 44,
+                    background: "#fff",
+                  }}
+                >
+                  <span style={{ color: "#64748b", display: "flex" }}>
+                    <EmailIcon />
+                  </span>
                   <input
-                    className="auth-input"
-                    placeholder="Password"
-                    type="password"
-                    autoComplete="current-password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
+                    style={{
+                      width: "100%",
+                      border: "none",
+                      outline: "none",
+                      fontSize: 14,
+                      background: "transparent",
+                    }}
+                    placeholder="Email"
+                    type="email"
+                    autoComplete="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
                     disabled={busy}
                   />
-                  <div style={{ textAlign: "right", fontSize: 12 }}>
-                    <Link href="/forgot-password" style={{ color: "#334155" }}>
+                </div>
+
+                <div style={{ display: "grid", gap: 6 }}>
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 10,
+                      border: "1px solid #e2e8f0",
+                      borderRadius: 12,
+                      padding: "0 12px",
+                      height: 44,
+                      background: "#fff",
+                    }}
+                  >
+                    <span style={{ color: "#64748b", display: "flex" }}>
+                      <LockIcon />
+                    </span>
+                    <input
+                      style={{
+                        width: "100%",
+                        border: "none",
+                        outline: "none",
+                        fontSize: 14,
+                        background: "transparent",
+                      }}
+                      placeholder="Password"
+                      type="password"
+                      autoComplete="current-password"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      disabled={busy}
+                    />
+                  </div>
+
+                  <div style={{ display: "flex", justifyContent: "flex-end" }}>
+                    <Link href="/forgot-password" style={{ fontSize: 12, color: "#334155", textDecoration: "none" }}>
                       Forgot password?
                     </Link>
                   </div>
                 </div>
 
-                {/* NOTE: Button component ممكن ما يدعم type عندك، لذلك خليتها native button */}
-                <button className="social-btn" type="submit" disabled={busy}>
+                <button
+                  className="social-btn"
+                  type="submit"
+                  disabled={busy}
+                  style={{
+                    borderRadius: 9999,
+                    height: 44,
+                    fontWeight: 600,
+                  }}
+                >
                   Sign in with Email
                 </button>
               </form>
@@ -368,12 +481,12 @@ export default function LoginPage() {
                     marginTop: 12,
                     padding: 12,
                     background: "#f1f5f9",
-                    borderRadius: 8,
+                    borderRadius: 10,
                     fontSize: 11,
                     color: "#475569",
                   }}
                 >
-                  <div style={{ fontWeight: 600, marginBottom: 6 }}>Auth Debug</div>
+                  <div style={{ fontWeight: 700, marginBottom: 6 }}>Auth Debug</div>
                   <div>Google: {googleReady ? "ready" : "missing"}</div>
                   <div>Apple: {appleReady ? "ready" : "missing"}</div>
                   <div>nextUrl: {nextUrl}</div>
