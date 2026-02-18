@@ -18,7 +18,7 @@ type GoogleAccountsId = {
     cancel_on_tap_outside?: boolean;
   }) => void;
   prompt: () => void;
-  renderButton: (
+  renderButton?: (
     parent: HTMLElement,
     options: {
       type?: "standard" | "icon";
@@ -93,7 +93,6 @@ export default function RegisterPage() {
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);
 
-  const [googleReady, setGoogleReady] = useState(false);
   const [appleReady, setAppleReady] = useState(false);
 
   const [email, setEmail] = useState("");
@@ -118,7 +117,12 @@ export default function RegisterPage() {
     }
   };
 
-  const handleAuth = async (path: string, idToken?: string, code?: string, extraBody?: Record<string, unknown>) => {
+  const handleAuth = async (
+    path: string,
+    idToken?: string,
+    code?: string,
+    extraBody?: Record<string, unknown>
+  ) => {
     if (inFlightRef.current) return;
     inFlightRef.current = true;
 
@@ -147,7 +151,10 @@ export default function RegisterPage() {
 
       if (guestToken) {
         try {
-          await apiFetch("/v1/evidence/claim", { method: "POST", body: JSON.stringify({ guestToken }) });
+          await apiFetch("/v1/evidence/claim", {
+            method: "POST",
+            body: JSON.stringify({ guestToken }),
+          });
         } catch {
           // ignore
         }
@@ -171,23 +178,19 @@ export default function RegisterPage() {
   useEffect(() => {
     if (typeof window === "undefined") return;
 
+    // GOOGLE (GIS) - render official button + exchange token
     loadGoogleIdentity()
       .then(() => {
         const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID ?? "";
-        if (!clientId) {
-          setGoogleReady(false);
-          return;
-        }
+        if (!clientId) return;
 
         const google = (window as GoogleGlobal).google;
         const id = google?.accounts?.id;
-        if (!id?.initialize) {
-          setGoogleReady(false);
-          return;
-        }
+        if (!id?.initialize) return;
 
         if (!googleInitOnceRef.current) {
           googleInitOnceRef.current = true;
+
           id.initialize({
             client_id: clientId,
             cancel_on_tap_outside: true,
@@ -202,6 +205,7 @@ export default function RegisterPage() {
           });
         }
 
+        // Render official button in place (so it doesn't open that bottom sheet weirdness)
         if (googleBtnWrapRef.current && id.renderButton) {
           googleBtnWrapRef.current.innerHTML = "";
           id.renderButton(googleBtnWrapRef.current, {
@@ -214,11 +218,12 @@ export default function RegisterPage() {
             width: 380,
           });
         }
-
-        setGoogleReady(true);
       })
-      .catch(() => setGoogleReady(false));
+      .catch(() => {
+        // ignore
+      });
 
+    // APPLE
     loadAppleIdentity()
       .then(() => {
         const appleClientId = process.env.NEXT_PUBLIC_APPLE_CLIENT_ID ?? "";
@@ -234,8 +239,16 @@ export default function RegisterPage() {
           return;
         }
 
-        const redirectUri = process.env.NEXT_PUBLIC_APPLE_REDIRECT_URI ?? `${window.location.origin}/auth/callback`;
-        auth.init({ clientId: appleClientId, scope: "name email", redirectURI: redirectUri, usePopup: true });
+        const redirectUri =
+          process.env.NEXT_PUBLIC_APPLE_REDIRECT_URI ?? `${window.location.origin}/auth/callback`;
+
+        auth.init({
+          clientId: appleClientId,
+          scope: "name email",
+          redirectURI: redirectUri,
+          usePopup: true,
+        });
+
         setAppleReady(true);
       })
       .catch(() => setAppleReady(false));
@@ -427,7 +440,12 @@ export default function RegisterPage() {
                   />
                 </div>
 
-                <button className="social-btn" type="submit" disabled={busy} style={{ borderRadius: 9999, height: 44, fontWeight: 600 }}>
+                <button
+                  className="social-btn"
+                  type="submit"
+                  disabled={busy}
+                  style={{ borderRadius: 9999, height: 44, fontWeight: 600 }}
+                >
                   Create account with Email
                 </button>
               </form>
