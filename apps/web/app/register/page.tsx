@@ -6,12 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "../../components/ui";
 import { useAuth, useLocale } from "../providers";
 import { apiFetch } from "../../lib/api";
-import {
-  buildAppleAuthUrl,
-  buildGoogleAuthUrl,
-  loadAppleIdentity,
-  loadGoogleIdentity
-} from "../../lib/oauth";
+import { buildAppleAuthUrl, buildGoogleAuthUrl, loadAppleIdentity, loadGoogleIdentity } from "../../lib/oauth";
 
 export default function RegisterPage() {
   const { t } = useLocale();
@@ -30,9 +25,12 @@ export default function RegisterPage() {
   const [appleHref, setAppleHref] = useState<string>("");
 
   const [mounted, setMounted] = useState(false);
-  const [debugGoogleHref, setDebugGoogleHref] = useState<string>("");
-  const [debugAppleHref, setDebugAppleHref] = useState<string>("");
-  const apiBase = process.env.NEXT_PUBLIC_API_BASE ?? "";
+
+  // ✅ NEW: email/password register form
+  const [displayName, setDisplayName] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [confirm, setConfirm] = useState("");
 
   const handleAuth = async (path: string, idToken?: string, code?: string) => {
     setBusy(true);
@@ -50,7 +48,7 @@ export default function RegisterPage() {
         try {
           await apiFetch("/v1/evidence/claim", {
             method: "POST",
-            body: JSON.stringify({ guestToken })
+            body: JSON.stringify({ guestToken }),
           });
         } catch {
           // ignore
@@ -61,6 +59,60 @@ export default function RegisterPage() {
     } catch (err) {
       setError(err instanceof Error ? err.message : "Registration failed");
       setStatus("Sign in failed.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  // ✅ NEW: email/password register
+  const handleEmailRegister = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (busy) return;
+
+    const cleanEmail = email.trim().toLowerCase();
+    if (!cleanEmail || !password) {
+      setError("Please enter your email and password.");
+      return;
+    }
+    if (password !== confirm) {
+      setError("Passwords do not match.");
+      return;
+    }
+
+    setBusy(true);
+    setError(null);
+    setStatus("Creating your account...");
+
+    const guestToken = typeof window !== "undefined" ? localStorage.getItem("proovra-token") : null;
+
+    try {
+      const data = await apiFetch("/v1/auth/email/register", {
+        method: "POST",
+        body: JSON.stringify({
+          email: cleanEmail,
+          password,
+          displayName: displayName.trim() || undefined,
+        }),
+      });
+
+      setToken(data.token);
+
+      if (guestToken) {
+        try {
+          await apiFetch("/v1/evidence/claim", {
+            method: "POST",
+            body: JSON.stringify({ guestToken }),
+          });
+        } catch {
+          // ignore
+        }
+      }
+
+      router.push(returnUrl);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Registration failed";
+      setError(msg === "email_already_exists" ? "This email is already registered." : msg);
+      setStatus("Registration failed.");
     } finally {
       setBusy(false);
     }
@@ -77,10 +129,8 @@ export default function RegisterPage() {
 
     const googleClientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID ?? "";
     const appleClientId = process.env.NEXT_PUBLIC_APPLE_CLIENT_ID ?? "";
-    const googleRedirect =
-      process.env.NEXT_PUBLIC_GOOGLE_REDIRECT_URI ?? `${window.location.origin}/auth/callback`;
-    const appleRedirect =
-      process.env.NEXT_PUBLIC_APPLE_REDIRECT_URI ?? `${window.location.origin}/auth/callback`;
+    const googleRedirect = process.env.NEXT_PUBLIC_GOOGLE_REDIRECT_URI ?? `${window.location.origin}/auth/callback`;
+    const appleRedirect = process.env.NEXT_PUBLIC_APPLE_REDIRECT_URI ?? `${window.location.origin}/auth/callback`;
 
     let nextGoogleHref = "";
     let nextAppleHref = "";
@@ -97,7 +147,7 @@ export default function RegisterPage() {
         scope: "openid email profile",
         state: "google",
         access_type: "offline",
-        prompt: "consent"
+        prompt: "consent",
       });
       nextGoogleHref = `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
     }
@@ -114,35 +164,24 @@ export default function RegisterPage() {
         client_id: appleClientId,
         redirect_uri: appleRedirect,
         scope: "name email",
-        state: nextAppleState
+        state: nextAppleState,
       });
       nextAppleHref = `https://appleid.apple.com/auth/authorize?${params.toString()}`;
     }
 
     setGoogleHref(nextGoogleHref);
     setAppleHref(nextAppleHref);
-    setDebugGoogleHref(nextGoogleHref);
-    setDebugAppleHref(nextAppleHref);
 
     try {
       sessionStorage.setItem("proovra-apple-state", nextAppleState);
-    } catch (err) {
-      void err;
+    } catch {
+      // ignore
     }
 
     loadGoogleIdentity()
       .then(() => {
         const google = (window as typeof window & {
-          google?: {
-            accounts?: {
-              id?: {
-                initialize: (options: {
-                  client_id: string;
-                  callback: (response: { credential?: string }) => void;
-                }) => void;
-              };
-            };
-          };
+          google?: { accounts?: { id?: { initialize: (options: any) => void } } };
         }).google;
 
         if (!google?.accounts?.id || !process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID) {
@@ -155,7 +194,7 @@ export default function RegisterPage() {
           callback: (response: { credential?: string }) => {
             if (response.credential) void handleAuth("/v1/auth/google", response.credential);
             else setError("Google login failed.");
-          }
+          },
         });
 
         setGoogleReady(true);
@@ -164,32 +203,22 @@ export default function RegisterPage() {
 
     loadAppleIdentity()
       .then(() => {
-        const AppleID = (window as typeof window & {
-          AppleID?: {
-            auth?: {
-              init: (options: {
-                clientId: string;
-                scope: string;
-                redirectURI: string;
-                usePopup: boolean;
-              }) => void;
-            };
-          };
-        }).AppleID;
+        const AppleID = (window as any).AppleID as
+          | { auth?: { init: (options: any) => void } }
+          | undefined;
 
         if (!AppleID?.auth || !process.env.NEXT_PUBLIC_APPLE_CLIENT_ID) {
           setAppleReady(false);
           return;
         }
 
-        const redirectUri =
-          process.env.NEXT_PUBLIC_APPLE_REDIRECT_URI ?? `${window.location.origin}/auth/callback`;
+        const redirectUri = process.env.NEXT_PUBLIC_APPLE_REDIRECT_URI ?? `${window.location.origin}/auth/callback`;
 
         AppleID.auth.init({
           clientId: process.env.NEXT_PUBLIC_APPLE_CLIENT_ID,
           scope: "name email",
           redirectURI: redirectUri,
-          usePopup: true
+          usePopup: true,
         });
 
         setAppleReady(true);
@@ -204,7 +233,6 @@ export default function RegisterPage() {
     <div className="blue-shell auth-screen">
       <div className="container">
         <header className="auth-top">
-          {/* ✅ clickable brand */}
           <Link href="/" className="auth-brand">
             <img src="/brand/logo-white.svg" alt="PROO✓RA" />
             <span>{t("brand")}</span>
@@ -227,7 +255,7 @@ export default function RegisterPage() {
                   try {
                     sessionStorage.setItem("proovra-return-url", returnUrl);
                   } catch {
-                    void 0;
+                    // ignore
                   }
                   if (busy) {
                     event.preventDefault();
@@ -235,9 +263,7 @@ export default function RegisterPage() {
                   }
                   if (googleReady) {
                     event.preventDefault();
-                    const google = (window as typeof window & {
-                      google?: { accounts?: { id?: { prompt: () => void } } };
-                    }).google;
+                    const google = (window as any).google as { accounts?: { id?: { prompt: () => void } } } | undefined;
                     google?.accounts?.id?.prompt?.();
                     return;
                   }
@@ -258,7 +284,7 @@ export default function RegisterPage() {
                   try {
                     sessionStorage.setItem("proovra-return-url", returnUrl);
                   } catch {
-                    void 0;
+                    // ignore
                   }
                   if (busy) {
                     event.preventDefault();
@@ -267,13 +293,9 @@ export default function RegisterPage() {
 
                   if (appleReady) {
                     event.preventDefault();
-                    const AppleID = (window as typeof window & {
-                      AppleID?: {
-                        auth?: {
-                          signIn: () => Promise<{ authorization?: { code?: string; id_token?: string } }>;
-                        };
-                      };
-                    }).AppleID;
+                    const AppleID = (window as any).AppleID as
+                      | { auth?: { signIn: () => Promise<{ authorization?: { code?: string; id_token?: string } }> } }
+                      | undefined;
 
                     AppleID?.auth
                       ?.signIn()
@@ -283,22 +305,8 @@ export default function RegisterPage() {
                         if (idToken || code) void handleAuth("/v1/auth/apple", idToken, code);
                         else setError("Apple sign-up failed: No authentication token received. Please try again.");
                       })
-                      .catch((err: Error & { code?: string }) => {
-                        // Handle specific Apple error codes
-                        const errorCode = err?.code || err?.message || "";
-                        let friendlyMessage = "Apple sign-up failed. Please try again.";
-                        
-                        if (errorCode.includes("POPUP_BLOCKED") || errorCode === "popup_closed_by_user") {
-                          friendlyMessage = "Apple sign-up popup was blocked. Please check your browser settings.";
-                        } else if (errorCode.includes("TIMEOUT") || errorCode === "timeout") {
-                          friendlyMessage = "Apple sign-up request timed out. Please try again.";
-                        } else if (errorCode.includes("INVALID") || errorCode === "invalid_request") {
-                          friendlyMessage = "Apple sign-up configuration error. Please contact support.";
-                        } else if (errorCode.includes("NETWORK") || errorCode === "network_error") {
-                          friendlyMessage = "Network error during Apple sign-up. Please check your connection.";
-                        }
-                        
-                        setError(friendlyMessage);
+                      .catch(() => {
+                        setError("Apple sign-up failed. Please try again.");
                       });
 
                     return;
@@ -318,28 +326,88 @@ export default function RegisterPage() {
 
               <div className="auth-divider">{t("orDivider")}</div>
 
+              {/* ✅ NEW: Email/password register */}
+              <form id="email-register-form" onSubmit={handleEmailRegister} style={{ width: "100%", display: "grid", gap: 10 }}>
+                <input
+                  type="text"
+                  placeholder="Name (optional)"
+                  autoComplete="name"
+                  value={displayName}
+                  onChange={(e) => setDisplayName(e.target.value)}
+                  disabled={busy}
+                  className="auth-input"
+                  style={{
+                    width: "100%",
+                    height: 44,
+                    borderRadius: 10,
+                    border: "1px solid #e2e8f0",
+                    padding: "0 12px",
+                    background: "white",
+                  }}
+                />
+                <input
+                  type="email"
+                  placeholder="Email"
+                  autoComplete="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  disabled={busy}
+                  className="auth-input"
+                  style={{
+                    width: "100%",
+                    height: 44,
+                    borderRadius: 10,
+                    border: "1px solid #e2e8f0",
+                    padding: "0 12px",
+                    background: "white",
+                  }}
+                />
+                <input
+                  type="password"
+                  placeholder="Password"
+                  autoComplete="new-password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  disabled={busy}
+                  className="auth-input"
+                  style={{
+                    width: "100%",
+                    height: 44,
+                    borderRadius: 10,
+                    border: "1px solid #e2e8f0",
+                    padding: "0 12px",
+                    background: "white",
+                  }}
+                />
+                <input
+                  type="password"
+                  placeholder="Confirm password"
+                  autoComplete="new-password"
+                  value={confirm}
+                  onChange={(e) => setConfirm(e.target.value)}
+                  disabled={busy}
+                  className="auth-input"
+                  style={{
+                    width: "100%",
+                    height: 44,
+                    borderRadius: 10,
+                    border: "1px solid #e2e8f0",
+                    padding: "0 12px",
+                    background: "white",
+                  }}
+                />
+
+                <Button variant="primary" disabled={busy} onClick={() => (document.getElementById("email-register-form") as HTMLFormElement | null)?.requestSubmit()}>
+                  Create account with Email
+                </Button>
+              </form>
+
               <Button variant="secondary" onClick={() => handleAuth("/v1/auth/guest")} disabled={busy}>
                 {t("continueGuest")}
               </Button>
 
               {error && <div className="error-text">{error}</div>}
               {status && <div style={{ fontSize: 12, color: "#64748b" }}>{status}</div>}
-
-              {mounted && process.env.NODE_ENV !== "production" && (
-                <div style={{ fontSize: 11, color: "#94a3b8" }}>
-                  API: {apiBase || "missing"}
-                  {" · "}Google URL: {googleReady ? "ready" : "missing"}
-                  {" · "}Apple URL: {appleReady ? "ready" : "missing"}
-                  {" · "}Google HREF: {googleHref ? "set" : "missing"}
-                  {" · "}Apple HREF: {appleHref ? "set" : "missing"}
-                  <div style={{ marginTop: 6, wordBreak: "break-all" }}>
-                    Google URL: {debugGoogleHref || "(empty)"}
-                  </div>
-                  <div style={{ wordBreak: "break-all" }}>
-                    Apple URL: {debugAppleHref || "(empty)"}
-                  </div>
-                </div>
-              )}
             </div>
 
             <div className="auth-switch">

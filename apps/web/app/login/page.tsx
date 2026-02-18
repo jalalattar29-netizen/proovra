@@ -34,12 +34,7 @@ type GoogleGlobal = Window & {
 type AppleSignInResponse = { authorization?: { code?: string; id_token?: string } };
 
 type AppleAuth = {
-  init: (options: {
-    clientId: string;
-    scope: string;
-    redirectURI: string;
-    usePopup: boolean;
-  }) => void;
+  init: (options: { clientId: string; scope: string; redirectURI: string; usePopup: boolean }) => void;
   signIn: () => Promise<AppleSignInResponse>;
 };
 
@@ -63,6 +58,10 @@ export default function LoginPage() {
 
   const [googleReady, setGoogleReady] = useState(false);
   const [appleReady, setAppleReady] = useState(false);
+
+  // Email/password form
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
 
   const isMountedRef = useRef(true);
   const inFlightRef = useRef(false);
@@ -99,11 +98,7 @@ export default function LoginPage() {
       authLogger.log(
         "TOKEN_EXCHANGE",
         "request_payload",
-        {
-          has_idToken: !!idToken,
-          has_code: !!code,
-          endpoint: path,
-        },
+        { has_idToken: !!idToken, has_code: !!code, endpoint: path },
         provider
       );
 
@@ -136,7 +131,12 @@ export default function LoginPage() {
       const userId =
         me?.user && typeof me.user === "object" && "id" in me.user ? (me.user as { id: string }).id : undefined;
 
-      authLogger.log("AUTH_SESSION_SUCCESS", `userId=${userId ?? "unknown"}`, { provider, redirectTo: nextUrl }, provider);
+      authLogger.log(
+        "AUTH_SESSION_SUCCESS",
+        `userId=${userId ?? "unknown"}`,
+        { provider, redirectTo: nextUrl },
+        provider
+      );
       authLogger.log("LOGIN", "success", { provider, redirectTo: nextUrl }, provider);
 
       if (!isMountedRef.current) return;
@@ -147,7 +147,12 @@ export default function LoginPage() {
       const msg = err instanceof Error ? err.message : "Login failed";
       const requestId = err instanceof ApiError ? err.requestId : undefined;
 
-      authLogger.log("AUTH_SESSION_FAILED", "error", { code: "token_exchange_failed", message: msg, requestId }, provider);
+      authLogger.log(
+        "AUTH_SESSION_FAILED",
+        "error",
+        { code: "token_exchange_failed", message: msg, requestId },
+        provider
+      );
       authLogger.logTokenExchangeError(provider, msg);
 
       const providerLabel = provider === "guest" ? "" : provider.charAt(0).toUpperCase() + provider.slice(1);
@@ -158,6 +163,68 @@ export default function LoginPage() {
       addToast(requestId ? `${displayMsg} (requestId: ${requestId})` : displayMsg, "error", 6000);
     } finally {
       if (isMountedRef.current) setBusy(false);
+      inFlightRef.current = false;
+    }
+  };
+
+  // ✅ NEW: email/password login
+  const handleEmailLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (busy || inFlightRef.current) return;
+
+    const cleanEmail = email.trim().toLowerCase();
+    if (!cleanEmail || !password) {
+      setError("Please enter your email and password.");
+      return;
+    }
+
+    inFlightRef.current = true;
+    setBusy(true);
+    setError(null);
+    setStatus("Signing in with email...");
+
+    const guestToken = typeof window !== "undefined" ? localStorage.getItem("proovra-token") : null;
+
+    try {
+      try {
+        sessionStorage.setItem("proovra-return-url", nextUrl);
+      } catch {
+        // ignore
+      }
+
+      const data = await apiFetch("/v1/auth/email/login", {
+        method: "POST",
+        body: JSON.stringify({ email: cleanEmail, password }),
+      });
+
+      setToken(data.token);
+
+      // confirm session (cookie) + claim guest evidence (same behavior as other providers)
+      const me = await apiFetch("/v1/auth/me", { method: "GET" });
+      if (!me?.user && !data.token) throw new Error("Session not confirmed");
+
+      if (guestToken) {
+        try {
+          await apiFetch("/v1/evidence/claim", {
+            method: "POST",
+            body: JSON.stringify({ guestToken }),
+          });
+        } catch {
+          // ignore
+        }
+      }
+
+      router.replace(nextUrl);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Login failed";
+      const requestId = err instanceof ApiError ? err.requestId : undefined;
+      const displayMsg = msg === "invalid_credentials" ? "Invalid email or password." : msg;
+
+      setError(displayMsg);
+      setStatus("Sign in failed.");
+      addToast(requestId ? `${displayMsg} (requestId: ${requestId})` : displayMsg, "error", 6000);
+    } finally {
+      setBusy(false);
       inFlightRef.current = false;
     }
   };
@@ -237,7 +304,6 @@ export default function LoginPage() {
       authLogger.log("CLEANUP", "unmount", {});
       isMountedRef.current = false;
     };
-    // intentionally run once
   }, []);
 
   const startGoogle = () => {
@@ -340,6 +406,55 @@ export default function LoginPage() {
 
               <div className="auth-divider">{t("orDivider")}</div>
 
+              {/* ✅ NEW: Email/password login */}
+              <form id="email-login-form" onSubmit={handleEmailLogin} style={{ width: "100%", display: "grid", gap: 10 }}>
+                <input
+                  type="email"
+                  placeholder="Email"
+                  autoComplete="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  disabled={busy}
+                  className="auth-input"
+                  style={{
+                    width: "100%",
+                    height: 44,
+                    borderRadius: 10,
+                    border: "1px solid #e2e8f0",
+                    padding: "0 12px",
+                    background: "white",
+                  }}
+                />
+                <input
+                  type="password"
+                  placeholder="Password"
+                  autoComplete="current-password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  disabled={busy}
+                  className="auth-input"
+                  style={{
+                    width: "100%",
+                    height: 44,
+                    borderRadius: 10,
+                    border: "1px solid #e2e8f0",
+                    padding: "0 12px",
+                    background: "white",
+                  }}
+                />
+
+                <Button variant="primary" disabled={busy} onClick={() => (document.getElementById("email-login-form") as HTMLFormElement | null)?.requestSubmit()}>
+                  Sign in with Email
+                </Button>
+
+                <div style={{ display: "flex", justifyContent: "flex-end" }}>
+                  <Link href={`/forgot-password?returnUrl=${encodeURIComponent(nextUrl)}`} style={{ fontSize: 12 }}>
+                    Forgot password?
+                  </Link>
+                </div>
+              </form>
+
+              {/* Keep guest as-is */}
               <Button variant="secondary" onClick={() => handleAuth("/v1/auth/guest")} disabled={busy}>
                 {t("continueGuest")}
               </Button>
