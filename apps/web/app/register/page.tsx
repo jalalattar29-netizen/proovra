@@ -346,17 +346,44 @@ export default function RegisterPage() {
 
               {/* Apple */}
               <button
-                type="button"
-                className="social-btn"
-                disabled={busy}
-                onClick={() => void startApple()}
-                style={{ borderRadius: 9999, height: 44 }}
-              >
-                <span className="apple-icon" aria-hidden="true" style={{ fontSize: 18, lineHeight: "18px" }}>
-                  
-                </span>
-                Continue with Apple
-              </button>
+  type="button"
+  disabled={busy}
+  onClick={() => void startApple()}
+  style={{
+    width: "100%",
+    height: 44,
+    borderRadius: 9999,
+    border: "1px solid #e5e7eb",
+    background: "#ffffff",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 10,
+    fontSize: 14,
+    fontWeight: 500,
+    color: "#111827",
+    cursor: busy ? "default" : "pointer",
+    transition: "all 0.15s ease",
+  }}
+  onMouseEnter={(e) => {
+    if (!busy) e.currentTarget.style.background = "#f9fafb";
+  }}
+  onMouseLeave={(e) => {
+    e.currentTarget.style.background = "#ffffff";
+  }}
+>
+  <svg
+    width="18"
+    height="18"
+    viewBox="0 0 24 24"
+    fill="currentColor"
+    style={{ marginTop: -1 }}
+  >
+    <path d="M16.365 1.43c0 1.14-.465 2.18-1.22 2.93-.77.77-1.94 1.37-3.03 1.27-.14-1.1.42-2.26 1.19-3.03.8-.8 2.05-1.36 3.06-1.17zM20.6 17.13c-.55 1.27-.81 1.84-1.51 2.93-.97 1.54-2.34 3.46-4.04 3.48-1.52.02-1.91-.99-3.97-.98-2.06.01-2.49.99-4 .97-1.7-.02-3-1.75-3.97-3.29-2.71-4.33-3-9.42-1.32-12.01 1.19-1.85 3.07-2.94 4.84-2.94 1.81 0 2.95 1 3.97 1 1 0 2.57-1.23 4.33-1.05.74.03 2.82.3 4.16 2.27-.11.07-2.49 1.46-2.46 4.35.03 3.45 3.03 4.6 3.07 4.61z"/>
+  </svg>
+
+  Continue with Apple
+</button>
 
               <div className="auth-divider">{t("orDivider")}</div>
 
