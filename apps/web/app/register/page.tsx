@@ -48,6 +48,9 @@ type AppleGlobal = Window & {
   AppleID?: { auth?: AppleAuth };
 };
 
+const BTN_H = 44;
+const BTN_RADIUS = 9999;
+
 function EmailIcon() {
   return (
     <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
@@ -73,9 +76,18 @@ function LockIcon() {
 function CheckIcon() {
   return (
     <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <path fill="currentColor" d="m9 16.2-3.5-3.5L4.1 14.1 9 19l11-11-1.4-1.4L9 16.2Z" />
+    </svg>
+  );
+}
+
+function AppleIcon() {
+  // نفس حجم أيقونة Google بالزر (18x18)
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
       <path
         fill="currentColor"
-        d="m9 16.2-3.5-3.5L4.1 14.1 9 19l11-11-1.4-1.4L9 16.2Z"
+        d="M16.365 1.43c0 1.14-.465 2.18-1.22 2.93-.77.77-1.94 1.37-3.03 1.27-.14-1.1.42-2.26 1.19-3.03.8-.8 2.05-1.36 3.06-1.17zM20.6 17.13c-.55 1.27-.81 1.84-1.51 2.93-.97 1.54-2.34 3.46-4.04 3.48-1.52.02-1.91-.99-3.97-.98-2.06.01-2.49.99-4 .97-1.7-.02-3-1.75-3.97-3.29-2.71-4.33-3-9.42-1.32-12.01 1.19-1.85 3.07-2.94 4.84-2.94 1.81 0 2.95 1 3.97 1 1 0 2.57-1.23 4.33-1.05.74.03 2.82.3 4.16 2.27-.11.07-2.49 1.46-2.46 4.35.03 3.45 3.03 4.6 3.07 4.61z"
       />
     </svg>
   );
@@ -93,6 +105,7 @@ export default function RegisterPage() {
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);
 
+  const [googleReady, setGoogleReady] = useState(false);
   const [appleReady, setAppleReady] = useState(false);
 
   const [email, setEmail] = useState("");
@@ -117,12 +130,7 @@ export default function RegisterPage() {
     }
   };
 
-  const handleAuth = async (
-    path: string,
-    idToken?: string,
-    code?: string,
-    extraBody?: Record<string, unknown>
-  ) => {
+  const handleAuth = async (path: string, idToken?: string, code?: string, extraBody?: Record<string, unknown>) => {
     if (inFlightRef.current) return;
     inFlightRef.current = true;
 
@@ -151,10 +159,7 @@ export default function RegisterPage() {
 
       if (guestToken) {
         try {
-          await apiFetch("/v1/evidence/claim", {
-            method: "POST",
-            body: JSON.stringify({ guestToken }),
-          });
+          await apiFetch("/v1/evidence/claim", { method: "POST", body: JSON.stringify({ guestToken }) });
         } catch {
           // ignore
         }
@@ -178,15 +183,21 @@ export default function RegisterPage() {
   useEffect(() => {
     if (typeof window === "undefined") return;
 
-    // GOOGLE (GIS) - render official button + exchange token
+    // GOOGLE (GIS) init + render official button
     loadGoogleIdentity()
       .then(() => {
         const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID ?? "";
-        if (!clientId) return;
+        if (!clientId) {
+          setGoogleReady(false);
+          return;
+        }
 
         const google = (window as GoogleGlobal).google;
         const id = google?.accounts?.id;
-        if (!id?.initialize) return;
+        if (!id?.initialize) {
+          setGoogleReady(false);
+          return;
+        }
 
         if (!googleInitOnceRef.current) {
           googleInitOnceRef.current = true;
@@ -205,25 +216,27 @@ export default function RegisterPage() {
           });
         }
 
-        // Render official button in place (so it doesn't open that bottom sheet weirdness)
-        if (googleBtnWrapRef.current && id.renderButton) {
-          googleBtnWrapRef.current.innerHTML = "";
-          id.renderButton(googleBtnWrapRef.current, {
+        // Render with width = container width (حتى ما يطلع كل زر طول مختلف)
+        const wrap = googleBtnWrapRef.current;
+        if (wrap && id.renderButton) {
+          const w = Math.max(280, Math.min(420, wrap.getBoundingClientRect().width || 380));
+          wrap.innerHTML = "";
+          id.renderButton(wrap, {
             type: "standard",
             theme: "outline",
             size: "large",
             text: "continue_with",
             shape: "pill",
             logo_alignment: "left",
-            width: 380,
+            width: Math.round(w),
           });
         }
-      })
-      .catch(() => {
-        // ignore
-      });
 
-    // APPLE
+        setGoogleReady(true);
+      })
+      .catch(() => setGoogleReady(false));
+
+    // APPLE init (popup)
     loadAppleIdentity()
       .then(() => {
         const appleClientId = process.env.NEXT_PUBLIC_APPLE_CLIENT_ID ?? "";
@@ -239,15 +252,8 @@ export default function RegisterPage() {
           return;
         }
 
-        const redirectUri =
-          process.env.NEXT_PUBLIC_APPLE_REDIRECT_URI ?? `${window.location.origin}/auth/callback`;
-
-        auth.init({
-          clientId: appleClientId,
-          scope: "name email",
-          redirectURI: redirectUri,
-          usePopup: true,
-        });
+        const redirectUri = process.env.NEXT_PUBLIC_APPLE_REDIRECT_URI ?? `${window.location.origin}/auth/callback`;
+        auth.init({ clientId: appleClientId, scope: "name email", redirectURI: redirectUri, usePopup: true });
 
         setAppleReady(true);
       })
@@ -304,8 +310,57 @@ export default function RegisterPage() {
     void handleAuth("/v1/auth/email/register", undefined, undefined, { email, password });
   };
 
+  const socialBtnStyle: React.CSSProperties = {
+    width: "100%",
+    height: BTN_H,
+    borderRadius: BTN_RADIUS,
+    border: "1px solid #e5e7eb",
+    background: "#ffffff",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 10,
+    fontSize: 14,
+    fontWeight: 500,
+    color: "#111827",
+    cursor: busy ? "default" : "pointer",
+    transition: "background 0.15s ease, border-color 0.15s ease",
+  };
+
+  const inputWrapStyle: React.CSSProperties = {
+    display: "flex",
+    alignItems: "center",
+    gap: 10,
+    border: "1px solid #e2e8f0",
+    borderRadius: 12,
+    padding: "0 12px",
+    height: BTN_H,
+    background: "#fff",
+  };
+
+  const inputStyle: React.CSSProperties = {
+    width: "100%",
+    border: "none",
+    outline: "none",
+    fontSize: 14,
+    background: "transparent",
+  };
+
   return (
     <div className="blue-shell auth-screen">
+      {/* توحيد ستايل زر Google الرسمي ليطابق Apple */}
+      <style>{`
+        /* Google GIS button wrapper */
+        .proovra-google-btn-wrap > div { width: 100% !important; }
+        .proovra-google-btn-wrap iframe { width: 100% !important; }
+        .proovra-google-btn-wrap [role="button"],
+        .proovra-google-btn-wrap div[tabindex] {
+          width: 100% !important;
+          height: ${BTN_H}px !important;
+          border-radius: ${BTN_RADIUS}px !important;
+        }
+      `}</style>
+
       <div className="container">
         <header className="auth-top">
           <Link href="/" className="auth-brand">
@@ -330,12 +385,13 @@ export default function RegisterPage() {
             <h2 className="auth-title">{t("createAccountTitle")}</h2>
 
             <div className="auth-actions" style={{ display: "grid", gap: 12 }}>
-              {/* Google official */}
-              <div style={{ width: "100%", display: "flex", justifyContent: "center" }} aria-label="Continue with Google">
+              {/* Google official (full width, same height) */}
+              <div className="proovra-google-btn-wrap" style={{ width: "100%", display: "flex", justifyContent: "center" }}>
                 <div
                   ref={googleBtnWrapRef}
                   style={{
                     width: "100%",
+                    maxWidth: 420,
                     display: "flex",
                     justifyContent: "center",
                     opacity: busy ? 0.7 : 1,
@@ -344,68 +400,35 @@ export default function RegisterPage() {
                 />
               </div>
 
-              {/* Apple */}
+              {/* Apple (matches Google sizing) */}
               <button
-  type="button"
-  disabled={busy}
-  onClick={() => void startApple()}
-  style={{
-    width: "100%",
-    height: 44,
-    borderRadius: 9999,
-    border: "1px solid #e5e7eb",
-    background: "#ffffff",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 10,
-    fontSize: 14,
-    fontWeight: 500,
-    color: "#111827",
-    cursor: busy ? "default" : "pointer",
-    transition: "all 0.15s ease",
-  }}
-  onMouseEnter={(e) => {
-    if (!busy) e.currentTarget.style.background = "#f9fafb";
-  }}
-  onMouseLeave={(e) => {
-    e.currentTarget.style.background = "#ffffff";
-  }}
->
-  <svg
-    width="18"
-    height="18"
-    viewBox="0 0 24 24"
-    fill="currentColor"
-    style={{ marginTop: -1 }}
-  >
-    <path d="M16.365 1.43c0 1.14-.465 2.18-1.22 2.93-.77.77-1.94 1.37-3.03 1.27-.14-1.1.42-2.26 1.19-3.03.8-.8 2.05-1.36 3.06-1.17zM20.6 17.13c-.55 1.27-.81 1.84-1.51 2.93-.97 1.54-2.34 3.46-4.04 3.48-1.52.02-1.91-.99-3.97-.98-2.06.01-2.49.99-4 .97-1.7-.02-3-1.75-3.97-3.29-2.71-4.33-3-9.42-1.32-12.01 1.19-1.85 3.07-2.94 4.84-2.94 1.81 0 2.95 1 3.97 1 1 0 2.57-1.23 4.33-1.05.74.03 2.82.3 4.16 2.27-.11.07-2.49 1.46-2.46 4.35.03 3.45 3.03 4.6 3.07 4.61z"/>
-  </svg>
-
-  Continue with Apple
-</button>
+                type="button"
+                disabled={busy}
+                onClick={() => void startApple()}
+                style={socialBtnStyle}
+                onMouseEnter={(e) => {
+                  if (!busy) e.currentTarget.style.background = "#f9fafb";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = "#ffffff";
+                }}
+              >
+                <span style={{ display: "flex", marginTop: -1 }}>
+                  <AppleIcon />
+                </span>
+                Continue with Apple
+              </button>
 
               <div className="auth-divider">{t("orDivider")}</div>
 
               {/* Email register */}
               <form onSubmit={onEmailRegister} style={{ display: "grid", gap: 10 }}>
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 10,
-                    border: "1px solid #e2e8f0",
-                    borderRadius: 12,
-                    padding: "0 12px",
-                    height: 44,
-                    background: "#fff",
-                  }}
-                >
+                <div style={inputWrapStyle}>
                   <span style={{ color: "#64748b", display: "flex" }}>
                     <EmailIcon />
                   </span>
                   <input
-                    style={{ width: "100%", border: "none", outline: "none", fontSize: 14, background: "transparent" }}
+                    style={inputStyle}
                     placeholder="Email"
                     type="email"
                     autoComplete="email"
@@ -415,23 +438,12 @@ export default function RegisterPage() {
                   />
                 </div>
 
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 10,
-                    border: "1px solid #e2e8f0",
-                    borderRadius: 12,
-                    padding: "0 12px",
-                    height: 44,
-                    background: "#fff",
-                  }}
-                >
+                <div style={inputWrapStyle}>
                   <span style={{ color: "#64748b", display: "flex" }}>
                     <LockIcon />
                   </span>
                   <input
-                    style={{ width: "100%", border: "none", outline: "none", fontSize: 14, background: "transparent" }}
+                    style={inputStyle}
                     placeholder="Password"
                     type="password"
                     autoComplete="new-password"
@@ -441,23 +453,12 @@ export default function RegisterPage() {
                   />
                 </div>
 
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 10,
-                    border: "1px solid #e2e8f0",
-                    borderRadius: 12,
-                    padding: "0 12px",
-                    height: 44,
-                    background: "#fff",
-                  }}
-                >
+                <div style={inputWrapStyle}>
                   <span style={{ color: "#64748b", display: "flex" }}>
                     <CheckIcon />
                   </span>
                   <input
-                    style={{ width: "100%", border: "none", outline: "none", fontSize: 14, background: "transparent" }}
+                    style={inputStyle}
                     placeholder="Confirm password"
                     type="password"
                     autoComplete="new-password"
@@ -468,10 +469,20 @@ export default function RegisterPage() {
                 </div>
 
                 <button
-                  className="social-btn"
                   type="submit"
                   disabled={busy}
-                  style={{ borderRadius: 9999, height: 44, fontWeight: 600 }}
+                  style={{
+                    ...socialBtnStyle,
+                    fontWeight: 600,
+                    background: "#f8fafc",
+                    borderColor: "#e2e8f0",
+                  }}
+                  onMouseEnter={(e) => {
+                    if (!busy) e.currentTarget.style.background = "#f1f5f9";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.background = "#f8fafc";
+                  }}
                 >
                   Create account with Email
                 </button>
@@ -483,6 +494,12 @@ export default function RegisterPage() {
 
               {error && <div className="error-text">{error}</div>}
               {status && <div style={{ fontSize: 12, color: "#64748b" }}>{status}</div>}
+
+              {process.env.NODE_ENV !== "production" && (
+                <div style={{ fontSize: 11, color: "#94a3b8", marginTop: 4 }}>
+                  Google: {googleReady ? "ready" : "missing"} {" · "}Apple: {appleReady ? "ready" : "missing"}
+                </div>
+              )}
             </div>
 
             <div className="auth-switch">
