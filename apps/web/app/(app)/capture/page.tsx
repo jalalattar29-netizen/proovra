@@ -87,10 +87,15 @@ export default function CapturePage() {
             xhr.onerror = () => reject(new Error("Upload failed"));
 
             xhr.onload = () => {
-              if (xhr.status >= 200 && xhr.status < 300) resolve();
-              else reject(new Error(`Upload failed (${xhr.status || "unknown"})`));
+              // NOTE: Some S3-compatible/CORS setups make XHR status appear as 0
+              // even when the upload actually succeeded (response blocked).
+              // Treat 0 as success to avoid leaving Evidence stuck in UPLOADING.
+              if (xhr.status === 0 || (xhr.status >= 200 && xhr.status < 300)) {
+                resolve();
+              } else {
+                reject(new Error(`Upload failed (${xhr.status})`));
+              }
             };
-
             xhr.open("PUT", data.upload.putUrl);
             xhr.setRequestHeader("content-type", uploadFile.type || "application/octet-stream");
             xhr.send(uploadFile);
