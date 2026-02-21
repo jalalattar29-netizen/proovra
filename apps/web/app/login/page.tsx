@@ -21,7 +21,7 @@ type GoogleAccountsId = {
     cancel_on_tap_outside?: boolean;
   }) => void;
   prompt: () => void;
-  renderButton: (
+  renderButton?: (
     parent: HTMLElement,
     options: {
       type?: "standard" | "icon";
@@ -37,11 +37,7 @@ type GoogleAccountsId = {
 };
 
 type GoogleGlobal = Window & {
-  google?: {
-    accounts?: {
-      id?: GoogleAccountsId;
-    };
-  };
+  google?: { accounts?: { id?: GoogleAccountsId } };
 };
 
 type AppleSignInResponse = { authorization?: { code?: string; id_token?: string } };
@@ -77,6 +73,14 @@ function LockIcon() {
   );
 }
 
+function AppleMark() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false">
+      <path d="M16.365 1.43c0 1.14-.465 2.18-1.22 2.93-.77.77-1.94 1.37-3.03 1.27-.14-1.1.42-2.26 1.19-3.03.8-.8 2.05-1.36 3.06-1.17zM20.6 17.13c-.55 1.27-.81 1.84-1.51 2.93-.97 1.54-2.34 3.46-4.04 3.48-1.52.02-1.91-.99-3.97-.98-2.06.01-2.49.99-4 .97-1.7-.02-3-1.75-3.97-3.29-2.71-4.33-3-9.42-1.32-12.01 1.19-1.85 3.07-2.94 4.84-2.94 1.81 0 2.95 1 3.97 1 1 0 2.57-1.23 4.33-1.05.74.03 2.82.3 4.16 2.27-.11.07-2.49 1.46-2.46 4.35.03 3.45 3.03 4.6 3.07 4.61z" />
+    </svg>
+  );
+}
+
 export default function LoginPage() {
   const { t } = useLocale();
   const { setToken } = useAuth();
@@ -90,6 +94,7 @@ export default function LoginPage() {
   const [status, setStatus] = useState<string | null>(null);
 
   const [googleReady, setGoogleReady] = useState(false);
+  const [googleRendered, setGoogleRendered] = useState(false);
   const [appleReady, setAppleReady] = useState(false);
 
   const [email, setEmail] = useState("");
@@ -103,12 +108,24 @@ export default function LoginPage() {
   const ui = useMemo(() => {
     const cardShadow = "0 10px 40px rgba(2, 6, 23, 0.12)";
     const border = "1px solid rgba(148, 163, 184, 0.35)";
-    return { cardShadow, border };
+    const pillBtn = {
+      width: "100%",
+      height: 44,
+      borderRadius: 9999,
+      border: "1px solid #e5e7eb",
+      background: "#ffffff",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: 10,
+      fontSize: 14,
+      fontWeight: 500 as const,
+      color: "#111827",
+      cursor: "pointer",
+      userSelect: "none" as const,
+    };
+    return { cardShadow, border, pillBtn };
   }, []);
-
-  const logDebug = (msg: string) => {
-    if (DEBUG_AUTH) console.info(`[Auth] ${msg}`);
-  };
 
   const setReturnUrl = (url: string) => {
     try {
@@ -191,12 +208,13 @@ export default function LoginPage() {
     if (typeof window === "undefined") return;
     isMountedRef.current = true;
 
-    // GOOGLE (GIS) init + renderButton (fix bottom prompt issue)
+    // GOOGLE (GIS)
     loadGoogleIdentity()
       .then(() => {
         const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID ?? "";
         if (!clientId) {
           setGoogleReady(false);
+          setGoogleRendered(false);
           return;
         }
 
@@ -204,6 +222,7 @@ export default function LoginPage() {
         const id = google?.accounts?.id;
         if (!id?.initialize) {
           setGoogleReady(false);
+          setGoogleRendered(false);
           return;
         }
 
@@ -223,10 +242,10 @@ export default function LoginPage() {
           });
         }
 
-        // Render official button (account chooser UX)
-        if (googleBtnWrapRef.current && id.renderButton) {
-          googleBtnWrapRef.current.innerHTML = "";
-          id.renderButton(googleBtnWrapRef.current, {
+        const wrap = googleBtnWrapRef.current;
+        if (wrap && typeof id.renderButton === "function") {
+          wrap.innerHTML = "";
+          id.renderButton(wrap, {
             type: "standard",
             theme: "outline",
             size: "large",
@@ -235,13 +254,19 @@ export default function LoginPage() {
             logo_alignment: "left",
             width: 380,
           });
+          setGoogleRendered(true);
+        } else {
+          setGoogleRendered(false);
         }
 
         setGoogleReady(true);
       })
-      .catch(() => setGoogleReady(false));
+      .catch(() => {
+        setGoogleReady(false);
+        setGoogleRendered(false);
+      });
 
-    // APPLE init (popup)
+    // APPLE
     loadAppleIdentity()
       .then(() => {
         const appleClientId = process.env.NEXT_PUBLIC_APPLE_CLIENT_ID ?? "";
@@ -259,6 +284,7 @@ export default function LoginPage() {
 
         const redirectUri = process.env.NEXT_PUBLIC_APPLE_REDIRECT_URI ?? `${window.location.origin}/auth/callback`;
         auth.init({ clientId: appleClientId, scope: "name email", redirectURI: redirectUri, usePopup: true });
+
         setAppleReady(true);
       })
       .catch(() => setAppleReady(false));
@@ -269,11 +295,25 @@ export default function LoginPage() {
     };
   }, [nextUrl]);
 
-  const startApple = async () => {
-    logDebug("Apple click");
-    authLogger.log("AUTH_START", "provider=apple", {});
+  const startGoogleFallback = () => {
     setReturnUrl(nextUrl);
+    if (busy || inFlightRef.current) return;
 
+    const google = (window as GoogleGlobal).google;
+    const id = google?.accounts?.id;
+
+    if (!googleReady || !id?.prompt) {
+      const msg = "Google sign-in is not ready yet.";
+      setError(msg);
+      addToast(msg, "error");
+      return;
+    }
+
+    id.prompt();
+  };
+
+  const startApple = async () => {
+    setReturnUrl(nextUrl);
     if (busy || inFlightRef.current) return;
 
     const AppleID = (window as AppleGlobal).AppleID;
@@ -309,11 +349,32 @@ export default function LoginPage() {
   const onEmailLogin = (e: FormEvent) => {
     e.preventDefault();
     setError(null);
+
     if (!email || !password) {
       setError("Please enter email and password.");
       return;
     }
+
     void handleAuth("/v1/auth/email/login", undefined, undefined, { email, password });
+  };
+
+  const inputWrap: React.CSSProperties = {
+    display: "flex",
+    alignItems: "center",
+    gap: 10,
+    border: "1px solid #e2e8f0",
+    borderRadius: 12,
+    padding: "0 12px",
+    height: 44,
+    background: "#fff",
+  };
+
+  const inputStyle: React.CSSProperties = {
+    width: "100%",
+    border: "none",
+    outline: "none",
+    fontSize: 14,
+    background: "transparent",
   };
 
   return (
@@ -342,37 +403,53 @@ export default function LoginPage() {
             <h2 className="auth-title">{t("signInTitle")}</h2>
 
             <div className="auth-actions" style={{ display: "grid", gap: 12 }}>
-              {/* Google (official GIS rendered button) */}
-              <div
-                style={{
-                  width: "100%",
-                  display: "flex",
-                  justifyContent: "center",
-                }}
-                aria-label="Continue with Google"
-              >
-                <div
-                  ref={googleBtnWrapRef}
+              {/* Google official + fallback */}
+              {googleRendered ? (
+                <div style={{ width: "100%", display: "flex", justifyContent: "center" }} aria-label="Continue with Google">
+                  <div
+                    ref={googleBtnWrapRef}
+                    style={{
+                      width: "100%",
+                      minHeight: 44,
+                      display: "flex",
+                      justifyContent: "center",
+                      opacity: busy ? 0.7 : 1,
+                      pointerEvents: busy ? "none" : "auto",
+                    }}
+                  />
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={startGoogleFallback}
                   style={{
-                    width: "100%",
-                    display: "flex",
-                    justifyContent: "center",
+                    ...ui.pillBtn,
                     opacity: busy ? 0.7 : 1,
-                    pointerEvents: busy ? "none" : "auto",
+                    cursor: busy ? "default" : "pointer",
                   }}
-                />
-              </div>
+                >
+                  <span className="google-icon" aria-hidden="true" />
+                  Continue with Google
+                </button>
+              )}
 
-              {/* Apple */}
+              {/* Apple — نفس Google بالضبط */}
               <button
                 type="button"
-                className="social-btn"
                 disabled={busy}
                 onClick={() => void startApple()}
-                style={{ borderRadius: 9999, height: 44 }}
+                style={{
+                  ...ui.pillBtn,
+                  background: "#f1f5f9",
+                  borderColor: "#e2e8f0",
+                  color: "#0f172a",
+                  opacity: busy ? 0.7 : 1,
+                  cursor: busy ? "default" : "pointer",
+                }}
               >
-                <span className="apple-icon" aria-hidden="true" style={{ fontSize: 18, lineHeight: "18px" }}>
-                  
+                <span style={{ display: "flex", marginTop: -1 }}>
+                  <AppleMark />
                 </span>
                 {t("signInApple")}
               </button>
@@ -381,29 +458,12 @@ export default function LoginPage() {
 
               {/* Email login */}
               <form onSubmit={onEmailLogin} style={{ display: "grid", gap: 10 }}>
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 10,
-                    border: "1px solid #e2e8f0",
-                    borderRadius: 12,
-                    padding: "0 12px",
-                    height: 44,
-                    background: "#fff",
-                  }}
-                >
+                <div style={inputWrap}>
                   <span style={{ color: "#64748b", display: "flex" }}>
                     <EmailIcon />
                   </span>
                   <input
-                    style={{
-                      width: "100%",
-                      border: "none",
-                      outline: "none",
-                      fontSize: 14,
-                      background: "transparent",
-                    }}
+                    style={inputStyle}
                     placeholder="Email"
                     type="email"
                     autoComplete="email"
@@ -414,29 +474,12 @@ export default function LoginPage() {
                 </div>
 
                 <div style={{ display: "grid", gap: 6 }}>
-                  <div
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 10,
-                      border: "1px solid #e2e8f0",
-                      borderRadius: 12,
-                      padding: "0 12px",
-                      height: 44,
-                      background: "#fff",
-                    }}
-                  >
+                  <div style={inputWrap}>
                     <span style={{ color: "#64748b", display: "flex" }}>
                       <LockIcon />
                     </span>
                     <input
-                      style={{
-                        width: "100%",
-                        border: "none",
-                        outline: "none",
-                        fontSize: 14,
-                        background: "transparent",
-                      }}
+                      style={inputStyle}
                       placeholder="Password"
                       type="password"
                       autoComplete="current-password"
@@ -454,13 +497,16 @@ export default function LoginPage() {
                 </div>
 
                 <button
-                  className="social-btn"
                   type="submit"
                   disabled={busy}
                   style={{
-                    borderRadius: 9999,
-                    height: 44,
+                    ...ui.pillBtn,
                     fontWeight: 600,
+                    background: "#f1f5f9",
+                    borderColor: "#e2e8f0",
+                    color: "#0f172a",
+                    opacity: busy ? 0.7 : 1,
+                    cursor: busy ? "default" : "pointer",
                   }}
                 >
                   Sign in with Email
@@ -488,6 +534,7 @@ export default function LoginPage() {
                 >
                   <div style={{ fontWeight: 700, marginBottom: 6 }}>Auth Debug</div>
                   <div>Google: {googleReady ? "ready" : "missing"}</div>
+                  <div>Google button: {googleRendered ? "rendered" : "fallback"}</div>
                   <div>Apple: {appleReady ? "ready" : "missing"}</div>
                   <div>nextUrl: {nextUrl}</div>
                 </div>
