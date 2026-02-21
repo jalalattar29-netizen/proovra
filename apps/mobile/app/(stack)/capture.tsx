@@ -34,6 +34,7 @@ export default function CaptureScreen() {
   const [isRecording, setIsRecording] = useState(false);
   const [recordSeconds, setRecordSeconds] = useState(0);
   const [busy, setBusy] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
   const [showSettingsLink, setShowSettingsLink] = useState(false);
@@ -202,13 +203,17 @@ export default function CaptureScreen() {
       addToast("Please capture or select a file first", "error");
       return;
     }
+
     setBusy(true);
+    setUploadProgress(0);
     setError(null);
     setInfo(null);
     addToast("Creating evidence record...", "info");
+
     try {
       let gps: { lat: number; lng: number; accuracyMeters?: number } | undefined;
       const deviceTimeIso = new Date().toISOString();
+
       if (useLocation) {
         addToast("Requesting location...", "info");
         const permission = await Location.requestForegroundPermissionsAsync();
@@ -228,57 +233,83 @@ export default function CaptureScreen() {
         };
         addToast("Location captured", "success");
       }
+
       if (activeType === "VIDEO" && extendedMode) {
-        const baseFilename = `video-${Date.now()}.mp4`;
-        const created = await apiFetch("/v1/evidence", {
-          method: "POST",
-          body: JSON.stringify({
-            type: activeType,
-            mimeType: "video/mp4",
-            originalFilename: baseFilename,
-            deviceTimeIso,
-            gps
-          })
-        });
-        const segmentSizes: number[] = [];
-        for (let i = 0; i < segments.length; i += 1) {
-          addToast(`Uploading segment ${i + 1}/${segments.length}...`, "info");
-          const seg = segments[i];
-          const segUri = await ensureFileUri(seg.uri);
-          if (!seg.sizeBytes) {
-            const info = await FileSystem.getInfoAsync(segUri);
-            segmentSizes.push(info.exists ? info.size ?? 0 : 0);
-          } else {
-            segmentSizes.push(seg.sizeBytes ?? 0);
+        const MAX_ATTEMPTS = 2;
+
+        for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt += 1) {
+          try {
+            setUploadProgress(10);
+
+            const baseFilename = `video-${Date.now()}.mp4`;
+            const created = await apiFetch("/v1/evidence", {
+              method: "POST",
+              body: JSON.stringify({
+                type: activeType,
+                mimeType: "video/mp4",
+                originalFilename: baseFilename,
+                deviceTimeIso,
+                gps
+              })
+            });
+
+            const segmentSizes: number[] = [];
+            for (let i = 0; i < segments.length; i += 1) {
+              const pct = 10 + Math.round(((i + 1) / Math.max(segments.length, 1)) * 70);
+              setUploadProgress(pct);
+
+              addToast(`Uploading segment ${i + 1}/${segments.length}...`, "info");
+              const seg = segments[i];
+              const segUri = await ensureFileUri(seg.uri);
+
+              if (!seg.sizeBytes) {
+                const info2 = await FileSystem.getInfoAsync(segUri);
+                segmentSizes.push(info2.exists ? info2.size ?? 0 : 0);
+              } else {
+                segmentSizes.push(seg.sizeBytes ?? 0);
+              }
+
+              const part = await apiFetch(`/v1/evidence/${created.id}/parts`, {
+                method: "POST",
+                body: JSON.stringify({
+                  partIndex: i,
+                  mimeType: seg.mimeType,
+                  durationMs: seg.durationMs
+                })
+              });
+
+              await uploadWithPut({
+                putUrl: part.upload.putUrl,
+                uri: segUri,
+                mimeType: seg.mimeType
+              });
+            }
+
+            setUploadProgress(90);
+            addToast("Finalizing evidence...", "info");
+            await apiFetch(`/v1/evidence/${created.id}/complete`, {
+              method: "POST",
+              body: JSON.stringify({
+                sizeBytes: segmentSizes.reduce((sum, value) => sum + value, 0),
+                durationMs: segments.reduce((sum, seg) => sum + (seg.durationMs ?? 0), 0),
+                originalFilename: baseFilename
+              })
+            });
+
+            await pollReport(created.id);
+
+            setUploadProgress(100);
+            addToast("Evidence captured successfully!", "success", 2000);
+            router.push(`/evidence/${created.id}`);
+            break;
+          } catch (err) {
+            if (attempt === MAX_ATTEMPTS) throw err;
+            addToast(`Upload failed, retrying (${attempt}/${MAX_ATTEMPTS})...`, "warning");
           }
-          const part = await apiFetch(`/v1/evidence/${created.id}/parts`, {
-            method: "POST",
-            body: JSON.stringify({
-              partIndex: i,
-              mimeType: seg.mimeType,
-              durationMs: seg.durationMs
-            })
-          });
-          await uploadWithPut({
-            putUrl: part.upload.putUrl,
-            uri: segUri,
-            mimeType: seg.mimeType
-          });
         }
-        addToast("Finalizing evidence...", "info");
-        await apiFetch(`/v1/evidence/${created.id}/complete`, {
-          method: "POST",
-          body: JSON.stringify({
-            sizeBytes: segmentSizes.reduce((sum, value) => sum + value, 0),
-            durationMs: segments.reduce((sum, seg) => sum + (seg.durationMs ?? 0), 0),
-            originalFilename: baseFilename
-          })
-        });
-        await pollReport(created.id);
-        addToast("Evidence captured successfully!", "success", 2000);
-        router.push(`/evidence/${created.id}`);
       } else {
         addToast("Uploading file...", "info");
+
         enqueueUpload({
           id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
           type: activeType,
@@ -292,16 +323,28 @@ export default function CaptureScreen() {
           gpsLng: gps?.lng ?? null,
           gpsAccuracyMeters: gps?.accuracyMeters ?? null
         });
+
+        setUploadProgress(25);
         await processQueue();
+        setUploadProgress(100);
+
         addToast("Evidence captured successfully!", "success", 2000);
         router.push("/(tabs)");
       }
     } catch (err) {
-      const errorMsg = err instanceof Error ? err.message : "Upload failed";
-      setError(errorMsg);
-      addToast(errorMsg, "error");
+      const baseMsg = err instanceof Error ? err.message : "Upload failed";
+      const reqId = (err as { requestId?: string }).requestId;
+
+      const msg =
+        reqId && typeof baseMsg === "string" && !baseMsg.includes("requestId:")
+          ? `${baseMsg} (requestId: ${reqId})`
+          : baseMsg;
+
+      setError(msg);
+      addToast(msg, "error");
     } finally {
       setBusy(false);
+      setUploadProgress(0);
     }
   };
 
@@ -326,6 +369,7 @@ export default function CaptureScreen() {
       .then((data) => setRecent(data.items ?? []))
       .catch(() => setRecent([]));
   }, []);
+
   return (
     <View style={styles.container}>
       <View style={styles.header}>
@@ -333,6 +377,7 @@ export default function CaptureScreen() {
         <Text style={[styles.headerTitle, { fontFamily: fontFamilyBold }]}>{t("capture")}</Text>
         <Text style={styles.headerIcon}>⋮</Text>
       </View>
+
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
         <Tabs
           items={[t("photo"), t("video"), t("document")]}
@@ -344,9 +389,13 @@ export default function CaptureScreen() {
             setExtendedMode(false);
           }}
         />
+
         {activeType === "VIDEO" ? (
           <Pressable
-            style={[styles.captureBar, { backgroundColor: extendedMode ? colors.teal : colors.primaryNavy }]}
+            style={[
+              styles.captureBar,
+              { backgroundColor: extendedMode ? colors.teal : colors.primaryNavy }
+            ]}
             onPress={() => setExtendedMode((prev) => !prev)}
           >
             <Text style={styles.uploadText}>
@@ -354,6 +403,7 @@ export default function CaptureScreen() {
             </Text>
           </Pressable>
         ) : null}
+
         {cameraOpen ? (
           <View style={styles.cameraCard}>
             <CameraView ref={cameraRef} style={styles.cameraPreview} />
@@ -386,60 +436,69 @@ export default function CaptureScreen() {
             </View>
           </View>
         ) : (
-        <>
-        <View style={styles.toggleRow}>
-          <Text style={styles.toggleLabel}>Include location metadata</Text>
-          <Switch value={useLocation} onValueChange={setUseLocation} />
-        </View>
-        <View style={styles.preview}>
-          <Text style={styles.previewText}>
-            {activeType === "VIDEO" && extendedMode
-              ? `Segments: ${segments.length} | Total ${(totalDuration / 1000 / 60).toFixed(1)} min`
-              : asset
-              ? "File selected"
-              : "No file selected"}
-          </Text>
-        </View>
-        <View style={styles.listCard}>
-          {recent.length === 0 ? (
-            <Text style={styles.previewText}>No evidence yet.</Text>
-          ) : (
-            recent.map((item) => (
-              <ListRow
-                key={item.id}
-                title={item.type}
-                subtitle={new Date(item.createdAt).toLocaleString()}
-                badge={
-                  item.status === "SIGNED" ? (
-                    <Badge tone="signed" label={t("statusSigned")} />
-                  ) : item.status === "PROCESSING" ? (
-                    <Badge tone="processing" label={t("statusProcessing")} />
-                  ) : (
-                    <Badge tone="ready" label={t("statusReady")} />
-                  )
-                }
-              />
-            ))
-          )}
-        </View>
-        <Pressable style={styles.captureBar} onPress={handlePick}>
-          <View style={styles.captureCircle} />
-        </Pressable>
-        <Pressable
-          style={[styles.captureBar, { backgroundColor: colors.teal }]}
-          onPress={handleCapture}
-          disabled={busy}
-        >
-          <Text style={styles.uploadText}>{busy ? "Uploading..." : "Upload & Sign"}</Text>
-        </Pressable>
-        {error ? <Text style={styles.errorText}>{error}</Text> : null}
-        {showSettingsLink ? (
-          <Pressable style={[styles.captureBar, styles.secondaryBar]} onPress={() => Linking.openSettings()}>
-            <Text style={styles.secondaryText}>Open Settings</Text>
-          </Pressable>
-        ) : null}
-        {info ? <Text style={styles.infoText}>{info}</Text> : null}
-        </>
+          <>
+            <View style={styles.toggleRow}>
+              <Text style={styles.toggleLabel}>Include location metadata</Text>
+              <Switch value={useLocation} onValueChange={setUseLocation} />
+            </View>
+
+            <View style={styles.preview}>
+              <Text style={styles.previewText}>
+                {activeType === "VIDEO" && extendedMode
+                  ? `Segments: ${segments.length} | Total ${(totalDuration / 1000 / 60).toFixed(1)} min`
+                  : asset
+                  ? "File selected"
+                  : "No file selected"}
+              </Text>
+            </View>
+
+            <View style={styles.listCard}>
+              {recent.length === 0 ? (
+                <Text style={styles.previewText}>No evidence yet.</Text>
+              ) : (
+                recent.map((item) => (
+                  <ListRow
+                    key={item.id}
+                    title={item.type}
+                    subtitle={new Date(item.createdAt).toLocaleString()}
+                    badge={
+                      item.status === "SIGNED" ? (
+                        <Badge tone="signed" label={t("statusSigned")} />
+                      ) : item.status === "PROCESSING" ? (
+                        <Badge tone="processing" label={t("statusProcessing")} />
+                      ) : (
+                        <Badge tone="ready" label={t("statusReady")} />
+                      )
+                    }
+                  />
+                ))
+              )}
+            </View>
+
+            <Pressable style={styles.captureBar} onPress={handlePick}>
+              <View style={styles.captureCircle} />
+            </Pressable>
+
+            <Pressable
+              style={[styles.captureBar, { backgroundColor: colors.teal }]}
+              onPress={handleCapture}
+              disabled={busy}
+            >
+              <Text style={styles.uploadText}>
+                {busy ? `Uploading... ${uploadProgress}%` : "Upload & Sign"}
+              </Text>
+            </Pressable>
+
+            {error ? <Text style={styles.errorText}>{error}</Text> : null}
+
+            {showSettingsLink ? (
+              <Pressable style={[styles.captureBar, styles.secondaryBar]} onPress={() => Linking.openSettings()}>
+                <Text style={styles.secondaryText}>Open Settings</Text>
+              </Pressable>
+            ) : null}
+
+            {info ? <Text style={styles.infoText}>{info}</Text> : null}
+          </>
         )}
       </ScrollView>
     </View>

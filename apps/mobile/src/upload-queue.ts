@@ -48,39 +48,25 @@ function initDb() {
   `);
   try {
     db.execSync(`ALTER TABLE upload_queue ADD COLUMN original_filename TEXT;`);
-  } catch {
-    // Column may already exist
-  }
+  } catch {}
   try {
     db.execSync(`ALTER TABLE upload_queue ADD COLUMN size_bytes REAL;`);
-  } catch {
-    // Column may already exist
-  }
+  } catch {}
   try {
     db.execSync(`ALTER TABLE upload_queue ADD COLUMN duration_ms REAL;`);
-  } catch {
-    // Column may already exist
-  }
+  } catch {}
   try {
     db.execSync(`ALTER TABLE upload_queue ADD COLUMN device_time_iso TEXT;`);
-  } catch {
-    // Column may already exist
-  }
+  } catch {}
   try {
     db.execSync(`ALTER TABLE upload_queue ADD COLUMN gps_lat REAL;`);
-  } catch {
-    // Column may already exist
-  }
+  } catch {}
   try {
     db.execSync(`ALTER TABLE upload_queue ADD COLUMN gps_lng REAL;`);
-  } catch {
-    // Column may already exist
-  }
+  } catch {}
   try {
     db.execSync(`ALTER TABLE upload_queue ADD COLUMN gps_accuracy_meters REAL;`);
-  } catch {
-    // Column may already exist
-  }
+  } catch {}
 }
 
 initDb();
@@ -164,57 +150,83 @@ export async function processQueue() {
   const pending = db.getAllSync<UploadItem>(
     "SELECT id, type, uri, mime_type as mimeType, original_filename as originalFilename, size_bytes as sizeBytes, duration_ms as durationMs, status, evidence_id as evidenceId, error, device_time_iso as deviceTimeIso, gps_lat as gpsLat, gps_lng as gpsLng, gps_accuracy_meters as gpsAccuracyMeters, created_at as createdAt FROM upload_queue WHERE status IN ('PENDING','FAILED') ORDER BY created_at ASC"
   );
+
   for (const item of pending) {
-    try {
-      updateStatus(item.id, "UPLOADING");
-      const fileUri = await ensureFileUri(item.uri);
-      if (fileUri !== item.uri) {
-        updateStatus(item.id, "UPLOADING", { uri: fileUri });
-      }
-      let sizeBytes = item.sizeBytes ?? null;
-      if (!sizeBytes) {
-        const info = await FileSystem.getInfoAsync(fileUri);
-        sizeBytes = info.exists ? info.size ?? null : null;
-      }
-      const created = await apiFetch("/v1/evidence", {
-        method: "POST",
-        body: JSON.stringify({
-          type: item.type,
+    const MAX_ATTEMPTS = 2;
+
+    for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt += 1) {
+      try {
+        updateStatus(item.id, "UPLOADING");
+
+        const fileUri = await ensureFileUri(item.uri);
+        if (fileUri !== item.uri) {
+          updateStatus(item.id, "UPLOADING", { uri: fileUri });
+        }
+
+        let sizeBytes = item.sizeBytes ?? null;
+        if (!sizeBytes) {
+          const info = await FileSystem.getInfoAsync(fileUri);
+          sizeBytes = info.exists ? info.size ?? null : null;
+        }
+
+        const created = await apiFetch("/v1/evidence", {
+          method: "POST",
+          body: JSON.stringify({
+            type: item.type,
+            mimeType: item.mimeType,
+            originalFilename: item.originalFilename ?? undefined,
+            deviceTimeIso: item.deviceTimeIso ?? undefined,
+            gps:
+              item.gpsLat != null && item.gpsLng != null
+                ? {
+                    lat: item.gpsLat,
+                    lng: item.gpsLng,
+                    accuracyMeters: item.gpsAccuracyMeters ?? undefined,
+                  }
+                : undefined,
+          }),
+        });
+
+        updateStatus(item.id, "UPLOADING", { evidenceId: created.id });
+
+        await uploadWithPut({
+          putUrl: created.upload.putUrl,
+          uri: fileUri,
           mimeType: item.mimeType,
-          originalFilename: item.originalFilename ?? undefined,
-          deviceTimeIso: item.deviceTimeIso ?? undefined,
-          gps:
-            item.gpsLat != null && item.gpsLng != null
-              ? {
-                  lat: item.gpsLat,
-                  lng: item.gpsLng,
-                  accuracyMeters: item.gpsAccuracyMeters ?? undefined
-                }
-              : undefined
-        })
-      });
-      updateStatus(item.id, "UPLOADING", { evidenceId: created.id });
-      await uploadWithPut({
-        putUrl: created.upload.putUrl,
-        uri: fileUri,
-        mimeType: item.mimeType
-      });
-      updateStatus(item.id, "COMPLETING");
-      await apiFetch(`/v1/evidence/${created.id}/complete`, {
-        method: "POST",
-        body: JSON.stringify({
-          sizeBytes: sizeBytes ?? undefined,
-          durationMs: item.durationMs ?? undefined,
-          originalFilename: item.originalFilename ?? undefined
-        })
-      });
-      await pollReport(created.id);
-      updateStatus(item.id, "DONE");
-    } catch (err) {
-      captureException(err, { feature: "mobile_upload_queue", itemId: item.id });
-      updateStatus(item.id, "FAILED", {
-        error: err instanceof Error ? err.message : "Upload failed"
-      });
+        });
+
+        updateStatus(item.id, "COMPLETING");
+
+        await apiFetch(`/v1/evidence/${created.id}/complete`, {
+          method: "POST",
+          body: JSON.stringify({
+            sizeBytes: sizeBytes ?? undefined,
+            durationMs: item.durationMs ?? undefined,
+            originalFilename: item.originalFilename ?? undefined,
+          }),
+        });
+
+        await pollReport(created.id);
+        updateStatus(item.id, "DONE");
+        break; // success
+      } catch (err) {
+        captureException(err, {
+          feature: "mobile_upload_queue",
+          itemId: item.id,
+          attempt,
+        });
+
+        const msg = err instanceof Error ? err.message : "Upload failed";
+
+        if (attempt < MAX_ATTEMPTS) {
+          updateStatus(item.id, "FAILED", {
+            error: `Attempt ${attempt}/${MAX_ATTEMPTS} failed: ${msg}`,
+          });
+          continue;
+        }
+
+        updateStatus(item.id, "FAILED", { error: msg });
+      }
     }
   }
 }

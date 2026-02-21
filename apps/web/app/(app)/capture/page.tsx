@@ -36,63 +36,91 @@ export default function CapturePage() {
   const handleCapture = async () => {
     setError(null);
     setBusy(true);
+
+    const MAX_ATTEMPTS = 2;
+
     try {
-      addToast("Creating evidence record...", "info");
-      const mimeType = file?.type || "text/plain";
-      const deviceTimeIso = new Date().toISOString();
-      let gps: { lat: number; lng: number; accuracyMeters?: number } | undefined;
-      if (useLocation && typeof navigator !== "undefined" && navigator.geolocation) {
-        addToast("Requesting location...", "info");
-        gps = await new Promise((resolve, reject) => {
-          navigator.geolocation.getCurrentPosition(
-            (pos) =>
-              resolve({
-                lat: pos.coords.latitude,
-                lng: pos.coords.longitude,
-                accuracyMeters: pos.coords.accuracy
-              }),
-            (err) => reject(err),
-            { enableHighAccuracy: true, timeout: 8000 }
-          );
-        });
-      }
-      const data = await apiFetch("/v1/evidence", {
-        method: "POST",
-        body: JSON.stringify({ type, mimeType, deviceTimeIso, gps })
-      });
+      for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt += 1) {
+        try {
+          addToast("Creating evidence record...", "info");
 
-      const uploadFile =
-        file ?? new File([`Proovra ${type} capture`], "capture.txt", { type: "text/plain" });
+          const mimeType = file?.type || "text/plain";
+          const deviceTimeIso = new Date().toISOString();
+          let gps: { lat: number; lng: number; accuracyMeters?: number } | undefined;
 
-      addToast("Uploading file...", "info");
-      setProgress(0);
-      await new Promise<void>((resolve, reject) => {
-        const xhr = new XMLHttpRequest();
-        xhr.upload.onprogress = (event) => {
-          if (event.lengthComputable) {
-            setProgress(Math.round((event.loaded / event.total) * 100));
+          if (useLocation && typeof navigator !== "undefined" && navigator.geolocation) {
+            addToast("Requesting location...", "info");
+            gps = await new Promise((resolve, reject) => {
+              navigator.geolocation.getCurrentPosition(
+                (pos) =>
+                  resolve({
+                    lat: pos.coords.latitude,
+                    lng: pos.coords.longitude,
+                    accuracyMeters: pos.coords.accuracy,
+                  }),
+                (err) => reject(err),
+                { enableHighAccuracy: true, timeout: 8000 }
+              );
+            });
           }
-        };
-        xhr.onerror = () => reject(new Error("Upload failed"));
-        xhr.onload = () => resolve();
-        xhr.open("PUT", data.upload.putUrl);
-        xhr.setRequestHeader(
-          "content-type",
-          uploadFile.type || "application/octet-stream"
-        );
-        xhr.send(uploadFile);
-      });
 
-      addToast("Finalizing evidence...", "info");
-      await apiFetch(`/v1/evidence/${data.id}/complete`, { method: "POST", body: "{}" });
-      await pollReport(data.id);
-      addToast("Evidence captured successfully!", "success");
-      router.push(`/evidence/${data.id}`);
+          const data = await apiFetch("/v1/evidence", {
+            method: "POST",
+            body: JSON.stringify({ type, mimeType, deviceTimeIso, gps }),
+          });
+
+          const uploadFile =
+            file ?? new File([`Proovra ${type} capture`], "capture.txt", { type: "text/plain" });
+
+          addToast("Uploading file...", "info");
+          setProgress(0);
+
+          await new Promise<void>((resolve, reject) => {
+            const xhr = new XMLHttpRequest();
+
+            xhr.upload.onprogress = (event) => {
+              if (event.lengthComputable) {
+                setProgress(Math.round((event.loaded / event.total) * 100));
+              }
+            };
+
+            xhr.onerror = () => reject(new Error("Upload failed"));
+
+            xhr.onload = () => {
+              if (xhr.status >= 200 && xhr.status < 300) resolve();
+              else reject(new Error(`Upload failed (${xhr.status || "unknown"})`));
+            };
+
+            xhr.open("PUT", data.upload.putUrl);
+            xhr.setRequestHeader("content-type", uploadFile.type || "application/octet-stream");
+            xhr.send(uploadFile);
+          });
+
+          addToast("Finalizing evidence...", "info");
+          await apiFetch(`/v1/evidence/${data.id}/complete`, { method: "POST", body: "{}" });
+
+          await pollReport(data.id);
+          addToast("Evidence captured successfully!", "success");
+          router.push(`/evidence/${data.id}`);
+          return;
+        } catch (err) {
+          if (attempt === MAX_ATTEMPTS) throw err;
+          addToast(`Upload failed, retrying (${attempt}/${MAX_ATTEMPTS})...`, "warning");
+        }
+      }
     } catch (err) {
       captureException(err, { feature: "web_capture" });
-      const message = err instanceof Error ? err.message : "Capture failed";
-      setError(message);
-      addToast(message, "error");
+
+      const baseMsg = err instanceof Error ? err.message : "Capture failed";
+      const reqId = (err as { requestId?: string }).requestId;
+
+      const msg =
+        reqId && typeof baseMsg === "string" && !baseMsg.includes("requestId:")
+          ? `${baseMsg} (requestId: ${reqId})`
+          : baseMsg;
+
+      setError(msg);
+      addToast(msg, "error");
     } finally {
       setBusy(false);
     }
@@ -114,73 +142,85 @@ export default function CapturePage() {
           </div>
         </div>
       </div>
+
       <div className="app-body app-body-full">
         <div className="container">
           <Card>
             <div style={{ display: "grid", gap: 16 }}>
-          <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-            {([
-              { label: t("photo"), value: "PHOTO" },
-              { label: t("video"), value: "VIDEO" },
-              { label: t("document"), value: "DOCUMENT" }
-            ] as const).map((item) => (
-              <button
-                key={item.value}
-                type="button"
-                className={`pill-button ${type === item.value ? "active" : ""}`}
-                onClick={() => setType(item.value)}
-              >
-                {item.label}
-              </button>
-            ))}
-          </div>
-          <input
-            type="file"
-            aria-label="Upload evidence file"
-            onChange={(event) => setFile(event.target.files?.[0] ?? null)}
-            ref={fileInputRef}
-            style={{ display: "none" }}
-          />
-          <div
-            className="drop-zone"
-            onDragOver={(event) => event.preventDefault()}
-            onDrop={(event) => {
-              event.preventDefault();
-              const dropped = event.dataTransfer.files?.[0] ?? null;
-              if (dropped) setFile(dropped);
-            }}
-            onClick={() => fileInputRef.current?.click()}
-          >
-            {file ? (
-              <div>
-                <div style={{ fontWeight: 600 }}>{file.name}</div>
-                <div style={{ fontSize: 12, color: "#64748b" }}>
-                  {(file.size / 1024 / 1024).toFixed(2)} MB
-                </div>
+              <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                {([
+                  { label: t("photo"), value: "PHOTO" },
+                  { label: t("video"), value: "VIDEO" },
+                  { label: t("document"), value: "DOCUMENT" },
+                ] as const).map((item) => (
+                  <button
+                    key={item.value}
+                    type="button"
+                    className={`pill-button ${type === item.value ? "active" : ""}`}
+                    onClick={() => setType(item.value)}
+                  >
+                    {item.label}
+                  </button>
+                ))}
               </div>
-            ) : (
-              <div style={{ color: "#64748b" }}>Drag & drop or click to select</div>
-            )}
-          </div>
-          <label style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <input
-              type="checkbox"
-              checked={useLocation}
-              onChange={(event) => setUseLocation(event.target.checked)}
-            />
-            Include location metadata (optional)
-          </label>
-          {busy ? (
-            <div style={{ fontSize: 12, color: "#64748b" }}>
-              Uploading… {progress}%
-            </div>
-          ) : null}
-          {error && <div className="error-text">{error}</div>}
-          <div>
-            <Button onClick={handleCapture} disabled={busy}>
-              {busy ? "Capturing..." : "Capture & Sign"}
-            </Button>
-          </div>
+
+              <input
+                type="file"
+                aria-label="Upload evidence file"
+                accept={
+                  type === "PHOTO"
+                    ? "image/*"
+                    : type === "VIDEO"
+                      ? "video/*"
+                      : "application/pdf,.pdf,.doc,.docx,.txt,.rtf"
+                }
+                onChange={(event) => setFile(event.target.files?.[0] ?? null)}
+                ref={fileInputRef}
+                style={{ display: "none" }}
+              />
+
+              <div
+                className="drop-zone"
+                onDragOver={(event) => event.preventDefault()}
+                onDrop={(event) => {
+                  event.preventDefault();
+                  const dropped = event.dataTransfer.files?.[0] ?? null;
+                  if (dropped) setFile(dropped);
+                }}
+                onClick={() => fileInputRef.current?.click()}
+              >
+                {file ? (
+                  <div>
+                    <div style={{ fontWeight: 600 }}>{file.name}</div>
+                    <div style={{ fontSize: 12, color: "#64748b" }}>
+                      {(file.size / 1024 / 1024).toFixed(2)} MB
+                    </div>
+                  </div>
+                ) : (
+                  <div style={{ color: "#64748b" }}>Drag & drop or click to select</div>
+                )}
+              </div>
+
+              <label style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <input
+                  type="checkbox"
+                  checked={useLocation}
+                  onChange={(event) => setUseLocation(event.target.checked)}
+                />
+                Include location metadata (optional)
+              </label>
+
+              {busy ? (
+                <div style={{ fontSize: 12, color: "#64748b" }}>Uploading… {progress}%</div>
+              ) : null}
+
+              {error && <div className="error-text">{error}</div>}
+
+              <div>
+                <Button onClick={handleCapture} disabled={busy}>
+                  {busy ? "Capturing..." : "Capture & Sign"}
+                </Button>
+              </div>
             </div>
           </Card>
         </div>
