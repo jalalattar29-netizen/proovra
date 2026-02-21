@@ -17,6 +17,7 @@ type GoogleAccountsId = {
     callback: (response: GoogleCredentialResponse) => void;
     cancel_on_tap_outside?: boolean;
   }) => void;
+  prompt: () => void;
   renderButton?: (
     parent: HTMLElement,
     options: {
@@ -72,22 +73,16 @@ function LockIcon() {
 function CheckIcon() {
   return (
     <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-      <path
-        fill="currentColor"
-        d="m9 16.2-3.5-3.5L4.1 14.1 9 19l11-11-1.4-1.4L9 16.2Z"
-      />
+      <path fill="currentColor" d="m9 16.2-3.5-3.5L4.1 14.1 9 19l11-11-1.4-1.4L9 16.2Z" />
     </svg>
   );
 }
 
-function AppleIcon() {
-  // نفس الأيقونة تماماً بكل الصفحات
+function AppleMark() {
+  // Apple logo SVG (18x18) — نفس حجم Google icon
   return (
-    <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-      <path
-        fill="currentColor"
-        d="M16.365 1.43c0 1.14-.465 2.18-1.22 2.93-.77.77-1.94 1.37-3.03 1.27-.14-1.1.42-2.26 1.19-3.03.8-.8 2.05-1.36 3.06-1.17zM20.6 17.13c-.55 1.27-.81 1.84-1.51 2.93-.97 1.54-2.34 3.46-4.04 3.48-1.52.02-1.91-.99-3.97-.98-2.06.01-2.49.99-4 .97-1.7-.02-3-1.75-3.97-3.29-2.71-4.33-3-9.42-1.32-12.01 1.19-1.85 3.07-2.94 4.84-2.94 1.81 0 2.95 1 3.97 1 1 0 2.57-1.23 4.33-1.05.74.03 2.82.3 4.16 2.27-.11.07-2.49 1.46-2.46 4.35.03 3.45 3.03 4.6 3.07 4.61z"
-      />
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false">
+      <path d="M16.365 1.43c0 1.14-.465 2.18-1.22 2.93-.77.77-1.94 1.37-3.03 1.27-.14-1.1.42-2.26 1.19-3.03.8-.8 2.05-1.36 3.06-1.17zM20.6 17.13c-.55 1.27-.81 1.84-1.51 2.93-.97 1.54-2.34 3.46-4.04 3.48-1.52.02-1.91-.99-3.97-.98-2.06.01-2.49.99-4 .97-1.7-.02-3-1.75-3.97-3.29-2.71-4.33-3-9.42-1.32-12.01 1.19-1.85 3.07-2.94 4.84-2.94 1.81 0 2.95 1 3.97 1 1 0 2.57-1.23 4.33-1.05.74.03 2.82.3 4.16 2.27-.11.07-2.49 1.46-2.46 4.35.03 3.45 3.03 4.6 3.07 4.61z" />
     </svg>
   );
 }
@@ -104,6 +99,8 @@ export default function RegisterPage() {
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);
 
+  const [googleReady, setGoogleReady] = useState(false);
+  const [googleRendered, setGoogleRendered] = useState(false);
   const [appleReady, setAppleReady] = useState(false);
 
   const [email, setEmail] = useState("");
@@ -113,13 +110,27 @@ export default function RegisterPage() {
   const inFlightRef = useRef(false);
   const googleInitOnceRef = useRef(false);
   const googleBtnWrapRef = useRef<HTMLDivElement | null>(null);
-  const googleBtnHostRef = useRef<HTMLDivElement | null>(null);
 
   const ui = useMemo(() => {
     const cardShadow = "0 10px 40px rgba(2, 6, 23, 0.12)";
     const border = "1px solid rgba(148, 163, 184, 0.35)";
-    const socialMaxW = 360; // ✅ هذا اللي بيضمن نفس الطول بكل الصفحات
-    return { cardShadow, border, socialMaxW };
+    const pillBtn = {
+      width: "100%",
+      height: 44,
+      borderRadius: 9999,
+      border: "1px solid #e5e7eb",
+      background: "#ffffff",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: 10,
+      fontSize: 14,
+      fontWeight: 500 as const,
+      color: "#111827",
+      cursor: "pointer",
+      userSelect: "none" as const,
+    };
+    return { cardShadow, border, pillBtn };
   }, []);
 
   const setReturnUrl = (url: string) => {
@@ -130,12 +141,7 @@ export default function RegisterPage() {
     }
   };
 
-  const handleAuth = async (
-    path: string,
-    idToken?: string,
-    code?: string,
-    extraBody?: Record<string, unknown>
-  ) => {
+  const handleAuth = async (path: string, idToken?: string, code?: string, extraBody?: Record<string, unknown>) => {
     if (inFlightRef.current) return;
     inFlightRef.current = true;
 
@@ -164,10 +170,7 @@ export default function RegisterPage() {
 
       if (guestToken) {
         try {
-          await apiFetch("/v1/evidence/claim", {
-            method: "POST",
-            body: JSON.stringify({ guestToken }),
-          });
+          await apiFetch("/v1/evidence/claim", { method: "POST", body: JSON.stringify({ guestToken }) });
         } catch {
           // ignore
         }
@@ -188,30 +191,6 @@ export default function RegisterPage() {
     }
   };
 
-  const renderGoogleButton = () => {
-    const host = googleBtnHostRef.current;
-    const wrap = googleBtnWrapRef.current;
-    if (!host || !wrap) return;
-
-    const google = (window as GoogleGlobal).google;
-    const id = google?.accounts?.id;
-    if (!id?.renderButton) return;
-
-    // ✅ عرض ديناميكي حسب الكونتينر (بدون رقم ثابت بيخرب الطول)
-    const width = Math.min(ui.socialMaxW, host.getBoundingClientRect().width || ui.socialMaxW);
-
-    wrap.innerHTML = "";
-    id.renderButton(wrap, {
-      type: "standard",
-      theme: "outline",
-      size: "large",
-      text: "continue_with",
-      shape: "pill",
-      logo_alignment: "left",
-      width: Math.round(width),
-    });
-  };
-
   useEffect(() => {
     if (typeof window === "undefined") return;
 
@@ -219,11 +198,19 @@ export default function RegisterPage() {
     loadGoogleIdentity()
       .then(() => {
         const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID ?? "";
-        if (!clientId) return;
+        if (!clientId) {
+          setGoogleReady(false);
+          setGoogleRendered(false);
+          return;
+        }
 
         const google = (window as GoogleGlobal).google;
         const id = google?.accounts?.id;
-        if (!id?.initialize) return;
+        if (!id?.initialize) {
+          setGoogleReady(false);
+          setGoogleRendered(false);
+          return;
+        }
 
         if (!googleInitOnceRef.current) {
           googleInitOnceRef.current = true;
@@ -241,15 +228,29 @@ export default function RegisterPage() {
           });
         }
 
-        renderGoogleButton();
+        // Render official button (consistent UX)
+        const wrap = googleBtnWrapRef.current;
+        if (wrap && typeof id.renderButton === "function") {
+          wrap.innerHTML = "";
+          id.renderButton(wrap, {
+            type: "standard",
+            theme: "outline",
+            size: "large",
+            text: "continue_with",
+            shape: "pill",
+            logo_alignment: "left",
+            width: 380,
+          });
+          setGoogleRendered(true);
+        } else {
+          setGoogleRendered(false);
+        }
 
-        // ✅ إذا تغير حجم الصفحة/الكارد، عيد رسم زر Google بنفس العرض الصحيح
-        const ro = new ResizeObserver(() => renderGoogleButton());
-        if (googleBtnHostRef.current) ro.observe(googleBtnHostRef.current);
-        return () => ro.disconnect();
+        setGoogleReady(true);
       })
       .catch(() => {
-        // ignore
+        setGoogleReady(false);
+        setGoogleRendered(false);
       });
 
     // APPLE
@@ -269,18 +270,29 @@ export default function RegisterPage() {
         }
 
         const redirectUri = process.env.NEXT_PUBLIC_APPLE_REDIRECT_URI ?? `${window.location.origin}/auth/callback`;
-
-        auth.init({
-          clientId: appleClientId,
-          scope: "name email",
-          redirectURI: redirectUri,
-          usePopup: true,
-        });
+        auth.init({ clientId: appleClientId, scope: "name email", redirectURI: redirectUri, usePopup: true });
 
         setAppleReady(true);
       })
       .catch(() => setAppleReady(false));
   }, [returnUrl]);
+
+  const startGoogleFallback = () => {
+    setReturnUrl(returnUrl);
+    if (busy || inFlightRef.current) return;
+
+    const google = (window as GoogleGlobal).google;
+    const id = google?.accounts?.id;
+
+    if (!googleReady || !id?.prompt) {
+      const msg = "Google sign-up is not ready yet.";
+      setError(msg);
+      addToast(msg, "error");
+      return;
+    }
+
+    id.prompt();
+  };
 
   const startApple = async () => {
     setReturnUrl(returnUrl);
@@ -332,27 +344,23 @@ export default function RegisterPage() {
     void handleAuth("/v1/auth/email/register", undefined, undefined, { email, password });
   };
 
-  const SocialHostStyle: React.CSSProperties = {
-    width: "100%",
-    maxWidth: ui.socialMaxW,
-    margin: "0 auto",
-  };
-
-  const SocialButtonStyle: React.CSSProperties = {
-    width: "100%",
-    height: 40, // ✅ نفس ارتفاع زر Google الرسمي large pill
-    borderRadius: 9999,
-    border: "1px solid #e5e7eb",
-    background: "#ffffff",
+  const inputWrap: React.CSSProperties = {
     display: "flex",
     alignItems: "center",
-    justifyContent: "center",
     gap: 10,
+    border: "1px solid #e2e8f0",
+    borderRadius: 12,
+    padding: "0 12px",
+    height: 44,
+    background: "#fff",
+  };
+
+  const inputStyle: React.CSSProperties = {
+    width: "100%",
+    border: "none",
+    outline: "none",
     fontSize: 14,
-    fontWeight: 500,
-    color: "#111827",
-    cursor: busy ? "default" : "pointer",
-    transition: "background 0.15s ease",
+    background: "transparent",
   };
 
   return (
@@ -381,62 +389,64 @@ export default function RegisterPage() {
             <h2 className="auth-title">{t("createAccountTitle")}</h2>
 
             <div className="auth-actions" style={{ display: "grid", gap: 12 }}>
-              {/* Google official (same width as Apple) */}
-              <div ref={googleBtnHostRef} style={SocialHostStyle} aria-label="Continue with Google">
-                <div
-                  ref={googleBtnWrapRef}
-                  style={{
-                    width: "100%",
-                    display: "flex",
-                    justifyContent: "center",
-                    opacity: busy ? 0.7 : 1,
-                    pointerEvents: busy ? "none" : "auto",
-                  }}
-                />
-              </div>
-
-              {/* Apple (exact same host width) */}
-              <div style={SocialHostStyle}>
+              {/* Google official (rendered) + fallback */}
+              {googleRendered ? (
+                <div style={{ width: "100%", display: "flex", justifyContent: "center" }} aria-label="Continue with Google">
+                  <div
+                    ref={googleBtnWrapRef}
+                    style={{
+                      width: "100%",
+                      minHeight: 44,
+                      display: "flex",
+                      justifyContent: "center",
+                      opacity: busy ? 0.7 : 1,
+                      pointerEvents: busy ? "none" : "auto",
+                    }}
+                  />
+                </div>
+              ) : (
                 <button
                   type="button"
                   disabled={busy}
-                  onClick={() => void startApple()}
-                  style={SocialButtonStyle}
-                  onMouseEnter={(e) => {
-                    if (!busy) e.currentTarget.style.background = "#f9fafb";
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.background = "#ffffff";
+                  onClick={startGoogleFallback}
+                  style={{
+                    ...ui.pillBtn,
+                    opacity: busy ? 0.7 : 1,
+                    cursor: busy ? "default" : "pointer",
                   }}
                 >
-                  <span style={{ display: "flex", alignItems: "center", marginTop: -1 }}>
-                    <AppleIcon />
-                  </span>
-                  Continue with Apple
+                  <span className="google-icon" aria-hidden="true" />
+                  Continue with Google
                 </button>
-              </div>
+              )}
+
+              {/* Apple — نفس ارتفاع/محاذاة Google */}
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => void startApple()}
+                style={{
+                  ...ui.pillBtn,
+                  opacity: busy ? 0.7 : 1,
+                  cursor: busy ? "default" : "pointer",
+                }}
+              >
+                <span style={{ display: "flex", marginTop: -1 }}>
+                  <AppleMark />
+                </span>
+                Continue with Apple
+              </button>
 
               <div className="auth-divider">{t("orDivider")}</div>
 
               {/* Email register */}
               <form onSubmit={onEmailRegister} style={{ display: "grid", gap: 10 }}>
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 10,
-                    border: "1px solid #e2e8f0",
-                    borderRadius: 12,
-                    padding: "0 12px",
-                    height: 44,
-                    background: "#fff",
-                  }}
-                >
+                <div style={inputWrap}>
                   <span style={{ color: "#64748b", display: "flex" }}>
                     <EmailIcon />
                   </span>
                   <input
-                    style={{ width: "100%", border: "none", outline: "none", fontSize: 14, background: "transparent" }}
+                    style={inputStyle}
                     placeholder="Email"
                     type="email"
                     autoComplete="email"
@@ -446,23 +456,12 @@ export default function RegisterPage() {
                   />
                 </div>
 
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 10,
-                    border: "1px solid #e2e8f0",
-                    borderRadius: 12,
-                    padding: "0 12px",
-                    height: 44,
-                    background: "#fff",
-                  }}
-                >
+                <div style={inputWrap}>
                   <span style={{ color: "#64748b", display: "flex" }}>
                     <LockIcon />
                   </span>
                   <input
-                    style={{ width: "100%", border: "none", outline: "none", fontSize: 14, background: "transparent" }}
+                    style={inputStyle}
                     placeholder="Password"
                     type="password"
                     autoComplete="new-password"
@@ -472,23 +471,12 @@ export default function RegisterPage() {
                   />
                 </div>
 
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 10,
-                    border: "1px solid #e2e8f0",
-                    borderRadius: 12,
-                    padding: "0 12px",
-                    height: 44,
-                    background: "#fff",
-                  }}
-                >
+                <div style={inputWrap}>
                   <span style={{ color: "#64748b", display: "flex" }}>
                     <CheckIcon />
                   </span>
                   <input
-                    style={{ width: "100%", border: "none", outline: "none", fontSize: 14, background: "transparent" }}
+                    style={inputStyle}
                     placeholder="Confirm password"
                     type="password"
                     autoComplete="new-password"
@@ -498,7 +486,19 @@ export default function RegisterPage() {
                   />
                 </div>
 
-                <button className="social-btn" type="submit" disabled={busy} style={{ borderRadius: 9999, height: 44, fontWeight: 600 }}>
+                <button
+                  type="submit"
+                  disabled={busy}
+                  style={{
+                    ...ui.pillBtn,
+                    fontWeight: 600,
+                    background: "#f1f5f9",
+                    borderColor: "#e2e8f0",
+                    color: "#0f172a",
+                    opacity: busy ? 0.7 : 1,
+                    cursor: busy ? "default" : "pointer",
+                  }}
+                >
                   Create account with Email
                 </button>
               </form>
