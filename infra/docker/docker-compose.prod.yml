@@ -19,7 +19,7 @@ services:
       args:
         DATABASE_URL: ${DATABASE_URL}
     env_file:
-      - ../../.env
+      - /opt/proovra/app/.env
     depends_on:
       redis:
         condition: service_healthy
