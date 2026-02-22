@@ -12,7 +12,9 @@
     "typecheck": "pnpm -r typecheck",
     "test": "pnpm -r test",
     "test:e2e": "node scripts/e2e-web-smoke.mjs",
-    "test:prod": "node scripts/smoke-prod.mjs"
+    "test:prod": "node scripts/smoke-prod.mjs",
+
+    "eas-build-post-install": "pnpm -r --filter @proovra/shared --filter @proovra/ui build"
   },
   "keywords": [],
   "author": "",
@@ -20,7 +22,11 @@
   "packageManager": "pnpm@10.28.2",
   "pnpm": {
     "overrides": {
-      "ioredis": "5.9.3"
+      "ioredis": "5.9.3",
+      "react": "18.3.1",
+      "react-dom": "18.3.1",
+      "@types/react": "18.3.28",
+      "@types/react-dom": "18.3.3"
     }
   }
 }
