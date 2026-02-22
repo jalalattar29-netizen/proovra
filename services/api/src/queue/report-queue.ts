@@ -15,8 +15,7 @@ const redisConnection = new IORedis(must("REDIS_URL"), {
 });
 
 export const reportQueue = new Queue(reportQueueName, {
-  connection: redisConnection,
-  defaultJobOptions: {
+  connection: redisConnection as any,  defaultJobOptions: {
     attempts: 5,
     backoff: { type: "exponential", delay: 1000 },
     removeOnComplete: 100,

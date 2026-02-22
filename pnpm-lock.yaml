@@ -4,6 +4,9 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
+overrides:
+  ioredis: 5.9.3
+
 importers:
 
   .: {}
@@ -17,8 +20,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/ui
       '@react-native-async-storage/async-storage':
-        specifier: ^2.2.0
-        version: 2.2.0(react-native@0.76.9(@babel/core@7.29.0)(@babel/preset-env@7.29.0(@babel/core@7.29.0))(@types/react@18.3.28)(react@18.3.1))
+        specifier: ^1.23.1
+        version: 1.23.1(react-native@0.76.9(@babel/core@7.29.0)(@babel/preset-env@7.29.0(@babel/core@7.29.0))(@types/react@18.3.28)(react@18.3.1))
       '@sentry/react-native':
         specifier: ~6.10.0
         version: 6.10.0(expo@52.0.49(@babel/core@7.29.0)(@babel/preset-env@7.29.0(@babel/core@7.29.0))(@expo/metro-runtime@4.0.1(react-native@0.76.9(@babel/core@7.29.0)(@babel/preset-env@7.29.0(@babel/core@7.29.0))(@types/react@18.3.28)(react@18.3.1)))(react-native@0.76.9(@babel/core@7.29.0)(@babel/preset-env@7.29.0(@babel/core@7.29.0))(@types/react@18.3.28)(react@18.3.1))(react@18.3.1))(react-native@0.76.9(@babel/core@7.29.0)(@babel/preset-env@7.29.0(@babel/core@7.29.0))(@types/react@18.3.28)(react@18.3.1))(react@18.3.1)
@@ -54,7 +57,7 @@ importers:
         version: 18.0.10(expo@52.0.49(@babel/core@7.29.0)(@babel/preset-env@7.29.0(@babel/core@7.29.0))(@expo/metro-runtime@4.0.1(react-native@0.76.9(@babel/core@7.29.0)(@babel/preset-env@7.29.0(@babel/core@7.29.0))(@types/react@18.3.28)(react@18.3.1)))(react-native@0.76.9(@babel/core@7.29.0)(@babel/preset-env@7.29.0(@babel/core@7.29.0))(@types/react@18.3.28)(react@18.3.1))(react@18.3.1))
       expo-router:
         specifier: ^4.0.22
-        version: 4.0.22(127b4949fc219b31020300e72bed0c68)
+        version: 4.0.22(2ba582a6b06399ecd07d85121f2c94d7)
       expo-secure-store:
         specifier: ~14.0.1
         version: 14.0.1(expo@52.0.49(@babel/core@7.29.0)(@babel/preset-env@7.29.0(@babel/core@7.29.0))(@expo/metro-runtime@4.0.1(react-native@0.76.9(@babel/core@7.29.0)(@babel/preset-env@7.29.0(@babel/core@7.29.0))(@types/react@18.3.28)(react@18.3.1)))(react-native@0.76.9(@babel/core@7.29.0)(@babel/preset-env@7.29.0(@babel/core@7.29.0))(@types/react@18.3.28)(react@18.3.1))(react@18.3.1))
@@ -64,6 +67,9 @@ importers:
       react:
         specifier: 18.3.1
         version: 18.3.1
+      react-dom:
+        specifier: 18.3.1
+        version: 18.3.1(react@18.3.1)
       react-native:
         specifier: ^0.76.0
         version: 0.76.9(@babel/core@7.29.0)(@babel/preset-env@7.29.0(@babel/core@7.29.0))(@types/react@18.3.28)(react@18.3.1)
@@ -233,8 +239,8 @@ importers:
         specifier: ^5.7.2
         version: 5.7.4
       ioredis:
-        specifier: ^5.7.0
-        version: 5.9.2
+        specifier: 5.9.3
+        version: 5.9.3
       jose:
         specifier: ^6.1.3
         version: 6.1.3
@@ -309,8 +315,8 @@ importers:
         specifier: ^5.7.2
         version: 5.7.4
       ioredis:
-        specifier: ^5.7.0
-        version: 5.9.2
+        specifier: 5.9.3
+        version: 5.9.3
       pdfkit:
         specifier: ^0.15.2
         version: 0.15.2
@@ -2206,10 +2212,10 @@ packages:
     peerDependencies:
       react: ^16.8 || ^17.0 || ^18.0
 
-  '@react-native-async-storage/async-storage@2.2.0':
-    resolution: {integrity: sha512-gvRvjR5JAaUZF8tv2Kcq/Gbt3JHwbKFYfmb445rhOj6NUMx3qPLixmDx5pZAyb9at1bYvJ4/eTUipU5aki45xw==}
+  '@react-native-async-storage/async-storage@1.23.1':
+    resolution: {integrity: sha512-Qd2kQ3yi6Y3+AcUlrHxSLlnBvpdCEMVGFlVBneVOjaFaPU61g1huc38g339ysXspwY1QZA2aNhrk/KlHGO+ewA==}
     peerDependencies:
-      react-native: ^0.0.0-0 || >=0.65 <1.0
+      react-native: ^0.0.0-0 || >=0.60 <1.0
 
   '@react-native/assets-registry@0.76.9':
     resolution: {integrity: sha512-pN0Ws5xsjWOZ8P37efh0jqHHQmq+oNGKT4AyAoKRpxBDDDmlAmpaYjer9Qz7PpDKF+IUyRjF/+rBsM50a8JcUg==}
@@ -4529,8 +4535,8 @@ packages:
   invariant@2.2.4:
     resolution: {integrity: sha512-phJfQVBuaJM5raOpJjSfkiD6BpbCE4Ns//LaXl6wGYtUBY83nWS6Rf9tXm2e8VaK60JEjYldbPif/A2B1C2gNA==}
 
-  ioredis@5.9.2:
-    resolution: {integrity: sha512-tAAg/72/VxOUW7RQSX1pIxJVucYKcjFjfvj60L57jrZpYCHC3XN0WCQ3sNYL4Gmvv+7GPvTAjc+KSdeNuE8oWQ==}
+  ioredis@5.9.3:
+    resolution: {integrity: sha512-VI5tMCdeoxZWU5vjHWsiE/Su76JGhBvWF1MJnV9ZtGltHk9BmD48oDq8Tj8haZ85aceXZMxLNDQZRVo5QKNgXA==}
     engines: {node: '>=12.22.0'}
 
   ip-regex@2.1.0:
@@ -5708,6 +5714,11 @@ packages:
   react-devtools-core@5.3.2:
     resolution: {integrity: sha512-crr9HkVrDiJ0A4zot89oS0Cgv0Oa4OG1Em4jit3P3ZxZSKPMYyMjfwMqgcJna9o625g8oN87rBm8SWWrSTBZxg==}
 
+  react-dom@18.3.1:
+    resolution: {integrity: sha512-5m4nQKp+rZRb09LNH59GM4BxTh9251/ylbKIbpe7TpGxfJ+9kv6BLkLBXIjjspbgbnIBNqlI23tRnTWT0snUIw==}
+    peerDependencies:
+      react: ^18.3.1
+
   react-dom@19.2.4:
     resolution: {integrity: sha512-AXJdLo8kgMbimY95O2aKQqsz2iWi9jMgKJhRBAxECE4IFxfcazB2LmzloIoibJI3C12IlY20+KFaLv+71bUJeQ==}
     peerDependencies:
@@ -5968,6 +5979,9 @@ packages:
   sax@1.4.4:
     resolution: {integrity: sha512-1n3r/tGXO6b6VXMdFT54SHzT9ytu9yr7TaELowdYpMqY/Ao7EnlQGmAQ1+RatX7Tkkdm6hONI2owqNx2aZj5Sw==}
     engines: {node: '>=11.0.0'}
+
+  scheduler@0.23.2:
+    resolution: {integrity: sha512-UOShsPwz7NrMUqhR6t0hWjFduvOzbtv7toDH1/hIrfRNIDBnnBWd0CwJTGvTpngVlmwGCdP9/Zl/tVrDqcuYzQ==}
 
   scheduler@0.24.0-canary-efb381bbf-20230505:
     resolution: {integrity: sha512-ABvovCDe/k9IluqSh4/ISoq8tIJnW8euVAWYt5j/bg6dRnqwQwiGO1F/V4AyK96NGF/FB04FhOUDuWj8IKfABA==}
@@ -9357,7 +9371,7 @@ snapshots:
       '@radix-ui/react-compose-refs': 1.0.0(react@18.3.1)
       react: 18.3.1
 
-  '@react-native-async-storage/async-storage@2.2.0(react-native@0.76.9(@babel/core@7.29.0)(@babel/preset-env@7.29.0(@babel/core@7.29.0))(@types/react@18.3.28)(react@18.3.1))':
+  '@react-native-async-storage/async-storage@1.23.1(react-native@0.76.9(@babel/core@7.29.0)(@babel/preset-env@7.29.0(@babel/core@7.29.0))(@types/react@18.3.28)(react@18.3.1))':
     dependencies:
       merge-options: 3.0.4
       react-native: 0.76.9(@babel/core@7.29.0)(@babel/preset-env@7.29.0(@babel/core@7.29.0))(@types/react@18.3.28)(react@18.3.1)
@@ -10844,7 +10858,7 @@ snapshots:
   bullmq@5.67.3:
     dependencies:
       cron-parser: 4.9.0
-      ioredis: 5.9.2
+      ioredis: 5.9.3
       msgpackr: 1.11.5
       node-abort-controller: 3.1.1
       semver: 7.7.3
@@ -11620,7 +11634,7 @@ snapshots:
     dependencies:
       invariant: 2.2.4
 
-  expo-router@4.0.22(127b4949fc219b31020300e72bed0c68):
+  expo-router@4.0.22(2ba582a6b06399ecd07d85121f2c94d7):
     dependencies:
       '@expo/metro-runtime': 4.0.1(react-native@0.76.9(@babel/core@7.29.0)(@babel/preset-env@7.29.0(@babel/core@7.29.0))(@types/react@18.3.28)(react@18.3.1))
       '@expo/server': 0.5.3
@@ -11632,7 +11646,7 @@ snapshots:
       expo: 52.0.49(@babel/core@7.29.0)(@babel/preset-env@7.29.0(@babel/core@7.29.0))(@expo/metro-runtime@4.0.1(react-native@0.76.9(@babel/core@7.29.0)(@babel/preset-env@7.29.0(@babel/core@7.29.0))(@types/react@18.3.28)(react@18.3.1)))(react-native@0.76.9(@babel/core@7.29.0)(@babel/preset-env@7.29.0(@babel/core@7.29.0))(@types/react@18.3.28)(react@18.3.1))(react@18.3.1)
       expo-constants: 17.0.8(expo@52.0.49(@babel/core@7.29.0)(@babel/preset-env@7.29.0(@babel/core@7.29.0))(@expo/metro-runtime@4.0.1(react-native@0.76.9(@babel/core@7.29.0)(@babel/preset-env@7.29.0(@babel/core@7.29.0))(@types/react@18.3.28)(react@18.3.1)))(react-native@0.76.9(@babel/core@7.29.0)(@babel/preset-env@7.29.0(@babel/core@7.29.0))(@types/react@18.3.28)(react@18.3.1))(react@18.3.1))(react-native@0.76.9(@babel/core@7.29.0)(@babel/preset-env@7.29.0(@babel/core@7.29.0))(@types/react@18.3.28)(react@18.3.1))
       expo-linking: 7.0.5(expo@52.0.49(@babel/core@7.29.0)(@babel/preset-env@7.29.0(@babel/core@7.29.0))(@expo/metro-runtime@4.0.1(react-native@0.76.9(@babel/core@7.29.0)(@babel/preset-env@7.29.0(@babel/core@7.29.0))(@types/react@18.3.28)(react@18.3.1)))(react-native@0.76.9(@babel/core@7.29.0)(@babel/preset-env@7.29.0(@babel/core@7.29.0))(@types/react@18.3.28)(react@18.3.1))(react@18.3.1))(react-native@0.76.9(@babel/core@7.29.0)(@babel/preset-env@7.29.0(@babel/core@7.29.0))(@types/react@18.3.28)(react@18.3.1))(react@18.3.1)
-      react-helmet-async: 1.3.0(react-dom@19.2.4(react@18.3.1))(react@18.3.1)
+      react-helmet-async: 1.3.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       react-native-helmet-async: 2.0.4(react@18.3.1)
       react-native-is-edge-to-edge: 1.2.1(react-native@0.76.9(@babel/core@7.29.0)(@babel/preset-env@7.29.0(@babel/core@7.29.0))(@types/react@18.3.28)(react@18.3.1))(react@18.3.1)
       react-native-safe-area-context: 4.12.0(react-native@0.76.9(@babel/core@7.29.0)(@babel/preset-env@7.29.0(@babel/core@7.29.0))(@types/react@18.3.28)(react@18.3.1))(react@18.3.1)
@@ -12152,7 +12166,7 @@ snapshots:
     dependencies:
       loose-envify: 1.4.0
 
-  ioredis@5.9.2:
+  ioredis@5.9.3:
     dependencies:
       '@ioredis/commands': 1.5.0
       cluster-key-slot: 1.1.2
@@ -13421,10 +13435,11 @@ snapshots:
       - bufferutil
       - utf-8-validate
 
-  react-dom@19.2.4(react@18.3.1):
+  react-dom@18.3.1(react@18.3.1):
     dependencies:
+      loose-envify: 1.4.0
       react: 18.3.1
-      scheduler: 0.27.0
+      scheduler: 0.23.2
 
   react-dom@19.2.4(react@19.2.4):
     dependencies:
@@ -13437,13 +13452,13 @@ snapshots:
     dependencies:
       react: 18.3.1
 
-  react-helmet-async@1.3.0(react-dom@19.2.4(react@18.3.1))(react@18.3.1):
+  react-helmet-async@1.3.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1):
     dependencies:
       '@babel/runtime': 7.28.6
       invariant: 2.2.4
       prop-types: 15.8.1
       react: 18.3.1
-      react-dom: 19.2.4(react@18.3.1)
+      react-dom: 18.3.1(react@18.3.1)
       react-fast-compare: 3.2.2
       shallowequal: 1.1.0
 
@@ -13737,6 +13752,10 @@ snapshots:
   safer-buffer@2.1.2: {}
 
   sax@1.4.4: {}
+
+  scheduler@0.23.2:
+    dependencies:
+      loose-envify: 1.4.0
 
   scheduler@0.24.0-canary-efb381bbf-20230505:
     dependencies:
