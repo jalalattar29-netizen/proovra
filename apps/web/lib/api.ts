@@ -37,9 +37,12 @@ function asObject(value: unknown): Record<string, unknown> | null {
   return value && typeof value === "object" ? (value as Record<string, unknown>) : null;
 }
 
-export async function apiFetch(path: string, init: RequestInit = {}) {
-  const token =
-    typeof window !== "undefined" ? localStorage.getItem("proovra-token") : null;
+export async function apiFetch(
+  path: string,
+  init: RequestInit = {},
+  opts?: { auth?: boolean } // ✅ جديد
+) {
+  const token = typeof window !== "undefined" ? localStorage.getItem("proovra-token") : null;
 
   const headers = new Headers(init.headers);
 
@@ -51,7 +54,10 @@ export async function apiFetch(path: string, init: RequestInit = {}) {
     headers.set("x-web-client", "1");
   }
 
-  if (token) {
+  // ✅ الافتراضي: يرسل Authorization
+  // ✅ لكن إذا opts.auth === false لا ترسل Authorization أبداً
+  const shouldSendAuth = opts?.auth !== false;
+  if (shouldSendAuth && token) {
     headers.set("authorization", `Bearer ${token}`);
   }
 
@@ -118,9 +124,7 @@ export async function apiFetch(path: string, init: RequestInit = {}) {
     const requestIdFromBody = obj && typeof obj["requestId"] === "string" ? (obj["requestId"] as string) : undefined;
     const requestId = requestIdFromBody ?? headerReqId;
 
-    const error: GenericApiError = new Error(
-      requestId ? `${message} (requestId: ${requestId})` : message
-    );
+    const error: GenericApiError = new Error(requestId ? `${message} (requestId: ${requestId})` : message);
     error.code = "API_ERROR";
     error.statusCode = res.status;
     error.requestId = requestId;

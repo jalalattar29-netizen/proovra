@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Button, useToast } from "../../components/ui";
@@ -72,16 +72,12 @@ function LockIcon() {
 function CheckIcon() {
   return (
     <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-      <path
-        fill="currentColor"
-        d="m9 16.2-3.5-3.5L4.1 14.1 9 19l11-11-1.4-1.4L9 16.2Z"
-      />
+      <path fill="currentColor" d="m9 16.2-3.5-3.5L4.1 14.1 9 19l11-11-1.4-1.4L9 16.2Z" />
     </svg>
   );
 }
 
 function AppleIcon() {
-  // نفس الأيقونة تماماً بكل الصفحات
   return (
     <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
       <path
@@ -118,7 +114,7 @@ export default function RegisterPage() {
   const ui = useMemo(() => {
     const cardShadow = "0 10px 40px rgba(2, 6, 23, 0.12)";
     const border = "1px solid rgba(148, 163, 184, 0.35)";
-    const socialMaxW = 360; // ✅ هذا اللي بيضمن نفس الطول بكل الصفحات
+    const socialMaxW = 360;
     return { cardShadow, border, socialMaxW };
   }, []);
 
@@ -130,12 +126,7 @@ export default function RegisterPage() {
     }
   };
 
-  const handleAuth = async (
-    path: string,
-    idToken?: string,
-    code?: string,
-    extraBody?: Record<string, unknown>
-  ) => {
+  const handleAuth = async (path: string, idToken?: string, code?: string, extraBody?: Record<string, unknown>) => {
     if (inFlightRef.current) return;
     inFlightRef.current = true;
 
@@ -158,7 +149,8 @@ export default function RegisterPage() {
       setReturnUrl(returnUrl);
 
       const payload = extraBody ?? (idToken ? { idToken } : code ? { code } : {});
-      const data = await apiFetch(path, { method: "POST", body: JSON.stringify(payload) });
+      // ✅ مهم: auth endpoints بدون Authorization header
+      const data = await apiFetch(path, { method: "POST", body: JSON.stringify(payload) }, { auth: false });
 
       setToken(data.token);
 
@@ -197,7 +189,6 @@ export default function RegisterPage() {
     const id = google?.accounts?.id;
     if (!id?.renderButton) return;
 
-    // ✅ عرض ديناميكي حسب الكونتينر (بدون رقم ثابت بيخرب الطول)
     const width = Math.min(ui.socialMaxW, host.getBoundingClientRect().width || ui.socialMaxW);
 
     wrap.innerHTML = "";
@@ -215,7 +206,6 @@ export default function RegisterPage() {
   useEffect(() => {
     if (typeof window === "undefined") return;
 
-    // GOOGLE (GIS)
     loadGoogleIdentity()
       .then(() => {
         const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID ?? "";
@@ -243,7 +233,6 @@ export default function RegisterPage() {
 
         renderGoogleButton();
 
-        // ✅ إذا تغير حجم الصفحة/الكارد، عيد رسم زر Google بنفس العرض الصحيح
         const ro = new ResizeObserver(() => renderGoogleButton());
         if (googleBtnHostRef.current) ro.observe(googleBtnHostRef.current);
         return () => ro.disconnect();
@@ -252,7 +241,6 @@ export default function RegisterPage() {
         // ignore
       });
 
-    // APPLE
     loadAppleIdentity()
       .then(() => {
         const appleClientId = process.env.NEXT_PUBLIC_APPLE_CLIENT_ID ?? "";
@@ -332,15 +320,15 @@ export default function RegisterPage() {
     void handleAuth("/v1/auth/email/register", undefined, undefined, { email, password });
   };
 
-  const SocialHostStyle: React.CSSProperties = {
+  const SocialHostStyle: CSSProperties = {
     width: "100%",
     maxWidth: ui.socialMaxW,
     margin: "0 auto",
   };
 
-  const SocialButtonStyle: React.CSSProperties = {
+  const SocialButtonStyle: CSSProperties = {
     width: "100%",
-    height: 40, // ✅ نفس ارتفاع زر Google الرسمي large pill
+    height: 40,
     borderRadius: 9999,
     border: "1px solid #e5e7eb",
     background: "#ffffff",
@@ -381,7 +369,6 @@ export default function RegisterPage() {
             <h2 className="auth-title">{t("createAccountTitle")}</h2>
 
             <div className="auth-actions" style={{ display: "grid", gap: 12 }}>
-              {/* Google official (same width as Apple) */}
               <div ref={googleBtnHostRef} style={SocialHostStyle} aria-label="Continue with Google">
                 <div
                   ref={googleBtnWrapRef}
@@ -395,7 +382,6 @@ export default function RegisterPage() {
                 />
               </div>
 
-              {/* Apple (exact same host width) */}
               <div style={SocialHostStyle}>
                 <button
                   type="button"
@@ -418,7 +404,6 @@ export default function RegisterPage() {
 
               <div className="auth-divider">{t("orDivider")}</div>
 
-              {/* Email register */}
               <form onSubmit={onEmailRegister} style={{ display: "grid", gap: 10 }}>
                 <div
                   style={{

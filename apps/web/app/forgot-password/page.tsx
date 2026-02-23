@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Button, useToast } from "../../components/ui";
@@ -19,7 +19,7 @@ export default function ForgotPasswordPage() {
   const [done, setDone] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const submit = async (e: React.FormEvent) => {
+  const submit = async (e: FormEvent) => {
     e.preventDefault();
     if (busy) return;
 
@@ -33,12 +33,15 @@ export default function ForgotPasswordPage() {
     setError(null);
 
     try {
-      await apiFetch("/v1/auth/password-reset/request", {
-        method: "POST",
-        body: JSON.stringify({ email: cleanEmail }),
-      });
+      await apiFetch(
+        "/v1/auth/password-reset/request",
+        {
+          method: "POST",
+          body: JSON.stringify({ email: cleanEmail }),
+        },
+        { auth: false } // ✅ مهم
+      );
 
-      // ✅ always show generic success
       setDone(true);
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Request failed";
@@ -76,10 +79,7 @@ export default function ForgotPasswordPage() {
                     If an account exists for that email, we sent a reset link.
                   </div>
 
-                  <Button
-                    variant="primary"
-                    onClick={() => router.push(`/login?returnUrl=${encodeURIComponent(returnUrl)}`)}
-                  >
+                  <Button variant="primary" onClick={() => router.push(`/login?returnUrl=${encodeURIComponent(returnUrl)}`)}>
                     Back to login
                   </Button>
                 </>
@@ -101,7 +101,11 @@ export default function ForgotPasswordPage() {
                       background: "white",
                     }}
                   />
-                  <Button variant="primary" disabled={busy} onClick={() => (document.getElementById("forgot-form") as HTMLFormElement | null)?.requestSubmit()}>
+                  <Button
+                    variant="primary"
+                    disabled={busy}
+                    onClick={() => (document.getElementById("forgot-form") as HTMLFormElement | null)?.requestSubmit()}
+                  >
                     Send reset link
                   </Button>
 

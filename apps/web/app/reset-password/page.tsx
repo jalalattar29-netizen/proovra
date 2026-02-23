@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Button, useToast } from "../../components/ui";
@@ -27,7 +27,7 @@ export default function ResetPasswordPage() {
     if (!token) setError("Missing reset token.");
   }, [token]);
 
-  const submit = async (e: React.FormEvent) => {
+  const submit = async (e: FormEvent) => {
     e.preventDefault();
     if (busy) return;
 
@@ -48,20 +48,21 @@ export default function ResetPasswordPage() {
     setError(null);
 
     try {
-      await apiFetch("/v1/auth/password-reset/confirm", {
-        method: "POST",
-        body: JSON.stringify({ token, newPassword }),
-      });
+      await apiFetch(
+        "/v1/auth/password-reset/confirm",
+        {
+          method: "POST",
+          body: JSON.stringify({ token, newPassword }),
+        },
+        { auth: false } // ✅ مهم
+      );
 
       setDone(true);
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Reset failed";
       const requestId = err instanceof ApiError ? err.requestId : undefined;
 
-      const displayMsg =
-        msg === "invalid_or_expired"
-          ? "This reset link is invalid or expired."
-          : msg;
+      const displayMsg = msg === "invalid_or_expired" ? "This reset link is invalid or expired." : msg;
 
       setError(displayMsg);
       addToast(requestId ? `${displayMsg} (requestId: ${requestId})` : displayMsg, "error", 6000);
@@ -95,10 +96,7 @@ export default function ResetPasswordPage() {
                     Password updated successfully. You can now sign in.
                   </div>
 
-                  <Button
-                    variant="primary"
-                    onClick={() => router.push(`/login?returnUrl=${encodeURIComponent(returnUrl)}`)}
-                  >
+                  <Button variant="primary" onClick={() => router.push(`/login?returnUrl=${encodeURIComponent(returnUrl)}`)}>
                     Go to login
                   </Button>
                 </>
@@ -137,7 +135,7 @@ export default function ResetPasswordPage() {
                     }}
                   />
 
-                  <Button 
+                  <Button
                     variant="primary"
                     disabled={busy || !token}
                     onClick={() => (document.getElementById("reset-form") as HTMLFormElement | null)?.requestSubmit()}

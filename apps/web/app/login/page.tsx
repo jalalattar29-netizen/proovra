@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Button, useToast } from "../../components/ui";
@@ -125,12 +125,7 @@ export default function LoginPage() {
     }
   };
 
-  const handleAuth = async (
-    path: string,
-    idToken?: string,
-    code?: string,
-    extraBody?: Record<string, unknown>
-  ) => {
+  const handleAuth = async (path: string, idToken?: string, code?: string, extraBody?: Record<string, unknown>) => {
     if (!isMountedRef.current) return;
     if (inFlightRef.current) return;
 
@@ -155,20 +150,17 @@ export default function LoginPage() {
       setReturnUrl(nextUrl);
 
       const payload = extraBody ?? (idToken ? { idToken } : code ? { code } : {});
-      authLogger.log(
-        "TOKEN_EXCHANGE",
-        "request_payload",
-        { endpoint: path, has_idToken: !!idToken, has_code: !!code },
-        provider
-      );
+      authLogger.log("TOKEN_EXCHANGE", "request_payload", { endpoint: path, has_idToken: !!idToken, has_code: !!code }, provider);
 
-      const data = await apiFetch(path, { method: "POST", body: JSON.stringify(payload) });
+      // ✅ مهم: auth endpoints بدون Authorization header
+      const data = await apiFetch(path, { method: "POST", body: JSON.stringify(payload) }, { auth: false });
       authLogger.logTokenExchangeSuccess(provider, data);
 
       if (!isMountedRef.current) return;
 
       setToken(data.token);
 
+      // ✅ هذا endpoint محمي، لازم يبعت Authorization (الافتراضي true)
       const me = await apiFetch("/v1/auth/me", { method: "GET" });
       authLogger.logSessionValidation("/v1/auth/me", me);
 
@@ -333,20 +325,22 @@ export default function LoginPage() {
   const onEmailLogin = (e: FormEvent) => {
     e.preventDefault();
     setError(null);
+
     if (!email || !password) {
       setError("Please enter email and password.");
       return;
     }
+
     void handleAuth("/v1/auth/email/login", undefined, undefined, { email, password });
   };
 
-  const SocialHostStyle: React.CSSProperties = {
+  const SocialHostStyle: CSSProperties = {
     width: "100%",
     maxWidth: ui.socialMaxW,
     margin: "0 auto",
   };
 
-  const SocialButtonStyle: React.CSSProperties = {
+  const SocialButtonStyle: CSSProperties = {
     width: "100%",
     height: 40,
     borderRadius: 9999,
@@ -389,7 +383,6 @@ export default function LoginPage() {
             <h2 className="auth-title">{t("signInTitle")}</h2>
 
             <div className="auth-actions" style={{ display: "grid", gap: 12 }}>
-              {/* Google */}
               <div ref={googleBtnHostRef} style={SocialHostStyle} aria-label="Continue with Google">
                 <div
                   ref={googleBtnWrapRef}
@@ -403,7 +396,6 @@ export default function LoginPage() {
                 />
               </div>
 
-              {/* Apple (same width/icon/height as register) */}
               <div style={SocialHostStyle}>
                 <button
                   type="button"
@@ -426,7 +418,6 @@ export default function LoginPage() {
 
               <div className="auth-divider">{t("orDivider")}</div>
 
-              {/* Email */}
               <form onSubmit={onEmailLogin} style={{ display: "grid", gap: 10 }}>
                 <div
                   style={{
