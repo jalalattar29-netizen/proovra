@@ -238,30 +238,103 @@ export function getEmailService(): EmailService {
     isConfigured: () => true,
 
     async sendPasswordResetEmail(email: string, resetUrl: string) {
-      const html = emailShell({
-        title: "Reset your password",
-        preheader: "Use this link to reset your Proovra password. It expires soon.",
-        bodyHtml: `
-          <div style="margin:0 0 10px 0;">
-            We received a request to reset the password for your <strong>${safeHtml(brandName())}</strong> account.
-          </div>
-          <div style="margin:0 0 10px 0;">
-            Click the button below to choose a new password.
-          </div>
-        `.trim(),
-        ctaText: "Reset Password",
-        ctaUrl: resetUrl,
-        secondaryText: "If you didn’t request this, you can safely ignore this email. This link will expire in 30 minutes."
-      });
-
+      const brandName = env("EMAIL_BRAND_NAME") ?? "Proovra";
+      const supportEmail = env("SUPPORT_EMAIL") ?? "support@proovra.com";
+      const logoUrl = env("EMAIL_LOGO_URL") ?? `${webBaseUrl()}/brand/logo-dark.png`;
+    
       return resend.emails.send({
         from,
         to: email,
-        subject: `Reset your ${brandName()} password`,
-        html
+        subject: `Reset your ${brandName} password`,
+        html: `
+    <!doctype html>
+    <html>
+      <body style="margin:0;padding:0;background:#f6f7fb;">
+        <div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent;">
+          Reset your ${brandName} password
+        </div>
+    
+        <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="background:#f6f7fb;padding:24px 12px;">
+          <tr>
+            <td align="center">
+              <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="max-width:560px;background:#ffffff;border-radius:16px;overflow:hidden;border:1px solid #e6e8ef;">
+                <tr>
+                  <td style="padding:18px 20px;border-bottom:1px solid #eef0f6;">
+                    <table role="presentation" cellpadding="0" cellspacing="0" width="100%">
+                      <tr>
+                        <td align="left" style="vertical-align:middle;">
+                          <img
+                            src="${logoUrl}"
+                            width="120"
+                            height="32"
+                            alt="${brandName}"
+                            style="display:block;border:0;outline:none;text-decoration:none;height:32px;width:auto;"
+                          />
+                        </td>
+                        <td align="right" style="font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,Noto Sans,sans-serif;font-size:12px;color:#64748b;">
+                          Password reset
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+    
+                <tr>
+                  <td style="padding:22px 20px;font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,Noto Sans,sans-serif;color:#0f172a;">
+                    <div style="font-size:18px;font-weight:700;margin:0 0 10px 0;">
+                      Reset your password
+                    </div>
+    
+                    <div style="font-size:14px;line-height:1.6;margin:0 0 16px 0;color:#334155;">
+                      We received a request to reset the password for your ${brandName} account.
+                      Click the button below to choose a new password.
+                    </div>
+    
+                    <table role="presentation" cellpadding="0" cellspacing="0" style="margin:18px 0 16px 0;">
+                      <tr>
+                        <td>
+                          <a
+                            href="${resetUrl}"
+                            style="display:inline-block;background:#0ea5e9;color:#ffffff;text-decoration:none;font-weight:700;font-size:14px;padding:12px 16px;border-radius:999px;"
+                          >
+                            Reset password
+                          </a>
+                        </td>
+                      </tr>
+                    </table>
+    
+                    <div style="font-size:12px;line-height:1.6;color:#64748b;margin:0 0 14px 0;">
+                      If the button doesn’t work, copy and paste this link into your browser:
+                      <br />
+                      <a href="${resetUrl}" style="color:#0ea5e9;text-decoration:none;word-break:break-all;">${resetUrl}</a>
+                    </div>
+    
+                    <div style="font-size:12px;line-height:1.6;color:#94a3b8;margin:0;">
+                      If you didn’t request this, you can safely ignore this email.
+                      <br />
+                      Need help? Contact us at <a href="mailto:${supportEmail}" style="color:#0ea5e9;text-decoration:none;">${supportEmail}</a>
+                    </div>
+                  </td>
+                </tr>
+    
+                <tr>
+                  <td style="padding:14px 20px;border-top:1px solid #eef0f6;font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,Noto Sans,sans-serif;font-size:11px;color:#94a3b8;">
+                    © ${new Date().getFullYear()} ${brandName}. All rights reserved.
+                  </td>
+                </tr>
+              </table>
+    
+              <div style="max-width:560px;margin-top:12px;font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,Noto Sans,sans-serif;font-size:11px;color:#94a3b8;text-align:center;">
+                This message was sent by ${brandName}.
+              </div>
+            </td>
+          </tr>
+        </table>
+      </body>
+    </html>
+        `,
       });
     },
-
     async sendTeamInvitation(email: string, orgName: string, invitationToken: string) {
       const url = `${webBaseUrl().replace(/\/$/, "")}/invite/${encodeURIComponent(invitationToken)}`;
 
