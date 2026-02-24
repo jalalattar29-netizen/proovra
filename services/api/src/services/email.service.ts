@@ -24,8 +24,7 @@ function env(name: string): string | undefined {
 }
 
 function fromHeader(): string {
-  // IMPORTANT: EMAIL_FROM should be a verified sender in Resend (domain or email).
-  // Example: "Proovra <no-reply@proovra.com>"
+  // EMAIL_FROM should be verified in Resend.
   return env("EMAIL_FROM") ?? `${env("EMAIL_FROM_NAME") ?? "Proovra"} <no-reply@proovra.com>`;
 }
 
@@ -41,6 +40,15 @@ function supportEmail(): string {
   return env("SUPPORT_EMAIL") ?? "support@proovra.com";
 }
 
+/**
+ * You can set EMAIL_LOGO_URL to a PNG for best compatibility.
+ * Example: https://www.proovra.com/brand/logo-dark.png
+ */
+function logoUrl(): string | undefined {
+  const u = env("EMAIL_LOGO_URL");
+  return u ? u : undefined;
+}
+
 function safeHtml(s: string): string {
   return String(s)
     .replaceAll("&", "&amp;")
@@ -48,16 +56,6 @@ function safeHtml(s: string): string {
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#039;");
-}
-
-/**
- * You can set EMAIL_LOGO_URL to a PNG for best compatibility.
- * Example:
- *   EMAIL_LOGO_URL=https://www.proovra.com/brand/logo-dark.png
- */
-function logoUrl(): string | undefined {
-  const u = env("EMAIL_LOGO_URL");
-  return u ? u : undefined;
 }
 
 function emailShell(params: {
@@ -72,7 +70,6 @@ function emailShell(params: {
   const base = webBaseUrl().replace(/\/$/, "");
   const logo = logoUrl();
 
-  // Keep it very email-client-friendly: tables + inline styles
   const title = safeHtml(params.title);
   const preheader = safeHtml(params.preheader);
   const secondaryText = params.secondaryText ? safeHtml(params.secondaryText) : "";
@@ -82,43 +79,44 @@ function emailShell(params: {
 
   const year = new Date().getFullYear();
 
-  const ctaBlock = params.ctaText && params.ctaUrl
-    ? `
-      <tr>
-        <td style="padding: 0 28px 18px 28px;">
-          <a href="${ctaUrl}"
-             style="
-               display:inline-block;
-               background:#0f172a;
-               color:#ffffff;
-               text-decoration:none;
-               padding:12px 18px;
-               border-radius:9999px;
-               font-weight:700;
-               font-size:14px;
-               line-height:14px;
-             ">
-            ${ctaText}
-          </a>
-        </td>
-      </tr>
-      <tr>
-        <td style="padding: 0 28px 18px 28px; color:#64748b; font-size:12px; line-height:18px;">
-          If the button doesn’t work, copy and paste this link into your browser:
-          <div style="word-break: break-all; margin-top:8px;">
-            <a href="${ctaUrl}" style="color:#2563eb; text-decoration:none;">${safeHtml(ctaUrl)}</a>
-          </div>
-        </td>
-      </tr>
-    `
-    : "";
+  const ctaBlock =
+    params.ctaText && params.ctaUrl
+      ? `
+        <tr>
+          <td style="padding: 0 28px 18px 28px;">
+            <a href="${ctaUrl}"
+               style="
+                 display:inline-block;
+                 background:#0f172a;
+                 color:#ffffff;
+                 text-decoration:none;
+                 padding:12px 18px;
+                 border-radius:9999px;
+                 font-weight:700;
+                 font-size:14px;
+                 line-height:14px;
+               ">
+              ${ctaText}
+            </a>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding: 0 28px 18px 28px; color:#64748b; font-size:12px; line-height:18px;">
+            If the button doesn’t work, copy and paste this link into your browser:
+            <div style="word-break: break-all; margin-top:8px;">
+              <a href="${ctaUrl}" style="color:#2563eb; text-decoration:none;">${safeHtml(ctaUrl)}</a>
+            </div>
+          </td>
+        </tr>
+      `
+      : "";
 
   const headerLogo = logo
     ? `
       <tr>
         <td style="padding: 24px 0 8px 0; text-align:center;">
           <a href="${base}" style="text-decoration:none;">
-            <img src="${logo}" width="120" alt="${safeHtml(appName)}"
+            <img src="${logo}" width="140" alt="${safeHtml(appName)}"
                  style="display:block; margin:0 auto; border:0; outline:none; text-decoration:none;" />
           </a>
         </td>
@@ -238,103 +236,39 @@ export function getEmailService(): EmailService {
     isConfigured: () => true,
 
     async sendPasswordResetEmail(email: string, resetUrl: string) {
-      const brandName = env("EMAIL_BRAND_NAME") ?? "Proovra";
-      const supportEmail = env("SUPPORT_EMAIL") ?? "support@proovra.com";
-      const logoUrl = env("EMAIL_LOGO_URL") ?? `${webBaseUrl()}/brand/logo-dark.png`;
-    
+      const app = brandName();
+
+      const html = emailShell({
+        title: "Reset your password",
+        preheader: `Reset your ${app} password.`,
+        bodyHtml: `
+          <div style="margin:0 0 10px 0;">
+            We received a request to reset the password for your <strong>${safeHtml(app)}</strong> account.
+          </div>
+          <div style="margin:0 0 10px 0;">
+            Click the button below to choose a new password.
+          </div>
+        `.trim(),
+        ctaText: "Reset password",
+        ctaUrl: resetUrl,
+        secondaryText: "If you didn’t request this, you can safely ignore this email."
+      });
+
+      const text =
+        `Reset your ${app} password\n\n` +
+        `Open this link to reset your password:\n${resetUrl}\n\n` +
+        `If you didn't request this, ignore this email.\n` +
+        `Support: ${supportEmail()}\n`;
+
       return resend.emails.send({
         from,
         to: email,
-        subject: `Reset your ${brandName} password`,
-        html: `
-    <!doctype html>
-    <html>
-      <body style="margin:0;padding:0;background:#f6f7fb;">
-        <div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent;">
-          Reset your ${brandName} password
-        </div>
-    
-        <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="background:#f6f7fb;padding:24px 12px;">
-          <tr>
-            <td align="center">
-              <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="max-width:560px;background:#ffffff;border-radius:16px;overflow:hidden;border:1px solid #e6e8ef;">
-                <tr>
-                  <td style="padding:18px 20px;border-bottom:1px solid #eef0f6;">
-                    <table role="presentation" cellpadding="0" cellspacing="0" width="100%">
-                      <tr>
-                        <td align="left" style="vertical-align:middle;">
-                          <img
-                            src="${logoUrl}"
-                            width="120"
-                            height="32"
-                            alt="${brandName}"
-                            style="display:block;border:0;outline:none;text-decoration:none;height:32px;width:auto;"
-                          />
-                        </td>
-                        <td align="right" style="font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,Noto Sans,sans-serif;font-size:12px;color:#64748b;">
-                          Password reset
-                        </td>
-                      </tr>
-                    </table>
-                  </td>
-                </tr>
-    
-                <tr>
-                  <td style="padding:22px 20px;font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,Noto Sans,sans-serif;color:#0f172a;">
-                    <div style="font-size:18px;font-weight:700;margin:0 0 10px 0;">
-                      Reset your password
-                    </div>
-    
-                    <div style="font-size:14px;line-height:1.6;margin:0 0 16px 0;color:#334155;">
-                      We received a request to reset the password for your ${brandName} account.
-                      Click the button below to choose a new password.
-                    </div>
-    
-                    <table role="presentation" cellpadding="0" cellspacing="0" style="margin:18px 0 16px 0;">
-                      <tr>
-                        <td>
-                          <a
-                            href="${resetUrl}"
-                            style="display:inline-block;background:#0ea5e9;color:#ffffff;text-decoration:none;font-weight:700;font-size:14px;padding:12px 16px;border-radius:999px;"
-                          >
-                            Reset password
-                          </a>
-                        </td>
-                      </tr>
-                    </table>
-    
-                    <div style="font-size:12px;line-height:1.6;color:#64748b;margin:0 0 14px 0;">
-                      If the button doesn’t work, copy and paste this link into your browser:
-                      <br />
-                      <a href="${resetUrl}" style="color:#0ea5e9;text-decoration:none;word-break:break-all;">${resetUrl}</a>
-                    </div>
-    
-                    <div style="font-size:12px;line-height:1.6;color:#94a3b8;margin:0;">
-                      If you didn’t request this, you can safely ignore this email.
-                      <br />
-                      Need help? Contact us at <a href="mailto:${supportEmail}" style="color:#0ea5e9;text-decoration:none;">${supportEmail}</a>
-                    </div>
-                  </td>
-                </tr>
-    
-                <tr>
-                  <td style="padding:14px 20px;border-top:1px solid #eef0f6;font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,Noto Sans,sans-serif;font-size:11px;color:#94a3b8;">
-                    © ${new Date().getFullYear()} ${brandName}. All rights reserved.
-                  </td>
-                </tr>
-              </table>
-    
-              <div style="max-width:560px;margin-top:12px;font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,Noto Sans,sans-serif;font-size:11px;color:#94a3b8;text-align:center;">
-                This message was sent by ${brandName}.
-              </div>
-            </td>
-          </tr>
-        </table>
-      </body>
-    </html>
-        `,
+        subject: `Reset your ${app} password`,
+        html,
+        text
       });
     },
+
     async sendTeamInvitation(email: string, orgName: string, invitationToken: string) {
       const url = `${webBaseUrl().replace(/\/$/, "")}/invite/${encodeURIComponent(invitationToken)}`;
 
@@ -354,11 +288,16 @@ export function getEmailService(): EmailService {
         secondaryText: "If you weren’t expecting this invitation, you can ignore this email."
       });
 
+      const text =
+        `You're invited to join ${orgName} on ${brandName()}.\n\n` +
+        `Accept invitation:\n${url}\n`;
+
       return resend.emails.send({
         from,
         to: email,
         subject: `You're invited to join ${orgName} on ${brandName()}`,
-        html
+        html,
+        text
       });
     },
 
@@ -393,11 +332,18 @@ export function getEmailService(): EmailService {
         ctaUrl: batchUrl
       });
 
+      const text =
+        `Batch complete: ${batchName}\n` +
+        `Org: ${orgName}\n` +
+        `Total: ${total}\nSucceeded: ${succeeded}\nFailed: ${failed}\n\n` +
+        `View results: ${batchUrl}\n`;
+
       return resend.emails.send({
         from,
         to: email,
         subject: `Batch complete: ${batchName}`,
-        html
+        html,
+        text
       });
     }
   };
