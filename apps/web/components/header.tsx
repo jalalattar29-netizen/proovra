@@ -55,8 +55,8 @@ export function MarketingHeader() {
 <img
   src="/brand/icon-512.png?v=2"
   alt="PROO✓RA"
-  width={28}
-  height={28}
+  width={36}
+  height={36}
   className="proovra-logo-mark"
 />          <span>PROO✓RA</span>
         </Link>
@@ -104,8 +104,8 @@ export function AppHeader({
 <img
   src="/brand/icon-512.png?v=2"
   alt="PROO✓RA"
-  width={28}
-  height={28}
+  width={36}
+  height={36}
   className="proovra-logo-mark"
 />          <span>PROO✓RA</span>
         </Link>

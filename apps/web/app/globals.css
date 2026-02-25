@@ -255,15 +255,15 @@ p {
   }
 
   .proovra-logo img {
-    width: 34px;
-    height: 34px;
+    width: 36px;
+    height: 36px;
   }
 
   .proovra-logo .proovra-logo-mark {
-  width: 28px !important;
-  height: 28px !important;
-  border-radius: 10px;
-  box-shadow: 0 10px 22px rgba(0, 0, 0, 0.28);
+  width: 36px !important;
+  height: 36px !important;
+  border-radius: 12px;
+  box-shadow: 0 12px 26px rgba(0, 0, 0, 0.32);
   opacity: 0.98;
 }
 
