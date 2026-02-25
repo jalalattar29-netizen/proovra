@@ -181,7 +181,7 @@ p {
     background-size: cover;
   
     /* شفافية مشابهة للصورة الأصلية */
-    opacity: 0.28;
+    opacity: 0.34;
   
     /* نعومة */
     filter: blur(0.2px);
@@ -194,7 +194,7 @@ p {
     inset: 0;
     pointer-events: none;
     background: radial-gradient(circle at 55% 18%, rgba(255,255,255,0.10), transparent 60%);
-    opacity: 0.45;
+    opacity: 0.34;
   }
   
   .blue-shell > * {
@@ -205,11 +205,22 @@ p {
   /* =========================
      LANDING
      ========================= */
-  .landing-page {
-    background: var(--color-bg);
-    color: var(--color-text);
-  }
-  
+/* =========================
+   LANDING (Dark like reference)
+   ========================= */
+.landing-page {
+  /* override the light theme vars ONLY inside landing */
+  --color-bg: transparent;
+  --color-text: rgba(245, 251, 255, 0.92);
+  --color-muted: rgba(219, 235, 248, 0.80);
+  --color-border: rgba(144, 206, 239, 0.18);
+  --color-card: rgba(255, 255, 255, 0.06);
+
+  background:
+    radial-gradient(circle at 18% 12%, rgba(36, 202, 226, 0.10) 0%, transparent 46%),
+    linear-gradient(180deg, #040815 0%, #050d1f 45%, #07142b 100%);
+  color: var(--color-text);
+}  
   /* =========================
      UNIFIED HEADER (Marketing + App)
      ========================= */
@@ -787,6 +798,30 @@ p {
     font-size: 12px;
     color: #475569;
   }
+
+  /* Landing footer must be readable on dark */
+:where(.landing-page) .landing-footer {
+  border-top: 1px solid rgba(255, 255, 255, 0.10);
+}
+
+:where(.landing-page) .footer-left,
+:where(.landing-page) .footer-left a {
+  color: rgba(219, 235, 248, 0.78);
+}
+
+:where(.landing-page) .footer-brand {
+  color: rgba(245, 251, 255, 0.92);
+}
+
+:where(.landing-page) .footer-links,
+:where(.landing-page) .footer-links a {
+  color: rgba(219, 235, 248, 0.78);
+}
+
+:where(.landing-page) .footer-links a:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(245, 251, 255, 0.96);
+}
 
   .footer-links a {
     padding: 6px 8px;
@@ -1469,6 +1504,21 @@ p {
     margin: 16px 0 8px;
     color: #0f1d36;
   }
+
+  /* Landing headings must be light on dark background */
+:where(.landing-page) h1,
+:where(.landing-page) h2,
+:where(.landing-page) h3,
+:where(.landing-page) h4,
+:where(.landing-page) h5,
+:where(.landing-page) h6 {
+  color: rgba(245, 251, 255, 0.94);
+}
+
+:where(.landing-page) p,
+:where(.landing-page) .page-subtitle {
+  color: rgba(219, 235, 248, 0.84);
+}
 
   .legal-page p,
   .legal-page li {
