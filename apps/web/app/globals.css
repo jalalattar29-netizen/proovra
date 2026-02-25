@@ -2118,10 +2118,24 @@ p {
   background: var(--accent-grad-hover);
   transform: translateY(-1px);
 }
+/* =========================================================
+   LANDING PAGE – FINAL CLEAN OVERRIDES (NO DUPLICATION)
+   ========================================================= */
 
-:where(.landing-page) .proovra-cta-btn:active {
-  transform: translateY(0);
+/* ---------------------------------------------------------
+   Landing base background (dark navy like reference)
+--------------------------------------------------------- */
+
+:where(.landing-page) {
+  background:
+    radial-gradient(circle at 18% 12%, rgba(36, 202, 226, 0.10) 0%, transparent 46%),
+    linear-gradient(180deg, #050b18 0%, #071226 45%, #08182f 100%);
+  color: rgba(245, 251, 255, 0.92);
 }
+
+/* ---------------------------------------------------------
+   Buttons
+--------------------------------------------------------- */
 
 :where(.landing-page) .btn.primary {
   color: #f5feff;
@@ -2142,14 +2156,16 @@ p {
 :where(.landing-page) .btn.secondary {
   background: rgba(6, 13, 31, 0.48);
   color: #f1f8ff;
-  border-color: rgba(153, 204, 233, 0.4);
+  border: 1px solid rgba(153, 204, 233, 0.4);
   box-shadow: 0 8px 22px rgba(2, 8, 19, 0.28);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
 }
 
 :where(.landing-page) .btn.secondary:hover {
-  background: rgba(9, 18, 39, 0.62);
+  background: rgba(0, 170, 255, 0.18);
+  border-color: rgba(0, 210, 255, 0.55);
+  box-shadow: 0 12px 30px rgba(0, 210, 255, 0.28);
   color: #ffffff;
   transform: translateY(-1px);
 }
@@ -2158,24 +2174,40 @@ p {
   transform: translateY(0);
 }
 
+/* ---------------------------------------------------------
+   Silver watermark section (middle body)
+--------------------------------------------------------- */
+
 :where(.landing-page) .silver-watermark-section {
-  color: #eef6ff;
   background:
-    radial-gradient(circle at 10% 10%, rgba(36, 202, 226, 0.1) 0%, transparent 45%),
-    linear-gradient(180deg, #071226 0%, #08182f 42%, #091b34 100%);
+    radial-gradient(circle at 18% 10%, rgba(36, 202, 226, 0.08) 0%, transparent 45%),
+    linear-gradient(180deg, #050b18 0%, #071226 45%, #08182f 100%);
 }
 
 :where(.landing-page) .silver-watermark-image {
   opacity: 0.16;
 }
 
-:where(.landing-page) #how-it-works h2,
-:where(.landing-page) #how-it-works .page-subtitle {
-  color: rgba(240, 248, 255, 0.92);
+/* Headings / subtitles inside middle section */
+
+:where(.landing-page) .silver-watermark-section h2 {
+  color: rgba(245, 251, 255, 0.94);
 }
 
+:where(.landing-page) .silver-watermark-section .page-subtitle {
+  color: rgba(219, 235, 248, 0.84);
+}
+
+/* ---------------------------------------------------------
+   How it works cards
+--------------------------------------------------------- */
+
 :where(.landing-page) #how-it-works .how-it-works-step {
-  background: linear-gradient(180deg, rgba(14, 31, 58, 0.6) 0%, rgba(9, 23, 44, 0.72) 100%);
+  background: linear-gradient(
+    180deg,
+    rgba(14, 31, 58, 0.60) 0%,
+    rgba(9, 23, 44, 0.72) 100%
+  );
   border: 1px solid rgba(144, 206, 239, 0.22);
   box-shadow: 0 16px 34px rgba(2, 9, 22, 0.34);
   backdrop-filter: blur(8px);
@@ -2196,6 +2228,81 @@ p {
   border: 1px solid rgba(95, 231, 255, 0.32);
 }
 
+/* ---------------------------------------------------------
+   Who it for cards
+--------------------------------------------------------- */
+
+:where(.landing-page) .who-it-for-card {
+  background: linear-gradient(
+    180deg,
+    rgba(14, 31, 58, 0.58) 0%,
+    rgba(9, 23, 44, 0.72) 100%
+  );
+  border: 1px solid rgba(144, 206, 239, 0.22);
+  box-shadow: 0 16px 34px rgba(2, 9, 22, 0.34);
+  color: rgba(245, 251, 255, 0.92);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+:where(.landing-page) .who-it-for-card h3 {
+  color: rgba(246, 252, 255, 0.95);
+}
+
+:where(.landing-page) .who-it-for-card p {
+  color: rgba(219, 235, 248, 0.84);
+}
+
+:where(.landing-page) .who-it-for-card svg {
+  color: rgba(140, 235, 248, 0.95);
+}
+
+/* ---------------------------------------------------------
+   Trust indicators (pills) – now matching cards
+--------------------------------------------------------- */
+
+:where(.landing-page) .trust-item {
+  background: linear-gradient(
+    180deg,
+    rgba(14, 31, 58, 0.58) 0%,
+    rgba(9, 23, 44, 0.72) 100%
+  );
+  border: 1px solid rgba(144, 206, 239, 0.22);
+  box-shadow: 0 16px 34px rgba(2, 9, 22, 0.34);
+  color: rgba(245, 251, 255, 0.92);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+:where(.landing-page) .trust-item svg {
+  color: rgba(140, 235, 248, 0.95);
+}
+
+/* ---------------------------------------------------------
+   Footer
+--------------------------------------------------------- */
+
+:where(.landing-page) .landing-footer {
+  border-top: 1px solid rgba(255, 255, 255, 0.10);
+  background: transparent;
+}
+
+:where(.landing-page) .footer-left,
+:where(.landing-page) .footer-left a,
+:where(.landing-page) .footer-links,
+:where(.landing-page) .footer-links a {
+  color: rgba(219, 235, 248, 0.82);
+}
+
+:where(.landing-page) .footer-links a:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(245, 251, 255, 0.96);
+}
+
+/* ---------------------------------------------------------
+   Responsive header tweaks
+--------------------------------------------------------- */
+
 @media (max-width: 980px) {
   :where(.landing-page) .proovra-header-inner {
     grid-template-columns: 1fr;
@@ -2213,129 +2320,4 @@ p {
     justify-content: center;
     flex-wrap: wrap;
   }
-}
-
-:where(.landing-page) .silver-watermark-section {
-  background:
-    radial-gradient(circle at 10% 8%, rgba(36, 202, 226, 0.08) 0%, transparent 42%),
-    linear-gradient(180deg, #060f21 0%, #071427 40%, #08182f 100%);
-}
-
-:where(.landing-page) .silver-watermark-section h2 {
-  color: rgba(245, 251, 255, 0.94);
-}
-
-:where(.landing-page) .silver-watermark-section .page-subtitle {
-  color: rgba(255, 255, 255, 0.72);
-}
-
-:where(.landing-page) .who-it-for-card {
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(255, 255, 255, 0.10);
-  color: rgba(255, 255, 255, 0.92);
-  box-shadow: 0 18px 60px rgba(0, 0, 0, 0.25);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-}
-
-:where(.landing-page) .who-it-for-card h3 {
-  color: rgba(246, 252, 255, 0.94);
-}
-
-:where(.landing-page) .who-it-for-card p {
-  color: rgba(255, 255, 255, 0.78);
-}
-
-:where(.landing-page) .who-it-for-card svg {
-  color: rgba(140, 235, 248, 0.95);
-}
-
-:where(.landing-page) .trust-item {
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(255, 255, 255, 0.10);
-  color: rgba(245, 251, 255, 0.92);
-  box-shadow: 0 14px 42px rgba(0, 0, 0, 0.22);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-}
-
-:where(.landing-page) .trust-item svg {
-  color: rgba(140, 235, 248, 0.95);
-}
-
-/* =========================
-   LANDING DARK MATCH (CSS ONLY) - put at END of globals.css
-   ========================= */
-
-/* 1) Make landing page itself dark so sections that are not wrapped still match the screenshot */
-:where(.landing-page) {
-  background:
-    radial-gradient(circle at 18% 12%, rgba(36, 202, 226, 0.10) 0%, transparent 46%),
-    linear-gradient(180deg, #050b18 0%, #071226 42%, #08182f 100%);
-  color: rgba(245, 251, 255, 0.92);
-}
-
-/* 2) Keep body from showing the light page background behind landing */
-:where(.landing-page) :where(.section, .container, main) {
-  color: inherit;
-}
-
-/* 3) Make headings/subtitles in the landing middle section white (Who is it for / Trust indicators) */
-:where(.landing-page) :where(h2, h3) {
-  color: rgba(245, 251, 255, 0.94);
-}
-
-:where(.landing-page) :where(.page-subtitle, p) {
-  color: rgba(219, 235, 248, 0.84);
-}
-
-/* 4) Ensure "Who is it for" cards look like the top dark glass cards */
-:where(.landing-page) .who-it-for-card {
-  background: linear-gradient(180deg, rgba(14, 31, 58, 0.58) 0%, rgba(9, 23, 44, 0.72) 100%) !important;
-  border: 1px solid rgba(144, 206, 239, 0.22) !important;
-  box-shadow: 0 16px 34px rgba(2, 9, 22, 0.34) !important;
-  color: rgba(245, 251, 255, 0.92) !important;
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-}
-
-:where(.landing-page) .who-it-for-card h3 {
-  color: rgba(246, 252, 255, 0.95) !important;
-}
-:where(.landing-page) .who-it-for-card p {
-  color: rgba(219, 235, 248, 0.84) !important;
-}
-:where(.landing-page) .who-it-for-card svg {
-  color: rgba(140, 235, 248, 0.95) !important; /* keep the nice cyan glow */
-}
-
-/* 5) Trust indicators pills should also be dark glass, with cyan icons */
-:where(.landing-page) .trust-item {
-  background: rgba(255, 255, 255, 0.06) !important;
-  border: 1px solid rgba(255, 255, 255, 0.10) !important;
-  color: rgba(245, 251, 255, 0.92) !important;
-  box-shadow: 0 14px 42px rgba(0, 0, 0, 0.22) !important;
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-}
-:where(.landing-page) .trust-item svg {
-  color: rgba(140, 235, 248, 0.95) !important;
-}
-
-/* 6) Footer area: make it dark and make links white like the screenshot */
-:where(.landing-page) .landing-footer {
-  border-top: 1px solid rgba(255, 255, 255, 0.10);
-  background: transparent; /* uses landing-page dark background */
-}
-
-:where(.landing-page) .footer-left,
-:where(.landing-page) .footer-left a,
-:where(.landing-page) .footer-links,
-:where(.landing-page) .footer-links a {
-  color: rgba(219, 235, 248, 0.82);
-}
-
-:where(.landing-page) .footer-links a:hover {
-  background: rgba(255, 255, 255, 0.08);
-  color: rgba(245, 251, 255, 0.96);
 }
