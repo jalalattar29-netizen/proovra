@@ -254,13 +254,10 @@ p {
     color: rgba(255, 255, 255, 0.95);
   }
 
-.proovra-logo-mark {
-  width: 26px;
-  height: 26px;
-  border-radius: 10px; /* نفس روح الأيقونة */
-  box-shadow: 0 10px 22px rgba(0, 0, 0, 0.28);
-  opacity: 0.98;
-}
+  .proovra-logo img {
+    width: 34px;
+    height: 34px;
+  }
 
   .proovra-nav {
     display: flex;
@@ -2378,12 +2375,3 @@ p {
   width: 100%;
 }
 
-:where(.landing-page) .silver-watermark-image {
-  opacity: 0.23;
-  filter:
-    brightness(1)
-    contrast(1.2)
-    hue-rotate(190deg)
-    saturate(3.5)
-    drop-shadow(0 0 25px rgba(101,235,255,0.35));
-}
