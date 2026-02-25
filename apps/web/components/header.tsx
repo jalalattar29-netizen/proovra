@@ -96,8 +96,13 @@ export function AppHeader({
     <header className="proovra-header">
       <div className="container proovra-header-inner">
         <Link href="/home" className="proovra-logo">
-          <img src="/brand/logo-white.svg" alt="PROO✓RA" width={34} height={34} />
-          <span>PROO✓RA</span>
+<img
+  src="/brand/icon-512.png"
+  alt="PROO✓RA"
+  width={26}
+  height={26}
+  className="proovra-logo-mark"
+/>          <span>PROO✓RA</span>
         </Link>
         <nav className="proovra-nav proovra-nav-app proovra-nav-app-desktop">
           {APP_NAV.map((item) => (
