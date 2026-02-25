@@ -2164,3 +2164,51 @@ p {
     flex-wrap: wrap;
   }
 }
+
+:where(.landing-page) .silver-watermark-section {
+  background:
+    radial-gradient(circle at 10% 8%, rgba(36, 202, 226, 0.08) 0%, transparent 42%),
+    linear-gradient(180deg, #060f21 0%, #071427 40%, #08182f 100%);
+}
+
+:where(.landing-page) .silver-watermark-section h2 {
+  color: rgba(245, 251, 255, 0.94);
+}
+
+:where(.landing-page) .silver-watermark-section .page-subtitle {
+  color: rgba(255, 255, 255, 0.72);
+}
+
+:where(.landing-page) .who-it-for-card {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  color: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 18px 60px rgba(0, 0, 0, 0.25);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+:where(.landing-page) .who-it-for-card h3 {
+  color: rgba(246, 252, 255, 0.94);
+}
+
+:where(.landing-page) .who-it-for-card p {
+  color: rgba(255, 255, 255, 0.78);
+}
+
+:where(.landing-page) .who-it-for-card svg {
+  color: rgba(140, 235, 248, 0.95);
+}
+
+:where(.landing-page) .trust-item {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  color: rgba(245, 251, 255, 0.92);
+  box-shadow: 0 14px 42px rgba(0, 0, 0, 0.22);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+:where(.landing-page) .trust-item svg {
+  color: rgba(140, 235, 248, 0.95);
+}
