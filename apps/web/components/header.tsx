@@ -56,21 +56,24 @@ export function MarketingHeader() {
           <span>PROO✓RA</span>
         </Link>
         <nav className="proovra-nav proovra-nav-marketing">
-          {MARKETING_NAV.map((item) => (
-            <Link key={item.href} href={item.href} className="proovra-nav-link">
-              <item.Icon />
-              <span>{item.label}</span>
-            </Link>
-          ))}
-          <LanguageSwitcher />
-          <a href={appLogin} className="proovra-nav-link">
-            <Icons.Login />
-            <span>Login</span>
-          </a>
-          <a href={appRegister} className="proovra-cta-btn">
-            <Icons.GetStarted />
-            <span>Get Started</span>
-          </a>
+          <div className="proovra-nav-center">
+            {MARKETING_NAV.map((item) => (
+              <Link key={item.href} href={item.href} className="proovra-nav-link">
+                <span>{item.label}</span>
+              </Link>
+            ))}
+          </div>
+          <div className="proovra-nav-right">
+            <div className="lang-button">
+              <LanguageSwitcher />
+            </div>
+            <a href={appLogin} className="proovra-nav-link">
+              <span>Login</span>
+            </a>
+            <a href={appRegister} className="proovra-cta-btn">
+              <span>Register</span>
+            </a>
+          </div>
         </nav>
       </div>
     </header>

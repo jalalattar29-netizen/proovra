@@ -1945,3 +1945,222 @@ p {
   font-weight: 500;
   color: #0F1D36;
 }
+
+/* PROOVRA LANDING OVERRIDES (scoped) */
+:root {
+  --accent-700: #0d8da5;
+  --accent-600: #13aec2;
+  --accent-500: #2dd8ee;
+  --accent-grad: linear-gradient(135deg, var(--accent-700) 0%, var(--accent-600) 46%, var(--accent-500) 100%);
+  --accent-grad-hover: linear-gradient(135deg, #10a1b9 0%, #1bc3d8 46%, #51e7fb 100%);
+  --nav-underline: rgba(82, 238, 255, 0.86);
+  --shadow-accent: 0 10px 26px rgba(24, 209, 228, 0.36);
+}
+
+:where(.landing-page) .proovra-header {
+  background:
+    linear-gradient(180deg, rgba(2, 8, 25, 0.86) 0%, rgba(4, 13, 34, 0.76) 100%),
+    radial-gradient(circle at 75% 0%, rgba(36, 202, 226, 0.14) 0%, transparent 48%);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border-bottom: 1px solid rgba(146, 214, 255, 0.22);
+}
+
+:where(.landing-page) .proovra-header-inner {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 22px;
+}
+
+:where(.landing-page) .proovra-nav-marketing {
+  min-width: 0;
+  width: 100%;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+:where(.landing-page) .proovra-nav-center,
+:where(.landing-page) .proovra-nav-right {
+  display: inline-flex;
+  align-items: center;
+}
+
+:where(.landing-page) .proovra-nav-center {
+  justify-content: center;
+  gap: 2px;
+  min-width: 0;
+}
+
+:where(.landing-page) .proovra-nav-right {
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+:where(.landing-page) .proovra-logo {
+  color: rgba(236, 248, 255, 0.96);
+}
+
+:where(.landing-page) .proovra-nav-link {
+  position: relative;
+  padding: 8px 11px;
+  border-radius: 0;
+  font-size: 13px;
+  font-weight: 500;
+  color: rgba(217, 236, 248, 0.88);
+  background: transparent;
+}
+
+:where(.landing-page) .proovra-nav-link::after {
+  content: "";
+  position: absolute;
+  left: 11px;
+  right: 11px;
+  bottom: 5px;
+  height: 1px;
+  background: var(--nav-underline);
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform 170ms ease;
+}
+
+:where(.landing-page) .proovra-nav-link:hover,
+:where(.landing-page) .proovra-nav-link.active {
+  color: #85f2ff;
+  background: transparent;
+}
+
+:where(.landing-page) .proovra-nav-link:hover::after,
+:where(.landing-page) .proovra-nav-link.active::after {
+  transform: scaleX(1);
+}
+
+:where(.landing-page) .lang-button button[title="Language selector"] {
+  padding: 8px 10px !important;
+  border: none !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  color: rgba(217, 236, 248, 0.88) !important;
+  font-size: 13px !important;
+  font-weight: 500 !important;
+  box-shadow: none !important;
+}
+
+:where(.landing-page) .lang-button button[title="Language selector"] > span:first-child {
+  display: none;
+}
+
+:where(.landing-page) .lang-button button[title="Language selector"]:hover {
+  color: #85f2ff !important;
+}
+
+:where(.landing-page) .proovra-cta-btn {
+  padding: 8px 16px;
+  border-radius: 999px;
+  border: 1px solid rgba(126, 241, 255, 0.55);
+  color: #f4feff;
+  background: var(--accent-grad);
+  box-shadow: var(--shadow-accent);
+}
+
+:where(.landing-page) .proovra-cta-btn:hover {
+  color: #ffffff;
+  background: var(--accent-grad-hover);
+  transform: translateY(-1px);
+}
+
+:where(.landing-page) .proovra-cta-btn:active {
+  transform: translateY(0);
+}
+
+:where(.landing-page) .btn.primary {
+  color: #f5feff;
+  border-color: transparent;
+  background: var(--accent-grad);
+  box-shadow: var(--shadow-accent);
+}
+
+:where(.landing-page) .btn.primary:hover {
+  background: var(--accent-grad-hover);
+  transform: translateY(-1px);
+}
+
+:where(.landing-page) .btn.primary:active {
+  transform: translateY(0);
+}
+
+:where(.landing-page) .btn.secondary {
+  background: rgba(6, 13, 31, 0.48);
+  color: #f1f8ff;
+  border-color: rgba(153, 204, 233, 0.4);
+  box-shadow: 0 8px 22px rgba(2, 8, 19, 0.28);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+:where(.landing-page) .btn.secondary:hover {
+  background: rgba(9, 18, 39, 0.62);
+  color: #ffffff;
+  transform: translateY(-1px);
+}
+
+:where(.landing-page) .btn.secondary:active {
+  transform: translateY(0);
+}
+
+:where(.landing-page) .silver-watermark-section {
+  color: #eef6ff;
+  background:
+    radial-gradient(circle at 10% 10%, rgba(36, 202, 226, 0.1) 0%, transparent 45%),
+    linear-gradient(180deg, #071226 0%, #08182f 42%, #091b34 100%);
+}
+
+:where(.landing-page) .silver-watermark-image {
+  opacity: 0.16;
+}
+
+:where(.landing-page) #how-it-works h2,
+:where(.landing-page) #how-it-works .page-subtitle {
+  color: rgba(240, 248, 255, 0.92);
+}
+
+:where(.landing-page) #how-it-works .how-it-works-step {
+  background: linear-gradient(180deg, rgba(14, 31, 58, 0.6) 0%, rgba(9, 23, 44, 0.72) 100%);
+  border: 1px solid rgba(144, 206, 239, 0.22);
+  box-shadow: 0 16px 34px rgba(2, 9, 22, 0.34);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+:where(.landing-page) #how-it-works .how-it-works-step h3 {
+  color: #f2f8ff;
+}
+
+:where(.landing-page) #how-it-works .how-it-works-step p {
+  color: rgba(219, 235, 248, 0.84);
+}
+
+:where(.landing-page) #how-it-works .how-it-works-icon {
+  background: rgba(32, 198, 221, 0.12);
+  color: #65ebff;
+  border: 1px solid rgba(95, 231, 255, 0.32);
+}
+
+@media (max-width: 980px) {
+  :where(.landing-page) .proovra-header-inner {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+
+  :where(.landing-page) .proovra-nav-marketing {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+  }
+
+  :where(.landing-page) .proovra-nav-center,
+  :where(.landing-page) .proovra-nav-right {
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+}
