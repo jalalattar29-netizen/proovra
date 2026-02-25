@@ -348,7 +348,7 @@ export default function RegisterPage() {
       <div className="container">
         <header className="auth-top">
           <Link href="/" className="auth-brand">
-            <img src="/brand/logo-white.svg" alt="PROO✓RA" />
+            <img src="/brand/icon-512.png?v=2" alt="PROO✓RA" />
             <span>{t("brand")}</span>
           </Link>
 

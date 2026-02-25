@@ -65,7 +65,7 @@ export default async function SupportPage() {
       <div className="container">
         <header className="auth-top">
           <Link href="/" className="auth-brand">
-            <img src="/brand/logo-white.svg" alt="PROO✓RA" />
+            <img src="/brand/icon-512.png?v=2" alt="PROO✓RA" />
             <span>PROO✓RA</span>
           </Link>
           <nav className="auth-top-links">

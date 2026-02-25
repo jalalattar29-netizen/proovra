@@ -259,6 +259,14 @@ p {
     height: 34px;
   }
 
+  .proovra-logo .proovra-logo-mark {
+  width: 28px !important;
+  height: 28px !important;
+  border-radius: 10px;
+  box-shadow: 0 10px 22px rgba(0, 0, 0, 0.28);
+  opacity: 0.98;
+}
+
   .proovra-nav {
     display: flex;
     align-items: center;
