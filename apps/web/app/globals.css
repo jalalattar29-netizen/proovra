@@ -2383,3 +2383,53 @@ p {
   width: 100%;
 }
 
+/* =========================================================
+   WATERMARK NEON (FINAL) — put at END of globals.css
+   ========================================================= */
+
+:where(.landing-page) .silver-watermark-section {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate; /* يمنع الـ blend يطلع برا السكشن */
+}
+
+/* مهم: عندك ::after overlay كان عم يغسل الصورة ويخفي النيون */
+:where(.landing-page) .silver-watermark-section::after {
+  content: none !important;
+}
+
+/* ثبّت الصورة: نفس مكانها ونفس حجمها (لا تحريك ولا shrink) */
+:where(.landing-page) .silver-watermark-image {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 120%;
+  height: auto;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* النيون الحقيقي */
+:where(.landing-page) .silver-watermark-image.watermark-neon {
+  mix-blend-mode: screen;
+  opacity: 0.55;
+  filter:
+    saturate(2.6)
+    brightness(1.25)
+    hue-rotate(175deg)
+    drop-shadow(0 0 18px rgba(101, 235, 255, 0.55))
+    drop-shadow(0 0 46px rgba(101, 235, 255, 0.35));
+}
+
+:where(.landing-page) .silver-watermark-content {
+  position: relative;
+  z-index: 2;
+}
+
+/* إذا عندك media rule بتصغّر الصورة (globals.css:1591-1594) خلّيه ما يأثر */
+@media (max-width: 980px) {
+  :where(.landing-page) .silver-watermark-image {
+    width: 140%;
+  }
+}
