@@ -2212,3 +2212,80 @@ p {
 :where(.landing-page) .trust-item svg {
   color: rgba(140, 235, 248, 0.95);
 }
+
+/* =========================
+   LANDING DARK MATCH (CSS ONLY) - put at END of globals.css
+   ========================= */
+
+/* 1) Make landing page itself dark so sections that are not wrapped still match the screenshot */
+:where(.landing-page) {
+  background:
+    radial-gradient(circle at 18% 12%, rgba(36, 202, 226, 0.10) 0%, transparent 46%),
+    linear-gradient(180deg, #050b18 0%, #071226 42%, #08182f 100%);
+  color: rgba(245, 251, 255, 0.92);
+}
+
+/* 2) Keep body from showing the light page background behind landing */
+:where(.landing-page) :where(.section, .container, main) {
+  color: inherit;
+}
+
+/* 3) Make headings/subtitles in the landing middle section white (Who is it for / Trust indicators) */
+:where(.landing-page) :where(h2, h3) {
+  color: rgba(245, 251, 255, 0.94);
+}
+
+:where(.landing-page) :where(.page-subtitle, p) {
+  color: rgba(219, 235, 248, 0.84);
+}
+
+/* 4) Ensure "Who is it for" cards look like the top dark glass cards */
+:where(.landing-page) .who-it-for-card {
+  background: linear-gradient(180deg, rgba(14, 31, 58, 0.58) 0%, rgba(9, 23, 44, 0.72) 100%) !important;
+  border: 1px solid rgba(144, 206, 239, 0.22) !important;
+  box-shadow: 0 16px 34px rgba(2, 9, 22, 0.34) !important;
+  color: rgba(245, 251, 255, 0.92) !important;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+:where(.landing-page) .who-it-for-card h3 {
+  color: rgba(246, 252, 255, 0.95) !important;
+}
+:where(.landing-page) .who-it-for-card p {
+  color: rgba(219, 235, 248, 0.84) !important;
+}
+:where(.landing-page) .who-it-for-card svg {
+  color: rgba(140, 235, 248, 0.95) !important; /* keep the nice cyan glow */
+}
+
+/* 5) Trust indicators pills should also be dark glass, with cyan icons */
+:where(.landing-page) .trust-item {
+  background: rgba(255, 255, 255, 0.06) !important;
+  border: 1px solid rgba(255, 255, 255, 0.10) !important;
+  color: rgba(245, 251, 255, 0.92) !important;
+  box-shadow: 0 14px 42px rgba(0, 0, 0, 0.22) !important;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+:where(.landing-page) .trust-item svg {
+  color: rgba(140, 235, 248, 0.95) !important;
+}
+
+/* 6) Footer area: make it dark and make links white like the screenshot */
+:where(.landing-page) .landing-footer {
+  border-top: 1px solid rgba(255, 255, 255, 0.10);
+  background: transparent; /* uses landing-page dark background */
+}
+
+:where(.landing-page) .footer-left,
+:where(.landing-page) .footer-left a,
+:where(.landing-page) .footer-links,
+:where(.landing-page) .footer-links a {
+  color: rgba(219, 235, 248, 0.82);
+}
+
+:where(.landing-page) .footer-links a:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(245, 251, 255, 0.96);
+}
