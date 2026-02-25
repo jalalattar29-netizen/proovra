@@ -2133,29 +2133,6 @@ p {
   color: rgba(245, 251, 255, 0.92);
 }
 
-/* Silver watermark layout fix */
-
-:where(.landing-page) .silver-watermark-section {
-  position: relative;
-  overflow: hidden;
-}
-
-:where(.landing-page) .silver-watermark-image {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  pointer-events: none;
-  z-index: 0;
-  opacity: 0.12; /* أغمق وأقرب للصورة المرجعية */
-}
-
-:where(.landing-page) .silver-watermark-content {
-  position: relative;
-  z-index: 1;
-}
-
 /* ---------------------------------------------------------
    Buttons
 --------------------------------------------------------- */
@@ -2208,7 +2185,9 @@ p {
 }
 
 :where(.landing-page) .silver-watermark-image {
-  opacity: 0.16;
+  opacity: 0.22;               /* أعلى من 0.16 ليصير أوضح */
+  filter: brightness(0.55)     /* غمّق الصورة */
+          contrast(1.05);      /* خفف الرمادي */
 }
 
 /* Headings / subtitles inside middle section */
