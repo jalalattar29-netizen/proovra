@@ -2383,3 +2383,15 @@ p {
   width: 100%;
 }
 
+.silver-watermark-image {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  pointer-events: none;
+  z-index: 0;
+
+  mix-blend-mode: screen;   /* هذا السحر */
+  opacity: 0.85;            /* قوة النيون */
+}
