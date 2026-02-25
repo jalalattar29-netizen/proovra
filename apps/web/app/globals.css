@@ -2349,3 +2349,42 @@ p {
 :where(.landing-page) .silver-watermark-image {
   z-index: 0;
 }
+
+:where(.landing-page) .footer-links a {
+  position: relative;
+  transition: color 0.25s ease, text-shadow 0.25s ease;
+}
+
+:where(.landing-page) .footer-links a:hover {
+  color: #65ebff; /* نفس لون الأيقونات */
+  text-shadow: 0 0 12px rgba(101, 235, 255, 0.55);
+}
+
+:where(.landing-page) .footer-links a::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  bottom: -4px;
+  width: 0%;
+  height: 1px;
+  background: #65ebff;
+  transition: width 0.25s ease;
+}
+
+:where(.landing-page) .footer-links a:hover::after {
+  width: 100%;
+}
+
+:where(.landing-page) .silver-watermark-section::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: rgba(101, 235, 255, 0.08); /* نفس لون hover */
+  pointer-events: none;
+  z-index: 0;
+}
+
+:where(.landing-page) .silver-watermark-content {
+  position: relative;
+  z-index: 1;
+}
