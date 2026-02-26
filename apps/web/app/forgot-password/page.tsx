@@ -3,14 +3,12 @@
 import { useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Button, useToast } from "../../components/ui";
-import { useLocale } from "../providers";
+import { useToast } from "../../components/ui";
 import { apiFetch, ApiError } from "../../lib/api";
 import { MarketingHeader } from "../../components/header";
 
 export default function ForgotPasswordPage() {
-  const { t } = useLocale();
-  const { addToast } = useToast();
+const { addToast } = useToast();
   const router = useRouter();
   const searchParams = useSearchParams();
   const returnUrl = searchParams.get("returnUrl") || "/home";
