@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { headers } from "next/headers";
-import { Inter, Montserrat, Noto_Sans_Arabic } from "next/font/google";
+import { Inter, Inter_Tight, Noto_Sans_Arabic } from "next/font/google";
 import "./globals.css";
 import { Providers } from "./providers";
 
@@ -15,7 +15,8 @@ const inter = Inter({
   display: "swap"
 });
 
-const headerFont = Montserrat({
+// ✅ Inter Tight for headings / brand / nav (display)
+const headerFont = Inter_Tight({
   subsets: ["latin"],
   variable: "--font-header",
   display: "swap"
@@ -27,10 +28,8 @@ const notoArabic = Noto_Sans_Arabic({
   display: "swap"
 });
 
-
 /**
  * ✅ CSS Tokens ثابتة (بدون @proovra/ui) لتختفي أخطاء الألوان نهائياً
- * إذا بدك نرجع لاحقاً نربطها بـ @proovra/ui بنعملها بس بعد ما يستقر كل شي.
  */
 const tokenCss = `
 :root {
@@ -79,6 +78,7 @@ const tokenCss = `
 
 export default async function RootLayout({ children }: { children: ReactNode }) {
   const nonce = (await headers()).get("x-nonce") ?? undefined;
+
   return (
     <html
       lang="en"
@@ -88,12 +88,10 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
       <head>
         <style nonce={nonce}>{tokenCss}</style>
 
-        {/* ✅ أيقونات التطبيق والمتصفح */}
         <link rel="icon" href="/brand/favicon.ico" />
         <link rel="apple-touch-icon" href="/brand/icon-192.png" />
         <link rel="manifest" href="/manifest.webmanifest" />
 
-        {/* ✅ Theme color (يعطي شكل احترافي بالموبايل) */}
         <meta name="theme-color" content="#0f1d36" />
       </head>
       <body>

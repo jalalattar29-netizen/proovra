@@ -72,7 +72,8 @@ h4,
 h5,
 h6 {
   font-family: var(--font-header), var(--font-inter), system-ui, -apple-system, sans-serif;
-  letter-spacing: 0.3px;
+  letter-spacing: 0.12px; /* أقل = أرقى مع Inter Tight */
+  text-rendering: geometricPrecision;
   color: #0f1d36;
 }
 
