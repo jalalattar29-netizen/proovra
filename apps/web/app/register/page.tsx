@@ -8,6 +8,7 @@ import { useAuth, useLocale } from "../providers";
 import { apiFetch, ApiError } from "../../lib/api";
 import { authLogger } from "../../lib/auth-logger";
 import { loadAppleIdentity, loadGoogleIdentity } from "../../lib/oauth";
+import { MarketingHeader } from "../../components/header";
 
 type GoogleCredentialResponse = { credential?: string };
 
@@ -112,8 +113,9 @@ export default function RegisterPage() {
   const googleBtnHostRef = useRef<HTMLDivElement | null>(null);
 
   const ui = useMemo(() => {
-    const cardShadow = "0 10px 40px rgba(2, 6, 23, 0.12)";
-    const border = "1px solid rgba(148, 163, 184, 0.35)";
+    // (نفس إحساس login)
+    const cardShadow = "0 24px 70px rgba(2, 9, 22, 0.55)";
+    const border = "1px solid rgba(101, 235, 255, 0.22)";
     const socialMaxW = 360;
     return { cardShadow, border, socialMaxW };
   }, []);
@@ -149,7 +151,6 @@ export default function RegisterPage() {
       setReturnUrl(returnUrl);
 
       const payload = extraBody ?? (idToken ? { idToken } : code ? { code } : {});
-      // ✅ مهم: auth endpoints بدون Authorization header
       const data = await apiFetch(path, { method: "POST", body: JSON.stringify(payload) }, { auth: false });
 
       setToken(data.token);
@@ -326,182 +327,118 @@ export default function RegisterPage() {
     margin: "0 auto",
   };
 
-  const SocialButtonStyle: CSSProperties = {
-    width: "100%",
-    height: 40,
-    borderRadius: 9999,
-    border: "1px solid #e5e7eb",
-    background: "#ffffff",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 10,
-    fontSize: 14,
-    fontWeight: 500,
-    color: "#111827",
-    cursor: busy ? "default" : "pointer",
-    transition: "background 0.15s ease",
-  };
-
   return (
-    <div className="blue-shell auth-screen">
-      <div className="container">
-        <header className="auth-top">
-          <Link href="/" className="auth-brand">
-            <img src="/brand/icon-512.png?v=2" alt="PROO✓RA" />
-            <span>{t("brand")}</span>
-          </Link>
+    <div className="page landing-page">
+      <div className="blue-shell auth-screen auth-dark">
+        {/* ✅ نفس هيدر الموقع */}
+        <MarketingHeader />
 
-          <nav className="auth-top-links">
-            <Link href="/login">{t("login")}</Link>
-          </nav>
-        </header>
+        <div className="container">
+          <main className="auth-main">
+            <div
+              className="auth-card"
+              style={{
+                boxShadow: ui.cardShadow,
+                border: ui.border,
+                backdropFilter: "blur(12px)",
+              }}
+            >
+              <h2 className="auth-title">{t("createAccountTitle")}</h2>
 
-        <main className="auth-main">
-          <div
-            className="auth-card"
-            style={{
-              boxShadow: ui.cardShadow,
-              border: ui.border,
-              backdropFilter: "blur(10px)",
-            }}
-          >
-            <h2 className="auth-title">{t("createAccountTitle")}</h2>
+              <div className="auth-actions" style={{ display: "grid", gap: 12 }}>
+                {/* Google */}
+                <div ref={googleBtnHostRef} style={SocialHostStyle} aria-label="Continue with Google">
+                  <div
+                    ref={googleBtnWrapRef}
+                    style={{
+                      width: "100%",
+                      display: "flex",
+                      justifyContent: "center",
+                      opacity: busy ? 0.7 : 1,
+                      pointerEvents: busy ? "none" : "auto",
+                    }}
+                  />
+                </div>
 
-            <div className="auth-actions" style={{ display: "grid", gap: 12 }}>
-              <div ref={googleBtnHostRef} style={SocialHostStyle} aria-label="Continue with Google">
-                <div
-                  ref={googleBtnWrapRef}
-                  style={{
-                    width: "100%",
-                    display: "flex",
-                    justifyContent: "center",
-                    opacity: busy ? 0.7 : 1,
-                    pointerEvents: busy ? "none" : "auto",
-                  }}
-                />
+                {/* Apple */}
+                <div style={SocialHostStyle}>
+                  <button type="button" disabled={busy} onClick={() => void startApple()} className="auth-social-btn">
+                    <span className="auth-social-icon" aria-hidden="true">
+                      <AppleIcon />
+                    </span>
+                    Continue with Apple
+                  </button>
+                </div>
+
+                <div className="auth-divider">{t("orDivider")}</div>
+
+                {/* Email register */}
+                <form onSubmit={onEmailRegister} style={{ display: "grid", gap: 10 }}>
+                  <div className="auth-input-wrap">
+                    <span className="auth-input-icon" aria-hidden="true">
+                      <EmailIcon />
+                    </span>
+                    <input
+                      className="auth-input"
+                      placeholder="Email"
+                      type="email"
+                      autoComplete="email"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      disabled={busy}
+                    />
+                  </div>
+
+                  <div className="auth-input-wrap">
+                    <span className="auth-input-icon" aria-hidden="true">
+                      <LockIcon />
+                    </span>
+                    <input
+                      className="auth-input"
+                      placeholder="Password"
+                      type="password"
+                      autoComplete="new-password"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      disabled={busy}
+                    />
+                  </div>
+
+                  <div className="auth-input-wrap">
+                    <span className="auth-input-icon" aria-hidden="true">
+                      <CheckIcon />
+                    </span>
+                    <input
+                      className="auth-input"
+                      placeholder="Confirm password"
+                      type="password"
+                      autoComplete="new-password"
+                      value={password2}
+                      onChange={(e) => setPassword2(e.target.value)}
+                      disabled={busy}
+                    />
+                  </div>
+
+                  <button className="auth-social-btn" type="submit" disabled={busy}>
+                    Create account with Email
+                  </button>
+                </form>
+
+                <Button variant="secondary" onClick={() => handleAuth("/v1/auth/guest")} disabled={busy}>
+                  {t("continueGuest")}
+                </Button>
+
+                {error && <div className="error-text">{error}</div>}
+                {status && <div className="auth-status">{status}</div>}
               </div>
 
-              <div style={SocialHostStyle}>
-                <button
-                  type="button"
-                  disabled={busy}
-                  onClick={() => void startApple()}
-                  style={SocialButtonStyle}
-                  onMouseEnter={(e) => {
-                    if (!busy) e.currentTarget.style.background = "#f9fafb";
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.background = "#ffffff";
-                  }}
-                >
-                  <span style={{ display: "flex", alignItems: "center", marginTop: -1 }}>
-                    <AppleIcon />
-                  </span>
-                  Continue with Apple
-                </button>
+              <div className="auth-switch">
+                <span>{t("login")}? </span>
+                <Link href="/login">{t("login")}</Link>
               </div>
-
-              <div className="auth-divider">{t("orDivider")}</div>
-
-              <form onSubmit={onEmailRegister} style={{ display: "grid", gap: 10 }}>
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 10,
-                    border: "1px solid #e2e8f0",
-                    borderRadius: 12,
-                    padding: "0 12px",
-                    height: 44,
-                    background: "#fff",
-                  }}
-                >
-                  <span style={{ color: "#64748b", display: "flex" }}>
-                    <EmailIcon />
-                  </span>
-                  <input
-                    style={{ width: "100%", border: "none", outline: "none", fontSize: 14, background: "transparent" }}
-                    placeholder="Email"
-                    type="email"
-                    autoComplete="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    disabled={busy}
-                  />
-                </div>
-
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 10,
-                    border: "1px solid #e2e8f0",
-                    borderRadius: 12,
-                    padding: "0 12px",
-                    height: 44,
-                    background: "#fff",
-                  }}
-                >
-                  <span style={{ color: "#64748b", display: "flex" }}>
-                    <LockIcon />
-                  </span>
-                  <input
-                    style={{ width: "100%", border: "none", outline: "none", fontSize: 14, background: "transparent" }}
-                    placeholder="Password"
-                    type="password"
-                    autoComplete="new-password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    disabled={busy}
-                  />
-                </div>
-
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 10,
-                    border: "1px solid #e2e8f0",
-                    borderRadius: 12,
-                    padding: "0 12px",
-                    height: 44,
-                    background: "#fff",
-                  }}
-                >
-                  <span style={{ color: "#64748b", display: "flex" }}>
-                    <CheckIcon />
-                  </span>
-                  <input
-                    style={{ width: "100%", border: "none", outline: "none", fontSize: 14, background: "transparent" }}
-                    placeholder="Confirm password"
-                    type="password"
-                    autoComplete="new-password"
-                    value={password2}
-                    onChange={(e) => setPassword2(e.target.value)}
-                    disabled={busy}
-                  />
-                </div>
-
-                <button className="social-btn" type="submit" disabled={busy} style={{ borderRadius: 9999, height: 44, fontWeight: 600 }}>
-                  Create account with Email
-                </button>
-              </form>
-
-              <Button variant="secondary" onClick={() => handleAuth("/v1/auth/guest")} disabled={busy}>
-                {t("continueGuest")}
-              </Button>
-
-              {error && <div className="error-text">{error}</div>}
-              {status && <div style={{ fontSize: 12, color: "#64748b" }}>{status}</div>}
             </div>
-
-            <div className="auth-switch">
-              <span>{t("login")}? </span>
-              <Link href="/login">{t("login")}</Link>
-            </div>
-          </div>
-        </main>
+          </main>
+        </div>
       </div>
     </div>
   );

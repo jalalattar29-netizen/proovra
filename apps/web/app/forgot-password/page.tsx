@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Button, useToast } from "../../components/ui";
 import { useLocale } from "../providers";
 import { apiFetch, ApiError } from "../../lib/api";
+import { MarketingHeader } from "../../components/header";
 
 export default function ForgotPasswordPage() {
   const { t } = useLocale();
@@ -39,87 +40,108 @@ export default function ForgotPasswordPage() {
           method: "POST",
           body: JSON.stringify({ email: cleanEmail }),
         },
-        { auth: false } // ✅ مهم
+        { auth: false }
       );
 
       setDone(true);
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Request failed";
       const requestId = err instanceof ApiError ? err.requestId : undefined;
-      const displayMsg = msg === "rate_limited" ? "Too many requests. Please try again later." : msg;
+      const displayMsg =
+        msg === "rate_limited"
+          ? "Too many requests. Please try again later."
+          : msg;
+
       setError(displayMsg);
-      addToast(requestId ? `${displayMsg} (requestId: ${requestId})` : displayMsg, "error", 6000);
+      addToast(
+        requestId
+          ? `${displayMsg} (requestId: ${requestId})`
+          : displayMsg,
+        "error",
+        6000
+      );
     } finally {
       setBusy(false);
     }
   };
 
   return (
-    <div className="blue-shell auth-screen">
-      <div className="container">
-        <header className="auth-top">
-          <Link href="/" className="auth-brand">
-            <img src="/brand/icon-512.png?v=2" alt="PROO✓RA" />
-            <span>{t("brand")}</span>
-          </Link>
+    <div className="page landing-page">
+      <div className="blue-shell auth-screen auth-dark">
+        {/* نفس هيدر الموقع */}
+        <MarketingHeader />
 
-          <nav className="auth-top-links">
-            <Link href="/login">Login</Link>
-          </nav>
-        </header>
+        <div className="container">
+          <main className="auth-main">
+            <div className="auth-card">
+              <h2 className="auth-title">Reset password</h2>
 
-        <main className="auth-main">
-          <div className="auth-card">
-            <h2 className="auth-title">Reset password</h2>
+              <div className="auth-actions" style={{ display: "grid", gap: 12 }}>
+                {done ? (
+                  <>
+                    <div
+                      style={{
+                        fontSize: 14,
+                        color: "rgba(245, 251, 255, 0.85)",
+                        lineHeight: 1.6,
+                      }}
+                    >
+                      If an account exists for that email, we sent a reset link.
+                    </div>
 
-            <div className="auth-actions">
-              {done ? (
-                <>
-                  <div style={{ fontSize: 14, color: "#0f172a" }}>
-                    If an account exists for that email, we sent a reset link.
-                  </div>
-
-                  <Button variant="primary" onClick={() => router.push(`/login?returnUrl=${encodeURIComponent(returnUrl)}`)}>
-                    Back to login
-                  </Button>
-                </>
-              ) : (
-                <form id="forgot-form" onSubmit={submit} style={{ width: "100%", display: "grid", gap: 10 }}>
-                  <input
-                    type="email"
-                    placeholder="Email"
-                    autoComplete="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    disabled={busy}
-                    style={{
-                      width: "100%",
-                      height: 44,
-                      borderRadius: 10,
-                      border: "1px solid #e2e8f0",
-                      padding: "0 12px",
-                      background: "white",
-                    }}
-                  />
-                  <Button
-                    variant="primary"
-                    disabled={busy}
-                    onClick={() => (document.getElementById("forgot-form") as HTMLFormElement | null)?.requestSubmit()}
+                    <button
+                      className="auth-social-btn"
+                      onClick={() =>
+                        router.push(
+                          `/login?returnUrl=${encodeURIComponent(returnUrl)}`
+                        )
+                      }
+                    >
+                      Back to login
+                    </button>
+                  </>
+                ) : (
+                  <form
+                    id="forgot-form"
+                    onSubmit={submit}
+                    style={{ display: "grid", gap: 10 }}
                   >
-                    Send reset link
-                  </Button>
+                    <div className="auth-input-wrap">
+                      <input
+                        className="auth-input"
+                        type="email"
+                        placeholder="Email"
+                        autoComplete="email"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        disabled={busy}
+                      />
+                    </div>
 
-                  {error && <div className="error-text">{error}</div>}
-                </form>
-              )}
-            </div>
+                    <button
+                      className="auth-social-btn"
+                      type="submit"
+                      disabled={busy}
+                    >
+                      Send reset link
+                    </button>
 
-            <div className="auth-switch">
-              <span>Remembered your password? </span>
-              <Link href={`/login?returnUrl=${encodeURIComponent(returnUrl)}`}>Login</Link>
+                    {error && <div className="error-text">{error}</div>}
+                  </form>
+                )}
+              </div>
+
+              <div className="auth-switch">
+                <span>Remembered your password? </span>
+                <Link
+                  href={`/login?returnUrl=${encodeURIComponent(returnUrl)}`}
+                >
+                  Login
+                </Link>
+              </div>
             </div>
-          </div>
-        </main>
+          </main>
+        </div>
       </div>
     </div>
   );
