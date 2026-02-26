@@ -2514,43 +2514,47 @@ p {
 
 /* =========================
    PRICING — Dark, thick cards like Home
-   (visual only, no logic touched)
+   (works with current markup)
    ========================= */
 
-:where(.landing-page.pricing-page) .pricing-grid {
+/* grid */
+:where(.landing-page) .pricing-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
   gap: 16px;
   align-items: stretch;
 }
 
-/* wrapper hover (instead of inline ugly shadow) */
-:where(.landing-page.pricing-page) .pricing-plan {
+/* wrapper hover */
+:where(.landing-page) .pricing-grid > div {
   transition: transform 220ms ease, filter 220ms ease;
 }
 
-:where(.landing-page.pricing-page) .pricing-plan.is-hovered {
+:where(.landing-page) .pricing-grid > div:hover {
   transform: translateY(-6px);
   filter: brightness(1.03);
 }
 
-/* the card itself */
-:where(.landing-page.pricing-page) .pricing-card {
+/* card */
+:where(.landing-page) .pricing-card {
   height: 100%;
   display: flex;
   flex-direction: column;
-
   padding: 22px;
   border-radius: 18px;
 
-  background: linear-gradient(180deg, rgba(14, 31, 58, 0.62) 0%, rgba(9, 23, 44, 0.78) 100%) !important;
-  border: 1px solid rgba(144, 206, 239, 0.22) !important;
-  box-shadow: 0 18px 40px rgba(2, 9, 22, 0.36);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
+  background: linear-gradient(
+    180deg,
+    rgba(11, 27, 50, 0.92) 0%,
+    rgba(7, 20, 38, 0.96) 100%
+  ) !important;
+
+  border: 1px solid rgba(101, 235, 255, 0.22) !important;
+  box-shadow: 0 20px 48px rgba(2, 9, 22, 0.45);
 }
 
-:where(.landing-page.pricing-page) .pricing-card h3 {
+/* title */
+:where(.landing-page) .pricing-card h3 {
   margin: 0;
   font-size: 15px;
   letter-spacing: 0.6px;
@@ -2559,79 +2563,43 @@ p {
   text-transform: uppercase;
 }
 
-:where(.landing-page.pricing-page) .pricing-price {
+/* price */
+:where(.landing-page) .pricing-card p {
   margin: 10px 0 0;
   font-size: 14px;
   font-weight: 700;
   color: rgba(219, 235, 248, 0.86);
 }
 
-:where(.landing-page.pricing-page) .pricing-card-head {
-  margin-bottom: 12px;
-}
-
-:where(.landing-page.pricing-page) .pricing-list {
+/* list */
+:where(.landing-page) .pricing-card ul {
   margin: 12px 0 18px;
   padding-left: 18px;
-  color: rgba(219, 235, 248, 0.84);
+  color: rgba(219, 235, 248, 0.84) !important;
   line-height: 1.7;
   font-size: 13px;
 }
 
-:where(.landing-page.pricing-page) .pricing-list li {
+:where(.landing-page) .pricing-card li {
   margin: 6px 0;
 }
 
-/* featured plan (PAYG) */
-:where(.landing-page.pricing-page) .pricing-plan.is-featured .pricing-card {
-  border: 1px solid rgba(101, 235, 255, 0.55) !important;
-  box-shadow: 0 20px 48px rgba(0, 210, 255, 0.18);
-}
-
-/* CTA pinned to bottom */
-:where(.landing-page.pricing-page) .pricing-cta {
+/* CTA pinned bottom */
+:where(.landing-page) .pricing-cta {
   margin-top: auto;
 }
 
-/* Make the button behave like Home */
-:where(.landing-page.pricing-page) .choose-btn {
-  width: 100%;
-  min-height: 44px;
-  border-radius: 14px !important;
-  cursor: pointer;
-  transition: transform 160ms ease, filter 160ms ease, background 160ms ease, box-shadow 160ms ease;
-}
+/* =========================
+   BUTTON — match "View sample report"
+   ========================= */
 
-/* ensure hover works even when wrapped by <a> */
-:where(.landing-page.pricing-page) a:hover .choose-btn {
-  transform: translateY(-1px);
-  filter: brightness(1.03);
-}
-
-/* your existing choose-btn colors stay, just enhance hover */
-:where(.landing-page.pricing-page) .choose-btn:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 12px 30px rgba(0, 210, 255, 0.22);
-}
-
-:where(.landing-page.pricing-page) .choose-btn:active {
-  transform: translateY(0);
-}
-
-:where(.landing-page.pricing-page) .pricing-disclaimer {
-  margin-top: 24px;
-  font-size: 12px;
-  color: rgba(219, 235, 248, 0.72);
-  line-height: 1.6;
-}
-
-/* Pricing button should match landing "View sample report" (secondary) */
 :where(.landing-page) .pricing-billing-btn {
   width: 100%;
-  min-width: 200px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
+  min-height: 44px;
+
+  border-radius: 999px;
+  padding: 12px 18px;
+  font-weight: 800;
 
   background: rgba(6, 13, 31, 0.48);
   color: #f1f8ff;
@@ -2640,9 +2608,7 @@ p {
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
 
-  border-radius: 999px;
-  padding: 12px 18px;
-  font-weight: 800;
+  transition: all 180ms ease;
 }
 
 :where(.landing-page) .pricing-billing-btn:hover {
@@ -2655,4 +2621,12 @@ p {
 
 :where(.landing-page) .pricing-billing-btn:active {
   transform: translateY(0);
+}
+
+/* disclaimer */
+:where(.landing-page) .pricing-disclaimer {
+  margin-top: 24px;
+  font-size: 12px;
+  color: rgba(219, 235, 248, 0.72);
+  line-height: 1.6;
 }
