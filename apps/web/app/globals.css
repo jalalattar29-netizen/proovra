@@ -2624,3 +2624,35 @@ p {
   color: rgba(219, 235, 248, 0.72);
   line-height: 1.6;
 }
+
+/* Pricing button should match landing "View sample report" (secondary) */
+:where(.landing-page) .pricing-billing-btn {
+  width: 100%;
+  min-width: 200px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  background: rgba(6, 13, 31, 0.48);
+  color: #f1f8ff;
+  border: 1px solid rgba(153, 204, 233, 0.40);
+  box-shadow: 0 8px 22px rgba(2, 8, 19, 0.28);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+
+  border-radius: 999px;
+  padding: 12px 18px;
+  font-weight: 800;
+}
+
+:where(.landing-page) .pricing-billing-btn:hover {
+  background: rgba(0, 170, 255, 0.18);
+  border-color: rgba(0, 210, 255, 0.55);
+  box-shadow: 0 12px 30px rgba(0, 210, 255, 0.28);
+  color: #ffffff;
+  transform: translateY(-1px);
+}
+
+:where(.landing-page) .pricing-billing-btn:active {
+  transform: translateY(0);
+}
