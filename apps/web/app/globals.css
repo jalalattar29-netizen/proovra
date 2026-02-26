@@ -2506,51 +2506,12 @@ p {
 }
 
 /* Center ONLY the white legal/support card (the article) */
-/* =========================
-   LEGAL / SUPPORT — center + dark integrated card
-   (fix selector + avoid touching auth screens)
-   ========================= */
-
-/* وسّط الكرت داخل صفحات legal/support */
-:where(.legal-page, .support-page, .legal-shell) .auth-card,
-:where(.legal-page, .support-page, .legal-shell) .card {
-  margin-left: auto !important;
-  margin-right: auto !important;
-  max-width: 860px;
-  width: 100%;
+.auth-card.legal-page {
+  margin-left: auto;
+  margin-right: auto;
+  width: min(860px, 100%);
 }
 
-/* خلي الكرت مو أبيض: نفس ستايل الكروت الغامقة */
-:where(.legal-page, .support-page, .legal-shell) .auth-card,
-:where(.legal-page, .support-page, .legal-shell) .card {
-  background: linear-gradient(
-    180deg,
-    rgba(11, 27, 50, 0.92) 0%,
-    rgba(7, 20, 38, 0.96) 100%
-  ) !important;
-
-  border: 1px solid rgba(101, 235, 255, 0.22) !important;
-  box-shadow: 0 20px 48px rgba(2, 9, 22, 0.45);
-  color: rgba(245, 251, 255, 0.92);
-}
-
-/* نصوص واضحة داخل الكرت */
-:where(.legal-page, .support-page, .legal-shell) .auth-card p,
-:where(.legal-page, .support-page, .legal-shell) .auth-card li,
-:where(.legal-page, .support-page, .legal-shell) .card p,
-:where(.legal-page, .support-page, .legal-shell) .card li {
-  color: rgba(219, 235, 248, 0.84) !important;
-}
-
-/* عناوين واضحة داخل الكرت */
-:where(.legal-page, .support-page, .legal-shell) .auth-card h1,
-:where(.legal-page, .support-page, .legal-shell) .auth-card h2,
-:where(.legal-page, .support-page, .legal-shell) .auth-card h3,
-:where(.legal-page, .support-page, .legal-shell) .card h1,
-:where(.legal-page, .support-page, .legal-shell) .card h2,
-:where(.legal-page, .support-page, .legal-shell) .card h3 {
-  color: rgba(246, 252, 255, 0.96) !important;
-}
 /* =========================
    PRICING — Dark, thick cards like Home
    (works with current markup)
@@ -2670,3 +2631,45 @@ p {
   line-height: 1.6;
 }
 
+/* =========================
+   LEGAL + SUPPORT (only)
+   Fix centering + dark card, without affecting other pages
+   ========================= */
+
+/* ألغِ flex اللي عاملته على .section-body .container ولكن فقط داخل legal/support */
+:where(.page.landing-page) :where(section.section-body) > .container:has(.auth-card.legal-page) {
+  display: block !important;
+}
+
+/* وسّط الكرت وخليه بعرض محترم */
+.auth-card.legal-page {
+  margin-left: auto !important;
+  margin-right: auto !important;
+  width: min(860px, 100%);
+}
+
+/* خلي الكرت غامق ومندمج مع الثيم */
+:where(.landing-page) .auth-card.legal-page {
+  background: linear-gradient(
+    180deg,
+    rgba(11, 27, 50, 0.92) 0%,
+    rgba(7, 20, 38, 0.96) 100%
+  ) !important;
+
+  border: 1px solid rgba(101, 235, 255, 0.22) !important;
+  box-shadow: 0 20px 48px rgba(2, 9, 22, 0.45);
+  color: rgba(245, 251, 255, 0.92);
+}
+
+/* النصوص داخل الكرت */
+:where(.landing-page) .auth-card.legal-page p,
+:where(.landing-page) .auth-card.legal-page li {
+  color: rgba(219, 235, 248, 0.84) !important;
+}
+
+/* العناوين داخل الكرت */
+:where(.landing-page) .auth-card.legal-page h1,
+:where(.landing-page) .auth-card.legal-page h2,
+:where(.landing-page) .auth-card.legal-page h3 {
+  color: rgba(246, 252, 255, 0.96) !important;
+}
