@@ -9,6 +9,7 @@ import { apiFetch, ApiError } from "../../lib/api";
 import { formatBuildInfo } from "../../lib/build-info";
 import { authLogger } from "../../lib/auth-logger";
 import { loadAppleIdentity, loadGoogleIdentity } from "../../lib/oauth";
+import { MarketingHeader } from "../../components/header";
 
 const DEBUG_AUTH = process.env.NEXT_PUBLIC_DEBUG_AUTH === "1";
 
@@ -107,8 +108,8 @@ export default function LoginPage() {
   const googleBtnHostRef = useRef<HTMLDivElement | null>(null);
 
   const ui = useMemo(() => {
-    const cardShadow = "0 10px 40px rgba(2, 6, 23, 0.12)";
-    const border = "1px solid rgba(148, 163, 184, 0.35)";
+    const cardShadow = "0 24px 70px rgba(2, 9, 22, 0.55)";
+    const border = "1px solid rgba(101, 235, 255, 0.22)";
     const socialMaxW = 360;
     return { cardShadow, border, socialMaxW };
   }, []);
@@ -152,7 +153,6 @@ export default function LoginPage() {
       const payload = extraBody ?? (idToken ? { idToken } : code ? { code } : {});
       authLogger.log("TOKEN_EXCHANGE", "request_payload", { endpoint: path, has_idToken: !!idToken, has_code: !!code }, provider);
 
-      // ✅ مهم: auth endpoints بدون Authorization header
       const data = await apiFetch(path, { method: "POST", body: JSON.stringify(payload) }, { auth: false });
       authLogger.logTokenExchangeSuccess(provider, data);
 
@@ -160,7 +160,6 @@ export default function LoginPage() {
 
       setToken(data.token);
 
-      // ✅ هذا endpoint محمي، لازم يبعت Authorization (الافتراضي true)
       const me = await apiFetch("/v1/auth/me", { method: "GET" });
       authLogger.logSessionValidation("/v1/auth/me", me);
 
@@ -340,195 +339,126 @@ export default function LoginPage() {
     margin: "0 auto",
   };
 
-  const SocialButtonStyle: CSSProperties = {
-    width: "100%",
-    height: 40,
-    borderRadius: 9999,
-    border: "1px solid #e5e7eb",
-    background: "#ffffff",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 10,
-    fontSize: 14,
-    fontWeight: 500,
-    color: "#111827",
-    cursor: busy ? "default" : "pointer",
-    transition: "background 0.15s ease",
-  };
-
   return (
-    <div className="blue-shell auth-screen">
-      <div className="container">
-        <header className="auth-top">
-          <Link href="/" className="auth-brand">
-            <img src="/brand/icon-512.png?v=2" alt="PROO✓RA" />
-            <span>{t("brand")}</span>
-          </Link>
+    <div className="page landing-page">
+      <div className="blue-shell auth-screen auth-dark">
+        {/* ✅ نفس الهيدر مثل باقي الصفحات */}
+        <MarketingHeader />
 
-          <nav className="auth-top-links">
-            <Link href="/register">{t("register")}</Link>
-          </nav>
-        </header>
+        <div className="container">
+          <main className="auth-main">
+            <div
+              className="auth-card"
+              style={{
+                boxShadow: ui.cardShadow,
+                border: ui.border,
+                backdropFilter: "blur(12px)",
+              }}
+            >
+              <h2 className="auth-title">{t("signInTitle")}</h2>
 
-        <main className="auth-main">
-          <div
-            className="auth-card"
-            style={{
-              boxShadow: ui.cardShadow,
-              border: ui.border,
-              backdropFilter: "blur(10px)",
-            }}
-          >
-            <h2 className="auth-title">{t("signInTitle")}</h2>
-
-            <div className="auth-actions" style={{ display: "grid", gap: 12 }}>
-              <div ref={googleBtnHostRef} style={SocialHostStyle} aria-label="Continue with Google">
-                <div
-                  ref={googleBtnWrapRef}
-                  style={{
-                    width: "100%",
-                    display: "flex",
-                    justifyContent: "center",
-                    opacity: busy ? 0.7 : 1,
-                    pointerEvents: busy ? "none" : "auto",
-                  }}
-                />
-              </div>
-
-              <div style={SocialHostStyle}>
-                <button
-                  type="button"
-                  disabled={busy}
-                  onClick={() => void startApple()}
-                  style={SocialButtonStyle}
-                  onMouseEnter={(e) => {
-                    if (!busy) e.currentTarget.style.background = "#f9fafb";
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.background = "#ffffff";
-                  }}
-                >
-                  <span style={{ display: "flex", alignItems: "center", marginTop: -1 }}>
-                    <AppleIcon />
-                  </span>
-                  {t("signInApple")}
-                </button>
-              </div>
-
-              <div className="auth-divider">{t("orDivider")}</div>
-
-              <form onSubmit={onEmailLogin} style={{ display: "grid", gap: 10 }}>
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 10,
-                    border: "1px solid #e2e8f0",
-                    borderRadius: 12,
-                    padding: "0 12px",
-                    height: 44,
-                    background: "#fff",
-                  }}
-                >
-                  <span style={{ color: "#64748b", display: "flex" }}>
-                    <EmailIcon />
-                  </span>
-                  <input
-                    style={{ width: "100%", border: "none", outline: "none", fontSize: 14, background: "transparent" }}
-                    placeholder="Email"
-                    type="email"
-                    autoComplete="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    disabled={busy}
+              <div className="auth-actions" style={{ display: "grid", gap: 12 }}>
+                {/* Google (نتركه مثل ما هو لأنه Google يرسم الزر بنفسه) */}
+                <div ref={googleBtnHostRef} style={SocialHostStyle} aria-label="Continue with Google">
+                  <div
+                    ref={googleBtnWrapRef}
+                    style={{
+                      width: "100%",
+                      display: "flex",
+                      justifyContent: "center",
+                      opacity: busy ? 0.7 : 1,
+                      pointerEvents: busy ? "none" : "auto",
+                    }}
                   />
                 </div>
 
-                <div style={{ display: "grid", gap: 6 }}>
-                  <div
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 10,
-                      border: "1px solid #e2e8f0",
-                      borderRadius: 12,
-                      padding: "0 12px",
-                      height: 44,
-                      background: "#fff",
-                    }}
+                {/* Apple */}
+                <div style={SocialHostStyle}>
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => void startApple()}
+                    className="auth-social-btn"
                   >
-                    <span style={{ color: "#64748b", display: "flex" }}>
-                      <LockIcon />
+                    <span className="auth-social-icon" aria-hidden="true">
+                      <AppleIcon />
+                    </span>
+                    {t("signInApple")}
+                  </button>
+                </div>
+
+                <div className="auth-divider">{t("orDivider")}</div>
+
+                {/* Email */}
+                <form onSubmit={onEmailLogin} style={{ display: "grid", gap: 10 }}>
+                  <div className="auth-input-wrap">
+                    <span className="auth-input-icon" aria-hidden="true">
+                      <EmailIcon />
                     </span>
                     <input
-                      style={{ width: "100%", border: "none", outline: "none", fontSize: 14, background: "transparent" }}
-                      placeholder="Password"
-                      type="password"
-                      autoComplete="current-password"
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
+                      className="auth-input"
+                      placeholder="Email"
+                      type="email"
+                      autoComplete="email"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
                       disabled={busy}
                     />
                   </div>
 
-                  <div style={{ display: "flex", justifyContent: "flex-end" }}>
-                    <Link href="/forgot-password" style={{ fontSize: 12, color: "#334155", textDecoration: "none" }}>
-                      Forgot password?
-                    </Link>
+                  <div style={{ display: "grid", gap: 6 }}>
+                    <div className="auth-input-wrap">
+                      <span className="auth-input-icon" aria-hidden="true">
+                        <LockIcon />
+                      </span>
+                      <input
+                        className="auth-input"
+                        placeholder="Password"
+                        type="password"
+                        autoComplete="current-password"
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        disabled={busy}
+                      />
+                    </div>
+
+                    <div style={{ display: "flex", justifyContent: "flex-end" }}>
+                      <Link href="/forgot-password" className="auth-link">
+                        Forgot password?
+                      </Link>
+                    </div>
                   </div>
-                </div>
 
-                <button className="social-btn" type="submit" disabled={busy} style={{ borderRadius: 9999, height: 44, fontWeight: 600 }}>
-                  Sign in with Email
-                </button>
-              </form>
+                  <button className="auth-social-btn" type="submit" disabled={busy}>
+                    Sign in with Email
+                  </button>
+                </form>
 
-              <Button variant="secondary" onClick={() => handleAuth("/v1/auth/guest")} disabled={busy}>
-                {t("continueGuest")}
-              </Button>
+                <Button variant="secondary" onClick={() => handleAuth("/v1/auth/guest")} disabled={busy}>
+                  {t("continueGuest")}
+                </Button>
 
-              {error && <div className="error-text">{error}</div>}
-              {status && <div style={{ fontSize: 12, color: "#64748b" }}>{status}</div>}
+                {error && <div className="error-text">{error}</div>}
+                {status && <div className="auth-status">{status}</div>}
 
-              {DEBUG_AUTH && (
-                <div
-                  className="auth-debug-panel"
-                  style={{
-                    marginTop: 12,
-                    padding: 12,
-                    background: "#f1f5f9",
-                    borderRadius: 10,
-                    fontSize: 11,
-                    color: "#475569",
-                  }}
-                >
-                  <div style={{ fontWeight: 700, marginBottom: 6 }}>Auth Debug</div>
-                  <div>Apple: {appleReady ? "ready" : "missing"}</div>
-                  <div>nextUrl: {nextUrl}</div>
-                </div>
-              )}
+                {DEBUG_AUTH && (
+                  <div className="auth-debug-panel">
+                    <div style={{ fontWeight: 700, marginBottom: 6 }}>Auth Debug</div>
+                    <div>Apple: {appleReady ? "ready" : "missing"}</div>
+                    <div>nextUrl: {nextUrl}</div>
+                  </div>
+                )}
+              </div>
+
+              <div className="auth-switch">
+                <span>{t("register")}? </span>
+                <Link href="/register">{t("register")}</Link>
+              </div>
+
+              <div className="auth-build">{formatBuildInfo()}</div>
             </div>
-
-            <div className="auth-switch">
-              <span>{t("register")}? </span>
-              <Link href="/register">{t("register")}</Link>
-            </div>
-
-            <div
-              style={{
-                marginTop: 20,
-                paddingTop: 20,
-                borderTop: "1px solid #e2e8f0",
-                fontSize: 10,
-                color: "#94a3b8",
-                textAlign: "center",
-              }}
-            >
-              {formatBuildInfo()}
-            </div>
-          </div>
-        </main>
+          </main>
+        </div>
       </div>
     </div>
   );
