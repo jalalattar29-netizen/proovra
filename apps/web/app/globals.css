@@ -2414,11 +2414,11 @@ p {
 :where(.landing-page) .silver-watermark-image.watermark-neon {
   mix-blend-mode: lighten;
   opacity: 0.6;
-filter:
-  brightness(1.2)
-  saturate(1.6)
-  drop-shadow(0 0 20px rgba(0, 255, 255, 0.55))
-  drop-shadow(0 0 40px rgba(0, 255, 255, 0.35));
+  filter:
+    brightness(1.2)
+    saturate(1.6)
+    drop-shadow(0 0 20px rgba(0, 255, 255, 0.55))
+    drop-shadow(0 0 40px rgba(0, 255, 255, 0.35));
 }
 
 :where(.landing-page) .silver-watermark-content {
@@ -2485,13 +2485,23 @@ filter:
   text-decoration-color: rgba(101, 235, 255, 0.9);
 }
 
-/* Center the white legal/support card */
-.section-body .container {
-  display: flex;
-  justify-content: center;
-}
+/* =========================================================
+   Center ONLY the legal/support white card
+   (ممنوع نلمس .container لأنه بيخرب صفحات ثانية مثل about)
+   ========================================================= */
 
-.section-body .auth-card {
+/* الكرت نفسه بالمنتصف */
+:where(.legal-page).auth-card {
   max-width: 860px;
   width: 100%;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+/* حماية إضافية: لو legal-page مش auth-card */
+:where(.legal-page):not(.auth-card) {
+  max-width: 860px;
+  width: 100%;
+  margin-left: auto;
+  margin-right: auto;
 }
