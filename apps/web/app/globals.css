@@ -2432,3 +2432,30 @@ filter:
     width: 140%;
   }
 }
+
+/* Legal/support readable typography (fix white-on-white) */
+.legal-readable {
+  background: #ffffff;
+  color: #0f172a;
+}
+
+.legal-readable p,
+.legal-readable li {
+  color: #334155;
+}
+
+.legal-readable h1,
+.legal-readable h2,
+.legal-readable h3 {
+  color: #0f172a;
+  font-weight: 800;
+}
+
+.legal-readable a {
+  color: #0b7be5;
+  text-decoration: none;
+}
+
+.legal-readable a:hover {
+  text-decoration: underline;
+}
