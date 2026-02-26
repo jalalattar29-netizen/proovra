@@ -6,39 +6,37 @@ import { MarketingHeader } from "../../components/header";
 
 export default function AboutPage() {
   return (
-    <div className="page landing-page">
+    <div className="page landing-page about-page">
       <div className="blue-shell">
         <MarketingHeader />
 
         <section className="section container hero-section-tight">
-          <h1 className="hero-title">
-            ABOUT PROO✓RA
-          </h1>
+          <h1 className="hero-title">ABOUT PROO✓RA</h1>
         </section>
       </div>
 
+      {/* القسم الأول (غامق مع الخلفية) */}
       <SilverWatermarkSection className="section section-body">
         <div className="container">
           <p>
-            In a world where digital content can be altered, disputed, or dismissed in seconds, trust has
-            become fragile.
+            In a world where digital content can be altered, disputed, or dismissed in seconds, trust has become fragile.
           </p>
           <p>PROO✓RA exists to restore that trust.</p>
           <p>
-            We built PROO✓RA for moments that matter — when facts are questioned, when timelines are
-            challenged, and when the integrity of digital evidence must withstand scrutiny. Whether it’s a
-            legal dispute, an internal investigation, a compliance review, or journalistic documentation,
-            PROO✓RA helps individuals and organizations capture, preserve, and verify digital truth.
+            We built PROO✓RA for moments that matter — when facts are questioned, when timelines are challenged, and when
+            the integrity of digital evidence must withstand scrutiny. Whether it’s a legal dispute, an internal
+            investigation, a compliance review, or journalistic documentation, PROO✓RA helps individuals and
+            organizations capture, preserve, and verify digital truth.
           </p>
           <p>
-            Modern evidence is no longer paper. It’s photos, videos, files, and data — often created under
-            pressure, across devices, and shared instantly. Yet proving when something existed, what exactly
-            it was, and whether it has been altered remains a complex and risky challenge.
+            Modern evidence is no longer paper. It’s photos, videos, files, and data — often created under pressure,
+            across devices, and shared instantly. Yet proving when something existed, what exactly it was, and whether it
+            has been altered remains a complex and risky challenge.
           </p>
           <p>
-            PROO✓RA solves this by combining secure capture, cryptographic integrity, immutable custody
-            timelines, and verifiable reports — all designed to be understandable not only by engineers, but
-            also by lawyers, investigators, compliance officers, and decision-makers.
+            PROO✓RA solves this by combining secure capture, cryptographic integrity, immutable custody timelines, and
+            verifiable reports — all designed to be understandable not only by engineers, but also by lawyers,
+            investigators, compliance officers, and decision-makers.
           </p>
 
           <h3>What makes PROO✓RA different</h3>
@@ -55,8 +53,8 @@ export default function AboutPage() {
             <li>and independently verified without exposing the original content.</li>
           </ul>
           <p>
-            We focus on integrity, transparency, and auditability, not assumptions or promises. PROO✓RA does
-            not decide truth — it preserves it.
+            We focus on integrity, transparency, and auditability, not assumptions or promises. PROO✓RA does not decide
+            truth — it preserves it.
           </p>
 
           <h3>Who PROO✓RA is built for</h3>
@@ -69,8 +67,8 @@ export default function AboutPage() {
             <li>teams that need proof, not screenshots.</li>
           </ul>
           <p>
-            From individuals capturing a single critical moment, to organizations managing evidence across
-            teams, PROO✓RA scales without compromising trust.
+            From individuals capturing a single critical moment, to organizations managing evidence across teams,
+            PROO✓RA scales without compromising trust.
           </p>
 
           <h3>Our principles</h3>
@@ -87,50 +85,39 @@ export default function AboutPage() {
           <p>PROO✓RA does not guarantee admissibility in any jurisdiction.</p>
           <p>PROO✓RA does not replace legal, forensic, or investigative professionals.</p>
           <p>
-            Instead, PROO✓RA provides the technical foundation that allows facts to be examined with
-            confidence.
+            Instead, PROO✓RA provides the technical foundation that allows facts to be examined with confidence.
           </p>
 
           <h3>Our mission</h3>
           <p>To make digital evidence trustworthy by default, not by explanation.</p>
-          <p>
-            To give individuals and organizations the tools to prove integrity — even years later.
-          </p>
+          <p>To give individuals and organizations the tools to prove integrity — even years later.</p>
           <p>To raise the standard of how digital truth is captured, preserved, and verified.</p>
         </div>
       </SilverWatermarkSection>
 
-      <SilverWatermarkSection
-        className="section"
-        style={{
-          background: "#f1f5f9",
-          borderRadius: 24,
-          padding: "28px 28px 18px"
-        }}
-      >
-        <div className="container">
+      {/* ✅ القسم الثاني: شيلنا الخلفية البيضاء وخليناه "glass" */}
+      <SilverWatermarkSection className="section about-glass-section">
+        <div className="container about-glass-card">
           <h2 style={{ marginTop: 0 }}>Built for High-Stakes Environments</h2>
           <p>
-            When outcomes carry legal, financial, or reputational consequences, evidence cannot rely on
-            trust alone — it must withstand examination.
+            When outcomes carry legal, financial, or reputational consequences, evidence cannot rely on trust alone — it
+            must withstand examination.
           </p>
           <p>
-            PROO✓RA is built for environments where documentation is challenged, timelines are questioned,
-            and digital materials are expected to hold up under professional scrutiny. We support
-            organizations that operate in high-risk, high-responsibility contexts, where the integrity of
-            information is critical to decision-making.
+            PROO✓RA is built for environments where documentation is challenged, timelines are questioned, and digital
+            materials are expected to hold up under professional scrutiny. We support organizations that operate in
+            high-risk, high-responsibility contexts, where the integrity of information is critical to decision-making.
           </p>
 
           <h3>Legal and dispute-driven use cases</h3>
           <p>For legal professionals, evidence is only as strong as its integrity.</p>
           <p>
-            PROO✓RA helps law firms, in-house legal teams, and external counsel establish a clear, verifiable
-            chain of custody for digital materials, reducing uncertainty around when and how evidence was
-            created.
+            PROO✓RA helps law firms, in-house legal teams, and external counsel establish a clear, verifiable chain of
+            custody for digital materials, reducing uncertainty around when and how evidence was created.
           </p>
           <p>
-            PROO✓RA does not interpret evidence or replace legal judgment. Instead, it provides a technical
-            foundation that allows legal teams to focus on arguments, not authenticity.
+            PROO✓RA does not interpret evidence or replace legal judgment. Instead, it provides a technical foundation
+            that allows legal teams to focus on arguments, not authenticity.
           </p>
           <p>Typical use cases include:</p>
           <ul>
@@ -142,14 +129,13 @@ export default function AboutPage() {
 
           <h3>Corporate, compliance, and internal investigations</h3>
           <p>
-            Organizations face increasing pressure to demonstrate accountability, compliance, and
-            transparency. PROO✓RA supports internal audit teams, compliance officers, and risk management
-            functions by enabling consistent, auditable evidence capture across individuals and teams.
+            Organizations face increasing pressure to demonstrate accountability, compliance, and transparency. PROO✓RA
+            supports internal audit teams, compliance officers, and risk management functions by enabling consistent,
+            auditable evidence capture across individuals and teams.
           </p>
           <p>
-            By standardizing how digital materials are recorded and verified, PROO✓RA reduces reliance on
-            informal practices such as screenshots, shared folders, or manual logs — methods that often fail
-            under review.
+            By standardizing how digital materials are recorded and verified, PROO✓RA reduces reliance on informal
+            practices such as screenshots, shared folders, or manual logs — methods that often fail under review.
           </p>
           <p>Use cases include:</p>
           <ul>
@@ -161,19 +147,18 @@ export default function AboutPage() {
 
           <h3>Journalism, investigations, and sensitive documentation</h3>
           <p>
-            For journalists and investigators, the credibility of digital material is essential. PROO✓RA
-            provides a way to preserve the integrity of photos, videos, and documents without publicly
-            exposing sources or raw content.
+            For journalists and investigators, the credibility of digital material is essential. PROO✓RA provides a way
+            to preserve the integrity of photos, videos, and documents without publicly exposing sources or raw content.
           </p>
           <p>
-            Verification can occur independently, while access to original materials remains controlled by
-            the owner. This allows sensitive documentation to be validated without unnecessary disclosure.
+            Verification can occur independently, while access to original materials remains controlled by the owner.
+            This allows sensitive documentation to be validated without unnecessary disclosure.
           </p>
 
           <h3>Designed for scrutiny, not convenience alone</h3>
           <p>
-            Many tools prioritize speed and ease of sharing. PROO✓RA prioritizes verifiability, transparency,
-            and long-term integrity.
+            Many tools prioritize speed and ease of sharing. PROO✓RA prioritizes verifiability, transparency, and
+            long-term integrity.
           </p>
           <p>Our systems are designed so that:</p>
           <ul>
@@ -186,10 +171,9 @@ export default function AboutPage() {
           <h3>Neutral by design</h3>
           <p>PROO✓RA is intentionally content-neutral.</p>
           <p>
-            We do not evaluate, judge, or classify the meaning of captured materials. Our role is to
-            preserve how and when digital content existed, not to decide what it represents. This
-            neutrality is critical for legal, corporate, and investigative environments where impartiality
-            matters.
+            We do not evaluate, judge, or classify the meaning of captured materials. Our role is to preserve how and
+            when digital content existed, not to decide what it represents. This neutrality is critical for legal,
+            corporate, and investigative environments where impartiality matters.
           </p>
 
           <h3>Enterprise-ready, without enterprise friction</h3>
@@ -201,17 +185,17 @@ export default function AboutPage() {
             <li>and scalable workflows without forcing organizational lock-in.</li>
           </ul>
           <p>
-            From a single verified capture to organization-wide documentation practices, PROO✓RA adapts
-            without compromising its core principles.
+            From a single verified capture to organization-wide documentation practices, PROO✓RA adapts without
+            compromising its core principles.
           </p>
 
-          <p style={{ fontSize: 12, color: "#64748b", marginTop: 16 }}>
+          <p style={{ fontSize: 12, color: "rgba(219,235,248,0.72)", marginTop: 16 }}>
             Final disclaimer (small text):
           </p>
-          <p style={{ fontSize: 12, color: "#64748b", marginTop: 6 }}>
-            PROO✓RA is a technical integrity platform. It does not provide legal advice and does not
-            guarantee admissibility of evidence in any jurisdiction. Legal evaluation remains the
-            responsibility of qualified professionals.
+          <p style={{ fontSize: 12, color: "rgba(219,235,248,0.72)", marginTop: 6 }}>
+            PROO✓RA is a technical integrity platform. It does not provide legal advice and does not guarantee
+            admissibility of evidence in any jurisdiction. Legal evaluation remains the responsibility of qualified
+            professionals.
           </p>
         </div>
       </SilverWatermarkSection>
