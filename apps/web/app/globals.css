@@ -2414,12 +2414,12 @@ p {
 /* النيون الحقيقي */
 :where(.landing-page) .silver-watermark-image.watermark-neon {
   mix-blend-mode: lighten;
-  opacity: 0.6;
+  opacity: 0.45;
   filter:
-    brightness(1.2)
-    saturate(1.6)
-    drop-shadow(0 0 20px rgba(0, 255, 255, 0.55))
-    drop-shadow(0 0 40px rgba(0, 255, 255, 0.35));
+    brightness(1.1)
+    saturate(1.4)
+    drop-shadow(0 0 14px rgba(0, 255, 255, 0.35))
+    drop-shadow(0 0 28px rgba(0, 255, 255, 0.25));
 }
 
 :where(.landing-page) .silver-watermark-content {
