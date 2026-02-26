@@ -2433,29 +2433,44 @@ filter:
   }
 }
 
-/* Legal/support readable typography (fix white-on-white) */
-.legal-readable {
-  background: #ffffff;
-  color: #0f172a;
+/* =========================
+   Language switcher dropdown fix
+   ========================= */
+
+/* خليه فوق أي overlay */
+.proovra-header {
+  position: relative;
+  z-index: 2000;
+  overflow: visible;
 }
 
-.legal-readable p,
-.legal-readable li {
-  color: #334155;
+.proovra-nav,
+.proovra-nav-right,
+.proovra-nav-app,
+.proovra-header-inner {
+  overflow: visible;
 }
 
-.legal-readable h1,
-.legal-readable h2,
-.legal-readable h3 {
-  color: #0f172a;
-  font-weight: 800;
+/* بعض الصفحات عندك blue-shell/auth-screen ممكن تكون عم تقص dropdown */
+.blue-shell,
+.auth-screen,
+.legal-shell {
+  overflow: visible;
 }
 
-.legal-readable a {
-  color: #0b7be5;
-  text-decoration: none;
+/* زر اللغة نفسه */
+.lang-button {
+  position: relative;
+  z-index: 2100;
 }
 
-.legal-readable a:hover {
-  text-decoration: underline;
+/* إذا الـ LanguageSwitcher عنده dropdown element جواته باسم شائع */
+.lang-button [data-lang-menu],
+.lang-button .lang-menu,
+.lang-button .dropdown,
+.lang-button .menu {
+  position: absolute;
+  top: calc(100% + 10px);
+  right: 0;
+  z-index: 9999;
 }

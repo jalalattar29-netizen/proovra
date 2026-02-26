@@ -120,8 +120,9 @@ export function AppHeader({
               <span>{item.label}</span>
             </Link>
           ))}
-          <LanguageSwitcher />
-          {hasSession && (
+<div className="lang-button">
+  <LanguageSwitcher />
+</div>          {hasSession && (
             <button type="button" className="proovra-nav-link proovra-logout-btn" onClick={onLogout}>
               Sign out
             </button>
