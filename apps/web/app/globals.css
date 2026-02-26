@@ -776,37 +776,40 @@ p {
   .landing-strip-sub { font-size: 11px; color: #60708c; }
 
   /* Footer */
-  .landing-footer {
-    display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
-    gap: 32px;
-    padding: 32px 0 48px;
-    border-top: 1px solid rgba(15, 23, 42, 0.08);
-  }
+.landing-footer {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  text-align: center;
+  padding: 32px 0;
+}
 
-  .footer-left {
-    display: grid;
-    gap: 6px;
-    color: #64748b;
-    font-size: 13px;
-  }
+.footer-left {
+  display: grid;
+  gap: 6px;
+  align-items: center;   /* ✅ جديد */
+  justify-items: center; /* ✅ جديد */
+  color: #64748b;
+  font-size: 13px;
+}
 
-  .footer-brand {
-    font-weight: 800;
-    color: #0f1d36;
-    letter-spacing: 0.4px;
-  }
+.footer-brand {
+  font-weight: 800;
+  color: #0f1d36;
+  letter-spacing: 0.4px;
+}
 
-  .footer-links {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 14px;
-    justify-content: flex-end;
-    font-size: 12px;
-    color: #475569;
-  }
-
+.footer-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  justify-content: center; /* ✅ بدل flex-end */
+  align-items: center;     /* ✅ جديد */
+  font-size: 12px;
+  color: #475569;
+}
   /* Landing footer must be readable on dark */
 :where(.landing-page) .landing-footer {
   border-top: 1px solid rgba(255, 255, 255, 0.10);
@@ -2473,4 +2476,14 @@ filter:
   top: calc(100% + 10px);
   right: 0;
   z-index: 9999;
+}
+
+.legal-link {
+  color: rgba(101, 235, 255, 0.92);
+  text-decoration: underline;
+  text-decoration-color: rgba(101, 235, 255, 0.35);
+  text-underline-offset: 3px;
+}
+.legal-link:hover {
+  text-decoration-color: rgba(101, 235, 255, 0.9);
 }
