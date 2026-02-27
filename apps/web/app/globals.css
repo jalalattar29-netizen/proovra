@@ -3158,3 +3158,42 @@ p {
 :where(.app-page) .empty-state-subtitle {
   color: rgba(219, 235, 248, 0.84) !important;
 }
+
+/* =========================================================
+   APP — FORCE LIGHT TEXT INSIDE DARK CARDS
+   ========================================================= */
+
+:where(.app-page) .card,
+:where(.app-page) .card * {
+  color: rgba(240, 248, 255, 0.92);
+}
+
+/* labels خفيفة */
+:where(.app-page) .card .muted,
+:where(.app-page) .card .subtitle,
+:where(.app-page) .card small {
+  color: rgba(180, 210, 235, 0.75) !important;
+}
+
+/* أيقونات داخل الكروت */
+:where(.app-page) .card svg {
+  stroke: rgba(200, 235, 255, 0.85) !important;
+}
+
+/* =========================================================
+   APP — Evidence / Case titles
+   ========================================================= */
+
+:where(.app-page) a {
+  color: rgba(245, 251, 255, 0.92);
+  text-decoration: none;
+}
+
+:where(.app-page) a:hover {
+  color: rgba(101, 235, 255, 0.95);
+}
+
+/* ListRow title تحديداً */
+:where(.app-page) .list-row-title {
+  color: rgba(245, 251, 255, 0.96) !important;
+}
