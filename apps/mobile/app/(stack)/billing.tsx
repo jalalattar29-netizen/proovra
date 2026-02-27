@@ -89,111 +89,123 @@ export default function BillingScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.lightBg
+    backgroundColor: "#050b18"
   },
   scroll: {
     paddingHorizontal: spacing.xl,
     paddingTop: spacing.md,
     paddingBottom: spacing.xl
   },
+
   currentPlanCard: {
-    backgroundColor: colors.white,
-    borderRadius: 12,
+    backgroundColor: "rgba(7, 20, 38, 0.88)",
+    borderRadius: 16,
     padding: spacing.lg,
     marginBottom: spacing.lg,
+    borderWidth: 1,
+    borderColor: "rgba(101,235,255,0.18)",
     shadowColor: "#000",
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 2 }
+    shadowOpacity: 0.30,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 12 },
+    elevation: 2
   },
   label: {
     fontSize: 12,
-    color: "#94A3B8",
+    color: "rgba(219,235,248,0.70)",
     marginBottom: spacing.xs
   },
   planName: {
     fontSize: 24,
-    color: colors.primaryNavy,
+    color: "rgba(245,251,255,0.96)",
     marginBottom: spacing.xs
   },
   planDescription: {
     fontSize: 14,
-    color: "#64748b"
+    color: "rgba(219,235,248,0.72)"
   },
+
   sectionTitle: {
     fontSize: 16,
-    color: colors.primaryNavy,
+    color: "rgba(246,252,255,0.92)",
     marginTop: spacing.lg,
     marginBottom: spacing.md
   },
+
   planCard: {
-    backgroundColor: colors.white,
-    borderRadius: 12,
+    backgroundColor: "rgba(6, 13, 31, 0.52)",
+    borderRadius: 16,
     padding: spacing.lg,
     marginBottom: spacing.md,
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
     borderWidth: 1,
-    borderColor: "#e2e8f0"
+    borderColor: "rgba(101,235,255,0.16)"
   },
   planCardActive: {
-    borderColor: colors.primaryNavy,
+    borderColor: "rgba(101,235,255,0.45)",
     borderWidth: 2,
-    backgroundColor: "#f0f7ff"
+    backgroundColor: "rgba(101,235,255,0.10)"
   },
   planCardName: {
     fontSize: 14,
-    color: colors.primaryNavy,
+    color: "rgba(245,251,255,0.94)",
     marginBottom: spacing.xs
   },
   planCardPrice: {
     fontSize: 16,
-    color: colors.primaryNavy,
+    color: "rgba(101,235,255,0.96)",
     fontWeight: "600",
     marginBottom: spacing.xs
   },
   planCardDescription: {
     fontSize: 12,
-    color: "#94A3B8"
+    color: "rgba(219,235,248,0.70)"
   },
   planCardButton: {
     fontSize: 12,
-    color: colors.primaryNavy,
-    fontWeight: "600"
+    color: "rgba(245,251,255,0.90)",
+    fontWeight: "700"
   },
+
+  // Notice: بدنا يكون مناسب للدارك مو أصفر فاقع
   paymentNotice: {
-    backgroundColor: "#fff3cd",
-    borderRadius: 12,
+    backgroundColor: "rgba(245, 158, 11, 0.10)",
+    borderRadius: 16,
     padding: spacing.lg,
     marginTop: spacing.xl,
-    borderLeftWidth: 4,
-    borderLeftColor: "#ffc107"
+    borderWidth: 1,
+    borderColor: "rgba(245, 158, 11, 0.22)"
   },
   paymentNoticeTitle: {
     fontSize: 14,
-    color: "#333",
+    color: "rgba(245,251,255,0.92)",
     marginBottom: spacing.sm
   },
   paymentNoticeText: {
     fontSize: 13,
-    color: "#555",
+    color: "rgba(219,235,248,0.76)",
     marginBottom: spacing.sm,
     lineHeight: 20
   },
+
   footer: {
     padding: spacing.lg,
     borderTopWidth: 1,
-    borderTopColor: "#e2e8f0"
+    borderTopColor: "rgba(101,235,255,0.10)",
+    backgroundColor: "rgba(5, 11, 24, 0.78)"
   },
   backButton: {
-    backgroundColor: colors.primaryNavy,
+    backgroundColor: "rgba(6, 13, 31, 0.62)",
     paddingVertical: spacing.md,
-    borderRadius: 8,
-    alignItems: "center"
+    borderRadius: 999,
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "rgba(101,235,255,0.18)"
   },
   backButtonText: {
-    color: colors.white,
+    color: "rgba(245,251,255,0.92)",
     fontSize: 14
   }
 });

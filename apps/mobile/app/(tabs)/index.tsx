@@ -83,56 +83,67 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.lightBg
+    backgroundColor: "#050b18"
   },
   scroll: {
     paddingHorizontal: spacing.xl,
     paddingBottom: spacing.xl
   },
+
+  // Hero = نفس إحساس web header (navy + glass overlay)
   heroCard: {
-    backgroundColor: colors.primaryNavy,
     borderRadius: 20,
     padding: spacing.xl,
     marginTop: spacing.md,
+    backgroundColor: "rgba(7, 20, 38, 0.88)",
+    borderWidth: 1,
+    borderColor: "rgba(101,235,255,0.18)",
     shadowColor: "#000",
-    shadowOpacity: 0.10,
-    shadowRadius: 28,
+    shadowOpacity: 0.30,
+    shadowRadius: 26,
     shadowOffset: { width: 0, height: 16 },
-    elevation: 2
+    elevation: 3
   },
   heroTitle: {
     fontSize: typography.size.h2,
-    color: colors.white
+    color: "rgba(245,251,255,0.96)"
   },
   heroSubtitle: {
     marginTop: spacing.xs,
-    color: "rgba(255,255,255,0.78)",
+    color: "rgba(219,235,248,0.78)",
     fontSize: typography.size.bodyLg
   },
+
+  // CTA button = glass + neon border (مثل الويب)
   heroButton: {
     marginTop: spacing.lg,
     alignSelf: "flex-start",
-    backgroundColor: colors.white,
+    backgroundColor: "rgba(6, 13, 31, 0.58)",
+    borderWidth: 1,
+    borderColor: "rgba(101,235,255,0.22)",
     paddingVertical: 10,
     paddingHorizontal: 16,
-    borderRadius: 14
+    borderRadius: 999
   },
   heroButtonText: {
-    color: colors.primaryNavy,
+    color: "rgba(245,251,255,0.92)",
     fontSize: 12
   },
+
   sectionTitle: {
     marginTop: spacing.xl,
     marginBottom: spacing.sm,
     fontSize: typography.size.h3,
-    color: colors.textDark
+    color: "rgba(246,252,255,0.92)"
   },
+
+  // List card = dark glass (الـ ListRow نفسه صار جاهز من ui.tsx)
   listCard: {
-    backgroundColor: colors.white,
+    backgroundColor: "rgba(7, 20, 38, 0.88)",
     borderRadius: 20,
     padding: spacing.lg,
     gap: spacing.md,
     borderWidth: 1,
-    borderColor: colors.border
+    borderColor: "rgba(101,235,255,0.18)"
   }
 });

@@ -57,24 +57,33 @@ export default function CaseDetailScreen() {
     <View style={styles.container}>
       <ScrollView contentContainerStyle={styles.scroll}>
         <Text style={[styles.title, { fontFamily: fontFamilyBold }]}>{name}</Text>
+
         <Pressable style={styles.exportButton} onPress={handleExport} disabled={downloading}>
-          <Text style={styles.exportText}>{downloading ? "Exporting..." : "Export ZIP"}</Text>
+          <Text style={[styles.exportText, { fontFamily: fontFamilyBold }]}>
+            {downloading ? "Exporting..." : "Export ZIP"}
+          </Text>
         </Pressable>
+
         <Text style={[styles.sectionTitle, { fontFamily: fontFamilyBold }]}>Evidence</Text>
-        {evidence.length === 0 ? (
-          <Text style={styles.muted}>No evidence in this case yet.</Text>
-        ) : (
-          evidence.map((item) => (
-            <ListRow
-              key={item.id}
-              title={item.type}
-              subtitle={new Date(item.createdAt).toLocaleString()}
-              badge={<View />}
-            />
-          ))
-        )}
+
+        <View style={styles.listCard}>
+          {evidence.length === 0 ? (
+            <Text style={styles.muted}>No evidence in this case yet.</Text>
+          ) : (
+            evidence.map((item) => (
+              <ListRow
+                key={item.id}
+                title={item.type}
+                subtitle={new Date(item.createdAt).toLocaleString()}
+                badge={<View />}
+              />
+            ))
+          )}
+        </View>
+
         {error ? <Text style={styles.error}>{error}</Text> : null}
       </ScrollView>
+
       <BottomNav />
     </View>
   );
@@ -83,7 +92,7 @@ export default function CaseDetailScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.lightBg
+    backgroundColor: "#050b18"
   },
   scroll: {
     paddingHorizontal: spacing.xl,
@@ -92,29 +101,44 @@ const styles = StyleSheet.create({
   title: {
     fontSize: typography.size.h3,
     marginTop: spacing.md,
-    marginBottom: spacing.md
+    marginBottom: spacing.md,
+    color: "rgba(245,251,255,0.96)"
   },
   sectionTitle: {
     fontSize: typography.size.h4,
     marginTop: spacing.lg,
-    marginBottom: spacing.sm
+    marginBottom: spacing.sm,
+    color: "rgba(245,251,255,0.92)"
   },
+
   exportButton: {
-    backgroundColor: colors.primaryNavy,
+    backgroundColor: "rgba(6, 13, 31, 0.62)",
     paddingVertical: 12,
     paddingHorizontal: 16,
-    borderRadius: 12
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: "rgba(101,235,255,0.22)"
   },
   exportText: {
-    color: colors.white,
+    color: "rgba(245,251,255,0.92)",
     textAlign: "center",
-    fontWeight: "600"
+    fontWeight: "800"
   },
+
+  listCard: {
+    backgroundColor: "rgba(7, 20, 38, 0.88)",
+    borderRadius: 18,
+    padding: spacing.md,
+    gap: spacing.md,
+    borderWidth: 1,
+    borderColor: "rgba(101,235,255,0.16)"
+  },
+
   muted: {
-    color: "#64748b"
+    color: "rgba(219,235,248,0.70)"
   },
   error: {
     marginTop: spacing.sm,
-    color: "#ef4444"
+    color: "rgba(239, 68, 68, 0.95)"
   }
 });

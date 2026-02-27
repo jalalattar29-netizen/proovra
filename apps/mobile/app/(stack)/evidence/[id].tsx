@@ -45,7 +45,6 @@ export default function EvidenceDetailScreen() {
       .then((data) => setReportUrl(data.url ?? null))
       .catch(() => setReportUrl(null));
 
-    // Load AI analysis if available
     apiFetch(`/v1/evidence/${params.id}/analysis`)
       .then((data) => {
         if (data.data) {
@@ -80,10 +79,10 @@ export default function EvidenceDetailScreen() {
   }, [status]);
 
   const getRiskColor = (riskLevel?: string) => {
-    if (!riskLevel) return colors.textDark;
-    if (riskLevel === "high") return "#ef4444";
-    if (riskLevel === "medium") return "#f97316";
-    return "#22c55e";
+    if (!riskLevel) return "rgba(245,251,255,0.90)";
+    if (riskLevel === "high") return "rgba(239, 68, 68, 0.95)";
+    if (riskLevel === "medium") return "rgba(245, 158, 11, 0.95)";
+    return "rgba(34, 197, 94, 0.95)";
   };
 
   return (
@@ -107,11 +106,11 @@ export default function EvidenceDetailScreen() {
 
         {/* AI Analysis Section */}
         {aiAnalysis ? (
-          <Card style={{ marginTop: spacing.md }}>
+          <Card style={[styles.darkCard, { marginTop: spacing.md }]}>
             <Text style={[styles.detailsTitle, { fontFamily: fontFamilyBold, marginBottom: spacing.md }]}>
               AI Analysis
             </Text>
-            
+
             {aiAnalysis.description && (
               <View style={styles.aiSection}>
                 <Text style={[styles.aiLabel, { fontFamily }]}>Summary</Text>
@@ -151,7 +150,12 @@ export default function EvidenceDetailScreen() {
             {aiAnalysis.moderation && (
               <View style={styles.aiSection}>
                 <Text style={[styles.aiLabel, { fontFamily }]}>Content Safety</Text>
-                <View style={[styles.safetyRow, { backgroundColor: aiAnalysis.moderation.is_safe ? "#f0fdf4" : "#fef2f2" }]}>
+                <View
+                  style={[
+                    styles.safetyRow,
+                    { backgroundColor: aiAnalysis.moderation.is_safe ? "rgba(34,197,94,0.10)" : "rgba(239,68,68,0.10)" }
+                  ]}
+                >
                   <View style={[styles.safetyDot, { backgroundColor: getRiskColor(aiAnalysis.moderation.risk_level) }]} />
                   <Text style={[styles.safetyText, { fontFamily, color: getRiskColor(aiAnalysis.moderation.risk_level) }]}>
                     {aiAnalysis.moderation.is_safe ? "Safe" : "Unsafe"} - {aiAnalysis.moderation.risk_level || "unknown"}
@@ -165,8 +169,8 @@ export default function EvidenceDetailScreen() {
                 <Text style={[styles.aiLabel, { fontFamily }]}>Auto-Generated Tags</Text>
                 <View style={styles.tagRow}>
                   {aiAnalysis.tags.tags.slice(0, 6).map((tag, idx) => (
-                    <View key={idx} style={[styles.tag, { backgroundColor: colors.primaryNavy }]}>
-                      <Text style={[styles.tagText, { fontFamily, color: colors.white }]}>
+                    <View key={idx} style={[styles.tag, styles.tagDark]}>
+                      <Text style={[styles.tagText, { fontFamily, color: "rgba(245,251,255,0.92)" }]}>
                         #{tag}
                       </Text>
                     </View>
@@ -176,14 +180,14 @@ export default function EvidenceDetailScreen() {
             )}
           </Card>
         ) : aiLoading ? (
-          <Card style={{ marginTop: spacing.md, alignItems: "center", paddingVertical: spacing.lg }}>
-            <ActivityIndicator size="large" color={colors.primaryNavy} />
+          <Card style={[styles.darkCard, { marginTop: spacing.md, alignItems: "center", paddingVertical: spacing.lg }]}>
+            <ActivityIndicator size="large" color="#65ebff" />
             <Text style={[styles.loadingText, { fontFamily, marginTop: spacing.md }]}>
               Analyzing evidence...
             </Text>
           </Card>
         ) : (
-          <Card style={{ marginTop: spacing.md }}>
+          <Card style={[styles.darkCard, { marginTop: spacing.md }]}>
             <View style={styles.emptyState}>
               <Text style={[styles.emptyTitle, { fontFamily: fontFamilyBold }]}>
                 No AI Analysis Yet
@@ -207,7 +211,7 @@ export default function EvidenceDetailScreen() {
           </Card>
         )}
 
-        <Card style={{ marginTop: spacing.md }}>
+        <Card style={[styles.darkCard, { marginTop: spacing.md }]}>
           <View style={styles.detailsTop}>
             <Text style={[styles.detailsTitle, { fontFamily: fontFamilyBold }]}>Details</Text>
             <Badge label={status === "SIGNED" ? t("statusSigned") : status} tone={statusTone} />
@@ -249,7 +253,7 @@ export default function EvidenceDetailScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.lightBg },
+  container: { flex: 1, backgroundColor: "#050b18" },
   scroll: { paddingHorizontal: spacing.xl, paddingBottom: spacing.xl },
 
   header: {
@@ -259,48 +263,84 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.xl,
     paddingTop: spacing.lg
   },
-  headerTitle: { fontSize: typography.size.h3, color: colors.textDark },
-  headerIcon: { fontSize: 18, color: "#94A3B8" },
+  headerTitle: { fontSize: typography.size.h3, color: "rgba(245,251,255,0.96)" },
+  headerIcon: { fontSize: 18, color: "rgba(219,235,248,0.70)" },
 
   banner: {
-    backgroundColor: colors.primaryNavy,
+    backgroundColor: "rgba(7, 20, 38, 0.88)",
     borderRadius: 20,
     padding: spacing.xl,
     marginTop: spacing.md,
+    borderWidth: 1,
+    borderColor: "rgba(101,235,255,0.18)",
     shadowColor: "#000",
-    shadowOpacity: 0.10,
+    shadowOpacity: 0.30,
     shadowRadius: 28,
     shadowOffset: { width: 0, height: 16 },
     elevation: 2
   },
-  bannerType: { color: colors.white, fontSize: typography.size.h2, marginTop: spacing.sm },
-  bannerSub: { marginTop: spacing.xs, color: "rgba(255,255,255,0.75)" },
+  bannerType: { color: "rgba(245,251,255,0.96)", fontSize: typography.size.h2, marginTop: spacing.sm },
+  bannerSub: { marginTop: spacing.xs, color: "rgba(219,235,248,0.78)" },
 
-  // AI Analysis Styles
+  // Dark card wrapper for Card component
+  darkCard: {
+    backgroundColor: "rgba(7, 20, 38, 0.88)",
+    borderWidth: 1,
+    borderColor: "rgba(101,235,255,0.18)"
+  },
+
+  detailsTop: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: spacing.md
+  },
+  detailsTitle: { fontSize: 14, color: "rgba(245,251,255,0.92)" },
+
+  row: {
+    borderTopWidth: 1,
+    borderTopColor: "rgba(101,235,255,0.12)",
+    paddingTop: spacing.md,
+    marginTop: spacing.md
+  },
+  k: { fontSize: 11, color: "rgba(219,235,248,0.70)" },
+  v: { marginTop: 4, fontSize: 13, color: "rgba(245,251,255,0.92)" },
+
+  buttonRow: { marginTop: spacing.lg, gap: spacing.sm },
+
+  // AI Analysis Styles (dark)
   aiSection: { marginBottom: spacing.lg },
-  aiLabel: { fontSize: 11, color: "#64748b", marginBottom: spacing.xs, textTransform: "uppercase" },
-  aiValue: { fontSize: 13, color: colors.textDark, lineHeight: 20 },
-  
+  aiLabel: { fontSize: 11, color: "rgba(219,235,248,0.64)", marginBottom: spacing.xs, textTransform: "uppercase" },
+  aiValue: { fontSize: 13, color: "rgba(245,251,255,0.86)", lineHeight: 20 },
+
   classificationPill: {
-    backgroundColor: "#f0f4f8",
+    backgroundColor: "rgba(6, 13, 31, 0.52)",
     borderRadius: 12,
     paddingVertical: spacing.sm,
     paddingHorizontal: spacing.md,
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between"
+    justifyContent: "space-between",
+    borderWidth: 1,
+    borderColor: "rgba(101,235,255,0.14)"
   },
-  classificationText: { fontSize: 13, color: colors.primaryNavy },
-  confidenceText: { fontSize: 11, color: "#64748b" },
+  classificationText: { fontSize: 13, color: "rgba(101,235,255,0.96)" },
+  confidenceText: { fontSize: 11, color: "rgba(219,235,248,0.66)" },
 
   tagRow: { flexDirection: "row", flexWrap: "wrap", gap: spacing.xs },
   tag: {
-    backgroundColor: "#f0f4f8",
+    backgroundColor: "rgba(6, 13, 31, 0.52)",
     borderRadius: 20,
     paddingVertical: 6,
-    paddingHorizontal: spacing.sm
+    paddingHorizontal: spacing.sm,
+    borderWidth: 1,
+    borderColor: "rgba(101,235,255,0.12)"
   },
-  tagText: { fontSize: 11, color: colors.primaryNavy },
+  tagDark: {
+    backgroundColor: "rgba(101,235,255,0.12)",
+    borderColor: "rgba(101,235,255,0.22)"
+  },
+  tagText: { fontSize: 11, color: "rgba(245,251,255,0.90)" },
 
   safetyRow: {
     borderRadius: 12,
@@ -308,7 +348,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     flexDirection: "row",
     alignItems: "center",
-    gap: spacing.sm
+    gap: spacing.sm,
+    borderWidth: 1,
+    borderColor: "rgba(101,235,255,0.12)"
   },
   safetyDot: { width: 8, height: 8, borderRadius: 4 },
   safetyText: { fontSize: 13 },
@@ -317,37 +359,20 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingVertical: spacing.lg
   },
-  emptyTitle: { fontSize: 14, color: colors.textDark, marginBottom: spacing.xs },
-  emptySubtitle: { fontSize: 12, color: "#64748b", marginBottom: spacing.md, maxWidth: "85%" },
-  
+  emptyTitle: { fontSize: 14, color: "rgba(245,251,255,0.92)", marginBottom: spacing.xs },
+  emptySubtitle: { fontSize: 12, color: "rgba(219,235,248,0.70)", marginBottom: spacing.md, maxWidth: "85%" },
+
   analyzeButton: {
-    backgroundColor: colors.primaryNavy,
-    borderRadius: 10,
+    backgroundColor: "rgba(6, 13, 31, 0.62)",
+    borderRadius: 999,
     paddingVertical: 10,
     paddingHorizontal: spacing.lg,
-    marginBottom: spacing.md
+    marginBottom: spacing.md,
+    borderWidth: 1,
+    borderColor: "rgba(101,235,255,0.22)"
   },
-  analyzeButtonText: { color: colors.white, fontSize: 12 },
-  
-  errorText: { fontSize: 11, color: "#ef4444", marginTop: spacing.xs },
-  loadingText: { fontSize: 12, color: colors.textDark },
+  analyzeButtonText: { color: "rgba(245,251,255,0.92)", fontSize: 12 },
 
-  detailsTop: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: spacing.md
-  },
-  detailsTitle: { fontSize: 14, color: colors.textDark },
-
-  row: {
-    borderTopWidth: 1,
-    borderTopColor: "rgba(15,23,42,0.06)",
-    paddingTop: spacing.md,
-    marginTop: spacing.md
-  },
-  k: { fontSize: 11, color: "#64748b" },
-  v: { marginTop: 4, fontSize: 13, color: colors.textDark },
-
-  buttonRow: { marginTop: spacing.lg, gap: spacing.sm }
+  errorText: { fontSize: 11, color: "rgba(239, 68, 68, 0.95)", marginTop: spacing.xs },
+  loadingText: { fontSize: 12, color: "rgba(219,235,248,0.78)" }
 });

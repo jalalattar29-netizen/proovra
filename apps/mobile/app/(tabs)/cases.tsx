@@ -21,18 +21,22 @@ export default function CasesScreen() {
       <TopBar title={t("cases")} />
       <ScrollView contentContainerStyle={styles.scroll}>
         <Text style={[styles.title, { fontFamily: fontFamilyBold }]}>{t("cases")}</Text>
+
         {items.length === 0 ? (
-          <Card>No cases yet.</Card>
+          <Card style={styles.darkCard}>
+            <Text style={styles.emptyText}>No cases yet.</Text>
+          </Card>
         ) : (
           items.map((item) => (
             <Pressable key={item.id} onPress={() => router.push(`/case/${item.id}`)}>
-              <Card>
+              <Card style={styles.darkCard}>
                 <ListRow title={item.name} subtitle="View details" badge={<View />} />
               </Card>
             </Pressable>
           ))
         )}
       </ScrollView>
+
       <BottomNav />
     </View>
   );
@@ -41,7 +45,7 @@ export default function CasesScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.lightBg
+    backgroundColor: "#050b18"
   },
   scroll: {
     paddingHorizontal: spacing.xl,
@@ -50,6 +54,17 @@ const styles = StyleSheet.create({
   title: {
     fontSize: typography.size.h3,
     marginTop: spacing.md,
-    marginBottom: spacing.md
+    marginBottom: spacing.md,
+    color: "rgba(245,251,255,0.96)"
+  },
+
+  // override Card look locally (حتى لو Card بالـui.tsx لسا أبيض)
+  darkCard: {
+    backgroundColor: "rgba(7, 20, 38, 0.88)",
+    borderWidth: 1,
+    borderColor: "rgba(101,235,255,0.16)"
+  },
+  emptyText: {
+    color: "rgba(219,235,248,0.72)"
   }
 });

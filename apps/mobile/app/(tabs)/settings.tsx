@@ -1,3 +1,4 @@
+// D:\digital-witness\apps\mobile\app\(tabs)\settings.tsx
 import { StyleSheet, Text, View, Pressable, TextInput } from "react-native";
 import { colors, radius, spacing, typography } from "@proovra/ui";
 import { BottomNav, TopBar } from "../../components/ui";
@@ -19,10 +20,7 @@ export default function SettingsScreen() {
   const [smokeLogs, setSmokeLogs] = useState<string[]>([]);
   const [smokeRunning, setSmokeRunning] = useState(false);
   const [smokeResult, setSmokeResult] = useState<"idle" | "pass" | "fail">("idle");
-  const showSmoke = useMemo(
-    () => __DEV__ && process.env.EXPO_PUBLIC_DEBUG_SMOKE === "1",
-    []
-  );
+  const showSmoke = useMemo(() => __DEV__ && process.env.EXPO_PUBLIC_DEBUG_SMOKE === "1", []);
 
   const appendLog = (message: string) => {
     const stamp = new Date().toLocaleTimeString();
@@ -105,26 +103,22 @@ export default function SettingsScreen() {
       setSmokeRunning(false);
     }
   };
+
   return (
     <View style={styles.container}>
       <TopBar title={t("settings")} />
       <View style={styles.content}>
         <Text style={[styles.label, { fontFamily: fontFamilyBold }]}>{t("language")}</Text>
+
         <View style={styles.row}>
           <Pressable
             key="auto"
             onPress={() => setLocaleMode("auto")}
             style={[styles.langButton, mode === "auto" && styles.langButtonActive]}
           >
-            <Text
-              style={[
-                styles.langText,
-                mode === "auto" && { color: colors.white }
-              ]}
-            >
-              AUTO
-            </Text>
+            <Text style={[styles.langText, mode === "auto" && styles.langTextActive]}>AUTO</Text>
           </Pressable>
+
           {(["en", "ar", "de", "fr", "es", "tr", "ru"] as const).map((lng) => (
             <Pressable
               key={lng}
@@ -132,12 +126,15 @@ export default function SettingsScreen() {
                 setLocaleMode("manual");
                 setLocale(lng);
               }}
-              style={[styles.langButton, locale === lng && mode === "manual" && styles.langButtonActive]}
+              style={[
+                styles.langButton,
+                locale === lng && mode === "manual" && styles.langButtonActive
+              ]}
             >
               <Text
                 style={[
                   styles.langText,
-                  locale === lng && mode === "manual" && { color: colors.white }
+                  locale === lng && mode === "manual" && styles.langTextActive
                 ]}
               >
                 {lng.toUpperCase()}
@@ -145,42 +142,42 @@ export default function SettingsScreen() {
             </Pressable>
           ))}
         </View>
-        <Pressable style={[styles.langButton, { marginTop: spacing.lg }]} onPress={() => Linking.openURL("https://www.proovra.com/pricing")}>
-          <Text style={styles.langText}>View Pricing</Text>
+
+        <Pressable
+          style={[styles.langButtonWide, { marginTop: spacing.lg }]}
+          onPress={() => Linking.openURL("https://www.proovra.com/pricing")}
+        >
+          <Text style={[styles.langText, styles.langTextWide]}>View Pricing</Text>
         </Pressable>
-        <Pressable style={[styles.langButton, { marginTop: spacing.sm }]} onPress={() => router.push("/(stack)/billing")}>
-          <Text style={styles.langText}>Manage Billing</Text>
+
+        <Pressable
+          style={[styles.langButtonWide, { marginTop: spacing.sm }]}
+          onPress={() => router.push("/(stack)/billing")}
+        >
+          <Text style={[styles.langText, styles.langTextWide]}>Manage Billing</Text>
         </Pressable>
+
         {showSmoke ? (
           <View style={styles.smokeCard}>
-            <Text style={[styles.label, { fontFamily: fontFamilyBold }]}>
-              Runtime Smoke Test
-            </Text>
-            <Text style={styles.smokeHint}>
-              Dev-only. Runs auth → create → PUT → complete → report.
-            </Text>
+            <Text style={[styles.labelSmall, { fontFamily: fontFamilyBold }]}>Runtime Smoke Test</Text>
+            <Text style={styles.smokeHint}>Dev-only. Runs auth → create → PUT → complete → report.</Text>
+
             <Pressable
-              style={[
-                styles.langButton,
-                smokeRunning && { backgroundColor: colors.border }
-              ]}
+              style={[styles.langButtonWide, smokeRunning && { opacity: 0.65 }]}
               onPress={runSmokeTest}
               disabled={smokeRunning}
             >
-              <Text style={styles.langText}>
+              <Text style={[styles.langText, styles.langTextWide]}>
                 {smokeRunning ? "Running..." : "Run Smoke Test"}
               </Text>
             </Pressable>
+
             {smokeResult !== "idle" ? (
-              <Text
-                style={[
-                  styles.smokeResult,
-                  smokeResult === "pass" ? styles.smokePass : styles.smokeFail
-                ]}
-              >
+              <Text style={[styles.smokeResult, smokeResult === "pass" ? styles.smokePass : styles.smokeFail]}>
                 {smokeResult === "pass" ? "PASS" : "FAIL"}
               </Text>
             ) : null}
+
             {smokeLogs.length > 0 ? (
               <View style={styles.smokeLog}>
                 {smokeLogs.map((line, index) => (
@@ -192,17 +189,19 @@ export default function SettingsScreen() {
             ) : null}
           </View>
         ) : null}
-        <Text style={[styles.label, { fontFamily: fontFamilyBold, marginTop: spacing.lg }]}>
-          Sign in
-        </Text>
+
+        <Text style={[styles.label, { fontFamily: fontFamilyBold, marginTop: spacing.lg }]}>Sign in</Text>
+
         <TextInput
           placeholder="Google idToken"
+          placeholderTextColor="rgba(219, 235, 248, 0.55)"
           value={googleToken}
           onChangeText={setGoogleToken}
           style={styles.input}
         />
+
         <Pressable
-          style={[styles.langButton]}
+          style={[styles.langButtonWide]}
           onPress={async () => {
             const data = await apiFetch("/v1/auth/google", {
               method: "POST",
@@ -211,16 +210,19 @@ export default function SettingsScreen() {
             setToken(data.token);
           }}
         >
-          <Text style={styles.langText}>Sign in with Google</Text>
+          <Text style={[styles.langText, styles.langTextWide]}>Sign in with Google</Text>
         </Pressable>
+
         <TextInput
           placeholder="Apple idToken"
+          placeholderTextColor="rgba(219, 235, 248, 0.55)"
           value={appleToken}
           onChangeText={setAppleToken}
           style={styles.input}
         />
+
         <Pressable
-          style={[styles.langButton]}
+          style={[styles.langButtonWide]}
           onPress={async () => {
             const data = await apiFetch("/v1/auth/apple", {
               method: "POST",
@@ -229,9 +231,10 @@ export default function SettingsScreen() {
             setToken(data.token);
           }}
         >
-          <Text style={styles.langText}>Sign in with Apple</Text>
+          <Text style={[styles.langText, styles.langTextWide]}>Sign in with Apple</Text>
         </Pressable>
       </View>
+
       <BottomNav />
     </View>
   );
@@ -240,69 +243,110 @@ export default function SettingsScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.lightBg
+    backgroundColor: "#050b18"
   },
   content: {
     paddingHorizontal: spacing.xl,
     paddingTop: spacing.xl
   },
+
   label: {
     fontSize: typography.size.h3,
-    color: colors.textDark,
+    color: "rgba(245, 251, 255, 0.92)",
     marginBottom: spacing.sm
   },
+  labelSmall: {
+    fontSize: 16,
+    color: "rgba(245, 251, 255, 0.92)",
+    marginBottom: spacing.xs
+  },
+
   row: {
     flexDirection: "row",
-    gap: spacing.sm
+    gap: spacing.sm,
+    flexWrap: "wrap"
   },
+
+  // Small language pill buttons
   langButton: {
     paddingVertical: 8,
     paddingHorizontal: 12,
     borderRadius: radius.pill,
     borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.white
+    borderColor: "rgba(101, 235, 255, 0.22)",
+    backgroundColor: "rgba(6, 13, 31, 0.52)"
   },
   langButtonActive: {
-    backgroundColor: colors.primaryNavy,
-    borderColor: colors.primaryNavy
+    backgroundColor: "rgba(101, 235, 255, 0.14)",
+    borderColor: "rgba(101, 235, 255, 0.55)"
   },
   langText: {
     fontSize: 12,
-    fontWeight: "600",
-    color: colors.textDark
+    fontWeight: "700",
+    color: "rgba(219, 235, 248, 0.82)"
   },
+  langTextActive: {
+    color: "rgba(245, 251, 255, 0.96)"
+  },
+
+  // Wide action buttons (pricing/billing/sign-in)
+  langButtonWide: {
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: "rgba(153, 204, 233, 0.40)",
+    backgroundColor: "rgba(6, 13, 31, 0.52)",
+    shadowColor: "#000",
+    shadowOpacity: 0.18,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 10 },
+    elevation: 2
+  },
+  langTextWide: {
+    color: "rgba(245, 251, 255, 0.92)",
+    textAlign: "center"
+  },
+
   input: {
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: "rgba(101, 235, 255, 0.22)",
     borderRadius: radius.md,
     paddingHorizontal: spacing.md,
     paddingVertical: 10,
     marginTop: spacing.sm,
-    backgroundColor: colors.white
+    marginBottom: spacing.sm,
+    backgroundColor: "rgba(11, 27, 50, 0.75)",
+    color: "rgba(245, 251, 255, 0.92)"
   },
+
   smokeCard: {
     marginTop: spacing.lg,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: "rgba(101, 235, 255, 0.22)",
     borderRadius: radius.lg,
     padding: spacing.md,
-    backgroundColor: colors.white
+    backgroundColor: "rgba(11, 27, 50, 0.92)",
+    shadowColor: "#000",
+    shadowOpacity: 0.18,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 12 },
+    elevation: 2
   },
   smokeHint: {
-    color: colors.textDark,
+    color: "rgba(219, 235, 248, 0.72)",
     fontSize: 12,
     marginBottom: spacing.sm
   },
   smokeResult: {
     marginTop: spacing.sm,
-    fontWeight: "700"
+    fontWeight: "800"
   },
   smokePass: {
-    color: colors.green
+    color: "#22c55e"
   },
   smokeFail: {
-    color: colors.red
+    color: "#ef4444"
   },
   smokeLog: {
     marginTop: spacing.sm,
@@ -310,6 +354,6 @@ const styles = StyleSheet.create({
   },
   smokeLogText: {
     fontSize: 11,
-    color: "#64748b"
+    color: "rgba(219, 235, 248, 0.72)"
   }
 });

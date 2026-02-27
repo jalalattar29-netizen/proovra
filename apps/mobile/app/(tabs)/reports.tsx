@@ -1,3 +1,4 @@
+// D:\digital-witness\apps\mobile\app\(tabs)\reports.tsx
 import { ScrollView, StyleSheet, Text, View, Pressable } from "react-native";
 import { colors, spacing } from "@proovra/ui";
 import { BottomNav, TopBar } from "../../components/ui";
@@ -16,13 +17,13 @@ export default function ReportsScreen() {
   useEffect(() => {
     apiFetch("/v1/evidence")
       .then((data) => {
-        // Extract evidence with reports
-        const reportsData = data.items?.map((item: { id: string; status: string; createdAt: string }) => ({
-          id: item.id,
-          evidenceId: item.id,
-          status: item.status,
-          createdAt: item.createdAt
-        })) ?? [];
+        const reportsData =
+          data.items?.map((item: { id: string; status: string; createdAt: string }) => ({
+            id: item.id,
+            evidenceId: item.id,
+            status: item.status,
+            createdAt: item.createdAt
+          })) ?? [];
         setReports(reportsData);
       })
       .catch(() => setReports([]));
@@ -33,17 +34,11 @@ export default function ReportsScreen() {
       <TopBar title={t("cases")} />
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
         {reports.length === 0 ? (
-          <View style={styles.emptyState}>
-            <Text style={[styles.emptyStateText, { fontFamily: fontFamilyBold }]}>
-              No reports yet
-            </Text>
-            <Text style={styles.emptyStateSubtext}>
-              Capture evidence to generate signed reports.
-            </Text>
-            <Pressable
-              style={styles.actionButton}
-              onPress={() => router.push("/capture")}
-            >
+          <View style={styles.emptyStateCard}>
+            <Text style={[styles.emptyStateText, { fontFamily: fontFamilyBold }]}>No reports yet</Text>
+            <Text style={styles.emptyStateSubtext}>Capture evidence to generate signed reports.</Text>
+
+            <Pressable style={styles.actionButton} onPress={() => router.push("/capture")}>
               <Text style={[styles.actionButtonText, { fontFamily: fontFamilyBold }]}>
                 Start Capturing
               </Text>
@@ -51,9 +46,8 @@ export default function ReportsScreen() {
           </View>
         ) : (
           <View>
-            <Text style={[styles.sectionTitle, { fontFamily: fontFamilyBold }]}>
-              Generated Reports
-            </Text>
+            <Text style={[styles.sectionTitle, { fontFamily: fontFamilyBold }]}>Generated Reports</Text>
+
             {reports.map((report) => (
               <Pressable
                 key={report.id}
@@ -68,7 +62,21 @@ export default function ReportsScreen() {
                     {new Date(report.createdAt).toLocaleDateString()}
                   </Text>
                 </View>
-                <Text style={styles.reportStatus}>{report.status}</Text>
+
+                <View
+                  style={[
+                    styles.statusPill,
+                    report.status === "SIGNED"
+                      ? styles.statusSigned
+                      : report.status === "PROCESSING"
+                      ? styles.statusProcessing
+                      : styles.statusReady
+                  ]}
+                >
+                  <Text style={[styles.statusPillText, { fontFamily: fontFamilyBold }]}>
+                    {report.status}
+                  </Text>
+                </View>
               </Pressable>
             ))}
           </View>
@@ -83,72 +91,118 @@ export default function ReportsScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.lightBg
+    backgroundColor: "#050b18"
   },
   scroll: {
     paddingHorizontal: spacing.xl,
     paddingBottom: spacing.xl
   },
-  emptyState: {
-    marginTop: spacing["2xl"],
-    alignItems: "center",
-    paddingHorizontal: spacing.xl
-  },
-  emptyStateText: {
-    fontSize: 18,
-    color: colors.primaryNavy,
-    marginBottom: spacing.md
-  },
-  emptyStateSubtext: {
-    fontSize: 14,
-    color: "#64748b",
-    marginBottom: spacing.xl,
-    textAlign: "center"
-  },
-  actionButton: {
-    backgroundColor: colors.primaryNavy,
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.md,
-    borderRadius: 8
-  },
-  actionButtonText: {
-    color: colors.white,
-    fontSize: 14
-  },
+
   sectionTitle: {
     fontSize: 18,
-    color: colors.primaryNavy,
+    color: "rgba(245, 251, 255, 0.92)",
     marginTop: spacing.xl,
     marginBottom: spacing.md
   },
+
+  // Empty state: dark glass card
+  emptyStateCard: {
+    marginTop: spacing["2xl"],
+    alignItems: "center",
+    paddingHorizontal: spacing.xl,
+    paddingVertical: spacing.xl,
+    borderRadius: 18,
+    backgroundColor: "rgba(11, 27, 50, 0.92)",
+    borderWidth: 1,
+    borderColor: "rgba(101, 235, 255, 0.22)",
+    shadowColor: "#000",
+    shadowOpacity: 0.22,
+    shadowRadius: 28,
+    shadowOffset: { width: 0, height: 18 },
+    elevation: 3
+  },
+  emptyStateText: {
+    fontSize: 18,
+    color: "rgba(245, 251, 255, 0.92)",
+    marginBottom: spacing.sm
+  },
+  emptyStateSubtext: {
+    fontSize: 14,
+    color: "rgba(219, 235, 248, 0.72)",
+    marginBottom: spacing.xl,
+    textAlign: "center"
+  },
+
+  actionButton: {
+    backgroundColor: "rgba(6, 13, 31, 0.52)",
+    borderWidth: 1,
+    borderColor: "rgba(153, 204, 233, 0.40)",
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+    borderRadius: 999,
+    shadowColor: "#000",
+    shadowOpacity: 0.18,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 10 },
+    elevation: 2
+  },
+  actionButtonText: {
+    color: "rgba(245, 251, 255, 0.92)",
+    fontSize: 14
+  },
+
+  // Report row: dark glass
   reportItem: {
-    backgroundColor: colors.white,
-    borderRadius: 12,
+    backgroundColor: "rgba(11, 27, 50, 0.92)",
+    borderRadius: 16,
     padding: spacing.lg,
     marginBottom: spacing.md,
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
+    borderWidth: 1,
+    borderColor: "rgba(101, 235, 255, 0.18)",
     shadowColor: "#000",
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 2 }
+    shadowOpacity: 0.18,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 12 },
+    elevation: 2
   },
   reportContent: {
-    flex: 1
+    flex: 1,
+    paddingRight: spacing.md
   },
   reportTitle: {
-    fontSize: 16,
-    color: colors.primaryNavy,
+    fontSize: 15,
+    color: "rgba(245, 251, 255, 0.92)",
     marginBottom: spacing.xs
   },
   reportDate: {
     fontSize: 12,
-    color: "#94A3B8"
+    color: "rgba(219, 235, 248, 0.72)"
   },
-  reportStatus: {
-    fontSize: 12,
-    color: "#2bb673",
-    fontWeight: "600"
+
+  // Status pill (neon)
+  statusPill: {
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 999,
+    borderWidth: 1
+  },
+  statusPillText: {
+    fontSize: 11,
+    color: "rgba(245, 251, 255, 0.92)"
+  },
+  statusSigned: {
+    backgroundColor: "rgba(31,153,85,0.14)",
+    borderColor: "rgba(31,153,85,0.28)"
+  },
+  statusProcessing: {
+    backgroundColor: "rgba(47,125,170,0.14)",
+    borderColor: "rgba(47,125,170,0.28)"
+  },
+  statusReady: {
+    backgroundColor: "rgba(101, 235, 255, 0.14)",
+    borderColor: "rgba(101, 235, 255, 0.34)"
   }
 });

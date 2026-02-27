@@ -419,7 +419,10 @@ export default function CaptureScreen() {
                     </Text>
                   ) : null}
                   <Pressable
-                    style={[styles.captureBar, { backgroundColor: isRecording ? "#ef4444" : colors.primaryNavy }]}
+                    style={[
+                      styles.captureBar,
+                      { backgroundColor: isRecording ? "#ef4444" : colors.primaryNavy }
+                    ]}
                     onPress={isRecording ? handleStopRecording : handleStartRecording}
                   >
                     <Text style={styles.uploadText}>{isRecording ? "Stop recording" : "Start recording"}</Text>
@@ -447,8 +450,8 @@ export default function CaptureScreen() {
                 {activeType === "VIDEO" && extendedMode
                   ? `Segments: ${segments.length} | Total ${(totalDuration / 1000 / 60).toFixed(1)} min`
                   : asset
-                  ? "File selected"
-                  : "No file selected"}
+                    ? "File selected"
+                    : "No file selected"}
               </Text>
             </View>
 
@@ -508,13 +511,14 @@ export default function CaptureScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.lightBg
+    backgroundColor: "#050b18"
   },
   scroll: {
     paddingHorizontal: spacing.xl,
     paddingBottom: spacing.xl,
     gap: spacing.md
   },
+
   header: {
     flexDirection: "row",
     alignItems: "center",
@@ -524,23 +528,28 @@ const styles = StyleSheet.create({
   },
   headerTitle: {
     fontSize: typography.size.h3,
-    color: colors.textDark
+    color: "rgba(245,251,255,0.96)"
   },
   headerIcon: {
     fontSize: 18,
-    color: "#94A3B8"
+    color: "rgba(219,235,248,0.70)"
   },
+
+  // Preview = مكان رمادي كان، صار dark glass
   preview: {
     height: 180,
     borderRadius: 18,
-    backgroundColor: "#E2E8F0"
+    backgroundColor: "rgba(7, 20, 38, 0.88)",
+    borderWidth: 1,
+    borderColor: "rgba(101,235,255,0.16)"
   },
+
   cameraCard: {
-    backgroundColor: colors.white,
+    backgroundColor: "rgba(7, 20, 38, 0.92)",
     borderRadius: 18,
     overflow: "hidden",
     borderWidth: 1,
-    borderColor: colors.border
+    borderColor: "rgba(101,235,255,0.18)"
   },
   cameraPreview: {
     height: 360,
@@ -551,70 +560,86 @@ const styles = StyleSheet.create({
     gap: spacing.sm
   },
   timerText: {
-    color: "#64748b",
+    color: "rgba(219,235,248,0.72)",
     fontSize: 12,
     textAlign: "center"
   },
   warningText: {
-    color: "#f59e0b",
+    color: "rgba(245, 158, 11, 0.92)",
     fontSize: 12,
     textAlign: "center"
   },
+
+  // Secondary buttons = glass, مو أبيض
   secondaryBar: {
-    backgroundColor: "#EEF2F7"
+    backgroundColor: "rgba(6, 13, 31, 0.52)",
+    borderWidth: 1,
+    borderColor: "rgba(101,235,255,0.16)"
   },
   secondaryText: {
-    color: colors.primaryNavy,
-    fontWeight: "600"
+    color: "rgba(245,251,255,0.92)",
+    fontWeight: "700"
   },
+
   previewText: {
-    color: "#64748b",
+    color: "rgba(219,235,248,0.74)",
     padding: spacing.md
   },
+
   toggleRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    backgroundColor: colors.white,
+    backgroundColor: "rgba(7, 20, 38, 0.88)",
     borderRadius: 14,
     paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm
+    paddingVertical: spacing.sm,
+    borderWidth: 1,
+    borderColor: "rgba(101,235,255,0.16)"
   },
   toggleLabel: {
-    color: colors.textDark,
+    color: "rgba(245,251,255,0.90)",
     fontSize: 14
   },
+
   listCard: {
-    backgroundColor: colors.white,
+    backgroundColor: "rgba(7, 20, 38, 0.88)",
     borderRadius: 18,
     padding: spacing.md,
     gap: spacing.md,
     borderWidth: 1,
-    borderColor: colors.border
+    borderColor: "rgba(101,235,255,0.16)"
   },
+
+  // Main bars (Pick / Upload / etc)
   captureBar: {
     marginTop: spacing.md,
     borderRadius: 18,
-    backgroundColor: colors.primaryNavy,
+    backgroundColor: "rgba(6, 13, 31, 0.62)",
     paddingVertical: spacing.md,
-    alignItems: "center"
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "rgba(101,235,255,0.18)"
   },
   captureCircle: {
     width: 52,
     height: 52,
     borderRadius: 26,
-    backgroundColor: colors.white
+    backgroundColor: "rgba(101,235,255,0.14)",
+    borderWidth: 1,
+    borderColor: "rgba(101,235,255,0.35)"
   },
   uploadText: {
-    color: colors.white,
-    fontWeight: "600"
+    color: "rgba(245,251,255,0.92)",
+    fontWeight: "700"
   },
+
   errorText: {
-    color: "#ef4444",
+    color: "rgba(239, 68, 68, 0.95)",
     paddingHorizontal: spacing.xl
   },
   infoText: {
-    color: "#0f172a",
+    color: "rgba(219,235,248,0.80)",
     paddingHorizontal: spacing.xl
   }
 });
