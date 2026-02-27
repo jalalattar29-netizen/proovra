@@ -1,7 +1,7 @@
 // D:\digital-witness\apps\web\app\(app)\settings\page.tsx
 "use client";
 
-import { Button, Card, useToast } from "../../../components/ui";
+import { Button, Card, useToast, Input } from "../../../components/ui";
 import { supportedLocales, type Locale } from "@proovra/shared";
 import { useAuth, useLocale } from "../../providers";
 import Link from "next/link";
@@ -11,25 +11,45 @@ import { apiFetch } from "../../../lib/api";
 import { captureException } from "../../../lib/sentry";
 import { Icons } from "../../../components/icons";
 
-type ProfileDraft = {
-  firstName: string;
-  lastName: string;
-  displayName: string;
-  country: string;
-  timezone: string;
-  bio: string;
+type BillingStatusResponse = {
+  entitlement?: {
+    plan?: string | null;
+  } | null;
 };
 
-function initialsFromUser(user: any): string {
-  const f = (user?.firstName ?? "").trim();
-  const l = (user?.lastName ?? "").trim();
-  const d = (user?.displayName ?? "").trim();
-  const e = (user?.email ?? "").trim();
+type UserMeResponse = {
+  user?: {
+    id: string;
+    email?: string | null;
+    displayName?: string | null;
+    provider: string;
 
-  const pick = (s: string) => (s ? s[0].toUpperCase() : "");
-  const a = pick(f) || pick(d) || pick(e) || "?";
-  const b = pick(l);
-  return (a + b).trim() || "?";
+    firstName?: string | null;
+    lastName?: string | null;
+    avatarUrl?: string | null;
+    locale?: string | null;
+    timezone?: string | null;
+    country?: string | null;
+    bio?: string | null;
+
+    createdAt?: string;
+    updatedAt?: string;
+  } | null;
+};
+
+type UserProfileUpdatePayload = {
+  displayName?: string | null;
+  firstName?: string | null;
+  lastName?: string | null;
+  avatarUrl?: string | null;
+  locale?: string | null;
+  timezone?: string | null;
+  country?: string | null;
+  bio?: string | null;
+};
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === "object" ? (value as Record<string, unknown>) : null;
 }
 
 export default function SettingsPage() {
@@ -39,48 +59,55 @@ export default function SettingsPage() {
   const router = useRouter();
 
   const [plan, setPlan] = useState("FREE");
-  const [savingProfile, setSavingProfile] = useState(false);
 
   const [selectedLanguage, setSelectedLanguage] = useState<Locale>(
     supportedLocales.includes(locale as Locale) ? (locale as Locale) : "en"
   );
 
-  // Build initial draft from user
-  const initialDraft = useMemo<ProfileDraft>(() => {
-    const u: any = user ?? {};
-    return {
-      firstName: (u.firstName ?? "").toString(),
-      lastName: (u.lastName ?? "").toString(),
-      displayName: (u.displayName ?? "").toString(),
-      country: (u.country ?? "").toString(),
-      timezone: (u.timezone ?? "").toString(),
-      bio: (u.bio ?? "").toString(),
-    };
-  }, [user]);
+  // Profile form (editable)
+  const [firstName, setFirstName] = useState<string>(user?.firstName ?? "");
+  const [lastName, setLastName] = useState<string>(user?.lastName ?? "");
+  const [displayName, setDisplayName] = useState<string>(user?.displayName ?? "");
+  const [country, setCountry] = useState<string>(user?.country ?? "");
+  const [timezone, setTimezone] = useState<string>(user?.timezone ?? "");
+  const [bio, setBio] = useState<string>(user?.bio ?? "");
 
-  const [draft, setDraft] = useState<ProfileDraft>(initialDraft);
-
-  // Keep draft synced when user changes (login/logout/refresh)
+  // keep form in sync when user changes
   useEffect(() => {
-    setDraft(initialDraft);
-  }, [initialDraft]);
+    setFirstName(user?.firstName ?? "");
+    setLastName(user?.lastName ?? "");
+    setDisplayName(user?.displayName ?? "");
+    setCountry(user?.country ?? "");
+    setTimezone(user?.timezone ?? "");
+    setBio(user?.bio ?? "");
+  }, [user?.id]); // only when identity changes
 
   useEffect(() => {
     apiFetch("/v1/billing/status")
-      .then((data) => setPlan(data.entitlement?.plan ?? "FREE"))
-      .catch((err) => {
+      .then((data: unknown) => {
+        const obj = asRecord(data);
+        const ent = obj ? asRecord(obj["entitlement"]) : null;
+        const planValue = ent && typeof ent["plan"] === "string" ? (ent["plan"] as string) : "FREE";
+        setPlan(planValue || "FREE");
+      })
+      .catch((err: unknown) => {
         captureException(err, { feature: "web_settings_billing" });
         setPlan("FREE");
         addToast("Could not load subscription status", "warning");
       });
   }, [addToast]);
 
+  const initials = useMemo(() => {
+    const a = (user?.displayName ?? user?.email ?? "?").trim();
+    return a ? a[0]?.toUpperCase() : "?";
+  }, [user?.displayName, user?.email]);
+
   const handleSignOut = async () => {
     try {
       addToast("Signing out...", "info");
       await apiFetch("/v1/auth/logout", { method: "POST" });
       addToast("Signed out successfully", "success");
-    } catch (err) {
+    } catch (err: unknown) {
       captureException(err, { feature: "web_settings_logout" });
       addToast("Sign out failed", "error");
     } finally {
@@ -91,63 +118,52 @@ export default function SettingsPage() {
     }
   };
 
-  const profileCompletion = useMemo(() => {
-    const total = 5; // first/last/display/country/timezone (bio optional)
-    let filled = 0;
-    if (draft.firstName.trim()) filled++;
-    if (draft.lastName.trim()) filled++;
-    if (draft.displayName.trim()) filled++;
-    if (draft.country.trim()) filled++;
-    if (draft.timezone.trim()) filled++;
-    const pct = Math.round((filled / total) * 100);
-    return { filled, total, pct };
-  }, [draft]);
-
-  const saveProfile = async () => {
-    if (!user?.id) {
-      addToast("You must be signed in to edit your profile", "warning");
-      return;
-    }
-
+  const handleSaveProfile = async () => {
     try {
-      setSavingProfile(true);
       addToast("Saving profile...", "info");
 
-      const payload = {
-        firstName: draft.firstName,
-        lastName: draft.lastName,
-        displayName: draft.displayName,
-        country: draft.country,
-        timezone: draft.timezone,
-        bio: draft.bio,
+      const payload: UserProfileUpdatePayload = {
+        displayName: displayName.trim() || null,
+        firstName: firstName.trim() || null,
+        lastName: lastName.trim() || null,
+        country: country.trim() || null,
+        timezone: timezone.trim() || null,
+        bio: bio.trim() || null,
+        locale: selectedLanguage
       };
 
+      // Prefer /v1/users/me if exists, fallback to /v1/auth/me (read-only)
       const res = await apiFetch("/v1/users/me", {
         method: "PATCH",
-        body: JSON.stringify(payload),
+        body: JSON.stringify(payload)
       });
 
-      if (res?.user) {
-        updateUser(res.user);
+      const obj = asRecord(res);
+      const userObj = obj ? asRecord(obj["user"]) : null;
+
+      if (!userObj) {
+        // Some APIs return { data: { user } }
+        const dataObj = obj ? asRecord(obj["data"]) : null;
+        const nestedUser = dataObj ? asRecord(dataObj["user"]) : null;
+        const finalUser = nestedUser ?? userObj;
+
+        if (!finalUser) {
+          addToast("Profile saved", "success");
+          return;
+        }
       }
 
+      // If API returns { user }
+      const me = res as UserMeResponse;
+      if (me?.user) updateUser(me.user);
       addToast("Profile updated", "success");
-    } catch (err) {
-      captureException(err, { feature: "web_settings_profile_update" });
-      addToast("Could not update profile", "error");
-    } finally {
-      setSavingProfile(false);
-    }
-  };
+    } catch (err: unknown) {
+      captureException(err, { feature: "web_settings_profile_save" });
 
-  const copyUserId = async () => {
-    const id = (user as any)?.id;
-    if (!id) return;
-    try {
-      await navigator.clipboard.writeText(String(id));
-      addToast("User ID copied", "success");
-    } catch {
-      addToast("Could not copy", "warning");
+      // If endpoint isn't deployed yet, show a clear message
+      const msg =
+        err instanceof Error ? err.message : "Could not save profile. Please try again.";
+      addToast(msg.includes("404") ? "Profile endpoint not deployed yet (API 404)." : msg, "error");
     }
   };
 
@@ -178,166 +194,103 @@ export default function SettingsPage() {
             </div>
 
             <div className="settings-section-body">
-              {/* Summary header */}
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 0 }}>
-                  <div
-                    style={{
-                      width: 64,
-                      height: 64,
-                      borderRadius: 32,
-                      background: "linear-gradient(135deg, #0B1F2A 0%, #0B7BE5 100%)",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      color: "#fff",
-                      fontSize: 22,
-                      fontWeight: 800,
-                      letterSpacing: 0.5,
-                      flex: "0 0 auto",
-                    }}
-                    aria-label="Avatar"
-                  >
-                    {initialsFromUser(user)}
-                  </div>
-
-                  <div style={{ minWidth: 0 }}>
-                    <div style={{ fontSize: 12, color: "var(--color-muted)" }}>Account</div>
-                    <div
-                      style={{
-                        fontSize: 16,
-                        fontWeight: 800,
-                        whiteSpace: "nowrap",
-                        overflow: "hidden",
-                        textOverflow: "ellipsis",
-                      }}
-                    >
-                      {draft.displayName.trim() ||
-                        `${draft.firstName} ${draft.lastName}`.trim() ||
-                        user?.email ||
-                        "Guest User"}
-                    </div>
-
-                    <div style={{ marginTop: 6, display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
-                      <span style={{ fontSize: 13, color: "var(--color-muted)" }}>{user?.email ?? "—"}</span>
-
-                      {(user as any)?.id && (
-                        <button
-                          type="button"
-                          className="settings-link"
-                          style={{ padding: 0, background: "transparent", border: 0, cursor: "pointer" }}
-                          onClick={copyUserId}
-                          title="Copy your user ID"
-                        >
-                          Copy User ID
-                        </button>
-                      )}
-
-                      {user?.provider && (
-                        <span style={{ fontSize: 12, color: "var(--color-muted)" }}>
-                          • {String(user.provider).toLowerCase()}
-                        </span>
-                      )}
-                    </div>
-                  </div>
+              {/* Avatar + account */}
+              <div style={{ marginBottom: 16, display: "flex", alignItems: "center", gap: 12 }}>
+                <div
+                  style={{
+                    width: 64,
+                    height: 64,
+                    borderRadius: 32,
+                    background: "linear-gradient(135deg, #0B1F2A 0%, #0B7BE5 100%)",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    color: "#fff",
+                    fontSize: 28,
+                    fontWeight: 600
+                  }}
+                >
+                  {initials}
                 </div>
-
-                {/* Completion */}
-                <div style={{ textAlign: "right", flex: "0 0 auto" }}>
-                  <div style={{ fontSize: 12, color: "var(--color-muted)" }}>Profile completeness</div>
-                  <div style={{ fontSize: 14, fontWeight: 800 }}>{profileCompletion.pct}%</div>
+                <div>
+                  <div style={{ fontSize: 14, color: "#999" }}>Account</div>
+                  <div style={{ fontSize: 16, fontWeight: 600 }}>
+                    {user?.displayName || user?.email || "Guest User"}
+                  </div>
+                  {user?.email && (
+                    <div style={{ fontSize: 13, color: "var(--color-muted)", marginTop: 2 }}>
+                      {user.email}
+                    </div>
+                  )}
                 </div>
               </div>
 
-              {/* Divider-like spacing */}
-              <div style={{ height: 12 }} />
-
-              {/* Form */}
+              {/* Editable profile fields */}
               <div style={{ display: "grid", gap: 12 }}>
-                <div className="settings-row">
-                  <span className="settings-label">First name</span>
-                  <input
-                    className="settings-select"
-                    value={draft.firstName}
-                    onChange={(e) => setDraft((p) => ({ ...p, firstName: e.target.value }))}
-                    placeholder="e.g., Jalal"
-                    autoComplete="given-name"
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                  <div>
+                    <div className="settings-label" style={{ marginBottom: 6 }}>
+                      First name
+                    </div>
+                    <Input value={firstName} onChange={setFirstName} placeholder="First name" />
+                  </div>
+                  <div>
+                    <div className="settings-label" style={{ marginBottom: 6 }}>
+                      Last name
+                    </div>
+                    <Input value={lastName} onChange={setLastName} placeholder="Last name" />
+                  </div>
+                </div>
+
+                <div>
+                  <div className="settings-label" style={{ marginBottom: 6 }}>
+                    Display name
+                  </div>
+                  <Input
+                    value={displayName}
+                    onChange={setDisplayName}
+                    placeholder="Public display name"
                   />
                 </div>
 
-                <div className="settings-row">
-                  <span className="settings-label">Last name</span>
-                  <input
-                    className="settings-select"
-                    value={draft.lastName}
-                    onChange={(e) => setDraft((p) => ({ ...p, lastName: e.target.value }))}
-                    placeholder="e.g., Attar"
-                    autoComplete="family-name"
-                  />
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                  <div>
+                    <div className="settings-label" style={{ marginBottom: 6 }}>
+                      Country
+                    </div>
+                    <Input value={country} onChange={setCountry} placeholder="e.g. Germany" />
+                  </div>
+                  <div>
+                    <div className="settings-label" style={{ marginBottom: 6 }}>
+                      Timezone
+                    </div>
+                    <Input value={timezone} onChange={setTimezone} placeholder="e.g. Europe/Berlin" />
+                  </div>
                 </div>
 
-                <div className="settings-row">
-                  <span className="settings-label">Display name</span>
-                  <input
-                    className="settings-select"
-                    value={draft.displayName}
-                    onChange={(e) => setDraft((p) => ({ ...p, displayName: e.target.value }))}
-                    placeholder="Shown in the app"
-                    autoComplete="nickname"
-                  />
-                </div>
-
-                <div className="settings-row">
-                  <span className="settings-label">Country (ISO-2)</span>
-                  <input
-                    className="settings-select"
-                    value={draft.country}
-                    onChange={(e) => setDraft((p) => ({ ...p, country: e.target.value.toUpperCase() }))}
-                    placeholder="DE"
-                    maxLength={2}
-                    inputMode="text"
-                  />
-                </div>
-
-                <div className="settings-row">
-                  <span className="settings-label">Timezone</span>
-                  <input
-                    className="settings-select"
-                    value={draft.timezone}
-                    onChange={(e) => setDraft((p) => ({ ...p, timezone: e.target.value }))}
-                    placeholder="Europe/Berlin"
-                  />
-                </div>
-
-                <div className="settings-row" style={{ alignItems: "start" }}>
-                  <span className="settings-label">Bio</span>
+                <div>
+                  <div className="settings-label" style={{ marginBottom: 6 }}>
+                    Bio
+                  </div>
                   <textarea
-                    className="settings-select"
-                    value={draft.bio}
-                    onChange={(e) => setDraft((p) => ({ ...p, bio: e.target.value }))}
-                    placeholder="Short bio (optional)"
-                    rows={3}
+                    className="input"
+                    value={bio}
+                    onChange={(e) => setBio(e.target.value)}
+                    placeholder="A short bio (optional)"
+                    rows={4}
                     style={{ resize: "vertical" }}
                   />
                 </div>
               </div>
 
-              {/* Actions */}
               <div style={{ marginTop: 16, display: "flex", gap: 10, flexWrap: "wrap" }}>
-                <Button variant="secondary" onClick={saveProfile} disabled={savingProfile || !user?.id}>
-                  {savingProfile ? "Saving..." : profileCompletion.pct < 80 ? "Complete profile" : "Save profile"}
+                <Button variant="secondary" onClick={handleSaveProfile}>
+                  Save profile
                 </Button>
-
                 <Button variant="secondary" onClick={handleSignOut}>
                   Sign out
                 </Button>
               </div>
-
-              {!user?.id && (
-                <p style={{ marginTop: 10, fontSize: 13, color: "var(--color-muted)" }}>
-                  You are currently browsing as a guest. Sign in to complete your profile.
-                </p>
-              )}
             </div>
           </Card>
 
@@ -384,18 +337,18 @@ export default function SettingsPage() {
                       {lc === "en"
                         ? "English"
                         : lc === "ar"
-                        ? "العربية"
-                        : lc === "de"
-                        ? "Deutsch"
-                        : lc === "fr"
-                        ? "Français"
-                        : lc === "es"
-                        ? "Español"
-                        : lc === "tr"
-                        ? "Türkçe"
-                        : lc === "ru"
-                        ? "Русский"
-                        : String(lc).toUpperCase()}
+                          ? "العربية"
+                          : lc === "de"
+                            ? "Deutsch"
+                            : lc === "fr"
+                              ? "Français"
+                              : lc === "es"
+                                ? "Español"
+                                : lc === "tr"
+                                  ? "Türkçe"
+                                  : lc === "ru"
+                                    ? "Русский"
+                                    : String(lc).toUpperCase()}
                     </option>
                   ))}
                 </select>
