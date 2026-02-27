@@ -1,3 +1,4 @@
+// D:\digital-witness\apps\web\app\(app)\home\page.tsx
 "use client";
 
 import { useEffect, useState } from "react";
@@ -10,9 +11,8 @@ import { captureException } from "../../../lib/sentry";
 export default function HomePage() {
   const { t } = useLocale();
   const { addToast } = useToast();
-  const [items, setItems] = useState<
-    Array<{ id: string; type: string; status: string; createdAt: string }>
-  >([]);
+
+  const [items, setItems] = useState<Array<{ id: string; type: string; status: string; createdAt: string }>>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -22,13 +22,11 @@ export default function HomePage() {
   useEffect(() => {
     setLoading(true);
     setError(null);
-    
+
     apiFetch("/v1/evidence")
       .then((data) => {
         setItems(data.items ?? []);
-        if (data.items && data.items.length > 0) {
-          addToast(`Loaded ${data.items.length} evidence item(s)`, "success");
-        }
+        if (data.items && data.items.length > 0) addToast(`Loaded ${data.items.length} evidence item(s)`, "success");
       })
       .catch((err) => {
         const errorMessage = err?.message || "Failed to load evidence";
@@ -43,7 +41,7 @@ export default function HomePage() {
     <div className="section app-section">
       <div className="app-hero app-hero-full">
         <div className="container">
-          <div className="page-title" style={{ alignItems: "center", marginBottom: 0 }}>
+          <div className="page-title app-page-title" style={{ alignItems: "center", marginBottom: 0 }}>
             <div>
               <h1 className="hero-title pricing-hero-title" style={{ margin: 0 }}>
                 {t("home")}
@@ -52,6 +50,7 @@ export default function HomePage() {
                 {t("bullets")}
               </p>
             </div>
+
             <Link href="/capture">
               <Button className="navy-btn">{t("ctaCapture")}</Button>
             </Link>
@@ -62,8 +61,9 @@ export default function HomePage() {
       <div className="app-body app-body-full">
         <div className="container">
           <div className="grid-2">
-            <Card>
-              <div style={{ fontWeight: 700, marginBottom: 12 }}>{t("recentEvidence")}</div>
+            <Card className="app-card">
+              <div className="app-card-title">{t("recentEvidence")}</div>
+
               <div style={{ display: "grid", gap: 10 }}>
                 {loading ? (
                   <div style={{ display: "grid", gap: 8 }}>
@@ -72,22 +72,14 @@ export default function HomePage() {
                     <Skeleton width="100%" height="20px" />
                   </div>
                 ) : error ? (
-                  <div style={{
-                    padding: 16,
-                    background: "#FEE2E2",
-                    borderRadius: 8,
-                    color: "#991B1B",
-                    fontSize: 12
-                  }}>
-                    {error}
-                  </div>
+                  <div className="app-inline-error">{error}</div>
                 ) : items.length === 0 ? (
                   <EmptyState
                     title="No evidence yet"
                     subtitle="Capture your first file to see it here."
                     action={() => (
                       <Link href="/capture">
-                        <Button>{t("ctaCapture")}</Button>
+                        <Button className="navy-btn">{t("ctaCapture")}</Button>
                       </Link>
                     )}
                   />
@@ -108,6 +100,7 @@ export default function HomePage() {
                         }
                       />
                     );
+
                     return isUuid(item.id) ? (
                       <Link key={item.id} href={`/evidence/${item.id}`}>
                         {row}
@@ -120,56 +113,34 @@ export default function HomePage() {
               </div>
             </Card>
 
-            <Card>
-              <div style={{ fontWeight: 700, marginBottom: 12 }}>Quick Actions</div>
-              <div style={{ display: "grid", gap: 10 }}>
+            <Card className="app-card">
+              <div className="app-card-title">Quick Actions</div>
+
+              <div className="app-actions-grid">
                 <Link href="/capture">
-                  <Button 
-                    className="action-btn"
-                    onClick={() => addToast("Opening capture...", "info")}
-                  >
+                  <Button className="navy-btn action-btn" onClick={() => addToast("Opening capture...", "info")}>
                     New Capture
                   </Button>
                 </Link>
+
                 <Link href="/cases">
-                  <Button 
-                    variant="secondary" 
-                    className="action-btn"
-                    onClick={() => addToast("Loading cases...", "info")}
-                  >
+                  <Button variant="secondary" className="navy-btn action-btn" onClick={() => addToast("Loading cases...", "info")}>
                     View Cases
                   </Button>
                 </Link>
+
                 <Link href="/settings">
-                  <Button 
-                    variant="secondary" 
-                    className="action-btn"
-                    onClick={() => addToast("Opening settings...", "info")}
-                  >
+                  <Button variant="secondary" className="navy-btn action-btn" onClick={() => addToast("Opening settings...", "info")}>
                     Manage Settings
                   </Button>
                 </Link>
               </div>
 
-              <div style={{ marginTop: 18 }} className="status-banner">
-                <div
-                  style={{
-                    width: 44,
-                    height: 44,
-                    borderRadius: 14,
-                    background: "rgba(255,255,255,0.18)",
-                    display: "grid",
-                    placeItems: "center",
-                    fontWeight: 800
-                  }}
-                >
-                  ✓
-                </div>
+              <div className="status-banner" style={{ marginTop: 18 }}>
+                <div className="status-badge">✓</div>
                 <div>
                   <div style={{ fontWeight: 700 }}>Trusted chain of custody</div>
-                  <div style={{ fontSize: 12, opacity: 0.8 }}>
-                    Capture → Sign → Report → Share
-                  </div>
+                  <div style={{ fontSize: 12, opacity: 0.85 }}>Capture → Sign → Report → Share</div>
                 </div>
               </div>
             </Card>

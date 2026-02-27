@@ -63,7 +63,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="page app-page">
-      <div className="blue-shell">
+      <div className="blue-shell app-shell-top">
         <AppHeader hasSession={hasSession} onLogout={handleLogout} />
       </div>
       <SilverWatermarkSection as="main" className="app-content">

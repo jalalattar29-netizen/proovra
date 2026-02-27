@@ -1,3 +1,4 @@
+// D:\digital-witness\apps\web\app\(app)\billing\page.tsx
 "use client";
 
 import { useEffect, useState } from "react";
@@ -11,9 +12,11 @@ type PayPalLink = { rel: string; href: string };
 
 export default function BillingPage() {
   const { addToast } = useToast();
+
   const [plan, setPlan] = useState("FREE");
   const [credits, setCredits] = useState(0);
   const [teamSeats, setTeamSeats] = useState(0);
+
   const [checkoutBusy, setCheckoutBusy] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -21,7 +24,7 @@ export default function BillingPage() {
   useEffect(() => {
     setLoading(true);
     setError(null);
-    
+
     apiFetch("/v1/billing/status")
       .then((data) => {
         setPlan(data.entitlement?.plan ?? "FREE");
@@ -42,11 +45,13 @@ export default function BillingPage() {
   const startStripeCheckout = async (planType: PlanType) => {
     setCheckoutBusy(planType);
     addToast("Starting Stripe checkout...", "info");
+
     try {
       const data = await apiFetch("/v1/billing/checkout/stripe", {
         method: "POST",
-        body: JSON.stringify({ plan: planType, currency: "USD" })
+        body: JSON.stringify({ plan: planType, currency: "USD" }),
       });
+
       const url = data.session?.url as string | undefined;
       if (url) {
         addToast("Redirecting to payment...", "success");
@@ -66,11 +71,13 @@ export default function BillingPage() {
   const startPayPalCheckout = async (planType: PlanType) => {
     setCheckoutBusy(planType);
     addToast("Starting PayPal checkout...", "info");
+
     try {
       const data = await apiFetch("/v1/billing/checkout/paypal", {
         method: "POST",
-        body: JSON.stringify({ plan: planType, currency: "USD" })
+        body: JSON.stringify({ plan: planType, currency: "USD" }),
       });
+
       const approve = (data.order?.links as PayPalLink[] | undefined)?.find((l) => l.rel === "approve");
       if (approve?.href) {
         addToast("Redirecting to PayPal...", "success");
@@ -91,7 +98,7 @@ export default function BillingPage() {
     <div className="section app-section">
       <div className="app-hero app-hero-full">
         <div className="container">
-          <div className="page-title" style={{ marginBottom: 0 }}>
+          <div className="page-title app-page-title" style={{ marginBottom: 0 }}>
             <div>
               <h1 className="hero-title pricing-hero-title" style={{ margin: 0 }}>
                 Billing
@@ -100,6 +107,7 @@ export default function BillingPage() {
                 Manage your plan and upgrade when you need more.
               </p>
             </div>
+
             <Link href="/pricing">
               <Button className="navy-btn" variant="secondary">
                 View full pricing
@@ -111,38 +119,29 @@ export default function BillingPage() {
 
       <div className="app-body app-body-full">
         <div className="container" style={{ display: "grid", gap: 24 }}>
-          {loading ? (
-            <Card>
-              <div style={{ fontWeight: 600, marginBottom: 12 }}>Current plan</div>
+          <Card className="app-card">
+            <div className="app-card-title">Current plan</div>
+
+            {loading ? (
               <div style={{ display: "grid", gap: 8 }}>
                 <Skeleton width="100%" height="20px" />
                 <Skeleton width="60%" height="16px" />
               </div>
-            </Card>
-          ) : error ? (
-            <Card>
-              <div style={{
-                padding: 16,
-                background: "#FEE2E2",
-                borderRadius: 8,
-                color: "#991B1B",
-                fontSize: 12
-              }}>
-                {error}
-              </div>
-            </Card>
-          ) : (
-            <Card>
-              <div style={{ fontWeight: 600, marginBottom: 12 }}>Current plan</div>
-              <p style={{ margin: 0, fontSize: 16, fontWeight: 500 }}>{plan} plan</p>
-              {plan === "PAYG" && <p style={{ marginTop: 6, fontSize: 14, color: "#666" }}>Credits: {credits}</p>}
-              {plan === "TEAM" && <p style={{ marginTop: 6, fontSize: 14, color: "#666" }}>Team seats: {teamSeats}</p>}
-              {plan === "FREE" && <p style={{ marginTop: 6, fontSize: 14, color: "#666" }}>Upgrade to unlock more features</p>}
-            </Card>
-          )}
+            ) : error ? (
+              <div className="app-inline-error">{error}</div>
+            ) : (
+              <>
+                <p style={{ margin: 0, fontSize: 16, fontWeight: 600 }}>{plan} plan</p>
+                {plan === "PAYG" && <p className="app-muted" style={{ marginTop: 8 }}>Credits: {credits}</p>}
+                {plan === "TEAM" && <p className="app-muted" style={{ marginTop: 8 }}>Team seats: {teamSeats}</p>}
+                {plan === "FREE" && <p className="app-muted" style={{ marginTop: 8 }}>Upgrade to unlock more features</p>}
+              </>
+            )}
+          </Card>
 
-          <Card>
-            <div style={{ fontWeight: 600, marginBottom: 12 }}>Upgrade or switch plan</div>
+          <Card className="app-card">
+            <div className="app-card-title">Upgrade or switch plan</div>
+
             {loading ? (
               <div style={{ display: "grid", gap: 8 }}>
                 <Skeleton width="100%" height="40px" />
@@ -156,8 +155,9 @@ export default function BillingPage() {
                   disabled={!!checkoutBusy || plan === "PAYG"}
                   onClick={() => startStripeCheckout("PAYG")}
                 >
-                  {checkoutBusy === "PAYG" ? "Processing..." : "Pay‑Per‑Evidence"}
+                  {checkoutBusy === "PAYG" ? "Processing..." : "Pay-Per-Evidence"}
                 </Button>
+
                 <Button
                   className="navy-btn"
                   variant="secondary"
@@ -166,6 +166,7 @@ export default function BillingPage() {
                 >
                   {checkoutBusy === "PRO" ? "Processing..." : "Upgrade to Pro"}
                 </Button>
+
                 <Button
                   className="navy-btn"
                   variant="secondary"
@@ -174,6 +175,7 @@ export default function BillingPage() {
                 >
                   {checkoutBusy === "TEAM" ? "Processing..." : "Upgrade to Team"}
                 </Button>
+
                 <Button
                   className="navy-btn"
                   variant="secondary"
