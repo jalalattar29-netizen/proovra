@@ -3343,3 +3343,109 @@ p {
 :where(.app-page) .empty-state-icon svg {
   color: rgba(101, 235, 255, 0.92) !important;
 }
+
+/* =========================
+   APP — Select / Dropdown (Settings language)
+   ========================= */
+:where(.app-page) select,
+:where(.app-page) .select {
+  background: rgba(6, 13, 31, 0.55) !important;
+  color: rgba(245, 251, 255, 0.92) !important;
+  border: 1px solid rgba(101, 235, 255, 0.22) !important;
+  box-shadow: inset 0 0 0 1px rgba(2, 9, 22, 0.18);
+}
+
+:where(.app-page) select:focus,
+:where(.app-page) .select:focus {
+  outline: none;
+  border-color: rgba(101, 235, 255, 0.60) !important;
+  box-shadow: 0 0 0 3px rgba(101, 235, 255, 0.14) !important;
+}
+
+/* خيارات القائمة نفسها */
+:where(.app-page) select option {
+  background: #040c20 !important;
+  color: rgba(245, 251, 255, 0.92) !important;
+}
+
+/* =========================
+   APP — Links readability on dark cards (Cases names etc.)
+   ========================= */
+:where(.app-page) .app-content a {
+  color: rgba(245, 251, 255, 0.92);
+}
+
+:where(.app-page) .app-content a:hover {
+  color: rgba(101, 235, 255, 0.96);
+}
+
+/* =========================
+   Cases — name color
+   ========================= */
+:where(.app-page) .case-name {
+  font-weight: 600;
+  font-size: 16px;
+  color: rgba(245, 251, 255, 0.92);
+}
+
+:where(.app-page) a:hover .case-name {
+  color: rgba(101, 235, 255, 0.96);
+}
+/* =========================
+   APP — Capture drop-zone neon
+   ========================= */
+/* =========================
+   Capture — drop-zone neon + text
+   ========================= */
+:where(.app-page) .drop-zone {
+  border: 2px dashed rgba(101, 235, 255, 0.65) !important;
+  border-radius: 14px;
+}
+
+:where(.app-page) .drop-zone:hover {
+  border-color: rgba(101, 235, 255, 0.95) !important;
+  box-shadow: 0 0 0 3px rgba(101, 235, 255, 0.10);
+}
+
+:where(.app-page) .drop-hint,
+:where(.app-page) .drop-meta,
+:where(.app-page) .uploading-hint {
+  color: rgba(245, 251, 255, 0.80);
+  font-size: 12px;
+}
+
+:where(.app-page) .drop-meta {
+  margin-top: 4px;
+  opacity: 0.85;
+}
+/* =========================
+   APP — Capture type tabs (Photo/Video/Document)
+   ========================= */
+/* =========================
+   Capture — pills (Photo/Video/Document)
+   ========================= */
+:where(.app-page) .pill-button {
+  padding: 8px 14px;
+  border-radius: 999px;
+  background: rgba(6, 13, 31, 0.45);
+  color: rgba(219, 235, 248, 0.86);
+  border: 1px solid rgba(144, 206, 239, 0.22);
+  cursor: pointer;
+  font-weight: 700;
+  font-size: 13px;
+  transition: all 180ms ease;
+}
+
+:where(.app-page) .pill-button:hover {
+  border-color: rgba(101, 235, 255, 0.55);
+  color: rgba(245, 251, 255, 0.96);
+  box-shadow: 0 0 0 3px rgba(101, 235, 255, 0.10);
+}
+
+:where(.app-page) .pill-button.active {
+  border-color: rgba(101, 235, 255, 0.92);
+  color: rgba(245, 251, 255, 0.98);
+  box-shadow:
+    0 0 0 3px rgba(101, 235, 255, 0.16),
+    0 10px 26px rgba(24, 209, 228, 0.22);
+}

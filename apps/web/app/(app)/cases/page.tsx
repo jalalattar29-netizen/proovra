@@ -122,12 +122,12 @@ export default function CasesPage() {
                 <Card>
                   {isUuid(item.id) ? (
                     <Link href={`/cases/${item.id}`} style={{ textDecoration: "none" }}>
-                      <div style={{ fontWeight: 600, fontSize: 16, color: "#0B1F2A" }}>
+                      <div className="case-name">
                         {item.name}
                       </div>
                     </Link>
                   ) : (
-                    <div style={{ fontWeight: 600, fontSize: 16, color: "#0B1F2A" }}>
+                    <div className="case-name">
                       {item.name}
                     </div>
                   )}

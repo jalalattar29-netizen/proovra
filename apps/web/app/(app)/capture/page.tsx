@@ -197,12 +197,12 @@ export default function CapturePage() {
                 {file ? (
                   <div>
                     <div style={{ fontWeight: 600 }}>{file.name}</div>
-                    <div style={{ fontSize: 12, color: "#64748b" }}>
+                    <div className="drop-meta">
                       {(file.size / 1024 / 1024).toFixed(2)} MB
                     </div>
                   </div>
                 ) : (
-                  <div style={{ color: "#64748b" }}>Drag & drop or click to select</div>
+                  <div className="drop-hint">Drag & drop or click to select</div>
                 )}
               </div>
 
@@ -215,9 +215,7 @@ export default function CapturePage() {
                 Include location metadata (optional)
               </label>
 
-              {busy ? (
-                <div style={{ fontSize: 12, color: "#64748b" }}>Uploading… {progress}%</div>
-              ) : null}
+              {busy ? <div className="uploading-hint">Uploading… {progress}%</div> : null}
 
               {error && <div className="error-text">{error}</div>}
 
