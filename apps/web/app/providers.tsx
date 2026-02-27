@@ -1,11 +1,12 @@
+// D:\digital-witness\apps\web\app\providers.tsx
 "use client";
 
-import { createContext, useContext, useEffect, useMemo, useState } from "react";
+import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
 import {
   type Locale,
   type LocaleMode,
   resolveInitialLocale,
-  translations
+  translations,
 } from "../lib/i18n";
 import { apiFetch } from "../lib/api";
 import { initSentry } from "../lib/sentry";
@@ -16,6 +17,17 @@ type AuthUser = {
   email?: string | null;
   displayName?: string | null;
   provider: string;
+
+  firstName?: string | null;
+  lastName?: string | null;
+  avatarUrl?: string | null;
+  locale?: string | null;
+  timezone?: string | null;
+  country?: string | null;
+  bio?: string | null;
+
+  createdAt?: string;
+  updatedAt?: string;
 };
 
 type AuthContextValue = {
@@ -23,6 +35,10 @@ type AuthContextValue = {
   user: AuthUser | null;
   ensureGuest: () => Promise<void>;
   setToken: (token: string | null) => void;
+
+  refreshMe: () => Promise<void>;
+  updateUser: (next: AuthUser | null) => void;
+
   authReady: boolean;
   hasSession: boolean;
 };
@@ -51,6 +67,21 @@ export function useAuth() {
   return ctx;
 }
 
+async function fetchMe(): Promise<AuthUser | null> {
+  // Prefer the new endpoint, fallback to old.
+  try {
+    const me = await apiFetch("/v1/users/me", { method: "GET" });
+    return (me?.user ?? null) as AuthUser | null;
+  } catch {
+    try {
+      const me = await apiFetch("/v1/auth/me", { method: "GET" });
+      return (me?.user ?? null) as AuthUser | null;
+    } catch {
+      return null;
+    }
+  }
+}
+
 export function Providers({ children }: { children: React.ReactNode }) {
   const [locale, setLocaleState] = useState<Locale>("en");
   const [mode, setModeState] = useState<LocaleMode>("auto");
@@ -60,8 +91,8 @@ export function Providers({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     initSentry();
-    // Initialize locale and mode from localStorage or browser language
     if (typeof window === "undefined") return;
+
     const { locale: resolvedLocale, mode: resolvedMode } = resolveInitialLocale();
     setLocaleState(resolvedLocale);
     setModeState(resolvedMode);
@@ -69,9 +100,11 @@ export function Providers({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (typeof document === "undefined") return;
+
     const isRTL = locale === "ar";
     document.documentElement.lang = locale;
     document.documentElement.dir = isRTL ? "rtl" : "ltr";
+
     localStorage.setItem("proovra-locale", locale);
     localStorage.setItem("proovra-locale-mode", mode);
   }, [locale, mode]);
@@ -79,21 +112,21 @@ export function Providers({ children }: { children: React.ReactNode }) {
   const value = useMemo<LocaleContextValue>(() => {
     const isRTL = locale === "ar";
     const currentTranslations = translations[locale] || translations.en;
+
     const t = (key: keyof (typeof translations)["en"]) =>
-      currentTranslations[key as keyof (typeof translations)[Locale]] ||
-      translations.en[key];
-    const setLocale = (newLocale: Locale) => {
-      setLocaleState(newLocale);
-    };
-    const setLocaleMode = (newMode: LocaleMode) => {
-      setModeState(newMode);
-    };
+      currentTranslations[key as keyof (typeof translations)[Locale]] || translations.en[key];
+
+    const setLocale = (newLocale: Locale) => setLocaleState(newLocale);
+    const setLocaleMode = (newMode: LocaleMode) => setModeState(newMode);
+
     return { locale, mode, setLocale, setLocaleMode, t, isRTL };
   }, [locale, mode]);
 
   const authValue = useMemo<AuthContextValue>(() => {
     const setToken = (next: string | null) => {
       setTokenState(next);
+      if (typeof window === "undefined") return;
+
       if (next) {
         localStorage.setItem("proovra-token", next);
       } else {
@@ -102,43 +135,49 @@ export function Providers({ children }: { children: React.ReactNode }) {
       }
     };
 
+    const updateUser = (next: AuthUser | null) => {
+      setUser(next);
+    };
+
+    const refreshMe = async () => {
+      const meUser = await fetchMe();
+      setUser(meUser);
+    };
+
     const ensureGuest = async () => {
+      if (typeof window === "undefined") return;
+
       const stored = localStorage.getItem("proovra-token");
       if (stored) {
         setTokenState(stored);
-        try {
-          const me = await apiFetch("/v1/auth/me", { method: "GET" });
-          setUser(me.user ?? null);
-        } catch {
-          setUser(null);
-        }
+        await refreshMe();
         return;
       }
+
       try {
-        const data = await apiFetch("/v1/auth/guest", {
-          method: "POST"
-        });
-        setToken(data.token);
-        setUser(data.user);
+        const data = await apiFetch("/v1/auth/guest", { method: "POST" });
+        setToken(data?.token ?? null);
+        setUser((data?.user ?? null) as AuthUser | null);
       } catch {
         setUser(null);
       }
     };
 
     const hasSession = Boolean(user || token);
-    return { token, user, ensureGuest, setToken, authReady, hasSession };
+
+    return { token, user, ensureGuest, setToken, refreshMe, updateUser, authReady, hasSession };
   }, [token, user, authReady]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
+
     const stored = localStorage.getItem("proovra-token");
     if (stored) setTokenState(stored);
+
     void (async () => {
       try {
-        const me = await apiFetch("/v1/auth/me", { method: "GET" });
-        setUser(me.user ?? null);
-      } catch {
-        setUser(null);
+        const meUser = await fetchMe();
+        setUser(meUser);
       } finally {
         setAuthReady(true);
       }
@@ -148,9 +187,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
   return (
     <AuthContext.Provider value={authValue}>
       <LocaleContext.Provider value={value}>
-        <ToastProvider>
-          {children}
-        </ToastProvider>
+        <ToastProvider>{children}</ToastProvider>
       </LocaleContext.Provider>
     </AuthContext.Provider>
   );

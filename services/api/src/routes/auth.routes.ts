@@ -338,9 +338,26 @@ export async function authRoutes(app: FastifyInstance) {
   // =========================
   app.get("/v1/auth/me", { preHandler: requireAuth }, async (req: FastifyRequest) => {
     const userId = getAuthUserId(req);
-    const user = await prisma.user.findUnique({
-      where: { id: userId }
-    });
-    return { user };
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+
+    if (!user) return { user: null };
+
+    return {
+      user: {
+        id: user.id,
+        email: user.email,
+        displayName: user.displayName,
+        firstName: (user as any).firstName,
+        lastName: (user as any).lastName,
+        avatarUrl: (user as any).avatarUrl,
+        locale: (user as any).locale,
+        timezone: (user as any).timezone,
+        country: (user as any).country,
+        bio: (user as any).bio,
+        provider: user.provider,
+        createdAt: user.createdAt,
+        updatedAt: user.updatedAt,
+      },
+    };
   });
 }
