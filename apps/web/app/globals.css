@@ -3363,3 +3363,39 @@ p {
   filter: drop-shadow(0 0 18px rgba(101, 235, 255, 0.55));
 }
 
+/* =========================================================
+   FIX: Remove the "big wrapper card" behind page content
+   Keep navy background (NO WHITE)
+   Put at VERY END of globals.css
+   ========================================================= */
+
+/* 1) Navy background comes from the page itself */
+html, body {
+  background: linear-gradient(180deg, #050b18 0%, #071226 45%, #08182f 100%) !important;
+}
+
+:where(.app-page) {
+  background:
+    radial-gradient(circle at 18% 12%, rgba(36, 202, 226, 0.10) 0%, transparent 46%),
+    linear-gradient(180deg, #050b18 0%, #071226 45%, #08182f 100%) !important;
+}
+
+/* 2) Kill the wrapper background that looks like an extra card */
+:where(.app-page) .app-content,
+:where(.app-page) .app-section,
+:where(.app-page) .app-content.silver-watermark-section {
+  background: transparent !important;
+}
+
+/* 3) Also make sure no pseudo overlay is creating a panel */
+:where(.app-page) .app-body-full::before {
+  background: transparent !important;
+  content: none !important;
+}
+
+/* 4) Safety: remove any “panel” styling from app-content */
+:where(.app-page) .app-content {
+  border: 0 !important;
+  box-shadow: none !important;
+  border-radius: 0 !important;
+}
