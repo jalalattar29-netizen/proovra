@@ -3028,3 +3028,86 @@ p {
 .app-shell-top::after {
   opacity: 0.18; /* خفف صورة الورق/اللمعة فوق الهيدر فقط */
 }
+
+/* =========================
+   APP BODY BACKGROUND — Navy (remove white)
+   ========================= */
+:where(.app-page) .app-content.silver-watermark-section {
+  background: var(--hero-bg);
+}
+
+:where(.app-page) .app-body-full::before {
+  background: transparent !important; /* يلغي الأبيض */
+}
+
+/* إذا عندك watermark للصورة داخل صفحات الـ app وخفيفة، خليها أنعم */
+:where(.app-page) .silver-watermark-image {
+  opacity: 0.18;
+  filter: blur(0.2px);
+}
+
+/* =========================
+   APP BUTTONS — unify look (primary + secondary)
+   ========================= */
+
+/* أي Button داخل صفحات app */
+:where(.app-page) .btn,
+:where(.app-page) button.btn,
+:where(.app-page) .navy-btn,
+:where(.app-page) .action-btn {
+  border-radius: 9999px !important;
+  min-height: 44px;
+  padding: 12px 18px;
+  font-weight: 800;
+  letter-spacing: 0.2px;
+}
+
+/* Primary (navy solid) */
+:where(.app-page) .navy-btn,
+:where(.app-page) .action-btn,
+:where(.app-page) .btn.primary {
+  background: var(--navy-900) !important;
+  border-color: var(--navy-900) !important;
+  color: #fff !important;
+  box-shadow: 0 12px 26px rgba(2, 9, 22, 0.28);
+}
+
+:where(.app-page) .navy-btn:hover,
+:where(.app-page) .action-btn:hover,
+:where(.app-page) .btn.primary:hover {
+  background: var(--navy-800) !important;
+  border-color: var(--navy-800) !important;
+  transform: translateY(-1px);
+}
+
+:where(.app-page) .navy-btn:active,
+:where(.app-page) .action-btn:active,
+:where(.app-page) .btn.primary:active {
+  background: var(--navy-700) !important;
+  border-color: var(--navy-700) !important;
+  transform: translateY(0);
+}
+
+/* Secondary (glass neon) — هذا اللي بدنا إياه بدل الرمادي */
+:where(.app-page) .btn.secondary,
+:where(.app-page) button.btn.secondary {
+  background: rgba(6, 13, 31, 0.48) !important;
+  color: rgba(245, 251, 255, 0.92) !important;
+  border: 1px solid rgba(101, 235, 255, 0.26) !important;
+  box-shadow: 0 10px 24px rgba(2, 8, 19, 0.22);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+:where(.app-page) .btn.secondary:hover,
+:where(.app-page) button.btn.secondary:hover {
+  background: rgba(0, 170, 255, 0.16) !important;
+  border-color: rgba(101, 235, 255, 0.55) !important;
+  box-shadow: 0 14px 30px rgba(0, 210, 255, 0.18);
+  transform: translateY(-1px);
+}
+
+:where(.app-page) .btn.secondary:active,
+:where(.app-page) button.btn.secondary:active {
+  transform: translateY(0);
+}
