@@ -82,21 +82,17 @@ export default function SettingsPage() {
     setBio(user?.bio ?? "");
   }, [user?.id]); // only when identity changes
 
-  useEffect(() => {
-    apiFetch("/v1/billing/status")
-      .then((data: unknown) => {
-        const obj = asRecord(data);
-        const ent = obj ? asRecord(obj["entitlement"]) : null;
-        const planValue = ent && typeof ent["plan"] === "string" ? (ent["plan"] as string) : "FREE";
-        setPlan(planValue || "FREE");
-      })
-      .catch((err: unknown) => {
-        captureException(err, { feature: "web_settings_billing" });
-        setPlan("FREE");
-        addToast("Could not load subscription status", "warning");
-      });
-  }, [addToast]);
-
+useEffect(() => {
+  apiFetch("/v1/billing/status")
+    .then((data: BillingStatusResponse) => {
+      setPlan(data.entitlement?.plan ?? "FREE");
+    })
+    .catch((err: unknown) => {
+      captureException(err, { feature: "web_settings_billing" });
+      setPlan("FREE");
+      addToast("Could not load subscription status", "warning");
+    });
+}, [addToast]);
   const initials = useMemo(() => {
     const a = (user?.displayName ?? user?.email ?? "?").trim();
     return a ? a[0]?.toUpperCase() : "?";
