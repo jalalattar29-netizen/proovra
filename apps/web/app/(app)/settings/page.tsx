@@ -168,7 +168,7 @@ const [selectedLanguage, setSelectedLanguage] = useState<string>(
   }}
   className="settings-select"
 >
-  {supportedLocales.map((lc: string) => (
+  {supportedLocales.map((lc) => (
     <option key={lc} value={lc}>
       {lc === "en" ? "English"
         : lc === "ar" ? "العربية"
@@ -177,10 +177,11 @@ const [selectedLanguage, setSelectedLanguage] = useState<string>(
         : lc === "es" ? "Español"
         : lc === "tr" ? "Türkçe"
         : lc === "ru" ? "Русский"
-        : lc.toUpperCase()}
+        : String(lc).toUpperCase()}
     </option>
   ))}
-</select>              </div>
+</select>
+</div>
               <p style={{ margin: 0, fontSize: 13, color: "var(--color-muted)" }}>
                 Language preference will be used for future UI updates.
               </p>
