@@ -3363,29 +3363,3 @@ p {
   filter: drop-shadow(0 0 18px rgba(101, 235, 255, 0.55));
 }
 
-/* =========================================================
-   FIX: Remove the "big dark wrapper card" behind all app pages
-   (keep only real Cards inside pages)
-   Put at VERY END of globals.css
-   ========================================================= */
-
-:where(.app-page) .app-shell {
-  background: transparent !important;
-  border: 0 !important;
-  box-shadow: none !important;
-  border-radius: 0 !important;
-}
-
-:where(.app-page) main.app-content {
-  background: transparent !important;
-  border: 0 !important;
-  box-shadow: none !important;
-  border-radius: 0 !important;
-  padding: 0 !important; /* مهم: هذا اللي كان عامل مساحة/كرت */
-}
-
-/* إذا في pseudo-element عامل طبقة غامقة داخل المحتوى */
-:where(.app-page) main.app-content::before,
-:where(.app-page) main.app-content::after {
-  content: none !important;
-}
