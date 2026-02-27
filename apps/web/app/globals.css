@@ -3051,43 +3051,50 @@ p {
    ========================= */
 
 /* أي Button داخل صفحات app */
+/* =========================================================
+   APP — BUTTONS (Navy + Neon hover like Pricing)
+   ========================================================= */
+
 :where(.app-page) .btn,
-:where(.app-page) button.btn,
-:where(.app-page) .navy-btn,
-:where(.app-page) .action-btn {
+:where(.app-page) button.btn {
   border-radius: 9999px !important;
   min-height: 44px;
   padding: 12px 18px;
   font-weight: 800;
   letter-spacing: 0.2px;
+  transition: transform 180ms ease, box-shadow 180ms ease, background 180ms ease, border-color 180ms ease, color 180ms ease;
 }
 
-/* Primary (navy solid) */
+/* كل الأزرار الأساسية + navy-btn + action-btn */
+:where(.app-page) .btn.primary,
+:where(.app-page) .btn.secondary,
 :where(.app-page) .navy-btn,
-:where(.app-page) .action-btn,
-:where(.app-page) .btn.primary {
+:where(.app-page) .action-btn {
   background: var(--navy-900) !important;
-  border-color: var(--navy-900) !important;
-  color: #fff !important;
-  box-shadow: 0 12px 26px rgba(2, 9, 22, 0.28);
+  border: 1px solid rgba(101, 235, 255, 0.18) !important;
+  color: rgba(245, 251, 255, 0.96) !important;
+  box-shadow: 0 16px 34px rgba(2, 9, 22, 0.34);
 }
 
+/* Hover نيون */
+:where(.app-page) .btn.primary:hover,
+:where(.app-page) .btn.secondary:hover,
 :where(.app-page) .navy-btn:hover,
-:where(.app-page) .action-btn:hover,
-:where(.app-page) .btn.primary:hover {
-  background: var(--navy-800) !important;
-  border-color: var(--navy-800) !important;
+:where(.app-page) .action-btn:hover {
+  background: rgba(0, 170, 255, 0.16) !important;
+  border-color: rgba(101, 235, 255, 0.55) !important;
+  box-shadow: 0 18px 40px rgba(0, 210, 255, 0.22);
   transform: translateY(-1px);
 }
 
+/* Active */
+:where(.app-page) .btn.primary:active,
+:where(.app-page) .btn.secondary:active,
 :where(.app-page) .navy-btn:active,
-:where(.app-page) .action-btn:active,
-:where(.app-page) .btn.primary:active {
-  background: var(--navy-700) !important;
-  border-color: var(--navy-700) !important;
+:where(.app-page) .action-btn:active {
   transform: translateY(0);
+  background: rgba(0, 170, 255, 0.10) !important;
 }
-
 /* Secondary (glass neon) — هذا اللي بدنا إياه بدل الرمادي */
 :where(.app-page) .btn.secondary,
 :where(.app-page) button.btn.secondary {
@@ -3110,4 +3117,44 @@ p {
 :where(.app-page) .btn.secondary:active,
 :where(.app-page) button.btn.secondary:active {
   transform: translateY(0);
+}
+
+/* =========================================================
+   APP — DARK GLASS CARDS (match Pricing cards)
+   ========================================================= */
+:where(.app-page) .card,
+:where(.app-page) .app-card,
+:where(.app-page) .auth-card {
+  background: linear-gradient(
+    180deg,
+    rgba(11, 27, 50, 0.92) 0%,
+    rgba(7, 20, 38, 0.96) 100%
+  ) !important;
+
+  border: 1px solid rgba(101, 235, 255, 0.22) !important;
+  box-shadow: 0 20px 48px rgba(2, 9, 22, 0.45) !important;
+  color: rgba(245, 251, 255, 0.92) !important;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+/* نصوص داخل الكروت */
+:where(.app-page) .card h1,
+:where(.app-page) .card h2,
+:where(.app-page) .card h3,
+:where(.app-page) .card h4 {
+  color: rgba(246, 252, 255, 0.96) !important;
+}
+
+:where(.app-page) .card p,
+:where(.app-page) .card li,
+:where(.app-page) .card div {
+  color: rgba(219, 235, 248, 0.84);
+}
+
+/* Empty state داخل الكروت */
+:where(.app-page) .empty-state,
+:where(.app-page) .empty-state-title,
+:where(.app-page) .empty-state-subtitle {
+  color: rgba(219, 235, 248, 0.84) !important;
 }

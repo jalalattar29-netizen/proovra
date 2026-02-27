@@ -165,37 +165,36 @@ export function LanguageSwitcher() {
     </div>
   ) : null;
 
-  return (
-    <>
-      <button
-        ref={buttonRef}
-        type="button"
-        onClick={toggle}
-        aria-haspopup="menu"
-        aria-expanded={open}
-        title="Language selector"
-        style={{
-          display: "inline-flex",
-          alignItems: "center",
-          gap: 8,
-          padding: "8px 12px",
-          borderRadius: 10,
-          border: "1px solid rgba(255,255,255,0.16)",
-          background: "rgba(255,255,255,0.06)",
-          cursor: "pointer",
-          fontSize: 12,
-          fontWeight: 600,
-          color: "rgba(226,232,240,0.95)",
-          lineHeight: 1,
-          userSelect: "none"
-        }}
-      >
-        <span style={{ fontSize: 14, opacity: 0.95 }}>🌐</span>
-        <span style={{ letterSpacing: 0.3 }}>{displayCode}</span>
-      </button>
+return (
+  <>
+    <button
+      ref={buttonRef}
+      type="button"
+      onClick={toggle}
+      aria-haspopup="menu"
+      aria-expanded={open}
+      title="Language selector"
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 8,
+        padding: "8px 12px",
+        borderRadius: 10,
+        border: "1px solid rgba(255,255,255,0.16)",
+        background: "rgba(255,255,255,0.06)",
+        cursor: "pointer",
+        fontSize: 12,
+        fontWeight: 600,
+        color: "rgba(226,232,240,0.95)",
+        lineHeight: 1,
+        userSelect: "none"
+      }}
+    >
+      {/* بدون أيقونة — بس كود اللغة */}
+      <span style={{ letterSpacing: 0.6 }}>{displayCode}</span>
+    </button>
 
-      {/* Portal to body so it never gets clipped */}
-      {mounted && typeof document !== "undefined" ? createPortal(menu, document.body) : null}
-    </>
-  );
+    {mounted && typeof document !== "undefined" ? createPortal(menu, document.body) : null}
+  </>
+);
 }
