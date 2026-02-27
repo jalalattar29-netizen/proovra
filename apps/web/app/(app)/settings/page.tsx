@@ -1,6 +1,7 @@
 "use client";
 
 import { Button, Card, useToast } from "../../../components/ui";
+import { supportedLocales } from "@proovra/shared";
 import { useAuth, useLocale } from "../../providers";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -15,10 +16,9 @@ export default function SettingsPage() {
   const { addToast } = useToast();
   const router = useRouter();
   const [plan, setPlan] = useState("FREE");
-  const [selectedLanguage, setSelectedLanguage] = useState<"en" | "ar">(
-    (locale === "en" || locale === "ar") ? locale : "en"
-  );
-
+const [selectedLanguage, setSelectedLanguage] = useState<string>(
+  supportedLocales.includes(locale as any) ? locale : "en"
+);
   useEffect(() => {
     apiFetch("/v1/billing/status")
       .then((data) => setPlan(data.entitlement?.plan ?? "FREE"))
@@ -159,24 +159,28 @@ export default function SettingsPage() {
             <div className="settings-section-body">
               <div className="settings-row">
                 <span className="settings-label">UI language</span>
-                <select
-                  value={selectedLanguage}
-                  onChange={(e) => setSelectedLanguage(e.target.value as "en" | "ar")}
-                  style={{
-                    padding: "8px 12px",
-                    borderRadius: "var(--radius-sm)",
-                    border: "1px solid var(--color-border)",
-                    backgroundColor: "var(--color-white)",
-                    color: "var(--color-text)",
-                    fontSize: "14px",
-                    fontFamily: "inherit",
-                    cursor: "pointer"
-                  }}
-                >
-                  <option value="en">English</option>
-                  <option value="ar">العربية</option>
-                </select>
-              </div>
+<select
+  value={selectedLanguage}
+  onChange={(e) => {
+    const next = e.target.value;
+    setSelectedLanguage(next);
+    // إذا عندك method لتغيير اللغة فعلياً داخل useLocale، خبرني وحطّها هون.
+  }}
+  className="settings-select"
+>
+  {supportedLocales.map((lc: string) => (
+    <option key={lc} value={lc}>
+      {lc === "en" ? "English"
+        : lc === "ar" ? "العربية"
+        : lc === "de" ? "Deutsch"
+        : lc === "fr" ? "Français"
+        : lc === "es" ? "Español"
+        : lc === "tr" ? "Türkçe"
+        : lc === "ru" ? "Русский"
+        : lc.toUpperCase()}
+    </option>
+  ))}
+</select>              </div>
               <p style={{ margin: 0, fontSize: 13, color: "var(--color-muted)" }}>
                 Language preference will be used for future UI updates.
               </p>
