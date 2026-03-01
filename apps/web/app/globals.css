@@ -3371,24 +3371,28 @@ html, body {
 }
 
 /* =========================================
-   LANDING LANGUAGE BUTTON — CLEAN VERSION
+   LANDING — LANGUAGE SELECTOR (FORCE TEXT)
    ========================================= */
 
 :where(.landing-page) .lang-button button[title="Language selector"] {
   display: inline-flex !important;
   align-items: center !important;
+  justify-content: center !important;
   gap: 8px !important;
 
-  padding: 8px 14px !important;
+  padding: 8px 12px !important;
   border-radius: 999px !important;
 
   border: 1px solid rgba(255, 255, 255, 0.18) !important;
   background: rgba(255, 255, 255, 0.08) !important;
 
-  color: rgba(255, 255, 255, 0.96) !important;
+  /* IMPORTANT: prevent text from being "killed" */
   font-size: 12px !important;
-  font-weight: 600 !important;
   line-height: 1 !important;
+  color: rgba(255, 255, 255, 0.96) !important;
+
+  overflow: visible !important;
+  white-space: nowrap !important;
 
   cursor: pointer !important;
   user-select: none !important;
@@ -3396,11 +3400,35 @@ html, body {
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
 
-  transition: all 0.2s ease;
+  transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+}
+
+/* Force the language letters to SHOW (EN/AR/DE...) */
+:where(.landing-page) .lang-button button[title="Language selector"] > span {
+  display: inline-block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+
+  /* in case something set font-size:0 somewhere */
+  font-size: 12px !important;
+  line-height: 1 !important;
+
+  color: rgba(255, 255, 255, 0.96) !important;
+  letter-spacing: 0.6px !important;
+
+  min-width: 22px; /* keeps 2 letters visible */
+  text-align: center;
+}
+
+/* If there is an icon (svg/img) keep it visible without shrinking the text */
+:where(.landing-page) .lang-button button[title="Language selector"] svg,
+:where(.landing-page) .lang-button button[title="Language selector"] img {
+  display: block !important;
+  opacity: 1 !important;
+  flex: 0 0 auto !important;
 }
 
 :where(.landing-page) .lang-button button[title="Language selector"]:hover {
   background: rgba(255, 255, 255, 0.16) !important;
   border-color: rgba(255, 255, 255, 0.32) !important;
-  color: #ffffff !important;
 }
