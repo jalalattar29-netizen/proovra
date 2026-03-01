@@ -1122,22 +1122,6 @@ p {
   background: transparent;
 }
 
-/* زر اللغة داخل الهيدر (App + Marketing) */
-.lang-button button[title="Language selector"] {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 12px;
-  border-radius: 12px;
-  border: 1px solid rgba(255,255,255,0.16);
-  background: rgba(255,255,255,0.06);
-  cursor: pointer;
-  font-size: 12px;
-  font-weight: 600;
-  color: rgba(226,232,240,0.95);
-  line-height: 1;
-  user-select: none;
-}
   .timeline {
     display: grid;
     gap: 12px;
@@ -2117,23 +2101,9 @@ p {
   transform: scaleX(1);
 }
 
-:where(.landing-page) .lang-button button[title="Language selector"] {
-  padding: 8px 10px !important;
-  border: none !important;
-  border-radius: 0 !important;
-  background: transparent !important;
-  color: rgba(217, 236, 248, 0.88) !important;
-  font-size: 13px !important;
-  font-weight: 500 !important;
-  box-shadow: none !important;
-}
 
 :where(.landing-page) .lang-button button[title="Language selector"] > span:first-child {
   display: none;
-}
-
-:where(.landing-page) .lang-button button[title="Language selector"]:hover {
-  color: #85f2ff !important;
 }
 
 :where(.landing-page) .proovra-cta-btn {
@@ -3398,4 +3368,39 @@ html, body {
   border: 0 !important;
   box-shadow: none !important;
   border-radius: 0 !important;
+}
+
+/* =========================================
+   LANDING LANGUAGE BUTTON — CLEAN VERSION
+   ========================================= */
+
+:where(.landing-page) .lang-button button[title="Language selector"] {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+
+  padding: 8px 14px !important;
+  border-radius: 999px !important;
+
+  border: 1px solid rgba(255, 255, 255, 0.18) !important;
+  background: rgba(255, 255, 255, 0.08) !important;
+
+  color: rgba(255, 255, 255, 0.96) !important;
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  line-height: 1 !important;
+
+  cursor: pointer !important;
+  user-select: none !important;
+
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+
+  transition: all 0.2s ease;
+}
+
+:where(.landing-page) .lang-button button[title="Language selector"]:hover {
+  background: rgba(255, 255, 255, 0.16) !important;
+  border-color: rgba(255, 255, 255, 0.32) !important;
+  color: #ffffff !important;
 }
