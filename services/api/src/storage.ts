@@ -18,32 +18,56 @@ function clean(v: string | undefined | null): string | null {
   return t ? t : null;
 }
 
-function requireTls(endpoint: string, name: string) {
+function requireTls(endpoint: string) {
   const allowInsecure = process.env.S3_ALLOW_INSECURE === "true";
   if (process.env.NODE_ENV === "production" && endpoint.startsWith("http://") && !allowInsecure) {
-    throw new Error(`${name} must use https in production`);
+    throw new Error("S3_ENDPOINT must use https in production");
   }
 }
 
-/**
- * Cloudflare R2 / S3 endpoints:
- * - S3_ENDPOINT: what the server uses to talk to storage (must be reachable from API container).
- * - S3_PUBLIC_ENDPOINT (optional): what browsers should open (must be publicly reachable https).
- *
- * If S3_PUBLIC_ENDPOINT is set, we will rewrite the returned presigned URL origin to it,
- * while keeping path + query (signature) intact.
- */
-const endpoint = must("S3_ENDPOINT");
-requireTls(endpoint, "S3_ENDPOINT");
+function normBaseUrl(url: string): string {
+  return url.replace(/\/+$/, "");
+}
 
-const publicEndpoint = clean(process.env.S3_PUBLIC_ENDPOINT);
-if (publicEndpoint) requireTls(publicEndpoint, "S3_PUBLIC_ENDPOINT");
+function isProbablyS3ApiEndpoint(url: string): boolean {
+  // Cloudflare R2 S3 API endpoint (NOT a public object CDN)
+  // also catches many S3-like api endpoints
+  const u = url.toLowerCase();
+  return (
+    u.includes(".r2.cloudflarestorage.com") ||
+    u.includes("amazonaws.com") ||
+    u.includes("storage.googleapis.com")
+  );
+}
+
+/**
+ * IMPORTANT:
+ * S3_PUBLIC_BASE_URL يجب أن يكون "public serving domain" فعلاً (custom domain / r2.dev / CDN)
+ * وليس S3 API endpoint. لذلك:
+ * - إذا كان يبدو مثل S3 API endpoint -> نُعطّله تلقائياً حتى ما نخرب التحميل بالمتصفح.
+ * - أو يمكنك إجبار استخدامه عبر S3_PUBLIC_ASSUME_PUBLIC=true (إذا أنت متأكد أنه public فعلاً).
+ */
+export function getPublicBaseUrl(): string | null {
+  const base = clean(process.env.S3_PUBLIC_BASE_URL);
+  if (!base) return null;
+
+  const assumePublic = process.env.S3_PUBLIC_ASSUME_PUBLIC === "true";
+  const normalized = normBaseUrl(base);
+
+  if (!assumePublic && isProbablyS3ApiEndpoint(normalized)) {
+    // حماية من إعداد خاطئ شائع (مثل حالتك)
+    return null;
+  }
+
+  return normalized;
+}
+
+const endpoint = must("S3_ENDPOINT");
+requireTls(endpoint);
 
 const region = clean(process.env.S3_REGION) ?? "auto";
 
-// NOTE:
-// - Cloudflare R2 usually works with forcePathStyle: true (bucket in path).
-// - Keep it configurable.
+// Cloudflare R2 غالباً يحتاج forcePathStyle=true
 const forcePathStyle =
   clean(process.env.S3_FORCE_PATH_STYLE)?.toLowerCase() === "false" ? false : true;
 
@@ -56,22 +80,6 @@ export const s3 = new S3Client({
   },
   forcePathStyle,
 });
-
-function rewriteToPublicEndpointIfNeeded(signedUrl: string): string {
-  if (!publicEndpoint) return signedUrl;
-
-  // Ensure both URLs parse
-  const signed = new URL(signedUrl);
-  const pub = new URL(publicEndpoint);
-
-  // Replace scheme/host/port to public endpoint, keep pathname + search from signed URL
-  signed.protocol = pub.protocol;
-  signed.username = pub.username;
-  signed.password = pub.password;
-  signed.host = pub.host; // includes hostname:port
-
-  return signed.toString();
-}
 
 export async function presignPutObject(params: {
   bucket: string;
@@ -93,26 +101,13 @@ export async function presignPutObject(params: {
     ContentType: contentType,
   });
 
-  const signed = await getSignedUrl(s3, cmd, { expiresIn: params.expiresInSeconds ?? 600 });
-  return rewriteToPublicEndpointIfNeeded(signed);
+  return getSignedUrl(s3, cmd, { expiresIn: params.expiresInSeconds ?? 600 });
 }
 
 export async function presignGetObject(params: {
   bucket: string;
   key: string;
   expiresInSeconds?: number;
-
-  /**
-   * If provided, we will force the browser to download with this filename.
-   * Example: "report-<evidenceId>.pdf"
-   */
-  downloadName?: string;
-
-  /**
-   * If provided, we will hint content-type for browsers.
-   * Example: "application/pdf"
-   */
-  responseContentType?: string;
 }) {
   const bucket = clean(params.bucket);
   const key = clean(params.key);
@@ -121,20 +116,12 @@ export async function presignGetObject(params: {
     throw new Error("presignGetObject: bucket/key are required");
   }
 
-  // Force download if asked (important for PDFs)
-  const disposition = params.downloadName
-    ? `attachment; filename="${params.downloadName.replace(/"/g, "")}"`
-    : undefined;
-
   const cmd = new GetObjectCommand({
     Bucket: bucket,
     Key: key,
-    ResponseContentDisposition: disposition,
-    ResponseContentType: params.responseContentType ?? undefined,
   });
 
-  const signed = await getSignedUrl(s3, cmd, { expiresIn: params.expiresInSeconds ?? 600 });
-  return rewriteToPublicEndpointIfNeeded(signed);
+  return getSignedUrl(s3, cmd, { expiresIn: params.expiresInSeconds ?? 600 });
 }
 
 export async function headObject(params: { bucket: string; key: string }) {
