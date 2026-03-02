@@ -17,6 +17,8 @@ COPY services/api/prisma services/api/prisma
 COPY services/api/prisma.config.ts services/api/prisma.config.ts
 COPY services/worker/src services/worker/src
 COPY services/worker/tsconfig.json services/worker/tsconfig.json
+COPY services/worker/scripts services/worker/scripts
+COPY services/worker/src/pdf/assets services/worker/src/pdf/assets
 COPY services/worker/tsconfig.build.json services/worker/tsconfig.build.json
 RUN pnpm --filter proovra-api prisma:generate
 RUN pnpm --filter proovra-worker build
