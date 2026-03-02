@@ -75,6 +75,9 @@ services:
       S3_ALLOW_INSECURE: ${S3_ALLOW_INSECURE}
       WORKER_BUILD_INFO: ${WORKER_BUILD_INFO}
       WORKER_PORT: ${WORKER_PORT}
+    volumes:
+      - /opt/proovra/app/services/worker/keys:/app/services/worker/keys:ro
+      - /opt/proovra/app/services/worker/src/pdf/assets:/app/services/worker/src/pdf/assets:ro
     ports:
       - "127.0.0.1:8090:8090"
     healthcheck:
