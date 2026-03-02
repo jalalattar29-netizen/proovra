@@ -240,12 +240,20 @@ async function assertCaseAccess(userId: string, caseId: string) {
   throw err;
 }
 
+
+
 export async function evidenceRoutes(app: FastifyInstance) {
   function must(name: string): string {
     const v = process.env[name];
     if (!v) throw new Error(`${name} is not set`);
     return v;
   }
+
+  function toJsonSafe<T>(value: T): T {
+  return JSON.parse(
+    JSON.stringify(value, (_k, v) => (typeof v === "bigint" ? v.toString() : v))
+  );
+}
 
   function buildPublicUrl(key: string): string | null {
     const base = process.env.S3_PUBLIC_BASE_URL;
@@ -561,46 +569,21 @@ export async function evidenceRoutes(app: FastifyInstance) {
   });
 
   // ✅ FIXED: لا ترجع evidence كامل
-  app.get("/v1/evidence/:id", { preHandler: requireAuth }, async (req, reply) => {
-    const id = z.string().uuid().parse((req.params as ParamsId).id);
-    const ownerUserId = getAuthUserId(req);
-    (req as FastifyRequest & { evidenceId?: string }).evidenceId = id;
-    req.log = req.log.child({ evidenceId: id });
+app.get("/v1/evidence/:id", { preHandler: requireAuth }, async (req, reply) => {
+  const id = z.string().uuid().parse((req.params as ParamsId).id);
+  const ownerUserId = getAuthUserId(req);
+  (req as FastifyRequest & { evidenceId?: string }).evidenceId = id;
+  req.log = req.log.child({ evidenceId: id });
 
-    const evidence = await prisma.evidence.findFirst({
-      where: { id, ownerUserId, deletedAt: null },
-      select: {
-        id: true,
-        type: true,
-        status: true,
-        createdAt: true,
-        uploadedAtUtc: true,
-        signedAtUtc: true,
-        capturedAtUtc: true,
-        deviceTimeIso: true,
-        lat: true,
-        lng: true,
-        accuracyMeters: true,
-        mimeType: true,
-        storageBucket: true,
-        storageKey: true,
-        sizeBytes: true,
-        fileSha256: true,
-        fingerprintHash: true,
-        signatureBase64: true,
-        signingKeyId: true,
-        signingKeyVersion: true,
-        lockedAt: true,
-        lockedByUserId: true,
-        caseId: true,
-        teamId: true
-      }
-    });
-
-    if (!evidence) return reply.code(404).send({ message: "Evidence not found" });
-
-    return reply.code(200).send({ evidence: toSafeEvidence(evidence) });
+  const evidence = await prisma.evidence.findFirst({
+    where: { id, ownerUserId, deletedAt: null },
   });
+
+  if (!evidence) return reply.code(404).send({ message: "Evidence not found" });
+
+  // ✅ BigInt-safe response
+  return reply.code(200).send({ evidence: toJsonSafe(evidence) });
+});
 
   app.post(
     "/v1/evidence/:id/complete",
