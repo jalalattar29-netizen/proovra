@@ -2,8 +2,8 @@
 import PDFDocument from "pdfkit";
 import fs from "node:fs";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
-import { addSignaturePlaceholderToDoc, signPdfIfEnabled } from "./signPdf.js";
+import { signPdfIfEnabled } from "./signPdf.js";
+import { fileURLToPath } from "node:url"
 
 type PDFDoc = InstanceType<typeof PDFDocument>;
 
@@ -701,8 +701,6 @@ export async function buildReportPdf(params: {
   addFooters(doc, { generatedAtUtc: params.generatedAtUtc, reportVersion: params.version });
 
   // ✅ IMPORTANT: Add placeholder BEFORE doc.end() (only if signing enabled)
-  addSignaturePlaceholderToDoc(doc);
-
   doc.end();
 
   await new Promise<void>((resolve) => {
@@ -711,6 +709,5 @@ export async function buildReportPdf(params: {
 
   const pdf = Buffer.concat(chunks);
 
-  // ✅ Sign final PDF buffer (already contains placeholder when enabled)
   return await signPdfIfEnabled(pdf);
 }
