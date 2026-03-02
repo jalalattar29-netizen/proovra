@@ -39,6 +39,52 @@ function readMaxEvidenceSizeBytes(): number {
   return mb * 1024 * 1024;
 }
 
+function clean(v: string | null | undefined): string | null {
+  if (typeof v !== "string") return v ?? null;
+  const t = v.trim();
+  return t ? t : null;
+}
+
+function isNotFoundLike(e: any): boolean {
+  const name = (e?.name || "").toString().toLowerCase();
+  const code = (e?.code || e?.Code || "").toString().toLowerCase();
+  const msg = (e?.message || "").toString().toLowerCase();
+  return (
+    name.includes("notfound") ||
+    code.includes("notfound") ||
+    code === "nosuchkey" ||
+    msg.includes("notfound") ||
+    msg.includes("no such key") ||
+    msg.includes("not found")
+  );
+}
+
+async function safeHead(bucket: string, key: string) {
+  try {
+    return await headObject({ bucket, key });
+  } catch (e: any) {
+    const detail = e?.name || e?.code || e?.Code || e?.message || "unknown";
+    const err: HttpError = Object.assign(
+      new Error(`OBJECT_HEAD_FAILED: ${detail} bucket=${bucket} key=${key}`),
+      { statusCode: isNotFoundLike(e) ? 404 : 502 }
+    );
+    throw err;
+  }
+}
+
+async function safeGetStream(bucket: string, key: string) {
+  try {
+    return await getObjectStream({ bucket, key });
+  } catch (e: any) {
+    const detail = e?.name || e?.code || e?.Code || e?.message || "unknown";
+    const err: HttpError = Object.assign(
+      new Error(`OBJECT_GET_FAILED: ${detail} bucket=${bucket} key=${key}`),
+      { statusCode: isNotFoundLike(e) ? 404 : 502 }
+    );
+    throw err;
+  }
+}
+
 const { EvidenceStatus } = prismaPkg;
 
 export async function completeEvidence(params: {
@@ -61,6 +107,11 @@ export async function completeEvidence(params: {
     throw err;
   }
 
+  // Normalize stored bucket/key/mime
+  const evidenceBucket = clean(evidence.storageBucket);
+  const evidenceKey = clean(evidence.storageKey);
+  const evidenceMime = clean(evidence.mimeType);
+
   // If already reported, be idempotent and do not enqueue
   if (evidence.status === EvidenceStatus.REPORTED) {
     return {
@@ -77,7 +128,7 @@ export async function completeEvidence(params: {
   // If already signed, be idempotent but ensure report job is enqueued
   if (evidence.status === EvidenceStatus.SIGNED) {
     const entitlement = await prisma.entitlement.findFirst({
-      where: { userId: params.ownerUserId, active: true }
+      where: { userId: params.ownerUserId, active: true },
     });
     const plan = entitlement?.plan ?? prismaPkg.PlanType.FREE;
     if (plan !== prismaPkg.PlanType.FREE) {
@@ -96,22 +147,28 @@ export async function completeEvidence(params: {
 
   const parts = await prisma.evidencePart.findMany({
     where: { evidenceId: evidence.id },
-    orderBy: { partIndex: "asc" }
+    orderBy: { partIndex: "asc" },
   });
-  if (parts.length === 0 && (!evidence.storageBucket || !evidence.storageKey)) {
-    const err: HttpError = Object.assign(new Error("EVIDENCE_STORAGE_NOT_SET"), {
-      statusCode: 400,
-    });
+
+  if (parts.length === 0 && (!evidenceBucket || !evidenceKey)) {
+    const err: HttpError = Object.assign(
+      new Error("EVIDENCE_STORAGE_NOT_SET"),
+      { statusCode: 400 }
+    );
     throw err;
   }
 
   const entitlement = await prisma.entitlement.findFirst({
-    where: { userId: params.ownerUserId, active: true }
+    where: { userId: params.ownerUserId, active: true },
   });
   const plan = entitlement?.plan ?? prismaPkg.PlanType.FREE;
-  if (entitlement?.plan === prismaPkg.PlanType.PAYG && entitlement.credits <= 0) {
+
+  if (
+    entitlement?.plan === prismaPkg.PlanType.PAYG &&
+    (entitlement.credits ?? 0) <= 0
+  ) {
     const err: HttpError = Object.assign(new Error("PAYG_CREDITS_REQUIRED"), {
-      statusCode: 402
+      statusCode: 402,
     });
     throw err;
   }
@@ -119,90 +176,124 @@ export async function completeEvidence(params: {
   // 2) Verify object(s) + hash
   let sizeBytesNum = 0;
   let fileSha256 = "";
-  let primaryBucket = evidence.storageBucket ?? null;
-  let primaryKey = evidence.storageKey ?? null;
-  let primaryMimeType = evidence.mimeType ?? null;
+  let primaryBucket = evidenceBucket;
+  let primaryKey = evidenceKey;
+  let primaryMimeType = evidenceMime;
   let uploadContentType: string | null = null;
 
   if (parts.length > 0) {
-    const updatedParts = [];
+    const updatedParts: Array<{
+      id: string;
+      sizeBytes: bigint;
+      sha256: string;
+      mimeType: string | null;
+      partIndex: number;
+      bucket: string;
+      key: string;
+    }> = [];
+
     for (const part of parts) {
-      const meta = await headObject({
-        bucket: part.storageBucket,
-        key: part.storageKey
-      });
+      const bucket = clean(part.storageBucket);
+      const key = clean(part.storageKey);
+
+      if (!bucket || !key) {
+        const err: HttpError = Object.assign(
+          new Error("PART_STORAGE_NOT_SET"),
+          { statusCode: 400 }
+        );
+        throw err;
+      }
+
+      const meta = await safeHead(bucket, key);
       const size = meta.sizeBytes;
+
       if (!size || size <= 0) {
         const err: HttpError = Object.assign(new Error("OBJECT_NOT_FOUND"), {
           statusCode: 404,
         });
         throw err;
       }
-      const body = await getObjectStream({
-        bucket: part.storageBucket,
-        key: part.storageKey
-      });
+
+      const body = await safeGetStream(bucket, key);
       const sha256 = await sha256HexFromStream(body as unknown as Readable);
+
       sizeBytesNum += size;
+
+      const mimeType = meta.contentType ?? clean(part.mimeType) ?? null;
+
       updatedParts.push({
         id: part.id,
         sizeBytes: BigInt(size),
         sha256,
-        mimeType: meta.contentType ?? part.mimeType ?? null
+        mimeType,
+        partIndex: part.partIndex,
+        bucket,
+        key,
       });
-      if (!primaryBucket) primaryBucket = part.storageBucket;
-      if (!primaryKey) primaryKey = part.storageKey;
-      if (!primaryMimeType) primaryMimeType = meta.contentType ?? part.mimeType ?? null;
-      if (!uploadContentType) uploadContentType = meta.contentType ?? part.mimeType ?? null;
+
+      if (!primaryBucket) primaryBucket = bucket;
+      if (!primaryKey) primaryKey = key;
+      if (!primaryMimeType) primaryMimeType = mimeType;
+      if (!uploadContentType) uploadContentType = mimeType;
     }
+
     const maxBytes = readMaxEvidenceSizeBytes();
     if (sizeBytesNum > maxBytes) {
       const err: HttpError = Object.assign(new Error("EVIDENCE_TOO_LARGE"), {
-        statusCode: 413
+        statusCode: 413,
       });
       throw err;
     }
+
+    // Compound hash of parts (deterministic)
     const combined = updatedParts.map((p) => p.sha256).join("|");
     fileSha256 = sha256Hex(combined);
+
     await prisma.$transaction(
-      updatedParts.map((part) =>
+      updatedParts.map((p) =>
         prisma.evidencePart.update({
-          where: { id: part.id },
+          where: { id: p.id },
           data: {
-            sizeBytes: part.sizeBytes,
-            sha256: part.sha256,
-            mimeType: part.mimeType
-          }
+            sizeBytes: p.sizeBytes,
+            sha256: p.sha256,
+            mimeType: p.mimeType,
+          },
         })
       )
     );
   } else {
-    const meta = await headObject({
-      bucket: evidence.storageBucket!,
-      key: evidence.storageKey!,
-    });
+    // Single object
+    const bucket = evidenceBucket!;
+    const key = evidenceKey!;
+
+    const meta = await safeHead(bucket, key);
     const size = meta.sizeBytes;
+
     if (!size || size <= 0) {
       const err: HttpError = Object.assign(new Error("OBJECT_NOT_FOUND"), {
         statusCode: 404,
       });
       throw err;
     }
+
     sizeBytesNum = size;
+
     const maxBytes = readMaxEvidenceSizeBytes();
     if (sizeBytesNum > maxBytes) {
       const err: HttpError = Object.assign(new Error("EVIDENCE_TOO_LARGE"), {
-        statusCode: 413
+        statusCode: 413,
       });
       throw err;
     }
-    primaryMimeType = meta.contentType ?? evidence.mimeType ?? null;
-    uploadContentType = meta.contentType ?? evidence.mimeType ?? null;
-    const body = await getObjectStream({
-      bucket: evidence.storageBucket!,
-      key: evidence.storageKey!,
-    });
+
+    primaryMimeType = meta.contentType ?? evidenceMime ?? null;
+    uploadContentType = meta.contentType ?? evidenceMime ?? null;
+
+    const body = await safeGetStream(bucket, key);
     fileSha256 = await sha256HexFromStream(body as unknown as Readable);
+
+    if (!primaryBucket) primaryBucket = bucket;
+    if (!primaryKey) primaryKey = key;
   }
 
   // 4) Build fingerprint canonical JSON
@@ -223,13 +314,13 @@ export async function completeEvidence(params: {
               storageKey: true,
               sizeBytes: true,
               mimeType: true,
-              sha256: true
-            }
-          })
+              sha256: true,
+            },
+          }),
         }
       : {
-          bucket: evidence.storageBucket,
-          key: evidence.storageKey,
+          bucket: primaryBucket,
+          key: primaryKey,
           sizeBytes: sizeBytesNum,
           mimeType: primaryMimeType,
           sha256: fileSha256,
@@ -249,8 +340,6 @@ export async function completeEvidence(params: {
   const fingerprintHash = sha256Hex(canonical);
 
   // 5) Sign fingerprint hash (Ed25519) using PRIVATE KEY from file path env
-  // Requires: SIGNING_PRIVATE_KEY_PATH in .env
-  // Example: SIGNING_PRIVATE_KEY_PATH=keys/signing-private.pem
   must("SIGNING_PRIVATE_KEY_PATH");
   const signingKeyId = must("SIGNING_KEY_ID");
   const signingKeyVersion = mustInt("SIGNING_KEY_VERSION");
@@ -274,7 +363,7 @@ export async function completeEvidence(params: {
     if (entitlement?.plan === prismaPkg.PlanType.PAYG) {
       await tx.entitlement.updateMany({
         where: { userId: params.ownerUserId, active: true },
-        data: { credits: { decrement: 1 } }
+        data: { credits: { decrement: 1 } },
       });
     }
 
@@ -292,8 +381,8 @@ export async function completeEvidence(params: {
         signatureBase64,
         signingKeyId,
         signingKeyVersion,
-        storageBucket: primaryBucket ?? evidence.storageBucket,
-        storageKey: primaryKey ?? evidence.storageKey
+        storageBucket: primaryBucket,
+        storageKey: primaryKey,
       },
       select: {
         id: true,
@@ -334,5 +423,6 @@ export async function completeEvidence(params: {
   if (plan !== prismaPkg.PlanType.FREE) {
     await enqueueGenerateReportJob(updated.id);
   }
+
   return updated;
 }
