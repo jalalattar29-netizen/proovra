@@ -3,7 +3,7 @@ import PDFDocument from "pdfkit";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { signPdfIfEnabled } from "./signPdf.js";
+import { addSignaturePlaceholderToDoc, signPdfIfEnabled } from "./signPdf.js";
 
 type PDFDoc = InstanceType<typeof PDFDocument>;
 
@@ -84,19 +84,17 @@ function mmToPt(mm: number) {
 /**
  * Assets resolution:
  * - In dev (ts): services/worker/src/pdf/assets
- * - In prod (docker runner): we prefer dist/pdf/assets (if we copy it)
- * This function tries both.
+ * - In prod (docker runner): dist/pdf/assets (copied by scripts/copy-assets.mjs)
  */
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const ASSETS_CANDIDATES = [
-  // prod if copied with dist
+  // dist/pdf/assets (recommended)
   path.resolve(__dirname, "assets"),
-  // typical compiled structure: dist/pdf/report.js => dist/pdf/assets
+  // fallback candidates
   path.resolve(__dirname, "../pdf/assets"),
   path.resolve(__dirname, "../assets"),
-  // dev (ts runtime / tests)
   path.resolve(process.cwd(), "src/pdf/assets"),
 ];
 
@@ -117,15 +115,12 @@ const BRAND = {
   name: env("REPORT_BRAND_NAME") ?? "PROOVRA",
   title: "Verifiable Evidence Report",
 
-  // Paper + ink
   ink: "#0B1220",
   muted: "#475569",
   line: "#E2E8F0",
 
-  // Accents
   accent: "#2563EB",
 
-  // Silver palette
   paper: "#F4F6F9",
   paper2: "#EEF2F7",
   card: "#FFFFFF",
@@ -148,8 +143,7 @@ function ensureSpace(doc: PDFDoc, neededHeight: number) {
 }
 
 /**
- * Silver background + watermark + seal
- * Runs per page
+ * Silver background + watermark + seal (per page)
  */
 function paintPageBackground(doc: PDFDoc) {
   const bg = tryReadAsset("paper-silver.png");
@@ -158,10 +152,8 @@ function paintPageBackground(doc: PDFDoc) {
 
   doc.save();
 
-  // Base silver fill
   doc.rect(0, 0, pageW, pageH).fill(BRAND.paper);
 
-  // Optional texture image (covers page)
   if (bg) {
     try {
       doc.opacity(0.18);
@@ -171,13 +163,11 @@ function paintPageBackground(doc: PDFDoc) {
       doc.opacity(1);
     }
   } else {
-    // subtle band fallback
     doc.opacity(0.06);
     doc.rect(0, 0, pageW, pageH * 0.35).fill(BRAND.paper2);
     doc.opacity(1);
   }
 
-  // Watermark logo (center)
   const wm = tryReadAsset("logo.png");
   if (wm) {
     try {
@@ -192,7 +182,6 @@ function paintPageBackground(doc: PDFDoc) {
     }
   }
 
-  // Corner seal (top-right)
   const seal = tryReadAsset("seal.png");
   if (seal) {
     try {
@@ -227,14 +216,12 @@ function drawHeader(doc: PDFDoc, opts: { evidenceId: string; generatedAtUtc: str
   const top = doc.page.margins.top;
   const w = doc.page.width - doc.page.margins.left - doc.page.margins.right;
 
-  // top accent line
   doc.save();
   doc.rect(0, 0, doc.page.width, mmToPt(4)).fill(BRAND.accent);
   doc.restore();
 
   doc.y = top;
 
-  // optional logo
   const logo = tryReadAsset("logo.png");
   let brandX = x;
   if (logo) {
@@ -253,12 +240,10 @@ function drawHeader(doc: PDFDoc, opts: { evidenceId: string; generatedAtUtc: str
 
   doc.moveDown(0.55);
 
-  // meta
   doc.fillColor(BRAND.muted).font("Helvetica").fontSize(10);
   doc.text(`Evidence ID: ${opts.evidenceId}`, x, doc.y, { continued: true });
   doc.text(`    Generated (UTC): ${opts.generatedAtUtc}`, { continued: false });
 
-  // status badge
   const badgeText = safe(opts.status, "").toUpperCase();
   if (badgeText) {
     const badgeX = x + w - 135;
@@ -271,53 +256,39 @@ function drawHeader(doc: PDFDoc, opts: { evidenceId: string; generatedAtUtc: str
   doc.moveDown(0.8);
 }
 
+/**
+ * ✅ FIX: card كانت ترندر مرتين -> duplication
+ * هون صارت ترندر مرة واحدة فقط.
+ * نعتمد minHeight لتطلع مرتبة دائماً.
+ */
 function card(doc: PDFDoc, title: string, render: () => void, options?: { minHeight?: number }) {
   const x = doc.page.margins.left;
   const w = doc.page.width - doc.page.margins.left - doc.page.margins.right;
 
   const startY = doc.y;
-  const minH = options?.minHeight ?? 0;
+  const minH = Math.max(options?.minHeight ?? 0, 140);
 
-  ensureSpace(doc, Math.max(minH, 140));
+  ensureSpace(doc, minH + 40);
 
-  // initial background
   doc.save();
-  doc.roundedRect(x, doc.y, w, Math.max(minH, 10), 16).fill(BRAND.card);
+  doc.roundedRect(x, startY, w, minH, 16).fill(BRAND.card);
   doc.restore();
 
   const innerX = x + 16;
-  const innerTop = doc.y + 14;
+  const innerTop = startY + 14;
 
-  // title
   doc.save();
   doc.fillColor(BRAND.ink).font("Helvetica-Bold").fontSize(12);
   doc.text(title, innerX, innerTop);
   doc.restore();
 
-  const afterTitleY = innerTop + 18;
-  doc.y = afterTitleY;
+  doc.y = innerTop + 18;
 
-  const contentStart = doc.y;
-  render();
-  const contentEnd = doc.y;
-
-  const contentHeight = contentEnd - startY;
-  const desiredH = Math.max(minH, contentHeight + 22);
-
-  // redraw final background height
-  doc.save();
-  doc.roundedRect(x, startY, w, desiredH, 16).fill(BRAND.card);
-  doc.restore();
-
-  // redraw title
-  doc.y = innerTop;
-  doc.fillColor(BRAND.ink).font("Helvetica-Bold").fontSize(12).text(title, innerX, doc.y);
-
-  // redraw content deterministically
-  doc.y = contentStart;
+  // ✅ render مرة وحدة
   render();
 
-  doc.y = startY + desiredH + 16;
+  // ما نخلي doc.y أقل من نهاية الكارد
+  doc.y = Math.max(doc.y, startY + minH) + 16;
 }
 
 function kvGrid(doc: PDFDoc, rows: Array<[string, string]>, options?: { colGap?: number }) {
@@ -360,10 +331,7 @@ function monospaceBlock(doc: PDFDoc, label: string, value: string) {
   doc.save();
   doc.fillColor(BRAND.muted).font("Helvetica").fontSize(10).text(label, x, doc.y, { width: w });
   doc.moveDown(0.2);
-  doc.fillColor(BRAND.ink).font("Courier").fontSize(9).text(value, x, doc.y, {
-    width: w,
-    lineGap: 2,
-  });
+  doc.fillColor(BRAND.ink).font("Courier").fontSize(9).text(value, x, doc.y, { width: w, lineGap: 2 });
   doc.restore();
   doc.moveDown(0.6);
 }
@@ -455,7 +423,6 @@ function addFooters(doc: PDFDoc, opts: { generatedAtUtc: string; reportVersion: 
     });
 
     doc.text(`Page ${i + 1} / ${range.count}`, x, y, { width: w, align: "right" });
-
     doc.restore();
   }
 }
@@ -465,8 +432,6 @@ function buildVerifyUrl(evidenceId: string, provided?: string | null) {
   if (v) return v;
 
   const base = (env("REPORT_VERIFY_BASE_URL") ?? "https://app.proovra.com/verify").trim().replace(/\/+$/, "");
-
-  // If base already has query, append with &
   if (base.includes("?")) return `${base}&evidenceId=${encodeURIComponent(evidenceId)}`;
   return `${base}?evidenceId=${encodeURIComponent(evidenceId)}`;
 }
@@ -492,7 +457,6 @@ export async function buildReportPdf(params: {
 }): Promise<Buffer> {
   const doc = new PDFDocument({ autoFirstPage: true, margin: 50, bufferPages: true });
 
-  // Background on each page
   paintPageBackground(doc);
   doc.on("pageAdded", () => paintPageBackground(doc));
 
@@ -600,11 +564,7 @@ export async function buildReportPdf(params: {
 
   // ===== PAGE 2: EXHIBIT =====
   doc.addPage();
-  drawHeader(doc, {
-    evidenceId: params.evidence.id,
-    generatedAtUtc: params.generatedAtUtc,
-    status: params.evidence.status,
-  });
+  drawHeader(doc, { evidenceId: params.evidence.id, generatedAtUtc: params.generatedAtUtc, status: params.evidence.status });
 
   card(
     doc,
@@ -674,11 +634,7 @@ export async function buildReportPdf(params: {
 
   // ===== PAGE 3: CHAIN =====
   doc.addPage();
-  drawHeader(doc, {
-    evidenceId: params.evidence.id,
-    generatedAtUtc: params.generatedAtUtc,
-    status: params.evidence.status,
-  });
+  drawHeader(doc, { evidenceId: params.evidence.id, generatedAtUtc: params.generatedAtUtc, status: params.evidence.status });
 
   card(
     doc,
@@ -702,11 +658,7 @@ export async function buildReportPdf(params: {
 
   // ===== APPENDIX A =====
   doc.addPage();
-  drawHeader(doc, {
-    evidenceId: params.evidence.id,
-    generatedAtUtc: params.generatedAtUtc,
-    status: params.evidence.status,
-  });
+  drawHeader(doc, { evidenceId: params.evidence.id, generatedAtUtc: params.generatedAtUtc, status: params.evidence.status });
 
   card(
     doc,
@@ -722,11 +674,7 @@ export async function buildReportPdf(params: {
 
   // ===== APPENDIX B =====
   doc.addPage();
-  drawHeader(doc, {
-    evidenceId: params.evidence.id,
-    generatedAtUtc: params.generatedAtUtc,
-    status: params.evidence.status,
-  });
+  drawHeader(doc, { evidenceId: params.evidence.id, generatedAtUtc: params.generatedAtUtc, status: params.evidence.status });
 
   card(
     doc,
@@ -739,11 +687,7 @@ export async function buildReportPdf(params: {
 
   // ===== APPENDIX C =====
   doc.addPage();
-  drawHeader(doc, {
-    evidenceId: params.evidence.id,
-    generatedAtUtc: params.generatedAtUtc,
-    status: params.evidence.status,
-  });
+  drawHeader(doc, { evidenceId: params.evidence.id, generatedAtUtc: params.generatedAtUtc, status: params.evidence.status });
 
   card(
     doc,
@@ -756,6 +700,9 @@ export async function buildReportPdf(params: {
 
   addFooters(doc, { generatedAtUtc: params.generatedAtUtc, reportVersion: params.version });
 
+  // ✅ IMPORTANT: Add placeholder BEFORE doc.end() (only if signing enabled)
+  addSignaturePlaceholderToDoc(doc);
+
   doc.end();
 
   await new Promise<void>((resolve) => {
@@ -764,6 +711,6 @@ export async function buildReportPdf(params: {
 
   const pdf = Buffer.concat(chunks);
 
-  // ✅ Digital signature (uses ./signPdf)
-return await signPdfIfEnabled(pdf);
+  // ✅ Sign final PDF buffer (already contains placeholder when enabled)
+  return await signPdfIfEnabled(pdf);
 }
