@@ -7,7 +7,7 @@ import { createEvidence } from "../services/evidence.service.js";
 import { completeEvidence } from "../services/evidence-complete.service.js";
 import * as prismaPkg from "@prisma/client";
 import { prisma } from "../db.js";
-import { presignGetObject, presignPutObject } from "../storage.js";
+import { presignGetObject, presignPutObject, getPublicBaseUrl } from "../storage.js";
 import { verifyJwt } from "../services/jwt.js";
 import { enforceRateLimit } from "../services/rate-limit.js";
 
@@ -72,15 +72,12 @@ async function getUserPlan(userId: string) {
 }
 
 /**
- * مهم جداً: Prisma بيرجع BigInt (مثل sizeBytes)
- * و JSON.stringify بيفشل => 500
- * لذلك بنرجّع Response آمن و منحوّل BigInt إلى string.
+ * Prisma يرجع BigInt (مثل sizeBytes) و JSON.stringify بيفشل
+ * لذلك منحوّل BigInt إلى string.
  */
 function bigintToString(v: unknown): string | null {
   if (v === null || v === undefined) return null;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   if (typeof v === "bigint") return v.toString();
-  // sometimes prisma adapter may return number already
   if (typeof v === "number" && Number.isFinite(v)) return String(v);
   return null;
 }
@@ -240,8 +237,6 @@ async function assertCaseAccess(userId: string, caseId: string) {
   throw err;
 }
 
-
-
 export async function evidenceRoutes(app: FastifyInstance) {
   function must(name: string): string {
     const v = process.env[name];
@@ -250,13 +245,14 @@ export async function evidenceRoutes(app: FastifyInstance) {
   }
 
   function toJsonSafe<T>(value: T): T {
-  return JSON.parse(
-    JSON.stringify(value, (_k, v) => (typeof v === "bigint" ? v.toString() : v))
-  );
-}
+    return JSON.parse(
+      JSON.stringify(value, (_k, v) => (typeof v === "bigint" ? v.toString() : v))
+    );
+  }
 
+  // ✅ Safe public URL builder (will return null if base is missing or considered unsafe)
   function buildPublicUrl(key: string): string | null {
-    const base = process.env.S3_PUBLIC_BASE_URL;
+    const base = getPublicBaseUrl();
     if (!base) return null;
     return `${base.replace(/\/+$/, "")}/${key}`;
   }
@@ -284,10 +280,7 @@ export async function evidenceRoutes(app: FastifyInstance) {
       });
       (req as FastifyRequest & { evidenceId?: string }).evidenceId = result.id;
       req.log = req.log.child({ evidenceId: result.id });
-      req.log.info(
-        { userId: ownerUserId, evidenceId: result.id },
-        "evidence.created"
-      );
+      req.log.info({ userId: ownerUserId, evidenceId: result.id }, "evidence.created");
       return reply.code(201).send(result);
     } catch (err) {
       if (err instanceof Error && err.message === "PAYG_CREDITS_REQUIRED") {
@@ -365,11 +358,13 @@ export async function evidenceRoutes(app: FastifyInstance) {
       const id = z.string().uuid().parse((req.params as ParamsId).id);
       (req as FastifyRequest & { evidenceId?: string }).evidenceId = id;
       req.log = req.log.child({ evidenceId: id });
+
       const evidence = await prisma.evidence.findFirst({
         where: { id, ownerUserId, deletedAt: null },
         select: { id: true }
       });
       if (!evidence) return reply.code(404).send({ message: "Evidence not found" });
+
       const parts = await prisma.evidencePart.findMany({
         where: { evidenceId: id },
         orderBy: { partIndex: "asc" }
@@ -391,6 +386,7 @@ export async function evidenceRoutes(app: FastifyInstance) {
     if (payload.provider !== "GUEST") {
       return reply.code(400).send({ message: "invalid_guest_token" });
     }
+
     const guestUserId = payload.sub;
     const userId = getAuthUserId(req);
 
@@ -531,6 +527,7 @@ export async function evidenceRoutes(app: FastifyInstance) {
         where: { id },
         data: { deletedAt: now, deletedAtUtc: now }
       });
+
       await appendCustodyEvent({
         evidenceId: id,
         eventType: "EVIDENCE_DELETED",
@@ -568,22 +565,21 @@ export async function evidenceRoutes(app: FastifyInstance) {
     return reply.code(200).send({ items });
   });
 
-  // ✅ FIXED: لا ترجع evidence كامل
-app.get("/v1/evidence/:id", { preHandler: requireAuth }, async (req, reply) => {
-  const id = z.string().uuid().parse((req.params as ParamsId).id);
-  const ownerUserId = getAuthUserId(req);
-  (req as FastifyRequest & { evidenceId?: string }).evidenceId = id;
-  req.log = req.log.child({ evidenceId: id });
+  // ✅ BigInt-safe evidence response
+  app.get("/v1/evidence/:id", { preHandler: requireAuth }, async (req, reply) => {
+    const id = z.string().uuid().parse((req.params as ParamsId).id);
+    const ownerUserId = getAuthUserId(req);
+    (req as FastifyRequest & { evidenceId?: string }).evidenceId = id;
+    req.log = req.log.child({ evidenceId: id });
 
-  const evidence = await prisma.evidence.findFirst({
-    where: { id, ownerUserId, deletedAt: null },
+    const evidence = await prisma.evidence.findFirst({
+      where: { id, ownerUserId, deletedAt: null }
+    });
+
+    if (!evidence) return reply.code(404).send({ message: "Evidence not found" });
+
+    return reply.code(200).send({ evidence: toJsonSafe(evidence) });
   });
-
-  if (!evidence) return reply.code(404).send({ message: "Evidence not found" });
-
-  // ✅ BigInt-safe response
-  return reply.code(200).send({ evidence: toJsonSafe(evidence) });
-});
 
   app.post(
     "/v1/evidence/:id/complete",
@@ -610,9 +606,7 @@ app.get("/v1/evidence/:id", { preHandler: requireAuth }, async (req, reply) => {
         return reply.code(200).send(result);
       } catch (err) {
         if (err instanceof Error && err.message === "PAYG_CREDITS_REQUIRED") {
-          return reply
-            .code(402)
-            .send({ message: "Pay-per-evidence credits required" });
+          return reply.code(402).send({ message: "Pay-per-evidence credits required" });
         }
         throw err;
       }
@@ -660,13 +654,13 @@ app.get("/v1/evidence/:id", { preHandler: requireAuth }, async (req, reply) => {
       }).catch(() => null);
 
       const publicUrl = buildPublicUrl(latest.storageKey);
-      const url =
-        publicUrl ??
-        (await presignGetObject({
-          bucket: latest.storageBucket,
-          key: latest.storageKey,
-          expiresInSeconds: 600
-        }));
+
+      // ✅ Always return presigned URL for browser reliability
+      const url = await presignGetObject({
+        bucket: latest.storageBucket,
+        key: latest.storageKey,
+        expiresInSeconds: 600
+      });
 
       return reply.code(200).send({
         evidenceId: id,
@@ -810,14 +804,15 @@ app.get("/v1/evidence/:id", { preHandler: requireAuth }, async (req, reply) => {
     });
 
     const publicUrl = latest ? buildPublicUrl(latest.storageKey) : null;
-    const url =
-      latest && !publicUrl
-        ? await presignGetObject({
-            bucket: latest.storageBucket,
-            key: latest.storageKey,
-            expiresInSeconds: 600
-          })
-        : publicUrl;
+
+    // ✅ Always presign when report exists (avoid non-public URL issues)
+    const url = latest
+      ? await presignGetObject({
+          bucket: latest.storageBucket,
+          key: latest.storageKey,
+          expiresInSeconds: 600
+        })
+      : null;
 
     if (latest) {
       await appendCustodyEvent({
