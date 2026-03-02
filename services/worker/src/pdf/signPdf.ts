@@ -1,4 +1,3 @@
-// services/worker/src/pdf/signPdf.ts
 import fs from "node:fs";
 import { SignPdf } from "@signpdf/signpdf";
 import { plainAddPlaceholder } from "@signpdf/placeholder-plain";
@@ -10,11 +9,11 @@ function env(name: string): string | undefined {
   return t ? t : undefined;
 }
 
-export function isPdfSigningEnabled() {
+export function isPdfSigningEnabled(): boolean {
   return (env("PDF_SIGNING_ENABLED") ?? "false").toLowerCase() === "true";
 }
 
-export async function signPdfBuffer(unsignedPdf: Buffer): Promise<Buffer> {
+async function signPdfBuffer(unsignedPdf: Buffer): Promise<Buffer> {
   const p12Path = env("PDF_SIGNING_P12_PATH") || "/app/services/worker/keys/proovra-signing.p12";
   const passphrase = env("PDF_SIGNING_P12_PASSWORD") || "";
 
@@ -24,9 +23,9 @@ export async function signPdfBuffer(unsignedPdf: Buffer): Promise<Buffer> {
 
   const p12Buffer = fs.readFileSync(p12Path);
 
-  // ✅ placeholder للـ PDF buffer مباشرة
+  // Add placeholder to the final PDF buffer
   const pdfWithPlaceholder = plainAddPlaceholder({
-    pdfBuffer: unsignedPdf, // <-- مهم: اسمها pdfBuffer مع placeholder-plain
+    pdfBuffer: unsignedPdf, // ✅ IMPORTANT: this key name must be pdfBuffer in placeholder-plain
     reason: env("PDF_SIGNING_REASON") || "PROOVRA evidence report signing",
     contactInfo: env("PDF_SIGNING_CONTACT") || "security@proovra.com",
     name: env("PDF_SIGNING_NAME") || "PROOVRA",
@@ -36,7 +35,8 @@ export async function signPdfBuffer(unsignedPdf: Buffer): Promise<Buffer> {
   const signer = new P12Signer(p12Buffer, { passphrase });
 
   const signPdf = new SignPdf();
-  return await signPdf.sign(pdfWithPlaceholder, signer);
+  const signed = await signPdf.sign(pdfWithPlaceholder, signer); // ✅ await مهم
+  return signed;
 }
 
 export async function signPdfIfEnabled(pdf: Buffer): Promise<Buffer> {
