@@ -700,17 +700,17 @@ export async function buildReportPdf(params: {
 
   addFooters(doc, { generatedAtUtc: params.generatedAtUtc, reportVersion: params.version });
 
-  // ✅ IMPORTANT: Attach end/error listeners BEFORE calling doc.end()
+  // ✅ اجمع الـ PDF كـ Buffer ثم وقّعه (إذا مفعّل)
   const endPromise = new Promise<void>((resolve, reject) => {
-    doc.once("end", resolve);
-    doc.once("error", reject);
+    doc.on("end", () => resolve());
+    doc.on("error", (e) => reject(e));
   });
 
   doc.end();
   await endPromise;
 
   const pdf = Buffer.concat(chunks);
+  const signed = await signPdfIfEnabled(pdf);
 
-  // ✅ Sign final PDF buffer (placeholder is added inside signPdfIfEnabled when enabled)
-  return signPdfIfEnabled(pdf);
+  return signed;
 }

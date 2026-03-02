@@ -1,3 +1,4 @@
+// D:\digital-witness\services\worker\src\pdf\signPdf.ts
 import fs from "node:fs";
 import { SignPdf } from "@signpdf/signpdf";
 import { plainAddPlaceholder } from "@signpdf/placeholder-plain";
@@ -23,21 +24,22 @@ async function signPdfBuffer(unsignedPdf: Buffer): Promise<Buffer> {
 
   const p12Buffer = fs.readFileSync(p12Path);
 
-  // ✅ Add placeholder to the final PDF buffer (buffer-based, no pdfkit placeholder dependency)
+  // 1) Add placeholder to final PDF buffer
   const pdfWithPlaceholder = plainAddPlaceholder({
-    pdfBuffer: unsignedPdf,
+    pdfBuffer: unsignedPdf, // ✅ الصحيح لـ placeholder-plain
     reason: env("PDF_SIGNING_REASON") || "PROOVRA evidence report signing",
     contactInfo: env("PDF_SIGNING_CONTACT") || "security@proovra.com",
     name: env("PDF_SIGNING_NAME") || "PROOVRA",
     location: env("PDF_SIGNING_LOCATION") || "Essen, DE",
   });
 
+  // 2) Sign
   const signer = new P12Signer(p12Buffer, { passphrase });
   const signPdf = new SignPdf();
 
-  // SignPdf.sign returns Buffer (sync). "await" harmless but not required.
-  const signed = signPdf.sign(pdfWithPlaceholder, signer) as unknown as Buffer;
-  return signed;
+  // بعض إصدارات signpdf بيرجع Buffer مباشرة (مو Promise)
+  const result = signPdf.sign(pdfWithPlaceholder, signer);
+  return Buffer.isBuffer(result) ? result : await result;
 }
 
 export async function signPdfIfEnabled(pdf: Buffer): Promise<Buffer> {
