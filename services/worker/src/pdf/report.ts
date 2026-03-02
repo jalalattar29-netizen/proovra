@@ -3,7 +3,7 @@ import PDFDocument from "pdfkit";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { signPdfIfEnabled } from "./signPdf";
+import { signPdfIfEnabled } from "./signPdf.js";
 
 type PDFDoc = InstanceType<typeof PDFDocument>;
 
@@ -765,5 +765,5 @@ export async function buildReportPdf(params: {
   const pdf = Buffer.concat(chunks);
 
   // ✅ Digital signature (uses ./signPdf)
-  return signPdfIfEnabled(pdf);
+return await signPdfIfEnabled(pdf);
 }

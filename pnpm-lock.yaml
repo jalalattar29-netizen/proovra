@@ -320,9 +320,12 @@ importers:
       '@sentry/node':
         specifier: ^10.38.0
         version: 10.38.0
-      '@signpdf/placeholder-pdfkit':
+      '@signpdf/placeholder-plain':
         specifier: ^3.3.0
         version: 3.3.0(pdfkit@0.15.2)
+      '@signpdf/signer-p12':
+        specifier: ^3.3.0
+        version: 3.3.0(node-forge@1.3.3)
       '@signpdf/signpdf':
         specifier: ^3.3.0
         version: 3.3.0
@@ -335,9 +338,6 @@ importers:
       ioredis:
         specifier: 5.9.3
         version: 5.9.3
-      node-forge:
-        specifier: ^1.3.3
-        version: 1.3.3
       pdfkit:
         specifier: ^0.15.2
         version: 0.15.2
@@ -2640,11 +2640,21 @@ packages:
     resolution: {integrity: sha512-JL8UDjrsKxKclTdLXfuHfE7B3KbrAPEYP7tMyN/xiO2vsF6D84fjwYyalO0ZMtuFZE6vpSze8ZOLEh6hLnPYsw==}
     engines: {node: '>=14.18'}
 
-  '@signpdf/placeholder-pdfkit@3.3.0':
-    resolution: {integrity: sha512-MJbRyjNYKjIbPmnQlcaNllhkY/IDKoCzHPtBCqHpABchr/BjC+jUY/EGJkUszs9cE2f2PC5v2O9QVbbqWVTd3g==}
+  '@signpdf/placeholder-pdfkit010@3.3.0':
+    resolution: {integrity: sha512-tfXvynZDT68VoQg80cSdN5TET3ZzLMQCNHQpc3RJCi67YnhRromVhyCwMyi2tCdApGo2rkI46x6e9kCPvNsaBA==}
     engines: {node: '>=12', yarn: '>=1.22.18'}
     peerDependencies:
-      pdfkit: ^0.11.0
+      pdfkit: ~0.10.0
+
+  '@signpdf/placeholder-plain@3.3.0':
+    resolution: {integrity: sha512-n7jt1Dzo3wocI64Pb8YhB+gvHAeaxweR7oHj5Xn3CyUVsP8LmXEWwJOUdWmtTrDfAupEiQtcro/EeskLiNy1vA==}
+    engines: {node: '>=12'}
+
+  '@signpdf/signer-p12@3.3.0':
+    resolution: {integrity: sha512-MLynYKgUBu29ojIueIDV34sIOFDFpP0s1gQORxCc0zhs1jfy0juqU2xQpjUayMbhzB4L0zS9dPwgHtok1f89Cg==}
+    engines: {node: '>=12', yarn: '>=1.22.18'}
+    peerDependencies:
+      node-forge: ^1.3.3
 
   '@signpdf/signpdf@3.3.0':
     resolution: {integrity: sha512-/vy3dPTsTbLHdsKRarPQw8++UqN8GXxjEVnl4ZRl+o/zMWFqVb861RM5bxoRMGGMuPSvb1Rgt2lmVobEc0YUpw==}
@@ -9936,10 +9946,22 @@ snapshots:
     dependencies:
       '@sentry/core': 8.54.0
 
-  '@signpdf/placeholder-pdfkit@3.3.0(pdfkit@0.15.2)':
+  '@signpdf/placeholder-pdfkit010@3.3.0(pdfkit@0.15.2)':
     dependencies:
       '@signpdf/utils': 3.3.0
       pdfkit: 0.15.2
+
+  '@signpdf/placeholder-plain@3.3.0(pdfkit@0.15.2)':
+    dependencies:
+      '@signpdf/placeholder-pdfkit010': 3.3.0(pdfkit@0.15.2)
+      '@signpdf/utils': 3.3.0
+    transitivePeerDependencies:
+      - pdfkit
+
+  '@signpdf/signer-p12@3.3.0(node-forge@1.3.3)':
+    dependencies:
+      '@signpdf/utils': 3.3.0
+      node-forge: 1.3.3
 
   '@signpdf/signpdf@3.3.0':
     dependencies:
