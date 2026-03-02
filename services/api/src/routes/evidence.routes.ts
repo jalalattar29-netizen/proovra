@@ -1,3 +1,4 @@
+// D:\digital-witness\services\api\src\routes\evidence.routes.ts
 import type { FastifyInstance, FastifyRequest } from "fastify";
 import { z } from "zod";
 import { requireAuth } from "../middleware/auth.js";
@@ -22,23 +23,24 @@ const CreateEvidenceBody = z.object({
     .object({
       lat: z.number(),
       lng: z.number(),
-      accuracyMeters: z.number().positive().optional()
+      accuracyMeters: z.number().positive().optional(),
     })
-    .optional()
+    .optional(),
 });
 
 const ClaimBody = z.object({
   guestToken: z.string().min(1).optional(),
-  evidenceIds: z.array(z.string().uuid()).optional()
+  evidenceIds: z.array(z.string().uuid()).optional(),
 });
+
 const LockBody = z.object({
-  locked: z.boolean().optional().default(true)
+  locked: z.boolean().optional().default(true),
 });
 
 const CreatePartBody = z.object({
   partIndex: z.number().int().min(0),
   mimeType: z.string().min(1).max(128).optional(),
-  durationMs: z.number().int().positive().optional()
+  durationMs: z.number().int().positive().optional(),
 });
 
 type ParamsId = { id: string };
@@ -64,7 +66,7 @@ function getVerifyLimit() {
 
 async function getUserPlan(userId: string) {
   const entitlement = await prisma.entitlement.findFirst({
-    where: { userId, active: true }
+    where: { userId, active: true },
   });
   return entitlement?.plan ?? PlanType.FREE;
 }
@@ -79,7 +81,7 @@ async function appendCustodyEvent(params: {
   const last = await prisma.custodyEvent.findFirst({
     where: { evidenceId: params.evidenceId },
     orderBy: { sequence: "desc" },
-    select: { sequence: true }
+    select: { sequence: true },
   });
   const nextSeq = (last?.sequence ?? 0) + 1;
   await prisma.custodyEvent.create({
@@ -91,15 +93,15 @@ async function appendCustodyEvent(params: {
       payload:
         (params.payload ?? prismaPkg.Prisma.JsonNull) as prismaPkg.Prisma.InputJsonValue,
       ip: params.ip ?? null,
-      userAgent: params.userAgent ?? null
-    }
+      userAgent: params.userAgent ?? null,
+    },
   });
 }
 
 async function assertCaseAccess(userId: string, caseId: string) {
   const item = await prisma.case.findUnique({
     where: { id: caseId },
-    include: { access: true }
+    include: { access: true },
   });
   if (!item) {
     const err: Error & { statusCode?: number } = new Error("Case not found");
@@ -110,7 +112,7 @@ async function assertCaseAccess(userId: string, caseId: string) {
   if (item.access.some((a) => a.userId === userId)) return;
   if (item.teamId && item.access.length === 0) {
     const member = await prisma.teamMember.findUnique({
-      where: { teamId_userId: { teamId: item.teamId, userId } }
+      where: { teamId_userId: { teamId: item.teamId, userId } },
     });
     if (member) return;
   }
@@ -125,6 +127,7 @@ export async function evidenceRoutes(app: FastifyInstance) {
     if (!v) throw new Error(`${name} is not set`);
     return v;
   }
+
   function buildPublicUrl(key: string): string | null {
     const base = process.env.S3_PUBLIC_BASE_URL;
     if (!base) return null;
@@ -139,7 +142,7 @@ export async function evidenceRoutes(app: FastifyInstance) {
     const rate = await enforceRateLimit({
       key: `ratelimit:evidence:create:${plan}:${ownerUserId}`,
       max: limit.max,
-      windowSec: limit.windowSec
+      windowSec: limit.windowSec,
     });
     if (!rate.allowed) {
       return reply.code(429).send({ message: "Rate limit exceeded" });
@@ -150,7 +153,7 @@ export async function evidenceRoutes(app: FastifyInstance) {
         type: body.type,
         mimeType: body.mimeType,
         deviceTimeIso: body.deviceTimeIso,
-        gps: body.gps
+        gps: body.gps,
       });
       (req as FastifyRequest & { evidenceId?: string }).evidenceId = result.id;
       req.log = req.log.child({ evidenceId: result.id });
@@ -182,7 +185,7 @@ export async function evidenceRoutes(app: FastifyInstance) {
 
       const evidence = await prisma.evidence.findFirst({
         where: { id, ownerUserId, deletedAt: null },
-        select: { id: true, status: true, lockedAt: true }
+        select: { id: true, status: true, lockedAt: true },
       });
       if (!evidence) return reply.code(404).send({ message: "Evidence not found" });
       if (
@@ -194,7 +197,7 @@ export async function evidenceRoutes(app: FastifyInstance) {
       }
 
       const existing = await prisma.evidencePart.findFirst({
-        where: { evidenceId: id, partIndex: body.partIndex }
+        where: { evidenceId: id, partIndex: body.partIndex },
       });
       if (existing) {
         return reply.code(200).send({ part: existing });
@@ -206,7 +209,7 @@ export async function evidenceRoutes(app: FastifyInstance) {
         bucket,
         key,
         contentType: body.mimeType ?? "application/octet-stream",
-        expiresInSeconds: 600
+        expiresInSeconds: 600,
       });
 
       const part = await prisma.evidencePart.create({
@@ -216,13 +219,13 @@ export async function evidenceRoutes(app: FastifyInstance) {
           storageBucket: bucket,
           storageKey: key,
           mimeType: body.mimeType ?? null,
-          durationMs: body.durationMs ?? null
-        }
+          durationMs: body.durationMs ?? null,
+        },
       });
 
       return reply.code(201).send({
         part,
-        upload: { bucket, key, putUrl, expiresInSeconds: 600 }
+        upload: { bucket, key, putUrl, expiresInSeconds: 600 },
       });
     }
   );
@@ -237,12 +240,12 @@ export async function evidenceRoutes(app: FastifyInstance) {
       req.log = req.log.child({ evidenceId: id });
       const evidence = await prisma.evidence.findFirst({
         where: { id, ownerUserId, deletedAt: null },
-        select: { id: true }
+        select: { id: true },
       });
       if (!evidence) return reply.code(404).send({ message: "Evidence not found" });
       const parts = await prisma.evidencePart.findMany({
         where: { evidenceId: id },
-        orderBy: { partIndex: "asc" }
+        orderBy: { partIndex: "asc" },
       });
       return reply.code(200).send({ parts });
     }
@@ -267,12 +270,12 @@ export async function evidenceRoutes(app: FastifyInstance) {
     const where = {
       ownerUserId: guestUserId,
       deletedAt: null,
-      ...(body.evidenceIds?.length ? { id: { in: body.evidenceIds } } : {})
+      ...(body.evidenceIds?.length ? { id: { in: body.evidenceIds } } : {}),
     };
 
     const evidence = await prisma.evidence.findMany({
       where,
-      select: { id: true }
+      select: { id: true },
     });
 
     if (evidence.length === 0) {
@@ -281,19 +284,19 @@ export async function evidenceRoutes(app: FastifyInstance) {
 
     await prisma.evidence.updateMany({
       where,
-      data: { ownerUserId: userId }
+      data: { ownerUserId: userId },
     });
 
     await prisma.guestIdentity.updateMany({
       where: { userId: guestUserId },
-      data: { claimedByUserId: userId, claimedAt: new Date() }
+      data: { claimedByUserId: userId, claimedAt: new Date() },
     });
 
     for (const item of evidence) {
       const last = await prisma.custodyEvent.findFirst({
         where: { evidenceId: item.id },
         orderBy: { sequence: "desc" },
-        select: { sequence: true }
+        select: { sequence: true },
       });
       const nextSeq = (last?.sequence ?? 0) + 1;
       await prisma.custodyEvent.create({
@@ -302,8 +305,8 @@ export async function evidenceRoutes(app: FastifyInstance) {
           eventType: "EVIDENCE_CLAIMED",
           atUtc: new Date(),
           sequence: nextSeq,
-          payload: { fromUserId: guestUserId, toUserId: userId }
-        }
+          payload: { fromUserId: guestUserId, toUserId: userId },
+        },
       });
     }
 
@@ -320,26 +323,29 @@ export async function evidenceRoutes(app: FastifyInstance) {
       req.log = req.log.child({ evidenceId: id });
       const body = LockBody.parse(req.body);
       const evidence = await prisma.evidence.findFirst({
-        where: { id, deletedAt: null }
+        where: { id, deletedAt: null },
       });
       if (!evidence) return reply.code(404).send({ message: "Evidence not found" });
       if (evidence.ownerUserId !== ownerUserId) {
         return reply.code(403).send({ message: "Forbidden" });
       }
-      if (evidence.status !== prismaPkg.EvidenceStatus.SIGNED && evidence.status !== prismaPkg.EvidenceStatus.REPORTED) {
+      if (
+        evidence.status !== prismaPkg.EvidenceStatus.SIGNED &&
+        evidence.status !== prismaPkg.EvidenceStatus.REPORTED
+      ) {
         return reply.code(400).send({ message: "Evidence must be signed before lock" });
       }
       if (body.locked) {
         const updated = await prisma.evidence.update({
           where: { id },
-          data: { lockedAt: new Date(), lockedByUserId: ownerUserId }
+          data: { lockedAt: new Date(), lockedByUserId: ownerUserId },
         });
         await appendCustodyEvent({
           evidenceId: id,
           eventType: "EVIDENCE_LOCKED",
           payload: { lockedByUserId: ownerUserId },
           ip: req.ip,
-          userAgent: req.headers["user-agent"]
+          userAgent: req.headers["user-agent"],
         }).catch(() => null);
         return reply.code(200).send({ evidence: updated });
       }
@@ -358,21 +364,21 @@ export async function evidenceRoutes(app: FastifyInstance) {
 
       const evidence = await prisma.evidence.findFirst({
         where: { id, ownerUserId, deletedAt: null },
-        select: { id: true }
+        select: { id: true },
       });
       if (!evidence) return reply.code(404).send({ message: "Evidence not found" });
 
       const now = new Date();
       await prisma.evidence.update({
         where: { id },
-        data: { deletedAt: now, deletedAtUtc: now }
+        data: { deletedAt: now, deletedAtUtc: now },
       });
       await appendCustodyEvent({
         evidenceId: id,
         eventType: "EVIDENCE_DELETED",
         payload: { deletedByUserId: ownerUserId },
         ip: req.ip,
-        userAgent: req.headers["user-agent"]
+        userAgent: req.headers["user-agent"],
       });
 
       return reply.code(200).send({ deleted: true });
@@ -390,7 +396,7 @@ export async function evidenceRoutes(app: FastifyInstance) {
       where: {
         ownerUserId,
         deletedAt: null,
-        ...(caseId ? { caseId } : {})
+        ...(caseId ? { caseId } : {}),
       },
       orderBy: { createdAt: "desc" },
       take: 20,
@@ -398,8 +404,8 @@ export async function evidenceRoutes(app: FastifyInstance) {
         id: true,
         type: true,
         status: true,
-        createdAt: true
-      }
+        createdAt: true,
+      },
     });
     return reply.code(200).send({ items });
   });
@@ -410,7 +416,7 @@ export async function evidenceRoutes(app: FastifyInstance) {
     (req as FastifyRequest & { evidenceId?: string }).evidenceId = id;
     req.log = req.log.child({ evidenceId: id });
     const evidence = await prisma.evidence.findFirst({
-      where: { id, ownerUserId, deletedAt: null }
+      where: { id, ownerUserId, deletedAt: null },
     });
     if (!evidence) return reply.code(404).send({ message: "Evidence not found" });
     return reply.code(200).send({ evidence });
@@ -429,7 +435,7 @@ export async function evidenceRoutes(app: FastifyInstance) {
       const rate = await enforceRateLimit({
         key: `ratelimit:evidence:complete:${plan}:${ownerUserId}`,
         max: limit.max,
-        windowSec: limit.windowSec
+        windowSec: limit.windowSec,
       });
       if (!rate.allowed) {
         return reply.code(429).send({ message: "Rate limit exceeded" });
@@ -439,15 +445,14 @@ export async function evidenceRoutes(app: FastifyInstance) {
         return reply.code(200).send(result);
       } catch (err) {
         if (err instanceof Error && err.message === "PAYG_CREDITS_REQUIRED") {
-          return reply
-            .code(402)
-            .send({ message: "Pay-per-evidence credits required" });
+          return reply.code(402).send({ message: "Pay-per-evidence credits required" });
         }
         throw err;
       }
     }
   );
 
+  // ✅ existing endpoint (kept) - returns url + metadata
   app.get(
     "/v1/evidence/:id/report/latest",
     { preHandler: requireAuth },
@@ -465,16 +470,39 @@ export async function evidenceRoutes(app: FastifyInstance) {
         return reply.code(404).send({ message: "Evidence not found" });
       }
 
-      const latest = await prisma.report.findFirst({
-        where: { evidenceId: id },
-        orderBy: { version: "desc" },
-        select: {
-          version: true,
-          storageBucket: true,
-          storageKey: true,
-          generatedAtUtc: true,
-        },
-      });
+      // ✅ prefer generatedAtUtc desc; fallback to version desc
+      let latest:
+        | {
+            version: number;
+            storageBucket: string;
+            storageKey: string;
+            generatedAtUtc: Date | null;
+          }
+        | null = null;
+
+      try {
+        latest = await prisma.report.findFirst({
+          where: { evidenceId: id },
+          orderBy: { generatedAtUtc: "desc" },
+          select: {
+            version: true,
+            storageBucket: true,
+            storageKey: true,
+            generatedAtUtc: true,
+          },
+        });
+      } catch {
+        latest = await prisma.report.findFirst({
+          where: { evidenceId: id },
+          orderBy: { version: "desc" },
+          select: {
+            version: true,
+            storageBucket: true,
+            storageKey: true,
+            generatedAtUtc: true,
+          },
+        });
+      }
 
       if (!latest) {
         return reply.code(404).send({ message: "Report not found" });
@@ -485,7 +513,7 @@ export async function evidenceRoutes(app: FastifyInstance) {
         eventType: "REPORT_DOWNLOADED",
         payload: { reportVersion: latest.version },
         ip: req.ip,
-        userAgent: req.headers["user-agent"]
+        userAgent: req.headers["user-agent"],
       }).catch(() => null);
 
       const publicUrl = buildPublicUrl(latest.storageKey);
@@ -504,7 +532,79 @@ export async function evidenceRoutes(app: FastifyInstance) {
         key: latest.storageKey,
         url,
         publicUrl,
-        generatedAtUtc: latest.generatedAtUtc.toISOString(),
+        generatedAtUtc: latest.generatedAtUtc ? latest.generatedAtUtc.toISOString() : null,
+      });
+    }
+  );
+
+  // ✅ NEW endpoint: just a presigned download URL (best for “Download PDF” button)
+  app.get(
+    "/v1/evidence/:id/report/latest/download-url",
+    { preHandler: requireAuth },
+    async (req: FastifyRequest, reply) => {
+      const ownerUserId = getAuthUserId(req);
+      const id = z.string().uuid().parse((req.params as ParamsId).id);
+      (req as FastifyRequest & { evidenceId?: string }).evidenceId = id;
+      req.log = req.log.child({ evidenceId: id });
+
+      const evidence = await prisma.evidence.findFirst({
+        where: { id, ownerUserId, deletedAt: null },
+        select: { id: true },
+      });
+      if (!evidence) return reply.code(404).send({ message: "Evidence not found" });
+
+      // latest report (generatedAtUtc desc preferred)
+      let latest:
+        | {
+            id?: string;
+            version: number;
+            storageBucket: string;
+            storageKey: string;
+            generatedAtUtc: Date | null;
+          }
+        | null = null;
+
+      try {
+        latest = await prisma.report.findFirst({
+          where: { evidenceId: id },
+          orderBy: { generatedAtUtc: "desc" },
+          select: {
+            id: true,
+            version: true,
+            storageBucket: true,
+            storageKey: true,
+            generatedAtUtc: true,
+          },
+        });
+      } catch {
+        latest = await prisma.report.findFirst({
+          where: { evidenceId: id },
+          orderBy: { version: "desc" },
+          select: {
+            id: true,
+            version: true,
+            storageBucket: true,
+            storageKey: true,
+            generatedAtUtc: true,
+          },
+        });
+      }
+
+      if (!latest) return reply.code(404).send({ message: "Report not found" });
+
+      const expiresInSeconds = 600;
+      const url = await presignGetObject({
+        bucket: latest.storageBucket,
+        key: latest.storageKey,
+        expiresInSeconds,
+      });
+
+      return reply.code(200).send({
+        evidenceId: id,
+        version: latest.version,
+        generatedAtUtc: latest.generatedAtUtc ? latest.generatedAtUtc.toISOString() : null,
+        expiresInSeconds,
+        url,
       });
     }
   );
@@ -514,7 +614,7 @@ export async function evidenceRoutes(app: FastifyInstance) {
     const rate = await enforceRateLimit({
       key: `ratelimit:verify:${req.ip}`,
       max: limit.max,
-      windowSec: limit.windowSec
+      windowSec: limit.windowSec,
     });
     if (!rate.allowed) {
       return reply.code(429).send({ message: "Rate limit exceeded" });
@@ -573,7 +673,7 @@ export async function evidenceRoutes(app: FastifyInstance) {
       eventType: "VERIFY_VIEWED",
       payload: null,
       ip: req.ip,
-      userAgent: req.headers["user-agent"]
+      userAgent: req.headers["user-agent"],
     }).catch(() => null);
 
     const custodyEvents = await prisma.custodyEvent.findMany({
@@ -612,18 +712,20 @@ export async function evidenceRoutes(app: FastifyInstance) {
     const id = z.string().uuid().parse((req.params as ParamsId).id);
     (req as FastifyRequest & { evidenceId?: string }).evidenceId = id;
     req.log = req.log.child({ evidenceId: id });
+
     const evidence = await prisma.evidence.findFirst({
       where: { id, deletedAt: null },
       select: {
         id: true,
         status: true,
         type: true,
-        createdAt: true
-      }
+        createdAt: true,
+      },
     });
     if (!evidence) {
       return reply.code(404).send({ message: "Evidence not found" });
     }
+
     const latest = await prisma.report.findFirst({
       where: { evidenceId: id },
       orderBy: { version: "desc" },
@@ -631,16 +733,17 @@ export async function evidenceRoutes(app: FastifyInstance) {
         version: true,
         storageBucket: true,
         storageKey: true,
-        generatedAtUtc: true
-      }
+        generatedAtUtc: true,
+      },
     });
+
     const publicUrl = latest ? buildPublicUrl(latest.storageKey) : null;
     const url =
       latest && !publicUrl
         ? await presignGetObject({
             bucket: latest.storageBucket,
             key: latest.storageKey,
-            expiresInSeconds: 600
+            expiresInSeconds: 600,
           })
         : publicUrl;
 
@@ -650,7 +753,7 @@ export async function evidenceRoutes(app: FastifyInstance) {
         eventType: "REPORT_DOWNLOADED",
         payload: { reportVersion: latest.version, via: "share" },
         ip: req.ip,
-        userAgent: req.headers["user-agent"]
+        userAgent: req.headers["user-agent"],
       }).catch(() => null);
     }
 
@@ -664,9 +767,9 @@ export async function evidenceRoutes(app: FastifyInstance) {
             version: latest.version,
             url,
             publicUrl,
-            generatedAtUtc: latest.generatedAtUtc.toISOString()
+            generatedAtUtc: latest.generatedAtUtc.toISOString(),
           }
-        : null
+        : null,
     });
   });
 }
