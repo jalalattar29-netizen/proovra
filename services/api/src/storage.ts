@@ -18,29 +18,34 @@ function clean(v: string | undefined | null): string | null {
   return t ? t : null;
 }
 
-function requireTls(endpoint: string) {
+function requireTls(endpoint: string, name: string) {
   const allowInsecure = process.env.S3_ALLOW_INSECURE === "true";
-  if (
-    process.env.NODE_ENV === "production" &&
-    endpoint.startsWith("http://") &&
-    !allowInsecure
-  ) {
-    throw new Error("S3_ENDPOINT must use https in production");
+  if (process.env.NODE_ENV === "production" && endpoint.startsWith("http://") && !allowInsecure) {
+    throw new Error(`${name} must use https in production`);
   }
 }
 
+/**
+ * Cloudflare R2 / S3 endpoints:
+ * - S3_ENDPOINT: what the server uses to talk to storage (must be reachable from API container).
+ * - S3_PUBLIC_ENDPOINT (optional): what browsers should open (must be publicly reachable https).
+ *
+ * If S3_PUBLIC_ENDPOINT is set, we will rewrite the returned presigned URL origin to it,
+ * while keeping path + query (signature) intact.
+ */
 const endpoint = must("S3_ENDPOINT");
-requireTls(endpoint);
+requireTls(endpoint, "S3_ENDPOINT");
+
+const publicEndpoint = clean(process.env.S3_PUBLIC_ENDPOINT);
+if (publicEndpoint) requireTls(publicEndpoint, "S3_PUBLIC_ENDPOINT");
 
 const region = clean(process.env.S3_REGION) ?? "auto";
 
 // NOTE:
-// - Cloudflare R2 usually works with forcePathStyle: true.
-// - But make it configurable in case you switch providers.
+// - Cloudflare R2 usually works with forcePathStyle: true (bucket in path).
+// - Keep it configurable.
 const forcePathStyle =
-  clean(process.env.S3_FORCE_PATH_STYLE)?.toLowerCase() === "false"
-    ? false
-    : true;
+  clean(process.env.S3_FORCE_PATH_STYLE)?.toLowerCase() === "false" ? false : true;
 
 export const s3 = new S3Client({
   region,
@@ -51,6 +56,22 @@ export const s3 = new S3Client({
   },
   forcePathStyle,
 });
+
+function rewriteToPublicEndpointIfNeeded(signedUrl: string): string {
+  if (!publicEndpoint) return signedUrl;
+
+  // Ensure both URLs parse
+  const signed = new URL(signedUrl);
+  const pub = new URL(publicEndpoint);
+
+  // Replace scheme/host/port to public endpoint, keep pathname + search from signed URL
+  signed.protocol = pub.protocol;
+  signed.username = pub.username;
+  signed.password = pub.password;
+  signed.host = pub.host; // includes hostname:port
+
+  return signed.toString();
+}
 
 export async function presignPutObject(params: {
   bucket: string;
@@ -72,13 +93,26 @@ export async function presignPutObject(params: {
     ContentType: contentType,
   });
 
-  return getSignedUrl(s3, cmd, { expiresIn: params.expiresInSeconds ?? 600 });
+  const signed = await getSignedUrl(s3, cmd, { expiresIn: params.expiresInSeconds ?? 600 });
+  return rewriteToPublicEndpointIfNeeded(signed);
 }
 
 export async function presignGetObject(params: {
   bucket: string;
   key: string;
   expiresInSeconds?: number;
+
+  /**
+   * If provided, we will force the browser to download with this filename.
+   * Example: "report-<evidenceId>.pdf"
+   */
+  downloadName?: string;
+
+  /**
+   * If provided, we will hint content-type for browsers.
+   * Example: "application/pdf"
+   */
+  responseContentType?: string;
 }) {
   const bucket = clean(params.bucket);
   const key = clean(params.key);
@@ -87,12 +121,20 @@ export async function presignGetObject(params: {
     throw new Error("presignGetObject: bucket/key are required");
   }
 
+  // Force download if asked (important for PDFs)
+  const disposition = params.downloadName
+    ? `attachment; filename="${params.downloadName.replace(/"/g, "")}"`
+    : undefined;
+
   const cmd = new GetObjectCommand({
     Bucket: bucket,
     Key: key,
+    ResponseContentDisposition: disposition,
+    ResponseContentType: params.responseContentType ?? undefined,
   });
 
-  return getSignedUrl(s3, cmd, { expiresIn: params.expiresInSeconds ?? 600 });
+  const signed = await getSignedUrl(s3, cmd, { expiresIn: params.expiresInSeconds ?? 600 });
+  return rewriteToPublicEndpointIfNeeded(signed);
 }
 
 export async function headObject(params: { bucket: string; key: string }) {
