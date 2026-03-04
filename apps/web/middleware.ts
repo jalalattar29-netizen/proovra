@@ -85,19 +85,18 @@ export function middleware(req: NextRequest) {
       const logMode = relaxed ? "relaxed" : allowEval ? "strict-eval" : "strict";
       console.info(`[csp] mode=${logMode} path=${pathname}`);
     }
-// ✅ Always keep legal + policy pages on the SAME host (no cross-domain redirect)
-// This prevents "looks like signed out" when user is inside the app.
-const KEEP_SAME_HOST = ["/legal", "/privacy", "/terms"];
+    // ✅ Always keep legal + policy pages on the SAME host (no cross-domain redirect)
+    // This prevents "looks like signed out" when user is inside the app.
+    const KEEP_SAME_HOST = ["/legal", "/privacy", "/terms"];
+    const isKeepSameHostPath = KEEP_SAME_HOST.some(
+      (p) => pathname === p || pathname.startsWith(`${p}/`)
+    );
 
-const isKeepSameHostPath = KEEP_SAME_HOST.some(
-  (p) => pathname === p || pathname.startsWith(`${p}/`)
-);
-
-if (isKeepSameHostPath) {
-  const res = nextWithNonce(req, nonce);
-  if (isProd) applySecurityHeaders(res, nonce, relaxed, allowEval);
-  return res;
-}
+    if (isKeepSameHostPath) {
+      const res = nextWithNonce(req, nonce);
+      if (isProd) applySecurityHeaders(res, nonce, relaxed, allowEval);
+      return res;
+    }
     // dev / vercel preview: no host switching
     if (!host || host.includes("localhost") || host.includes("127.0.0.1") || host.endsWith(".vercel.app")) {
       const res = nextWithNonce(req, nonce);
@@ -119,17 +118,6 @@ if (isKeepSameHostPath) {
 
     const isAppHost = appHost ? host.endsWith(appHost) : false;
     const isWebHost = webHost ? host.endsWith(webHost) : false;
-
-    // ✅ 1) Legal pages MUST stay on same host (prevents localStorage/session loss)
-    if (
-      pathname === "/privacy" ||
-      pathname === "/terms" ||
-      pathname.startsWith("/legal/")
-    ) {
-      const res = nextWithNonce(req, nonce);
-      if (isProd) applySecurityHeaders(res, nonce, relaxed, allowEval);
-      return res;
-    }
 
     // app root -> /home
     if (isAppHost && pathname === "/") {

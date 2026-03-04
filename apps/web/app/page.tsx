@@ -5,7 +5,7 @@ import { Button } from "../components/ui";
 import { SilverWatermarkSection } from "../components/SilverWatermarkSection";
 import { MarketingHeader } from "../components/header";
 import { Icons } from "../components/icons";
-import { LEGAL_LINKS } from "../lib/legalLinks";
+import { Footer } from "../components/Footer";
 
 function getAppBase(): string {
   if (typeof window === "undefined") return "";
@@ -179,20 +179,7 @@ export default function HomePage() {
         </div>
       </SilverWatermarkSection>
 
-      <footer className="landing-footer container">
-        <div className="footer-left">
-          <div className="footer-brand">PROO✓RA</div>
-          <a href="mailto:support@proovra.com">support@proovra.com</a>
-        </div>
-
-<div className="footer-links">
-  {LEGAL_LINKS.map((l) => (
-    <Link key={l.href} href={l.href}>
-      {l.label}
-    </Link>
-  ))}
-</div>
-      </footer>
+      <Footer />
     </div>
   );
 }

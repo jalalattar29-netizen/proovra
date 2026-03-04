@@ -7,8 +7,8 @@ import { useEffect } from "react";
 import { SilverWatermarkSection } from "../../components/SilverWatermarkSection";
 import { AppHeader } from "../../components/header";
 import { Icons } from "../../components/icons";
+import { Footer } from "../../components/Footer";
 import { apiFetch } from "../../lib/api";
-import { LEGAL_LINKS } from "../../lib/legalLinks";
 import { useAuth } from "../providers";
 
 const BOTTOM_NAV = [
@@ -75,13 +75,7 @@ useEffect(() => {
         {children}
       </SilverWatermarkSection>
 
-<div className="footer-links">
-  {LEGAL_LINKS.map((l) => (
-    <Link key={l.href} href={l.href}>
-      {l.label}
-    </Link>
-  ))}
-</div>
+      <Footer />
       <nav className="app-bottom-nav">
         <div className="container app-bottom-nav-inner">
           {BOTTOM_NAV.map((item) => (
