@@ -373,23 +373,29 @@ export default function SettingsPage() {
             </div>
           </Card>
 
-          {/* E) Legal */}
-          <Card>
-            <div className="settings-section-header">
-              <Icons.Security />
-              <span>Legal</span>
-            </div>
-            <div className="settings-section-body">
-              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                {LEGAL_LINKS.map((l) => (
-                  <Link key={l.href} href={l.href} className="settings-link">
-                    {l.label}
-                  </Link>
-                ))}
-              </div>
-            </div>
-          </Card>
-        </div>
+{/* E) Legal */}
+<Card>
+  <div className="settings-section-header">
+    <Icons.Security />
+    <span>Legal</span>
+  </div>
+  <div className="settings-section-body">
+    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+      <Link href="/legal/privacy" className="settings-link">Privacy Policy</Link>
+      <Link href="/legal/terms" className="settings-link">Terms of Use</Link>
+      <Link href="/legal/cookies" className="settings-link">Cookies</Link>
+      <Link href="/legal/security" className="settings-link">Security</Link>
+      <Link href="/legal/dpa" className="settings-link">DPA</Link>
+      <Link href="/legal/law-enforcement" className="settings-link">Law Enforcement</Link>
+      <Link href="/legal/acceptable-use" className="settings-link">Acceptable Use</Link>
+      <Link href="/legal/dmca" className="settings-link">DMCA</Link>
+      <Link href="/legal/transparency" className="settings-link">Transparency</Link>
+      <Link href="/legal/verification" className="settings-link">Verification</Link>
+      <Link href="/legal/evidence-handling" className="settings-link">Evidence Handling</Link>
+      <Link href="/legal/impressum" className="settings-link">Impressum</Link>
+    </div>
+  </div>
+</Card>        </div>
       </div>
     </div>
   );

@@ -33,25 +33,21 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   // prevent repeated hard redirects
   const redirectedRef = useRef(false);
 
-  useEffect(() => {
-    if (!authReady) return;
-    if (hasSession) {
-      redirectedRef.current = false;
-      return;
-    }
+useEffect(() => {
+  if (!authReady) return;
 
-    if (redirectedRef.current) return;
-    redirectedRef.current = true;
+  const stored =
+    typeof window !== "undefined" ? localStorage.getItem("proovra-token") : null;
 
-    const webBase = getWebBase();
+  // ✅ redirect فقط إذا مافي session و مافي token نهائياً
+  if (!hasSession && !stored) {
+    const webBase = process.env.NEXT_PUBLIC_WEB_BASE || "https://www.proovra.com";
     const next = pathname ? encodeURIComponent(pathname) : "";
     const returnUrl = next ? `returnUrl=${next}` : "";
     const separator = returnUrl ? "?" : "";
-
-    // hard redirect (different origin) is required because login lives on WEB host
     window.location.assign(`${webBase}/login${separator}${returnUrl}`);
-  }, [authReady, hasSession, pathname]);
-
+  }
+}, [authReady, hasSession, pathname]);
   const handleLogout = async () => {
     try {
       await apiFetch("/v1/auth/logout", { method: "POST" });

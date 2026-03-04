@@ -1,13 +1,7 @@
-// D:\digital-witness\apps\web\app\providers.tsx
 "use client";
 
 import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
-import {
-  type Locale,
-  type LocaleMode,
-  resolveInitialLocale,
-  translations,
-} from "../lib/i18n";
+import { type Locale, type LocaleMode, resolveInitialLocale, translations } from "../lib/i18n";
 import { apiFetch } from "../lib/api";
 import { initSentry } from "../lib/sentry";
 import { ToastProvider } from "../components/ui";
@@ -68,7 +62,6 @@ export function useAuth() {
 }
 
 async function fetchMe(): Promise<AuthUser | null> {
-  // Prefer the new endpoint, fallback to old.
   try {
     const me = await apiFetch("/v1/users/me", { method: "GET" });
     return (me?.user ?? null) as AuthUser | null;
@@ -82,13 +75,25 @@ async function fetchMe(): Promise<AuthUser | null> {
   }
 }
 
+function readStoredToken(): string | null {
+  if (typeof window === "undefined") return null;
+  try {
+    return localStorage.getItem("proovra-token");
+  } catch {
+    return null;
+  }
+}
+
 export function Providers({ children }: { children: React.ReactNode }) {
   const [locale, setLocaleState] = useState<Locale>("en");
   const [mode, setModeState] = useState<LocaleMode>("auto");
+
   const [token, setTokenState] = useState<string | null>(null);
   const [user, setUser] = useState<AuthUser | null>(null);
+
   const [authReady, setAuthReady] = useState(false);
 
+  // Init sentry + initial locale
   useEffect(() => {
     initSentry();
     if (typeof window === "undefined") return;
@@ -98,6 +103,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
     setModeState(resolvedMode);
   }, []);
 
+  // Persist locale
   useEffect(() => {
     if (typeof document === "undefined") return;
 
@@ -105,11 +111,15 @@ export function Providers({ children }: { children: React.ReactNode }) {
     document.documentElement.lang = locale;
     document.documentElement.dir = isRTL ? "rtl" : "ltr";
 
-    localStorage.setItem("proovra-locale", locale);
-    localStorage.setItem("proovra-locale-mode", mode);
+    try {
+      localStorage.setItem("proovra-locale", locale);
+      localStorage.setItem("proovra-locale-mode", mode);
+    } catch {
+      // ignore
+    }
   }, [locale, mode]);
 
-  const value = useMemo<LocaleContextValue>(() => {
+  const localeValue = useMemo<LocaleContextValue>(() => {
     const isRTL = locale === "ar";
     const currentTranslations = translations[locale] || translations.en;
 
@@ -122,32 +132,40 @@ export function Providers({ children }: { children: React.ReactNode }) {
     return { locale, mode, setLocale, setLocaleMode, t, isRTL };
   }, [locale, mode]);
 
+  // Auth context
   const authValue = useMemo<AuthContextValue>(() => {
     const setToken = (next: string | null) => {
       setTokenState(next);
-      if (typeof window === "undefined") return;
 
-      if (next) {
-        localStorage.setItem("proovra-token", next);
-      } else {
-        localStorage.removeItem("proovra-token");
-        setUser(null);
+      if (typeof window === "undefined") return;
+      try {
+        if (next) {
+          localStorage.setItem("proovra-token", next);
+        } else {
+          localStorage.removeItem("proovra-token");
+          setUser(null);
+        }
+      } catch {
+        // ignore
       }
     };
 
-    const updateUser = (next: AuthUser | null) => {
-      setUser(next);
-    };
+    const updateUser = (next: AuthUser | null) => setUser(next);
 
     const refreshMe = async () => {
-      const meUser = await fetchMe();
-      setUser(meUser);
+      // ✅ مهم: لا تفرّغ user/session إذا فشل الطلب مؤقتاً
+      try {
+        const meUser = await fetchMe();
+        if (meUser) setUser(meUser);
+      } catch {
+        // keep previous user
+      }
     };
 
     const ensureGuest = async () => {
       if (typeof window === "undefined") return;
 
-      const stored = localStorage.getItem("proovra-token");
+      const stored = readStoredToken();
       if (stored) {
         setTokenState(stored);
         await refreshMe();
@@ -163,21 +181,24 @@ export function Providers({ children }: { children: React.ReactNode }) {
       }
     };
 
-    const hasSession = Boolean(user || token);
+    // ✅ hasSession يعتمد أيضاً على localStorage لتجنب “لحظة false”
+    const hasSession = Boolean(user || token || readStoredToken());
 
     return { token, user, ensureGuest, setToken, refreshMe, updateUser, authReady, hasSession };
   }, [token, user, authReady]);
 
+  // Boot auth
   useEffect(() => {
     if (typeof window === "undefined") return;
 
-    const stored = localStorage.getItem("proovra-token");
+    const stored = readStoredToken();
     if (stored) setTokenState(stored);
 
     void (async () => {
       try {
+        // إذا في token، حاول هات me، بس لا تقتل session إذا رجع null
         const meUser = await fetchMe();
-        setUser(meUser);
+        if (meUser) setUser(meUser);
       } finally {
         setAuthReady(true);
       }
@@ -186,7 +207,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
 
   return (
     <AuthContext.Provider value={authValue}>
-      <LocaleContext.Provider value={value}>
+      <LocaleContext.Provider value={localeValue}>
         <ToastProvider>{children}</ToastProvider>
       </LocaleContext.Provider>
     </AuthContext.Provider>
