@@ -1269,6 +1269,29 @@ p {
   color: var(--color-text);
   --app-nav-width: 0;
   --app-gap: 0;
+  --app-icon-muted: var(--color-muted);
+  --app-icon-primary: var(--color-primary);
+  }
+
+  .app-page svg.lucide {
+    color: var(--app-icon-color, var(--app-icon-muted));
+  }
+
+  .app-page svg.lucide [stroke] {
+    stroke: currentColor;
+  }
+
+  .app-page svg.lucide [fill]:not([fill="none"]) {
+    fill: currentColor;
+  }
+
+  .app-page .proovra-nav-link,
+  .app-page .app-bottom-nav-link {
+    --app-icon-color: currentColor;
+  }
+
+  .app-page .settings-section-header {
+    --app-icon-color: var(--app-icon-primary);
   }
 
   .app-top-bar {

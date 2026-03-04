@@ -9,6 +9,7 @@ import { apiFetch, ApiError } from "../../lib/api";
 import { authLogger } from "../../lib/auth-logger";
 import { loadAppleIdentity, loadGoogleIdentity } from "../../lib/oauth";
 import { MarketingHeader } from "../../components/header";
+import { Footer } from "../../components/Footer";
 
 type GoogleCredentialResponse = { credential?: string };
 
@@ -440,6 +441,8 @@ export default function RegisterPage() {
           </main>
         </div>
       </div>
+
+      <Footer />
     </div>
   );
 }

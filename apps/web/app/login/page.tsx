@@ -10,6 +10,7 @@ import { formatBuildInfo } from "../../lib/build-info";
 import { authLogger } from "../../lib/auth-logger";
 import { loadAppleIdentity, loadGoogleIdentity } from "../../lib/oauth";
 import { MarketingHeader } from "../../components/header";
+import { Footer } from "../../components/Footer";
 
 const DEBUG_AUTH = process.env.NEXT_PUBLIC_DEBUG_AUTH === "1";
 
@@ -460,6 +461,8 @@ export default function LoginPage() {
           </main>
         </div>
       </div>
+
+      <Footer />
     </div>
   );
 }
