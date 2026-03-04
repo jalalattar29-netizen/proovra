@@ -2,17 +2,21 @@
 
 import { useEffect } from "react";
 
+type CookieConsentModule = {
+  initCookieConsent?: () => Promise<void> | void;
+  default?: () => Promise<void> | void;
+};
+
 export default function CookieConsentInit() {
   useEffect(() => {
     let cancelled = false;
 
     (async () => {
       try {
-        const mod = await import("../lib/cookieConsent");
+        const mod = (await import("../lib/cookieConsent")) as CookieConsentModule;
         if (cancelled) return;
 
-        // يدعم export اسمه initCookieConsent أو default
-        const init = (mod as any).initCookieConsent ?? (mod as any).default;
+        const init = mod.initCookieConsent ?? mod.default;
         if (typeof init === "function") {
           await init();
         } else {

@@ -1,28 +1,29 @@
 "use client";
 
-type AnyRecord = Record<string, unknown>;
+type CookieConsentApi = {
+  run: (config: unknown) => void;
+};
 
-function getDefault<T>(m: any): T {
-  return (m && typeof m === "object" && "default" in m ? m.default : m) as T;
+type CookieConsentImport = {
+  default?: CookieConsentApi;
+} & Partial<CookieConsentApi>;
+
+function pickDefault<T>(mod: CookieConsentImport): T {
+  return ((mod.default ?? mod) as unknown) as T;
 }
 
 export async function initCookieConsent(): Promise<void> {
-  // ✅ لازم يكون متصفح
   if (typeof window === "undefined" || typeof document === "undefined") return;
 
-  // ✅ لا تعيد تشغيله إذا اشتغل مرة
-  if ((window as any).__PROOVRA_CC_INITIALIZED__) return;
-  (window as any).__PROOVRA_CC_INITIALIZED__ = true;
+  const w = window as unknown as { __PROOVRA_CC_INITIALIZED__?: boolean };
+  if (w.__PROOVRA_CC_INITIALIZED__) return;
+  w.__PROOVRA_CC_INITIALIZED__ = true;
 
-  // ✅ حمّل المكتبة ديناميك
-  const mod = await import("vanilla-cookieconsent");
-  const cc: any = getDefault<any>(mod);
+  const mod = (await import("vanilla-cookieconsent")) as unknown as CookieConsentImport;
+  const cc = pickDefault<CookieConsentApi>(mod);
 
   if (!cc || typeof cc.run !== "function") {
-    console.warn("[cookie-consent] library loaded but .run is missing", {
-      moduleKeys: mod && typeof mod === "object" ? Object.keys(mod as AnyRecord) : [],
-      ccKeys: cc && typeof cc === "object" ? Object.keys(cc as AnyRecord) : [],
-    });
+    console.warn("[cookie-consent] library loaded but .run is missing");
     return;
   }
 
@@ -36,9 +37,6 @@ export async function initCookieConsent(): Promise<void> {
         enabled: true,
         readOnly: true,
       },
-      // إذا بدك analytics/marketing فعلياً تضيفهم هون لاحقاً (مو ضروري الآن)
-      // analytics: { enabled: false, readOnly: false },
-      // marketing: { enabled: false, readOnly: false },
     },
     language: {
       default: "en",
