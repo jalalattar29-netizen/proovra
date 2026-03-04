@@ -24,7 +24,7 @@ export default async function AppLegalPage({
   }
 
   return (
-    <div className="section app-section">
+    <div className="section app-section app-legal-page">
       <div className="app-hero app-hero-full">
         <div className="container">
           <h1 className="hero-title pricing-hero-title" style={{ margin: 0 }}>
@@ -36,7 +36,7 @@ export default async function AppLegalPage({
         </div>
       </div>
 
-      <div className="app-body app-body-full">
+      <div className="app-body app-body-full app-legal-body">
         <div className="container">
           <article className="auth-card legal-page">{renderLegalMarkdown(content)}</article>
         </div>
