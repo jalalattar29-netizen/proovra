@@ -1,11 +1,11 @@
 // D:\digital-witness\apps\web\app\pricing\page.tsx
 "use client";
 
-import Link from "next/link";
 import { useState } from "react";
 import { Button, Card, useToast } from "../../components/ui";
 import { SilverWatermarkSection } from "../../components/SilverWatermarkSection";
 import { MarketingHeader } from "../../components/header";
+import { Footer } from "../../components/Footer";
 import { useAuth } from "../providers";
 
 function getAppBase() {
@@ -177,19 +177,7 @@ export default function MarketingPricingPage() {
         </div>
       </SilverWatermarkSection>
 
-      <footer className="landing-footer container">
-        <div className="footer-left">
-          <div className="footer-brand">PROO✓RA</div>
-          <a href="mailto:support@proovra.com">support@proovra.com</a>
-        </div>
-        <div className="footer-links">
-          <Link href="/privacy">Privacy Policy</Link>
-          <Link href="/terms">Terms</Link>
-          <Link href="/legal/cookies">Cookies</Link>
-          <Link href="/legal/security">Security</Link>
-          <Link href="/support">Support</Link>
-        </div>
-      </footer>
+      <Footer />
     </div>
   );
 }

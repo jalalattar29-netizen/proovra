@@ -40,6 +40,12 @@
       radial-gradient(circle at 70% 20%, rgba(255,255,255,0.08), transparent 55%);
     --shadow-card: var(--shadow-soft);
     --shadow-button: 0 14px 28px rgba(10, 20, 35, 0.20);
+    --btn-primary-bg: #ffffff;
+    --btn-primary-color: #0f1d36;
+    --btn-primary-border: rgba(148, 163, 184, 0.45);
+    --btn-primary-hover-bg: #eaf6ff;
+    --btn-primary-hover-border: rgba(56, 189, 248, 0.46);
+    --btn-primary-shadow: 0 12px 30px rgba(2, 8, 19, 0.20);
     --radius-md: var(--radius-lg);
     --header-padding-y: 8px;
     --container-max: 1180px;
@@ -725,12 +731,19 @@ p {
   
   .btn:disabled { opacity: 0.6; cursor: not-allowed; }
 .btn.primary {
-  background: var(--navy-900);
-  color: #fff;
-  box-shadow: var(--shadow-button);
+  background: var(--btn-primary-bg);
+  color: var(--btn-primary-color);
+  border-color: var(--btn-primary-border);
+  box-shadow: var(--btn-primary-shadow);
 }
-.btn.primary:hover { background: var(--navy-800); }
-.btn.primary:active { background: var(--navy-700); }
+.btn.primary:hover {
+  background: var(--btn-primary-hover-bg);
+  border-color: var(--btn-primary-hover-border);
+  transform: translateY(-1px);
+}
+.btn.primary:active {
+  transform: translateY(0);
+}
 .btn.secondary {
   background: var(--navy-900);
   color: #fff;
@@ -1599,19 +1612,20 @@ p {
   }
 
 .navy-btn {
-  background: var(--navy-900);
-  color: #fff;
-  border-color: var(--navy-900);
+  background: var(--btn-primary-bg);
+  color: var(--btn-primary-color);
+  border-color: var(--btn-primary-border);
+  box-shadow: var(--btn-primary-shadow);
 }
 
 .navy-btn:hover {
-  background: var(--navy-800);
-  border-color: var(--navy-800);
+  background: var(--btn-primary-hover-bg);
+  border-color: var(--btn-primary-hover-border);
+  transform: translateY(-1px);
 }
 
 .navy-btn:active {
-  background: var(--navy-700);
-  border-color: var(--navy-700);
+  transform: translateY(0);
 }
   
   /* Legal content typography */
@@ -2264,22 +2278,6 @@ p {
    Buttons
 --------------------------------------------------------- */
 
-:where(.landing-page) .btn.primary {
-  color: #f5feff;
-  border-color: transparent;
-  background: var(--accent-grad);
-  box-shadow: var(--shadow-accent);
-}
-
-:where(.landing-page) .btn.primary:hover {
-  background: var(--accent-grad-hover);
-  transform: translateY(-1px);
-}
-
-:where(.landing-page) .btn.primary:active {
-  transform: translateY(0);
-}
-
 :where(.landing-page) .btn.secondary {
   background: rgba(6, 13, 31, 0.48);
   color: #f1f8ff;
@@ -2720,21 +2718,18 @@ p {
   padding: 12px 18px;
   font-weight: 800;
 
-  background: rgba(6, 13, 31, 0.48);
-  color: #f1f8ff;
-  border: 1px solid rgba(153, 204, 233, 0.40);
-  box-shadow: 0 8px 22px rgba(2, 8, 19, 0.28);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
+  background: var(--btn-primary-bg);
+  color: var(--btn-primary-color);
+  border: 1px solid var(--btn-primary-border);
+  box-shadow: var(--btn-primary-shadow);
 
   transition: all 180ms ease;
 }
 
 :where(.landing-page) .pricing-billing-btn:hover {
-  background: rgba(0, 170, 255, 0.18);
-  border-color: rgba(0, 210, 255, 0.55);
-  box-shadow: 0 12px 30px rgba(0, 210, 255, 0.28);
-  color: #ffffff;
+  background: var(--btn-primary-hover-bg);
+  border-color: var(--btn-primary-hover-border);
+  color: var(--btn-primary-color);
   transform: translateY(-1px);
 }
 
