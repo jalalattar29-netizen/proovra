@@ -30,9 +30,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
 
-  // prevent repeated hard redirects
-  const redirectedRef = useRef(false);
-
 useEffect(() => {
   if (!authReady) return;
 

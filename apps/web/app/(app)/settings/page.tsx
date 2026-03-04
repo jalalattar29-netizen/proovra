@@ -9,7 +9,6 @@ import { Button, Card, useToast, Input } from "../../../components/ui";
 import { Icons } from "../../../components/icons";
 import { apiFetch } from "../../../lib/api";
 import { captureException } from "../../../lib/sentry";
-import { LEGAL_LINKS } from "../../../lib/legalLinks";
 import { useAuth, useLocale } from "../../providers";
 
 type BillingStatusResponse = {
