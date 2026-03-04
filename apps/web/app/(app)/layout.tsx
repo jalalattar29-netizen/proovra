@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useMemo } from "react";
+import { useEffect } from "react";
 
 import { SilverWatermarkSection } from "../../components/SilverWatermarkSection";
 import { AppHeader } from "../../components/header";
@@ -58,8 +58,6 @@ useEffect(() => {
 
   const isActive = (href: string) =>
     pathname === href || (href !== "/billing" && pathname?.startsWith(`${href}/`));
-
-  const webSupportHref = useMemo(() => `${getWebBase()}/support`, []);
 
   if (!authReady) {
     return (
