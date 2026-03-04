@@ -152,6 +152,58 @@ export function middleware(req: NextRequest) {
       }
     }
 
+        // ✅ Public pages يجب تكون على WEB (www) دائماً
+    const PUBLIC_WEB_PREFIXES = [
+      "/about",
+      "/pricing",
+      "/features",
+      "/security",
+      "/legal",
+      "/privacy",
+      "/privacy-policy",
+      "/terms",
+      "/cookies",
+      "/impressum",
+      "/dpa",
+      "/law-enforcement",
+      "/acceptable-use",
+      "/transparency",
+      "/verification",
+      "/support"
+    ];
+
+    const isPublicWebPath = PUBLIC_WEB_PREFIXES.some(
+      (p) => pathname === p || pathname.startsWith(p + "/")
+    );
+
+    // صفحات Legal يجب أن تبقى على نفس الـ host لتجنب فقدان localStorage/session
+    const LEGAL_SAME_HOST_PREFIXES = [
+      "/legal",
+      "/privacy",
+      "/privacy-policy",
+      "/terms",
+      "/cookies",
+      "/impressum",
+      "/dpa",
+      "/law-enforcement",
+      "/acceptable-use",
+      "/transparency",
+      "/verification"
+    ];
+
+    const keepOnSameHost = LEGAL_SAME_HOST_PREFIXES.some(
+      (p) => pathname === p || pathname.startsWith(`${p}/`)
+    );
+
+    // إذا المستخدم على app.proovra.com وفتح صفحة عامة (غير قانونية) → حولها لـ www.proovra.com
+    if (isAppHost && isPublicWebPath && !keepOnSameHost) {
+      const target = new URL(webBaseUrl ?? "https://www.proovra.com");
+      target.pathname = pathname;
+      req.nextUrl.searchParams.forEach((v, k) => target.searchParams.set(k, v));
+      const res = NextResponse.redirect(target);
+      if (isProd) applySecurityHeaders(res, nonce, relaxed, allowEval);
+      return res;
+    }
     const res = nextWithNonce(req, nonce);
     if (isProd) applySecurityHeaders(res, nonce, relaxed, allowEval);
     return res;

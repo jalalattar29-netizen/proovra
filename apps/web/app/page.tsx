@@ -170,10 +170,17 @@ export default function HomePage() {
           <a href="mailto:support@proovra.com">support@proovra.com</a>
         </div>
         <div className="footer-links">
-          <Link href="/privacy">Privacy Policy</Link>
-          <Link href="/terms">Terms</Link>
+          <Link href="/legal/privacy">Privacy Policy</Link>
+          <Link href="/legal/terms">Terms of Use</Link>
           <Link href="/legal/cookies">Cookies</Link>
           <Link href="/legal/security">Security</Link>
+          <Link href="/legal/dpa">DPA</Link>
+          <Link href="/legal/law-enforcement">Law Enforcement</Link>
+          <Link href="/legal/acceptable-use">Acceptable Use</Link>
+          <Link href="/legal/dmca">DMCA</Link>
+          <Link href="/legal/transparency">Transparency</Link>
+          <Link href="/legal/verification">Verification</Link>
+          <Link href="/legal/impressum">Impressum</Link>
           <Link href="/support">Support</Link>
         </div>
       </footer>

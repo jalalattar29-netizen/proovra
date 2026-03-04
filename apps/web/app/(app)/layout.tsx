@@ -69,6 +69,26 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       <SilverWatermarkSection as="main" className="app-content">
         {children}
       </SilverWatermarkSection>
+      <footer className="landing-footer container">
+        <div className="footer-left">
+          <div className="footer-brand">PROO✓RA</div>
+          <a href="mailto:support@proovra.com">support@proovra.com</a>
+        </div>
+        <div className="footer-links">
+          <Link href="/legal/privacy">Privacy Policy</Link>
+          <Link href="/legal/terms">Terms of Use</Link>
+          <Link href="/legal/cookies">Cookies</Link>
+          <Link href="/legal/security">Security</Link>
+          <Link href="/legal/dpa">DPA</Link>
+          <Link href="/legal/law-enforcement">Law Enforcement</Link>
+          <Link href="/legal/acceptable-use">Acceptable Use</Link>
+          <Link href="/legal/dmca">DMCA</Link>
+          <Link href="/legal/transparency">Transparency</Link>
+          <Link href="/legal/verification">Verification</Link>
+          <Link href="/legal/impressum">Impressum</Link>
+          <Link href="/support">Support</Link>
+        </div>
+      </footer>
       <nav className="app-bottom-nav">
         <div className="container app-bottom-nav-inner">
           {BOTTOM_NAV.map((item) => (
