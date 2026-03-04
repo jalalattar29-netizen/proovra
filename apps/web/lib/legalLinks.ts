@@ -1,21 +1,17 @@
-export type LegalLink = { label: string; href: string };
+export type LegalLink = { href: string; label: string };
 
 export const LEGAL_LINKS: LegalLink[] = [
-  { label: "Privacy Policy", href: "/privacy" },
-  { label: "Terms of Service", href: "/terms" },
-
-  { label: "Cookies", href: "/legal/cookies" },
-  { label: "Security", href: "/legal/security" },
-  { label: "Data Processing Agreement (DPA)", href: "/legal/dpa" },
-
-  { label: "Law Enforcement Requests", href: "/legal/law-enforcement" },
-  { label: "Acceptable Use Policy", href: "/legal/acceptable-use" },
-  { label: "Copyright (DMCA)", href: "/legal/dmca" },
-
-  { label: "Transparency", href: "/legal/transparency" },
-  { label: "Verification", href: "/legal/verification" },
-  { label: "Verification Methodology", href: "/legal/verification-methodology" },
-
-  { label: "Evidence Handling", href: "/legal/evidence-handling" },
-  { label: "Impressum", href: "/legal/impressum" }
+  { href: "/legal/privacy", label: "Privacy Policy" },
+  { href: "/legal/terms", label: "Terms of Service" },
+  { href: "/legal/cookies", label: "Cookies" },
+  { href: "/legal/security", label: "Security" },
+  { href: "/legal/dpa", label: "Data Processing Agreement (DPA)" },
+  { href: "/legal/law-enforcement", label: "Law Enforcement Requests" },
+  { href: "/legal/aup", label: "Acceptable Use Policy" }, // ✅ aup.md
+  { href: "/legal/dmca", label: "Copyright (DMCA)" },
+  { href: "/legal/transparency", label: "Transparency" },
+  { href: "/legal/verification-methodology", label: "Verification Methodology" },
+  { href: "/legal/evidence-handling", label: "Evidence Handling" },
+  { href: "/legal/impressum", label: "Impressum" },
+  { href: "/legal/support", label: "Support" } // ✅ support.md
 ];

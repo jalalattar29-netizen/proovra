@@ -81,26 +81,13 @@ useEffect(() => {
         {children}
       </SilverWatermarkSection>
 
-      <footer className="landing-footer container">
-        <div className="footer-left">
-          <div className="footer-brand">PROO✓RA</div>
-          <a href="mailto:support@proovra.com">support@proovra.com</a>
-        </div>
-
-        <div className="footer-links">
-          {LEGAL_LINKS.map((l) => (
-            <Link key={l.href} href={l.href}>
-              {l.label}
-            </Link>
-          ))}
-
-          {/* ✅ open in new tab so user doesn’t “lose session” by switching origin */}
-          <a href={webSupportHref} target="_blank" rel="noopener noreferrer">
-            Support
-          </a>
-        </div>
-      </footer>
-
+<div className="footer-links">
+  {LEGAL_LINKS.map((l) => (
+    <Link key={l.href} href={l.href}>
+      {l.label}
+    </Link>
+  ))}
+</div>
       <nav className="app-bottom-nav">
         <div className="container app-bottom-nav-inner">
           {BOTTOM_NAV.map((item) => (
