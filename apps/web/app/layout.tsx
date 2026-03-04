@@ -3,6 +3,7 @@ import { headers } from "next/headers";
 import { Inter, Inter_Tight, Noto_Sans_Arabic } from "next/font/google";
 import "./globals.css";
 import { Providers } from "./providers";
+import CookieConsentInit from "./CookieConsentInit";
 
 export const metadata = {
   title: "PROO✓RA",
@@ -95,6 +96,9 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
         <meta name="theme-color" content="#0f1d36" />
       </head>
       <body>
+        {/* ✅ Cookie Consent runs on client only */}
+        <CookieConsentInit />
+
         <Providers>{children}</Providers>
       </body>
     </html>

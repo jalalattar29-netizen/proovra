@@ -374,27 +374,56 @@ useEffect(() => {
             </div>
           </Card>
 
-          {/* E) Legal */}
-          <Card>
-            <div className="settings-section-header">
-              <Icons.Security />
-              <span>Legal</span>
-            </div>
-            <div className="settings-section-body">
-              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                <Link href="/privacy" className="settings-link">
-                  Privacy Policy
-                </Link>
-                <Link href="/terms" className="settings-link">
-                  Terms of Service
-                </Link>
-                <Link href="/legal/security" className="settings-link">
-                  Security
-                </Link>
-              </div>
-            </div>
-          </Card>
-        </div>
+{/* E) Legal */}
+<Card>
+  <div className="settings-section-header">
+    <Icons.Security />
+    <span>Legal</span>
+  </div>
+  <div className="settings-section-body">
+    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+      <Link href="/legal/privacy" className="settings-link">
+        Privacy Policy
+      </Link>
+      <Link href="/legal/terms" className="settings-link">
+        Terms of Service
+      </Link>
+      <Link href="/legal/cookies" className="settings-link">
+        Cookies
+      </Link>
+      <Link href="/legal/security" className="settings-link">
+        Security
+      </Link>
+      <Link href="/legal/dpa" className="settings-link">
+        Data Processing Agreement (DPA)
+      </Link>
+      <Link href="/legal/law-enforcement" className="settings-link">
+        Law Enforcement Requests
+      </Link>
+      <Link href="/legal/aup" className="settings-link">
+        Acceptable Use Policy
+      </Link>
+      <Link href="/legal/dmca" className="settings-link">
+        Copyright (DMCA)
+      </Link>
+      <Link href="/legal/transparency" className="settings-link">
+        Transparency
+      </Link>
+      <Link href="/legal/verification-methodology" className="settings-link">
+        Verification Methodology
+      </Link>
+            <Link href="/legal/verification-methodology" className="settings-link">
+        Verification Methodology
+      </Link>
+      <Link href="/legal/evidence-handling" className="settings-link">
+        Evidence Handling
+      </Link>
+      <Link href="/legal/impressum" className="settings-link">
+        Impressum
+      </Link>
+    </div>
+  </div>
+</Card>        </div>
       </div>
     </div>
   );

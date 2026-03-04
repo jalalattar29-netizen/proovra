@@ -6,7 +6,21 @@ import { notFound } from "next/navigation";
 import type { ReactNode } from "react";
 import { MarketingHeader } from "../../../components/header";
 
-const ALLOWED_SLUGS = new Set(["privacy", "terms", "cookies", "security"]);
+const ALLOWED_SLUGS = new Set([
+  "privacy",
+  "terms",
+  "cookies",
+  "security",
+  "dpa",
+  "law-enforcement",
+  "aup",
+  "dmca",
+  "support",
+  "transparency",
+  "impressum",
+  "evidence-handling",
+  "verification-methodology"
+]);
 type Locale = "en";
 
 function titleFromSlug(slug: string) {
@@ -170,14 +184,21 @@ export default async function LegalPage({
           <div className="footer-brand">PROO✓RA</div>
           <a href="mailto:support@proovra.com">support@proovra.com</a>
         </div>
-        <div className="footer-links">
-          <Link href="/privacy">Privacy Policy</Link>
-          <Link href="/terms">Terms</Link>
-          <Link href="/legal/cookies">Cookies</Link>
-          <Link href="/legal/security">Security</Link>
-          <Link href="/support">Support</Link>
-        </div>
-      </footer>
+<div className="footer-links">
+  <Link href="/legal/privacy">Privacy Policy</Link>
+  <Link href="/legal/terms">Terms</Link>
+  <Link href="/legal/cookies">Cookies</Link>
+  <Link href="/legal/security">Security</Link>
+  <Link href="/legal/dpa">DPA</Link>
+  <Link href="/legal/law-enforcement">Law Enforcement</Link>
+  <Link href="/legal/aup">Acceptable Use</Link>
+  <Link href="/legal/evidence-handling">Evidence Handling</Link>
+  <Link href="/legal/dmca">Copyright</Link>
+  <Link href="/legal/transparency">Transparency</Link>
+  <Link href="/legal/verification-methodology">Verification</Link>
+  <Link href="/legal/impressum">Impressum</Link>
+  <Link href="/support">Support</Link>
+</div>      </footer>
     </div>
   );
 }

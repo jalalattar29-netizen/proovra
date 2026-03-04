@@ -1,142 +1,268 @@
-# Terms of Service – Proovra
+# TERMS OF SERVICE – PROOVRA
 
 Last Updated: 08.02.2026
 
-These Terms of Service (“Terms”) govern your access to and use of Proovra’s websites, mobile applications, APIs, verification tools, and related services (collectively, the “Services”). The Services are operated by Proovra (“Proovra”, “we”, “us”, or “our”).
+These Terms of Service (“Terms”) govern your access to and use of Proovra’s websites, mobile applications, APIs, verification tools, and related services (collectively, the “Services”).
+
+The Services are operated by **Proovra** (“Proovra”, “we”, “us”, or “our”).
 
 By accessing or using the Services, you agree to these Terms. If you do not agree, do not use the Services.
 
-## 1. WHO WE ARE / PURPOSE OF THE SERVICE
+---
 
-Proovra provides tooling to help users capture, upload, timestamp, preserve, and verify digital materials (such as photos, videos, and documents) and to generate integrity artifacts such as hashes, signatures, custody logs, and reports.  
-Proovra does not provide legal advice, forensic certification, or a guarantee of admissibility in court.
+# 1. PURPOSE OF THE SERVICE
 
-## 2. ELIGIBILITY
+Proovra provides tools designed to help users capture, upload, timestamp, preserve, and verify digital materials such as photos, videos, and documents.
 
-You must be at least 18 years old to use the Services. By using Proovra, you represent that you meet this requirement and have authority to accept these Terms.
+The platform generates integrity artifacts including:
 
-## 3. ACCOUNTS, AUTHENTICATION, AND GUEST USE
+- cryptographic hashes
+- digital signatures
+- custody logs
+- verification tokens
+- evidence reports
 
-You may access certain features as a guest or by signing in using supported providers (e.g., Google/Apple) when available.
+These artifacts are intended to support **integrity verification and evidentiary documentation**.
 
-You are responsible for maintaining the confidentiality of your account credentials and devices.
+However:
 
-You are responsible for all activity conducted under your account or sessions.
+Proovra **does not provide legal advice**, **does not act as a forensic laboratory**, and **does not guarantee admissibility of evidence in any court or jurisdiction**.
 
-We may require additional verification steps for security or compliance purposes.
+---
 
-## 4. YOUR CONTENT AND EVIDENCE MATERIALS
+# 2. ELIGIBILITY
 
-### 4.1 Your Ownership
+You must be at least **18 years old** to use the Services.
 
-You retain ownership of the content you upload or submit (“User Content”). Proovra does not claim ownership of your User Content.
+By using the Services, you represent and warrant that:
 
-### 4.2 License to Operate the Service
+- you meet this age requirement
+- you have authority to accept these Terms
+- your use complies with applicable laws.
 
-You grant Proovra a limited, non-exclusive, worldwide license to host, store, process, transmit, and display your User Content only as necessary to provide and improve the Services, including generating integrity artifacts, verification pages, and reports.
+---
 
-### 4.3 Integrity Outputs
+# 3. ACCOUNTS AND AUTHENTICATION
 
-When you complete evidence within Proovra, the system may generate:
+You may access certain features:
 
-- cryptographic hashes,
-- digital signatures,
-- custody event logs,
-- verification tokens/links,
-- reports.
+- as a guest
+- or by authenticating through supported providers (e.g., Google or Apple)
 
-You acknowledge that these outputs are designed for integrity verification and auditability, and may be non-editable and immutable once generated.
+You are responsible for:
 
-## 5. ACCEPTABLE USE / PROHIBITED ACTIVITIES
+- safeguarding your login credentials
+- maintaining device security
+- all activities occurring under your account or sessions.
 
-You agree not to use Proovra to:
+Proovra may require additional verification steps to maintain platform security.
 
-- upload illegal content or content that violates applicable law,
-- infringe intellectual property rights, privacy rights, or other rights of others,
-- upload malware, exploit code, or attempt unauthorized access,
-- harass, threaten, defame, or facilitate wrongdoing,
-- upload content involving exploitation, abuse, or any harmful unlawful conduct,
-- interfere with service operation or security,
-- misrepresent identity or ownership of content,
-- use the Services in ways that could cause harm, fraud, or deception.
+---
 
-We may suspend or terminate access if we reasonably believe misuse is occurring.
+# 4. USER CONTENT AND EVIDENCE MATERIALS
 
-## 6. PUBLIC VERIFICATION LINKS / SHARING
+## 4.1 Ownership
 
-If you create a public verification link, you understand:
+You retain ownership of the content you upload or submit (“User Content”).
 
-- anyone with the link may access the corresponding verification page and metadata shown there,
-- you are responsible for deciding what you share,
-- Proovra is not liable for consequences of your sharing choices.
+Proovra **does not claim ownership** of your User Content.
 
-We may provide link revocation or access controls where available, but cannot guarantee that distributed links are fully unrecoverable once shared externally.
+---
 
-## 7. SUBSCRIPTIONS, PAYMENTS, AND BILLING
+## 4.2 License to Operate the Service
 
-Paid plans may include subscriptions and/or usage-based purchases.
+You grant Proovra a **limited, non-exclusive, worldwide license** to:
 
-Payments are processed by third-party providers (e.g., Stripe/PayPal).
+- host
+- store
+- process
+- transmit
+- display
 
-Prices, taxes, and billing cycles are shown at checkout or in-product.
+your User Content **solely for the purpose of operating and improving the Services**, including generating verification reports and custody records.
 
-Unless required by law, fees are non-refundable once charged, except as explicitly stated by Proovra in writing.
+---
 
-We may change pricing or plan features with notice, to the extent permitted by law.
+## 4.3 Integrity Artifacts
 
-## 8. SERVICE AVAILABILITY, CHANGES, AND BETA FEATURES
+When evidence is completed within Proovra, the system may generate:
 
-We aim for high availability, but the Services may experience interruptions.  
-We may modify, suspend, or discontinue features at any time. Some features may be labeled “beta” or experimental and may contain bugs or limitations.
+- cryptographic hashes
+- digital signatures
+- custody event logs
+- verification links
+- evidence reports
 
-## 9. NO WARRANTIES
+These outputs are designed to support **integrity verification and auditability**.
 
-The Services are provided “AS IS” and “AS AVAILABLE.”  
-To the fullest extent permitted by law, Proovra disclaims all warranties, including implied warranties of merchantability, fitness for a particular purpose, and non-infringement.
+They may be **immutable and non-editable** once generated.
 
-Proovra does not warrant:
+---
 
-- that the Services will be uninterrupted or error-free,
-- that uploaded evidence will be admissible in any jurisdiction,
-- that verification or signing guarantees authenticity of content origin, truthfulness, or context,
-- that the Services will prevent all data loss or security incidents.
+# 5. EVIDENCE AND VERIFICATION DISCLAIMER
 
-## 10. LIMITATION OF LIABILITY
+Proovra’s cryptographic processes verify **data integrity**, not factual accuracy.
+
+Specifically:
+
+- digital signatures confirm that a dataset has not been modified after signing
+- timestamps confirm when signing occurred (when timestamping is enabled)
+- custody logs record system events
+
+These mechanisms **do not verify**:
+
+- who originally created the content
+- whether the content is truthful
+- whether the context surrounding the content is accurate.
+
+Users are responsible for ensuring the lawful and accurate use of evidence.
+
+---
+
+# 6. ACCEPTABLE USE
+
+You agree not to use the Services to:
+
+- upload illegal or unlawful content
+- violate privacy or intellectual property rights
+- distribute malware or exploit code
+- attempt unauthorized access
+- impersonate others
+- harass or threaten individuals
+- facilitate criminal activity
+- manipulate or misuse the platform to produce deceptive evidence records.
+
+Proovra may investigate suspected misuse and may suspend or terminate accounts when necessary.
+
+---
+
+# 7. PUBLIC VERIFICATION LINKS
+
+When you generate a public verification link:
+
+- anyone with the link may access the verification page
+- metadata included in the verification page may become visible.
+
+You are responsible for determining what information you share.
+
+Proovra is not responsible for consequences arising from link distribution.
+
+---
+
+# 8. PAYMENTS AND SUBSCRIPTIONS
+
+Some features may require payment.
+
+Payments are processed through third-party providers such as:
+
+- Stripe
+- PayPal
+
+Proovra does not store full payment card details.
+
+Prices, taxes, and billing cycles are displayed during checkout.
+
+Unless required by law, fees are **non-refundable** once charged.
+
+---
+
+# 9. SERVICE AVAILABILITY
+
+We strive for reliable service but cannot guarantee uninterrupted operation.
+
+Services may experience:
+
+- maintenance downtime
+- infrastructure failures
+- third-party outages
+- technical errors.
+
+Features may change, be suspended, or be discontinued.
+
+Experimental features may be marked as **beta**.
+
+---
+
+# 10. NO WARRANTIES
+
+The Services are provided **“AS IS”** and **“AS AVAILABLE.”**
+
+To the fullest extent permitted by law, Proovra disclaims all warranties, including:
+
+- merchantability
+- fitness for a particular purpose
+- non-infringement.
+
+Proovra does not guarantee:
+
+- uninterrupted service
+- admissibility of evidence
+- prevention of all data loss
+- protection against all misuse of the Services.
+
+---
+
+# 11. LIMITATION OF LIABILITY
 
 To the fullest extent permitted by law:
 
-- Proovra will not be liable for indirect, incidental, consequential, special, or punitive damages,
-- Proovra’s aggregate liability for any claim will not exceed the amount you paid to Proovra in the 12 months before the event giving rise to the claim (or USD $100 if you paid nothing).
+Proovra is not liable for:
 
-Some jurisdictions do not allow certain limitations; in that case, limits apply to the maximum extent permitted.
+- indirect damages
+- incidental damages
+- consequential damages
+- lost profits
+- loss of data.
 
-## 11. INDEMNIFICATION
+Total liability will not exceed:
 
-You agree to indemnify and hold harmless Proovra and its affiliates, officers, employees, and partners from claims arising out of:
+the amount paid to Proovra during the **12 months preceding the claim**, or **USD $100** if no payment was made.
 
-- your use of the Services,
-- your User Content,
-- your violation of these Terms,
-- your infringement of rights of others,
-- your unlawful conduct.
+---
 
-## 12. TERMINATION
+# 12. INDEMNIFICATION
 
-You may stop using the Services at any time.  
-We may suspend or terminate access if:
+You agree to indemnify and hold harmless Proovra and its operators from claims arising from:
 
-- you violate these Terms,
-- we are required to do so for legal reasons,
-- your use presents a security or operational risk.
+- your use of the Services
+- your uploaded content
+- your violation of these Terms
+- infringement of third-party rights
+- unlawful activity conducted through the platform.
 
-Certain evidence integrity records may remain retained as described in our Privacy Policy.
+---
 
-## 13. GOVERNING LAW / DISPUTES
+# 13. TERMINATION
 
-These Terms are governed by the laws of North Rhine-Westphalia, Germany, without regard to conflicts of laws rules.  
-Disputes will be resolved in the courts of North Rhine-Westphalia, Germany, unless prohibited by law.
+You may stop using the Services at any time.
 
-## 14. CONTACT
+Proovra may suspend or terminate accounts if:
+
+- Terms are violated
+- misuse or security risks are detected
+- required by law.
+
+Certain evidence integrity records may remain retained as described in the Privacy Policy.
+
+---
+
+# 14. GOVERNING LAW
+
+These Terms are governed by the laws of **North Rhine-Westphalia, Germany**.
+
+Disputes will be resolved in courts located in **North Rhine-Westphalia**, unless otherwise required by law.
+
+---
+
+# 15. ABUSE REPORTING
+
+If you believe the Services are being used for unlawful or harmful activities, you may report abuse to:
+
+abuse@proovra.com
+
+---
+
+# 16. CONTACT
 
 Support: support@proovra.com  
 Legal: legal@proovra.com  

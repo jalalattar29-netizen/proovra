@@ -8,6 +8,16 @@ Proovra is a digital evidence capture, preservation, and verification platform d
 
 By using the Services, you acknowledge that you have read and understood this Privacy Policy.
 
+## DATA CONTROLLER
+
+For the purposes of applicable data protection laws (including the EU General Data Protection Regulation “GDPR”), the data controller responsible for processing personal data under this Privacy Policy is:
+
+- **Proovra** (pre-incorporation project)
+- **Location:** Essen, Germany
+- **Contact:** legal@proovra.com
+
+If and when Proovra is incorporated, this section will be updated to reflect the registered legal entity details.
+
 ## 1. CATEGORIES OF PERSONAL DATA WE COLLECT
 
 Depending on how you interact with Proovra, we may collect and process the following categories of personal data.
@@ -100,7 +110,7 @@ We process personal data for the following purposes:
 - To create and manage user accounts
 - To authenticate users and secure access
 - To provide, operate, and maintain the Services
-- To capture, preserve, sign, and verify digital evidence
+- To capture, preserve, sign, timestamp (where available), and verify digital evidence
 - To generate verification reports and custody records
 - To enable sharing and public verification links
 - To manage teams, roles, and permissions
@@ -116,10 +126,10 @@ We do not sell personal data.
 
 For users located in the European Economic Area (EEA), the United Kingdom, or Switzerland, Proovra processes personal data based on one or more of the following legal grounds:
 
-- Performance of a contract
-- User consent, where required
-- Legitimate interests (including security, integrity, and service operation)
-- Compliance with legal obligations
+- **Performance of a contract** (e.g., to provide the Services you request)
+- **User consent**, where required (e.g., optional features such as location capture or non-essential cookies)
+- **Legitimate interests** (including security, integrity, fraud prevention, service operation, and product improvement), where such interests are not overridden by your rights
+- **Compliance with legal obligations**
 
 ## 4. EVIDENCE INTEGRITY AND IMMUTABILITY
 
@@ -129,7 +139,7 @@ Once evidence is completed and cryptographically signed:
 - Records cannot be retroactively altered
 - Verification results remain valid even if an account is later closed
 
-This design is fundamental to evidentiary trust and legal reliability.
+This design is fundamental to evidentiary trust and legal reliability. Note that immutability may affect deletion requests for certain integrity records as described under **Data Retention** and **Your Rights**.
 
 ## 5. DATA SHARING AND DISCLOSURE
 
@@ -147,10 +157,10 @@ We engage trusted service providers to support:
 
 - Cloud infrastructure and storage
 - Payment processing
-- Identity verification
+- Identity and authentication providers (where used)
 - Security and monitoring
 
-These providers process data solely under contractual obligations and instructions from Proovra.
+These providers process data solely under contractual obligations and instructions from Proovra. Where required by law, we use appropriate contractual safeguards (such as data processing agreements) and require confidentiality and security obligations.
 
 ### 5.3 Legal and Regulatory Requirements
 
@@ -164,7 +174,8 @@ We may disclose data when required to:
 ## 6. INTERNATIONAL DATA TRANSFERS
 
 Proovra may process data in multiple jurisdictions depending on infrastructure location.
-Where required, appropriate safeguards are applied to international transfers in accordance with applicable data protection laws.
+
+Where required, appropriate safeguards are applied to international transfers in accordance with applicable data protection laws (for example, by using recognized transfer mechanisms and contractual safeguards).
 
 ## 7. DATA RETENTION
 
@@ -172,15 +183,20 @@ We retain personal data only as long as necessary to:
 
 - Provide the Services
 - Fulfill contractual and legal obligations
-- Preserve evidentiary integrity
+- Preserve evidentiary integrity and verification capability
+- Maintain security and prevent fraud/abuse
 
-Retention periods vary based on data type and regulatory requirements.
+Retention periods vary based on data type and regulatory requirements. In general:
+
+- **Account data** is retained while your account remains active and for a reasonable period thereafter for compliance, security, and dispute handling.
+- **Security logs** may be retained for a limited period to protect the Services.
+- **Evidence integrity records** (such as hashes, signatures, timestamps where applicable, and custody logs) may be retained to preserve verification and auditability, including after account closure, subject to applicable law.
 
 ## 8. DATA SECURITY
 
 Proovra implements administrative, technical, and organizational safeguards, including:
 
-- Encryption in transit and at rest
+- Encryption in transit and at rest (where applicable)
 - Access controls and authentication mechanisms
 - Audit logging
 - Secure key management
@@ -190,15 +206,18 @@ Despite these measures, no system can guarantee absolute security.
 
 ## 9. YOUR RIGHTS
 
-Depending on your jurisdiction, you may have the right to:
+Depending on your jurisdiction (including the GDPR), you may have the right to:
 
 - Access your personal data
 - Correct inaccurate data
 - Request deletion or restriction of processing
 - Object to certain processing activities
 - Withdraw consent where applicable
+- **Data portability** (where applicable)
 
-Requests can be submitted to legal@proovra.com.
+You may also have the right to **lodge a complaint with a supervisory authority** in your country of residence, place of work, or where an alleged infringement occurred.
+
+Requests can be submitted to **legal@proovra.com**. We may need to verify your identity before responding.
 
 ## 10. CHILDREN’S PRIVACY
 
@@ -218,7 +237,7 @@ Proovra uses cookies and similar technologies to:
 - Maintain sessions
 - Improve usability and performance
 
-Where required by law, consent mechanisms are provided.
+Where required by law, consent mechanisms are provided. For more information, please refer to our Cookie Policy.
 
 ## 13. CHANGES TO THIS PRIVACY POLICY
 
