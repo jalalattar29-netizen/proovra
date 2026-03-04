@@ -1,4 +1,8 @@
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:8081";
+const DEFAULT_API_BASE = "https://api.proovra.com";
+const RAW_API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? DEFAULT_API_BASE;
+
+// Normalize once (remove trailing slash)
+const API_BASE = RAW_API_BASE.replace(/\/+$/, "");
 
 export interface ApiErrorResponse {
   error: {
@@ -37,35 +41,86 @@ function asObject(value: unknown): Record<string, unknown> | null {
   return value && typeof value === "object" ? (value as Record<string, unknown>) : null;
 }
 
-export async function apiFetch(
-  path: string,
-  init: RequestInit = {},
-  opts?: { auth?: boolean } // ✅ جديد
+type ApiFetchOpts = {
+  /** default true: send Authorization if token exists */
+  auth?: boolean;
+
+  /** default true: on 401 retry once with latest token from localStorage (helps hydration/race) */
+  retryAuthOnce?: boolean;
+};
+
+function readToken(): string | null {
+  if (typeof window === "undefined") return null;
+  return localStorage.getItem("proovra-token");
+}
+
+async function fetchWithAuthRetry(
+  url: string,
+  init: RequestInit,
+  opts: Required<Pick<ApiFetchOpts, "auth" | "retryAuthOnce">>
 ) {
-  const token = typeof window !== "undefined" ? localStorage.getItem("proovra-token") : null;
+  const makeHeaders = () => {
+    const headers = new Headers(init.headers);
 
-  const headers = new Headers(init.headers);
+    if (!headers.has("content-type") && init.body) {
+      headers.set("content-type", "application/json");
+    }
 
-  if (!headers.has("content-type") && init.body) {
-    headers.set("content-type", "application/json");
-  }
+    if (typeof window !== "undefined") {
+      headers.set("x-web-client", "1");
+    }
 
-  if (typeof window !== "undefined") {
-    headers.set("x-web-client", "1");
-  }
+    const token = readToken();
+    if (opts.auth && token) {
+      headers.set("authorization", `Bearer ${token}`);
+    } else {
+      headers.delete("authorization");
+    }
 
-  // ✅ الافتراضي: يرسل Authorization
-  // ✅ لكن إذا opts.auth === false لا ترسل Authorization أبداً
-  const shouldSendAuth = opts?.auth !== false;
-  if (shouldSendAuth && token) {
-    headers.set("authorization", `Bearer ${token}`);
-  }
+    return headers;
+  };
 
-  const res = await fetch(`${API_BASE}${path}`, {
+  const first = await fetch(url, {
     ...init,
-    headers,
+    headers: makeHeaders(),
     credentials: "include",
+    cache: "no-store"
   });
+
+  if (first.status !== 401 || !opts.retryAuthOnce || !opts.auth) return first;
+
+  // Retry once after re-reading token (covers fast hydration / token just written)
+  const second = await fetch(url, {
+    ...init,
+    headers: makeHeaders(),
+    credentials: "include",
+    cache: "no-store"
+  });
+
+  return second;
+}
+
+export async function apiFetch(path: string, init: RequestInit = {}, opts?: ApiFetchOpts) {
+  const normalizedPath = path.startsWith("/") ? path : `/${path}`;
+  const url = `${API_BASE}${normalizedPath}`;
+
+  const finalOpts = {
+    auth: opts?.auth !== false,
+    retryAuthOnce: opts?.retryAuthOnce !== false
+  };
+
+  let res: Response;
+  try {
+    res = await fetchWithAuthRetry(url, init, finalOpts);
+  } catch (err: unknown) {
+    // Network / DNS / CORS / offline
+    const e: GenericApiError = new Error(
+      err instanceof Error ? err.message : "Network error while calling API"
+    );
+    e.code = "NETWORK_ERROR";
+    e.statusCode = 0;
+    throw e;
+  }
 
   if (!res.ok) {
     const headerReqId = res.headers.get("x-request-id") ?? undefined;
@@ -110,26 +165,37 @@ export async function apiFetch(
           message: String(errObj["message"]),
           requestId: requestIdFromBody ?? headerReqId,
           timestamp: timestampFromBody ?? new Date().toISOString(),
-          details: detailsFromBody,
-        },
+          details: detailsFromBody
+        }
       };
 
       throw new ApiError(normalized, res.status);
     }
 
     // Case 2: { message: "..." } OR plain text/HTML/empty body
-    const messageFromBody = obj && typeof obj["message"] === "string" ? (obj["message"] as string) : "";
+    const messageFromBody =
+      obj && typeof obj["message"] === "string" ? (obj["message"] as string) : "";
     const message = messageFromBody || (raw && raw.trim()) || `HTTP ${res.status}: API error`;
 
-    const requestIdFromBody = obj && typeof obj["requestId"] === "string" ? (obj["requestId"] as string) : undefined;
+    const requestIdFromBody =
+      obj && typeof obj["requestId"] === "string" ? (obj["requestId"] as string) : undefined;
+
     const requestId = requestIdFromBody ?? headerReqId;
 
-    const error: GenericApiError = new Error(requestId ? `${message} (requestId: ${requestId})` : message);
-    error.code = "API_ERROR";
+    const error: GenericApiError = new Error(
+      requestId ? `${message} (requestId: ${requestId})` : message
+    );
+    error.code = res.status === 401 ? "UNAUTHORIZED" : "API_ERROR";
     error.statusCode = res.status;
     error.requestId = requestId;
 
     throw error;
+  }
+
+  // Some endpoints might return empty body (204)
+  const contentType = res.headers.get("content-type") ?? "";
+  if (!contentType.includes("application/json")) {
+    return null;
   }
 
   try {
@@ -137,6 +203,7 @@ export async function apiFetch(
   } catch {
     const error: GenericApiError = new Error("Invalid response format");
     error.code = "PARSE_ERROR";
+    error.statusCode = res.status;
     throw error;
   }
 }

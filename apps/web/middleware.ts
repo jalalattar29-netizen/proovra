@@ -25,27 +25,15 @@ function buildCsp(nonce: string, relaxed: boolean, allowEval: boolean) {
       "style-src 'self' 'unsafe-inline'"
     );
   } else {
-    const scriptParts = [
-      `'nonce-${nonce}'`,
-      "https://accounts.google.com",
-      "https://appleid.cdn-apple.com"
-    ];
+    const scriptParts = [`'nonce-${nonce}'`, "https://accounts.google.com", "https://appleid.cdn-apple.com"];
     if (allowEval) scriptParts.push("'unsafe-eval'");
-    base.push(
-      `script-src 'self' ${scriptParts.join(" ")}`,
-      `style-src 'self' 'nonce-${nonce}' 'unsafe-inline'`
-    );
+    base.push(`script-src 'self' ${scriptParts.join(" ")}`, `style-src 'self' 'nonce-${nonce}' 'unsafe-inline'`);
   }
 
   return base.join("; ");
 }
 
-function applySecurityHeaders(
-  response: NextResponse,
-  nonce: string,
-  relaxed: boolean,
-  allowEval: boolean
-) {
+function applySecurityHeaders(response: NextResponse, nonce: string, relaxed: boolean, allowEval: boolean) {
   const csp = buildCsp(nonce, relaxed, allowEval);
   response.headers.set("Content-Security-Policy", csp);
   response.headers.set("X-Content-Type-Options", "nosniff");
@@ -58,11 +46,7 @@ function applySecurityHeaders(
 function nextWithNonce(req: NextRequest, nonce: string) {
   const requestHeaders = new Headers(req.headers);
   requestHeaders.set("x-nonce", nonce);
-  return NextResponse.next({
-    request: {
-      headers: requestHeaders
-    }
-  });
+  return NextResponse.next({ request: { headers: requestHeaders } });
 }
 
 function normalizeBaseUrl(base: string | undefined) {
@@ -93,18 +77,17 @@ export function middleware(req: NextRequest) {
     const relaxed = process.env.CSP_RELAXED === "true";
     const allowEval = process.env.CSP_ALLOW_EVAL === "true";
     const nonce = btoa(crypto.randomUUID());
-    const logMode = relaxed ? "relaxed" : allowEval ? "strict-eval" : "strict";
-    if (isProd) {
-      console.info(`[csp] mode=${logMode} path=${req.nextUrl.pathname}`);
-    }
 
     const host = req.headers.get("host");
-    if (!host || host.includes("localhost") || host.includes("127.0.0.1")) {
-      const res = nextWithNonce(req, nonce);
-      if (isProd) applySecurityHeaders(res, nonce, relaxed, allowEval);
-      return res;
+    const pathname = req.nextUrl.pathname;
+
+    if (isProd) {
+      const logMode = relaxed ? "relaxed" : allowEval ? "strict-eval" : "strict";
+      console.info(`[csp] mode=${logMode} path=${pathname}`);
     }
-    if (host.endsWith(".vercel.app")) {
+
+    // dev / vercel preview: no host switching
+    if (!host || host.includes("localhost") || host.includes("127.0.0.1") || host.endsWith(".vercel.app")) {
       const res = nextWithNonce(req, nonce);
       if (isProd) applySecurityHeaders(res, nonce, relaxed, allowEval);
       return res;
@@ -112,6 +95,7 @@ export function middleware(req: NextRequest) {
 
     const appBaseUrl = normalizeBaseUrl(APP_BASE);
     const webBaseUrl = normalizeBaseUrl(WEB_BASE);
+
     if (!appBaseUrl && !webBaseUrl) {
       const res = nextWithNonce(req, nonce);
       if (isProd) applySecurityHeaders(res, nonce, relaxed, allowEval);
@@ -120,11 +104,22 @@ export function middleware(req: NextRequest) {
 
     const appHost = getHost(appBaseUrl);
     const webHost = getHost(webBaseUrl);
-    const pathname = req.nextUrl.pathname;
 
     const isAppHost = appHost ? host.endsWith(appHost) : false;
     const isWebHost = webHost ? host.endsWith(webHost) : false;
 
+    // ✅ 1) Legal pages MUST stay on same host (prevents localStorage/session loss)
+    if (
+      pathname === "/privacy" ||
+      pathname === "/terms" ||
+      pathname.startsWith("/legal/")
+    ) {
+      const res = nextWithNonce(req, nonce);
+      if (isProd) applySecurityHeaders(res, nonce, relaxed, allowEval);
+      return res;
+    }
+
+    // app root -> /home
     if (isAppHost && pathname === "/") {
       const target = new URL(req.url);
       target.pathname = "/home";
@@ -133,6 +128,7 @@ export function middleware(req: NextRequest) {
       return res;
     }
 
+    // app login/register -> web login/register
     if (isAppHost && (pathname === "/login" || pathname === "/register")) {
       const target = new URL(webBaseUrl ?? "https://www.proovra.com");
       target.pathname = pathname;
@@ -142,68 +138,18 @@ export function middleware(req: NextRequest) {
       return res;
     }
 
-    if (isWebHost && ["/home", "/capture", "/cases", "/teams", "/reports", "/billing", "/settings"].some((p) => pathname === p || pathname.startsWith(`${p}/`))) {
-      if (appBaseUrl) {
-        const target = new URL(appBaseUrl);
-        target.pathname = pathname;
-        const res = NextResponse.redirect(target);
-        if (isProd) applySecurityHeaders(res, nonce, relaxed, allowEval);
-        return res;
-      }
-    }
+    // web app-pages -> app host
+    const APP_PREFIXES = ["/home", "/capture", "/cases", "/teams", "/reports", "/billing", "/settings"];
+    const isAppPath = APP_PREFIXES.some((p) => pathname === p || pathname.startsWith(`${p}/`));
 
-        // ✅ Public pages يجب تكون على WEB (www) دائماً
-    const PUBLIC_WEB_PREFIXES = [
-      "/about",
-      "/pricing",
-      "/features",
-      "/security",
-      "/legal",
-      "/privacy",
-      "/privacy-policy",
-      "/terms",
-      "/cookies",
-      "/impressum",
-      "/dpa",
-      "/law-enforcement",
-      "/acceptable-use",
-      "/transparency",
-      "/verification",
-      "/support"
-    ];
-
-    const isPublicWebPath = PUBLIC_WEB_PREFIXES.some(
-      (p) => pathname === p || pathname.startsWith(p + "/")
-    );
-
-    // صفحات Legal يجب أن تبقى على نفس الـ host لتجنب فقدان localStorage/session
-    const LEGAL_SAME_HOST_PREFIXES = [
-      "/legal",
-      "/privacy",
-      "/privacy-policy",
-      "/terms",
-      "/cookies",
-      "/impressum",
-      "/dpa",
-      "/law-enforcement",
-      "/acceptable-use",
-      "/transparency",
-      "/verification"
-    ];
-
-    const keepOnSameHost = LEGAL_SAME_HOST_PREFIXES.some(
-      (p) => pathname === p || pathname.startsWith(`${p}/`)
-    );
-
-    // إذا المستخدم على app.proovra.com وفتح صفحة عامة (غير قانونية) → حولها لـ www.proovra.com
-    if (isAppHost && isPublicWebPath && !keepOnSameHost) {
-      const target = new URL(webBaseUrl ?? "https://www.proovra.com");
+    if (isWebHost && isAppPath && appBaseUrl) {
+      const target = new URL(appBaseUrl);
       target.pathname = pathname;
-      req.nextUrl.searchParams.forEach((v, k) => target.searchParams.set(k, v));
       const res = NextResponse.redirect(target);
       if (isProd) applySecurityHeaders(res, nonce, relaxed, allowEval);
       return res;
     }
+
     const res = nextWithNonce(req, nonce);
     if (isProd) applySecurityHeaders(res, nonce, relaxed, allowEval);
     return res;

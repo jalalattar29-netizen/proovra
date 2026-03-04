@@ -5,18 +5,22 @@ import { Button } from "../components/ui";
 import { SilverWatermarkSection } from "../components/SilverWatermarkSection";
 import { MarketingHeader } from "../components/header";
 import { Icons } from "../components/icons";
+import { LEGAL_LINKS } from "../lib/legalLinks";
 
-function getAppBase() {
+function getAppBase(): string {
   if (typeof window === "undefined") return "";
   const { hostname } = window.location;
+
+  // local dev
   if (hostname === "localhost" || hostname === "127.0.0.1") return window.location.origin;
-  return process.env.NEXT_PUBLIC_APP_BASE ?? process.env.NEXT_PUBLIC_WEB_BASE ?? "";
+
+  // prod: prefer APP_BASE for the app domain
+  return process.env.NEXT_PUBLIC_APP_BASE ?? "";
 }
 
 export default function HomePage() {
   const appBase = getAppBase();
   const appRegister = appBase ? `${appBase}/register` : "/register";
-
   const sampleReportUrl = "/brand/sample-report.pdf";
 
   return (
@@ -29,22 +33,27 @@ export default function HomePage() {
             <div style={{ color: "rgba(255,255,255,0.82)", fontSize: 13, letterSpacing: 0.3 }}>
               Capture truth. Prove it forever.
             </div>
+
             <h1 className="hero-title">
               Verifiable digital evidence for legal, compliance, and investigations.
             </h1>
+
             <p className="hero-subtitle">
               PROO✓RA preserves integrity with cryptographic fingerprints, custody timelines, and
               verifiable reports. Built for teams who need audit-ready proof.
             </p>
+
             <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
               <a href={appRegister}>
                 <Button>Start capturing evidence</Button>
               </a>
+
               <a href={sampleReportUrl} target="_blank" rel="noopener noreferrer">
                 <Button variant="secondary">View sample report</Button>
               </a>
             </div>
           </div>
+
           <div className="hero-mockup">
             <div className="hero-mockup-card">
               <div className="hero-mockup-title">Dashboard</div>
@@ -71,6 +80,7 @@ export default function HomePage() {
           <p className="page-subtitle" style={{ marginBottom: 32 }}>
             Four steps from capture to verification.
           </p>
+
           <div className="how-it-works-grid">
             <div className="how-it-works-step">
               <div className="how-it-works-icon">
@@ -79,6 +89,7 @@ export default function HomePage() {
               <h3>Capture</h3>
               <p>Photos, videos, and documents with metadata and timestamps.</p>
             </div>
+
             <div className="how-it-works-step">
               <div className="how-it-works-icon">
                 <Icons.Fingerprint />
@@ -86,6 +97,7 @@ export default function HomePage() {
               <h3>Fingerprint</h3>
               <p>SHA-256 hashes and Ed25519 signatures lock integrity.</p>
             </div>
+
             <div className="how-it-works-step">
               <div className="how-it-works-icon">
                 <Icons.Verify />
@@ -93,6 +105,7 @@ export default function HomePage() {
               <h3>Verify</h3>
               <p>Anyone can confirm authenticity without exposing originals.</p>
             </div>
+
             <div className="how-it-works-step">
               <div className="how-it-works-icon">
                 <Icons.Share />
@@ -108,6 +121,7 @@ export default function HomePage() {
           <p className="page-subtitle" style={{ marginBottom: 32 }}>
             Built for teams who need verifiable proof.
           </p>
+
           <div className="who-it-for-grid">
             <div className="who-it-for-card">
               <Icons.Lawyers />
@@ -137,6 +151,7 @@ export default function HomePage() {
           <p className="page-subtitle" style={{ marginBottom: 32 }}>
             Enterprise-grade integrity and security.
           </p>
+
           <div className="trust-indicators">
             <div className="trust-item">
               <Icons.Security />
@@ -169,18 +184,13 @@ export default function HomePage() {
           <div className="footer-brand">PROO✓RA</div>
           <a href="mailto:support@proovra.com">support@proovra.com</a>
         </div>
+
         <div className="footer-links">
-          <Link href="/legal/privacy">Privacy Policy</Link>
-          <Link href="/legal/terms">Terms of Use</Link>
-          <Link href="/legal/cookies">Cookies</Link>
-          <Link href="/legal/security">Security</Link>
-          <Link href="/legal/dpa">DPA</Link>
-          <Link href="/legal/law-enforcement">Law Enforcement</Link>
-          <Link href="/legal/acceptable-use">Acceptable Use</Link>
-          <Link href="/legal/dmca">DMCA</Link>
-          <Link href="/legal/transparency">Transparency</Link>
-          <Link href="/legal/verification">Verification</Link>
-          <Link href="/legal/impressum">Impressum</Link>
+          {LEGAL_LINKS.map((l) => (
+            <Link key={l.href} href={l.href}>
+              {l.label}
+            </Link>
+          ))}
           <Link href="/support">Support</Link>
         </div>
       </footer>

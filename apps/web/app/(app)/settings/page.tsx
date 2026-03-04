@@ -1,20 +1,19 @@
-// D:\digital-witness\apps\web\app\(app)\settings\page.tsx
 "use client";
 
-import { Button, Card, useToast, Input } from "../../../components/ui";
-import { supportedLocales, type Locale } from "@proovra/shared";
-import { useAuth, useLocale } from "../../providers";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
+
+import { supportedLocales, type Locale } from "@proovra/shared";
+import { Button, Card, useToast, Input } from "../../../components/ui";
+import { Icons } from "../../../components/icons";
 import { apiFetch } from "../../../lib/api";
 import { captureException } from "../../../lib/sentry";
-import { Icons } from "../../../components/icons";
+import { LEGAL_LINKS } from "../../../lib/legalLinks";
+import { useAuth, useLocale } from "../../providers";
 
 type BillingStatusResponse = {
-  entitlement?: {
-    plan?: string | null;
-  } | null;
+  entitlement?: { plan?: string | null } | null;
 };
 
 type UserMeResponse = {
@@ -52,6 +51,24 @@ function asRecord(value: unknown): Record<string, unknown> | null {
   return value && typeof value === "object" ? (value as Record<string, unknown>) : null;
 }
 
+function extractUserFromResponse(res: unknown): UserMeResponse["user"] | null {
+  const obj = asRecord(res);
+  if (!obj) return null;
+
+  const directUser = asRecord(obj["user"]);
+  if (directUser && typeof directUser["id"] === "string") {
+    return directUser as unknown as NonNullable<UserMeResponse["user"]>;
+  }
+
+  const dataObj = asRecord(obj["data"]);
+  const nestedUser = dataObj ? asRecord(dataObj["user"]) : null;
+  if (nestedUser && typeof nestedUser["id"] === "string") {
+    return nestedUser as unknown as NonNullable<UserMeResponse["user"]>;
+  }
+
+  return null;
+}
+
 export default function SettingsPage() {
   const { t, locale } = useLocale();
   const { user, setToken, updateUser } = useAuth();
@@ -64,7 +81,6 @@ export default function SettingsPage() {
     supportedLocales.includes(locale as Locale) ? (locale as Locale) : "en"
   );
 
-  // Profile form (editable)
   const [firstName, setFirstName] = useState<string>(user?.firstName ?? "");
   const [lastName, setLastName] = useState<string>(user?.lastName ?? "");
   const [displayName, setDisplayName] = useState<string>(user?.displayName ?? "");
@@ -72,7 +88,6 @@ export default function SettingsPage() {
   const [timezone, setTimezone] = useState<string>(user?.timezone ?? "");
   const [bio, setBio] = useState<string>(user?.bio ?? "");
 
-  // keep form in sync when user changes
   useEffect(() => {
     setFirstName(user?.firstName ?? "");
     setLastName(user?.lastName ?? "");
@@ -80,19 +95,20 @@ export default function SettingsPage() {
     setCountry(user?.country ?? "");
     setTimezone(user?.timezone ?? "");
     setBio(user?.bio ?? "");
-  }, [user?.id]); // only when identity changes
+  }, [user?.id]);
 
-useEffect(() => {
-  apiFetch("/v1/billing/status")
-    .then((data: BillingStatusResponse) => {
-      setPlan(data.entitlement?.plan ?? "FREE");
-    })
-    .catch((err: unknown) => {
-      captureException(err, { feature: "web_settings_billing" });
-      setPlan("FREE");
-      addToast("Could not load subscription status", "warning");
-    });
-}, [addToast]);
+  useEffect(() => {
+    apiFetch("/v1/billing/status")
+      .then((data: BillingStatusResponse) => {
+        setPlan(data.entitlement?.plan ?? "FREE");
+      })
+      .catch((err: unknown) => {
+        captureException(err, { feature: "web_settings_billing" });
+        setPlan("FREE");
+        addToast("Could not load subscription status", "warning");
+      });
+  }, [addToast]);
+
   const initials = useMemo(() => {
     const a = (user?.displayName ?? user?.email ?? "?").trim();
     return a ? a[0]?.toUpperCase() : "?";
@@ -108,9 +124,7 @@ useEffect(() => {
       addToast("Sign out failed", "error");
     } finally {
       setToken(null);
-      setTimeout(() => {
-        router.replace("/");
-      }, 500);
+      router.replace("/");
     }
   };
 
@@ -128,37 +142,18 @@ useEffect(() => {
         locale: selectedLanguage
       };
 
-      // Prefer /v1/users/me if exists, fallback to /v1/auth/me (read-only)
       const res = await apiFetch("/v1/users/me", {
         method: "PATCH",
         body: JSON.stringify(payload)
       });
 
-      const obj = asRecord(res);
-      const userObj = obj ? asRecord(obj["user"]) : null;
+      const updated = extractUserFromResponse(res);
+      if (updated) updateUser(updated);
 
-      if (!userObj) {
-        // Some APIs return { data: { user } }
-        const dataObj = obj ? asRecord(obj["data"]) : null;
-        const nestedUser = dataObj ? asRecord(dataObj["user"]) : null;
-        const finalUser = nestedUser ?? userObj;
-
-        if (!finalUser) {
-          addToast("Profile saved", "success");
-          return;
-        }
-      }
-
-      // If API returns { user }
-      const me = res as UserMeResponse;
-      if (me?.user) updateUser(me.user);
       addToast("Profile updated", "success");
     } catch (err: unknown) {
       captureException(err, { feature: "web_settings_profile_save" });
-
-      // If endpoint isn't deployed yet, show a clear message
-      const msg =
-        err instanceof Error ? err.message : "Could not save profile. Please try again.";
+      const msg = err instanceof Error ? err.message : "Could not save profile. Please try again.";
       addToast(msg.includes("404") ? "Profile endpoint not deployed yet (API 404)." : msg, "error");
     }
   };
@@ -190,7 +185,6 @@ useEffect(() => {
             </div>
 
             <div className="settings-section-body">
-              {/* Avatar + account */}
               <div style={{ marginBottom: 16, display: "flex", alignItems: "center", gap: 12 }}>
                 <div
                   style={{
@@ -208,6 +202,7 @@ useEffect(() => {
                 >
                   {initials}
                 </div>
+
                 <div>
                   <div style={{ fontSize: 14, color: "#999" }}>Account</div>
                   <div style={{ fontSize: 16, fontWeight: 600 }}>
@@ -221,7 +216,6 @@ useEffect(() => {
                 </div>
               </div>
 
-              {/* Editable profile fields */}
               <div style={{ display: "grid", gap: 12 }}>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
                   <div>
@@ -260,7 +254,11 @@ useEffect(() => {
                     <div className="settings-label" style={{ marginBottom: 6 }}>
                       Timezone
                     </div>
-                    <Input value={timezone} onChange={setTimezone} placeholder="e.g. Europe/Berlin" />
+                    <Input
+                      value={timezone}
+                      onChange={setTimezone}
+                      placeholder="e.g. Europe/Berlin"
+                    />
                   </div>
                 </div>
 
@@ -305,6 +303,7 @@ useEffect(() => {
                 <span className="settings-label">Session</span>
                 <span>Active</span>
               </div>
+
               <Link href="/legal/security" className="settings-link">
                 Security policy
               </Link>
@@ -374,56 +373,23 @@ useEffect(() => {
             </div>
           </Card>
 
-{/* E) Legal */}
-<Card>
-  <div className="settings-section-header">
-    <Icons.Security />
-    <span>Legal</span>
-  </div>
-  <div className="settings-section-body">
-    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-      <Link href="/legal/privacy" className="settings-link">
-        Privacy Policy
-      </Link>
-      <Link href="/legal/terms" className="settings-link">
-        Terms of Service
-      </Link>
-      <Link href="/legal/cookies" className="settings-link">
-        Cookies
-      </Link>
-      <Link href="/legal/security" className="settings-link">
-        Security
-      </Link>
-      <Link href="/legal/dpa" className="settings-link">
-        Data Processing Agreement (DPA)
-      </Link>
-      <Link href="/legal/law-enforcement" className="settings-link">
-        Law Enforcement Requests
-      </Link>
-      <Link href="/legal/aup" className="settings-link">
-        Acceptable Use Policy
-      </Link>
-      <Link href="/legal/dmca" className="settings-link">
-        Copyright (DMCA)
-      </Link>
-      <Link href="/legal/transparency" className="settings-link">
-        Transparency
-      </Link>
-      <Link href="/legal/verification-methodology" className="settings-link">
-        Verification Methodology
-      </Link>
-            <Link href="/legal/verification-methodology" className="settings-link">
-        Verification Methodology
-      </Link>
-      <Link href="/legal/evidence-handling" className="settings-link">
-        Evidence Handling
-      </Link>
-      <Link href="/legal/impressum" className="settings-link">
-        Impressum
-      </Link>
-    </div>
-  </div>
-</Card>        </div>
+          {/* E) Legal */}
+          <Card>
+            <div className="settings-section-header">
+              <Icons.Security />
+              <span>Legal</span>
+            </div>
+            <div className="settings-section-body">
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {LEGAL_LINKS.map((l) => (
+                  <Link key={l.href} href={l.href} className="settings-link">
+                    {l.label}
+                  </Link>
+                ))}
+              </div>
+            </div>
+          </Card>
+        </div>
       </div>
     </div>
   );
