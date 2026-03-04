@@ -85,7 +85,19 @@ export function middleware(req: NextRequest) {
       const logMode = relaxed ? "relaxed" : allowEval ? "strict-eval" : "strict";
       console.info(`[csp] mode=${logMode} path=${pathname}`);
     }
+// ✅ Always keep legal + policy pages on the SAME host (no cross-domain redirect)
+// This prevents "looks like signed out" when user is inside the app.
+const KEEP_SAME_HOST = ["/legal", "/privacy", "/terms"];
 
+const isKeepSameHostPath = KEEP_SAME_HOST.some(
+  (p) => pathname === p || pathname.startsWith(`${p}/`)
+);
+
+if (isKeepSameHostPath) {
+  const res = nextWithNonce(req, nonce);
+  if (isProd) applySecurityHeaders(res, nonce, relaxed, allowEval);
+  return res;
+}
     // dev / vercel preview: no host switching
     if (!host || host.includes("localhost") || host.includes("127.0.0.1") || host.endsWith(".vercel.app")) {
       const res = nextWithNonce(req, nonce);
