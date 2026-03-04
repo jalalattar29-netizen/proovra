@@ -85,18 +85,6 @@ export function middleware(req: NextRequest) {
       const logMode = relaxed ? "relaxed" : allowEval ? "strict-eval" : "strict";
       console.info(`[csp] mode=${logMode} path=${pathname}`);
     }
-    // ✅ Always keep legal + policy pages on the SAME host (no cross-domain redirect)
-    // This prevents "looks like signed out" when user is inside the app.
-    const KEEP_SAME_HOST = ["/legal", "/privacy", "/terms"];
-    const isKeepSameHostPath = KEEP_SAME_HOST.some(
-      (p) => pathname === p || pathname.startsWith(`${p}/`)
-    );
-
-    if (isKeepSameHostPath) {
-      const res = nextWithNonce(req, nonce);
-      if (isProd) applySecurityHeaders(res, nonce, relaxed, allowEval);
-      return res;
-    }
     // dev / vercel preview: no host switching
     if (!host || host.includes("localhost") || host.includes("127.0.0.1") || host.endsWith(".vercel.app")) {
       const res = nextWithNonce(req, nonce);
@@ -118,6 +106,33 @@ export function middleware(req: NextRequest) {
 
     const isAppHost = appHost ? host.endsWith(appHost) : false;
     const isWebHost = webHost ? host.endsWith(webHost) : false;
+
+    const isLegalPath =
+      pathname === "/privacy" || pathname === "/terms" || pathname.startsWith("/legal/");
+
+    if (isLegalPath) {
+      if (isAppHost) {
+        let appLegalPath: string | null = null;
+
+        if (pathname === "/privacy") appLegalPath = "/app-legal/privacy";
+        else if (pathname === "/terms") appLegalPath = "/app-legal/terms";
+        else if (pathname.startsWith("/legal/")) {
+          appLegalPath = pathname.replace("/legal/", "/app-legal/");
+        }
+
+        if (appLegalPath) {
+          const target = req.nextUrl.clone();
+          target.pathname = appLegalPath;
+          const res = NextResponse.rewrite(target);
+          if (isProd) applySecurityHeaders(res, nonce, relaxed, allowEval);
+          return res;
+        }
+      }
+
+      const res = nextWithNonce(req, nonce);
+      if (isProd) applySecurityHeaders(res, nonce, relaxed, allowEval);
+      return res;
+    }
 
     // app root -> /home
     if (isAppHost && pathname === "/") {

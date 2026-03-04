@@ -1,15 +1,12 @@
-import { headers } from "next/headers";
 import { notFound } from "next/navigation";
-import { Footer } from "../../../components/Footer";
-import { MarketingHeader } from "../../../components/header";
 import {
   ALLOWED_LEGAL_SLUGS,
   loadLegalMarkdown,
   renderLegalMarkdown,
   titleFromSlug
-} from "../legal-content";
+} from "../../../legal/legal-content";
 
-export default async function LegalPage({
+export default async function AppLegalPage({
   params
 }: {
   params?: Promise<{ slug: string }>;
@@ -19,8 +16,6 @@ export default async function LegalPage({
 
   if (!ALLOWED_LEGAL_SLUGS.has(slug)) return notFound();
 
-  await headers();
-
   let content = "";
   try {
     content = await loadLegalMarkdown(slug);
@@ -28,27 +23,24 @@ export default async function LegalPage({
     throw new Error("Missing legal content");
   }
 
-  const title = titleFromSlug(slug);
-
   return (
-    <div className="page landing-page">
-      <div className="blue-shell">
-        <MarketingHeader />
-        <section className="section container hero-section-tight legal-hero">
-          <h1 className="hero-title">{title}</h1>
-          <p className="page-subtitle" style={{ maxWidth: 760 }}>
+    <div className="section app-section">
+      <div className="app-hero app-hero-full">
+        <div className="container">
+          <h1 className="hero-title pricing-hero-title" style={{ margin: 0 }}>
+            {titleFromSlug(slug)}
+          </h1>
+          <p className="page-subtitle pricing-subtitle" style={{ marginTop: 6 }}>
             Legal information and policies for PROO✓RA.
           </p>
-        </section>
+        </div>
       </div>
 
-      <section className="section section-body">
+      <div className="app-body app-body-full">
         <div className="container">
           <article className="auth-card legal-page">{renderLegalMarkdown(content)}</article>
         </div>
-      </section>
-
-      <Footer />
+      </div>
     </div>
   );
 }

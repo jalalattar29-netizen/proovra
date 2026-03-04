@@ -8,6 +8,7 @@ import { supportedLocales, type Locale } from "@proovra/shared";
 import { Button, Card, useToast, Input } from "../../../components/ui";
 import { Icons } from "../../../components/icons";
 import { apiFetch } from "../../../lib/api";
+import { LEGAL_LINKS } from "../../../lib/legalLinks";
 import { captureException } from "../../../lib/sentry";
 import { useAuth, useLocale } from "../../providers";
 
@@ -381,24 +382,11 @@ export default function SettingsPage() {
 
   <div className="settings-section-body">
     <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-      <Link href="/legal/privacy" className="settings-link">Privacy Policy</Link>
-      <Link href="/legal/terms" className="settings-link">Terms of Service</Link>
-      <Link href="/legal/cookies" className="settings-link">Cookies</Link>
-      <Link href="/legal/security" className="settings-link">Security</Link>
-      <Link href="/legal/dpa" className="settings-link">Data Processing Agreement (DPA)</Link>
-      <Link href="/legal/law-enforcement" className="settings-link">Law Enforcement Requests</Link>
-
-      {/* ✅ هذا هو الصحيح لأنه عندك aup.md */}
-      <Link href="/legal/aup" className="settings-link">Acceptable Use Policy</Link>
-
-      <Link href="/legal/dmca" className="settings-link">Copyright (DMCA)</Link>
-      <Link href="/legal/transparency" className="settings-link">Transparency</Link>
-      <Link href="/legal/verification-methodology" className="settings-link">Verification Methodology</Link>
-      <Link href="/legal/evidence-handling" className="settings-link">Evidence Handling</Link>
-      <Link href="/legal/impressum" className="settings-link">Impressum</Link>
-
-      {/* ✅ support.md موجود عندك */}
-      <Link href="/legal/support" className="settings-link">Support</Link>
+      {LEGAL_LINKS.map((link) => (
+        <Link key={link.href} href={link.href} className="settings-link">
+          {link.label}
+        </Link>
+      ))}
     </div>
   </div>
 </Card>
