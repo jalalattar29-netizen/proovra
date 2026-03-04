@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo } from "react";
 
 import { SilverWatermarkSection } from "../../components/SilverWatermarkSection";
 import { AppHeader } from "../../components/header";
