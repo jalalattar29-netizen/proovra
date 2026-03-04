@@ -21,10 +21,6 @@ const BOTTOM_NAV = [
   { href: "/settings", label: "Settings", Icon: Icons.Settings }
 ];
 
-function getWebBase(): string {
-  return process.env.NEXT_PUBLIC_WEB_BASE || "https://www.proovra.com";
-}
-
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const { setToken, authReady, hasSession } = useAuth();
   const router = useRouter();
