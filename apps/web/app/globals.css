@@ -924,28 +924,27 @@ p {
     color: rgba(219, 235, 248, 0.78);
   }
 
-:where(.landing-page) .footer-links a:hover {
-  background: rgba(255, 255, 255, 0.08);
-  color: rgba(245, 251, 255, 0.96);
-}
-
-  :where(.app-page) .footer-links a:hover {
-    background: rgba(255, 255, 255, 0.08);
-    color: rgba(245, 251, 255, 0.96);
-  }
-
   .footer-links a {
     display: inline-flex;
     align-items: center;
     width: fit-content;
     padding: 6px 8px;
     border-radius: 8px;
-    transition: background 140ms ease, color 140ms ease, transform 140ms ease;
+    text-decoration-line: underline;
+    text-decoration-thickness: 1px;
+    text-decoration-color: transparent;
+    text-underline-offset: 3px;
+    transition:
+      background 140ms ease,
+      color 140ms ease,
+      transform 140ms ease,
+      text-decoration-color 140ms ease;
   }
 
-  .footer-links a:hover {
-    background: rgba(15, 23, 42, 0.06);
-    color: #0f1d36;
+  :where(.landing-page, .app-page) .footer-links a:hover {
+    background: rgba(255, 255, 255, 0.08);
+    color: rgba(245, 251, 255, 0.96);
+    text-decoration-color: currentColor;
     transform: translateY(-1px);
   }
 
