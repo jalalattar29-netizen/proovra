@@ -3772,3 +3772,12 @@ body {
     grid-template-columns: 1fr;
   }
 }
+
+/* SAFETY: if any primary hero button still uses hero-cta classes, force it to match Register */
+:where(.landing-page) .hero-cta-btn--primary,
+:where(.landing-page) .hero-cta-btn.hero-cta-btn--primary {
+  background: var(--accent-grad) !important;
+  color: #f4feff !important;
+  border: 1px solid rgba(126, 241, 255, 0.55) !important;
+  box-shadow: var(--shadow-accent) !important;
+}

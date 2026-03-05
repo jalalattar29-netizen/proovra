@@ -203,33 +203,7 @@ export default function HomePage() {
               </p>
             </div>
           </div>
-
-          <div style={{ marginTop: 26 }}>
-            <div style={{ fontSize: 12, fontWeight: 800, letterSpacing: 0.8, opacity: 0.9, marginBottom: 10 }}>
-              What PROO✓RA preserves
-            </div>
-
-            <div className="trust-indicators" style={{ justifyContent: "flex-start" }}>
-              <div className="trust-item">
-                <Icons.Fingerprint />
-                <span>Cryptographic integrity fingerprints</span>
-              </div>
-              <div className="trust-item">
-                <Icons.Verify />
-                <span>Verifiable timestamps</span>
-              </div>
-              <div className="trust-item">
-                <Icons.Evidence />
-                <span>Chain-of-custody timelines</span>
-              </div>
-              <div className="trust-item">
-                <Icons.Share />
-                <span>Audit-ready evidence reports</span>
-              </div>
-            </div>
-          </div>
-        </div>
-
+</div>
         <div className="container" style={{ marginTop: 72 }}>
           <h2 style={{ marginBottom: 8 }}>Trust indicators</h2>
           <p className="page-subtitle" style={{ marginBottom: 32 }}>
