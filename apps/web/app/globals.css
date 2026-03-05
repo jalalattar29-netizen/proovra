@@ -3526,8 +3526,9 @@ p {
    ========================================================= */
 
 /* 1) Navy background comes from the page itself */
+/* SAFETY: do NOT force navy on the entire site */
 html, body {
-  background: linear-gradient(180deg, #050b18 0%, #071226 45%, #08182f 100%) !important;
+  background: var(--color-bg);
 }
 
 :where(.app-page) {
@@ -3632,10 +3633,6 @@ html, body {
   color: rgba(226, 232, 240, 0.92);
 }
 
-:where(.about-page) .about-glass--compact {
-  /* نفس الشكل، بس جاهز إذا بدك تعدل لاحقاً */
-}
-
 :where(.about-page) .about-glass-title {
   font-size: 12px;
   font-weight: 800;
@@ -3659,4 +3656,313 @@ html, body {
 
 :where(.about-page) .about-glass strong {
   color: rgba(226, 232, 240, 0.98);
+}
+
+/* =========================================
+   HOME HERO CTA BUTTONS (match Register CTA)
+   ========================================= */
+
+:where(.landing-page) .hero-cta-btn {
+  min-height: 44px;
+  padding: 12px 18px;
+  border-radius: 999px;
+  font-weight: 800;
+  letter-spacing: 0.2px;
+
+  background: var(--accent-grad);
+  color: #f4feff;
+  border: 1px solid rgba(126, 241, 255, 0.55);
+  box-shadow: var(--shadow-accent);
+
+  transition: transform 180ms ease, background 180ms ease, border-color 180ms ease, box-shadow 180ms ease;
+}
+
+:where(.landing-page) .hero-cta-btn:hover {
+  background: var(--accent-grad-hover);
+  border-color: rgba(126, 241, 255, 0.78);
+  box-shadow: 0 14px 34px rgba(24, 209, 228, 0.34);
+  transform: translateY(-1px);
+}
+
+:where(.landing-page) .hero-cta-btn:active {
+  transform: translateY(0);
+}
+
+/* Secondary variant: glass but still consistent */
+:where(.landing-page) .hero-cta-btn--secondary {
+  background: rgba(6, 13, 31, 0.48) !important;
+  color: rgba(245, 251, 255, 0.92) !important;
+  border: 1px solid rgba(153, 204, 233, 0.40) !important;
+  box-shadow: 0 8px 22px rgba(2, 8, 19, 0.28) !important;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+:where(.landing-page) .hero-cta-btn--secondary:hover {
+  background: rgba(0, 170, 255, 0.18) !important;
+  border-color: rgba(0, 210, 255, 0.55) !important;
+  box-shadow: 0 12px 30px rgba(0, 210, 255, 0.28) !important;
+}
+
+/* =========================
+   HERO CTA + TRUSTLINE + BADGES
+   ========================= */
+
+:where(.landing-page) .hero-cta-btn {
+  min-height: 44px;
+  padding: 12px 18px;
+  border-radius: 999px;
+  font-weight: 800;
+  letter-spacing: 0.2px;
+
+  background: var(--accent-grad);
+  color: #f4feff;
+  border: 1px solid rgba(126, 241, 255, 0.55);
+  box-shadow: var(--shadow-accent);
+
+  transition: transform 180ms ease, background 180ms ease, border-color 180ms ease, box-shadow 180ms ease;
+}
+
+:where(.landing-page) .hero-cta-btn:hover {
+  background: var(--accent-grad-hover);
+  border-color: rgba(126, 241, 255, 0.78);
+  box-shadow: 0 14px 34px rgba(24, 209, 228, 0.34);
+  transform: translateY(-1px);
+}
+
+:where(.landing-page) .hero-cta-btn--secondary {
+  background: rgba(6, 13, 31, 0.48) !important;
+  color: rgba(245, 251, 255, 0.92) !important;
+  border: 1px solid rgba(153, 204, 233, 0.40) !important;
+  box-shadow: 0 8px 22px rgba(2, 8, 19, 0.28) !important;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+:where(.landing-page) .hero-cta-btn--secondary:hover {
+  background: rgba(0, 170, 255, 0.18) !important;
+  border-color: rgba(0, 210, 255, 0.55) !important;
+  box-shadow: 0 12px 30px rgba(0, 210, 255, 0.28) !important;
+}
+
+:where(.landing-page) .hero-trustline {
+  margin-top: 10px;
+  font-size: 12px;
+  color: rgba(219, 235, 248, 0.78);
+}
+
+:where(.landing-page) .hero-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+:where(.landing-page) .hero-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: 999px;
+
+  background: rgba(6, 13, 31, 0.40);
+  border: 1px solid rgba(101, 235, 255, 0.18);
+  color: rgba(245, 251, 255, 0.88);
+
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.2px;
+
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+/* small tertiary link (sample report) */
+:where(.landing-page) .hero-tertiary-link {
+  font-size: 13px;
+  font-weight: 700;
+  color: rgba(101, 235, 255, 0.92);
+  text-decoration: none;
+  position: relative;
+}
+
+:where(.landing-page) .hero-tertiary-link:hover {
+  color: rgba(101, 235, 255, 1);
+  text-shadow: 0 0 12px rgba(101, 235, 255, 0.35);
+}
+
+/* =========================
+   QUICK STEPS (3 blocks under hero)
+   ========================= */
+
+:where(.landing-page) .quick-steps {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+  margin-bottom: 20px;
+}
+
+:where(.landing-page) .quick-step {
+  border-radius: 18px;
+  padding: 16px 16px 14px;
+
+  background: linear-gradient(180deg, rgba(11, 27, 50, 0.70) 0%, rgba(7, 20, 38, 0.82) 100%);
+  border: 1px solid rgba(101, 235, 255, 0.18);
+  box-shadow: 0 16px 34px rgba(2, 9, 22, 0.34);
+
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+:where(.landing-page) .quick-step-title {
+  font-weight: 900;
+  letter-spacing: 0.4px;
+  color: rgba(246, 252, 255, 0.96);
+  margin-bottom: 8px;
+}
+
+:where(.landing-page) .quick-step-sub {
+  font-size: 13px;
+  line-height: 1.6;
+  color: rgba(219, 235, 248, 0.82);
+}
+
+@media (max-width: 980px) {
+  :where(.landing-page) .quick-steps {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* =========================================================
+   HOME PAGE PATCH (Hero + trustline + badges + quick steps)
+   SAFE OVERRIDES — put at VERY END of globals.css
+   ========================================================= */
+
+:where(.landing-page) .hero-cta-btn {
+  min-height: 44px;
+  padding: 12px 18px;
+  border-radius: 999px;
+  font-weight: 800;
+  letter-spacing: 0.2px;
+
+  background: var(--accent-grad);
+  color: #f4feff;
+  border: 1px solid rgba(126, 241, 255, 0.55);
+  box-shadow: var(--shadow-accent);
+
+  transition: transform 180ms ease, background 180ms ease, border-color 180ms ease, box-shadow 180ms ease;
+}
+
+:where(.landing-page) .hero-cta-btn:hover {
+  background: var(--accent-grad-hover);
+  border-color: rgba(126, 241, 255, 0.78);
+  box-shadow: 0 14px 34px rgba(24, 209, 228, 0.34);
+  transform: translateY(-1px);
+}
+
+:where(.landing-page) .hero-cta-btn:active {
+  transform: translateY(0);
+}
+
+/* Secondary variant: glass but consistent */
+:where(.landing-page) .hero-cta-btn--secondary {
+  background: rgba(6, 13, 31, 0.48) !important;
+  color: rgba(245, 251, 255, 0.92) !important;
+  border: 1px solid rgba(153, 204, 233, 0.40) !important;
+  box-shadow: 0 8px 22px rgba(2, 8, 19, 0.28) !important;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+:where(.landing-page) .hero-cta-btn--secondary:hover {
+  background: rgba(0, 170, 255, 0.18) !important;
+  border-color: rgba(0, 210, 255, 0.55) !important;
+  box-shadow: 0 12px 30px rgba(0, 210, 255, 0.28) !important;
+  transform: translateY(-1px);
+}
+
+:where(.landing-page) .hero-trustline {
+  margin-top: 10px;
+  font-size: 12px;
+  color: rgba(219, 235, 248, 0.78);
+}
+
+:where(.landing-page) .hero-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+:where(.landing-page) .hero-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: 999px;
+
+  background: rgba(6, 13, 31, 0.40);
+  border: 1px solid rgba(101, 235, 255, 0.18);
+  color: rgba(245, 251, 255, 0.88);
+
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.2px;
+
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+/* tertiary link (sample report) */
+:where(.landing-page) .hero-tertiary-link {
+  font-size: 13px;
+  font-weight: 700;
+  color: rgba(101, 235, 255, 0.92);
+  text-decoration: none;
+  position: relative;
+  padding: 10px 6px;
+  border-radius: 12px;
+  transition: color 160ms ease, background 160ms ease, transform 160ms ease;
+}
+
+:where(.landing-page) .hero-tertiary-link:hover {
+  color: rgba(101, 235, 255, 1);
+  background: rgba(101, 235, 255, 0.08);
+  text-shadow: 0 0 12px rgba(101, 235, 255, 0.35);
+  transform: translateY(-1px);
+}
+
+/* quick steps under hero */
+:where(.landing-page) .quick-steps {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+  margin-bottom: 20px;
+}
+
+:where(.landing-page) .quick-step {
+  border-radius: 18px;
+  padding: 16px 16px 14px;
+  background: linear-gradient(180deg, rgba(11, 27, 50, 0.70) 0%, rgba(7, 20, 38, 0.82) 100%);
+  border: 1px solid rgba(101, 235, 255, 0.18);
+  box-shadow: 0 16px 34px rgba(2, 9, 22, 0.34);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+:where(.landing-page) .quick-step-title {
+  font-weight: 900;
+  letter-spacing: 0.4px;
+  color: rgba(246, 252, 255, 0.96);
+  margin-bottom: 8px;
+}
+
+:where(.landing-page) .quick-step-sub {
+  font-size: 13px;
+  line-height: 1.6;
+  color: rgba(219, 235, 248, 0.82);
+}
+
+@media (max-width: 980px) {
+  :where(.landing-page) .quick-steps {
+    grid-template-columns: 1fr;
+  }
 }

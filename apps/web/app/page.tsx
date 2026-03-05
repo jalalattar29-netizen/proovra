@@ -34,25 +34,39 @@ export default function HomePage() {
               Capture truth. Prove it forever.
             </div>
 
-            <h1 className="hero-title">
-              Verifiable digital evidence for legal, compliance, and investigations.
-            </h1>
+            <h1 className="hero-title">Verifiable digital evidence for legal, compliance, and investigations.</h1>
 
             <p className="hero-subtitle">
-              PROO✓RA preserves integrity with cryptographic fingerprints, custody timelines, and
-              verifiable reports. Built for teams who need audit-ready proof.
+              PROO✓RA lets you capture photos, videos, and documents with cryptographic proof, verifiable timestamps,
+              and an immutable chain of custody — ready for disputes, audits, and investigations.
             </p>
 
-            <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+            {/* ✅ HERO CTA (clear + global SaaS pattern) */}
+            <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
               <a href={appRegister}>
-<Button className="proovra-cta-btn">
-  Start capturing evidence
-</Button>
+                <Button className="hero-cta-btn">Start capturing evidence</Button>
               </a>
 
-              <a href={sampleReportUrl} target="_blank" rel="noopener noreferrer">
-                <Button variant="secondary">View sample report</Button>
+              <Link href="/pricing">
+                <Button variant="secondary" className="hero-cta-btn hero-cta-btn--secondary">
+                  View pricing
+                </Button>
+              </Link>
+
+              {/* ✅ Keep sample report as a tertiary link (not a confusing main CTA) */}
+              <a href={sampleReportUrl} target="_blank" rel="noopener noreferrer" className="hero-tertiary-link">
+                View sample report →
               </a>
+            </div>
+
+            {/* ✅ Trustline */}
+            <div className="hero-trustline">Free plan available — no credit card required.</div>
+
+            {/* ✅ Social proof badges */}
+            <div className="hero-badges" style={{ marginTop: 12 }}>
+              <span className="hero-badge">✓ Cryptographic integrity</span>
+              <span className="hero-badge">✓ Chain of custody</span>
+              <span className="hero-badge">✓ Audit-ready report</span>
             </div>
           </div>
 
@@ -76,6 +90,26 @@ export default function HomePage() {
         </section>
       </div>
 
+      {/* ✅ Quick 3 steps right under hero (fast understanding) */}
+      <div className="container" style={{ marginTop: 28 }}>
+        <div className="quick-steps">
+          <div className="quick-step">
+            <div className="quick-step-title">1) Capture</div>
+            <div className="quick-step-sub">Record photos, videos, or documents with context and timestamps.</div>
+          </div>
+
+          <div className="quick-step">
+            <div className="quick-step-title">2) Lock integrity</div>
+            <div className="quick-step-sub">Generate a cryptographic fingerprint and a custody timeline.</div>
+          </div>
+
+          <div className="quick-step">
+            <div className="quick-step-title">3) Verify</div>
+            <div className="quick-step-sub">Share a verification link or export an audit-ready PDF report.</div>
+          </div>
+        </div>
+      </div>
+
       <SilverWatermarkSection className="section" style={{ paddingTop: 64, paddingBottom: 64 }}>
         <div id="how-it-works" className="container">
           <h2 style={{ marginBottom: 8 }}>How PROO✓RA works</h2>
@@ -89,7 +123,7 @@ export default function HomePage() {
                 <Icons.Capture />
               </div>
               <h3>Capture</h3>
-              <p>Photos, videos, and documents with metadata and timestamps.</p>
+              <p>Photos, videos, and documents with context, metadata, and timestamps.</p>
             </div>
 
             <div className="how-it-works-step">
@@ -97,7 +131,7 @@ export default function HomePage() {
                 <Icons.Fingerprint />
               </div>
               <h3>Fingerprint</h3>
-              <p>SHA-256 hashes and Ed25519 signatures lock integrity.</p>
+              <p>SHA-256 hashes and Ed25519 signatures lock integrity for later verification.</p>
             </div>
 
             <div className="how-it-works-step">
@@ -105,7 +139,7 @@ export default function HomePage() {
                 <Icons.Verify />
               </div>
               <h3>Verify</h3>
-              <p>Anyone can confirm authenticity without exposing originals.</p>
+              <p>Anyone can confirm authenticity without exposing original private content.</p>
             </div>
 
             <div className="how-it-works-step">
@@ -113,41 +147,94 @@ export default function HomePage() {
                 <Icons.Share />
               </div>
               <h3>Share</h3>
-              <p>Verification links and PDF reports for audit and compliance.</p>
+              <p>Verification links and PDF reports ready for audit, compliance, or dispute workflows.</p>
             </div>
           </div>
         </div>
 
+        {/* ✅ WHO IS IT FOR — 5 stronger cards */}
         <div className="container" style={{ marginTop: 72 }}>
-          <h2 style={{ marginBottom: 8 }}>Who is it for?</h2>
+          <h2 style={{ marginBottom: 8 }}>Who relies on PROO✓RA?</h2>
           <p className="page-subtitle" style={{ marginBottom: 32 }}>
-            Built for teams who need verifiable proof.
+            Built for professionals and organizations that need digital evidence to remain trustworthy — even under
+            scrutiny.
           </p>
 
           <div className="who-it-for-grid">
             <div className="who-it-for-card">
               <Icons.Lawyers />
-              <h3>Lawyers</h3>
-              <p>Evidence that stands up in court.</p>
+              <h3>Legal teams</h3>
+              <p>
+                Preserve photos, documents, and recordings with verifiable timestamps, integrity fingerprints, and a
+                transparent chain-of-custody timeline — built for dispute and litigation workflows.
+              </p>
             </div>
-            <div className="who-it-for-card">
-              <Icons.Journalists />
-              <h3>Journalists</h3>
-              <p>Source verification and provenance.</p>
-            </div>
+
             <div className="who-it-for-card">
               <Icons.Compliance />
-              <h3>Compliance teams</h3>
-              <p>Audit-ready documentation.</p>
+              <h3>Compliance &amp; risk</h3>
+              <p>
+                Capture audit-ready documentation for internal reviews and regulated environments, reducing uncertainty
+                about what was recorded, when it existed, and whether it was modified.
+              </p>
             </div>
+
             <div className="who-it-for-card">
               <Icons.Enterprises />
-              <h3>Enterprises</h3>
-              <p>Internal investigations and disputes.</p>
+              <h3>Incident &amp; corporate disputes</h3>
+              <p>
+                Document operational incidents, customer disputes, or internal reports with structured evidence records
+                that managers, auditors, and investigators can review later with confidence.
+              </p>
+            </div>
+
+            <div className="who-it-for-card">
+              <Icons.Journalists />
+              <h3>Journalism &amp; investigations</h3>
+              <p>
+                Preserve the credibility of sensitive media and documents over time while keeping access to originals
+                controlled — verification can happen independently.
+              </p>
+            </div>
+
+            <div className="who-it-for-card">
+              <Icons.Security />
+              <h3>Insurance &amp; claims teams</h3>
+              <p>
+                Support claims, incident documentation, and case files with tamper-evident evidence packaging — useful
+                when timelines and authenticity are questioned months or years later.
+              </p>
+            </div>
+          </div>
+
+          {/* ✅ What PROO✓RA preserves */}
+          <div style={{ marginTop: 26 }}>
+            <div style={{ fontSize: 12, fontWeight: 800, letterSpacing: 0.8, opacity: 0.9, marginBottom: 10 }}>
+              What PROO✓RA preserves
+            </div>
+
+            <div className="trust-indicators" style={{ justifyContent: "flex-start" }}>
+              <div className="trust-item">
+                <Icons.Fingerprint />
+                <span>Cryptographic integrity fingerprints</span>
+              </div>
+              <div className="trust-item">
+                <Icons.Verify />
+                <span>Verifiable timestamps</span>
+              </div>
+              <div className="trust-item">
+                <Icons.Evidence />
+                <span>Chain-of-custody timelines</span>
+              </div>
+              <div className="trust-item">
+                <Icons.Share />
+                <span>Audit-ready evidence reports</span>
+              </div>
             </div>
           </div>
         </div>
 
+        {/* Trust indicators section (kept) */}
         <div className="container" style={{ marginTop: 72 }}>
           <h2 style={{ marginBottom: 8 }}>Trust indicators</h2>
           <p className="page-subtitle" style={{ marginBottom: 32 }}>
@@ -174,11 +261,10 @@ export default function HomePage() {
           </div>
         </div>
 
+        {/* ✅ CTA */}
         <div className="container" style={{ marginTop: 72, textAlign: "center" }}>
           <Link href="/pricing">
-<Button className="proovra-cta-btn">
-  View pricing
-</Button>
+            <Button className="hero-cta-btn">View pricing</Button>
           </Link>
         </div>
       </SilverWatermarkSection>
