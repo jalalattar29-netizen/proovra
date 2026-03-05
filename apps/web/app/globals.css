@@ -3520,46 +3520,51 @@ p {
 }
 
 /* =========================================================
-   FIX: Remove the "big wrapper card" behind page content
-   Keep navy background (NO WHITE)
-   Put at VERY END of globals.css
+   FINAL OVERRIDES — CLEAN (NO DUPES)
+   Put ONCE at VERY END of globals.css
    ========================================================= */
 
-/* 1) Navy background comes from the page itself */
-/* SAFETY: do NOT force navy on the entire site */
-html, body {
+/* ---------------------------------------------------------
+   APP: remove the "big wrapper card" behind page content
+   Keep navy background ONLY inside app pages
+--------------------------------------------------------- */
+
+/* SAFETY: never force navy on the entire site */
+html,
+body {
   background: var(--color-bg);
 }
 
+/* app page background */
 :where(.app-page) {
   background:
     radial-gradient(circle at 18% 12%, rgba(36, 202, 226, 0.10) 0%, transparent 46%),
     linear-gradient(180deg, #050b18 0%, #071226 45%, #08182f 100%) !important;
 }
 
-/* 2) Kill the wrapper background that looks like an extra card */
+/* kill wrapper backgrounds that look like extra panels */
 :where(.app-page) .app-content,
 :where(.app-page) .app-section,
 :where(.app-page) .app-content.silver-watermark-section {
   background: transparent !important;
 }
 
-/* 3) Also make sure no pseudo overlay is creating a panel */
+/* ensure no pseudo overlay creates a panel */
 :where(.app-page) .app-body-full::before {
   background: transparent !important;
   content: none !important;
 }
 
-/* 4) Safety: remove any “panel” styling from app-content */
+/* remove any panel styling from app-content */
 :where(.app-page) .app-content {
   border: 0 !important;
   box-shadow: none !important;
   border-radius: 0 !important;
 }
 
-/* =========================================
-   LANDING — LANGUAGE SELECTOR (FORCE TEXT)
-   ========================================= */
+/* ---------------------------------------------------------
+   LANDING: language selector — force text visibility
+--------------------------------------------------------- */
 
 :where(.landing-page) .lang-button button[title="Language selector"] {
   display: inline-flex !important;
@@ -3573,7 +3578,6 @@ html, body {
   border: 1px solid rgba(255, 255, 255, 0.18) !important;
   background: rgba(255, 255, 255, 0.08) !important;
 
-  /* IMPORTANT: prevent text from being "killed" */
   font-size: 12px !important;
   line-height: 1 !important;
   color: rgba(255, 255, 255, 0.96) !important;
@@ -3590,24 +3594,21 @@ html, body {
   transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease;
 }
 
-/* Force the language letters to SHOW (EN/AR/DE...) */
 :where(.landing-page) .lang-button button[title="Language selector"] > span {
   display: inline-block !important;
   visibility: visible !important;
   opacity: 1 !important;
 
-  /* in case something set font-size:0 somewhere */
   font-size: 12px !important;
   line-height: 1 !important;
 
   color: rgba(255, 255, 255, 0.96) !important;
   letter-spacing: 0.6px !important;
 
-  min-width: 22px; /* keeps 2 letters visible */
+  min-width: 22px;
   text-align: center;
 }
 
-/* If there is an icon (svg/img) keep it visible without shrinking the text */
 :where(.landing-page) .lang-button button[title="Language selector"] svg,
 :where(.landing-page) .lang-button button[title="Language selector"] img {
   display: block !important;
@@ -3620,7 +3621,10 @@ html, body {
   border-color: rgba(255, 255, 255, 0.32) !important;
 }
 
-/* ABOUT — glass cards (navy) */
+/* ---------------------------------------------------------
+   ABOUT: glass cards (navy)
+--------------------------------------------------------- */
+
 :where(.about-page) .about-glass {
   margin-bottom: 18px;
   padding: 14px 14px;
@@ -3658,227 +3662,10 @@ html, body {
   color: rgba(226, 232, 240, 0.98);
 }
 
-/* =========================================
-   HOME HERO CTA BUTTONS (match Register CTA)
-   ========================================= */
-
-:where(.landing-page) .hero-cta-btn {
-  min-height: 44px;
-  padding: 12px 18px;
-  border-radius: 999px;
-  font-weight: 800;
-  letter-spacing: 0.2px;
-
-  background: var(--accent-grad);
-  color: #f4feff;
-  border: 1px solid rgba(126, 241, 255, 0.55);
-  box-shadow: var(--shadow-accent);
-
-  transition: transform 180ms ease, background 180ms ease, border-color 180ms ease, box-shadow 180ms ease;
-}
-
-:where(.landing-page) .hero-cta-btn:hover {
-  background: var(--accent-grad-hover);
-  border-color: rgba(126, 241, 255, 0.78);
-  box-shadow: 0 14px 34px rgba(24, 209, 228, 0.34);
-  transform: translateY(-1px);
-}
-
-:where(.landing-page) .hero-cta-btn:active {
-  transform: translateY(0);
-}
-
-/* Secondary variant: glass but still consistent */
-:where(.landing-page) .hero-cta-btn--secondary {
-  background: rgba(6, 13, 31, 0.48) !important;
-  color: rgba(245, 251, 255, 0.92) !important;
-  border: 1px solid rgba(153, 204, 233, 0.40) !important;
-  box-shadow: 0 8px 22px rgba(2, 8, 19, 0.28) !important;
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-}
-
-:where(.landing-page) .hero-cta-btn--secondary:hover {
-  background: rgba(0, 170, 255, 0.18) !important;
-  border-color: rgba(0, 210, 255, 0.55) !important;
-  box-shadow: 0 12px 30px rgba(0, 210, 255, 0.28) !important;
-}
-
-/* =========================
-   HERO CTA + TRUSTLINE + BADGES
-   ========================= */
-
-:where(.landing-page) .hero-cta-btn {
-  min-height: 44px;
-  padding: 12px 18px;
-  border-radius: 999px;
-  font-weight: 800;
-  letter-spacing: 0.2px;
-
-  background: var(--accent-grad);
-  color: #f4feff;
-  border: 1px solid rgba(126, 241, 255, 0.55);
-  box-shadow: var(--shadow-accent);
-
-  transition: transform 180ms ease, background 180ms ease, border-color 180ms ease, box-shadow 180ms ease;
-}
-
-:where(.landing-page) .hero-cta-btn:hover {
-  background: var(--accent-grad-hover);
-  border-color: rgba(126, 241, 255, 0.78);
-  box-shadow: 0 14px 34px rgba(24, 209, 228, 0.34);
-  transform: translateY(-1px);
-}
-
-:where(.landing-page) .hero-cta-btn--secondary {
-  background: rgba(6, 13, 31, 0.48) !important;
-  color: rgba(245, 251, 255, 0.92) !important;
-  border: 1px solid rgba(153, 204, 233, 0.40) !important;
-  box-shadow: 0 8px 22px rgba(2, 8, 19, 0.28) !important;
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-}
-
-:where(.landing-page) .hero-cta-btn--secondary:hover {
-  background: rgba(0, 170, 255, 0.18) !important;
-  border-color: rgba(0, 210, 255, 0.55) !important;
-  box-shadow: 0 12px 30px rgba(0, 210, 255, 0.28) !important;
-}
-
-:where(.landing-page) .hero-trustline {
-  margin-top: 10px;
-  font-size: 12px;
-  color: rgba(219, 235, 248, 0.78);
-}
-
-:where(.landing-page) .hero-badges {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-}
-
-:where(.landing-page) .hero-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 12px;
-  border-radius: 999px;
-
-  background: rgba(6, 13, 31, 0.40);
-  border: 1px solid rgba(101, 235, 255, 0.18);
-  color: rgba(245, 251, 255, 0.88);
-
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.2px;
-
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-}
-
-/* small tertiary link (sample report) */
-:where(.landing-page) .hero-tertiary-link {
-  font-size: 13px;
-  font-weight: 700;
-  color: rgba(101, 235, 255, 0.92);
-  text-decoration: none;
-  position: relative;
-}
-
-:where(.landing-page) .hero-tertiary-link:hover {
-  color: rgba(101, 235, 255, 1);
-  text-shadow: 0 0 12px rgba(101, 235, 255, 0.35);
-}
-
-/* =========================
-   QUICK STEPS (3 blocks under hero)
-   ========================= */
-
-:where(.landing-page) .quick-steps {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 14px;
-  margin-bottom: 20px;
-}
-
-:where(.landing-page) .quick-step {
-  border-radius: 18px;
-  padding: 16px 16px 14px;
-
-  background: linear-gradient(180deg, rgba(11, 27, 50, 0.70) 0%, rgba(7, 20, 38, 0.82) 100%);
-  border: 1px solid rgba(101, 235, 255, 0.18);
-  box-shadow: 0 16px 34px rgba(2, 9, 22, 0.34);
-
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-}
-
-:where(.landing-page) .quick-step-title {
-  font-weight: 900;
-  letter-spacing: 0.4px;
-  color: rgba(246, 252, 255, 0.96);
-  margin-bottom: 8px;
-}
-
-:where(.landing-page) .quick-step-sub {
-  font-size: 13px;
-  line-height: 1.6;
-  color: rgba(219, 235, 248, 0.82);
-}
-
-@media (max-width: 980px) {
-  :where(.landing-page) .quick-steps {
-    grid-template-columns: 1fr;
-  }
-}
-
-/* =========================================================
-   HOME PAGE PATCH (Hero + trustline + badges + quick steps)
-   SAFE OVERRIDES — put at VERY END of globals.css
-   ========================================================= */
-
-:where(.landing-page) .hero-cta-btn {
-  min-height: 44px;
-  padding: 12px 18px;
-  border-radius: 999px;
-  font-weight: 800;
-  letter-spacing: 0.2px;
-
-  background: var(--accent-grad);
-  color: #f4feff;
-  border: 1px solid rgba(126, 241, 255, 0.55);
-  box-shadow: var(--shadow-accent);
-
-  transition: transform 180ms ease, background 180ms ease, border-color 180ms ease, box-shadow 180ms ease;
-}
-
-:where(.landing-page) .hero-cta-btn:hover {
-  background: var(--accent-grad-hover);
-  border-color: rgba(126, 241, 255, 0.78);
-  box-shadow: 0 14px 34px rgba(24, 209, 228, 0.34);
-  transform: translateY(-1px);
-}
-
-:where(.landing-page) .hero-cta-btn:active {
-  transform: translateY(0);
-}
-
-/* Secondary variant: glass but consistent */
-:where(.landing-page) .hero-cta-btn--secondary {
-  background: rgba(6, 13, 31, 0.48) !important;
-  color: rgba(245, 251, 255, 0.92) !important;
-  border: 1px solid rgba(153, 204, 233, 0.40) !important;
-  box-shadow: 0 8px 22px rgba(2, 8, 19, 0.28) !important;
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-}
-
-:where(.landing-page) .hero-cta-btn--secondary:hover {
-  background: rgba(0, 170, 255, 0.18) !important;
-  border-color: rgba(0, 210, 255, 0.55) !important;
-  box-shadow: 0 12px 30px rgba(0, 210, 255, 0.28) !important;
-  transform: translateY(-1px);
-}
+/* ---------------------------------------------------------
+   HOME: hero components (trustline + badges + tertiary link)
+   Note: Primary CTA color should be handled by .proovra-cta-btn (Register style)
+--------------------------------------------------------- */
 
 :where(.landing-page) .hero-trustline {
   margin-top: 10px;
@@ -3930,6 +3717,23 @@ html, body {
   transform: translateY(-1px);
 }
 
+/* secondary CTA (glass) */
+:where(.landing-page) .hero-cta-btn--secondary {
+  background: rgba(6, 13, 31, 0.48) !important;
+  color: rgba(245, 251, 255, 0.92) !important;
+  border: 1px solid rgba(153, 204, 233, 0.40) !important;
+  box-shadow: 0 8px 22px rgba(2, 8, 19, 0.28) !important;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+:where(.landing-page) .hero-cta-btn--secondary:hover {
+  background: rgba(0, 170, 255, 0.18) !important;
+  border-color: rgba(0, 210, 255, 0.55) !important;
+  box-shadow: 0 12px 30px rgba(0, 210, 255, 0.28) !important;
+  transform: translateY(-1px);
+}
+
 /* quick steps under hero */
 :where(.landing-page) .quick-steps {
   display: grid;
@@ -3941,9 +3745,11 @@ html, body {
 :where(.landing-page) .quick-step {
   border-radius: 18px;
   padding: 16px 16px 14px;
+
   background: linear-gradient(180deg, rgba(11, 27, 50, 0.70) 0%, rgba(7, 20, 38, 0.82) 100%);
   border: 1px solid rgba(101, 235, 255, 0.18);
   box-shadow: 0 16px 34px rgba(2, 9, 22, 0.34);
+
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
 }

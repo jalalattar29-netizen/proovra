@@ -28,7 +28,8 @@ export default function HomePage() {
       <div className="blue-shell">
         <MarketingHeader />
 
-        <section className="landing-hero container" style={{ paddingTop: 48, paddingBottom: 64 }}>
+        <section className="landing-hero container" style={{ paddingTop: 48, paddingBottom: 52 }}>
+          {/* LEFT: COPY */}
           <div className="landing-hero-copy">
             <div style={{ color: "rgba(255,255,255,0.82)", fontSize: 13, letterSpacing: 0.3 }}>
               Capture truth. Prove it forever.
@@ -41,10 +42,11 @@ export default function HomePage() {
               and an immutable chain of custody — ready for disputes, audits, and investigations.
             </p>
 
-            {/* ✅ HERO CTA (clear + global SaaS pattern) */}
+            {/* HERO BUTTONS */}
             <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
               <a href={appRegister}>
-                <Button className="hero-cta-btn">Start capturing evidence</Button>
+                {/* ✅ Primary CTA uses SAME styling as Register (gradient .proovra-cta-btn) */}
+                <Button className="proovra-cta-btn">Start capturing evidence</Button>
               </a>
 
               <Link href="/pricing">
@@ -53,34 +55,50 @@ export default function HomePage() {
                 </Button>
               </Link>
 
-              {/* ✅ Keep sample report as a tertiary link (not a confusing main CTA) */}
-              <a href={sampleReportUrl} target="_blank" rel="noopener noreferrer" className="hero-tertiary-link">
+              {/* Tertiary link */}
+              <a className="hero-tertiary-link" href={sampleReportUrl} target="_blank" rel="noopener noreferrer">
                 View sample report →
               </a>
             </div>
 
-            {/* ✅ Trustline */}
+            {/* TRUST LINE */}
             <div className="hero-trustline">Free plan available — no credit card required.</div>
 
-            {/* ✅ Social proof badges */}
-            <div className="hero-badges" style={{ marginTop: 12 }}>
-              <span className="hero-badge">✓ Cryptographic integrity</span>
-              <span className="hero-badge">✓ Chain of custody</span>
-              <span className="hero-badge">✓ Audit-ready report</span>
+            {/* BADGES */}
+            <div className="hero-badges" style={{ marginTop: 10 }}>
+              <div className="hero-badge">
+                <span>✓</span> Cryptographic integrity
+              </div>
+              <div className="hero-badge">
+                <span>✓</span> Chain of custody
+              </div>
+              <div className="hero-badge">
+                <span>✓</span> Audit-ready report
+              </div>
             </div>
           </div>
 
+          {/* RIGHT: MOCKUP (bigger ~20% but same style) */}
           <div className="hero-mockup">
-            <div className="hero-mockup-card">
+            <div
+              className="hero-mockup-card"
+              style={{
+                transform: "scale(1.2)",
+                transformOrigin: "center",
+              }}
+            >
               <div className="hero-mockup-title">Dashboard</div>
+
               <div className="hero-mockup-row">
                 <span className="hero-dot success" />
                 <span>Capture completed</span>
               </div>
+
               <div className="hero-mockup-row">
                 <span className="hero-dot info" />
                 <span>Report generated</span>
               </div>
+
               <div className="hero-mockup-row">
                 <span className="hero-dot neutral" />
                 <span>Share link created</span>
@@ -88,26 +106,6 @@ export default function HomePage() {
             </div>
           </div>
         </section>
-      </div>
-
-      {/* ✅ Quick 3 steps right under hero (fast understanding) */}
-      <div className="container" style={{ marginTop: 28 }}>
-        <div className="quick-steps">
-          <div className="quick-step">
-            <div className="quick-step-title">1) Capture</div>
-            <div className="quick-step-sub">Record photos, videos, or documents with context and timestamps.</div>
-          </div>
-
-          <div className="quick-step">
-            <div className="quick-step-title">2) Lock integrity</div>
-            <div className="quick-step-sub">Generate a cryptographic fingerprint and a custody timeline.</div>
-          </div>
-
-          <div className="quick-step">
-            <div className="quick-step-title">3) Verify</div>
-            <div className="quick-step-sub">Share a verification link or export an audit-ready PDF report.</div>
-          </div>
-        </div>
       </div>
 
       <SilverWatermarkSection className="section" style={{ paddingTop: 64, paddingBottom: 64 }}>
@@ -152,7 +150,6 @@ export default function HomePage() {
           </div>
         </div>
 
-        {/* ✅ WHO IS IT FOR — 5 stronger cards */}
         <div className="container" style={{ marginTop: 72 }}>
           <h2 style={{ marginBottom: 8 }}>Who relies on PROO✓RA?</h2>
           <p className="page-subtitle" style={{ marginBottom: 32 }}>
@@ -207,7 +204,6 @@ export default function HomePage() {
             </div>
           </div>
 
-          {/* ✅ What PROO✓RA preserves */}
           <div style={{ marginTop: 26 }}>
             <div style={{ fontSize: 12, fontWeight: 800, letterSpacing: 0.8, opacity: 0.9, marginBottom: 10 }}>
               What PROO✓RA preserves
@@ -234,7 +230,6 @@ export default function HomePage() {
           </div>
         </div>
 
-        {/* Trust indicators section (kept) */}
         <div className="container" style={{ marginTop: 72 }}>
           <h2 style={{ marginBottom: 8 }}>Trust indicators</h2>
           <p className="page-subtitle" style={{ marginBottom: 32 }}>
@@ -259,12 +254,27 @@ export default function HomePage() {
               <span>Tamper-proof</span>
             </div>
           </div>
+
+          {/* ✅ Legal disclaimer */}
+          <div
+            style={{
+              marginTop: 28,
+              fontSize: 12,
+              lineHeight: 1.6,
+              color: "rgba(219,235,248,0.72)",
+              maxWidth: 860,
+            }}
+          >
+            <strong>Disclaimer:</strong> PROO✓RA is a technical evidence-integrity platform. It is not a court,
+            law-enforcement authority, or legal service provider. Verification confirms the integrity and provenance of
+            digital evidence, not the truthfulness or legal validity of the content itself.
+          </div>
         </div>
 
-        {/* ✅ CTA */}
         <div className="container" style={{ marginTop: 72, textAlign: "center" }}>
           <Link href="/pricing">
-            <Button className="hero-cta-btn">View pricing</Button>
+            {/* keep pricing CTA consistent */}
+            <Button className="proovra-cta-btn">View pricing</Button>
           </Link>
         </div>
       </SilverWatermarkSection>
