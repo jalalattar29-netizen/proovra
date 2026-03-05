@@ -35,31 +35,36 @@ export async function casesRoutes(app: FastifyInstance) {
     return reply.code(201).send(created);
   });
 
-  app.get("/v1/cases", { preHandler: requireAuth }, async (req, reply) => {
-    const ownerUserId = getAuthUserId(req);
-    const memberTeams = await prisma.teamMember.findMany({
-      where: { userId: ownerUserId },
-      select: { teamId: true }
+app.get("/v1/cases", { preHandler: requireAuth }, async (req, reply) => {
+  const ownerUserId = getAuthUserId(req);
+
+  const memberTeams = await prisma.teamMember.findMany({
+    where: { userId: ownerUserId },
+    select: { teamId: true }
+  });
+  const memberTeamIds = memberTeams.map((t) => t.teamId);
+
+  // ✅ مهم: لا تضيف شرط team/public إذا ما عنده teams
+  const or: any[] = [
+    { ownerUserId },
+    { access: { some: { userId: ownerUserId } } }
+  ];
+
+  // Team cases that are "team-visible" only (no explicit access rows)
+  if (memberTeamIds.length > 0) {
+    or.push({
+      teamId: { in: memberTeamIds },
+      access: { none: {} }
     });
-    const memberTeamIds = memberTeams.map((team) => team.teamId);
-    const items = await prisma.case.findMany({
-      where: {
-        OR: [
-          { ownerUserId },
-          {
-            access: { some: { userId: ownerUserId } }
-          },
-          {
-            teamId: memberTeamIds.length > 0 ? { in: memberTeamIds } : undefined,
-            access: { none: {} }
-          }
-        ]
-      },
-      orderBy: { createdAt: "desc" }
-    });
-    return reply.code(200).send({ items });
+  }
+
+  const items = await prisma.case.findMany({
+    where: { OR: or },
+    orderBy: { createdAt: "desc" }
   });
 
+  return reply.code(200).send({ items });
+});
   app.get(
     "/v1/cases/:id",
     { preHandler: requireAuth },
