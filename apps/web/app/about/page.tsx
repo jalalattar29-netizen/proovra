@@ -1,3 +1,4 @@
+// D:\digital-witness\apps\web\app\about\page.tsx
 "use client";
 
 import { SilverWatermarkSection } from "../../components/SilverWatermarkSection";
@@ -18,21 +19,9 @@ export default function AboutPage() {
       <SilverWatermarkSection className="section section-body">
         <div className="container">
           {/* TL;DR */}
-          <div
-            style={{
-              marginBottom: 18,
-              padding: "14px 14px",
-              borderRadius: 14,
-              border: "1px solid rgba(15, 23, 42, 0.12)",
-              background: "rgba(255,255,255,0.65)",
-              backdropFilter: "blur(10px)"
-            }}
-          >
-            <div style={{ fontSize: 12, fontWeight: 800, letterSpacing: 0.8, color: "#0f172a", opacity: 0.7 }}>
-              TL;DR
-            </div>
-
-            <ul style={{ margin: "10px 0 0", paddingLeft: 18, color: "#0f172a", lineHeight: 1.7 }}>
+          <div className="about-glass about-glass--compact">
+            <div className="about-glass-title">TL;DR</div>
+            <ul className="about-glass-list">
               <li>Capture evidence with context and timestamps.</li>
               <li>Lock integrity using cryptographic fingerprints and custody events.</li>
               <li>Verify and share using a neutral, audit-ready report and verification view.</li>
@@ -40,32 +29,20 @@ export default function AboutPage() {
           </div>
 
           {/* How it works */}
-          <div
-            style={{
-              marginBottom: 24,
-              padding: "14px 14px",
-              borderRadius: 14,
-              border: "1px solid rgba(15, 23, 42, 0.10)",
-              background: "rgba(255,255,255,0.55)",
-              backdropFilter: "blur(10px)"
-            }}
-          >
-            <div style={{ fontSize: 12, fontWeight: 800, letterSpacing: 0.8, color: "#0f172a", opacity: 0.7 }}>
-              HOW IT WORKS (30 seconds)
-            </div>
-
-            <ol style={{ margin: "10px 0 0", paddingLeft: 18, color: "#0f172a", lineHeight: 1.7 }}>
+          <div className="about-glass about-glass--compact" style={{ marginTop: 14, marginBottom: 24 }}>
+            <div className="about-glass-title">HOW IT WORKS (30 seconds)</div>
+            <ol className="about-glass-list">
               <li>
-                <b>Capture</b> a photo, video, document, or file with context.
+                <strong>Capture</strong> a photo, video, document, or file with context.
               </li>
               <li>
-                <b>Fingerprint</b> it cryptographically to create a verifiable integrity record.
+                <strong>Fingerprint</strong> it cryptographically to create a verifiable integrity record.
               </li>
               <li>
-                <b>Custody</b> events form a timeline that can be reviewed later.
+                <strong>Custody</strong> events form a timeline that can be reviewed later.
               </li>
               <li>
-                <b>Verify &amp; report</b> through a shareable verification view or PDF output.
+                <strong>Verify &amp; report</strong> through a shareable verification view or PDF output.
               </li>
             </ol>
           </div>
@@ -130,7 +107,6 @@ export default function AboutPage() {
             <li>Built for scrutiny – Every output is designed to be questioned and verified.</li>
           </ul>
 
-          {/* ✅ دمج what it’s not + disclaimer مرة واحدة */}
           <h3>Limitations and disclaimers</h3>
           <ul>
             <li>PROO✓RA does not provide legal advice.</li>
@@ -149,7 +125,6 @@ export default function AboutPage() {
         </div>
       </SilverWatermarkSection>
 
-      {/* القسم الثاني "glass" — خففناه شوي لتقليل التكرار */}
       <SilverWatermarkSection className="section about-glass-section">
         <div className="container about-glass-card">
           <h2 style={{ marginTop: 0 }}>Built for High-Stakes Environments</h2>

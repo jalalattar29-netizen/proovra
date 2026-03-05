@@ -45,7 +45,9 @@ export default function HomePage() {
 
             <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
               <a href={appRegister}>
-                <Button>Start capturing evidence</Button>
+<Button className="proovra-cta-btn">
+  Start capturing evidence
+</Button>
               </a>
 
               <a href={sampleReportUrl} target="_blank" rel="noopener noreferrer">
@@ -174,7 +176,9 @@ export default function HomePage() {
 
         <div className="container" style={{ marginTop: 72, textAlign: "center" }}>
           <Link href="/pricing">
-            <Button>View pricing</Button>
+<Button className="proovra-cta-btn">
+  View pricing
+</Button>
           </Link>
         </div>
       </SilverWatermarkSection>

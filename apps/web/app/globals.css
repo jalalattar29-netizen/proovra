@@ -1842,7 +1842,7 @@ p {
 
   .choose-btn {
   background: var(--color-primary) !important;
-    color: #fff !important;
+    color: #ffffff !important;
   border-color: var(--color-primary) !important;
     min-width: 200px;
     width: 100%;
@@ -3617,4 +3617,46 @@ html, body {
 :where(.landing-page) .lang-button button[title="Language selector"]:hover {
   background: rgba(255, 255, 255, 0.16) !important;
   border-color: rgba(255, 255, 255, 0.32) !important;
+}
+
+/* ABOUT — glass cards (navy) */
+:where(.about-page) .about-glass {
+  margin-bottom: 18px;
+  padding: 14px 14px;
+  border-radius: 14px;
+  border: 1px solid rgba(133, 242, 255, 0.14);
+  background: rgba(11, 18, 32, 0.55);
+  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.28);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  color: rgba(226, 232, 240, 0.92);
+}
+
+:where(.about-page) .about-glass--compact {
+  /* نفس الشكل، بس جاهز إذا بدك تعدل لاحقاً */
+}
+
+:where(.about-page) .about-glass-title {
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: rgba(133, 242, 255, 0.85);
+  opacity: 0.95;
+  margin-bottom: 10px;
+}
+
+:where(.about-page) .about-glass-list {
+  margin: 10px 0 0;
+  padding-left: 18px;
+  line-height: 1.7;
+  color: rgba(226, 232, 240, 0.92);
+}
+
+:where(.about-page) .about-glass-list li {
+  margin: 6px 0;
+}
+
+:where(.about-page) .about-glass strong {
+  color: rgba(226, 232, 240, 0.98);
 }
