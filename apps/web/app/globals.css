@@ -310,25 +310,6 @@ p {
     background: rgba(255, 255, 255, 0.18);
   }
 
-  .proovra-cta-btn {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    padding: 8px 18px;
-    border-radius: 10px;
-    font-size: 14px;
-    font-weight: 600;
-    background: rgba(255, 255, 255, 0.2);
-    border: 1px solid rgba(255, 255, 255, 0.3);
-    color: #ffffff;
-    transition: background 160ms, transform 160ms;
-  }
-
-  .proovra-cta-btn:hover {
-    background: rgba(255, 255, 255, 0.28);
-    transform: translateY(-1px);
-  }
-
   .proovra-logout-btn {
     background: none;
     border: none;
@@ -2302,28 +2283,6 @@ p {
   display: none;
 }
 
-:where(.landing-page) .proovra-cta-btn {
-  padding: 8px 16px;
-  border-radius: 999px;
-  border: 1px solid rgba(126, 241, 255, 0.55);
-  color: #f4feff;
-  background: var(--accent-grad);
-  box-shadow: var(--shadow-accent);
-}
-
-:where(.landing-page) .proovra-cta-btn:hover {
-  color: #ffffff;
-  background: var(--accent-grad-hover);
-  transform: translateY(-1px);
-}
-/* =========================================================
-   LANDING PAGE – FINAL CLEAN OVERRIDES (NO DUPLICATION)
-   ========================================================= */
-
-/* ---------------------------------------------------------
-   Landing base background (dark navy like reference)
---------------------------------------------------------- */
-
 :where(.landing-page) {
   background:
     radial-gradient(circle at 18% 12%, rgba(36, 202, 226, 0.10) 0%, transparent 46%),
@@ -3780,4 +3739,38 @@ body {
   color: #f4feff !important;
   border: 1px solid rgba(126, 241, 255, 0.55) !important;
   box-shadow: var(--shadow-accent) !important;
+}
+
+/* ✅ PROOVRA CTA (Register style) — GLOBAL */
+.proovra-cta-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+
+  min-height: 40px;
+  padding: 10px 16px;
+  border-radius: 999px;
+
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.2px;
+
+  background: var(--accent-grad);
+  color: #f4feff;
+  border: 1px solid rgba(126, 241, 255, 0.55);
+  box-shadow: var(--shadow-accent);
+
+  transition: transform 180ms ease, background 180ms ease, border-color 180ms ease, box-shadow 180ms ease;
+}
+
+.proovra-cta-btn:hover {
+  background: var(--accent-grad-hover);
+  border-color: rgba(126, 241, 255, 0.78);
+  box-shadow: 0 14px 34px rgba(24, 209, 228, 0.34);
+  transform: translateY(-1px);
+}
+
+.proovra-cta-btn:active {
+  transform: translateY(0);
 }

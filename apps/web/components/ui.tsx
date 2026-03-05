@@ -137,26 +137,39 @@ export function Button({
   variant = "primary",
   onClick,
   disabled,
-  className
+  className,
+  type = "button"
 }: {
   children: ReactNode;
   variant?: "primary" | "secondary";
   onClick?: () => void;
   disabled?: boolean;
   className?: string;
+  type?: "button" | "submit" | "reset";
 }) {
+  const cn = (className ?? "").trim();
+
+  // إذا في كلاس CTA مخصص، ممنوع نضيف primary/secondary لأنهم عم يبيضّوا الزر
+  const hasCustomCtaClass =
+    cn.includes("proovra-cta-btn") ||
+    cn.includes("hero-cta-btn") ||
+    cn.includes("cta-btn");
+
+  const finalClassName = hasCustomCtaClass
+    ? `btn ${cn}`.trim()
+    : `btn ${variant} ${cn}`.trim();
+
   return (
     <button
-      className={`btn ${variant} ${className ?? ""}`.trim()}
+      className={finalClassName}
       onClick={onClick}
-      type="button"
+      type={type}
       disabled={disabled}
     >
       {children}
     </button>
   );
 }
-
 export function Card({ children, className }: { children: ReactNode; className?: string }) {
   return <div className={`card ${className ?? ""}`}>{children}</div>;
 }

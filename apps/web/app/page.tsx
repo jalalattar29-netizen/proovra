@@ -46,7 +46,7 @@ export default function HomePage() {
             <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
               <a href={appRegister}>
                 {/* ✅ Primary CTA uses SAME styling as Register (gradient .proovra-cta-btn) */}
-                <Button className="proovra-cta-btn">Start capturing evidence</Button>
+<Button className="proovra-cta-btn">Start capturing evidence</Button>
               </a>
 
               <Link href="/pricing">
@@ -248,7 +248,9 @@ export default function HomePage() {
         <div className="container" style={{ marginTop: 72, textAlign: "center" }}>
           <Link href="/pricing">
             {/* keep pricing CTA consistent */}
-            <Button className="proovra-cta-btn">View pricing</Button>
+                <Button variant="secondary" className="hero-cta-btn hero-cta-btn--secondary">
+                  View pricing
+                </Button>
           </Link>
         </div>
       </SilverWatermarkSection>
