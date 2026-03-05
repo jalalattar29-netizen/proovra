@@ -248,9 +248,7 @@ export default function HomePage() {
         <div className="container" style={{ marginTop: 72, textAlign: "center" }}>
           <Link href="/pricing">
             {/* keep pricing CTA consistent */}
-                <Button variant="secondary" className="hero-cta-btn hero-cta-btn--secondary">
-                  View pricing
-                </Button>
+<Button className="proovra-cta-btn">View pricing</Button>
           </Link>
         </div>
       </SilverWatermarkSection>
