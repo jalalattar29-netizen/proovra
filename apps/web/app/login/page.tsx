@@ -455,8 +455,6 @@ export default function LoginPage() {
                 <span>{t("register")}? </span>
                 <Link href="/register">{t("register")}</Link>
               </div>
-
-              <div className="auth-build">{formatBuildInfo()}</div>
             </div>
           </main>
         </div>

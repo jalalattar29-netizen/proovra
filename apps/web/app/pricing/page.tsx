@@ -1,7 +1,8 @@
 // D:\digital-witness\apps\web\app\pricing\page.tsx
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
+import { convertUsd, detectCurrency, formatMoney } from "../../lib/currency";
 import { Button, Card, useToast } from "../../components/ui";
 import { SilverWatermarkSection } from "../../components/SilverWatermarkSection";
 import { MarketingHeader } from "../../components/header";
@@ -19,6 +20,8 @@ export default function MarketingPricingPage() {
   const { addToast } = useToast();
   const { hasSession } = useAuth();
   const [hoveredPlan, setHoveredPlan] = useState<string | null>(null);
+  const currency = useMemo(() => detectCurrency(), []);
+const price = (usd: number) => formatMoney(convertUsd(usd, currency), currency);
   const appBase = getAppBase();
   const appBilling = appBase ? `${appBase}/billing` : "/billing";
   const appRegister = appBase ? `${appBase}/register` : "/register";
@@ -65,12 +68,13 @@ export default function MarketingPricingPage() {
             >
               <Card className="pricing-card">
                 <h3>FREE</h3>
-                <p>$0</p>
+<p>{price(0)}</p>
                 <ul style={{ margin: "12px 0 16px", paddingLeft: 18, color: "#475569", lineHeight: 1.7 }}>
-                  <li>3 evidence limit</li>
+<li>3 evidence total (lifetime)</li>
                   <li>Cryptographic fingerprint and integrity record</li>
                   <li>Basic verification view</li>
                   <li>PDF reports not included</li>
+                  <li>Includes PDF report + share link for that evidence (permanent)</li>
                 </ul>
                 <div className="pricing-cta">
                   <a href={hasSession ? appBilling : appRegister} onClick={() => handlePlanSelect("FREE")}>
@@ -94,10 +98,11 @@ export default function MarketingPricingPage() {
             >
               <Card className="pricing-card">
                 <h3>PAY-PER-EVIDENCE</h3>
-                <p>$5 / evidence</p>
+<p>{price(5)} / evidence</p>
                 <ul style={{ margin: "12px 0 16px", paddingLeft: 18, color: "#475569", lineHeight: 1.7 }}>
                   <li>Everything in Free</li>
                   <li>Verifiable PDF report per purchase</li>
+                  <li>Includes PDF report + share link for that evidence (permanent)</li>
                   <li>Shareable verification link</li>
                   <li>Audit-ready integrity fields</li>
                 </ul>
@@ -125,10 +130,11 @@ export default function MarketingPricingPage() {
             >
               <Card className="pricing-card">
                 <h3>PRO</h3>
-                <p>$19 / month</p>
+                <p>{price(19)} / month</p>
                 <ul style={{ margin: "12px 0 16px", paddingLeft: 18, color: "#475569", lineHeight: 1.7 }}>
                   <li>Unlimited evidence capture</li>
                   <li>PDF reports included</li>
+                  <li>Includes PDF report + share link for that evidence (permanent)</li>
                   <li>Faster workflows for frequent verification</li>
                   <li>Designed for individual professionals</li>
                 </ul>
@@ -153,12 +159,13 @@ export default function MarketingPricingPage() {
             >
               <Card className="pricing-card">
                 <h3>TEAM (5 seats)</h3>
-                <p>$79 / month</p>
+                <p>{price(79)} / month</p>
                 <ul style={{ margin: "12px 0 16px", paddingLeft: 18, color: "#475569", lineHeight: 1.7 }}>
                   <li>5 team members included</li>
                   <li>Shared ownership and access control</li>
                   <li>Team-ready evidence organization</li>
                   <li>PDF reports included</li>
+                  <li>Includes PDF report + share link for that evidence (permanent)</li>
                 </ul>
                 <div className="pricing-cta">
                   <a href={hasSession ? appBilling : appRegister} onClick={() => handlePlanSelect("TEAM")}>
@@ -171,6 +178,9 @@ export default function MarketingPricingPage() {
             </div>
           </div>
 
+<div style={{ marginTop: 18, fontSize: 12, color: "#64748b", lineHeight: 1.6 }}>
+  Prices shown in <b>{currency}</b>. VAT may apply depending on your country.
+</div>
           <div style={{ marginTop: 24, fontSize: 12, color: "#64748b", lineHeight: 1.6 }}>
             PROO✓RA is a technical integrity platform. It does not provide legal advice.
           </div>

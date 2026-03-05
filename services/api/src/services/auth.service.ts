@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import { importPKCS8, SignJWT } from "jose";
 import { prisma } from "../db.js";
 import * as prismaPkg from "@prisma/client";
+import { log, error } from "../utils/logger.js";
 
 type AuthProfile = {
   provider: prismaPkg.AuthProvider;
@@ -30,10 +31,10 @@ async function fetchJwks(url: string): Promise<Jwk[]> {
 }
 
 function decodeBase64Url(input: string): Buffer {
-  const padded = input.replace(/-/g, "+").replace(/_/g, "/").padEnd(
-    Math.ceil(input.length / 4) * 4,
-    "="
-  );
+  const padded = input
+    .replace(/-/g, "+")
+    .replace(/_/g, "/")
+    .padEnd(Math.ceil(input.length / 4) * 4, "=");
   return Buffer.from(padded, "base64");
 }
 
@@ -106,7 +107,7 @@ export async function verifyGoogleIdToken(idToken: string): Promise<AuthProfile>
     provider: prismaPkg.AuthProvider.GOOGLE,
     providerUserId: String(payload.sub),
     email: payload.email ? String(payload.email) : null,
-    displayName: payload.name ? String(payload.name) : null
+    displayName: payload.name ? String(payload.name) : null,
   };
 }
 
@@ -114,35 +115,42 @@ export async function exchangeGoogleCodeForIdToken(code: string): Promise<string
   const clientId = must("GOOGLE_CLIENT_ID");
   const clientSecret = must("GOOGLE_CLIENT_SECRET");
   const redirectUri = must("GOOGLE_REDIRECT_URI");
-  console.log("[Google Token Exchange] Request params", {
+
+  // ✅ safe logs (no secrets, no code)
+  log("[Google Token Exchange] Request", {
     client_id: clientId,
     redirect_uri: redirectUri,
     grant_type: "authorization_code",
-    code_length: code?.length ?? 0
+    code_length: code?.length ?? 0,
   });
+
   const body = new URLSearchParams();
   body.set("code", code);
   body.set("client_id", clientId);
   body.set("client_secret", clientSecret);
   body.set("redirect_uri", redirectUri);
   body.set("grant_type", "authorization_code");
+
   const res = await fetch("https://oauth2.googleapis.com/token", {
     method: "POST",
     headers: { "content-type": "application/x-www-form-urlencoded" },
-    body
+    body,
   });
+
   const json = (await res.json()) as {
     id_token?: string;
     error?: string;
     error_description?: string;
   };
+
   if (!res.ok) {
-    console.error("[Google Token Exchange] Failed:", {
+    // ✅ no raw body dump
+    error("[Google Token Exchange] Failed:", {
       status: res.status,
       error: json.error,
       error_description: json.error_description,
-      raw: JSON.stringify(json)
     });
+
     if (json.error === "invalid_grant") throw new Error("invalid_code");
     if (
       json.error === "redirect_uri_mismatch" ||
@@ -152,6 +160,7 @@ export async function exchangeGoogleCodeForIdToken(code: string): Promise<string
     }
     throw new Error("token_exchange_failed");
   }
+
   if (!json.id_token) throw new Error("token_exchange_failed");
   return json.id_token;
 }
@@ -189,7 +198,7 @@ export async function verifyAppleIdToken(idToken: string): Promise<AuthProfile> 
     provider: prismaPkg.AuthProvider.APPLE,
     providerUserId: String(payload.sub),
     email: payload.email ? String(payload.email) : null,
-    displayName: payload.name ? String(payload.name) : null
+    displayName: payload.name ? String(payload.name) : null,
   };
 }
 
@@ -225,8 +234,9 @@ export async function exchangeAppleCodeForIdToken(code: string): Promise<string>
   const redirectUri = must("APPLE_REDIRECT_URI");
   const clientSecret = await createAppleClientSecret();
 
-  console.log("[Apple Token Exchange] clientId:", clientId, "redirectUri:", redirectUri);
-  
+  // ✅ safe logs (no secrets, no code)
+  log("[Apple Token Exchange] Start", { clientId, redirectUri });
+
   const body = new URLSearchParams();
   body.set("grant_type", "authorization_code");
   body.set("code", code);
@@ -234,33 +244,52 @@ export async function exchangeAppleCodeForIdToken(code: string): Promise<string>
   body.set("client_secret", clientSecret);
   body.set("redirect_uri", redirectUri);
 
-  console.log("[Apple Token Exchange] Calling appleid.apple.com/auth/token...");
+  log("[Apple Token Exchange] Calling token endpoint...");
+
   const res = await fetch("https://appleid.apple.com/auth/token", {
     method: "POST",
     headers: { "content-type": "application/x-www-form-urlencoded" },
-    body
+    body,
   });
 
-  const json = (await res.json()) as { id_token?: string; error?: string; error_description?: string };
-  console.log("[Apple Token Exchange] Response status:", res.status, "body:", json);
-  
+  const json = (await res.json()) as {
+    id_token?: string;
+    error?: string;
+    error_description?: string;
+  };
+
+  // ✅ never log body / id_token
+  log("[Apple Token Exchange] Response", {
+    status: res.status,
+    has_id_token: Boolean(json.id_token),
+    error: json.error,
+  });
+
   if (!res.ok) {
     if (json.error === "invalid_grant") {
-      console.error("[Apple Token Exchange] Invalid grant (code may be invalid/expired):", json.error_description);
+      error(
+        "[Apple Token Exchange] Invalid grant (code may be invalid/expired):",
+        json.error_description
+      );
       throw new Error("invalid_code");
     }
-    if (json.error === "invalid_client" || (json.error_description?.toLowerCase().includes("redirect"))) {
-      console.error("[Apple Token Exchange] Redirect URI mismatch:", json.error_description);
+    if (
+      json.error === "invalid_client" ||
+      json.error_description?.toLowerCase().includes("redirect")
+    ) {
+      error("[Apple Token Exchange] Redirect URI mismatch:", json.error_description);
       throw new Error("redirect_uri_mismatch");
     }
-    console.error("[Apple Token Exchange] Token exchange failed:", json.error, json.error_description);
+    error("[Apple Token Exchange] Token exchange failed:", json.error, json.error_description);
     throw new Error("token_exchange_failed");
   }
+
   if (!json.id_token) {
-    console.error("[Apple Token Exchange] No id_token in response");
+    error("[Apple Token Exchange] No id_token in response");
     throw new Error("token_exchange_failed");
   }
-  console.log("[Apple Token Exchange] Success, got id_token");
+
+  log("[Apple Token Exchange] Success");
   return json.id_token;
 }
 
@@ -269,17 +298,17 @@ export async function createGuestProfile(): Promise<AuthProfile> {
     provider: prismaPkg.AuthProvider.GUEST,
     providerUserId: randomUUID(),
     email: null,
-    displayName: "Guest"
+    displayName: "Guest",
   };
 }
 
 export async function ensureGuestIdentity(userId: string) {
   const existing = await prisma.guestIdentity.findUnique({
-    where: { userId }
+    where: { userId },
   });
   if (existing) return existing;
   return prisma.guestIdentity.create({
-    data: { userId }
+    data: { userId },
   });
 }
 
@@ -292,14 +321,14 @@ export async function upsertUserWithEmailLink(profile: AuthProfile) {
     where: {
       provider_providerUserId: {
         provider: profile.provider,
-        providerUserId: profile.providerUserId
-      }
-    }
+        providerUserId: profile.providerUserId,
+      },
+    },
   });
 
   if (!user && profile.email) {
     const guest = await prisma.user.findFirst({
-      where: { email: profile.email, provider: prismaPkg.AuthProvider.GUEST }
+      where: { email: profile.email, provider: prismaPkg.AuthProvider.GUEST },
     });
     if (guest) {
       user = await prisma.user.update({
@@ -308,8 +337,8 @@ export async function upsertUserWithEmailLink(profile: AuthProfile) {
           provider: profile.provider,
           providerUserId: profile.providerUserId,
           displayName: profile.displayName ?? guest.displayName,
-          email: profile.email ?? guest.email
-        }
+          email: profile.email ?? guest.email,
+        },
       });
     }
   }
@@ -320,21 +349,21 @@ export async function upsertUserWithEmailLink(profile: AuthProfile) {
         provider: profile.provider,
         providerUserId: profile.providerUserId,
         email: profile.email ?? null,
-        displayName: profile.displayName ?? null
-      }
+        displayName: profile.displayName ?? null,
+      },
     });
   } else {
     user = await prisma.user.update({
       where: { id: user.id },
       data: {
         email: profile.email ?? user.email,
-        displayName: profile.displayName ?? user.displayName
-      }
+        displayName: profile.displayName ?? user.displayName,
+      },
     });
   }
 
   const entitlement = await prisma.entitlement.findFirst({
-    where: { userId: user.id, active: true }
+    where: { userId: user.id, active: true },
   });
 
   if (!entitlement) {
@@ -344,8 +373,8 @@ export async function upsertUserWithEmailLink(profile: AuthProfile) {
         plan: prismaPkg.PlanType.FREE,
         credits: 0,
         teamSeats: 0,
-        active: true
-      }
+        active: true,
+      },
     });
   }
 

@@ -3,6 +3,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { detectCurrency } from "../../../lib/currency";
 import { Button, Card, useToast, Skeleton } from "../../../components/ui";
 import { apiFetch } from "../../../lib/api";
 import { captureException } from "../../../lib/sentry";
@@ -12,7 +13,7 @@ type PayPalLink = { rel: string; href: string };
 
 export default function BillingPage() {
   const { addToast } = useToast();
-
+const currency = detectCurrency();
   const [plan, setPlan] = useState("FREE");
   const [credits, setCredits] = useState(0);
   const [teamSeats, setTeamSeats] = useState(0);
@@ -49,7 +50,7 @@ export default function BillingPage() {
     try {
       const data = await apiFetch("/v1/billing/checkout/stripe", {
         method: "POST",
-        body: JSON.stringify({ plan: planType, currency: "USD" }),
+body: JSON.stringify({ plan: planType, currency }),
       });
 
       const url = data.session?.url as string | undefined;
@@ -75,7 +76,7 @@ export default function BillingPage() {
     try {
       const data = await apiFetch("/v1/billing/checkout/paypal", {
         method: "POST",
-        body: JSON.stringify({ plan: planType, currency: "USD" }),
+body: JSON.stringify({ plan: planType, currency }),
       });
 
       const approve = (data.order?.links as PayPalLink[] | undefined)?.find((l) => l.rel === "approve");
