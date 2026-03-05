@@ -6,7 +6,6 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Button, useToast } from "../../components/ui";
 import { useAuth, useLocale } from "../providers";
 import { apiFetch, ApiError } from "../../lib/api";
-import { formatBuildInfo } from "../../lib/build-info";
 import { authLogger } from "../../lib/auth-logger";
 import { loadAppleIdentity, loadGoogleIdentity } from "../../lib/oauth";
 import { MarketingHeader } from "../../components/header";
