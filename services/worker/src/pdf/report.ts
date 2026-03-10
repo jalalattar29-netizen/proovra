@@ -115,11 +115,8 @@ const BRAND = {
   ink: "#0B1220",
   muted: "#475569",
   line: "rgba(11,18,32,0.12)",
-
-  // calmer blue
   accent: "#1E40AF",
-
-  // silver paper tone
+  accentSoft: "#DBEAFE",
   paper: "#F4F6F9",
 };
 
@@ -159,7 +156,6 @@ function paintPageBackground(doc: PDFDoc): void {
     }
   }
 
-  // Center watermark
   const wm = tryReadAsset("logo.png");
   if (wm) {
     try {
@@ -174,7 +170,6 @@ function paintPageBackground(doc: PDFDoc): void {
     }
   }
 
-  // Corner seal
   const seal = tryReadAsset("seal.png");
   if (seal) {
     try {
@@ -206,7 +201,6 @@ function drawBadge(doc: PDFDoc, text: string, x: number, y: number): void {
   doc.roundedRect(x, y, tw + padX * 2, th + padY * 2, 8).fill(BRAND.accent);
   doc.opacity(1);
 
-  // badge text readable
   doc.fillColor(BRAND.ink).text(text, x + padX, y + padY, { lineBreak: false });
   doc.restore();
 }
@@ -216,7 +210,6 @@ function drawHeader(doc: PDFDoc, opts: { evidenceId: string; generatedAtUtc: str
   const top = doc.page.margins.top;
   const w = doc.page.width - doc.page.margins.left - doc.page.margins.right;
 
-  // top accent line
   doc.save();
   doc.rect(0, 0, doc.page.width, mmToPt(3.2)).fill(BRAND.accent);
   doc.restore();
@@ -224,7 +217,6 @@ function drawHeader(doc: PDFDoc, opts: { evidenceId: string; generatedAtUtc: str
   doc.x = left;
   doc.y = top;
 
-  // logo bigger
   const logo = tryReadAsset("logo.png");
   let brandX = left;
   if (logo) {
@@ -247,7 +239,7 @@ function drawHeader(doc: PDFDoc, opts: { evidenceId: string; generatedAtUtc: str
   if (badgeText) {
     const bx = left + w - 135;
     const by = top + 6;
-    drawBadge(doc, badgeText, bx, by);
+    drawBadge(doc, bx > left ? textClamp(doc, badgeText, 20) : badgeText, bx, by);
   }
 
   doc.moveDown(0.6);
@@ -261,6 +253,10 @@ function drawHeader(doc: PDFDoc, opts: { evidenceId: string; generatedAtUtc: str
   doc.moveDown(0.55);
   hr(doc);
   doc.moveDown(0.75);
+}
+
+function textClamp(doc: PDFDoc, text: string, maxChars: number): string {
+  return text.length > maxChars ? `${text.slice(0, Math.max(0, maxChars - 1))}…` : text;
 }
 
 function section(doc: PDFDoc, title: string, render: () => void): void {
@@ -337,7 +333,7 @@ function monospaceStrip(doc: PDFDoc, label: string, value: string, options?: { m
 
   doc.save();
   doc.opacity(0.05);
-  doc.rect(x - 4, startY - 4, w + 8, h + 8).fill(BRAND.ink);
+  doc.roundedRect(x - 4, startY - 4, w + 8, h + 8, 8).fill(BRAND.ink);
   doc.opacity(1);
   doc.restore();
 
@@ -372,7 +368,7 @@ function drawTable(doc: PDFDoc, headers: string[], rows: string[][], colWidths: 
 
   doc.save();
   doc.opacity(0.06);
-  doc.rect(x, doc.y, w, headerH).fill(BRAND.accent);
+  doc.roundedRect(x, doc.y, w, headerH, 6).fill(BRAND.accent);
   doc.opacity(1);
   doc.restore();
 
@@ -410,6 +406,81 @@ function drawTable(doc: PDFDoc, headers: string[], rows: string[][], colWidths: 
   }
 }
 
+function drawQrBlock(
+  doc: PDFDoc,
+  opts: {
+    title: string;
+    qrBuffer: Buffer;
+    size?: number;
+    caption?: string;
+    urlText?: string;
+    urlLink?: string;
+  }
+): void {
+  const x = doc.page.margins.left;
+  const w = doc.page.width - doc.page.margins.left - doc.page.margins.right;
+  const size = opts.size ?? 104;
+
+  ensureSpace(doc, size + 76);
+
+  const startY = doc.y;
+  const blockH = Math.max(size + 10, 124);
+  const textX = x + 10;
+  const textW = w - size - 36;
+  const qrX = x + w - size - 10;
+  const qrY = startY + 10;
+
+  doc.save();
+  doc.opacity(0.04);
+  doc.roundedRect(x, startY, w, blockH, 12).fill(BRAND.ink);
+  doc.opacity(1);
+  doc.restore();
+
+  doc.save();
+  doc.lineWidth(0.8).strokeColor(BRAND.line);
+  doc.roundedRect(x, startY, w, blockH, 12).stroke();
+  doc.restore();
+
+  doc.save();
+  doc.fillColor(BRAND.ink).font("Helvetica-Bold").fontSize(10);
+  doc.text(opts.title, textX, startY + 12, { width: textW });
+  doc.restore();
+
+  let textY = startY + 30;
+
+  if (opts.caption) {
+    doc.save();
+    doc.fillColor(BRAND.muted).font("Helvetica").fontSize(9);
+    doc.text(opts.caption, textX, textY, {
+      width: textW,
+      lineGap: 2,
+    });
+    doc.restore();
+    textY = doc.y + 6;
+  }
+
+  if (opts.urlText) {
+    doc.save();
+    doc.fillColor(BRAND.accent).font("Helvetica").fontSize(8.5);
+    doc.text(opts.urlText, textX, textY, {
+      width: textW,
+      link: opts.urlLink,
+      underline: Boolean(opts.urlLink),
+      lineGap: 2,
+    });
+    doc.restore();
+  }
+
+  doc.image(opts.qrBuffer, qrX, qrY, { fit: [size, size] });
+
+  doc.save();
+  doc.fillColor(BRAND.muted).font("Helvetica").fontSize(8);
+  doc.text("Scan QR", qrX, qrY + size + 4, { width: size, align: "center" });
+  doc.restore();
+
+  doc.y = startY + blockH + 12;
+}
+
 async function tryGenerateQrPngBuffer(data: string): Promise<Buffer | null> {
   try {
     const QRCodeModule = (await import("qrcode")) as {
@@ -434,6 +505,7 @@ async function tryGenerateQrPngBuffer(data: string): Promise<Buffer | null> {
     return null;
   }
 }
+
 function addFooters(doc: PDFDoc, opts: { generatedAtUtc: string; reportVersion: number }): void {
   const range = doc.bufferedPageRange();
 
@@ -442,7 +514,6 @@ function addFooters(doc: PDFDoc, opts: { generatedAtUtc: string; reportVersion: 
 
     const x = doc.page.margins.left;
     const w = doc.page.width - doc.page.margins.left - doc.page.margins.right;
-
     const y = doc.page.height - doc.page.margins.bottom - 14;
 
     doc.save();
@@ -482,7 +553,10 @@ function renderForensicIntegrityStatement(doc: PDFDoc, opts: { verifyUrl: string
   const w = doc.page.width - doc.page.margins.left - doc.page.margins.right;
 
   doc.fillColor(BRAND.ink).font("Helvetica").fontSize(10);
-  doc.text("This report was generated by the PROOVRA Digital Evidence Integrity System.", x, doc.y, { width: w, lineGap: 2 });
+  doc.text("This report was generated by the PROOVRA Digital Evidence Integrity System.", x, doc.y, {
+    width: w,
+    lineGap: 2,
+  });
 
   doc.moveDown(0.6);
 
@@ -586,8 +660,6 @@ export async function buildReportPdf(params: {
   doc.on("data", (chunk: Buffer) => chunks.push(chunk));
 
   const verifyUrl = buildVerifyUrl(params.evidence.id, params.verifyUrl);
-
-  // ✅ Technical deep-link (لـ QR الثاني)
   const technicalUrl = verifyUrl.includes("?")
     ? `${verifyUrl}&tab=technical`
     : `${verifyUrl}?tab=technical`;
@@ -628,11 +700,16 @@ export async function buildReportPdf(params: {
     const w = doc.page.width - doc.page.margins.left - doc.page.margins.right;
 
     doc.fillColor(BRAND.muted).font("Helvetica").fontSize(10);
-    doc.text("Scan the QR code or open the link below to verify integrity and chain of custody.", x, doc.y, {
-      width: w,
-      lineGap: 2,
-    });
-    doc.moveDown(0.5);
+    doc.text(
+      "Use the verification page to review integrity details and recorded custody events for this evidence item.",
+      x,
+      doc.y,
+      {
+        width: w,
+        lineGap: 2,
+      }
+    );
+    doc.moveDown(0.45);
 
     doc.fillColor(BRAND.ink).font("Helvetica-Bold").fontSize(10);
     doc.text("Verify link:", x, doc.y, { width: w });
@@ -644,30 +721,34 @@ export async function buildReportPdf(params: {
 
     doc.fillColor(BRAND.muted).font("Helvetica").fontSize(9);
     doc.text(
-      "Integrity verification confirms the file and integrity artifacts were not modified after completion. It does not prove authorship or factual accuracy.",
+      "Integrity verification confirms the file and integrity artifacts were not modified after completion. It does not prove authorship, origin, or factual accuracy of the content.",
       x,
       doc.y,
       { width: w, lineGap: 2 }
     );
   });
 
-  // ✅ QR #1: Verify (top-right)
   {
     const qrBuf = await tryGenerateQrPngBuffer(verifyUrl);
     if (qrBuf) {
-      const x = doc.page.width - doc.page.margins.right - 130;
-      const y = doc.page.margins.top + 64;
-      doc.image(qrBuf, x, y, { fit: [118, 118] });
-      doc.save();
-      doc.fillColor(BRAND.muted).font("Helvetica").fontSize(8);
-      doc.text("Scan to verify", x, y + 120, { width: 118, align: "center" });
-      doc.restore();
+      drawQrBlock(doc, {
+        title: "Open verification page",
+        qrBuffer: qrBuf,
+        size: 108,
+        caption: "Scan to review verification details and chain of custody for this evidence item.",
+        urlText: summarizeText(verifyUrl, 90),
+        urlLink: verifyUrl,
+      });
     }
   }
 
   // ===== PAGE 2: EXHIBIT =====
   doc.addPage();
-  drawHeader(doc, { evidenceId: params.evidence.id, generatedAtUtc: params.generatedAtUtc, status: params.evidence.status });
+  drawHeader(doc, {
+    evidenceId: params.evidence.id,
+    generatedAtUtc: params.generatedAtUtc,
+    status: params.evidence.status,
+  });
 
   section(doc, "Exhibit", () => {
     const x = doc.page.margins.left;
@@ -682,18 +763,24 @@ export async function buildReportPdf(params: {
     doc.moveDown(0.55);
 
     doc.fillColor(BRAND.muted).font("Helvetica").fontSize(9);
-    doc.text("To view or download the original evidence file, use the link / QR below.", x, doc.y, { width: w });
+    doc.text(
+      "Use the original evidence link below to open or download the stored file associated with this report.",
+      x,
+      doc.y,
+      { width: w, lineGap: 2 }
+    );
     doc.moveDown(0.35);
 
     if (downloadUrl !== "N/A") {
       const label = buildDownloadLabel(downloadUrl);
+
       doc.fillColor(BRAND.ink).font("Helvetica-Bold").fontSize(10);
       doc.text("Download original evidence:", x, doc.y, { width: w });
       doc.moveDown(0.2);
 
       doc.fillColor(BRAND.accent).font("Helvetica").fontSize(9);
       doc.text(label, x, doc.y, { width: w, link: downloadUrl, underline: true });
-      doc.moveDown(0.5);
+      doc.moveDown(0.65);
     } else {
       doc.fillColor(BRAND.muted).font("Helvetica").fontSize(9);
       doc.text("Original download link: N/A", x, doc.y, { width: w });
@@ -701,37 +788,43 @@ export async function buildReportPdf(params: {
     }
 
     doc.fillColor(BRAND.muted).font("Helvetica").fontSize(9);
-    doc.text("Note: A preview thumbnail can be embedded later by fetching the file from storage.", x, doc.y, {
-      width: w,
-      lineGap: 2,
-    });
+    doc.text(
+      "Note: A preview thumbnail can be embedded later by fetching the file from storage.",
+      x,
+      doc.y,
+      { width: w, lineGap: 2 }
+    );
   });
 
-  // QR download
   if (downloadUrl !== "N/A") {
     const qrBuf = await tryGenerateQrPngBuffer(downloadUrl);
     if (qrBuf) {
-      const x = doc.page.width - doc.page.margins.right - 155;
-      const y = doc.page.margins.top + 100;
-      doc.image(qrBuf, x, y, { fit: [140, 140] });
-      doc.save();
-      doc.fillColor(BRAND.muted).font("Helvetica").fontSize(8);
-      doc.text("Download evidence", x, y + 142, { width: 140, align: "center" });
-      doc.restore();
+      drawQrBlock(doc, {
+        title: "Download original evidence",
+        qrBuffer: qrBuf,
+        size: 112,
+        caption: "Scan to open the original stored evidence file referenced by this report.",
+        urlText: summarizeText(downloadUrl, 90),
+        urlLink: downloadUrl,
+      });
     }
   }
 
   // ===== PAGE 3: CHAIN =====
   doc.addPage();
-  drawHeader(doc, { evidenceId: params.evidence.id, generatedAtUtc: params.generatedAtUtc, status: params.evidence.status });
+  drawHeader(doc, {
+    evidenceId: params.evidence.id,
+    generatedAtUtc: params.generatedAtUtc,
+    status: params.evidence.status,
+  });
 
   section(doc, "Chain of Custody", () => {
     const innerW = doc.page.width - doc.page.margins.left - doc.page.margins.right;
     const colWidths = [
-      Math.max(44, innerW * 0.10),
+      Math.max(44, innerW * 0.1),
       Math.max(128, innerW * 0.24),
-      Math.max(120, innerW * 0.20),
-      innerW - (Math.max(44, innerW * 0.10) + Math.max(128, innerW * 0.24) + Math.max(120, innerW * 0.20)),
+      Math.max(120, innerW * 0.2),
+      innerW - (Math.max(44, innerW * 0.1) + Math.max(128, innerW * 0.24) + Math.max(120, innerW * 0.2)),
     ];
 
     const headers = ["Seq", "At (UTC)", "Event", "Summary"];
@@ -747,7 +840,11 @@ export async function buildReportPdf(params: {
 
   // ===== PAGE 4: Technical Appendix =====
   doc.addPage();
-  drawHeader(doc, { evidenceId: params.evidence.id, generatedAtUtc: params.generatedAtUtc, status: params.evidence.status });
+  drawHeader(doc, {
+    evidenceId: params.evidence.id,
+    generatedAtUtc: params.generatedAtUtc,
+    status: params.evidence.status,
+  });
 
   section(doc, "Technical Appendix — Cryptographic Materials", () => {
     monospaceStrip(doc, "File SHA-256", safe(params.evidence.fileSha256));
@@ -769,57 +866,50 @@ export async function buildReportPdf(params: {
     );
   });
 
-  // ✅ QR #2: Technical (bottom-right of technical page, after section)
   {
-    const size = 118;
-    ensureSpace(doc, size + 40);
-
     const qrBuf = await tryGenerateQrPngBuffer(technicalUrl);
     if (qrBuf) {
-      const x = doc.page.width - doc.page.margins.right - 130;
-      const y = doc.y;
-
-      doc.image(qrBuf, x, y, { fit: [size, size] });
-
-      doc.save();
-      doc.fillColor(BRAND.muted).font("Helvetica").fontSize(8);
-      doc.text("Technical materials", x, y + size + 2, { width: size, align: "center" });
-      doc.restore();
-
-      doc.moveDown(3.0);
+      drawQrBlock(doc, {
+        title: "Technical materials",
+        qrBuffer: qrBuf,
+        size: 108,
+        caption: "Scan to open the technical verification view for this evidence item.",
+        urlText: summarizeText(technicalUrl, 90),
+        urlLink: technicalUrl,
+      });
     }
   }
 
   // ===== PAGE 5: Forensic Integrity Statement =====
   doc.addPage();
-  drawHeader(doc, { evidenceId: params.evidence.id, generatedAtUtc: params.generatedAtUtc, status: params.evidence.status });
+  drawHeader(doc, {
+    evidenceId: params.evidence.id,
+    generatedAtUtc: params.generatedAtUtc,
+    status: params.evidence.status,
+  });
 
   section(doc, "Forensic Integrity Statement", () => {
     renderForensicIntegrityStatement(doc, { verifyUrl });
   });
 
-  // (اختياري ممتاز) QR صغير لصفحة التحقق داخل صفحة الـ Statement
   {
-    const size = 104;
-    ensureSpace(doc, size + 30);
-
     const qrBuf = await tryGenerateQrPngBuffer(verifyUrl);
     if (qrBuf) {
-      const x = doc.page.width - doc.page.margins.right - 120;
-      const y = doc.y;
-
-      doc.image(qrBuf, x, y, { fit: [size, size] });
-
-      doc.save();
-      doc.fillColor(BRAND.muted).font("Helvetica").fontSize(8);
-      doc.text("Verify page", x, y + size + 2, { width: size, align: "center" });
-      doc.restore();
-
-      doc.moveDown(2.6);
+      drawQrBlock(doc, {
+        title: "Verify page",
+        qrBuffer: qrBuf,
+        size: 104,
+        caption: "Scan to reopen the main verification page for this evidence item.",
+        urlText: summarizeText(verifyUrl, 90),
+        urlLink: verifyUrl,
+      });
     }
   }
 
-  addFooters(doc, { generatedAtUtc: params.generatedAtUtc, reportVersion: params.version });
+  addFooters(doc, {
+    generatedAtUtc: params.generatedAtUtc,
+    reportVersion: params.version,
+  });
 
   const endPromise = new Promise<void>((resolve, reject) => {
     doc.once("end", resolve);
