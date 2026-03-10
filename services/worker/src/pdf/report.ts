@@ -412,16 +412,28 @@ function drawTable(doc: PDFDoc, headers: string[], rows: string[][], colWidths: 
 
 async function tryGenerateQrPngBuffer(data: string): Promise<Buffer | null> {
   try {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const QRCode = require("qrcode") as {
-      toBuffer: (text: string, opts?: Record<string, unknown>) => Promise<Buffer>;
+    const QRCodeModule = (await import("qrcode")) as {
+      toBuffer?: (text: string, opts?: Record<string, unknown>) => Promise<Buffer>;
+      default?: {
+        toBuffer?: (text: string, opts?: Record<string, unknown>) => Promise<Buffer>;
+      };
     };
-    return await QRCode.toBuffer(data, { margin: 1, width: 260 });
-  } catch {
+
+    const toBuffer = QRCodeModule.toBuffer ?? QRCodeModule.default?.toBuffer;
+
+    if (!toBuffer) {
+      throw new Error("qrcode.toBuffer not found");
+    }
+
+    return await toBuffer(data, {
+      margin: 1,
+      width: 260,
+    });
+  } catch (error) {
+    console.error("[PDF][QR] Failed to generate QR:", error);
     return null;
   }
 }
-
 function addFooters(doc: PDFDoc, opts: { generatedAtUtc: string; reportVersion: number }): void {
   const range = doc.bufferedPageRange();
 
