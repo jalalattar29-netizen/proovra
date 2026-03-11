@@ -7,6 +7,15 @@ import { signPdfIfEnabled } from "./signPdf.js";
 type PDFDoc = InstanceType<typeof PDFDocument>;
 
 export type ReportEvidence = {
+  tsaProvider: string | null;
+  tsaUrl: string | null;
+  tsaSerialNumber: string | null;
+  tsaGenTimeUtc: string | null;
+  tsaTokenBase64: string | null;
+  tsaMessageImprint: string | null;
+  tsaHashAlgorithm: string | null;
+  tsaStatus: string | null;
+  tsaFailureReason: string | null;
   id: string;
   status: string;
   capturedAtUtc: string | null;
@@ -853,7 +862,23 @@ export async function buildReportPdf(params: {
     monospaceStrip(doc, "Signature (Base64) (excerpt)", safe(params.evidence.signatureBase64), { maxChars: 520 });
     monospaceStrip(doc, "Public Key (PEM) (excerpt)", safe(params.evidence.publicKeyPem), { maxChars: 520 });
     monospaceStrip(doc, "Fingerprint Canonical JSON (excerpt)", safe(params.evidence.fingerprintCanonicalJson), { maxChars: 700 });
-
+        monospaceStrip(doc, "Timestamp Provider", safe(params.evidence.tsaProvider));
+    monospaceStrip(doc, "Timestamp URL", safe(params.evidence.tsaUrl));
+    monospaceStrip(doc, "Timestamp Serial Number", safe(params.evidence.tsaSerialNumber));
+    monospaceStrip(doc, "Timestamp Generation Time (UTC)", safe(params.evidence.tsaGenTimeUtc));
+    monospaceStrip(doc, "Timestamp Hash Algorithm", safe(params.evidence.tsaHashAlgorithm));
+    monospaceStrip(doc, "Timestamp Message Imprint", safe(params.evidence.tsaMessageImprint));
+    monospaceStrip(doc, "Timestamp Status", safe(params.evidence.tsaStatus));
+        if (params.evidence.tsaTokenBase64) {
+      monospaceStrip(doc, "Timestamp Token (Base64) (excerpt)", safe(params.evidence.tsaTokenBase64), {
+        maxChars: 520,
+      });
+    }
+        if (params.evidence.tsaFailureReason) {
+      monospaceStrip(doc, "Timestamp Failure Reason", safe(params.evidence.tsaFailureReason), {
+        maxChars: 300,
+      });
+    }
     const x = doc.page.margins.left;
     const w = doc.page.width - doc.page.margins.left - doc.page.margins.right;
 

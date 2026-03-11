@@ -87,6 +87,16 @@ model Evidence {
   type   EvidenceType
   status EvidenceStatus @default(CREATED)
 
+  tsaProvider       String?   @map("tsa_provider")
+  tsaUrl            String?   @map("tsa_url")
+  tsaSerialNumber   String?   @map("tsa_serial_number")
+  tsaGenTimeUtc     DateTime? @map("tsa_gen_time_utc")
+  tsaTokenBase64    String?   @db.Text @map("tsa_token_base64")
+  tsaMessageImprint String?   @map("tsa_message_imprint")
+  tsaHashAlgorithm  String?   @map("tsa_hash_algorithm")
+  tsaStatus         String?   @map("tsa_status")
+  tsaFailureReason  String?   @db.Text @map("tsa_failure_reason")
+
   ownerUserId     String    @map("owner_user_id")
   organizationId  String?   @map("organization_id") @db.Uuid
   caseId          String?   @map("case_id") @db.Uuid

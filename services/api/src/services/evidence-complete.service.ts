@@ -5,6 +5,7 @@ import {
   ed25519SignHexWithKeyPath,
 } from "../crypto.js";
 import { getObjectStream, headObject } from "../storage.js";
+import { createEvidenceTimestamp } from "./timestamp.service.js";
 import { sha256HexFromStream } from "../stream-hash.js";
 import * as prismaPkg from "@prisma/client";
 import { enqueueGenerateReportJob } from "../queue/report-queue.js";
@@ -349,6 +350,10 @@ export async function completeEvidence(params: {
     "SIGNING_PRIVATE_KEY_PATH"
   );
 
+    const tsaResult = await createEvidenceTimestamp({
+    digestHex: fingerprintHash,
+  });
+
   // 6) Determine next custody sequence
   const last = await prisma.custodyEvent.findFirst({
     where: { evidenceId: evidence.id },
@@ -370,6 +375,15 @@ export async function completeEvidence(params: {
     const ev = await tx.evidence.update({
       where: { id: evidence.id },
       data: {
+        tsaProvider: tsaResult?.provider ?? null,
+        tsaUrl: tsaResult?.url ?? null,
+        tsaSerialNumber: tsaResult?.serialNumber ?? null,
+        tsaGenTimeUtc: tsaResult?.genTimeUtc ?? null,
+        tsaTokenBase64: tsaResult?.tokenBase64 || null,
+        tsaMessageImprint: tsaResult?.messageImprint ?? null,
+        tsaHashAlgorithm: tsaResult?.hashAlgorithm ?? null,
+        tsaStatus: tsaResult?.status ?? null,
+        tsaFailureReason: tsaResult?.failureReason ?? null,
         status: EvidenceStatus.SIGNED,
         uploadedAtUtc: now,
         signedAtUtc: now,
@@ -398,6 +412,25 @@ export async function completeEvidence(params: {
     await tx.custodyEvent.createMany({
       data: [
         {
+                  ...(tsaResult
+          ? [
+              {
+                evidenceId: evidence.id,
+                eventType: "TIMESTAMP_APPLIED",
+                atUtc: tsaResult.genTimeUtc ?? now,
+                sequence: ++seq,
+                payload: {
+                  provider: tsaResult.provider,
+                  url: tsaResult.url,
+                  serialNumber: tsaResult.serialNumber,
+                  hashAlgorithm: tsaResult.hashAlgorithm,
+                  messageImprint: tsaResult.messageImprint,
+                  status: tsaResult.status,
+                  failureReason: tsaResult.failureReason,
+                },
+              },
+            ]
+          : []),
           evidenceId: evidence.id,
           eventType: "UPLOAD_COMPLETED",
           atUtc: now,
