@@ -1,6 +1,7 @@
 import type { Job } from "bullmq";
 import type { Readable } from "node:stream";
 import * as prismaPkg from "@prisma/client";
+import type { Prisma } from "@prisma/client";
 import { prisma } from "./db.js";
 import { env } from "./config.js";
 import { logger, withJobContext } from "./logger.js";
@@ -101,34 +102,41 @@ export async function processGenerateReport(job: Job<GenerateReportJobData>) {
     });
 
     if (!evidence) throw createWorkerError("EVIDENCE_NOT_FOUND", false);
-    if (evidence.status !== EvidenceStatus.SIGNED)
+    if (evidence.status !== EvidenceStatus.SIGNED) {
       throw createWorkerError(`EVIDENCE_NOT_SIGNED:${evidence.status}`, false);
+    }
 
     const parts = await prisma.evidencePart.findMany({
       where: { evidenceId: evidence.id },
       orderBy: { partIndex: "asc" },
     });
 
-    if (parts.length === 0 && (!evidence.storageBucket || !evidence.storageKey))
+    if (parts.length === 0 && (!evidence.storageBucket || !evidence.storageKey)) {
       throw createWorkerError("EVIDENCE_STORAGE_NOT_SET", false);
+    }
 
-    if (!evidence.fileSha256)
+    if (!evidence.fileSha256) {
       throw createWorkerError("EVIDENCE_FILE_SHA256_MISSING", false);
+    }
 
-    if (!evidence.fingerprintCanonicalJson)
+    if (!evidence.fingerprintCanonicalJson) {
       throw createWorkerError(
         "EVIDENCE_FINGERPRINT_CANONICAL_JSON_MISSING",
         false
       );
+    }
 
-    if (!evidence.fingerprintHash)
+    if (!evidence.fingerprintHash) {
       throw createWorkerError("EVIDENCE_FINGERPRINT_HASH_MISSING", false);
+    }
 
-    if (!evidence.signatureBase64)
+    if (!evidence.signatureBase64) {
       throw createWorkerError("EVIDENCE_SIGNATURE_MISSING", false);
+    }
 
-    if (!evidence.signingKeyId || !evidence.signingKeyVersion)
+    if (!evidence.signingKeyId || !evidence.signingKeyVersion) {
       throw createWorkerError("EVIDENCE_SIGNING_KEY_MISSING", false);
+    }
 
     let storageBucket = evidence.storageBucket ?? null;
     let storageKey = evidence.storageKey ?? null;
@@ -143,8 +151,9 @@ export async function processGenerateReport(job: Job<GenerateReportJobData>) {
           key: part.storageKey,
         });
 
-        if (!head.sizeBytes || head.sizeBytes <= 0)
+        if (!head.sizeBytes || head.sizeBytes <= 0) {
           throw createWorkerError("EVIDENCE_OBJECT_NOT_FOUND", true);
+        }
 
         const body = await getObjectStream({
           bucket: part.storageBucket,
@@ -157,8 +166,9 @@ export async function processGenerateReport(job: Job<GenerateReportJobData>) {
 
       fileSha256 = sha256HexFromStrings(hashes);
 
-      if (fileSha256 !== evidence.fileSha256)
+      if (fileSha256 !== evidence.fileSha256) {
         throw createWorkerError("EVIDENCE_FILE_SHA256_MISMATCH", false);
+      }
 
       storageBucket = storageBucket ?? parts[0]?.storageBucket ?? null;
       storageKey = storageKey ?? parts[0]?.storageKey ?? null;
@@ -168,8 +178,9 @@ export async function processGenerateReport(job: Job<GenerateReportJobData>) {
         key: evidence.storageKey!,
       });
 
-      if (!head.sizeBytes || head.sizeBytes <= 0)
+      if (!head.sizeBytes || head.sizeBytes <= 0) {
         throw createWorkerError("EVIDENCE_OBJECT_NOT_FOUND", true);
+      }
 
       const body = await getObjectStream({
         bucket: evidence.storageBucket!,
@@ -178,8 +189,9 @@ export async function processGenerateReport(job: Job<GenerateReportJobData>) {
 
       fileSha256 = await sha256HexFromStream(body as unknown as Readable);
 
-      if (fileSha256 !== evidence.fileSha256)
+      if (fileSha256 !== evidence.fileSha256) {
         throw createWorkerError("EVIDENCE_FILE_SHA256_MISMATCH", false);
+      }
     }
 
     const custodyEvents = await prisma.custodyEvent.findMany({
@@ -211,7 +223,9 @@ export async function processGenerateReport(job: Job<GenerateReportJobData>) {
       },
     });
 
-    if (!signingKey) throw createWorkerError("SIGNING_KEY_NOT_FOUND", false);
+    if (!signingKey) {
+      throw createWorkerError("SIGNING_KEY_NOT_FOUND", false);
+    }
 
     const now = new Date();
     const reportKey = `reports/${evidence.id}/v${version}.pdf`;
@@ -221,37 +235,28 @@ export async function processGenerateReport(job: Job<GenerateReportJobData>) {
       evidence: {
         id: evidence.id,
         status: evidence.status,
-
         capturedAtUtc: evidence.capturedAtUtc?.toISOString() ?? null,
         uploadedAtUtc: evidence.uploadedAtUtc?.toISOString() ?? null,
         signedAtUtc: evidence.signedAtUtc?.toISOString() ?? null,
         reportGeneratedAtUtc: now.toISOString(),
-
         mimeType: evidence.mimeType,
         sizeBytes: evidence.sizeBytes?.toString() ?? null,
         durationSec: evidence.durationSec?.toString() ?? null,
-
         storageBucket: storageBucket ?? "unknown",
         storageKey: storageKey ?? "multipart",
         publicUrl,
-
         gps: {
           lat: evidence.lat?.toString() ?? null,
           lng: evidence.lng?.toString() ?? null,
           accuracyMeters: evidence.accuracyMeters?.toString() ?? null,
         },
-
         fileSha256,
         fingerprintCanonicalJson: evidence.fingerprintCanonicalJson,
         fingerprintHash: evidence.fingerprintHash,
-
         signatureBase64: evidence.signatureBase64,
-
         signingKeyId: evidence.signingKeyId,
         signingKeyVersion: evidence.signingKeyVersion,
         publicKeyPem: signingKey.publicKeyPem,
-
-        // ===== TSA FIELDS =====
         tsaProvider: evidence.tsaProvider ?? null,
         tsaUrl: evidence.tsaUrl ?? null,
         tsaSerialNumber: evidence.tsaSerialNumber ?? null,
@@ -262,14 +267,12 @@ export async function processGenerateReport(job: Job<GenerateReportJobData>) {
         tsaStatus: evidence.tsaStatus ?? null,
         tsaFailureReason: evidence.tsaFailureReason ?? null,
       },
-
       custodyEvents: custodyEvents.map((ev) => ({
         sequence: ev.sequence,
         atUtc: ev.atUtc.toISOString(),
         eventType: ev.eventType,
         payloadSummary: summarizePayload(ev.payload),
       })),
-
       version,
       generatedAtUtc: now.toISOString(),
       buildInfo: env.WORKER_BUILD_INFO ?? null,
@@ -296,14 +299,14 @@ export async function processGenerateReport(job: Job<GenerateReportJobData>) {
       await tx.custodyEvent.create({
         data: {
           evidenceId: evidence.id,
-          eventType: "REPORT_GENERATED",
+          eventType: "REPORT_GENERATED" as prismaPkg.CustodyEventType,
           atUtc: now,
           sequence: lastSeq + 1,
           payload: {
             reportVersion: version,
             storageBucket: env.S3_BUCKET,
             storageKey: reportKey,
-          },
+          } as Prisma.InputJsonValue,
         },
       });
 

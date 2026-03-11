@@ -8,6 +8,7 @@ import { getObjectStream, headObject } from "../storage.js";
 import { createEvidenceTimestamp } from "./timestamp.service.js";
 import { sha256HexFromStream } from "../stream-hash.js";
 import * as prismaPkg from "@prisma/client";
+import type { Prisma } from "@prisma/client";
 import { enqueueGenerateReportJob } from "../queue/report-queue.js";
 import { Readable } from "stream";
 
@@ -46,10 +47,16 @@ function clean(v: string | null | undefined): string | null {
   return t ? t : null;
 }
 
-function isNotFoundLike(e: any): boolean {
-  const name = (e?.name || "").toString().toLowerCase();
-  const code = (e?.code || e?.Code || "").toString().toLowerCase();
-  const msg = (e?.message || "").toString().toLowerCase();
+function isNotFoundLike(e: unknown): boolean {
+  const err = e as {
+    name?: string;
+    code?: string;
+    Code?: string;
+    message?: string;
+  };
+  const name = (err?.name || "").toString().toLowerCase();
+  const code = (err?.code || err?.Code || "").toString().toLowerCase();
+  const msg = (err?.message || "").toString().toLowerCase();
   return (
     name.includes("notfound") ||
     code.includes("notfound") ||
@@ -63,8 +70,15 @@ function isNotFoundLike(e: any): boolean {
 async function safeHead(bucket: string, key: string) {
   try {
     return await headObject({ bucket, key });
-  } catch (e: any) {
-    const detail = e?.name || e?.code || e?.Code || e?.message || "unknown";
+  } catch (e: unknown) {
+    const errLike = e as {
+      name?: string;
+      code?: string;
+      Code?: string;
+      message?: string;
+    };
+    const detail =
+      errLike?.name || errLike?.code || errLike?.Code || errLike?.message || "unknown";
     const err: HttpError = Object.assign(
       new Error(`OBJECT_HEAD_FAILED: ${detail} bucket=${bucket} key=${key}`),
       { statusCode: isNotFoundLike(e) ? 404 : 502 }
@@ -76,8 +90,15 @@ async function safeHead(bucket: string, key: string) {
 async function safeGetStream(bucket: string, key: string) {
   try {
     return await getObjectStream({ bucket, key });
-  } catch (e: any) {
-    const detail = e?.name || e?.code || e?.Code || e?.message || "unknown";
+  } catch (e: unknown) {
+    const errLike = e as {
+      name?: string;
+      code?: string;
+      Code?: string;
+      message?: string;
+    };
+    const detail =
+      errLike?.name || errLike?.code || errLike?.Code || errLike?.message || "unknown";
     const err: HttpError = Object.assign(
       new Error(`OBJECT_GET_FAILED: ${detail} bucket=${bucket} key=${key}`),
       { statusCode: isNotFoundLike(e) ? 404 : 502 }
@@ -86,7 +107,7 @@ async function safeGetStream(bucket: string, key: string) {
   }
 }
 
-const { EvidenceStatus } = prismaPkg;
+const { EvidenceStatus, PlanType } = prismaPkg;
 
 export async function completeEvidence(params: {
   evidenceId: string;
@@ -127,8 +148,8 @@ export async function completeEvidence(params: {
     const entitlement = await prisma.entitlement.findFirst({
       where: { userId: params.ownerUserId, active: true },
     });
-    const plan = entitlement?.plan ?? prismaPkg.PlanType.FREE;
-    if (plan !== prismaPkg.PlanType.FREE) {
+    const plan = entitlement?.plan ?? PlanType.FREE;
+    if (plan !== PlanType.FREE) {
       await enqueueGenerateReportJob(evidence.id);
     }
     return {
@@ -158,12 +179,9 @@ export async function completeEvidence(params: {
   const entitlement = await prisma.entitlement.findFirst({
     where: { userId: params.ownerUserId, active: true },
   });
-  const plan = entitlement?.plan ?? prismaPkg.PlanType.FREE;
+  const plan = entitlement?.plan ?? PlanType.FREE;
 
-  if (
-    entitlement?.plan === prismaPkg.PlanType.PAYG &&
-    (entitlement.credits ?? 0) <= 0
-  ) {
+  if (entitlement?.plan === PlanType.PAYG && (entitlement.credits ?? 0) <= 0) {
     const err: HttpError = Object.assign(new Error("PAYG_CREDITS_REQUIRED"), {
       statusCode: 402,
     });
@@ -354,7 +372,7 @@ export async function completeEvidence(params: {
   let seq = last?.sequence ?? 0;
 
   const updated = await prisma.$transaction(async (tx) => {
-    if (entitlement?.plan === prismaPkg.PlanType.PAYG) {
+    if (entitlement?.plan === PlanType.PAYG) {
       await tx.entitlement.updateMany({
         where: { userId: params.ownerUserId, active: true },
         data: { credits: { decrement: 1 } },
@@ -364,7 +382,6 @@ export async function completeEvidence(params: {
     const ev = await tx.evidence.update({
       where: { id: evidence.id },
       data: {
-        // TSA fields - these require updated Prisma schema + generate
         tsaProvider: tsaResult?.provider ?? null,
         tsaUrl: tsaResult?.url ?? null,
         tsaSerialNumber: tsaResult?.serialNumber ?? null,
@@ -397,8 +414,6 @@ export async function completeEvidence(params: {
         signatureBase64: true,
         signingKeyId: true,
         signingKeyVersion: true,
-
-        // TSA fields - these require updated Prisma schema + generate
         tsaProvider: true,
         tsaUrl: true,
         tsaSerialNumber: true,
@@ -410,33 +425,33 @@ export async function completeEvidence(params: {
       },
     });
 
-    const custodyEventsData = [
+    const custodyEventsData: Prisma.CustodyEventCreateManyInput[] = [
       {
         evidenceId: evidence.id,
-        eventType: "UPLOAD_COMPLETED",
+        eventType: "UPLOAD_COMPLETED" as prismaPkg.CustodyEventType,
         atUtc: now,
         sequence: ++seq,
         payload: {
           sizeBytes: sizeBytesNum,
           contentType: uploadContentType ?? null,
-        },
+        } as Prisma.InputJsonValue,
       },
       {
         evidenceId: evidence.id,
-        eventType: "SIGNATURE_APPLIED",
+        eventType: "SIGNATURE_APPLIED" as prismaPkg.CustodyEventType,
         atUtc: now,
         sequence: ++seq,
         payload: {
           fingerprintHash,
           signingKeyId,
           signingKeyVersion,
-        },
+        } as Prisma.InputJsonValue,
       },
       ...(tsaResult
         ? [
             {
               evidenceId: evidence.id,
-              eventType: "TIMESTAMP_APPLIED",
+              eventType: "TIMESTAMP_APPLIED" as prismaPkg.CustodyEventType,
               atUtc: tsaResult.genTimeUtc ?? now,
               sequence: ++seq,
               payload: {
@@ -447,7 +462,7 @@ export async function completeEvidence(params: {
                 messageImprint: tsaResult.messageImprint,
                 status: tsaResult.status,
                 failureReason: tsaResult.failureReason,
-              },
+              } as Prisma.InputJsonValue,
             },
           ]
         : []),
@@ -460,7 +475,7 @@ export async function completeEvidence(params: {
     return ev;
   });
 
-  if (plan !== prismaPkg.PlanType.FREE) {
+  if (plan !== PlanType.FREE) {
     await enqueueGenerateReportJob(updated.id);
   }
 
