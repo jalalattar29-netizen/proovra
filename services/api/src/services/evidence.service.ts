@@ -86,25 +86,24 @@ export async function createEvidence(params: {
 
   // record upload started custody event (sequence 1 for first event, sequence 2 here)
   // We'll keep it simple for now: create 2 events with sequences 1 and 2
-  await prisma.custodyEvent.createMany({
-    data: [
-      {
-        evidenceId: evidence.id,
-        eventType: "EVIDENCE_CREATED",
-        atUtc: new Date(),
-        sequence: 1,
-        payload: { type: params.type, mimeType: params.mimeType ?? null },
-      },
-      {
-        evidenceId: evidence.id,
-        eventType: "UPLOAD_STARTED",
-        atUtc: new Date(),
-        sequence: 2,
-        payload: { bucket, key },
-      },
-    ],
-  });
-
+await prisma.custodyEvent.createMany({
+  data: [
+    {
+      evidenceId: evidence.id,
+      eventType: prismaPkg.CustodyEventType.EVIDENCE_CREATED,
+      atUtc: new Date(),
+      sequence: 1,
+      payload: { type: params.type, mimeType: params.mimeType ?? null },
+    },
+    {
+      evidenceId: evidence.id,
+      eventType: prismaPkg.CustodyEventType.UPLOAD_STARTED,
+      atUtc: new Date(),
+      sequence: 2,
+      payload: { bucket, key },
+    },
+  ],
+});
   // set evidence to UPLOADING and store intended storage path
   await prisma.evidence.update({
     where: { id: evidence.id },
