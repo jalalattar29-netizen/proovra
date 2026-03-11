@@ -20,38 +20,47 @@ export async function createEvidence(params: {
 }) {
   const owner = await prisma.user.findUnique({
     where: { id: params.ownerUserId },
-    select: { provider: true }
+    select: { provider: true },
   });
+
   const guestIdentity =
     owner?.provider === prismaPkg.AuthProvider.GUEST
       ? await ensureGuestIdentity(params.ownerUserId)
       : null;
 
   const entitlement = await prisma.entitlement.findFirst({
-    where: { userId: params.ownerUserId, active: true }
+    where: { userId: params.ownerUserId, active: true },
   });
-  if (entitlement?.plan === prismaPkg.PlanType.PAYG && entitlement.credits <= 0) {
+
+  if (
+    entitlement?.plan === prismaPkg.PlanType.PAYG &&
+    (entitlement.credits ?? 0) <= 0
+  ) {
     throw new Error("PAYG_CREDITS_REQUIRED");
   }
+
   if (entitlement?.plan === prismaPkg.PlanType.FREE) {
     const limit = Number.parseInt(process.env.FREE_EVIDENCE_LIMIT ?? "3", 10);
+
     const monthStart = new Date();
     monthStart.setUTCDate(1);
     monthStart.setUTCHours(0, 0, 0, 0);
+
     const count = await prisma.evidence.count({
       where: {
         ownerUserId: params.ownerUserId,
-        createdAt: { gte: monthStart }
-      }
+        createdAt: { gte: monthStart },
+      },
     });
+
     if (count >= limit) {
       throw new Error("FREE_LIMIT_REACHED");
     }
   }
+
   const bucket = must("S3_BUCKET");
   const publicBase = process.env.S3_PUBLIC_BASE_URL ?? null;
 
-  // create DB record first
   const evidence = await prisma.evidence.create({
     data: {
       ownerUserId: params.ownerUserId,
@@ -63,7 +72,7 @@ export async function createEvidence(params: {
       lat: params.gps?.lat ?? null,
       lng: params.gps?.lng ?? null,
       accuracyMeters: params.gps?.accuracyMeters ?? null,
-      guestIdentityId: guestIdentity?.id ?? null
+      guestIdentityId: guestIdentity?.id ?? null,
     },
     select: {
       id: true,
@@ -74,7 +83,6 @@ export async function createEvidence(params: {
     },
   });
 
-  // deterministic storage key pattern
   const key = `evidence/${evidence.id}/original`;
 
   const putUrl = await presignPutObject({
@@ -84,27 +92,31 @@ export async function createEvidence(params: {
     expiresInSeconds: 600,
   });
 
-  // record upload started custody event (sequence 1 for first event, sequence 2 here)
-  // We'll keep it simple for now: create 2 events with sequences 1 and 2
-await prisma.custodyEvent.createMany({
-  data: [
-    {
-      evidenceId: evidence.id,
-      eventType: prismaPkg.CustodyEventType.EVIDENCE_CREATED,
-      atUtc: new Date(),
-      sequence: 1,
-      payload: { type: params.type, mimeType: params.mimeType ?? null },
-    },
-    {
-      evidenceId: evidence.id,
-      eventType: prismaPkg.CustodyEventType.UPLOAD_STARTED,
-      atUtc: new Date(),
-      sequence: 2,
-      payload: { bucket, key },
-    },
-  ],
-});
-  // set evidence to UPLOADING and store intended storage path
+  await prisma.custodyEvent.createMany({
+    data: [
+      {
+        evidenceId: evidence.id,
+        eventType: prismaPkg.CustodyEventType.EVIDENCE_CREATED,
+        atUtc: new Date(),
+        sequence: 1,
+        payload: {
+          type: params.type,
+          mimeType: params.mimeType ?? null,
+        } as prismaPkg.Prisma.InputJsonValue,
+      },
+      {
+        evidenceId: evidence.id,
+        eventType: prismaPkg.CustodyEventType.UPLOAD_STARTED,
+        atUtc: new Date(),
+        sequence: 2,
+        payload: {
+          bucket,
+          key,
+        } as prismaPkg.Prisma.InputJsonValue,
+      },
+    ],
+  });
+
   await prisma.evidence.update({
     where: { id: evidence.id },
     data: {
@@ -114,8 +126,9 @@ await prisma.custodyEvent.createMany({
     },
   });
 
-  const publicUrl =
-    publicBase ? `${publicBase.replace(/\/+$/, "")}/${key}` : null;
+  const publicUrl = publicBase
+    ? `${publicBase.replace(/\/+$/, "")}/${key}`
+    : null;
 
   return {
     id: evidence.id,
