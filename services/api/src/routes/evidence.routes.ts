@@ -318,10 +318,9 @@ export async function evidenceRoutes(app: FastifyInstance) {
       const existing = await prisma.evidencePart.findFirst({
         where: { evidenceId: id, partIndex: body.partIndex }
       });
-      if (existing) {
-        return reply.code(200).send({ part: existing });
-      }
-
+if (existing) {
+  return reply.code(200).send({ part: existing });
+}
       const bucket = must("S3_BUCKET");
       const key = `evidence/${id}/parts/${body.partIndex}`;
       const putUrl = await presignPutObject({
@@ -424,7 +423,7 @@ export async function evidenceRoutes(app: FastifyInstance) {
       await prisma.custodyEvent.create({
         data: {
           evidenceId: item.id,
-          eventType: "EVIDENCE_CLAIMED",
+eventType: prismaPkg.CustodyEventType.EVIDENCE_CLAIMED,
           atUtc: new Date(),
           sequence: nextSeq,
           payload: { fromUserId: guestUserId, toUserId: userId }
@@ -493,7 +492,7 @@ export async function evidenceRoutes(app: FastifyInstance) {
 
         await appendCustodyEvent({
           evidenceId: id,
-          eventType: "EVIDENCE_LOCKED",
+eventType: prismaPkg.CustodyEventType.EVIDENCE_LOCKED,
           payload: { lockedByUserId: ownerUserId },
           ip: req.ip,
           userAgent: req.headers["user-agent"]
@@ -529,7 +528,7 @@ export async function evidenceRoutes(app: FastifyInstance) {
 
       await appendCustodyEvent({
         evidenceId: id,
-        eventType: "EVIDENCE_DELETED",
+eventType: prismaPkg.CustodyEventType.EVIDENCE_DELETED,
         payload: { deletedByUserId: ownerUserId },
         ip: req.ip,
         userAgent: req.headers["user-agent"]
@@ -564,21 +563,48 @@ export async function evidenceRoutes(app: FastifyInstance) {
     return reply.code(200).send({ items });
   });
 
-  app.get("/v1/evidence/:id", { preHandler: requireAuth }, async (req, reply) => {
-    const id = z.string().uuid().parse((req.params as ParamsId).id);
-    const ownerUserId = getAuthUserId(req);
-    (req as FastifyRequest & { evidenceId?: string }).evidenceId = id;
-    req.log = req.log.child({ evidenceId: id });
+app.get("/v1/evidence/:id", { preHandler: requireAuth }, async (req, reply) => {
+  const id = z.string().uuid().parse((req.params as ParamsId).id);
+  const ownerUserId = getAuthUserId(req);
+  (req as FastifyRequest & { evidenceId?: string }).evidenceId = id;
+  req.log = req.log.child({ evidenceId: id });
 
-    const evidence = await prisma.evidence.findFirst({
-      where: { id, ownerUserId, deletedAt: null }
-    });
-
-    if (!evidence) return reply.code(404).send({ message: "Evidence not found" });
-
-    return reply.code(200).send({ evidence: toJsonSafe(evidence) });
+  const evidence = await prisma.evidence.findFirst({
+    where: { id, ownerUserId, deletedAt: null },
+    select: {
+      id: true,
+      type: true,
+      status: true,
+      createdAt: true,
+      uploadedAtUtc: true,
+      signedAtUtc: true,
+      capturedAtUtc: true,
+      deviceTimeIso: true,
+      lat: true,
+      lng: true,
+      accuracyMeters: true,
+      mimeType: true,
+      storageBucket: true,
+      storageKey: true,
+      sizeBytes: true,
+      fileSha256: true,
+      fingerprintHash: true,
+      signatureBase64: true,
+      signingKeyId: true,
+      signingKeyVersion: true,
+      lockedAt: true,
+      lockedByUserId: true,
+      caseId: true,
+      teamId: true
+    }
   });
 
+  if (!evidence) {
+    return reply.code(404).send({ message: "Evidence not found" });
+  }
+
+  return reply.code(200).send({ evidence: toSafeEvidence(evidence) });
+});
   app.post(
     "/v1/evidence/:id/complete",
     { preHandler: requireAuth },
@@ -645,7 +671,7 @@ export async function evidenceRoutes(app: FastifyInstance) {
 
       await appendCustodyEvent({
         evidenceId: id,
-        eventType: "REPORT_DOWNLOADED",
+eventType: prismaPkg.CustodyEventType.REPORT_DOWNLOADED,
         payload: { reportVersion: latest.version },
         ip: req.ip,
         userAgent: req.headers["user-agent"]
@@ -771,7 +797,7 @@ export async function evidenceRoutes(app: FastifyInstance) {
 
     await appendCustodyEvent({
       evidenceId: id,
-      eventType: "VERIFY_VIEWED",
+eventType: prismaPkg.CustodyEventType.VERIFY_VIEWED,
       payload: null,
       ip: req.ip,
       userAgent: req.headers["user-agent"]
@@ -851,7 +877,7 @@ export async function evidenceRoutes(app: FastifyInstance) {
     if (latest) {
       await appendCustodyEvent({
         evidenceId: id,
-        eventType: "REPORT_DOWNLOADED",
+eventType: prismaPkg.CustodyEventType.REPORT_DOWNLOADED,
         payload: { reportVersion: latest.version, via: "share" },
         ip: req.ip,
         userAgent: req.headers["user-agent"]
