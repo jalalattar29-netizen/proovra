@@ -92,7 +92,6 @@ export async function completeEvidence(params: {
   evidenceId: string;
   ownerUserId: string;
 }) {
-  // 1) Load evidence and verify ownership
   const evidence = await prisma.evidence.findFirst({
     where: {
       id: params.evidenceId,
@@ -108,12 +107,10 @@ export async function completeEvidence(params: {
     throw err;
   }
 
-  // Normalize stored bucket/key/mime
   const evidenceBucket = clean(evidence.storageBucket);
   const evidenceKey = clean(evidence.storageKey);
   const evidenceMime = clean(evidence.mimeType);
 
-  // If already reported, be idempotent and do not enqueue
   if (evidence.status === EvidenceStatus.REPORTED) {
     return {
       id: evidence.id,
@@ -126,7 +123,6 @@ export async function completeEvidence(params: {
     };
   }
 
-  // If already signed, be idempotent but ensure report job is enqueued
   if (evidence.status === EvidenceStatus.SIGNED) {
     const entitlement = await prisma.entitlement.findFirst({
       where: { userId: params.ownerUserId, active: true },
@@ -174,7 +170,6 @@ export async function completeEvidence(params: {
     throw err;
   }
 
-  // 2) Verify object(s) + hash
   let sizeBytesNum = 0;
   let fileSha256 = "";
   let primaryBucket = evidenceBucket;
@@ -246,7 +241,6 @@ export async function completeEvidence(params: {
       throw err;
     }
 
-    // Compound hash of parts (deterministic)
     const combined = updatedParts.map((p) => p.sha256).join("|");
     fileSha256 = sha256Hex(combined);
 
@@ -263,7 +257,6 @@ export async function completeEvidence(params: {
       )
     );
   } else {
-    // Single object
     const bucket = evidenceBucket!;
     const key = evidenceKey!;
 
@@ -297,7 +290,6 @@ export async function completeEvidence(params: {
     if (!primaryKey) primaryKey = key;
   }
 
-  // 4) Build fingerprint canonical JSON
   const now = new Date();
   const fingerprint = {
     v: 1,
@@ -340,7 +332,6 @@ export async function completeEvidence(params: {
   const canonical = canonicalJson(fingerprint);
   const fingerprintHash = sha256Hex(canonical);
 
-  // 5) Sign fingerprint hash (Ed25519) using PRIVATE KEY from file path env
   must("SIGNING_PRIVATE_KEY_PATH");
   const signingKeyId = must("SIGNING_KEY_ID");
   const signingKeyVersion = mustInt("SIGNING_KEY_VERSION");
@@ -350,11 +341,10 @@ export async function completeEvidence(params: {
     "SIGNING_PRIVATE_KEY_PATH"
   );
 
-    const tsaResult = await createEvidenceTimestamp({
+  const tsaResult = await createEvidenceTimestamp({
     digestHex: fingerprintHash,
   });
 
-  // 6) Determine next custody sequence
   const last = await prisma.custodyEvent.findFirst({
     where: { evidenceId: evidence.id },
     orderBy: { sequence: "desc" },
@@ -363,7 +353,6 @@ export async function completeEvidence(params: {
 
   let seq = last?.sequence ?? 0;
 
-  // 7) Transaction: update evidence + append custody events
   const updated = await prisma.$transaction(async (tx) => {
     if (entitlement?.plan === prismaPkg.PlanType.PAYG) {
       await tx.entitlement.updateMany({
@@ -375,6 +364,7 @@ export async function completeEvidence(params: {
     const ev = await tx.evidence.update({
       where: { id: evidence.id },
       data: {
+        // TSA fields - these require updated Prisma schema + generate
         tsaProvider: tsaResult?.provider ?? null,
         tsaUrl: tsaResult?.url ?? null,
         tsaSerialNumber: tsaResult?.serialNumber ?? null,
@@ -384,6 +374,7 @@ export async function completeEvidence(params: {
         tsaHashAlgorithm: tsaResult?.hashAlgorithm ?? null,
         tsaStatus: tsaResult?.status ?? null,
         tsaFailureReason: tsaResult?.failureReason ?? null,
+
         status: EvidenceStatus.SIGNED,
         uploadedAtUtc: now,
         signedAtUtc: now,
@@ -406,48 +397,64 @@ export async function completeEvidence(params: {
         signatureBase64: true,
         signingKeyId: true,
         signingKeyVersion: true,
+
+        // TSA fields - these require updated Prisma schema + generate
+        tsaProvider: true,
+        tsaUrl: true,
+        tsaSerialNumber: true,
+        tsaGenTimeUtc: true,
+        tsaMessageImprint: true,
+        tsaHashAlgorithm: true,
+        tsaStatus: true,
+        tsaFailureReason: true,
       },
     });
 
-    await tx.custodyEvent.createMany({
-      data: [
-        {
-                  ...(tsaResult
-          ? [
-              {
-                evidenceId: evidence.id,
-                eventType: "TIMESTAMP_APPLIED",
-                atUtc: tsaResult.genTimeUtc ?? now,
-                sequence: ++seq,
-                payload: {
-                  provider: tsaResult.provider,
-                  url: tsaResult.url,
-                  serialNumber: tsaResult.serialNumber,
-                  hashAlgorithm: tsaResult.hashAlgorithm,
-                  messageImprint: tsaResult.messageImprint,
-                  status: tsaResult.status,
-                  failureReason: tsaResult.failureReason,
-                },
+    const custodyEventsData = [
+      {
+        evidenceId: evidence.id,
+        eventType: "UPLOAD_COMPLETED",
+        atUtc: now,
+        sequence: ++seq,
+        payload: {
+          sizeBytes: sizeBytesNum,
+          contentType: uploadContentType ?? null,
+        },
+      },
+      {
+        evidenceId: evidence.id,
+        eventType: "SIGNATURE_APPLIED",
+        atUtc: now,
+        sequence: ++seq,
+        payload: {
+          fingerprintHash,
+          signingKeyId,
+          signingKeyVersion,
+        },
+      },
+      ...(tsaResult
+        ? [
+            {
+              evidenceId: evidence.id,
+              eventType: "TIMESTAMP_APPLIED",
+              atUtc: tsaResult.genTimeUtc ?? now,
+              sequence: ++seq,
+              payload: {
+                provider: tsaResult.provider,
+                url: tsaResult.url,
+                serialNumber: tsaResult.serialNumber,
+                hashAlgorithm: tsaResult.hashAlgorithm,
+                messageImprint: tsaResult.messageImprint,
+                status: tsaResult.status,
+                failureReason: tsaResult.failureReason,
               },
-            ]
-          : []),
-          evidenceId: evidence.id,
-          eventType: "UPLOAD_COMPLETED",
-          atUtc: now,
-          sequence: ++seq,
-          payload: {
-            sizeBytes: sizeBytesNum,
-            contentType: uploadContentType ?? null,
-          },
-        },
-        {
-          evidenceId: evidence.id,
-          eventType: "SIGNATURE_APPLIED",
-          atUtc: now,
-          sequence: ++seq,
-          payload: { fingerprintHash, signingKeyId, signingKeyVersion },
-        },
-      ],
+            },
+          ]
+        : []),
+    ];
+
+    await tx.custodyEvent.createMany({
+      data: custodyEventsData,
     });
 
     return ev;
