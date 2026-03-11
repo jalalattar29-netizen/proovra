@@ -250,7 +250,6 @@ export async function evidenceRoutes(app: FastifyInstance) {
     );
   }
 
-  // ✅ Safe public URL builder (will return null if base is missing or considered unsafe)
   function buildPublicUrl(key: string): string | null {
     const base = getPublicBaseUrl();
     if (!base) return null;
@@ -565,7 +564,6 @@ export async function evidenceRoutes(app: FastifyInstance) {
     return reply.code(200).send({ items });
   });
 
-  // ✅ BigInt-safe evidence response
   app.get("/v1/evidence/:id", { preHandler: requireAuth }, async (req, reply) => {
     const id = z.string().uuid().parse((req.params as ParamsId).id);
     const ownerUserId = getAuthUserId(req);
@@ -655,7 +653,6 @@ export async function evidenceRoutes(app: FastifyInstance) {
 
       const publicUrl = buildPublicUrl(latest.storageKey);
 
-      // ✅ Always return presigned URL for browser reliability
       const url = await presignGetObject({
         bucket: latest.storageBucket,
         key: latest.storageKey,
@@ -670,6 +667,44 @@ export async function evidenceRoutes(app: FastifyInstance) {
         url,
         publicUrl,
         generatedAtUtc: latest.generatedAtUtc.toISOString()
+      });
+    }
+  );
+
+  app.get(
+    "/v1/evidence/:id/verification-package",
+    { preHandler: requireAuth },
+    async (req: FastifyRequest, reply) => {
+      const ownerUserId = getAuthUserId(req);
+      const id = z.string().uuid().parse((req.params as ParamsId).id);
+      (req as FastifyRequest & { evidenceId?: string }).evidenceId = id;
+      req.log = req.log.child({ evidenceId: id });
+
+      const evidence = await prisma.evidence.findFirst({
+        where: { id, ownerUserId, deletedAt: null },
+        select: { id: true }
+      });
+
+      if (!evidence) {
+        return reply.code(404).send({ message: "Evidence not found" });
+      }
+
+      const bucket = must("S3_BUCKET");
+      const key = `verification/${id}/package.zip`;
+
+      const url = await presignGetObject({
+        bucket,
+        key,
+        expiresInSeconds: 600
+      });
+
+      const publicUrl = buildPublicUrl(key);
+
+      return reply.code(200).send({
+        evidenceId: id,
+        key,
+        url,
+        publicUrl
       });
     }
   );
@@ -805,7 +840,6 @@ export async function evidenceRoutes(app: FastifyInstance) {
 
     const publicUrl = latest ? buildPublicUrl(latest.storageKey) : null;
 
-    // ✅ Always presign when report exists (avoid non-public URL issues)
     const url = latest
       ? await presignGetObject({
           bucket: latest.storageBucket,
