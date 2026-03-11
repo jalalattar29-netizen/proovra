@@ -83,77 +83,57 @@ enum SubscriptionStatus {
 }
 
 model Evidence {
-  id     String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  type   EvidenceType
-  status EvidenceStatus @default(CREATED)
+  id                       String         @id @default(uuid()) @db.Uuid
+  type                     EvidenceType
+  status                   EvidenceStatus
 
-  tsaProvider       String?   @map("tsa_provider")
-  tsaUrl            String?   @map("tsa_url")
-  tsaSerialNumber   String?   @map("tsa_serial_number")
-  tsaGenTimeUtc     DateTime? @map("tsa_gen_time_utc")
-  tsaTokenBase64    String?   @db.Text @map("tsa_token_base64")
-  tsaMessageImprint String?   @map("tsa_message_imprint")
-  tsaHashAlgorithm  String?   @map("tsa_hash_algorithm")
-  tsaStatus         String?   @map("tsa_status")
-  tsaFailureReason  String?   @db.Text @map("tsa_failure_reason")
+  ownerUserId              String         @map("owner_user_id") @db.Uuid
+  organizationId           String?        @map("organization_id") @db.Uuid
 
-  ownerUserId     String    @map("owner_user_id")
-  organizationId  String?   @map("organization_id") @db.Uuid
-  caseId          String?   @map("case_id") @db.Uuid
-  teamId          String?   @map("team_id") @db.Uuid
-  guestIdentityId String?   @map("guest_identity_id") @db.Uuid
-  lockedAt        DateTime? @map("locked_at") @db.Timestamptz(6)
-  lockedByUserId  String?   @map("locked_by_user_id")
+  mimeType                 String?        @map("mime_type")
+  sizeBytes                BigInt?        @map("size_bytes")
+  durationSec              Decimal?       @map("duration_sec")
+  fileSha256               String?        @map("file_sha256")
 
-  mimeType    String? @map("mime_type") @db.VarChar(128)
-  sizeBytes   BigInt? @map("size_bytes")
-  durationSec Float?  @map("duration_sec")
-  fileSha256  String? @map("file_sha256") @db.VarChar(64)
+  storageBucket            String?        @map("storage_bucket")
+  storageKey               String?        @map("storage_key")
 
-  storageBucket String? @map("storage_bucket") @db.VarChar(255)
-  storageKey    String? @map("storage_key") @db.VarChar(512)
+  lat                      Decimal?
+  lng                      Decimal?
+  accuracyMeters           Decimal?       @map("accuracy_meters")
 
-  lat            Float? @db.DoublePrecision
-  lng            Float? @db.DoublePrecision
-  accuracyMeters Float? @map("accuracy_meters") @db.DoublePrecision
+  capturedAtUtc            DateTime?      @map("captured_at_utc")
+  uploadedAtUtc            DateTime?      @map("uploaded_at_utc")
+  signedAtUtc              DateTime?      @map("signed_at_utc")
+  reportGeneratedAtUtc     DateTime?      @map("report_generated_at_utc")
 
-  capturedAtUtc DateTime? @map("captured_at_utc") @db.Timestamptz(6)
-  deviceTimeIso String?   @map("device_time_iso") @db.VarChar(64)
+  fingerprintCanonicalJson String?        @map("fingerprint_canonical_json")
+  fingerprintHash          String?        @map("fingerprint_hash")
+  signatureBase64          String?        @map("signature_base64")
+  signingKeyId             String?        @map("signing_key_id")
+  signingKeyVersion        Int?           @map("signing_key_version")
 
-  uploadedAtUtc        DateTime? @map("uploaded_at_utc") @db.Timestamptz(6)
-  signedAtUtc          DateTime? @map("signed_at_utc") @db.Timestamptz(6)
-  reportGeneratedAtUtc DateTime? @map("report_generated_at_utc") @db.Timestamptz(6)
+  deletedAt                DateTime?      @map("deleted_at")
+  createdAt                DateTime       @default(now()) @map("created_at")
+  updatedAt                DateTime       @updatedAt @map("updated_at")
 
-  fingerprintCanonicalJson String? @map("fingerprint_canonical_json") @db.Text
-  fingerprintHash          String? @map("fingerprint_hash") @db.VarChar(64)
+  deviceTimeIso            String?        @map("device_time_iso")
+  deletedAtUtc             DateTime?      @map("deleted_at_utc")
+  retentionUntilUtc        DateTime?      @map("retention_until_utc")
 
-  signatureBase64   String? @map("signature_base64") @db.VarChar(256)
-  signingKeyId      String? @map("signing_key_id") @db.VarChar(64)
-  signingKeyVersion Int?    @map("signing_key_version")
+  caseId                   String?        @map("case_id") @db.Uuid
+  teamId                   String?        @map("team_id") @db.Uuid
 
-  deletedAt         DateTime? @map("deleted_at") @db.Timestamptz(6)
-  deletedAtUtc      DateTime? @map("deleted_at_utc") @db.Timestamptz(6)
-  retentionUntilUtc DateTime? @map("retention_until_utc") @db.Timestamptz(6)
+  guestIdentityId          String?        @map("guest_identity_id") @db.Uuid
 
-  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  lockedAt                 DateTime?      @map("locked_at")
+  lockedByUserId           String?        @map("locked_by_user_id") @db.Uuid
 
-  custodyEvents CustodyEvent[]
-  reports       Report[]
-  parts         EvidencePart[]
-  guestIdentity GuestIdentity? @relation(fields: [guestIdentityId], references: [id], onDelete: SetNull)
+  parts                    EvidencePart[]
+  custodyEvents            CustodyEvent[]
+  reports                  Report[]
+  guestIdentity            GuestIdentity? @relation(fields: [guestIdentityId], references: [id], onDelete: SetNull)
 
-  @@index([ownerUserId, createdAt(sort: Desc)])
-  @@index([ownerUserId, status])
-  @@index([organizationId, createdAt(sort: Desc)])
-  @@index([teamId])
-  @@index([guestIdentityId])
-  @@index([lockedAt])
-  @@index([fileSha256])
-  @@index([fingerprintHash])
-  @@index([status])
-  @@index([deletedAt])
-  @@index([deletedAtUtc])
   @@map("evidence")
 }
 
@@ -261,7 +241,7 @@ model User {
   updatedAt      DateTime     @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   firstName    String? @map("first_name") @db.VarChar(80)
-  lastName     String? @map("last_name") @db.VarChar(80)
+  lastName     String? @db.VarChar(80)
   avatarUrl    String? @map("avatar_url") @db.VarChar(512)
   locale       String? @db.VarChar(12)
   timezone     String? @db.VarChar(64)
@@ -457,7 +437,7 @@ model AuditLog {
   resourceId     String?
   organizationId String?     @db.Uuid
   changes        Json?
-  status         String // 'success' | 'failure'
+  status         String
   errorMessage   String?     @db.VarChar(512)
   ipAddress      String?     @db.VarChar(45)
   userAgent      String?     @db.VarChar(512)
@@ -467,7 +447,7 @@ model AuditLog {
   @@index([userId, createdAt(sort: Desc)])
   @@index([organizationId, createdAt(sort: Desc)])
   @@index([action, createdAt(sort: Desc)])
-  @@index([createdAt]) // For retention cleanup
+  @@index([createdAt])
   @@map("audit_logs")
 }
 
@@ -475,8 +455,8 @@ model Webhook {
   id              String    @id @default(cuid())
   organizationId  String    @db.Uuid
   url             String    @db.VarChar(2048)
-  events          String[] // Array of event types
-  secret          String    @db.VarChar(256) // HMAC-SHA256 signing key
+  events          String[]
+  secret          String    @db.VarChar(256)
   isActive        Boolean   @default(true)
   failureCount    Int       @default(0)
   lastTriggeredAt DateTime?
@@ -493,7 +473,7 @@ model Webhook {
 model WebhookEvent {
   id           String        @id @default(cuid())
   webhookId    String
-  type         String // WebhookEventType
+  type         String
   payload      Json          @db.JsonB
   status       WebhookStatus
   attempt      Int           @default(1)
@@ -506,8 +486,8 @@ model WebhookEvent {
   webhook Webhook @relation(fields: [webhookId], references: [id], onDelete: Cascade)
 
   @@index([webhookId, status])
-  @@index([status, nextRetryAt]) // For processing pending events
-  @@index([createdAt]) // For cleanup/retention
+  @@index([status, nextRetryAt])
+  @@index([createdAt])
   @@map("webhook_events")
 }
 
