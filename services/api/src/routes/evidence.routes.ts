@@ -244,41 +244,6 @@ export async function evidenceRoutes(app: FastifyInstance) {
     return v;
   }
 
-app.get(
-  "/v1/evidence/:id/verification-package",
-  { preHandler: requireAuth },
-  async (req: FastifyRequest, reply) => {
-
-    const ownerUserId = getAuthUserId(req)
-
-    const id = z.string().uuid().parse((req.params as ParamsId).id)
-
-    const evidence = await prisma.evidence.findFirst({
-      where: { id, ownerUserId, deletedAt: null },
-      select: { id: true }
-    })
-
-    if (!evidence) {
-      return reply.code(404).send({ message: "Evidence not found" })
-    }
-
-    const key = `verification/${id}/package.zip`
-
-    const url = await presignGetObject({
-      bucket: process.env.S3_BUCKET!,
-      key,
-      expiresInSeconds: 600
-    })
-
-    return reply.code(200).send({
-      evidenceId: id,
-      key,
-      downloadUrl: url
-    })
-
-  }
-);
-
   function toJsonSafe<T>(value: T): T {
     return JSON.parse(
       JSON.stringify(value, (_k, v) => (typeof v === "bigint" ? v.toString() : v))
@@ -690,6 +655,7 @@ app.get(
 
       const publicUrl = buildPublicUrl(latest.storageKey);
 
+      // ✅ Always return presigned URL for browser reliability
       const url = await presignGetObject({
         bucket: latest.storageBucket,
         key: latest.storageKey,
@@ -704,42 +670,6 @@ app.get(
         url,
         publicUrl,
         generatedAtUtc: latest.generatedAtUtc.toISOString()
-      });
-    }
-  );
-
-  app.get(
-    "/v1/evidence/:id/verification-package",
-    { preHandler: requireAuth },
-    async (req: FastifyRequest, reply) => {
-      const ownerUserId = getAuthUserId(req);
-      const id = z.string().uuid().parse((req.params as ParamsId).id);
-      (req as FastifyRequest & { evidenceId?: string }).evidenceId = id;
-      req.log = req.log.child({ evidenceId: id });
-
-      const evidence = await prisma.evidence.findFirst({
-        where: { id, ownerUserId, deletedAt: null },
-        select: { id: true }
-      });
-
-      if (!evidence) {
-        return reply.code(404).send({ message: "Evidence not found" });
-      }
-
-      const key = `verification/${id}/package.zip`;
-      const publicUrl = buildPublicUrl(key);
-
-      const url = await presignGetObject({
-        bucket: must("S3_BUCKET"),
-        key,
-        expiresInSeconds: 600
-      });
-
-      return reply.code(200).send({
-        evidenceId: id,
-        key,
-        url,
-        publicUrl
       });
     }
   );
@@ -875,6 +805,7 @@ app.get(
 
     const publicUrl = latest ? buildPublicUrl(latest.storageKey) : null;
 
+    // ✅ Always presign when report exists (avoid non-public URL issues)
     const url = latest
       ? await presignGetObject({
           bucket: latest.storageBucket,
