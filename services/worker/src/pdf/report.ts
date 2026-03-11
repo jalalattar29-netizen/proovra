@@ -699,8 +699,10 @@ export async function buildReportPdf(params: {
       ["MIME Type", safe(params.evidence.mimeType)],
       ["Size", formatBytesHuman(params.evidence.sizeBytes)],
       ["Duration", params.evidence.durationSec ? `${params.evidence.durationSec} sec` : "N/A"],
-      ["File SHA-256", shortHash(params.evidence.fileSha256)],
-      ["Fingerprint Hash", shortHash(params.evidence.fingerprintHash)],
+["File SHA-256", shortHash(params.evidence.fileSha256)],
+["Fingerprint Hash", shortHash(params.evidence.fingerprintHash)],
+["Timestamp Provider", safe(params.evidence.tsaProvider)],
+["Timestamp Time (UTC)", safe(params.evidence.tsaGenTimeUtc)],
     ]);
   });
 
@@ -861,8 +863,15 @@ export async function buildReportPdf(params: {
     monospaceStrip(doc, "Signing Key ID / Version", `${safe(params.evidence.signingKeyId)} / ${params.evidence.signingKeyVersion}`);
     monospaceStrip(doc, "Signature (Base64) (excerpt)", safe(params.evidence.signatureBase64), { maxChars: 520 });
     monospaceStrip(doc, "Public Key (PEM) (excerpt)", safe(params.evidence.publicKeyPem), { maxChars: 520 });
-    monospaceStrip(doc, "Fingerprint Canonical JSON (excerpt)", safe(params.evidence.fingerprintCanonicalJson), { maxChars: 700 });
-        monospaceStrip(doc, "Timestamp Provider", safe(params.evidence.tsaProvider));
+monospaceStrip(doc, "Fingerprint Canonical JSON (excerpt)", safe(params.evidence.fingerprintCanonicalJson), { maxChars: 700 });
+
+monospaceStrip(
+  doc,
+  "Verification Package",
+  `verification/${params.evidence.id}/package.zip`
+);
+
+monospaceStrip(doc, "Timestamp Provider", safe(params.evidence.tsaProvider));
     monospaceStrip(doc, "Timestamp URL", safe(params.evidence.tsaUrl));
     monospaceStrip(doc, "Timestamp Serial Number", safe(params.evidence.tsaSerialNumber));
     monospaceStrip(doc, "Timestamp Generation Time (UTC)", safe(params.evidence.tsaGenTimeUtc));
@@ -890,21 +899,41 @@ export async function buildReportPdf(params: {
       { width: w, lineGap: 2 }
     );
   });
+{
+  const qrBuf = await tryGenerateQrPngBuffer(technicalUrl);
 
-  {
-    const qrBuf = await tryGenerateQrPngBuffer(technicalUrl);
-    if (qrBuf) {
-      drawQrBlock(doc, {
-        title: "Technical materials",
-        qrBuffer: qrBuf,
-        size: 108,
-        caption: "Scan to open the technical verification view for this evidence item.",
-        urlText: summarizeText(technicalUrl, 90),
-        urlLink: technicalUrl,
-      });
-    }
+  if (qrBuf) {
+    drawQrBlock(doc, {
+      title: "Technical materials",
+      qrBuffer: qrBuf,
+      size: 108,
+      caption: "Scan to open the technical verification view for this evidence item.",
+      urlText: summarizeText(technicalUrl, 90),
+      urlLink: technicalUrl,
+    });
   }
 
+  // Verification Package QR
+  const verificationPackageUrl =
+    `${params.evidence.publicUrl ?? ""}`.replace(
+      /reports\/.+$/,
+      `verification/${params.evidence.id}/package.zip`
+    );
+
+  const vpQr = await tryGenerateQrPngBuffer(verificationPackageUrl);
+
+  if (vpQr) {
+    drawQrBlock(doc, {
+      title: "Verification Package",
+      qrBuffer: vpQr,
+      size: 104,
+      caption:
+        "Download the independent verification package containing the original file, integrity metadata, and signature.",
+      urlText: summarizeText(verificationPackageUrl, 90),
+      urlLink: verificationPackageUrl,
+    });
+  }
+}
   // ===== PAGE 5: Forensic Integrity Statement =====
   doc.addPage();
   drawHeader(doc, {

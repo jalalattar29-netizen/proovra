@@ -6,15 +6,11 @@ import { prisma } from "./db.js";
 import { env } from "./config.js";
 import { logger, withJobContext } from "./logger.js";
 import { getObjectStream, headObject, putObjectBuffer } from "./storage.js";
-import { sha256HexFromStream } from "./stream-hash.js";
 import { createHash, randomUUID } from "node:crypto";
 import { buildReportPdf } from "./pdf/report.js";
-import {
-  generateReportJobName,
-  reportDlqQueue,
-  reportQueue,
-} from "./queue.js";
+import { generateReportJobName, reportQueue } from "./queue.js";
 import { captureException } from "./sentry.js";
+import { createVerificationPackage } from "./verification-package.js";
 
 type GenerateReportJobData = {
   evidenceId: string;
@@ -72,11 +68,12 @@ function createWorkerError(code: string, retriable: boolean): WorkerError {
   return err;
 }
 
-function isRetriableError(error: unknown): boolean {
-  if (error && typeof error === "object" && "retriable" in error) {
-    return (error as WorkerError).retriable === true;
+async function streamToBuffer(stream: Readable): Promise<Buffer> {
+  const chunks: Buffer[] = [];
+  for await (const chunk of stream) {
+    chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
   }
-  return true;
+  return Buffer.concat(chunks);
 }
 
 const { EvidenceStatus } = prismaPkg;
@@ -106,15 +103,6 @@ export async function processGenerateReport(job: Job<GenerateReportJobData>) {
       throw createWorkerError(`EVIDENCE_NOT_SIGNED:${evidence.status}`, false);
     }
 
-    const parts = await prisma.evidencePart.findMany({
-      where: { evidenceId: evidence.id },
-      orderBy: { partIndex: "asc" },
-    });
-
-    if (parts.length === 0 && (!evidence.storageBucket || !evidence.storageKey)) {
-      throw createWorkerError("EVIDENCE_STORAGE_NOT_SET", false);
-    }
-
     if (!evidence.fileSha256) {
       throw createWorkerError("EVIDENCE_FILE_SHA256_MISSING", false);
     }
@@ -134,18 +122,34 @@ export async function processGenerateReport(job: Job<GenerateReportJobData>) {
       throw createWorkerError("EVIDENCE_SIGNATURE_MISSING", false);
     }
 
-    if (!evidence.signingKeyId || !evidence.signingKeyVersion) {
+    if (!evidence.signingKeyId || evidence.signingKeyVersion == null) {
       throw createWorkerError("EVIDENCE_SIGNING_KEY_MISSING", false);
+    }
+
+    const fingerprintCanonicalJson = evidence.fingerprintCanonicalJson;
+    const fingerprintHash = evidence.fingerprintHash;
+    const signatureBase64 = evidence.signatureBase64;
+    const signingKeyId = evidence.signingKeyId;
+    const signingKeyVersion = evidence.signingKeyVersion;
+
+    const parts = await prisma.evidencePart.findMany({
+      where: { evidenceId: evidence.id },
+      orderBy: { partIndex: "asc" },
+    });
+
+    if (parts.length === 0 && (!evidence.storageBucket || !evidence.storageKey)) {
+      throw createWorkerError("EVIDENCE_STORAGE_NOT_SET", false);
     }
 
     let storageBucket = evidence.storageBucket ?? null;
     let storageKey = evidence.storageKey ?? null;
     let fileSha256 = "";
+    let verificationEvidenceBuffer: Buffer | null = null;
 
     if (parts.length > 0) {
       const hashes: string[] = [];
 
-      for (const part of parts) {
+      for (const [index, part] of parts.entries()) {
         const head = await headObject({
           bucket: part.storageBucket,
           key: part.storageKey,
@@ -160,8 +164,13 @@ export async function processGenerateReport(job: Job<GenerateReportJobData>) {
           key: part.storageKey,
         });
 
-        const partSha = await sha256HexFromStream(body as unknown as Readable);
+        const partBuffer = await streamToBuffer(body as unknown as Readable);
+        const partSha = createHash("sha256").update(partBuffer).digest("hex");
         hashes.push(partSha);
+
+        if (index === 0) {
+          verificationEvidenceBuffer = partBuffer;
+        }
       }
 
       fileSha256 = sha256HexFromStrings(hashes);
@@ -187,7 +196,10 @@ export async function processGenerateReport(job: Job<GenerateReportJobData>) {
         key: evidence.storageKey!,
       });
 
-      fileSha256 = await sha256HexFromStream(body as unknown as Readable);
+      verificationEvidenceBuffer = await streamToBuffer(body as unknown as Readable);
+      fileSha256 = createHash("sha256")
+        .update(verificationEvidenceBuffer)
+        .digest("hex");
 
       if (fileSha256 !== evidence.fileSha256) {
         throw createWorkerError("EVIDENCE_FILE_SHA256_MISMATCH", false);
@@ -217,8 +229,8 @@ export async function processGenerateReport(job: Job<GenerateReportJobData>) {
     const signingKey = await prisma.signingKey.findUnique({
       where: {
         keyId_version: {
-          keyId: evidence.signingKeyId,
-          version: evidence.signingKeyVersion,
+          keyId: signingKeyId,
+          version: signingKeyVersion,
         },
       },
     });
@@ -251,11 +263,11 @@ export async function processGenerateReport(job: Job<GenerateReportJobData>) {
           accuracyMeters: evidence.accuracyMeters?.toString() ?? null,
         },
         fileSha256,
-        fingerprintCanonicalJson: evidence.fingerprintCanonicalJson,
-        fingerprintHash: evidence.fingerprintHash,
-        signatureBase64: evidence.signatureBase64,
-        signingKeyId: evidence.signingKeyId,
-        signingKeyVersion: evidence.signingKeyVersion,
+        fingerprintCanonicalJson,
+        fingerprintHash,
+        signatureBase64,
+        signingKeyId,
+        signingKeyVersion,
         publicKeyPem: signingKey.publicKeyPem,
         tsaProvider: evidence.tsaProvider ?? null,
         tsaUrl: evidence.tsaUrl ?? null,
@@ -284,6 +296,31 @@ export async function processGenerateReport(job: Job<GenerateReportJobData>) {
       body: reportPdf,
       contentType: "application/pdf",
     });
+
+    if (verificationEvidenceBuffer) {
+      const verificationZip = await createVerificationPackage({
+        evidenceBuffer: verificationEvidenceBuffer,
+        fingerprint: fingerprintCanonicalJson,
+        signature: signatureBase64,
+        timestampToken: evidence.tsaTokenBase64 ?? null,
+        publicKey: signingKey.publicKeyPem,
+        custody: custodyEvents.map((ev) => ({
+          sequence: ev.sequence,
+          atUtc: ev.atUtc.toISOString(),
+          eventType: ev.eventType,
+          payload: ev.payload,
+        })),
+      });
+
+      const verificationKey = `verification/${evidence.id}/package.zip`;
+
+      await putObjectBuffer({
+        bucket: env.S3_BUCKET,
+        key: verificationKey,
+        body: verificationZip,
+        contentType: "application/zip",
+      });
+    }
 
     await prisma.$transaction(async (tx) => {
       await tx.report.create({

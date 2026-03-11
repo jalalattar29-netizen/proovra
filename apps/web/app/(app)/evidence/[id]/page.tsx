@@ -106,6 +106,31 @@ export default function EvidenceDetailPage() {
     }
   };
 
+  const handleDownloadVerificationPackage = async () => {
+    if (!params?.id) return;
+    try {
+      addToast("Preparing verification package...", "info");
+
+      const data = await apiFetch(`/v1/evidence/${evidenceId}/verification-package`);
+
+      if (!data?.url) {
+        addToast("Verification package not available", "info");
+        return;
+      }
+
+      window.open(data.url, "_blank");
+      addToast("Verification package download started", "success");
+    } catch (err) {
+      captureException(err, {
+        feature: "web_evidence_verification_package_download",
+        evidenceId: params.id
+      });
+      const message =
+        err instanceof Error ? err.message : "Failed to download verification package";
+      addToast(message, "error");
+    }
+  };
+
   return (
     <div className="section app-section">
       <div className="app-hero app-hero-full">
@@ -126,48 +151,24 @@ export default function EvidenceDetailPage() {
       <div className="app-body app-body-full">
         <div className="container">
           <div className="grid-2">
-        <Card>
-          <div className="status-banner">
-            <div
-              style={{
-                width: 54,
-                height: 54,
-                borderRadius: 16,
-                background: "rgba(255,255,255,0.18)",
-                display: "grid",
-                placeItems: "center",
-                fontWeight: 900
-              }}
-            >
-              ✓
-            </div>
-            <div style={{ flex: 1 }}>
-              <div style={{ fontWeight: 800, fontSize: 14 }}>{type}</div>
-              <div style={{ marginTop: 6 }}>
-                {status === "SIGNED" ? (
-                  <span className="badge signed">{t("statusSigned")}</span>
-                ) : status === "PROCESSING" ? (
-                  <span className="badge processing">{t("statusProcessing")}</span>
-                ) : (
-                  <span className="badge ready">{status}</span>
-                )}
-              </div>
-              <div style={{ fontSize: 12, opacity: 0.85, marginTop: 8 }}>
-                {createdAt ? `Created ${new Date(createdAt).toLocaleString()}` : "—"}
-              </div>
-            </div>
-          </div>
-
-          <div style={{ marginTop: 14 }}>
-            {loading ? (
-              <div className="app-loading">Loading…</div>
-            ) : error ? (
-              <div className="error-text">{error}</div>
-            ) : (
-              <div style={{ display: "grid", gap: 10 }}>
-                <div className="row" style={{ borderTop: "none", paddingTop: 0 }}>
-                  <div className="rowTitle">Status</div>
-                  <div style={{ display: "flex", justifyContent: "flex-end" }}>
+            <Card>
+              <div className="status-banner">
+                <div
+                  style={{
+                    width: 54,
+                    height: 54,
+                    borderRadius: 16,
+                    background: "rgba(255,255,255,0.18)",
+                    display: "grid",
+                    placeItems: "center",
+                    fontWeight: 900
+                  }}
+                >
+                  ✓
+                </div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontWeight: 800, fontSize: 14 }}>{type}</div>
+                  <div style={{ marginTop: 6 }}>
                     {status === "SIGNED" ? (
                       <span className="badge signed">{t("statusSigned")}</span>
                     ) : status === "PROCESSING" ? (
@@ -176,66 +177,140 @@ export default function EvidenceDetailPage() {
                       <span className="badge ready">{status}</span>
                     )}
                   </div>
-                </div>
-
-                <div className="row">
-                  <div className="rowTitle">Locked</div>
-                  <div className="rowSub" style={{ margin: 0 }}>
-                    {lockedAt ? "Locked" : "Editable"}
-                  </div>
-                </div>
-
-                <div className="row">
-                  <div className="rowTitle">Plan</div>
-                  <div className="rowSub" style={{ margin: 0 }}>
-                    {plan}
+                  <div style={{ fontSize: 12, opacity: 0.85, marginTop: 8 }}>
+                    {createdAt ? `Created ${new Date(createdAt).toLocaleString()}` : "—"}
                   </div>
                 </div>
               </div>
-            )}
-          </div>
-        </Card>
 
-        <Card>
-          <div style={{ fontWeight: 800, marginBottom: 12 }}>Actions</div>
+              <div style={{ marginTop: 14 }}>
+                {loading ? (
+                  <div className="app-loading">Loading…</div>
+                ) : error ? (
+                  <div className="error-text">{error}</div>
+                ) : (
+                  <div style={{ display: "grid", gap: 10 }}>
+                    <div className="row" style={{ borderTop: "none", paddingTop: 0 }}>
+                      <div className="rowTitle">Status</div>
+                      <div style={{ display: "flex", justifyContent: "flex-end" }}>
+                        {status === "SIGNED" ? (
+                          <span className="badge signed">{t("statusSigned")}</span>
+                        ) : status === "PROCESSING" ? (
+                          <span className="badge processing">{t("statusProcessing")}</span>
+                        ) : (
+                          <span className="badge ready">{status}</span>
+                        )}
+                      </div>
+                    </div>
 
-          <div className="footer-actions">
-            <Button
-              onClick={handleDownloadReport}
-              disabled={!reportUrl || plan === "FREE"}
-            >
-              {t("downloadReport")}
-            </Button>
+                    <div className="row">
+                      <div className="rowTitle">Locked</div>
+                      <div className="rowSub" style={{ margin: 0 }}>
+                        {lockedAt ? "Locked" : "Editable"}
+                      </div>
+                    </div>
 
-            <Link href={`/share/${evidenceId}`}>
-              <Button variant="secondary">{t("shareLink")}</Button>
-            </Link>
-          </div>
+                    <div className="row">
+                      <div className="rowTitle">Plan</div>
+                      <div className="rowSub" style={{ margin: 0 }}>
+                        {plan}
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </Card>
 
-          {plan === "FREE" && (
-            <div style={{ fontSize: 12, color: "#64748b", marginTop: 10 }}>
-              Reports are disabled on Free. Upgrade to access PDF reports.
-            </div>
-          )}
+            <Card>
+              <div style={{ fontWeight: 800, marginBottom: 12 }}>Actions</div>
 
-          <div style={{ display: "grid", gap: 10, marginTop: 14 }}>
-            <Button
-              variant="secondary"
-              onClick={handleLock}
-              disabled={
-                actionBusy ||
-                Boolean(lockedAt) ||
-                !(status === "SIGNED" || status === "REPORTED")
-              }
-            >
-              {lockedAt ? "Locked" : "Lock Evidence"}
-            </Button>
+              <div className="footer-actions">
+<div className="footer-actions">
 
-            <Button variant="secondary" onClick={handleDelete} disabled={actionBusy}>
-              Delete Evidence
-            </Button>
-          </div>
-        </Card>
+  <Button
+    onClick={handleDownloadReport}
+    disabled={!reportUrl || plan === "FREE"}
+  >
+    Download Evidence Report
+  </Button>
+
+  <Button
+    variant="secondary"
+    onClick={async () => {
+
+      try {
+
+        const res = await apiFetch(
+          `/v1/evidence/${evidenceId}/verification-package`
+        )
+
+        if (!res.downloadUrl) {
+          addToast("Verification package not available", "info")
+          return
+        }
+
+        window.open(res.downloadUrl, "_blank")
+
+      } catch (err) {
+
+        captureException(err, {
+          feature: "web_evidence_verification_package",
+          evidenceId
+        })
+
+        addToast("Failed to download verification package", "error")
+
+      }
+
+    }}
+  >
+    Download Verification Package
+  </Button>
+
+  <Link href={`/share/${evidenceId}`}>
+    <Button variant="secondary">
+      {t("shareLink")}
+    </Button>
+  </Link>
+
+</div>
+                <Link href={`/share/${evidenceId}`}>
+                  <Button variant="secondary">{t("shareLink")}</Button>
+                </Link>
+              </div>
+
+              {plan === "FREE" && (
+                <div style={{ fontSize: 12, color: "#64748b", marginTop: 10 }}>
+                  Reports are disabled on Free. Upgrade to access PDF reports.
+                </div>
+              )}
+
+              <div style={{ display: "grid", gap: 10, marginTop: 14 }}>
+                <Button
+                  variant="secondary"
+                  onClick={handleLock}
+                  disabled={
+                    actionBusy ||
+                    Boolean(lockedAt) ||
+                    !(status === "SIGNED" || status === "REPORTED")
+                  }
+                >
+                  {lockedAt ? "Locked" : "Lock Evidence"}
+                </Button>
+
+                <Button
+                  variant="secondary"
+                  onClick={handleDownloadVerificationPackage}
+                  disabled={actionBusy}
+                >
+                  Download verification package
+                </Button>
+
+                <Button variant="secondary" onClick={handleDelete} disabled={actionBusy}>
+                  Delete Evidence
+                </Button>
+              </div>
+            </Card>
           </div>
         </div>
       </div>

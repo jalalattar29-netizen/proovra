@@ -332,6 +332,9 @@ importers:
       '@signpdf/signpdf':
         specifier: ^3.3.0
         version: 3.3.0
+      archiver:
+        specifier: ^7.0.1
+        version: 7.0.1
       bullmq:
         specifier: ^5.52.2
         version: 5.70.1
@@ -360,6 +363,9 @@ importers:
       '@eslint/js':
         specifier: ^8.57.1
         version: 8.57.1
+      '@types/archiver':
+        specifier: ^6.0.4
+        version: 6.0.4
       '@types/node':
         specifier: ^25.1.0
         version: 25.3.3
