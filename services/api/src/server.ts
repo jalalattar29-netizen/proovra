@@ -18,7 +18,7 @@ import { enterpriseRoutes } from "./routes/enterprise.routes.js";
 import { teamManagementRoutes } from "./routes/team-management.routes.js";
 import { webhookRoutes } from "./routes/webhook.routes.js";
 import { auditRoutes } from "./routes/audit.routes.js";
-import { AppError, isAppError, createErrorResponse } from "./errors.js";
+import { isAppError, createErrorResponse } from "./errors.js";
 
 const REQUIRED_ORIGINS = [
   "https://www.proovra.com",
@@ -26,7 +26,7 @@ const REQUIRED_ORIGINS = [
   "https://app.proovra.com",
   "http://localhost:3000",
   "http://localhost:3001",
-  "http://localhost:8081"
+  "http://localhost:8081",
 ];
 
 function normalizeOrigin(origin: string) {
@@ -45,7 +45,6 @@ function parseCorsOrigins(): string[] {
 
 function isProovraOrigin(origin: string) {
   const value = normalizeOrigin(origin);
-  // Allow all proovra.com domains + Vercel preview deployments
   return (
     value === "https://proovra.com" ||
     value.endsWith(".proovra.com") ||
@@ -55,6 +54,7 @@ function isProovraOrigin(origin: string) {
 
 export async function buildServer() {
   initSentry();
+
   const app = Fastify({
     logger: {
       level: process.env.LOG_LEVEL ?? "info",
@@ -68,19 +68,25 @@ export async function buildServer() {
   const ALLOWED_WEB_ORIGINS = [
     "https://www.proovra.com",
     "https://proovra.com",
-    "https://app.proovra.com"
+    "https://app.proovra.com",
   ];
+
   await app.register(cors, {
     credentials: true,
     methods: ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allowedHeaders: ["content-type", "authorization", "x-web-client"],
     origin: (origin, cb) => {
       if (!origin) return cb(null, true);
+
       const normalized = normalizeOrigin(origin);
+
       if (ALLOWED_WEB_ORIGINS.includes(normalized)) return cb(null, true);
       if (isProovraOrigin(normalized)) return cb(null, true);
-      if (allowlist.length > 0 && allowlist.includes(normalized)) return cb(null, true);
+      if (allowlist.length > 0 && allowlist.includes(normalized)) {
+        return cb(null, true);
+      }
       if (!isProd) return cb(null, true);
+
       return cb(null, false);
     },
   });
@@ -90,11 +96,13 @@ export async function buildServer() {
   app.addHook("onRequest", async (req, reply) => {
     (req as typeof req & { startTimeMs?: number }).startTimeMs = Date.now();
     req.log = req.log.child({ requestId: req.id });
+
     reply.header("x-request-id", req.id);
     reply.header("x-content-type-options", "nosniff");
     reply.header("x-frame-options", "DENY");
     reply.header("referrer-policy", "same-origin");
     reply.header("permissions-policy", "geolocation=(self)");
+
     if (process.env.NODE_ENV === "production") {
       reply.header(
         "strict-transport-security",
@@ -103,12 +111,12 @@ export async function buildServer() {
     }
   });
 
-  // Add audit logging middleware for state-changing requests
   app.addHook("onRequest", auditMiddleware);
 
   app.addHook("onResponse", async (req, reply) => {
     const start = (req as typeof req & { startTimeMs?: number }).startTimeMs;
     const durationMs = typeof start === "number" ? Date.now() - start : null;
+
     const logContext: Record<string, unknown> = {
       requestId: req.id,
       statusCode: reply.statusCode,
@@ -116,11 +124,13 @@ export async function buildServer() {
       url: req.url,
       durationMs,
     };
+
     if (req.user?.sub) logContext.userId = req.user.sub;
     if ((req as typeof req & { evidenceId?: string }).evidenceId) {
       logContext.evidenceId = (req as typeof req & { evidenceId?: string })
         .evidenceId;
     }
+
     req.log.info(logContext, "request.completed");
   });
 
@@ -130,39 +140,43 @@ export async function buildServer() {
       method: req.method,
       url: req.url,
     };
+
     if (req.user?.sub) context.userId = req.user.sub;
     if ((req as typeof req & { evidenceId?: string }).evidenceId) {
       context.evidenceId = (req as typeof req & { evidenceId?: string })
         .evidenceId;
     }
 
-    // Handle AppError with structured response
+    req.log.error(
+      {
+        ...context,
+        errorMessage: err instanceof Error ? err.message : String(err),
+        errorStack: err instanceof Error ? err.stack : undefined,
+      },
+      "request.failed"
+    );
+
     if (isAppError(err)) {
       captureException(err, { ...context, errorCode: err.code });
-      req.log.warn({ ...context, errorCode: err.code }, "request.app_error");
-      
+
       const errorResponse = createErrorResponse(
         err.code,
         req.id,
         err.details,
         err.message
       );
-      
-      reply.code(err.statusCode).send(errorResponse);
-      return;
+
+      return reply.code(err.statusCode).send(errorResponse);
     }
 
-    // Handle other errors
     captureException(err, context);
-    req.log.error(context, "request.failed");
 
-    // Send generic error response
     const errorResponse = createErrorResponse(
-      "INTERNAL_SERVER_ERROR" as any,
+      "INTERNAL_SERVER_ERROR" as never,
       req.id
     );
-    
-    reply.code(500).send(errorResponse);
+
+    return reply.code(500).send(errorResponse);
   });
 
   app.get("/health", async () => {
