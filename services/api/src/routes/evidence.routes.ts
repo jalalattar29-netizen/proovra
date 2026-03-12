@@ -89,7 +89,10 @@ function bigintToString(v: unknown): string | null {
 
 function decimalToNumber(v: unknown): number | null {
   if (v === null || v === undefined) return null;
-  if (typeof v === "number") return Number.isFinite(v) ? v : null;
+
+  if (typeof v === "number") {
+    return Number.isFinite(v) ? v : null;
+  }
 
   if (
     typeof v === "object" &&
