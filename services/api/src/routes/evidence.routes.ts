@@ -87,6 +87,33 @@ function bigintToString(v: unknown): string | null {
   return null;
 }
 
+function decimalToNumber(v: unknown): number | null {
+  if (v === null || v === undefined) return null;
+  if (typeof v === "number") return Number.isFinite(v) ? v : null;
+
+  if (
+    typeof v === "object" &&
+    v !== null &&
+    "toNumber" in v &&
+    typeof (v as { toNumber: () => number }).toNumber === "function"
+  ) {
+    const n = (v as { toNumber: () => number }).toNumber();
+    return Number.isFinite(n) ? n : null;
+  }
+
+  if (
+    typeof v === "object" &&
+    v !== null &&
+    "toString" in v &&
+    typeof (v as { toString: () => string }).toString === "function"
+  ) {
+    const n = Number((v as { toString: () => string }).toString());
+    return Number.isFinite(n) ? n : null;
+  }
+
+  return null;
+}
+
 type SafeEvidence = {
   id: string;
   type: prismaPkg.EvidenceType;
@@ -133,9 +160,9 @@ function toSafeEvidence(e: {
   capturedAtUtc: Date | null;
 
   deviceTimeIso: string | null;
-  lat: number | null;
-  lng: number | null;
-  accuracyMeters: number | null;
+  lat: unknown;
+  lng: unknown;
+  accuracyMeters: unknown;
 
   mimeType: string | null;
 
@@ -167,9 +194,9 @@ function toSafeEvidence(e: {
     capturedAtUtc: e.capturedAtUtc ? e.capturedAtUtc.toISOString() : null,
 
     deviceTimeIso: e.deviceTimeIso ?? null,
-    lat: e.lat ?? null,
-    lng: e.lng ?? null,
-    accuracyMeters: e.accuracyMeters ?? null,
+    lat: decimalToNumber(e.lat),
+    lng: decimalToNumber(e.lng),
+    accuracyMeters: decimalToNumber(e.accuracyMeters),
 
     mimeType: e.mimeType ?? null,
 
@@ -188,10 +215,9 @@ function toSafeEvidence(e: {
     lockedByUserId: e.lockedByUserId ?? null,
 
     caseId: e.caseId ?? null,
-    teamId: e.teamId ?? null,
+    teamId: e.teamId ?? null
   };
 }
-
 async function appendCustodyEvent(params: {
   evidenceId: string;
   eventType: prismaPkg.CustodyEventType;
