@@ -6,6 +6,370 @@ datasource db {
   provider = "postgresql"
 }
 
+model Evidence {
+  id                       String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  type                     EvidenceType
+  status                   EvidenceStatus @default(CREATED)
+  ownerUserId              String         @map("owner_user_id")
+  organizationId           String?        @map("organization_id") @db.Uuid
+  mimeType                 String?        @map("mime_type") @db.VarChar(128)
+  sizeBytes                BigInt?        @map("size_bytes")
+  durationSec              Float?         @map("duration_sec")
+  fileSha256               String?        @map("file_sha256") @db.VarChar(64)
+  storageBucket            String?        @map("storage_bucket") @db.VarChar(255)
+  storageKey               String?        @map("storage_key") @db.VarChar(512)
+  lat                      Float?
+  lng                      Float?
+  accuracyMeters           Float?         @map("accuracy_meters")
+  capturedAtUtc            DateTime?      @map("captured_at_utc") @db.Timestamptz(6)
+  uploadedAtUtc            DateTime?      @map("uploaded_at_utc") @db.Timestamptz(6)
+  signedAtUtc              DateTime?      @map("signed_at_utc") @db.Timestamptz(6)
+  reportGeneratedAtUtc     DateTime?      @map("report_generated_at_utc") @db.Timestamptz(6)
+  fingerprintCanonicalJson String?        @map("fingerprint_canonical_json")
+  fingerprintHash          String?        @map("fingerprint_hash") @db.VarChar(64)
+  signatureBase64          String?        @map("signature_base64") @db.VarChar(256)
+  signingKeyId             String?        @map("signing_key_id") @db.VarChar(64)
+  deletedAt                DateTime?      @map("deleted_at") @db.Timestamptz(6)
+  createdAt                DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                DateTime       @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deviceTimeIso            String?        @map("device_time_iso") @db.VarChar(64)
+  signingKeyVersion        Int?           @map("signing_key_version")
+  deletedAtUtc             DateTime?      @map("deleted_at_utc") @db.Timestamptz(6)
+  retentionUntilUtc        DateTime?      @map("retention_until_utc") @db.Timestamptz(6)
+  caseId                   String?        @map("case_id") @db.Uuid
+  teamId                   String?        @map("team_id") @db.Uuid
+  guestIdentityId          String?        @map("guest_identity_id") @db.Uuid
+  lockedAt                 DateTime?      @map("locked_at") @db.Timestamptz(6)
+  lockedByUserId           String?        @map("locked_by_user_id")
+  custodyEvents            CustodyEvent[]
+  guestIdentity            GuestIdentity? @relation(fields: [guestIdentityId], references: [id])
+  parts                    EvidencePart[]
+  reports                  Report[]
+
+  @@index([deletedAt])
+  @@index([deletedAtUtc])
+  @@index([fileSha256])
+  @@index([fingerprintHash])
+  @@index([guestIdentityId])
+  @@index([lockedAt])
+  @@index([organizationId, createdAt(sort: Desc)])
+  @@index([ownerUserId, createdAt(sort: Desc)])
+  @@index([ownerUserId, status])
+  @@index([status])
+  @@index([teamId])
+  @@map("evidence")
+}
+
+model EvidencePart {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  evidenceId    String   @map("evidence_id") @db.Uuid
+  partIndex     Int      @map("part_index")
+  storageBucket String   @map("storage_bucket") @db.VarChar(255)
+  storageKey    String   @map("storage_key") @db.VarChar(512)
+  sizeBytes     BigInt?  @map("size_bytes")
+  mimeType      String?  @map("mime_type") @db.VarChar(128)
+  sha256        String?  @map("sha256") @db.VarChar(64)
+  durationMs    Int?     @map("duration_ms")
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  evidence      Evidence @relation(fields: [evidenceId], references: [id], onDelete: Cascade)
+
+  @@unique([evidenceId, partIndex])
+  @@index([evidenceId])
+  @@map("evidence_parts")
+}
+
+model Case {
+  id          String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name        String       @db.VarChar(120)
+  ownerUserId String       @map("owner_user_id")
+  teamId      String?      @map("team_id") @db.Uuid
+  createdAt   DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime     @updatedAt @map("updated_at") @db.Timestamptz(6)
+  access      CaseAccess[]
+
+  @@index([ownerUserId])
+  @@index([teamId])
+  @@map("cases")
+}
+
+model CustodyEvent {
+  id         String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  evidenceId String           @map("evidence_id") @db.Uuid
+  eventType  CustodyEventType @map("event_type")
+  atUtc      DateTime         @map("at_utc") @db.Timestamptz(6)
+  sequence   Int              @map("sequence")
+  payload    Json?
+  ip         String?          @db.VarChar(45)
+  userAgent  String?          @map("user_agent") @db.VarChar(512)
+  createdAt  DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  evidence   Evidence         @relation(fields: [evidenceId], references: [id])
+
+  @@unique([evidenceId, sequence])
+  @@index([evidenceId, sequence])
+  @@index([evidenceId, atUtc])
+  @@index([evidenceId])
+  @@index([eventType])
+  @@map("custody_events")
+}
+
+model Report {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  evidenceId     String   @map("evidence_id") @db.Uuid
+  version        Int
+  storageBucket  String   @map("storage_bucket") @db.VarChar(255)
+  storageKey     String   @map("storage_key") @db.VarChar(512)
+  generatedAtUtc DateTime @map("generated_at_utc") @db.Timestamptz(6)
+  evidence       Evidence @relation(fields: [evidenceId], references: [id])
+
+  @@unique([evidenceId, version])
+  @@index([evidenceId])
+  @@index([generatedAtUtc(sort: Desc)])
+  @@map("reports")
+}
+
+model SigningKey {
+  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  keyId        String    @map("key_id") @db.VarChar(64)
+  publicKeyPem String    @map("public_key_pem")
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  revokedAt    DateTime? @map("revoked_at") @db.Timestamptz(6)
+  version      Int
+
+  @@unique([keyId, version])
+  @@index([revokedAt])
+  @@map("signing_keys")
+}
+
+model User {
+  id                     String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email                  String?              @db.VarChar(320)
+  displayName            String?              @map("display_name") @db.VarChar(120)
+  provider               AuthProvider
+  providerUserId         String               @map("provider_user_id") @db.VarChar(128)
+  createdAt              DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt              DateTime             @updatedAt @map("updated_at") @db.Timestamptz(6)
+  passwordHash           String?              @map("password_hash")
+  avatarUrl              String?              @map("avatar_url") @db.VarChar(512)
+  bio                    String?              @db.VarChar(280)
+  country                String?              @db.VarChar(2)
+  firstName              String?              @map("first_name") @db.VarChar(80)
+  lastName               String?              @map("last_name") @db.VarChar(80)
+  locale                 String?              @db.VarChar(12)
+  timezone               String?              @db.VarChar(64)
+  entitlements           Entitlement[]
+  claimedGuestIdentities GuestIdentity[]      @relation("GuestClaimedBy")
+  guestIdentity          GuestIdentity?
+  passwordResetTokens    PasswordResetToken[]
+  payments               Payment[]
+  subscriptions          Subscription[]
+  teamMembers            TeamMember[]
+
+  @@unique([provider, providerUserId])
+  @@index([email])
+  @@map("users")
+}
+
+model Team {
+  id              String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name            String          @db.VarChar(120)
+  ownerUserId     String          @map("owner_user_id")
+  createdAt       DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime        @updatedAt @map("updated_at") @db.Timestamptz(6)
+  legalName       String?         @map("legal_name") @db.VarChar(180)
+  address         String?
+  logoUrl         String?         @map("logo_url") @db.VarChar(512)
+  timezone        String?         @db.VarChar(64)
+  legalEmail      String?         @map("legal_email") @db.VarChar(320)
+  retentionPolicy RetentionPolicy @default(FOREVER) @map("retention_policy")
+  invites         TeamInvite[]
+  members         TeamMember[]
+
+  @@index([ownerUserId])
+  @@map("teams")
+}
+
+model TeamMember {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  teamId    String   @map("team_id") @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  role      TeamRole
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  team      Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([teamId, userId])
+  @@index([userId])
+  @@map("team_members")
+}
+
+model CaseAccess {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  caseId    String   @map("case_id") @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  case      Case     @relation(fields: [caseId], references: [id], onDelete: Cascade)
+
+  @@unique([caseId, userId])
+  @@index([caseId])
+  @@index([userId])
+  @@map("case_access")
+}
+
+model TeamInvite {
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  teamId          String    @map("team_id") @db.Uuid
+  email           String    @db.VarChar(320)
+  role            TeamRole
+  token           String    @unique @db.VarChar(128)
+  invitedByUserId String    @map("invited_by_user_id")
+  expiresAt       DateTime  @map("expires_at") @db.Timestamptz(6)
+  acceptedAt      DateTime? @map("accepted_at") @db.Timestamptz(6)
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  team            Team      @relation(fields: [teamId], references: [id], onDelete: Cascade)
+
+  @@index([teamId])
+  @@index([email])
+  @@map("team_invites")
+}
+
+model GuestIdentity {
+  id              String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId          String     @unique @map("user_id") @db.Uuid
+  claimedByUserId String?    @map("claimed_by_user_id") @db.Uuid
+  claimedAt       DateTime?  @map("claimed_at") @db.Timestamptz(6)
+  createdAt       DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
+  evidence        Evidence[]
+  claimedBy       User?      @relation("GuestClaimedBy", fields: [claimedByUserId], references: [id])
+  user            User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([claimedByUserId])
+  @@map("guest_identities")
+}
+
+model Entitlement {
+  id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId     String    @map("user_id") @db.Uuid
+  plan       PlanType
+  credits    Int       @default(0)
+  teamSeats  Int       @default(0) @map("team_seats")
+  active     Boolean   @default(true)
+  validUntil DateTime? @map("valid_until") @db.Timestamptz(6)
+  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt  DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("entitlements")
+}
+
+model Subscription {
+  id               String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId           String             @map("user_id") @db.Uuid
+  provider         PaymentProvider
+  providerSubId    String             @map("provider_sub_id") @db.VarChar(128)
+  status           SubscriptionStatus
+  plan             PlanType
+  currentPeriodEnd DateTime?          @map("current_period_end") @db.Timestamptz(6)
+  createdAt        DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime           @updatedAt @map("updated_at") @db.Timestamptz(6)
+  user             User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerSubId])
+  @@index([userId])
+  @@map("subscriptions")
+}
+
+model Payment {
+  id                String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId            String          @map("user_id") @db.Uuid
+  provider          PaymentProvider
+  providerPaymentId String          @map("provider_payment_id") @db.VarChar(128)
+  amountCents       Int             @map("amount_cents")
+  currency          String          @db.VarChar(8)
+  status            PaymentStatus
+  createdAt         DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  user              User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerPaymentId])
+  @@index([userId])
+  @@map("payments")
+}
+
+model AuditLog {
+  id             String      @id @default(cuid())
+  userId         String
+  action         AuditAction
+  resourceType   String
+  resourceId     String?
+  organizationId String?     @db.Uuid
+  changes        Json?
+  status         String
+  errorMessage   String?     @db.VarChar(512)
+  ipAddress      String?     @db.VarChar(45)
+  userAgent      String?     @db.VarChar(512)
+  metadata       Json?
+  createdAt      DateTime    @default(now()) @db.Timestamptz(6)
+
+  @@index([userId, createdAt(sort: Desc)])
+  @@index([organizationId, createdAt(sort: Desc)])
+  @@index([action, createdAt(sort: Desc)])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
+
+model Webhook {
+  id              String         @id @default(cuid())
+  organizationId  String         @db.Uuid
+  url             String         @db.VarChar(2048)
+  events          String[]
+  secret          String         @db.VarChar(256)
+  isActive        Boolean        @default(true)
+  failureCount    Int            @default(0)
+  lastTriggeredAt DateTime?
+  createdAt       DateTime       @default(now()) @db.Timestamptz(6)
+  updatedAt       DateTime       @updatedAt @db.Timestamptz(6)
+  events_rel      WebhookEvent[]
+
+  @@index([organizationId, isActive])
+  @@index([isActive])
+  @@map("webhooks")
+}
+
+model WebhookEvent {
+  id           String        @id @default(cuid())
+  webhookId    String
+  type         String
+  payload      Json
+  status       WebhookStatus
+  attempt      Int           @default(1)
+  nextRetryAt  DateTime?
+  httpStatus   Int?
+  errorMessage String?       @db.VarChar(512)
+  createdAt    DateTime      @default(now()) @db.Timestamptz(6)
+  updatedAt    DateTime      @updatedAt @db.Timestamptz(6)
+  webhook      Webhook       @relation(fields: [webhookId], references: [id], onDelete: Cascade)
+
+  @@index([webhookId, status])
+  @@index([status, nextRetryAt])
+  @@index([createdAt])
+  @@map("webhook_events")
+}
+
+model PasswordResetToken {
+  id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  tokenHash String    @map("token_hash") @db.VarChar(64)
+  expiresAt DateTime  @map("expires_at") @db.Timestamptz(6)
+  usedAt    DateTime? @map("used_at") @db.Timestamptz(6)
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt(sort: Desc)])
+  @@index([tokenHash])
+  @@index([expiresAt])
+  @@map("password_reset_tokens")
+}
+
 enum EvidenceType {
   VIDEO
   AUDIO
@@ -29,11 +393,11 @@ enum CustodyEventType {
   REPORT_GENERATED
   EVIDENCE_VIEWED
   EVIDENCE_DOWNLOADED
-  EVIDENCE_CLAIMED
   EVIDENCE_DELETED
-  EVIDENCE_LOCKED
   VERIFY_VIEWED
   REPORT_DOWNLOADED
+  EVIDENCE_LOCKED
+  EVIDENCE_CLAIMED
 }
 
 enum AuthProvider {
@@ -82,330 +446,6 @@ enum SubscriptionStatus {
   TRIALING
 }
 
-model Evidence {
-  id                       String         @id @default(uuid()) @db.Uuid
-  type                     EvidenceType
-  status                   EvidenceStatus
-
-  ownerUserId              String         @map("owner_user_id") @db.Uuid
-  organizationId           String?        @map("organization_id") @db.Uuid
-
-  mimeType                 String?        @map("mime_type")
-  sizeBytes                BigInt?        @map("size_bytes")
-  durationSec              Decimal?       @map("duration_sec")
-  fileSha256               String?        @map("file_sha256")
-
-  storageBucket            String?        @map("storage_bucket")
-  storageKey               String?        @map("storage_key")
-
-  lat                      Decimal?
-  lng                      Decimal?
-  accuracyMeters           Decimal?       @map("accuracy_meters")
-
-  capturedAtUtc            DateTime?      @map("captured_at_utc")
-  uploadedAtUtc            DateTime?      @map("uploaded_at_utc")
-  signedAtUtc              DateTime?      @map("signed_at_utc")
-  reportGeneratedAtUtc     DateTime?      @map("report_generated_at_utc")
-
-  fingerprintCanonicalJson String?        @map("fingerprint_canonical_json")
-  fingerprintHash          String?        @map("fingerprint_hash")
-  signatureBase64          String?        @map("signature_base64")
-  signingKeyId             String?        @map("signing_key_id")
-  signingKeyVersion        Int?           @map("signing_key_version")
-
-  deletedAt                DateTime?      @map("deleted_at")
-  createdAt                DateTime       @default(now()) @map("created_at")
-  updatedAt                DateTime       @updatedAt @map("updated_at")
-
-  deviceTimeIso            String?        @map("device_time_iso")
-  deletedAtUtc             DateTime?      @map("deleted_at_utc")
-  retentionUntilUtc        DateTime?      @map("retention_until_utc")
-
-  caseId                   String?        @map("case_id") @db.Uuid
-  teamId                   String?        @map("team_id") @db.Uuid
-
-  guestIdentityId          String?        @map("guest_identity_id") @db.Uuid
-
-  lockedAt                 DateTime?      @map("locked_at")
-  lockedByUserId           String?        @map("locked_by_user_id") @db.Uuid
-
-  tsaProvider              String?        @map("tsa_provider") @db.VarChar(64)
-  tsaUrl                   String?        @map("tsa_url") @db.VarChar(512)
-  tsaSerialNumber          String?        @map("tsa_serial_number") @db.VarChar(255)
-  tsaGenTimeUtc            DateTime?      @map("tsa_gen_time_utc") @db.Timestamptz(6)
-  tsaTokenBase64           String?        @map("tsa_token_base64") @db.Text
-  tsaMessageImprint        String?        @map("tsa_message_imprint") @db.VarChar(128)
-  tsaHashAlgorithm         String?        @map("tsa_hash_algorithm") @db.VarChar(32)
-  tsaStatus                String?        @map("tsa_status") @db.VarChar(32)
-  tsaFailureReason         String?        @map("tsa_failure_reason") @db.Text
-
-  parts                    EvidencePart[]
-  custodyEvents            CustodyEvent[]
-  reports                  Report[]
-  guestIdentity            GuestIdentity? @relation(fields: [guestIdentityId], references: [id], onDelete: SetNull)
-
-  @@map("evidence")
-}
-
-model EvidencePart {
-  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  evidenceId    String   @map("evidence_id") @db.Uuid
-  partIndex     Int      @map("part_index")
-  storageBucket String   @map("storage_bucket") @db.VarChar(255)
-  storageKey    String   @map("storage_key") @db.VarChar(512)
-  sizeBytes     BigInt?  @map("size_bytes")
-  mimeType      String?  @map("mime_type") @db.VarChar(128)
-  sha256        String?  @map("sha256") @db.VarChar(64)
-  durationMs    Int?     @map("duration_ms")
-  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-
-  evidence Evidence @relation(fields: [evidenceId], references: [id], onDelete: Cascade)
-
-  @@unique([evidenceId, partIndex])
-  @@index([evidenceId])
-  @@map("evidence_parts")
-}
-
-model Case {
-  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  name        String   @db.VarChar(120)
-  ownerUserId String   @map("owner_user_id")
-  teamId      String?  @map("team_id") @db.Uuid
-  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
-
-  access CaseAccess[]
-
-  @@index([ownerUserId])
-  @@index([teamId])
-  @@map("cases")
-}
-
-model CustodyEvent {
-  id         String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  evidenceId String           @map("evidence_id") @db.Uuid
-  eventType  CustodyEventType @map("event_type")
-  atUtc      DateTime         @map("at_utc") @db.Timestamptz(6)
-
-  sequence Int @map("sequence")
-
-  payload Json? @db.JsonB
-
-  ip        String? @db.VarChar(45)
-  userAgent String? @map("user_agent") @db.VarChar(512)
-
-  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-
-  evidence Evidence @relation(fields: [evidenceId], references: [id], onDelete: Restrict)
-
-  @@unique([evidenceId, sequence])
-  @@index([evidenceId, sequence])
-  @@index([evidenceId, atUtc(sort: Asc)])
-  @@index([evidenceId])
-  @@index([eventType])
-  @@map("custody_events")
-}
-
-model Report {
-  id         String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  evidenceId String @map("evidence_id") @db.Uuid
-  version    Int
-
-  storageBucket String @map("storage_bucket") @db.VarChar(255)
-  storageKey    String @map("storage_key") @db.VarChar(512)
-
-  generatedAtUtc DateTime @map("generated_at_utc") @db.Timestamptz(6)
-
-  evidence Evidence @relation(fields: [evidenceId], references: [id], onDelete: Restrict)
-
-  @@unique([evidenceId, version])
-  @@index([evidenceId])
-  @@index([generatedAtUtc(sort: Desc)])
-  @@map("reports")
-}
-
-model SigningKey {
-  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  keyId        String    @map("key_id") @db.VarChar(64)
-  version      Int
-  publicKeyPem String    @map("public_key_pem") @db.Text
-  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
-  revokedAt    DateTime? @map("revoked_at") @db.Timestamptz(6)
-
-  @@unique([keyId, version])
-  @@index([revokedAt])
-  @@map("signing_keys")
-}
-
-model User {
-  id           String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  email        String? @db.VarChar(320)
-  displayName  String? @map("display_name") @db.VarChar(120)
-  passwordHash String? @map("password_hash") @db.Text
-
-  passwordResetTokens PasswordResetToken[]
-
-  provider       AuthProvider
-  providerUserId String       @map("provider_user_id") @db.VarChar(128)
-  createdAt      DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt      DateTime     @updatedAt @map("updated_at") @db.Timestamptz(6)
-
-  firstName    String? @map("first_name") @db.VarChar(80)
-  lastName     String? @map("last_name") @db.VarChar(80)
-  avatarUrl    String? @map("avatar_url") @db.VarChar(512)
-  locale       String? @db.VarChar(12)
-  timezone     String? @db.VarChar(64)
-  country      String? @db.VarChar(2)
-  bio          String? @db.VarChar(280)
-
-  teamMembers            TeamMember[]
-  entitlements           Entitlement[]
-  subscriptions          Subscription[]
-  payments               Payment[]
-  guestIdentity          GuestIdentity?
-  claimedGuestIdentities GuestIdentity[] @relation("GuestClaimedBy")
-
-  @@unique([provider, providerUserId])
-  @@index([email])
-  @@map("users")
-}
-
-model Team {
-  id              String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  name            String          @db.VarChar(120)
-  ownerUserId     String          @map("owner_user_id")
-  legalName       String?         @map("legal_name") @db.VarChar(180)
-  address         String?         @db.Text
-  logoUrl         String?         @map("logo_url") @db.VarChar(512)
-  timezone        String?         @db.VarChar(64)
-  legalEmail      String?         @map("legal_email") @db.VarChar(320)
-  retentionPolicy RetentionPolicy @default(FOREVER) @map("retention_policy")
-  createdAt       DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt       DateTime        @updatedAt @map("updated_at") @db.Timestamptz(6)
-
-  members TeamMember[]
-  invites TeamInvite[]
-
-  @@index([ownerUserId])
-  @@map("teams")
-}
-
-model TeamMember {
-  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  teamId    String   @map("team_id") @db.Uuid
-  userId    String   @map("user_id") @db.Uuid
-  role      TeamRole
-  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-
-  team Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@unique([teamId, userId])
-  @@index([userId])
-  @@map("team_members")
-}
-
-model CaseAccess {
-  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  caseId    String   @map("case_id") @db.Uuid
-  userId    String   @map("user_id") @db.Uuid
-  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-
-  case Case @relation(fields: [caseId], references: [id], onDelete: Cascade)
-
-  @@unique([caseId, userId])
-  @@index([caseId])
-  @@index([userId])
-  @@map("case_access")
-}
-
-model TeamInvite {
-  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  teamId          String    @map("team_id") @db.Uuid
-  email           String    @db.VarChar(320)
-  role            TeamRole
-  token           String    @db.VarChar(128)
-  invitedByUserId String    @map("invited_by_user_id")
-  expiresAt       DateTime  @map("expires_at") @db.Timestamptz(6)
-  acceptedAt      DateTime? @map("accepted_at") @db.Timestamptz(6)
-  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
-
-  team Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
-
-  @@unique([token])
-  @@index([teamId])
-  @@index([email])
-  @@map("team_invites")
-}
-
-model GuestIdentity {
-  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  userId          String    @map("user_id") @db.Uuid
-  claimedByUserId String?   @map("claimed_by_user_id") @db.Uuid
-  claimedAt       DateTime? @map("claimed_at") @db.Timestamptz(6)
-  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
-
-  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
-  claimedBy User?      @relation("GuestClaimedBy", fields: [claimedByUserId], references: [id], onDelete: SetNull)
-  evidence  Evidence[]
-
-  @@unique([userId])
-  @@index([claimedByUserId])
-  @@map("guest_identities")
-}
-
-model Entitlement {
-  id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  userId     String    @map("user_id") @db.Uuid
-  plan       PlanType
-  credits    Int       @default(0)
-  teamSeats  Int       @default(0) @map("team_seats")
-  active     Boolean   @default(true)
-  validUntil DateTime? @map("valid_until") @db.Timestamptz(6)
-  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt  DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([userId])
-  @@map("entitlements")
-}
-
-model Subscription {
-  id               String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  userId           String             @map("user_id") @db.Uuid
-  provider         PaymentProvider
-  providerSubId    String             @map("provider_sub_id") @db.VarChar(128)
-  status           SubscriptionStatus
-  plan             PlanType
-  currentPeriodEnd DateTime?          @map("current_period_end") @db.Timestamptz(6)
-  createdAt        DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt        DateTime           @updatedAt @map("updated_at") @db.Timestamptz(6)
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@unique([provider, providerSubId])
-  @@index([userId])
-  @@map("subscriptions")
-}
-
-model Payment {
-  id                String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  userId            String          @map("user_id") @db.Uuid
-  provider          PaymentProvider
-  providerPaymentId String          @map("provider_payment_id") @db.VarChar(128)
-  amountCents       Int             @map("amount_cents")
-  currency          String          @db.VarChar(8)
-  status            PaymentStatus
-  createdAt         DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@unique([provider, providerPaymentId])
-  @@index([userId])
-  @@map("payments")
-}
-
 enum AuditAction {
   EVIDENCE_CREATED
   EVIDENCE_UPDATED
@@ -437,84 +477,4 @@ enum WebhookStatus {
   PENDING
   DELIVERED
   FAILED
-}
-
-model AuditLog {
-  id             String      @id @default(cuid())
-  userId         String
-  action         AuditAction
-  resourceType   String
-  resourceId     String?
-  organizationId String?     @db.Uuid
-  changes        Json?
-  status         String
-  errorMessage   String?     @db.VarChar(512)
-  ipAddress      String?     @db.VarChar(45)
-  userAgent      String?     @db.VarChar(512)
-  metadata       Json?
-  createdAt      DateTime    @default(now()) @db.Timestamptz(6)
-
-  @@index([userId, createdAt(sort: Desc)])
-  @@index([organizationId, createdAt(sort: Desc)])
-  @@index([action, createdAt(sort: Desc)])
-  @@index([createdAt])
-  @@map("audit_logs")
-}
-
-model Webhook {
-  id              String    @id @default(cuid())
-  organizationId  String    @db.Uuid
-  url             String    @db.VarChar(2048)
-  events          String[]
-  secret          String    @db.VarChar(256)
-  isActive        Boolean   @default(true)
-  failureCount    Int       @default(0)
-  lastTriggeredAt DateTime?
-  createdAt       DateTime  @default(now()) @db.Timestamptz(6)
-  updatedAt       DateTime  @updatedAt @db.Timestamptz(6)
-
-  events_rel WebhookEvent[]
-
-  @@index([organizationId, isActive])
-  @@index([isActive])
-  @@map("webhooks")
-}
-
-model WebhookEvent {
-  id           String        @id @default(cuid())
-  webhookId    String
-  type         String
-  payload      Json          @db.JsonB
-  status       WebhookStatus
-  attempt      Int           @default(1)
-  nextRetryAt  DateTime?
-  httpStatus   Int?
-  errorMessage String?       @db.VarChar(512)
-  createdAt    DateTime      @default(now()) @db.Timestamptz(6)
-  updatedAt    DateTime      @updatedAt @db.Timestamptz(6)
-
-  webhook Webhook @relation(fields: [webhookId], references: [id], onDelete: Cascade)
-
-  @@index([webhookId, status])
-  @@index([status, nextRetryAt])
-  @@index([createdAt])
-  @@map("webhook_events")
-}
-
-model PasswordResetToken {
-  id     String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  userId String @map("user_id") @db.Uuid
-
-  tokenHash String    @map("token_hash") @db.VarChar(64)
-  expiresAt DateTime  @map("expires_at") @db.Timestamptz(6)
-  usedAt    DateTime? @map("used_at") @db.Timestamptz(6)
-
-  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([userId, createdAt(sort: Desc)])
-  @@index([tokenHash])
-  @@index([expiresAt])
-  @@map("password_reset_tokens")
 }
