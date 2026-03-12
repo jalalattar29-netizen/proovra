@@ -6,6 +6,7 @@ import {
 } from "../crypto.js";
 import { getObjectStream, headObject } from "../storage.js";
 import { sha256HexFromStream } from "../stream-hash.js";
+import { createEvidenceTimestamp } from "./timestamp.service.js";
 import * as prismaPkg from "@prisma/client";
 import { enqueueGenerateReportJob } from "../queue/report-queue.js";
 import { CustodyEventType } from "@prisma/client";
@@ -316,6 +317,10 @@ export async function completeEvidence(params: {
     if (!primaryKey) primaryKey = key;
   }
 
+  const tsaResult = await createEvidenceTimestamp({
+    digestHex: fileSha256,
+  });
+
   const now = new Date();
 
   const fingerprint = {
@@ -400,6 +405,16 @@ export async function completeEvidence(params: {
         signingKeyVersion,
         storageBucket: primaryBucket,
         storageKey: primaryKey,
+
+        tsaProvider: tsaResult?.provider ?? null,
+        tsaUrl: tsaResult?.url ?? null,
+        tsaSerialNumber: tsaResult?.serialNumber ?? null,
+        tsaGenTimeUtc: tsaResult?.genTimeUtc ?? null,
+        tsaTokenBase64: tsaResult?.tokenBase64 ?? null,
+        tsaMessageImprint: tsaResult?.messageImprint ?? null,
+        tsaHashAlgorithm: tsaResult?.hashAlgorithm ?? null,
+        tsaStatus: tsaResult?.status ?? null,
+        tsaFailureReason: tsaResult?.failureReason ?? null,
       },
       select: {
         id: true,
@@ -415,15 +430,23 @@ export async function completeEvidence(params: {
     const custodyEventsData: prismaPkg.Prisma.CustodyEventCreateManyInput[] = [
       {
         evidenceId: evidence.id,
-        eventType: CustodyEventType.UPLOAD_COMPLETED,
+        eventType: CustodyEventType.SIGNATURE_APPLIED,
         atUtc: now,
         sequence: ++seq,
         payload: {
-          sizeBytes: sizeBytesNum,
-          contentType: uploadContentType ?? null,
+          fingerprintHash,
+          signingKeyId,
+          signingKeyVersion,
+          tsaProvider: tsaResult?.provider ?? null,
+          tsaUrl: tsaResult?.url ?? null,
+          tsaSerialNumber: tsaResult?.serialNumber ?? null,
+          tsaGenTimeUtc: tsaResult?.genTimeUtc?.toISOString() ?? null,
+          tsaMessageImprint: tsaResult?.messageImprint ?? null,
+          tsaHashAlgorithm: tsaResult?.hashAlgorithm ?? null,
+          tsaStatus: tsaResult?.status ?? null,
+          tsaFailureReason: tsaResult?.failureReason ?? null,
         } as prismaPkg.Prisma.InputJsonValue,
-      },
-      {
+      },      {
         evidenceId: evidence.id,
         eventType: CustodyEventType.SIGNATURE_APPLIED,
         atUtc: now,
