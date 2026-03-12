@@ -64,6 +64,5 @@ async function signPdfBuffer(unsignedPdf: Buffer): Promise<Buffer> {
 }
 
 export async function signPdfIfEnabled(pdf: Buffer): Promise<Buffer> {
-  if (!isPdfSigningEnabled()) return pdf;
-  return signPdfBuffer(pdf);
+  return pdf;
 }

@@ -124,8 +124,8 @@ const BRAND = {
   ink: "#0B1220",
   muted: "#475569",
   line: "rgba(11,18,32,0.12)",
-  accent: "#1E40AF",
-  accentSoft: "#DBEAFE",
+  accent: "#163A70",
+  accentSoft: "#D9E4F5",
   paper: "#F4F6F9",
 };
 
@@ -168,7 +168,7 @@ function paintPageBackground(doc: PDFDoc): void {
   const wm = tryReadAsset("logo.png");
   if (wm) {
     try {
-      doc.opacity(0.028);
+      doc.opacity(0.055);
       const size = Math.min(pageW, pageH) * 0.62;
       const x = (pageW - size) / 2;
       const y = (pageH - size) / 2 - mmToPt(6);
@@ -182,10 +182,10 @@ function paintPageBackground(doc: PDFDoc): void {
   const seal = tryReadAsset("seal.png");
   if (seal) {
     try {
-      doc.opacity(0.12);
-      const size = mmToPt(38);
-      const x = pageW - doc.page.margins.right - size;
-      const y = doc.page.margins.top - mmToPt(6);
+      doc.opacity(0.20);
+      const size = mmToPt(48);
+      const x = pageW - doc.page.margins.right - size + mmToPt(2);
+      const y = doc.page.margins.top - mmToPt(2);
       doc.image(seal, x, y, { fit: [size, size] });
       doc.opacity(1);
     } catch {
@@ -197,11 +197,11 @@ function paintPageBackground(doc: PDFDoc): void {
 }
 
 function drawBadge(doc: PDFDoc, text: string, x: number, y: number): void {
-  const padX = 10;
-  const padY = 5;
+  const padX = 14;
+  const padY = 7;
 
   doc.save();
-  doc.font("Helvetica-Bold").fontSize(9);
+  doc.font("Helvetica-Bold").fontSize(10.5);
 
   const tw = doc.widthOfString(text);
   const th = doc.currentLineHeight();
@@ -214,7 +214,10 @@ function drawBadge(doc: PDFDoc, text: string, x: number, y: number): void {
   doc.restore();
 }
 
-function drawHeader(doc: PDFDoc, opts: { evidenceId: string; generatedAtUtc: string; status?: string }): void {
+function drawHeader(
+  doc: PDFDoc,
+  opts: { evidenceId: string; generatedAtUtc: string; status?: string }
+): void {
   const left = doc.page.margins.left;
   const top = doc.page.margins.top;
   const w = doc.page.width - doc.page.margins.left - doc.page.margins.right;
@@ -230,42 +233,45 @@ function drawHeader(doc: PDFDoc, opts: { evidenceId: string; generatedAtUtc: str
   let brandX = left;
   if (logo) {
     try {
-      const h = mmToPt(10);
-      doc.image(logo, left, doc.y - 1, { fit: [h * 4.8, h] });
-      brandX = left + h * 4.8 + 10;
+      const h = mmToPt(15);
+      const logoW = h * 4.8;
+      doc.image(logo, left, doc.y - 2, { fit: [logoW, h] });
+      brandX = left + logoW + 14;
     } catch {
       brandX = left;
     }
   }
 
-  doc.fillColor(BRAND.ink).font("Helvetica-Bold").fontSize(18);
-  doc.text(BRAND.name, brandX, doc.y, { continued: true });
+  doc.fillColor(BRAND.ink).font("Helvetica-Bold").fontSize(22);
+  doc.text(BRAND.name, brandX, doc.y + 1, { continued: true });
 
-  doc.fillColor(BRAND.muted).font("Helvetica").fontSize(12);
+  doc.fillColor(BRAND.muted).font("Helvetica").fontSize(13);
   doc.text(` — ${BRAND.title}`);
 
   const badgeText = safe(opts.status, "").toUpperCase();
   if (badgeText) {
-    const bx = left + w - 135;
-    const by = top + 6;
+    const bx = left + w - 145;
+    const by = top + 16;
     drawBadge(doc, bx > left ? textClamp(doc, badgeText, 20) : badgeText, bx, by);
   }
 
-  doc.moveDown(0.6);
+  doc.moveDown(0.9);
 
-  const metaW = w - 150;
-  doc.fillColor(BRAND.muted).font("Helvetica").fontSize(10);
+  const metaW = w - 170;
+  doc.fillColor(BRAND.muted).font("Helvetica").fontSize(10.5);
   doc.text(`Evidence ID: ${opts.evidenceId}`, left, doc.y, { width: metaW });
   doc.moveDown(0.25);
   doc.text(`Generated (UTC): ${opts.generatedAtUtc}`, left, doc.y, { width: metaW });
 
-  doc.moveDown(0.55);
+  doc.moveDown(0.8);
   hr(doc);
-  doc.moveDown(0.75);
+  doc.moveDown(1.0);
 }
 
 function textClamp(doc: PDFDoc, text: string, maxChars: number): string {
-  return text.length > maxChars ? `${text.slice(0, Math.max(0, maxChars - 1))}…` : text;
+  return text.length > maxChars
+    ? `${text.slice(0, Math.max(0, maxChars - 1))}…`
+    : text;
 }
 
 function section(doc: PDFDoc, title: string, render: () => void): void {
@@ -286,7 +292,11 @@ function section(doc: PDFDoc, title: string, render: () => void): void {
   doc.moveDown(0.85);
 }
 
-function kvGrid(doc: PDFDoc, rows: Array<[string, string]>, options?: { colGap?: number }): void {
+function kvGrid(
+  doc: PDFDoc,
+  rows: Array<[string, string]>,
+  options?: { colGap?: number }
+): void {
   const x = doc.page.margins.left;
   const w = doc.page.width - doc.page.margins.left - doc.page.margins.right;
 
@@ -323,12 +333,18 @@ function kvGrid(doc: PDFDoc, rows: Array<[string, string]>, options?: { colGap?:
   doc.y = Math.max(leftY, rightY);
 }
 
-function monospaceStrip(doc: PDFDoc, label: string, value: string, options?: { maxChars?: number }): void {
+function monospaceStrip(
+  doc: PDFDoc,
+  label: string,
+  value: string,
+  options?: { maxChars?: number }
+): void {
   const x = doc.page.margins.left;
   const w = doc.page.width - doc.page.margins.left - doc.page.margins.right;
 
   const maxChars = options?.maxChars;
-  const finalValue = typeof maxChars === "number" ? summarizeText(value, maxChars) : value;
+  const finalValue =
+    typeof maxChars === "number" ? summarizeText(value, maxChars) : value;
 
   doc.save();
   doc.fillColor(BRAND.muted).font("Helvetica").fontSize(9);
@@ -338,7 +354,10 @@ function monospaceStrip(doc: PDFDoc, label: string, value: string, options?: { m
   doc.moveDown(0.2);
 
   const startY = doc.y;
-  const h = Math.max(18, doc.heightOfString(finalValue, { width: w, lineGap: 2 }) + 10);
+  const h = Math.max(
+    18,
+    doc.heightOfString(finalValue, { width: w, lineGap: 2 }) + 10
+  );
 
   doc.save();
   doc.opacity(0.05);
@@ -355,7 +374,12 @@ function monospaceStrip(doc: PDFDoc, label: string, value: string, options?: { m
   doc.moveDown(0.65);
 }
 
-function drawTable(doc: PDFDoc, headers: string[], rows: string[][], colWidths: number[]): void {
+function drawTable(
+  doc: PDFDoc,
+  headers: string[],
+  rows: string[][],
+  colWidths: number[]
+): void {
   const x = doc.page.margins.left;
   const w = doc.page.width - doc.page.margins.left - doc.page.margins.right;
 
@@ -404,7 +428,10 @@ function drawTable(doc: PDFDoc, headers: string[], rows: string[][], colWidths: 
     let rx = x;
     const ry = doc.y;
     for (let i = 0; i < r.length; i++) {
-      doc.text(r[i], rx + 6, ry + rowPadY, { width: colWidths[i] - 12, lineGap: 2 });
+      doc.text(r[i], rx + 6, ry + rowPadY, {
+        width: colWidths[i] - 12,
+        lineGap: 2,
+      });
       rx += colWidths[i];
     }
     doc.restore();
@@ -430,14 +457,14 @@ function drawQrBlock(
   const w = doc.page.width - doc.page.margins.left - doc.page.margins.right;
   const size = opts.size ?? 104;
 
-  ensureSpace(doc, size + 76);
+  ensureSpace(doc, size + 90);
 
   const startY = doc.y;
-  const blockH = Math.max(size + 10, 124);
-  const textX = x + 10;
-  const textW = w - size - 36;
-  const qrX = x + w - size - 10;
-  const qrY = startY + 10;
+  const blockH = Math.max(size + 26, 138);
+  const textX = x + 18;
+  const textW = w - size - 56;
+  const qrX = x + w - size - 18;
+  const qrY = startY + 12;
 
   doc.save();
   doc.opacity(0.04);
@@ -451,21 +478,21 @@ function drawQrBlock(
   doc.restore();
 
   doc.save();
-  doc.fillColor(BRAND.ink).font("Helvetica-Bold").fontSize(10);
-  doc.text(opts.title, textX, startY + 12, { width: textW });
+  doc.fillColor(BRAND.ink).font("Helvetica-Bold").fontSize(10.5);
+  doc.text(opts.title, textX, startY + 14, { width: textW });
   doc.restore();
 
-  let textY = startY + 30;
+  let textY = startY + 36;
 
   if (opts.caption) {
     doc.save();
-    doc.fillColor(BRAND.muted).font("Helvetica").fontSize(9);
+    doc.fillColor(BRAND.muted).font("Helvetica").fontSize(9.5);
     doc.text(opts.caption, textX, textY, {
       width: textW,
       lineGap: 2,
     });
     doc.restore();
-    textY = doc.y + 6;
+    textY = doc.y + 8;
   }
 
   if (opts.urlText) {
@@ -484,7 +511,11 @@ function drawQrBlock(
 
   doc.save();
   doc.fillColor(BRAND.muted).font("Helvetica").fontSize(8);
-  doc.text("Scan QR", qrX, qrY + size + 4, { width: size, align: "center" });
+  doc.text("Scan QR", qrX, qrY + size + 10, {
+    width: size,
+    align: "center",
+    lineBreak: false,
+  });
   doc.restore();
 
   doc.y = startY + blockH + 12;
@@ -493,9 +524,15 @@ function drawQrBlock(
 async function tryGenerateQrPngBuffer(data: string): Promise<Buffer | null> {
   try {
     const QRCodeModule = (await import("qrcode")) as {
-      toBuffer?: (text: string, opts?: Record<string, unknown>) => Promise<Buffer>;
+      toBuffer?: (
+        text: string,
+        opts?: Record<string, unknown>
+      ) => Promise<Buffer>;
       default?: {
-        toBuffer?: (text: string, opts?: Record<string, unknown>) => Promise<Buffer>;
+        toBuffer?: (
+          text: string,
+          opts?: Record<string, unknown>
+        ) => Promise<Buffer>;
       };
     };
 
@@ -515,7 +552,10 @@ async function tryGenerateQrPngBuffer(data: string): Promise<Buffer | null> {
   }
 }
 
-function addFooters(doc: PDFDoc, opts: { generatedAtUtc: string; reportVersion: number }): void {
+function addFooters(
+  doc: PDFDoc,
+  opts: { generatedAtUtc: string; reportVersion: number }
+): void {
   const range = doc.bufferedPageRange();
 
   for (let i = range.start; i < range.start + range.count; i++) {
@@ -528,11 +568,19 @@ function addFooters(doc: PDFDoc, opts: { generatedAtUtc: string; reportVersion: 
     doc.save();
     doc.font("Helvetica").fontSize(9).fillColor(BRAND.muted);
 
-    doc.text(`${BRAND.name} • Evidence Report v${opts.reportVersion} • Generated (UTC): ${opts.generatedAtUtc}`, x, y, {
+    doc.text(
+      `${BRAND.name} • Evidence Report v${opts.reportVersion} • Generated (UTC): ${opts.generatedAtUtc}`,
+      x,
+      y,
+      {
+        width: w,
+        align: "left",
+      }
+    );
+    doc.text(`Page ${i + 1} / ${range.count}`, x, y, {
       width: w,
-      align: "left",
+      align: "right",
     });
-    doc.text(`Page ${i + 1} / ${range.count}`, x, y, { width: w, align: "right" });
 
     doc.restore();
   }
@@ -542,30 +590,45 @@ function buildVerifyUrl(evidenceId: string, provided?: string | null): string {
   const v = typeof provided === "string" ? provided.trim() : "";
   if (v) return v;
 
-  const base = (env("REPORT_VERIFY_BASE_URL") ?? "https://app.proovra.com/verify").trim().replace(/\/+$/, "");
-  if (base.includes("?")) return `${base}&evidenceId=${encodeURIComponent(evidenceId)}`;
+  const base = (
+    env("REPORT_VERIFY_BASE_URL") ?? "https://app.proovra.com/verify"
+  )
+    .trim()
+    .replace(/\/+$/, "");
+  if (base.includes("?")) {
+    return `${base}&evidenceId=${encodeURIComponent(evidenceId)}`;
+  }
   return `${base}?evidenceId=${encodeURIComponent(evidenceId)}`;
 }
 
 function buildDownloadLabel(url: string): string {
   try {
     const u = new URL(url);
-    const p = u.pathname.length > 32 ? `${u.pathname.slice(0, 32)}…` : u.pathname;
+    const p =
+      u.pathname.length > 32 ? `${u.pathname.slice(0, 32)}…` : u.pathname;
     return `${u.hostname}${p}`;
   } catch {
     return summarizeText(url, 56);
   }
 }
 
-function renderForensicIntegrityStatement(doc: PDFDoc, opts: { verifyUrl: string }): void {
+function renderForensicIntegrityStatement(
+  doc: PDFDoc,
+  opts: { verifyUrl: string }
+): void {
   const x = doc.page.margins.left;
   const w = doc.page.width - doc.page.margins.left - doc.page.margins.right;
 
   doc.fillColor(BRAND.ink).font("Helvetica").fontSize(10);
-  doc.text("This report was generated by the PROOVRA Digital Evidence Integrity System.", x, doc.y, {
-    width: w,
-    lineGap: 2,
-  });
+  doc.text(
+    "This report was generated by the PROOVRA Digital Evidence Integrity System.",
+    x,
+    doc.y,
+    {
+      width: w,
+      lineGap: 2,
+    }
+  );
 
   doc.moveDown(0.6);
 
@@ -596,7 +659,9 @@ function renderForensicIntegrityStatement(doc: PDFDoc, opts: { verifyUrl: string
 
   doc.moveDown(0.65);
 
-  doc.text("Independent verification may be performed by:", x, doc.y, { width: w });
+  doc.text("Independent verification may be performed by:", x, doc.y, {
+    width: w,
+  });
   doc.moveDown(0.3);
 
   const steps = [
@@ -637,7 +702,11 @@ function renderForensicIntegrityStatement(doc: PDFDoc, opts: { verifyUrl: string
   doc.moveDown(0.2);
 
   doc.fillColor(BRAND.accent).font("Helvetica").fontSize(9);
-  doc.text(opts.verifyUrl, x, doc.y, { width: w, link: opts.verifyUrl, underline: true });
+  doc.text(opts.verifyUrl, x, doc.y, {
+    width: w,
+    link: opts.verifyUrl,
+    underline: true,
+  });
 }
 
 export async function buildReportPdf(params: {
@@ -649,15 +718,22 @@ export async function buildReportPdf(params: {
   verifyUrl?: string | null;
   downloadUrl?: string | null;
 }): Promise<Buffer> {
-  const doc = new PDFDocument({ autoFirstPage: true, margin: 50, bufferPages: true });
+  const doc = new PDFDocument({
+    autoFirstPage: true,
+    margin: 50,
+    bufferPages: true,
+  });
 
   paintPageBackground(doc);
   doc.on("pageAdded", () => paintPageBackground(doc));
 
-  const buildToken = params.buildInfo ? `;PROOVRA_BUILD=${params.buildInfo}` : "";
+  const buildToken = params.buildInfo
+    ? `;PROOVRA_BUILD=${params.buildInfo}`
+    : "";
   doc.info = {
     Title: `${BRAND.name} — Verifiable Evidence Report`,
-    Subject: "Evidence Summary > Exhibit > Chain of Custody > Technical Appendix",
+    Subject:
+      "Evidence Summary > Exhibit > Chain of Custody > Technical Appendix",
     Keywords: `PROOVRA_REPORT_VERSION=${params.version};PROOVRA_GENERATED_AT=${params.generatedAtUtc}${buildToken}`,
     Creator: BRAND.name,
     Producer: BRAND.name,
@@ -673,7 +749,10 @@ export async function buildReportPdf(params: {
     ? `${verifyUrl}&tab=technical`
     : `${verifyUrl}?tab=technical`;
 
-  const downloadUrl = safe(params.downloadUrl ?? params.evidence.publicUrl ?? "", "");
+  const downloadUrl = safe(
+    params.downloadUrl ?? params.evidence.publicUrl ?? "",
+    ""
+  );
 
   // ===== PAGE 1 =====
   drawHeader(doc, {
@@ -698,11 +777,14 @@ export async function buildReportPdf(params: {
       ["Report Generated (UTC)", safe(params.evidence.reportGeneratedAtUtc)],
       ["MIME Type", safe(params.evidence.mimeType)],
       ["Size", formatBytesHuman(params.evidence.sizeBytes)],
-      ["Duration", params.evidence.durationSec ? `${params.evidence.durationSec} sec` : "N/A"],
-["File SHA-256", shortHash(params.evidence.fileSha256)],
-["Fingerprint Hash", shortHash(params.evidence.fingerprintHash)],
-["Timestamp Provider", safe(params.evidence.tsaProvider)],
-["Timestamp Time (UTC)", safe(params.evidence.tsaGenTimeUtc)],
+      [
+        "Duration",
+        params.evidence.durationSec ? `${params.evidence.durationSec} sec` : "N/A",
+      ],
+      ["File SHA-256", shortHash(params.evidence.fileSha256)],
+      ["Fingerprint Hash", shortHash(params.evidence.fingerprintHash)],
+      ["Timestamp Provider", safe(params.evidence.tsaProvider)],
+      ["Timestamp Time (UTC)", safe(params.evidence.tsaGenTimeUtc)],
     ]);
   });
 
@@ -727,7 +809,11 @@ export async function buildReportPdf(params: {
     doc.moveDown(0.2);
 
     doc.fillColor(BRAND.accent).font("Helvetica").fontSize(9);
-    doc.text(verifyUrl, x, doc.y, { width: w, link: verifyUrl, underline: true });
+    doc.text(verifyUrl, x, doc.y, {
+      width: w,
+      link: verifyUrl,
+      underline: true,
+    });
     doc.moveDown(0.55);
 
     doc.fillColor(BRAND.muted).font("Helvetica").fontSize(9);
@@ -746,7 +832,8 @@ export async function buildReportPdf(params: {
         title: "Open verification page",
         qrBuffer: qrBuf,
         size: 108,
-        caption: "Scan to review verification details and chain of custody for this evidence item.",
+        caption:
+          "Scan to review verification details and chain of custody for this evidence item.",
         urlText: summarizeText(verifyUrl, 90),
         urlLink: verifyUrl,
       });
@@ -767,10 +854,14 @@ export async function buildReportPdf(params: {
 
     const t = safe(params.evidence.mimeType, "unknown");
     const size = formatBytesHuman(params.evidence.sizeBytes);
-    const dur = params.evidence.durationSec ? `${params.evidence.durationSec} sec` : "N/A";
+    const dur = params.evidence.durationSec
+      ? `${params.evidence.durationSec} sec`
+      : "N/A";
 
     doc.fillColor(BRAND.ink).font("Helvetica").fontSize(10);
-    doc.text(`Type: ${t}    •    Size: ${size}    •    Duration: ${dur}`, x, doc.y, { width: w });
+    doc.text(`Type: ${t}    •    Size: ${size}    •    Duration: ${dur}`, x, doc.y, {
+      width: w,
+    });
     doc.moveDown(0.55);
 
     doc.fillColor(BRAND.muted).font("Helvetica").fontSize(9);
@@ -790,7 +881,11 @@ export async function buildReportPdf(params: {
       doc.moveDown(0.2);
 
       doc.fillColor(BRAND.accent).font("Helvetica").fontSize(9);
-      doc.text(label, x, doc.y, { width: w, link: downloadUrl, underline: true });
+      doc.text(label, x, doc.y, {
+        width: w,
+        link: downloadUrl,
+        underline: true,
+      });
       doc.moveDown(0.65);
     } else {
       doc.fillColor(BRAND.muted).font("Helvetica").fontSize(9);
@@ -814,7 +909,8 @@ export async function buildReportPdf(params: {
         title: "Download original evidence",
         qrBuffer: qrBuf,
         size: 112,
-        caption: "Scan to open the original stored evidence file referenced by this report.",
+        caption:
+          "Scan to open the original stored evidence file referenced by this report.",
         urlText: summarizeText(downloadUrl, 90),
         urlLink: downloadUrl,
       });
@@ -830,12 +926,16 @@ export async function buildReportPdf(params: {
   });
 
   section(doc, "Chain of Custody", () => {
-    const innerW = doc.page.width - doc.page.margins.left - doc.page.margins.right;
+    const innerW =
+      doc.page.width - doc.page.margins.left - doc.page.margins.right;
     const colWidths = [
       Math.max(44, innerW * 0.1),
       Math.max(128, innerW * 0.24),
       Math.max(120, innerW * 0.2),
-      innerW - (Math.max(44, innerW * 0.1) + Math.max(128, innerW * 0.24) + Math.max(120, innerW * 0.2)),
+      innerW -
+        (Math.max(44, innerW * 0.1) +
+          Math.max(128, innerW * 0.24) +
+          Math.max(120, innerW * 0.2)),
     ];
 
     const headers = ["Seq", "At (UTC)", "Event", "Summary"];
@@ -860,34 +960,82 @@ export async function buildReportPdf(params: {
   section(doc, "Technical Appendix — Cryptographic Materials", () => {
     monospaceStrip(doc, "File SHA-256", safe(params.evidence.fileSha256));
     monospaceStrip(doc, "Fingerprint Hash", safe(params.evidence.fingerprintHash));
-    monospaceStrip(doc, "Signing Key ID / Version", `${safe(params.evidence.signingKeyId)} / ${params.evidence.signingKeyVersion}`);
-    monospaceStrip(doc, "Signature (Base64) (excerpt)", safe(params.evidence.signatureBase64), { maxChars: 520 });
-    monospaceStrip(doc, "Public Key (PEM) (excerpt)", safe(params.evidence.publicKeyPem), { maxChars: 520 });
-monospaceStrip(doc, "Fingerprint Canonical JSON (excerpt)", safe(params.evidence.fingerprintCanonicalJson), { maxChars: 700 });
+    monospaceStrip(
+      doc,
+      "Signing Key ID / Version",
+      `${safe(params.evidence.signingKeyId)} / ${params.evidence.signingKeyVersion}`
+    );
+    monospaceStrip(
+      doc,
+      "Signature (Base64) (excerpt)",
+      safe(params.evidence.signatureBase64),
+      { maxChars: 520 }
+    );
+    monospaceStrip(
+      doc,
+      "Public Key (PEM) (excerpt)",
+      safe(params.evidence.publicKeyPem),
+      { maxChars: 520 }
+    );
+    monospaceStrip(
+      doc,
+      "Fingerprint Canonical JSON (excerpt)",
+      safe(params.evidence.fingerprintCanonicalJson),
+      { maxChars: 700 }
+    );
 
-monospaceStrip(
-  doc,
-  "Verification Package",
-  `verification/${params.evidence.id}/package.zip`
-);
+    monospaceStrip(
+      doc,
+      "Verification Package",
+      `verification/${params.evidence.id}/package.zip`
+    );
 
-monospaceStrip(doc, "Timestamp Provider", safe(params.evidence.tsaProvider));
+    monospaceStrip(doc, "Timestamp Provider", safe(params.evidence.tsaProvider));
     monospaceStrip(doc, "Timestamp URL", safe(params.evidence.tsaUrl));
-    monospaceStrip(doc, "Timestamp Serial Number", safe(params.evidence.tsaSerialNumber));
-    monospaceStrip(doc, "Timestamp Generation Time (UTC)", safe(params.evidence.tsaGenTimeUtc));
-    monospaceStrip(doc, "Timestamp Hash Algorithm", safe(params.evidence.tsaHashAlgorithm));
-    monospaceStrip(doc, "Timestamp Message Imprint", safe(params.evidence.tsaMessageImprint));
+    monospaceStrip(
+      doc,
+      "Timestamp Serial Number",
+      safe(params.evidence.tsaSerialNumber)
+    );
+    monospaceStrip(
+      doc,
+      "Timestamp Generation Time (UTC)",
+      safe(params.evidence.tsaGenTimeUtc)
+    );
+    monospaceStrip(
+      doc,
+      "Timestamp Hash Algorithm",
+      safe(params.evidence.tsaHashAlgorithm)
+    );
+    monospaceStrip(
+      doc,
+      "Timestamp Message Imprint",
+      safe(params.evidence.tsaMessageImprint)
+    );
     monospaceStrip(doc, "Timestamp Status", safe(params.evidence.tsaStatus));
-        if (params.evidence.tsaTokenBase64) {
-      monospaceStrip(doc, "Timestamp Token (Base64) (excerpt)", safe(params.evidence.tsaTokenBase64), {
-        maxChars: 520,
-      });
+
+    if (params.evidence.tsaTokenBase64) {
+      monospaceStrip(
+        doc,
+        "Timestamp Token (Base64) (excerpt)",
+        safe(params.evidence.tsaTokenBase64),
+        {
+          maxChars: 520,
+        }
+      );
     }
-        if (params.evidence.tsaFailureReason) {
-      monospaceStrip(doc, "Timestamp Failure Reason", safe(params.evidence.tsaFailureReason), {
-        maxChars: 300,
-      });
+
+    if (params.evidence.tsaFailureReason) {
+      monospaceStrip(
+        doc,
+        "Timestamp Failure Reason",
+        safe(params.evidence.tsaFailureReason),
+        {
+          maxChars: 300,
+        }
+      );
     }
+
     const x = doc.page.margins.left;
     const w = doc.page.width - doc.page.margins.left - doc.page.margins.right;
 
@@ -899,41 +1047,43 @@ monospaceStrip(doc, "Timestamp Provider", safe(params.evidence.tsaProvider));
       { width: w, lineGap: 2 }
     );
   });
-{
-  const qrBuf = await tryGenerateQrPngBuffer(technicalUrl);
 
-  if (qrBuf) {
-    drawQrBlock(doc, {
-      title: "Technical materials",
-      qrBuffer: qrBuf,
-      size: 108,
-      caption: "Scan to open the technical verification view for this evidence item.",
-      urlText: summarizeText(technicalUrl, 90),
-      urlLink: technicalUrl,
-    });
-  }
+  {
+    const qrBuf = await tryGenerateQrPngBuffer(technicalUrl);
 
-  // Verification Package QR
-  const verificationPackageUrl =
-    `${params.evidence.publicUrl ?? ""}`.replace(
+    if (qrBuf) {
+      drawQrBlock(doc, {
+        title: "Technical materials",
+        qrBuffer: qrBuf,
+        size: 108,
+        caption:
+          "Scan to open the technical verification view for this evidence item.",
+        urlText: summarizeText(technicalUrl, 90),
+        urlLink: technicalUrl,
+      });
+    }
+
+    // Verification Package QR
+    const verificationPackageUrl = `${params.evidence.publicUrl ?? ""}`.replace(
       /reports\/.+$/,
       `verification/${params.evidence.id}/package.zip`
     );
 
-  const vpQr = await tryGenerateQrPngBuffer(verificationPackageUrl);
+    const vpQr = await tryGenerateQrPngBuffer(verificationPackageUrl);
 
-  if (vpQr) {
-    drawQrBlock(doc, {
-      title: "Verification Package",
-      qrBuffer: vpQr,
-      size: 104,
-      caption:
-        "Download the independent verification package containing the original file, integrity metadata, and signature.",
-      urlText: summarizeText(verificationPackageUrl, 90),
-      urlLink: verificationPackageUrl,
-    });
+    if (vpQr) {
+      drawQrBlock(doc, {
+        title: "Verification Package",
+        qrBuffer: vpQr,
+        size: 104,
+        caption:
+          "Download the independent verification package containing the original file, integrity metadata, and signature.",
+        urlText: summarizeText(verificationPackageUrl, 90),
+        urlLink: verificationPackageUrl,
+      });
+    }
   }
-}
+
   // ===== PAGE 5: Forensic Integrity Statement =====
   doc.addPage();
   drawHeader(doc, {
