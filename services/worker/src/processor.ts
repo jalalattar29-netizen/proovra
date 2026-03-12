@@ -8,7 +8,11 @@ import { logger, withJobContext } from "./logger.js";
 import { getObjectStream, headObject, putObjectBuffer } from "./storage.js";
 import { createHash, randomUUID } from "node:crypto";
 import { buildReportPdf } from "./pdf/report.js";
-import { generateReportJobName, reportQueue } from "./queue.js";
+import {
+  generateReportJobName,
+  reportDlqQueue,
+  reportQueue,
+} from "./queue.js";
 import { captureException } from "./sentry.js";
 import { createVerificationPackage } from "./verification-package.js";
 
@@ -66,6 +70,13 @@ function createWorkerError(code: string, retriable: boolean): WorkerError {
   err.code = code;
   err.retriable = retriable;
   return err;
+}
+
+function isRetriableError(error: unknown): boolean {
+  if (error && typeof error === "object" && "retriable" in error) {
+    return (error as WorkerError).retriable === true;
+  }
+  return true;
 }
 
 async function streamToBuffer(stream: Readable): Promise<Buffer> {
@@ -269,15 +280,16 @@ export async function processGenerateReport(job: Job<GenerateReportJobData>) {
         signingKeyId,
         signingKeyVersion,
         publicKeyPem: signingKey.publicKeyPem,
-        tsaProvider: evidence.tsaProvider ?? null,
-        tsaUrl: evidence.tsaUrl ?? null,
-        tsaSerialNumber: evidence.tsaSerialNumber ?? null,
-        tsaGenTimeUtc: evidence.tsaGenTimeUtc?.toISOString() ?? null,
-        tsaTokenBase64: evidence.tsaTokenBase64 ?? null,
-        tsaMessageImprint: evidence.tsaMessageImprint ?? null,
-        tsaHashAlgorithm: evidence.tsaHashAlgorithm ?? null,
-        tsaStatus: evidence.tsaStatus ?? null,
-        tsaFailureReason: evidence.tsaFailureReason ?? null,
+
+        tsaProvider: null,
+        tsaUrl: null,
+        tsaSerialNumber: null,
+        tsaGenTimeUtc: null,
+        tsaTokenBase64: null,
+        tsaMessageImprint: null,
+        tsaHashAlgorithm: null,
+        tsaStatus: null,
+        tsaFailureReason: null,
       },
       custodyEvents: custodyEvents.map((ev) => ({
         sequence: ev.sequence,
@@ -302,7 +314,7 @@ export async function processGenerateReport(job: Job<GenerateReportJobData>) {
         evidenceBuffer: verificationEvidenceBuffer,
         fingerprint: fingerprintCanonicalJson,
         signature: signatureBase64,
-        timestampToken: evidence.tsaTokenBase64 ?? null,
+        timestampToken: null,
         publicKey: signingKey.publicKeyPem,
         custody: custodyEvents.map((ev) => ({
           sequence: ev.sequence,
@@ -388,6 +400,70 @@ export async function processGenerateReport(job: Job<GenerateReportJobData>) {
       },
       "GenerateReportJob failed"
     );
+
+    const attempts = job.opts.attempts ?? 1;
+    const retriable = isRetriableError(error);
+
+    if (!retriable) {
+      await job.discard();
+      await reportDlqQueue.add(
+        "ReportDLQ",
+        {
+          evidenceId,
+          jobId: job.id,
+          errorMessage: (error as Error).message,
+          errorStack: (error as Error).stack ?? null,
+          retriable: false,
+        },
+        { removeOnComplete: true, removeOnFail: false }
+      );
+
+      logger.error(
+        {
+          ...withJobContext({
+            requestId,
+            jobId: job.id,
+            evidenceId,
+            attempt: job.attemptsMade + 1,
+            durationMs,
+            status: "dlq",
+          }),
+          moved_to_dlq: true,
+        },
+        "GenerateReportJob moved to DLQ (non-retriable)"
+      );
+
+      throw error;
+    }
+
+    if (job.attemptsMade + 1 >= attempts) {
+      await reportDlqQueue.add(
+        "ReportDLQ",
+        {
+          evidenceId,
+          jobId: job.id,
+          errorMessage: (error as Error).message,
+          errorStack: (error as Error).stack ?? null,
+          retriable: true,
+        },
+        { removeOnComplete: true, removeOnFail: false }
+      );
+
+      logger.error(
+        {
+          ...withJobContext({
+            requestId,
+            jobId: job.id,
+            evidenceId,
+            attempt: job.attemptsMade + 1,
+            durationMs,
+            status: "dlq",
+          }),
+          moved_to_dlq: true,
+        },
+        "GenerateReportJob moved to DLQ"
+      );
+    }
 
     throw error;
   }
