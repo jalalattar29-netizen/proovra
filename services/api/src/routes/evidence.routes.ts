@@ -745,6 +745,15 @@ export async function evidenceRoutes(app: FastifyInstance) {
       });
 
       const publicUrl = buildPublicUrl(evidence.storageKey);
+await appendCustodyEvent({
+  evidenceId: id,
+  eventType: prismaPkg.CustodyEventType.EVIDENCE_VIEWED,
+  payload: {
+    mimeType: evidence.mimeType ?? null,
+  },
+  ip: req.ip,
+  userAgent: req.headers["user-agent"],
+}).catch(() => null);
 
       return reply.code(200).send({
         evidenceId: id,
@@ -907,71 +916,6 @@ export async function evidenceRoutes(app: FastifyInstance) {
         eventType: ev.eventType,
         payload: ev.payload,
       })),
-    });
-  });
-
-  app.get("/public/share/:id", async (req: FastifyRequest, reply) => {
-    const id = z.string().uuid().parse((req.params as ParamsId).id);
-    (req as FastifyRequest & { evidenceId?: string }).evidenceId = id;
-    req.log = req.log.child({ evidenceId: id });
-
-    const evidence = await prisma.evidence.findFirst({
-      where: { id, deletedAt: null },
-      select: {
-        id: true,
-        status: true,
-        type: true,
-        createdAt: true,
-      },
-    });
-    if (!evidence) {
-      return reply.code(404).send({ message: "Evidence not found" });
-    }
-
-    const latest = await prisma.report.findFirst({
-      where: { evidenceId: id },
-      orderBy: { version: "desc" },
-      select: {
-        version: true,
-        storageBucket: true,
-        storageKey: true,
-        generatedAtUtc: true,
-      },
-    });
-
-    const publicUrl = latest ? buildPublicUrl(latest.storageKey) : null;
-
-    const url = latest
-      ? await presignGetObject({
-          bucket: latest.storageBucket,
-          key: latest.storageKey,
-          expiresInSeconds: 600,
-        })
-      : null;
-
-    if (latest) {
-      await appendCustodyEvent({
-        evidenceId: id,
-        eventType: prismaPkg.CustodyEventType.REPORT_DOWNLOADED,
-        payload: { reportVersion: latest.version, via: "share" },
-        ip: req.ip,
-        userAgent: req.headers["user-agent"],
-      }).catch(() => null);
-    }
-
-    return reply.code(200).send({
-      evidenceId: evidence.id,
-      status: evidence.status,
-      type: evidence.type,
-      createdAtUtc: evidence.createdAt.toISOString(),
-      report: latest
-        ? {
-            version: latest.version,
-            url,
-            publicUrl,
-            generatedAtUtc: latest.generatedAtUtc.toISOString(),
-          }
-        : null,
     });
   });
 }

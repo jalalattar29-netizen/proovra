@@ -1,12 +1,48 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { Button, Card, useToast } from "../../../../components/ui";
 import { useLocale } from "../../../providers";
 import { apiFetch } from "../../../../lib/api";
 import { captureException } from "../../../../lib/sentry";
+
+function formatBytes(sizeBytes: string | null): string {
+  const n = sizeBytes ? Number(sizeBytes) : Number.NaN;
+  if (!Number.isFinite(n) || n <= 0) return "Unknown size";
+
+  const units = ["B", "KB", "MB", "GB", "TB"] as const;
+  let value = n;
+  let unitIndex = 0;
+
+  while (value >= 1024 && unitIndex < units.length - 1) {
+    value /= 1024;
+    unitIndex++;
+  }
+
+  return `${value.toFixed(unitIndex === 0 ? 0 : 2)} ${units[unitIndex]}`;
+}
+
+function getEvidenceKind(
+  mimeType: string | null
+): "image" | "video" | "audio" | "pdf" | "text" | "other" {
+  const mime = (mimeType ?? "").toLowerCase();
+
+  if (mime.startsWith("image/")) return "image";
+  if (mime.startsWith("video/")) return "video";
+  if (mime.startsWith("audio/")) return "audio";
+  if (mime === "application/pdf") return "pdf";
+  if (
+    mime.startsWith("text/") ||
+    mime.includes("json") ||
+    mime.includes("xml")
+  ) {
+    return "text";
+  }
+
+  return "other";
+}
 
 export default function EvidenceDetailPage() {
   const { t } = useLocale();
@@ -23,9 +59,15 @@ export default function EvidenceDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [actionBusy, setActionBusy] = useState(false);
+
   const [originalFileUrl, setOriginalFileUrl] = useState<string | null>(null);
   const [originalMimeType, setOriginalMimeType] = useState<string | null>(null);
   const [originalSizeBytes, setOriginalSizeBytes] = useState<string | null>(null);
+
+  const originalKind = useMemo(
+    () => getEvidenceKind(originalMimeType),
+    [originalMimeType]
+  );
 
   useEffect(() => {
     if (!params?.id) return;
@@ -40,7 +82,9 @@ export default function EvidenceDetailPage() {
         setType(data.evidence?.type ?? "EVIDENCE");
         setLockedAt(data.evidence?.lockedAt ?? null);
       })
-      .catch((err) => setError(err instanceof Error ? err.message : "Failed to load evidence"))
+      .catch((err) =>
+        setError(err instanceof Error ? err.message : "Failed to load evidence")
+      )
       .finally(() => setLoading(false));
 
     apiFetch("/v1/billing/status")
@@ -66,12 +110,13 @@ export default function EvidenceDetailPage() {
 
   const handleLock = async () => {
     if (!params?.id) return;
+
     setActionBusy(true);
     try {
       addToast("Locking evidence...", "info");
       const data = await apiFetch(`/v1/evidence/${params.id}/lock`, {
         method: "POST",
-        body: JSON.stringify({ locked: true })
+        body: JSON.stringify({ locked: true }),
       });
       setLockedAt(data.evidence?.lockedAt ?? new Date().toISOString());
       addToast("Evidence locked", "success");
@@ -88,6 +133,7 @@ export default function EvidenceDetailPage() {
   const handleDelete = async () => {
     if (!params?.id) return;
     if (!window.confirm("Delete this evidence? This cannot be undone.")) return;
+
     setActionBusy(true);
     try {
       addToast("Deleting evidence...", "info");
@@ -111,9 +157,10 @@ export default function EvidenceDetailPage() {
       addToast("Report not available", "info");
       return;
     }
+
     try {
       addToast("Downloading report...", "info");
-      window.open(reportUrl, "_blank");
+      window.open(reportUrl, "_blank", "noopener,noreferrer");
       addToast("Report downloaded", "success");
     } catch (err) {
       captureException(err, { feature: "web_evidence_download", evidenceId: params?.id });
@@ -126,7 +173,6 @@ export default function EvidenceDetailPage() {
 
     try {
       addToast("Preparing verification package...", "info");
-
       const data = await apiFetch(`/v1/evidence/${params.id}/verification-package`);
 
       if (!data?.url) {
@@ -134,15 +180,31 @@ export default function EvidenceDetailPage() {
         return;
       }
 
-      window.open(data.url, "_blank");
+      window.open(data.url, "_blank", "noopener,noreferrer");
       addToast("Verification package downloaded", "success");
     } catch (err) {
       captureException(err, {
         feature: "web_evidence_verification_package_download",
-        evidenceId: params.id
+        evidenceId: params.id,
       });
       addToast("Failed to download verification package", "error");
     }
+  };
+
+  const handleOpenOriginal = () => {
+    if (!originalFileUrl) {
+      addToast("Original file not available", "info");
+      return;
+    }
+    window.open(originalFileUrl, "_blank", "noopener,noreferrer");
+  };
+
+  const handleDownloadOriginal = () => {
+    if (!originalFileUrl) {
+      addToast("Original file not available", "info");
+      return;
+    }
+    window.open(originalFileUrl, "_blank", "noopener,noreferrer");
   };
 
   return (
@@ -175,11 +237,12 @@ export default function EvidenceDetailPage() {
                     background: "rgba(255,255,255,0.18)",
                     display: "grid",
                     placeItems: "center",
-                    fontWeight: 900
+                    fontWeight: 900,
                   }}
                 >
                   ✓
                 </div>
+
                 <div style={{ flex: 1 }}>
                   <div style={{ fontWeight: 800, fontSize: 14 }}>{type}</div>
                   <div style={{ marginTop: 6 }}>
@@ -239,10 +302,7 @@ export default function EvidenceDetailPage() {
               <div style={{ fontWeight: 800, marginBottom: 12 }}>Actions</div>
 
               <div className="footer-actions">
-                <Button
-                  onClick={handleDownloadReport}
-                  disabled={!reportUrl || plan === "FREE"}
-                >
+                <Button onClick={handleDownloadReport} disabled={!reportUrl || plan === "FREE"}>
                   {t("downloadReport")}
                 </Button>
 
@@ -286,56 +346,125 @@ export default function EvidenceDetailPage() {
           </div>
 
           {originalFileUrl && (
-<Card className="mt-6 existing-class">
-                <div style={{ fontWeight: 800, marginBottom: 12 }}>Original Evidence</div>
-              <div style={{ fontSize: 13, color: "#64748b", marginBottom: 12 }}>
+            <Card className="mt-6">
+              <div style={{ fontWeight: 800, marginBottom: 12 }}>Original Evidence</div>
+
+              <div style={{ fontSize: 13, color: "#64748b", marginBottom: 14 }}>
                 {originalMimeType && <div>Type: {originalMimeType}</div>}
-                {originalSizeBytes && (
-                  <div>
-                    Size: {(parseInt(originalSizeBytes) / (1024 * 1024)).toFixed(2)} MB
-                  </div>
-                )}
+                {originalSizeBytes && <div>Size: {formatBytes(originalSizeBytes)}</div>}
               </div>
 
-              {originalMimeType?.startsWith("image/") && (
+              <div
+                style={{
+                  display: "flex",
+                  flexWrap: "wrap",
+                  gap: 10,
+                  marginBottom: 14,
+                }}
+              >
+                <Button variant="secondary" onClick={handleOpenOriginal}>
+                  Open Original
+                </Button>
+
+                <Button variant="secondary" onClick={handleDownloadOriginal}>
+                  Download Original
+                </Button>
+              </div>
+
+              {originalKind === "image" && (
                 <div style={{ marginBottom: 12 }}>
                   <img
                     src={originalFileUrl}
                     alt="Evidence preview"
                     style={{
+                      display: "block",
+                      width: "100%",
                       maxWidth: "100%",
-                      maxHeight: 300,
-                      borderRadius: 8,
+                      maxHeight: 560,
+                      objectFit: "contain",
+                      borderRadius: 12,
+                      background: "rgba(15,23,42,0.35)",
                     }}
                   />
                 </div>
               )}
 
-              {originalMimeType?.startsWith("video/") && (
+              {originalKind === "video" && (
                 <div style={{ marginBottom: 12 }}>
                   <video
                     src={originalFileUrl}
                     controls
+                    preload="metadata"
                     style={{
+                      display: "block",
+                      width: "100%",
                       maxWidth: "100%",
-                      maxHeight: 300,
-                      borderRadius: 8,
+                      maxHeight: 560,
+                      borderRadius: 12,
+                      background: "#000",
                     }}
                   />
                 </div>
               )}
 
-              {!originalMimeType?.startsWith("image/") &&
-                !originalMimeType?.startsWith("video/") && (
-                  <div style={{ marginBottom: 12 }}>
-                    <Button
-                      variant="secondary"
-                      onClick={() => window.open(originalFileUrl, "_blank")}
-                    >
-                      Download File
-                    </Button>
+              {originalKind === "audio" && (
+                <div
+                  style={{
+                    marginBottom: 12,
+                    padding: 16,
+                    borderRadius: 12,
+                    background: "rgba(15,23,42,0.35)",
+                  }}
+                >
+                  <audio
+                    src={originalFileUrl}
+                    controls
+                    preload="metadata"
+                    style={{ width: "100%" }}
+                  />
+                </div>
+              )}
+
+              {originalKind === "pdf" && (
+                <div
+                  style={{
+                    marginBottom: 12,
+                    borderRadius: 12,
+                    overflow: "hidden",
+                    background: "#fff",
+                  }}
+                >
+                  <iframe
+                    src={originalFileUrl}
+                    title="Original PDF evidence"
+                    style={{
+                      width: "100%",
+                      height: 760,
+                      border: "none",
+                      display: "block",
+                    }}
+                  />
+                </div>
+              )}
+
+              {(originalKind === "text" || originalKind === "other") && (
+                <div
+                  style={{
+                    marginBottom: 12,
+                    padding: 16,
+                    borderRadius: 12,
+                    background: "rgba(15,23,42,0.35)",
+                    color: "#cbd5e1",
+                    fontSize: 14,
+                    lineHeight: 1.6,
+                  }}
+                >
+                  <div style={{ marginBottom: 8 }}>
+                    Preview is not available for this file type inside the page.
                   </div>
-                )}
+                  <div>Use Open Original or Download Original.</div>
+                </div>
+              )}
             </Card>
           )}
         </div>
