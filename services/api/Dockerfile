@@ -23,7 +23,7 @@ RUN pnpm --filter proovra-api prisma:generate
 RUN pnpm --filter proovra-api build
 
 FROM node:20-alpine AS runner
-RUN apk add --no-cache wget openssl
+RUN apk add --no-cache wget curl openssl ca-certificates
 WORKDIR /app/services/api
 ENV NODE_ENV=production
 RUN addgroup -S app && adduser -S app -G app

@@ -30,27 +30,27 @@ function buildPublicUrl(key: string): string | null {
   return `${env.S3_PUBLIC_BASE_URL.replace(/\/+$/, "")}/${key}`;
 }
 
-function stableStringify(value: unknown): string {
-  if (value === null || typeof value !== "object") {
-    return JSON.stringify(value);
-  }
+function formatPayloadValue(value: unknown): string {
+  if (value === null || value === undefined) return "N/A";
+  if (typeof value === "string") return value;
+  if (typeof value === "number" || typeof value === "boolean") return String(value);
   if (Array.isArray(value)) {
-    return `[${value.map((item) => stableStringify(item)).join(",")}]`;
+    return value.map((item) => formatPayloadValue(item)).join(", ");
   }
-  const obj = value as Record<string, unknown>;
-  const keys = Object.keys(obj).sort();
-  const entries = keys.map(
-    (key) => `${JSON.stringify(key)}:${stableStringify(obj[key])}`
-  );
-  return `{${entries.join(",")}}`;
+  if (typeof value === "object") {
+    const obj = value as Record<string, unknown>;
+    return Object.entries(obj)
+      .map(([key, val]) => `${key}: ${formatPayloadValue(val)}`)
+      .join(" • ");
+  }
+  return String(value);
 }
 
 function summarizePayload(payload: unknown): string {
   if (!payload) return "N/A";
   try {
-    const json = stableStringify(payload);
-    if (json.length <= 200) return json;
-    return `${json.slice(0, 197)}...`;
+    const text = formatPayloadValue(payload);
+    return text.length <= 220 ? text : `${text.slice(0, 217)}...`;
   } catch {
     return "UNSERIALIZABLE_PAYLOAD";
   }

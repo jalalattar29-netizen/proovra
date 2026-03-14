@@ -380,51 +380,48 @@ function monospaceStrip(
   const finalValue =
     typeof maxChars === "number" ? summarizeText(value, maxChars) : value;
 
-  doc.save();
-  doc.fillColor(BRAND.muted).font("Helvetica").fontSize(9);
-  doc.text(label, x, doc.y, { width: w });
-  doc.restore();
+  const labelFontSize = 9;
+  const codeFontSize = 9;
+  const labelGapAfter = 8;
+  const bottomPadding = 16;
 
-  doc.moveDown(0.2);
+  doc.font("Helvetica").fontSize(labelFontSize);
+  const labelHeight = doc.heightOfString(label, { width: w });
 
-  doc.font("Courier").fontSize(9);
-
-  let y = doc.y;
-  let textHeight = doc.heightOfString(finalValue, {
+  doc.font("Courier").fontSize(codeFontSize);
+  const textHeight = doc.heightOfString(finalValue, {
     width: w,
     lineGap: 2,
   });
-  let blockHeight = Math.max(18, textHeight + 10);
+  const blockHeight = Math.max(18, textHeight + 10);
 
-  const reserveAfterBlock = 26;
-  const bottomLimit = doc.page.height - doc.page.margins.bottom;
+  const neededHeight = labelHeight + labelGapAfter + blockHeight + bottomPadding;
+  ensureSpace(doc, neededHeight);
 
-  if (y + blockHeight + reserveAfterBlock > bottomLimit) {
-    doc.addPage();
-    y = doc.y;
+  const labelY = doc.y;
 
-    textHeight = doc.heightOfString(finalValue, {
-      width: w,
-      lineGap: 2,
-    });
-    blockHeight = Math.max(18, textHeight + 10);
-  }
+  doc.save();
+  doc.fillColor(BRAND.muted).font("Helvetica").fontSize(labelFontSize);
+  doc.text(label, x, labelY, { width: w });
+  doc.restore();
+
+  const blockY = doc.y + 4;
 
   doc.save();
   doc.opacity(0.05);
-  doc.roundedRect(x - 4, y - 4, w + 8, blockHeight + 8, 8).fill(BRAND.ink);
+  doc.roundedRect(x - 4, blockY - 4, w + 8, blockHeight + 8, 8).fill(BRAND.ink);
   doc.opacity(1);
   doc.restore();
 
   doc.save();
-  doc.fillColor(BRAND.ink).font("Courier").fontSize(9);
-  doc.text(finalValue, x, y, {
+  doc.fillColor(BRAND.ink).font("Courier").fontSize(codeFontSize);
+  doc.text(finalValue, x, blockY, {
     width: w,
     lineGap: 2,
   });
   doc.restore();
 
-  doc.y = y + blockHeight;
+  doc.y = blockY + blockHeight;
   doc.moveDown(0.65);
 }
 
