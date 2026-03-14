@@ -254,6 +254,10 @@ export async function processGenerateReport(job: Job<GenerateReportJobData>) {
     const reportKey = `reports/${evidence.id}/v${version}.pdf`;
     const publicUrl = storageKey ? buildPublicUrl(storageKey) : null;
 
+    // Build stable app URL for evidence detail (QR will point here, not to raw S3 URL)
+    // Frontend will fetch presigned URL from /v1/evidence/{id}/original endpoint
+    const evidenceDetailUrl = `https://app.proovra.com/evidence/${evidence.id}`;
+
     const reportPdf = await buildReportPdf({
       evidence: {
         id: evidence.id,
@@ -300,6 +304,7 @@ export async function processGenerateReport(job: Job<GenerateReportJobData>) {
       version,
       generatedAtUtc: now.toISOString(),
       buildInfo: env.WORKER_BUILD_INFO ?? null,
+      downloadUrl: evidenceDetailUrl,
     });
 
     await putObjectBuffer({

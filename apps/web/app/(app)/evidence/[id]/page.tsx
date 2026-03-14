@@ -23,6 +23,9 @@ export default function EvidenceDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [actionBusy, setActionBusy] = useState(false);
+  const [originalFileUrl, setOriginalFileUrl] = useState<string | null>(null);
+  const [originalMimeType, setOriginalMimeType] = useState<string | null>(null);
+  const [originalSizeBytes, setOriginalSizeBytes] = useState<string | null>(null);
 
   useEffect(() => {
     if (!params?.id) return;
@@ -47,6 +50,18 @@ export default function EvidenceDetailPage() {
     apiFetch(`/v1/evidence/${params.id}/report/latest`)
       .then((data) => setReportUrl(data.url ?? null))
       .catch(() => setReportUrl(null));
+
+    apiFetch(`/v1/evidence/${params.id}/original`)
+      .then((data) => {
+        setOriginalFileUrl(data.url ?? null);
+        setOriginalMimeType(data.mimeType ?? null);
+        setOriginalSizeBytes(data.sizeBytes ?? null);
+      })
+      .catch(() => {
+        setOriginalFileUrl(null);
+        setOriginalMimeType(null);
+        setOriginalSizeBytes(null);
+      });
   }, [params?.id]);
 
   const handleLock = async () => {
@@ -269,6 +284,60 @@ export default function EvidenceDetailPage() {
               </div>
             </Card>
           </div>
+
+          {originalFileUrl && (
+<Card className="mt-6 existing-class">
+                <div style={{ fontWeight: 800, marginBottom: 12 }}>Original Evidence</div>
+              <div style={{ fontSize: 13, color: "#64748b", marginBottom: 12 }}>
+                {originalMimeType && <div>Type: {originalMimeType}</div>}
+                {originalSizeBytes && (
+                  <div>
+                    Size: {(parseInt(originalSizeBytes) / (1024 * 1024)).toFixed(2)} MB
+                  </div>
+                )}
+              </div>
+
+              {originalMimeType?.startsWith("image/") && (
+                <div style={{ marginBottom: 12 }}>
+                  <img
+                    src={originalFileUrl}
+                    alt="Evidence preview"
+                    style={{
+                      maxWidth: "100%",
+                      maxHeight: 300,
+                      borderRadius: 8,
+                    }}
+                  />
+                </div>
+              )}
+
+              {originalMimeType?.startsWith("video/") && (
+                <div style={{ marginBottom: 12 }}>
+                  <video
+                    src={originalFileUrl}
+                    controls
+                    style={{
+                      maxWidth: "100%",
+                      maxHeight: 300,
+                      borderRadius: 8,
+                    }}
+                  />
+                </div>
+              )}
+
+              {!originalMimeType?.startsWith("image/") &&
+                !originalMimeType?.startsWith("video/") && (
+                  <div style={{ marginBottom: 12 }}>
+                    <Button
+                      variant="secondary"
+                      onClick={() => window.open(originalFileUrl, "_blank")}
+                    >
+                      Download File
+                    </Button>
+                  </div>
+                )}
+            </Card>
+          )}
         </div>
       </div>
     </div>

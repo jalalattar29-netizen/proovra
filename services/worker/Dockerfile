@@ -1,4 +1,9 @@
-FROM node:20-alpine AS base
+FROM node:20-alpine AS runner
+
+RUN apk add --no-cache \
+    openssl \
+    ca-certificates
+
 WORKDIR /app
 RUN corepack enable
 
@@ -23,7 +28,7 @@ COPY services/worker/tsconfig.build.json services/worker/tsconfig.build.json
 RUN pnpm --filter proovra-api prisma:generate
 RUN pnpm --filter proovra-worker build
 
-FROM node:20-alpine AS runner
+FROM node:20-alpine AS worker-base
 RUN apk add --no-cache wget
 WORKDIR /app/services/worker
 ENV NODE_ENV=production

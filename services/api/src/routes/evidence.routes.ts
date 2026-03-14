@@ -715,6 +715,50 @@ export async function evidenceRoutes(app: FastifyInstance) {
   );
 
   app.get(
+    "/v1/evidence/:id/original",
+    { preHandler: requireAuth },
+    async (req: FastifyRequest, reply) => {
+      const ownerUserId = getAuthUserId(req);
+      const id = z.string().uuid().parse((req.params as ParamsId).id);
+      (req as FastifyRequest & { evidenceId?: string }).evidenceId = id;
+      req.log = req.log.child({ evidenceId: id });
+
+      const evidence = await prisma.evidence.findFirst({
+        where: { id, ownerUserId, deletedAt: null },
+        select: {
+          id: true,
+          storageBucket: true,
+          storageKey: true,
+          mimeType: true,
+          sizeBytes: true,
+        },
+      });
+
+      if (!evidence || !evidence.storageBucket || !evidence.storageKey) {
+        return reply.code(404).send({ message: "Original file not found" });
+      }
+
+      const url = await presignGetObject({
+        bucket: evidence.storageBucket,
+        key: evidence.storageKey,
+        expiresInSeconds: 600,
+      });
+
+      const publicUrl = buildPublicUrl(evidence.storageKey);
+
+      return reply.code(200).send({
+        evidenceId: id,
+        bucket: evidence.storageBucket,
+        key: evidence.storageKey,
+        url,
+        publicUrl,
+        mimeType: evidence.mimeType,
+        sizeBytes: evidence.sizeBytes?.toString() ?? null,
+      });
+    }
+  );
+
+  app.get(
     "/v1/evidence/:id/verification-package",
     { preHandler: requireAuth },
     async (req: FastifyRequest, reply) => {

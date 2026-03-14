@@ -616,6 +616,18 @@ function buildVerifyUrl(evidenceId: string, provided?: string | null): string {
   return `${base}?evidenceId=${encodeURIComponent(evidenceId)}`;
 }
 
+function buildEvidenceUrl(evidenceId: string, provided?: string | null): string {
+  const v = typeof provided === "string" ? provided.trim() : "";
+  if (v) return v;
+
+  const base = (
+    env("REPORT_EVIDENCE_BASE_URL") ?? "https://app.proovra.com/evidence"
+  )
+    .trim()
+    .replace(/\/+$/, "");
+  return `${base}/${encodeURIComponent(evidenceId)}`;
+}
+
 function buildDownloadLabel(url: string): string {
   try {
     const u = new URL(url);
@@ -764,8 +776,9 @@ export async function buildReportPdf(params: {
     ? `${verifyUrl}&tab=technical`
     : `${verifyUrl}?tab=technical`;
 
+  // Use stable app URL for evidence download, not raw S3/R2 URL
   const downloadUrl = safe(
-    params.downloadUrl ?? params.evidence.publicUrl ?? "",
+    params.downloadUrl ?? buildEvidenceUrl(params.evidence.id),
     ""
   );
 
