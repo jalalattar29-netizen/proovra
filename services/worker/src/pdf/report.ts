@@ -354,26 +354,41 @@ function monospaceStrip(
   doc.moveDown(0.2);
 
   const startY = doc.y;
-  const h = Math.max(
-    18,
-    doc.heightOfString(finalValue, { width: w, lineGap: 2 }) + 10
-  );
+
+  doc.font("Courier").fontSize(9);
+
+  const textHeight = doc.heightOfString(finalValue, {
+    width: w,
+    lineGap: 2,
+  });
+
+  const blockHeight = Math.max(18, textHeight + 10);
+
+  // ✅ prevent overflow to next page
+  const bottomLimit = doc.page.height - doc.page.margins.bottom;
+  if (startY + blockHeight + 20 > bottomLimit) {
+    doc.addPage();
+  }
+
+  const y = doc.y;
 
   doc.save();
   doc.opacity(0.05);
-  doc.roundedRect(x - 4, startY - 4, w + 8, h + 8, 8).fill(BRAND.ink);
+  doc.roundedRect(x - 4, y - 4, w + 8, blockHeight + 8, 8).fill(BRAND.ink);
   doc.opacity(1);
   doc.restore();
 
   doc.save();
   doc.fillColor(BRAND.ink).font("Courier").fontSize(9);
-  doc.text(finalValue, x, startY, { width: w, lineGap: 2 });
+  doc.text(finalValue, x, y, {
+    width: w,
+    lineGap: 2,
+  });
   doc.restore();
 
-  doc.y = startY + h;
+  doc.y = y + blockHeight;
   doc.moveDown(0.65);
 }
-
 function drawTable(
   doc: PDFDoc,
   headers: string[],
@@ -969,19 +984,19 @@ export async function buildReportPdf(params: {
       doc,
       "Signature (Base64) (excerpt)",
       safe(params.evidence.signatureBase64),
-      { maxChars: 520 }
+      { maxChars: 260 }
     );
     monospaceStrip(
       doc,
       "Public Key (PEM) (excerpt)",
       safe(params.evidence.publicKeyPem),
-      { maxChars: 520 }
+      { maxChars: 260 }
     );
     monospaceStrip(
       doc,
       "Fingerprint Canonical JSON (excerpt)",
       safe(params.evidence.fingerprintCanonicalJson),
-      { maxChars: 700 }
+      { maxChars: 320 }
     );
 
     monospaceStrip(
@@ -1020,7 +1035,7 @@ export async function buildReportPdf(params: {
         "Timestamp Token (Base64) (excerpt)",
         safe(params.evidence.tsaTokenBase64),
         {
-          maxChars: 520,
+          maxChars: 320,
         }
       );
     }
@@ -1031,7 +1046,7 @@ export async function buildReportPdf(params: {
         "Timestamp Failure Reason",
         safe(params.evidence.tsaFailureReason),
         {
-          maxChars: 300,
+          maxChars: 320,
         }
       );
     }
