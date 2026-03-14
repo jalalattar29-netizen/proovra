@@ -1,9 +1,4 @@
-FROM node:20-alpine AS runner
-
-RUN apk add --no-cache \
-    openssl \
-    ca-certificates
-
+FROM node:20-alpine AS base
 WORKDIR /app
 RUN corepack enable
 
@@ -27,11 +22,12 @@ COPY services/api/tsconfig.build.json services/api/tsconfig.build.json
 RUN pnpm --filter proovra-api prisma:generate
 RUN pnpm --filter proovra-api build
 
-FROM node:20-alpine AS worker-base
-RUN apk add --no-cache wget
+FROM node:20-alpine AS runner
+RUN apk add --no-cache wget openssl
 WORKDIR /app/services/api
 ENV NODE_ENV=production
 RUN addgroup -S app && adduser -S app -G app
+
 COPY --from=deps /app/node_modules /app/node_modules
 COPY --from=build /app/node_modules/.prisma /app/node_modules/.prisma
 COPY --from=build /app/services/api/dist ./dist
@@ -39,6 +35,7 @@ COPY --from=build /app/services/api/package.json ./package.json
 COPY --from=build /app/services/api/keys ./keys
 COPY --from=build /app/services/api/prisma ./prisma
 COPY --from=build /app/services/api/prisma.config.ts ./prisma.config.ts
+
 USER app
 EXPOSE 8080
 CMD ["node", "--experimental-specifier-resolution=node", "dist/index.js"]
