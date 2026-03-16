@@ -127,6 +127,8 @@ const BRAND = {
   accent: "#163A70",
   accentSoft: "#D9E4F5",
   paper: "#F4F6F9",
+
+  success: "#1F7A55"
 };
 
 function hr(doc: PDFDoc, y?: number): void {
@@ -1057,29 +1059,45 @@ export async function buildReportPdf(params: {
       `verification/${params.evidence.id}/package.zip`
     );
 
-    monospaceStrip(doc, "Timestamp Provider", safe(params.evidence.tsaProvider));
-    monospaceStrip(doc, "Timestamp URL", safe(params.evidence.tsaUrl));
-    monospaceStrip(
-      doc,
-      "Timestamp Serial Number",
-      safe(params.evidence.tsaSerialNumber)
-    );
-    monospaceStrip(
-      doc,
-      "Timestamp Generation Time (UTC)",
-      safe(params.evidence.tsaGenTimeUtc)
-    );
-    monospaceStrip(
-      doc,
-      "Timestamp Hash Algorithm",
-      safe(params.evidence.tsaHashAlgorithm)
-    );
+section(doc, "Timestamp Authority", () => {
+  kvGrid(doc, [
+    ["Timestamp Provider", safe(params.evidence.tsaProvider)],
+    ["Timestamp URL", safe(params.evidence.tsaUrl)],
+    ["Serial Number", safe(params.evidence.tsaSerialNumber)],
+    ["Generation Time (UTC)", safe(params.evidence.tsaGenTimeUtc)],
+    ["Hash Algorithm", safe(params.evidence.tsaHashAlgorithm)],
+  ]);
+});
     monospaceStrip(
       doc,
       "Timestamp Message Imprint",
       safe(params.evidence.tsaMessageImprint)
     );
-    monospaceStrip(doc, "Timestamp Status", safe(params.evidence.tsaStatus));
+{
+  const status = safe(params.evidence.tsaStatus);
+
+  const color =
+    status.toUpperCase() === "GRANTED"
+      ? BRAND.success
+      : BRAND.ink;
+
+  const x = doc.page.margins.left;
+  const w = doc.page.width - doc.page.margins.left - doc.page.margins.right;
+
+  doc.save();
+  doc.fillColor(BRAND.muted).font("Helvetica").fontSize(9);
+  doc.text("Timestamp Status", x, doc.y, { width: w });
+  doc.restore();
+
+  doc.moveDown(0.2);
+
+  doc.save();
+  doc.fillColor(color).font("Helvetica-Bold").fontSize(11);
+  doc.text(status.toUpperCase(), x, doc.y, { width: w });
+  doc.restore();
+
+  doc.moveDown(0.8);
+}
 
     if (params.evidence.tsaTokenBase64) {
       monospaceStrip(
