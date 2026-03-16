@@ -128,7 +128,8 @@ const BRAND = {
   accentSoft: "#D9E4F5",
   paper: "#F4F6F9",
 
-  success: "#1F7A55"
+  success: "#1F7A55",
+  danger: "#B42318",
 };
 
 function hr(doc: PDFDoc, y?: number): void {
@@ -1071,7 +1072,8 @@ section(doc, "Timestamp Authority", () => {
     monospaceStrip(
       doc,
       "Timestamp Message Imprint",
-      safe(params.evidence.tsaMessageImprint)
+      safe(params.evidence.tsaMessageImprint),
+      { maxChars: 140 }
     );
 {
   const status = safe(params.evidence.tsaStatus);
@@ -1114,8 +1116,7 @@ section(doc, "Timestamp Authority", () => {
       monospaceStrip(
         doc,
         "Timestamp Failure Reason",
-        safe(params.evidence.tsaFailureReason),
-        {
+summarizeText(safe(params.evidence.tsaFailureReason), 120),        {
           maxChars: 320,
         }
       );
