@@ -1165,6 +1165,40 @@ safeParagraph(
     generatedAtUtc: params.generatedAtUtc,
     status: params.evidence.status,
   });
+  section(doc, "Integrity Verdict", () => {
+  const x = doc.page.margins.left;
+  const w = doc.page.width - doc.page.margins.left - doc.page.margins.right;
+
+  const verified =
+    params.evidence.fileSha256 &&
+    params.evidence.fingerprintHash &&
+    params.evidence.signatureBase64;
+
+  const verdict = verified
+    ? "EVIDENCE INTEGRITY VERIFIED"
+    : "EVIDENCE INTEGRITY FAILED";
+
+  const color = verified ? BRAND.success : BRAND.danger;
+
+  doc.save();
+  doc.fillColor(color).font("Helvetica-Bold").fontSize(16);
+  doc.text(verdict, x, doc.y, { width: w });
+  doc.restore();
+
+  doc.moveDown(0.6);
+
+  doc.font("Helvetica").fontSize(10).fillColor(BRAND.ink);
+
+  if (verified) {
+    doc.text("• File hash matches recorded fingerprint", x, doc.y, { width: w });
+    doc.text("• Digital signature verified", x, doc.y, { width: w });
+    if (params.evidence.tsaSerialNumber) {
+      doc.text("• Trusted timestamp present", x, doc.y, { width: w });
+    }
+  } else {
+    doc.text("• Evidence integrity could not be fully verified", x, doc.y, { width: w });
+  }
+});
 
   section(doc, "Forensic Integrity Statement", () => {
     renderForensicIntegrityStatement(doc, { verifyUrl });
