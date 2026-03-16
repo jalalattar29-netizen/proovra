@@ -116,15 +116,16 @@ const BRAND = {
   name: env("REPORT_BRAND_NAME") ?? "PROOVRA",
   title: "Verifiable Evidence Report",
 
-  ink: "#0B1220",
-  muted: "#475569",
-  line: "rgba(11,18,32,0.12)",
-  accent: "#163A70",
-  accentSoft: "#D9E4F5",
-  paper: "#F4F6F9",
+  ink: "#111827",
+  muted: "#667085",
+  line: "#D0D5DD",
+  accent: "#1F3A5F",
+  accentSoft: "#EAF1F8",
+  paper: "#F8FAFC",
 
-  success: "#1F7A55",
-  danger: "#B42318",
+  success: "#245C4A",
+  danger: "#8A3B2E",
+  warning: "#8B6C1E",
 };
 
 function hr(doc: PDFDoc, y?: number): void {
@@ -192,21 +193,47 @@ function paintPageBackground(doc: PDFDoc): void {
 }
 
 function drawBadge(doc: PDFDoc, text: string, x: number, y: number): void {
-  const padX = 14;
-  const padY = 7;
+  const padX = 12;
+  const padY = 5;
 
   doc.save();
-  doc.font("Helvetica-Bold").fontSize(10.5);
+  doc.font("Helvetica-Bold").fontSize(9.5);
 
   const tw = doc.widthOfString(text);
   const th = doc.currentLineHeight();
 
-  doc.opacity(0.08);
-  doc.roundedRect(x, y, tw + padX * 2, th + padY * 2, 8).fill(BRAND.accent);
-  doc.opacity(1);
+  doc.fillColor(BRAND.accentSoft);
+  doc.roundedRect(x, y, tw + padX * 2, th + padY * 2, 7).fill();
 
-  doc.fillColor(BRAND.ink).text(text, x + padX, y + padY, { lineBreak: false });
+  doc.fillColor(BRAND.accent);
+  doc.text(text, x + padX, y + padY, { lineBreak: false });
   doc.restore();
+}
+
+function drawStatusText(doc: PDFDoc, label: string, status: string): void {
+  const x = doc.page.margins.left;
+  const w = doc.page.width - doc.page.margins.left - doc.page.margins.right;
+
+  const normalized = safe(status).toUpperCase();
+  let color = BRAND.muted;
+
+  if (normalized === "GRANTED") color = BRAND.success;
+  else if (normalized === "FAILED") color = BRAND.danger;
+  else if (normalized === "PENDING") color = BRAND.warning;
+
+  doc.save();
+  doc.fillColor(BRAND.muted).font("Helvetica").fontSize(9);
+  doc.text(label, x, doc.y, { width: w });
+  doc.restore();
+
+  doc.moveDown(0.15);
+
+  doc.save();
+  doc.fillColor(color).font("Helvetica-Bold").fontSize(10);
+  doc.text(normalized, x, doc.y, { width: w });
+  doc.restore();
+
+  doc.moveDown(0.55);
 }
 
 function drawHeader(
@@ -868,13 +895,13 @@ export async function buildReportPdf(params: {
       Boolean(params.evidence.signatureBase64);
 
     const verdict = verified
-      ? "EVIDENCE INTEGRITY VERIFIED"
-      : "EVIDENCE INTEGRITY FAILED";
+      ? "Integrity Verified"
+      : "Integrity Review Required";
 
     const color = verified ? BRAND.success : BRAND.danger;
 
     doc.save();
-    doc.fillColor(color).font("Helvetica-Bold").fontSize(16);
+    doc.fillColor(color).font("Helvetica-Bold").fontSize(14);
     doc.text(verdict, x, doc.y, { width: w });
     doc.restore();
 
@@ -963,21 +990,6 @@ export async function buildReportPdf(params: {
       { width: w, lineGap: 2 }
     );
   });
-
-  {
-    const qrBuf = await tryGenerateQrPngBuffer(verifyUrl);
-    if (qrBuf) {
-      drawQrBlock(doc, {
-        title: "Open verification page",
-        qrBuffer: qrBuf,
-        size: 108,
-        caption:
-          "Scan to review verification details and chain of custody for this evidence item.",
-        urlText: summarizeText(verifyUrl, 90),
-        urlLink: verifyUrl,
-      });
-    }
-  }
 
   doc.addPage();
   drawHeader(doc, {
@@ -1111,15 +1123,19 @@ export async function buildReportPdf(params: {
       { maxChars: 320 }
     );
 
-    section(doc, "Timestamp Authority", () => {
-      kvGrid(doc, [
-        ["Timestamp Provider", safe(params.evidence.tsaProvider)],
-        ["Timestamp URL", safe(params.evidence.tsaUrl)],
-        ["Serial Number", safe(params.evidence.tsaSerialNumber)],
-        ["Generation Time (UTC)", safe(params.evidence.tsaGenTimeUtc)],
-        ["Hash Algorithm", safe(params.evidence.tsaHashAlgorithm)],
-      ]);
-    });
+doc.save();
+doc.fillColor(BRAND.ink).font("Helvetica-Bold").fontSize(11);
+doc.text("Timestamp Authority", doc.page.margins.left, doc.y);
+doc.restore();
+doc.moveDown(0.3);
+
+kvGrid(doc, [
+  ["Timestamp Provider", safe(params.evidence.tsaProvider)],
+  ["Timestamp URL", safe(params.evidence.tsaUrl)],
+  ["Serial Number", safe(params.evidence.tsaSerialNumber)],
+  ["Generation Time (UTC)", safe(params.evidence.tsaGenTimeUtc)],
+  ["Hash Algorithm", safe(params.evidence.tsaHashAlgorithm)],
+]);
 
     monospaceStrip(
       doc,
@@ -1151,7 +1167,10 @@ export async function buildReportPdf(params: {
       doc.moveDown(0.8);
     }
 
-    if (params.evidence.tsaFailureReason) {
+    if (
+      safe (params.evidence.tsaStatus) === "FAILED" &&
+       params.evidence.tsaFailureReason
+      ) {
       monospaceStrip(
         doc,
         "Timestamp Failure Reason",
@@ -1180,44 +1199,11 @@ export async function buildReportPdf(params: {
       });
     }
 
-    const vpQr = await tryGenerateQrPngBuffer(verificationPackagePageUrl);
-    if (vpQr) {
-      drawQrBlock(doc, {
-        title: "Verification Package",
-        qrBuffer: vpQr,
-        size: 104,
-        caption:
-          "Open the evidence page to download the verification package securely.",
-        urlText: summarizeText(verificationPackagePageUrl, 90),
-        urlLink: verificationPackagePageUrl,
-      });
-    }
   }
-
-  doc.addPage();
-  drawHeader(doc, {
-    evidenceId: params.evidence.id,
-    generatedAtUtc: params.generatedAtUtc,
-    status: params.evidence.status,
-  });
 
   section(doc, "Forensic Integrity Statement", () => {
     renderForensicIntegrityStatement(doc, { verifyUrl });
   });
-
-  {
-    const qrBuf = await tryGenerateQrPngBuffer(verifyUrl);
-    if (qrBuf) {
-      drawQrBlock(doc, {
-        title: "Verify page",
-        qrBuffer: qrBuf,
-        size: 104,
-        caption: "Scan to reopen the main verification page for this evidence item.",
-        urlText: summarizeText(verifyUrl, 90),
-        urlLink: verifyUrl,
-      });
-    }
-  }
 
   addFooters(doc, {
     generatedAtUtc: params.generatedAtUtc,
