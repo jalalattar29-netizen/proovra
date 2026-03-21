@@ -47,8 +47,15 @@ export async function usersRoutes(app: FastifyInstance) {
     setStr("locale", 12);
     setStr("timezone", 64);
 
-    // country = ISO2 uppercase
-    if (typeof body.country === "string") data.country = body.country.trim().toUpperCase().slice(0, 2);
+    // country = full country name (stored as-is, trimmed, up to 120 chars)
+    if (typeof body.country === "string") {
+      const trimmed = body.country.trim();
+      if (trimmed.length > 0) {
+        data.country = trimmed.slice(0, 120);
+      }
+    } else if (body.country === null) {
+      data.country = null;
+    }
 
     // bio
     if (typeof body.bio === "string") data.bio = body.bio.trim().slice(0, 280);

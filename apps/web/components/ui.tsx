@@ -439,7 +439,8 @@ export function Input({
   onChange,
   type = "text",
   disabled,
-  error
+  error,
+  maxLength
 }: {
   placeholder?: string;
   value: string;
@@ -447,6 +448,7 @@ export function Input({
   type?: string;
   disabled?: boolean;
   error?: string;
+  maxLength?: number;
 }) {
   return (
     <div>
@@ -457,6 +459,7 @@ export function Input({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         disabled={disabled}
+        maxLength={maxLength}
         style={{
           borderColor: error ? "#D64545" : undefined
         }}

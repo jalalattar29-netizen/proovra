@@ -70,7 +70,7 @@ function extractUserFromResponse(res: unknown): UserMeResponse["user"] | null {
 }
 
 export default function SettingsPage() {
-  const { t, locale } = useLocale();
+  const { t, locale, setLocale } = useLocale();
   const { user, setToken, updateUser } = useAuth();
   const { addToast } = useToast();
   const router = useRouter();
@@ -95,7 +95,7 @@ export default function SettingsPage() {
     setCountry(user?.country ?? "");
     setTimezone(user?.timezone ?? "");
     setBio(user?.bio ?? "");
-  }, [user?.id]);
+  }, [user?.firstName, user?.lastName, user?.displayName, user?.country, user?.timezone, user?.bio, user?.id]);
 
   useEffect(() => {
     apiFetch("/v1/billing/status")
@@ -148,7 +148,13 @@ export default function SettingsPage() {
       });
 
       const updated = extractUserFromResponse(res);
-      if (updated) updateUser(updated);
+      if (updated) {
+        updateUser(updated);
+        // Sync locale to UI if it was updated
+        if (updated.locale) {
+          setLocale(updated.locale as Locale);
+        }
+      }
 
       addToast("Profile updated", "success");
     } catch (err: unknown) {
@@ -186,98 +192,72 @@ export default function SettingsPage() {
 
             <div className="settings-section-body">
               <div style={{ marginBottom: 16, display: "flex", alignItems: "center", gap: 12 }}>
-                <div
-                  style={{
-                    width: 64,
-                    height: 64,
-                    borderRadius: 32,
-                    background: "linear-gradient(135deg, #0B1F2A 0%, #0B7BE5 100%)",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    color: "#fff",
-                    fontSize: 28,
-                    fontWeight: 600
-                  }}
-                >
-                  {initials}
-                </div>
+                <div className="profile-avatar">{initials}</div>
 
-                <div>
-                  <div style={{ fontSize: 14, color: "#999" }}>Account</div>
-                  <div style={{ fontSize: 16, fontWeight: 600 }}>
+                <div className="profile-info">
+                  <div className="profile-info-label">Account</div>
+                  <div className="profile-info-title">
                     {user?.displayName || user?.email || "Guest User"}
                   </div>
                   {user?.email && (
-                    <div style={{ fontSize: 13, color: "var(--color-muted)", marginTop: 2 }}>
-                      {user.email}
-                    </div>
+                    <div className="profile-info-email">{user.email}</div>
                   )}
                 </div>
               </div>
 
-              <div style={{ display: "grid", gap: 12 }}>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-                  <div>
-                    <div className="settings-label" style={{ marginBottom: 6 }}>
-                      First name
-                    </div>
-                    <Input value={firstName} onChange={setFirstName} placeholder="First name" />
+              <div className="profile-form-fields">
+                <div className="profile-grid-2">
+                  <div className="profile-form-group">
+                    <div className="profile-field-label">First name</div>
+                    <Input value={firstName} onChange={setFirstName} placeholder="First name" maxLength={80} />
                   </div>
-                  <div>
-                    <div className="settings-label" style={{ marginBottom: 6 }}>
-                      Last name
-                    </div>
-                    <Input value={lastName} onChange={setLastName} placeholder="Last name" />
+                  <div className="profile-form-group">
+                    <div className="profile-field-label">Last name</div>
+                    <Input value={lastName} onChange={setLastName} placeholder="Last name" maxLength={80} />
                   </div>
                 </div>
 
-                <div>
-                  <div className="settings-label" style={{ marginBottom: 6 }}>
-                    Display name
-                  </div>
+                <div className="profile-form-group">
+                  <div className="profile-field-label">Display name</div>
                   <Input
                     value={displayName}
                     onChange={setDisplayName}
                     placeholder="Public display name"
+                    maxLength={120}
                   />
                 </div>
 
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-                  <div>
-                    <div className="settings-label" style={{ marginBottom: 6 }}>
-                      Country
-                    </div>
-                    <Input value={country} onChange={setCountry} placeholder="e.g. Germany" />
+                <div className="profile-grid-2">
+                  <div className="profile-form-group">
+                    <div className="profile-field-label">Country</div>
+                    <Input value={country} onChange={setCountry} placeholder="e.g. Germany, Syria" maxLength={120} />
                   </div>
-                  <div>
-                    <div className="settings-label" style={{ marginBottom: 6 }}>
-                      Timezone
-                    </div>
+                  <div className="profile-form-group">
+                    <div className="profile-field-label">Timezone</div>
                     <Input
                       value={timezone}
                       onChange={setTimezone}
                       placeholder="e.g. Europe/Berlin"
+                      maxLength={64}
                     />
                   </div>
                 </div>
 
-                <div>
-                  <div className="settings-label" style={{ marginBottom: 6 }}>
-                    Bio
-                  </div>
+                <div className="profile-form-group">
+                  <div className="profile-field-label">Bio</div>
                   <textarea
                     className="input"
                     value={bio}
-                    onChange={(e) => setBio(e.target.value)}
+                    onChange={(e) => setBio(e.target.value.slice(0, 280))}
                     placeholder="A short bio (optional)"
                     rows={4}
+                    maxLength={280}
                     style={{ resize: "vertical" }}
                   />
                 </div>
               </div>
 
-              <div style={{ marginTop: 16, display: "flex", gap: 10, flexWrap: "wrap" }}>
+              <div className="profile-actions">
                 <Button variant="secondary" onClick={handleSaveProfile}>
                   Save profile
                 </Button>
