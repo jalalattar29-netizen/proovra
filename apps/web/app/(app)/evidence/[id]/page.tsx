@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
-import { Button, Card, useToast } from "../../../../components/ui";
+import { Button, Card, Modal, useToast } from "../../../../components/ui";
 import { useLocale } from "../../../providers";
 import { apiFetch } from "../../../../lib/api";
 import { captureException } from "../../../../lib/sentry";
@@ -55,10 +55,13 @@ export default function EvidenceDetailPage() {
   const [createdAt, setCreatedAt] = useState<string | null>(null);
   const [type, setType] = useState<string>("EVIDENCE");
   const [lockedAt, setLockedAt] = useState<string | null>(null);
+  const [archivedAt, setArchivedAt] = useState<string | null>(null);
   const [plan, setPlan] = useState<string>("FREE");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [actionBusy, setActionBusy] = useState(false);
+  const [lockModalOpen, setLockModalOpen] = useState(false);
+  const [archiveModalOpen, setArchiveModalOpen] = useState(false);
 
   const [originalFileUrl, setOriginalFileUrl] = useState<string | null>(null);
   const [originalMimeType, setOriginalMimeType] = useState<string | null>(null);
@@ -81,6 +84,7 @@ export default function EvidenceDetailPage() {
         setCreatedAt(data.evidence?.createdAt ?? null);
         setType(data.evidence?.type ?? "EVIDENCE");
         setLockedAt(data.evidence?.lockedAt ?? null);
+        setArchivedAt(data.evidence?.archivedAt ?? null);
       })
       .catch((err) =>
         setError(err instanceof Error ? err.message : "Failed to load evidence")
@@ -108,18 +112,23 @@ export default function EvidenceDetailPage() {
       });
   }, [params?.id]);
 
-  const handleLock = async () => {
+  const handleLock = () => {
+    setLockModalOpen(true);
+  };
+
+  const handleConfirmLock = async () => {
     if (!params?.id) return;
 
     setActionBusy(true);
     try {
-      addToast("Locking evidence...", "info");
+      addToast("Permanently sealing evidence...", "info");
       const data = await apiFetch(`/v1/evidence/${params.id}/lock`, {
         method: "POST",
         body: JSON.stringify({ locked: true }),
       });
       setLockedAt(data.evidence?.lockedAt ?? new Date().toISOString());
-      addToast("Evidence locked", "success");
+      addToast("Evidence permanently locked", "success");
+      setLockModalOpen(false);
     } catch (err) {
       captureException(err, { feature: "web_evidence_lock", evidenceId: params.id });
       const message = err instanceof Error ? err.message : "Failed to lock evidence";
@@ -132,6 +141,10 @@ export default function EvidenceDetailPage() {
 
   const handleDelete = async () => {
     if (!params?.id) return;
+    if (lockedAt) {
+      addToast("Cannot delete locked evidence", "error");
+      return;
+    }
     if (!window.confirm("Delete this evidence? This cannot be undone.")) return;
 
     setActionBusy(true);
@@ -145,6 +158,55 @@ export default function EvidenceDetailPage() {
     } catch (err) {
       captureException(err, { feature: "web_evidence_delete", evidenceId: params.id });
       const message = err instanceof Error ? err.message : "Failed to delete evidence";
+      setError(message);
+      addToast(message, "error");
+    } finally {
+      setActionBusy(false);
+    }
+  };
+
+  const handleArchive = () => {
+    setArchiveModalOpen(true);
+  };
+
+  const handleConfirmArchive = async () => {
+    if (!params?.id) return;
+
+    setActionBusy(true);
+    try {
+      addToast("Archiving evidence...", "info");
+      const data = await apiFetch(`/v1/evidence/${params.id}/archive`, {
+        method: "POST",
+        body: JSON.stringify({}),
+      });
+      setArchivedAt(data.evidence?.archivedAt ?? new Date().toISOString());
+      addToast("Evidence archived", "success");
+      setArchiveModalOpen(false);
+    } catch (err) {
+      captureException(err, { feature: "web_evidence_archive", evidenceId: params.id });
+      const message = err instanceof Error ? err.message : "Failed to archive evidence";
+      setError(message);
+      addToast(message, "error");
+    } finally {
+      setActionBusy(false);
+    }
+  };
+
+  const handleUnarchive = async () => {
+    if (!params?.id) return;
+
+    setActionBusy(true);
+    try {
+      addToast("Restoring evidence...", "info");
+      const data = await apiFetch(`/v1/evidence/${params.id}/unarchive`, {
+        method: "POST",
+        body: JSON.stringify({}),
+      });
+      setArchivedAt(data.evidence?.archivedAt ?? null);
+      addToast("Evidence restored", "success");
+    } catch (err) {
+      captureException(err, { feature: "web_evidence_unarchive", evidenceId: params.id });
+      const message = err instanceof Error ? err.message : "Failed to restore evidence";
       setError(message);
       addToast(message, "error");
     } finally {
@@ -281,11 +343,39 @@ export default function EvidenceDetailPage() {
                     </div>
 
                     <div className="row">
-                      <div className="rowTitle">Locked</div>
-                      <div className="rowSub" style={{ margin: 0 }}>
-                        {lockedAt ? "Locked" : "Editable"}
+                      <div className="rowTitle">Status</div>
+                      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
+                        {lockedAt && (
+                          <span style={{ fontSize: 14, fontWeight: 700, color: "#65ebff" }}>
+                            🔒 Evidence Locked
+                          </span>
+                        )}
+                        {archivedAt && (
+                          <span style={{ fontSize: 14, fontWeight: 600, color: "#94a3b8" }}>
+                            📦 Archived
+                          </span>
+                        )}
+                        {!lockedAt && !archivedAt && (
+                          <span style={{ color: "#94a3b8" }}>Active</span>
+                        )}
                       </div>
                     </div>
+
+                    {lockedAt && (
+                      <div className="row" style={{ borderTop: "1px solid rgba(101, 235, 255, 0.15)" }}>
+                        <div style={{ fontSize: 13, color: "#cbd5e1", lineHeight: 1.5 }}>
+                          This evidence is permanently sealed and cannot be modified or deleted.
+                        </div>
+                      </div>
+                    )}
+
+                    {archivedAt && (
+                      <div className="row" style={{ borderTop: "1px solid rgba(148, 163, 184, 0.15)" }}>
+                        <div style={{ fontSize: 13, color: "#cbd5e1", lineHeight: 1.5 }}>
+                          This evidence has been archived and removed from your active workspace.
+                        </div>
+                      </div>
+                    )}
 
                     <div className="row">
                       <div className="rowTitle">Plan</div>
@@ -327,20 +417,66 @@ export default function EvidenceDetailPage() {
 
               <div style={{ display: "grid", gap: 10, marginTop: 14 }}>
                 <Button
-                  variant="secondary"
                   onClick={handleLock}
                   disabled={
                     actionBusy ||
                     Boolean(lockedAt) ||
                     !(status === "SIGNED" || status === "REPORTED")
                   }
+                  className={lockedAt ? "button-disabled" : "button-danger"}
                 >
-                  {lockedAt ? "Locked" : "Lock Evidence"}
+                  {lockedAt ? "🔒 Permanently Locked" : "🔒 Lock Evidence Permanently"}
                 </Button>
 
-                <Button variant="secondary" onClick={handleDelete} disabled={actionBusy}>
+                {lockedAt && (
+                  <div style={{ fontSize: 12, color: "#94a3b8", padding: "8px 0" }}>
+                    ✓ This evidence is legally sealed and cannot be edited or deleted.
+                  </div>
+                )}
+
+                {archivedAt ? (
+                  <>
+                    <Button
+                      variant="secondary"
+                      onClick={handleUnarchive}
+                      disabled={actionBusy}
+                    >
+                      Restore Evidence
+                    </Button>
+                    <div style={{ fontSize: 12, color: "#94a3b8", padding: "8px 0" }}>
+                      This evidence is archived. Click restore to bring it back to your active workspace.
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <Button
+                      variant="secondary"
+                      onClick={handleArchive}
+                      disabled={actionBusy}
+                    >
+                      📦 Archive Evidence
+                    </Button>
+                    <div style={{ fontSize: 12, color: "#64748b", padding: "8px 0" }}>
+                      {lockedAt
+                        ? "You can archive this evidence as an alternative to deletion."
+                        : "Archive this evidence to remove it from your active workspace."}
+                    </div>
+                  </>
+                )}
+
+                <Button 
+                  variant="secondary" 
+                  onClick={handleDelete} 
+                  disabled={actionBusy || Boolean(lockedAt)}
+                >
                   Delete Evidence
                 </Button>
+
+                {lockedAt && (
+                  <div style={{ fontSize: 12, color: "#ef4444", padding: "8px 0" }}>
+                    This evidence is locked and cannot be deleted. Archive it instead.
+                  </div>
+                )}
               </div>
             </Card>
           </div>
@@ -469,6 +605,84 @@ export default function EvidenceDetailPage() {
           )}
         </div>
       </div>
+
+      <Modal
+        isOpen={lockModalOpen}
+        onClose={() => setLockModalOpen(false)}
+        title="Lock this evidence?"
+        actions={
+          <div style={{ display: "flex", gap: 10 }}>
+            <Button
+              variant="secondary"
+              onClick={() => setLockModalOpen(false)}
+              disabled={actionBusy}
+            >
+              Cancel
+            </Button>
+            <div style={{ position: "relative" }}>
+              <Button
+                onClick={handleConfirmLock}
+                disabled={actionBusy}
+                className="button-danger"
+              >
+                {actionBusy ? "Locking..." : "🔒 Lock permanently"}
+              </Button>
+            </div>
+          </div>
+        }
+      >
+        <div style={{ fontSize: 15, lineHeight: 1.6, color: "#e2e8f0" }}>
+          <p style={{ marginBottom: 16 }}>
+            Once locked:
+          </p>
+          <ul style={{ marginLeft: 20, marginBottom: 16, color: "#cbd5e1" }}>
+            <li style={{ marginBottom: 8 }}>
+              • The evidence cannot be edited
+            </li>
+            <li style={{ marginBottom: 8 }}>
+              • It cannot be deleted
+            </li>
+            <li>
+              • It becomes legally sealed
+            </li>
+          </ul>
+          <p style={{ marginTop: 16, fontWeight: 600, color: "#f87171" }}>
+            This action is irreversible.
+          </p>
+        </div>
+      </Modal>
+
+      <Modal
+        isOpen={archiveModalOpen}
+        onClose={() => setArchiveModalOpen(false)}
+        title="Archive this evidence?"
+        actions={
+          <div style={{ display: "flex", gap: 10 }}>
+            <Button
+              variant="secondary"
+              onClick={() => setArchiveModalOpen(false)}
+              disabled={actionBusy}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleConfirmArchive}
+              disabled={actionBusy}
+            >
+              {actionBusy ? "Archiving..." : "📦 Archive"}
+            </Button>
+          </div>
+        }
+      >
+        <div style={{ fontSize: 15, lineHeight: 1.6, color: "#e2e8f0" }}>
+          <p style={{ marginBottom: 12 }}>
+            This will remove the evidence from your active workspace.
+          </p>
+          <p style={{ marginBottom: 12 }}>
+            The evidence will remain stored and can be restored later if needed.
+          </p>
+        </div>
+      </Modal>
     </div>
   );
 }

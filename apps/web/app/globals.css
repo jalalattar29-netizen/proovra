@@ -732,6 +732,31 @@ p {
 }
 .btn.secondary:hover { background: var(--navy-800); }
 .btn.secondary:active { background: var(--navy-700); }
+
+.btn.button-danger {
+  background: #dc2626;
+  color: #fff;
+  border-color: #dc2626;
+  box-shadow: 0 0 16px rgba(220, 38, 38, 0.3);
+}
+.btn.button-danger:hover {
+  background: #b91c1c;
+  border-color: #b91c1c;
+  box-shadow: 0 0 24px rgba(220, 38, 38, 0.5);
+  transform: translateY(-1px);
+}
+.btn.button-danger:active {
+  background: #991b1b;
+  transform: translateY(0);
+}
+
+.btn.button-disabled {
+  background: #475569;
+  color: #cbd5e1;
+  border-color: #475569;
+  cursor: not-allowed;
+  opacity: 0.5;
+}
   
   /* Strip */
   .landing-strip {
@@ -2002,9 +2027,10 @@ p {
 .modal-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.5);
+  background: rgba(0, 0, 0, 0.7);
   z-index: 9998;
   animation: fadeIn 0.2s ease-out;
+  backdrop-filter: blur(2px);
 }
 
 .modal-content {
@@ -2012,9 +2038,10 @@ p {
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  background: white;
+  background: linear-gradient(135deg, #0f1d36 0%, #1a2d4a 100%);
+  border: 1px solid rgba(101, 235, 255, 0.2);
   border-radius: 12px;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 0 30px rgba(101, 235, 255, 0.1), 0 20px 60px rgba(0, 0, 0, 0.4);
   z-index: 9999;
   max-width: 500px;
   width: 90%;
@@ -2028,23 +2055,24 @@ p {
   align-items: center;
   justify-content: space-between;
   padding: 24px;
-  border-bottom: 1px solid #E2E8F0;
+  border-bottom: 1px solid rgba(101, 235, 255, 0.15);
 }
 
 .modal-header h2 {
   margin: 0;
   font-size: 20px;
   font-weight: 600;
-  color: #0F1D36;
+  color: #e2e8f0;
 }
 
 .modal-body {
   padding: 24px;
+  color: #cbd5e1;
 }
 
 .modal-footer {
   padding: 16px 24px;
-  border-top: 1px solid #E2E8F0;
+  border-top: 1px solid rgba(101, 235, 255, 0.15);
   display: flex;
   gap: 12px;
   justify-content: flex-end;

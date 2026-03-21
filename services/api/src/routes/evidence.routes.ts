@@ -147,6 +147,7 @@ type SafeEvidence = {
 
   lockedAt: string | null;
   lockedByUserId: string | null;
+  archivedAt: string | null;
 
   caseId: string | null;
   teamId: string | null;
@@ -182,6 +183,7 @@ function toSafeEvidence(e: {
 
   lockedAt: Date | null;
   lockedByUserId: string | null;
+  archivedAt: Date | null;
 
   caseId: string | null;
   teamId: string | null;
@@ -216,6 +218,7 @@ function toSafeEvidence(e: {
 
     lockedAt: e.lockedAt ? e.lockedAt.toISOString() : null,
     lockedByUserId: e.lockedByUserId ?? null,
+    archivedAt: e.archivedAt ? e.archivedAt.toISOString() : null,
 
     caseId: e.caseId ?? null,
     teamId: e.teamId ?? null
@@ -526,6 +529,7 @@ export async function evidenceRoutes(app: FastifyInstance) {
             signingKeyVersion: true,
             lockedAt: true,
             lockedByUserId: true,
+            archivedAt: true,
             caseId: true,
             teamId: true,
           },
@@ -546,6 +550,142 @@ export async function evidenceRoutes(app: FastifyInstance) {
     }
   );
 
+  app.post(
+    "/v1/evidence/:id/archive",
+    { preHandler: requireAuth },
+    async (req: FastifyRequest, reply) => {
+      const ownerUserId = getAuthUserId(req);
+      const id = z.string().uuid().parse((req.params as ParamsId).id);
+      (req as FastifyRequest & { evidenceId?: string }).evidenceId = id;
+      req.log = req.log.child({ evidenceId: id });
+
+      const evidence = await prisma.evidence.findFirst({
+        where: { id, deletedAt: null },
+      });
+      if (!evidence)
+        return reply.code(404).send({ message: "Evidence not found" });
+      if (evidence.ownerUserId !== ownerUserId) {
+        return reply.code(403).send({ message: "Forbidden" });
+      }
+
+      // If already archived, return success (idempotent)
+      if (evidence.archivedAt) {
+        return reply.code(200).send({ evidence: toSafeEvidence(evidence) });
+      }
+
+      // Archive the evidence
+      const updated = await prisma.evidence.update({
+        where: { id },
+        data: { archivedAt: new Date() },
+        select: {
+          id: true,
+          type: true,
+          status: true,
+          createdAt: true,
+          uploadedAtUtc: true,
+          signedAtUtc: true,
+          capturedAtUtc: true,
+          deviceTimeIso: true,
+          lat: true,
+          lng: true,
+          accuracyMeters: true,
+          mimeType: true,
+          storageBucket: true,
+          storageKey: true,
+          sizeBytes: true,
+          fileSha256: true,
+          fingerprintHash: true,
+          signatureBase64: true,
+          signingKeyId: true,
+          signingKeyVersion: true,
+          lockedAt: true,
+          lockedByUserId: true,
+          archivedAt: true,
+          caseId: true,
+          teamId: true,
+        },
+      });
+
+      await appendCustodyEvent({
+        evidenceId: id,
+        eventType: prismaPkg.CustodyEventType.EVIDENCE_ARCHIVED,
+        payload: { archivedByUserId: ownerUserId },
+        ip: req.ip,
+        userAgent: req.headers["user-agent"],
+      }).catch(() => null);
+
+      return reply.code(200).send({ evidence: toSafeEvidence(updated) });
+    }
+  );
+
+  app.post(
+    "/v1/evidence/:id/unarchive",
+    { preHandler: requireAuth },
+    async (req: FastifyRequest, reply) => {
+      const ownerUserId = getAuthUserId(req);
+      const id = z.string().uuid().parse((req.params as ParamsId).id);
+      (req as FastifyRequest & { evidenceId?: string }).evidenceId = id;
+      req.log = req.log.child({ evidenceId: id });
+
+      const evidence = await prisma.evidence.findFirst({
+        where: { id, deletedAt: null },
+      });
+      if (!evidence)
+        return reply.code(404).send({ message: "Evidence not found" });
+      if (evidence.ownerUserId !== ownerUserId) {
+        return reply.code(403).send({ message: "Forbidden" });
+      }
+
+      // If not archived, return success (idempotent)
+      if (!evidence.archivedAt) {
+        return reply.code(200).send({ evidence: toSafeEvidence(evidence) });
+      }
+
+      // Unarchive the evidence
+      const updated = await prisma.evidence.update({
+        where: { id },
+        data: { archivedAt: null },
+        select: {
+          id: true,
+          type: true,
+          status: true,
+          createdAt: true,
+          uploadedAtUtc: true,
+          signedAtUtc: true,
+          capturedAtUtc: true,
+          deviceTimeIso: true,
+          lat: true,
+          lng: true,
+          accuracyMeters: true,
+          mimeType: true,
+          storageBucket: true,
+          storageKey: true,
+          sizeBytes: true,
+          fileSha256: true,
+          fingerprintHash: true,
+          signatureBase64: true,
+          signingKeyId: true,
+          signingKeyVersion: true,
+          lockedAt: true,
+          lockedByUserId: true,
+          archivedAt: true,
+          caseId: true,
+          teamId: true,
+        },
+      });
+
+      await appendCustodyEvent({
+        evidenceId: id,
+        eventType: prismaPkg.CustodyEventType.EVIDENCE_RESTORED,
+        payload: { restoredByUserId: ownerUserId },
+        ip: req.ip,
+        userAgent: req.headers["user-agent"],
+      }).catch(() => null);
+
+      return reply.code(200).send({ evidence: toSafeEvidence(updated) });
+    }
+  );
+
   app.delete(
     "/v1/evidence/:id",
     { preHandler: requireAuth },
@@ -557,10 +697,12 @@ export async function evidenceRoutes(app: FastifyInstance) {
 
       const evidence = await prisma.evidence.findFirst({
         where: { id, ownerUserId, deletedAt: null },
-        select: { id: true },
+        select: { id: true, lockedAt: true },
       });
       if (!evidence)
         return reply.code(404).send({ message: "Evidence not found" });
+      if (evidence.lockedAt)
+        return reply.code(409).send({ message: "Cannot delete locked evidence" });
 
       const now = new Date();
       await prisma.evidence.update({
@@ -583,7 +725,10 @@ export async function evidenceRoutes(app: FastifyInstance) {
   app.get("/v1/evidence", { preHandler: requireAuth }, async (req, reply) => {
     const ownerUserId = getAuthUserId(req);
     const caseIdRaw = (req.query as { caseId?: string }).caseId;
+    const includeArchivedRaw = (req.query as { includeArchived?: string }).includeArchived;
     const caseId = caseIdRaw ? z.string().uuid().parse(caseIdRaw) : null;
+    const includeArchived = includeArchivedRaw === "true";
+    
     if (caseId) {
       await assertCaseAccess(ownerUserId, caseId);
     }
@@ -591,6 +736,7 @@ export async function evidenceRoutes(app: FastifyInstance) {
       where: {
         ownerUserId,
         deletedAt: null,
+        ...(includeArchived ? {} : { archivedAt: null }),
         ...(caseId ? { caseId } : {}),
       },
       orderBy: { createdAt: "desc" },
@@ -600,6 +746,7 @@ export async function evidenceRoutes(app: FastifyInstance) {
         type: true,
         status: true,
         createdAt: true,
+        archivedAt: true,
       },
     });
     return reply.code(200).send({ items });
