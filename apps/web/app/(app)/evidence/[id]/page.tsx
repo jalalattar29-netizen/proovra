@@ -63,7 +63,8 @@ export default function EvidenceDetailPage() {
   const [lockModalOpen, setLockModalOpen] = useState(false);
   const [archiveModalOpen, setArchiveModalOpen] = useState(false);
 
-  const [originalFileUrl, setOriginalFileUrl] = useState<string | null>(null);
+  const [originalPreviewUrl, setOriginalPreviewUrl] = useState<string | null>(null);
+  const [originalDownloadUrl, setOriginalDownloadUrl] = useState<string | null>(null);
   const [originalMimeType, setOriginalMimeType] = useState<string | null>(null);
   const [originalSizeBytes, setOriginalSizeBytes] = useState<string | null>(null);
 
@@ -101,12 +102,14 @@ export default function EvidenceDetailPage() {
 
     apiFetch(`/v1/evidence/${params.id}/original`)
       .then((data) => {
-        setOriginalFileUrl(data.url ?? null);
+        setOriginalPreviewUrl(data.publicUrl ?? data.url ?? null);
+        setOriginalDownloadUrl(data.url ?? data.publicUrl ?? null);
         setOriginalMimeType(data.mimeType ?? null);
         setOriginalSizeBytes(data.sizeBytes ?? null);
       })
       .catch(() => {
-        setOriginalFileUrl(null);
+        setOriginalPreviewUrl(null);
+        setOriginalDownloadUrl(null);
         setOriginalMimeType(null);
         setOriginalSizeBytes(null);
       });
@@ -254,19 +257,19 @@ export default function EvidenceDetailPage() {
   };
 
   const handleOpenOriginal = () => {
-    if (!originalFileUrl) {
+    if (!originalDownloadUrl) {
       addToast("Original file not available", "info");
       return;
     }
-    window.open(originalFileUrl, "_blank", "noopener,noreferrer");
+    window.open(originalDownloadUrl, "_blank", "noopener,noreferrer");
   };
 
   const handleDownloadOriginal = () => {
-    if (!originalFileUrl) {
+    if (!originalDownloadUrl) {
       addToast("Original file not available", "info");
       return;
     }
-    window.open(originalFileUrl, "_blank", "noopener,noreferrer");
+    window.open(originalDownloadUrl, "_blank", "noopener,noreferrer");
   };
 
   return (
@@ -481,7 +484,7 @@ export default function EvidenceDetailPage() {
             </Card>
           </div>
 
-          {originalFileUrl && (
+          {(originalPreviewUrl || originalDownloadUrl || originalMimeType || originalSizeBytes) && (
             <Card className="mt-6">
               <div style={{ fontWeight: 800, marginBottom: 12 }}>Original Evidence</div>
 
@@ -498,19 +501,19 @@ export default function EvidenceDetailPage() {
                   marginBottom: 14,
                 }}
               >
-                <Button variant="secondary" onClick={handleOpenOriginal}>
+                <Button variant="secondary" onClick={handleOpenOriginal} disabled={!originalDownloadUrl}>
                   Open Original
                 </Button>
 
-                <Button variant="secondary" onClick={handleDownloadOriginal}>
+                <Button variant="secondary" onClick={handleDownloadOriginal} disabled={!originalDownloadUrl}>
                   Download Original
                 </Button>
               </div>
 
-              {originalKind === "image" && (
+              {originalPreviewUrl && originalKind === "image" && (
                 <div style={{ marginBottom: 12 }}>
                   <img
-                    src={originalFileUrl}
+                    src={originalPreviewUrl}
                     alt="Evidence preview"
                     style={{
                       display: "block",
@@ -525,10 +528,10 @@ export default function EvidenceDetailPage() {
                 </div>
               )}
 
-              {originalKind === "video" && (
+              {originalPreviewUrl && originalKind === "video" && (
                 <div style={{ marginBottom: 12 }}>
                   <video
-                    src={originalFileUrl}
+                    src={originalPreviewUrl}
                     controls
                     preload="metadata"
                     style={{
@@ -543,7 +546,7 @@ export default function EvidenceDetailPage() {
                 </div>
               )}
 
-              {originalKind === "audio" && (
+              {originalPreviewUrl && originalKind === "audio" && (
                 <div
                   style={{
                     marginBottom: 12,
@@ -553,7 +556,7 @@ export default function EvidenceDetailPage() {
                   }}
                 >
                   <audio
-                    src={originalFileUrl}
+                    src={originalPreviewUrl}
                     controls
                     preload="metadata"
                     style={{ width: "100%" }}
@@ -561,7 +564,7 @@ export default function EvidenceDetailPage() {
                 </div>
               )}
 
-              {originalKind === "pdf" && (
+              {originalPreviewUrl && originalKind === "pdf" && (
                 <div
                   style={{
                     marginBottom: 12,
@@ -571,7 +574,7 @@ export default function EvidenceDetailPage() {
                   }}
                 >
                   <iframe
-                    src={originalFileUrl}
+                    src={originalPreviewUrl}
                     title="Original PDF evidence"
                     style={{
                       width: "100%",
@@ -583,7 +586,7 @@ export default function EvidenceDetailPage() {
                 </div>
               )}
 
-              {(originalKind === "text" || originalKind === "other") && (
+              {!originalPreviewUrl && (originalKind === "text" || originalKind === "other") && (
                 <div
                   style={{
                     marginBottom: 12,
@@ -599,6 +602,21 @@ export default function EvidenceDetailPage() {
                     Preview is not available for this file type inside the page.
                   </div>
                   <div>Use Open Original or Download Original.</div>
+                </div>
+              )}
+
+              {!originalPreviewUrl && !originalDownloadUrl && (
+                <div
+                  style={{
+                    padding: 16,
+                    borderRadius: 12,
+                    background: "rgba(15,23,42,0.35)",
+                    color: "#94a3b8",
+                    fontSize: 14,
+                    lineHeight: 1.6,
+                  }}
+                >
+                  Original file is not available for preview or download at this time.
                 </div>
               )}
             </Card>
