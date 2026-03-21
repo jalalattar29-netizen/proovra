@@ -1,22 +1,29 @@
-// D:\digital-witness\apps\web\app\(app)\home\page.tsx
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { Badge, Button, Card, ListRow, useToast, EmptyState, Skeleton } from "../../../components/ui";
 import { useLocale } from "../../providers";
 import { apiFetch } from "../../../lib/api";
 import { captureException } from "../../../lib/sentry";
 
+type EvidenceItem = {
+  id: string;
+  type: string;
+  status: string;
+  createdAt: string;
+  archivedAt?: string | null;
+};
+
 export default function HomePage() {
   const { t } = useLocale();
   const { addToast } = useToast();
 
   const [filter, setFilter] = useState<"active" | "archived" | "all">("active");
-  const [items, setItems] = useState<Array<{ id: string; type: string; status: string; createdAt: string; archivedAt?: string | null }>>([]);
+  const [items, setItems] = useState<EvidenceItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [allItems, setAllItems] = useState<Array<{ id: string; type: string; status: string; createdAt: string; archivedAt?: string | null }>>([]);
+  const [allItems, setAllItems] = useState<EvidenceItem[]>([]);
 
   const isUuid = (value: string) =>
     /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
@@ -50,22 +57,31 @@ export default function HomePage() {
     setItems(filtered);
   }, [filter, allItems]);
 
+  const counts = useMemo(
+    () => ({
+      active: allItems.filter((i) => !i.archivedAt).length,
+      archived: allItems.filter((i) => i.archivedAt).length,
+      all: allItems.length,
+    }),
+    [allItems]
+  );
+
   return (
-    <div className="section app-section">
-      <div className="app-hero app-hero-full">
+    <div className="section app-section home-dashboard-pro">
+      <div className="app-hero app-hero-full home-hero-pro">
         <div className="container">
-          <div className="page-title app-page-title" style={{ alignItems: "center", marginBottom: 0 }}>
-            <div>
-              <h1 className="hero-title pricing-hero-title" style={{ margin: 0 }}>
+          <div className="page-title app-page-title home-hero-header-pro">
+            <div className="home-hero-copy-pro">
+              <h1 className="hero-title pricing-hero-title home-hero-title-pro" style={{ margin: 0 }}>
                 {t("home")}
               </h1>
-              <p className="page-subtitle pricing-subtitle" style={{ marginTop: 6 }}>
+              <p className="page-subtitle pricing-subtitle home-hero-subtitle-pro" style={{ marginTop: 6 }}>
                 {t("bullets")}
               </p>
             </div>
 
             <Link href="/capture">
-              <Button className="navy-btn">{t("ctaCapture")}</Button>
+              <Button className="navy-btn home-capture-btn-pro">{t("ctaCapture")}</Button>
             </Link>
           </div>
         </div>
@@ -73,72 +89,53 @@ export default function HomePage() {
 
       <div className="app-body app-body-full">
         <div className="container">
-          <div className="grid-2">
-            <Card className="app-card">
-              <div className="app-card-title">{t("recentEvidence")}</div>
+          <div className="home-dashboard-grid-pro">
+            <Card className="app-card home-main-card-pro">
+              <div className="home-card-topline-pro">
+                <div className="home-card-brand-pro">PROOVRA</div>
 
-              <div style={{ display: "flex", gap: 8, marginBottom: 16, borderBottom: "1px solid rgba(148, 163, 184, 0.15)", paddingBottom: 12 }}>
-                <button
-                  onClick={() => setFilter("active")}
-                  style={{
-                    padding: "8px 12px",
-                    border: "none",
-                    background: filter === "active" ? "rgba(101, 235, 255, 0.15)" : "transparent",
-                    color: filter === "active" ? "#65ebff" : "#94a3b8",
-                    borderRadius: 6,
-                    cursor: "pointer",
-                    fontSize: 13,
-                    fontWeight: filter === "active" ? 600 : 500,
-                    borderBottom: filter === "active" ? "2px solid #65ebff" : "none",
-                    transition: "all 0.2s ease",
-                  }}
-                >
-                  Active ({allItems.filter((i) => !i.archivedAt).length})
-                </button>
+                <div className="home-filter-tabs-pro">
+                  <button
+                    type="button"
+                    onClick={() => setFilter("active")}
+                    className={filter === "active" ? "home-filter-tab-pro active" : "home-filter-tab-pro"}
+                  >
+                    Active ({counts.active})
+                  </button>
 
-                <button
-                  onClick={() => setFilter("archived")}
-                  style={{
-                    padding: "8px 12px",
-                    border: "none",
-                    background: filter === "archived" ? "rgba(101, 235, 255, 0.15)" : "transparent",
-                    color: filter === "archived" ? "#65ebff" : "#94a3b8",
-                    borderRadius: 6,
-                    cursor: "pointer",
-                    fontSize: 13,
-                    fontWeight: filter === "archived" ? 600 : 500,
-                    borderBottom: filter === "archived" ? "2px solid #65ebff" : "none",
-                    transition: "all 0.2s ease",
-                  }}
-                >
-                  Archived ({allItems.filter((i) => i.archivedAt).length})
-                </button>
+                  <button
+                    type="button"
+                    onClick={() => setFilter("archived")}
+                    className={filter === "archived" ? "home-filter-tab-pro active" : "home-filter-tab-pro"}
+                  >
+                    Archived ({counts.archived})
+                  </button>
 
-                <button
-                  onClick={() => setFilter("all")}
-                  style={{
-                    padding: "8px 12px",
-                    border: "none",
-                    background: filter === "all" ? "rgba(101, 235, 255, 0.15)" : "transparent",
-                    color: filter === "all" ? "#65ebff" : "#94a3b8",
-                    borderRadius: 6,
-                    cursor: "pointer",
-                    fontSize: 13,
-                    fontWeight: filter === "all" ? 600 : 500,
-                    borderBottom: filter === "all" ? "2px solid #65ebff" : "none",
-                    transition: "all 0.2s ease",
-                  }}
-                >
-                  All ({allItems.length})
-                </button>
+                  <button
+                    type="button"
+                    onClick={() => setFilter("all")}
+                    className={filter === "all" ? "home-filter-tab-pro active" : "home-filter-tab-pro"}
+                  >
+                    All ({counts.all})
+                  </button>
+                </div>
               </div>
 
-              <div style={{ display: "grid", gap: 10 }}>
+              <div className="home-section-header-pro">
+                <h2 className="app-card-title home-section-title-pro">{t("recentEvidence")}</h2>
+                <Link href="/capture">
+                  <button type="button" className="home-inline-capture-pro">
+                    Capture Evidence
+                  </button>
+                </Link>
+              </div>
+
+              <div className="home-evidence-list-pro">
                 {loading ? (
-                  <div style={{ display: "grid", gap: 8 }}>
-                    <Skeleton width="100%" height="20px" />
-                    <Skeleton width="100%" height="20px" />
-                    <Skeleton width="100%" height="20px" />
+                  <div className="home-skeleton-stack-pro">
+                    <Skeleton width="100%" height="64px" />
+                    <Skeleton width="100%" height="64px" />
+                    <Skeleton width="100%" height="64px" />
                   </div>
                 ) : error ? (
                   <div className="app-inline-error">{error}</div>
@@ -158,19 +155,12 @@ export default function HomePage() {
                           ? "Archived evidence will appear here."
                           : "Capture your first file to see it here."
                     }
-                    action={() => (
-                      filter !== "archived" ? (
-                        <Link href="/capture">
-                          <Button className="navy-btn">{t("ctaCapture")}</Button>
-                        </Link>
-                      ) : undefined
-                    )}
                   />
                 ) : (
                   items.map((item) => {
                     const row = (
-                      <div style={{ display: "flex", gap: 8, alignItems: "center", justifyContent: "space-between" }}>
-                        <div style={{ flex: 1 }}>
+                      <div className="home-evidence-row-pro">
+                        <div className="home-evidence-row-main-pro">
                           <ListRow
                             title={item.type}
                             subtitle={new Date(item.createdAt).toLocaleString()}
@@ -185,16 +175,15 @@ export default function HomePage() {
                             }
                           />
                         </div>
+
                         {item.archivedAt && (
-                          <div style={{ fontSize: 12, color: "#94a3b8", whiteSpace: "nowrap", paddingRight: 8 }}>
-                            📦 Archived
-                          </div>
+                          <div className="home-archived-mark-pro">📦 Archived</div>
                         )}
                       </div>
                     );
 
                     return isUuid(item.id) ? (
-                      <Link key={item.id} href={`/evidence/${item.id}`}>
+                      <Link key={item.id} href={`/evidence/${item.id}`} className="home-evidence-link-pro">
                         {row}
                       </Link>
                     ) : (
@@ -205,34 +194,77 @@ export default function HomePage() {
               </div>
             </Card>
 
-            <Card className="app-card">
-              <div className="app-card-title">Quick Actions</div>
+            <Card className="app-card home-side-card-pro">
+              <div className="app-card-title home-side-title-pro">Quick Actions</div>
 
-              <div className="app-actions-grid">
+              <div className="app-actions-grid home-actions-grid-pro">
                 <Link href="/capture">
-                  <Button className="navy-btn action-btn" onClick={() => addToast("Opening capture...", "info")}>
+                  <Button
+                    className="navy-btn action-btn home-action-btn-pro"
+                    onClick={() => addToast("Opening capture...", "info")}
+                  >
                     New Capture
                   </Button>
                 </Link>
 
                 <Link href="/cases">
-                  <Button variant="secondary" className="navy-btn action-btn" onClick={() => addToast("Loading cases...", "info")}>
+                  <Button
+                    variant="secondary"
+                    className="navy-btn action-btn home-action-btn-pro"
+                    onClick={() => addToast("Loading cases...", "info")}
+                  >
                     View Cases
                   </Button>
                 </Link>
 
                 <Link href="/settings">
-                  <Button variant="secondary" className="navy-btn action-btn" onClick={() => addToast("Opening settings...", "info")}>
+                  <Button
+                    variant="secondary"
+                    className="navy-btn action-btn home-action-btn-pro"
+                    onClick={() => addToast("Opening settings...", "info")}
+                  >
                     Manage Settings
                   </Button>
                 </Link>
               </div>
 
-              <div className="status-banner" style={{ marginTop: 18 }}>
+              <div className="home-preview-card-pro">
+                <div className="home-preview-card-head-pro">
+                  <span className="home-preview-label-pro">PHOTO</span>
+                  <div className="home-preview-pills-pro">
+                    <span>Recent</span>
+                    <span>Verified</span>
+                    <span>Archived</span>
+                  </div>
+                </div>
+
+                <div className="home-preview-media-pro">
+                  <div className="home-preview-media-frame-pro">
+                    <div className="home-preview-media-glow-pro" />
+                  </div>
+                </div>
+
+                <div className="home-preview-actions-pro">
+                  <Button variant="secondary" className="home-preview-btn-pro">
+                    Primary
+                  </Button>
+                  <Button variant="secondary" className="home-preview-btn-pro">
+                    Secondary
+                  </Button>
+                  <Button className="button-danger home-preview-btn-pro">
+                    Danger
+                  </Button>
+                  <Button variant="secondary" className="home-preview-btn-pro">
+                    Download
+                  </Button>
+                </div>
+              </div>
+
+              <div className="status-banner home-status-banner-pro">
                 <div className="status-badge">✓</div>
                 <div>
-                  <div style={{ fontWeight: 700 }}>Trusted chain of custody</div>
-                  <div style={{ fontSize: 12, opacity: 0.85 }}>Capture → Sign → Report → Share</div>
+                  <div className="home-status-title-pro">Trusted chain of custody</div>
+                  <div className="home-status-subtitle-pro">Capture → Sign → Report → Share</div>
                 </div>
               </div>
             </Card>

@@ -25,98 +25,159 @@ export default function HomePage() {
 
   return (
     <div className="page landing-page">
-      <div className="blue-shell">
+      <div className="blue-shell landing-shell-pro">
         <MarketingHeader />
 
-        <section className="landing-hero container" style={{ paddingTop: 48, paddingBottom: 52 }}>
-          {/* LEFT: COPY */}
-          <div className="landing-hero-copy">
-            <div style={{ color: "rgba(255,255,255,0.82)", fontSize: 13, letterSpacing: 0.3 }}>
-              Capture truth. Prove it forever.
-            </div>
+        <section className="landing-hero landing-hero-pro container">
+          <div className="landing-hero-copy landing-hero-copy-pro">
+            <div className="hero-kicker-pro">Capture truth. Prove it forever.</div>
 
-            <h1 className="hero-title">Verifiable digital evidence for legal, compliance, and investigations.</h1>
+            <h1 className="hero-title hero-title-pro">
+              Verifiable digital evidence for legal, compliance, and investigations.
+            </h1>
 
-            <p className="hero-subtitle">
-              PROO✓RA lets you capture photos, videos, and documents with cryptographic proof, verifiable timestamps,
-              and an immutable chain of custody — ready for disputes, audits, and investigations.
+            <p className="hero-subtitle hero-subtitle-pro">
+              PROO✓RA lets you capture photos, videos, and documents with cryptographic proof,
+              verifiable timestamps, and an immutable chain of custody — ready for disputes,
+              audits, and investigations.
             </p>
 
-            {/* HERO BUTTONS */}
-            <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
+            <div className="hero-actions-pro">
               <a href={appRegister}>
-                {/* ✅ Primary CTA uses SAME styling as Register (gradient .proovra-cta-btn) */}
-<Button className="proovra-cta-btn">Start capturing evidence</Button>
+                <Button className="proovra-cta-btn hero-cta-btn-pro">Start capturing evidence</Button>
               </a>
 
               <Link href="/pricing">
-                <Button variant="secondary" className="hero-cta-btn hero-cta-btn--secondary">
+                <Button variant="secondary" className="hero-cta-btn hero-cta-btn--secondary hero-cta-btn-pro-secondary">
                   View pricing
                 </Button>
               </Link>
 
-              {/* Tertiary link */}
-              <a className="hero-tertiary-link" href={sampleReportUrl} target="_blank" rel="noopener noreferrer">
+              <a
+                className="hero-tertiary-link hero-tertiary-link-pro"
+                href={sampleReportUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
                 View sample report →
               </a>
             </div>
 
-            {/* TRUST LINE */}
-            <div className="hero-trustline">Free plan available — no credit card required.</div>
+            <div className="hero-trustline hero-trustline-pro">
+              Free plan available — no credit card required.
+            </div>
 
-            {/* BADGES */}
-            <div className="hero-badges" style={{ marginTop: 10 }}>
-              <div className="hero-badge">
+            <div className="hero-badges hero-badges-pro">
+              <div className="hero-badge hero-badge-pro">
                 <span>✓</span> Cryptographic integrity
               </div>
-              <div className="hero-badge">
+              <div className="hero-badge hero-badge-pro">
                 <span>✓</span> Chain of custody
               </div>
-              <div className="hero-badge">
+              <div className="hero-badge hero-badge-pro">
                 <span>✓</span> Audit-ready report
               </div>
             </div>
           </div>
 
-          {/* RIGHT: MOCKUP (bigger ~20% but same style) */}
-          <div className="hero-mockup">
-            <div
-              className="hero-mockup-card"
-              style={{
-                transform: "scale(1.2)",
-                transformOrigin: "center",
-              }}
-            >
-              <div className="hero-mockup-title">Dashboard</div>
+          <div className="hero-mockup hero-mockup-pro">
+            <div className="hero-product-stage">
+              <div className="hero-dashboard-shell">
+                <div className="hero-dashboard-topline">
+                  <div className="hero-dashboard-brand">ProovRa</div>
+                  <div className="hero-dashboard-tabs">
+                    <span className="active">Active</span>
+                    <span>Archived</span>
+                    <span>All</span>
+                  </div>
+                </div>
 
-              <div className="hero-mockup-row">
-                <span className="hero-dot success" />
-                <span>Capture completed</span>
+                <div className="hero-dashboard-card">
+                  <div className="hero-dashboard-card-header">
+                    <h3>Recent Evidence</h3>
+                    <button type="button">Capture Evidence</button>
+                  </div>
+
+                  <div className="hero-dashboard-list">
+                    <div className="hero-dashboard-row">
+                      <div className="hero-dashboard-row-left">
+                        <span className="hero-dashboard-row-icon" />
+                        <strong>Photo</strong>
+                      </div>
+                      <span>2022/3/21</span>
+                      <span>1:00:20 AM</span>
+                    </div>
+
+                    <div className="hero-dashboard-row">
+                      <div className="hero-dashboard-row-left">
+                        <span className="hero-dashboard-row-icon" />
+                        <strong>Photo</strong>
+                      </div>
+                      <span>2006/3/21</span>
+                      <span>5:56:00 AM</span>
+                    </div>
+
+                    <div className="hero-dashboard-row">
+                      <div className="hero-dashboard-row-left">
+                        <span className="hero-dashboard-row-icon" />
+                        <strong>Photo</strong>
+                      </div>
+                      <span>2006/5/16</span>
+                      <span>3:95:22 AM</span>
+                    </div>
+                  </div>
+                </div>
               </div>
 
-              <div className="hero-mockup-row">
-                <span className="hero-dot info" />
-                <span>Report generated</span>
-              </div>
+              <div className="hero-phone-mockup">
+                <div className="hero-phone-screen">
+                  <div className="hero-phone-brand">PROOVRA</div>
 
-              <div className="hero-mockup-row">
-                <span className="hero-dot neutral" />
-                <span>Share link created</span>
+                  <div className="hero-phone-evidence-card">
+                    <div className="hero-phone-evidence-title">Evidence #4589</div>
+                    <div className="hero-phone-evidence-sub">Evidence Upload</div>
+
+                    <div className="hero-phone-status-orb">
+                      <div className="hero-phone-status-check">✓</div>
+                    </div>
+
+                    <div className="hero-phone-signed">Signed</div>
+                    <div className="hero-phone-time">1:31 PM 70/pgainy 21</div>
+                  </div>
+
+                  <div className="hero-phone-toggles">
+                    <div className="hero-phone-toggle-row">
+                      <span className="hero-toggle-pill on" />
+                      <span>Locked</span>
+                    </div>
+                    <div className="hero-phone-toggle-row">
+                      <span className="hero-toggle-pill muted" />
+                      <span>Archived</span>
+                    </div>
+                  </div>
+
+                  <div className="hero-phone-nav">
+                    <span>Cases</span>
+                    <span>Upload</span>
+                    <span>Scan</span>
+                    <span>Settings</span>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
         </section>
       </div>
 
-      <SilverWatermarkSection className="section" style={{ paddingTop: 64, paddingBottom: 64 }}>
+      <SilverWatermarkSection className="section landing-content-pro" style={{ paddingTop: 64, paddingBottom: 64 }}>
         <div id="how-it-works" className="container">
           <h2 style={{ marginBottom: 8 }}>How PROO✓RA works</h2>
           <p className="page-subtitle" style={{ marginBottom: 32 }}>
             Four steps from capture to verification.
           </p>
 
-          <div className="how-it-works-grid">
-            <div className="how-it-works-step">
+          <div className="how-it-works-grid how-it-works-grid-pro">
+            <div className="how-it-works-step how-it-works-step-pro">
               <div className="how-it-works-icon">
                 <Icons.Capture />
               </div>
@@ -124,7 +185,7 @@ export default function HomePage() {
               <p>Photos, videos, and documents with context, metadata, and timestamps.</p>
             </div>
 
-            <div className="how-it-works-step">
+            <div className="how-it-works-step how-it-works-step-pro">
               <div className="how-it-works-icon">
                 <Icons.Fingerprint />
               </div>
@@ -132,7 +193,7 @@ export default function HomePage() {
               <p>SHA-256 hashes and Ed25519 signatures lock integrity for later verification.</p>
             </div>
 
-            <div className="how-it-works-step">
+            <div className="how-it-works-step how-it-works-step-pro">
               <div className="how-it-works-icon">
                 <Icons.Verify />
               </div>
@@ -140,7 +201,7 @@ export default function HomePage() {
               <p>Anyone can confirm authenticity without exposing original private content.</p>
             </div>
 
-            <div className="how-it-works-step">
+            <div className="how-it-works-step how-it-works-step-pro">
               <div className="how-it-works-icon">
                 <Icons.Share />
               </div>
@@ -157,8 +218,8 @@ export default function HomePage() {
             scrutiny.
           </p>
 
-          <div className="who-it-for-grid">
-            <div className="who-it-for-card">
+          <div className="who-it-for-grid who-it-for-grid-pro">
+            <div className="who-it-for-card who-it-for-card-pro">
               <Icons.Lawyers />
               <h3>Legal teams</h3>
               <p>
@@ -167,7 +228,7 @@ export default function HomePage() {
               </p>
             </div>
 
-            <div className="who-it-for-card">
+            <div className="who-it-for-card who-it-for-card-pro">
               <Icons.Compliance />
               <h3>Compliance &amp; risk</h3>
               <p>
@@ -176,7 +237,7 @@ export default function HomePage() {
               </p>
             </div>
 
-            <div className="who-it-for-card">
+            <div className="who-it-for-card who-it-for-card-pro">
               <Icons.Enterprises />
               <h3>Incident &amp; corporate disputes</h3>
               <p>
@@ -185,7 +246,7 @@ export default function HomePage() {
               </p>
             </div>
 
-            <div className="who-it-for-card">
+            <div className="who-it-for-card who-it-for-card-pro">
               <Icons.Journalists />
               <h3>Journalism &amp; investigations</h3>
               <p>
@@ -194,7 +255,7 @@ export default function HomePage() {
               </p>
             </div>
 
-            <div className="who-it-for-card">
+            <div className="who-it-for-card who-it-for-card-pro">
               <Icons.Security />
               <h3>Insurance &amp; claims teams</h3>
               <p>
@@ -203,34 +264,35 @@ export default function HomePage() {
               </p>
             </div>
           </div>
-</div>
+        </div>
+
         <div className="container" style={{ marginTop: 72 }}>
           <h2 style={{ marginBottom: 8 }}>Trust indicators</h2>
           <p className="page-subtitle" style={{ marginBottom: 32 }}>
             Enterprise-grade integrity and security.
           </p>
 
-          <div className="trust-indicators">
-            <div className="trust-item">
+          <div className="trust-indicators trust-indicators-pro">
+            <div className="trust-item trust-item-pro">
               <Icons.Security />
               <span>Security</span>
             </div>
-            <div className="trust-item">
+            <div className="trust-item trust-item-pro">
               <Icons.Evidence />
               <span>Chain of custody</span>
             </div>
-            <div className="trust-item">
+            <div className="trust-item trust-item-pro">
               <Icons.Verify />
               <span>Audit-ready</span>
             </div>
-            <div className="trust-item">
+            <div className="trust-item trust-item-pro">
               <Icons.Fingerprint />
               <span>Tamper-proof</span>
             </div>
           </div>
 
-          {/* ✅ Legal disclaimer */}
           <div
+            className="landing-disclaimer-pro"
             style={{
               marginTop: 28,
               fontSize: 12,
@@ -247,8 +309,7 @@ export default function HomePage() {
 
         <div className="container" style={{ marginTop: 72, textAlign: "center" }}>
           <Link href="/pricing">
-            {/* keep pricing CTA consistent */}
-<Button className="proovra-cta-btn">View pricing</Button>
+            <Button className="proovra-cta-btn hero-cta-btn-pro">View pricing</Button>
           </Link>
         </div>
       </SilverWatermarkSection>
