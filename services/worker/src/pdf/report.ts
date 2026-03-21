@@ -307,13 +307,6 @@ function section(doc: PDFDoc, title: string, render: () => void): void {
   ensureSpace(doc, 120);
 
   const x = doc.page.margins.left;
-
-  doc.save();
-  doc.fillColor(BRAND.ink).font("Helvetica-Bold").fontSize(13);
-  doc.text(title, x, doc.y);
-  doc.restore();
-
-  doc.moveDown(0.25);
   hr(doc);
   doc.moveDown(0.55);
 
@@ -885,50 +878,56 @@ export async function buildReportPdf(params: {
     status: params.evidence.status,
   });
 
-  section(doc, "Integrity Verdict", () => {
-    const x = doc.page.margins.left;
-    const w = doc.page.width - doc.page.margins.left - doc.page.margins.right;
+{
+  const x = doc.page.margins.left;
+  const w = doc.page.width - doc.page.margins.left - doc.page.margins.right;
 
-    const verified =
-      Boolean(params.evidence.fileSha256) &&
-      Boolean(params.evidence.fingerprintHash) &&
-      Boolean(params.evidence.signatureBase64);
+  const verified =
+    Boolean(params.evidence.fileSha256) &&
+    Boolean(params.evidence.fingerprintHash) &&
+    Boolean(params.evidence.signatureBase64);
 
-    const verdict = verified
-      ? "Integrity Verified"
-      : "Integrity Review Required";
+  const verdict = verified
+    ? "Integrity Verified"
+    : "Integrity Review Required";
 
-    const color = verified ? BRAND.success : BRAND.danger;
+  const color = verified ? BRAND.success : BRAND.danger;
 
-    doc.save();
-    doc.fillColor(color).font("Helvetica-Bold").fontSize(14);
-    doc.text(verdict, x, doc.y, { width: w });
-    doc.restore();
+  ensureSpace(doc, 80);
 
-    doc.moveDown(0.6);
+  doc.save();
+  doc.fillColor(color).font("Helvetica-Bold").fontSize(14);
+  doc.text(verdict, x, doc.y, { width: w });
+  doc.restore();
 
-    if (verified) {
-      safeParagraph(doc, "• File hash matches recorded fingerprint", {
-        fontSize: 10,
-        color: BRAND.ink,
-      });
-      safeParagraph(doc, "• Digital signature verified", {
-        fontSize: 10,
-        color: BRAND.ink,
-      });
-      if (params.evidence.tsaStatus?.toUpperCase() === "GRANTED") {
-        safeParagraph(doc, "• Trusted timestamp granted", {
-          fontSize: 10,
-          color: BRAND.ink,
-        });
-      }
-    } else {
-      safeParagraph(doc, "• Evidence integrity could not be fully verified", {
+  doc.moveDown(0.45);
+
+  if (verified) {
+    safeParagraph(doc, "• File hash matches recorded fingerprint", {
+      fontSize: 10,
+      color: BRAND.ink,
+    });
+    safeParagraph(doc, "• Digital signature verified", {
+      fontSize: 10,
+      color: BRAND.ink,
+    });
+    if (params.evidence.tsaStatus?.toUpperCase() === "GRANTED") {
+      safeParagraph(doc, "• Trusted timestamp granted", {
         fontSize: 10,
         color: BRAND.ink,
       });
     }
-  });
+  } else {
+    safeParagraph(doc, "• Evidence integrity could not be fully verified", {
+      fontSize: 10,
+      color: BRAND.ink,
+    });
+  }
+
+  doc.moveDown(0.5);
+  hr(doc);
+  doc.moveDown(0.8);
+}
 
   doc.save();
   doc.fillColor(BRAND.ink).font("Helvetica-Bold").fontSize(16);
