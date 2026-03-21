@@ -37,7 +37,9 @@ export function Footer() {
       <div className="footer-layout">
         <div className="footer-left">
           <div className="footer-brand">PROO✓RA</div>
-          <p className="footer-tagline">Verifiable digital evidence for legal, compliance, and investigations.</p>
+          <p className="footer-tagline">
+            Verifiable digital evidence for legal, compliance, and investigations.
+          </p>
           <a href="mailto:support@proovra.com">support@proovra.com</a>
         </div>
 

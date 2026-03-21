@@ -25,12 +25,12 @@ export function ToastProvider({ children }: { children: ReactNode }) {
 
   const addToast = useCallback(
     (message: string, type: ToastType = "info", duration = 4000) => {
-      const id = Math.random().toString(36).substr(2, 9);
+      const id = Math.random().toString(36).slice(2, 11);
       setToasts((prev) => [...prev, { id, message, type, duration }]);
 
       if (duration > 0) {
         setTimeout(() => {
-          removeToast(id);
+          setToasts((prev) => prev.filter((t) => t.id !== id));
         }, duration);
       }
     },
@@ -84,48 +84,10 @@ function ToastItem({
   toast: Toast;
   onClose: () => void;
 }) {
-  const bgColor = {
-    success: "#E7F5F0",
-    error: "#FDE7E7",
-    info: "#E7F3FF",
-    warning: "#FFF4E7"
-  }[toast.type];
-
-  const borderColor = {
-    success: "#1F9D55",
-    error: "#D64545",
-    info: "#0B7BE5",
-    warning: "#C98A10"
-  }[toast.type];
-
-  const textColor = {
-    success: "#1F9D55",
-    error: "#D64545",
-    info: "#0B7BE5",
-    warning: "#C98A10"
-  }[toast.type];
-
   return (
-    <div
-      className="toast-item"
-      style={{
-        backgroundColor: bgColor,
-        borderLeft: `4px solid ${borderColor}`,
-        color: textColor
-      }}
-    >
-      <span>{toast.message}</span>
-      <button
-        onClick={onClose}
-        style={{
-          background: "none",
-          border: "none",
-          color: textColor,
-          cursor: "pointer",
-          fontSize: "18px",
-          padding: "0 4px"
-        }}
-      >
+    <div className={`toast-item toast-${toast.type}`}>
+      <span className="toast-message">{toast.message}</span>
+      <button onClick={onClose} className="toast-close" aria-label="Close notification">
         ×
       </button>
     </div>
@@ -149,11 +111,12 @@ export function Button({
 }) {
   const cn = (className ?? "").trim();
 
-  // إذا في كلاس CTA مخصص، ممنوع نضيف primary/secondary لأنهم عم يبيضّوا الزر
   const hasCustomCtaClass =
     cn.includes("proovra-cta-btn") ||
     cn.includes("hero-cta-btn") ||
-    cn.includes("cta-btn");
+    cn.includes("cta-btn") ||
+    cn.includes("button-danger") ||
+    cn.includes("button-disabled");
 
   const finalClassName = hasCustomCtaClass
     ? `btn ${cn}`.trim()
@@ -170,8 +133,15 @@ export function Button({
     </button>
   );
 }
-export function Card({ children, className }: { children: ReactNode; className?: string }) {
-  return <div className={`card ${className ?? ""}`}>{children}</div>;
+
+export function Card({
+  children,
+  className
+}: {
+  children: ReactNode;
+  className?: string;
+}) {
+  return <div className={`card ${className ?? ""}`.trim()}>{children}</div>;
 }
 
 export function Badge({
@@ -202,29 +172,17 @@ export function Tabs({
   );
 
   return (
-    <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+    <div className="ui-tabs">
       {tabItems.map((item, idx) => {
         const isActive = active ? item.value === active : idx === 0;
         return (
           <button
             key={item.value}
+            type="button"
             onClick={() => onChange?.(item.value)}
-            style={{
-              padding: "8px 16px",
-              borderRadius: 8,
-              border: "1px solid #E2E8F0",
-              background: isActive ? "var(--color-primary)" : "#fff",
-              color: isActive ? "#fff" : "#475569",
-              fontSize: 14,
-              fontWeight: 600,
-              cursor: "pointer",
-              display: "flex",
-              alignItems: "center",
-              gap: 8,
-              transition: "all 0.2s"
-            }}
+            className={`ui-tab ${isActive ? "active" : ""}`}
           >
-            {item.icon && <span>{item.icon}</span>}
+            {item.icon && <span className="ui-tab-icon">{item.icon}</span>}
             {item.label}
           </button>
         );
@@ -243,18 +201,11 @@ export function ListRow({
   badge: ReactNode;
 }) {
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-      <div
-        style={{
-          width: 44,
-          height: 44,
-          borderRadius: 12,
-          background: "#E2E8F0"
-        }}
-      />
-      <div style={{ flex: 1 }}>
-        <div style={{ fontWeight: 600, fontSize: 13 }}>{title}</div>
-        <div style={{ color: "#64748b", fontSize: 11 }}>{subtitle}</div>
+    <div className="ui-list-row">
+      <div className="ui-list-row-icon" />
+      <div className="ui-list-row-body">
+        <div className="ui-list-row-title">{title}</div>
+        <div className="ui-list-row-subtitle">{subtitle}</div>
       </div>
       {badge}
     </div>
@@ -298,15 +249,11 @@ export function TopBar({
 export function BottomNav() {
   const items = ["Home", "Cases", "Teams", "Settings"];
   return (
-    <div style={{ display: "flex", justifyContent: "space-between", marginTop: 16 }}>
+    <div className="ui-bottom-nav-preview">
       {items.map((item, idx) => (
         <div
           key={item}
-          style={{
-            fontSize: 10,
-            color: idx === 0 ? "var(--color-primary)" : "#94A3B8",
-            fontWeight: 600
-          }}
+          className={`ui-bottom-nav-preview-item ${idx === 0 ? "active" : ""}`}
         >
           {item}
         </div>
@@ -327,9 +274,7 @@ export function TimelineBlock({ items }: { items: string[] }) {
     </div>
   );
 }
-// ========================= 
-// MODAL
-// =========================
+
 export function Modal({
   isOpen,
   onClose,
@@ -348,20 +293,10 @@ export function Modal({
   return (
     <>
       <div className="modal-overlay" onClick={onClose} />
-      <div className="modal-content">
+      <div className="modal-content" role="dialog" aria-modal="true" aria-label={title}>
         <div className="modal-header">
           <h2>{title}</h2>
-          <button
-            onClick={onClose}
-            className="modal-close"
-            style={{
-              background: "none",
-              border: "none",
-              cursor: "pointer",
-              fontSize: "24px",
-              color: "#64748b"
-            }}
-          >
+          <button onClick={onClose} className="modal-close" aria-label="Close modal">
             ×
           </button>
         </div>
@@ -372,19 +307,19 @@ export function Modal({
   );
 }
 
-// ========================= 
-// SKELETON LOADER
-// =========================
-export function Skeleton({ width = "100%", height = "20px" }: { width?: string; height?: string }) {
+export function Skeleton({
+  width = "100%",
+  height = "20px"
+}: {
+  width?: string;
+  height?: string;
+}) {
   return (
     <div
       className="skeleton"
       style={{
         width,
-        height,
-        borderRadius: "8px",
-        backgroundColor: "#E2E8F0",
-        animation: "pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite"
+        height
       }}
     />
   );
@@ -400,9 +335,6 @@ export function SkeletonText({ lines = 3 }: { lines?: number }) {
   );
 }
 
-// ========================= 
-// EMPTY STATE
-// =========================
 export function EmptyState({
   icon,
   title,
@@ -430,9 +362,6 @@ export function EmptyState({
   );
 }
 
-// ========================= 
-// INPUT
-// =========================
 export function Input({
   placeholder,
   value,
@@ -453,25 +382,19 @@ export function Input({
   return (
     <div>
       <input
-        className="input"
+        className={`input ${error ? "input-has-error" : ""}`}
         type={type}
         placeholder={placeholder}
         value={value}
         onChange={(e) => onChange(e.target.value)}
         disabled={disabled}
         maxLength={maxLength}
-        style={{
-          borderColor: error ? "#D64545" : undefined
-        }}
       />
       {error && <div className="input-error">{error}</div>}
     </div>
   );
 }
 
-// ========================= 
-// SELECT
-// =========================
 export function Select({
   label,
   options,
