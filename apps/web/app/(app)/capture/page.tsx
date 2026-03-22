@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button, Card, useToast } from "../../../components/ui";
 import { useLocale } from "../../providers";
@@ -8,20 +8,35 @@ import { apiFetch } from "../../../lib/api";
 import { captureException } from "../../../lib/sentry";
 
 type EvidenceType = "PHOTO" | "VIDEO" | "DOCUMENT";
+type CameraMode = "PHOTO" | "VIDEO" | null;
 
 export default function CapturePage() {
   const { t } = useLocale();
   const router = useRouter();
   const { addToast } = useToast();
+
   const [type, setType] = useState<EvidenceType>("PHOTO");
   const [file, setFile] = useState<File | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [useLocation, setUseLocation] = useState(false);
   const [progress, setProgress] = useState<number>(0);
+
+  const [cameraOpen, setCameraOpen] = useState(false);
+  const [cameraMode, setCameraMode] = useState<CameraMode>(null);
+  const [cameraError, setCameraError] = useState<string | null>(null);
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordedVideoUrl, setRecordedVideoUrl] = useState<string | null>(null);
+
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const videoPreviewRef = useRef<HTMLVideoElement | null>(null);
+  const mediaStreamRef = useRef<MediaStream | null>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const recordedChunksRef = useRef<Blob[]>([]);
+  const recordedObjectUrlRef = useRef<string | null>(null);
 
   const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
   const pollReport = async (evidenceId: string) => {
     for (let attempt = 0; attempt < 8; attempt += 1) {
       try {
@@ -33,11 +48,206 @@ export default function CapturePage() {
     }
   };
 
+  const clearRecordedPreview = () => {
+    if (recordedObjectUrlRef.current) {
+      URL.revokeObjectURL(recordedObjectUrlRef.current);
+      recordedObjectUrlRef.current = null;
+    }
+    setRecordedVideoUrl(null);
+  };
+
+  const stopMediaStream = () => {
+    mediaStreamRef.current?.getTracks().forEach((track) => track.stop());
+    mediaStreamRef.current = null;
+  };
+
+  const closeCamera = () => {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
+      mediaRecorderRef.current.stop();
+    }
+
+    setIsRecording(false);
+    stopMediaStream();
+
+    if (videoPreviewRef.current) {
+      videoPreviewRef.current.srcObject = null;
+    }
+
+    setCameraOpen(false);
+    setCameraMode(null);
+    setCameraError(null);
+  };
+
+  useEffect(() => {
+    return () => {
+      closeCamera();
+      clearRecordedPreview();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const openFilePicker = () => {
+    fileInputRef.current?.click();
+  };
+
+  const openCamera = async (mode: "PHOTO" | "VIDEO") => {
+    setCameraError(null);
+    setError(null);
+    clearRecordedPreview();
+
+    if (typeof navigator === "undefined" || !navigator.mediaDevices?.getUserMedia) {
+      setCameraError("Camera is not supported in this browser.");
+      return;
+    }
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: "environment",
+          width: { ideal: 1280 },
+          height: { ideal: 720 },
+        },
+        audio: mode === "VIDEO",
+      });
+
+      stopMediaStream();
+      mediaStreamRef.current = stream;
+      setCameraMode(mode);
+      setCameraOpen(true);
+
+      setTimeout(() => {
+        if (videoPreviewRef.current) {
+          videoPreviewRef.current.srcObject = stream;
+          void videoPreviewRef.current.play().catch(() => null);
+        }
+      }, 0);
+    } catch (err) {
+      captureException(err, { feature: "web_capture_open_camera", mode });
+      setCameraError("Unable to access camera or microphone. Please check browser permissions.");
+    }
+  };
+
+  const capturePhotoFromCamera = async () => {
+    const video = videoPreviewRef.current;
+    if (!video || !video.videoWidth || !video.videoHeight) {
+      setCameraError("Camera preview is not ready yet.");
+      return;
+    }
+
+    const canvas = document.createElement("canvas");
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+
+    const ctx = canvas.getContext("2d");
+    if (!ctx) {
+      setCameraError("Unable to capture image.");
+      return;
+    }
+
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+    const blob = await new Promise<Blob | null>((resolve) => {
+      canvas.toBlob(resolve, "image/jpeg", 0.92);
+    });
+
+    if (!blob) {
+      setCameraError("Failed to capture photo.");
+      return;
+    }
+
+    const capturedFile = new File([blob], `capture-${Date.now()}.jpg`, {
+      type: "image/jpeg",
+      lastModified: Date.now(),
+    });
+
+    setFile(capturedFile);
+    addToast("Photo captured successfully", "success");
+    closeCamera();
+  };
+
+  const startVideoRecording = () => {
+    const stream = mediaStreamRef.current;
+    if (!stream) {
+      setCameraError("Camera stream is not available.");
+      return;
+    }
+
+    if (typeof MediaRecorder === "undefined") {
+      setCameraError("Video recording is not supported in this browser.");
+      return;
+    }
+
+    try {
+      recordedChunksRef.current = [];
+
+      const preferredMimeTypes = [
+        "video/webm;codecs=vp9,opus",
+        "video/webm;codecs=vp8,opus",
+        "video/webm",
+        "video/mp4",
+      ];
+
+      const mimeType =
+        preferredMimeTypes.find((candidate) => MediaRecorder.isTypeSupported(candidate)) || "";
+
+      const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
+
+      recorder.ondataavailable = (event) => {
+        if (event.data && event.data.size > 0) {
+          recordedChunksRef.current.push(event.data);
+        }
+      };
+
+      recorder.onstop = () => {
+        const finalMimeType = recorder.mimeType || "video/webm";
+        const blob = new Blob(recordedChunksRef.current, { type: finalMimeType });
+
+        if (blob.size === 0) {
+          setCameraError("Recorded video is empty.");
+          return;
+        }
+
+        const extension = finalMimeType.includes("mp4") ? "mp4" : "webm";
+        const recordedFile = new File([blob], `capture-${Date.now()}.${extension}`, {
+          type: finalMimeType,
+          lastModified: Date.now(),
+        });
+
+        setFile(recordedFile);
+
+        clearRecordedPreview();
+        const objectUrl = URL.createObjectURL(blob);
+        recordedObjectUrlRef.current = objectUrl;
+        setRecordedVideoUrl(objectUrl);
+
+        addToast("Video recorded successfully", "success");
+        setIsRecording(false);
+        closeCamera();
+      };
+
+      mediaRecorderRef.current = recorder;
+      recorder.start(250);
+      setIsRecording(true);
+      addToast("Recording started", "info");
+    } catch (err) {
+      captureException(err, { feature: "web_capture_start_recording" });
+      setCameraError("Unable to start video recording.");
+    }
+  };
+
+  const stopVideoRecording = () => {
+    const recorder = mediaRecorderRef.current;
+    if (!recorder || recorder.state === "inactive") return;
+
+    recorder.stop();
+    addToast("Finishing video recording...", "info");
+  };
+
   const handleCapture = async () => {
     setError(null);
 
     if (!file) {
-      addToast("Please select a file first", "error");
+      addToast("Please select, capture, or record a file first", "error");
       return;
     }
 
@@ -50,7 +260,7 @@ export default function CapturePage() {
         try {
           addToast("Creating evidence record...", "info");
 
-          const mimeType = file?.type || "text/plain";
+          const mimeType = file.type || "application/octet-stream";
           const deviceTimeIso = new Date().toISOString();
           let gps: { lat: number; lng: number; accuracyMeters?: number } | undefined;
 
@@ -75,9 +285,6 @@ export default function CapturePage() {
             body: JSON.stringify({ type, mimeType, deviceTimeIso, gps }),
           });
 
-          const uploadFile =
-            file ?? new File([`Proovra ${type} capture`], "capture.txt", { type: "text/plain" });
-
           addToast("Uploading file...", "info");
           setProgress(0);
 
@@ -93,18 +300,16 @@ export default function CapturePage() {
             xhr.onerror = () => reject(new Error("Upload failed"));
 
             xhr.onload = () => {
-              // NOTE: Some S3-compatible/CORS setups make XHR status appear as 0
-              // even when the upload actually succeeded (response blocked).
-              // Treat 0 as success to avoid leaving Evidence stuck in UPLOADING.
               if (xhr.status === 0 || (xhr.status >= 200 && xhr.status < 300)) {
                 resolve();
               } else {
                 reject(new Error(`Upload failed (${xhr.status})`));
               }
             };
+
             xhr.open("PUT", data.upload.putUrl);
-            xhr.setRequestHeader("content-type", uploadFile.type || "application/octet-stream");
-            xhr.send(uploadFile);
+            xhr.setRequestHeader("content-type", file.type || "application/octet-stream");
+            xhr.send(file);
           });
 
           addToast("Finalizing evidence...", "info");
@@ -137,6 +342,20 @@ export default function CapturePage() {
     }
   };
 
+  const uploadLabel =
+    type === "PHOTO"
+      ? "Upload Photo"
+      : type === "VIDEO"
+        ? "Upload Video"
+        : "Upload Document";
+
+  const cameraLabel =
+    type === "PHOTO"
+      ? "Use Camera"
+      : type === "VIDEO"
+        ? "Record Video"
+        : null;
+
   return (
     <div className="section app-section">
       <div className="app-hero app-hero-full">
@@ -147,7 +366,7 @@ export default function CapturePage() {
                 {t("capture")}
               </h1>
               <p className="page-subtitle pricing-subtitle" style={{ marginTop: 6 }}>
-                Upload a file and generate a signed report.
+                Upload, capture, or record evidence and generate a signed report.
               </p>
             </div>
           </div>
@@ -168,7 +387,17 @@ export default function CapturePage() {
                     key={item.value}
                     type="button"
                     className={`pill-button ${type === item.value ? "active" : ""}`}
-                    onClick={() => setType(item.value)}
+                    onClick={() => {
+                      setType(item.value);
+                      setFile(null);
+                      setError(null);
+                      setCameraError(null);
+                      clearRecordedPreview();
+                      closeCamera();
+                      if (fileInputRef.current) {
+                        fileInputRef.current.value = "";
+                      }
+                    }}
                   >
                     {item.label}
                   </button>
@@ -185,10 +414,31 @@ export default function CapturePage() {
                       ? "video/*"
                       : "application/pdf,.pdf,.doc,.docx,.txt,.rtf"
                 }
-                onChange={(event) => setFile(event.target.files?.[0] ?? null)}
+                onChange={(event) => {
+                  const nextFile = event.target.files?.[0] ?? null;
+                  setFile(nextFile);
+                  setError(null);
+                  clearRecordedPreview();
+                }}
                 ref={fileInputRef}
                 style={{ display: "none" }}
               />
+
+              <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                <Button variant="secondary" onClick={openFilePicker} disabled={busy}>
+                  {uploadLabel}
+                </Button>
+
+                {cameraLabel ? (
+                  <Button
+                    variant="secondary"
+onClick={() => openCamera(type === "PHOTO" ? "PHOTO" : "VIDEO")}
+                    disabled={busy}
+                  >
+                    {cameraLabel}
+                  </Button>
+                ) : null}
+              </div>
 
               <div
                 className="drop-zone"
@@ -196,9 +446,13 @@ export default function CapturePage() {
                 onDrop={(event) => {
                   event.preventDefault();
                   const dropped = event.dataTransfer.files?.[0] ?? null;
-                  if (dropped) setFile(dropped);
+                  if (dropped) {
+                    setFile(dropped);
+                    setError(null);
+                    clearRecordedPreview();
+                  }
                 }}
-                onClick={() => fileInputRef.current?.click()}
+                onClick={openFilePicker}
               >
                 {file ? (
                   <div>
@@ -208,9 +462,97 @@ export default function CapturePage() {
                     </div>
                   </div>
                 ) : (
-                  <div className="drop-hint">Drag & drop or click to select</div>
+                  <div className="drop-hint">
+                    Drag &amp; drop or click to select {type === "DOCUMENT" ? "a document" : "a file"}
+                  </div>
                 )}
               </div>
+
+              {cameraOpen ? (
+                <div
+                  style={{
+                    display: "grid",
+                    gap: 14,
+                    padding: 16,
+                    borderRadius: 16,
+                    border: "1px solid rgba(101, 235, 255, 0.18)",
+                    background: "rgba(9, 20, 38, 0.52)",
+                  }}
+                >
+                  <div style={{ fontWeight: 700, color: "rgba(237, 244, 255, 0.92)" }}>
+                    {cameraMode === "PHOTO" ? "Camera Preview" : "Video Recorder"}
+                  </div>
+
+                  <video
+                    ref={videoPreviewRef}
+                    autoPlay
+                    muted={cameraMode === "PHOTO"}
+                    playsInline
+                    style={{
+                      width: "100%",
+                      maxHeight: 420,
+                      borderRadius: 14,
+                      background: "#050b18",
+                      objectFit: "cover",
+                    }}
+                  />
+
+                  {cameraError ? <div className="error-text">{cameraError}</div> : null}
+
+                  <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                    {cameraMode === "PHOTO" ? (
+                      <Button onClick={capturePhotoFromCamera} disabled={busy}>
+                        Capture Photo
+                      </Button>
+                    ) : (
+                      <>
+                        {!isRecording ? (
+                          <Button onClick={startVideoRecording} disabled={busy}>
+                            Start Recording
+                          </Button>
+                        ) : (
+                          <Button className="button-danger" onClick={stopVideoRecording} disabled={busy}>
+                            Stop Recording
+                          </Button>
+                        )}
+                      </>
+                    )}
+
+                    <Button variant="secondary" onClick={closeCamera} disabled={busy}>
+                      Close Camera
+                    </Button>
+                  </div>
+                </div>
+              ) : null}
+
+              {recordedVideoUrl && type === "VIDEO" ? (
+                <div
+                  style={{
+                    display: "grid",
+                    gap: 12,
+                    padding: 16,
+                    borderRadius: 16,
+                    border: "1px solid rgba(101, 235, 255, 0.14)",
+                    background: "rgba(9, 20, 38, 0.42)",
+                  }}
+                >
+                  <div style={{ fontWeight: 600, color: "rgba(237, 244, 255, 0.9)" }}>
+                    Recorded video preview
+                  </div>
+
+                  <video
+                    src={recordedVideoUrl}
+                    controls
+                    playsInline
+                    style={{
+                      width: "100%",
+                      maxHeight: 360,
+                      borderRadius: 12,
+                      background: "#050b18",
+                    }}
+                  />
+                </div>
+              ) : null}
 
               <label style={{ display: "flex", alignItems: "center", gap: 8 }}>
                 <input
