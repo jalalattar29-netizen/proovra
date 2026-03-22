@@ -428,7 +428,7 @@ export default function EvidenceDetailPage() {
                   }
                   className={lockedAt ? "button-disabled" : "button-danger"}
                 >
-                  {lockedAt ? "🔒 Permanently Locked" : "Lock Evidence Permanently"}
+                  {lockedAt ? "Permanently Locked" : "Lock Evidence Permanently"}
                 </Button>
 
                 {lockedAt && (
