@@ -43,8 +43,8 @@ export default function HomePage() {
             </p>
 
             {/* HERO BUTTONS */}
-            <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
-              <a href={appRegister}>
+<div className="home-evidence-stack-pro">
+                  <a href={appRegister}>
                 {/* ✅ Primary CTA uses SAME styling as Register (gradient .proovra-cta-btn) */}
 <Button className="proovra-cta-btn">Start capturing evidence</Button>
               </a>

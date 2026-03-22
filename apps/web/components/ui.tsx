@@ -200,14 +200,38 @@ export function ListRow({
   subtitle: string;
   badge: ReactNode;
 }) {
+  const normalized = title.trim().toUpperCase();
+
+  const typeCode =
+    normalized === "PHOTO"
+      ? "PH"
+      : normalized === "VIDEO"
+        ? "VI"
+        : normalized === "DOCUMENT"
+          ? "DO"
+          : normalized === "AUDIO"
+            ? "AU"
+            : "EV";
+
   return (
-    <div className="ui-list-row">
-      <div className="ui-list-row-icon" />
-      <div className="ui-list-row-body">
-        <div className="ui-list-row-title">{title}</div>
-        <div className="ui-list-row-subtitle">{subtitle}</div>
+    <div className="evidence-row-pro">
+      <div className="evidence-row-pro__left">
+        <div className="evidence-row-pro__icon" aria-hidden="true">
+          <span className="evidence-row-pro__icon-text">{typeCode}</span>
+        </div>
+
+        <div className="evidence-row-pro__content">
+          <div className="evidence-row-pro__title">{title}</div>
+          <div className="evidence-row-pro__subtitle">{subtitle}</div>
+        </div>
       </div>
-      {badge}
+
+      <div className="evidence-row-pro__right">
+        <div className="evidence-row-pro__badge">{badge}</div>
+        <span className="evidence-row-pro__arrow" aria-hidden="true">
+          ›
+        </span>
+      </div>
     </div>
   );
 }

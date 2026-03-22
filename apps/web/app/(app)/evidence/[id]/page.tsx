@@ -643,7 +643,7 @@ export default function EvidenceDetailPage() {
                 disabled={actionBusy}
                 className="button-danger"
               >
-                {actionBusy ? "Locking..." : "🔒 Lock permanently"}
+                {actionBusy ? "Locking..." : "Lock permanently"}
               </Button>
             </div>
           </div>
@@ -687,7 +687,7 @@ export default function EvidenceDetailPage() {
               onClick={handleConfirmArchive}
               disabled={actionBusy}
             >
-              {actionBusy ? "Archiving..." : "📦 Archive"}
+              {actionBusy ? "Archiving..." : "Archive"}
             </Button>
           </div>
         }

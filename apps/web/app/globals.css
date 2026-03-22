@@ -3952,3 +3952,190 @@ body {
   color: rgba(219, 235, 248, 0.72);
   margin: 0;
 }
+/* =========================================================
+   RECENT EVIDENCE — ENTERPRISE LIST
+   ========================================================= */
+
+.evidence-row-pro {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+
+  width: 100%;
+  min-height: 78px;
+  padding: 14px 16px;
+
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+
+  background:
+    linear-gradient(
+      180deg,
+      rgba(18, 31, 39, 0.92) 0%,
+      rgba(14, 25, 33, 0.96) 100%
+    );
+
+  box-shadow:
+    0 10px 24px rgba(0, 0, 0, 0.18),
+    inset 0 1px 0 rgba(255, 255, 255, 0.025);
+
+  transition:
+    transform 180ms ease,
+    border-color 180ms ease,
+    background 180ms ease,
+    box-shadow 180ms ease;
+}
+
+.evidence-row-pro:hover {
+  transform: translateY(-1px);
+  border-color: rgba(111, 149, 153, 0.20);
+  background:
+    linear-gradient(
+      180deg,
+      rgba(22, 38, 47, 0.94) 0%,
+      rgba(16, 28, 36, 0.98) 100%
+    );
+  box-shadow:
+    0 14px 32px rgba(0, 0, 0, 0.22),
+    0 0 0 1px rgba(111, 149, 153, 0.04) inset;
+}
+
+.evidence-row-pro__left {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+  flex: 1;
+}
+
+.evidence-row-pro__icon {
+  width: 44px;
+  height: 44px;
+  flex-shrink: 0;
+  border-radius: 12px;
+
+  display: grid;
+  place-items: center;
+
+  background:
+    linear-gradient(
+      180deg,
+      rgba(111, 149, 153, 0.16) 0%,
+      rgba(111, 149, 153, 0.07) 100%
+    );
+
+  border: 1px solid rgba(111, 149, 153, 0.18);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.04),
+    0 6px 16px rgba(0, 0, 0, 0.12);
+}
+
+.evidence-row-pro__icon-text {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  color: rgba(237, 242, 243, 0.88);
+}
+
+.evidence-row-pro__content {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.evidence-row-pro__title {
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  color: #edf2f3;
+
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.evidence-row-pro__subtitle {
+  font-size: 12px;
+  line-height: 1.45;
+  color: rgba(192, 204, 209, 0.76);
+
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.evidence-row-pro__right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+}
+
+.evidence-row-pro__badge {
+  display: inline-flex;
+  align-items: center;
+}
+
+.evidence-row-pro__arrow {
+  font-size: 22px;
+  line-height: 1;
+  color: rgba(192, 204, 209, 0.36);
+  transition: transform 180ms ease, color 180ms ease;
+}
+
+.evidence-row-pro:hover .evidence-row-pro__arrow {
+  transform: translateX(2px);
+  color: rgba(237, 242, 243, 0.68);
+}
+
+/* badges inside rows */
+.evidence-row-pro .badge {
+  border-radius: 999px;
+  padding: 5px 10px;
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  font-weight: 800;
+}
+
+/* spacing wrapper for evidence lists */
+.home-evidence-stack-pro {
+  display: grid;
+  gap: 12px;
+  padding-top: 6px;
+}
+
+/* archived pill */
+.home-archived-mark-pro {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  color: rgba(192, 204, 209, 0.74);
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+@media (max-width: 760px) {
+  .evidence-row-pro {
+    align-items: flex-start;
+    padding: 14px;
+  }
+
+  .evidence-row-pro__right {
+    gap: 8px;
+  }
+
+  .evidence-row-pro__subtitle {
+    white-space: normal;
+  }
+
+  .evidence-row-pro__arrow {
+    font-size: 18px;
+  }
+}
