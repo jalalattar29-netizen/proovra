@@ -52,16 +52,14 @@ export function MarketingHeader() {
     <header className="proovra-header">
       <div className="container proovra-header-inner">
         <Link href="/" className="proovra-logo">
-          <img
-            src="/brand/icon-512.png?v=2"
-            alt="PROO✓RA"
-            width={36}
-            height={36}
-            className="proovra-logo-mark"
-          />
-          <span>PROO✓RA</span>
+<img
+  src="/brand/icon-512.png?v=2"
+  alt="PROO✓RA"
+  width={36}
+  height={36}
+  className="proovra-logo-mark"
+/>          <span>PROO✓RA</span>
         </Link>
-
         <nav className="proovra-nav proovra-nav-marketing">
           <div className="proovra-nav-center">
             {MARKETING_NAV.map((item) => (
@@ -70,7 +68,6 @@ export function MarketingHeader() {
               </Link>
             ))}
           </div>
-
           <div className="proovra-nav-right">
             <div className="lang-button">
               <LanguageSwitcher />
@@ -79,7 +76,7 @@ export function MarketingHeader() {
               <span>Login</span>
             </a>
             <a href={appRegister} className="proovra-cta-btn">
-              <span>Get Started</span>
+              <span>Register</span>
             </a>
           </div>
         </nav>
@@ -104,16 +101,14 @@ export function AppHeader({
     <header className="proovra-header">
       <div className="container proovra-header-inner">
         <Link href="/home" className="proovra-logo">
-          <img
-            src="/brand/icon-512.png?v=2"
-            alt="PROO✓RA"
-            width={36}
-            height={36}
-            className="proovra-logo-mark"
-          />
-          <span>PROO✓RA</span>
+<img
+  src="/brand/icon-512.png?v=2"
+  alt="PROO✓RA"
+  width={36}
+  height={36}
+  className="proovra-logo-mark"
+/>          <span>PROO✓RA</span>
         </Link>
-
         <nav className="proovra-nav proovra-nav-app proovra-nav-app-desktop">
           {APP_NAV.map((item) => (
             <Link
@@ -125,32 +120,17 @@ export function AppHeader({
               <span>{item.label}</span>
             </Link>
           ))}
-
-          <div className="lang-button">
-            <LanguageSwitcher />
-          </div>
-
-          {hasSession && (
-            <button
-              type="button"
-              className="proovra-nav-link proovra-logout-btn"
-              onClick={onLogout}
-            >
+<div className="lang-button">
+  <LanguageSwitcher />
+</div>          {hasSession && (
+            <button type="button" className="proovra-nav-link proovra-logout-btn" onClick={onLogout}>
               Sign out
             </button>
           )}
         </nav>
-
         <div className="proovra-nav-app-mobile">
-          <div className="lang-button">
-            <LanguageSwitcher />
-          </div>
           {hasSession && (
-            <button
-              type="button"
-              className="proovra-nav-link proovra-logout-btn"
-              onClick={onLogout}
-            >
+            <button type="button" className="proovra-nav-link proovra-logout-btn" onClick={onLogout}>
               Sign out
             </button>
           )}
