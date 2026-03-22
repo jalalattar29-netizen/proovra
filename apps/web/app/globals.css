@@ -3953,7 +3953,7 @@ body {
   margin: 0;
 }
 /* =========================================================
-   RECENT EVIDENCE — ENTERPRISE LIST
+   RECENT EVIDENCE — DARK NAVY ENTERPRISE
    ========================================================= */
 
 .evidence-row-pro {
@@ -3967,18 +3967,18 @@ body {
   padding: 14px 16px;
 
   border-radius: 16px;
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(132, 155, 185, 0.10);
 
   background:
     linear-gradient(
       180deg,
-      rgba(18, 31, 39, 0.92) 0%,
-      rgba(14, 25, 33, 0.96) 100%
+      rgba(10, 24, 44, 0.92) 0%,
+      rgba(7, 18, 34, 0.97) 100%
     );
 
   box-shadow:
-    0 10px 24px rgba(0, 0, 0, 0.18),
-    inset 0 1px 0 rgba(255, 255, 255, 0.025);
+    0 10px 24px rgba(0, 0, 0, 0.20),
+    inset 0 1px 0 rgba(255, 255, 255, 0.02);
 
   transition:
     transform 180ms ease,
@@ -3989,16 +3989,16 @@ body {
 
 .evidence-row-pro:hover {
   transform: translateY(-1px);
-  border-color: rgba(111, 149, 153, 0.20);
+  border-color: rgba(123, 165, 214, 0.18);
   background:
     linear-gradient(
       180deg,
-      rgba(22, 38, 47, 0.94) 0%,
-      rgba(16, 28, 36, 0.98) 100%
+      rgba(13, 30, 54, 0.95) 0%,
+      rgba(8, 20, 39, 0.99) 100%
     );
   box-shadow:
-    0 14px 32px rgba(0, 0, 0, 0.22),
-    0 0 0 1px rgba(111, 149, 153, 0.04) inset;
+    0 14px 32px rgba(0, 0, 0, 0.24),
+    0 0 0 1px rgba(123, 165, 214, 0.04) inset;
 }
 
 .evidence-row-pro__left {
@@ -4021,13 +4021,13 @@ body {
   background:
     linear-gradient(
       180deg,
-      rgba(111, 149, 153, 0.16) 0%,
-      rgba(111, 149, 153, 0.07) 100%
+      rgba(72, 98, 135, 0.22) 0%,
+      rgba(72, 98, 135, 0.10) 100%
     );
 
-  border: 1px solid rgba(111, 149, 153, 0.18);
+  border: 1px solid rgba(105, 133, 174, 0.18);
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.04),
+    inset 0 1px 0 rgba(255, 255, 255, 0.03),
     0 6px 16px rgba(0, 0, 0, 0.12);
 }
 
@@ -4035,7 +4035,7 @@ body {
   font-size: 11px;
   font-weight: 800;
   letter-spacing: 0.08em;
-  color: rgba(237, 242, 243, 0.88);
+  color: rgba(235, 242, 252, 0.88);
 }
 
 .evidence-row-pro__content {
@@ -4049,7 +4049,7 @@ body {
   font-size: 15px;
   font-weight: 700;
   letter-spacing: 0.01em;
-  color: #edf2f3;
+  color: #edf4ff;
 
   white-space: nowrap;
   overflow: hidden;
@@ -4059,7 +4059,7 @@ body {
 .evidence-row-pro__subtitle {
   font-size: 12px;
   line-height: 1.45;
-  color: rgba(192, 204, 209, 0.76);
+  color: rgba(183, 198, 220, 0.76);
 
   white-space: nowrap;
   overflow: hidden;
@@ -4081,16 +4081,15 @@ body {
 .evidence-row-pro__arrow {
   font-size: 22px;
   line-height: 1;
-  color: rgba(192, 204, 209, 0.36);
+  color: rgba(183, 198, 220, 0.34);
   transition: transform 180ms ease, color 180ms ease;
 }
 
 .evidence-row-pro:hover .evidence-row-pro__arrow {
   transform: translateX(2px);
-  color: rgba(237, 242, 243, 0.68);
+  color: rgba(237, 244, 255, 0.68);
 }
 
-/* badges inside rows */
 .evidence-row-pro .badge {
   border-radius: 999px;
   padding: 5px 10px;
@@ -4099,14 +4098,12 @@ body {
   font-weight: 800;
 }
 
-/* spacing wrapper for evidence lists */
 .home-evidence-stack-pro {
   display: grid;
   gap: 12px;
   padding-top: 6px;
 }
 
-/* archived pill */
 .home-archived-mark-pro {
   display: inline-flex;
   align-items: center;
@@ -4115,7 +4112,7 @@ body {
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.05);
   border: 1px solid rgba(255, 255, 255, 0.06);
-  color: rgba(192, 204, 209, 0.74);
+  color: rgba(183, 198, 220, 0.74);
   font-size: 11px;
   font-weight: 700;
   white-space: nowrap;
@@ -4137,5 +4134,125 @@ body {
 
   .evidence-row-pro__arrow {
     font-size: 18px;
+  }
+}
+
+/* =========================================================
+   APP MOBILE BOTTOM NAV — 4 ITEMS + MORE
+   ========================================================= */
+
+.app-bottom-nav-inner {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  align-items: center;
+  gap: 4px;
+}
+
+.app-bottom-nav-more-trigger {
+  appearance: none;
+  -webkit-appearance: none;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  font: inherit;
+}
+
+.app-bottom-nav-more-dots {
+  font-size: 18px;
+  line-height: 1;
+  letter-spacing: 1px;
+}
+
+.app-bottom-nav-more-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 69;
+  border: none;
+  background: rgba(2, 8, 18, 0.42);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+}
+
+.app-bottom-nav-more-sheet {
+  position: fixed;
+  left: 12px;
+  right: 12px;
+  bottom: 86px;
+  z-index: 70;
+
+  border-radius: 18px;
+  border: 1px solid rgba(103, 126, 157, 0.18);
+
+  background:
+    linear-gradient(
+      180deg,
+      rgba(9, 20, 38, 0.96) 0%,
+      rgba(6, 15, 30, 0.98) 100%
+    );
+
+  box-shadow:
+    0 18px 42px rgba(0, 0, 0, 0.34),
+    inset 0 1px 0 rgba(255, 255, 255, 0.03);
+
+  overflow: hidden;
+}
+
+.app-bottom-nav-more-sheet-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.app-bottom-nav-more-sheet-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: rgba(237, 244, 255, 0.94);
+}
+
+.app-bottom-nav-more-close {
+  appearance: none;
+  -webkit-appearance: none;
+  border: none;
+  background: transparent;
+  color: rgba(183, 198, 220, 0.76);
+  font-size: 24px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.app-bottom-nav-more-list {
+  display: grid;
+  gap: 4px;
+  padding: 8px;
+}
+
+.app-bottom-nav-more-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 48px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  color: rgba(214, 227, 245, 0.84);
+  text-decoration: none;
+  transition: background 160ms ease, color 160ms ease;
+}
+
+.app-bottom-nav-more-item:hover,
+.app-bottom-nav-more-item.active {
+  background: rgba(78, 114, 160, 0.14);
+  color: #eaf3ff;
+}
+
+.app-bottom-nav-more-item svg {
+  flex-shrink: 0;
+}
+
+@media (min-width: 769px) {
+  .app-bottom-nav-more-backdrop,
+  .app-bottom-nav-more-sheet {
+    display: none;
   }
 }

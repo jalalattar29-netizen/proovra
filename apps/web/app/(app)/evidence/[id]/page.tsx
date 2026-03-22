@@ -350,12 +350,12 @@ export default function EvidenceDetailPage() {
                       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
                         {lockedAt && (
                           <span style={{ fontSize: 14, fontWeight: 700, color: "#65ebff" }}>
-                            🔒 Evidence Locked
+                             Evidence Locked
                           </span>
                         )}
                         {archivedAt && (
                           <span style={{ fontSize: 14, fontWeight: 600, color: "#94a3b8" }}>
-                            📦 Archived
+                             Archived
                           </span>
                         )}
                         {!lockedAt && !archivedAt && (
@@ -428,7 +428,7 @@ export default function EvidenceDetailPage() {
                   }
                   className={lockedAt ? "button-disabled" : "button-danger"}
                 >
-                  {lockedAt ? "🔒 Permanently Locked" : "🔒 Lock Evidence Permanently"}
+                  {lockedAt ? "🔒 Permanently Locked" : "Lock Evidence Permanently"}
                 </Button>
 
                 {lockedAt && (
