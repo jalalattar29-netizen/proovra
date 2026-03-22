@@ -35,6 +35,12 @@ export default function CapturePage() {
 
   const handleCapture = async () => {
     setError(null);
+
+    if (!file) {
+      addToast("Please select a file first", "error");
+      return;
+    }
+
     setBusy(true);
 
     const MAX_ATTEMPTS = 2;
@@ -220,7 +226,7 @@ export default function CapturePage() {
               {error && <div className="error-text">{error}</div>}
 
               <div>
-                <Button onClick={handleCapture} disabled={busy}>
+                <Button onClick={handleCapture} disabled={busy || !file}>
                   {busy ? "Capturing..." : "Capture & Sign"}
                 </Button>
               </div>

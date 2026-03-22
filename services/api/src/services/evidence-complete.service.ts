@@ -178,7 +178,7 @@ export async function completeEvidence(params: {
 
   if (parts.length === 0 && (!evidenceBucket || !evidenceKey)) {
     const err: HttpError = Object.assign(
-      new Error("EVIDENCE_STORAGE_NOT_SET"),
+      new Error("Cannot complete evidence without an uploaded file"),
       { statusCode: 400 }
     );
     throw err;
