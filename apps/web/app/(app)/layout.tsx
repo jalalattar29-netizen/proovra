@@ -96,36 +96,35 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
       <Footer />
 
-      <nav className="app-bottom-nav">
-        <div className="container app-bottom-nav-inner">
-          {mobilePrimaryItems.map((item) => (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={`app-bottom-nav-link ${isActive(item.href) ? "active" : ""}`}
-            >
-              <item.Icon />
-              <span>{item.label}</span>
-            </Link>
-          ))}
+<nav className="app-bottom-nav">
+  <div className="container app-bottom-nav-inner">
+    {mobilePrimaryItems.map((item) => (
+      <Link
+        key={item.href}
+        href={item.href}
+        className={`app-bottom-nav-link ${isActive(item.href) ? "active" : ""}`}
+      >
+        <item.Icon />
+        <span>{item.label}</span>
+      </Link>
+    ))}
 
-          <button
-            type="button"
-            className={`app-bottom-nav-link app-bottom-nav-more-trigger ${
-              moreIsActive || moreOpen ? "active" : ""
-            }`}
-            onClick={() => setMoreOpen((prev) => !prev)}
-            aria-expanded={moreOpen}
-            aria-label="More navigation items"
-          >
-            <span className="app-bottom-nav-more-dots" aria-hidden="true">
-              •••
-            </span>
-            <span>More</span>
-          </button>
-        </div>
-      </nav>
-
+    <button
+      type="button"
+      className={`app-bottom-nav-link app-bottom-nav-more-trigger app-bottom-nav-mobile-only ${
+        moreIsActive || moreOpen ? "active" : ""
+      }`}
+      onClick={() => setMoreOpen((prev) => !prev)}
+      aria-expanded={moreOpen}
+      aria-label="More navigation items"
+    >
+      <span className="app-bottom-nav-more-dots" aria-hidden="true">
+        •••
+      </span>
+      <span>More</span>
+    </button>
+  </div>
+</nav>
       {moreOpen && (
         <>
           <button

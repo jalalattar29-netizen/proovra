@@ -457,7 +457,7 @@ export default function EvidenceDetailPage() {
                       onClick={handleArchive}
                       disabled={actionBusy}
                     >
-                      📦 Archive Evidence
+                      Archive Evidence
                     </Button>
                     <div style={{ fontSize: 12, color: "#64748b", padding: "8px 0" }}>
                       {lockedAt

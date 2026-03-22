@@ -4250,9 +4250,36 @@ body {
   flex-shrink: 0;
 }
 
+/* =========================================================
+   APP BOTTOM NAV — MOBILE ONLY
+   ========================================================= */
+
 @media (min-width: 769px) {
-  .app-bottom-nav-more-backdrop,
-  .app-bottom-nav-more-sheet {
-    display: none;
+  .app-bottom-nav {
+    display: none !important;
+  }
+
+  :where(.app-page) .landing-footer {
+    padding-bottom: 42px;
+  }
+}
+
+@media (max-width: 768px) {
+  .app-bottom-nav {
+    display: block;
+  }
+
+  :where(.app-page) .landing-footer {
+    padding-bottom: calc(24px + 68px);
+  }
+}
+
+.app-bottom-nav-mobile-only {
+  display: flex;
+}
+
+@media (min-width: 769px) {
+  .app-bottom-nav-mobile-only {
+    display: none !important;
   }
 }
