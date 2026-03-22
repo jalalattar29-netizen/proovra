@@ -90,10 +90,27 @@ export default function CapturePage() {
   };
 
   const attachStreamToPreview = async (stream: MediaStream) => {
-    if (!videoPreviewRef.current) return;
-    videoPreviewRef.current.srcObject = stream;
+    const video = videoPreviewRef.current;
+    if (!video) return;
+
+    video.srcObject = stream;
+
+    await new Promise<void>((resolve) => {
+      const onLoaded = () => {
+        video.removeEventListener("loadedmetadata", onLoaded);
+        resolve();
+      };
+
+      video.addEventListener("loadedmetadata", onLoaded);
+
+      if (video.readyState >= 1) {
+        video.removeEventListener("loadedmetadata", onLoaded);
+        resolve();
+      }
+    });
+
     try {
-      await videoPreviewRef.current.play();
+      await video.play();
     } catch {
       // ignore autoplay issues
     }
@@ -110,8 +127,15 @@ export default function CapturePage() {
     stopMediaStream();
     mediaRecorderRef.current = null;
 
-    if (videoPreviewRef.current) {
-      videoPreviewRef.current.srcObject = null;
+    const video = videoPreviewRef.current;
+    if (video) {
+      try {
+        video.pause();
+      } catch {
+        // ignore
+      }
+      video.srcObject = null;
+      video.load();
     }
 
     setCameraOpen(false);
@@ -125,8 +149,25 @@ export default function CapturePage() {
     return () => {
       stopMediaStream();
       clearAllGeneratedPreviews();
+      if (typeof document !== "undefined") {
+        document.body.classList.remove("camera-open");
+      }
     };
   }, []);
+
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+
+    if (cameraOpen) {
+      document.body.classList.add("camera-open");
+    } else {
+      document.body.classList.remove("camera-open");
+    }
+
+    return () => {
+      document.body.classList.remove("camera-open");
+    };
+  }, [cameraOpen]);
 
   useEffect(() => {
     if (!isRecording) {
@@ -161,6 +202,10 @@ export default function CapturePage() {
     try {
       stopMediaStream();
 
+      setCameraMode(mode);
+      setCameraOpen(true);
+      setFacingMode(nextFacingMode);
+
       const stream = await navigator.mediaDevices.getUserMedia({
         video: {
           facingMode: { ideal: nextFacingMode },
@@ -171,10 +216,6 @@ export default function CapturePage() {
       });
 
       mediaStreamRef.current = stream;
-      setCameraMode(mode);
-      setCameraOpen(true);
-      setFacingMode(nextFacingMode);
-
       await attachStreamToPreview(stream);
     } catch (err) {
       captureException(err, {
@@ -183,6 +224,7 @@ export default function CapturePage() {
         facingMode: nextFacingMode,
       });
       setCameraError("Unable to access camera or microphone. Please check browser permissions.");
+      setCameraOpen(false);
     } finally {
       setCameraStarting(false);
     }
@@ -191,6 +233,8 @@ export default function CapturePage() {
   const openCamera = async (mode: "PHOTO" | "VIDEO") => {
     setError(null);
     setCameraError(null);
+    setIsRecording(false);
+    setRecordingSeconds(0);
     clearAllGeneratedPreviews();
     await startCameraStream(mode, facingMode);
   };
@@ -203,11 +247,12 @@ export default function CapturePage() {
   };
 
   const handleToggleFlash = () => {
-    setFlashEnabled((prev) => !prev);
+    const next = !flashEnabled;
+    setFlashEnabled(next);
     addToast(
-      flashEnabled
-        ? "Flash overlay disabled"
-        : "Flash overlay enabled (visual preview only on web)",
+      next
+        ? "Flash overlay enabled (visual preview only on web)"
+        : "Flash overlay disabled",
       "info"
     );
   };
