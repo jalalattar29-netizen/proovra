@@ -83,7 +83,7 @@ export default function CapturePage() {
       closeCamera();
       clearRecordedPreview();
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+
   }, []);
 
   const openFilePicker = () => {
