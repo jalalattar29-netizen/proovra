@@ -75,7 +75,6 @@ export default function EvidenceDetailPage() {
   const [assignCaseModalOpen, setAssignCaseModalOpen] = useState(false);
   const [selectedCaseId, setSelectedCaseId] = useState("");
   const [ownedCases, setOwnedCases] = useState<CaseOption[]>([]);
-  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
 
   const [originalPreviewUrl, setOriginalPreviewUrl] = useState<string | null>(null);
   const [originalDownloadUrl, setOriginalDownloadUrl] = useState<string | null>(null);
@@ -158,9 +157,9 @@ export default function EvidenceDetailPage() {
             meRes.value?.user?.id ??
             meRes.value?.id ??
             null;
-          setCurrentUserId(meId);
+            
         } else {
-          setCurrentUserId(null);
+          meId = null;
         }
 
         if (casesRes.status === "fulfilled") {
