@@ -18,8 +18,6 @@ export default function InviteAcceptPage() {
 
   const [state, setState] = useState<InviteState>("loading");
   const [teamName, setTeamName] = useState("");
-  const [invitedEmail, setInvitedEmail] = useState("");
-  const [invitedRole, setInvitedRole] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
 
   useEffect(() => {

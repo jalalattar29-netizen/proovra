@@ -150,18 +150,6 @@ export default function EvidenceDetailPage() {
           setOriginalSizeBytes(null);
         }
 
-        let meId: string | null = null;
-
-        if (meRes.status === "fulfilled") {
-          meId =
-            meRes.value?.user?.id ??
-            meRes.value?.id ??
-            null;
-
-        } else {
-          meId = null;
-        }
-
         if (casesRes.status === "fulfilled") {
           const items = Array.isArray(casesRes.value?.items) ? casesRes.value.items : [];
 
