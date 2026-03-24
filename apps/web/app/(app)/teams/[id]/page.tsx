@@ -351,6 +351,39 @@ export default function TeamDetailPage() {
     }
   };
 
+  const handleCreateTeamCase = async () => {
+    if (!teamId || !canManageTeam) return;
+
+    const caseName = window.prompt("Enter case name");
+    if (!caseName?.trim()) return;
+
+    try {
+      const created = await apiFetch("/v1/cases", {
+        method: "POST",
+        body: JSON.stringify({
+          name: caseName.trim(),
+          teamId,
+        }),
+      });
+
+      setTeamCases((prev) => [
+        {
+          id: created.id,
+          name: created.name,
+          createdAt: created.createdAt,
+          ownerUserId: created.ownerUserId,
+        },
+        ...prev,
+      ]);
+
+      addToast("Team case created successfully", "success");
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to create team case";
+      captureException(err, { feature: "team_case_create", teamId });
+      addToast(message, "error");
+    }
+  };
+
   const copyInviteLink = async (invite: TeamInvite) => {
     const url = invite.inviteUrl;
     if (!url) {
@@ -700,6 +733,14 @@ export default function TeamDetailPage() {
                       </div>
                     </Link>
                   ))}
+                </div>
+              )}
+
+              {canManageTeam && (
+                <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid rgba(148, 163, 184, 0.16)" }}>
+                  <Button className="navy-btn" onClick={handleCreateTeamCase}>
+                    Create Team Case
+                  </Button>
                 </div>
               )}
             </div>

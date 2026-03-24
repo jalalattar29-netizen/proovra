@@ -325,14 +325,23 @@ export async function teamsRoutes(app: FastifyInstance) {
         return reply.code(403).send({ message: "Only the team owner can delete this team" });
       }
 
+      // Delete pending invites
       await prisma.teamInvite.deleteMany({
         where: { teamId },
       });
 
+      // Delete team memberships
       await prisma.teamMember.deleteMany({
         where: { teamId },
       });
 
+      // Preserve team-linked cases by unsetting teamId instead of deleting
+      await prisma.case.updateMany({
+        where: { teamId },
+        data: { teamId: null },
+      });
+
+      // Finally delete the team
       await prisma.team.delete({
         where: { id: teamId },
       });

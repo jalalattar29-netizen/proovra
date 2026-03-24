@@ -165,15 +165,9 @@ export default function EvidenceDetailPage() {
         if (casesRes.status === "fulfilled") {
           const items = Array.isArray(casesRes.value?.items) ? casesRes.value.items : [];
 
-          const mine =
-            meId
-              ? items.filter(
-                  (item: CaseOption) =>
-                    item.ownerUserId === meId
-                )
-              : [];
-
-          setOwnedCases(mine);
+          // Include all accessible cases: owned + shared + team cases
+          // (backend /v1/cases already filters to only user-accessible cases)
+          setOwnedCases(items);
         } else {
           setOwnedCases([]);
         }
