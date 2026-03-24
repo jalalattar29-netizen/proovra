@@ -52,6 +52,10 @@ class TeamManagementService {
   private organizations = new Map<string, Organization>();
   private invitations = new Map<string, TeamInvitation>();
 
+  private normalizeEmail(email: string): string {
+    return email.trim().toLowerCase();
+  }
+
   /**
    * Create a new organization
    */
@@ -66,16 +70,16 @@ class TeamManagementService {
     const organization: Organization = {
       id: orgId,
       ownerId,
-      name,
-      slug,
-      description,
+      name: name.trim(),
+      slug: slug.trim().toLowerCase(),
+      description: description?.trim(),
       createdAt: new Date(),
       members: [
         {
           id: `mem_${crypto.randomBytes(12).toString("hex")}`,
           organizationId: orgId,
           userId: ownerId,
-          email: ownerId, // Use userId as email for owner
+          email: ownerId,
           role: TeamRole.OWNER,
           joinedAt: new Date(),
         },
@@ -98,9 +102,12 @@ class TeamManagementService {
    * Get organization by slug
    */
   getOrganizationBySlug(slug: string): Organization | null {
+    const normalizedSlug = slug.trim().toLowerCase();
+
     for (const org of this.organizations.values()) {
-      if (org.slug === slug) return org;
+      if (org.slug === normalizedSlug) return org;
     }
+
     return null;
   }
 
@@ -109,12 +116,14 @@ class TeamManagementService {
    */
   getUserOrganizations(userId: string): Organization[] {
     const orgs: Organization[] = [];
+
     this.organizations.forEach((org) => {
       if (org.ownerId === userId || org.members.some((m) => m.userId === userId)) {
         orgs.push(org);
       }
     });
-    return orgs;
+
+    return orgs.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
   }
 
   /**
@@ -127,26 +136,39 @@ class TeamManagementService {
     invitedBy: string
   ): TeamInvitation {
     const org = this.organizations.get(organizationId);
-    if (!org) throw new Error("Organization not found");
+    if (!org) {
+      throw new Error("Organization not found");
+    }
 
-    // Check if user already invited
+    const normalizedEmail = this.normalizeEmail(email);
+
+    const alreadyMember = org.members.some(
+      (m) => this.normalizeEmail(m.email) === normalizedEmail
+    );
+    if (alreadyMember) {
+      throw new Error("User is already a member of this organization");
+    }
+
     for (const inv of this.invitations.values()) {
-      if (inv.organizationId === organizationId && inv.email === email) {
-        if (!inv.acceptedAt && new Date() < inv.expiresAt) {
-          return inv;
-        }
+      if (
+        inv.organizationId === organizationId &&
+        this.normalizeEmail(inv.email) === normalizedEmail &&
+        !inv.acceptedAt &&
+        new Date() < inv.expiresAt
+      ) {
+        return inv;
       }
     }
 
     const invitationId = `inv_${crypto.randomBytes(12).toString("hex")}`;
     const token = crypto.randomBytes(32).toString("hex");
     const expiresAt = new Date();
-    expiresAt.setDate(expiresAt.getDate() + 7); // 7 days
+    expiresAt.setDate(expiresAt.getDate() + 7);
 
     const invitation: TeamInvitation = {
       id: invitationId,
       organizationId,
-      email,
+      email: normalizedEmail,
       role,
       invitedBy,
       invitedAt: new Date(),
@@ -164,7 +186,6 @@ class TeamManagementService {
   acceptInvitation(token: string, userId: string, email: string): TeamMember | null {
     let invitation: TeamInvitation | null = null;
 
-    // Find invitation by token
     for (const inv of this.invitations.values()) {
       if (inv.token === token && !inv.acceptedAt) {
         if (new Date() < inv.expiresAt) {
@@ -176,20 +197,31 @@ class TeamManagementService {
 
     if (!invitation) return null;
 
+    const normalizedEmail = this.normalizeEmail(email);
+    if (normalizedEmail !== this.normalizeEmail(invitation.email)) {
+      throw new Error("Invitation email does not match");
+    }
+
     const org = this.organizations.get(invitation.organizationId);
     if (!org) return null;
 
-    // Check member limit
     if (org.members.length >= org.maxMembers) {
       throw new Error("Organization has reached member limit");
     }
 
-    // Add member
+    const existingMember = org.members.find((m) => m.userId === userId);
+    if (existingMember) {
+      existingMember.role = invitation.role;
+      existingMember.email = normalizedEmail;
+      invitation.acceptedAt = new Date();
+      return existingMember;
+    }
+
     const member: TeamMember = {
       id: `mem_${crypto.randomBytes(12).toString("hex")}`,
       organizationId: org.id,
       userId,
-      email,
+      email: normalizedEmail,
       role: invitation.role,
       joinedAt: new Date(),
       invitedAt: invitation.invitedAt,
@@ -197,8 +229,6 @@ class TeamManagementService {
     };
 
     org.members.push(member);
-
-    // Mark invitation as accepted
     invitation.acceptedAt = new Date();
 
     return member;
@@ -209,7 +239,7 @@ class TeamManagementService {
    */
   getTeamMembers(organizationId: string): TeamMember[] {
     const org = this.organizations.get(organizationId);
-    return org?.members || [];
+    return org?.members ?? [];
   }
 
   /**
@@ -222,7 +252,6 @@ class TeamManagementService {
     const member = org.members.find((m) => m.id === memberId);
     if (!member) return false;
 
-    // Can't demote owner
     if (member.role === TeamRole.OWNER && newRole !== TeamRole.OWNER) {
       throw new Error("Cannot change owner role");
     }
@@ -243,7 +272,6 @@ class TeamManagementService {
 
     const member = org.members[memberIndex];
 
-    // Can't remove owner
     if (member.role === TeamRole.OWNER) {
       throw new Error("Cannot remove organization owner");
     }
@@ -266,7 +294,6 @@ class TeamManagementService {
     const member = org.members.find((m) => m.userId === userId);
     if (!member) return false;
 
-    // Role hierarchy: owner > admin > member > viewer
     const roleHierarchy = {
       [TeamRole.OWNER]: 4,
       [TeamRole.ADMIN]: 3,
@@ -282,6 +309,7 @@ class TeamManagementService {
    */
   listInvitations(organizationId: string): TeamInvitation[] {
     const invitations: TeamInvitation[] = [];
+
     this.invitations.forEach((inv) => {
       if (
         inv.organizationId === organizationId &&
@@ -291,7 +319,8 @@ class TeamManagementService {
         invitations.push(inv);
       }
     });
-    return invitations;
+
+    return invitations.sort((a, b) => b.invitedAt.getTime() - a.invitedAt.getTime());
   }
 
   /**
@@ -320,10 +349,21 @@ class TeamManagementService {
     const org = this.organizations.get(organizationId);
     if (!org) return null;
 
-    if (updates.name) org.name = updates.name;
-    if (updates.description) org.description = updates.description;
-    if (updates.logo) org.logo = updates.logo;
-    if (updates.maxMembers) org.maxMembers = updates.maxMembers;
+    if (typeof updates.name === "string" && updates.name.trim()) {
+      org.name = updates.name.trim();
+    }
+
+    if (typeof updates.description === "string") {
+      org.description = updates.description.trim() || undefined;
+    }
+
+    if (typeof updates.logo === "string") {
+      org.logo = updates.logo.trim() || undefined;
+    }
+
+    if (typeof updates.maxMembers === "number" && updates.maxMembers > 0) {
+      org.maxMembers = updates.maxMembers;
+    }
 
     return org;
   }

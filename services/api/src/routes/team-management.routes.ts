@@ -1,6 +1,6 @@
 /**
  * Team Management Routes
- * Endpoints for managing organizations, team members, and invitations
+ * Legacy organization-style endpoints
  */
 
 import type { FastifyInstance } from "fastify";
@@ -10,14 +10,6 @@ import { teamManagementService, TeamRole } from "../services/team-management.ser
 import { getEmailService } from "../services/email.service.js";
 
 export async function teamManagementRoutes(app: FastifyInstance) {
-  /**
-   * Organizations
-   */
-
-  /**
-   * Create organization
-   * POST /v1/organizations
-   */
   app.post<{
     Body: { name: string; slug: string; description?: string };
   }>(
@@ -61,7 +53,7 @@ export async function teamManagementRoutes(app: FastifyInstance) {
           },
           message: "Organization created successfully",
         };
-      } catch (error) {
+      } catch {
         throw new AppError(
           ErrorCode.INTERNAL_SERVER_ERROR,
           "Failed to create organization"
@@ -70,10 +62,6 @@ export async function teamManagementRoutes(app: FastifyInstance) {
     }
   );
 
-  /**
-   * Get organizations for user
-   * GET /v1/organizations
-   */
   app.get(
     "/v1/organizations",
     { preHandler: [requireAuth] },
@@ -95,7 +83,7 @@ export async function teamManagementRoutes(app: FastifyInstance) {
             isOwner: org.ownerId === userId,
           })),
         };
-      } catch (error) {
+      } catch {
         throw new AppError(
           ErrorCode.INTERNAL_SERVER_ERROR,
           "Failed to list organizations"
@@ -104,10 +92,6 @@ export async function teamManagementRoutes(app: FastifyInstance) {
     }
   );
 
-  /**
-   * Get organization details
-   * GET /v1/organizations/:id
-   */
   app.get<{ Params: { id: string } }>(
     "/v1/organizations/:id",
     { preHandler: [requireAuth] },
@@ -122,7 +106,6 @@ export async function teamManagementRoutes(app: FastifyInstance) {
           throw new AppError(ErrorCode.NOT_FOUND, "Organization not found");
         }
 
-        // Check permission
         if (!teamManagementService.hasPermission(id, userId, TeamRole.VIEWER)) {
           throw new AppError(
             ErrorCode.FORBIDDEN,
@@ -153,9 +136,8 @@ export async function teamManagementRoutes(app: FastifyInstance) {
           },
         };
       } catch (error) {
-        if (error instanceof AppError) {
-          throw error;
-        }
+        if (error instanceof AppError) throw error;
+
         throw new AppError(
           ErrorCode.INTERNAL_SERVER_ERROR,
           "Failed to retrieve organization"
@@ -164,13 +146,9 @@ export async function teamManagementRoutes(app: FastifyInstance) {
     }
   );
 
-  /**
-   * Update organization
-   * PATCH /v1/organizations/:id
-   */
   app.patch<{
     Params: { id: string };
-    Body: { name?: string; description?: string; logo?: string };
+    Body: { name?: string; description?: string; logo?: string; maxMembers?: number };
   }>(
     "/v1/organizations/:id",
     { preHandler: [requireAuth] },
@@ -179,7 +157,6 @@ export async function teamManagementRoutes(app: FastifyInstance) {
       const { id } = req.params;
 
       try {
-        // Check permission - must be admin or owner
         if (!teamManagementService.hasPermission(id, userId, TeamRole.ADMIN)) {
           throw new AppError(
             ErrorCode.FORBIDDEN,
@@ -193,11 +170,20 @@ export async function teamManagementRoutes(app: FastifyInstance) {
           throw new AppError(ErrorCode.NOT_FOUND, "Organization not found");
         }
 
-        return { message: "Organization updated successfully" };
+        return {
+          data: {
+            id: updated.id,
+            name: updated.name,
+            slug: updated.slug,
+            description: updated.description,
+            logo: updated.logo,
+            maxMembers: updated.maxMembers,
+          },
+          message: "Organization updated successfully",
+        };
       } catch (error) {
-        if (error instanceof AppError) {
-          throw error;
-        }
+        if (error instanceof AppError) throw error;
+
         throw new AppError(
           ErrorCode.INTERNAL_SERVER_ERROR,
           "Failed to update organization"
@@ -206,14 +192,6 @@ export async function teamManagementRoutes(app: FastifyInstance) {
     }
   );
 
-  /**
-   * Team Members & Invitations
-   */
-
-  /**
-   * Invite member to organization
-   * POST /v1/organizations/:id/members/invite
-   */
   app.post<{
     Params: { id: string };
     Body: { email: string; role?: TeamRole };
@@ -226,7 +204,6 @@ export async function teamManagementRoutes(app: FastifyInstance) {
       const { email, role = TeamRole.MEMBER } = req.body;
 
       try {
-        // Check permission - must be admin or owner
         if (!teamManagementService.hasPermission(id, userId, TeamRole.ADMIN)) {
           throw new AppError(
             ErrorCode.FORBIDDEN,
@@ -241,20 +218,20 @@ export async function teamManagementRoutes(app: FastifyInstance) {
           userId
         );
 
-        // Send invitation email if email service is configured
+        let emailSent = false;
         try {
           const emailService = getEmailService();
           if (emailService.isConfigured()) {
             const org = teamManagementService.getOrganization(id);
             await emailService.sendTeamInvitation(
               email,
-              org?.name || "Digital Witness",
+              org?.name || "PROOVRA",
               invitation.token
             );
+            emailSent = true;
           }
         } catch (emailError) {
-          console.error('Failed to send invitation email:', emailError);
-          // Continue anyway - invitation was created successfully
+          console.error("Failed to send invitation email:", emailError);
         }
 
         return {
@@ -262,14 +239,18 @@ export async function teamManagementRoutes(app: FastifyInstance) {
             id: invitation.id,
             email: invitation.email,
             role: invitation.role,
+            invitedAt: invitation.invitedAt,
             expiresAt: invitation.expiresAt,
+            token: invitation.token,
+            emailSent,
           },
-          message: "Invitation sent successfully",
+          message: emailSent
+            ? "Invitation sent successfully"
+            : "Invitation created successfully",
         };
       } catch (error) {
-        if (error instanceof AppError) {
-          throw error;
-        }
+        if (error instanceof AppError) throw error;
+
         throw new AppError(
           ErrorCode.INTERNAL_SERVER_ERROR,
           "Failed to send invitation"
@@ -278,10 +259,6 @@ export async function teamManagementRoutes(app: FastifyInstance) {
     }
   );
 
-  /**
-   * List team members
-   * GET /v1/organizations/:id/members
-   */
   app.get<{ Params: { id: string } }>(
     "/v1/organizations/:id/members",
     { preHandler: [requireAuth] },
@@ -311,9 +288,8 @@ export async function teamManagementRoutes(app: FastifyInstance) {
           })),
         };
       } catch (error) {
-        if (error instanceof AppError) {
-          throw error;
-        }
+        if (error instanceof AppError) throw error;
+
         throw new AppError(
           ErrorCode.INTERNAL_SERVER_ERROR,
           "Failed to list team members"
@@ -322,10 +298,6 @@ export async function teamManagementRoutes(app: FastifyInstance) {
     }
   );
 
-  /**
-   * Update member role
-   * PATCH /v1/organizations/:id/members/:memberId/role
-   */
   app.patch<{
     Params: { id: string; memberId: string };
     Body: { role: TeamRole };
@@ -353,9 +325,8 @@ export async function teamManagementRoutes(app: FastifyInstance) {
 
         return { message: "Member role updated successfully" };
       } catch (error) {
-        if (error instanceof AppError) {
-          throw error;
-        }
+        if (error instanceof AppError) throw error;
+
         throw new AppError(
           ErrorCode.INTERNAL_SERVER_ERROR,
           "Failed to update member role"
@@ -364,10 +335,6 @@ export async function teamManagementRoutes(app: FastifyInstance) {
     }
   );
 
-  /**
-   * Remove team member
-   * DELETE /v1/organizations/:id/members/:memberId
-   */
   app.delete<{ Params: { id: string; memberId: string } }>(
     "/v1/organizations/:id/members/:memberId",
     { preHandler: [requireAuth] },
@@ -391,9 +358,8 @@ export async function teamManagementRoutes(app: FastifyInstance) {
 
         return { message: "Team member removed successfully" };
       } catch (error) {
-        if (error instanceof AppError) {
-          throw error;
-        }
+        if (error instanceof AppError) throw error;
+
         throw new AppError(
           ErrorCode.INTERNAL_SERVER_ERROR,
           "Failed to remove team member"
@@ -402,10 +368,6 @@ export async function teamManagementRoutes(app: FastifyInstance) {
     }
   );
 
-  /**
-   * List pending invitations
-   * GET /v1/organizations/:id/invitations
-   */
   app.get<{ Params: { id: string } }>(
     "/v1/organizations/:id/invitations",
     { preHandler: [requireAuth] },
@@ -430,12 +392,12 @@ export async function teamManagementRoutes(app: FastifyInstance) {
             role: inv.role,
             invitedAt: inv.invitedAt,
             expiresAt: inv.expiresAt,
+            token: inv.token,
           })),
         };
       } catch (error) {
-        if (error instanceof AppError) {
-          throw error;
-        }
+        if (error instanceof AppError) throw error;
+
         throw new AppError(
           ErrorCode.INTERNAL_SERVER_ERROR,
           "Failed to list invitations"
@@ -444,10 +406,6 @@ export async function teamManagementRoutes(app: FastifyInstance) {
     }
   );
 
-  /**
-   * Revoke invitation
-   * DELETE /v1/organizations/:id/invitations/:invitationId
-   */
   app.delete<{ Params: { id: string; invitationId: string } }>(
     "/v1/organizations/:id/invitations/:invitationId",
     { preHandler: [requireAuth] },
@@ -471,9 +429,8 @@ export async function teamManagementRoutes(app: FastifyInstance) {
 
         return { message: "Invitation revoked successfully" };
       } catch (error) {
-        if (error instanceof AppError) {
-          throw error;
-        }
+        if (error instanceof AppError) throw error;
+
         throw new AppError(
           ErrorCode.INTERNAL_SERVER_ERROR,
           "Failed to revoke invitation"
@@ -482,10 +439,6 @@ export async function teamManagementRoutes(app: FastifyInstance) {
     }
   );
 
-  /**
-   * Accept invitation
-   * POST /v1/organizations/invitations/:token/accept
-   */
   app.post<{
     Params: { token: string };
     Body: { email: string };
@@ -517,9 +470,8 @@ export async function teamManagementRoutes(app: FastifyInstance) {
           message: "Invitation accepted successfully",
         };
       } catch (error) {
-        if (error instanceof AppError) {
-          throw error;
-        }
+        if (error instanceof AppError) throw error;
+
         throw new AppError(
           ErrorCode.INTERNAL_SERVER_ERROR,
           "Failed to accept invitation"
