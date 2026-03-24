@@ -102,7 +102,7 @@ export default function CaseDetailPage() {
 
   useEffect(() => {
     loadData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+
   }, [params?.id]);
 
   const handleRenameStart = () => {
