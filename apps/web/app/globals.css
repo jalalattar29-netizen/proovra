@@ -5001,3 +5001,20 @@ body.camera-open .app-bottom-nav {
   color: #991b1b;
   font-size: 13px;
 }
+
+.case-evidence-link {
+  display: block;
+  flex: 1;
+  min-width: 0;
+  text-decoration: none;
+  color: inherit;
+}
+
+.case-evidence-link:hover {
+  text-decoration: none;
+}
+
+.case-evidence-action {
+  flex-shrink: 0;
+  margin-left: 8px;
+}

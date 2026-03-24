@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { Button, Card, ListRow, Badge, useToast } from "../../../../components/ui";
 import { Icons } from "../../../../components/icons";
@@ -94,14 +95,14 @@ export default function CaseDetailPage() {
       setCaseData(caseRes.case ?? null);
       setEvidence(evidenceRes.items ?? []);
       setRenameValue(caseRes.case?.name ?? "");
-      
+
       if (caseRes.case?.teamId) {
         try {
-const membersRes = (await apiFetch(
-  `/v1/cases/${params.id}/team-members`
-)) as { items?: TeamMember[] };
+          const membersRes = (await apiFetch(
+            `/v1/cases/${caseId}/team-members`
+          )) as { items?: TeamMember[] };
 
-setTeamMembers(membersRes.items ?? []);
+          setTeamMembers(membersRes.items ?? []);
         } catch (teamErr) {
           console.error("Failed to load team members:", teamErr);
           setTeamMembers([]);
@@ -136,10 +137,10 @@ setTeamMembers(membersRes.items ?? []);
     addToast("Renaming case...", "info");
 
     try {
-      const updated = await apiFetch(`/v1/cases/${caseId}`, {
+      const updated = (await apiFetch(`/v1/cases/${caseId}`, {
         method: "PATCH",
         body: JSON.stringify({ name: renameValue.trim() })
-      }) as { name: string };
+      })) as { name: string };
 
       setCaseData((prev) => (prev ? { ...prev, name: updated.name } : prev));
       setRenamingCase(false);
@@ -564,7 +565,10 @@ setTeamMembers(membersRes.items ?? []);
               <div className="case-evidence-list">
                 {evidence.map((item) => (
                   <div key={item.id} className="case-evidence-row">
-                    <div className="case-evidence-main">
+                    <Link
+                      href={`/evidence/${item.id}`}
+                      className="case-evidence-main case-evidence-link"
+                    >
                       <ListRow
                         title={item.type}
                         subtitle={new Date(item.createdAt).toLocaleString()}
@@ -582,17 +586,22 @@ setTeamMembers(membersRes.items ?? []);
                           </Badge>
                         }
                       />
-                    </div>
+                    </Link>
 
                     {isOwner && (
-                      <Button
-                        variant="secondary"
-                        onClick={() => handleRemoveEvidence(item.id)}
-                        disabled={operationLoading}
-                        className="case-danger-btn case-small-btn"
+                      <div
+                        onClick={(e) => e.stopPropagation()}
+                        className="case-evidence-action"
                       >
-                        Remove
-                      </Button>
+                        <Button
+                          variant="secondary"
+                          onClick={() => handleRemoveEvidence(item.id)}
+                          disabled={operationLoading}
+                          className="case-danger-btn case-small-btn"
+                        >
+                          Remove
+                        </Button>
+                      </div>
                     )}
                   </div>
                 ))}
