@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
+import Link from "next/link";
 import { Button, Card, useToast, Skeleton } from "../../../../components/ui";
 import { apiFetch } from "../../../../lib/api";
 import { captureException } from "../../../../lib/sentry";
@@ -10,7 +11,6 @@ type TeamMemberUser = {
   id?: string;
   email?: string | null;
   displayName?: string | null;
-  name?: string | null;
 };
 
 type TeamMember = {
@@ -18,11 +18,8 @@ type TeamMember = {
   userId: string;
   role: string;
   createdAt?: string;
-  joinedAt?: string;
   user?: TeamMemberUser;
-  email?: string | null;
-  displayName?: string | null;
-  name?: string | null;
+  label?: string;
 };
 
 type TeamInvite = {
@@ -30,23 +27,31 @@ type TeamInvite = {
   email: string;
   role: string;
   createdAt?: string;
-  invitedAt?: string;
   expiresAt?: string;
   acceptedAt?: string | null;
   inviteUrl?: string;
+};
+
+type TeamCase = {
+  id: string;
+  name: string;
+  createdAt?: string;
+  ownerUserId?: string;
+};
+
+type TeamStats = {
+  memberCount: number;
+  pendingInviteCount: number;
+  caseCount: number;
 };
 
 type Team = {
   id: string;
   name?: string | null;
   ownerUserId?: string;
-  legalName?: string | null;
-  address?: string | null;
-  logoUrl?: string | null;
-  timezone?: string | null;
-  legalEmail?: string | null;
-  retentionPolicy?: string | null;
-  createdAt?: string;
+  currentUserRole?: string;
+  canManageMembers?: boolean;
+  stats?: TeamStats;
   members?: TeamMember[];
 };
 
@@ -57,38 +62,36 @@ type MeResponse = {
   id?: string;
 };
 
-const ROLE_OPTIONS = ["OWNER", "ADMIN", "MEMBER", "VIEWER"] as const;
-const RETENTION_OPTIONS = [
-  { value: "YEAR_1", label: "1 year" },
-  { value: "YEAR_5", label: "5 years" },
-  { value: "FOREVER", label: "Forever" }
-] as const;
+const ROLE_OPTIONS = ["ADMIN", "MEMBER", "VIEWER"] as const;
 
 export default function TeamDetailPage() {
   const params = useParams<{ id: string }>();
+  const router = useRouter();
   const { addToast } = useToast();
+
+  const teamId = params?.id;
 
   const [team, setTeam] = useState<Team | null>(null);
   const [invites, setInvites] = useState<TeamInvite[]>([]);
-  const [currentUserId, setCurrentUserId] = useState<string>("");
+  const [teamCases, setTeamCases] = useState<TeamCase[]>([]);
+  const [currentUserId, setCurrentUserId] = useState("");
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const [savingField, setSavingField] = useState<string | null>(null);
+  const [teamName, setTeamName] = useState("");
+  const [savingName, setSavingName] = useState(false);
+
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState("MEMBER");
   const [inviting, setInviting] = useState(false);
+
   const [roleSavingKey, setRoleSavingKey] = useState<string | null>(null);
+  const [deletingInviteId, setDeletingInviteId] = useState<string | null>(null);
+  const [removingMemberId, setRemovingMemberId] = useState<string | null>(null);
 
-  const [legalName, setLegalName] = useState("");
-  const [address, setAddress] = useState("");
-  const [logoUrl, setLogoUrl] = useState("");
-  const [timezone, setTimezone] = useState("");
-  const [legalEmail, setLegalEmail] = useState("");
-  const [retentionPolicy, setRetentionPolicy] = useState("FOREVER");
-
-  const teamId = params?.id;
+  const [deleteConfirm, setDeleteConfirm] = useState(false);
+  const [deletingTeam, setDeletingTeam] = useState(false);
 
   const loadData = async () => {
     if (!teamId) return;
@@ -97,28 +100,25 @@ export default function TeamDetailPage() {
     setError(null);
 
     try {
-      const [meRes, teamRes, invitesRes] = await Promise.all([
+      const [meRes, teamRes, invitesRes, casesRes] = await Promise.all([
         apiFetch("/v1/users/me") as Promise<MeResponse>,
         apiFetch(`/v1/teams/${teamId}`) as Promise<Team>,
-        apiFetch(`/v1/teams/${teamId}/invites`).catch(() => ({ invites: [] as TeamInvite[] }))
+        apiFetch(`/v1/teams/${teamId}/invites`).catch(() => ({ invites: [] as TeamInvite[] })),
+        apiFetch(`/v1/teams/${teamId}/cases`).catch(() => ({ items: [] as TeamCase[] })),
       ]);
 
       const meId = meRes?.user?.id ?? meRes?.id ?? "";
       setCurrentUserId(meId);
       setTeam(teamRes ?? null);
       setInvites(invitesRes?.invites ?? []);
-
-      setLegalName(teamRes?.legalName ?? "");
-      setAddress(teamRes?.address ?? "");
-      setLogoUrl(teamRes?.logoUrl ?? "");
-      setTimezone(teamRes?.timezone ?? "");
-      setLegalEmail(teamRes?.legalEmail ?? "");
-      setRetentionPolicy(teamRes?.retentionPolicy ?? "FOREVER");
+      setTeamCases(casesRes?.items ?? []);
+      setTeamName(teamRes?.name ?? "");
     } catch (err) {
       const message = err instanceof Error ? err.message : "Failed to load team";
       setError(message);
       setTeam(null);
       setInvites([]);
+      setTeamCases([]);
       captureException(err, { feature: "team_detail_load", teamId });
       addToast(message, "error");
     } finally {
@@ -135,71 +135,49 @@ export default function TeamDetailPage() {
     return team.members.find((member) => member.userId === currentUserId) ?? null;
   }, [team?.members, currentUserId]);
 
-  const canManageTeam = useMemo(() => {
-    const role = myMemberRecord?.role;
-    return role === "OWNER" || role === "ADMIN";
-  }, [myMemberRecord?.role]);
+  const currentRole = team?.currentUserRole || myMemberRecord?.role || "VIEWER";
+  const isOwner = currentRole === "OWNER";
+  const canManageTeam = team?.canManageMembers ?? (currentRole === "OWNER" || currentRole === "ADMIN");
 
   const displayMemberName = (member: TeamMember) => {
     return (
       member.user?.displayName ||
-      member.displayName ||
-      member.user?.name ||
-      member.name ||
+      member.label ||
       member.user?.email ||
-      member.email ||
       member.userId
     );
   };
 
   const displayMemberEmail = (member: TeamMember) => {
-    return member.user?.email || member.email || "";
+    return member.user?.email || "";
   };
 
-  const handleProfileSave = async (field: keyof Team, value: string) => {
-    if (!teamId || !canManageTeam) return;
+  const handleSaveTeamName = async () => {
+    if (!teamId || !canManageTeam || !teamName.trim()) return;
 
-    setSavingField(field);
-
+    setSavingName(true);
     try {
       const updated = await apiFetch(`/v1/teams/${teamId}`, {
         method: "PATCH",
-        body: JSON.stringify({
-          [field]: value.trim() ? value.trim() : undefined
-        })
+        body: JSON.stringify({ name: teamName.trim() }),
       });
 
-      setTeam(updated);
-      addToast("Team updated successfully", "success");
+      setTeam((prev) =>
+        prev
+          ? {
+              ...prev,
+              name: updated?.name ?? teamName.trim(),
+            }
+          : prev
+      );
+
+      addToast("Team name updated", "success");
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Failed to update team";
-      captureException(err, { feature: "team_profile_update", teamId, field });
+      const message = err instanceof Error ? err.message : "Failed to update team name";
+      captureException(err, { feature: "team_name_update", teamId });
       addToast(message, "error");
     } finally {
-      setSavingField(null);
-    }
-  };
-
-  const handleRetentionSave = async (value: string) => {
-    if (!teamId || !canManageTeam) return;
-
-    setSavingField("retentionPolicy");
-
-    try {
-      const updated = await apiFetch(`/v1/teams/${teamId}`, {
-        method: "PATCH",
-        body: JSON.stringify({ retentionPolicy: value })
-      });
-
-      setTeam(updated);
-      setRetentionPolicy(value);
-      addToast("Retention policy updated", "success");
-    } catch (err) {
-      const message = err instanceof Error ? err.message : "Failed to update retention policy";
-      captureException(err, { feature: "team_retention_update", teamId });
-      addToast(message, "error");
-    } finally {
-      setSavingField(null);
+      setSavingName(false);
     }
   };
 
@@ -207,14 +185,13 @@ export default function TeamDetailPage() {
     if (!teamId || !inviteEmail.trim() || !canManageTeam) return;
 
     setInviting(true);
-
     try {
       const data = await apiFetch(`/v1/teams/${teamId}/invites`, {
         method: "POST",
         body: JSON.stringify({
           email: inviteEmail.trim(),
-          role: inviteRole
-        })
+          role: inviteRole,
+        }),
       });
 
       if (data?.invite) {
@@ -225,7 +202,7 @@ export default function TeamDetailPage() {
             copy[existingIndex] = {
               ...copy[existingIndex],
               ...data.invite,
-              inviteUrl: data.inviteUrl ?? copy[existingIndex].inviteUrl
+              inviteUrl: data.inviteUrl ?? copy[existingIndex].inviteUrl,
             };
             return copy;
           }
@@ -233,16 +210,16 @@ export default function TeamDetailPage() {
           return [
             {
               ...data.invite,
-              inviteUrl: data.inviteUrl
+              inviteUrl: data.inviteUrl,
             },
-            ...prev
+            ...prev,
           ];
         });
       }
 
       setInviteEmail("");
       setInviteRole("MEMBER");
-      addToast("Invitation created successfully", "success");
+      addToast(data?.message || "Invitation created successfully", "success");
     } catch (err) {
       const message = err instanceof Error ? err.message : "Failed to invite member";
       captureException(err, { feature: "team_invite_create", teamId });
@@ -256,13 +233,12 @@ export default function TeamDetailPage() {
     if (!teamId || !canManageTeam) return;
     if (!member.userId) return;
 
-    const key = member.userId;
-    setRoleSavingKey(key);
+    setRoleSavingKey(member.userId);
 
     try {
       const data = await apiFetch(`/v1/teams/${teamId}/members/${member.userId}`, {
         method: "PATCH",
-        body: JSON.stringify({ role: nextRole })
+        body: JSON.stringify({ role: nextRole }),
       });
 
       setTeam((prev) => {
@@ -273,12 +249,9 @@ export default function TeamDetailPage() {
           members:
             prev.members?.map((m) =>
               m.userId === member.userId
-                ? {
-                    ...m,
-                    role: data?.member?.role ?? nextRole
-                  }
+                ? { ...m, role: data?.member?.role ?? nextRole }
                 : m
-            ) ?? []
+            ) ?? [],
         };
       });
 
@@ -289,6 +262,92 @@ export default function TeamDetailPage() {
       addToast(message, "error");
     } finally {
       setRoleSavingKey(null);
+    }
+  };
+
+  const handleRemoveMember = async (member: TeamMember) => {
+    if (!teamId || !canManageTeam) return;
+    if (!member.userId) return;
+
+    const confirmed = window.confirm("Remove this member from the team?");
+    if (!confirmed) return;
+
+    setRemovingMemberId(member.userId);
+
+    try {
+      await apiFetch(`/v1/teams/${teamId}/members/${member.userId}`, {
+        method: "DELETE",
+      });
+
+      setTeam((prev) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          members: prev.members?.filter((m) => m.userId !== member.userId) ?? [],
+          stats: prev.stats
+            ? {
+                ...prev.stats,
+                memberCount: Math.max(0, prev.stats.memberCount - 1),
+              }
+            : prev.stats,
+        };
+      });
+
+      addToast("Member removed", "success");
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to remove member";
+      captureException(err, { feature: "team_member_remove", teamId, memberId: member.userId });
+      addToast(message, "error");
+    } finally {
+      setRemovingMemberId(null);
+    }
+  };
+
+  const handleDeleteInvite = async (inviteId: string) => {
+    if (!teamId || !canManageTeam) return;
+
+    const confirmed = window.confirm("Delete this pending invite?");
+    if (!confirmed) return;
+
+    setDeletingInviteId(inviteId);
+
+    try {
+      await apiFetch(`/v1/teams/${teamId}/invites/${inviteId}`, {
+        method: "DELETE",
+      });
+
+      setInvites((prev) => prev.filter((invite) => invite.id !== inviteId));
+      addToast("Invite deleted", "success");
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to delete invite";
+      captureException(err, { feature: "team_invite_delete", teamId, inviteId });
+      addToast(message, "error");
+    } finally {
+      setDeletingInviteId(null);
+    }
+  };
+
+  const handleDeleteTeam = async () => {
+    if (!teamId || !isOwner) return;
+
+    setDeletingTeam(true);
+
+    try {
+      await apiFetch(`/v1/teams/${teamId}`, {
+        method: "DELETE",
+      });
+
+      addToast("Team deleted successfully", "success");
+      setTimeout(() => {
+        router.push("/teams");
+      }, 300);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to delete team";
+      captureException(err, { feature: "team_delete", teamId });
+      addToast(message, "error");
+    } finally {
+      setDeletingTeam(false);
+      setDeleteConfirm(false);
     }
   };
 
@@ -320,9 +379,9 @@ export default function TeamDetailPage() {
 
         <div className="app-body app-body-full">
           <div className="container" style={{ display: "grid", gap: 16 }}>
-            <Skeleton width="100%" height="160px" />
-            <Skeleton width="100%" height="220px" />
-            <Skeleton width="100%" height="220px" />
+            <Skeleton width="100%" height="120px" />
+            <Skeleton width="100%" height="180px" />
+            <Skeleton width="100%" height="180px" />
           </div>
         </div>
       </div>
@@ -342,9 +401,7 @@ export default function TeamDetailPage() {
 
         <div className="app-body app-body-full">
           <div className="container">
-            <Card className="case-error-card">
-              {error || "Team not found"}
-            </Card>
+            <Card className="case-error-card">{error || "Team not found"}</Card>
           </div>
         </div>
       </div>
@@ -361,24 +418,16 @@ export default function TeamDetailPage() {
                 {team.name ?? "Team"}
               </h1>
               <p className="page-subtitle pricing-subtitle" style={{ marginTop: 6 }}>
-                Centralize members, invitations, and shared operational settings.
+                Manage team access, members, invitations, and shared case visibility.
               </p>
             </div>
 
-            <div
-              style={{
-                display: "flex",
-                gap: 8,
-                flexWrap: "wrap",
-                justifyContent: "flex-end"
-              }}
-            >
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
               <span className="badge ready">
-                {team.members?.length ?? 0} member{(team.members?.length ?? 0) === 1 ? "" : "s"}
+                {team.stats?.memberCount ?? team.members?.length ?? 0} member
+                {(team.stats?.memberCount ?? team.members?.length ?? 0) === 1 ? "" : "s"}
               </span>
-              <span className="badge processing">
-                {myMemberRecord?.role ?? "VIEWER"}
-              </span>
+              <span className="badge processing">{currentRole}</span>
             </div>
           </div>
         </div>
@@ -388,84 +437,85 @@ export default function TeamDetailPage() {
         <div className="container" style={{ display: "grid", gap: 16 }}>
           <Card className="case-section-card">
             <div style={{ padding: 16 }}>
-              <div style={{ fontWeight: 700, marginBottom: 12, color: "#E2E8F0" }}>
-                Team profile
-              </div>
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  gap: 16,
+                  alignItems: "flex-start",
+                  flexWrap: "wrap",
+                }}
+              >
+                <div style={{ flex: 1, minWidth: 260 }}>
+                  <div style={{ fontWeight: 700, marginBottom: 12, color: "#E2E8F0" }}>
+                    Team overview
+                  </div>
 
-              <div style={{ display: "grid", gap: 12 }}>
-                <label style={{ display: "grid", gap: 6 }}>
-                  <span style={{ fontSize: 12, color: "#94A3B8" }}>Legal name</span>
-                  <input
-                    value={legalName}
-                    onChange={(e) => setLegalName(e.target.value)}
-                    onBlur={() => handleProfileSave("legalName", legalName)}
-                    disabled={!canManageTeam || savingField === "legalName"}
-                    className="case-text-input"
-                  />
-                </label>
+                  <label style={{ display: "grid", gap: 6 }}>
+                    <span style={{ fontSize: 12, color: "#94A3B8" }}>Team name</span>
+                    <input
+                      value={teamName}
+                      onChange={(e) => setTeamName(e.target.value)}
+                      disabled={!canManageTeam || savingName}
+                      className="case-text-input"
+                    />
+                  </label>
+                </div>
 
-                <label style={{ display: "grid", gap: 6 }}>
-                  <span style={{ fontSize: 12, color: "#94A3B8" }}>Address</span>
-                  <input
-                    value={address}
-                    onChange={(e) => setAddress(e.target.value)}
-                    onBlur={() => handleProfileSave("address", address)}
-                    disabled={!canManageTeam || savingField === "address"}
-                    className="case-text-input"
-                  />
-                </label>
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                  {canManageTeam && (
+                    <Button
+                      className="navy-btn"
+                      onClick={handleSaveTeamName}
+                      disabled={savingName || !teamName.trim()}
+                    >
+                      {savingName ? "Saving..." : "Save name"}
+                    </Button>
+                  )}
 
-                <label style={{ display: "grid", gap: 6 }}>
-                  <span style={{ fontSize: 12, color: "#94A3B8" }}>Logo URL</span>
-                  <input
-                    value={logoUrl}
-                    onChange={(e) => setLogoUrl(e.target.value)}
-                    onBlur={() => handleProfileSave("logoUrl", logoUrl)}
-                    disabled={!canManageTeam || savingField === "logoUrl"}
-                    className="case-text-input"
-                  />
-                </label>
-
-                <label style={{ display: "grid", gap: 6 }}>
-                  <span style={{ fontSize: 12, color: "#94A3B8" }}>Timezone</span>
-                  <input
-                    value={timezone}
-                    onChange={(e) => setTimezone(e.target.value)}
-                    onBlur={() => handleProfileSave("timezone", timezone)}
-                    disabled={!canManageTeam || savingField === "timezone"}
-                    className="case-text-input"
-                  />
-                </label>
-
-                <label style={{ display: "grid", gap: 6 }}>
-                  <span style={{ fontSize: 12, color: "#94A3B8" }}>Legal email</span>
-                  <input
-                    value={legalEmail}
-                    onChange={(e) => setLegalEmail(e.target.value)}
-                    onBlur={() => handleProfileSave("legalEmail", legalEmail)}
-                    disabled={!canManageTeam || savingField === "legalEmail"}
-                    className="case-text-input"
-                  />
-                </label>
-
-                <label style={{ display: "grid", gap: 6 }}>
-                  <span style={{ fontSize: 12, color: "#94A3B8" }}>Retention policy</span>
-                  <select
-                    value={retentionPolicy}
-                    onChange={(e) => handleRetentionSave(e.target.value)}
-                    disabled={!canManageTeam || savingField === "retentionPolicy"}
-                    className="case-select"
-                  >
-                    {RETENTION_OPTIONS.map((item) => (
-                      <option key={item.value} value={item.value}>
-                        {item.label}
-                      </option>
-                    ))}
-                  </select>
-                </label>
+                  {isOwner && (
+                    <Button
+                      variant="secondary"
+                      onClick={() => setDeleteConfirm(true)}
+                      disabled={deletingTeam}
+                      className="case-danger-btn"
+                    >
+                      Delete Team
+                    </Button>
+                  )}
+                </div>
               </div>
             </div>
           </Card>
+
+          {deleteConfirm && isOwner && (
+            <Card className="case-delete-card">
+              <div style={{ padding: 16 }}>
+                <div className="case-delete-title">Delete Team?</div>
+                <p className="case-delete-subtitle">
+                  This will permanently delete the team, its members list, and pending invites.
+                </p>
+
+                <div className="case-inline-actions">
+                  <Button
+                    variant="secondary"
+                    onClick={() => setDeleteConfirm(false)}
+                    disabled={deletingTeam}
+                  >
+                    Cancel
+                  </Button>
+
+                  <Button
+                    onClick={handleDeleteTeam}
+                    disabled={deletingTeam}
+                    className="case-delete-confirm-btn"
+                  >
+                    {deletingTeam ? "Deleting..." : "Delete Team"}
+                  </Button>
+                </div>
+              </div>
+            </Card>
+          )}
 
           {canManageTeam && (
             <Card className="case-section-card">
@@ -489,14 +539,18 @@ export default function TeamDetailPage() {
                     className="case-select"
                     disabled={inviting}
                   >
-                    {ROLE_OPTIONS.map((role) => (
+                    {["OWNER", "ADMIN", "MEMBER", "VIEWER"].map((role) => (
                       <option key={role} value={role}>
                         {role}
                       </option>
                     ))}
                   </select>
 
-                  <Button className="navy-btn" onClick={handleInvite} disabled={inviting || !inviteEmail.trim()}>
+                  <Button
+                    className="navy-btn"
+                    onClick={handleInvite}
+                    disabled={inviting || !inviteEmail.trim()}
+                  >
                     {inviting ? "Sending..." : "Send invite"}
                   </Button>
                 </div>
@@ -518,39 +572,43 @@ export default function TeamDetailPage() {
                     const name = displayMemberName(member);
                     const email = displayMemberEmail(member);
                     const isSelf = member.userId === currentUserId;
-                    const isOwner = member.role === "OWNER";
+                    const memberIsOwner = member.role === "OWNER";
 
                     return (
-                      <div
-                        key={member.userId}
-                        className="case-share-row"
-                        style={{ alignItems: "center" }}
-                      >
+                      <div key={member.userId} className="case-share-row">
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <div className="case-share-name">
                             {name} {isSelf ? "(You)" : ""}
                           </div>
-
-                          <div className="case-share-email">
-                            {email || member.userId}
-                          </div>
+                          <div className="case-share-email">{email || member.userId}</div>
                         </div>
 
-                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                          {canManageTeam && !isOwner ? (
-                            <select
-                              value={member.role}
-                              onChange={(e) => handleRoleChange(member, e.target.value)}
-                              disabled={roleSavingKey === member.userId}
-                              className="case-select"
-                              style={{ minWidth: 120 }}
-                            >
-                              {ROLE_OPTIONS.filter((role) => role !== "OWNER").map((role) => (
-                                <option key={role} value={role}>
-                                  {role}
-                                </option>
-                              ))}
-                            </select>
+                        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+                          {canManageTeam && !memberIsOwner ? (
+                            <>
+                              <select
+                                value={member.role}
+                                onChange={(e) => handleRoleChange(member, e.target.value)}
+                                disabled={roleSavingKey === member.userId}
+                                className="case-select"
+                                style={{ minWidth: 120 }}
+                              >
+                                {ROLE_OPTIONS.map((role) => (
+                                  <option key={role} value={role}>
+                                    {role}
+                                  </option>
+                                ))}
+                              </select>
+
+                              <Button
+                                variant="secondary"
+                                onClick={() => handleRemoveMember(member)}
+                                disabled={removingMemberId === member.userId}
+                                className="case-danger-btn case-small-btn"
+                              >
+                                {removingMemberId === member.userId ? "Removing..." : "Remove"}
+                              </Button>
+                            </>
                           ) : (
                             <span className="badge processing">{member.role}</span>
                           )}
@@ -597,7 +655,14 @@ export default function TeamDetailPage() {
                             </Button>
                           ) : null}
 
-                          <span className="badge ready">Pending</span>
+                          <Button
+                            variant="secondary"
+                            onClick={() => handleDeleteInvite(invite.id)}
+                            disabled={deletingInviteId === invite.id}
+                            className="case-danger-btn case-small-btn"
+                          >
+                            {deletingInviteId === invite.id ? "Deleting..." : "Delete"}
+                          </Button>
                         </div>
                       </div>
                     ))}
@@ -606,6 +671,39 @@ export default function TeamDetailPage() {
               </div>
             </Card>
           )}
+
+          <Card className="case-section-card">
+            <div style={{ padding: 16 }}>
+              <div style={{ fontWeight: 700, marginBottom: 12, color: "#E2E8F0" }}>
+                Team cases
+              </div>
+
+              {teamCases.length === 0 ? (
+                <div className="case-muted-text">No cases linked to this team yet.</div>
+              ) : (
+                <div style={{ display: "grid", gap: 10 }}>
+                  {teamCases.map((item) => (
+                    <Link
+                      key={item.id}
+                      href={`/cases/${item.id}`}
+                      style={{ textDecoration: "none", color: "inherit" }}
+                    >
+                      <div className="case-evidence-row" style={{ cursor: "pointer" }}>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div className="case-share-name">{item.name}</div>
+                          <div className="case-share-email">
+                            {item.createdAt ? new Date(item.createdAt).toLocaleString() : ""}
+                          </div>
+                        </div>
+
+                        <span className="badge ready">Open</span>
+                      </div>
+                    </Link>
+                  ))}
+                </div>
+              )}
+            </div>
+          </Card>
         </div>
       </div>
     </div>
