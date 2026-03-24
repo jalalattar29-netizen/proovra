@@ -30,18 +30,22 @@ const ShareEmailBody = z.object({
   email: z.string().email()
 });
 
-const AccessBody = z.object({ userId: z.string().uuid() });
+const AccessBody = z.object({
+  userId: z.string().uuid()
+});
 
 export async function casesRoutes(app: FastifyInstance) {
   app.post("/v1/cases", { preHandler: requireAuth }, async (req, reply) => {
     const body = CreateCaseBody.parse(req.body);
     const ownerUserId = getAuthUserId(req);
+
     if (body.teamId) {
       const member = await prisma.teamMember.findUnique({
         where: { teamId_userId: { teamId: body.teamId, userId: ownerUserId } }
       });
       if (!member) return reply.code(403).send({ message: "Forbidden" });
     }
+
     const created = await prisma.case.create({
       data: {
         name: body.name,
@@ -49,68 +53,80 @@ export async function casesRoutes(app: FastifyInstance) {
         teamId: body.teamId ?? null
       }
     });
+
     return reply.code(201).send(created);
   });
 
-app.get("/v1/cases", { preHandler: requireAuth }, async (req, reply) => {
-  const ownerUserId = getAuthUserId(req);
+  app.get("/v1/cases", { preHandler: requireAuth }, async (req, reply) => {
+    const ownerUserId = getAuthUserId(req);
 
-  const memberTeams = await prisma.teamMember.findMany({
-    where: { userId: ownerUserId },
-    select: { teamId: true }
-  });
-  const memberTeamIds = memberTeams.map((t) => t.teamId);
-
-  // ✅ مهم: لا تضيف شرط team/public إذا ما عنده teams
-  const or: any[] = [
-    { ownerUserId },
-    { access: { some: { userId: ownerUserId } } }
-  ];
-
-  // Team cases that are "team-visible" only (no explicit access rows)
-  if (memberTeamIds.length > 0) {
-    or.push({
-      teamId: { in: memberTeamIds },
-      access: { none: {} }
+    const memberTeams = await prisma.teamMember.findMany({
+      where: { userId: ownerUserId },
+      select: { teamId: true }
     });
-  }
+    const memberTeamIds = memberTeams.map((t) => t.teamId);
 
-  const items = await prisma.case.findMany({
-    where: { OR: or },
-    orderBy: { createdAt: "desc" }
+    const or: any[] = [
+      { ownerUserId },
+      { access: { some: { userId: ownerUserId } } }
+    ];
+
+    if (memberTeamIds.length > 0) {
+      or.push({
+        teamId: { in: memberTeamIds },
+        access: { none: {} }
+      });
+    }
+
+    const items = await prisma.case.findMany({
+      where: { OR: or },
+      orderBy: { createdAt: "desc" }
+    });
+
+    return reply.code(200).send({ items });
   });
 
-  return reply.code(200).send({ items });
-});
   app.get(
     "/v1/cases/:id",
     { preHandler: requireAuth },
     async (req: FastifyRequest, reply) => {
       const id = z.string().uuid().parse((req.params as { id: string }).id);
       const ownerUserId = getAuthUserId(req);
+
       const item = await prisma.case.findUnique({
         where: { id },
         include: {
           access: {
             include: {
               user: {
-                select: { id: true, email: true, displayName: true }
+                select: {
+                  id: true,
+                  email: true,
+                  displayName: true
+                }
               }
-            } as any
+            }
           }
         }
-      }) as any;
+      });
+
       if (!item) return reply.code(404).send({ message: "Case not found" });
-      if (item.ownerUserId === ownerUserId) return reply.code(200).send({ case: item });
-      if (item.access.some((a: any) => a.userId === ownerUserId)) {
+
+      if (item.ownerUserId === ownerUserId) {
         return reply.code(200).send({ case: item });
       }
+
+      if (item.access.some((a) => a.userId === ownerUserId)) {
+        return reply.code(200).send({ case: item });
+      }
+
       if (item.teamId && item.access.length === 0) {
         const member = await prisma.teamMember.findUnique({
           where: { teamId_userId: { teamId: item.teamId, userId: ownerUserId } }
         });
         if (member) return reply.code(200).send({ case: item });
       }
+
       return reply.code(403).send({ message: "Forbidden" });
     }
   );
@@ -122,23 +138,31 @@ app.get("/v1/cases", { preHandler: requireAuth }, async (req, reply) => {
       const id = z.string().uuid().parse((req.params as { id: string }).id);
       const body = AccessBody.parse(req.body);
       const ownerUserId = getAuthUserId(req);
+
       const item = await prisma.case.findUnique({
         where: { id },
         select: { id: true, teamId: true }
       });
+
       if (!item) return reply.code(404).send({ message: "Case not found" });
-      if (!item.teamId) return reply.code(400).send({ message: "Case is not a team case" });
+      if (!item.teamId) {
+        return reply.code(400).send({ message: "Case is not a team case" });
+      }
+
       const actor = await prisma.teamMember.findUnique({
         where: { teamId_userId: { teamId: item.teamId, userId: ownerUserId } }
       });
+
       if (!actor || !hasRole(actor.role, prismaPkg.TeamRole.ADMIN)) {
         return reply.code(403).send({ message: "Forbidden" });
       }
+
       const access = await prisma.caseAccess.upsert({
         where: { caseId_userId: { caseId: id, userId: body.userId } },
         update: {},
         create: { caseId: id, userId: body.userId }
       });
+
       return reply.code(201).send({ access });
     }
   );
@@ -149,19 +173,24 @@ app.get("/v1/cases", { preHandler: requireAuth }, async (req, reply) => {
     async (req: FastifyRequest, reply) => {
       const id = z.string().uuid().parse((req.params as { id: string }).id);
       const ownerUserId = getAuthUserId(req);
+
       const item = await prisma.case.findUnique({
         where: { id },
         include: { access: true }
       });
+
       if (!item) return reply.code(404).send({ message: "Case not found" });
+
       if (item.ownerUserId !== ownerUserId) {
         let hasAccess = item.access.some((a) => a.userId === ownerUserId);
+
         if (!hasAccess && item.teamId && item.access.length === 0) {
           const member = await prisma.teamMember.findUnique({
             where: { teamId_userId: { teamId: item.teamId, userId: ownerUserId } }
           });
           hasAccess = Boolean(member);
         }
+
         if (!hasAccess) return reply.code(403).send({ message: "Forbidden" });
       }
 
@@ -201,6 +230,7 @@ app.get("/v1/cases", { preHandler: requireAuth }, async (req, reply) => {
             bucket: report.storageBucket,
             key: report.storageKey
           });
+
           archive.append(stream as unknown as Readable, {
             name: `reports/${ev.id}/v${report.version}.pdf`
           });
@@ -212,7 +242,6 @@ app.get("/v1/cases", { preHandler: requireAuth }, async (req, reply) => {
     }
   );
 
-  // GET /v1/cases/:id/team-members - List team members for sharing (owner only)
   app.get(
     "/v1/cases/:id/team-members",
     { preHandler: requireAuth },
@@ -224,6 +253,7 @@ app.get("/v1/cases", { preHandler: requireAuth }, async (req, reply) => {
         where: { id },
         select: { id: true, teamId: true, ownerUserId: true }
       });
+
       if (!caseItem) return reply.code(404).send({ message: "Case not found" });
       if (caseItem.ownerUserId !== ownerUserId) {
         return reply.code(403).send({ message: "Forbidden" });
@@ -236,7 +266,11 @@ app.get("/v1/cases", { preHandler: requireAuth }, async (req, reply) => {
         where: { teamId: caseItem.teamId },
         include: {
           user: {
-            select: { id: true, email: true, displayName: true }
+            select: {
+              id: true,
+              email: true,
+              displayName: true
+            }
           }
         }
       });
@@ -252,7 +286,6 @@ app.get("/v1/cases", { preHandler: requireAuth }, async (req, reply) => {
     }
   );
 
-  // PATCH /v1/cases/:id - Rename case (owner only)
   app.patch(
     "/v1/cases/:id",
     { preHandler: requireAuth },
@@ -271,11 +304,11 @@ app.get("/v1/cases", { preHandler: requireAuth }, async (req, reply) => {
         where: { id },
         data: { name: body.name }
       });
+
       return reply.code(200).send(updated);
     }
   );
 
-  // DELETE /v1/cases/:id - Delete case (owner only)
   app.delete(
     "/v1/cases/:id",
     { preHandler: requireAuth },
@@ -289,23 +322,18 @@ app.get("/v1/cases", { preHandler: requireAuth }, async (req, reply) => {
         return reply.code(403).send({ message: "Forbidden" });
       }
 
-      // Detach all evidence from this case
       await prisma.evidence.updateMany({
         where: { caseId: id },
         data: { caseId: null }
       });
 
-      // Delete access rows
       await prisma.caseAccess.deleteMany({ where: { caseId: id } });
-
-      // Delete the case
       await prisma.case.delete({ where: { id } });
 
       return reply.code(204).send();
     }
   );
 
-  // POST /v1/cases/:id/evidence - Add evidence to case (owner only)
   app.post(
     "/v1/cases/:id/evidence",
     { preHandler: requireAuth },
@@ -323,6 +351,7 @@ app.get("/v1/cases", { preHandler: requireAuth }, async (req, reply) => {
       const evidence = await prisma.evidence.findUnique({
         where: { id: body.evidenceId }
       });
+
       if (!evidence) return reply.code(404).send({ message: "Evidence not found" });
       if (evidence.ownerUserId !== ownerUserId) {
         return reply.code(403).send({ message: "Evidence does not belong to you" });
@@ -333,19 +362,29 @@ app.get("/v1/cases", { preHandler: requireAuth }, async (req, reply) => {
 
       const updated = await prisma.evidence.update({
         where: { id: body.evidenceId },
-        data: { caseId: id }
+        data: { caseId: id },
+        select: {
+          id: true,
+          type: true,
+          status: true,
+          createdAt: true,
+          caseId: true
+        }
       });
-      return reply.code(200).send(updated);
+
+      return reply.code(200).send({ evidence: updated });
     }
   );
 
-  // DELETE /v1/cases/:id/evidence/:evidenceId - Detach evidence from case (owner only)
   app.delete(
     "/v1/cases/:id/evidence/:evidenceId",
     { preHandler: requireAuth },
     async (req: FastifyRequest, reply) => {
       const id = z.string().uuid().parse((req.params as { id: string }).id);
-      const evidenceId = z.string().uuid().parse((req.params as { evidenceId: string }).evidenceId);
+      const evidenceId = z
+        .string()
+        .uuid()
+        .parse((req.params as { evidenceId: string }).evidenceId);
       const ownerUserId = getAuthUserId(req);
 
       const caseItem = await prisma.case.findUnique({ where: { id } });
@@ -357,6 +396,7 @@ app.get("/v1/cases", { preHandler: requireAuth }, async (req, reply) => {
       const evidence = await prisma.evidence.findUnique({
         where: { id: evidenceId }
       });
+
       if (!evidence) return reply.code(404).send({ message: "Evidence not found" });
       if (evidence.caseId !== id) {
         return reply.code(400).send({ message: "Evidence is not in this case" });
@@ -364,13 +404,20 @@ app.get("/v1/cases", { preHandler: requireAuth }, async (req, reply) => {
 
       const updated = await prisma.evidence.update({
         where: { id: evidenceId },
-        data: { caseId: null }
+        data: { caseId: null },
+        select: {
+          id: true,
+          type: true,
+          status: true,
+          createdAt: true,
+          caseId: true
+        }
       });
-      return reply.code(200).send(updated);
+
+      return reply.code(200).send({ evidence: updated });
     }
   );
 
-  // GET /v1/cases/:id/available-evidence - List evidence not in case (owner only)
   app.get(
     "/v1/cases/:id/available-evidence",
     { preHandler: requireAuth },
@@ -390,14 +437,19 @@ app.get("/v1/cases", { preHandler: requireAuth }, async (req, reply) => {
           deletedAt: null,
           caseId: null
         },
-        orderBy: { createdAt: "desc" }
+        orderBy: { createdAt: "desc" },
+        select: {
+          id: true,
+          type: true,
+          status: true,
+          createdAt: true
+        }
       });
 
       return reply.code(200).send({ items: evidence });
     }
   );
 
-  // POST /v1/cases/:id/share-team - Share with team member (owner only)
   app.post(
     "/v1/cases/:id/share-team",
     { preHandler: requireAuth },
@@ -415,10 +467,10 @@ app.get("/v1/cases", { preHandler: requireAuth }, async (req, reply) => {
         return reply.code(400).send({ message: "Case is not a team case" });
       }
 
-      // Verify target user is in the same team
       const teamMember = await prisma.teamMember.findUnique({
         where: { teamId_userId: { teamId: caseItem.teamId, userId: body.userId } }
       });
+
       if (!teamMember) {
         return reply.code(400).send({ message: "User is not in this team" });
       }
@@ -428,11 +480,11 @@ app.get("/v1/cases", { preHandler: requireAuth }, async (req, reply) => {
         update: {},
         create: { caseId: id, userId: body.userId }
       });
+
       return reply.code(201).send({ access });
     }
   );
 
-  // POST /v1/cases/:id/share-email - Share by email (owner only)
   app.post(
     "/v1/cases/:id/share-email",
     { preHandler: requireAuth },
@@ -454,27 +506,34 @@ app.get("/v1/cases", { preHandler: requireAuth }, async (req, reply) => {
       if (usersWithEmail.length === 0) {
         return reply.code(404).send({ message: "No user found with that email" });
       }
+
       if (usersWithEmail.length > 1) {
-        return reply.code(400).send({ message: "Multiple users found with that email. Please contact support." });
+        return reply
+          .code(400)
+          .send({ message: "Multiple users found with that email. Please contact support." });
       }
 
       const targetUser = usersWithEmail[0];
+
       const access = await prisma.caseAccess.upsert({
         where: { caseId_userId: { caseId: id, userId: targetUser.id } },
         update: {},
         create: { caseId: id, userId: targetUser.id }
       });
+
       return reply.code(201).send({ access });
     }
   );
 
-  // DELETE /v1/cases/:id/access/:accessId - Revoke access (owner only)
   app.delete(
     "/v1/cases/:id/access/:accessId",
     { preHandler: requireAuth },
     async (req: FastifyRequest, reply) => {
       const id = z.string().uuid().parse((req.params as { id: string }).id);
-      const accessId = z.string().uuid().parse((req.params as { accessId: string }).accessId);
+      const accessId = z
+        .string()
+        .uuid()
+        .parse((req.params as { accessId: string }).accessId);
       const ownerUserId = getAuthUserId(req);
 
       const caseItem = await prisma.case.findUnique({ where: { id } });
@@ -486,6 +545,7 @@ app.get("/v1/cases", { preHandler: requireAuth }, async (req, reply) => {
       const access = await prisma.caseAccess.findUnique({
         where: { id: accessId }
       });
+
       if (!access || access.caseId !== id) {
         return reply.code(404).send({ message: "Access record not found" });
       }

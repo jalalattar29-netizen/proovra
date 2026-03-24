@@ -4546,3 +4546,196 @@ body {
 body.camera-open .app-bottom-nav {
   display: none !important;
 }
+
+/* =========================
+   CASE DETAIL PAGE
+   ========================= */
+
+.case-detail-grid {
+  display: grid;
+  gap: 16px;
+}
+
+.case-detail-title {
+  color: rgba(246, 252, 255, 0.96) !important;
+}
+
+.case-detail-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.case-section-card {
+  padding: 16px;
+}
+
+.case-section-title {
+  font-weight: 700;
+  margin-bottom: 12px;
+  color: rgba(246, 252, 255, 0.96);
+}
+
+.case-muted-text {
+  font-size: 12px;
+  color: rgba(219, 235, 248, 0.72);
+  margin-bottom: 12px;
+}
+
+.case-rename-input,
+.case-text-input,
+.case-select {
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(101, 235, 255, 0.22);
+  background: rgba(6, 13, 31, 0.55);
+  color: rgba(245, 251, 255, 0.92);
+  font-size: 14px;
+  font-family: inherit;
+  outline: none;
+}
+
+.case-rename-input:focus,
+.case-text-input:focus,
+.case-select:focus {
+  border-color: rgba(101, 235, 255, 0.6);
+  box-shadow: 0 0 0 3px rgba(101, 235, 255, 0.14);
+}
+
+.case-rename-input {
+  max-width: 420px;
+  font-size: inherit;
+  font-weight: inherit;
+}
+
+.case-select {
+  cursor: pointer;
+}
+
+.case-select option {
+  background: #040c20;
+  color: rgba(245, 251, 255, 0.92);
+}
+
+.case-panel {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(101, 235, 255, 0.14);
+}
+
+.case-panel-grid {
+  display: grid;
+  gap: 8px;
+}
+
+.case-radio-label {
+  display: block;
+  font-size: 12px;
+  font-weight: 500;
+  color: rgba(245, 251, 255, 0.9);
+  margin-bottom: 6px;
+}
+
+.case-share-list,
+.case-available-list,
+.case-evidence-list {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.case-share-row,
+.case-available-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(6, 13, 31, 0.42);
+  border: 1px solid rgba(101, 235, 255, 0.14);
+}
+
+.case-share-name,
+.case-available-type {
+  font-weight: 600;
+  color: rgba(245, 251, 255, 0.94);
+}
+
+.case-share-email,
+.case-available-date {
+  font-size: 11px;
+  color: rgba(219, 235, 248, 0.68);
+  margin-top: 2px;
+}
+
+.case-evidence-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(101, 235, 255, 0.14);
+  background: rgba(6, 13, 31, 0.28);
+}
+
+.case-small-btn {
+  flex-shrink: 0;
+}
+
+.case-danger-btn {
+  color: #fca5a5 !important;
+}
+
+.case-delete-card {
+  padding: 16px;
+  border: 1px solid rgba(239, 68, 68, 0.24) !important;
+  background: linear-gradient(
+    180deg,
+    rgba(48, 12, 16, 0.92) 0%,
+    rgba(28, 9, 13, 0.96) 100%
+  ) !important;
+}
+
+.case-delete-title {
+  font-weight: 700;
+  color: #f87171;
+  margin-bottom: 4px;
+}
+
+.case-delete-subtitle {
+  margin: 0;
+  font-size: 14px;
+  color: rgba(254, 226, 226, 0.76);
+}
+
+.case-delete-confirm-btn {
+  background: #dc2626 !important;
+  border-color: #dc2626 !important;
+  color: white !important;
+}
+
+.case-inline-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.case-info-box {
+  font-size: 12px;
+  color: rgba(219, 235, 248, 0.78);
+  padding: 10px 12px;
+  background: rgba(6, 13, 31, 0.42);
+  border: 1px solid rgba(101, 235, 255, 0.14);
+  border-radius: 10px;
+}
+
+.case-error-card {
+  padding: 16px;
+  border-radius: 12px;
+  background: rgba(127, 29, 29, 0.22) !important;
+  border: 1px solid rgba(248, 113, 113, 0.28) !important;
+  color: #fecaca !important;
+}
