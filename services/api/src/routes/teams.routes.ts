@@ -103,13 +103,15 @@ export async function teamsRoutes(app: FastifyInstance) {
       orderBy: { createdAt: "desc" },
     });
 
+    const now = new Date();
+
     const items = await Promise.all(
       teams.map(async (team) => {
         const pendingInviteCount = await prisma.teamInvite.count({
           where: {
             teamId: team.id,
             acceptedAt: null,
-            expiresAt: { gt: new Date() },
+            expiresAt: { gt: now },
           },
         });
 
@@ -168,12 +170,13 @@ export async function teamsRoutes(app: FastifyInstance) {
         : [];
 
       const usersById = new Map(users.map((u) => [u.id, u]));
+      const now = new Date();
 
       const pendingInviteCount = await prisma.teamInvite.count({
         where: {
           teamId,
           acceptedAt: null,
-          expiresAt: { gt: new Date() },
+          expiresAt: { gt: now },
         },
       });
 
@@ -307,6 +310,34 @@ export async function teamsRoutes(app: FastifyInstance) {
       });
 
       return reply.code(200).send(updated);
+    }
+  );
+
+  app.delete(
+    "/v1/teams/:id",
+    { preHandler: requireAuth },
+    async (req: FastifyRequest, reply) => {
+      const teamId = z.string().uuid().parse((req.params as { id: string }).id);
+      const userId = getAuthUserId(req);
+
+      const actor = await getActorMembership(teamId, userId);
+      if (!actor || actor.role !== prismaPkg.TeamRole.OWNER) {
+        return reply.code(403).send({ message: "Only the team owner can delete this team" });
+      }
+
+      await prisma.teamInvite.deleteMany({
+        where: { teamId },
+      });
+
+      await prisma.teamMember.deleteMany({
+        where: { teamId },
+      });
+
+      await prisma.team.delete({
+        where: { id: teamId },
+      });
+
+      return reply.code(204).send();
     }
   );
 
@@ -483,10 +514,15 @@ export async function teamsRoutes(app: FastifyInstance) {
       }
 
       const target = await prisma.teamMember.findUnique({
-        where: { id: memberId },
+        where: {
+          teamId_userId: {
+            teamId,
+            userId: memberId,
+          },
+        },
       });
 
-      if (!target || target.teamId !== teamId) {
+      if (!target) {
         return reply.code(404).send({ message: "Member not found" });
       }
 
@@ -495,7 +531,12 @@ export async function teamsRoutes(app: FastifyInstance) {
       }
 
       const updated = await prisma.teamMember.update({
-        where: { id: memberId },
+        where: {
+          teamId_userId: {
+            teamId,
+            userId: memberId,
+          },
+        },
         data: { role: body.role },
       });
 
@@ -518,10 +559,15 @@ export async function teamsRoutes(app: FastifyInstance) {
       }
 
       const target = await prisma.teamMember.findUnique({
-        where: { id: memberId },
+        where: {
+          teamId_userId: {
+            teamId,
+            userId: memberId,
+          },
+        },
       });
 
-      if (!target || target.teamId !== teamId) {
+      if (!target) {
         return reply.code(404).send({ message: "Member not found" });
       }
 
@@ -530,7 +576,12 @@ export async function teamsRoutes(app: FastifyInstance) {
       }
 
       await prisma.teamMember.delete({
-        where: { id: memberId },
+        where: {
+          teamId_userId: {
+            teamId,
+            userId: memberId,
+          },
+        },
       });
 
       return reply.code(204).send();
