@@ -5018,3 +5018,16 @@ body.camera-open .app-bottom-nav {
   flex-shrink: 0;
   margin-left: 8px;
 }
+
+.evidence-meta-label {
+  color: #dbe7ff !important;
+  font-weight: 700;
+  font-size: 13px;
+  text-shadow: 0 0 1px rgba(255, 255, 255, 0.08);
+}
+
+.rowTitle,
+.evidence-meta-label {
+  opacity: 1 !important;
+  filter: none !important;
+}

@@ -157,7 +157,7 @@ export default function EvidenceDetailPage() {
             meRes.value?.user?.id ??
             meRes.value?.id ??
             null;
-            
+
         } else {
           meId = null;
         }
@@ -495,7 +495,7 @@ export default function EvidenceDetailPage() {
                 ) : (
                   <div style={{ display: "grid", gap: 10 }}>
                     <div className="row" style={{ borderTop: "none", paddingTop: 0 }}>
-                      <div className="rowTitle">Status</div>
+                      <div className="rowTitle evidence-meta-label">Status</div>
                       <div style={{ display: "flex", justifyContent: "flex-end" }}>
                         {status === "SIGNED" ? (
                           <span className="badge signed">{t("statusSigned")}</span>
@@ -508,7 +508,7 @@ export default function EvidenceDetailPage() {
                     </div>
 
                     <div className="row">
-                      <div className="rowTitle">State</div>
+                      <div className="rowTitle evidence-meta-label">State</div>
                       <div
                         style={{
                           display: "flex",
@@ -534,7 +534,7 @@ export default function EvidenceDetailPage() {
                     </div>
 
                     <div className="row">
-                      <div className="rowTitle">Case</div>
+                      <div className="rowrowTitle evidence-meta-label">Case</div>
                       <div className="rowSub" style={{ margin: 0 }}>
                         {caseId ? `Attached to case` : "Not assigned to any case"}
                       </div>
@@ -557,7 +557,7 @@ export default function EvidenceDetailPage() {
                     )}
 
                     <div className="row">
-                      <div className="rowTitle">Plan</div>
+                      <div className="rowTitle evidence-meta-label">Plan</div>
                       <div className="rowSub" style={{ margin: 0 }}>
                         {plan}
                       </div>
