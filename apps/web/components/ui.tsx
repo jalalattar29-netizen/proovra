@@ -1,8 +1,17 @@
-import type { ReactNode } from "react";
+import type {
+  ReactNode,
+  ButtonHTMLAttributes,
+  HTMLAttributes,
+  InputHTMLAttributes,
+  SelectHTMLAttributes,
+} from "react";
 import Link from "next/link";
 import { createContext, useContext, useState, useCallback } from "react";
 
-// Toast Context and Provider
+/* =========================
+   Toast Context and Provider
+   ========================= */
+
 type ToastType = "success" | "error" | "info" | "warning";
 
 interface Toast {
@@ -59,7 +68,7 @@ export function useToast() {
 
 function ToastContainer({
   toasts,
-  onRemove
+  onRemove,
 }: {
   toasts: Toast[];
   onRemove: (id: string) => void;
@@ -79,7 +88,7 @@ function ToastContainer({
 
 function ToastItem({
   toast,
-  onClose
+  onClose,
 }: {
   toast: Toast;
   onClose: () => void;
@@ -94,21 +103,22 @@ function ToastItem({
   );
 }
 
+/* =========================
+   Button
+   ========================= */
+
+type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
+  children: ReactNode;
+  variant?: "primary" | "secondary";
+};
+
 export function Button({
   children,
   variant = "primary",
-  onClick,
-  disabled,
   className,
-  type = "button"
-}: {
-  children: ReactNode;
-  variant?: "primary" | "secondary";
-  onClick?: () => void;
-  disabled?: boolean;
-  className?: string;
-  type?: "button" | "submit" | "reset";
-}) {
+  type = "button",
+  ...props
+}: ButtonProps) {
   const cn = (className ?? "").trim();
 
   const hasCustomCtaClass =
@@ -123,30 +133,35 @@ export function Button({
     : `btn ${variant} ${cn}`.trim();
 
   return (
-    <button
-      className={finalClassName}
-      onClick={onClick}
-      type={type}
-      disabled={disabled}
-    >
+    <button className={finalClassName} type={type} {...props}>
       {children}
     </button>
   );
 }
 
-export function Card({
-  children,
-  className
-}: {
+/* =========================
+   Card
+   ========================= */
+
+type CardProps = HTMLAttributes<HTMLDivElement> & {
   children: ReactNode;
-  className?: string;
-}) {
-  return <div className={`card ${className ?? ""}`.trim()}>{children}</div>;
+};
+
+export function Card({ children, className, ...props }: CardProps) {
+  return (
+    <div className={`card ${className ?? ""}`.trim()} {...props}>
+      {children}
+    </div>
+  );
 }
+
+/* =========================
+   Badge
+   ========================= */
 
 export function Badge({
   children,
-  tone
+  tone,
 }: {
   children: ReactNode;
   tone: "signed" | "processing" | "ready";
@@ -158,10 +173,14 @@ export function StatusPill({ children }: { children: ReactNode }) {
   return <span className="phone-pill">{children}</span>;
 }
 
+/* =========================
+   Tabs
+   ========================= */
+
 export function Tabs({
   items,
   active,
-  onChange
+  onChange,
 }: {
   items: Array<{ label: string; value: string; icon?: ReactNode }> | string[];
   active?: string;
@@ -191,10 +210,14 @@ export function Tabs({
   );
 }
 
+/* =========================
+   List Row
+   ========================= */
+
 export function ListRow({
   title,
   subtitle,
-  badge
+  badge,
 }: {
   title: string;
   subtitle: string;
@@ -236,12 +259,16 @@ export function ListRow({
   );
 }
 
+/* =========================
+   Top Bar
+   ========================= */
+
 export function TopBar({
   title,
   center,
   right,
   logoSrc = "/brand/logo.svg",
-  logoHref
+  logoHref,
 }: {
   title: string;
   center?: ReactNode;
@@ -299,12 +326,16 @@ export function TimelineBlock({ items }: { items: string[] }) {
   );
 }
 
+/* =========================
+   Modal
+   ========================= */
+
 export function Modal({
   isOpen,
   onClose,
   title,
   children,
-  actions
+  actions,
 }: {
   isOpen: boolean;
   onClose: () => void;
@@ -331,9 +362,13 @@ export function Modal({
   );
 }
 
+/* =========================
+   Skeleton
+   ========================= */
+
 export function Skeleton({
   width = "100%",
-  height = "20px"
+  height = "20px",
 }: {
   width?: string;
   height?: string;
@@ -343,7 +378,7 @@ export function Skeleton({
       className="skeleton"
       style={{
         width,
-        height
+        height,
       }}
     />
   );
@@ -359,12 +394,16 @@ export function SkeletonText({ lines = 3 }: { lines?: number }) {
   );
 }
 
+/* =========================
+   Empty State
+   ========================= */
+
 export function EmptyState({
   icon,
   title,
   subtitle,
   action,
-  actionLabel
+  actionLabel,
 }: {
   icon?: ReactNode;
   title: string;
@@ -386,60 +425,63 @@ export function EmptyState({
   );
 }
 
-export function Input({
-  placeholder,
-  value,
-  onChange,
-  type = "text",
-  disabled,
-  error,
-  maxLength
-}: {
-  placeholder?: string;
+/* =========================
+   Input
+   ========================= */
+
+type InputProps = Omit<InputHTMLAttributes<HTMLInputElement>, "onChange"> & {
   value: string;
   onChange: (value: string) => void;
-  type?: string;
-  disabled?: boolean;
   error?: string;
-  maxLength?: number;
-}) {
+};
+
+export function Input({
+  value,
+  onChange,
+  error,
+  className,
+  ...props
+}: InputProps) {
   return (
     <div>
       <input
-        className={`input ${error ? "input-has-error" : ""}`}
-        type={type}
-        placeholder={placeholder}
+        className={`input ${error ? "input-has-error" : ""} ${className ?? ""}`.trim()}
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        disabled={disabled}
-        maxLength={maxLength}
+        {...props}
       />
       {error && <div className="input-error">{error}</div>}
     </div>
   );
 }
 
+/* =========================
+   Select
+   ========================= */
+
+type SelectProps = Omit<SelectHTMLAttributes<HTMLSelectElement>, "onChange"> & {
+  label?: string;
+  options: Array<{ value: string; label: string }>;
+  value: string;
+  onChange: (value: string) => void;
+};
+
 export function Select({
   label,
   options,
   value,
   onChange,
-  disabled
-}: {
-  label?: string;
-  options: Array<{ value: string; label: string }>;
-  value: string;
-  onChange: (value: string) => void;
-  disabled?: boolean;
-}) {
+  className,
+  ...props
+}: SelectProps) {
   return (
     <div>
       {label && <label className="select-label">{label}</label>}
       <select
-        className="select"
+        className={`select ${className ?? ""}`.trim()}
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        disabled={disabled}
+        {...props}
       >
         <option value="">Select...</option>
         {options.map((opt) => (
