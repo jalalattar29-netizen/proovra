@@ -44,6 +44,12 @@ function getEvidenceKind(
   return "other";
 }
 
+type CaseOption = {
+  id: string;
+  name: string;
+  ownerUserId?: string;
+};
+
 export default function EvidenceDetailPage() {
   const { t } = useLocale();
   const params = useParams<{ id: string }>();
@@ -57,11 +63,19 @@ export default function EvidenceDetailPage() {
   const [lockedAt, setLockedAt] = useState<string | null>(null);
   const [archivedAt, setArchivedAt] = useState<string | null>(null);
   const [plan, setPlan] = useState<string>("FREE");
+  const [caseId, setCaseId] = useState<string | null>(null);
+
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [actionBusy, setActionBusy] = useState(false);
+
   const [lockModalOpen, setLockModalOpen] = useState(false);
   const [archiveModalOpen, setArchiveModalOpen] = useState(false);
+
+  const [assignCaseModalOpen, setAssignCaseModalOpen] = useState(false);
+  const [selectedCaseId, setSelectedCaseId] = useState("");
+  const [ownedCases, setOwnedCases] = useState<CaseOption[]>([]);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
 
   const [originalPreviewUrl, setOriginalPreviewUrl] = useState<string | null>(null);
   const [originalDownloadUrl, setOriginalDownloadUrl] = useState<string | null>(null);
@@ -76,44 +90,127 @@ export default function EvidenceDetailPage() {
   useEffect(() => {
     if (!params?.id) return;
 
-    setLoading(true);
-    setError(null);
+    let cancelled = false;
 
-    apiFetch(`/v1/evidence/${params.id}`)
-      .then((data) => {
-        setStatus(data.evidence?.status ?? "SIGNED");
-        setCreatedAt(data.evidence?.createdAt ?? null);
-        setType(data.evidence?.type ?? "EVIDENCE");
-        setLockedAt(data.evidence?.lockedAt ?? null);
-        setArchivedAt(data.evidence?.archivedAt ?? null);
-      })
-      .catch((err) =>
-        setError(err instanceof Error ? err.message : "Failed to load evidence")
-      )
-      .finally(() => setLoading(false));
+    const load = async () => {
+      setLoading(true);
+      setError(null);
 
-    apiFetch("/v1/billing/status")
-      .then((data) => setPlan(data.entitlement?.plan ?? "FREE"))
-      .catch(() => setPlan("FREE"));
+      try {
+        const [
+          evidenceRes,
+          billingRes,
+          reportRes,
+          originalRes,
+          meRes,
+          casesRes
+        ] = await Promise.allSettled([
+          apiFetch(`/v1/evidence/${params.id}`),
+          apiFetch("/v1/billing/status"),
+          apiFetch(`/v1/evidence/${params.id}/report/latest`),
+          apiFetch(`/v1/evidence/${params.id}/original`),
+          apiFetch("/v1/users/me"),
+          apiFetch("/v1/cases")
+        ]);
 
-    apiFetch(`/v1/evidence/${params.id}/report/latest`)
-      .then((data) => setReportUrl(data.url ?? null))
-      .catch(() => setReportUrl(null));
+        if (cancelled) return;
 
-    apiFetch(`/v1/evidence/${params.id}/original`)
-      .then((data) => {
-        setOriginalPreviewUrl(data.publicUrl ?? data.url ?? null);
-        setOriginalDownloadUrl(data.url ?? data.publicUrl ?? null);
-        setOriginalMimeType(data.mimeType ?? null);
-        setOriginalSizeBytes(data.sizeBytes ?? null);
-      })
-      .catch(() => {
-        setOriginalPreviewUrl(null);
-        setOriginalDownloadUrl(null);
-        setOriginalMimeType(null);
-        setOriginalSizeBytes(null);
-      });
+        if (evidenceRes.status === "fulfilled") {
+          const ev = evidenceRes.value?.evidence ?? {};
+          setStatus(ev.status ?? "SIGNED");
+          setCreatedAt(ev.createdAt ?? null);
+          setType(ev.type ?? "EVIDENCE");
+          setLockedAt(ev.lockedAt ?? null);
+          setArchivedAt(ev.archivedAt ?? null);
+          setCaseId(ev.caseId ?? null);
+        } else {
+          throw evidenceRes.reason;
+        }
+
+        if (billingRes.status === "fulfilled") {
+          setPlan(billingRes.value?.entitlement?.plan ?? "FREE");
+        } else {
+          setPlan("FREE");
+        }
+
+        if (reportRes.status === "fulfilled") {
+          setReportUrl(reportRes.value?.url ?? null);
+        } else {
+          setReportUrl(null);
+        }
+
+        if (originalRes.status === "fulfilled") {
+          setOriginalPreviewUrl(originalRes.value?.publicUrl ?? originalRes.value?.url ?? null);
+          setOriginalDownloadUrl(originalRes.value?.url ?? originalRes.value?.publicUrl ?? null);
+          setOriginalMimeType(originalRes.value?.mimeType ?? null);
+          setOriginalSizeBytes(originalRes.value?.sizeBytes ?? null);
+        } else {
+          setOriginalPreviewUrl(null);
+          setOriginalDownloadUrl(null);
+          setOriginalMimeType(null);
+          setOriginalSizeBytes(null);
+        }
+
+        let meId: string | null = null;
+
+        if (meRes.status === "fulfilled") {
+          meId =
+            meRes.value?.user?.id ??
+            meRes.value?.id ??
+            null;
+          setCurrentUserId(meId);
+        } else {
+          setCurrentUserId(null);
+        }
+
+        if (casesRes.status === "fulfilled") {
+          const items = Array.isArray(casesRes.value?.items) ? casesRes.value.items : [];
+
+          const mine =
+            meId
+              ? items.filter(
+                  (item: CaseOption) =>
+                    item.ownerUserId === meId
+                )
+              : [];
+
+          setOwnedCases(mine);
+        } else {
+          setOwnedCases([]);
+        }
+      } catch (err) {
+        const message = err instanceof Error ? err.message : "Failed to load evidence";
+        setError(message);
+        captureException(err, { feature: "web_evidence_detail_load", evidenceId: params.id });
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
+    };
+
+    load();
+
+    return () => {
+      cancelled = true;
+    };
   }, [params?.id]);
+
+  const refreshEvidence = async () => {
+    if (!params?.id) return;
+
+    try {
+      const data = await apiFetch(`/v1/evidence/${params.id}`);
+      setStatus(data.evidence?.status ?? "SIGNED");
+      setCreatedAt(data.evidence?.createdAt ?? null);
+      setType(data.evidence?.type ?? "EVIDENCE");
+      setLockedAt(data.evidence?.lockedAt ?? null);
+      setArchivedAt(data.evidence?.archivedAt ?? null);
+      setCaseId(data.evidence?.caseId ?? null);
+    } catch (err) {
+      captureException(err, { feature: "web_evidence_refresh", evidenceId: params.id });
+    }
+  };
 
   const handleLock = () => {
     setLockModalOpen(true);
@@ -127,7 +224,7 @@ export default function EvidenceDetailPage() {
       addToast("Permanently sealing evidence...", "info");
       const data = await apiFetch(`/v1/evidence/${params.id}/lock`, {
         method: "POST",
-        body: JSON.stringify({ locked: true }),
+        body: JSON.stringify({ locked: true })
       });
       setLockedAt(data.evidence?.lockedAt ?? new Date().toISOString());
       addToast("Evidence permanently locked", "success");
@@ -180,7 +277,7 @@ export default function EvidenceDetailPage() {
       addToast("Archiving evidence...", "info");
       const data = await apiFetch(`/v1/evidence/${params.id}/archive`, {
         method: "POST",
-        body: JSON.stringify({}),
+        body: JSON.stringify({})
       });
       setArchivedAt(data.evidence?.archivedAt ?? new Date().toISOString());
       addToast("Evidence archived", "success");
@@ -203,7 +300,7 @@ export default function EvidenceDetailPage() {
       addToast("Restoring evidence...", "info");
       const data = await apiFetch(`/v1/evidence/${params.id}/unarchive`, {
         method: "POST",
-        body: JSON.stringify({}),
+        body: JSON.stringify({})
       });
       setArchivedAt(data.evidence?.archivedAt ?? null);
       addToast("Evidence restored", "success");
@@ -250,7 +347,7 @@ export default function EvidenceDetailPage() {
     } catch (err) {
       captureException(err, {
         feature: "web_evidence_verification_package_download",
-        evidenceId: params.id,
+        evidenceId: params.id
       });
       addToast("Failed to download verification package", "error");
     }
@@ -270,6 +367,72 @@ export default function EvidenceDetailPage() {
       return;
     }
     window.open(originalDownloadUrl, "_blank", "noopener,noreferrer");
+  };
+
+  const handleOpenAssignCase = () => {
+    if (ownedCases.length === 0) {
+      addToast("You do not have any cases you own yet", "info");
+      return;
+    }
+
+    setSelectedCaseId(caseId ?? "");
+    setAssignCaseModalOpen(true);
+  };
+
+  const handleConfirmAssignCase = async () => {
+    if (!params?.id || !selectedCaseId) return;
+
+    setActionBusy(true);
+    try {
+      addToast("Adding evidence to case...", "info");
+
+      await apiFetch(`/v1/cases/${selectedCaseId}/evidence`, {
+        method: "POST",
+        body: JSON.stringify({ evidenceId: params.id })
+      });
+
+      setCaseId(selectedCaseId);
+      setAssignCaseModalOpen(false);
+      addToast("Evidence added to case", "success");
+      await refreshEvidence();
+    } catch (err) {
+      captureException(err, {
+        feature: "web_evidence_add_to_case",
+        evidenceId: params.id,
+        targetCaseId: selectedCaseId
+      });
+      const message = err instanceof Error ? err.message : "Failed to add evidence to case";
+      addToast(message, "error");
+    } finally {
+      setActionBusy(false);
+    }
+  };
+
+  const handleRemoveFromCase = async () => {
+    if (!params?.id || !caseId) return;
+
+    setActionBusy(true);
+    try {
+      addToast("Removing evidence from case...", "info");
+
+      await apiFetch(`/v1/cases/${caseId}/evidence/${params.id}`, {
+        method: "DELETE"
+      });
+
+      setCaseId(null);
+      addToast("Evidence removed from case", "success");
+      await refreshEvidence();
+    } catch (err) {
+      captureException(err, {
+        feature: "web_evidence_remove_from_case",
+        evidenceId: params.id,
+        caseId
+      });
+      const message = err instanceof Error ? err.message : "Failed to remove evidence from case";
+      addToast(message, "error");
+    } finally {
+      setActionBusy(false);
+    }
   };
 
   return (
@@ -302,7 +465,7 @@ export default function EvidenceDetailPage() {
                     background: "rgba(255,255,255,0.18)",
                     display: "grid",
                     placeItems: "center",
-                    fontWeight: 900,
+                    fontWeight: 900
                   }}
                 >
                   ✓
@@ -346,21 +509,35 @@ export default function EvidenceDetailPage() {
                     </div>
 
                     <div className="row">
-                      <div className="rowTitle">Status</div>
-                      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
+                      <div className="rowTitle">State</div>
+                      <div
+                        style={{
+                          display: "flex",
+                          gap: 8,
+                          flexWrap: "wrap",
+                          justifyContent: "flex-end"
+                        }}
+                      >
                         {lockedAt && (
                           <span style={{ fontSize: 14, fontWeight: 700, color: "#65ebff" }}>
-                             Evidence Locked
+                            Evidence Locked
                           </span>
                         )}
                         {archivedAt && (
                           <span style={{ fontSize: 14, fontWeight: 600, color: "#94a3b8" }}>
-                             Archived
+                            Archived
                           </span>
                         )}
                         {!lockedAt && !archivedAt && (
                           <span style={{ color: "#94a3b8" }}>Active</span>
                         )}
+                      </div>
+                    </div>
+
+                    <div className="row">
+                      <div className="rowTitle">Case</div>
+                      <div className="rowSub" style={{ margin: 0 }}>
+                        {caseId ? `Attached to case` : "Not assigned to any case"}
                       </div>
                     </div>
 
@@ -420,6 +597,24 @@ export default function EvidenceDetailPage() {
 
               <div style={{ display: "grid", gap: 10, marginTop: 14 }}>
                 <Button
+                  variant="secondary"
+                  onClick={handleOpenAssignCase}
+                  disabled={actionBusy || ownedCases.length === 0}
+                >
+                  {caseId ? "Move to Case" : "Add to Case"}
+                </Button>
+
+                {caseId && (
+                  <Button
+                    variant="secondary"
+                    onClick={handleRemoveFromCase}
+                    disabled={actionBusy}
+                  >
+                    Remove from Case
+                  </Button>
+                )}
+
+                <Button
                   onClick={handleLock}
                   disabled={
                     actionBusy ||
@@ -467,9 +662,9 @@ export default function EvidenceDetailPage() {
                   </>
                 )}
 
-                <Button 
-                  variant="secondary" 
-                  onClick={handleDelete} 
+                <Button
+                  variant="secondary"
+                  onClick={handleDelete}
                   disabled={actionBusy || Boolean(lockedAt)}
                 >
                   Delete Evidence
@@ -498,7 +693,7 @@ export default function EvidenceDetailPage() {
                   display: "flex",
                   flexWrap: "wrap",
                   gap: 10,
-                  marginBottom: 14,
+                  marginBottom: 14
                 }}
               >
                 <Button variant="secondary" onClick={handleOpenOriginal} disabled={!originalDownloadUrl}>
@@ -522,7 +717,7 @@ export default function EvidenceDetailPage() {
                       maxHeight: 560,
                       objectFit: "contain",
                       borderRadius: 12,
-                      background: "rgba(15,23,42,0.35)",
+                      background: "rgba(15,23,42,0.35)"
                     }}
                   />
                 </div>
@@ -540,7 +735,7 @@ export default function EvidenceDetailPage() {
                       maxWidth: "100%",
                       maxHeight: 560,
                       borderRadius: 12,
-                      background: "#000",
+                      background: "#000"
                     }}
                   />
                 </div>
@@ -552,7 +747,7 @@ export default function EvidenceDetailPage() {
                     marginBottom: 12,
                     padding: 16,
                     borderRadius: 12,
-                    background: "rgba(15,23,42,0.35)",
+                    background: "rgba(15,23,42,0.35)"
                   }}
                 >
                   <audio
@@ -570,7 +765,7 @@ export default function EvidenceDetailPage() {
                     marginBottom: 12,
                     borderRadius: 12,
                     overflow: "hidden",
-                    background: "#fff",
+                    background: "#fff"
                   }}
                 >
                   <iframe
@@ -580,7 +775,7 @@ export default function EvidenceDetailPage() {
                       width: "100%",
                       height: 760,
                       border: "none",
-                      display: "block",
+                      display: "block"
                     }}
                   />
                 </div>
@@ -595,7 +790,7 @@ export default function EvidenceDetailPage() {
                     background: "rgba(15,23,42,0.35)",
                     color: "#cbd5e1",
                     fontSize: 14,
-                    lineHeight: 1.6,
+                    lineHeight: 1.6
                   }}
                 >
                   <div style={{ marginBottom: 8 }}>
@@ -613,7 +808,7 @@ export default function EvidenceDetailPage() {
                     background: "rgba(15,23,42,0.35)",
                     color: "#94a3b8",
                     fontSize: 14,
-                    lineHeight: 1.6,
+                    lineHeight: 1.6
                   }}
                 >
                   Original file is not available for preview or download at this time.
@@ -623,6 +818,54 @@ export default function EvidenceDetailPage() {
           )}
         </div>
       </div>
+
+      <Modal
+        isOpen={assignCaseModalOpen}
+        onClose={() => setAssignCaseModalOpen(false)}
+        title={caseId ? "Move evidence to case" : "Add evidence to case"}
+        actions={
+          <div style={{ display: "flex", gap: 10 }}>
+            <Button
+              variant="secondary"
+              onClick={() => setAssignCaseModalOpen(false)}
+              disabled={actionBusy}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleConfirmAssignCase}
+              disabled={actionBusy || !selectedCaseId}
+            >
+              {actionBusy ? "Saving..." : caseId ? "Move" : "Add"}
+            </Button>
+          </div>
+        }
+      >
+        <div style={{ display: "grid", gap: 12 }}>
+          <div style={{ fontSize: 14, color: "#cbd5e1", lineHeight: 1.6 }}>
+            Choose one of your own cases.
+          </div>
+
+          <select
+            value={selectedCaseId}
+            onChange={(e) => setSelectedCaseId(e.target.value)}
+            style={{
+              padding: 10,
+              borderRadius: 10,
+              border: "1px solid rgba(148, 163, 184, 0.25)",
+              background: "rgba(15, 23, 42, 0.45)",
+              color: "#e2e8f0"
+            }}
+          >
+            <option value="">Select a case...</option>
+            {ownedCases.map((item) => (
+              <option key={item.id} value={item.id}>
+                {item.name}
+              </option>
+            ))}
+          </select>
+        </div>
+      </Modal>
 
       <Modal
         isOpen={lockModalOpen}

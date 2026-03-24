@@ -2,7 +2,13 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Button, Card, useToast, EmptyState, Skeleton } from "../../../components/ui";
+import {
+  Button,
+  Card,
+  useToast,
+  EmptyState,
+  Skeleton
+} from "../../../components/ui";
 import { apiFetch } from "../../../lib/api";
 import { captureException } from "../../../lib/sentry";
 
@@ -13,6 +19,7 @@ interface Case {
 
 export default function CasesPage() {
   const { addToast } = useToast();
+
   const [cases, setCases] = useState<Case[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -20,15 +27,18 @@ export default function CasesPage() {
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [busyId, setBusyId] = useState<string | null>(null);
 
   const loadCases = async () => {
     setLoading(true);
     setError(null);
+
     try {
       const data = await apiFetch("/v1/cases");
       setCases(data.items ?? []);
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : "Failed to load cases";
+      const errorMessage =
+        err instanceof Error ? err.message : "Failed to load cases";
       setError(errorMessage);
       setCases([]);
       captureException(err, { feature: "cases_page_list" });
@@ -44,21 +54,26 @@ export default function CasesPage() {
 
   const handleCreate = async () => {
     const name = window.prompt("Case name");
-    if (!name) return;
-    
+    if (!name?.trim()) return;
+
     setCreating(true);
     addToast("Creating case...", "info");
-    
+
     try {
       const created = await apiFetch("/v1/cases", {
         method: "POST",
-        body: JSON.stringify({ name })
+        body: JSON.stringify({ name: name.trim() })
       });
+
       setCases((prev) => [created, ...prev]);
-      addToast(`Case "${name}" created successfully`, "success");
+      addToast(`Case "${name.trim()}" created successfully`, "success");
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : "Failed to create case";
-      captureException(err, { feature: "cases_create", caseName: name });
+      const errorMessage =
+        err instanceof Error ? err.message : "Failed to create case";
+      captureException(err, {
+        feature: "cases_create",
+        caseName: name.trim()
+      });
       addToast(errorMessage, "error");
     } finally {
       setCreating(false);
@@ -72,21 +87,33 @@ export default function CasesPage() {
 
   const handleRename = async () => {
     if (!renamingId || !renameValue.trim()) return;
-    setRenamingId(null);
+
+    const targetId = renamingId;
+    const nextName = renameValue.trim();
+
+    setBusyId(targetId);
     addToast("Renaming case...", "info");
+
     try {
-      await apiFetch(`/v1/cases/${renamingId}`, {
+      await apiFetch(`/v1/cases/${targetId}`, {
         method: "PATCH",
-        body: JSON.stringify({ name: renameValue.trim() })
+        body: JSON.stringify({ name: nextName })
       });
+
       setCases((prev) =>
-        prev.map((c) => (c.id === renamingId ? { ...c, name: renameValue.trim() } : c))
+        prev.map((c) => (c.id === targetId ? { ...c, name: nextName } : c))
       );
+
+      setRenamingId(null);
+      setRenameValue("");
       addToast("Case renamed successfully", "success");
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : "Failed to rename case";
-      captureException(err, { feature: "cases_rename", caseId: renamingId });
+      const errorMessage =
+        err instanceof Error ? err.message : "Failed to rename case";
+      captureException(err, { feature: "cases_rename", caseId: targetId });
       addToast(errorMessage, "error");
+    } finally {
+      setBusyId(null);
     }
   };
 
@@ -96,18 +123,29 @@ export default function CasesPage() {
 
   const handleDelete = async () => {
     if (!deletingId) return;
-    setDeletingId(null);
+
+    const targetId = deletingId;
+
+    setBusyId(targetId);
     addToast("Deleting case...", "info");
+
     try {
-      await apiFetch(`/v1/cases/${deletingId}`, { method: "DELETE" });
-      setCases((prev) => prev.filter((c) => c.id !== deletingId));
+      await apiFetch(`/v1/cases/${targetId}`, { method: "DELETE" });
+      setCases((prev) => prev.filter((c) => c.id !== targetId));
+      setDeletingId(null);
       addToast("Case deleted successfully", "success");
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : "Failed to delete case";
-      captureException(err, { feature: "cases_delete", caseId: deletingId });
+      const errorMessage =
+        err instanceof Error ? err.message : "Failed to delete case";
+      captureException(err, { feature: "cases_delete", caseId: targetId });
       addToast(errorMessage, "error");
+    } finally {
+      setBusyId(null);
     }
   };
+
+  const disableRowActions =
+    creating || busyId !== null || renamingId !== null || deletingId !== null;
 
   return (
     <div className="section app-section">
@@ -122,88 +160,69 @@ export default function CasesPage() {
                 Organize evidence into cases.
               </p>
             </div>
-            <Button 
-              className="navy-btn" 
+
+            <Button
+              className="navy-btn"
               onClick={handleCreate}
-              disabled={creating}
+              disabled={creating || busyId !== null}
             >
               {creating ? "Creating..." : "Create Case"}
             </Button>
           </div>
         </div>
       </div>
+
       <div className="app-body app-body-full">
-        <div className="container" style={{ display: "grid", gap: 16 }}>
+        <div className="container case-list-grid">
           {loading ? (
-            <div style={{ display: "grid", gap: 8 }}>
-              <Skeleton width="100%" height="80px" />
-              <Skeleton width="100%" height="80px" />
-              <Skeleton width="100%" height="80px" />
+            <div style={{ display: "grid", gap: 12 }}>
+              <Skeleton width="100%" height="84px" />
+              <Skeleton width="100%" height="84px" />
+              <Skeleton width="100%" height="84px" />
             </div>
           ) : error ? (
-            <Card>
-              <div style={{
-                padding: 16,
-                background: "#FEE2E2",
-                borderRadius: 8,
-                color: "#991B1B",
-                fontSize: 12
-              }}>
-                {error}
-              </div>
+            <Card className="case-error-card">
+              <div className="case-error-text">{error}</div>
             </Card>
           ) : cases.length === 0 ? (
-            <Card>
+            <Card className="case-section-card">
               <EmptyState
                 title="No cases yet"
                 subtitle="Create one to organize your evidence by investigation."
-                action={() => (
-                  <Button 
-                    onClick={handleCreate}
-                    disabled={creating}
-                  >
-                    {creating ? "Creating..." : "Create Case"}
-                  </Button>
-                )}
+                action={handleCreate}
+                actionLabel={creating ? "Creating..." : "Create Case"}
               />
             </Card>
           ) : (
             cases.map((caseItem) => (
-              <Card key={caseItem.id}>
-                <div style={{ padding: 16 }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 16 }}>
-                    <Link href={`/cases/${caseItem.id}`} style={{ textDecoration: "none", flex: 1, minWidth: 0 }}>
-                      <div
-                        style={{
-                          fontSize: 16,
-                          fontWeight: 500,
-                          color: "#0F172A",
-                          cursor: "pointer",
-                          wordBreak: "break-word",
-                          overflow: "hidden",
-                          textOverflow: "ellipsis",
-                          whiteSpace: "nowrap"
-                        }}
-                      >
-                        {caseItem.name}
-                      </div>
-                    </Link>
-                    <div style={{ display: "flex", gap: 8 }}>
-                      <Button
-                        variant="secondary"
-                        onClick={() => handleStartRename(caseItem)}
-                        disabled={renamingId !== null || deletingId !== null}
-                      >
-                        Rename
-                      </Button>
-                      <Button
-                        variant="secondary"
-                        onClick={() => handleStartDelete(caseItem.id)}
-                        disabled={renamingId !== null || deletingId !== null}
-                      >
-                        Delete
-                      </Button>
+              <Card key={caseItem.id} className="case-list-card">
+                <div className="case-list-row">
+                  <Link
+                    href={`/cases/${caseItem.id}`}
+                    className="case-list-link"
+                  >
+                    <div className="case-list-name">
+                      {caseItem.name}
                     </div>
+                  </Link>
+
+                  <div className="case-list-actions">
+                    <Button
+                      variant="secondary"
+                      onClick={() => handleStartRename(caseItem)}
+                      disabled={disableRowActions}
+                    >
+                      Rename
+                    </Button>
+
+                    <Button
+                      variant="secondary"
+                      onClick={() => handleStartDelete(caseItem.id)}
+                      disabled={disableRowActions}
+                      className="case-danger-btn"
+                    >
+                      Delete
+                    </Button>
                   </div>
                 </div>
               </Card>
@@ -212,55 +231,51 @@ export default function CasesPage() {
         </div>
       </div>
 
-      {/* Rename Modal */}
       {renamingId && (
         <div
-          style={{
-            position: "fixed",
-            inset: 0,
-            backgroundColor: "rgba(0, 0, 0, 0.5)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            zIndex: 1000
+          className="case-modal-backdrop"
+          onClick={() => {
+            if (busyId) return;
+            setRenamingId(null);
+            setRenameValue("");
           }}
-          onClick={() => setRenamingId(null)}
         >
-          <Card className="card-modal">
-            <div style={{ padding: 24 }}>
-              <h3 style={{ margin: "0 0 16px 0", fontSize: 18, fontWeight: 600 }}>Rename Case</h3>
+          <Card className="card-modal case-modal-card">
+            <div
+              style={{ padding: 24 }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <h3 className="case-modal-title">Rename Case</h3>
+
               <input
                 type="text"
                 value={renameValue}
                 onChange={(e) => setRenameValue(e.target.value)}
                 placeholder="Case name"
                 maxLength={120}
-                style={{
-                  width: "100%",
-                  padding: 10,
-                  marginBottom: 16,
-                  border: "1px solid #E2E8F0",
-                  borderRadius: 8,
-                  fontSize: 14,
-                  boxSizing: "border-box",
-                  fontFamily: "inherit"
-                }}
+                className="case-text-input"
                 autoFocus
               />
-              <div style={{ display: "flex", gap: 8 }}>
+
+              <div className="case-inline-actions" style={{ marginTop: 16 }}>
                 <div style={{ flex: 1 }}>
                   <Button
                     variant="secondary"
-                    onClick={() => setRenamingId(null)}
+                    onClick={() => {
+                      setRenamingId(null);
+                      setRenameValue("");
+                    }}
+                    disabled={busyId !== null}
                   >
                     Cancel
                   </Button>
                 </div>
+
                 <div style={{ flex: 1 }}>
                   <Button
                     className="navy-btn"
                     onClick={handleRename}
-                    disabled={!renameValue.trim()}
+                    disabled={!renameValue.trim() || busyId !== null}
                   >
                     Rename
                   </Button>
@@ -271,41 +286,41 @@ export default function CasesPage() {
         </div>
       )}
 
-      {/* Delete Confirmation Modal */}
       {deletingId && (
         <div
-          style={{
-            position: "fixed",
-            inset: 0,
-            backgroundColor: "rgba(0, 0, 0, 0.5)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            zIndex: 1000
+          className="case-modal-backdrop"
+          onClick={() => {
+            if (busyId) return;
+            setDeletingId(null);
           }}
-          onClick={() => setDeletingId(null)}
         >
-          <Card className="card-modal">
-            <div style={{ padding: 24 }}>
-              <h3 style={{ margin: "0 0 8px 0", fontSize: 18, fontWeight: 600, color: "#DC2626" }}>
-                Delete Case?
-              </h3>
-              <p style={{ margin: "0 0 16px 0", fontSize: 14, color: "#64748b" }}>
+          <Card className="card-modal case-modal-card">
+            <div
+              style={{ padding: 24 }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <h3 className="case-delete-title">Delete Case?</h3>
+
+              <p className="case-delete-subtitle">
                 The case will be deleted, but all evidence will remain in your dashboard.
               </p>
-              <div style={{ display: "flex", gap: 8 }}>
+
+              <div className="case-inline-actions">
                 <div style={{ flex: 1 }}>
                   <Button
                     variant="secondary"
                     onClick={() => setDeletingId(null)}
+                    disabled={busyId !== null}
                   >
                     Cancel
                   </Button>
                 </div>
+
                 <div style={{ flex: 1 }}>
                   <Button
                     onClick={handleDelete}
                     className="button-danger"
+                    disabled={busyId !== null}
                   >
                     Delete
                   </Button>
