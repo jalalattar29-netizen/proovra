@@ -101,14 +101,12 @@ export default function EvidenceDetailPage() {
           billingRes,
           reportRes,
           originalRes,
-          meRes,
           casesRes
         ] = await Promise.allSettled([
           apiFetch(`/v1/evidence/${params.id}`),
           apiFetch("/v1/billing/status"),
           apiFetch(`/v1/evidence/${params.id}/report/latest`),
           apiFetch(`/v1/evidence/${params.id}/original`),
-          apiFetch("/v1/users/me"),
           apiFetch("/v1/cases")
         ]);
 

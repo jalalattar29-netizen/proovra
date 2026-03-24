@@ -17,7 +17,6 @@ export default function InviteAcceptPage() {
   const token = params?.token ?? "";
 
   const [state, setState] = useState<InviteState>("loading");
-  const [teamName, setTeamName] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
 
   useEffect(() => {
@@ -37,11 +36,6 @@ export default function InviteAcceptPage() {
 
         // Success!
         if (result?.invite) {
-          // Extract team name from the response if available
-          const team = result.invite?.team;
-          if (team?.name) {
-            setTeamName(team.name);
-          }
           setState("success");
           addToast("Invitation accepted! Redirecting to your team...", "success");
           setTimeout(() => {
