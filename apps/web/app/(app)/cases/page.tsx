@@ -15,6 +15,7 @@ import { captureException } from "../../../lib/sentry";
 interface Case {
   id: string;
   name: string;
+  teamId?: string | null;
 }
 
 export default function CasesPage() {
@@ -28,6 +29,7 @@ export default function CasesPage() {
   const [renameValue, setRenameValue] = useState("");
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [filter, setFilter] = useState<"all" | "personal" | "team">("all");
 
   const loadCases = async () => {
     setLoading(true);
@@ -147,6 +149,15 @@ export default function CasesPage() {
   const disableRowActions =
     creating || busyId !== null || renamingId !== null || deletingId !== null;
 
+  const filteredCases = cases.filter((c) => {
+    if (filter === "personal") return !c.teamId;
+    if (filter === "team") return c.teamId;
+    return true;
+  });
+
+  const personalCases = cases.filter((c) => !c.teamId);
+  const teamCases = cases.filter((c) => c.teamId);
+
   return (
     <div className="section app-section">
       <div className="app-hero app-hero-full">
@@ -159,6 +170,33 @@ export default function CasesPage() {
               <p className="page-subtitle pricing-subtitle" style={{ marginTop: 6 }}>
                 Organize evidence into cases.
               </p>
+
+              <div style={{ display: "flex", gap: 6, marginTop: 12, flexWrap: "wrap" }}>
+                <Button
+                  variant={filter === "all" ? "primary" : "secondary"}
+                  onClick={() => setFilter("all")}
+                  className={filter === "all" ? "navy-btn" : "case-badge-btn"}
+                  style={{ padding: "6px 12px", fontSize: 12 }}
+                >
+                  All ({cases.length})
+                </Button>
+                <Button
+                  variant={filter === "personal" ? "primary" : "secondary"}
+                  onClick={() => setFilter("personal")}
+                  className={filter === "personal" ? "navy-btn" : "case-badge-btn"}
+                  style={{ padding: "6px 12px", fontSize: 12 }}
+                >
+                  Personal ({personalCases.length})
+                </Button>
+                <Button
+                  variant={filter === "team" ? "primary" : "secondary"}
+                  onClick={() => setFilter("team")}
+                  className={filter === "team" ? "navy-btn" : "case-badge-btn"}
+                  style={{ padding: "6px 12px", fontSize: 12 }}
+                >
+                  Team ({teamCases.length})
+                </Button>
+              </div>
             </div>
 
             <Button
@@ -184,17 +222,17 @@ export default function CasesPage() {
             <Card className="case-error-card">
               <div className="case-error-text">{error}</div>
             </Card>
-          ) : cases.length === 0 ? (
+          ) : filteredCases.length === 0 ? (
             <Card className="case-section-card">
               <EmptyState
-                title="No cases yet"
-                subtitle="Create one to organize your evidence by investigation."
+                title={filter === "all" ? "No cases yet" : `No ${filter} cases`}
+                subtitle={filter === "all" ? "Create one to organize your evidence by investigation." : `Try a different filter or create a new ${filter} case.`}
                 action={handleCreate}
                 actionLabel={creating ? "Creating..." : "Create Case"}
               />
             </Card>
           ) : (
-            cases.map((caseItem) => (
+            filteredCases.map((caseItem) => (
               <Card key={caseItem.id} className="case-list-card">
                 <div className="case-list-row">
                   <Link
@@ -203,6 +241,9 @@ export default function CasesPage() {
                   >
                     <div className="case-list-name">
                       {caseItem.name}
+                      {caseItem.teamId && (
+                        <span className="badge ready" style={{ marginLeft: 8, fontSize: 11 }}>TEAM</span>
+                      )}
                     </div>
                   </Link>
 

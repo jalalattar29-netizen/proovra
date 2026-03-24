@@ -66,6 +66,7 @@ export async function casesRoutes(app: FastifyInstance) {
     });
     const memberTeamIds = memberTeams.map((t) => t.teamId);
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const or: any[] = [
       { ownerUserId },
       { access: { some: { userId: ownerUserId } } }
@@ -292,11 +293,21 @@ export async function casesRoutes(app: FastifyInstance) {
     async (req: FastifyRequest, reply) => {
       const id = z.string().uuid().parse((req.params as { id: string }).id);
       const body = RenameCaseBody.parse(req.body);
-      const ownerUserId = getAuthUserId(req);
+      const userId = getAuthUserId(req);
 
       const item = await prisma.case.findUnique({ where: { id } });
       if (!item) return reply.code(404).send({ message: "Case not found" });
-      if (item.ownerUserId !== ownerUserId) {
+
+      let hasPermission = item.ownerUserId === userId;
+
+      if (!hasPermission && item.teamId) {
+        const member = await prisma.teamMember.findUnique({
+          where: { teamId_userId: { teamId: item.teamId, userId } }
+        });
+        hasPermission = Boolean(member);
+      }
+
+      if (!hasPermission) {
         return reply.code(403).send({ message: "Forbidden" });
       }
 
@@ -314,11 +325,21 @@ export async function casesRoutes(app: FastifyInstance) {
     { preHandler: requireAuth },
     async (req: FastifyRequest, reply) => {
       const id = z.string().uuid().parse((req.params as { id: string }).id);
-      const ownerUserId = getAuthUserId(req);
+      const userId = getAuthUserId(req);
 
       const item = await prisma.case.findUnique({ where: { id } });
       if (!item) return reply.code(404).send({ message: "Case not found" });
-      if (item.ownerUserId !== ownerUserId) {
+
+      let hasPermission = item.ownerUserId === userId;
+
+      if (!hasPermission && item.teamId) {
+        const member = await prisma.teamMember.findUnique({
+          where: { teamId_userId: { teamId: item.teamId, userId } }
+        });
+        hasPermission = Boolean(member);
+      }
+
+      if (!hasPermission) {
         return reply.code(403).send({ message: "Forbidden" });
       }
 
@@ -340,11 +361,21 @@ export async function casesRoutes(app: FastifyInstance) {
     async (req: FastifyRequest, reply) => {
       const id = z.string().uuid().parse((req.params as { id: string }).id);
       const body = AddEvidenceBody.parse(req.body);
-      const ownerUserId = getAuthUserId(req);
+      const userId = getAuthUserId(req);
 
       const caseItem = await prisma.case.findUnique({ where: { id } });
       if (!caseItem) return reply.code(404).send({ message: "Case not found" });
-      if (caseItem.ownerUserId !== ownerUserId) {
+
+      let hasPermission = caseItem.ownerUserId === userId;
+
+      if (!hasPermission && caseItem.teamId) {
+        const member = await prisma.teamMember.findUnique({
+          where: { teamId_userId: { teamId: caseItem.teamId, userId } }
+        });
+        hasPermission = Boolean(member);
+      }
+
+      if (!hasPermission) {
         return reply.code(403).send({ message: "Forbidden" });
       }
 
@@ -353,7 +384,7 @@ export async function casesRoutes(app: FastifyInstance) {
       });
 
       if (!evidence) return reply.code(404).send({ message: "Evidence not found" });
-      if (evidence.ownerUserId !== ownerUserId) {
+      if (evidence.ownerUserId !== userId) {
         return reply.code(403).send({ message: "Evidence does not belong to you" });
       }
       if (evidence.deletedAt) {
@@ -385,11 +416,21 @@ export async function casesRoutes(app: FastifyInstance) {
         .string()
         .uuid()
         .parse((req.params as { evidenceId: string }).evidenceId);
-      const ownerUserId = getAuthUserId(req);
+      const userId = getAuthUserId(req);
 
       const caseItem = await prisma.case.findUnique({ where: { id } });
       if (!caseItem) return reply.code(404).send({ message: "Case not found" });
-      if (caseItem.ownerUserId !== ownerUserId) {
+
+      let hasPermission = caseItem.ownerUserId === userId;
+
+      if (!hasPermission && caseItem.teamId) {
+        const member = await prisma.teamMember.findUnique({
+          where: { teamId_userId: { teamId: caseItem.teamId, userId } }
+        });
+        hasPermission = Boolean(member);
+      }
+
+      if (!hasPermission) {
         return reply.code(403).send({ message: "Forbidden" });
       }
 

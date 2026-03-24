@@ -7,7 +7,7 @@ import * as prismaPkg from "@prisma/client";
 import { hasRole } from "../services/rbac.js";
 import { getAuthUserId } from "../auth.js";
 import { getEmailService } from "../services/email.service.js";
-
+import { Prisma } from "@prisma/client";
 const CreateTeamBody = z.object({
   name: z.string().min(1).max(120),
 });
@@ -57,6 +57,30 @@ async function getActorMembership(teamId: string, userId: string) {
       },
     },
   });
+}
+
+async function createActivity(
+  teamId: string,
+  eventType: string,
+  targetType: string,
+  actorUserId: string | null,
+  targetId?: string | null,
+  metadata?: Prisma.InputJsonValue | null
+) {
+  try {
+    await prisma.teamActivity.create({
+      data: {
+        teamId,
+        eventType,
+        targetType,
+        actorUserId,
+        targetId: targetId ?? null,
+        metadata: metadata ?? Prisma.JsonNull,
+      },
+    });
+  } catch (err) {
+    console.error("Failed to log team activity:", err);
+  }
 }
 
 export async function teamsRoutes(app: FastifyInstance) {
@@ -655,7 +679,161 @@ export async function teamsRoutes(app: FastifyInstance) {
         data: { acceptedAt: new Date() },
       });
 
+      await createActivity(
+        invite.teamId,
+        "invite_accepted",
+        "member",
+        userId,
+        userId,
+        { role: invite.role }
+      );
+
       return reply.code(200).send({ invite: updated });
+    }
+  );
+
+  app.get(
+    "/v1/teams/:id/activity",
+    { preHandler: requireAuth },
+    async (req: FastifyRequest, reply) => {
+      const teamId = z.string().uuid().parse((req.params as { id: string }).id);
+      const userId = getAuthUserId(req);
+
+      const actor = await getActorMembership(teamId, userId);
+      if (!actor) {
+        return reply.code(403).send({ message: "Forbidden" });
+      }
+
+      const activities = await prisma.teamActivity.findMany({
+        where: { teamId },
+        orderBy: { createdAt: "desc" },
+        take: 50,
+      });
+
+      const actorIds = activities
+        .map((a) => a.actorUserId)
+        .filter((id) => id !== null) as string[];
+
+      const users = actorIds.length
+        ? await prisma.user.findMany({
+            where: { id: { in: actorIds } },
+            select: {
+              id: true,
+              email: true,
+              displayName: true,
+            },
+          })
+        : [];
+
+      const usersById = new Map(users.map((u) => [u.id, u]));
+
+      const enriched = activities.map((activity) => {
+        const actor = activity.actorUserId ? usersById.get(activity.actorUserId) : null;
+        return {
+          id: activity.id,
+          eventType: activity.eventType,
+          targetType: activity.targetType,
+          targetId: activity.targetId,
+          actor: actor ? {
+            id: actor.id,
+            email: actor.email,
+            displayName: actor.displayName,
+          } : null,
+          metadata: activity.metadata,
+          createdAt: activity.createdAt,
+        };
+      });
+
+      return reply.code(200).send({ activities: enriched });
+    }
+  );
+
+  app.post(
+    "/v1/teams/:id/cases/link",
+    { preHandler: requireAuth },
+    async (req: FastifyRequest, reply) => {
+      const LinkCaseBody = z.object({ caseId: z.string().uuid() });
+      const params = req.params as { id: string };
+      const teamId = z.string().uuid().parse(params.id);
+      const { caseId } = LinkCaseBody.parse(req.body);
+      const userId = getAuthUserId(req);
+
+      const actor = await getActorMembership(teamId, userId);
+      if (!actor || !hasRole(actor.role, prismaPkg.TeamRole.MEMBER)) {
+        return reply.code(403).send({ message: "Forbidden" });
+      }
+
+      const caseItem = await prisma.case.findUnique({
+        where: { id: caseId },
+      });
+
+      if (!caseItem) {
+        return reply.code(404).send({ message: "Case not found" });
+      }
+
+      if (caseItem.teamId) {
+        return reply.code(400).send({ message: "Case is already linked to a team" });
+      }
+
+      if (caseItem.ownerUserId !== userId && !hasRole(actor.role, prismaPkg.TeamRole.ADMIN)) {
+        return reply.code(403).send({ message: "Only case owner or team admin can link case" });
+      }
+
+      const updated = await prisma.case.update({
+        where: { id: caseId },
+        data: { teamId },
+      });
+
+      await createActivity(
+        teamId,
+        "case_linked",
+        "case",
+        userId,
+        caseId,
+        { caseName: updated.name }
+      );
+
+      return reply.code(200).send(updated);
+    }
+  );
+
+  app.delete(
+    "/v1/teams/:id/cases/:caseId",
+    { preHandler: requireAuth },
+    async (req: FastifyRequest, reply) => {
+      const params = req.params as { id: string; caseId: string };
+      const teamId = z.string().uuid().parse(params.id);
+      const caseId = z.string().uuid().parse(params.caseId);
+      const userId = getAuthUserId(req);
+
+      const actor = await getActorMembership(teamId, userId);
+      if (!actor || !hasRole(actor.role, prismaPkg.TeamRole.ADMIN)) {
+        return reply.code(403).send({ message: "Forbidden" });
+      }
+
+      const caseItem = await prisma.case.findUnique({
+        where: { id: caseId },
+      });
+
+      if (!caseItem || caseItem.teamId !== teamId) {
+        return reply.code(404).send({ message: "Case not found in team" });
+      }
+
+      const updated = await prisma.case.update({
+        where: { id: caseId },
+        data: { teamId: null },
+      });
+
+      await createActivity(
+        teamId,
+        "case_unlinked",
+        "case",
+        userId,
+        caseId,
+        { caseName: updated.name }
+      );
+
+      return reply.code(200).send(updated);
     }
   );
 }

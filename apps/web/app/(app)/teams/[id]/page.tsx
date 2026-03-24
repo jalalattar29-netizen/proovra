@@ -39,6 +39,20 @@ type TeamCase = {
   ownerUserId?: string;
 };
 
+type TeamActivity = {
+  id: string;
+  eventType: string;
+  targetType: string;
+  targetId?: string;
+  actor?: {
+    id: string;
+    email?: string | null;
+    displayName?: string | null;
+  };
+  metadata?: Record<string, unknown>;
+  createdAt?: string;
+};
+
 type TeamStats = {
   memberCount: number;
   pendingInviteCount: number;
@@ -74,6 +88,7 @@ export default function TeamDetailPage() {
   const [team, setTeam] = useState<Team | null>(null);
   const [invites, setInvites] = useState<TeamInvite[]>([]);
   const [teamCases, setTeamCases] = useState<TeamCase[]>([]);
+  const [activities, setActivities] = useState<TeamActivity[]>([]);
   const [currentUserId, setCurrentUserId] = useState("");
 
   const [loading, setLoading] = useState(true);
@@ -93,6 +108,11 @@ export default function TeamDetailPage() {
   const [deleteConfirm, setDeleteConfirm] = useState(false);
   const [deletingTeam, setDeletingTeam] = useState(false);
 
+  const [showAddCase, setShowAddCase] = useState(false);
+  const [availableCases, setAvailableCases] = useState<TeamCase[]>([]);
+  const [loadingAvailableCases, setLoadingAvailableCases] = useState(false);
+  const [linkingCaseId, setLinkingCaseId] = useState<string | null>(null);
+
   const loadData = async () => {
     if (!teamId) return;
 
@@ -100,11 +120,12 @@ export default function TeamDetailPage() {
     setError(null);
 
     try {
-      const [meRes, teamRes, invitesRes, casesRes] = await Promise.all([
+      const [meRes, teamRes, invitesRes, casesRes, activitiesRes] = await Promise.all([
         apiFetch("/v1/users/me") as Promise<MeResponse>,
         apiFetch(`/v1/teams/${teamId}`) as Promise<Team>,
         apiFetch(`/v1/teams/${teamId}/invites`).catch(() => ({ invites: [] as TeamInvite[] })),
         apiFetch(`/v1/teams/${teamId}/cases`).catch(() => ({ items: [] as TeamCase[] })),
+        apiFetch(`/v1/teams/${teamId}/activity`).catch(() => ({ activities: [] as TeamActivity[] })),
       ]);
 
       const meId = meRes?.user?.id ?? meRes?.id ?? "";
@@ -112,6 +133,7 @@ export default function TeamDetailPage() {
       setTeam(teamRes ?? null);
       setInvites(invitesRes?.invites ?? []);
       setTeamCases(casesRes?.items ?? []);
+      setActivities(activitiesRes?.activities ?? []);
       setTeamName(teamRes?.name ?? "");
     } catch (err) {
       const message = err instanceof Error ? err.message : "Failed to load team";
@@ -119,6 +141,7 @@ export default function TeamDetailPage() {
       setTeam(null);
       setInvites([]);
       setTeamCases([]);
+      setActivities([]);
       captureException(err, { feature: "team_detail_load", teamId });
       addToast(message, "error");
     } finally {
@@ -381,6 +404,61 @@ export default function TeamDetailPage() {
       const message = err instanceof Error ? err.message : "Failed to create team case";
       captureException(err, { feature: "team_case_create", teamId });
       addToast(message, "error");
+    }
+  };
+
+  const loadAvailableCases = async () => {
+    if (!teamId || !canManageTeam) return;
+
+    setLoadingAvailableCases(true);
+
+    try {
+const data = await apiFetch("/v1/cases");
+const existing = new Set(teamCases.map((c) => c.id));
+
+const available = ((data.items ?? []) as AvailableCaseItem[]).filter(
+  (item) => !existing.has(item.id) && !item.teamId
+);      type AvailableCaseItem = {
+  id: string;
+  name: string;
+  createdAt?: string;
+  ownerUserId?: string;
+  teamId?: string | null;
+};
+      setAvailableCases(available);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to load available cases";
+      captureException(err, { feature: "team_available_cases_load", teamId });
+      addToast(message, "error");
+    } finally {
+      setLoadingAvailableCases(false);
+    }
+  };
+
+  const handleAddExistingCase = async (caseId: string) => {
+    if (!teamId || !canManageTeam) return;
+
+    setLinkingCaseId(caseId);
+
+    try {
+      await apiFetch(`/v1/teams/${teamId}/cases/link`, {
+        method: "POST",
+        body: JSON.stringify({ caseId }),
+      });
+
+      const linkedCase = availableCases.find((c) => c.id === caseId);
+      if (linkedCase) {
+        setTeamCases((prev) => [linkedCase, ...prev]);
+        setAvailableCases((prev) => prev.filter((c) => c.id !== caseId));
+      }
+
+      addToast("Case linked successfully", "success");
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to link case";
+      captureException(err, { feature: "team_case_link", teamId, caseId });
+      addToast(message, "error");
+    } finally {
+      setLinkingCaseId(null);
     }
   };
 
@@ -738,13 +816,85 @@ export default function TeamDetailPage() {
 
               {canManageTeam && (
                 <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid rgba(148, 163, 184, 0.16)" }}>
-                  <Button className="navy-btn" onClick={handleCreateTeamCase}>
-                    Create Team Case
-                  </Button>
+                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                    <Button className="navy-btn" onClick={handleCreateTeamCase}>
+                      Create Team Case
+                    </Button>
+
+                    <Button
+                      variant="secondary"
+                      onClick={() => {
+                        setShowAddCase(!showAddCase);
+                        if (!showAddCase) loadAvailableCases();
+                      }}
+                    >
+                      {showAddCase ? "Cancel" : "Add Existing Case"}
+                    </Button>
+                  </div>
+
+                  {showAddCase && (
+                    <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid rgba(148, 163, 184, 0.16)" }}>
+                      <div className="case-muted-text" style={{ marginBottom: 10 }}>
+                        {loadingAvailableCases ? "Loading available cases..." : availableCases.length === 0 ? "No available personal cases" : "Select a case to link"}
+                      </div>
+
+                      {!loadingAvailableCases && availableCases.length > 0 && (
+                        <div style={{ display: "grid", gap: 10 }}>
+                          {availableCases.map((item: TeamCase) => (
+                            <div key={item.id} className="case-evidence-row">
+                              <div style={{ flex: 1, minWidth: 0 }}>
+                                <div className="case-share-name">{item.name}</div>
+                                <div className="case-share-email">
+                                  {item.createdAt ? new Date(item.createdAt).toLocaleString() : ""}
+                                </div>
+                              </div>
+
+                              <Button
+                                className="navy-btn case-small-btn"
+                                onClick={() => handleAddExistingCase(item.id)}
+                                disabled={linkingCaseId === item.id}
+                              >
+                                {linkingCaseId === item.id ? "Linking..." : "Link"}
+                              </Button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               )}
             </div>
           </Card>
+
+          {activities.length > 0 && (
+            <Card className="case-section-card">
+              <div style={{ padding: 16 }}>
+                <div style={{ fontWeight: 700, marginBottom: 12, color: "#E2E8F0" }}>
+                  Recent activity
+                </div>
+
+                <div style={{ display: "grid", gap: 10 }}>
+                  {activities.slice(0, 10).map((activity) => (
+                    <div key={activity.id} style={{ padding: 8, borderRadius: 4, backgroundColor: "rgba(148, 163, 184, 0.05)" }}>
+                      <div className="case-share-name">
+                        {activity.eventType.replace(/_/g, " ")}
+                      </div>
+                      <div className="case-share-email">
+                        {activity.actor?.displayName || activity.actor?.email || "System"} •{" "}
+                        {activity.createdAt ? new Date(activity.createdAt).toLocaleString() : ""}
+                      </div>
+                      {activity.metadata && (
+                        <div className="case-muted-text" style={{ marginTop: 4, fontSize: 11 }}>
+                          {JSON.stringify(activity.metadata).substring(0, 60)}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </Card>
+          )}
         </div>
       </div>
     </div>

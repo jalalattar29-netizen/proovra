@@ -32,25 +32,25 @@ model Evidence {
   deletedAt                DateTime?      @map("deleted_at") @db.Timestamptz(6)
   createdAt                DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt                DateTime       @updatedAt @map("updated_at") @db.Timestamptz(6)
-  deviceTimeIso            String?        @map("device_time_iso") @db.VarChar(64)
-  signingKeyVersion        Int?           @map("signing_key_version")
   deletedAtUtc             DateTime?      @map("deleted_at_utc") @db.Timestamptz(6)
   retentionUntilUtc        DateTime?      @map("retention_until_utc") @db.Timestamptz(6)
+  deviceTimeIso            String?        @map("device_time_iso") @db.VarChar(64)
+  signingKeyVersion        Int?           @map("signing_key_version")
   caseId                   String?        @map("case_id") @db.Uuid
   teamId                   String?        @map("team_id") @db.Uuid
   guestIdentityId          String?        @map("guest_identity_id") @db.Uuid
   lockedAt                 DateTime?      @map("locked_at") @db.Timestamptz(6)
   lockedByUserId           String?        @map("locked_by_user_id")
   archivedAt               DateTime?      @map("archived_at") @db.Timestamptz(6)
-  tsaProvider              String?        @map("tsa_provider") @db.VarChar(64)
-  tsaUrl                   String?        @map("tsa_url") @db.VarChar(512)
-  tsaSerialNumber          String?        @map("tsa_serial_number") @db.VarChar(255)
+  tsaFailureReason         String?        @map("tsa_failure_reason")
   tsaGenTimeUtc            DateTime?      @map("tsa_gen_time_utc") @db.Timestamptz(6)
-  tsaTokenBase64           String?        @map("tsa_token_base64") @db.Text
-  tsaMessageImprint        String?        @map("tsa_message_imprint") @db.VarChar(128)
   tsaHashAlgorithm         String?        @map("tsa_hash_algorithm") @db.VarChar(32)
+  tsaMessageImprint        String?        @map("tsa_message_imprint") @db.VarChar(128)
+  tsaProvider              String?        @map("tsa_provider") @db.VarChar(64)
+  tsaSerialNumber          String?        @map("tsa_serial_number") @db.VarChar(255)
   tsaStatus                String?        @map("tsa_status") @db.VarChar(32)
-  tsaFailureReason         String?        @map("tsa_failure_reason") @db.Text
+  tsaTokenBase64           String?        @map("tsa_token_base64")
+  tsaUrl                   String?        @map("tsa_url") @db.VarChar(512)
   custodyEvents            CustodyEvent[]
   guestIdentity            GuestIdentity? @relation(fields: [guestIdentityId], references: [id])
   parts                    EvidencePart[]
@@ -160,14 +160,15 @@ model User {
   providerUserId         String               @map("provider_user_id") @db.VarChar(128)
   createdAt              DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt              DateTime             @updatedAt @map("updated_at") @db.Timestamptz(6)
-  passwordHash           String?              @map("password_hash")
   avatarUrl              String?              @map("avatar_url") @db.VarChar(512)
   bio                    String?              @db.VarChar(280)
   country                String?              @db.VarChar(120)
   firstName              String?              @map("first_name") @db.VarChar(80)
   lastName               String?              @map("last_name") @db.VarChar(80)
   locale                 String?              @db.VarChar(12)
+  passwordHash           String?              @map("password_hash")
   timezone               String?              @db.VarChar(64)
+  caseAccess             CaseAccess[]
   entitlements           Entitlement[]
   claimedGuestIdentities GuestIdentity[]      @relation("GuestClaimedBy")
   guestIdentity          GuestIdentity?
@@ -175,7 +176,7 @@ model User {
   payments               Payment[]
   subscriptions          Subscription[]
   teamMembers            TeamMember[]
-  caseAccess             CaseAccess[]
+  teamActivities         TeamActivity[]
 
   @@unique([provider, providerUserId])
   @@index([email])
@@ -196,6 +197,7 @@ model Team {
   retentionPolicy RetentionPolicy @default(FOREVER) @map("retention_policy")
   invites         TeamInvite[]
   members         TeamMember[]
+  activities      TeamActivity[]
 
   @@index([ownerUserId])
   @@map("teams")
@@ -244,6 +246,24 @@ model TeamInvite {
   @@index([teamId])
   @@index([email])
   @@map("team_invites")
+}
+
+model TeamActivity {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  teamId       String   @map("team_id") @db.Uuid
+  actorUserId  String?  @map("actor_user_id") @db.Uuid
+  eventType    String   @map("event_type")
+  targetType   String   @map("target_type")
+  targetId     String?  @map("target_id")
+  metadata     Json?
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  team         Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  actor        User?    @relation(fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  @@index([teamId])
+  @@index([teamId, createdAt(sort: Desc)])
+  @@index([actorUserId])
+  @@map("team_activities")
 }
 
 model GuestIdentity {
@@ -382,6 +402,21 @@ model PasswordResetToken {
   @@index([tokenHash])
   @@index([expiresAt])
   @@map("password_reset_tokens")
+}
+
+model team_activity {
+  id            String   @id
+  team_id       String
+  actor_user_id String?
+  event_type    String
+  target_type   String
+  target_id     String?
+  metadata      Json?
+  created_at    DateTime @default(now()) @db.Timestamptz(6)
+
+  @@index([actor_user_id])
+  @@index([team_id, created_at(sort: Desc)])
+  @@index([team_id])
 }
 
 enum EvidenceType {

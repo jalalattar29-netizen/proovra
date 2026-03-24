@@ -23,6 +23,7 @@ export default function TeamsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
+  const [deleting, setDeleting] = useState<string | null>(null);
 
   const loadTeams = async () => {
     setLoading(true);
@@ -78,6 +79,26 @@ export default function TeamsPage() {
       addToast(message, "error");
     } finally {
       setCreating(false);
+    }
+  };
+
+  const handleDelete = async (teamId: string, teamName: string) => {
+    if (!window.confirm(`Are you sure you want to delete "${teamName}"? Team cases will be converted to personal cases.`)) {
+      return;
+    }
+
+    setDeleting(teamId);
+
+    try {
+      await apiFetch(`/v1/teams/${teamId}`, { method: "DELETE" });
+      setTeams((prev) => prev.filter((t) => t.id !== teamId));
+      addToast("Team deleted successfully", "success");
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to delete team";
+      captureException(err, { feature: "teams_page_delete" });
+      addToast(message, "error");
+    } finally {
+      setDeleting(null);
     }
   };
 
@@ -164,6 +185,16 @@ export default function TeamsPage() {
                     <Link href={`/teams/${item.id}`} style={{ textDecoration: "none" }}>
                       <Button className="navy-btn">Open</Button>
                     </Link>
+
+                    {item.role === "OWNER" ? (
+                      <Button
+                        className="danger-btn"
+                        onClick={() => handleDelete(item.id, item.name)}
+                        disabled={deleting === item.id}
+                      >
+                        {deleting === item.id ? "Deleting..." : "Delete"}
+                      </Button>
+                    ) : null}
                   </div>
                 </div>
               </Card>
