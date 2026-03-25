@@ -1,13 +1,14 @@
 import type { FastifyInstance, FastifyRequest } from "fastify";
 import { z } from "zod";
 import { randomUUID } from "node:crypto";
+import { Prisma } from "@prisma/client";
+import * as prismaPkg from "@prisma/client";
 import { prisma } from "../db.js";
 import { requireAuth } from "../middleware/auth.js";
-import * as prismaPkg from "@prisma/client";
 import { hasRole } from "../services/rbac.js";
 import { getAuthUserId } from "../auth.js";
 import { getEmailService } from "../services/email.service.js";
-import { Prisma } from "@prisma/client";
+
 const CreateTeamBody = z.object({
   name: z.string().min(1).max(120),
 });
@@ -65,19 +66,19 @@ async function createActivity(
   targetType: string,
   actorUserId: string | null,
   targetId?: string | null,
-  metadata?: Prisma.InputJsonValue | null
+  metadata?: Prisma.InputJsonValue
 ) {
   try {
-    await prisma.teamActivity.create({
-      data: {
-        teamId,
-        eventType,
-        targetType,
-        actorUserId,
-        targetId: targetId ?? null,
-        metadata: metadata ?? Prisma.JsonNull,
-      },
-    });
+    const data: Prisma.TeamActivityUncheckedCreateInput = {
+      teamId,
+      eventType,
+      targetType,
+      actorUserId: actorUserId ?? null,
+      targetId: targetId ?? null,
+      ...(metadata !== undefined ? { metadata } : {}),
+    };
+
+    await prisma.teamActivity.create({ data });
   } catch (err) {
     console.error("Failed to log team activity:", err);
   }
@@ -266,6 +267,7 @@ export async function teamsRoutes(app: FastifyInstance) {
           name: true,
           createdAt: true,
           ownerUserId: true,
+          teamId: true,
         },
       });
 
@@ -349,23 +351,19 @@ export async function teamsRoutes(app: FastifyInstance) {
         return reply.code(403).send({ message: "Only the team owner can delete this team" });
       }
 
-      // Delete pending invites
       await prisma.teamInvite.deleteMany({
         where: { teamId },
       });
 
-      // Delete team memberships
       await prisma.teamMember.deleteMany({
         where: { teamId },
       });
 
-      // Preserve team-linked cases by unsetting teamId instead of deleting
       await prisma.case.updateMany({
         where: { teamId },
         data: { teamId: null },
       });
 
-      // Finally delete the team
       await prisma.team.delete({
         where: { id: teamId },
       });
@@ -712,7 +710,7 @@ export async function teamsRoutes(app: FastifyInstance) {
 
       const actorIds = activities
         .map((a) => a.actorUserId)
-        .filter((id) => id !== null) as string[];
+        .filter((id): id is string => id !== null);
 
       const users = actorIds.length
         ? await prisma.user.findMany({
@@ -734,11 +732,13 @@ export async function teamsRoutes(app: FastifyInstance) {
           eventType: activity.eventType,
           targetType: activity.targetType,
           targetId: activity.targetId,
-          actor: actor ? {
-            id: actor.id,
-            email: actor.email,
-            displayName: actor.displayName,
-          } : null,
+          actor: actor
+            ? {
+                id: actor.id,
+                email: actor.email,
+                displayName: actor.displayName,
+              }
+            : null,
           metadata: activity.metadata,
           createdAt: activity.createdAt,
         };

@@ -66,8 +66,7 @@ export async function casesRoutes(app: FastifyInstance) {
     });
     const memberTeamIds = memberTeams.map((t) => t.teamId);
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const or: any[] = [
+    const or: Array<Record<string, unknown>> = [
       { ownerUserId },
       { access: { some: { userId: ownerUserId } } }
     ];
@@ -393,13 +392,17 @@ export async function casesRoutes(app: FastifyInstance) {
 
       const updated = await prisma.evidence.update({
         where: { id: body.evidenceId },
-        data: { caseId: id },
+        data: {
+          caseId: id,
+          teamId: caseItem.teamId ?? null
+        },
         select: {
           id: true,
           type: true,
           status: true,
           createdAt: true,
-          caseId: true
+          caseId: true,
+          teamId: true
         }
       });
 
@@ -445,13 +448,17 @@ export async function casesRoutes(app: FastifyInstance) {
 
       const updated = await prisma.evidence.update({
         where: { id: evidenceId },
-        data: { caseId: null },
+        data: {
+          caseId: null,
+          teamId: null
+        },
         select: {
           id: true,
           type: true,
           status: true,
           createdAt: true,
-          caseId: true
+          caseId: true,
+          teamId: true
         }
       });
 

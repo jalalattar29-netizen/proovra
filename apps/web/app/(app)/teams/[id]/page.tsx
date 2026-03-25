@@ -37,6 +37,15 @@ type TeamCase = {
   name: string;
   createdAt?: string;
   ownerUserId?: string;
+  teamId?: string | null;
+};
+
+type AvailableCaseItem = {
+  id: string;
+  name: string;
+  createdAt?: string;
+  ownerUserId?: string;
+  teamId?: string | null;
 };
 
 type TeamActivity = {
@@ -76,6 +85,22 @@ type MeResponse = {
   id?: string;
 };
 
+type TeamInvitesResponse = {
+  invites: TeamInvite[];
+};
+
+type TeamCasesResponse = {
+  items: TeamCase[];
+};
+
+type TeamActivitiesResponse = {
+  activities: TeamActivity[];
+};
+
+type CasesListResponse = {
+  items?: AvailableCaseItem[];
+};
+
 const ROLE_OPTIONS = ["ADMIN", "MEMBER", "VIEWER"] as const;
 
 export default function TeamDetailPage() {
@@ -109,7 +134,7 @@ export default function TeamDetailPage() {
   const [deletingTeam, setDeletingTeam] = useState(false);
 
   const [showAddCase, setShowAddCase] = useState(false);
-  const [availableCases, setAvailableCases] = useState<TeamCase[]>([]);
+  const [availableCases, setAvailableCases] = useState<AvailableCaseItem[]>([]);
   const [loadingAvailableCases, setLoadingAvailableCases] = useState(false);
   const [linkingCaseId, setLinkingCaseId] = useState<string | null>(null);
 
@@ -123,9 +148,15 @@ export default function TeamDetailPage() {
       const [meRes, teamRes, invitesRes, casesRes, activitiesRes] = await Promise.all([
         apiFetch("/v1/users/me") as Promise<MeResponse>,
         apiFetch(`/v1/teams/${teamId}`) as Promise<Team>,
-        apiFetch(`/v1/teams/${teamId}/invites`).catch(() => ({ invites: [] as TeamInvite[] })),
-        apiFetch(`/v1/teams/${teamId}/cases`).catch(() => ({ items: [] as TeamCase[] })),
-        apiFetch(`/v1/teams/${teamId}/activity`).catch(() => ({ activities: [] as TeamActivity[] })),
+        (apiFetch(`/v1/teams/${teamId}/invites`).catch(() => ({
+          invites: [],
+        })) as Promise<TeamInvitesResponse>),
+        (apiFetch(`/v1/teams/${teamId}/cases`).catch(() => ({
+          items: [],
+        })) as Promise<TeamCasesResponse>),
+        (apiFetch(`/v1/teams/${teamId}/activity`).catch(() => ({
+          activities: [],
+        })) as Promise<TeamActivitiesResponse>),
       ]);
 
       const meId = meRes?.user?.id ?? meRes?.id ?? "";
@@ -160,15 +191,11 @@ export default function TeamDetailPage() {
 
   const currentRole = team?.currentUserRole || myMemberRecord?.role || "VIEWER";
   const isOwner = currentRole === "OWNER";
-  const canManageTeam = team?.canManageMembers ?? (currentRole === "OWNER" || currentRole === "ADMIN");
+  const canManageTeam =
+    team?.canManageMembers ?? (currentRole === "OWNER" || currentRole === "ADMIN");
 
   const displayMemberName = (member: TeamMember) => {
-    return (
-      member.user?.displayName ||
-      member.label ||
-      member.user?.email ||
-      member.userId
-    );
+    return member.user?.displayName || member.label || member.user?.email || member.userId;
   };
 
   const displayMemberEmail = (member: TeamMember) => {
@@ -220,6 +247,7 @@ export default function TeamDetailPage() {
       if (data?.invite) {
         setInvites((prev) => {
           const existingIndex = prev.findIndex((item) => item.id === data.invite.id);
+
           if (existingIndex >= 0) {
             const copy = [...prev];
             copy[existingIndex] = {
@@ -253,8 +281,7 @@ export default function TeamDetailPage() {
   };
 
   const handleRoleChange = async (member: TeamMember, nextRole: string) => {
-    if (!teamId || !canManageTeam) return;
-    if (!member.userId) return;
+    if (!teamId || !canManageTeam || !member.userId) return;
 
     setRoleSavingKey(member.userId);
 
@@ -281,7 +308,11 @@ export default function TeamDetailPage() {
       addToast("Member role updated", "success");
     } catch (err) {
       const message = err instanceof Error ? err.message : "Failed to update role";
-      captureException(err, { feature: "team_member_role_update", teamId, memberId: member.userId });
+      captureException(err, {
+        feature: "team_member_role_update",
+        teamId,
+        memberId: member.userId,
+      });
       addToast(message, "error");
     } finally {
       setRoleSavingKey(null);
@@ -289,8 +320,7 @@ export default function TeamDetailPage() {
   };
 
   const handleRemoveMember = async (member: TeamMember) => {
-    if (!teamId || !canManageTeam) return;
-    if (!member.userId) return;
+    if (!teamId || !canManageTeam || !member.userId) return;
 
     const confirmed = window.confirm("Remove this member from the team?");
     if (!confirmed) return;
@@ -395,6 +425,7 @@ export default function TeamDetailPage() {
           name: created.name,
           createdAt: created.createdAt,
           ownerUserId: created.ownerUserId,
+          teamId,
         },
         ...prev,
       ]);
@@ -413,18 +444,13 @@ export default function TeamDetailPage() {
     setLoadingAvailableCases(true);
 
     try {
-const data = await apiFetch("/v1/cases");
-const existing = new Set(teamCases.map((c) => c.id));
+      const data = (await apiFetch("/v1/cases")) as CasesListResponse;
+      const existing = new Set(teamCases.map((c) => c.id));
 
-const available = ((data.items ?? []) as AvailableCaseItem[]).filter(
-  (item) => !existing.has(item.id) && !item.teamId
-);      type AvailableCaseItem = {
-  id: string;
-  name: string;
-  createdAt?: string;
-  ownerUserId?: string;
-  teamId?: string | null;
-};
+      const available = (data.items ?? []).filter(
+        (item) => !existing.has(item.id) && !item.teamId
+      );
+
       setAvailableCases(available);
     } catch (err) {
       const message = err instanceof Error ? err.message : "Failed to load available cases";
@@ -448,7 +474,7 @@ const available = ((data.items ?? []) as AvailableCaseItem[]).filter(
 
       const linkedCase = availableCases.find((c) => c.id === caseId);
       if (linkedCase) {
-        setTeamCases((prev) => [linkedCase, ...prev]);
+        setTeamCases((prev) => [{ ...linkedCase, teamId }, ...prev]);
         setAvailableCases((prev) => prev.filter((c) => c.id !== caseId));
       }
 
@@ -824,8 +850,11 @@ const available = ((data.items ?? []) as AvailableCaseItem[]).filter(
                     <Button
                       variant="secondary"
                       onClick={() => {
-                        setShowAddCase(!showAddCase);
-                        if (!showAddCase) loadAvailableCases();
+                        const next = !showAddCase;
+                        setShowAddCase(next);
+                        if (next) {
+                          void loadAvailableCases();
+                        }
                       }}
                     >
                       {showAddCase ? "Cancel" : "Add Existing Case"}
@@ -835,12 +864,16 @@ const available = ((data.items ?? []) as AvailableCaseItem[]).filter(
                   {showAddCase && (
                     <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid rgba(148, 163, 184, 0.16)" }}>
                       <div className="case-muted-text" style={{ marginBottom: 10 }}>
-                        {loadingAvailableCases ? "Loading available cases..." : availableCases.length === 0 ? "No available personal cases" : "Select a case to link"}
+                        {loadingAvailableCases
+                          ? "Loading available cases..."
+                          : availableCases.length === 0
+                            ? "No available personal cases"
+                            : "Select a case to link"}
                       </div>
 
                       {!loadingAvailableCases && availableCases.length > 0 && (
                         <div style={{ display: "grid", gap: 10 }}>
-                          {availableCases.map((item: TeamCase) => (
+                          {availableCases.map((item) => (
                             <div key={item.id} className="case-evidence-row">
                               <div style={{ flex: 1, minWidth: 0 }}>
                                 <div className="case-share-name">{item.name}</div>
@@ -876,7 +909,14 @@ const available = ((data.items ?? []) as AvailableCaseItem[]).filter(
 
                 <div style={{ display: "grid", gap: 10 }}>
                   {activities.slice(0, 10).map((activity) => (
-                    <div key={activity.id} style={{ padding: 8, borderRadius: 4, backgroundColor: "rgba(148, 163, 184, 0.05)" }}>
+                    <div
+                      key={activity.id}
+                      style={{
+                        padding: 8,
+                        borderRadius: 4,
+                        backgroundColor: "rgba(148, 163, 184, 0.05)",
+                      }}
+                    >
                       <div className="case-share-name">
                         {activity.eventType.replace(/_/g, " ")}
                       </div>

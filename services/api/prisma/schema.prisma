@@ -249,16 +249,16 @@ model TeamInvite {
 }
 
 model TeamActivity {
-  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  teamId       String   @map("team_id") @db.Uuid
-  actorUserId  String?  @map("actor_user_id") @db.Uuid
-  eventType    String   @map("event_type")
-  targetType   String   @map("target_type")
-  targetId     String?  @map("target_id")
-  metadata     Json?
-  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  team         Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
-  actor        User?    @relation(fields: [actorUserId], references: [id], onDelete: SetNull)
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  teamId      String   @map("team_id") @db.Uuid
+  actorUserId String?  @map("actor_user_id") @db.Uuid
+  eventType   String   @map("event_type")
+  targetType  String   @map("target_type")
+  targetId    String?  @map("target_id")
+  metadata    Json?
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  team        Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  actor       User?    @relation(fields: [actorUserId], references: [id], onDelete: SetNull)
 
   @@index([teamId])
   @@index([teamId, createdAt(sort: Desc)])
@@ -402,21 +402,6 @@ model PasswordResetToken {
   @@index([tokenHash])
   @@index([expiresAt])
   @@map("password_reset_tokens")
-}
-
-model team_activity {
-  id            String   @id
-  team_id       String
-  actor_user_id String?
-  event_type    String
-  target_type   String
-  target_id     String?
-  metadata      Json?
-  created_at    DateTime @default(now()) @db.Timestamptz(6)
-
-  @@index([actor_user_id])
-  @@index([team_id, created_at(sort: Desc)])
-  @@index([team_id])
 }
 
 enum EvidenceType {

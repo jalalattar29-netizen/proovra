@@ -48,6 +48,7 @@ type CaseOption = {
   id: string;
   name: string;
   ownerUserId?: string;
+  teamId?: string | null;
 };
 
 export default function EvidenceDetailPage() {
@@ -149,10 +150,10 @@ export default function EvidenceDetailPage() {
         }
 
         if (casesRes.status === "fulfilled") {
-          const items = Array.isArray(casesRes.value?.items) ? casesRes.value.items : [];
+          const items = Array.isArray(casesRes.value?.items)
+            ? (casesRes.value.items as CaseOption[])
+            : [];
 
-          // Include all accessible cases: owned + shared + team cases
-          // (backend /v1/cases already filters to only user-accessible cases)
           setOwnedCases(items);
         } else {
           setOwnedCases([]);
@@ -160,7 +161,10 @@ export default function EvidenceDetailPage() {
       } catch (err) {
         const message = err instanceof Error ? err.message : "Failed to load evidence";
         setError(message);
-        captureException(err, { feature: "web_evidence_detail_load", evidenceId: params.id });
+        captureException(err, {
+          feature: "web_evidence_detail_load",
+          evidenceId: params.id
+        });
       } finally {
         if (!cancelled) {
           setLoading(false);
@@ -187,7 +191,10 @@ export default function EvidenceDetailPage() {
       setArchivedAt(data.evidence?.archivedAt ?? null);
       setCaseId(data.evidence?.caseId ?? null);
     } catch (err) {
-      captureException(err, { feature: "web_evidence_refresh", evidenceId: params.id });
+      captureException(err, {
+        feature: "web_evidence_refresh",
+        evidenceId: params.id
+      });
     }
   };
 
@@ -209,7 +216,10 @@ export default function EvidenceDetailPage() {
       addToast("Evidence permanently locked", "success");
       setLockModalOpen(false);
     } catch (err) {
-      captureException(err, { feature: "web_evidence_lock", evidenceId: params.id });
+      captureException(err, {
+        feature: "web_evidence_lock",
+        evidenceId: params.id
+      });
       const message = err instanceof Error ? err.message : "Failed to lock evidence";
       setError(message);
       addToast(message, "error");
@@ -235,7 +245,10 @@ export default function EvidenceDetailPage() {
         window.location.href = "/home";
       }, 500);
     } catch (err) {
-      captureException(err, { feature: "web_evidence_delete", evidenceId: params.id });
+      captureException(err, {
+        feature: "web_evidence_delete",
+        evidenceId: params.id
+      });
       const message = err instanceof Error ? err.message : "Failed to delete evidence";
       setError(message);
       addToast(message, "error");
@@ -262,7 +275,10 @@ export default function EvidenceDetailPage() {
       addToast("Evidence archived", "success");
       setArchiveModalOpen(false);
     } catch (err) {
-      captureException(err, { feature: "web_evidence_archive", evidenceId: params.id });
+      captureException(err, {
+        feature: "web_evidence_archive",
+        evidenceId: params.id
+      });
       const message = err instanceof Error ? err.message : "Failed to archive evidence";
       setError(message);
       addToast(message, "error");
@@ -284,7 +300,10 @@ export default function EvidenceDetailPage() {
       setArchivedAt(data.evidence?.archivedAt ?? null);
       addToast("Evidence restored", "success");
     } catch (err) {
-      captureException(err, { feature: "web_evidence_unarchive", evidenceId: params.id });
+      captureException(err, {
+        feature: "web_evidence_unarchive",
+        evidenceId: params.id
+      });
       const message = err instanceof Error ? err.message : "Failed to restore evidence";
       setError(message);
       addToast(message, "error");
@@ -304,7 +323,10 @@ export default function EvidenceDetailPage() {
       window.open(reportUrl, "_blank", "noopener,noreferrer");
       addToast("Report downloaded", "success");
     } catch (err) {
-      captureException(err, { feature: "web_evidence_download", evidenceId: params?.id });
+      captureException(err, {
+        feature: "web_evidence_download",
+        evidenceId: params?.id
+      });
       addToast("Failed to download report", "error");
     }
   };
@@ -350,7 +372,7 @@ export default function EvidenceDetailPage() {
 
   const handleOpenAssignCase = () => {
     if (ownedCases.length === 0) {
-      addToast("You do not have any cases you own yet", "info");
+      addToast("You do not have any accessible cases yet", "info");
       return;
     }
 
@@ -514,9 +536,9 @@ export default function EvidenceDetailPage() {
                     </div>
 
                     <div className="row">
-                      <div className="rowrowTitle evidence-meta-label">Case</div>
+                      <div className="rowTitle evidence-meta-label">Case</div>
                       <div className="rowSub" style={{ margin: 0 }}>
-                        {caseId ? `Attached to case` : "Not assigned to any case"}
+                        {caseId ? "Attached to case" : "Not assigned to any case"}
                       </div>
                     </div>
 
@@ -822,7 +844,7 @@ export default function EvidenceDetailPage() {
       >
         <div style={{ display: "grid", gap: 12 }}>
           <div style={{ fontSize: 14, color: "#cbd5e1", lineHeight: 1.6 }}>
-            Choose one of your own cases.
+            Choose one of your accessible cases.
           </div>
 
           <select
@@ -840,6 +862,7 @@ export default function EvidenceDetailPage() {
             {ownedCases.map((item) => (
               <option key={item.id} value={item.id}>
                 {item.name}
+                {item.teamId ? " (Team)" : " (Personal)"}
               </option>
             ))}
           </select>
@@ -872,19 +895,11 @@ export default function EvidenceDetailPage() {
         }
       >
         <div style={{ fontSize: 15, lineHeight: 1.6, color: "#e2e8f0" }}>
-          <p style={{ marginBottom: 16 }}>
-            Once locked:
-          </p>
+          <p style={{ marginBottom: 16 }}>Once locked:</p>
           <ul style={{ marginLeft: 20, marginBottom: 16, color: "#cbd5e1" }}>
-            <li style={{ marginBottom: 8 }}>
-              • The evidence cannot be edited
-            </li>
-            <li style={{ marginBottom: 8 }}>
-              • It cannot be deleted
-            </li>
-            <li>
-              • It becomes legally sealed
-            </li>
+            <li style={{ marginBottom: 8 }}>• The evidence cannot be edited</li>
+            <li style={{ marginBottom: 8 }}>• It cannot be deleted</li>
+            <li>• It becomes legally sealed</li>
           </ul>
           <p style={{ marginTop: 16, fontWeight: 600, color: "#f87171" }}>
             This action is irreversible.
