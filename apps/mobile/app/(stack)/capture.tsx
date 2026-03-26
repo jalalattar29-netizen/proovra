@@ -6,7 +6,7 @@ import {
   StyleSheet,
   Switch,
   Text,
-  View,
+  View
 } from "react-native";
 import { colors, spacing, typography } from "@proovra/ui";
 import { Badge, ListRow, Tabs } from "../../components/ui";
@@ -21,9 +21,11 @@ import { useRouter } from "expo-router";
 import {
   CameraView,
   useCameraPermissions,
-  useMicrophonePermissions,
+  useMicrophonePermissions
 } from "expo-camera";
 import { ensureFileUri, uploadWithPut } from "../../src/upload-utils";
+
+type CaptureKind = "PHOTO" | "VIDEO" | "DOCUMENT";
 
 type CapturedItem = {
   id: string;
@@ -35,15 +37,15 @@ type CapturedItem = {
   partIndex: number;
   uploadProgress: number;
   uploading: boolean;
+  uploaded: boolean;
   error?: string | null;
 };
 
-type PendingAsset = {
-  uri: string;
-  mimeType: string;
-  durationMs?: number;
-  sizeBytes?: number;
-  originalFilename?: string;
+type RecentEvidenceItem = {
+  id: string;
+  type: string;
+  status: string;
+  createdAt: string;
 };
 
 export default function CaptureScreen() {
@@ -52,599 +54,58 @@ export default function CaptureScreen() {
   const router = useRouter();
 
   const [activeIndex, setActiveIndex] = useState(0);
-  const typeMap = ["PHOTO", "VIDEO", "DOCUMENT"] as const;
+  const typeMap: CaptureKind[] = ["PHOTO", "VIDEO", "DOCUMENT"];
   const activeType = typeMap[activeIndex];
+
+  const [cameraOpen, setCameraOpen] = useState(false);
+  const [useLocation, setUseLocation] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [showSettingsLink, setShowSettingsLink] = useState(false);
+
+  const [error, setError] = useState<string | null>(null);
+  const [info, setInfo] = useState<string | null>(null);
+
+  const [recent, setRecent] = useState<RecentEvidenceItem[]>([]);
 
   const [sessionEvidenceId, setSessionEvidenceId] = useState<string | null>(null);
   const [sessionItems, setSessionItems] = useState<CapturedItem[]>([]);
   const [sessionCreatingEvidence, setSessionCreatingEvidence] = useState(false);
   const [sessionCompletingEvidence, setSessionCompletingEvidence] = useState(false);
-  const [sessionError, setSessionError] = useState<string | null>(null);
-  const [sessionInfo, setSessionInfo] = useState<string | null>(null);
+  const [uploadProgress, setUploadProgress] = useState(0);
 
-  const [asset, setAsset] = useState<PendingAsset | null>(null);
-
-  const [segments, setSegments] = useState<
-    Array<{
-      uri: string;
-      mimeType: string;
-      durationMs?: number;
-      sizeBytes?: number;
-      originalFilename?: string;
-    }>
-  >([]);
-  const [extendedMode, setExtendedMode] = useState(false);
-
-  const [cameraOpen, setCameraOpen] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [recordSeconds, setRecordSeconds] = useState(0);
 
-  const [busy, setBusy] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState(0);
+  const cameraRef = useRef<CameraView | null>(null);
+  const sessionEvidenceIdRef = useRef<string | null>(null);
+  const sessionItemsRef = useRef<CapturedItem[]>([]);
 
-  const [error, setError] = useState<string | null>(null);
-  const [info, setInfo] = useState<string | null>(null);
-  const [showSettingsLink, setShowSettingsLink] = useState(false);
-  const [useLocation, setUseLocation] = useState(false);
-
-  const [recent, setRecent] = useState<
-    Array<{ id: string; type: string; status: string; createdAt: string }>
-  >([]);
-
-  const cameraRef = useRef<CameraView>(null);
   const [cameraPermission, requestCameraPermission] = useCameraPermissions();
   const [micPermission, requestMicPermission] = useMicrophonePermissions();
 
-  const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+  const isSessionActive = Boolean(sessionEvidenceId) || sessionItems.length > 0;
 
-  const pollReport = async (evidenceId: string) => {
-    const delays = [2000, 3000, 5000, 8000, 12000, 15000, 15000, 15000];
+  const setSessionState = useCallback((items: CapturedItem[]) => {
+    sessionItemsRef.current = items;
+    setSessionItems(items);
+  }, []);
 
-    for (let attempt = 0; attempt < delays.length; attempt += 1) {
-      try {
-        await apiFetch(`/v1/evidence/${evidenceId}/report/latest`, { method: "GET" });
-        setInfo(null);
-        return;
-      } catch {
-        setInfo("Report still generating...");
-        await sleep(delays[attempt]);
-      }
-    }
-
-    setInfo("Report is still generating. Try again in a moment.");
-  };
-
-  const getFilename = (uri: string, fallback: string) => {
-    const name = uri.split("/").pop();
-    return name && name.length > 0 ? name : fallback;
-  };
-
-  const resetSingleAssetState = () => {
-    setAsset(null);
-    setError(null);
-    setInfo(null);
-  };
-
-  const resetSession = () => {
-    setSessionEvidenceId(null);
-    setSessionItems([]);
-    setSessionCreatingEvidence(false);
-    setSessionCompletingEvidence(false);
-    setSessionError(null);
-    setSessionInfo(null);
-  };
-
-  const addToSession = useCallback(
-    async (assetToAdd: PendingAsset | null) => {
-      if (!assetToAdd) return;
-
-      setSessionError(null);
-      setSessionInfo(null);
-
-      const itemId = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
-      const nextPartIndex = sessionItems.length;
-
-      try {
-        let evidenceId = sessionEvidenceId;
-
-        if (!evidenceId) {
-          setSessionCreatingEvidence(true);
-          setSessionInfo("Creating evidence record...");
-
-          let gps:
-            | {
-                lat: number;
-                lng: number;
-                accuracyMeters?: number;
-              }
-            | undefined;
-
-          if (useLocation) {
-            try {
-              const permission = await Location.requestForegroundPermissionsAsync();
-              if (permission.granted) {
-                const pos = await Location.getCurrentPositionAsync({
-                  accuracy: Location.Accuracy.Balanced,
-                });
-
-                gps = {
-                  lat: pos.coords.latitude,
-                  lng: pos.coords.longitude,
-                  accuracyMeters: pos.coords.accuracy ?? undefined,
-                };
-              } else {
-                addToast("Location permission denied, continuing without GPS", "warning");
-              }
-            } catch {
-              addToast("Could not get location, continuing without GPS", "warning");
-            }
-          }
-
-          const created = await apiFetch("/v1/evidence", {
-            method: "POST",
-            body: JSON.stringify({
-              type: activeType,
-              mimeType: assetToAdd.mimeType,
-              deviceTimeIso: new Date().toISOString(),
-              gps: gps ?? undefined,
-            }),
-          });
-
-          evidenceId = created.id as string;
-          setSessionEvidenceId(evidenceId);
-          addToast("Evidence session created", "success");
-        }
-
-        const newItem: CapturedItem = {
-          id: itemId,
-          uri: assetToAdd.uri,
-          mimeType: assetToAdd.mimeType,
-          durationMs: assetToAdd.durationMs,
-          sizeBytes: assetToAdd.sizeBytes,
-          originalFilename: assetToAdd.originalFilename,
-          partIndex: nextPartIndex,
-          uploadProgress: 0,
-          uploading: false,
-          error: null,
-        };
-
-        setSessionItems((prev) => [...prev, newItem]);
-        setSessionInfo(`${nextPartIndex + 1} item${nextPartIndex === 0 ? "" : "s"} in session`);
-        setAsset(null);
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : "Failed to add item to session";
-        setSessionError(msg);
-        addToast(msg, "error");
-      } finally {
-        setSessionCreatingEvidence(false);
-      }
-    },
-    [activeType, addToast, sessionEvidenceId, sessionItems.length, useLocation]
-  );
-
-  const removeFromSession = useCallback(
-    (itemId: string) => {
-      setSessionItems((prev) => {
-        const filtered = prev.filter((item) => item.id !== itemId);
-        return filtered.map((item, index) => ({
-          ...item,
-          partIndex: index,
-        }));
-      });
-
-      addToast("Item removed from session", "info");
-    },
-    [addToast]
-  );
-
-  const completeSession = useCallback(async () => {
-    if (!sessionEvidenceId || sessionItems.length === 0) {
-      setSessionError("No items in session");
-      addToast("No items in session", "error");
-      return;
-    }
-
-    setSessionCompletingEvidence(true);
-    setSessionError(null);
-    setSessionInfo(null);
-    setUploadProgress(0);
-
-    const completeEvidenceId = sessionEvidenceId;
-
+  const refreshRecent = useCallback(async () => {
     try {
-      let totalUploaded = 0;
-      const totalItems = sessionItems.length;
-
-      for (const item of sessionItems) {
-        const progressStart = Math.round((totalUploaded / totalItems) * 80);
-        setSessionInfo(`Uploading item ${totalUploaded + 1} of ${totalItems}...`);
-        setUploadProgress(progressStart);
-
-        setSessionItems((prev) =>
-          prev.map((row) =>
-            row.id === item.id ? { ...row, uploading: true, error: null } : row
-          )
-        );
-
-        try {
-          const part = await apiFetch(`/v1/evidence/${completeEvidenceId}/parts`, {
-            method: "POST",
-            body: JSON.stringify({
-              partIndex: item.partIndex,
-              mimeType: item.mimeType,
-              durationMs: item.durationMs ?? undefined,
-            }),
-          });
-
-          const fileUri = await ensureFileUri(item.uri);
-
-          await uploadWithPut({
-            putUrl: part.upload.putUrl,
-            uri: fileUri,
-            mimeType: item.mimeType,
-          });
-
-          totalUploaded += 1;
-
-          setSessionItems((prev) =>
-            prev.map((row) =>
-              row.id === item.id
-                ? { ...row, uploading: false, uploadProgress: 100, error: null }
-                : row
-            )
-          );
-        } catch (err) {
-          const msg =
-            err instanceof Error ? err.message : `Upload failed for item ${totalUploaded + 1}`;
-          setSessionItems((prev) =>
-            prev.map((row) =>
-              row.id === item.id ? { ...row, uploading: false, error: msg } : row
-            )
-          );
-          throw new Error(`${msg} (item ${totalUploaded + 1}/${totalItems})`);
-        }
-      }
-
-      setSessionInfo("Finalizing evidence...");
-      setUploadProgress(90);
-
-      await apiFetch(`/v1/evidence/${completeEvidenceId}/complete`, {
-        method: "POST",
-        body: JSON.stringify({
-          sizeBytes:
-            sessionItems.reduce((sum, item) => sum + (item.sizeBytes ?? 0), 0) || undefined,
-          durationMs:
-            sessionItems.reduce((sum, item) => sum + (item.durationMs ?? 0), 0) || undefined,
-        }),
-      });
-
-      setSessionInfo("Waiting for report generation...");
-      await pollReport(completeEvidenceId);
-
-      setUploadProgress(100);
-      addToast("Evidence session finalized successfully!", "success", 2000);
-
-      resetSession();
-      resetSingleAssetState();
-      setSegments([]);
-      setCameraOpen(false);
-
-      router.push(`/evidence/${completeEvidenceId}`);
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : "Failed to complete session";
-      setSessionError(msg);
-      addToast(msg, "error");
-    } finally {
-      setSessionCompletingEvidence(false);
-      setUploadProgress(0);
-      setSessionInfo(null);
+      const data = await apiFetch("/v1/evidence");
+      setRecent(Array.isArray(data?.items) ? data.items : []);
+    } catch {
+      setRecent([]);
     }
-  }, [addToast, router, sessionEvidenceId, sessionItems]);
+  }, []);
 
-  const handlePick = async () => {
-    setError(null);
-    setInfo(null);
-    setShowSettingsLink(false);
+  useEffect(() => {
+    refreshRecent();
+  }, [refreshRecent]);
 
-    try {
-      if (activeType === "DOCUMENT") {
-        addToast("Opening file picker...", "info");
-
-        const result = await DocumentPicker.getDocumentAsync({
-          copyToCacheDirectory: true,
-          type: "*/*",
-        });
-
-        if (!result.canceled && result.assets?.[0]) {
-          const file = result.assets[0];
-          const fileInfo = await FileSystem.getInfoAsync(file.uri);
-
-          const selectedAsset: PendingAsset = {
-            uri: file.uri,
-            mimeType: file.mimeType ?? "application/octet-stream",
-            sizeBytes: file.size ?? (fileInfo.exists ? fileInfo.size : undefined),
-            originalFilename: file.name ?? getFilename(file.uri, `document-${Date.now()}`),
-          };
-
-          setAsset(selectedAsset);
-          await addToSession(selectedAsset);
-        }
-
-        return;
-      }
-
-      const camGranted = cameraPermission?.granted ?? false;
-      const micGranted = micPermission?.granted ?? false;
-
-      if (!camGranted) {
-        const res = await requestCameraPermission();
-        if (!res.granted) {
-          setError("Camera permission denied");
-          addToast("Camera permission denied", "error");
-          setShowSettingsLink(true);
-          return;
-        }
-      }
-
-      if (activeType === "VIDEO" && !micGranted) {
-        const res = await requestMicPermission();
-        if (!res.granted) {
-          setError("Microphone permission denied");
-          addToast("Microphone permission denied", "error");
-          setShowSettingsLink(true);
-          return;
-        }
-      }
-
-      setCameraOpen(true);
-      addToast(`Opening ${activeType.toLowerCase()} camera...`, "info");
-    } catch (err) {
-      const errorMsg = err instanceof Error ? err.message : "Failed to open camera";
-      setError(errorMsg);
-      addToast(errorMsg, "error");
-    }
-  };
-
-  const handleTakePhoto = async () => {
-    if (!cameraRef.current || sessionCreatingEvidence || sessionCompletingEvidence) return;
-
-    setError(null);
-    setInfo(null);
-
-    try {
-      const result = await cameraRef.current.takePictureAsync({ quality: 0.9 });
-
-      if (result?.uri) {
-        const fileInfo = await FileSystem.getInfoAsync(result.uri);
-
-        const newAsset: PendingAsset = {
-          uri: result.uri,
-          mimeType: "image/jpeg",
-          sizeBytes: fileInfo.exists ? fileInfo.size : undefined,
-          originalFilename: getFilename(result.uri, `photo-${Date.now()}.jpg`),
-        };
-
-        setAsset(newAsset);
-        await addToSession(newAsset);
-        addToast("Photo added to session", "success");
-      }
-    } catch (err) {
-      const errorMsg = err instanceof Error ? err.message : "Failed to capture photo";
-      setError(errorMsg);
-      addToast(errorMsg, "error");
-    }
-  };
-
-  const handleStartRecording = async () => {
-    if (!cameraRef.current || sessionCreatingEvidence || sessionCompletingEvidence) return;
-
-    setError(null);
-    setInfo(null);
-    setIsRecording(true);
-    addToast("Recording started...", "info");
-
-    try {
-      const startedAt = Date.now();
-      const result = await cameraRef.current.recordAsync();
-      const typedResult = result as { uri?: string; duration?: number };
-
-      const durationMs =
-        typeof typedResult?.duration === "number"
-          ? Math.max(0, Math.round(typedResult.duration * 1000))
-          : Math.max(0, Date.now() - startedAt);
-
-      if (result?.uri) {
-        const fileInfo = await FileSystem.getInfoAsync(result.uri);
-
-        const nextAsset: PendingAsset = {
-          uri: result.uri,
-          mimeType: "video/mp4",
-          durationMs,
-          sizeBytes: fileInfo.exists ? fileInfo.size : undefined,
-          originalFilename: getFilename(result.uri, `video-${Date.now()}.mp4`),
-        };
-
-        if (extendedMode) {
-          setSegments((prev) => [...prev, nextAsset]);
-          addToast("Segment recorded successfully", "success");
-          setCameraOpen(false);
-        } else {
-          setAsset(nextAsset);
-          await addToSession(nextAsset);
-          addToast("Video added to session", "success");
-        }
-      }
-    } catch (err) {
-      const errorMsg = err instanceof Error ? err.message : "Failed to record video";
-      setError(errorMsg);
-      addToast(errorMsg, "error");
-    } finally {
-      setIsRecording(false);
-    }
-  };
-
-  const handleStopRecording = () => {
-    cameraRef.current?.stopRecording();
-  };
-
-  const handleCapture = async () => {
-    if (activeType === "VIDEO" && extendedMode) {
-      if (segments.length === 0) {
-        setError("Record at least one segment.");
-        addToast("Record at least one segment", "error");
-        return;
-      }
-
-      setBusy(true);
-      setUploadProgress(0);
-      setError(null);
-      setInfo(null);
-      addToast("Creating evidence record...", "info");
-
-      try {
-        let gps:
-          | {
-              lat: number;
-              lng: number;
-              accuracyMeters?: number;
-            }
-          | undefined;
-
-        const deviceTimeIso = new Date().toISOString();
-
-        if (useLocation) {
-          addToast("Requesting location...", "info");
-          const permission = await Location.requestForegroundPermissionsAsync();
-
-          if (!permission.granted) {
-            setError("Location permission denied");
-            addToast("Location permission denied", "error");
-            setBusy(false);
-            return;
-          }
-
-          const pos = await Location.getCurrentPositionAsync({
-            accuracy: Location.Accuracy.Balanced,
-          });
-
-          gps = {
-            lat: pos.coords.latitude,
-            lng: pos.coords.longitude,
-            accuracyMeters: pos.coords.accuracy ?? undefined,
-          };
-
-          addToast("Location captured", "success");
-        }
-
-        const MAX_ATTEMPTS = 2;
-
-        for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt += 1) {
-          try {
-            setUploadProgress(10);
-
-            const baseFilename = `video-${Date.now()}.mp4`;
-            const created = await apiFetch("/v1/evidence", {
-              method: "POST",
-              body: JSON.stringify({
-                type: activeType,
-                mimeType: "video/mp4",
-                deviceTimeIso,
-                gps,
-              }),
-            });
-
-            const segmentSizes: number[] = [];
-
-            for (let i = 0; i < segments.length; i += 1) {
-              const pct = 10 + Math.round(((i + 1) / Math.max(segments.length, 1)) * 70);
-              setUploadProgress(pct);
-
-              const seg = segments[i];
-              const segUri = await ensureFileUri(seg.uri);
-
-              if (!seg.sizeBytes) {
-                const info2 = await FileSystem.getInfoAsync(segUri);
-                segmentSizes.push(info2.exists ? info2.size ?? 0 : 0);
-              } else {
-                segmentSizes.push(seg.sizeBytes ?? 0);
-              }
-
-              const part = await apiFetch(`/v1/evidence/${created.id}/parts`, {
-                method: "POST",
-                body: JSON.stringify({
-                  partIndex: i,
-                  mimeType: seg.mimeType,
-                  durationMs: seg.durationMs,
-                }),
-              });
-
-              await uploadWithPut({
-                putUrl: part.upload.putUrl,
-                uri: segUri,
-                mimeType: seg.mimeType,
-              });
-            }
-
-            setUploadProgress(90);
-            addToast("Finalizing evidence...", "info");
-
-            await apiFetch(`/v1/evidence/${created.id}/complete`, {
-              method: "POST",
-              body: JSON.stringify({
-                sizeBytes: segmentSizes.reduce((sum, value) => sum + value, 0),
-                durationMs: segments.reduce((sum, seg) => sum + (seg.durationMs ?? 0), 0),
-              }),
-            });
-
-            await pollReport(created.id);
-
-            setUploadProgress(100);
-            addToast("Evidence captured successfully!", "success", 2000);
-            setSegments([]);
-            router.push(`/evidence/${created.id}`);
-            break;
-          } catch (err) {
-            if (attempt === MAX_ATTEMPTS) throw err;
-            addToast(`Upload failed, retrying (${attempt}/${MAX_ATTEMPTS})...`, "warning");
-          }
-        }
-      } catch (err) {
-        const baseMsg = err instanceof Error ? err.message : "Upload failed";
-        const reqId = (err as { requestId?: string }).requestId;
-
-        const msg =
-          reqId && typeof baseMsg === "string" && !baseMsg.includes("requestId:")
-            ? `${baseMsg} (requestId: ${reqId})`
-            : baseMsg;
-
-        setError(msg);
-        addToast(msg, "error");
-      } finally {
-        setBusy(false);
-        setUploadProgress(0);
-      }
-
-      return;
-    }
-
-    if (activeType === "DOCUMENT") {
-      if (!asset) {
-        setError("Please select a file first.");
-        addToast("Please select a file first", "error");
-        return;
-      }
-
-      await addToSession(asset);
-      return;
-    }
-
-    setCameraOpen(true);
-  };
-
-  const totalDuration = useMemo(() => {
-    if (segments.length === 0) return 0;
-    return segments.reduce((sum, seg) => sum + (seg.durationMs ?? 0), 0);
-  }, [segments]);
+  useEffect(() => {
+    sessionEvidenceIdRef.current = sessionEvidenceId;
+  }, [sessionEvidenceId]);
 
   useEffect(() => {
     if (!isRecording) {
@@ -652,40 +113,476 @@ export default function CaptureScreen() {
       return;
     }
 
-    const id = setInterval(() => {
-      setRecordSeconds((value) => value + 1);
+    const timer = setInterval(() => {
+      setRecordSeconds((prev) => prev + 1);
     }, 1000);
 
-    return () => clearInterval(id);
+    return () => clearInterval(timer);
   }, [isRecording]);
 
-  useEffect(() => {
-    apiFetch("/v1/evidence")
-      .then((data) => setRecent(data.items ?? []))
-      .catch(() => setRecent([]));
+  const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+  const pollReport = useCallback(async (evidenceId: string) => {
+    const delays = [2000, 3000, 5000, 8000, 12000, 15000, 15000];
+    for (let i = 0; i < delays.length; i += 1) {
+      try {
+        await apiFetch(`/v1/evidence/${evidenceId}/report/latest`, { method: "GET" });
+        setInfo(null);
+        return;
+      } catch {
+        setInfo("Report still generating...");
+        await sleep(delays[i]);
+      }
+    }
+    setInfo("Report is still generating. Try again shortly.");
   }, []);
 
-  const previewText = useMemo(() => {
-    if (activeType === "VIDEO" && extendedMode) {
-      return `Segments: ${segments.length} | Total ${(totalDuration / 1000 / 60).toFixed(1)} min`;
+  const getFilename = useCallback((uri: string, fallback: string) => {
+    const name = uri.split("/").pop();
+    return name && name.length > 0 ? name : fallback;
+  }, []);
+
+  const getGps = useCallback(async () => {
+    if (!useLocation) return undefined;
+
+    const permission = await Location.requestForegroundPermissionsAsync();
+    if (!permission.granted) {
+      addToast("Location permission denied. Continuing without GPS.", "warning");
+      return undefined;
     }
 
-    if (sessionItems.length > 0) {
-      return `${sessionItems.length} item${sessionItems.length === 1 ? "" : "s"} in session`;
+    try {
+      const pos = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.Balanced
+      });
+
+      return {
+        lat: pos.coords.latitude,
+        lng: pos.coords.longitude,
+        accuracyMeters: pos.coords.accuracy ?? undefined
+      };
+    } catch {
+      addToast("Could not get location. Continuing without GPS.", "warning");
+      return undefined;
+    }
+  }, [useLocation, addToast]);
+
+  const ensureSessionEvidence = useCallback(
+    async (firstMimeType: string) => {
+      if (sessionEvidenceIdRef.current) {
+        return sessionEvidenceIdRef.current;
+      }
+
+      setSessionCreatingEvidence(true);
+      setInfo("Creating evidence session...");
+
+      const gps = await getGps();
+
+      const created = await apiFetch("/v1/evidence", {
+        method: "POST",
+        body: JSON.stringify({
+          type: activeType,
+          mimeType: firstMimeType,
+          deviceTimeIso: new Date().toISOString(),
+          gps
+        })
+      });
+
+      const createdId = created?.id as string;
+      sessionEvidenceIdRef.current = createdId;
+      setSessionEvidenceId(createdId);
+      setSessionCreatingEvidence(false);
+      setInfo(null);
+
+      return createdId;
+    },
+    [activeType, getGps]
+  );
+
+  const addCapturedItemToSession = useCallback(
+    async (input: {
+      uri: string;
+      mimeType: string;
+      durationMs?: number;
+      sizeBytes?: number;
+      originalFilename?: string;
+    }) => {
+      setError(null);
+      setInfo(null);
+
+      try {
+        await ensureSessionEvidence(input.mimeType);
+
+        const nextItem: CapturedItem = {
+          id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+          uri: input.uri,
+          mimeType: input.mimeType,
+          durationMs: input.durationMs,
+          sizeBytes: input.sizeBytes,
+          originalFilename: input.originalFilename,
+          partIndex: sessionItemsRef.current.length,
+          uploadProgress: 0,
+          uploading: false,
+          uploaded: false,
+          error: null
+        };
+
+        const nextItems = [...sessionItemsRef.current, nextItem];
+        setSessionState(nextItems);
+
+        addToast(
+          `${nextItems.length} item${nextItems.length === 1 ? "" : "s"} added`,
+          "success"
+        );
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : "Failed to add item";
+        setError(msg);
+        addToast(msg, "error");
+        setSessionCreatingEvidence(false);
+        setInfo(null);
+      }
+    },
+    [ensureSessionEvidence, setSessionState, addToast]
+  );
+
+  const removeFromSession = useCallback(
+    (itemId: string) => {
+      if (sessionCompletingEvidence) return;
+
+      const filtered = sessionItemsRef.current
+        .filter((item) => item.id !== itemId)
+        .map((item, index) => ({
+          ...item,
+          partIndex: index
+        }));
+
+      setSessionState(filtered);
+
+      if (filtered.length === 0) {
+        sessionEvidenceIdRef.current = null;
+        setSessionEvidenceId(null);
+      }
+
+      addToast("Item removed", "info");
+    },
+    [sessionCompletingEvidence, setSessionState, addToast]
+  );
+
+  const discardSession = useCallback(() => {
+    if (sessionCompletingEvidence) return;
+    sessionEvidenceIdRef.current = null;
+    setSessionEvidenceId(null);
+    setSessionState([]);
+    setError(null);
+    setInfo(null);
+    setUploadProgress(0);
+    addToast("Session discarded", "info");
+  }, [sessionCompletingEvidence, setSessionState, addToast]);
+
+  const ensureCameraReady = useCallback(async () => {
+    setShowSettingsLink(false);
+
+    const camGranted = cameraPermission?.granted ?? false;
+    if (!camGranted) {
+      const res = await requestCameraPermission();
+      if (!res.granted) {
+        setError("Camera permission denied");
+        setShowSettingsLink(true);
+        addToast("Camera permission denied", "error");
+        return false;
+      }
     }
 
-    if (asset) {
-      return "Ready to add";
+    if (activeType === "VIDEO") {
+      const micGranted = micPermission?.granted ?? false;
+      if (!micGranted) {
+        const res = await requestMicPermission();
+        if (!res.granted) {
+          setError("Microphone permission denied");
+          setShowSettingsLink(true);
+          addToast("Microphone permission denied", "error");
+          return false;
+        }
+      }
     }
 
-    return "No file selected";
-  }, [activeType, asset, extendedMode, segments.length, sessionItems.length, totalDuration]);
+    return true;
+  }, [
+    activeType,
+    cameraPermission?.granted,
+    micPermission?.granted,
+    requestCameraPermission,
+    requestMicPermission,
+    addToast
+  ]);
+
+  const openPickerOrCamera = useCallback(async () => {
+    setError(null);
+    setInfo(null);
+
+    try {
+      if (activeType === "DOCUMENT") {
+        const result = await DocumentPicker.getDocumentAsync({
+          copyToCacheDirectory: true,
+          multiple: false,
+          type: "*/*"
+        });
+
+        if (result.canceled || !result.assets?.[0]) {
+          return;
+        }
+
+        const file = result.assets[0];
+        const fileInfo = await FileSystem.getInfoAsync(file.uri);
+
+        await addCapturedItemToSession({
+          uri: file.uri,
+          mimeType: file.mimeType ?? "application/octet-stream",
+          sizeBytes: file.size ?? (fileInfo.exists ? fileInfo.size : undefined),
+          originalFilename: file.name ?? getFilename(file.uri, `document-${Date.now()}`)
+        });
+
+        return;
+      }
+
+      const ready = await ensureCameraReady();
+      if (!ready) return;
+
+      setCameraOpen(true);
+      addToast(`${activeType.toLowerCase()} camera ready`, "info");
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Failed to open picker/camera";
+      setError(msg);
+      addToast(msg, "error");
+    }
+  }, [activeType, addCapturedItemToSession, ensureCameraReady, getFilename, addToast]);
+
+  const handleTakePhoto = useCallback(async () => {
+    if (!cameraRef.current || busy || sessionCompletingEvidence) return;
+
+    try {
+      setBusy(true);
+      setError(null);
+      setInfo("Capturing photo...");
+
+      const result = await cameraRef.current.takePictureAsync({
+        quality: 0.9
+      });
+
+      if (!result?.uri) {
+        setBusy(false);
+        setInfo(null);
+        return;
+      }
+
+      const fileInfo = await FileSystem.getInfoAsync(result.uri);
+
+      await addCapturedItemToSession({
+        uri: result.uri,
+        mimeType: "image/jpeg",
+        sizeBytes: fileInfo.exists ? fileInfo.size : undefined,
+        originalFilename: getFilename(result.uri, `photo-${Date.now()}.jpg`)
+      });
+
+      setInfo(null);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Failed to capture photo";
+      setError(msg);
+      addToast(msg, "error");
+    } finally {
+      setBusy(false);
+    }
+  }, [
+    busy,
+    sessionCompletingEvidence,
+    addCapturedItemToSession,
+    getFilename,
+    addToast
+  ]);
+
+  const handleStartRecording = useCallback(async () => {
+    if (!cameraRef.current || busy || sessionCompletingEvidence || isRecording) return;
+
+    try {
+      setError(null);
+      setInfo(null);
+      setIsRecording(true);
+      addToast("Recording started", "info");
+
+      const startedAt = Date.now();
+      const result = await cameraRef.current.recordAsync();
+      const recordResult = result as { uri?: string; duration?: number };
+
+      if (recordResult?.uri) {
+        const fileInfo = await FileSystem.getInfoAsync(recordResult.uri);
+        const durationMs =
+          typeof recordResult.duration === "number"
+            ? Math.max(0, Math.round(recordResult.duration * 1000))
+            : Math.max(0, Date.now() - startedAt);
+
+        await addCapturedItemToSession({
+          uri: recordResult.uri,
+          mimeType: "video/mp4",
+          durationMs,
+          sizeBytes: fileInfo.exists ? fileInfo.size : undefined,
+          originalFilename: getFilename(recordResult.uri, `video-${Date.now()}.mp4`)
+        });
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Failed to record video";
+      setError(msg);
+      addToast(msg, "error");
+    } finally {
+      setIsRecording(false);
+    }
+  }, [
+    busy,
+    sessionCompletingEvidence,
+    isRecording,
+    addCapturedItemToSession,
+    getFilename,
+    addToast
+  ]);
+
+  const handleStopRecording = useCallback(() => {
+    cameraRef.current?.stopRecording();
+  }, []);
+
+  const completeSession = useCallback(async () => {
+    const evidenceId = sessionEvidenceIdRef.current;
+    const items = sessionItemsRef.current;
+
+    if (!evidenceId || items.length === 0) {
+      setError("No items in session");
+      addToast("No items in session", "error");
+      return;
+    }
+
+    setSessionCompletingEvidence(true);
+    setBusy(true);
+    setError(null);
+    setInfo("Uploading session...");
+    setUploadProgress(0);
+
+    try {
+      for (let i = 0; i < items.length; i += 1) {
+        const item = items[i];
+
+        setSessionState(
+          sessionItemsRef.current.map((current) =>
+            current.id === item.id
+              ? { ...current, uploading: true, error: null, uploadProgress: 0 }
+              : current
+          )
+        );
+
+        const part = await apiFetch(`/v1/evidence/${evidenceId}/parts`, {
+          method: "POST",
+          body: JSON.stringify({
+            partIndex: item.partIndex,
+            mimeType: item.mimeType,
+            durationMs: item.durationMs ?? undefined
+          })
+        });
+
+        const fileUri = await ensureFileUri(item.uri);
+
+setSessionState(
+  sessionItemsRef.current.map((current) =>
+    current.id === item.id
+      ? { ...current, uploading: true, uploadProgress: 10 }
+      : current
+  )
+);
+
+await uploadWithPut({
+  putUrl: part.upload.putUrl,
+  uri: fileUri,
+  mimeType: item.mimeType
+});
+
+setSessionState(
+  sessionItemsRef.current.map((current) =>
+    current.id === item.id
+      ? { ...current, uploading: true, uploadProgress: 100 }
+      : current
+  )
+);
+        setSessionState(
+          sessionItemsRef.current.map((current) =>
+            current.id === item.id
+              ? { ...current, uploading: false, uploaded: true, uploadProgress: 100 }
+              : current
+          )
+        );
+
+        setUploadProgress(Math.round(((i + 1) / items.length) * 85));
+      }
+
+      setInfo("Finalizing evidence...");
+      setUploadProgress(92);
+
+      await apiFetch(`/v1/evidence/${evidenceId}/complete`, {
+        method: "POST",
+        body: JSON.stringify({
+          sizeBytes:
+            sessionItemsRef.current.reduce(
+              (sum, item) => sum + (item.sizeBytes ?? 0),
+              0
+            ) || undefined,
+          durationMs:
+            sessionItemsRef.current.reduce(
+              (sum, item) => sum + (item.durationMs ?? 0),
+              0
+            ) || undefined
+        })
+      });
+
+      setUploadProgress(96);
+      await pollReport(evidenceId);
+      setUploadProgress(100);
+
+      addToast("Evidence created successfully", "success", 2000);
+
+      sessionEvidenceIdRef.current = null;
+      setSessionEvidenceId(null);
+      setSessionState([]);
+      setInfo(null);
+      setError(null);
+      setBusy(false);
+      setSessionCompletingEvidence(false);
+      setUploadProgress(0);
+
+      await refreshRecent();
+      router.push(`/evidence/${evidenceId}`);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Failed to finish session";
+      setError(msg);
+      addToast(msg, "error");
+    } finally {
+      setBusy(false);
+      setSessionCompletingEvidence(false);
+    }
+  }, [addToast, pollReport, refreshRecent, router, setSessionState]);
+
+  const sessionCountLabel = useMemo(() => {
+    const count = sessionItems.length;
+    return `${count} item${count === 1 ? "" : "s"} added`;
+  }, [sessionItems.length]);
+
+  const totalDurationText = useMemo(() => {
+    const totalMs = sessionItems.reduce((sum, item) => sum + (item.durationMs ?? 0), 0);
+    if (!totalMs) return null;
+    return `${(totalMs / 1000).toFixed(1)}s total`;
+  }, [sessionItems]);
 
   return (
     <View style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.headerIcon}>‹</Text>
-        <Text style={[styles.headerTitle, { fontFamily: fontFamilyBold }]}>{t("capture")}</Text>
+        <Text style={[styles.headerTitle, { fontFamily: fontFamilyBold }]}>
+          {t("capture")}
+        </Text>
         <Text style={styles.headerIcon}>⋮</Text>
       </View>
 
@@ -694,265 +591,232 @@ export default function CaptureScreen() {
           items={[t("photo"), t("video"), t("document")]}
           activeIndex={activeIndex}
           onSelect={(index) => {
+            if (isSessionActive) {
+              addToast("Finish or discard the current session before changing type", "warning");
+              return;
+            }
+
             setActiveIndex(index);
-            setAsset(null);
-            setSegments([]);
-            setExtendedMode(false);
+            setCameraOpen(false);
             setError(null);
             setInfo(null);
+            setShowSettingsLink(false);
           }}
         />
 
-        {activeType === "VIDEO" ? (
-          <Pressable
-            style={[
-              styles.captureBar,
-              { backgroundColor: extendedMode ? colors.teal : colors.primaryNavy },
-            ]}
-            onPress={() => setExtendedMode((prev) => !prev)}
-          >
-            <Text style={styles.uploadText}>
-              {extendedMode
-                ? "Segmented mode ON (stop to add a segment)"
-                : "Segmented mode OFF"}
-            </Text>
-          </Pressable>
-        ) : null}
+        <View style={styles.toggleRow}>
+          <Text style={styles.toggleLabel}>Include location metadata</Text>
+          <Switch value={useLocation} onValueChange={setUseLocation} />
+        </View>
 
-        {cameraOpen ? (
+        {cameraOpen && activeType !== "DOCUMENT" ? (
           <View style={styles.cameraCard}>
-            <View style={styles.cameraPreviewWrap}>
+            <View>
               <CameraView ref={cameraRef} style={styles.cameraPreview} />
 
-              <View style={styles.counterOverlay}>
-                <Text style={styles.counterOverlayText}>
-                  {sessionItems.length} item{sessionItems.length === 1 ? "" : "s"} in session
+              <View style={styles.overlayTopLeft}>
+                <Text style={styles.overlayBadge}>
+                  Auto-add mode
                 </Text>
               </View>
 
-              {sessionItems.length > 0 ? (
-                <ScrollView
-                  horizontal
-                  showsHorizontalScrollIndicator={false}
-                  contentContainerStyle={styles.thumbnailStrip}
-                >
-                  {sessionItems.map((item) => (
-                    <View key={item.id} style={styles.thumbnailWrap}>
-                      {item.mimeType.startsWith("image/") ? (
-                        <Image source={{ uri: item.uri }} style={styles.thumbnail} />
-                      ) : (
-                        <View style={[styles.thumbnail, styles.thumbnailVideo]}>
-                          <Text style={styles.thumbnailVideoText}>VIDEO</Text>
-                        </View>
-                      )}
-                    </View>
-                  ))}
-                </ScrollView>
-              ) : null}
+              <View style={styles.overlayTopRight}>
+                <Text style={styles.counterBadge}>
+                  {sessionItems.length}
+                </Text>
+              </View>
             </View>
 
             <View style={styles.cameraControls}>
-              {activeType === "VIDEO" ? (
+              {activeType === "PHOTO" ? (
                 <>
-                  <Text style={styles.timerText}>
-                    {isRecording ? `Recording ${recordSeconds}s` : "Ready to record"}
-                  </Text>
-
-                  {isRecording && recordSeconds >= 1800 ? (
-                    <Text style={styles.warningText}>
-                      Recording for long durations may consume battery & storage.
-                    </Text>
-                  ) : null}
+                  <Text style={styles.timerText}>Take photos continuously. Each shot is added automatically.</Text>
 
                   <Pressable
-                    style={[
-                      styles.captureBar,
-                      {
-                        backgroundColor: isRecording ? "#ef4444" : colors.primaryNavy,
-                      },
-                    ]}
-                    onPress={isRecording ? handleStopRecording : handleStartRecording}
+                    style={[styles.captureBar, styles.primaryAction]}
+                    onPress={handleTakePhoto}
+                    disabled={busy || sessionCompletingEvidence || sessionCreatingEvidence}
                   >
                     <Text style={styles.uploadText}>
-                      {isRecording ? "Stop & Add" : "Record & Add"}
+                      {busy || sessionCreatingEvidence ? "Capturing..." : "Capture Photo"}
                     </Text>
                   </Pressable>
                 </>
               ) : (
-                <Pressable style={styles.captureBar} onPress={handleTakePhoto}>
-                  <Text style={styles.uploadText}>Capture & Add</Text>
-                </Pressable>
+                <>
+                  <Text style={styles.timerText}>
+                    {isRecording ? `Recording ${recordSeconds}s` : "Record video. It will be auto-added to the session."}
+                  </Text>
+
+                  <Pressable
+                    style={[
+                      styles.captureBar,
+                      isRecording ? styles.stopAction : styles.primaryAction
+                    ]}
+                    onPress={isRecording ? handleStopRecording : handleStartRecording}
+                    disabled={busy || sessionCompletingEvidence || sessionCreatingEvidence}
+                  >
+                    <Text style={styles.uploadText}>
+                      {isRecording ? "Stop Recording" : "Start Recording"}
+                    </Text>
+                  </Pressable>
+                </>
               )}
 
               <Pressable
                 style={[styles.captureBar, styles.secondaryBar]}
                 onPress={() => setCameraOpen(false)}
+                disabled={isRecording}
               >
-                <Text style={styles.secondaryText}>Done Capturing</Text>
+                <Text style={styles.secondaryText}>Close Camera</Text>
               </Pressable>
             </View>
           </View>
         ) : (
-          <>
-            <View style={styles.toggleRow}>
-              <Text style={styles.toggleLabel}>Include location metadata</Text>
-              <Switch value={useLocation} onValueChange={setUseLocation} />
-            </View>
+          <Pressable style={[styles.captureBar, styles.primaryAction]} onPress={openPickerOrCamera}>
+            <Text style={styles.uploadText}>
+              {activeType === "DOCUMENT" ? "Pick Document" : "Open Camera"}
+            </Text>
+          </Pressable>
+        )}
 
-            <View style={styles.preview}>
-              <Text style={styles.previewText}>{previewText}</Text>
+        <View style={styles.preview}>
+          <Text style={styles.previewText}>
+            {isSessionActive
+              ? `Session active • ${sessionCountLabel}${totalDurationText ? ` • ${totalDurationText}` : ""}`
+              : "No active capture session"}
+          </Text>
+        </View>
 
-              {sessionItems.length > 0 ? (
-                <ScrollView
-                  horizontal
-                  showsHorizontalScrollIndicator={false}
-                  contentContainerStyle={styles.previewThumbStrip}
-                >
-                  {sessionItems.map((item) => (
-                    <View key={item.id} style={styles.previewThumbWrap}>
-                      {item.mimeType.startsWith("image/") ? (
-                        <Image source={{ uri: item.uri }} style={styles.previewThumb} />
+        {sessionItems.length > 0 ? (
+          <View style={styles.sessionCard}>
+            <Text style={[styles.sessionTitle, { fontFamily: fontFamilyBold }]}>
+              Capture Session
+            </Text>
+
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.thumbStrip}>
+              {sessionItems.map((item, index) => {
+                const isImage = item.mimeType.startsWith("image/");
+                const isVideo = item.mimeType.startsWith("video/");
+
+                return (
+                  <View key={item.id} style={styles.thumbCard}>
+                    <View style={styles.thumbPreview}>
+                      {isImage ? (
+                        <Image source={{ uri: item.uri }} style={styles.thumbImage} />
                       ) : (
-                        <View style={[styles.previewThumb, styles.thumbnailVideo]}>
-                          <Text style={styles.thumbnailVideoText}>VIDEO</Text>
+                        <View style={styles.thumbFallback}>
+                          <Text style={styles.thumbFallbackText}>{isVideo ? "VIDEO" : "DOC"}</Text>
                         </View>
                       )}
-                    </View>
-                  ))}
-                </ScrollView>
-              ) : null}
-            </View>
 
-            <View style={styles.listCard}>
-              {recent.length === 0 ? (
-                <Text style={styles.previewText}>No evidence yet.</Text>
-              ) : (
-                recent.map((item) => (
-                  <ListRow
-                    key={item.id}
-                    title={item.type}
-                    subtitle={new Date(item.createdAt).toLocaleString()}
-                    badge={
-                      item.status === "SIGNED" ? (
-                        <Badge tone="signed" label={t("statusSigned")} />
-                      ) : item.status === "PROCESSING" ? (
-                        <Badge tone="processing" label={t("statusProcessing")} />
-                      ) : (
-                        <Badge tone="ready" label={t("statusReady")} />
-                      )
-                    }
-                  />
-                ))
-              )}
-            </View>
-
-            <Pressable style={styles.captureBar} onPress={handlePick}>
-              <View style={styles.captureCircle} />
-            </Pressable>
-
-            {sessionItems.length > 0 ? (
-              <>
-                <View style={styles.sessionCard}>
-                  <Text style={[styles.sessionTitle, { fontFamily: fontFamilyBold }]}>
-                    Capture Session ({sessionItems.length} item
-                    {sessionItems.length !== 1 ? "s" : ""})
-                  </Text>
-
-                  {sessionItems.map((item, index) => (
-                    <View key={item.id} style={styles.sessionItemRow}>
-                      <View style={styles.sessionItemLeft}>
-                        {item.mimeType.startsWith("image/") ? (
-                          <Image source={{ uri: item.uri }} style={styles.sessionThumb} />
-                        ) : (
-                          <View style={[styles.sessionThumb, styles.thumbnailVideo]}>
-                            <Text style={styles.thumbnailVideoText}>VIDEO</Text>
-                          </View>
-                        )}
-
-                        <View style={{ flex: 1 }}>
-                          <Text style={styles.sessionItemText}>
-                            {index + 1}. {item.originalFilename || `Item ${index + 1}`}
-                          </Text>
-
-                          {!!item.error && <Text style={styles.sessionItemError}>{item.error}</Text>}
-                        </View>
+                      <View style={styles.thumbIndexBadge}>
+                        <Text style={styles.thumbIndexText}>{index + 1}</Text>
                       </View>
-
-                      <Pressable
-                        onPress={() => removeFromSession(item.id)}
-                        disabled={sessionCompletingEvidence}
-                      >
-                        <Text style={styles.removeButton}>✕</Text>
-                      </Pressable>
                     </View>
-                  ))}
-                </View>
 
-                {activeType !== "DOCUMENT" ? (
-                  <Pressable
-                    style={[styles.captureBar, { backgroundColor: colors.primaryNavy }]}
-                    onPress={() => setCameraOpen(true)}
-                    disabled={sessionCreatingEvidence || sessionCompletingEvidence}
-                  >
-                    <Text style={styles.uploadText}>Open Camera</Text>
-                  </Pressable>
-                ) : (
-                  <Pressable
-                    style={[styles.captureBar, { backgroundColor: colors.primaryNavy }]}
-                    onPress={handlePick}
-                    disabled={sessionCreatingEvidence || sessionCompletingEvidence}
-                  >
-                    <Text style={styles.uploadText}>Add Another Document</Text>
-                  </Pressable>
-                )}
+                    <Text numberOfLines={1} style={styles.thumbLabel}>
+                      {item.originalFilename || `Item ${index + 1}`}
+                    </Text>
 
+                    {item.uploading ? (
+                      <Text style={styles.thumbMeta}>{item.uploadProgress}%</Text>
+                    ) : item.uploaded ? (
+                      <Text style={styles.thumbMeta}>Uploaded</Text>
+                    ) : (
+                      <Text style={styles.thumbMeta}>Ready</Text>
+                    )}
+
+                    <Pressable
+                      onPress={() => removeFromSession(item.id)}
+                      disabled={sessionCompletingEvidence}
+                      style={styles.removePill}
+                    >
+                      <Text style={styles.removePillText}>Remove</Text>
+                    </Pressable>
+                  </View>
+                );
+              })}
+            </ScrollView>
+
+            <View style={styles.sessionActions}>
+              {activeType === "DOCUMENT" ? (
                 <Pressable
-                  style={[styles.captureBar, { backgroundColor: "#10b981" }]}
-                  onPress={completeSession}
-                  disabled={sessionCompletingEvidence || sessionCreatingEvidence}
+                  style={[styles.captureBar, styles.secondaryBar, styles.sessionActionButton]}
+                  onPress={openPickerOrCamera}
+                  disabled={sessionCompletingEvidence}
                 >
-                  <Text style={styles.uploadText}>
-                    {sessionCompletingEvidence ? `Finalizing... ${uploadProgress}%` : "Finish & Sign"}
+                  <Text style={styles.secondaryText}>Add Another Document</Text>
+                </Pressable>
+              ) : !cameraOpen ? (
+                <Pressable
+                  style={[styles.captureBar, styles.secondaryBar, styles.sessionActionButton]}
+                  onPress={openPickerOrCamera}
+                  disabled={sessionCompletingEvidence}
+                >
+                  <Text style={styles.secondaryText}>
+                    {activeType === "PHOTO" ? "Open Camera for More Photos" : "Open Camera for More Videos"}
                   </Text>
                 </Pressable>
+              ) : null}
 
-                {sessionError ? <Text style={styles.errorText}>{sessionError}</Text> : null}
-                {sessionInfo ? <Text style={styles.infoText}>{sessionInfo}</Text> : null}
-              </>
-            ) : (
-              <>
-                <Pressable
-                  style={[styles.captureBar, { backgroundColor: colors.teal }]}
-                  onPress={handleCapture}
-                  disabled={busy || sessionCreatingEvidence}
-                >
-                  <Text style={styles.uploadText}>
-                    {activeType === "DOCUMENT"
-                      ? "Select & Add"
-                      : activeType === "VIDEO" && extendedMode
-                        ? busy
-                          ? `Uploading... ${uploadProgress}%`
-                          : "Upload & Sign"
-                        : "Start Capture Session"}
-                  </Text>
-                </Pressable>
+              <Pressable
+                style={[styles.captureBar, styles.finishAction, styles.sessionActionButton]}
+                onPress={completeSession}
+                disabled={sessionCompletingEvidence || sessionCreatingEvidence}
+              >
+                <Text style={styles.uploadText}>
+                  {sessionCompletingEvidence
+                    ? `Finishing... ${uploadProgress}%`
+                    : `Finish & Sign (${sessionItems.length})`}
+                </Text>
+              </Pressable>
 
-                {error ? <Text style={styles.errorText}>{error}</Text> : null}
+              <Pressable
+                style={[styles.captureBar, styles.dangerAction, styles.sessionActionButton]}
+                onPress={discardSession}
+                disabled={sessionCompletingEvidence}
+              >
+                <Text style={styles.uploadText}>Discard Session</Text>
+              </Pressable>
+            </View>
+          </View>
+        ) : null}
 
-                {showSettingsLink ? (
-                  <Pressable
-                    style={[styles.captureBar, styles.secondaryBar]}
-                    onPress={() => Linking.openSettings()}
-                  >
-                    <Text style={styles.secondaryText}>Open Settings</Text>
-                  </Pressable>
-                ) : null}
+        {error ? <Text style={styles.errorText}>{error}</Text> : null}
+        {info ? <Text style={styles.infoText}>{info}</Text> : null}
 
-                {info ? <Text style={styles.infoText}>{info}</Text> : null}
-              </>
-            )}
-          </>
-        )}
+        {showSettingsLink ? (
+          <Pressable
+            style={[styles.captureBar, styles.secondaryBar]}
+            onPress={() => Linking.openSettings()}
+          >
+            <Text style={styles.secondaryText}>Open Settings</Text>
+          </Pressable>
+        ) : null}
+
+        <View style={styles.listCard}>
+          {recent.length === 0 ? (
+            <Text style={styles.previewText}>No evidence yet.</Text>
+          ) : (
+            recent.map((item) => (
+              <ListRow
+                key={item.id}
+                title={item.type}
+                subtitle={new Date(item.createdAt).toLocaleString()}
+                badge={
+                  item.status === "SIGNED" ? (
+                    <Badge tone="signed" label={t("statusSigned")} />
+                  ) : item.status === "PROCESSING" ? (
+                    <Badge tone="processing" label={t("statusProcessing")} />
+                  ) : (
+                    <Badge tone="ready" label={t("statusReady")} />
+                  )
+                }
+              />
+            ))
+          )}
+        </View>
       </ScrollView>
     </View>
   );
@@ -961,144 +825,40 @@ export default function CaptureScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#050b18",
+    backgroundColor: "#050b18"
   },
   scroll: {
     paddingHorizontal: spacing.xl,
     paddingBottom: spacing.xl,
-    gap: spacing.md,
+    gap: spacing.md
   },
-
   header: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     paddingHorizontal: spacing.xl,
-    paddingTop: spacing.lg,
+    paddingTop: spacing.lg
   },
   headerTitle: {
     fontSize: typography.size.h3,
-    color: "rgba(245,251,255,0.96)",
+    color: "rgba(245,251,255,0.96)"
   },
   headerIcon: {
     fontSize: 18,
-    color: "rgba(219,235,248,0.70)",
+    color: "rgba(219,235,248,0.70)"
   },
-
   preview: {
-    minHeight: 180,
+    minHeight: 60,
     borderRadius: 18,
     backgroundColor: "rgba(7, 20, 38, 0.88)",
     borderWidth: 1,
     borderColor: "rgba(101,235,255,0.16)",
-    paddingBottom: spacing.md,
+    justifyContent: "center"
   },
-
   previewText: {
     color: "rgba(219,235,248,0.74)",
-    padding: spacing.md,
+    padding: spacing.md
   },
-
-  previewThumbStrip: {
-    paddingHorizontal: spacing.md,
-    gap: spacing.sm,
-  },
-  previewThumbWrap: {
-    borderRadius: 12,
-    overflow: "hidden",
-  },
-  previewThumb: {
-    width: 68,
-    height: 68,
-    borderRadius: 12,
-    backgroundColor: "rgba(255,255,255,0.08)",
-  },
-
-  cameraCard: {
-    backgroundColor: "rgba(7, 20, 38, 0.92)",
-    borderRadius: 18,
-    overflow: "hidden",
-    borderWidth: 1,
-    borderColor: "rgba(101,235,255,0.18)",
-  },
-  cameraPreviewWrap: {
-    position: "relative",
-  },
-  cameraPreview: {
-    height: 420,
-    width: "100%",
-  },
-  counterOverlay: {
-    position: "absolute",
-    top: 12,
-    left: 12,
-    backgroundColor: "rgba(5, 11, 24, 0.78)",
-    borderWidth: 1,
-    borderColor: "rgba(101,235,255,0.18)",
-    borderRadius: 999,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-  },
-  counterOverlayText: {
-    color: "rgba(245,251,255,0.94)",
-    fontSize: 12,
-    fontWeight: "700",
-  },
-  thumbnailStrip: {
-    position: "absolute",
-    left: 0,
-    right: 0,
-    bottom: 12,
-    paddingHorizontal: 12,
-    gap: 8,
-  },
-  thumbnailWrap: {
-    borderRadius: 12,
-    overflow: "hidden",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.18)",
-  },
-  thumbnail: {
-    width: 56,
-    height: 56,
-    backgroundColor: "rgba(255,255,255,0.10)",
-  },
-  thumbnailVideo: {
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "rgba(15,23,42,0.92)",
-  },
-  thumbnailVideoText: {
-    color: "rgba(245,251,255,0.90)",
-    fontSize: 10,
-    fontWeight: "800",
-  },
-
-  cameraControls: {
-    padding: spacing.md,
-    gap: spacing.sm,
-  },
-  timerText: {
-    color: "rgba(219,235,248,0.72)",
-    fontSize: 12,
-    textAlign: "center",
-  },
-  warningText: {
-    color: "rgba(245, 158, 11, 0.92)",
-    fontSize: 12,
-    textAlign: "center",
-  },
-
-  secondaryBar: {
-    backgroundColor: "rgba(6, 13, 31, 0.52)",
-    borderWidth: 1,
-    borderColor: "rgba(101,235,255,0.16)",
-  },
-  secondaryText: {
-    color: "rgba(245,251,255,0.92)",
-    fontWeight: "700",
-  },
-
   toggleRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -1108,101 +868,200 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
     borderWidth: 1,
-    borderColor: "rgba(101,235,255,0.16)",
+    borderColor: "rgba(101,235,255,0.16)"
   },
   toggleLabel: {
     color: "rgba(245,251,255,0.90)",
-    fontSize: 14,
+    fontSize: 14
   },
-
+  cameraCard: {
+    backgroundColor: "rgba(7, 20, 38, 0.92)",
+    borderRadius: 18,
+    overflow: "hidden",
+    borderWidth: 1,
+    borderColor: "rgba(101,235,255,0.18)"
+  },
+  cameraPreview: {
+    height: 380,
+    width: "100%"
+  },
+  overlayTopLeft: {
+    position: "absolute",
+    top: 12,
+    left: 12
+  },
+  overlayTopRight: {
+    position: "absolute",
+    top: 12,
+    right: 12
+  },
+  overlayBadge: {
+    backgroundColor: "rgba(6,13,31,0.78)",
+    color: "rgba(245,251,255,0.96)",
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+    fontSize: 12,
+    fontWeight: "700",
+    borderWidth: 1,
+    borderColor: "rgba(101,235,255,0.20)"
+  },
+  counterBadge: {
+    minWidth: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: "rgba(16,185,129,0.94)",
+    color: "#fff",
+    textAlign: "center",
+    textAlignVertical: "center",
+    fontSize: 14,
+    fontWeight: "800",
+    overflow: "hidden",
+    paddingTop: 7
+  },
+  cameraControls: {
+    padding: spacing.md,
+    gap: spacing.sm
+  },
+  timerText: {
+    color: "rgba(219,235,248,0.72)",
+    fontSize: 12,
+    textAlign: "center"
+  },
   listCard: {
     backgroundColor: "rgba(7, 20, 38, 0.88)",
     borderRadius: 18,
     padding: spacing.md,
     gap: spacing.md,
     borderWidth: 1,
-    borderColor: "rgba(101,235,255,0.16)",
+    borderColor: "rgba(101,235,255,0.16)"
   },
-
   captureBar: {
     marginTop: spacing.md,
     borderRadius: 18,
-    backgroundColor: "rgba(6, 13, 31, 0.62)",
     paddingVertical: spacing.md,
     alignItems: "center",
     borderWidth: 1,
-    borderColor: "rgba(101,235,255,0.18)",
+    borderColor: "rgba(101,235,255,0.18)"
   },
-  captureCircle: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
-    backgroundColor: "rgba(101,235,255,0.14)",
-    borderWidth: 1,
-    borderColor: "rgba(101,235,255,0.35)",
+  primaryAction: {
+    backgroundColor: colors.primaryNavy
+  },
+  finishAction: {
+    backgroundColor: "#10b981"
+  },
+  dangerAction: {
+    backgroundColor: "#b91c1c"
+  },
+  stopAction: {
+    backgroundColor: "#ef4444"
+  },
+  secondaryBar: {
+    backgroundColor: "rgba(6, 13, 31, 0.52)"
   },
   uploadText: {
     color: "rgba(245,251,255,0.92)",
-    fontWeight: "700",
+    fontWeight: "700"
   },
-
+  secondaryText: {
+    color: "rgba(245,251,255,0.92)",
+    fontWeight: "700"
+  },
   errorText: {
     color: "rgba(239, 68, 68, 0.95)",
-    paddingHorizontal: spacing.xl,
+    paddingHorizontal: spacing.xl
   },
   infoText: {
     color: "rgba(219,235,248,0.80)",
-    paddingHorizontal: spacing.xl,
+    paddingHorizontal: spacing.xl
   },
-
   sessionCard: {
     backgroundColor: "rgba(7, 20, 38, 0.88)",
     borderRadius: 18,
     padding: spacing.md,
     marginTop: spacing.md,
     borderWidth: 1,
-    borderColor: "rgba(101,235,255,0.16)",
+    borderColor: "rgba(101,235,255,0.16)"
   },
   sessionTitle: {
     color: "rgba(245,251,255,0.92)",
     fontSize: typography.size.h4,
-    marginBottom: spacing.sm,
+    marginBottom: spacing.sm
   },
-  sessionItemRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingVertical: spacing.sm,
-    borderBottomWidth: 1,
-    borderBottomColor: "rgba(101,235,255,0.08)",
-    gap: spacing.sm,
+  thumbStrip: {
+    gap: 12,
+    paddingVertical: 8
   },
-  sessionItemLeft: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.sm,
-    flex: 1,
+  thumbCard: {
+    width: 120,
+    backgroundColor: "rgba(6,13,31,0.48)",
+    borderRadius: 14,
+    padding: 8,
+    borderWidth: 1,
+    borderColor: "rgba(101,235,255,0.12)"
   },
-  sessionThumb: {
-    width: 44,
-    height: 44,
+  thumbPreview: {
+    width: "100%",
+    height: 90,
     borderRadius: 10,
-    backgroundColor: "rgba(255,255,255,0.08)",
     overflow: "hidden",
+    backgroundColor: "rgba(15,23,42,0.9)",
+    position: "relative"
   },
-  sessionItemText: {
-    color: "rgba(219,235,248,0.80)",
-    fontSize: 13,
+  thumbImage: {
+    width: "100%",
+    height: "100%"
+  },
+  thumbFallback: {
     flex: 1,
+    alignItems: "center",
+    justifyContent: "center"
   },
-  sessionItemError: {
-    color: "rgba(239, 68, 68, 0.95)",
+  thumbFallbackText: {
+    color: "rgba(245,251,255,0.92)",
+    fontWeight: "800",
+    fontSize: 12
+  },
+  thumbIndexBadge: {
+    position: "absolute",
+    top: 6,
+    right: 6,
+    backgroundColor: "rgba(6,13,31,0.82)",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 999
+  },
+  thumbIndexText: {
+    color: "#fff",
     fontSize: 11,
-    marginTop: 2,
+    fontWeight: "800"
   },
-  removeButton: {
-    color: "rgba(239, 68, 68, 0.95)",
-    fontSize: 18,
-    marginLeft: spacing.md,
+  thumbLabel: {
+    color: "rgba(245,251,255,0.92)",
+    marginTop: 8,
+    fontSize: 12
   },
+  thumbMeta: {
+    color: "rgba(148,163,184,0.96)",
+    marginTop: 4,
+    fontSize: 11
+  },
+  removePill: {
+    marginTop: 8,
+    backgroundColor: "rgba(127,29,29,0.9)",
+    paddingVertical: 6,
+    borderRadius: 999,
+    alignItems: "center"
+  },
+  removePillText: {
+    color: "#fff",
+    fontSize: 11,
+    fontWeight: "700"
+  },
+  sessionActions: {
+    marginTop: 8
+  },
+  sessionActionButton: {
+    marginTop: 10
+  }
 });
