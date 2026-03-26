@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button, Card, useToast } from "../../../components/ui";
 import { useLocale } from "../../providers";
@@ -11,13 +11,22 @@ type EvidenceType = "PHOTO" | "VIDEO" | "DOCUMENT";
 type CameraMode = "PHOTO" | "VIDEO" | null;
 type FacingMode = "user" | "environment";
 
+type SessionItem = {
+  id: string;
+  file: File;
+  previewUrl: string | null;
+  mimeType: string;
+  uploadProgress: number;
+  uploading: boolean;
+  error?: string | null;
+};
+
 export default function CapturePage() {
   const { t } = useLocale();
   const router = useRouter();
   const { addToast } = useToast();
 
   const [type, setType] = useState<EvidenceType>("PHOTO");
-  const [file, setFile] = useState<File | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [useLocation, setUseLocation] = useState(false);
@@ -27,20 +36,32 @@ export default function CapturePage() {
   const [cameraMode, setCameraMode] = useState<CameraMode>(null);
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [isRecording, setIsRecording] = useState(false);
-  const [recordedVideoUrl, setRecordedVideoUrl] = useState<string | null>(null);
-  const [capturedImageUrl, setCapturedImageUrl] = useState<string | null>(null);
   const [facingMode, setFacingMode] = useState<FacingMode>("environment");
   const [cameraStarting, setCameraStarting] = useState(false);
   const [recordingSeconds, setRecordingSeconds] = useState(0);
   const [flashEnabled, setFlashEnabled] = useState(false);
+
+  const [sessionEvidenceId, setSessionEvidenceId] = useState<string | null>(null);
+  const [sessionItems, setSessionItems] = useState<SessionItem[]>([]);
+  const [sessionInfo, setSessionInfo] = useState<string | null>(null);
+  const [sessionCreating, setSessionCreating] = useState(false);
+  const [locationPermissionDenied, setLocationPermissionDenied] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const videoPreviewRef = useRef<HTMLVideoElement | null>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const recordedChunksRef = useRef<Blob[]>([]);
-  const recordedObjectUrlRef = useRef<string | null>(null);
-  const capturedImageObjectUrlRef = useRef<string | null>(null);
+  const sessionItemsRef = useRef<SessionItem[]>([]);
+  const sessionEvidenceIdRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    sessionItemsRef.current = sessionItems;
+  }, [sessionItems]);
+
+  useEffect(() => {
+    sessionEvidenceIdRef.current = sessionEvidenceId;
+  }, [sessionEvidenceId]);
 
   const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -61,27 +82,6 @@ export default function CapturePage() {
       .padStart(2, "0");
     const secs = (seconds % 60).toString().padStart(2, "0");
     return `${mins}:${secs}`;
-  };
-
-  const clearRecordedPreview = () => {
-    if (recordedObjectUrlRef.current) {
-      URL.revokeObjectURL(recordedObjectUrlRef.current);
-      recordedObjectUrlRef.current = null;
-    }
-    setRecordedVideoUrl(null);
-  };
-
-  const clearCapturedImagePreview = () => {
-    if (capturedImageObjectUrlRef.current) {
-      URL.revokeObjectURL(capturedImageObjectUrlRef.current);
-      capturedImageObjectUrlRef.current = null;
-    }
-    setCapturedImageUrl(null);
-  };
-
-  const clearAllGeneratedPreviews = () => {
-    clearRecordedPreview();
-    clearCapturedImagePreview();
   };
 
   const stopMediaStream = () => {
@@ -116,6 +116,16 @@ export default function CapturePage() {
     }
   };
 
+  const revokeItemPreview = (item: SessionItem) => {
+    if (item.previewUrl) {
+      URL.revokeObjectURL(item.previewUrl);
+    }
+  };
+
+  const revokeAllPreviews = () => {
+    sessionItemsRef.current.forEach(revokeItemPreview);
+  };
+
   const closeCamera = () => {
     const recorder = mediaRecorderRef.current;
     if (recorder && recorder.state !== "inactive") {
@@ -148,7 +158,7 @@ export default function CapturePage() {
   useEffect(() => {
     return () => {
       stopMediaStream();
-      clearAllGeneratedPreviews();
+      revokeAllPreviews();
       if (typeof document !== "undefined") {
         document.body.classList.remove("camera-open");
       }
@@ -181,6 +191,229 @@ export default function CapturePage() {
 
     return () => window.clearInterval(timer);
   }, [isRecording]);
+
+  const createEvidenceSessionIfNeeded = async (firstFile: File) => {
+    if (sessionEvidenceIdRef.current) {
+      return sessionEvidenceIdRef.current;
+    }
+
+    setSessionCreating(true);
+    setSessionInfo("Creating evidence session...");
+    setError(null);
+
+    try {
+      const deviceTimeIso = new Date().toISOString();
+      let gps: { lat: number; lng: number; accuracyMeters?: number } | undefined;
+
+      if (useLocation && typeof navigator !== "undefined" && navigator.geolocation) {
+        try {
+          gps = await new Promise<{ lat: number; lng: number; accuracyMeters?: number }>(
+            (resolve, reject) => {
+              navigator.geolocation.getCurrentPosition(
+                (pos) =>
+                  resolve({
+                    lat: pos.coords.latitude,
+                    lng: pos.coords.longitude,
+                    accuracyMeters: pos.coords.accuracy,
+                  }),
+                (geoErr) => reject(geoErr),
+                { enableHighAccuracy: true, timeout: 8000 }
+              );
+            }
+          );
+          setLocationPermissionDenied(false);
+        } catch {
+          setLocationPermissionDenied(true);
+          addToast("Location unavailable. Continuing without GPS.", "warning");
+        }
+      }
+
+      const created = await apiFetch("/v1/evidence", {
+        method: "POST",
+        body: JSON.stringify({
+          type,
+          mimeType: firstFile.type || "application/octet-stream",
+          deviceTimeIso,
+          gps,
+        }),
+      });
+
+      setSessionEvidenceId(created.id);
+      setSessionInfo(null);
+      addToast("Evidence session created", "success");
+      return created.id as string;
+    } finally {
+      setSessionCreating(false);
+    }
+  };
+
+  const addFilesToSession = async (files: File[]) => {
+    if (!files.length) return;
+
+    setError(null);
+    setSessionInfo(null);
+
+    try {
+      await createEvidenceSessionIfNeeded(files[0]);
+
+      const nextItems: SessionItem[] = files.map((nextFile) => ({
+        id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+        file: nextFile,
+        previewUrl:
+          nextFile.type.startsWith("image/") || nextFile.type.startsWith("video/")
+            ? URL.createObjectURL(nextFile)
+            : null,
+        mimeType: nextFile.type || "application/octet-stream",
+        uploadProgress: 0,
+        uploading: false,
+        error: null,
+      }));
+
+      setSessionItems((prev) => [...prev, ...nextItems]);
+      addToast(
+        `${files.length} item${files.length > 1 ? "s" : ""} added to session`,
+        "success"
+      );
+    } catch (err) {
+      captureException(err, { feature: "web_capture_add_to_session", type });
+      const message = err instanceof Error ? err.message : "Failed to add items to session";
+      setError(message);
+      addToast(message, "error");
+    }
+  };
+
+  const removeSessionItem = (itemId: string) => {
+    setSessionItems((prev) => {
+      const found = prev.find((item) => item.id === itemId);
+      if (found) revokeItemPreview(found);
+      return prev.filter((item) => item.id !== itemId);
+    });
+    addToast("Item removed from session", "info");
+  };
+
+  const resetCaptureState = () => {
+    revokeAllPreviews();
+    setSessionEvidenceId(null);
+    setSessionItems([]);
+    setSessionInfo(null);
+    setProgress(0);
+    setError(null);
+    setBusy(false);
+  };
+
+  const finalizeSession = async () => {
+    const evidenceId = sessionEvidenceIdRef.current;
+    const items = sessionItemsRef.current;
+
+    if (!evidenceId || items.length === 0) {
+      addToast("No items in session", "error");
+      return;
+    }
+
+    setBusy(true);
+    setError(null);
+    setSessionInfo("Uploading session...");
+    setProgress(0);
+
+    try {
+      for (let index = 0; index < items.length; index += 1) {
+        const item = items[index];
+
+        setSessionItems((prev) =>
+          prev.map((current) =>
+            current.id === item.id
+              ? { ...current, uploading: true, uploadProgress: 1, error: null }
+              : current
+          )
+        );
+
+        const part = await apiFetch(`/v1/evidence/${evidenceId}/parts`, {
+          method: "POST",
+          body: JSON.stringify({
+            partIndex: index,
+            mimeType: item.mimeType,
+          }),
+        });
+
+        await new Promise<void>((resolve, reject) => {
+          const xhr = new XMLHttpRequest();
+
+          xhr.upload.onprogress = (event) => {
+            if (!event.lengthComputable) return;
+
+            const itemPct = Math.max(1, Math.min(100, Math.round((event.loaded / event.total) * 100)));
+
+            setSessionItems((prev) =>
+              prev.map((current) =>
+                current.id === item.id
+                  ? { ...current, uploading: true, uploadProgress: itemPct, error: null }
+                  : current
+              )
+            );
+
+            const overall = Math.round(((index + event.loaded / event.total) / items.length) * 90);
+            setProgress(Math.max(1, Math.min(90, overall)));
+          };
+
+          xhr.onerror = () => reject(new Error("Upload failed"));
+          xhr.onload = () => {
+            if (xhr.status === 0 || (xhr.status >= 200 && xhr.status < 300)) {
+              resolve();
+            } else {
+              reject(new Error(`Upload failed (${xhr.status})`));
+            }
+          };
+
+          xhr.open("PUT", part.upload.putUrl);
+          xhr.setRequestHeader("content-type", item.mimeType || "application/octet-stream");
+          xhr.send(item.file);
+        });
+
+        setSessionItems((prev) =>
+          prev.map((current) =>
+            current.id === item.id
+              ? { ...current, uploading: false, uploadProgress: 100, error: null }
+              : current
+          )
+        );
+      }
+
+      setSessionInfo("Finalizing evidence...");
+      setProgress(95);
+
+      await apiFetch(`/v1/evidence/${evidenceId}/complete`, {
+        method: "POST",
+        body: JSON.stringify({}),
+      });
+
+      await pollReport(evidenceId);
+
+      setProgress(100);
+      addToast("Evidence captured successfully!", "success");
+
+      resetCaptureState();
+      router.push(`/evidence/${evidenceId}`);
+    } catch (err) {
+      captureException(err, {
+        feature: "web_capture_finalize_session",
+        evidenceId,
+        itemCount: items.length,
+      });
+
+      const baseMsg = err instanceof Error ? err.message : "Capture failed";
+      const reqId = (err as { requestId?: string }).requestId;
+      const msg =
+        reqId && typeof baseMsg === "string" && !baseMsg.includes("requestId:")
+          ? `${baseMsg} (requestId: ${reqId})`
+          : baseMsg;
+
+      setError(msg);
+      addToast(msg, "error");
+    } finally {
+      setBusy(false);
+      setSessionInfo(null);
+    }
+  };
 
   const openFilePicker = () => {
     fileInputRef.current?.click();
@@ -235,7 +468,6 @@ export default function CapturePage() {
     setCameraError(null);
     setIsRecording(false);
     setRecordingSeconds(0);
-    clearAllGeneratedPreviews();
     await startCameraStream(mode, facingMode);
   };
 
@@ -290,14 +522,8 @@ export default function CapturePage() {
       lastModified: Date.now(),
     });
 
-    clearCapturedImagePreview();
-    const objectUrl = URL.createObjectURL(blob);
-    capturedImageObjectUrlRef.current = objectUrl;
-    setCapturedImageUrl(objectUrl);
-
-    setFile(capturedFile);
-    addToast("Photo captured successfully", "success");
-    closeCamera();
+    await addFilesToSession([capturedFile]);
+    addToast("Photo captured and added", "success");
   };
 
   const startVideoRecording = () => {
@@ -334,7 +560,7 @@ export default function CapturePage() {
         }
       };
 
-      recorder.onstop = () => {
+      recorder.onstop = async () => {
         const finalMimeType = recorder.mimeType || "video/webm";
         const blob = new Blob(recordedChunksRef.current, { type: finalMimeType });
 
@@ -349,16 +575,9 @@ export default function CapturePage() {
           lastModified: Date.now(),
         });
 
-        setFile(recordedFile);
-
-        clearRecordedPreview();
-        const objectUrl = URL.createObjectURL(blob);
-        recordedObjectUrlRef.current = objectUrl;
-        setRecordedVideoUrl(objectUrl);
-
-        addToast("Video recorded successfully", "success");
+        await addFilesToSession([recordedFile]);
+        addToast("Video recorded and added", "success");
         setIsRecording(false);
-        closeCamera();
       };
 
       mediaRecorderRef.current = recorder;
@@ -379,138 +598,28 @@ export default function CapturePage() {
     addToast("Finishing video recording...", "info");
   };
 
-  const handleRetake = async () => {
-    setFile(null);
-    setError(null);
-    clearAllGeneratedPreviews();
+  const handleDroppedFiles = async (fileList: FileList | null) => {
+    const files = Array.from(fileList ?? []);
+    if (!files.length) return;
 
-    if (type === "DOCUMENT") {
-      openFilePicker();
+    const filtered = files.filter((nextFile) => {
+      if (type === "PHOTO") return nextFile.type.startsWith("image/");
+      if (type === "VIDEO") return nextFile.type.startsWith("video/");
+      return true;
+    });
+
+    if (!filtered.length) {
+      addToast("No matching files for the selected capture type", "warning");
       return;
     }
 
-    await openCamera(type === "PHOTO" ? "PHOTO" : "VIDEO");
+    await addFilesToSession(filtered);
   };
 
-  const handleCapture = async () => {
-    setError(null);
-
-    if (!file) {
-      addToast("Please select, capture, or record a file first", "error");
-      return;
-    }
-
-    setBusy(true);
-
-    const MAX_ATTEMPTS = 2;
-
-    try {
-      for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt += 1) {
-        try {
-          addToast("Creating evidence record...", "info");
-
-          const mimeType = file.type || "application/octet-stream";
-          const deviceTimeIso = new Date().toISOString();
-          let gps: { lat: number; lng: number; accuracyMeters?: number } | undefined;
-
-          if (useLocation && typeof navigator !== "undefined" && navigator.geolocation) {
-            addToast("Requesting location...", "info");
-            gps = await new Promise((resolve, reject) => {
-              navigator.geolocation.getCurrentPosition(
-                (pos) =>
-                  resolve({
-                    lat: pos.coords.latitude,
-                    lng: pos.coords.longitude,
-                    accuracyMeters: pos.coords.accuracy,
-                  }),
-                (err) => reject(err),
-                { enableHighAccuracy: true, timeout: 8000 }
-              );
-            });
-          }
-
-          const data = await apiFetch("/v1/evidence", {
-            method: "POST",
-            body: JSON.stringify({ type, mimeType, deviceTimeIso, gps }),
-          });
-
-          addToast("Uploading file...", "info");
-          setProgress(0);
-
-          await new Promise<void>((resolve, reject) => {
-            const xhr = new XMLHttpRequest();
-
-            xhr.upload.onprogress = (event) => {
-              if (event.lengthComputable) {
-                setProgress(Math.round((event.loaded / event.total) * 100));
-              }
-            };
-
-            xhr.onerror = () => reject(new Error("Upload failed"));
-
-            xhr.onload = () => {
-              if (xhr.status === 0 || (xhr.status >= 200 && xhr.status < 300)) {
-                resolve();
-              } else {
-                reject(new Error(`Upload failed (${xhr.status})`));
-              }
-            };
-
-            xhr.open("PUT", data.upload.putUrl);
-            xhr.setRequestHeader("content-type", file.type || "application/octet-stream");
-            xhr.send(file);
-          });
-
-          addToast("Finalizing evidence...", "info");
-          await apiFetch(`/v1/evidence/${data.id}/complete`, { method: "POST", body: "{}" });
-
-          await pollReport(data.id);
-          addToast("Evidence captured successfully!", "success");
-          router.push(`/evidence/${data.id}`);
-          return;
-        } catch (err) {
-          if (attempt === MAX_ATTEMPTS) throw err;
-          addToast(`Upload failed, retrying (${attempt}/${MAX_ATTEMPTS})...`, "warning");
-        }
-      }
-    } catch (err) {
-      captureException(err, { feature: "web_capture" });
-
-      const baseMsg = err instanceof Error ? err.message : "Capture failed";
-      const reqId = (err as { requestId?: string }).requestId;
-
-      const msg =
-        reqId && typeof baseMsg === "string" && !baseMsg.includes("requestId:")
-          ? `${baseMsg} (requestId: ${reqId})`
-          : baseMsg;
-
-      setError(msg);
-      addToast(msg, "error");
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const uploadLabel =
-    type === "PHOTO"
-      ? "Upload Photo"
-      : type === "VIDEO"
-        ? "Upload Video"
-        : "Upload Document";
-
-  const cameraLabel =
-    type === "PHOTO"
-      ? "Use Camera"
-      : type === "VIDEO"
-        ? "Record Video"
-        : null;
-
-  const cameraTitle =
-    cameraMode === "PHOTO"
-      ? "Photo Camera"
-      : cameraMode === "VIDEO"
-        ? "Video Recorder"
-        : "Camera";
+  const sessionCountLabel = useMemo(() => {
+    const count = sessionItems.length;
+    return `${count} item${count === 1 ? "" : "s"} added`;
+  }, [sessionItems.length]);
 
   return (
     <div className="section app-section">
@@ -522,8 +631,20 @@ export default function CapturePage() {
                 {t("capture")}
               </h1>
               <p className="page-subtitle pricing-subtitle" style={{ marginTop: 6 }}>
-                Upload, capture, or record evidence and generate a signed report.
+                Capture multiple photos, videos, or files into one signed evidence session.
               </p>
+            </div>
+
+            <div
+              style={{
+                display: "flex",
+                gap: 8,
+                flexWrap: "wrap",
+                justifyContent: "flex-end",
+              }}
+            >
+              <span className="badge ready">{sessionCountLabel}</span>
+              {sessionEvidenceId ? <span className="badge processing">Session active</span> : null}
             </div>
           </div>
         </div>
@@ -545,10 +666,8 @@ export default function CapturePage() {
                     className={`pill-button ${type === item.value ? "active" : ""}`}
                     onClick={() => {
                       setType(item.value);
-                      setFile(null);
                       setError(null);
                       setCameraError(null);
-                      clearAllGeneratedPreviews();
                       closeCamera();
                       if (fileInputRef.current) {
                         fileInputRef.current.value = "";
@@ -562,7 +681,8 @@ export default function CapturePage() {
 
               <input
                 type="file"
-                aria-label="Upload evidence file"
+                aria-label="Upload evidence files"
+                multiple
                 accept={
                   type === "PHOTO"
                     ? "image/*"
@@ -570,28 +690,32 @@ export default function CapturePage() {
                       ? "video/*"
                       : "application/pdf,.pdf,.doc,.docx,.txt,.rtf"
                 }
-                onChange={(event) => {
-                  const nextFile = event.target.files?.[0] ?? null;
-                  setFile(nextFile);
-                  setError(null);
-                  clearAllGeneratedPreviews();
+                onChange={async (event) => {
+                  await handleDroppedFiles(event.target.files);
+                  if (fileInputRef.current) {
+                    fileInputRef.current.value = "";
+                  }
                 }}
                 ref={fileInputRef}
                 style={{ display: "none" }}
               />
 
               <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-                <Button variant="secondary" onClick={openFilePicker} disabled={busy}>
-                  {uploadLabel}
+                <Button variant="secondary" onClick={openFilePicker} disabled={busy || sessionCreating}>
+                  {type === "PHOTO"
+                    ? "Add Photos"
+                    : type === "VIDEO"
+                      ? "Add Videos"
+                      : "Add Documents"}
                 </Button>
 
-                {cameraLabel ? (
+                {type !== "DOCUMENT" ? (
                   <Button
                     variant="secondary"
                     onClick={() => openCamera(type === "PHOTO" ? "PHOTO" : "VIDEO")}
-                    disabled={busy}
+                    disabled={busy || sessionCreating}
                   >
-                    {cameraLabel}
+                    {type === "PHOTO" ? "Open Camera" : "Open Video Recorder"}
                   </Button>
                 ) : null}
               </div>
@@ -599,80 +723,255 @@ export default function CapturePage() {
               <div
                 className="drop-zone"
                 onDragOver={(event) => event.preventDefault()}
-                onDrop={(event) => {
+                onDrop={async (event) => {
                   event.preventDefault();
-                  const dropped = event.dataTransfer.files?.[0] ?? null;
-                  if (dropped) {
-                    setFile(dropped);
-                    setError(null);
-                    clearAllGeneratedPreviews();
-                  }
+                  await handleDroppedFiles(event.dataTransfer.files);
                 }}
                 onClick={openFilePicker}
               >
-                {file ? (
-                  <div>
-                    <div style={{ fontWeight: 600 }}>{file.name}</div>
-                    <div className="drop-meta">
-                      {(file.size / 1024 / 1024).toFixed(2)} MB
-                    </div>
-                  </div>
-                ) : (
-                  <div className="drop-hint">
-                    Drag &amp; drop or click to select {type === "DOCUMENT" ? "a document" : "a file"}
-                  </div>
-                )}
+                <div className="drop-hint">
+                  Drag &amp; drop or click to add{" "}
+                  {type === "PHOTO"
+                    ? "photos"
+                    : type === "VIDEO"
+                      ? "videos"
+                      : "documents"}{" "}
+                  to this evidence session
+                </div>
               </div>
-
-              {capturedImageUrl && type === "PHOTO" ? (
-                <div className="capture-preview-card">
-                  <div className="capture-preview-title">Captured photo preview</div>
-                  <img
-                    src={capturedImageUrl}
-                    alt="Captured evidence preview"
-                    className="capture-preview-image"
-                  />
-                  <div className="capture-preview-actions">
-                    <Button variant="secondary" onClick={handleRetake} disabled={busy}>
-                      Retake
-                    </Button>
-                  </div>
-                </div>
-              ) : null}
-
-              {recordedVideoUrl && type === "VIDEO" ? (
-                <div className="capture-preview-card">
-                  <div className="capture-preview-title">Recorded video preview</div>
-                  <video
-                    src={recordedVideoUrl}
-                    controls
-                    playsInline
-                    className="capture-preview-video"
-                  />
-                  <div className="capture-preview-actions">
-                    <Button variant="secondary" onClick={handleRetake} disabled={busy}>
-                      Retake
-                    </Button>
-                  </div>
-                </div>
-              ) : null}
 
               <label style={{ display: "flex", alignItems: "center", gap: 8 }}>
                 <input
                   type="checkbox"
                   checked={useLocation}
                   onChange={(event) => setUseLocation(event.target.checked)}
+                  disabled={Boolean(sessionEvidenceId)}
                 />
-                Include location metadata (optional)
+                Include location metadata on session creation
               </label>
 
-              {busy ? <div className="uploading-hint">Uploading… {progress}%</div> : null}
+              {locationPermissionDenied ? (
+                <div className="error-text">
+                  Location was not granted. The current session will continue without GPS metadata.
+                </div>
+              ) : null}
 
-              {error && <div className="error-text">{error}</div>}
+              {sessionItems.length > 0 ? (
+                <div className="capture-preview-card">
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      gap: 12,
+                      flexWrap: "wrap",
+                      marginBottom: 12,
+                    }}
+                  >
+                    <div className="capture-preview-title">Session items</div>
+                    <div
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: 8,
+                        padding: "6px 12px",
+                        borderRadius: 999,
+                        background: "rgba(101, 235, 255, 0.12)",
+                        border: "1px solid rgba(101, 235, 255, 0.22)",
+                        color: "#dff7ff",
+                        fontSize: 12,
+                        fontWeight: 700,
+                      }}
+                    >
+                      {sessionCountLabel}
+                    </div>
+                  </div>
 
-              <div>
-                <Button onClick={handleCapture} disabled={busy || !file}>
-                  {busy ? "Capturing..." : "Capture & Sign"}
+                  <div
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))",
+                      gap: 12,
+                    }}
+                  >
+                    {sessionItems.map((item, index) => (
+                      <div
+                        key={item.id}
+                        style={{
+                          borderRadius: 16,
+                          overflow: "hidden",
+                          background: "rgba(7, 20, 38, 0.88)",
+                          border: "1px solid rgba(101, 235, 255, 0.16)",
+                        }}
+                      >
+                        <div
+                          style={{
+                            position: "relative",
+                            aspectRatio: "1 / 1",
+                            background: "rgba(3, 10, 24, 0.95)",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                          }}
+                        >
+                          <div
+                            style={{
+                              position: "absolute",
+                              top: 8,
+                              left: 8,
+                              zIndex: 2,
+                              minWidth: 28,
+                              height: 28,
+                              borderRadius: 999,
+                              background: "rgba(2, 6, 23, 0.82)",
+                              border: "1px solid rgba(101, 235, 255, 0.25)",
+                              color: "#e2f7ff",
+                              display: "grid",
+                              placeItems: "center",
+                              fontSize: 12,
+                              fontWeight: 800,
+                              padding: "0 8px",
+                            }}
+                          >
+                            {index + 1}
+                          </div>
+
+                          {!busy ? (
+                            <button
+                              type="button"
+                              onClick={() => removeSessionItem(item.id)}
+                              style={{
+                                position: "absolute",
+                                top: 8,
+                                right: 8,
+                                zIndex: 2,
+                                width: 30,
+                                height: 30,
+                                borderRadius: 999,
+                                border: "1px solid rgba(239, 68, 68, 0.35)",
+                                background: "rgba(127, 29, 29, 0.78)",
+                                color: "#fff",
+                                cursor: "pointer",
+                                fontWeight: 800,
+                              }}
+                            >
+                              ×
+                            </button>
+                          ) : null}
+
+                          {item.previewUrl && item.mimeType.startsWith("image/") ? (
+                            <img
+                              src={item.previewUrl}
+                              alt={item.file.name}
+                              style={{
+                                width: "100%",
+                                height: "100%",
+                                objectFit: "cover",
+                              }}
+                            />
+                          ) : item.previewUrl && item.mimeType.startsWith("video/") ? (
+                            <video
+                              src={item.previewUrl}
+                              muted
+                              playsInline
+                              controls={false}
+                              style={{
+                                width: "100%",
+                                height: "100%",
+                                objectFit: "cover",
+                              }}
+                            />
+                          ) : (
+                            <div
+                              style={{
+                                padding: 16,
+                                textAlign: "center",
+                                color: "#cbd5e1",
+                                fontSize: 13,
+                                lineHeight: 1.5,
+                              }}
+                            >
+                              Document
+                            </div>
+                          )}
+                        </div>
+
+                        <div style={{ padding: 12, display: "grid", gap: 8 }}>
+                          <div
+                            style={{
+                              color: "#e2e8f0",
+                              fontSize: 13,
+                              fontWeight: 700,
+                              whiteSpace: "nowrap",
+                              overflow: "hidden",
+                              textOverflow: "ellipsis",
+                            }}
+                            title={item.file.name}
+                          >
+                            {item.file.name}
+                          </div>
+
+                          <div style={{ fontSize: 12, color: "#94a3b8" }}>
+                            {(item.file.size / 1024 / 1024).toFixed(2)} MB
+                          </div>
+
+                          <div
+                            style={{
+                              height: 8,
+                              borderRadius: 999,
+                              background: "rgba(148, 163, 184, 0.14)",
+                              overflow: "hidden",
+                            }}
+                          >
+                            <div
+                              style={{
+                                width: `${item.uploadProgress}%`,
+                                height: "100%",
+                                background: "linear-gradient(90deg, #22d3ee, #38bdf8)",
+                                transition: "width 0.2s ease",
+                              }}
+                            />
+                          </div>
+
+                          <div style={{ fontSize: 12, color: "#cbd5e1" }}>
+                            {item.uploading
+                              ? `Uploading ${item.uploadProgress}%`
+                              : item.uploadProgress === 100
+                                ? "Uploaded"
+                                : "Ready"}
+                          </div>
+
+                          {item.error ? <div className="error-text">{item.error}</div> : null}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+
+              {sessionCreating || busy ? (
+                <div className="uploading-hint">
+                  {busy ? `Uploading… ${progress}%` : "Preparing session..."}
+                </div>
+              ) : null}
+
+              {sessionInfo ? <div className="uploading-hint">{sessionInfo}</div> : null}
+              {error ? <div className="error-text">{error}</div> : null}
+
+              <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                <Button
+                  onClick={finalizeSession}
+                  disabled={busy || sessionCreating || sessionItems.length === 0}
+                >
+                  {busy ? "Capturing..." : "Finish & Sign"}
+                </Button>
+
+                <Button
+                  variant="secondary"
+                  onClick={resetCaptureState}
+                  disabled={busy || sessionItems.length === 0}
+                >
+                  Clear Session
                 </Button>
               </div>
             </div>
@@ -685,7 +984,7 @@ export default function CapturePage() {
           <video
             ref={videoPreviewRef}
             autoPlay
-            muted={cameraMode !== "VIDEO"}
+            muted={cameraMode !== "VIDEO" || !isRecording}
             playsInline
             className="camera-preview"
           />
@@ -703,7 +1002,9 @@ export default function CapturePage() {
             </div>
 
             <div className="camera-topbar-title-group">
-              <div className="camera-title">{cameraTitle}</div>
+              <div className="camera-title">
+                {cameraMode === "PHOTO" ? "Photo Camera" : "Video Recorder"}
+              </div>
               {cameraMode === "VIDEO" && isRecording ? (
                 <div className="camera-recording-indicator">
                   <span className="camera-recording-dot" />
@@ -739,17 +1040,39 @@ export default function CapturePage() {
             </div>
           </div>
 
+          <div
+            style={{
+              position: "absolute",
+              right: 20,
+              bottom: 140,
+              zIndex: 30,
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 8,
+              padding: "10px 14px",
+              borderRadius: 999,
+              background: "rgba(2, 6, 23, 0.82)",
+              border: "1px solid rgba(101, 235, 255, 0.24)",
+              color: "#effcff",
+              fontSize: 13,
+              fontWeight: 800,
+              backdropFilter: "blur(10px)",
+            }}
+          >
+            {sessionItems.length} added
+          </div>
+
           <div className="camera-bottombar">
             <div className="camera-bottombar-meta">
               {cameraError ? (
                 <div className="camera-inline-error">{cameraError}</div>
               ) : cameraMode === "PHOTO" ? (
                 <div className="camera-helper-text">
-                  Align the evidence clearly, then capture.
+                  Capture repeatedly to add multiple photos into one evidence.
                 </div>
               ) : !isRecording ? (
                 <div className="camera-helper-text">
-                  Start recording when ready.
+                  Record a clip, it will be auto-added to the same evidence session.
                 </div>
               ) : (
                 <div className="camera-helper-text">
@@ -764,16 +1087,16 @@ export default function CapturePage() {
                   type="button"
                   className="camera-capture-btn"
                   onClick={capturePhotoFromCamera}
-                  disabled={busy || cameraStarting}
+                  disabled={busy || cameraStarting || sessionCreating}
                 >
-                  Capture
+                  Capture & Add
                 </button>
               ) : !isRecording ? (
                 <button
                   type="button"
                   className="camera-capture-btn"
                   onClick={startVideoRecording}
-                  disabled={busy || cameraStarting}
+                  disabled={busy || cameraStarting || sessionCreating}
                 >
                   Record
                 </button>
@@ -784,7 +1107,7 @@ export default function CapturePage() {
                   onClick={stopVideoRecording}
                   disabled={busy}
                 >
-                  Stop
+                  Stop & Add
                 </button>
               )}
             </div>
