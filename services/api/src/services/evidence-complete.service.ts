@@ -14,6 +14,16 @@ import { Readable } from "stream";
 
 type HttpError = Error & { statusCode: number };
 
+type ProcessedPart = {
+  id: string;
+  partIndex: number;
+  sizeBytes: bigint;
+  sha256: string;
+  mimeType: string | null;
+  bucket: string;
+  key: string;
+};
+
 function must(name: string): string {
   const v = process.env[name];
   if (!v) throw new Error(`${name} is not set`);
@@ -36,8 +46,10 @@ function mustInt(name: string): number {
 function readMaxEvidenceSizeBytes(): number {
   const raw = process.env.MAX_EVIDENCE_SIZE_MB;
   if (!raw) return 1024 * 1024 * 1024;
+
   const mb = Number.parseInt(raw, 10);
   if (!Number.isFinite(mb) || mb <= 0) return 1024 * 1024 * 1024;
+
   return mb * 1024 * 1024;
 }
 
@@ -45,6 +57,36 @@ function clean(v: string | null | undefined): string | null {
   if (typeof v !== "string") return v ?? null;
   const t = v.trim();
   return t ? t : null;
+}
+
+function decimalToNumber(value: unknown): number | null {
+  if (value === null || value === undefined) return null;
+
+  if (typeof value === "number") {
+    return Number.isFinite(value) ? value : null;
+  }
+
+  if (
+    typeof value === "object" &&
+    value !== null &&
+    "toNumber" in value &&
+    typeof (value as { toNumber: () => number }).toNumber === "function"
+  ) {
+    const n = (value as { toNumber: () => number }).toNumber();
+    return Number.isFinite(n) ? n : null;
+  }
+
+  if (
+    typeof value === "object" &&
+    value !== null &&
+    "toString" in value &&
+    typeof (value as { toString: () => string }).toString === "function"
+  ) {
+    const n = Number((value as { toString: () => string }).toString());
+    return Number.isFinite(n) ? n : null;
+  }
+
+  return null;
 }
 
 function isNotFoundLike(e: unknown): boolean {
@@ -115,6 +157,127 @@ async function safeGetStream(bucket: string, key: string) {
   }
 }
 
+function buildMultipartSummary(parts: ProcessedPart[], totalSizeBytes: number) {
+  const imageCount = parts.filter((p) =>
+    String(p.mimeType ?? "").toLowerCase().startsWith("image/")
+  ).length;
+
+  const videoCount = parts.filter((p) =>
+    String(p.mimeType ?? "").toLowerCase().startsWith("video/")
+  ).length;
+
+  const audioCount = parts.filter((p) =>
+    String(p.mimeType ?? "").toLowerCase().startsWith("audio/")
+  ).length;
+
+  const documentCount = parts.filter((p) => {
+    const mime = String(p.mimeType ?? "").toLowerCase();
+    return (
+      mime === "application/pdf" ||
+      mime.startsWith("text/") ||
+      mime.includes("document") ||
+      mime.includes("msword") ||
+      mime.includes("officedocument")
+    );
+  }).length;
+
+  const mimeTypes = Array.from(
+    new Set(
+      parts
+        .map((p) => clean(p.mimeType))
+        .filter((v): v is string => Boolean(v))
+    )
+  );
+
+  return {
+    itemCount: parts.length,
+    totalSizeBytes,
+    mimeTypes,
+    imageCount,
+    videoCount,
+    audioCount,
+    documentCount,
+  };
+}
+
+function buildFingerprint(params: {
+  evidence: {
+    id: string;
+    type: prismaPkg.EvidenceType;
+    capturedAtUtc: Date | null;
+    deviceTimeIso: string | null;
+    lat: unknown;
+    lng: unknown;
+    accuracyMeters: unknown;
+  };
+  uploadedAtUtcIso: string;
+  singleFile?: {
+    bucket: string | null;
+    key: string | null;
+    sizeBytes: number;
+    mimeType: string | null;
+    sha256: string;
+  };
+  multipart?: {
+    parts: ProcessedPart[];
+    totalSizeBytes: number;
+  };
+}) {
+  const gps = {
+    lat: decimalToNumber(params.evidence.lat),
+    lng: decimalToNumber(params.evidence.lng),
+    accuracyMeters: decimalToNumber(params.evidence.accuracyMeters),
+  };
+
+  if (params.multipart) {
+    const summary = buildMultipartSummary(
+      params.multipart.parts,
+      params.multipart.totalSizeBytes
+    );
+
+    return {
+      v: 1,
+      evidenceId: params.evidence.id,
+      type: params.evidence.type,
+      file: {
+        multipart: true,
+        summary,
+        parts: params.multipart.parts.map((p) => ({
+          partIndex: p.partIndex,
+          storageBucket: p.bucket,
+          storageKey: p.key,
+          sizeBytes: Number(p.sizeBytes),
+          mimeType: p.mimeType,
+          sha256: p.sha256,
+        })),
+      },
+      capturedAtUtc: asIso(params.evidence.capturedAtUtc),
+      deviceTimeIso: params.evidence.deviceTimeIso ?? null,
+      gps,
+      uploadedAtUtc: params.uploadedAtUtcIso,
+    };
+  }
+
+  return {
+    v: 1,
+    evidenceId: params.evidence.id,
+    type: params.evidence.type,
+    file: {
+      multipart: false,
+      bucket: params.singleFile?.bucket ?? null,
+      key: params.singleFile?.key ?? null,
+      sizeBytes: params.singleFile?.sizeBytes ?? 0,
+      mimeType: params.singleFile?.mimeType ?? null,
+      sha256: params.singleFile?.sha256 ?? "",
+      etag: null,
+    },
+    capturedAtUtc: asIso(params.evidence.capturedAtUtc),
+    deviceTimeIso: params.evidence.deviceTimeIso ?? null,
+    gps,
+    uploadedAtUtc: params.uploadedAtUtcIso,
+  };
+}
+
 const { EvidenceStatus } = prismaPkg;
 
 export async function completeEvidence(params: {
@@ -157,9 +320,11 @@ export async function completeEvidence(params: {
       where: { userId: params.ownerUserId, active: true },
     });
     const plan = entitlement?.plan ?? prismaPkg.PlanType.FREE;
+
     if (plan !== prismaPkg.PlanType.FREE) {
       await enqueueGenerateReportJob(evidence.id);
     }
+
     return {
       id: evidence.id,
       status: evidence.status,
@@ -204,17 +369,13 @@ export async function completeEvidence(params: {
   let primaryBucket = evidenceBucket;
   let primaryKey = evidenceKey;
   let primaryMimeType = evidenceMime;
-  let uploadContentType: string | null = null;
+  let multipartItemCount = 1;
+  let multipart = false;
+  let canonical = "";
+  let fingerprintHash = "";
 
   if (parts.length > 0) {
-    const updatedParts: Array<{
-      id: string;
-      sizeBytes: bigint;
-      sha256: string;
-      mimeType: string | null;
-      bucket: string;
-      key: string;
-    }> = [];
+    const updatedParts: ProcessedPart[] = [];
 
     for (const part of parts) {
       const bucket = clean(part.storageBucket);
@@ -247,6 +408,7 @@ export async function completeEvidence(params: {
 
       updatedParts.push({
         id: part.id,
+        partIndex: part.partIndex,
         sizeBytes: BigInt(size),
         sha256,
         mimeType,
@@ -257,7 +419,6 @@ export async function completeEvidence(params: {
       if (!primaryBucket) primaryBucket = bucket;
       if (!primaryKey) primaryKey = key;
       if (!primaryMimeType) primaryMimeType = mimeType;
-      if (!uploadContentType) uploadContentType = mimeType;
     }
 
     const maxBytes = readMaxEvidenceSizeBytes();
@@ -268,8 +429,9 @@ export async function completeEvidence(params: {
       throw err;
     }
 
-    const combined = updatedParts.map((p) => p.sha256).join("|");
-    fileSha256 = sha256Hex(combined);
+    fileSha256 = sha256Hex(updatedParts.map((p) => p.sha256).join("|"));
+    multipart = true;
+    multipartItemCount = updatedParts.length;
 
     await prisma.$transaction(
       updatedParts.map((p) =>
@@ -283,6 +445,26 @@ export async function completeEvidence(params: {
         })
       )
     );
+
+    const fingerprint = buildFingerprint({
+      evidence: {
+        id: evidence.id,
+        type: evidence.type,
+        capturedAtUtc: evidence.capturedAtUtc,
+        deviceTimeIso: evidence.deviceTimeIso,
+        lat: evidence.lat,
+        lng: evidence.lng,
+        accuracyMeters: evidence.accuracyMeters,
+      },
+      uploadedAtUtcIso: new Date().toISOString(),
+      multipart: {
+        parts: updatedParts,
+        totalSizeBytes: sizeBytesNum,
+      },
+    });
+
+    canonical = canonicalJson(fingerprint);
+    fingerprintHash = sha256Hex(canonical);
   } else {
     const bucket = evidenceBucket!;
     const key = evidenceKey!;
@@ -308,61 +490,36 @@ export async function completeEvidence(params: {
     }
 
     primaryMimeType = meta.contentType ?? evidenceMime ?? null;
-    uploadContentType = meta.contentType ?? evidenceMime ?? null;
 
     const body = await safeGetStream(bucket, key);
     fileSha256 = await sha256HexFromStream(body as unknown as Readable);
 
     if (!primaryBucket) primaryBucket = bucket;
     if (!primaryKey) primaryKey = key;
+
+    const fingerprint = buildFingerprint({
+      evidence: {
+        id: evidence.id,
+        type: evidence.type,
+        capturedAtUtc: evidence.capturedAtUtc,
+        deviceTimeIso: evidence.deviceTimeIso,
+        lat: evidence.lat,
+        lng: evidence.lng,
+        accuracyMeters: evidence.accuracyMeters,
+      },
+      uploadedAtUtcIso: new Date().toISOString(),
+      singleFile: {
+        bucket: primaryBucket,
+        key: primaryKey,
+        sizeBytes: sizeBytesNum,
+        mimeType: primaryMimeType,
+        sha256: fileSha256,
+      },
+    });
+
+    canonical = canonicalJson(fingerprint);
+    fingerprintHash = sha256Hex(canonical);
   }
-
-  const tsaResult = await createEvidenceTimestamp({
-    digestHex: fileSha256,
-  });
-
-  const now = new Date();
-
-  const fingerprint = {
-    v: 1,
-    evidenceId: evidence.id,
-    type: evidence.type,
-    file: parts.length
-      ? {
-          multipart: true,
-          parts: await prisma.evidencePart.findMany({
-            where: { evidenceId: evidence.id },
-            orderBy: { partIndex: "asc" },
-            select: {
-              partIndex: true,
-              storageBucket: true,
-              storageKey: true,
-              sizeBytes: true,
-              mimeType: true,
-              sha256: true,
-            },
-          }),
-        }
-      : {
-          bucket: primaryBucket,
-          key: primaryKey,
-          sizeBytes: sizeBytesNum,
-          mimeType: primaryMimeType,
-          sha256: fileSha256,
-          etag: null,
-        },
-    capturedAtUtc: asIso(evidence.capturedAtUtc),
-    deviceTimeIso: evidence.deviceTimeIso ?? null,
-    gps: {
-      lat: evidence.lat ?? null,
-      lng: evidence.lng ?? null,
-      accuracyMeters: evidence.accuracyMeters ?? null,
-    },
-    uploadedAtUtc: now.toISOString(),
-  };
-
-  const canonical = canonicalJson(fingerprint);
-  const fingerprintHash = sha256Hex(canonical);
 
   must("SIGNING_PRIVATE_KEY_PATH");
   const signingKeyId = must("SIGNING_KEY_ID");
@@ -372,6 +529,12 @@ export async function completeEvidence(params: {
     fingerprintHash,
     "SIGNING_PRIVATE_KEY_PATH"
   );
+
+  const tsaResult = await createEvidenceTimestamp({
+    digestHex: fileSha256,
+  });
+
+  const now = new Date();
 
   const last = await prisma.custodyEvent.findFirst({
     where: { evidenceId: evidence.id },
@@ -437,6 +600,8 @@ export async function completeEvidence(params: {
           fingerprintHash,
           signingKeyId,
           signingKeyVersion,
+          multipart,
+          itemCount: multipartItemCount,
           tsaProvider: tsaResult?.provider ?? null,
           tsaUrl: tsaResult?.url ?? null,
           tsaSerialNumber: tsaResult?.serialNumber ?? null,
@@ -445,16 +610,6 @@ export async function completeEvidence(params: {
           tsaHashAlgorithm: tsaResult?.hashAlgorithm ?? null,
           tsaStatus: tsaResult?.status ?? null,
           tsaFailureReason: tsaResult?.failureReason ?? null,
-        } as prismaPkg.Prisma.InputJsonValue,
-      },      {
-        evidenceId: evidence.id,
-        eventType: CustodyEventType.SIGNATURE_APPLIED,
-        atUtc: now,
-        sequence: ++seq,
-        payload: {
-          fingerprintHash,
-          signingKeyId,
-          signingKeyVersion,
         } as prismaPkg.Prisma.InputJsonValue,
       },
     ];

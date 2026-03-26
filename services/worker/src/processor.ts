@@ -25,6 +25,11 @@ type WorkerError = Error & {
   retriable: boolean;
 };
 
+type VerificationEvidenceFile = {
+  name: string;
+  buffer: Buffer;
+};
+
 function buildPublicUrl(key: string): string | null {
   if (!env.S3_PUBLIC_BASE_URL) return null;
   return `${env.S3_PUBLIC_BASE_URL.replace(/\/+$/, "")}/${key}`;
@@ -85,6 +90,38 @@ async function streamToBuffer(stream: Readable): Promise<Buffer> {
     chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
   }
   return Buffer.concat(chunks);
+}
+
+function extensionFromMimeType(mimeType: string | null | undefined): string {
+  const mime = (mimeType ?? "").toLowerCase().trim();
+
+  if (!mime) return "bin";
+  if (mime === "image/jpeg") return "jpg";
+  if (mime === "image/png") return "png";
+  if (mime === "image/webp") return "webp";
+  if (mime === "video/mp4") return "mp4";
+  if (mime === "video/webm") return "webm";
+  if (mime === "audio/mpeg") return "mp3";
+  if (mime === "audio/wav") return "wav";
+  if (mime === "audio/webm") return "webm";
+  if (mime === "application/pdf") return "pdf";
+  if (mime === "text/plain") return "txt";
+  if (mime === "application/json") return "json";
+
+  const slashIndex = mime.indexOf("/");
+  if (slashIndex >= 0 && slashIndex < mime.length - 1) {
+    return mime.slice(slashIndex + 1).replace(/[^a-z0-9]+/gi, "") || "bin";
+  }
+
+  return "bin";
+}
+
+function basenameFromStorageKey(key: string | null | undefined, fallback: string): string {
+  const raw = typeof key === "string" ? key.trim() : "";
+  if (!raw) return fallback;
+  const parts = raw.split("/");
+  const base = parts[parts.length - 1]?.trim();
+  return base || fallback;
 }
 
 const { EvidenceStatus } = prismaPkg;
@@ -155,7 +192,7 @@ export async function processGenerateReport(job: Job<GenerateReportJobData>) {
     let storageBucket = evidence.storageBucket ?? null;
     let storageKey = evidence.storageKey ?? null;
     let fileSha256 = "";
-    let verificationEvidenceBuffer: Buffer | null = null;
+    const verificationEvidenceFiles: VerificationEvidenceFile[] = [];
 
     if (parts.length > 0) {
       const hashes: string[] = [];
@@ -179,8 +216,19 @@ export async function processGenerateReport(job: Job<GenerateReportJobData>) {
         const partSha = createHash("sha256").update(partBuffer).digest("hex");
         hashes.push(partSha);
 
-        if (index === 0) {
-          verificationEvidenceBuffer = partBuffer;
+        verificationEvidenceFiles.push({
+          name: basenameFromStorageKey(
+            part.storageKey,
+            `part-${String(index + 1).padStart(4, "0")}.${extensionFromMimeType(part.mimeType)}`
+          ),
+          buffer: partBuffer,
+        });
+
+        if (!storageBucket) {
+          storageBucket = part.storageBucket;
+        }
+        if (!storageKey) {
+          storageKey = part.storageKey;
         }
       }
 
@@ -207,9 +255,17 @@ export async function processGenerateReport(job: Job<GenerateReportJobData>) {
         key: evidence.storageKey!,
       });
 
-      verificationEvidenceBuffer = await streamToBuffer(body as unknown as Readable);
+      const singleEvidenceBuffer = await streamToBuffer(body as unknown as Readable);
+      verificationEvidenceFiles.push({
+        name: basenameFromStorageKey(
+          evidence.storageKey,
+          `evidence-file.${extensionFromMimeType(evidence.mimeType)}`
+        ),
+        buffer: singleEvidenceBuffer,
+      });
+
       fileSha256 = createHash("sha256")
-        .update(verificationEvidenceBuffer)
+        .update(singleEvidenceBuffer)
         .digest("hex");
 
       if (fileSha256 !== evidence.fileSha256) {
@@ -254,8 +310,6 @@ export async function processGenerateReport(job: Job<GenerateReportJobData>) {
     const reportKey = `reports/${evidence.id}/v${version}.pdf`;
     const publicUrl = storageKey ? buildPublicUrl(storageKey) : null;
 
-    // Build stable app URL for evidence detail (QR will point here, not to raw S3 URL)
-    // Frontend will fetch presigned URL from /v1/evidence/{id}/original endpoint
     const evidenceDetailUrl = `https://app.proovra.com/evidence/${evidence.id}`;
 
     const reportPdf = await buildReportPdf({
@@ -284,7 +338,6 @@ export async function processGenerateReport(job: Job<GenerateReportJobData>) {
         signingKeyId,
         signingKeyVersion,
         publicKeyPem: signingKey.publicKeyPem,
-
         tsaProvider: evidence.tsaProvider ?? null,
         tsaUrl: evidence.tsaUrl ?? null,
         tsaSerialNumber: evidence.tsaSerialNumber ?? null,
@@ -294,7 +347,7 @@ export async function processGenerateReport(job: Job<GenerateReportJobData>) {
         tsaHashAlgorithm: evidence.tsaHashAlgorithm ?? null,
         tsaStatus: evidence.tsaStatus ?? null,
         tsaFailureReason: evidence.tsaFailureReason ?? null,
-            },
+      },
       custodyEvents: custodyEvents.map((ev) => ({
         sequence: ev.sequence,
         atUtc: ev.atUtc.toISOString(),
@@ -314,9 +367,9 @@ export async function processGenerateReport(job: Job<GenerateReportJobData>) {
       contentType: "application/pdf",
     });
 
-    if (verificationEvidenceBuffer) {
+    if (verificationEvidenceFiles.length > 0) {
       const verificationZip = await createVerificationPackage({
-        evidenceBuffer: verificationEvidenceBuffer,
+        evidenceFiles: verificationEvidenceFiles,
         fingerprint: fingerprintCanonicalJson,
         signature: signatureBase64,
         timestampToken: evidence.tsaTokenBase64 ?? null,

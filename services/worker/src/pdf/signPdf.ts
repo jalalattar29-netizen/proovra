@@ -21,7 +21,8 @@ function asBuffer(value: unknown): Buffer {
 }
 
 async function signPdfBuffer(unsignedPdf: Buffer): Promise<Buffer> {
-  const p12Path = env("PDF_SIGNING_P12_PATH") || "/app/services/worker/keys/proovra-signing.p12";
+  const p12Path =
+    env("PDF_SIGNING_P12_PATH") || "/app/services/worker/keys/proovra-signing.p12";
   const passphrase = env("PDF_SIGNING_P12_PASSWORD") || "";
 
   if (!fs.existsSync(p12Path)) {
@@ -30,11 +31,14 @@ async function signPdfBuffer(unsignedPdf: Buffer): Promise<Buffer> {
 
   const p12Buffer = fs.readFileSync(p12Path);
 
-  // ✅ Allocate enough room for signature + cert chain (avoid "No ByteRangeStrings found" / overflow issues)
   const signatureLength = Number(env("PDF_SIGNING_SIGNATURE_LENGTH") ?? "20000");
-  const safeSignatureLength = Number.isFinite(signatureLength) && signatureLength > 8000 ? signatureLength : 20000;
+  const safeSignatureLength =
+    Number.isFinite(signatureLength) && signatureLength > 8000
+      ? signatureLength
+      : 20000;
 
   let pdfWithPlaceholder: Buffer;
+
   try {
     const pdfWithPlaceholderUnknown: unknown = plainAddPlaceholder({
       pdfBuffer: unsignedPdf,
@@ -55,7 +59,7 @@ async function signPdfBuffer(unsignedPdf: Buffer): Promise<Buffer> {
     const signer = new P12Signer(p12Buffer, { passphrase });
     const signPdf = new SignPdf();
 
-    const signedUnknown: unknown = signPdf.sign(pdfWithPlaceholder, signer);
+    const signedUnknown: unknown = await signPdf.sign(pdfWithPlaceholder, signer);
     return asBuffer(signedUnknown);
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
@@ -64,5 +68,9 @@ async function signPdfBuffer(unsignedPdf: Buffer): Promise<Buffer> {
 }
 
 export async function signPdfIfEnabled(pdf: Buffer): Promise<Buffer> {
-  return pdf;
+  if (!isPdfSigningEnabled()) {
+    return pdf;
+  }
+
+  return signPdfBuffer(pdf);
 }

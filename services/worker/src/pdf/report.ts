@@ -49,6 +49,17 @@ export type ReportCustodyEvent = {
   payloadSummary: string;
 };
 
+type ParsedFingerprintSummary = {
+  multipart: boolean;
+  itemCount: number;
+  imageCount: number;
+  videoCount: number;
+  audioCount: number;
+  documentCount: number;
+  mimeTypes: string[];
+  partsCount: number;
+};
+
 function env(name: string): string | undefined {
   const v = process.env[name];
   const t = typeof v === "string" ? v.trim() : "";
@@ -87,6 +98,60 @@ function shortHash(h: string, head = 10, tail = 8): string {
 
 function mmToPt(mm: number): number {
   return (mm * 72) / 25.4;
+}
+
+function parseFingerprintSummary(fingerprintCanonicalJson: string): ParsedFingerprintSummary {
+  const fallback: ParsedFingerprintSummary = {
+    multipart: false,
+    itemCount: 1,
+    imageCount: 0,
+    videoCount: 0,
+    audioCount: 0,
+    documentCount: 0,
+    mimeTypes: [],
+    partsCount: 0,
+  };
+
+  try {
+    const parsed = JSON.parse(fingerprintCanonicalJson) as {
+      file?: {
+        multipart?: boolean;
+        summary?: {
+          itemCount?: number;
+          imageCount?: number;
+          videoCount?: number;
+          audioCount?: number;
+          documentCount?: number;
+          mimeTypes?: string[];
+        };
+        parts?: Array<unknown>;
+      };
+    };
+
+    const multipart = Boolean(parsed?.file?.multipart);
+    const partsCount = Array.isArray(parsed?.file?.parts) ? parsed.file.parts.length : 0;
+    const summary = parsed?.file?.summary;
+
+    return {
+      multipart,
+      itemCount:
+        typeof summary?.itemCount === "number"
+          ? summary.itemCount
+          : multipart
+            ? partsCount || 0
+            : 1,
+      imageCount: typeof summary?.imageCount === "number" ? summary.imageCount : 0,
+      videoCount: typeof summary?.videoCount === "number" ? summary.videoCount : 0,
+      audioCount: typeof summary?.audioCount === "number" ? summary.audioCount : 0,
+      documentCount: typeof summary?.documentCount === "number" ? summary.documentCount : 0,
+      mimeTypes: Array.isArray(summary?.mimeTypes)
+        ? summary.mimeTypes.filter((v): v is string => typeof v === "string" && v.trim().length > 0)
+        : [],
+      partsCount,
+    };
+  } catch {
+    return fallback;
+  }
 }
 
 const __filename = fileURLToPath(import.meta.url);
@@ -210,30 +275,67 @@ function drawBadge(doc: PDFDoc, text: string, x: number, y: number): void {
   doc.restore();
 }
 
-function drawStatusText(doc: PDFDoc, label: string, status: string): void {
+function drawCallout(
+  doc: PDFDoc,
+  opts: {
+    title: string;
+    body: string;
+    tone?: "neutral" | "success" | "warning" | "danger";
+  }
+): void {
   const x = doc.page.margins.left;
   const w = doc.page.width - doc.page.margins.left - doc.page.margins.right;
 
-  const normalized = safe(status).toUpperCase();
-  let color = BRAND.muted;
+  const tone = opts.tone ?? "neutral";
+  const borderColor =
+    tone === "success"
+      ? BRAND.success
+      : tone === "warning"
+        ? BRAND.warning
+        : tone === "danger"
+          ? BRAND.danger
+          : BRAND.accent;
 
-  if (normalized === "GRANTED") color = BRAND.success;
-  else if (normalized === "FAILED") color = BRAND.danger;
-  else if (normalized === "PENDING") color = BRAND.warning;
+  const fillColor =
+    tone === "success"
+      ? "#EEF8F3"
+      : tone === "warning"
+        ? "#FBF5E8"
+        : tone === "danger"
+          ? "#FCEDEA"
+          : BRAND.accentSoft;
+
+  const titleHeight = (() => {
+    doc.font("Helvetica-Bold").fontSize(10.5);
+    return doc.heightOfString(opts.title, { width: w - 28 });
+  })();
+
+  const bodyHeight = (() => {
+    doc.font("Helvetica").fontSize(9.5);
+    return doc.heightOfString(opts.body, { width: w - 28, lineGap: 2 });
+  })();
+
+  const blockHeight = titleHeight + bodyHeight + 24;
+  ensureSpace(doc, blockHeight + 8);
+
+  const y = doc.y;
 
   doc.save();
-  doc.fillColor(BRAND.muted).font("Helvetica").fontSize(9);
-  doc.text(label, x, doc.y, { width: w });
+  doc.roundedRect(x, y, w, blockHeight, 10).fill(fillColor);
+  doc.lineWidth(1).strokeColor(borderColor).roundedRect(x, y, w, blockHeight, 10).stroke();
   doc.restore();
-
-  doc.moveDown(0.15);
 
   doc.save();
-  doc.fillColor(color).font("Helvetica-Bold").fontSize(10);
-  doc.text(normalized, x, doc.y, { width: w });
+  doc.fillColor(BRAND.ink).font("Helvetica-Bold").fontSize(10.5);
+  doc.text(opts.title, x + 14, y + 10, { width: w - 28 });
   doc.restore();
 
-  doc.moveDown(0.55);
+  doc.save();
+  doc.fillColor(BRAND.ink).font("Helvetica").fontSize(9.5);
+  doc.text(opts.body, x + 14, y + 28, { width: w - 28, lineGap: 2 });
+  doc.restore();
+
+  doc.y = y + blockHeight + 10;
 }
 
 function drawHeader(
@@ -274,7 +376,7 @@ function drawHeader(
   if (badgeText) {
     const bx = left + w - 145;
     const by = top + 16;
-    drawBadge(doc, textClamp(doc, badgeText, 20), bx, by);
+    drawBadge(doc, textClamp(badgeText, 20), bx, by);
   }
 
   doc.moveDown(0.9);
@@ -290,7 +392,7 @@ function drawHeader(
   doc.moveDown(1.0);
 }
 
-function textClamp(doc: PDFDoc, text: string, maxChars: number): string {
+function textClamp(text: string, maxChars: number): string {
   return text.length > maxChars
     ? `${text.slice(0, Math.max(0, maxChars - 1))}…`
     : text;
@@ -306,10 +408,15 @@ function buildEvidencePageUrl(evidenceId: string): string {
 function section(doc: PDFDoc, title: string, render: () => void): void {
   ensureSpace(doc, 120);
 
-  const x = doc.page.margins.left;
   hr(doc);
   doc.moveDown(0.55);
 
+  doc.save();
+  doc.fillColor(BRAND.ink).font("Helvetica-Bold").fontSize(13);
+  doc.text(title, doc.page.margins.left, doc.y);
+  doc.restore();
+
+  doc.moveDown(0.45);
   render();
   doc.moveDown(0.85);
 }
@@ -350,12 +457,8 @@ function prettifySummaryText(input: string): string {
     return raw
       .replace(/^\{/, "")
       .replace(/\}$/, "")
-      .replace(/","/g, '" • "')
-      .replace(/","/g, " • ")
-      .replace(/","/g, " • ")
       .replace(/","/g, " • ")
       .replace(/":"/g, ": ")
-      .replace(/","/g, " • ")
       .replace(/"/g, "");
   }
 }
@@ -394,8 +497,11 @@ function kvGrid(
 
     doc.moveDown(0.65);
 
-    if (isLeft) leftY = doc.y;
-    else rightY = doc.y;
+    if (isLeft) {
+      leftY = doc.y;
+    } else {
+      rightY = doc.y;
+    }
   }
 
   doc.y = Math.max(leftY, rightY);
@@ -711,7 +817,7 @@ function buildDownloadLabel(url: string): string {
 
 function renderForensicIntegrityStatement(
   doc: PDFDoc,
-  opts: { verifyUrl: string }
+  opts: { verifyUrl: string; multipart: boolean }
 ): void {
   const x = doc.page.margins.left;
   const w = doc.page.width - doc.page.margins.left - doc.page.margins.right;
@@ -725,24 +831,26 @@ function renderForensicIntegrityStatement(
 
   safeParagraph(
     doc,
-    "PROOVRA provides cryptographic and timestamping mechanisms designed to preserve and verify the integrity of digital evidence. When an evidence item is completed, integrity artifacts are generated to detect any subsequent modification.",
+    "PROOVRA applies cryptographic integrity controls, structured evidence fingerprinting, and timestamping records designed to preserve the integrity state of the submitted evidence at the time of completion.",
     { fontSize: 10, color: BRAND.ink }
   );
   doc.moveDown(0.4);
 
   doc.save();
   doc.fillColor(BRAND.accent).font("Helvetica-Bold").fontSize(10.5);
-  doc.text("These artifacts include:", x, doc.y, { width: w });
+  doc.text("Integrity materials included in this report:", x, doc.y, { width: w });
   doc.restore();
   doc.moveDown(0.25);
 
   const bullets = [
-    "A SHA-256 cryptographic hash of the original file",
-    "A canonical fingerprint record describing evidence metadata",
+    opts.multipart
+      ? "A SHA-256 cryptographic hash representing the multipart evidence set"
+      : "A SHA-256 cryptographic hash of the original evidence file",
+    "A canonical fingerprint record describing the evidence state and metadata",
     "A fingerprint hash derived from the canonical record",
     "A digital signature generated using the PROOVRA signing key",
     "A trusted RFC 3161 timestamp token issued by the configured Time Stamping Authority, when available",
-    "A custody timeline documenting system events related to the evidence",
+    "A custody timeline documenting relevant system events",
   ];
 
   for (const b of bullets) {
@@ -753,18 +861,27 @@ function renderForensicIntegrityStatement(
 
   doc.save();
   doc.fillColor(BRAND.accent).font("Helvetica-Bold").fontSize(10.5);
-  doc.text("Independent verification may be performed by:", x, doc.y, { width: w });
+  doc.text("Independent review may include:", x, doc.y, { width: w });
   doc.restore();
   doc.moveDown(0.25);
 
-  const steps = [
-    "Obtaining the original evidence file",
-    "Computing the SHA-256 hash of the file",
-    "Comparing the computed hash with the value listed in this report",
-    "Validating the digital signature using the provided public key",
-    "Validating the RFC 3161 timestamp token, when present",
-    "Reviewing the recorded chain of custody events",
-  ];
+  const steps = opts.multipart
+    ? [
+        "Obtaining the complete multipart evidence set",
+        "Reviewing the canonical fingerprint and listed evidence parts",
+        "Validating the multipart composite hash against the included materials",
+        "Verifying the digital signature using the provided public key",
+        "Verifying the RFC 3161 timestamp token, when present",
+        "Reviewing the recorded chain of custody events",
+      ]
+    : [
+        "Obtaining the original evidence file",
+        "Computing the SHA-256 hash of the evidence file",
+        "Comparing the computed hash with the value listed in this report",
+        "Verifying the digital signature using the provided public key",
+        "Verifying the RFC 3161 timestamp token, when present",
+        "Reviewing the recorded chain of custody events",
+      ];
 
   for (let i = 0; i < steps.length; i++) {
     safeParagraph(doc, `${i + 1}. ${steps[i]}`, {
@@ -777,30 +894,17 @@ function renderForensicIntegrityStatement(
 
   safeParagraph(
     doc,
-    "Where present, the RFC 3161 timestamp provides independent evidence that the signed integrity state existed at or before the timestamp issuance time recorded by the Time Stamping Authority.",
+    "Where present, the RFC 3161 timestamp provides evidence that the signed integrity state existed at or before the issuance time recorded by the Time Stamping Authority.",
     { fontSize: 9.5, color: BRAND.muted }
   );
   doc.moveDown(0.35);
 
-  doc.save();
-  doc.fillColor(BRAND.ink).font("Helvetica-Bold").fontSize(10);
-  doc.text("Important Notice:", x, doc.y, { width: w });
-  doc.restore();
-  doc.moveDown(0.15);
-
-  safeParagraph(
-    doc,
-    "Cryptographic verification confirms data integrity only. It does not establish authorship, origin, context, or factual accuracy of the content contained in the evidence.",
-    { fontSize: 9, color: BRAND.muted }
-  );
-  doc.moveDown(0.2);
-
-  safeParagraph(
-    doc,
-    "Determination of evidentiary admissibility, authenticity, and legal relevance remains the responsibility of courts or competent authorities.",
-    { fontSize: 9, color: BRAND.muted }
-  );
-  doc.moveDown(0.35);
+  drawCallout(doc, {
+    title: "Legal Notice",
+    body:
+      "Cryptographic verification confirms integrity of the recorded evidence state only. It does not independently establish authorship, factual accuracy, legal admissibility, context, or probative weight. These issues remain subject to judicial, administrative, or expert evaluation under the applicable law and procedure.",
+    tone: "warning",
+  });
 
   doc.save();
   doc.fillColor(BRAND.accent).font("Helvetica-Bold").fontSize(9.5);
@@ -846,10 +950,10 @@ export async function buildReportPdf(params: {
   const buildToken = params.buildInfo
     ? `;PROOVRA_BUILD=${params.buildInfo}`
     : "";
+
   doc.info = {
     Title: `${BRAND.name} — Verifiable Evidence Report`,
-    Subject:
-      "Evidence Summary > Exhibit > Chain of Custody > Technical Appendix",
+    Subject: "Evidence Summary > Exhibit > Chain of Custody > Technical Appendix",
     Keywords: `PROOVRA_REPORT_VERSION=${params.version};PROOVRA_GENERATED_AT=${params.generatedAtUtc}${buildToken}`,
     Creator: BRAND.name,
     Producer: BRAND.name,
@@ -870,7 +974,9 @@ export async function buildReportPdf(params: {
     ""
   );
 
-  const verificationPackagePageUrl = buildEvidencePageUrl(params.evidence.id);
+  const fingerprintSummary = parseFingerprintSummary(
+    params.evidence.fingerprintCanonicalJson
+  );
 
   drawHeader(doc, {
     evidenceId: params.evidence.id,
@@ -878,56 +984,72 @@ export async function buildReportPdf(params: {
     status: params.evidence.status,
   });
 
-{
-  const x = doc.page.margins.left;
-  const w = doc.page.width - doc.page.margins.left - doc.page.margins.right;
+  {
+    const x = doc.page.margins.left;
+    const w = doc.page.width - doc.page.margins.left - doc.page.margins.right;
 
-  const verified =
-    Boolean(params.evidence.fileSha256) &&
-    Boolean(params.evidence.fingerprintHash) &&
-    Boolean(params.evidence.signatureBase64);
+    const verified =
+      Boolean(params.evidence.fileSha256) &&
+      Boolean(params.evidence.fingerprintHash) &&
+      Boolean(params.evidence.signatureBase64);
 
-  const verdict = verified
-    ? "Integrity Verified"
-    : "Integrity Review Required";
+    const verdict = verified
+      ? "Integrity Verified"
+      : "Integrity Review Required";
 
-  const color = verified ? BRAND.success : BRAND.danger;
+    const color = verified ? BRAND.success : BRAND.danger;
 
-  ensureSpace(doc, 80);
+    ensureSpace(doc, 90);
 
-  doc.save();
-  doc.fillColor(color).font("Helvetica-Bold").fontSize(14);
-  doc.text(verdict, x, doc.y, { width: w });
-  doc.restore();
+    doc.save();
+    doc.fillColor(color).font("Helvetica-Bold").fontSize(14);
+    doc.text(verdict, x, doc.y, { width: w });
+    doc.restore();
 
-  doc.moveDown(0.45);
+    doc.moveDown(0.45);
 
-  if (verified) {
-    safeParagraph(doc, "• File hash matches recorded fingerprint", {
-      fontSize: 10,
-      color: BRAND.ink,
-    });
-    safeParagraph(doc, "• Digital signature verified", {
-      fontSize: 10,
-      color: BRAND.ink,
-    });
-    if (params.evidence.tsaStatus?.toUpperCase() === "GRANTED") {
-      safeParagraph(doc, "• Trusted timestamp granted", {
+    if (verified) {
+      safeParagraph(doc, "• File hash matches the recorded fingerprint state", {
+        fontSize: 10,
+        color: BRAND.ink,
+      });
+      safeParagraph(doc, "• Digital signature materials are present", {
+        fontSize: 10,
+        color: BRAND.ink,
+      });
+      if (fingerprintSummary.multipart) {
+        safeParagraph(
+          doc,
+          `• Multipart evidence structure detected (${fingerprintSummary.itemCount} item${fingerprintSummary.itemCount === 1 ? "" : "s"})`,
+          { fontSize: 10, color: BRAND.ink }
+        );
+      }
+      if (params.evidence.tsaStatus?.toUpperCase() === "GRANTED") {
+        safeParagraph(doc, "• Trusted timestamp record granted", {
+          fontSize: 10,
+          color: BRAND.ink,
+        });
+      }
+    } else {
+      safeParagraph(doc, "• Evidence integrity could not be fully verified", {
         fontSize: 10,
         color: BRAND.ink,
       });
     }
-  } else {
-    safeParagraph(doc, "• Evidence integrity could not be fully verified", {
-      fontSize: 10,
-      color: BRAND.ink,
-    });
-  }
 
-  doc.moveDown(0.5);
-  hr(doc);
-  doc.moveDown(0.8);
-}
+    doc.moveDown(0.45);
+
+    drawCallout(doc, {
+      title: "Scope of this conclusion",
+      body: verified
+        ? "This result supports integrity of the recorded evidence state at completion. It does not, by itself, prove authorship, truthfulness of content, or legal admissibility."
+        : "This report should be reviewed manually. Missing or incomplete integrity materials may limit technical verification.",
+      tone: verified ? "success" : "danger",
+    });
+
+    hr(doc);
+    doc.moveDown(0.8);
+  }
 
   doc.save();
   doc.fillColor(BRAND.ink).font("Helvetica-Bold").fontSize(16);
@@ -936,7 +1058,7 @@ export async function buildReportPdf(params: {
   doc.moveDown(0.35);
 
   section(doc, "Evidence Summary", () => {
-    kvGrid(doc, [
+    const rows: Array<[string, string]> = [
       ["Evidence ID", safe(params.evidence.id)],
       ["Status", safe(params.evidence.status).toUpperCase()],
       ["Captured (UTC)", safe(params.evidence.capturedAtUtc)],
@@ -953,7 +1075,29 @@ export async function buildReportPdf(params: {
       ["Fingerprint Hash", shortHash(params.evidence.fingerprintHash)],
       ["Timestamp Provider", safe(params.evidence.tsaProvider)],
       ["Timestamp Time (UTC)", safe(params.evidence.tsaGenTimeUtc)],
-    ]);
+    ];
+
+    if (fingerprintSummary.multipart) {
+      rows.push(
+        ["Evidence Structure", "Multipart evidence"],
+        ["Total Items", String(fingerprintSummary.itemCount)],
+        ["Image Items", String(fingerprintSummary.imageCount)],
+        ["Video Items", String(fingerprintSummary.videoCount)],
+        ["Audio Items", String(fingerprintSummary.audioCount)],
+        ["Document Items", String(fingerprintSummary.documentCount)],
+        ["Fingerprint Parts", String(fingerprintSummary.partsCount)],
+        [
+          "MIME Types",
+          fingerprintSummary.mimeTypes.length > 0
+            ? summarizeText(fingerprintSummary.mimeTypes.join(", "), 80)
+            : "N/A",
+        ]
+      );
+    } else {
+      rows.push(["Evidence Structure", "Single file evidence"]);
+    }
+
+    kvGrid(doc, rows);
   });
 
   section(doc, "Quick Verification", () => {
@@ -962,7 +1106,7 @@ export async function buildReportPdf(params: {
 
     doc.fillColor(BRAND.muted).font("Helvetica").fontSize(10);
     doc.text(
-      "Use the verification page to review integrity details and recorded custody events for this evidence item.",
+      "Use the verification page to review integrity details, custody events, and technical validation materials associated with this evidence record.",
       x,
       doc.y,
       { width: w, lineGap: 2 }
@@ -983,7 +1127,7 @@ export async function buildReportPdf(params: {
 
     doc.fillColor(BRAND.muted).font("Helvetica").fontSize(9);
     doc.text(
-      "Integrity verification confirms the file and integrity artifacts were not modified after completion. It does not prove authorship, origin, or factual accuracy of the content.",
+      "Technical verification supports detection of post-completion changes. It does not independently determine authorship, authenticity of real-world events, or legal effect.",
       x,
       doc.y,
       { width: w, lineGap: 2 }
@@ -1013,9 +1157,17 @@ export async function buildReportPdf(params: {
     });
     doc.moveDown(0.55);
 
+    if (fingerprintSummary.multipart) {
+      drawCallout(doc, {
+        title: "Multipart evidence package",
+        body: `This evidence record contains ${fingerprintSummary.itemCount} item${fingerprintSummary.itemCount === 1 ? "" : "s"} grouped into a single signed evidence package. The integrity record applies to the package as completed, not merely to an individual item viewed in isolation.`,
+        tone: "neutral",
+      });
+    }
+
     doc.fillColor(BRAND.muted).font("Helvetica").fontSize(9);
     doc.text(
-      "Use the original evidence page below to review or download the stored file associated with this report.",
+      "Use the evidence page below to review or download the stored evidence associated with this report.",
       x,
       doc.y,
       { width: w, lineGap: 2 }
@@ -1036,7 +1188,7 @@ export async function buildReportPdf(params: {
 
     doc.fillColor(BRAND.muted).font("Helvetica").fontSize(9);
     doc.text(
-      "Note: The evidence page provides the original file preview and authenticated download.",
+      "Note: The evidence page provides authenticated access to the original stored evidence and related outputs.",
       x,
       doc.y,
       { width: w, lineGap: 2 }
@@ -1122,19 +1274,52 @@ export async function buildReportPdf(params: {
       { maxChars: 320 }
     );
 
-doc.save();
-doc.fillColor(BRAND.ink).font("Helvetica-Bold").fontSize(11);
-doc.text("Timestamp Authority", doc.page.margins.left, doc.y);
-doc.restore();
-doc.moveDown(0.3);
+    if (fingerprintSummary.multipart) {
+      doc.save();
+      doc.fillColor(BRAND.ink).font("Helvetica-Bold").fontSize(11);
+      doc.text("Multipart Evidence Summary", doc.page.margins.left, doc.y);
+      doc.restore();
+      doc.moveDown(0.3);
 
-kvGrid(doc, [
-  ["Timestamp Provider", safe(params.evidence.tsaProvider)],
-  ["Timestamp URL", safe(params.evidence.tsaUrl)],
-  ["Serial Number", safe(params.evidence.tsaSerialNumber)],
-  ["Generation Time (UTC)", safe(params.evidence.tsaGenTimeUtc)],
-  ["Hash Algorithm", safe(params.evidence.tsaHashAlgorithm)],
-]);
+      kvGrid(doc, [
+        ["Multipart", "Yes"],
+        ["Total Items", String(fingerprintSummary.itemCount)],
+        ["Fingerprint Parts", String(fingerprintSummary.partsCount)],
+        ["Images", String(fingerprintSummary.imageCount)],
+        ["Videos", String(fingerprintSummary.videoCount)],
+        ["Audio", String(fingerprintSummary.audioCount)],
+        ["Documents", String(fingerprintSummary.documentCount)],
+        [
+          "MIME Types",
+          fingerprintSummary.mimeTypes.length > 0
+            ? summarizeText(fingerprintSummary.mimeTypes.join(", "), 80)
+            : "N/A",
+        ],
+      ]);
+
+      doc.moveDown(0.35);
+
+      safeParagraph(
+        doc,
+        "For multipart evidence, integrity is evaluated against the completed evidence package as represented in the canonical fingerprint. Review should therefore consider the complete set of evidence items, not an isolated part only.",
+        { fontSize: 9.2, color: BRAND.muted }
+      );
+      doc.moveDown(0.35);
+    }
+
+    doc.save();
+    doc.fillColor(BRAND.ink).font("Helvetica-Bold").fontSize(11);
+    doc.text("Timestamp Authority", doc.page.margins.left, doc.y);
+    doc.restore();
+    doc.moveDown(0.3);
+
+    kvGrid(doc, [
+      ["Timestamp Provider", safe(params.evidence.tsaProvider)],
+      ["Timestamp URL", safe(params.evidence.tsaUrl)],
+      ["Serial Number", safe(params.evidence.tsaSerialNumber)],
+      ["Generation Time (UTC)", safe(params.evidence.tsaGenTimeUtc)],
+      ["Hash Algorithm", safe(params.evidence.tsaHashAlgorithm)],
+    ]);
 
     monospaceStrip(
       doc,
@@ -1147,7 +1332,12 @@ kvGrid(doc, [
       const status = safe(params.evidence.tsaStatus).toUpperCase();
       const x = doc.page.margins.left;
       const w = doc.page.width - doc.page.margins.left - doc.page.margins.right;
-      const color = status === "GRANTED" ? BRAND.success : BRAND.danger;
+      const color =
+        status === "GRANTED"
+          ? BRAND.success
+          : status === "PENDING"
+            ? BRAND.warning
+            : BRAND.danger;
 
       ensureSpace(doc, 42);
 
@@ -1167,9 +1357,9 @@ kvGrid(doc, [
     }
 
     if (
-      safe (params.evidence.tsaStatus) === "FAILED" &&
-       params.evidence.tsaFailureReason
-      ) {
+      safe(params.evidence.tsaStatus).toUpperCase() === "FAILED" &&
+      params.evidence.tsaFailureReason
+    ) {
       monospaceStrip(
         doc,
         "Timestamp Failure Reason",
@@ -1180,7 +1370,8 @@ kvGrid(doc, [
 
     safeParagraph(
       doc,
-      "Full technical materials can be retrieved via the Technical QR or verification page. Integrity verification is jurisdiction-dependent and does not replace legal advice."
+      "Full technical materials can be retrieved via the technical verification view. Technical validation is a forensic support mechanism and does not replace legal advice, procedural review, or expert examination where required.",
+      { fontSize: 9, color: BRAND.muted }
     );
   });
 
@@ -1197,11 +1388,13 @@ kvGrid(doc, [
         urlLink: technicalUrl,
       });
     }
-
   }
 
   section(doc, "Forensic Integrity Statement", () => {
-    renderForensicIntegrityStatement(doc, { verifyUrl });
+    renderForensicIntegrityStatement(doc, {
+      verifyUrl,
+      multipart: fingerprintSummary.multipart,
+    });
   });
 
   addFooters(doc, {
