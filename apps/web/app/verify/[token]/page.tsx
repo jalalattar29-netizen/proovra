@@ -5,7 +5,6 @@ import { useParams } from "next/navigation";
 import {
   Button,
   Card,
-  TopBar,
   useToast,
   EmptyState,
   Skeleton,
@@ -35,7 +34,25 @@ type VerifyResponse = {
   reportVersion?: number | string | null;
   signingKeyId?: string | null;
   tsaStatus?: string | null;
+  timestampStatus?: string | null;
+  stampStatus?: string | null;
   publicKeyPem?: string | null;
+  tsa?: {
+    status?: string | null;
+    provider?: string | null;
+    genTimeUtc?: string | null;
+    url?: string | null;
+    serialNumber?: string | null;
+    hashAlgorithm?: string | null;
+  } | null;
+  timestamp?: {
+    status?: string | null;
+    provider?: string | null;
+    genTimeUtc?: string | null;
+    url?: string | null;
+    serialNumber?: string | null;
+    hashAlgorithm?: string | null;
+  } | null;
 };
 
 type ShareResponse = {
@@ -49,6 +66,12 @@ type TimelineItem = {
   atUtc: string | null;
   payloadSummary: string | null;
 };
+
+type ToastFn = (
+  message: string,
+  type: "success" | "info" | "error" | "warning",
+  duration?: number
+) => void;
 
 function formatDateTime(value?: string | null): string {
   if (!value) return "N/A";
@@ -71,12 +94,30 @@ function normalizeEventLabel(value?: string | null): string {
     .join(" ");
 }
 
+function extractTimestampStatus(data: VerifyResponse): string | null {
+  const raw =
+    data.tsaStatus ??
+    data.timestampStatus ??
+    data.stampStatus ??
+    data.tsa?.status ??
+    data.timestamp?.status ??
+    null;
+
+  if (!raw || !String(raw).trim()) return null;
+  return String(raw).trim().toUpperCase();
+}
+
 function statusTone(
   status?: string | null
 ): { label: string; bg: string; color: string; border: string } {
   const s = (status ?? "").toUpperCase();
 
-  if (s === "GRANTED" || s === "VERIFIED" || s === "SUCCEEDED") {
+  if (
+    s === "GRANTED" ||
+    s === "STAMPED" ||
+    s === "VERIFIED" ||
+    s === "SUCCEEDED"
+  ) {
     return {
       label: s || "VERIFIED",
       bg: "#ECFDF3",
@@ -109,6 +150,30 @@ function statusTone(
     color: "#344054",
     border: "#D0D5DD",
   };
+}
+
+function timestampTone(
+  status?: string | null
+): { label: string; tone: "success" | "warning" | "neutral" } {
+  const s = (status ?? "").toUpperCase();
+
+  if (s === "STAMPED") {
+    return { label: "STAMPED", tone: "success" };
+  }
+
+  if (s === "GRANTED") {
+    return { label: "GRANTED", tone: "success" };
+  }
+
+  if (s === "PENDING") {
+    return { label: "PENDING", tone: "warning" };
+  }
+
+  if (s) {
+    return { label: s, tone: "warning" };
+  }
+
+  return { label: "Unavailable", tone: "neutral" };
 }
 
 function CopyMiniButton({
@@ -222,12 +287,6 @@ function SummaryField({
     </div>
   );
 }
-
-type ToastFn = (
-  message: string,
-  type: "success" | "info" | "error" | "warning",
-  duration?: number
-) => void;
 
 function MaterialField({
   label,
@@ -369,6 +428,8 @@ export default function VerifyPage() {
     Promise.all([
       apiFetch(`/public/verify/${params.token}`)
         .then((data: VerifyResponse) => {
+          const resolvedTsaStatus = extractTimestampStatus(data);
+
           setHash(data.fileSha256 ?? null);
           setFingerprintHash(data.fingerprintHash ?? null);
           setSignature(data.signatureBase64 ?? null);
@@ -382,7 +443,7 @@ export default function VerifyPage() {
               ? String(data.reportVersion)
               : null
           );
-          setTsaStatus(data.tsaStatus ?? null);
+          setTsaStatus(resolvedTsaStatus);
           setPublicKeyPem(data.publicKeyPem ?? null);
           setSigningKeyId(data.signingKeyId ?? null);
 
@@ -417,14 +478,9 @@ export default function VerifyPage() {
     });
   }, [params?.token, t, addToast]);
 
-  const technicalUrl = useMemo(() => {
-    if (typeof window === "undefined") return "";
-    const url = new URL(window.location.href);
-    url.searchParams.set("tab", "technical");
-    return url.toString();
-  }, [params?.token]);
-
   const verificationBadges = useMemo(() => {
+    const ts = (tsaStatus ?? "").toUpperCase();
+
     return [
       { label: "Hash Matched", tone: "success" as const, show: Boolean(hash) },
       {
@@ -434,13 +490,19 @@ export default function VerifyPage() {
       },
       {
         label:
-          (tsaStatus ?? "").toUpperCase() === "GRANTED"
-            ? "Timestamp Granted"
-            : "Timestamp Available",
+          ts === "STAMPED"
+            ? "Timestamp Stamped"
+            : ts === "GRANTED"
+              ? "Timestamp Granted"
+              : ts
+                ? `Timestamp ${ts}`
+                : "Timestamp Unavailable",
         tone:
-          (tsaStatus ?? "").toUpperCase() === "GRANTED"
+          ts === "STAMPED" || ts === "GRANTED"
             ? ("success" as const)
-            : ("neutral" as const),
+            : ts
+              ? ("warning" as const)
+              : ("neutral" as const),
         show: true,
       },
       {
@@ -453,13 +515,12 @@ export default function VerifyPage() {
 
   return (
     <div className="page">
-      <TopBar title={t("brand")} right={<a href="/">{t("home")}</a>} />
-
       <SilverWatermarkSection
         className="section"
         style={{
           position: "relative",
           overflow: "hidden",
+          paddingTop: 20,
         }}
       >
         <div
@@ -467,7 +528,7 @@ export default function VerifyPage() {
             position: "absolute",
             inset: 0,
             background:
-              "linear-gradient(180deg, rgba(248,250,252,0.96) 0%, rgba(248,250,252,0.98) 50%, rgba(248,250,252,0.995) 100%)",
+              "linear-gradient(180deg, rgba(248,250,252,0.96) 0%, rgba(248,250,252,0.985) 52%, rgba(248,250,252,0.995) 100%)",
             pointerEvents: "none",
           }}
         />
@@ -482,12 +543,97 @@ export default function VerifyPage() {
             aspectRatio: "1 / 1",
             borderRadius: "50%",
             background:
-              "radial-gradient(circle, rgba(31,58,95,0.06) 0%, rgba(31,58,95,0.025) 38%, rgba(31,58,95,0) 72%)",
+              "radial-gradient(circle, rgba(31,58,95,0.05) 0%, rgba(31,58,95,0.02) 38%, rgba(31,58,95,0) 72%)",
             pointerEvents: "none",
             filter: "blur(2px)",
           }}
         />
+
         <div className="container" style={{ position: "relative", zIndex: 1 }}>
+          {/* Custom Header */}
+          <div
+            style={{
+              marginBottom: 28,
+              padding: "14px 18px",
+              borderRadius: 18,
+              border: "1px solid rgba(208,213,221,0.85)",
+              background: "rgba(255,255,255,0.78)",
+              backdropFilter: "blur(14px)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: 16,
+              flexWrap: "wrap",
+              boxShadow: "0 8px 30px rgba(16,24,40,0.05)",
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+              <div
+                style={{
+                  width: 42,
+                  height: 42,
+                  borderRadius: 12,
+                  background: "linear-gradient(180deg, #12315A 0%, #1F3A5F 100%)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  color: "#fff",
+                  fontSize: 16,
+                  fontWeight: 800,
+                  boxShadow: "0 8px 18px rgba(18,49,90,0.18)",
+                  flexShrink: 0,
+                }}
+                aria-hidden="true"
+              >
+                P
+              </div>
+
+              <div>
+                <div
+                  style={{
+                    fontSize: 18,
+                    fontWeight: 900,
+                    color: "#101828",
+                    letterSpacing: "-0.02em",
+                    lineHeight: 1.1,
+                  }}
+                >
+                  PROOVRA
+                </div>
+                <div
+                  style={{
+                    marginTop: 4,
+                    fontSize: 12,
+                    color: "#667085",
+                    fontWeight: 600,
+                  }}
+                >
+                  Secure Evidence Verification
+                </div>
+              </div>
+            </div>
+
+            <a
+              href="/"
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                padding: "10px 14px",
+                borderRadius: 12,
+                border: "1px solid #D0D5DD",
+                background: "#FFFFFF",
+                color: "#344054",
+                fontSize: 13,
+                fontWeight: 700,
+                textDecoration: "none",
+                whiteSpace: "nowrap",
+              }}
+            >
+              Back to Home
+            </a>
+          </div>
+
           <div
             className="page-title"
             style={{
@@ -548,7 +694,13 @@ export default function VerifyPage() {
                 <div style={{ display: "grid", gap: 14 }}>
                   <Skeleton width="42%" height="18px" />
                   <Skeleton width="100%" height="72px" />
-                  <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12 }}>
+                  <div
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns: "repeat(3, 1fr)",
+                      gap: 12,
+                    }}
+                  >
                     <Skeleton width="100%" height="78px" />
                     <Skeleton width="100%" height="78px" />
                     <Skeleton width="100%" height="78px" />
@@ -758,7 +910,7 @@ export default function VerifyPage() {
                   />
                   <SummaryField
                     label="Verification Checked At"
-                    value={formatDateTime(verifiedAt) || formatDateTime(new Date().toISOString())}
+                    value={verifiedAt ? formatDateTime(verifiedAt) : formatDateTime(new Date().toISOString())}
                   />
                   <SummaryField label="File Type" value={mimeType ?? "N/A"} />
                   <SummaryField
@@ -886,20 +1038,8 @@ export default function VerifyPage() {
                         Timestamp Status
                       </div>
                       <Badge
-                        label={
-                          (tsaStatus ?? "").toUpperCase() === "GRANTED"
-                            ? "Granted"
-                            : tsaStatus
-                              ? tsaStatus.toUpperCase()
-                              : "Not Provided"
-                        }
-                        tone={
-                          (tsaStatus ?? "").toUpperCase() === "GRANTED"
-                            ? "success"
-                            : tsaStatus
-                              ? "warning"
-                              : "neutral"
-                        }
+                        label={timestampTone(tsaStatus).label}
+                        tone={timestampTone(tsaStatus).tone}
                       />
                     </div>
 
@@ -1137,8 +1277,7 @@ export default function VerifyPage() {
                         color: "#667085",
                       }}
                     >
-                      Access the official report, open the technical view, or copy
-                      the verification link.
+                      Access the official report or copy the verification link.
                     </div>
                   </div>
                 </div>
@@ -1147,7 +1286,7 @@ export default function VerifyPage() {
                   style={{
                     display: "grid",
                     gap: 12,
-                    gridTemplateColumns: "minmax(0, 1.25fr) minmax(0, 0.9fr) minmax(0, 0.9fr)",
+                    gridTemplateColumns: "minmax(0, 1.2fr) minmax(0, 0.95fr)",
                   }}
                 >
                   <Button
@@ -1163,20 +1302,6 @@ export default function VerifyPage() {
                     disabled={!reportUrl}
                   >
                     Download Report
-                  </Button>
-
-                  <Button
-                    onClick={() => {
-                      if (!technicalUrl) {
-                        addToast("Technical view not available", "warning");
-                        return;
-                      }
-                      window.open(technicalUrl, "_blank");
-                      addToast("Technical view opened", "success");
-                    }}
-                    variant="secondary"
-                  >
-                    Open Technical View
                   </Button>
 
                   <Button
