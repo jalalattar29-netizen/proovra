@@ -1128,107 +1128,143 @@ export async function evidenceRoutes(app: FastifyInstance) {
     }
   );
 
-  app.get("/public/verify/:id", async (req: FastifyRequest, reply) => {
-    const limit = getVerifyLimit();
-    const rate = await enforceRateLimit({
-      key: `ratelimit:verify:${req.ip}`,
-      max: limit.max,
-      windowSec: limit.windowSec,
-    });
-
-    if (!rate.allowed) {
-      return reply.code(429).send({ message: "Rate limit exceeded" });
-    }
-
-    const id = z.string().uuid().parse((req.params as ParamsId).id);
-
-    (req as FastifyRequest & { evidenceId?: string }).evidenceId = id;
-    req.log = req.log.child({ evidenceId: id });
-
-    const evidence = await prisma.evidence.findFirst({
-      where: { id, deletedAt: null },
-      select: {
-        id: true,
-        fingerprintCanonicalJson: true,
-        fingerprintHash: true,
-        signatureBase64: true,
-        signingKeyId: true,
-        signingKeyVersion: true,
-        fileSha256: true,
-        storageBucket: true,
-        storageKey: true,
-      },
-    });
-
-    if (!evidence) {
-      return reply.code(404).send({ message: "Evidence not found" });
-    }
-
-    if (
-      !evidence.fingerprintCanonicalJson ||
-      !evidence.fingerprintHash ||
-      !evidence.signatureBase64 ||
-      !evidence.signingKeyId ||
-      !evidence.signingKeyVersion ||
-      !evidence.fileSha256 ||
-      !evidence.storageBucket ||
-      !evidence.storageKey
-    ) {
-      return reply.code(404).send({ message: "Evidence not signed" });
-    }
-
-    const signingKey = await prisma.signingKey.findUnique({
-      where: {
-        keyId_version: {
-          keyId: evidence.signingKeyId,
-          version: evidence.signingKeyVersion,
-        },
-      },
-      select: { publicKeyPem: true },
-    });
-
-    if (!signingKey) {
-      return reply.code(404).send({ message: "Signing key not found" });
-    }
-
-    await appendCustodyEvent({
-      evidenceId: id,
-      eventType: prismaPkg.CustodyEventType.VERIFY_VIEWED,
-      payload: null,
-      ip: req.ip,
-      userAgent: req.headers["user-agent"],
-    }).catch(() => null);
-
-    const custodyEvents = await prisma.custodyEvent.findMany({
-      where: { evidenceId: id },
-      orderBy: { sequence: "asc" },
-      take: 200,
-      select: {
-        sequence: true,
-        atUtc: true,
-        eventType: true,
-        payload: true,
-      },
-    });
-
-    return reply.code(200).send({
-      evidenceId: evidence.id,
-      fingerprintCanonicalJson: evidence.fingerprintCanonicalJson,
-      fingerprintHash: evidence.fingerprintHash,
-      signatureBase64: evidence.signatureBase64,
-      signingKeyId: evidence.signingKeyId,
-      signingKeyVersion: evidence.signingKeyVersion,
-      publicKeyPem: signingKey.publicKeyPem,
-      fileSha256: evidence.fileSha256,
-      storageBucket: evidence.storageBucket,
-      storageKey: evidence.storageKey,
-      publicUrl: buildPublicUrl(evidence.storageKey),
-      custodyEvents: custodyEvents.map((ev) => ({
-        sequence: ev.sequence,
-        atUtc: ev.atUtc.toISOString(),
-        eventType: ev.eventType,
-        payload: ev.payload,
-      })),
-    });
+app.get("/public/verify/:id", async (req: FastifyRequest, reply) => {
+  const limit = getVerifyLimit();
+  const rate = await enforceRateLimit({
+    key: `ratelimit:verify:${req.ip}`,
+    max: limit.max,
+    windowSec: limit.windowSec,
   });
+
+  if (!rate.allowed) {
+    return reply.code(429).send({ message: "Rate limit exceeded" });
+  }
+
+  const id = z.string().uuid().parse((req.params as ParamsId).id);
+
+  (req as FastifyRequest & { evidenceId?: string }).evidenceId = id;
+  req.log = req.log.child({ evidenceId: id });
+
+  const evidence = await prisma.evidence.findFirst({
+    where: { id, deletedAt: null },
+    select: {
+      id: true,
+      status: true,
+      mimeType: true,
+      reportGeneratedAtUtc: true,
+
+      fingerprintCanonicalJson: true,
+      fingerprintHash: true,
+      signatureBase64: true,
+      signingKeyId: true,
+      signingKeyVersion: true,
+      fileSha256: true,
+      storageBucket: true,
+      storageKey: true,
+
+      tsaProvider: true,
+      tsaUrl: true,
+      tsaSerialNumber: true,
+      tsaGenTimeUtc: true,
+      tsaTokenBase64: true,
+      tsaMessageImprint: true,
+      tsaHashAlgorithm: true,
+      tsaStatus: true,
+      tsaFailureReason: true,
+    },
+  });
+
+  if (!evidence) {
+    return reply.code(404).send({ message: "Evidence not found" });
+  }
+
+  if (
+    !evidence.fingerprintCanonicalJson ||
+    !evidence.fingerprintHash ||
+    !evidence.signatureBase64 ||
+    !evidence.signingKeyId ||
+    !evidence.signingKeyVersion ||
+    !evidence.fileSha256 ||
+    !evidence.storageBucket ||
+    !evidence.storageKey
+  ) {
+    return reply.code(404).send({ message: "Evidence not signed" });
+  }
+
+  const signingKey = await prisma.signingKey.findUnique({
+    where: {
+      keyId_version: {
+        keyId: evidence.signingKeyId,
+        version: evidence.signingKeyVersion,
+      },
+    },
+    select: { publicKeyPem: true },
+  });
+
+  if (!signingKey) {
+    return reply.code(404).send({ message: "Signing key not found" });
+  }
+
+  await appendCustodyEvent({
+    evidenceId: id,
+    eventType: prismaPkg.CustodyEventType.VERIFY_VIEWED,
+    payload: null,
+    ip: req.ip,
+    userAgent: req.headers["user-agent"],
+  }).catch(() => null);
+
+  const custodyEvents = await prisma.custodyEvent.findMany({
+    where: { evidenceId: id },
+    orderBy: { sequence: "asc" },
+    take: 200,
+    select: {
+      sequence: true,
+      atUtc: true,
+      eventType: true,
+      payload: true,
+    },
+  });
+
+  return reply.code(200).send({
+    evidenceId: evidence.id,
+    status: evidence.status,
+    mimeType: evidence.mimeType,
+    reportGeneratedAtUtc: evidence.reportGeneratedAtUtc
+      ? evidence.reportGeneratedAtUtc.toISOString()
+      : null,
+
+    fingerprintCanonicalJson: evidence.fingerprintCanonicalJson,
+    fingerprintHash: evidence.fingerprintHash,
+    signatureBase64: evidence.signatureBase64,
+    signingKeyId: evidence.signingKeyId,
+    signingKeyVersion: evidence.signingKeyVersion,
+    publicKeyPem: signingKey.publicKeyPem,
+    fileSha256: evidence.fileSha256,
+    storageBucket: evidence.storageBucket,
+    storageKey: evidence.storageKey,
+    publicUrl: buildPublicUrl(evidence.storageKey),
+
+    tsaProvider: evidence.tsaProvider,
+    tsaUrl: evidence.tsaUrl,
+    tsaSerialNumber: evidence.tsaSerialNumber,
+    tsaGenTimeUtc: evidence.tsaGenTimeUtc
+      ? evidence.tsaGenTimeUtc.toISOString()
+      : null,
+    tsaTokenBase64: evidence.tsaTokenBase64,
+    tsaMessageImprint: evidence.tsaMessageImprint,
+    tsaHashAlgorithm: evidence.tsaHashAlgorithm,
+    tsaStatus: evidence.tsaStatus,
+    tsaFailureReason: evidence.tsaFailureReason,
+
+    custodyEvents: custodyEvents.map((ev) => ({
+      sequence: ev.sequence,
+      atUtc: ev.atUtc.toISOString(),
+      eventType: ev.eventType,
+      payloadSummary:
+        ev.payload && typeof ev.payload === "object"
+          ? JSON.stringify(ev.payload)
+          : null,
+    })),
+  });
+});
 }
