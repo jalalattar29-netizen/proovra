@@ -37,6 +37,11 @@ type VerifyResponse = {
   timestampStatus?: string | null;
   stampStatus?: string | null;
   publicKeyPem?: string | null;
+  tsaProvider?: string | null;
+  tsaUrl?: string | null;
+  tsaSerialNumber?: string | null;
+  tsaGenTimeUtc?: string | null;
+  tsaHashAlgorithm?: string | null;
   tsa?: {
     status?: string | null;
     provider?: string | null;
@@ -105,6 +110,23 @@ function extractTimestampStatus(data: VerifyResponse): string | null {
 
   if (!raw || !String(raw).trim()) return null;
   return String(raw).trim().toUpperCase();
+}
+
+function findEventTime(
+  timeline: TimelineItem[],
+  eventNames: string[]
+): string | null {
+  const targets = new Set(eventNames.map((v) => v.toUpperCase()));
+
+  const matched = timeline
+    .filter((item) => targets.has((item.eventType ?? "").toUpperCase()) && item.atUtc)
+    .sort((a, b) => {
+      const ta = a.atUtc ? new Date(a.atUtc).getTime() : 0;
+      const tb = b.atUtc ? new Date(b.atUtc).getTime() : 0;
+      return tb - ta;
+    });
+
+  return matched[0]?.atUtc ?? null;
 }
 
 function statusTone(
@@ -430,14 +452,35 @@ export default function VerifyPage() {
         .then((data: VerifyResponse) => {
           const resolvedTsaStatus = extractTimestampStatus(data);
 
+          const mappedTimeline = (data.custodyEvents ?? []).map((ev) => ({
+            eventType: ev.eventType ?? "UNKNOWN_EVENT",
+            atUtc: ev.atUtc ?? null,
+            payloadSummary: ev.payloadSummary ?? null,
+          }));
+
+          const generatedAtFallback =
+            data.reportGeneratedAtUtc ??
+            data.generatedAtUtc ??
+            data.tsaGenTimeUtc ??
+            data.tsa?.genTimeUtc ??
+            data.timestamp?.genTimeUtc ??
+            findEventTime(mappedTimeline, ["REPORT_GENERATED"]) ??
+            null;
+
+          const verifiedAtFallback =
+            data.verifiedAtUtc ??
+            data.verificationCheckedAtUtc ??
+            findEventTime(mappedTimeline, ["VERIFY_VIEWED", "EVIDENCE_VIEWED"]) ??
+            null;
+
           setHash(data.fileSha256 ?? null);
           setFingerprintHash(data.fingerprintHash ?? null);
           setSignature(data.signatureBase64 ?? null);
           setVerifyStatus(data.status ?? "VERIFIED");
           setEvidenceId(data.evidenceId ?? data.id ?? params.token ?? null);
           setMimeType(data.mimeType ?? null);
-          setGeneratedAt(data.reportGeneratedAtUtc ?? data.generatedAtUtc ?? null);
-          setVerifiedAt(data.verifiedAtUtc ?? data.verificationCheckedAtUtc ?? null);
+          setGeneratedAt(generatedAtFallback);
+          setVerifiedAt(verifiedAtFallback);
           setReportVersion(
             data.reportVersion !== undefined && data.reportVersion !== null
               ? String(data.reportVersion)
@@ -446,14 +489,7 @@ export default function VerifyPage() {
           setTsaStatus(resolvedTsaStatus);
           setPublicKeyPem(data.publicKeyPem ?? null);
           setSigningKeyId(data.signingKeyId ?? null);
-
-          setTimeline(
-            (data.custodyEvents ?? []).map((ev) => ({
-              eventType: ev.eventType ?? "UNKNOWN_EVENT",
-              atUtc: ev.atUtc ?? null,
-              payloadSummary: ev.payloadSummary ?? null,
-            }))
-          );
+          setTimeline(mappedTimeline);
 
           addToast("Evidence verified successfully", "success");
         })
@@ -512,6 +548,43 @@ export default function VerifyPage() {
       },
     ].filter((item) => item.show);
   }, [hash, signature, tsaStatus, timeline.length]);
+
+  const summaryFields = useMemo(
+    () =>
+      [
+        {
+          label: "Verification Status",
+          value: statusTone(verifyStatus).label,
+          show: true,
+        },
+        {
+          label: "Evidence ID",
+          value: evidenceId ?? params?.token ?? "N/A",
+          show: true,
+        },
+        {
+          label: "Generated At",
+          value: generatedAt ? formatDateTime(generatedAt) : "N/A",
+          show: Boolean(generatedAt),
+        },
+        {
+          label: "Verification Checked At",
+          value: verifiedAt ? formatDateTime(verifiedAt) : "N/A",
+          show: Boolean(verifiedAt),
+        },
+        {
+          label: "File Type",
+          value: mimeType ?? "N/A",
+          show: Boolean(mimeType),
+        },
+        {
+          label: "Report Version",
+          value: reportVersion ?? "N/A",
+          show: Boolean(reportVersion),
+        },
+      ].filter((item) => item.show),
+    [verifyStatus, evidenceId, params?.token, generatedAt, verifiedAt, mimeType, reportVersion]
+  );
 
   return (
     <div className="page">
@@ -896,27 +969,13 @@ export default function VerifyPage() {
                     gap: 14,
                   }}
                 >
-                  <SummaryField
-                    label="Verification Status"
-                    value={statusTone(verifyStatus).label}
-                  />
-                  <SummaryField
-                    label="Evidence ID"
-                    value={evidenceId ?? params?.token ?? "N/A"}
-                  />
-                  <SummaryField
-                    label="Generated At"
-                    value={formatDateTime(generatedAt)}
-                  />
-                  <SummaryField
-                    label="Verification Checked At"
-                    value={verifiedAt ? formatDateTime(verifiedAt) : formatDateTime(new Date().toISOString())}
-                  />
-                  <SummaryField label="File Type" value={mimeType ?? "N/A"} />
-                  <SummaryField
-                    label="Report Version"
-                    value={reportVersion ?? "N/A"}
-                  />
+                  {summaryFields.map((field) => (
+                    <SummaryField
+                      key={field.label}
+                      label={field.label}
+                      value={field.value}
+                    />
+                  ))}
                 </div>
               </Card>
 
@@ -1289,21 +1348,7 @@ export default function VerifyPage() {
                     gridTemplateColumns: "minmax(0, 1.2fr) minmax(0, 0.95fr)",
                   }}
                 >
-                  <Button
-                    onClick={() => {
-                      if (reportUrl) {
-                        addToast("Downloading report...", "info");
-                        window.open(reportUrl, "_blank");
-                        addToast("Report opened", "success");
-                      } else {
-                        addToast("Report not available", "warning");
-                      }
-                    }}
-                    disabled={!reportUrl}
-                  >
-                    Download Report
-                  </Button>
-
+<div style={{ display: "grid" }}></div>
                   <Button
                     onClick={() => {
                       const url = window.location.href;
