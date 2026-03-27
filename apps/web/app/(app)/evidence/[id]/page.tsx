@@ -8,8 +8,14 @@ import { useLocale } from "../../../providers";
 import { apiFetch } from "../../../../lib/api";
 import { captureException } from "../../../../lib/sentry";
 
-function formatBytes(sizeBytes: string | null): string {
-  const n = sizeBytes ? Number(sizeBytes) : Number.NaN;
+function formatBytes(sizeBytes: string | number | null | undefined): string {
+  const n =
+    typeof sizeBytes === "number"
+      ? sizeBytes
+      : sizeBytes
+        ? Number(sizeBytes)
+        : Number.NaN;
+
   if (!Number.isFinite(n) || n <= 0) return "Unknown size";
 
   const units = ["B", "KB", "MB", "GB", "TB"] as const;
@@ -51,6 +57,65 @@ type CaseOption = {
   teamId?: string | null;
 };
 
+type EvidencePart = {
+  id: string;
+  partIndex: number;
+  mimeType: string | null;
+  sizeBytes?: string | number | null;
+  storageBucket?: string | null;
+  storageKey?: string | null;
+  sha256?: string | null;
+  durationMs?: number | null;
+  publicUrl?: string | null;
+  url?: string | null;
+  isPrimary?: boolean;
+};
+
+type PartsResponse = {
+  evidenceId?: string;
+  multipart?: boolean;
+  primary?: {
+    bucket?: string | null;
+    key?: string | null;
+    publicUrl?: string | null;
+  } | null;
+  parts?: EvidencePart[];
+};
+
+type OriginalResponse = {
+  evidenceId?: string;
+  bucket?: string | null;
+  key?: string | null;
+  url?: string | null;
+  publicUrl?: string | null;
+  mimeType?: string | null;
+  sizeBytes?: string | null;
+};
+
+function getPartDisplayName(part: EvidencePart): string {
+  const key = part.storageKey ?? "";
+  const rawName = key.split("/").pop()?.trim();
+
+  if (rawName) {
+    return rawName;
+  }
+
+  const ext = (() => {
+    const mime = (part.mimeType ?? "").toLowerCase();
+    if (mime === "image/jpeg") return ".jpg";
+    if (mime === "image/png") return ".png";
+    if (mime === "image/webp") return ".webp";
+    if (mime === "video/mp4") return ".mp4";
+    if (mime === "video/webm") return ".webm";
+    if (mime === "audio/mpeg") return ".mp3";
+    if (mime === "audio/wav") return ".wav";
+    if (mime === "application/pdf") return ".pdf";
+    return "";
+  })();
+
+  return `item-${part.partIndex + 1}${ext}`;
+}
+
 export default function EvidenceDetailPage() {
   const { t } = useLocale();
   const params = useParams<{ id: string }>();
@@ -82,10 +147,61 @@ export default function EvidenceDetailPage() {
   const [originalMimeType, setOriginalMimeType] = useState<string | null>(null);
   const [originalSizeBytes, setOriginalSizeBytes] = useState<string | null>(null);
 
+  const [parts, setParts] = useState<EvidencePart[]>([]);
+  const [partsLoadFailed, setPartsLoadFailed] = useState(false);
+  const [verificationPackageAvailable, setVerificationPackageAvailable] = useState(false);
+
+  const isMultipart = parts.length > 1;
+
   const originalKind = useMemo(
     () => getEvidenceKind(originalMimeType),
     [originalMimeType]
   );
+
+  const sortedParts = useMemo(
+    () => [...parts].sort((a, b) => a.partIndex - b.partIndex),
+    [parts]
+  );
+
+  const partTypeSummary = useMemo(() => {
+    if (sortedParts.length === 0) {
+      return {
+        imageCount: 0,
+        videoCount: 0,
+        audioCount: 0,
+        pdfCount: 0,
+        otherCount: 0,
+      };
+    }
+
+    return sortedParts.reduce(
+      (acc, part) => {
+        const kind = getEvidenceKind(part.mimeType ?? null);
+        if (kind === "image") acc.imageCount += 1;
+        else if (kind === "video") acc.videoCount += 1;
+        else if (kind === "audio") acc.audioCount += 1;
+        else if (kind === "pdf") acc.pdfCount += 1;
+        else acc.otherCount += 1;
+        return acc;
+      },
+      {
+        imageCount: 0,
+        videoCount: 0,
+        audioCount: 0,
+        pdfCount: 0,
+        otherCount: 0,
+      }
+    );
+  }, [sortedParts]);
+
+  const primaryPart = useMemo(() => {
+    if (sortedParts.length === 0) return null;
+    return (
+      sortedParts.find((part) => part.isPrimary) ??
+      sortedParts[0] ??
+      null
+    );
+  }, [sortedParts]);
 
   useEffect(() => {
     if (!params?.id) return;
@@ -102,13 +218,17 @@ export default function EvidenceDetailPage() {
           billingRes,
           reportRes,
           originalRes,
-          casesRes
+          casesRes,
+          partsRes,
+          verificationPackageRes,
         ] = await Promise.allSettled([
           apiFetch(`/v1/evidence/${params.id}`),
           apiFetch("/v1/billing/status"),
           apiFetch(`/v1/evidence/${params.id}/report/latest`),
           apiFetch(`/v1/evidence/${params.id}/original`),
-          apiFetch("/v1/cases")
+          apiFetch("/v1/cases"),
+          apiFetch(`/v1/evidence/${params.id}/parts`),
+          apiFetch(`/v1/evidence/${params.id}/verification-package`),
         ]);
 
         if (cancelled) return;
@@ -137,33 +257,50 @@ export default function EvidenceDetailPage() {
           setReportUrl(null);
         }
 
+        if (casesRes.status === "fulfilled") {
+          const items = Array.isArray(casesRes.value?.items)
+            ? (casesRes.value.items as CaseOption[])
+            : [];
+          setOwnedCases(items);
+        } else {
+          setOwnedCases([]);
+        }
+
+        if (partsRes.status === "fulfilled") {
+          const data = partsRes.value as PartsResponse;
+          const items = Array.isArray(data?.parts) ? data.parts : [];
+          items.sort((a, b) => a.partIndex - b.partIndex);
+          setParts(items);
+          setPartsLoadFailed(false);
+        } else {
+          setParts([]);
+          setPartsLoadFailed(true);
+        }
+
+        if (verificationPackageRes.status === "fulfilled") {
+          setVerificationPackageAvailable(Boolean(verificationPackageRes.value?.url));
+        } else {
+          setVerificationPackageAvailable(false);
+        }
+
         if (originalRes.status === "fulfilled") {
-          setOriginalPreviewUrl(originalRes.value?.publicUrl ?? originalRes.value?.url ?? null);
-          setOriginalDownloadUrl(originalRes.value?.url ?? originalRes.value?.publicUrl ?? null);
-          setOriginalMimeType(originalRes.value?.mimeType ?? null);
-          setOriginalSizeBytes(originalRes.value?.sizeBytes ?? null);
+          const original = originalRes.value as OriginalResponse;
+          setOriginalPreviewUrl(original?.publicUrl ?? original?.url ?? null);
+          setOriginalDownloadUrl(original?.url ?? original?.publicUrl ?? null);
+          setOriginalMimeType(original?.mimeType ?? null);
+          setOriginalSizeBytes(original?.sizeBytes ?? null);
         } else {
           setOriginalPreviewUrl(null);
           setOriginalDownloadUrl(null);
           setOriginalMimeType(null);
           setOriginalSizeBytes(null);
         }
-
-        if (casesRes.status === "fulfilled") {
-          const items = Array.isArray(casesRes.value?.items)
-            ? (casesRes.value.items as CaseOption[])
-            : [];
-
-          setOwnedCases(items);
-        } else {
-          setOwnedCases([]);
-        }
       } catch (err) {
         const message = err instanceof Error ? err.message : "Failed to load evidence";
         setError(message);
         captureException(err, {
           feature: "web_evidence_detail_load",
-          evidenceId: params.id
+          evidenceId: params.id,
         });
       } finally {
         if (!cancelled) {
@@ -183,17 +320,63 @@ export default function EvidenceDetailPage() {
     if (!params?.id) return;
 
     try {
-      const data = await apiFetch(`/v1/evidence/${params.id}`);
-      setStatus(data.evidence?.status ?? "SIGNED");
-      setCreatedAt(data.evidence?.createdAt ?? null);
-      setType(data.evidence?.type ?? "EVIDENCE");
-      setLockedAt(data.evidence?.lockedAt ?? null);
-      setArchivedAt(data.evidence?.archivedAt ?? null);
-      setCaseId(data.evidence?.caseId ?? null);
+      const [evidenceData, reportData, originalData, partsData, verificationData] =
+        await Promise.allSettled([
+          apiFetch(`/v1/evidence/${params.id}`),
+          apiFetch(`/v1/evidence/${params.id}/report/latest`),
+          apiFetch(`/v1/evidence/${params.id}/original`),
+          apiFetch(`/v1/evidence/${params.id}/parts`),
+          apiFetch(`/v1/evidence/${params.id}/verification-package`),
+        ]);
+
+      if (evidenceData.status === "fulfilled") {
+        setStatus(evidenceData.value.evidence?.status ?? "SIGNED");
+        setCreatedAt(evidenceData.value.evidence?.createdAt ?? null);
+        setType(evidenceData.value.evidence?.type ?? "EVIDENCE");
+        setLockedAt(evidenceData.value.evidence?.lockedAt ?? null);
+        setArchivedAt(evidenceData.value.evidence?.archivedAt ?? null);
+        setCaseId(evidenceData.value.evidence?.caseId ?? null);
+      }
+
+      if (reportData.status === "fulfilled") {
+        setReportUrl(reportData.value?.url ?? null);
+      } else {
+        setReportUrl(null);
+      }
+
+      if (originalData.status === "fulfilled") {
+        const original = originalData.value as OriginalResponse;
+        setOriginalPreviewUrl(original?.publicUrl ?? original?.url ?? null);
+        setOriginalDownloadUrl(original?.url ?? original?.publicUrl ?? null);
+        setOriginalMimeType(original?.mimeType ?? null);
+        setOriginalSizeBytes(original?.sizeBytes ?? null);
+      } else {
+        setOriginalPreviewUrl(null);
+        setOriginalDownloadUrl(null);
+        setOriginalMimeType(null);
+        setOriginalSizeBytes(null);
+      }
+
+      if (partsData.status === "fulfilled") {
+        const data = partsData.value as PartsResponse;
+        const items = Array.isArray(data?.parts) ? data.parts : [];
+        items.sort((a, b) => a.partIndex - b.partIndex);
+        setParts(items);
+        setPartsLoadFailed(false);
+      } else {
+        setParts([]);
+        setPartsLoadFailed(true);
+      }
+
+      if (verificationData.status === "fulfilled") {
+        setVerificationPackageAvailable(Boolean(verificationData.value?.url));
+      } else {
+        setVerificationPackageAvailable(false);
+      }
     } catch (err) {
       captureException(err, {
         feature: "web_evidence_refresh",
-        evidenceId: params.id
+        evidenceId: params.id,
       });
     }
   };
@@ -210,7 +393,7 @@ export default function EvidenceDetailPage() {
       addToast("Permanently sealing evidence...", "info");
       const data = await apiFetch(`/v1/evidence/${params.id}/lock`, {
         method: "POST",
-        body: JSON.stringify({ locked: true })
+        body: JSON.stringify({ locked: true }),
       });
       setLockedAt(data.evidence?.lockedAt ?? new Date().toISOString());
       addToast("Evidence permanently locked", "success");
@@ -218,7 +401,7 @@ export default function EvidenceDetailPage() {
     } catch (err) {
       captureException(err, {
         feature: "web_evidence_lock",
-        evidenceId: params.id
+        evidenceId: params.id,
       });
       const message = err instanceof Error ? err.message : "Failed to lock evidence";
       setError(message);
@@ -247,7 +430,7 @@ export default function EvidenceDetailPage() {
     } catch (err) {
       captureException(err, {
         feature: "web_evidence_delete",
-        evidenceId: params.id
+        evidenceId: params.id,
       });
       const message = err instanceof Error ? err.message : "Failed to delete evidence";
       setError(message);
@@ -269,7 +452,7 @@ export default function EvidenceDetailPage() {
       addToast("Archiving evidence...", "info");
       const data = await apiFetch(`/v1/evidence/${params.id}/archive`, {
         method: "POST",
-        body: JSON.stringify({})
+        body: JSON.stringify({}),
       });
       setArchivedAt(data.evidence?.archivedAt ?? new Date().toISOString());
       addToast("Evidence archived", "success");
@@ -277,7 +460,7 @@ export default function EvidenceDetailPage() {
     } catch (err) {
       captureException(err, {
         feature: "web_evidence_archive",
-        evidenceId: params.id
+        evidenceId: params.id,
       });
       const message = err instanceof Error ? err.message : "Failed to archive evidence";
       setError(message);
@@ -295,14 +478,14 @@ export default function EvidenceDetailPage() {
       addToast("Restoring evidence...", "info");
       const data = await apiFetch(`/v1/evidence/${params.id}/unarchive`, {
         method: "POST",
-        body: JSON.stringify({})
+        body: JSON.stringify({}),
       });
       setArchivedAt(data.evidence?.archivedAt ?? null);
       addToast("Evidence restored", "success");
     } catch (err) {
       captureException(err, {
         feature: "web_evidence_unarchive",
-        evidenceId: params.id
+        evidenceId: params.id,
       });
       const message = err instanceof Error ? err.message : "Failed to restore evidence";
       setError(message);
@@ -313,19 +496,25 @@ export default function EvidenceDetailPage() {
   };
 
   const handleDownloadReport = async () => {
-    if (!reportUrl) {
-      addToast("Report not available", "info");
-      return;
-    }
+    if (!params?.id) return;
 
     try {
-      addToast("Downloading report...", "info");
-      window.open(reportUrl, "_blank", "noopener,noreferrer");
+      addToast("Preparing report...", "info");
+      const data = await apiFetch(`/v1/evidence/${params.id}/report/latest`);
+      const nextUrl = data?.url ?? null;
+      setReportUrl(nextUrl);
+
+      if (!nextUrl) {
+        addToast("Report not available", "info");
+        return;
+      }
+
+      window.open(nextUrl, "_blank", "noopener,noreferrer");
       addToast("Report downloaded", "success");
     } catch (err) {
       captureException(err, {
-        feature: "web_evidence_download",
-        evidenceId: params?.id
+        feature: "web_evidence_download_report",
+        evidenceId: params?.id,
       });
       addToast("Failed to download report", "error");
     }
@@ -343,31 +532,96 @@ export default function EvidenceDetailPage() {
         return;
       }
 
+      setVerificationPackageAvailable(true);
       window.open(data.url, "_blank", "noopener,noreferrer");
       addToast("Verification package downloaded", "success");
     } catch (err) {
       captureException(err, {
         feature: "web_evidence_verification_package_download",
-        evidenceId: params.id
+        evidenceId: params.id,
       });
       addToast("Failed to download verification package", "error");
     }
   };
 
-  const handleOpenOriginal = () => {
-    if (!originalDownloadUrl) {
-      addToast("Original file not available", "info");
-      return;
+  const handleOpenOriginal = async () => {
+    if (!params?.id) return;
+
+    try {
+      if (!originalDownloadUrl) {
+        const data = await apiFetch(`/v1/evidence/${params.id}/original`);
+        const nextUrl = data?.url ?? data?.publicUrl ?? null;
+        setOriginalPreviewUrl(data?.publicUrl ?? data?.url ?? null);
+        setOriginalDownloadUrl(nextUrl);
+        setOriginalMimeType(data?.mimeType ?? null);
+        setOriginalSizeBytes(data?.sizeBytes ?? null);
+
+        if (!nextUrl) {
+          addToast("Original file not available", "info");
+          return;
+        }
+
+        window.open(nextUrl, "_blank", "noopener,noreferrer");
+        return;
+      }
+
+      window.open(originalDownloadUrl, "_blank", "noopener,noreferrer");
+    } catch (err) {
+      captureException(err, {
+        feature: "web_evidence_open_original",
+        evidenceId: params.id,
+      });
+      addToast("Failed to open original", "error");
     }
-    window.open(originalDownloadUrl, "_blank", "noopener,noreferrer");
   };
 
-  const handleDownloadOriginal = () => {
-    if (!originalDownloadUrl) {
-      addToast("Original file not available", "info");
+  const handleDownloadOriginal = async () => {
+    if (!params?.id) return;
+
+    try {
+      if (!originalDownloadUrl) {
+        const data = await apiFetch(`/v1/evidence/${params.id}/original`);
+        const nextUrl = data?.url ?? data?.publicUrl ?? null;
+        setOriginalPreviewUrl(data?.publicUrl ?? data?.url ?? null);
+        setOriginalDownloadUrl(nextUrl);
+        setOriginalMimeType(data?.mimeType ?? null);
+        setOriginalSizeBytes(data?.sizeBytes ?? null);
+
+        if (!nextUrl) {
+          addToast("Original file not available", "info");
+          return;
+        }
+
+        window.open(nextUrl, "_blank", "noopener,noreferrer");
+        return;
+      }
+
+      window.open(originalDownloadUrl, "_blank", "noopener,noreferrer");
+    } catch (err) {
+      captureException(err, {
+        feature: "web_evidence_download_original",
+        evidenceId: params.id,
+      });
+      addToast("Failed to download original", "error");
+    }
+  };
+
+  const handleOpenPart = (part: EvidencePart) => {
+    const url = part.url ?? part.publicUrl ?? null;
+    if (!url) {
+      addToast("This item is not available right now", "info");
       return;
     }
-    window.open(originalDownloadUrl, "_blank", "noopener,noreferrer");
+    window.open(url, "_blank", "noopener,noreferrer");
+  };
+
+  const handleDownloadPart = (part: EvidencePart) => {
+    const url = part.url ?? part.publicUrl ?? null;
+    if (!url) {
+      addToast("This item is not available right now", "info");
+      return;
+    }
+    window.open(url, "_blank", "noopener,noreferrer");
   };
 
   const handleOpenAssignCase = () => {
@@ -389,7 +643,7 @@ export default function EvidenceDetailPage() {
 
       await apiFetch(`/v1/cases/${selectedCaseId}/evidence`, {
         method: "POST",
-        body: JSON.stringify({ evidenceId: params.id })
+        body: JSON.stringify({ evidenceId: params.id }),
       });
 
       setCaseId(selectedCaseId);
@@ -400,7 +654,7 @@ export default function EvidenceDetailPage() {
       captureException(err, {
         feature: "web_evidence_add_to_case",
         evidenceId: params.id,
-        targetCaseId: selectedCaseId
+        targetCaseId: selectedCaseId,
       });
       const message = err instanceof Error ? err.message : "Failed to add evidence to case";
       addToast(message, "error");
@@ -417,7 +671,7 @@ export default function EvidenceDetailPage() {
       addToast("Removing evidence from case...", "info");
 
       await apiFetch(`/v1/cases/${caseId}/evidence/${params.id}`, {
-        method: "DELETE"
+        method: "DELETE",
       });
 
       setCaseId(null);
@@ -427,7 +681,7 @@ export default function EvidenceDetailPage() {
       captureException(err, {
         feature: "web_evidence_remove_from_case",
         evidenceId: params.id,
-        caseId
+        caseId,
       });
       const message = err instanceof Error ? err.message : "Failed to remove evidence from case";
       addToast(message, "error");
@@ -466,7 +720,7 @@ export default function EvidenceDetailPage() {
                     background: "rgba(255,255,255,0.18)",
                     display: "grid",
                     placeItems: "center",
-                    fontWeight: 900
+                    fontWeight: 900,
                   }}
                 >
                   ✓
@@ -479,6 +733,8 @@ export default function EvidenceDetailPage() {
                       <span className="badge signed">{t("statusSigned")}</span>
                     ) : status === "PROCESSING" ? (
                       <span className="badge processing">{t("statusProcessing")}</span>
+                    ) : status === "REPORTED" ? (
+                      <span className="badge ready">REPORTED</span>
                     ) : (
                       <span className="badge ready">{status}</span>
                     )}
@@ -503,6 +759,8 @@ export default function EvidenceDetailPage() {
                           <span className="badge signed">{t("statusSigned")}</span>
                         ) : status === "PROCESSING" ? (
                           <span className="badge processing">{t("statusProcessing")}</span>
+                        ) : status === "REPORTED" ? (
+                          <span className="badge ready">REPORTED</span>
                         ) : (
                           <span className="badge ready">{status}</span>
                         )}
@@ -516,7 +774,7 @@ export default function EvidenceDetailPage() {
                           display: "flex",
                           gap: 8,
                           flexWrap: "wrap",
-                          justifyContent: "flex-end"
+                          justifyContent: "flex-end",
                         }}
                       >
                         {lockedAt && (
@@ -541,6 +799,28 @@ export default function EvidenceDetailPage() {
                         {caseId ? "Attached to case" : "Not assigned to any case"}
                       </div>
                     </div>
+
+                    <div className="row">
+                      <div className="rowTitle evidence-meta-label">Structure</div>
+                      <div className="rowSub" style={{ margin: 0 }}>
+                        {isMultipart
+                          ? `Multipart (${sortedParts.length} items)`
+                          : "Single file"}
+                      </div>
+                    </div>
+
+                    {isMultipart && (
+                      <div className="row">
+                        <div className="rowTitle evidence-meta-label">Contents</div>
+                        <div className="rowSub" style={{ margin: 0, textAlign: "right" }}>
+                          {partTypeSummary.imageCount > 0 && <div>{partTypeSummary.imageCount} image(s)</div>}
+                          {partTypeSummary.videoCount > 0 && <div>{partTypeSummary.videoCount} video(s)</div>}
+                          {partTypeSummary.audioCount > 0 && <div>{partTypeSummary.audioCount} audio item(s)</div>}
+                          {partTypeSummary.pdfCount > 0 && <div>{partTypeSummary.pdfCount} pdf/document(s)</div>}
+                          {partTypeSummary.otherCount > 0 && <div>{partTypeSummary.otherCount} other item(s)</div>}
+                        </div>
+                      </div>
+                    )}
 
                     {lockedAt && (
                       <div className="row" style={{ borderTop: "1px solid rgba(101, 235, 255, 0.15)" }}>
@@ -573,14 +853,14 @@ export default function EvidenceDetailPage() {
               <div style={{ fontWeight: 800, marginBottom: 12 }}>Actions</div>
 
               <div className="footer-actions">
-                <Button onClick={handleDownloadReport} disabled={!reportUrl || plan === "FREE"}>
+                <Button onClick={handleDownloadReport} disabled={actionBusy || plan === "FREE"}>
                   {t("downloadReport")}
                 </Button>
 
                 <Button
                   variant="secondary"
                   onClick={handleDownloadVerificationPackage}
-                  disabled={actionBusy}
+                  disabled={actionBusy || !verificationPackageAvailable}
                 >
                   Download Verification Package
                 </Button>
@@ -593,6 +873,12 @@ export default function EvidenceDetailPage() {
               {plan === "FREE" && (
                 <div style={{ fontSize: 12, color: "#64748b", marginTop: 10 }}>
                   Reports are disabled on Free. Upgrade to access PDF reports.
+                </div>
+              )}
+
+              {!verificationPackageAvailable && (
+                <div style={{ fontSize: 12, color: "#64748b", marginTop: 10 }}>
+                  Verification package is not available yet.
                 </div>
               )}
 
@@ -680,140 +966,376 @@ export default function EvidenceDetailPage() {
             </Card>
           </div>
 
-          {(originalPreviewUrl || originalDownloadUrl || originalMimeType || originalSizeBytes) && (
+          {(sortedParts.length > 0 ||
+            originalPreviewUrl ||
+            originalDownloadUrl ||
+            originalMimeType ||
+            originalSizeBytes) && (
             <Card className="mt-6">
-              <div style={{ fontWeight: 800, marginBottom: 12 }}>Original Evidence</div>
-
-              <div style={{ fontSize: 13, color: "#64748b", marginBottom: 14 }}>
-                {originalMimeType && <div>Type: {originalMimeType}</div>}
-                {originalSizeBytes && <div>Size: {formatBytes(originalSizeBytes)}</div>}
+              <div style={{ fontWeight: 800, marginBottom: 12 }}>
+                {isMultipart ? "Evidence Items" : "Original Evidence"}
               </div>
 
-              <div
-                style={{
-                  display: "flex",
-                  flexWrap: "wrap",
-                  gap: 10,
-                  marginBottom: 14
-                }}
-              >
-                <Button variant="secondary" onClick={handleOpenOriginal} disabled={!originalDownloadUrl}>
-                  Open Original
-                </Button>
-
-                <Button variant="secondary" onClick={handleDownloadOriginal} disabled={!originalDownloadUrl}>
-                  Download Original
-                </Button>
-              </div>
-
-              {originalPreviewUrl && originalKind === "image" && (
-                <div style={{ marginBottom: 12 }}>
-                  <img
-                    src={originalPreviewUrl}
-                    alt="Evidence preview"
+              {isMultipart ? (
+                <>
+                  <div
                     style={{
-                      display: "block",
-                      width: "100%",
-                      maxWidth: "100%",
-                      maxHeight: 560,
-                      objectFit: "contain",
+                      marginBottom: 16,
+                      padding: 14,
                       borderRadius: 12,
-                      background: "rgba(15,23,42,0.35)"
+                      background: "rgba(15,23,42,0.35)",
+                      color: "#cbd5e1",
+                      fontSize: 14,
+                      lineHeight: 1.6,
                     }}
-                  />
-                </div>
-              )}
-
-              {originalPreviewUrl && originalKind === "video" && (
-                <div style={{ marginBottom: 12 }}>
-                  <video
-                    src={originalPreviewUrl}
-                    controls
-                    preload="metadata"
-                    style={{
-                      display: "block",
-                      width: "100%",
-                      maxWidth: "100%",
-                      maxHeight: 560,
-                      borderRadius: 12,
-                      background: "#000"
-                    }}
-                  />
-                </div>
-              )}
-
-              {originalPreviewUrl && originalKind === "audio" && (
-                <div
-                  style={{
-                    marginBottom: 12,
-                    padding: 16,
-                    borderRadius: 12,
-                    background: "rgba(15,23,42,0.35)"
-                  }}
-                >
-                  <audio
-                    src={originalPreviewUrl}
-                    controls
-                    preload="metadata"
-                    style={{ width: "100%" }}
-                  />
-                </div>
-              )}
-
-              {originalPreviewUrl && originalKind === "pdf" && (
-                <div
-                  style={{
-                    marginBottom: 12,
-                    borderRadius: 12,
-                    overflow: "hidden",
-                    background: "#fff"
-                  }}
-                >
-                  <iframe
-                    src={originalPreviewUrl}
-                    title="Original PDF evidence"
-                    style={{
-                      width: "100%",
-                      height: 760,
-                      border: "none",
-                      display: "block"
-                    }}
-                  />
-                </div>
-              )}
-
-              {!originalPreviewUrl && (originalKind === "text" || originalKind === "other") && (
-                <div
-                  style={{
-                    marginBottom: 12,
-                    padding: 16,
-                    borderRadius: 12,
-                    background: "rgba(15,23,42,0.35)",
-                    color: "#cbd5e1",
-                    fontSize: 14,
-                    lineHeight: 1.6
-                  }}
-                >
-                  <div style={{ marginBottom: 8 }}>
-                    Preview is not available for this file type inside the page.
+                  >
+                    This evidence contains <strong>{sortedParts.length}</strong> items.
+                    Each item below can be previewed and downloaded separately.
                   </div>
-                  <div>Use Open Original or Download Original.</div>
-                </div>
-              )}
 
-              {!originalPreviewUrl && !originalDownloadUrl && (
-                <div
-                  style={{
-                    padding: 16,
-                    borderRadius: 12,
-                    background: "rgba(15,23,42,0.35)",
-                    color: "#94a3b8",
-                    fontSize: 14,
-                    lineHeight: 1.6
-                  }}
-                >
-                  Original file is not available for preview or download at this time.
-                </div>
+                  <div
+                    style={{
+                      display: "grid",
+                      gap: 16,
+                    }}
+                  >
+                    {sortedParts.map((part) => {
+                      const kind = getEvidenceKind(part.mimeType ?? null);
+                      const previewUrl = part.publicUrl ?? part.url ?? null;
+                      const downloadUrl = part.url ?? part.publicUrl ?? null;
+                      const displayName = getPartDisplayName(part);
+
+                      return (
+                        <div
+                          key={part.id}
+                          style={{
+                            padding: 16,
+                            borderRadius: 14,
+                            background: "rgba(15,23,42,0.28)",
+                            border: "1px solid rgba(148,163,184,0.12)",
+                            display: "grid",
+                            gap: 10,
+                          }}
+                        >
+                          <div
+                            style={{
+                              display: "flex",
+                              justifyContent: "space-between",
+                              gap: 12,
+                              flexWrap: "wrap",
+                              alignItems: "center",
+                            }}
+                          >
+                            <div>
+                              <div style={{ fontWeight: 800, color: "#e2e8f0" }}>
+                                Item {part.partIndex + 1}
+                                {part.isPrimary ? " (Primary)" : ""}
+                              </div>
+                              <div style={{ fontSize: 13, color: "#94a3b8", marginTop: 4 }}>
+                                {displayName}
+                              </div>
+                            </div>
+
+                            <div
+                              style={{
+                                display: "flex",
+                                gap: 8,
+                                flexWrap: "wrap",
+                              }}
+                            >
+                              <Button
+                                variant="secondary"
+                                onClick={() => handleOpenPart(part)}
+                                disabled={!downloadUrl}
+                              >
+                                Open
+                              </Button>
+                              <Button
+                                variant="secondary"
+                                onClick={() => handleDownloadPart(part)}
+                                disabled={!downloadUrl}
+                              >
+                                Download
+                              </Button>
+                            </div>
+                          </div>
+
+                          <div
+                            style={{
+                              display: "grid",
+                              gap: 4,
+                              fontSize: 13,
+                              color: "#94a3b8",
+                            }}
+                          >
+                            <div>Type: {part.mimeType ?? "Unknown"}</div>
+                            <div>Kind: {kind}</div>
+                            <div>Size: {formatBytes(part.sizeBytes ?? null)}</div>
+                          </div>
+
+                          {previewUrl && kind === "image" && (
+                            <img
+                              src={previewUrl}
+                              alt={`Evidence item ${part.partIndex + 1}`}
+                              style={{
+                                display: "block",
+                                width: "100%",
+                                maxWidth: "100%",
+                                maxHeight: 560,
+                                objectFit: "contain",
+                                borderRadius: 12,
+                                background: "rgba(15,23,42,0.35)",
+                              }}
+                            />
+                          )}
+
+                          {previewUrl && kind === "video" && (
+                            <video
+                              src={previewUrl}
+                              controls
+                              preload="metadata"
+                              style={{
+                                display: "block",
+                                width: "100%",
+                                maxWidth: "100%",
+                                maxHeight: 560,
+                                borderRadius: 12,
+                                background: "#000",
+                              }}
+                            />
+                          )}
+
+                          {previewUrl && kind === "audio" && (
+                            <div
+                              style={{
+                                padding: 16,
+                                borderRadius: 12,
+                                background: "rgba(15,23,42,0.35)",
+                              }}
+                            >
+                              <audio
+                                src={previewUrl}
+                                controls
+                                preload="metadata"
+                                style={{ width: "100%" }}
+                              />
+                            </div>
+                          )}
+
+                          {previewUrl && kind === "pdf" && (
+                            <div
+                              style={{
+                                borderRadius: 12,
+                                overflow: "hidden",
+                                background: "#fff",
+                              }}
+                            >
+                              <iframe
+                                src={previewUrl}
+                                title={`Evidence PDF item ${part.partIndex + 1}`}
+                                style={{
+                                  width: "100%",
+                                  height: 760,
+                                  border: "none",
+                                  display: "block",
+                                }}
+                              />
+                            </div>
+                          )}
+
+                          {!previewUrl && (
+                            <div
+                              style={{
+                                padding: 14,
+                                borderRadius: 12,
+                                background: "rgba(15,23,42,0.35)",
+                                color: "#94a3b8",
+                                fontSize: 14,
+                                lineHeight: 1.6,
+                              }}
+                            >
+                              Preview is not available for this item right now.
+                            </div>
+                          )}
+
+                          {previewUrl && (kind === "text" || kind === "other") && (
+                            <div
+                              style={{
+                                padding: 14,
+                                borderRadius: 12,
+                                background: "rgba(15,23,42,0.35)",
+                                color: "#cbd5e1",
+                                fontSize: 14,
+                                lineHeight: 1.6,
+                              }}
+                            >
+                              Preview is not available inside the page for this file type.
+                              Use Open or Download.
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {partsLoadFailed && (
+                    <div
+                      style={{
+                        marginTop: 14,
+                        padding: 16,
+                        borderRadius: 12,
+                        background: "rgba(15,23,42,0.35)",
+                        color: "#94a3b8",
+                        fontSize: 14,
+                        lineHeight: 1.6,
+                      }}
+                    >
+                      Failed to load evidence parts.
+                    </div>
+                  )}
+                </>
+              ) : (
+                <>
+                  <div style={{ fontSize: 13, color: "#64748b", marginBottom: 14 }}>
+                    {originalMimeType && <div>Type: {originalMimeType}</div>}
+                    {originalSizeBytes && <div>Size: {formatBytes(originalSizeBytes)}</div>}
+                  </div>
+
+                  <div
+                    style={{
+                      display: "flex",
+                      flexWrap: "wrap",
+                      gap: 10,
+                      marginBottom: 14,
+                    }}
+                  >
+                    <Button
+                      variant="secondary"
+                      onClick={handleOpenOriginal}
+                      disabled={!originalDownloadUrl}
+                    >
+                      Open Original
+                    </Button>
+
+                    <Button
+                      variant="secondary"
+                      onClick={handleDownloadOriginal}
+                      disabled={!originalDownloadUrl}
+                    >
+                      Download Original
+                    </Button>
+                  </div>
+
+                  {originalPreviewUrl && originalKind === "image" && (
+                    <div style={{ marginBottom: 12 }}>
+                      <img
+                        src={originalPreviewUrl}
+                        alt="Evidence preview"
+                        style={{
+                          display: "block",
+                          width: "100%",
+                          maxWidth: "100%",
+                          maxHeight: 560,
+                          objectFit: "contain",
+                          borderRadius: 12,
+                          background: "rgba(15,23,42,0.35)",
+                        }}
+                      />
+                    </div>
+                  )}
+
+                  {originalPreviewUrl && originalKind === "video" && (
+                    <div style={{ marginBottom: 12 }}>
+                      <video
+                        src={originalPreviewUrl}
+                        controls
+                        preload="metadata"
+                        style={{
+                          display: "block",
+                          width: "100%",
+                          maxWidth: "100%",
+                          maxHeight: 560,
+                          borderRadius: 12,
+                          background: "#000",
+                        }}
+                      />
+                    </div>
+                  )}
+
+                  {originalPreviewUrl && originalKind === "audio" && (
+                    <div
+                      style={{
+                        marginBottom: 12,
+                        padding: 16,
+                        borderRadius: 12,
+                        background: "rgba(15,23,42,0.35)",
+                      }}
+                    >
+                      <audio
+                        src={originalPreviewUrl}
+                        controls
+                        preload="metadata"
+                        style={{ width: "100%" }}
+                      />
+                    </div>
+                  )}
+
+                  {originalPreviewUrl && originalKind === "pdf" && (
+                    <div
+                      style={{
+                        marginBottom: 12,
+                        borderRadius: 12,
+                        overflow: "hidden",
+                        background: "#fff",
+                      }}
+                    >
+                      <iframe
+                        src={originalPreviewUrl}
+                        title="Original PDF evidence"
+                        style={{
+                          width: "100%",
+                          height: 760,
+                          border: "none",
+                          display: "block",
+                        }}
+                      />
+                    </div>
+                  )}
+
+                  {!originalPreviewUrl && (originalKind === "text" || originalKind === "other") && (
+                    <div
+                      style={{
+                        marginBottom: 12,
+                        padding: 16,
+                        borderRadius: 12,
+                        background: "rgba(15,23,42,0.35)",
+                        color: "#cbd5e1",
+                        fontSize: 14,
+                        lineHeight: 1.6,
+                      }}
+                    >
+                      <div style={{ marginBottom: 8 }}>
+                        Preview is not available for this file type inside the page.
+                      </div>
+                      <div>Use Open Original or Download Original.</div>
+                    </div>
+                  )}
+
+                  {!originalPreviewUrl && !originalDownloadUrl && (
+                    <div
+                      style={{
+                        padding: 16,
+                        borderRadius: 12,
+                        background: "rgba(15,23,42,0.35)",
+                        color: "#94a3b8",
+                        fontSize: 14,
+                        lineHeight: 1.6,
+                      }}
+                    >
+                      Original file is not available for preview or download at this time.
+                    </div>
+                  )}
+                </>
               )}
             </Card>
           )}
@@ -855,7 +1377,7 @@ export default function EvidenceDetailPage() {
               borderRadius: 10,
               border: "1px solid rgba(148, 163, 184, 0.25)",
               background: "rgba(15, 23, 42, 0.45)",
-              color: "#e2e8f0"
+              color: "#e2e8f0",
             }}
           >
             <option value="">Select a case...</option>
@@ -920,10 +1442,7 @@ export default function EvidenceDetailPage() {
             >
               Cancel
             </Button>
-            <Button
-              onClick={handleConfirmArchive}
-              disabled={actionBusy}
-            >
+            <Button onClick={handleConfirmArchive} disabled={actionBusy}>
               {actionBusy ? "Archiving..." : "Archive"}
             </Button>
           </div>

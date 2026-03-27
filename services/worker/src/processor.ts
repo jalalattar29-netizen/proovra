@@ -1,3 +1,4 @@
+// D:\digital-witness\services\worker\src\processor.ts
 import type { Job } from "bullmq";
 import type { Readable } from "node:stream";
 import * as prismaPkg from "@prisma/client";
@@ -62,12 +63,7 @@ function summarizePayload(payload: unknown): string {
 }
 
 function sha256HexFromStrings(parts: string[]) {
-  const hash = createHash("sha256");
-  for (const part of parts) {
-    hash.update(part);
-    hash.update("|");
-  }
-  return hash.digest("hex");
+  return createHash("sha256").update(parts.join("|")).digest("hex");
 }
 
 function createWorkerError(code: string, retriable: boolean): WorkerError {
@@ -229,8 +225,7 @@ export async function processGenerateReport(job: Job<GenerateReportJobData>) {
         throw createWorkerError("NO_MULTIPART_FILES_FOUND", false);
       }
 
-      // IMPORTANT:
-      // Always point report/original/public references to the first real part.
+      // Always use the first real part as the primary original reference.
       storageBucket = parts[0].storageBucket;
       storageKey = parts[0].storageKey;
 
@@ -369,7 +364,7 @@ export async function processGenerateReport(job: Job<GenerateReportJobData>) {
       contentType: "application/pdf",
     });
 
-    // Save report first so report/latest works even if verification package fails.
+    // Save the report first so report/latest works even if verification package fails.
     await prisma.$transaction(async (tx) => {
       await tx.report.create({
         data: {
@@ -404,7 +399,7 @@ export async function processGenerateReport(job: Job<GenerateReportJobData>) {
       });
     });
 
-    // Verification package is best-effort now.
+    // Best-effort verification package.
     if (verificationEvidenceFiles.length > 0) {
       try {
         const verificationZip = await createVerificationPackage({

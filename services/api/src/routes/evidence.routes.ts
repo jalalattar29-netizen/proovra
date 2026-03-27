@@ -458,7 +458,22 @@ export async function evidenceRoutes(app: FastifyInstance) {
       });
 
       if (existing) {
-        return reply.code(200).send({ part: existing });
+        const existingUrl = await presignPutObject({
+          bucket: existing.storageBucket,
+          key: existing.storageKey,
+          contentType: existing.mimeType ?? "application/octet-stream",
+          expiresInSeconds: 600,
+        });
+
+        return reply.code(200).send({
+          part: existing,
+          upload: {
+            bucket: existing.storageBucket,
+            key: existing.storageKey,
+            putUrl: existingUrl,
+            expiresInSeconds: 600,
+          },
+        });
       }
 
       const bucket = must("S3_BUCKET");
@@ -498,8 +513,9 @@ export async function evidenceRoutes(app: FastifyInstance) {
       (req as FastifyRequest & { evidenceId?: string }).evidenceId = id;
       req.log = req.log.child({ evidenceId: id });
 
+      let evidence: SelectedEvidence;
       try {
-        await getEvidenceWithOwnerAccess(ownerUserId, id);
+        evidence = await getEvidenceWithReadAccess(ownerUserId, id);
       } catch (err) {
         const statusCode =
           err instanceof Error && "statusCode" in err
@@ -514,7 +530,38 @@ export async function evidenceRoutes(app: FastifyInstance) {
         orderBy: { partIndex: "asc" },
       });
 
-      return reply.code(200).send({ parts });
+      const enrichedParts = await Promise.all(
+        parts.map(async (part) => {
+          const url = await presignGetObject({
+            bucket: part.storageBucket,
+            key: part.storageKey,
+            expiresInSeconds: 600,
+          });
+
+          return {
+            ...toJsonSafe(part),
+            url,
+            publicUrl: buildPublicUrl(part.storageKey),
+            isPrimary:
+              evidence.storageBucket === part.storageBucket &&
+              evidence.storageKey === part.storageKey,
+          };
+        })
+      );
+
+      return reply.code(200).send({
+        evidenceId: id,
+        multipart: enrichedParts.length > 1,
+        primary:
+          evidence.storageBucket && evidence.storageKey
+            ? {
+                bucket: evidence.storageBucket,
+                key: evidence.storageKey,
+                publicUrl: buildPublicUrl(evidence.storageKey),
+              }
+            : null,
+        parts: enrichedParts,
+      });
     }
   );
 
@@ -1012,6 +1059,8 @@ export async function evidenceRoutes(app: FastifyInstance) {
         eventType: prismaPkg.CustodyEventType.EVIDENCE_VIEWED,
         payload: {
           mimeType: evidence.mimeType ?? null,
+          bucket: evidence.storageBucket,
+          key: evidence.storageKey,
         },
         ip: req.ip,
         userAgent: req.headers["user-agent"],
