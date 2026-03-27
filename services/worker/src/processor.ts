@@ -223,23 +223,22 @@ export async function processGenerateReport(job: Job<GenerateReportJobData>) {
           ),
           buffer: partBuffer,
         });
-
-        if (!storageBucket) {
-          storageBucket = part.storageBucket;
-        }
-        if (!storageKey) {
-          storageKey = part.storageKey;
-        }
       }
+
+      if (verificationEvidenceFiles.length === 0) {
+        throw createWorkerError("NO_MULTIPART_FILES_FOUND", false);
+      }
+
+      // IMPORTANT:
+      // Always point report/original/public references to the first real part.
+      storageBucket = parts[0].storageBucket;
+      storageKey = parts[0].storageKey;
 
       fileSha256 = sha256HexFromStrings(hashes);
 
       if (fileSha256 !== evidence.fileSha256) {
         throw createWorkerError("EVIDENCE_FILE_SHA256_MISMATCH", false);
       }
-
-      storageBucket = storageBucket ?? parts[0]?.storageBucket ?? null;
-      storageKey = storageKey ?? parts[0]?.storageKey ?? null;
     } else {
       const head = await headObject({
         bucket: evidence.storageBucket!,
@@ -256,6 +255,7 @@ export async function processGenerateReport(job: Job<GenerateReportJobData>) {
       });
 
       const singleEvidenceBuffer = await streamToBuffer(body as unknown as Readable);
+
       verificationEvidenceFiles.push({
         name: basenameFromStorageKey(
           evidence.storageKey,
@@ -271,6 +271,9 @@ export async function processGenerateReport(job: Job<GenerateReportJobData>) {
       if (fileSha256 !== evidence.fileSha256) {
         throw createWorkerError("EVIDENCE_FILE_SHA256_MISMATCH", false);
       }
+
+      storageBucket = evidence.storageBucket ?? storageBucket;
+      storageKey = evidence.storageKey ?? storageKey;
     }
 
     const custodyEvents = await prisma.custodyEvent.findMany({
@@ -309,7 +312,6 @@ export async function processGenerateReport(job: Job<GenerateReportJobData>) {
     const now = new Date();
     const reportKey = `reports/${evidence.id}/v${version}.pdf`;
     const publicUrl = storageKey ? buildPublicUrl(storageKey) : null;
-
     const evidenceDetailUrl = `https://app.proovra.com/evidence/${evidence.id}`;
 
     const reportPdf = await buildReportPdf({
@@ -367,31 +369,7 @@ export async function processGenerateReport(job: Job<GenerateReportJobData>) {
       contentType: "application/pdf",
     });
 
-    if (verificationEvidenceFiles.length > 0) {
-      const verificationZip = await createVerificationPackage({
-        evidenceFiles: verificationEvidenceFiles,
-        fingerprint: fingerprintCanonicalJson,
-        signature: signatureBase64,
-        timestampToken: evidence.tsaTokenBase64 ?? null,
-        publicKey: signingKey.publicKeyPem,
-        custody: custodyEvents.map((ev) => ({
-          sequence: ev.sequence,
-          atUtc: ev.atUtc.toISOString(),
-          eventType: ev.eventType,
-          payload: ev.payload,
-        })),
-      });
-
-      const verificationKey = `verification/${evidence.id}/package.zip`;
-
-      await putObjectBuffer({
-        bucket: env.S3_BUCKET,
-        key: verificationKey,
-        body: verificationZip,
-        contentType: "application/zip",
-      });
-    }
-
+    // Save report first so report/latest works even if verification package fails.
     await prisma.$transaction(async (tx) => {
       await tx.report.create({
         data: {
@@ -425,6 +403,55 @@ export async function processGenerateReport(job: Job<GenerateReportJobData>) {
         },
       });
     });
+
+    // Verification package is best-effort now.
+    if (verificationEvidenceFiles.length > 0) {
+      try {
+        const verificationZip = await createVerificationPackage({
+          evidenceFiles: verificationEvidenceFiles,
+          fingerprint: fingerprintCanonicalJson,
+          signature: signatureBase64,
+          timestampToken: evidence.tsaTokenBase64 ?? null,
+          publicKey: signingKey.publicKeyPem,
+          custody: custodyEvents.map((ev) => ({
+            sequence: ev.sequence,
+            atUtc: ev.atUtc.toISOString(),
+            eventType: ev.eventType,
+            payload: ev.payload,
+          })),
+        });
+
+        const verificationKey = `verification/${evidence.id}/package.zip`;
+
+        await putObjectBuffer({
+          bucket: env.S3_BUCKET,
+          key: verificationKey,
+          body: verificationZip,
+          contentType: "application/zip",
+        });
+      } catch (verificationError) {
+        captureException(verificationError, {
+          requestId,
+          evidenceId,
+          jobId: job.id ?? null,
+          phase: "verification_package",
+        });
+
+        logger.error(
+          {
+            ...withJobContext({
+              requestId,
+              jobId: job.id,
+              evidenceId,
+              attempt: job.attemptsMade + 1,
+              status: "verification_package_failed",
+            }),
+            err: verificationError,
+          },
+          "Verification package generation failed, but report was generated successfully"
+        );
+      }
+    }
 
     const durationMs = Date.now() - start;
 

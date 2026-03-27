@@ -374,6 +374,9 @@ export async function completeEvidence(params: {
   let canonical = "";
   let fingerprintHash = "";
 
+  const now = new Date();
+  const uploadedAtUtcIso = now.toISOString();
+
   if (parts.length > 0) {
     const updatedParts: ProcessedPart[] = [];
 
@@ -415,10 +418,13 @@ export async function completeEvidence(params: {
         bucket,
         key,
       });
+    }
 
-      if (!primaryBucket) primaryBucket = bucket;
-      if (!primaryKey) primaryKey = key;
-      if (!primaryMimeType) primaryMimeType = mimeType;
+    if (updatedParts.length === 0) {
+      const err: HttpError = Object.assign(new Error("NO_VALID_PARTS_FOUND"), {
+        statusCode: 400,
+      });
+      throw err;
     }
 
     const maxBytes = readMaxEvidenceSizeBytes();
@@ -428,6 +434,13 @@ export async function completeEvidence(params: {
       });
       throw err;
     }
+
+    // IMPORTANT:
+    // For multipart evidence, always point the main evidence storage
+    // to the first real uploaded part, not to the original placeholder.
+    primaryBucket = updatedParts[0].bucket;
+    primaryKey = updatedParts[0].key;
+    primaryMimeType = updatedParts[0].mimeType ?? primaryMimeType ?? evidenceMime;
 
     fileSha256 = sha256Hex(updatedParts.map((p) => p.sha256).join("|"));
     multipart = true;
@@ -456,7 +469,7 @@ export async function completeEvidence(params: {
         lng: evidence.lng,
         accuracyMeters: evidence.accuracyMeters,
       },
-      uploadedAtUtcIso: new Date().toISOString(),
+      uploadedAtUtcIso,
       multipart: {
         parts: updatedParts,
         totalSizeBytes: sizeBytesNum,
@@ -490,12 +503,11 @@ export async function completeEvidence(params: {
     }
 
     primaryMimeType = meta.contentType ?? evidenceMime ?? null;
+    primaryBucket = bucket;
+    primaryKey = key;
 
     const body = await safeGetStream(bucket, key);
     fileSha256 = await sha256HexFromStream(body as unknown as Readable);
-
-    if (!primaryBucket) primaryBucket = bucket;
-    if (!primaryKey) primaryKey = key;
 
     const fingerprint = buildFingerprint({
       evidence: {
@@ -507,7 +519,7 @@ export async function completeEvidence(params: {
         lng: evidence.lng,
         accuracyMeters: evidence.accuracyMeters,
       },
-      uploadedAtUtcIso: new Date().toISOString(),
+      uploadedAtUtcIso,
       singleFile: {
         bucket: primaryBucket,
         key: primaryKey,
@@ -533,8 +545,6 @@ export async function completeEvidence(params: {
   const tsaResult = await createEvidenceTimestamp({
     digestHex: fileSha256,
   });
-
-  const now = new Date();
 
   const last = await prisma.custodyEvent.findFirst({
     where: { evidenceId: evidence.id },

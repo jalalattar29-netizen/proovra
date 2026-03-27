@@ -10,10 +10,13 @@ function normalizeFileName(name: string, fallback: string): string {
   const trimmed = typeof name === "string" ? name.trim() : "";
   if (!trimmed) return fallback;
 
-  return trimmed
+  const normalized = trimmed
     .replace(/[<>:"/\\|?*\u0000-\u001F]/g, "-")
     .replace(/\s+/g, " ")
+    .trim()
     .slice(0, 180);
+
+  return normalized || fallback;
 }
 
 export async function createVerificationPackage(data: {
@@ -30,23 +33,48 @@ export async function createVerificationPackage(data: {
     const stream = new PassThrough();
     const chunks: Buffer[] = [];
 
-    stream.on("data", (c) => chunks.push(Buffer.isBuffer(c) ? c : Buffer.from(c)));
-    stream.on("end", () => resolve(Buffer.concat(chunks)));
+    let settled = false;
 
-    archive.on("error", reject);
-    stream.on("error", reject);
+    const fail = (error: unknown) => {
+      if (settled) return;
+      settled = true;
+      reject(error instanceof Error ? error : new Error(String(error)));
+    };
+
+    const succeed = () => {
+      if (settled) return;
+      settled = true;
+      resolve(Buffer.concat(chunks));
+    };
+
+    stream.on("data", (chunk) => {
+      chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+    });
+
+    stream.on("end", succeed);
+    stream.on("error", fail);
+    archive.on("error", fail);
+    archive.on("warning", (warning) => {
+      // archiver may emit warnings for non-fatal issues; treat them as fatal here
+      fail(warning);
+    });
 
     archive.pipe(stream);
 
     const evidenceFiles: VerificationEvidenceFile[] =
       Array.isArray(data.evidenceFiles) && data.evidenceFiles.length > 0
-        ? data.evidenceFiles
+        ? data.evidenceFiles.filter(
+            (file): file is VerificationEvidenceFile =>
+              Boolean(file) &&
+              typeof file.name === "string" &&
+              Buffer.isBuffer(file.buffer)
+          )
         : data.evidenceBuffer
           ? [{ name: "evidence-file", buffer: data.evidenceBuffer }]
           : [];
 
     if (evidenceFiles.length === 0) {
-      reject(new Error("Verification package requires at least one evidence file"));
+      fail(new Error("Verification package requires at least one evidence file"));
       return;
     }
 
@@ -230,6 +258,6 @@ code{background:#eef2ff;padding:2px 6px;border-radius:6px}
       name: "verify.html",
     });
 
-    archive.finalize().catch(reject);
+    archive.finalize().catch(fail);
   });
 }
