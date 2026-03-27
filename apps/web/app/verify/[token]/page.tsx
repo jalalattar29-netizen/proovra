@@ -60,7 +60,6 @@ type VerifyResponse = {
   } | null;
 };
 
-
 type TimelineItem = {
   eventType: string;
   atUtc: string | null;
@@ -417,6 +416,7 @@ export default function VerifyPage() {
   const { t } = useLocale();
   const params = useParams<{ token: string }>();
   const { addToast } = useToast();
+
   const [hash, setHash] = useState<string | null>(null);
   const [fingerprintHash, setFingerprintHash] = useState<string | null>(null);
   const [signature, setSignature] = useState<string | null>(null);
@@ -440,60 +440,60 @@ export default function VerifyPage() {
     setLoading(true);
     setError(null);
 
-apiFetch(`/public/verify/${params.token}`)
-  .then((data: VerifyResponse) => {
-    const resolvedTsaStatus = extractTimestampStatus(data);
+    apiFetch(`/public/verify/${params.token}`)
+      .then((data: VerifyResponse) => {
+        const resolvedTsaStatus = extractTimestampStatus(data);
 
-    const mappedTimeline = (data.custodyEvents ?? []).map((ev) => ({
-      eventType: ev.eventType ?? "UNKNOWN_EVENT",
-      atUtc: ev.atUtc ?? null,
-      payloadSummary: ev.payloadSummary ?? null,
-    }));
+        const mappedTimeline = (data.custodyEvents ?? []).map((ev) => ({
+          eventType: ev.eventType ?? "UNKNOWN_EVENT",
+          atUtc: ev.atUtc ?? null,
+          payloadSummary: ev.payloadSummary ?? null,
+        }));
 
-    const generatedAtFallback =
-      data.reportGeneratedAtUtc ??
-      data.generatedAtUtc ??
-      data.tsaGenTimeUtc ??
-      data.tsa?.genTimeUtc ??
-      data.timestamp?.genTimeUtc ??
-      findEventTime(mappedTimeline, ["REPORT_GENERATED"]) ??
-      null;
+        const generatedAtFallback =
+          data.reportGeneratedAtUtc ??
+          data.generatedAtUtc ??
+          data.tsaGenTimeUtc ??
+          data.tsa?.genTimeUtc ??
+          data.timestamp?.genTimeUtc ??
+          findEventTime(mappedTimeline, ["REPORT_GENERATED"]) ??
+          null;
 
-    const verifiedAtFallback =
-      data.verifiedAtUtc ??
-      data.verificationCheckedAtUtc ??
-      findEventTime(mappedTimeline, ["VERIFY_VIEWED", "EVIDENCE_VIEWED"]) ??
-      null;
+        const verifiedAtFallback =
+          data.verifiedAtUtc ??
+          data.verificationCheckedAtUtc ??
+          findEventTime(mappedTimeline, ["VERIFY_VIEWED", "EVIDENCE_VIEWED"]) ??
+          null;
 
-    setHash(data.fileSha256 ?? null);
-    setFingerprintHash(data.fingerprintHash ?? null);
-    setSignature(data.signatureBase64 ?? null);
-    setVerifyStatus(data.status ?? "VERIFIED");
-    setEvidenceId(data.evidenceId ?? data.id ?? params.token ?? null);
-    setMimeType(data.mimeType ?? null);
-    setGeneratedAt(generatedAtFallback);
-    setVerifiedAt(verifiedAtFallback);
-    setReportVersion(
-      data.reportVersion !== undefined && data.reportVersion !== null
-        ? String(data.reportVersion)
-        : null
-    );
-    setTsaStatus(resolvedTsaStatus);
-    setPublicKeyPem(data.publicKeyPem ?? null);
-    setSigningKeyId(data.signingKeyId ?? null);
-    setTimeline(mappedTimeline);
+        setHash(data.fileSha256 ?? null);
+        setFingerprintHash(data.fingerprintHash ?? null);
+        setSignature(data.signatureBase64 ?? null);
+        setVerifyStatus(data.status ?? "VERIFIED");
+        setEvidenceId(data.evidenceId ?? data.id ?? params.token ?? null);
+        setMimeType(data.mimeType ?? null);
+        setGeneratedAt(generatedAtFallback);
+        setVerifiedAt(verifiedAtFallback);
+        setReportVersion(
+          data.reportVersion !== undefined && data.reportVersion !== null
+            ? String(data.reportVersion)
+            : null
+        );
+        setTsaStatus(resolvedTsaStatus);
+        setPublicKeyPem(data.publicKeyPem ?? null);
+        setSigningKeyId(data.signingKeyId ?? null);
+        setTimeline(mappedTimeline);
 
-    addToast("Evidence verified successfully", "success");
-  })
-  .catch((err) => {
-    captureException(err, { feature: "web_verify", token: params.token });
-    const message = err instanceof Error ? err.message : "Verification failed";
-    setError(message);
-    addToast(message, "error");
-  })
-  .finally(() => {
-    setLoading(false);
-  });
+        addToast("Evidence verified successfully", "success");
+      })
+      .catch((err) => {
+        captureException(err, { feature: "web_verify", token: params.token });
+        const message = err instanceof Error ? err.message : "Verification failed";
+        setError(message);
+        addToast(message, "error");
+      })
+      .finally(() => {
+        setLoading(false);
+      });
   }, [params?.token, t, addToast]);
 
   const verificationBadges = useMemo(() => {
@@ -524,7 +524,8 @@ apiFetch(`/public/verify/${params.token}`)
         show: true,
       },
       {
-        label: timeline.length > 0 ? "Custody Trail Available" : "Custody Trail Pending",
+        label:
+          timeline.length > 0 ? "Custody Trail Available" : "Custody Trail Pending",
         tone: timeline.length > 0 ? ("info" as const) : ("neutral" as const),
         show: true,
       },
@@ -605,7 +606,6 @@ apiFetch(`/public/verify/${params.token}`)
         />
 
         <div className="container" style={{ position: "relative", zIndex: 1 }}>
-          {/* Custom Header */}
           <div
             style={{
               marginBottom: 28,
@@ -795,7 +795,6 @@ apiFetch(`/public/verify/${params.token}`)
             </Card>
           ) : (
             <div style={{ display: "grid", gap: 18 }}>
-              {/* Primary Status Card */}
               <Card>
                 <div
                   style={{
@@ -909,7 +908,6 @@ apiFetch(`/public/verify/${params.token}`)
                 </div>
               </Card>
 
-              {/* Verification Summary */}
               <Card>
                 <div
                   style={{
@@ -961,7 +959,6 @@ apiFetch(`/public/verify/${params.token}`)
                 </div>
               </Card>
 
-              {/* Integrity Materials */}
               <Card>
                 <div
                   style={{
@@ -1026,6 +1023,16 @@ apiFetch(`/public/verify/${params.token}`)
                       value={signature}
                       addToast={addToast}
                       copyMessage="Digital signature copied"
+                    />
+                  ) : null}
+
+                  {publicKeyPem ? (
+                    <MaterialField
+                      label="Public Key"
+                      subtitle="Public key material available for advanced technical review."
+                      value={publicKeyPem}
+                      addToast={addToast}
+                      copyMessage="Public key copied"
                     />
                   ) : null}
 
@@ -1114,20 +1121,9 @@ apiFetch(`/public/verify/${params.token}`)
                       </div>
                     </div>
                   </div>
-
-                  {publicKeyPem ? (
-                    <MaterialField
-                      label="Public Key"
-                      subtitle="Public key material available for advanced technical review."
-                      value={publicKeyPem}
-                      addToast={addToast}
-                      copyMessage="Public key copied"
-                    />
-                  ) : null}
                 </div>
               </Card>
 
-              {/* Chain of Custody Timeline */}
               <Card>
                 <div
                   style={{
@@ -1249,6 +1245,8 @@ apiFetch(`/public/verify/${params.token}`)
                                   fontSize: 15,
                                   fontWeight: 800,
                                   color: "#101828",
+                                  minWidth: 0,
+                                  flex: "1 1 260px",
                                 }}
                               >
                                 {normalizeEventLabel(event.eventType)}
@@ -1263,6 +1261,8 @@ apiFetch(`/public/verify/${params.token}`)
                                   borderRadius: 999,
                                   background: "#F2F4F7",
                                   border: "1px solid #EAECF0",
+                                  whiteSpace: "nowrap",
+                                  flexShrink: 0,
                                 }}
                               >
                                 {formatDateTime(event.atUtc)}
@@ -1272,8 +1272,12 @@ apiFetch(`/public/verify/${params.token}`)
                             <div
                               style={{
                                 fontSize: 13,
-                                lineHeight: 1.6,
+                                lineHeight: 1.7,
                                 color: "#667085",
+                                wordBreak: "break-word",
+                                overflowWrap: "anywhere",
+                                whiteSpace: "pre-wrap",
+                                maxWidth: "100%",
                               }}
                             >
                               {event.payloadSummary?.trim()
@@ -1288,7 +1292,6 @@ apiFetch(`/public/verify/${params.token}`)
                 )}
               </Card>
 
-              {/* Actions */}
               <Card>
                 <div
                   style={{
@@ -1318,29 +1321,31 @@ apiFetch(`/public/verify/${params.token}`)
                         color: "#667085",
                       }}
                     >
-                      Access the official report or copy the verification link.
+                      Copy the verification link for reference or sharing.
                     </div>
                   </div>
                 </div>
 
                 <div
                   style={{
-                    display: "grid",
-                    gap: 12,
-                    gridTemplateColumns: "minmax(0, 1.2fr) minmax(0, 0.95fr)",
+                    display: "flex",
+                    justifyContent: "center",
+                    alignItems: "center",
+                    marginTop: 8,
                   }}
                 >
-<div style={{ display: "grid" }}></div>
-                  <Button
-                    onClick={() => {
-                      const url = window.location.href;
-                      navigator.clipboard.writeText(url);
-                      addToast("Verification link copied", "success");
-                    }}
-                    variant="secondary"
-                  >
-                    Copy Verification Link
-                  </Button>
+                  <div style={{ width: "100%", maxWidth: 460 }}>
+                    <Button
+                      onClick={() => {
+                        const url = window.location.href;
+                        navigator.clipboard.writeText(url);
+                        addToast("Verification link copied", "success");
+                      }}
+                      variant="secondary"
+                    >
+                      Copy Verification Link
+                    </Button>
+                  </div>
                 </div>
               </Card>
             </div>
