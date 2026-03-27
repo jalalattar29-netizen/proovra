@@ -123,7 +123,7 @@ export default function EvidenceDetailPage() {
   const evidenceId = params?.id ?? "unknown";
 
   const [status, setStatus] = useState("SIGNED");
-  const [reportUrl, setReportUrl] = useState<string | null>(null);
+  const [, setReportUrl] = useState<string | null>(null);
   const [createdAt, setCreatedAt] = useState<string | null>(null);
   const [type, setType] = useState<string>("EVIDENCE");
   const [lockedAt, setLockedAt] = useState<string | null>(null);
@@ -191,15 +191,6 @@ export default function EvidenceDetailPage() {
         pdfCount: 0,
         otherCount: 0,
       }
-    );
-  }, [sortedParts]);
-
-  const primaryPart = useMemo(() => {
-    if (sortedParts.length === 0) return null;
-    return (
-      sortedParts.find((part) => part.isPrimary) ??
-      sortedParts[0] ??
-      null
     );
   }, [sortedParts]);
 
