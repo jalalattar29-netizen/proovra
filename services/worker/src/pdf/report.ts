@@ -210,14 +210,26 @@ function hr(doc: PDFDoc, y?: number): void {
   const w = doc.page.width - doc.page.margins.left - doc.page.margins.right;
   const yy = typeof y === "number" ? y : doc.y;
   doc.save();
-  doc.lineWidth(1).strokeColor(BRAND.line);
+  doc.lineWidth(0.9).strokeColor(BRAND.line);
   doc.moveTo(x, yy).lineTo(x + w, yy).stroke();
   doc.restore();
 }
 
 function ensureSpace(doc: PDFDoc, neededHeight: number): void {
-  const bottom = doc.page.height - doc.page.margins.bottom - 28;
+  const bottom = doc.page.height - doc.page.margins.bottom - 10;
   if (doc.y + neededHeight > bottom) doc.addPage();
+}
+
+function ensurePageWithHeader(
+  doc: PDFDoc,
+  neededHeight: number,
+  opts: { evidenceId: string; generatedAtUtc: string; status?: string }
+): void {
+  const bottom = doc.page.height - doc.page.margins.bottom - 10;
+  if (doc.y + neededHeight > bottom) {
+    doc.addPage();
+    drawHeader(doc, opts);
+  }
 }
 
 function paintPageBackground(doc: PDFDoc): void {
@@ -230,7 +242,7 @@ function paintPageBackground(doc: PDFDoc): void {
 
   if (bg) {
     try {
-      doc.opacity(0.18);
+      doc.opacity(0.16);
       doc.image(bg, 0, 0, { width: pageW, height: pageH });
       doc.opacity(1);
     } catch {
@@ -241,8 +253,8 @@ function paintPageBackground(doc: PDFDoc): void {
   const wm = tryReadAsset("logo.png");
   if (wm) {
     try {
-      doc.opacity(0.055);
-      const size = Math.min(pageW, pageH) * 0.62;
+      doc.opacity(0.045);
+      const size = Math.min(pageW, pageH) * 0.6;
       const x = (pageW - size) / 2;
       const y = (pageH - size) / 2 - mmToPt(6);
       doc.image(wm, x, y, { fit: [size, size] });
@@ -255,10 +267,10 @@ function paintPageBackground(doc: PDFDoc): void {
   const seal = tryReadAsset("seal.png");
   if (seal) {
     try {
-      doc.opacity(0.2);
-      const size = mmToPt(48);
+      doc.opacity(0.16);
+      const size = mmToPt(44);
       const x = pageW - doc.page.margins.right - size + mmToPt(2);
-      const y = doc.page.margins.top - mmToPt(2);
+      const y = doc.page.margins.top - mmToPt(1.5);
       doc.image(seal, x, y, { fit: [size, size] });
       doc.opacity(1);
     } catch {
@@ -270,11 +282,11 @@ function paintPageBackground(doc: PDFDoc): void {
 }
 
 function drawBadge(doc: PDFDoc, text: string, x: number, y: number): void {
-  const padX = 12;
-  const padY = 5;
+  const padX = 11;
+  const padY = 4;
 
   doc.save();
-  doc.font("Helvetica-Bold").fontSize(9.5);
+  doc.font("Helvetica-Bold").fontSize(9);
 
   const tw = doc.widthOfString(text);
   const th = doc.currentLineHeight();
@@ -317,36 +329,40 @@ function drawCallout(
           ? "#FCEDEA"
           : BRAND.accentSoft;
 
-  doc.font("Helvetica-Bold").fontSize(10.5);
-  const titleHeight = doc.heightOfString(opts.title, { width: w - 28 });
+  doc.font("Helvetica-Bold").fontSize(10.2);
+  const titleHeight = doc.heightOfString(opts.title, { width: w - 24 });
 
-  doc.font("Helvetica").fontSize(9.5);
+  doc.font("Helvetica").fontSize(9.3);
   const bodyHeight = doc.heightOfString(opts.body, {
-    width: w - 28,
-    lineGap: 2,
+    width: w - 24,
+    lineGap: 1.5,
   });
 
-  const blockHeight = titleHeight + bodyHeight + 24;
-  ensureSpace(doc, blockHeight + 8);
+  const blockHeight = titleHeight + bodyHeight + 18;
+  ensureSpace(doc, blockHeight + 6);
 
   const y = doc.y;
 
   doc.save();
-  doc.roundedRect(x, y, w, blockHeight, 10).fill(fillColor);
-  doc.lineWidth(1).strokeColor(borderColor).roundedRect(x, y, w, blockHeight, 10).stroke();
+  doc.roundedRect(x, y, w, blockHeight, 9).fill(fillColor);
+  doc
+    .lineWidth(0.9)
+    .strokeColor(borderColor)
+    .roundedRect(x, y, w, blockHeight, 9)
+    .stroke();
   doc.restore();
 
   doc.save();
-  doc.fillColor(BRAND.ink).font("Helvetica-Bold").fontSize(10.5);
-  doc.text(opts.title, x + 14, y + 10, { width: w - 28 });
+  doc.fillColor(BRAND.ink).font("Helvetica-Bold").fontSize(10.2);
+  doc.text(opts.title, x + 12, y + 8, { width: w - 24 });
   doc.restore();
 
   doc.save();
-  doc.fillColor(BRAND.ink).font("Helvetica").fontSize(9.5);
-  doc.text(opts.body, x + 14, y + 28, { width: w - 28, lineGap: 2 });
+  doc.fillColor(BRAND.ink).font("Helvetica").fontSize(9.3);
+  doc.text(opts.body, x + 12, y + 23, { width: w - 24, lineGap: 1.5 });
   doc.restore();
 
-  doc.y = y + blockHeight + 10;
+  doc.y = y + blockHeight + 6;
 }
 
 function drawHeader(
@@ -358,7 +374,7 @@ function drawHeader(
   const w = doc.page.width - doc.page.margins.left - doc.page.margins.right;
 
   doc.save();
-  doc.rect(0, 0, doc.page.width, mmToPt(3.2)).fill(BRAND.accent);
+  doc.rect(0, 0, doc.page.width, mmToPt(3)).fill(BRAND.accent);
   doc.restore();
 
   doc.x = left;
@@ -368,41 +384,41 @@ function drawHeader(
   let brandX = left;
   if (logo) {
     try {
-      const h = mmToPt(15);
-      const logoW = h * 4.8;
+      const h = mmToPt(14);
+      const logoW = h * 4.6;
       doc.image(logo, left, doc.y - 2, { fit: [logoW, h] });
-      brandX = left + logoW + 14;
+      brandX = left + logoW + 13;
     } catch {
       brandX = left;
     }
   }
 
-  doc.fillColor(BRAND.ink).font("Helvetica-Bold").fontSize(22);
+  doc.fillColor(BRAND.ink).font("Helvetica-Bold").fontSize(20.5);
   doc.text(BRAND.name, brandX, doc.y + 1, { continued: true });
 
-  doc.fillColor(BRAND.muted).font("Helvetica").fontSize(13);
+  doc.fillColor(BRAND.muted).font("Helvetica").fontSize(12.2);
   doc.text(` — ${BRAND.title}`);
 
   const badgeText = safe(opts.status, "").toUpperCase();
   if (badgeText) {
-    const bx = left + w - 145;
-    const by = top + 16;
+    const bx = left + w - 140;
+    const by = top + 15;
     drawBadge(doc, textClamp(badgeText, 20), bx, by);
   }
 
-  doc.moveDown(0.9);
+  doc.moveDown(0.72);
 
-  const metaW = w - 170;
-  doc.fillColor(BRAND.muted).font("Helvetica").fontSize(10.5);
+  const metaW = w - 168;
+  doc.fillColor(BRAND.muted).font("Helvetica").fontSize(10);
   doc.text(`Evidence ID: ${opts.evidenceId}`, left, doc.y, { width: metaW });
-  doc.moveDown(0.25);
+  doc.moveDown(0.18);
   doc.text(`Generated (UTC): ${opts.generatedAtUtc}`, left, doc.y, {
     width: metaW,
   });
 
-  doc.moveDown(0.7);
+  doc.moveDown(0.52);
   hr(doc);
-  doc.moveDown(0.8);
+  doc.moveDown(0.5);
 }
 
 function textClamp(text: string, maxChars: number): string {
@@ -418,20 +434,27 @@ function buildEvidencePageUrl(evidenceId: string): string {
   return `${base}/evidence/${encodeURIComponent(evidenceId)}`;
 }
 
-function section(doc: PDFDoc, title: string, render: () => void): void {
-  ensureSpace(doc, 90);
+function section(
+  doc: PDFDoc,
+  title: string,
+  render: () => void,
+  options?: { minSpace?: number }
+): void {
+  const minSpace = options?.minSpace ?? 52;
+
+  ensureSpace(doc, minSpace);
 
   hr(doc);
-  doc.moveDown(0.45);
+  doc.moveDown(0.2);
 
   doc.save();
-  doc.fillColor(BRAND.ink).font("Helvetica-Bold").fontSize(13);
+  doc.fillColor(BRAND.ink).font("Helvetica-Bold").fontSize(12.5);
   doc.text(title, doc.page.margins.left, doc.y);
   doc.restore();
 
-  doc.moveDown(0.3);
+  doc.moveDown(0.12);
   render();
-  doc.moveDown(0.55);
+  doc.moveDown(0.2);
 }
 
 function safeParagraph(
@@ -442,10 +465,10 @@ function safeParagraph(
   const x = doc.page.margins.left;
   const w = doc.page.width - doc.page.margins.left - doc.page.margins.right;
   const fontSize = options?.fontSize ?? 9;
-  const gap = options?.gap ?? 2;
+  const gap = options?.gap ?? 1.8;
 
   doc.font("Helvetica").fontSize(fontSize);
-  const needed = doc.heightOfString(text, { width: w, lineGap: gap }) + 8;
+  const needed = doc.heightOfString(text, { width: w, lineGap: gap }) + 5;
   ensureSpace(doc, needed);
 
   doc.save();
@@ -483,20 +506,20 @@ function kvGrid(
 ): void {
   const x = doc.page.margins.left;
   const w = doc.page.width - doc.page.margins.left - doc.page.margins.right;
-  const colGap = options?.colGap ?? 18;
+  const colGap = options?.colGap ?? 16;
   const colW = (w - colGap) / 2;
 
   const calcCellHeight = (row?: [string, string]): number => {
     if (!row) return 0;
     const [k, v] = row;
 
-    doc.font("Helvetica").fontSize(9);
+    doc.font("Helvetica").fontSize(8.7);
     const keyH = doc.heightOfString(k, { width: colW });
 
-    doc.font("Helvetica-Bold").fontSize(10);
+    doc.font("Helvetica-Bold").fontSize(9.8);
     const valueH = doc.heightOfString(v, { width: colW });
 
-    return keyH + valueH + 18;
+    return keyH + valueH + 14;
   };
 
   const pairHeights: number[] = [];
@@ -506,7 +529,7 @@ function kvGrid(
     );
   }
 
-  const totalNeeded = pairHeights.reduce((a, b) => a + b, 0) + 8;
+  const totalNeeded = pairHeights.reduce((a, b) => a + b, 0) + 4;
   ensureSpace(doc, totalNeeded);
 
   let currentY = doc.y;
@@ -522,14 +545,14 @@ function kvGrid(
       let y = currentY;
 
       doc.save();
-      doc.fillColor(BRAND.muted).font("Helvetica").fontSize(9);
+      doc.fillColor(BRAND.muted).font("Helvetica").fontSize(8.7);
       doc.text(k, colX, y, { width: colW });
       doc.restore();
 
-      y = doc.y + 2;
+      y = doc.y + 1.5;
 
       doc.save();
-      doc.fillColor(BRAND.ink).font("Helvetica-Bold").fontSize(10);
+      doc.fillColor(BRAND.ink).font("Helvetica-Bold").fontSize(9.8);
       doc.text(v, colX, y, { width: colW });
       doc.restore();
     };
@@ -555,10 +578,10 @@ function monospaceStrip(
   const finalValue =
     typeof maxChars === "number" ? summarizeText(value, maxChars) : value;
 
-  const labelFontSize = 9;
-  const codeFontSize = 9;
-  const labelGapAfter = 8;
-  const bottomPadding = 16;
+  const labelFontSize = 8.8;
+  const codeFontSize = 8.8;
+  const labelGapAfter = 5;
+  const bottomPadding = 10;
 
   doc.font("Helvetica").fontSize(labelFontSize);
   const labelHeight = doc.heightOfString(label, { width: w });
@@ -566,9 +589,9 @@ function monospaceStrip(
   doc.font("Courier").fontSize(codeFontSize);
   const textHeight = doc.heightOfString(finalValue, {
     width: w,
-    lineGap: 2,
+    lineGap: 1.5,
   });
-  const blockHeight = Math.max(18, textHeight + 10);
+  const blockHeight = Math.max(16, textHeight + 8);
 
   const neededHeight =
     labelHeight + labelGapAfter + blockHeight + bottomPadding;
@@ -581,11 +604,11 @@ function monospaceStrip(
   doc.text(label, x, labelY, { width: w });
   doc.restore();
 
-  const blockY = doc.y + 4;
+  const blockY = doc.y + 3;
 
   doc.save();
-  doc.opacity(0.05);
-  doc.roundedRect(x - 4, blockY - 4, w + 8, blockHeight + 8, 8).fill(BRAND.ink);
+  doc.opacity(0.045);
+  doc.roundedRect(x - 3, blockY - 3, w + 6, blockHeight + 6, 7).fill(BRAND.ink);
   doc.opacity(1);
   doc.restore();
 
@@ -593,12 +616,12 @@ function monospaceStrip(
   doc.fillColor(BRAND.ink).font("Courier").fontSize(codeFontSize);
   doc.text(finalValue, x, blockY, {
     width: w,
-    lineGap: 2,
+    lineGap: 1.5,
   });
   doc.restore();
 
   doc.y = blockY + blockHeight;
-  doc.moveDown(0.45);
+  doc.moveDown(0.22);
 }
 
 function drawTable(
@@ -610,41 +633,41 @@ function drawTable(
   const x = doc.page.margins.left;
   const w = doc.page.width - doc.page.margins.left - doc.page.margins.right;
 
-  const headerH = 22;
-  const rowPadY = 6;
+  const headerH = 20;
+  const rowPadY = 5;
 
   const calcRowHeight = (cells: string[]): number => {
-    doc.font("Helvetica").fontSize(9);
+    doc.font("Helvetica").fontSize(8.9);
     let maxH = 0;
     for (let i = 0; i < cells.length; i++) {
       const cw = colWidths[i];
       const h = doc.heightOfString(cells[i], {
-        width: cw - 12,
+        width: cw - 10,
         align: "left",
-        lineGap: 2,
+        lineGap: 1.5,
       });
       maxH = Math.max(maxH, h);
     }
     return Math.max(headerH, maxH + rowPadY * 2);
   };
 
-  ensureSpace(doc, 140);
+  ensureSpace(doc, 120);
 
   const headerY = doc.y;
 
   doc.save();
   doc.opacity(0.06);
-  doc.roundedRect(x, headerY, w, headerH, 6).fill(BRAND.accent);
+  doc.roundedRect(x, headerY, w, headerH, 5).fill(BRAND.accent);
   doc.opacity(1);
   doc.restore();
 
   doc.save();
-  doc.fillColor(BRAND.ink).font("Helvetica-Bold").fontSize(9);
+  doc.fillColor(BRAND.ink).font("Helvetica-Bold").fontSize(8.8);
 
   let cx = x;
   for (let i = 0; i < headers.length; i++) {
-    doc.text(headers[i], cx + 6, headerY + 6, {
-      width: colWidths[i] - 12,
+    doc.text(headers[i], cx + 5, headerY + 5.5, {
+      width: colWidths[i] - 10,
       lineBreak: false,
     });
     cx += colWidths[i];
@@ -653,7 +676,7 @@ function drawTable(
 
   doc.y = headerY + headerH;
   hr(doc, doc.y);
-  doc.moveDown(0.15);
+  doc.moveDown(0.08);
 
   for (const r of rows) {
     const prettyRow = [...r];
@@ -662,18 +685,18 @@ function drawTable(
     }
 
     const rh = calcRowHeight(prettyRow);
-    ensureSpace(doc, rh + 18);
+    ensureSpace(doc, rh + 10);
 
     const rowY = doc.y;
 
     doc.save();
-    doc.fillColor(BRAND.ink).font("Helvetica").fontSize(9);
+    doc.fillColor(BRAND.ink).font("Helvetica").fontSize(8.9);
 
     let rx = x;
     for (let i = 0; i < prettyRow.length; i++) {
-      doc.text(prettyRow[i], rx + 6, rowY + rowPadY, {
-        width: colWidths[i] - 12,
-        lineGap: 2,
+      doc.text(prettyRow[i], rx + 5, rowY + rowPadY, {
+        width: colWidths[i] - 10,
+        lineGap: 1.5,
       });
       rx += colWidths[i];
     }
@@ -681,7 +704,7 @@ function drawTable(
 
     doc.y = rowY + rh;
     hr(doc, doc.y);
-    doc.moveDown(0.15);
+    doc.moveDown(0.08);
   }
 }
 
@@ -698,55 +721,54 @@ function drawQrBlock(
 ): void {
   const x = doc.page.margins.left;
   const w = doc.page.width - doc.page.margins.left - doc.page.margins.right;
-  const size = opts.size ?? 104;
+  const size = opts.size ?? 96;
 
-  const labelSpace = 18;
-  ensureSpace(doc, size + 100);
+  ensureSpace(doc, size + 60);
 
   const startY = doc.y;
-  const blockH = Math.max(size + 26, 138);
-  const textX = x + 18;
-  const textW = w - size - 56;
-  const qrX = x + w - size - 18;
-  const qrY = startY + 12;
+  const blockH = Math.max(size + 16, 118);
+  const textX = x + 14;
+  const textW = w - size - 44;
+  const qrX = x + w - size - 14;
+  const qrY = startY + 11;
 
   doc.save();
-  doc.opacity(0.04);
-  doc.roundedRect(x, startY, w, blockH, 12).fill(BRAND.ink);
+  doc.opacity(0.035);
+  doc.roundedRect(x, startY, w, blockH, 10).fill(BRAND.ink);
   doc.opacity(1);
   doc.restore();
 
   doc.save();
   doc.lineWidth(0.8).strokeColor(BRAND.line);
-  doc.roundedRect(x, startY, w, blockH, 12).stroke();
+  doc.roundedRect(x, startY, w, blockH, 10).stroke();
   doc.restore();
 
   doc.save();
-  doc.fillColor(BRAND.ink).font("Helvetica-Bold").fontSize(10.5);
-  doc.text(opts.title, textX, startY + 14, { width: textW });
+  doc.fillColor(BRAND.ink).font("Helvetica-Bold").fontSize(10);
+  doc.text(opts.title, textX, startY + 12, { width: textW });
   doc.restore();
 
-  let textY = startY + 36;
+  let textY = startY + 30;
 
   if (opts.caption) {
     doc.save();
-    doc.fillColor(BRAND.muted).font("Helvetica").fontSize(9.5);
+    doc.fillColor(BRAND.muted).font("Helvetica").fontSize(9.1);
     doc.text(opts.caption, textX, textY, {
       width: textW,
-      lineGap: 2,
+      lineGap: 1.5,
     });
     doc.restore();
-    textY = doc.y + 8;
+    textY = doc.y + 5;
   }
 
   if (opts.urlText) {
     doc.save();
-    doc.fillColor(BRAND.accent).font("Helvetica").fontSize(8.5);
+    doc.fillColor(BRAND.accent).font("Helvetica").fontSize(8.3);
     doc.text(opts.urlText, textX, textY, {
       width: textW,
       link: opts.urlLink,
       underline: Boolean(opts.urlLink),
-      lineGap: 2,
+      lineGap: 1.5,
     });
     doc.restore();
   }
@@ -754,15 +776,15 @@ function drawQrBlock(
   doc.image(opts.qrBuffer, qrX, qrY, { fit: [size, size] });
 
   doc.save();
-  doc.fillColor(BRAND.muted).font("Helvetica").fontSize(8);
-  doc.text("Scan QR", qrX, startY + blockH + 4, {
+  doc.fillColor(BRAND.muted).font("Helvetica").fontSize(7.7);
+  doc.text("Scan QR", qrX, startY + blockH - 13, {
     width: size,
     align: "center",
     lineBreak: false,
   });
   doc.restore();
 
-  doc.y = startY + blockH + labelSpace + 8;
+  doc.y = startY + blockH + 6;
 }
 
 async function tryGenerateQrPngBuffer(data: string): Promise<Buffer | null> {
@@ -788,7 +810,7 @@ async function tryGenerateQrPngBuffer(data: string): Promise<Buffer | null> {
 
     return await toBuffer(data, {
       margin: 1,
-      width: 260,
+      width: 240,
     });
   } catch (error) {
     console.error("[PDF][QR] Failed to generate QR:", error);
@@ -807,10 +829,10 @@ function addFooters(
 
     const x = doc.page.margins.left;
     const w = doc.page.width - doc.page.margins.left - doc.page.margins.right;
-    const y = doc.page.height - doc.page.margins.bottom - 22;
+    const y = doc.page.height - doc.page.margins.bottom - 20;
 
     doc.save();
-    doc.font("Helvetica").fontSize(9).fillColor(BRAND.muted);
+    doc.font("Helvetica").fontSize(8.6).fillColor(BRAND.muted);
 
     doc.text(
       `${BRAND.name} • Evidence Report v${opts.reportVersion} • Generated (UTC): ${opts.generatedAtUtc}`,
@@ -861,22 +883,22 @@ function renderForensicIntegrityStatement(
   safeParagraph(
     doc,
     "This report was generated by the PROOVRA Digital Evidence Integrity System.",
-    { fontSize: 10.5, color: BRAND.ink }
+    { fontSize: 10.2, color: BRAND.ink }
   );
-  doc.moveDown(0.25);
+  doc.moveDown(0.15);
 
   safeParagraph(
     doc,
     "PROOVRA applies cryptographic integrity controls, structured evidence fingerprinting, and timestamping records designed to preserve the integrity state of the submitted evidence at the time of completion.",
-    { fontSize: 10, color: BRAND.ink }
+    { fontSize: 9.8, color: BRAND.ink }
   );
-  doc.moveDown(0.3);
+  doc.moveDown(0.18);
 
   doc.save();
-  doc.fillColor(BRAND.accent).font("Helvetica-Bold").fontSize(10.5);
+  doc.fillColor(BRAND.accent).font("Helvetica-Bold").fontSize(10.1);
   doc.text("Integrity materials included in this report:", x, doc.y, { width: w });
   doc.restore();
-  doc.moveDown(0.2);
+  doc.moveDown(0.12);
 
   const bullets = [
     opts.multipart
@@ -890,16 +912,16 @@ function renderForensicIntegrityStatement(
   ];
 
   for (const b of bullets) {
-    safeParagraph(doc, `• ${b}`, { fontSize: 10, color: BRAND.ink });
+    safeParagraph(doc, `• ${b}`, { fontSize: 9.8, color: BRAND.ink });
   }
 
-  doc.moveDown(0.25);
+  doc.moveDown(0.16);
 
   doc.save();
-  doc.fillColor(BRAND.accent).font("Helvetica-Bold").fontSize(10.5);
+  doc.fillColor(BRAND.accent).font("Helvetica-Bold").fontSize(10.1);
   doc.text("Independent review may include:", x, doc.y, { width: w });
   doc.restore();
-  doc.moveDown(0.2);
+  doc.moveDown(0.12);
 
   const steps = opts.multipart
     ? [
@@ -921,19 +943,19 @@ function renderForensicIntegrityStatement(
 
   for (let i = 0; i < steps.length; i++) {
     safeParagraph(doc, `${i + 1}. ${steps[i]}`, {
-      fontSize: 10,
+      fontSize: 9.8,
       color: BRAND.ink,
     });
   }
 
-  doc.moveDown(0.25);
+  doc.moveDown(0.16);
 
   safeParagraph(
     doc,
     "Where present, the RFC 3161 timestamp provides evidence that the signed integrity state existed at or before the issuance time recorded by the Time Stamping Authority.",
-    { fontSize: 9.5, color: BRAND.muted }
+    { fontSize: 9.2, color: BRAND.muted }
   );
-  doc.moveDown(0.25);
+  doc.moveDown(0.16);
 
   drawCallout(doc, {
     title: "Legal Notice",
@@ -945,24 +967,24 @@ function renderForensicIntegrityStatement(
   const labelHeight = doc.heightOfString("Verification link:", { width: w });
   const linkHeight = doc.heightOfString(opts.verifyUrl, {
     width: w,
-    lineGap: 2,
+    lineGap: 1.5,
   });
 
-  ensureSpace(doc, labelHeight + linkHeight + 20);
+  ensureSpace(doc, labelHeight + linkHeight + 12);
 
   doc.save();
-  doc.fillColor(BRAND.accent).font("Helvetica-Bold").fontSize(9.5);
+  doc.fillColor(BRAND.accent).font("Helvetica-Bold").fontSize(9.2);
   doc.text("Verification link:", x, doc.y, { width: w });
   doc.restore();
-  doc.moveDown(0.15);
+  doc.moveDown(0.08);
 
   doc.save();
-  doc.fillColor(BRAND.accent).font("Helvetica").fontSize(9);
+  doc.fillColor(BRAND.accent).font("Helvetica").fontSize(8.8);
   doc.text(opts.verifyUrl, x, doc.y, {
     width: w,
     link: opts.verifyUrl,
     underline: true,
-    lineGap: 2,
+    lineGap: 1.5,
   });
   doc.restore();
 }
@@ -973,20 +995,20 @@ function estimateKvGridHeight(
   options?: { colGap?: number }
 ): number {
   const w = doc.page.width - doc.page.margins.left - doc.page.margins.right;
-  const colGap = options?.colGap ?? 18;
+  const colGap = options?.colGap ?? 16;
   const colW = (w - colGap) / 2;
 
   const calcCellHeight = (row?: [string, string]): number => {
     if (!row) return 0;
     const [k, v] = row;
 
-    doc.font("Helvetica").fontSize(9);
+    doc.font("Helvetica").fontSize(8.7);
     const keyH = doc.heightOfString(k, { width: colW });
 
-    doc.font("Helvetica-Bold").fontSize(10);
+    doc.font("Helvetica-Bold").fontSize(9.8);
     const valueH = doc.heightOfString(v, { width: colW });
 
-    return keyH + valueH + 18;
+    return keyH + valueH + 14;
   };
 
   let total = 0;
@@ -1001,10 +1023,10 @@ function estimateEvidenceSummarySectionHeight(
   doc: PDFDoc,
   rows: Array<[string, string]>
 ): number {
-  const titleBlock = 16 + 10 + 26 + 14; // Evidence Overview + gaps
-  const sectionBlock = 14 + 10 + 12; // section hr + title + spacing
+  const titleBlock = 14 + 6;
+  const sectionBlock = 12 + 8 + 8;
   const gridHeight = estimateKvGridHeight(rows, doc);
-  return titleBlock + sectionBlock + gridHeight + 24;
+  return titleBlock + sectionBlock + gridHeight + 16;
 }
 
 export async function buildReportPdf(params: {
@@ -1078,45 +1100,45 @@ export async function buildReportPdf(params: {
 
     const color = verified ? BRAND.success : BRAND.danger;
 
-    ensureSpace(doc, 120);
+    ensureSpace(doc, 100);
 
     doc.save();
-    doc.fillColor(color).font("Helvetica-Bold").fontSize(14);
+    doc.fillColor(color).font("Helvetica-Bold").fontSize(13.2);
     doc.text(verdict, x, doc.y, { width: w });
     doc.restore();
 
-    doc.moveDown(0.35);
+    doc.moveDown(0.22);
 
     if (verified) {
       safeParagraph(doc, "• File hash matches the recorded fingerprint state", {
-        fontSize: 10,
+        fontSize: 9.8,
         color: BRAND.ink,
       });
       safeParagraph(doc, "• Digital signature materials are present", {
-        fontSize: 10,
+        fontSize: 9.8,
         color: BRAND.ink,
       });
       if (fingerprintSummary.multipart) {
         safeParagraph(
           doc,
           `• Multipart evidence structure detected (${fingerprintSummary.itemCount} item${fingerprintSummary.itemCount === 1 ? "" : "s"})`,
-          { fontSize: 10, color: BRAND.ink }
+          { fontSize: 9.8, color: BRAND.ink }
         );
       }
       if (params.evidence.tsaStatus?.toUpperCase() === "GRANTED") {
         safeParagraph(doc, "• Trusted timestamp record granted", {
-          fontSize: 10,
+          fontSize: 9.8,
           color: BRAND.ink,
         });
       }
     } else {
       safeParagraph(doc, "• Evidence integrity could not be fully verified", {
-        fontSize: 10,
+        fontSize: 9.8,
         color: BRAND.ink,
       });
     }
 
-    doc.moveDown(0.3);
+    doc.moveDown(0.18);
 
     drawCallout(doc, {
       title: "Scope of this conclusion",
@@ -1127,179 +1149,187 @@ export async function buildReportPdf(params: {
     });
 
     hr(doc);
-    doc.moveDown(0.55);
+    doc.moveDown(0.25);
   }
 
-{
-  const evidenceSummaryRows: Array<[string, string]> = [
-    ["Evidence ID", safe(params.evidence.id)],
-    ["Status", safe(params.evidence.status).toUpperCase()],
-    ["Captured (UTC)", safe(params.evidence.capturedAtUtc)],
-    ["Uploaded (UTC)", safe(params.evidence.uploadedAtUtc)],
-    ["Signed (UTC)", safe(params.evidence.signedAtUtc)],
-    ["Report Generated (UTC)", safe(params.evidence.reportGeneratedAtUtc)],
-    ["MIME Type", safe(params.evidence.mimeType)],
-    ["Size", formatBytesHuman(params.evidence.sizeBytes)],
-    [
-      "Duration",
-      params.evidence.durationSec
-        ? `${params.evidence.durationSec} sec`
-        : "N/A",
-    ],
-    ["File SHA-256", shortHash(params.evidence.fileSha256)],
-    ["Fingerprint Hash", shortHash(params.evidence.fingerprintHash)],
-    ["Timestamp Provider", safe(params.evidence.tsaProvider)],
-    ["Timestamp Time (UTC)", safe(params.evidence.tsaGenTimeUtc)],
-  ];
-
-  if (fingerprintSummary.multipart) {
-    evidenceSummaryRows.push(
-      ["Evidence Structure", "Multipart evidence"],
-      ["Total Items", String(fingerprintSummary.itemCount)],
-      ["Image Items", String(fingerprintSummary.imageCount)],
-      ["Video Items", String(fingerprintSummary.videoCount)],
-      ["Audio Items", String(fingerprintSummary.audioCount)],
-      ["Document Items", String(fingerprintSummary.documentCount)],
-      ["Fingerprint Parts", String(fingerprintSummary.partsCount)],
+  {
+    const evidenceSummaryRows: Array<[string, string]> = [
+      ["Evidence ID", safe(params.evidence.id)],
+      ["Status", safe(params.evidence.status).toUpperCase()],
+      ["Captured (UTC)", safe(params.evidence.capturedAtUtc)],
+      ["Uploaded (UTC)", safe(params.evidence.uploadedAtUtc)],
+      ["Signed (UTC)", safe(params.evidence.signedAtUtc)],
+      ["Report Generated (UTC)", safe(params.evidence.reportGeneratedAtUtc)],
+      ["MIME Type", safe(params.evidence.mimeType)],
+      ["Size", formatBytesHuman(params.evidence.sizeBytes)],
       [
-        "MIME Types",
-        fingerprintSummary.mimeTypes.length > 0
-          ? summarizeText(fingerprintSummary.mimeTypes.join(", "), 80)
+        "Duration",
+        params.evidence.durationSec
+          ? `${params.evidence.durationSec} sec`
           : "N/A",
-      ]
+      ],
+      ["File SHA-256", shortHash(params.evidence.fileSha256)],
+      ["Fingerprint Hash", shortHash(params.evidence.fingerprintHash)],
+      ["Timestamp Provider", safe(params.evidence.tsaProvider)],
+      ["Timestamp Time (UTC)", safe(params.evidence.tsaGenTimeUtc)],
+    ];
+
+    if (fingerprintSummary.multipart) {
+      evidenceSummaryRows.push(
+        ["Evidence Structure", "Multipart evidence"],
+        ["Total Items", String(fingerprintSummary.itemCount)],
+        ["Image Items", String(fingerprintSummary.imageCount)],
+        ["Video Items", String(fingerprintSummary.videoCount)],
+        ["Audio Items", String(fingerprintSummary.audioCount)],
+        ["Document Items", String(fingerprintSummary.documentCount)],
+        ["Fingerprint Parts", String(fingerprintSummary.partsCount)],
+        [
+          "MIME Types",
+          fingerprintSummary.mimeTypes.length > 0
+            ? summarizeText(fingerprintSummary.mimeTypes.join(", "), 80)
+            : "N/A",
+        ]
+      );
+    } else {
+      evidenceSummaryRows.push(["Evidence Structure", "Single file evidence"]);
+    }
+
+    const neededHeight = estimateEvidenceSummarySectionHeight(
+      doc,
+      evidenceSummaryRows
     );
-  } else {
-    evidenceSummaryRows.push(["Evidence Structure", "Single file evidence"]);
+
+    const availableHeight =
+      doc.page.height - doc.page.margins.bottom - 10 - doc.y;
+
+    if (availableHeight < neededHeight) {
+      doc.addPage();
+      drawHeader(doc, {
+        evidenceId: params.evidence.id,
+        generatedAtUtc: params.generatedAtUtc,
+        status: params.evidence.status,
+      });
+    }
+
+    doc.save();
+    doc.fillColor(BRAND.ink).font("Helvetica-Bold").fontSize(15);
+    doc.text("Evidence Overview", doc.page.margins.left, doc.y);
+    doc.restore();
+    doc.moveDown(0.14);
+
+    kvGrid(doc, evidenceSummaryRows);
+    doc.moveDown(0.12);
   }
 
-  const neededHeight = estimateEvidenceSummarySectionHeight(
+  section(
     doc,
-    evidenceSummaryRows
+    "Quick Verification",
+    () => {
+      const x = doc.page.margins.left;
+      const w = doc.page.width - doc.page.margins.left - doc.page.margins.right;
+
+      safeParagraph(
+        doc,
+        "Use the verification page to review integrity details, custody events, and technical validation materials associated with this evidence record.",
+        { fontSize: 9.7, color: BRAND.muted, gap: 1.8 }
+      );
+      doc.moveDown(0.14);
+
+      ensureSpace(
+        doc,
+        doc.heightOfString("Verify link:", { width: w }) +
+          doc.heightOfString(verifyUrl, { width: w }) +
+          12
+      );
+
+      doc.fillColor(BRAND.ink).font("Helvetica-Bold").fontSize(9.8);
+      doc.text("Verify link:", x, doc.y, { width: w });
+      doc.moveDown(0.08);
+
+      doc.fillColor(BRAND.accent).font("Helvetica").fontSize(8.9);
+      doc.text(verifyUrl, x, doc.y, {
+        width: w,
+        link: verifyUrl,
+        underline: true,
+      });
+      doc.moveDown(0.18);
+
+      safeParagraph(
+        doc,
+        "Technical verification supports detection of post-completion changes. It does not independently determine authorship, authenticity of real-world events, or legal effect.",
+        { fontSize: 8.9, color: BRAND.muted, gap: 1.8 }
+      );
+    },
+    { minSpace: 64 }
   );
 
-  const availableHeight =
-    doc.page.height - doc.page.margins.bottom - 28 - doc.y;
-
-  if (availableHeight < neededHeight) {
-    doc.addPage();
-    drawHeader(doc, {
-      evidenceId: params.evidence.id,
-      generatedAtUtc: params.generatedAtUtc,
-      status: params.evidence.status,
-    });
-  }
-
-  doc.save();
-  doc.fillColor(BRAND.ink).font("Helvetica-Bold").fontSize(16);
-  doc.text("Evidence Overview", doc.page.margins.left, doc.y);
-  doc.restore();
-  doc.moveDown(0.25);
-
-  section(doc, "Evidence Summary", () => {
-    kvGrid(doc, evidenceSummaryRows);
-  });
-}
-
-  section(doc, "Quick Verification", () => {
-    const x = doc.page.margins.left;
-    const w = doc.page.width - doc.page.margins.left - doc.page.margins.right;
-
-    safeParagraph(
-      doc,
-      "Use the verification page to review integrity details, custody events, and technical validation materials associated with this evidence record.",
-      { fontSize: 10, color: BRAND.muted, gap: 2 }
-    );
-    doc.moveDown(0.25);
-
-    ensureSpace(
-      doc,
-      doc.heightOfString("Verify link:", { width: w }) +
-        doc.heightOfString(verifyUrl, { width: w }) +
-        18
-    );
-
-    doc.fillColor(BRAND.ink).font("Helvetica-Bold").fontSize(10);
-    doc.text("Verify link:", x, doc.y, { width: w });
-    doc.moveDown(0.2);
-
-    doc.fillColor(BRAND.accent).font("Helvetica").fontSize(9);
-    doc.text(verifyUrl, x, doc.y, {
-      width: w,
-      link: verifyUrl,
-      underline: true,
-    });
-    doc.moveDown(0.4);
-
-    safeParagraph(
-      doc,
-      "Technical verification supports detection of post-completion changes. It does not independently determine authorship, authenticity of real-world events, or legal effect.",
-      { fontSize: 9, color: BRAND.muted, gap: 2 }
-    );
-  });
-
-  doc.addPage();
-  drawHeader(doc, {
+  ensurePageWithHeader(doc, 180, {
     evidenceId: params.evidence.id,
     generatedAtUtc: params.generatedAtUtc,
     status: params.evidence.status,
   });
 
-  section(doc, "Exhibit", () => {
-    const x = doc.page.margins.left;
-    const w = doc.page.width - doc.page.margins.left - doc.page.margins.right;
+  section(
+    doc,
+    "Exhibit",
+    () => {
+      const x = doc.page.margins.left;
+      const w = doc.page.width - doc.page.margins.left - doc.page.margins.right;
 
-    const t = safe(params.evidence.mimeType, "unknown");
-    const size = formatBytesHuman(params.evidence.sizeBytes);
-    const dur = params.evidence.durationSec
-      ? `${params.evidence.durationSec} sec`
-      : "N/A";
+      const t = safe(params.evidence.mimeType, "unknown");
+      const size = formatBytesHuman(params.evidence.sizeBytes);
+      const dur = params.evidence.durationSec
+        ? `${params.evidence.durationSec} sec`
+        : "N/A";
 
-    doc.fillColor(BRAND.ink).font("Helvetica").fontSize(10);
-    doc.text(`Type: ${t}    •    Size: ${size}    •    Duration: ${dur}`, x, doc.y, {
-      width: w,
-    });
-    doc.moveDown(0.45);
-
-    if (fingerprintSummary.multipart) {
-      drawCallout(doc, {
-        title: "Multipart evidence package",
-        body: `This evidence record contains ${fingerprintSummary.itemCount} item${fingerprintSummary.itemCount === 1 ? "" : "s"} grouped into a single signed evidence package. The integrity record applies to the package as completed, not merely to an individual item viewed in isolation.`,
-        tone: "neutral",
+      doc.fillColor(BRAND.ink).font("Helvetica").fontSize(9.8);
+      doc.text(`Type: ${t}    •    Size: ${size}    •    Duration: ${dur}`, x, doc.y, {
+        width: w,
       });
-    }
+      doc.moveDown(0.22);
 
-    safeParagraph(
-      doc,
-      "Use the evidence page below to review or download the stored evidence associated with this report.",
-      { fontSize: 9, color: BRAND.muted, gap: 2 }
-    );
-    doc.moveDown(0.25);
+      if (fingerprintSummary.multipart) {
+        drawCallout(doc, {
+          title: "Multipart evidence package",
+          body: `This evidence record contains ${fingerprintSummary.itemCount} item${fingerprintSummary.itemCount === 1 ? "" : "s"} grouped into a single signed evidence package. The integrity record applies to the package as completed, not merely to an individual item viewed in isolation.`,
+          tone: "neutral",
+        });
+      }
 
-    ensureSpace(
-      doc,
-      doc.heightOfString("Open evidence page:", { width: w }) +
-        doc.heightOfString(buildDownloadLabel(evidencePageUrl), { width: w }) +
-        24
-    );
+      safeParagraph(
+        doc,
+        "Use the evidence page below to review or download the stored evidence associated with this report.",
+        { fontSize: 8.9, color: BRAND.muted, gap: 1.8 }
+      );
+      doc.moveDown(0.14);
 
-    doc.fillColor(BRAND.ink).font("Helvetica-Bold").fontSize(10);
-    doc.text("Open evidence page:", x, doc.y, { width: w });
-    doc.moveDown(0.2);
+      ensureSpace(
+        doc,
+        doc.heightOfString("Open evidence page:", { width: w }) +
+          doc.heightOfString(buildDownloadLabel(evidencePageUrl), { width: w }) +
+          16
+      );
 
-    doc.fillColor(BRAND.accent).font("Helvetica").fontSize(9);
-    doc.text(buildDownloadLabel(evidencePageUrl), x, doc.y, {
-      width: w,
-      link: evidencePageUrl,
-      underline: true,
-    });
-    doc.moveDown(0.45);
+      doc.fillColor(BRAND.ink).font("Helvetica-Bold").fontSize(9.8);
+      doc.text("Open evidence page:", x, doc.y, { width: w });
+      doc.moveDown(0.08);
 
-    safeParagraph(
-      doc,
-      "Note: The evidence page provides authenticated access to the original stored evidence and related outputs.",
-      { fontSize: 9, color: BRAND.muted, gap: 2 }
-    );
-  });
+      doc.fillColor(BRAND.accent).font("Helvetica").fontSize(8.9);
+      doc.text(buildDownloadLabel(evidencePageUrl), x, doc.y, {
+        width: w,
+        link: evidencePageUrl,
+        underline: true,
+      });
+      doc.moveDown(0.2);
+
+      safeParagraph(
+        doc,
+        "Note: The evidence page provides authenticated access to the original stored evidence and related outputs.",
+        { fontSize: 8.9, color: BRAND.muted, gap: 1.8 }
+      );
+    },
+    { minSpace: 84 }
+  );
 
   {
     const qrBuf = await tryGenerateQrPngBuffer(evidencePageUrl);
@@ -1307,7 +1337,7 @@ export async function buildReportPdf(params: {
       drawQrBlock(doc, {
         title: "Open original evidence",
         qrBuffer: qrBuf,
-        size: 112,
+        size: 102,
         caption: "Scan to open the evidence page for this item.",
         urlText: summarizeText(evidencePageUrl, 90),
         urlLink: evidencePageUrl,
@@ -1315,176 +1345,184 @@ export async function buildReportPdf(params: {
     }
   }
 
-  doc.addPage();
-  drawHeader(doc, {
+  ensurePageWithHeader(doc, 220, {
     evidenceId: params.evidence.id,
     generatedAtUtc: params.generatedAtUtc,
     status: params.evidence.status,
   });
 
-  section(doc, "Chain of Custody", () => {
-    const innerW =
-      doc.page.width - doc.page.margins.left - doc.page.margins.right;
-    const colWidths = [
-      Math.max(44, innerW * 0.08),
-      Math.max(118, innerW * 0.24),
-      Math.max(132, innerW * 0.22),
-      innerW -
-        (Math.max(44, innerW * 0.08) +
-          Math.max(118, innerW * 0.24) +
-          Math.max(132, innerW * 0.22)),
-    ];
+  section(
+    doc,
+    "Chain of Custody",
+    () => {
+      const innerW =
+        doc.page.width - doc.page.margins.left - doc.page.margins.right;
+      const colWidths = [
+        Math.max(44, innerW * 0.08),
+        Math.max(118, innerW * 0.24),
+        Math.max(132, innerW * 0.22),
+        innerW -
+          (Math.max(44, innerW * 0.08) +
+            Math.max(118, innerW * 0.24) +
+            Math.max(132, innerW * 0.22)),
+      ];
 
-    const headers = ["Seq", "At (UTC)", "Event", "Summary"];
-    const rows = params.custodyEvents.map((ev) => [
-      String(ev.sequence),
-      safe(ev.atUtc),
-      safe(ev.eventType),
-      safe(ev.payloadSummary),
-    ]);
-
-    drawTable(doc, headers, rows, colWidths);
-  });
-
-  doc.addPage();
-  drawHeader(doc, {
-    evidenceId: params.evidence.id,
-    generatedAtUtc: params.generatedAtUtc,
-    status: params.evidence.status,
-  });
-
-  section(doc, "Technical Appendix — Cryptographic Materials", () => {
-    monospaceStrip(doc, "File SHA-256", safe(params.evidence.fileSha256));
-    monospaceStrip(doc, "Fingerprint Hash", safe(params.evidence.fingerprintHash));
-    monospaceStrip(
-      doc,
-      "Signing Key ID / Version",
-      `${safe(params.evidence.signingKeyId)} / ${params.evidence.signingKeyVersion}`
-    );
-    monospaceStrip(
-      doc,
-      "Signature (Base64) (excerpt)",
-      safe(params.evidence.signatureBase64),
-      { maxChars: 260 }
-    );
-    monospaceStrip(
-      doc,
-      "Public Key (PEM) (excerpt)",
-      safe(params.evidence.publicKeyPem),
-      { maxChars: 260 }
-    );
-    monospaceStrip(
-      doc,
-      "Fingerprint Canonical JSON (excerpt)",
-      safe(params.evidence.fingerprintCanonicalJson),
-      { maxChars: 320 }
-    );
-
-    if (fingerprintSummary.multipart) {
-      ensureSpace(doc, 220);
-
-      doc.save();
-      doc.fillColor(BRAND.ink).font("Helvetica-Bold").fontSize(11);
-      doc.text("Multipart Evidence Summary", doc.page.margins.left, doc.y);
-      doc.restore();
-      doc.moveDown(0.25);
-
-      kvGrid(doc, [
-        ["Multipart", "Yes"],
-        ["Total Items", String(fingerprintSummary.itemCount)],
-        ["Fingerprint Parts", String(fingerprintSummary.partsCount)],
-        ["Images", String(fingerprintSummary.imageCount)],
-        ["Videos", String(fingerprintSummary.videoCount)],
-        ["Audio", String(fingerprintSummary.audioCount)],
-        ["Documents", String(fingerprintSummary.documentCount)],
-        [
-          "MIME Types",
-          fingerprintSummary.mimeTypes.length > 0
-            ? summarizeText(fingerprintSummary.mimeTypes.join(", "), 80)
-            : "N/A",
-        ],
+      const headers = ["Seq", "At (UTC)", "Event", "Summary"];
+      const rows = params.custodyEvents.map((ev) => [
+        String(ev.sequence),
+        safe(ev.atUtc),
+        safe(ev.eventType),
+        safe(ev.payloadSummary),
       ]);
 
-      doc.moveDown(0.2);
+      drawTable(doc, headers, rows, colWidths);
+    },
+    { minSpace: 110 }
+  );
+
+  ensurePageWithHeader(doc, 300, {
+    evidenceId: params.evidence.id,
+    generatedAtUtc: params.generatedAtUtc,
+    status: params.evidence.status,
+  });
+
+  section(
+    doc,
+    "Technical Appendix — Cryptographic Materials",
+    () => {
+      monospaceStrip(doc, "File SHA-256", safe(params.evidence.fileSha256));
+      monospaceStrip(doc, "Fingerprint Hash", safe(params.evidence.fingerprintHash));
+      monospaceStrip(
+        doc,
+        "Signing Key ID / Version",
+        `${safe(params.evidence.signingKeyId)} / ${params.evidence.signingKeyVersion}`
+      );
+      monospaceStrip(
+        doc,
+        "Signature (Base64) (excerpt)",
+        safe(params.evidence.signatureBase64),
+        { maxChars: 260 }
+      );
+      monospaceStrip(
+        doc,
+        "Public Key (PEM) (excerpt)",
+        safe(params.evidence.publicKeyPem),
+        { maxChars: 260 }
+      );
+      monospaceStrip(
+        doc,
+        "Fingerprint Canonical JSON (excerpt)",
+        safe(params.evidence.fingerprintCanonicalJson),
+        { maxChars: 320 }
+      );
+
+      if (fingerprintSummary.multipart) {
+        ensureSpace(doc, 180);
+
+        doc.save();
+        doc.fillColor(BRAND.ink).font("Helvetica-Bold").fontSize(10.6);
+        doc.text("Multipart Evidence Summary", doc.page.margins.left, doc.y);
+        doc.restore();
+        doc.moveDown(0.14);
+
+        kvGrid(doc, [
+          ["Multipart", "Yes"],
+          ["Total Items", String(fingerprintSummary.itemCount)],
+          ["Fingerprint Parts", String(fingerprintSummary.partsCount)],
+          ["Images", String(fingerprintSummary.imageCount)],
+          ["Videos", String(fingerprintSummary.videoCount)],
+          ["Audio", String(fingerprintSummary.audioCount)],
+          ["Documents", String(fingerprintSummary.documentCount)],
+          [
+            "MIME Types",
+            fingerprintSummary.mimeTypes.length > 0
+              ? summarizeText(fingerprintSummary.mimeTypes.join(", "), 80)
+              : "N/A",
+          ],
+        ]);
+
+        doc.moveDown(0.12);
+
+        safeParagraph(
+          doc,
+          "For multipart evidence, integrity is evaluated against the completed evidence package as represented in the canonical fingerprint. Review should therefore consider the complete set of evidence items, not an isolated part only.",
+          { fontSize: 9, color: BRAND.muted }
+        );
+        doc.moveDown(0.14);
+      }
+
+      ensureSpace(doc, 170);
+
+      doc.save();
+      doc.fillColor(BRAND.ink).font("Helvetica-Bold").fontSize(10.6);
+      doc.text("Timestamp Authority", doc.page.margins.left, doc.y);
+      doc.restore();
+      doc.moveDown(0.14);
+
+      kvGrid(doc, [
+        ["Timestamp Provider", safe(params.evidence.tsaProvider)],
+        ["Timestamp URL", safe(params.evidence.tsaUrl)],
+        ["Serial Number", safe(params.evidence.tsaSerialNumber)],
+        ["Generation Time (UTC)", safe(params.evidence.tsaGenTimeUtc)],
+        ["Hash Algorithm", safe(params.evidence.tsaHashAlgorithm)],
+      ]);
+
+      ensureSpace(doc, 70);
+      monospaceStrip(
+        doc,
+        "Timestamp Message Imprint",
+        safe(params.evidence.tsaMessageImprint),
+        { maxChars: 140 }
+      );
+
+      {
+        const status = safe(params.evidence.tsaStatus).toUpperCase();
+        const x = doc.page.margins.left;
+        const w = doc.page.width - doc.page.margins.left - doc.page.margins.right;
+        const color =
+          status === "GRANTED"
+            ? BRAND.success
+            : status === "PENDING"
+              ? BRAND.warning
+              : BRAND.danger;
+
+        ensureSpace(doc, 42);
+
+        doc.save();
+        doc.fillColor(BRAND.muted).font("Helvetica").fontSize(8.8);
+        doc.text("Timestamp Status", x, doc.y, { width: w });
+        doc.restore();
+
+        doc.moveDown(0.06);
+
+        doc.save();
+        doc.fillColor(color).font("Helvetica-Bold").fontSize(10.6);
+        doc.text(status, x, doc.y, { width: w });
+        doc.restore();
+
+        doc.moveDown(0.2);
+      }
+
+      if (
+        safe(params.evidence.tsaStatus).toUpperCase() === "FAILED" &&
+        params.evidence.tsaFailureReason
+      ) {
+        monospaceStrip(
+          doc,
+          "Timestamp Failure Reason",
+          summarizeText(safe(params.evidence.tsaFailureReason), 120),
+          { maxChars: 120 }
+        );
+      }
 
       safeParagraph(
         doc,
-        "For multipart evidence, integrity is evaluated against the completed evidence package as represented in the canonical fingerprint. Review should therefore consider the complete set of evidence items, not an isolated part only.",
-        { fontSize: 9.2, color: BRAND.muted }
+        "Full technical materials can be retrieved via the technical verification view. Technical validation is a forensic support mechanism and does not replace legal advice, procedural review, or expert examination where required.",
+        { fontSize: 8.9, color: BRAND.muted }
       );
-      doc.moveDown(0.25);
-    }
-
-    ensureSpace(doc, 220);
-
-    doc.save();
-    doc.fillColor(BRAND.ink).font("Helvetica-Bold").fontSize(11);
-    doc.text("Timestamp Authority", doc.page.margins.left, doc.y);
-    doc.restore();
-    doc.moveDown(0.25);
-
-    kvGrid(doc, [
-      ["Timestamp Provider", safe(params.evidence.tsaProvider)],
-      ["Timestamp URL", safe(params.evidence.tsaUrl)],
-      ["Serial Number", safe(params.evidence.tsaSerialNumber)],
-      ["Generation Time (UTC)", safe(params.evidence.tsaGenTimeUtc)],
-      ["Hash Algorithm", safe(params.evidence.tsaHashAlgorithm)],
-    ]);
-
-    ensureSpace(doc, 90);
-    monospaceStrip(
-      doc,
-      "Timestamp Message Imprint",
-      safe(params.evidence.tsaMessageImprint),
-      { maxChars: 140 }
-    );
-
-    {
-      const status = safe(params.evidence.tsaStatus).toUpperCase();
-      const x = doc.page.margins.left;
-      const w = doc.page.width - doc.page.margins.left - doc.page.margins.right;
-      const color =
-        status === "GRANTED"
-          ? BRAND.success
-          : status === "PENDING"
-            ? BRAND.warning
-            : BRAND.danger;
-
-      ensureSpace(doc, 52);
-
-      doc.save();
-      doc.fillColor(BRAND.muted).font("Helvetica").fontSize(9);
-      doc.text("Timestamp Status", x, doc.y, { width: w });
-      doc.restore();
-
-      doc.moveDown(0.15);
-
-      doc.save();
-      doc.fillColor(color).font("Helvetica-Bold").fontSize(11);
-      doc.text(status, x, doc.y, { width: w });
-      doc.restore();
-
-      doc.moveDown(0.45);
-    }
-
-    if (
-      safe(params.evidence.tsaStatus).toUpperCase() === "FAILED" &&
-      params.evidence.tsaFailureReason
-    ) {
-      monospaceStrip(
-        doc,
-        "Timestamp Failure Reason",
-        summarizeText(safe(params.evidence.tsaFailureReason), 120),
-        { maxChars: 120 }
-      );
-    }
-
-    safeParagraph(
-      doc,
-      "Full technical materials can be retrieved via the technical verification view. Technical validation is a forensic support mechanism and does not replace legal advice, procedural review, or expert examination where required.",
-      { fontSize: 9, color: BRAND.muted }
-    );
-  });
+    },
+    { minSpace: 120 }
+  );
 
   {
     const qrBuf = await tryGenerateQrPngBuffer(technicalUrl);
@@ -1492,7 +1530,7 @@ export async function buildReportPdf(params: {
       drawQrBlock(doc, {
         title: "Technical materials",
         qrBuffer: qrBuf,
-        size: 108,
+        size: 100,
         caption:
           "Scan to open the technical verification view for this evidence item.",
         urlText: summarizeText(technicalUrl, 90),
@@ -1501,12 +1539,23 @@ export async function buildReportPdf(params: {
     }
   }
 
-  section(doc, "Forensic Integrity Statement", () => {
-    renderForensicIntegrityStatement(doc, {
-      verifyUrl,
-      multipart: fingerprintSummary.multipart,
-    });
+  ensurePageWithHeader(doc, 300, {
+    evidenceId: params.evidence.id,
+    generatedAtUtc: params.generatedAtUtc,
+    status: params.evidence.status,
   });
+
+  section(
+    doc,
+    "Forensic Integrity Statement",
+    () => {
+      renderForensicIntegrityStatement(doc, {
+        verifyUrl,
+        multipart: fingerprintSummary.multipart,
+      });
+    },
+    { minSpace: 140 }
+  );
 
   addFooters(doc, {
     generatedAtUtc: params.generatedAtUtc,
