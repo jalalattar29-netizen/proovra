@@ -60,11 +60,6 @@ type VerifyResponse = {
   } | null;
 };
 
-type ShareResponse = {
-  report?: {
-    url?: string | null;
-  } | null;
-};
 
 type TimelineItem = {
   eventType: string;
@@ -422,8 +417,6 @@ export default function VerifyPage() {
   const { t } = useLocale();
   const params = useParams<{ token: string }>();
   const { addToast } = useToast();
-
-  const [reportUrl, setReportUrl] = useState<string | null>(null);
   const [hash, setHash] = useState<string | null>(null);
   const [fingerprintHash, setFingerprintHash] = useState<string | null>(null);
   const [signature, setSignature] = useState<string | null>(null);
@@ -447,71 +440,60 @@ export default function VerifyPage() {
     setLoading(true);
     setError(null);
 
-    Promise.all([
-      apiFetch(`/public/verify/${params.token}`)
-        .then((data: VerifyResponse) => {
-          const resolvedTsaStatus = extractTimestampStatus(data);
+apiFetch(`/public/verify/${params.token}`)
+  .then((data: VerifyResponse) => {
+    const resolvedTsaStatus = extractTimestampStatus(data);
 
-          const mappedTimeline = (data.custodyEvents ?? []).map((ev) => ({
-            eventType: ev.eventType ?? "UNKNOWN_EVENT",
-            atUtc: ev.atUtc ?? null,
-            payloadSummary: ev.payloadSummary ?? null,
-          }));
+    const mappedTimeline = (data.custodyEvents ?? []).map((ev) => ({
+      eventType: ev.eventType ?? "UNKNOWN_EVENT",
+      atUtc: ev.atUtc ?? null,
+      payloadSummary: ev.payloadSummary ?? null,
+    }));
 
-          const generatedAtFallback =
-            data.reportGeneratedAtUtc ??
-            data.generatedAtUtc ??
-            data.tsaGenTimeUtc ??
-            data.tsa?.genTimeUtc ??
-            data.timestamp?.genTimeUtc ??
-            findEventTime(mappedTimeline, ["REPORT_GENERATED"]) ??
-            null;
+    const generatedAtFallback =
+      data.reportGeneratedAtUtc ??
+      data.generatedAtUtc ??
+      data.tsaGenTimeUtc ??
+      data.tsa?.genTimeUtc ??
+      data.timestamp?.genTimeUtc ??
+      findEventTime(mappedTimeline, ["REPORT_GENERATED"]) ??
+      null;
 
-          const verifiedAtFallback =
-            data.verifiedAtUtc ??
-            data.verificationCheckedAtUtc ??
-            findEventTime(mappedTimeline, ["VERIFY_VIEWED", "EVIDENCE_VIEWED"]) ??
-            null;
+    const verifiedAtFallback =
+      data.verifiedAtUtc ??
+      data.verificationCheckedAtUtc ??
+      findEventTime(mappedTimeline, ["VERIFY_VIEWED", "EVIDENCE_VIEWED"]) ??
+      null;
 
-          setHash(data.fileSha256 ?? null);
-          setFingerprintHash(data.fingerprintHash ?? null);
-          setSignature(data.signatureBase64 ?? null);
-          setVerifyStatus(data.status ?? "VERIFIED");
-          setEvidenceId(data.evidenceId ?? data.id ?? params.token ?? null);
-          setMimeType(data.mimeType ?? null);
-          setGeneratedAt(generatedAtFallback);
-          setVerifiedAt(verifiedAtFallback);
-          setReportVersion(
-            data.reportVersion !== undefined && data.reportVersion !== null
-              ? String(data.reportVersion)
-              : null
-          );
-          setTsaStatus(resolvedTsaStatus);
-          setPublicKeyPem(data.publicKeyPem ?? null);
-          setSigningKeyId(data.signingKeyId ?? null);
-          setTimeline(mappedTimeline);
+    setHash(data.fileSha256 ?? null);
+    setFingerprintHash(data.fingerprintHash ?? null);
+    setSignature(data.signatureBase64 ?? null);
+    setVerifyStatus(data.status ?? "VERIFIED");
+    setEvidenceId(data.evidenceId ?? data.id ?? params.token ?? null);
+    setMimeType(data.mimeType ?? null);
+    setGeneratedAt(generatedAtFallback);
+    setVerifiedAt(verifiedAtFallback);
+    setReportVersion(
+      data.reportVersion !== undefined && data.reportVersion !== null
+        ? String(data.reportVersion)
+        : null
+    );
+    setTsaStatus(resolvedTsaStatus);
+    setPublicKeyPem(data.publicKeyPem ?? null);
+    setSigningKeyId(data.signingKeyId ?? null);
+    setTimeline(mappedTimeline);
 
-          addToast("Evidence verified successfully", "success");
-        })
-        .catch((err) => {
-          captureException(err, { feature: "web_verify", token: params.token });
-          const message = err instanceof Error ? err.message : "Verification failed";
-          setError(message);
-          addToast(message, "error");
-        }),
-
-      apiFetch(`/public/share/${params.token}`)
-        .then((data: ShareResponse) => setReportUrl(data.report?.url ?? null))
-        .catch((err) => {
-          captureException(err, {
-            feature: "web_verify_report",
-            token: params.token,
-          });
-          setReportUrl(null);
-        }),
-    ]).finally(() => {
-      setLoading(false);
-    });
+    addToast("Evidence verified successfully", "success");
+  })
+  .catch((err) => {
+    captureException(err, { feature: "web_verify", token: params.token });
+    const message = err instanceof Error ? err.message : "Verification failed";
+    setError(message);
+    addToast(message, "error");
+  })
+  .finally(() => {
+    setLoading(false);
+  });
   }, [params?.token, t, addToast]);
 
   const verificationBadges = useMemo(() => {
