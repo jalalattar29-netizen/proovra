@@ -967,6 +967,46 @@ function renderForensicIntegrityStatement(
   doc.restore();
 }
 
+function estimateKvGridHeight(
+  rows: Array<[string, string]>,
+  doc: PDFDoc,
+  options?: { colGap?: number }
+): number {
+  const w = doc.page.width - doc.page.margins.left - doc.page.margins.right;
+  const colGap = options?.colGap ?? 18;
+  const colW = (w - colGap) / 2;
+
+  const calcCellHeight = (row?: [string, string]): number => {
+    if (!row) return 0;
+    const [k, v] = row;
+
+    doc.font("Helvetica").fontSize(9);
+    const keyH = doc.heightOfString(k, { width: colW });
+
+    doc.font("Helvetica-Bold").fontSize(10);
+    const valueH = doc.heightOfString(v, { width: colW });
+
+    return keyH + valueH + 18;
+  };
+
+  let total = 0;
+  for (let i = 0; i < rows.length; i += 2) {
+    total += Math.max(calcCellHeight(rows[i]), calcCellHeight(rows[i + 1]));
+  }
+
+  return total;
+}
+
+function estimateEvidenceSummarySectionHeight(
+  doc: PDFDoc,
+  rows: Array<[string, string]>
+): number {
+  const titleBlock = 16 + 10 + 26 + 14; // Evidence Overview + gaps
+  const sectionBlock = 14 + 10 + 12; // section hr + title + spacing
+  const gridHeight = estimateKvGridHeight(rows, doc);
+  return titleBlock + sectionBlock + gridHeight + 24;
+}
+
 export async function buildReportPdf(params: {
   evidence: ReportEvidence;
   custodyEvents: ReportCustodyEvent[];
@@ -1090,6 +1130,65 @@ export async function buildReportPdf(params: {
     doc.moveDown(0.55);
   }
 
+{
+  const evidenceSummaryRows: Array<[string, string]> = [
+    ["Evidence ID", safe(params.evidence.id)],
+    ["Status", safe(params.evidence.status).toUpperCase()],
+    ["Captured (UTC)", safe(params.evidence.capturedAtUtc)],
+    ["Uploaded (UTC)", safe(params.evidence.uploadedAtUtc)],
+    ["Signed (UTC)", safe(params.evidence.signedAtUtc)],
+    ["Report Generated (UTC)", safe(params.evidence.reportGeneratedAtUtc)],
+    ["MIME Type", safe(params.evidence.mimeType)],
+    ["Size", formatBytesHuman(params.evidence.sizeBytes)],
+    [
+      "Duration",
+      params.evidence.durationSec
+        ? `${params.evidence.durationSec} sec`
+        : "N/A",
+    ],
+    ["File SHA-256", shortHash(params.evidence.fileSha256)],
+    ["Fingerprint Hash", shortHash(params.evidence.fingerprintHash)],
+    ["Timestamp Provider", safe(params.evidence.tsaProvider)],
+    ["Timestamp Time (UTC)", safe(params.evidence.tsaGenTimeUtc)],
+  ];
+
+  if (fingerprintSummary.multipart) {
+    evidenceSummaryRows.push(
+      ["Evidence Structure", "Multipart evidence"],
+      ["Total Items", String(fingerprintSummary.itemCount)],
+      ["Image Items", String(fingerprintSummary.imageCount)],
+      ["Video Items", String(fingerprintSummary.videoCount)],
+      ["Audio Items", String(fingerprintSummary.audioCount)],
+      ["Document Items", String(fingerprintSummary.documentCount)],
+      ["Fingerprint Parts", String(fingerprintSummary.partsCount)],
+      [
+        "MIME Types",
+        fingerprintSummary.mimeTypes.length > 0
+          ? summarizeText(fingerprintSummary.mimeTypes.join(", "), 80)
+          : "N/A",
+      ]
+    );
+  } else {
+    evidenceSummaryRows.push(["Evidence Structure", "Single file evidence"]);
+  }
+
+  const neededHeight = estimateEvidenceSummarySectionHeight(
+    doc,
+    evidenceSummaryRows
+  );
+
+  const availableHeight =
+    doc.page.height - doc.page.margins.bottom - 28 - doc.y;
+
+  if (availableHeight < neededHeight) {
+    doc.addPage();
+    drawHeader(doc, {
+      evidenceId: params.evidence.id,
+      generatedAtUtc: params.generatedAtUtc,
+      status: params.evidence.status,
+    });
+  }
+
   doc.save();
   doc.fillColor(BRAND.ink).font("Helvetica-Bold").fontSize(16);
   doc.text("Evidence Overview", doc.page.margins.left, doc.y);
@@ -1097,49 +1196,9 @@ export async function buildReportPdf(params: {
   doc.moveDown(0.25);
 
   section(doc, "Evidence Summary", () => {
-    const rows: Array<[string, string]> = [
-      ["Evidence ID", safe(params.evidence.id)],
-      ["Status", safe(params.evidence.status).toUpperCase()],
-      ["Captured (UTC)", safe(params.evidence.capturedAtUtc)],
-      ["Uploaded (UTC)", safe(params.evidence.uploadedAtUtc)],
-      ["Signed (UTC)", safe(params.evidence.signedAtUtc)],
-      ["Report Generated (UTC)", safe(params.evidence.reportGeneratedAtUtc)],
-      ["MIME Type", safe(params.evidence.mimeType)],
-      ["Size", formatBytesHuman(params.evidence.sizeBytes)],
-      [
-        "Duration",
-        params.evidence.durationSec
-          ? `${params.evidence.durationSec} sec`
-          : "N/A",
-      ],
-      ["File SHA-256", shortHash(params.evidence.fileSha256)],
-      ["Fingerprint Hash", shortHash(params.evidence.fingerprintHash)],
-      ["Timestamp Provider", safe(params.evidence.tsaProvider)],
-      ["Timestamp Time (UTC)", safe(params.evidence.tsaGenTimeUtc)],
-    ];
-
-    if (fingerprintSummary.multipart) {
-      rows.push(
-        ["Evidence Structure", "Multipart evidence"],
-        ["Total Items", String(fingerprintSummary.itemCount)],
-        ["Image Items", String(fingerprintSummary.imageCount)],
-        ["Video Items", String(fingerprintSummary.videoCount)],
-        ["Audio Items", String(fingerprintSummary.audioCount)],
-        ["Document Items", String(fingerprintSummary.documentCount)],
-        ["Fingerprint Parts", String(fingerprintSummary.partsCount)],
-        [
-          "MIME Types",
-          fingerprintSummary.mimeTypes.length > 0
-            ? summarizeText(fingerprintSummary.mimeTypes.join(", "), 80)
-            : "N/A",
-        ]
-      );
-    } else {
-      rows.push(["Evidence Structure", "Single file evidence"]);
-    }
-
-    kvGrid(doc, rows);
+    kvGrid(doc, evidenceSummaryRows);
   });
+}
 
   section(doc, "Quick Verification", () => {
     const x = doc.page.margins.left;
