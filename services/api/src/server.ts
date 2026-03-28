@@ -1,7 +1,9 @@
 import { randomUUID } from "node:crypto";
 import Fastify from "fastify";
+import type { FastifyBaseLogger } from "fastify";
 import cors from "@fastify/cors";
 import cookie from "@fastify/cookie";
+import { ZodError } from "zod";
 import { prisma } from "./db.js";
 import { usersRoutes } from "./routes/users.routes.js";
 import { captureException, initSentry } from "./observability/sentry.js";
@@ -18,7 +20,12 @@ import { enterpriseRoutes } from "./routes/enterprise.routes.js";
 import { teamManagementRoutes } from "./routes/team-management.routes.js";
 import { webhookRoutes } from "./routes/webhook.routes.js";
 import { auditRoutes } from "./routes/audit.routes.js";
-import { isAppError, createErrorResponse } from "./errors.js";
+import {
+  AppError,
+  ErrorCode,
+  createErrorResponse,
+  isAppError,
+} from "./errors.js";
 
 const REQUIRED_ORIGINS = [
   "https://www.proovra.com",
@@ -39,6 +46,7 @@ function parseCorsOrigins(): string[] {
     .split(",")
     .map((value) => value.trim())
     .filter(Boolean);
+
   const merged = [...parsed, ...REQUIRED_ORIGINS];
   return Array.from(new Set(merged.map(normalizeOrigin)));
 }
@@ -47,9 +55,75 @@ function isProovraOrigin(origin: string) {
   const value = normalizeOrigin(origin);
   return (
     value === "https://proovra.com" ||
+    value === "https://www.proovra.com" ||
+    value === "https://app.proovra.com" ||
     value.endsWith(".proovra.com") ||
     value.endsWith(".vercel.app")
   );
+}
+
+function buildRequestContext(req: {
+  id: string;
+  method: string;
+  url: string;
+  user?: { sub?: string };
+  evidenceId?: string;
+}) {
+  const context: Record<string, unknown> = {
+    requestId: req.id,
+    method: req.method,
+    url: req.url,
+  };
+
+  if (req.user?.sub) context.userId = req.user.sub;
+  if (req.evidenceId) context.evidenceId = req.evidenceId;
+
+  return context;
+}
+
+function emitOperationalAlert(
+  logger: FastifyBaseLogger,
+  params: {
+    requestId: string;
+    reason: string;
+    err?: unknown;
+    context?: Record<string, unknown>;
+  }
+) {
+  logger.error(
+    {
+      alert: true,
+      severity: "critical",
+      requestId: params.requestId,
+      reason: params.reason,
+      ...(params.context ?? {}),
+      ...(params.err ? { err: params.err } : {}),
+    },
+    "operational.alert"
+  );
+}
+
+function normalizeUnknownError(err: unknown): AppError | null {
+  if (isAppError(err)) {
+    return err;
+  }
+
+  if (err instanceof ZodError) {
+    const firstIssue = err.issues[0];
+    return new AppError(
+      ErrorCode.VALIDATION_ERROR,
+      "Request validation failed",
+      firstIssue
+        ? {
+            field: firstIssue.path.join(".") || undefined,
+            reason: firstIssue.message,
+            value: "received",
+          }
+        : undefined
+    );
+  }
+
+  return null;
 }
 
 export async function buildServer() {
@@ -58,6 +132,23 @@ export async function buildServer() {
   const app = Fastify({
     logger: {
       level: process.env.LOG_LEVEL ?? "info",
+      base: { service: "api" },
+      redact: {
+        paths: [
+          "req.headers.authorization",
+          "req.headers.cookie",
+          "headers.authorization",
+          "headers.cookie",
+          "authorization",
+          "cookie",
+          "token",
+          "accessToken",
+          "refreshToken",
+          "password",
+          "secret",
+        ],
+        censor: "[REDACTED]",
+      },
     },
     genReqId: () => randomUUID(),
     disableRequestLogging: true,
@@ -65,7 +156,7 @@ export async function buildServer() {
 
   const allowlist = parseCorsOrigins();
   const isProd = process.env.NODE_ENV === "production";
-  const ALLOWED_WEB_ORIGINS = [
+  const allowedWebOrigins = [
     "https://www.proovra.com",
     "https://proovra.com",
     "https://app.proovra.com",
@@ -80,7 +171,7 @@ export async function buildServer() {
 
       const normalized = normalizeOrigin(origin);
 
-      if (ALLOWED_WEB_ORIGINS.includes(normalized)) return cb(null, true);
+      if (allowedWebOrigins.includes(normalized)) return cb(null, true);
       if (isProovraOrigin(normalized)) return cb(null, true);
       if (allowlist.length > 0 && allowlist.includes(normalized)) {
         return cb(null, true);
@@ -131,60 +222,82 @@ export async function buildServer() {
         .evidenceId;
     }
 
+    if (reply.statusCode >= 500) {
+      req.log.error(logContext, "request.completed.infrastructure_error");
+      emitOperationalAlert(req.log, {
+        requestId: req.id,
+        reason: "api_5xx_response",
+        context: logContext,
+      });
+      return;
+    }
+
+    if (reply.statusCode >= 400) {
+      req.log.warn(logContext, "request.completed.business_error");
+      return;
+    }
+
     req.log.info(logContext, "request.completed");
   });
 
   app.setErrorHandler((err, req, reply) => {
-    const context: Record<string, unknown> = {
-      requestId: req.id,
-      method: req.method,
-      url: req.url,
-    };
+    const requestContext = buildRequestContext(
+      req as typeof req & { evidenceId?: string }
+    );
 
-    if (req.user?.sub) context.userId = req.user.sub;
-    if ((req as typeof req & { evidenceId?: string }).evidenceId) {
-      context.evidenceId = (req as typeof req & { evidenceId?: string })
-        .evidenceId;
+    const appError = normalizeUnknownError(err);
+
+    if (appError) {
+      req.log.warn(
+        {
+          ...requestContext,
+          errorCode: appError.code,
+          statusCode: appError.statusCode,
+          details: appError.details,
+        },
+        "request.failed.business"
+      );
+
+      const errorResponse = createErrorResponse(
+        appError.code,
+        req.id,
+        appError.details,
+        appError.message
+      );
+
+      return reply.code(appError.statusCode).send(errorResponse);
     }
 
     req.log.error(
       {
-        ...context,
-        errorMessage: err instanceof Error ? err.message : String(err),
-        errorStack: err instanceof Error ? err.stack : undefined,
+        ...requestContext,
+        err,
       },
-      "request.failed"
+      "request.failed.infrastructure"
     );
 
-    if (isAppError(err)) {
-      captureException(err, { ...context, errorCode: err.code });
-
-      const errorResponse = createErrorResponse(
-        err.code,
-        req.id,
-        err.details,
-        err.message
-      );
-
-      return reply.code(err.statusCode).send(errorResponse);
-    }
-
-    captureException(err, context);
+    captureException(err, requestContext);
+    emitOperationalAlert(req.log, {
+      requestId: req.id,
+      reason: "unhandled_api_error",
+      err,
+      context: requestContext,
+    });
 
     const errorResponse = createErrorResponse(
-      "INTERNAL_SERVER_ERROR" as never,
+      ErrorCode.INTERNAL_SERVER_ERROR,
       req.id
     );
 
     return reply.code(500).send(errorResponse);
   });
 
-  app.get("/health", async () => {
+  app.get("/health", async (_req, reply) => {
     try {
       await prisma.$queryRaw`SELECT 1`;
-      return { ok: true, db: "up" };
+      return reply.code(200).send({ ok: true, db: "up" });
     } catch {
-      return { ok: true, db: "down" };
+      return reply.code(503).send({ ok: false, db: "down" });
     }
   });
 

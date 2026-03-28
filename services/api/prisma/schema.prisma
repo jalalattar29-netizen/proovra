@@ -69,6 +69,7 @@ model Evidence {
   @@index([ownerUserId, status])
   @@index([status])
   @@index([teamId])
+  @@index([storageBucket, storageKey])
   @@map("evidence")
 }
 
@@ -87,6 +88,7 @@ model EvidencePart {
 
   @@unique([evidenceId, partIndex])
   @@index([evidenceId])
+  @@index([storageBucket, storageKey])
   @@map("evidence_parts")
 }
 
@@ -424,6 +426,8 @@ enum CustodyEventType {
   UPLOAD_STARTED
   UPLOAD_COMPLETED
   SIGNATURE_APPLIED
+  TIMESTAMP_APPLIED
+  TIMESTAMP_FAILED
   REPORT_GENERATED
   EVIDENCE_VIEWED
   EVIDENCE_DOWNLOADED

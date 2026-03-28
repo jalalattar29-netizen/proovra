@@ -6,8 +6,10 @@ const generateReportJobName = "GenerateReportJob";
 
 function must(name: string): string {
   const v = process.env[name];
-  if (!v) throw new Error(`${name} is not set`);
-  return v;
+  if (!v || !v.trim()) {
+    throw new Error(`${name} is not set`);
+  }
+  return v.trim();
 }
 
 const redisConnection = new IORedis(must("REDIS_URL"), {
@@ -15,7 +17,8 @@ const redisConnection = new IORedis(must("REDIS_URL"), {
 });
 
 export const reportQueue = new Queue(reportQueueName, {
-  connection: redisConnection as any,  defaultJobOptions: {
+  connection: redisConnection as any,
+  defaultJobOptions: {
     attempts: 5,
     backoff: { type: "exponential", delay: 1000 },
     removeOnComplete: 100,
@@ -24,8 +27,14 @@ export const reportQueue = new Queue(reportQueueName, {
 });
 
 export async function enqueueGenerateReportJob(evidenceId: string) {
-  const jobId = `report-${evidenceId}`;
+  const normalizedEvidenceId = evidenceId.trim();
+  if (!normalizedEvidenceId) {
+    throw new Error("enqueueGenerateReportJob: evidenceId is required");
+  }
+
+  const jobId = `report-${normalizedEvidenceId}`;
   const existing = await reportQueue.getJob(jobId);
+
   if (existing) {
     const state = await existing.getState();
     return { enqueued: false, reason: `job_${state}` };
@@ -33,7 +42,7 @@ export async function enqueueGenerateReportJob(evidenceId: string) {
 
   await reportQueue.add(
     generateReportJobName,
-    { evidenceId },
+    { evidenceId: normalizedEvidenceId },
     {
       jobId,
       attempts: 5,

@@ -27,6 +27,10 @@ export async function createVerificationPackage(data: {
   timestampToken: string | null;
   publicKey: string;
   custody: unknown;
+  evidenceId?: string;
+  reportVersion?: number;
+  signingKeyId?: string;
+  signingKeyVersion?: number;
 }) {
   return new Promise<Buffer>((resolve, reject) => {
     const archive = archiver("zip", { zlib: { level: 9 } });
@@ -55,7 +59,6 @@ export async function createVerificationPackage(data: {
     stream.on("error", fail);
     archive.on("error", fail);
     archive.on("warning", (warning) => {
-      // archiver may emit warnings for non-fatal issues; treat them as fatal here
       fail(warning);
     });
 
@@ -77,10 +80,6 @@ export async function createVerificationPackage(data: {
       fail(new Error("Verification package requires at least one evidence file"));
       return;
     }
-
-    /* =========================
-       Evidence files
-    ========================== */
 
     if (evidenceFiles.length === 1) {
       const file = evidenceFiles[0];
@@ -117,25 +116,13 @@ export async function createVerificationPackage(data: {
       );
     }
 
-    /* =========================
-       Fingerprint
-    ========================== */
-
     archive.append(data.fingerprint, {
       name: "fingerprint.json",
     });
 
-    /* =========================
-       Signature
-    ========================== */
-
     archive.append(data.signature, {
       name: "signature.txt",
     });
-
-    /* =========================
-       Timestamp
-    ========================== */
 
     if (data.timestampToken) {
       archive.append(data.timestampToken, {
@@ -143,25 +130,34 @@ export async function createVerificationPackage(data: {
       });
     }
 
-    /* =========================
-       Public key
-    ========================== */
-
     archive.append(data.publicKey, {
       name: "public-key.pem",
     });
-
-    /* =========================
-       Custody
-    ========================== */
 
     archive.append(JSON.stringify(data.custody, null, 2), {
       name: "custody.json",
     });
 
-    /* =========================
-       README
-    ========================== */
+    archive.append(
+      JSON.stringify(
+        {
+          packageType: "PROOVRA_VERIFICATION_PACKAGE",
+          version: 1,
+          evidenceId: data.evidenceId ?? null,
+          reportVersion: data.reportVersion ?? null,
+          signingKeyId: data.signingKeyId ?? null,
+          signingKeyVersion: data.signingKeyVersion ?? null,
+          multipart: evidenceFiles.length > 1,
+          fileCount: evidenceFiles.length,
+          generatedAtUtc: new Date().toISOString(),
+        },
+        null,
+        2
+      ),
+      {
+        name: "package-manifest.json",
+      }
+    );
 
     const readme = `PROOVRA Evidence Verification Package
 
@@ -195,6 +191,9 @@ Public key used to verify the signature.
 custody.json
 Chain of custody events recorded by the system.
 
+package-manifest.json
+Package metadata describing the verification bundle.
+
 HOW TO VERIFY
 
 1) Extract the package.
@@ -209,16 +208,16 @@ HOW TO VERIFY
 5) Verify Ed25519 signature using public-key.pem.
 6) Verify timestamp token using RFC3161 verification tools, if included.
 
-This package is self-contained and can be reviewed offline.
+LEGAL NOTE
+
+This package supports integrity verification of the recorded evidence state.
+It does not independently establish authorship, truthfulness, legal admissibility,
+or probative weight.
 `;
 
     archive.append(readme, {
       name: "README.txt",
     });
-
-    /* =========================
-       Offline verifier
-    ========================== */
 
     const verifyHtml = `<!DOCTYPE html>
 <html>
@@ -245,6 +244,7 @@ code{background:#eef2ff;padding:2px 6px;border-radius:6px}
   <li>timestamp.tsr (if available)</li>
   <li>public-key.pem</li>
   <li>custody.json</li>
+  <li>package-manifest.json</li>
 </ul>
 
 <p>For multipart evidence, open <code>evidence-manifest.json</code> and review the files inside <code>evidence-parts/</code>.</p>

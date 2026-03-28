@@ -2,6 +2,19 @@ import pino from "pino";
 
 export const logger = pino({
   level: process.env.LOG_LEVEL ?? "info",
+  base: { service: "worker" },
+  redact: {
+    paths: [
+      "authorization",
+      "cookie",
+      "token",
+      "accessToken",
+      "refreshToken",
+      "password",
+      "secret",
+    ],
+    censor: "[REDACTED]",
+  },
 });
 
 export function withJobContext(params: {

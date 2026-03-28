@@ -15,12 +15,32 @@ import { captureException, initSentry } from "./sentry.js";
 
 type JobData = { evidenceId?: string };
 
+function emitOperationalAlert(params: {
+  requestId: string;
+  reason: string;
+  err?: unknown;
+  context?: Record<string, unknown>;
+}) {
+  logger.error(
+    {
+      alert: true,
+      severity: "critical",
+      requestId: params.requestId,
+      reason: params.reason,
+      ...(params.context ?? {}),
+      ...(params.err ? { err: params.err } : {}),
+    },
+    "operational.alert"
+  );
+}
+
 initSentry();
 
 const worker = new Worker(reportQueueName, processGenerateReport, {
   connection: redisConnection,
   concurrency: 2,
 });
+
 let healthServer: HealthServer | null = null;
 let shuttingDown = false;
 
@@ -40,14 +60,14 @@ worker.on("completed", (job) => {
       durationMs: durationMs ?? undefined,
       status: "completed",
     }),
-    "Job completed"
+    "job.completed"
   );
 });
 
 worker.on("failed", (job, err) => {
   if (!job) return;
-  const requestId = randomUUID();
 
+  const requestId = randomUUID();
   const durationMs =
     job.finishedOn && job.processedOn
       ? job.finishedOn - job.processedOn
@@ -55,73 +75,91 @@ worker.on("failed", (job, err) => {
         ? Date.now() - job.processedOn
         : null;
 
-  logger.error(
-    {
-      ...withJobContext({
-        requestId,
-        jobId: job.id,
-        evidenceId: (job.data as JobData | undefined)?.evidenceId,
-        attempt: job.attemptsMade + 1,
-        durationMs: durationMs ?? undefined,
-        status: "failed",
-      }),
-      err,
-    },
-    "Job failed"
-  );
+  const context = {
+    ...withJobContext({
+      requestId,
+      jobId: job.id,
+      evidenceId: (job.data as JobData | undefined)?.evidenceId,
+      attempt: job.attemptsMade + 1,
+      durationMs: durationMs ?? undefined,
+      status: "failed",
+    }),
+  };
+
+  logger.error({ ...context, err }, "job.failed");
   captureException(err, {
     requestId,
     evidenceId: (job.data as JobData | undefined)?.evidenceId,
-    jobId: job.id ?? null
+    jobId: job.id ?? null,
+  });
+
+  emitOperationalAlert({
+    requestId,
+    reason: "worker_job_failed",
+    err,
+    context,
   });
 });
 
 worker.on("error", (err) => {
   const requestId = randomUUID();
-  logger.error({ requestId, err }, "Worker error");
+  logger.error({ requestId, err }, "worker.error");
   captureException(err, { requestId });
+
+  emitOperationalAlert({
+    requestId,
+    reason: "worker_runtime_error",
+    err,
+  });
 });
 
 async function shutdown(exitCode: number) {
   if (shuttingDown) return;
   shuttingDown = true;
-  logger.info({ requestId: randomUUID(), exitCode }, "Shutting down worker");
+
+  logger.info({ requestId: randomUUID(), exitCode }, "worker.shutdown_started");
+
   try {
     await worker.pause(true);
   } catch (err) {
     const requestId = randomUUID();
-    logger.error({ requestId, err }, "Failed to pause worker");
+    logger.error({ requestId, err }, "worker.pause_failed");
     captureException(err, { requestId });
   }
+
   try {
     await worker.close();
   } catch (err) {
     const requestId = randomUUID();
-    logger.error({ requestId, err }, "Failed to close worker");
+    logger.error({ requestId, err }, "worker.close_failed");
     captureException(err, { requestId });
   }
+
   try {
     await reportQueue.close();
     await reportDlqQueue.close();
   } catch (err) {
     const requestId = randomUUID();
-    logger.error({ requestId, err }, "Failed to close queues");
+    logger.error({ requestId, err }, "worker.queue_close_failed");
     captureException(err, { requestId });
   }
+
   try {
     await redisConnection.quit();
   } catch (err) {
     const requestId = randomUUID();
-    logger.error({ requestId, err }, "Failed to close redis connection");
+    logger.error({ requestId, err }, "worker.redis_close_failed");
     captureException(err, { requestId });
   }
+
   try {
     await healthServer?.close();
   } catch (err) {
     const requestId = randomUUID();
-    logger.error({ requestId, err }, "Failed to close health server");
+    logger.error({ requestId, err }, "worker.health_close_failed");
     captureException(err, { requestId });
   }
+
   process.exit(exitCode);
 }
 
@@ -131,8 +169,15 @@ startHealthServer()
   })
   .catch((err) => {
     const requestId = randomUUID();
-    logger.error({ requestId, err }, "Health server failed to start");
+    logger.error({ requestId, err }, "worker.health_start_failed");
     captureException(err, { requestId });
+
+    emitOperationalAlert({
+      requestId,
+      reason: "worker_health_server_failed",
+      err,
+    });
+
     void shutdown(1);
   });
 
@@ -146,19 +191,33 @@ process.on("SIGTERM", () => {
 
 process.on("unhandledRejection", (reason) => {
   const requestId = randomUUID();
-  logger.error({ requestId, err: reason }, "Unhandled promise rejection");
+  logger.error({ requestId, err: reason }, "worker.unhandled_rejection");
   captureException(reason, { requestId });
+
+  emitOperationalAlert({
+    requestId,
+    reason: "worker_unhandled_rejection",
+    err: reason,
+  });
+
   void shutdown(1);
 });
 
 process.on("uncaughtException", (err) => {
   const requestId = randomUUID();
-  logger.error({ requestId, err }, "Uncaught exception");
+  logger.error({ requestId, err }, "worker.uncaught_exception");
   captureException(err, { requestId });
+
+  emitOperationalAlert({
+    requestId,
+    reason: "worker_uncaught_exception",
+    err,
+  });
+
   void shutdown(1);
 });
 
 logger.info(
   { requestId: randomUUID(), job: generateReportJobName },
-  "Worker started"
+  "worker.started"
 );

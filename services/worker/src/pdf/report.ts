@@ -172,6 +172,20 @@ function parseFingerprintSummary(
   }
 }
 
+function normalizeTimestampStatus(
+  status: string | null | undefined
+): "SUCCESS" | "WARNING" | "DANGER" | "NEUTRAL" {
+  const s = safe(status, "").toUpperCase();
+  if (s === "GRANTED" || s === "STAMPED" || s === "VERIFIED" || s === "SUCCEEDED") {
+    return "SUCCESS";
+  }
+  if (s === "PENDING" || s === "UNAVAILABLE") {
+    return "WARNING";
+  }
+  if (s) return "DANGER";
+  return "NEUTRAL";
+}
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -449,13 +463,6 @@ function textClamp(text: string, maxChars: number): string {
   return text.length > maxChars
     ? `${text.slice(0, Math.max(0, maxChars - 1))}…`
     : text;
-}
-
-function buildEvidencePageUrl(evidenceId: string): string {
-  const base = (env("REPORT_APP_BASE_URL") ?? "https://app.proovra.com")
-    .trim()
-    .replace(/\/+$/, "");
-  return `${base}/evidence/${encodeURIComponent(evidenceId)}`;
 }
 
 function section(
@@ -880,21 +887,8 @@ function buildVerifyUrl(evidenceId: string, provided?: string | null): string {
   const base = (env("REPORT_VERIFY_BASE_URL") ?? "https://app.proovra.com/verify")
     .trim()
     .replace(/\/+$/, "");
-  if (base.includes("?")) {
-    return `${base}&evidenceId=${encodeURIComponent(evidenceId)}`;
-  }
-  return `${base}?evidenceId=${encodeURIComponent(evidenceId)}`;
-}
 
-function buildDownloadLabel(url: string): string {
-  try {
-    const u = new URL(url);
-    const p =
-      u.pathname.length > 32 ? `${u.pathname.slice(0, 32)}…` : u.pathname;
-    return `${u.hostname}${p}`;
-  } catch {
-    return summarizeText(url, 56);
-  }
+  return `${base}/${encodeURIComponent(evidenceId)}`;
 }
 
 function estimateQuickVerificationHeight(doc: PDFDoc, verifyUrl: string): number {
@@ -912,6 +906,7 @@ function estimateQuickVerificationHeight(doc: PDFDoc, verifyUrl: string): number
   doc.font("Helvetica").fontSize(8.9);
   const link = doc.heightOfString(verifyUrl, { width: w, lineGap: 1.8 });
 
+  doc.font("Helvetica").fontSize(9.2);
   const p2 = doc.heightOfString(
     "Technical verification supports detection of post-completion changes. It does not independently determine authorship, authenticity of real-world events, or legal effect.",
     { width: w, lineGap: 1.8 }
@@ -1207,7 +1202,7 @@ export async function buildReportPdf(params: {
   doc.info = {
     Title: `${BRAND.name} — Verifiable Evidence Report`,
     Subject:
-      "Evidence Summary > Exhibit > Chain of Custody > Technical Appendix",
+      "Evidence Summary > Chain of Custody > Technical Appendix",
     Keywords: `PROOVRA_REPORT_VERSION=${params.version};PROOVRA_GENERATED_AT=${params.generatedAtUtc}${buildToken}`,
     Creator: BRAND.name,
     Producer: BRAND.name,
@@ -1222,11 +1217,6 @@ export async function buildReportPdf(params: {
   const technicalUrl = verifyUrl.includes("?")
     ? `${verifyUrl}&tab=technical`
     : `${verifyUrl}?tab=technical`;
-
-  const evidencePageUrl = safe(
-    params.downloadUrl ?? buildEvidencePageUrl(params.evidence.id),
-    ""
-  );
 
   const fingerprintSummary = parseFingerprintSummary(
     params.evidence.fingerprintCanonicalJson
@@ -1256,7 +1246,7 @@ export async function buildReportPdf(params: {
 
     const color = verified ? BRAND.success : BRAND.danger;
 
-    ensureSpace(doc, 100);
+    ensureSpace(doc, 140);
 
     doc.save();
     doc.fillColor(color).font("Helvetica-Bold").fontSize(13.2);
@@ -1281,8 +1271,20 @@ export async function buildReportPdf(params: {
           { fontSize: 9.8, color: BRAND.ink }
         );
       }
-      if (params.evidence.tsaStatus?.toUpperCase() === "GRANTED") {
-        safeParagraph(doc, "• Trusted timestamp record granted", {
+
+      const tsaTone = normalizeTimestampStatus(params.evidence.tsaStatus);
+      if (tsaTone === "SUCCESS") {
+        safeParagraph(doc, "• Trusted timestamp record available", {
+          fontSize: 9.8,
+          color: BRAND.ink,
+        });
+      } else if (tsaTone === "WARNING") {
+        safeParagraph(doc, "• Timestamp record is pending or unavailable", {
+          fontSize: 9.8,
+          color: BRAND.ink,
+        });
+      } else if (tsaTone === "DANGER") {
+        safeParagraph(doc, "• Timestamp record reported a failure state", {
           fontSize: 9.8,
           color: BRAND.ink,
         });
@@ -1302,6 +1304,13 @@ export async function buildReportPdf(params: {
         ? "This result supports integrity of the recorded evidence state at completion. It does not, by itself, prove authorship, truthfulness of content, or legal admissibility."
         : "This report should be reviewed manually. Missing or incomplete integrity materials may limit technical verification.",
       tone: verified ? "success" : "danger",
+    });
+
+    drawCallout(doc, {
+      title: "Important legal limitation",
+      body:
+        "PROOVRA verifies integrity of the recorded digital evidence state. It does not independently establish who created the content, whether the depicted event is true, or whether a court or authority must accept the material.",
+      tone: "warning",
     });
 
     hr(doc);
@@ -1326,8 +1335,11 @@ export async function buildReportPdf(params: {
       ],
       ["File SHA-256", shortHash(params.evidence.fileSha256)],
       ["Fingerprint Hash", shortHash(params.evidence.fingerprintHash)],
+      ["Signing Key", safe(params.evidence.signingKeyId)],
+      ["Signing Key Version", String(params.evidence.signingKeyVersion)],
       ["Timestamp Provider", safe(params.evidence.tsaProvider)],
       ["Timestamp Time (UTC)", safe(params.evidence.tsaGenTimeUtc)],
+      ["Timestamp Status", safe(params.evidence.tsaStatus)],
     ];
 
     if (fingerprintSummary.multipart) {
@@ -1410,89 +1422,55 @@ export async function buildReportPdf(params: {
       safeParagraph(
         doc,
         "Technical verification supports detection of post-completion changes. It does not independently determine authorship, authenticity of real-world events, or legal effect.",
-        { fontSize: 8.9, color: BRAND.muted, gap: 1.8 }
+        { fontSize: 9.2, color: BRAND.muted, gap: 1.8 }
       );
     },
     { minSpace: 64 }
   );
 
+  {
+    const qrBuf = await tryGenerateQrPngBuffer(verifyUrl);
+    if (qrBuf) {
+      drawQrBlock(doc, {
+        title: "Open verification page",
+        qrBuffer: qrBuf,
+        size: 102,
+        caption: "Scan to open the public verification page for this evidence record.",
+        urlText: summarizeText(verifyUrl, 90),
+        urlLink: verifyUrl,
+      });
+    }
+  }
+
   ensurePageWithHeader(doc, 180);
 
   section(
     doc,
-    "Exhibit",
+    "Access to Original Evidence",
     () => {
-      const x = doc.page.margins.left;
-      const w = doc.page.width - doc.page.margins.left - doc.page.margins.right;
-
-      const t = safe(params.evidence.mimeType, "unknown");
-      const size = formatBytesHuman(params.evidence.sizeBytes);
-      const dur = params.evidence.durationSec
-        ? `${params.evidence.durationSec} sec`
-        : "N/A";
-
-      doc.fillColor(BRAND.ink).font("Helvetica").fontSize(9.8);
-      doc.text(`Type: ${t}    •    Size: ${size}    •    Duration: ${dur}`, x, doc.y, {
-        width: w,
-      });
-      doc.moveDown(0.22);
+      safeParagraph(
+        doc,
+        "The original evidence file is not publicly exposed through this report. Access to the underlying stored evidence remains controlled by the authorized account or workspace with the relevant permissions.",
+        { fontSize: 9.4, color: BRAND.ink, gap: 1.8 }
+      );
+      doc.moveDown(0.14);
 
       if (fingerprintSummary.multipart) {
         drawCallout(doc, {
           title: "Multipart evidence package",
-          body: `This evidence record contains ${fingerprintSummary.itemCount} item${fingerprintSummary.itemCount === 1 ? "" : "s"} grouped into a single signed evidence package. The integrity record applies to the package as completed, not merely to an individual item viewed in isolation.`,
+          body: `This evidence record contains ${fingerprintSummary.itemCount} item${fingerprintSummary.itemCount === 1 ? "" : "s"} grouped into a single signed evidence package. Integrity review should consider the complete package rather than an isolated item only.`,
           tone: "neutral",
         });
       }
 
       safeParagraph(
         doc,
-        "Use the evidence page below to review or download the stored evidence associated with this report.",
-        { fontSize: 8.9, color: BRAND.muted, gap: 1.8 }
-      );
-      doc.moveDown(0.14);
-
-      ensureSpace(
-        doc,
-        doc.heightOfString("Open evidence page:", { width: w }) +
-          doc.heightOfString(buildDownloadLabel(evidencePageUrl), { width: w }) +
-          16
-      );
-
-      doc.fillColor(BRAND.ink).font("Helvetica-Bold").fontSize(9.8);
-      doc.text("Open evidence page:", x, doc.y, { width: w });
-      doc.moveDown(0.08);
-
-      doc.fillColor(BRAND.accent).font("Helvetica").fontSize(8.9);
-      doc.text(buildDownloadLabel(evidencePageUrl), x, doc.y, {
-        width: w,
-        link: evidencePageUrl,
-        underline: true,
-      });
-      doc.moveDown(0.2);
-
-      safeParagraph(
-        doc,
-        "Note: The evidence page provides authenticated access to the original stored evidence and related outputs.",
+        "Use the verification page and technical appendix in this report to review the integrity materials associated with the evidence record.",
         { fontSize: 8.9, color: BRAND.muted, gap: 1.8 }
       );
     },
     { minSpace: 84 }
   );
-
-  {
-    const qrBuf = await tryGenerateQrPngBuffer(evidencePageUrl);
-    if (qrBuf) {
-      drawQrBlock(doc, {
-        title: "Open original evidence",
-        qrBuffer: qrBuf,
-        size: 102,
-        caption: "Scan to open the evidence page for this item.",
-        urlText: summarizeText(evidencePageUrl, 90),
-        urlLink: evidencePageUrl,
-      });
-    }
-  }
 
   ensurePageWithHeader(doc, 220);
 
@@ -1525,7 +1503,7 @@ export async function buildReportPdf(params: {
     { minSpace: 110 }
   );
 
-  ensurePageWithHeader(doc, 300);
+  ensurePageWithHeader(doc, 330);
 
   section(
     doc,
@@ -1592,7 +1570,7 @@ export async function buildReportPdf(params: {
         doc.moveDown(0.14);
       }
 
-      ensureSpace(doc, 170);
+      ensureSpace(doc, 220);
 
       doc.save();
       doc.fillColor(BRAND.ink).font("Helvetica-Bold").fontSize(10.6);
@@ -1606,6 +1584,7 @@ export async function buildReportPdf(params: {
         ["Serial Number", safe(params.evidence.tsaSerialNumber)],
         ["Generation Time (UTC)", safe(params.evidence.tsaGenTimeUtc)],
         ["Hash Algorithm", safe(params.evidence.tsaHashAlgorithm)],
+        ["Timestamp Status", safe(params.evidence.tsaStatus)],
       ]);
 
       ensureSpace(doc, 70);
@@ -1616,16 +1595,29 @@ export async function buildReportPdf(params: {
         { maxChars: 140 }
       );
 
+      if (params.evidence.tsaTokenBase64) {
+        monospaceStrip(
+          doc,
+          "Timestamp Token (Base64) (excerpt)",
+          safe(params.evidence.tsaTokenBase64),
+          { maxChars: 220 }
+        );
+      }
+
       {
         const status = safe(params.evidence.tsaStatus).toUpperCase();
+        const tone = normalizeTimestampStatus(status);
         const x = doc.page.margins.left;
         const w = doc.page.width - doc.page.margins.left - doc.page.margins.right;
+
         const color =
-          status === "GRANTED"
+          tone === "SUCCESS"
             ? BRAND.success
-            : status === "PENDING"
+            : tone === "WARNING"
               ? BRAND.warning
-              : BRAND.danger;
+              : tone === "DANGER"
+                ? BRAND.danger
+                : BRAND.muted;
 
         ensureSpace(doc, 42);
 
@@ -1638,21 +1630,18 @@ export async function buildReportPdf(params: {
 
         doc.save();
         doc.fillColor(color).font("Helvetica-Bold").fontSize(10.6);
-        doc.text(status, x, doc.y, { width: w });
+        doc.text(status || "UNAVAILABLE", x, doc.y, { width: w });
         doc.restore();
 
         doc.moveDown(0.2);
       }
 
-      if (
-        safe(params.evidence.tsaStatus).toUpperCase() === "FAILED" &&
-        params.evidence.tsaFailureReason
-      ) {
+      if (params.evidence.tsaFailureReason) {
         monospaceStrip(
           doc,
-          "Timestamp Failure Reason",
-          summarizeText(safe(params.evidence.tsaFailureReason), 120),
-          { maxChars: 120 }
+          "Timestamp Failure / Detail",
+          summarizeText(safe(params.evidence.tsaFailureReason), 160),
+          { maxChars: 160 }
         );
       }
 

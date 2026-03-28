@@ -11,10 +11,8 @@ function getAppBase(): string {
   if (typeof window === "undefined") return "";
   const { hostname } = window.location;
 
-  // local dev
   if (hostname === "localhost" || hostname === "127.0.0.1") return window.location.origin;
 
-  // prod: prefer APP_BASE for the app domain
   return process.env.NEXT_PUBLIC_APP_BASE ?? "";
 }
 
@@ -29,7 +27,6 @@ export default function HomePage() {
         <MarketingHeader />
 
         <section className="landing-hero container" style={{ paddingTop: 48, paddingBottom: 52 }}>
-          {/* LEFT: COPY */}
           <div className="landing-hero-copy">
             <div style={{ color: "rgba(255,255,255,0.82)", fontSize: 13, letterSpacing: 0.3 }}>
               Capture truth. Prove it forever.
@@ -38,15 +35,14 @@ export default function HomePage() {
             <h1 className="hero-title">Verifiable digital evidence for legal, compliance, and investigations.</h1>
 
             <p className="hero-subtitle">
-              PROO✓RA lets you capture photos, videos, and documents with cryptographic proof, verifiable timestamps,
-              and an immutable chain of custody — ready for disputes, audits, and investigations.
+              PROO✓RA helps you capture photos, videos, and documents with cryptographic integrity records,
+              verifiable timestamps, and a documented chain of custody — designed for disputes, audits,
+              investigations, and internal reviews.
             </p>
 
-            {/* HERO BUTTONS */}
-<div className="home-evidence-stack-pro">
-                  <a href={appRegister}>
-                {/* ✅ Primary CTA uses SAME styling as Register (gradient .proovra-cta-btn) */}
-<Button className="proovra-cta-btn">Start capturing evidence</Button>
+            <div className="home-evidence-stack-pro">
+              <a href={appRegister}>
+                <Button className="proovra-cta-btn">Start capturing evidence</Button>
               </a>
 
               <Link href="/pricing">
@@ -55,16 +51,13 @@ export default function HomePage() {
                 </Button>
               </Link>
 
-              {/* Tertiary link */}
               <a className="hero-tertiary-link" href={sampleReportUrl} target="_blank" rel="noopener noreferrer">
                 View sample report →
               </a>
             </div>
 
-            {/* TRUST LINE */}
             <div className="hero-trustline">Free plan available — no credit card required.</div>
 
-            {/* BADGES */}
             <div className="hero-badges" style={{ marginTop: 10 }}>
               <div className="hero-badge">
                 <span>✓</span> Cryptographic integrity
@@ -78,7 +71,6 @@ export default function HomePage() {
             </div>
           </div>
 
-          {/* RIGHT: MOCKUP (bigger ~20% but same style) */}
           <div className="hero-mockup">
             <div
               className="hero-mockup-card"
@@ -129,7 +121,7 @@ export default function HomePage() {
                 <Icons.Fingerprint />
               </div>
               <h3>Fingerprint</h3>
-              <p>SHA-256 hashes and Ed25519 signatures lock integrity for later verification.</p>
+              <p>SHA-256 hashes and Ed25519 signatures preserve integrity for later verification.</p>
             </div>
 
             <div className="how-it-works-step">
@@ -137,7 +129,7 @@ export default function HomePage() {
                 <Icons.Verify />
               </div>
               <h3>Verify</h3>
-              <p>Anyone can confirm authenticity without exposing original private content.</p>
+              <p>Authorized reviewers can confirm recorded integrity details without needing the original file to be public.</p>
             </div>
 
             <div className="how-it-works-step">
@@ -163,7 +155,7 @@ export default function HomePage() {
               <h3>Legal teams</h3>
               <p>
                 Preserve photos, documents, and recordings with verifiable timestamps, integrity fingerprints, and a
-                transparent chain-of-custody timeline — built for dispute and litigation workflows.
+                transparent chain-of-custody timeline — designed for dispute and litigation workflows.
               </p>
             </div>
 
@@ -172,7 +164,7 @@ export default function HomePage() {
               <h3>Compliance &amp; risk</h3>
               <p>
                 Capture audit-ready documentation for internal reviews and regulated environments, reducing uncertainty
-                about what was recorded, when it existed, and whether it was modified.
+                about what was recorded, when it existed, and whether integrity was later questioned.
               </p>
             </div>
 
@@ -199,11 +191,12 @@ export default function HomePage() {
               <h3>Insurance &amp; claims teams</h3>
               <p>
                 Support claims, incident documentation, and case files with tamper-evident evidence packaging — useful
-                when timelines and authenticity are questioned months or years later.
+                when timelines and integrity are questioned months or years later.
               </p>
             </div>
           </div>
-</div>
+        </div>
+
         <div className="container" style={{ marginTop: 72 }}>
           <h2 style={{ marginBottom: 8 }}>Trust indicators</h2>
           <p className="page-subtitle" style={{ marginBottom: 32 }}>
@@ -225,11 +218,10 @@ export default function HomePage() {
             </div>
             <div className="trust-item">
               <Icons.Fingerprint />
-              <span>Tamper-proof</span>
+              <span>Tamper-evident</span>
             </div>
           </div>
 
-          {/* ✅ Legal disclaimer */}
           <div
             style={{
               marginTop: 28,
@@ -240,15 +232,15 @@ export default function HomePage() {
             }}
           >
             <strong>Disclaimer:</strong> PROO✓RA is a technical evidence-integrity platform. It is not a court,
-            law-enforcement authority, or legal service provider. Verification confirms the integrity and provenance of
-            digital evidence, not the truthfulness or legal validity of the content itself.
+            law-enforcement authority, or legal service provider. Verification confirms recorded integrity and related
+            provenance data for a digital evidence record; it does not by itself establish truthfulness, authorship, or
+            legal admissibility.
           </div>
         </div>
 
         <div className="container" style={{ marginTop: 72, textAlign: "center" }}>
           <Link href="/pricing">
-            {/* keep pricing CTA consistent */}
-<Button className="proovra-cta-btn">View pricing</Button>
+            <Button className="proovra-cta-btn">View pricing</Button>
           </Link>
         </div>
       </SilverWatermarkSection>

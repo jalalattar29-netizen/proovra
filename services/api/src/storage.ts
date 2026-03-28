@@ -8,8 +8,8 @@ import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
 function must(name: string): string {
   const v = process.env[name];
-  if (!v) throw new Error(`${name} is not set`);
-  return v;
+  if (!v || !v.trim()) throw new Error(`${name} is not set`);
+  return v.trim();
 }
 
 function clean(v: string | undefined | null): string | null {
@@ -20,7 +20,11 @@ function clean(v: string | undefined | null): string | null {
 
 function requireTls(endpoint: string) {
   const allowInsecure = process.env.S3_ALLOW_INSECURE === "true";
-  if (process.env.NODE_ENV === "production" && endpoint.startsWith("http://") && !allowInsecure) {
+  if (
+    process.env.NODE_ENV === "production" &&
+    endpoint.startsWith("http://") &&
+    !allowInsecure
+  ) {
     throw new Error("S3_ENDPOINT must use https in production");
   }
 }
@@ -30,8 +34,6 @@ function normBaseUrl(url: string): string {
 }
 
 function isProbablyS3ApiEndpoint(url: string): boolean {
-  // Cloudflare R2 S3 API endpoint (NOT a public object CDN)
-  // also catches many S3-like api endpoints
   const u = url.toLowerCase();
   return (
     u.includes(".r2.cloudflarestorage.com") ||
@@ -42,10 +44,8 @@ function isProbablyS3ApiEndpoint(url: string): boolean {
 
 /**
  * IMPORTANT:
- * S3_PUBLIC_BASE_URL يجب أن يكون "public serving domain" فعلاً (custom domain / r2.dev / CDN)
- * وليس S3 API endpoint. لذلك:
- * - إذا كان يبدو مثل S3 API endpoint -> نُعطّله تلقائياً حتى ما نخرب التحميل بالمتصفح.
- * - أو يمكنك إجبار استخدامه عبر S3_PUBLIC_ASSUME_PUBLIC=true (إذا أنت متأكد أنه public فعلاً).
+ * S3_PUBLIC_BASE_URL must be a real public serving domain (custom domain / CDN / r2.dev),
+ * not the raw S3 API endpoint.
  */
 export function getPublicBaseUrl(): string | null {
   const base = clean(process.env.S3_PUBLIC_BASE_URL);
@@ -55,11 +55,35 @@ export function getPublicBaseUrl(): string | null {
   const normalized = normBaseUrl(base);
 
   if (!assumePublic && isProbablyS3ApiEndpoint(normalized)) {
-    // حماية من إعداد خاطئ شائع (مثل حالتك)
     return null;
   }
 
   return normalized;
+}
+
+function normalizeContentType(contentType: string): string {
+  const trimmed = contentType.trim().toLowerCase();
+
+  if (!trimmed) return "application/octet-stream";
+  if (trimmed.length > 128) return "application/octet-stream";
+  if (/[\r\n]/.test(trimmed)) return "application/octet-stream";
+  if (!/^[a-z0-9!#$&^_.+-]+\/[a-z0-9!#$&^_.+-]+$/i.test(trimmed)) {
+    return "application/octet-stream";
+  }
+
+  return trimmed;
+}
+
+function readPresignExpirySeconds(explicit?: number): number {
+  const fallbackRaw = clean(process.env.S3_PRESIGN_EXPIRES_SECONDS);
+  const fallbackParsed = fallbackRaw ? Number.parseInt(fallbackRaw, 10) : 600;
+  const base = explicit ?? fallbackParsed;
+
+  if (!Number.isFinite(base)) return 600;
+  if (base < 60) return 60;
+  if (base > 900) return 900;
+
+  return base;
 }
 
 const endpoint = must("S3_ENDPOINT");
@@ -67,7 +91,6 @@ requireTls(endpoint);
 
 const region = clean(process.env.S3_REGION) ?? "auto";
 
-// Cloudflare R2 غالباً يحتاج forcePathStyle=true
 const forcePathStyle =
   clean(process.env.S3_FORCE_PATH_STYLE)?.toLowerCase() === "false" ? false : true;
 
@@ -89,19 +112,20 @@ export async function presignPutObject(params: {
 }) {
   const bucket = clean(params.bucket);
   const key = clean(params.key);
-  const contentType = clean(params.contentType);
 
-  if (!bucket || !key || !contentType) {
-    throw new Error("presignPutObject: bucket/key/contentType are required");
+  if (!bucket || !key) {
+    throw new Error("presignPutObject: bucket/key are required");
   }
 
   const cmd = new PutObjectCommand({
     Bucket: bucket,
     Key: key,
-    ContentType: contentType,
+    ContentType: normalizeContentType(params.contentType),
   });
 
-  return getSignedUrl(s3, cmd, { expiresIn: params.expiresInSeconds ?? 600 });
+  return getSignedUrl(s3, cmd, {
+    expiresIn: readPresignExpirySeconds(params.expiresInSeconds),
+  });
 }
 
 export async function presignGetObject(params: {
@@ -121,7 +145,9 @@ export async function presignGetObject(params: {
     Key: key,
   });
 
-  return getSignedUrl(s3, cmd, { expiresIn: params.expiresInSeconds ?? 600 });
+  return getSignedUrl(s3, cmd, {
+    expiresIn: readPresignExpirySeconds(params.expiresInSeconds),
+  });
 }
 
 export async function headObject(params: { bucket: string; key: string }) {

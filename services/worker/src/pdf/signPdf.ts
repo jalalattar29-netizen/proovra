@@ -1,5 +1,6 @@
 // D:\digital-witness\services\worker\src\pdf\signPdf.ts
 import fs from "node:fs";
+import path from "node:path";
 import { SignPdf } from "@signpdf/signpdf";
 import { plainAddPlaceholder } from "@signpdf/placeholder-plain";
 import { P12Signer } from "@signpdf/signer-p12";
@@ -8,6 +9,15 @@ function env(name: string): string | undefined {
   const v = process.env[name];
   const t = typeof v === "string" ? v.trim() : "";
   return t ? t : undefined;
+}
+
+function resolveP12Path(): string {
+  const configured =
+    env("PDF_SIGNING_P12_PATH") || "/app/services/worker/keys/proovra-signing.p12";
+
+  return path.isAbsolute(configured)
+    ? configured
+    : path.resolve(process.cwd(), configured);
 }
 
 export function isPdfSigningEnabled(): boolean {
@@ -21,15 +31,22 @@ function asBuffer(value: unknown): Buffer {
 }
 
 async function signPdfBuffer(unsignedPdf: Buffer): Promise<Buffer> {
-  const p12Path =
-    env("PDF_SIGNING_P12_PATH") || "/app/services/worker/keys/proovra-signing.p12";
+  const p12Path = resolveP12Path();
   const passphrase = env("PDF_SIGNING_P12_PASSWORD") || "";
 
   if (!fs.existsSync(p12Path)) {
     throw new Error(`PDF signing .p12 not found at ${p12Path}`);
   }
 
+  const stat = fs.statSync(p12Path);
+  if (!stat.isFile()) {
+    throw new Error(`PDF signing path is not a file: ${p12Path}`);
+  }
+
   const p12Buffer = fs.readFileSync(p12Path);
+  if (!p12Buffer.length) {
+    throw new Error("PDF signing .p12 is empty");
+  }
 
   const signatureLength = Number(env("PDF_SIGNING_SIGNATURE_LENGTH") ?? "20000");
   const safeSignatureLength =

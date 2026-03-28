@@ -1,4 +1,3 @@
-// D:\digital-witness\apps\web\app\pricing\page.tsx
 "use client";
 
 import { useMemo, useState } from "react";
@@ -21,7 +20,7 @@ export default function MarketingPricingPage() {
   const { hasSession } = useAuth();
   const [hoveredPlan, setHoveredPlan] = useState<string | null>(null);
   const currency = useMemo(() => detectCurrency(), []);
-const price = (usd: number) => formatMoney(convertUsd(usd, currency), currency);
+  const price = (usd: number) => formatMoney(convertUsd(usd, currency), currency);
   const appBase = getAppBase();
   const appBilling = appBase ? `${appBase}/billing` : "/billing";
   const appRegister = appBase ? `${appBase}/register` : "/register";
@@ -41,8 +40,8 @@ const price = (usd: number) => formatMoney(convertUsd(usd, currency), currency);
         <section className="section container hero-section-tight pricing-hero-section">
           <h1 className="hero-title pricing-hero-title">Pricing designed for real-world scrutiny.</h1>
           <p className="page-subtitle pricing-subtitle" style={{ maxWidth: 720 }}>
-            PROO✓RA is built for situations where authenticity matters. Choose a plan based on how often you need
-            verifiable reports and structured custody — not on storage limits.
+            PROO✓RA is built for situations where integrity matters. Choose a plan based on how often you need
+            verification outputs, PDF reports, and structured custody records.
           </p>
         </section>
       </div>
@@ -54,7 +53,7 @@ const price = (usd: number) => formatMoney(convertUsd(usd, currency), currency);
             style={{
               display: "grid",
               gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
-              gap: 16
+              gap: 16,
             }}
           >
             <div
@@ -63,18 +62,18 @@ const price = (usd: number) => formatMoney(convertUsd(usd, currency), currency);
               style={{
                 transition: "all 0.3s",
                 transform: hoveredPlan === "FREE" ? "translateY(-4px)" : "none",
-                boxShadow: hoveredPlan === "FREE" ? "0 8px 16px rgba(0,0,0,0.1)" : "none"
+                boxShadow: hoveredPlan === "FREE" ? "0 8px 16px rgba(0,0,0,0.1)" : "none",
               }}
             >
               <Card className="pricing-card">
                 <h3>FREE</h3>
-<p>{price(0)}</p>
+                <p>{price(0)}</p>
                 <ul style={{ margin: "12px 0 16px", paddingLeft: 18, color: "#475569", lineHeight: 1.7 }}>
-<li>3 evidence total (lifetime)</li>
+                  <li>3 evidence total (lifetime)</li>
                   <li>Cryptographic fingerprint and integrity record</li>
                   <li>Basic verification view</li>
                   <li>PDF reports not included</li>
-                  <li>Includes PDF report + share link for that evidence (permanent)</li>
+                  <li>No shareable report package included</li>
                 </ul>
                 <div className="pricing-cta">
                   <a href={hasSession ? appBilling : appRegister} onClick={() => handlePlanSelect("FREE")}>
@@ -93,18 +92,18 @@ const price = (usd: number) => formatMoney(convertUsd(usd, currency), currency);
                 transition: "all 0.3s",
                 transform: hoveredPlan === "PAYG" ? "translateY(-4px)" : "none",
                 boxShadow: hoveredPlan === "PAYG" ? "0 8px 16px rgba(0,0,0,0.1)" : "none",
-                border: "2px solid #0B7BE5"
+                border: "2px solid #0B7BE5",
               }}
             >
               <Card className="pricing-card">
                 <h3>PAY-PER-EVIDENCE</h3>
-<p>{price(5)} / evidence</p>
+                <p>{price(5)} / evidence</p>
                 <ul style={{ margin: "12px 0 16px", paddingLeft: 18, color: "#475569", lineHeight: 1.7 }}>
                   <li>Everything in Free</li>
-                  <li>Verifiable PDF report per purchase</li>
-                  <li>Includes PDF report + share link for that evidence (permanent)</li>
-                  <li>Shareable verification link</li>
+                  <li>Verifiable PDF report for the purchased evidence item</li>
+                  <li>Shareable verification link for that evidence item</li>
                   <li>Audit-ready integrity fields</li>
+                  <li>Designed for occasional high-value evidence workflows</li>
                 </ul>
                 <div className="pricing-cta">
                   <a
@@ -125,7 +124,7 @@ const price = (usd: number) => formatMoney(convertUsd(usd, currency), currency);
               style={{
                 transition: "all 0.3s",
                 transform: hoveredPlan === "PRO" ? "translateY(-4px)" : "none",
-                boxShadow: hoveredPlan === "PRO" ? "0 8px 16px rgba(0,0,0,0.1)" : "none"
+                boxShadow: hoveredPlan === "PRO" ? "0 8px 16px rgba(0,0,0,0.1)" : "none",
               }}
             >
               <Card className="pricing-card">
@@ -134,7 +133,7 @@ const price = (usd: number) => formatMoney(convertUsd(usd, currency), currency);
                 <ul style={{ margin: "12px 0 16px", paddingLeft: 18, color: "#475569", lineHeight: 1.7 }}>
                   <li>Unlimited evidence capture</li>
                   <li>PDF reports included</li>
-                  <li>Includes PDF report + share link for that evidence (permanent)</li>
+                  <li>Shareable verification links included</li>
                   <li>Faster workflows for frequent verification</li>
                   <li>Designed for individual professionals</li>
                 </ul>
@@ -154,7 +153,7 @@ const price = (usd: number) => formatMoney(convertUsd(usd, currency), currency);
               style={{
                 transition: "all 0.3s",
                 transform: hoveredPlan === "TEAM" ? "translateY(-4px)" : "none",
-                boxShadow: hoveredPlan === "TEAM" ? "0 8px 16px rgba(0,0,0,0.1)" : "none"
+                boxShadow: hoveredPlan === "TEAM" ? "0 8px 16px rgba(0,0,0,0.1)" : "none",
               }}
             >
               <Card className="pricing-card">
@@ -165,7 +164,7 @@ const price = (usd: number) => formatMoney(convertUsd(usd, currency), currency);
                   <li>Shared ownership and access control</li>
                   <li>Team-ready evidence organization</li>
                   <li>PDF reports included</li>
-                  <li>Includes PDF report + share link for that evidence (permanent)</li>
+                  <li>Shareable verification links included</li>
                 </ul>
                 <div className="pricing-cta">
                   <a href={hasSession ? appBilling : appRegister} onClick={() => handlePlanSelect("TEAM")}>
@@ -178,11 +177,13 @@ const price = (usd: number) => formatMoney(convertUsd(usd, currency), currency);
             </div>
           </div>
 
-<div style={{ marginTop: 18, fontSize: 12, color: "#64748b", lineHeight: 1.6 }}>
-  Prices shown in <b>{currency}</b>. VAT may apply depending on your country.
-</div>
+          <div style={{ marginTop: 18, fontSize: 12, color: "#64748b", lineHeight: 1.6 }}>
+            Prices shown in <b>{currency}</b>. VAT may apply depending on your country.
+          </div>
+
           <div style={{ marginTop: 24, fontSize: 12, color: "#64748b", lineHeight: 1.6 }}>
-            PROO✓RA is a technical integrity platform. It does not provide legal advice.
+            PROO✓RA is a technical evidence-integrity platform. It does not provide legal advice, and use of the
+            platform does not guarantee admissibility in any jurisdiction.
           </div>
         </div>
       </SilverWatermarkSection>

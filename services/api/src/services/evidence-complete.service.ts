@@ -24,10 +24,22 @@ type ProcessedPart = {
   key: string;
 };
 
+const { EvidenceStatus } = prismaPkg;
+
+type CompleteEvidenceReturn = {
+  id: string;
+  status: prismaPkg.EvidenceStatus;
+  fileSha256: string | null;
+  fingerprintHash: string | null;
+  signatureBase64: string | null;
+  signingKeyId: string | null;
+  signingKeyVersion: number | null;
+};
+
 function must(name: string): string {
   const v = process.env[name];
-  if (!v) throw new Error(`${name} is not set`);
-  return v;
+  if (!v || !v.trim()) throw new Error(`${name} is not set`);
+  return v.trim();
 }
 
 function asIso(d: Date | null | undefined): string | null {
@@ -57,6 +69,15 @@ function clean(v: string | null | undefined): string | null {
   if (typeof v !== "string") return v ?? null;
   const t = v.trim();
   return t ? t : null;
+}
+
+function normalizeObservedMimeType(value: string | null | undefined): string | null {
+  const raw = clean(value)?.toLowerCase() ?? null;
+  if (!raw) return null;
+  if (raw.length > 128) return null;
+  if (/[\r\n]/.test(raw)) return null;
+  if (!/^[a-z0-9!#$&^_.+-]+\/[a-z0-9!#$&^_.+-]+$/i.test(raw)) return null;
+  return raw;
 }
 
 function decimalToNumber(value: unknown): number | null {
@@ -278,362 +299,398 @@ function buildFingerprint(params: {
   };
 }
 
-const { EvidenceStatus } = prismaPkg;
-
 export async function completeEvidence(params: {
   evidenceId: string;
   ownerUserId: string;
-}) {
-  const evidence = await prisma.evidence.findFirst({
-    where: {
-      id: params.evidenceId,
-      ownerUserId: params.ownerUserId,
-      deletedAt: null,
-    },
-  });
+}): Promise<CompleteEvidenceReturn> {
+  const final = await prisma.$transaction(
+    async (tx) => {
+      await tx.$executeRaw`
+        SELECT pg_advisory_xact_lock(hashtext(${params.evidenceId}))
+      `;
 
-  if (!evidence) {
-    const err: HttpError = Object.assign(new Error("NOT_FOUND"), {
-      statusCode: 404,
-    });
-    throw err;
-  }
+      const evidence = await tx.evidence.findFirst({
+        where: {
+          id: params.evidenceId,
+          ownerUserId: params.ownerUserId,
+          deletedAt: null,
+        },
+      });
 
-  const evidenceBucket = clean(evidence.storageBucket);
-  const evidenceKey = clean(evidence.storageKey);
-  const evidenceMime = clean(evidence.mimeType);
-
-  if (evidence.status === EvidenceStatus.REPORTED) {
-    return {
-      id: evidence.id,
-      status: evidence.status,
-      fileSha256: evidence.fileSha256,
-      fingerprintHash: evidence.fingerprintHash,
-      signatureBase64: evidence.signatureBase64,
-      signingKeyId: evidence.signingKeyId,
-      signingKeyVersion: evidence.signingKeyVersion,
-    };
-  }
-
-  if (evidence.status === EvidenceStatus.SIGNED) {
-    const entitlement = await prisma.entitlement.findFirst({
-      where: { userId: params.ownerUserId, active: true },
-    });
-    const plan = entitlement?.plan ?? prismaPkg.PlanType.FREE;
-
-    if (plan !== prismaPkg.PlanType.FREE) {
-      await enqueueGenerateReportJob(evidence.id);
-    }
-
-    return {
-      id: evidence.id,
-      status: evidence.status,
-      fileSha256: evidence.fileSha256,
-      fingerprintHash: evidence.fingerprintHash,
-      signatureBase64: evidence.signatureBase64,
-      signingKeyId: evidence.signingKeyId,
-      signingKeyVersion: evidence.signingKeyVersion,
-    };
-  }
-
-  const parts = await prisma.evidencePart.findMany({
-    where: { evidenceId: evidence.id },
-    orderBy: { partIndex: "asc" },
-  });
-
-  if (parts.length === 0 && (!evidenceBucket || !evidenceKey)) {
-    const err: HttpError = Object.assign(
-      new Error("Cannot complete evidence without an uploaded file"),
-      { statusCode: 400 }
-    );
-    throw err;
-  }
-
-  const entitlement = await prisma.entitlement.findFirst({
-    where: { userId: params.ownerUserId, active: true },
-  });
-  const plan = entitlement?.plan ?? prismaPkg.PlanType.FREE;
-
-  if (
-    entitlement?.plan === prismaPkg.PlanType.PAYG &&
-    (entitlement.credits ?? 0) <= 0
-  ) {
-    const err: HttpError = Object.assign(new Error("PAYG_CREDITS_REQUIRED"), {
-      statusCode: 402,
-    });
-    throw err;
-  }
-
-  let sizeBytesNum = 0;
-  let fileSha256 = "";
-  let primaryBucket = evidenceBucket;
-  let primaryKey = evidenceKey;
-  let primaryMimeType = evidenceMime;
-  let multipartItemCount = 1;
-  let multipart = false;
-  let canonical = "";
-  let fingerprintHash = "";
-
-  const now = new Date();
-  const uploadedAtUtcIso = now.toISOString();
-
-  if (parts.length > 0) {
-    const updatedParts: ProcessedPart[] = [];
-
-    for (const part of parts) {
-      const bucket = clean(part.storageBucket);
-      const key = clean(part.storageKey);
-
-      if (!bucket || !key) {
-        const err: HttpError = Object.assign(
-          new Error("PART_STORAGE_NOT_SET"),
-          { statusCode: 400 }
-        );
-        throw err;
-      }
-
-      const meta = await safeHead(bucket, key);
-      const size = meta.sizeBytes;
-
-      if (!size || size <= 0) {
-        const err: HttpError = Object.assign(new Error("OBJECT_NOT_FOUND"), {
+      if (!evidence) {
+        const err: HttpError = Object.assign(new Error("NOT_FOUND"), {
           statusCode: 404,
         });
         throw err;
       }
 
-      const body = await safeGetStream(bucket, key);
-      const sha256 = await sha256HexFromStream(body as unknown as Readable);
+      const evidenceBucket = clean(evidence.storageBucket);
+      const evidenceKey = clean(evidence.storageKey);
+      const evidenceMime = normalizeObservedMimeType(evidence.mimeType);
 
-      sizeBytesNum += size;
-
-      const mimeType = meta.contentType ?? clean(part.mimeType) ?? null;
-
-      updatedParts.push({
-        id: part.id,
-        partIndex: part.partIndex,
-        sizeBytes: BigInt(size),
-        sha256,
-        mimeType,
-        bucket,
-        key,
-      });
-    }
-
-    if (updatedParts.length === 0) {
-      const err: HttpError = Object.assign(new Error("NO_VALID_PARTS_FOUND"), {
-        statusCode: 400,
-      });
-      throw err;
-    }
-
-    const maxBytes = readMaxEvidenceSizeBytes();
-    if (sizeBytesNum > maxBytes) {
-      const err: HttpError = Object.assign(new Error("EVIDENCE_TOO_LARGE"), {
-        statusCode: 413,
-      });
-      throw err;
-    }
-
-    // IMPORTANT:
-    // For multipart evidence, always point the main evidence storage
-    // to the first real uploaded part, not to the original placeholder.
-    primaryBucket = updatedParts[0].bucket;
-    primaryKey = updatedParts[0].key;
-    primaryMimeType = updatedParts[0].mimeType ?? primaryMimeType ?? evidenceMime;
-
-    fileSha256 = sha256Hex(updatedParts.map((p) => p.sha256).join("|"));
-    multipart = true;
-    multipartItemCount = updatedParts.length;
-
-    await prisma.$transaction(
-      updatedParts.map((p) =>
-        prisma.evidencePart.update({
-          where: { id: p.id },
-          data: {
-            sizeBytes: p.sizeBytes,
-            sha256: p.sha256,
-            mimeType: p.mimeType,
-          },
-        })
-      )
-    );
-
-    const fingerprint = buildFingerprint({
-      evidence: {
-        id: evidence.id,
-        type: evidence.type,
-        capturedAtUtc: evidence.capturedAtUtc,
-        deviceTimeIso: evidence.deviceTimeIso,
-        lat: evidence.lat,
-        lng: evidence.lng,
-        accuracyMeters: evidence.accuracyMeters,
-      },
-      uploadedAtUtcIso,
-      multipart: {
-        parts: updatedParts,
-        totalSizeBytes: sizeBytesNum,
-      },
-    });
-
-    canonical = canonicalJson(fingerprint);
-    fingerprintHash = sha256Hex(canonical);
-  } else {
-    const bucket = evidenceBucket!;
-    const key = evidenceKey!;
-
-    const meta = await safeHead(bucket, key);
-    const size = meta.sizeBytes;
-
-    if (!size || size <= 0) {
-      const err: HttpError = Object.assign(new Error("OBJECT_NOT_FOUND"), {
-        statusCode: 404,
-      });
-      throw err;
-    }
-
-    sizeBytesNum = size;
-
-    const maxBytes = readMaxEvidenceSizeBytes();
-    if (sizeBytesNum > maxBytes) {
-      const err: HttpError = Object.assign(new Error("EVIDENCE_TOO_LARGE"), {
-        statusCode: 413,
-      });
-      throw err;
-    }
-
-    primaryMimeType = meta.contentType ?? evidenceMime ?? null;
-    primaryBucket = bucket;
-    primaryKey = key;
-
-    const body = await safeGetStream(bucket, key);
-    fileSha256 = await sha256HexFromStream(body as unknown as Readable);
-
-    const fingerprint = buildFingerprint({
-      evidence: {
-        id: evidence.id,
-        type: evidence.type,
-        capturedAtUtc: evidence.capturedAtUtc,
-        deviceTimeIso: evidence.deviceTimeIso,
-        lat: evidence.lat,
-        lng: evidence.lng,
-        accuracyMeters: evidence.accuracyMeters,
-      },
-      uploadedAtUtcIso,
-      singleFile: {
-        bucket: primaryBucket,
-        key: primaryKey,
-        sizeBytes: sizeBytesNum,
-        mimeType: primaryMimeType,
-        sha256: fileSha256,
-      },
-    });
-
-    canonical = canonicalJson(fingerprint);
-    fingerprintHash = sha256Hex(canonical);
-  }
-
-  must("SIGNING_PRIVATE_KEY_PATH");
-  const signingKeyId = must("SIGNING_KEY_ID");
-  const signingKeyVersion = mustInt("SIGNING_KEY_VERSION");
-
-  const signatureBase64 = ed25519SignHexWithKeyPath(
-    fingerprintHash,
-    "SIGNING_PRIVATE_KEY_PATH"
-  );
-
-  const tsaResult = await createEvidenceTimestamp({
-    digestHex: fileSha256,
-  });
-
-  const last = await prisma.custodyEvent.findFirst({
-    where: { evidenceId: evidence.id },
-    orderBy: { sequence: "desc" },
-    select: { sequence: true },
-  });
-
-  let seq = last?.sequence ?? 0;
-
-  const updated = await prisma.$transaction(async (tx) => {
-    if (entitlement?.plan === prismaPkg.PlanType.PAYG) {
-      await tx.entitlement.updateMany({
+      const entitlement = await tx.entitlement.findFirst({
         where: { userId: params.ownerUserId, active: true },
-        data: { credits: { decrement: 1 } },
       });
-    }
+      const plan = entitlement?.plan ?? prismaPkg.PlanType.FREE;
 
-    const ev = await tx.evidence.update({
-      where: { id: evidence.id },
-      data: {
-        status: EvidenceStatus.SIGNED,
-        uploadedAtUtc: now,
-        signedAtUtc: now,
-        sizeBytes: BigInt(sizeBytesNum),
-        mimeType: primaryMimeType,
-        fileSha256,
-        fingerprintCanonicalJson: canonical,
+      if (evidence.status === EvidenceStatus.REPORTED) {
+        return {
+          result: {
+            id: evidence.id,
+            status: evidence.status,
+            fileSha256: evidence.fileSha256,
+            fingerprintHash: evidence.fingerprintHash,
+            signatureBase64: evidence.signatureBase64,
+            signingKeyId: evidence.signingKeyId,
+            signingKeyVersion: evidence.signingKeyVersion,
+          },
+          shouldEnqueueReport: false,
+        };
+      }
+
+      if (evidence.status === EvidenceStatus.SIGNED) {
+        return {
+          result: {
+            id: evidence.id,
+            status: evidence.status,
+            fileSha256: evidence.fileSha256,
+            fingerprintHash: evidence.fingerprintHash,
+            signatureBase64: evidence.signatureBase64,
+            signingKeyId: evidence.signingKeyId,
+            signingKeyVersion: evidence.signingKeyVersion,
+          },
+          shouldEnqueueReport: plan !== prismaPkg.PlanType.FREE,
+        };
+      }
+
+      const parts = await tx.evidencePart.findMany({
+        where: { evidenceId: evidence.id },
+        orderBy: { partIndex: "asc" },
+      });
+
+      if (parts.length === 0 && (!evidenceBucket || !evidenceKey)) {
+        const err: HttpError = Object.assign(
+          new Error("Cannot complete evidence without an uploaded file"),
+          { statusCode: 400 }
+        );
+        throw err;
+      }
+
+      if (
+        plan === prismaPkg.PlanType.PAYG &&
+        (entitlement?.credits ?? 0) <= 0
+      ) {
+        const err: HttpError = Object.assign(new Error("PAYG_CREDITS_REQUIRED"), {
+          statusCode: 402,
+        });
+        throw err;
+      }
+
+      let sizeBytesNum = 0;
+      let fileSha256 = "";
+      let primaryBucket = evidenceBucket;
+      let primaryKey = evidenceKey;
+      let primaryMimeType = evidenceMime;
+      let multipartItemCount = 1;
+      let multipart = false;
+      let canonical = "";
+      let fingerprintHash = "";
+
+      const now = new Date();
+      const uploadedAtUtcIso = now.toISOString();
+
+      if (parts.length > 0) {
+        const updatedParts: ProcessedPart[] = [];
+
+        for (const part of parts) {
+          const bucket = clean(part.storageBucket);
+          const key = clean(part.storageKey);
+
+          if (!bucket || !key) {
+            const err: HttpError = Object.assign(
+              new Error("PART_STORAGE_NOT_SET"),
+              { statusCode: 400 }
+            );
+            throw err;
+          }
+
+          const meta = await safeHead(bucket, key);
+          const size = meta.sizeBytes;
+
+          if (!size || size <= 0) {
+            const err: HttpError = Object.assign(new Error("OBJECT_NOT_FOUND"), {
+              statusCode: 404,
+            });
+            throw err;
+          }
+
+          const body = await safeGetStream(bucket, key);
+          const sha256 = await sha256HexFromStream(body as unknown as Readable);
+
+          sizeBytesNum += size;
+
+          const mimeType =
+            normalizeObservedMimeType(meta.contentType) ??
+            normalizeObservedMimeType(part.mimeType) ??
+            null;
+
+          updatedParts.push({
+            id: part.id,
+            partIndex: part.partIndex,
+            sizeBytes: BigInt(size),
+            sha256,
+            mimeType,
+            bucket,
+            key,
+          });
+        }
+
+        if (updatedParts.length === 0) {
+          const err: HttpError = Object.assign(new Error("NO_VALID_PARTS_FOUND"), {
+            statusCode: 400,
+          });
+          throw err;
+        }
+
+        const maxBytes = readMaxEvidenceSizeBytes();
+        if (sizeBytesNum > maxBytes) {
+          const err: HttpError = Object.assign(new Error("EVIDENCE_TOO_LARGE"), {
+            statusCode: 413,
+          });
+          throw err;
+        }
+
+        primaryBucket = updatedParts[0].bucket;
+        primaryKey = updatedParts[0].key;
+        primaryMimeType = updatedParts[0].mimeType ?? primaryMimeType ?? evidenceMime;
+
+        fileSha256 = sha256Hex(updatedParts.map((p) => p.sha256).join("|"));
+        multipart = true;
+        multipartItemCount = updatedParts.length;
+
+        await Promise.all(
+          updatedParts.map((p) =>
+            tx.evidencePart.update({
+              where: { id: p.id },
+              data: {
+                sizeBytes: p.sizeBytes,
+                sha256: p.sha256,
+                mimeType: p.mimeType,
+              },
+            })
+          )
+        );
+
+        const fingerprint = buildFingerprint({
+          evidence: {
+            id: evidence.id,
+            type: evidence.type,
+            capturedAtUtc: evidence.capturedAtUtc,
+            deviceTimeIso: evidence.deviceTimeIso,
+            lat: evidence.lat,
+            lng: evidence.lng,
+            accuracyMeters: evidence.accuracyMeters,
+          },
+          uploadedAtUtcIso,
+          multipart: {
+            parts: updatedParts,
+            totalSizeBytes: sizeBytesNum,
+          },
+        });
+
+        canonical = canonicalJson(fingerprint);
+        fingerprintHash = sha256Hex(canonical);
+      } else {
+        const bucket = evidenceBucket!;
+        const key = evidenceKey!;
+
+        const meta = await safeHead(bucket, key);
+        const size = meta.sizeBytes;
+
+        if (!size || size <= 0) {
+          const err: HttpError = Object.assign(new Error("OBJECT_NOT_FOUND"), {
+            statusCode: 404,
+          });
+          throw err;
+        }
+
+        sizeBytesNum = size;
+
+        const maxBytes = readMaxEvidenceSizeBytes();
+        if (sizeBytesNum > maxBytes) {
+          const err: HttpError = Object.assign(new Error("EVIDENCE_TOO_LARGE"), {
+            statusCode: 413,
+          });
+          throw err;
+        }
+
+        primaryMimeType =
+          normalizeObservedMimeType(meta.contentType) ?? evidenceMime ?? null;
+        primaryBucket = bucket;
+        primaryKey = key;
+
+        const body = await safeGetStream(bucket, key);
+        fileSha256 = await sha256HexFromStream(body as unknown as Readable);
+
+        const fingerprint = buildFingerprint({
+          evidence: {
+            id: evidence.id,
+            type: evidence.type,
+            capturedAtUtc: evidence.capturedAtUtc,
+            deviceTimeIso: evidence.deviceTimeIso,
+            lat: evidence.lat,
+            lng: evidence.lng,
+            accuracyMeters: evidence.accuracyMeters,
+          },
+          uploadedAtUtcIso,
+          singleFile: {
+            bucket: primaryBucket,
+            key: primaryKey,
+            sizeBytes: sizeBytesNum,
+            mimeType: primaryMimeType,
+            sha256: fileSha256,
+          },
+        });
+
+        canonical = canonicalJson(fingerprint);
+        fingerprintHash = sha256Hex(canonical);
+      }
+
+      must("SIGNING_PRIVATE_KEY_PATH");
+      const signingKeyId = must("SIGNING_KEY_ID");
+      const signingKeyVersion = mustInt("SIGNING_KEY_VERSION");
+
+      const signatureBase64 = ed25519SignHexWithKeyPath(
         fingerprintHash,
-        signatureBase64,
-        signingKeyId,
-        signingKeyVersion,
-        storageBucket: primaryBucket,
-        storageKey: primaryKey,
+        "SIGNING_PRIVATE_KEY_PATH"
+      );
 
-        tsaProvider: tsaResult?.provider ?? null,
-        tsaUrl: tsaResult?.url ?? null,
-        tsaSerialNumber: tsaResult?.serialNumber ?? null,
-        tsaGenTimeUtc: tsaResult?.genTimeUtc ?? null,
-        tsaTokenBase64: tsaResult?.tokenBase64 ?? null,
-        tsaMessageImprint: tsaResult?.messageImprint ?? null,
-        tsaHashAlgorithm: tsaResult?.hashAlgorithm ?? null,
-        tsaStatus: tsaResult?.status ?? null,
-        tsaFailureReason: tsaResult?.failureReason ?? null,
-      },
-      select: {
-        id: true,
-        status: true,
-        fileSha256: true,
-        fingerprintHash: true,
-        signatureBase64: true,
-        signingKeyId: true,
-        signingKeyVersion: true,
-      },
-    });
+      const tsaResult = await createEvidenceTimestamp({
+        digestHex: fileSha256,
+      });
 
-    const custodyEventsData: prismaPkg.Prisma.CustodyEventCreateManyInput[] = [
-      {
-        evidenceId: evidence.id,
-        eventType: CustodyEventType.SIGNATURE_APPLIED,
-        atUtc: now,
-        sequence: ++seq,
-        payload: {
+      if (plan === prismaPkg.PlanType.PAYG) {
+        const decremented = await tx.entitlement.updateMany({
+          where: {
+            userId: params.ownerUserId,
+            active: true,
+            plan: prismaPkg.PlanType.PAYG,
+            credits: { gt: 0 },
+          },
+          data: { credits: { decrement: 1 } },
+        });
+
+        if (decremented.count !== 1) {
+          const err: HttpError = Object.assign(
+            new Error("PAYG_CREDITS_REQUIRED"),
+            { statusCode: 402 }
+          );
+          throw err;
+        }
+      }
+
+      const ev = await tx.evidence.update({
+        where: { id: evidence.id },
+        data: {
+          status: EvidenceStatus.SIGNED,
+          uploadedAtUtc: now,
+          signedAtUtc: now,
+          sizeBytes: BigInt(sizeBytesNum),
+          mimeType: primaryMimeType,
+          fileSha256,
+          fingerprintCanonicalJson: canonical,
           fingerprintHash,
+          signatureBase64,
           signingKeyId,
           signingKeyVersion,
-          multipart,
-          itemCount: multipartItemCount,
+          storageBucket: primaryBucket,
+          storageKey: primaryKey,
+
           tsaProvider: tsaResult?.provider ?? null,
           tsaUrl: tsaResult?.url ?? null,
           tsaSerialNumber: tsaResult?.serialNumber ?? null,
-          tsaGenTimeUtc: tsaResult?.genTimeUtc?.toISOString() ?? null,
+          tsaGenTimeUtc: tsaResult?.genTimeUtc ?? null,
+          tsaTokenBase64: tsaResult?.tokenBase64 ?? null,
           tsaMessageImprint: tsaResult?.messageImprint ?? null,
           tsaHashAlgorithm: tsaResult?.hashAlgorithm ?? null,
           tsaStatus: tsaResult?.status ?? null,
           tsaFailureReason: tsaResult?.failureReason ?? null,
-        } as prismaPkg.Prisma.InputJsonValue,
-      },
-    ];
+        },
+        select: {
+          id: true,
+          status: true,
+          fileSha256: true,
+          fingerprintHash: true,
+          signatureBase64: true,
+          signingKeyId: true,
+          signingKeyVersion: true,
+        },
+      });
 
-    await tx.custodyEvent.createMany({
-      data: custodyEventsData,
-    });
+      const last = await tx.custodyEvent.findFirst({
+        where: { evidenceId: evidence.id },
+        orderBy: { sequence: "desc" },
+        select: { sequence: true },
+      });
 
-    return ev;
-  });
+      let nextSequence = (last?.sequence ?? 0) + 1;
 
-  if (plan !== prismaPkg.PlanType.FREE) {
-    await enqueueGenerateReportJob(updated.id);
+      await tx.custodyEvent.create({
+        data: {
+          evidenceId: evidence.id,
+          eventType: CustodyEventType.UPLOAD_COMPLETED,
+          atUtc: now,
+          sequence: nextSequence++,
+          payload: {
+            phase: "upload_completed",
+            multipart,
+            itemCount: multipartItemCount,
+            sizeBytes: sizeBytesNum,
+            mimeType: primaryMimeType,
+            fileSha256,
+          } as prismaPkg.Prisma.InputJsonValue,
+        },
+      });
+
+      await tx.custodyEvent.create({
+        data: {
+          evidenceId: evidence.id,
+          eventType: CustodyEventType.SIGNATURE_APPLIED,
+          atUtc: now,
+          sequence: nextSequence,
+          payload: {
+            phase: "signature_applied",
+            fingerprintHash,
+            signingKeyId,
+            signingKeyVersion,
+            multipart,
+            itemCount: multipartItemCount,
+            tsaProvider: tsaResult?.provider ?? null,
+            tsaUrl: tsaResult?.url ?? null,
+            tsaSerialNumber: tsaResult?.serialNumber ?? null,
+            tsaGenTimeUtc: tsaResult?.genTimeUtc?.toISOString() ?? null,
+            tsaMessageImprint: tsaResult?.messageImprint ?? null,
+            tsaHashAlgorithm: tsaResult?.hashAlgorithm ?? null,
+            tsaStatus: tsaResult?.status ?? null,
+            tsaFailureReason: tsaResult?.failureReason ?? null,
+          } as prismaPkg.Prisma.InputJsonValue,
+        },
+      });
+
+      return {
+        result: ev,
+        shouldEnqueueReport: plan !== prismaPkg.PlanType.FREE,
+      };
+    },
+    {
+      maxWait: 10_000,
+      timeout: 120_000,
+    }
+  );
+
+  if (final.shouldEnqueueReport) {
+    await enqueueGenerateReportJob(final.result.id);
   }
 
-  return updated;
+  return final.result;
 }

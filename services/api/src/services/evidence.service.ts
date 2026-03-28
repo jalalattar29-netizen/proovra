@@ -1,12 +1,25 @@
 import { prisma } from "../db.js";
-import { presignPutObject } from "../storage.js";
+import { getPublicBaseUrl, presignPutObject } from "../storage.js";
 import * as prismaPkg from "@prisma/client";
 import { ensureGuestIdentity } from "./auth.service.js";
 
 function must(name: string): string {
   const v = process.env[name];
-  if (!v) throw new Error(`${name} is not set`);
-  return v;
+  if (!v || !v.trim()) throw new Error(`${name} is not set`);
+  return v.trim();
+}
+
+function normalizeUploadMimeType(input?: string | null): string {
+  const raw = typeof input === "string" ? input.trim().toLowerCase() : "";
+
+  if (!raw) return "application/octet-stream";
+  if (raw.length > 128) return "application/octet-stream";
+  if (/[\r\n]/.test(raw)) return "application/octet-stream";
+  if (!/^[a-z0-9!#$&^_.+-]+\/[a-z0-9!#$&^_.+-]+$/i.test(raw)) {
+    return "application/octet-stream";
+  }
+
+  return raw;
 }
 
 const { EvidenceStatus } = prismaPkg;
@@ -59,15 +72,17 @@ export async function createEvidence(params: {
   }
 
   const bucket = must("S3_BUCKET");
-  const publicBase = process.env.S3_PUBLIC_BASE_URL ?? null;
+  const publicBase = getPublicBaseUrl();
+  const capturedAt = new Date();
+  const normalizedMimeType = normalizeUploadMimeType(params.mimeType);
 
   const evidence = await prisma.evidence.create({
     data: {
       ownerUserId: params.ownerUserId,
       type: params.type,
       status: EvidenceStatus.CREATED,
-      mimeType: params.mimeType ?? null,
-      capturedAtUtc: new Date(),
+      mimeType: normalizedMimeType,
+      capturedAtUtc: capturedAt,
       deviceTimeIso: params.deviceTimeIso ?? null,
       lat: params.gps?.lat ?? null,
       lng: params.gps?.lng ?? null,
@@ -88,7 +103,7 @@ export async function createEvidence(params: {
   const putUrl = await presignPutObject({
     bucket,
     key,
-    contentType: params.mimeType ?? "application/octet-stream",
+    contentType: normalizedMimeType,
     expiresInSeconds: 600,
   });
 
@@ -97,11 +112,20 @@ export async function createEvidence(params: {
       {
         evidenceId: evidence.id,
         eventType: prismaPkg.CustodyEventType.EVIDENCE_CREATED,
-        atUtc: new Date(),
+        atUtc: capturedAt,
         sequence: 1,
         payload: {
+          phase: "evidence_created",
           type: params.type,
-          mimeType: params.mimeType ?? null,
+          mimeType: normalizedMimeType,
+          deviceTimeIso: params.deviceTimeIso ?? null,
+          gps: params.gps
+            ? {
+                lat: params.gps.lat,
+                lng: params.gps.lng,
+                accuracyMeters: params.gps.accuracyMeters ?? null,
+              }
+            : null,
         } as prismaPkg.Prisma.InputJsonValue,
       },
       {
@@ -110,8 +134,11 @@ export async function createEvidence(params: {
         atUtc: new Date(),
         sequence: 2,
         payload: {
+          phase: "upload_started",
+          uploadKind: "single",
           bucket,
           key,
+          contentType: normalizedMimeType,
         } as prismaPkg.Prisma.InputJsonValue,
       },
     ],

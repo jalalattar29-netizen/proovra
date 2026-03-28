@@ -1,4 +1,5 @@
 import type { FastifyReply, FastifyRequest } from "fastify";
+import { createErrorResponse, ErrorCode } from "../errors.js";
 import { verifyJwt } from "../services/jwt.js";
 
 function readCookie(header: string | undefined, name: string): string | null {
@@ -19,28 +20,50 @@ export async function requireAuth(req: FastifyRequest, reply: FastifyReply) {
     const cookieToken =
       (req.cookies as { proovra_session?: string } | undefined)?.proovra_session ??
       readCookie(req.headers.cookie, "proovra_session");
+
     const token = bearerToken || cookieToken;
+
     if (!token) {
       req.log.info(
         {
-          hasAuthHeader: !!req.headers.authorization,
-          hasCookie: !!req.headers.cookie,
-          cookiePresent: !!cookieToken,
+          requestId: req.id,
+          hasAuthHeader: Boolean(req.headers.authorization),
+          hasCookie: Boolean(req.headers.cookie),
+          cookiePresent: Boolean(cookieToken),
           host: req.headers.host,
-          origin: req.headers.origin
+          origin: req.headers.origin,
         },
-        "[Auth] 401: no token (check cookie domain, credentials: include)"
+        "auth.missing_token"
       );
-      reply.code(401).send({ message: "Unauthorized" });
-      return;
+
+      return reply
+        .code(401)
+        .send(createErrorResponse(ErrorCode.UNAUTHORIZED, req.id));
     }
+
     const secret = process.env.AUTH_JWT_SECRET;
-    if (!secret) throw new Error("AUTH_JWT_SECRET is not set");
+    if (!secret) {
+      throw new Error("AUTH_JWT_SECRET is not set");
+    }
+
     const payload = verifyJwt(token, secret);
-    req.user = { sub: payload.sub, provider: payload.provider, email: payload.email };
+    req.user = {
+      sub: payload.sub,
+      provider: payload.provider,
+      email: payload.email,
+    };
     req.log = req.log.child({ userId: payload.sub });
-  } catch {
-    reply.code(401).send({ message: "Unauthorized" });
-    return;
+  } catch (err) {
+    req.log.warn(
+      {
+        requestId: req.id,
+        errorMessage: err instanceof Error ? err.message : "Invalid token",
+      },
+      "auth.invalid_token"
+    );
+
+    return reply
+      .code(401)
+      .send(createErrorResponse(ErrorCode.UNAUTHORIZED, req.id));
   }
 }

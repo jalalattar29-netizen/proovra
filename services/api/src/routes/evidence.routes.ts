@@ -1,4 +1,3 @@
-// D:\digital-witness\services\api\src\routes\evidence.routes.ts
 import type { FastifyInstance, FastifyRequest } from "fastify";
 import { z } from "zod";
 import { requireAuth } from "../middleware/auth.js";
@@ -10,7 +9,6 @@ import { prisma } from "../db.js";
 import {
   presignGetObject,
   presignPutObject,
-  getPublicBaseUrl,
   headObject,
 } from "../storage.js";
 import { verifyJwt } from "../services/jwt.js";
@@ -147,6 +145,195 @@ function decimalToNumber(v: unknown): number | null {
   return null;
 }
 
+function shortHash(value: string | null | undefined, head = 12, tail = 10): string | null {
+  const text = typeof value === "string" ? value.trim() : "";
+  if (!text) return null;
+  if (text.length <= head + tail + 3) return text;
+  return `${text.slice(0, head)}…${text.slice(-tail)}`;
+}
+
+function normalizeMimeType(value: string | null | undefined): string | null {
+  const text = typeof value === "string" ? value.trim().toLowerCase() : "";
+  if (!text) return null;
+  if (text.length > 128) return null;
+  if (/[\r\n]/.test(text)) return null;
+  if (!/^[a-z0-9!#$&^_.+-]+\/[a-z0-9!#$&^_.+-]+$/i.test(text)) return null;
+  return text;
+}
+
+function normalizePublicPayloadValue(value: unknown): string | null {
+  if (value === null || value === undefined) return null;
+  if (typeof value === "string") {
+    const t = value.trim();
+    return t || null;
+  }
+  if (typeof value === "number" || typeof value === "boolean") {
+    return String(value);
+  }
+  return null;
+}
+
+function summarizePublicPayload(
+  eventType: prismaPkg.CustodyEventType,
+  payload: prismaPkg.Prisma.JsonValue | null
+): string | null {
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+    if (eventType === prismaPkg.CustodyEventType.VERIFY_VIEWED) {
+      return "Public verification page viewed.";
+    }
+    return null;
+  }
+
+  const obj = payload as Record<string, unknown>;
+
+  switch (eventType) {
+    case prismaPkg.CustodyEventType.EVIDENCE_CREATED: {
+      const type = normalizePublicPayloadValue(obj.type);
+      const mimeType = normalizePublicPayloadValue(obj.mimeType);
+      return [type ? `Type: ${type}` : null, mimeType ? `MIME: ${mimeType}` : null]
+        .filter(Boolean)
+        .join(" • ") || "Evidence record created.";
+    }
+
+    case prismaPkg.CustodyEventType.UPLOAD_STARTED: {
+      const mimeType = normalizePublicPayloadValue(obj.mimeType);
+      const uploadKind =
+        normalizePublicPayloadValue(obj.uploadKind) ??
+        normalizePublicPayloadValue(obj.mode);
+      return [
+        uploadKind ? `Upload: ${uploadKind}` : "Upload initialized",
+        mimeType ? `MIME: ${mimeType}` : null,
+      ]
+        .filter(Boolean)
+        .join(" • ");
+    }
+
+    case prismaPkg.CustodyEventType.UPLOAD_COMPLETED: {
+      const multipart = obj.multipart === true ? "Multipart" : "Single file";
+      const itemCount =
+        typeof obj.itemCount === "number" && Number.isFinite(obj.itemCount)
+          ? String(obj.itemCount)
+          : null;
+      const sizeBytes = normalizePublicPayloadValue(obj.sizeBytes);
+      return [
+        "Upload completed",
+        multipart,
+        itemCount ? `Items: ${itemCount}` : null,
+        sizeBytes ? `Size: ${sizeBytes} bytes` : null,
+      ]
+        .filter(Boolean)
+        .join(" • ");
+    }
+
+    case prismaPkg.CustodyEventType.SIGNATURE_APPLIED: {
+      const signingKeyId = normalizePublicPayloadValue(obj.signingKeyId);
+      const signingKeyVersion = normalizePublicPayloadValue(obj.signingKeyVersion);
+      const tsaStatus = normalizePublicPayloadValue(obj.tsaStatus);
+      const tsaProvider = normalizePublicPayloadValue(obj.tsaProvider);
+      return [
+        "Cryptographic signature applied",
+        signingKeyId ? `Key: ${signingKeyId}` : null,
+        signingKeyVersion ? `Version: ${signingKeyVersion}` : null,
+        tsaStatus ? `Timestamp: ${tsaStatus}` : null,
+        tsaProvider ? `TSA: ${tsaProvider}` : null,
+      ]
+        .filter(Boolean)
+        .join(" • ");
+    }
+
+    case prismaPkg.CustodyEventType.TIMESTAMP_APPLIED: {
+      const tsaStatus = normalizePublicPayloadValue(obj.tsaStatus);
+      const tsaProvider = normalizePublicPayloadValue(obj.tsaProvider);
+      return [
+        "Timestamp applied",
+        tsaStatus ? `Status: ${tsaStatus}` : null,
+        tsaProvider ? `TSA: ${tsaProvider}` : null,
+      ]
+        .filter(Boolean)
+        .join(" • ");
+    }
+
+    case prismaPkg.CustodyEventType.TIMESTAMP_FAILED: {
+      const tsaStatus = normalizePublicPayloadValue(obj.tsaStatus);
+      const tsaProvider = normalizePublicPayloadValue(obj.tsaProvider);
+      return [
+        "Timestamp failed",
+        tsaStatus ? `Status: ${tsaStatus}` : null,
+        tsaProvider ? `TSA: ${tsaProvider}` : null,
+      ]
+        .filter(Boolean)
+        .join(" • ");
+    }
+
+    case prismaPkg.CustodyEventType.REPORT_GENERATED: {
+      const reportVersion = normalizePublicPayloadValue(obj.reportVersion);
+      return reportVersion
+        ? `Verification report generated • Version: ${reportVersion}`
+        : "Verification report generated.";
+    }
+
+    case prismaPkg.CustodyEventType.REPORT_DOWNLOADED: {
+      const reportVersion = normalizePublicPayloadValue(obj.reportVersion);
+      return reportVersion
+        ? `Report downloaded • Version: ${reportVersion}`
+        : "Report downloaded.";
+    }
+
+    case prismaPkg.CustodyEventType.VERIFY_VIEWED:
+      return "Public verification page viewed.";
+
+    case prismaPkg.CustodyEventType.EVIDENCE_VIEWED:
+      return "Protected evidence file accessed.";
+
+    case prismaPkg.CustodyEventType.EVIDENCE_LOCKED:
+      return "Evidence record locked.";
+
+    case prismaPkg.CustodyEventType.EVIDENCE_ARCHIVED:
+      return "Evidence record archived.";
+
+    case prismaPkg.CustodyEventType.EVIDENCE_RESTORED:
+      return "Evidence record restored.";
+
+    case prismaPkg.CustodyEventType.EVIDENCE_DELETED:
+      return "Evidence record deleted.";
+
+    case prismaPkg.CustodyEventType.EVIDENCE_CLAIMED:
+      return "Guest evidence ownership claimed.";
+
+    default: {
+      const safeEntries = Object.entries(obj)
+        .filter(([key, value]) => {
+          const lowered = key.toLowerCase();
+          if (
+            lowered.includes("bucket") ||
+            lowered.includes("storagekey") ||
+            lowered.includes("key") ||
+            lowered.includes("token") ||
+            lowered.includes("secret") ||
+            lowered.includes("password") ||
+            lowered.includes("lat") ||
+            lowered.includes("lng") ||
+            lowered.includes("accuracy") ||
+            lowered.includes("ip") ||
+            lowered.includes("useragent")
+          ) {
+            return false;
+          }
+
+          return (
+            typeof value === "string" ||
+            typeof value === "number" ||
+            typeof value === "boolean"
+          );
+        })
+        .slice(0, 5)
+        .map(([key, value]) => `${key}: ${String(value)}`);
+
+      return safeEntries.length > 0 ? safeEntries.join(" • ") : null;
+    }
+  }
+}
+
 type SafeEvidence = {
   id: string;
   type: prismaPkg.EvidenceType;
@@ -213,6 +400,10 @@ async function appendCustodyEvent(params: {
   userAgent?: string | null;
 }) {
   await prisma.$transaction(async (tx) => {
+    await tx.$executeRaw`
+      SELECT pg_advisory_xact_lock(hashtext(${params.evidenceId}))
+    `;
+
     const last = await tx.custodyEvent.findFirst({
       where: { evidenceId: params.evidenceId },
       orderBy: { sequence: "desc" },
@@ -361,20 +552,14 @@ async function getEvidenceWithOwnerAccess(
 export async function evidenceRoutes(app: FastifyInstance) {
   function must(name: string): string {
     const v = process.env[name];
-    if (!v) throw new Error(`${name} is not set`);
-    return v;
+    if (!v || !v.trim()) throw new Error(`${name} is not set`);
+    return v.trim();
   }
 
   function toJsonSafe<T>(value: T): T {
     return JSON.parse(
       JSON.stringify(value, (_k, v) => (typeof v === "bigint" ? v.toString() : v))
     );
-  }
-
-  function buildPublicUrl(key: string): string | null {
-    const base = getPublicBaseUrl();
-    if (!base) return null;
-    return `${base.replace(/\/+$/, "")}/${key}`;
   }
 
   app.post("/v1/evidence", { preHandler: requireAuth }, async (req, reply) => {
@@ -433,9 +618,8 @@ export async function evidenceRoutes(app: FastifyInstance) {
       (req as FastifyRequest & { evidenceId?: string }).evidenceId = id;
       req.log = req.log.child({ evidenceId: id });
 
-      let evidence: SelectedEvidence;
       try {
-        evidence = await getEvidenceWithOwnerAccess(ownerUserId, id);
+        await getEvidenceWithOwnerAccess(ownerUserId, id);
       } catch (err) {
         const statusCode =
           err instanceof Error && "statusCode" in err
@@ -445,61 +629,102 @@ export async function evidenceRoutes(app: FastifyInstance) {
         return reply.code(statusCode).send({ message });
       }
 
-      if (
-        evidence.status === EvidenceStatus.SIGNED ||
-        evidence.status === EvidenceStatus.REPORTED ||
-        evidence.lockedAt
-      ) {
-        return reply.code(409).send({ message: "Evidence is immutable" });
-      }
+      try {
+        const result = await prisma.$transaction(async (tx) => {
+          await tx.$executeRaw`
+            SELECT pg_advisory_xact_lock(hashtext(${id}))
+          `;
 
-      const existing = await prisma.evidencePart.findFirst({
-        where: { evidenceId: id, partIndex: body.partIndex },
-      });
+          const evidence = await tx.evidence.findUnique({
+            where: { id },
+            select: SAFE_EVIDENCE_SELECT,
+          });
 
-      if (existing) {
-        const existingUrl = await presignPutObject({
-          bucket: existing.storageBucket,
-          key: existing.storageKey,
-          contentType: existing.mimeType ?? "application/octet-stream",
+          if (!evidence || evidence.deletedAt) {
+            const err: Error & { statusCode?: number } = new Error("Evidence not found");
+            err.statusCode = 404;
+            throw err;
+          }
+
+          if (evidence.ownerUserId !== ownerUserId) {
+            const err: Error & { statusCode?: number } = new Error("Forbidden");
+            err.statusCode = 403;
+            throw err;
+          }
+
+          if (
+            evidence.status === EvidenceStatus.SIGNED ||
+            evidence.status === EvidenceStatus.REPORTED ||
+            evidence.lockedAt
+          ) {
+            const err: Error & { statusCode?: number } = new Error("Evidence is immutable");
+            err.statusCode = 409;
+            throw err;
+          }
+
+          const existing = await tx.evidencePart.findFirst({
+            where: { evidenceId: id, partIndex: body.partIndex },
+          });
+
+          if (existing) {
+            return { part: existing, created: false as const };
+          }
+
+          const bucket = must("S3_BUCKET");
+          const key = `evidence/${id}/parts/${body.partIndex}`;
+          const normalizedMimeType =
+            normalizeMimeType(body.mimeType) ?? "application/octet-stream";
+
+          const part = await tx.evidencePart.create({
+            data: {
+              evidenceId: id,
+              partIndex: body.partIndex,
+              storageBucket: bucket,
+              storageKey: key,
+              mimeType: normalizedMimeType,
+              durationMs: body.durationMs ?? null,
+            },
+          });
+
+          return { part, created: true as const };
+        });
+
+        const putUrl = await presignPutObject({
+          bucket: result.part.storageBucket,
+          key: result.part.storageKey,
+          contentType: result.part.mimeType ?? "application/octet-stream",
           expiresInSeconds: 600,
         });
 
-        return reply.code(200).send({
-          part: existing,
+        if (!result.created) {
+          return reply.code(200).send({
+            part: result.part,
+            upload: {
+              bucket: result.part.storageBucket,
+              key: result.part.storageKey,
+              putUrl,
+              expiresInSeconds: 600,
+            },
+          });
+        }
+
+        return reply.code(201).send({
+          part: result.part,
           upload: {
-            bucket: existing.storageBucket,
-            key: existing.storageKey,
-            putUrl: existingUrl,
+            bucket: result.part.storageBucket,
+            key: result.part.storageKey,
+            putUrl,
             expiresInSeconds: 600,
           },
         });
+      } catch (err) {
+        const statusCode =
+          err instanceof Error && "statusCode" in err
+            ? (err as Error & { statusCode?: number }).statusCode ?? 500
+            : 500;
+        const message = err instanceof Error ? err.message : "Unexpected error";
+        return reply.code(statusCode).send({ message });
       }
-
-      const bucket = must("S3_BUCKET");
-      const key = `evidence/${id}/parts/${body.partIndex}`;
-      const putUrl = await presignPutObject({
-        bucket,
-        key,
-        contentType: body.mimeType ?? "application/octet-stream",
-        expiresInSeconds: 600,
-      });
-
-      const part = await prisma.evidencePart.create({
-        data: {
-          evidenceId: id,
-          partIndex: body.partIndex,
-          storageBucket: bucket,
-          storageKey: key,
-          mimeType: body.mimeType ?? null,
-          durationMs: body.durationMs ?? null,
-        },
-      });
-
-      return reply.code(201).send({
-        part,
-        upload: { bucket, key, putUrl, expiresInSeconds: 600 },
-      });
     }
   );
 
@@ -541,7 +766,6 @@ export async function evidenceRoutes(app: FastifyInstance) {
           return {
             ...toJsonSafe(part),
             url,
-            publicUrl: buildPublicUrl(part.storageKey),
             isPrimary:
               evidence.storageBucket === part.storageBucket &&
               evidence.storageKey === part.storageKey,
@@ -557,7 +781,6 @@ export async function evidenceRoutes(app: FastifyInstance) {
             ? {
                 bucket: evidence.storageBucket,
                 key: evidence.storageKey,
-                publicUrl: buildPublicUrl(evidence.storageKey),
               }
             : null,
         parts: enrichedParts,
@@ -588,6 +811,7 @@ export async function evidenceRoutes(app: FastifyInstance) {
     const where = {
       ownerUserId: guestUserId,
       deletedAt: null,
+      status: { notIn: [EvidenceStatus.SIGNED, EvidenceStatus.REPORTED] as prismaPkg.EvidenceStatus[] },
       ...(body.evidenceIds?.length ? { id: { in: body.evidenceIds } } : {}),
     };
 
@@ -785,8 +1009,12 @@ export async function evidenceRoutes(app: FastifyInstance) {
         return reply.code(statusCode).send({ message });
       }
 
-      if (evidence.lockedAt) {
-        return reply.code(409).send({ message: "Cannot delete locked evidence" });
+      if (
+        evidence.status === EvidenceStatus.SIGNED ||
+        evidence.status === EvidenceStatus.REPORTED ||
+        evidence.lockedAt
+      ) {
+        return reply.code(409).send({ message: "Cannot delete signed or locked evidence" });
       }
 
       const now = new Date();
@@ -1001,7 +1229,6 @@ export async function evidenceRoutes(app: FastifyInstance) {
         userAgent: req.headers["user-agent"],
       }).catch(() => null);
 
-      const publicUrl = buildPublicUrl(latest.storageKey);
       const url = await presignGetObject({
         bucket: latest.storageBucket,
         key: latest.storageKey,
@@ -1014,7 +1241,6 @@ export async function evidenceRoutes(app: FastifyInstance) {
         bucket: latest.storageBucket,
         key: latest.storageKey,
         url,
-        publicUrl,
         generatedAtUtc: latest.generatedAtUtc.toISOString(),
       });
     }
@@ -1052,15 +1278,12 @@ export async function evidenceRoutes(app: FastifyInstance) {
         expiresInSeconds: 600,
       });
 
-      const publicUrl = buildPublicUrl(evidence.storageKey);
-
       await appendCustodyEvent({
         evidenceId: id,
         eventType: prismaPkg.CustodyEventType.EVIDENCE_VIEWED,
         payload: {
           mimeType: evidence.mimeType ?? null,
-          bucket: evidence.storageBucket,
-          key: evidence.storageKey,
+          accessMode: "authenticated_original_access",
         },
         ip: req.ip,
         userAgent: req.headers["user-agent"],
@@ -1071,7 +1294,6 @@ export async function evidenceRoutes(app: FastifyInstance) {
         bucket: evidence.storageBucket,
         key: evidence.storageKey,
         url,
-        publicUrl,
         mimeType: evidence.mimeType,
         sizeBytes: evidence.sizeBytes?.toString() ?? null,
       });
@@ -1117,154 +1339,166 @@ export async function evidenceRoutes(app: FastifyInstance) {
         expiresInSeconds: 600,
       });
 
-      const publicUrl = buildPublicUrl(key);
-
       return reply.code(200).send({
         evidenceId: id,
         key,
         url,
-        publicUrl,
       });
     }
   );
 
-app.get("/public/verify/:id", async (req: FastifyRequest, reply) => {
-  const limit = getVerifyLimit();
-  const rate = await enforceRateLimit({
-    key: `ratelimit:verify:${req.ip}`,
-    max: limit.max,
-    windowSec: limit.windowSec,
-  });
+  app.get("/public/verify/:id", async (req: FastifyRequest, reply) => {
+    const limit = getVerifyLimit();
+    const rate = await enforceRateLimit({
+      key: `ratelimit:verify:${req.ip}`,
+      max: limit.max,
+      windowSec: limit.windowSec,
+    });
 
-  if (!rate.allowed) {
-    return reply.code(429).send({ message: "Rate limit exceeded" });
-  }
+    if (!rate.allowed) {
+      return reply.code(429).send({ message: "Rate limit exceeded" });
+    }
 
-  const id = z.string().uuid().parse((req.params as ParamsId).id);
+    const id = z.string().uuid().parse((req.params as ParamsId).id);
 
-  (req as FastifyRequest & { evidenceId?: string }).evidenceId = id;
-  req.log = req.log.child({ evidenceId: id });
+    (req as FastifyRequest & { evidenceId?: string }).evidenceId = id;
+    req.log = req.log.child({ evidenceId: id });
 
-  const evidence = await prisma.evidence.findFirst({
-    where: { id, deletedAt: null },
-    select: {
-      id: true,
-      status: true,
-      mimeType: true,
-      reportGeneratedAtUtc: true,
+    const evidence = await prisma.evidence.findFirst({
+      where: { id, deletedAt: null },
+      select: {
+        id: true,
+        status: true,
+        mimeType: true,
+        reportGeneratedAtUtc: true,
 
-      fingerprintCanonicalJson: true,
-      fingerprintHash: true,
-      signatureBase64: true,
-      signingKeyId: true,
-      signingKeyVersion: true,
-      fileSha256: true,
-      storageBucket: true,
-      storageKey: true,
+        fingerprintCanonicalJson: true,
+        fingerprintHash: true,
+        signatureBase64: true,
+        signingKeyId: true,
+        signingKeyVersion: true,
+        fileSha256: true,
 
-      tsaProvider: true,
-      tsaUrl: true,
-      tsaSerialNumber: true,
-      tsaGenTimeUtc: true,
-      tsaTokenBase64: true,
-      tsaMessageImprint: true,
-      tsaHashAlgorithm: true,
-      tsaStatus: true,
-      tsaFailureReason: true,
-    },
-  });
-
-  if (!evidence) {
-    return reply.code(404).send({ message: "Evidence not found" });
-  }
-
-  if (
-    !evidence.fingerprintCanonicalJson ||
-    !evidence.fingerprintHash ||
-    !evidence.signatureBase64 ||
-    !evidence.signingKeyId ||
-    !evidence.signingKeyVersion ||
-    !evidence.fileSha256 ||
-    !evidence.storageBucket ||
-    !evidence.storageKey
-  ) {
-    return reply.code(404).send({ message: "Evidence not signed" });
-  }
-
-  const signingKey = await prisma.signingKey.findUnique({
-    where: {
-      keyId_version: {
-        keyId: evidence.signingKeyId,
-        version: evidence.signingKeyVersion,
+        tsaProvider: true,
+        tsaUrl: true,
+        tsaSerialNumber: true,
+        tsaGenTimeUtc: true,
+        tsaMessageImprint: true,
+        tsaHashAlgorithm: true,
+        tsaStatus: true,
+        tsaFailureReason: true,
       },
-    },
-    select: { publicKeyPem: true },
-  });
+    });
 
-  if (!signingKey) {
-    return reply.code(404).send({ message: "Signing key not found" });
-  }
+    if (!evidence) {
+      return reply.code(404).send({ message: "Evidence not found" });
+    }
 
-  await appendCustodyEvent({
-    evidenceId: id,
-    eventType: prismaPkg.CustodyEventType.VERIFY_VIEWED,
-    payload: null,
-    ip: req.ip,
-    userAgent: req.headers["user-agent"],
-  }).catch(() => null);
+    if (
+      !evidence.fingerprintCanonicalJson ||
+      !evidence.fingerprintHash ||
+      !evidence.signatureBase64 ||
+      !evidence.signingKeyId ||
+      !evidence.signingKeyVersion ||
+      !evidence.fileSha256
+    ) {
+      return reply.code(404).send({ message: "Evidence not signed" });
+    }
 
-  const custodyEvents = await prisma.custodyEvent.findMany({
-    where: { evidenceId: id },
-    orderBy: { sequence: "asc" },
-    take: 200,
-    select: {
-      sequence: true,
-      atUtc: true,
-      eventType: true,
-      payload: true,
-    },
-  });
+    const signingKey = await prisma.signingKey.findUnique({
+      where: {
+        keyId_version: {
+          keyId: evidence.signingKeyId,
+          version: evidence.signingKeyVersion,
+        },
+      },
+      select: { publicKeyPem: true },
+    });
 
-  return reply.code(200).send({
-    evidenceId: evidence.id,
-    status: evidence.status,
-    mimeType: evidence.mimeType,
-    reportGeneratedAtUtc: evidence.reportGeneratedAtUtc
-      ? evidence.reportGeneratedAtUtc.toISOString()
-      : null,
+    if (!signingKey) {
+      return reply.code(404).send({ message: "Signing key not found" });
+    }
 
-    fingerprintCanonicalJson: evidence.fingerprintCanonicalJson,
-    fingerprintHash: evidence.fingerprintHash,
-    signatureBase64: evidence.signatureBase64,
-    signingKeyId: evidence.signingKeyId,
-    signingKeyVersion: evidence.signingKeyVersion,
-    publicKeyPem: signingKey.publicKeyPem,
-    fileSha256: evidence.fileSha256,
-    storageBucket: evidence.storageBucket,
-    storageKey: evidence.storageKey,
-    publicUrl: buildPublicUrl(evidence.storageKey),
+    await appendCustodyEvent({
+      evidenceId: id,
+      eventType: prismaPkg.CustodyEventType.VERIFY_VIEWED,
+      payload: {
+        accessMode: "public_verify",
+      },
+      ip: req.ip,
+      userAgent: req.headers["user-agent"],
+    }).catch(() => null);
 
-    tsaProvider: evidence.tsaProvider,
-    tsaUrl: evidence.tsaUrl,
-    tsaSerialNumber: evidence.tsaSerialNumber,
-    tsaGenTimeUtc: evidence.tsaGenTimeUtc
-      ? evidence.tsaGenTimeUtc.toISOString()
-      : null,
-    tsaTokenBase64: evidence.tsaTokenBase64,
-    tsaMessageImprint: evidence.tsaMessageImprint,
-    tsaHashAlgorithm: evidence.tsaHashAlgorithm,
-    tsaStatus: evidence.tsaStatus,
-    tsaFailureReason: evidence.tsaFailureReason,
+    const custodyEvents = await prisma.custodyEvent.findMany({
+      where: { evidenceId: id },
+      orderBy: { sequence: "asc" },
+      take: 200,
+      select: {
+        sequence: true,
+        atUtc: true,
+        eventType: true,
+        payload: true,
+      },
+    });
 
-    custodyEvents: custodyEvents.map((ev) => ({
-      sequence: ev.sequence,
-      atUtc: ev.atUtc.toISOString(),
-      eventType: ev.eventType,
-      payloadSummary:
-        ev.payload && typeof ev.payload === "object"
-          ? JSON.stringify(ev.payload)
+    const latestReport = await prisma.report.findFirst({
+      where: { evidenceId: id },
+      orderBy: { version: "desc" },
+      select: {
+        version: true,
+        generatedAtUtc: true,
+      },
+    });
+
+    return reply.code(200).send({
+      evidenceId: evidence.id,
+      status: evidence.status,
+      mimeType: evidence.mimeType,
+
+      reportGeneratedAtUtc: latestReport?.generatedAtUtc
+        ? latestReport.generatedAtUtc.toISOString()
+        : evidence.reportGeneratedAtUtc
+          ? evidence.reportGeneratedAtUtc.toISOString()
           : null,
-    })),
+      reportVersion: latestReport?.version ?? null,
+
+      fileSha256: evidence.fileSha256,
+      fingerprintHash: evidence.fingerprintHash,
+      signatureBase64: evidence.signatureBase64,
+      signingKeyId: evidence.signingKeyId,
+      signingKeyVersion: evidence.signingKeyVersion,
+      publicKeyPem: signingKey.publicKeyPem,
+
+      tsaStatus: evidence.tsaStatus,
+      tsaProvider: evidence.tsaProvider,
+      tsaUrl: evidence.tsaUrl,
+      tsaSerialNumber: evidence.tsaSerialNumber,
+      tsaGenTimeUtc: evidence.tsaGenTimeUtc
+        ? evidence.tsaGenTimeUtc.toISOString()
+        : null,
+      tsaMessageImprint: shortHash(evidence.tsaMessageImprint),
+      tsaHashAlgorithm: evidence.tsaHashAlgorithm,
+      tsaFailureReason: evidence.tsaFailureReason,
+
+      tsa: {
+        status: evidence.tsaStatus,
+        provider: evidence.tsaProvider,
+        url: evidence.tsaUrl,
+        serialNumber: evidence.tsaSerialNumber,
+        genTimeUtc: evidence.tsaGenTimeUtc
+          ? evidence.tsaGenTimeUtc.toISOString()
+          : null,
+        hashAlgorithm: evidence.tsaHashAlgorithm,
+        messageImprint: shortHash(evidence.tsaMessageImprint),
+        failureReason: evidence.tsaFailureReason,
+      },
+
+      custodyEvents: custodyEvents.map((ev) => ({
+        sequence: ev.sequence,
+        atUtc: ev.atUtc.toISOString(),
+        eventType: ev.eventType,
+        payloadSummary: summarizePublicPayload(ev.eventType, ev.payload),
+      })),
+    });
   });
-});
 }

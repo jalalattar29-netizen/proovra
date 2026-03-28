@@ -33,6 +33,7 @@ type VerifyResponse = {
   mimeType?: string | null;
   reportVersion?: number | string | null;
   signingKeyId?: string | null;
+  signingKeyVersion?: number | null;
   tsaStatus?: string | null;
   timestampStatus?: string | null;
   stampStatus?: string | null;
@@ -42,6 +43,7 @@ type VerifyResponse = {
   tsaSerialNumber?: string | null;
   tsaGenTimeUtc?: string | null;
   tsaHashAlgorithm?: string | null;
+  tsaFailureReason?: string | null;
   tsa?: {
     status?: string | null;
     provider?: string | null;
@@ -49,6 +51,7 @@ type VerifyResponse = {
     url?: string | null;
     serialNumber?: string | null;
     hashAlgorithm?: string | null;
+    failureReason?: string | null;
   } | null;
   timestamp?: {
     status?: string | null;
@@ -57,6 +60,7 @@ type VerifyResponse = {
     url?: string | null;
     serialNumber?: string | null;
     hashAlgorithm?: string | null;
+    failureReason?: string | null;
   } | null;
 };
 
@@ -132,7 +136,9 @@ function statusTone(
     s === "GRANTED" ||
     s === "STAMPED" ||
     s === "VERIFIED" ||
-    s === "SUCCEEDED"
+    s === "SUCCEEDED" ||
+    s === "SIGNED" ||
+    s === "REPORTED"
   ) {
     return {
       label: s || "VERIFIED",
@@ -185,11 +191,46 @@ function timestampTone(
     return { label: "PENDING", tone: "warning" };
   }
 
+  if (s === "FAILED") {
+    return { label: "FAILED", tone: "warning" };
+  }
+
   if (s) {
     return { label: s, tone: "warning" };
   }
 
   return { label: "Unavailable", tone: "neutral" };
+}
+
+function firstNonEmpty(...values: Array<string | null | undefined>): string | null {
+  for (const value of values) {
+    if (typeof value === "string" && value.trim()) return value.trim();
+  }
+  return null;
+}
+
+function buildTsaDetails(data: VerifyResponse) {
+  return {
+    status: extractTimestampStatus(data),
+    provider: firstNonEmpty(data.tsa?.provider, data.timestamp?.provider, data.tsaProvider),
+    genTimeUtc: firstNonEmpty(data.tsa?.genTimeUtc, data.timestamp?.genTimeUtc, data.tsaGenTimeUtc),
+    url: firstNonEmpty(data.tsa?.url, data.timestamp?.url, data.tsaUrl),
+    serialNumber: firstNonEmpty(
+      data.tsa?.serialNumber,
+      data.timestamp?.serialNumber,
+      data.tsaSerialNumber
+    ),
+    hashAlgorithm: firstNonEmpty(
+      data.tsa?.hashAlgorithm,
+      data.timestamp?.hashAlgorithm,
+      data.tsaHashAlgorithm
+    ),
+    failureReason: firstNonEmpty(
+      data.tsa?.failureReason,
+      data.timestamp?.failureReason,
+      data.tsaFailureReason
+    ),
+  };
 }
 
 function CopyMiniButton({
@@ -255,6 +296,7 @@ function Badge({
         fontSize: 12,
         fontWeight: 700,
         lineHeight: 1,
+        maxWidth: "100%",
       }}
     >
       {label}
@@ -296,6 +338,7 @@ function SummaryField({
           fontWeight: 700,
           lineHeight: 1.45,
           wordBreak: "break-word",
+          overflowWrap: "anywhere",
         }}
       >
         {value}
@@ -338,6 +381,7 @@ function MaterialField({
           alignItems: "flex-start",
           justifyContent: "space-between",
           gap: 12,
+          flexWrap: "wrap",
         }}
       >
         <div style={{ minWidth: 0 }}>
@@ -430,6 +474,11 @@ export default function VerifyPage() {
   const [verifiedAt, setVerifiedAt] = useState<string | null>(null);
   const [reportVersion, setReportVersion] = useState<string | null>(null);
   const [tsaStatus, setTsaStatus] = useState<string | null>(null);
+  const [tsaProvider, setTsaProvider] = useState<string | null>(null);
+  const [tsaGenTimeUtc, setTsaGenTimeUtc] = useState<string | null>(null);
+  const [tsaSerialNumber, setTsaSerialNumber] = useState<string | null>(null);
+  const [tsaHashAlgorithm, setTsaHashAlgorithm] = useState<string | null>(null);
+  const [tsaFailureReason, setTsaFailureReason] = useState<string | null>(null);
   const [publicKeyPem, setPublicKeyPem] = useState<string | null>(null);
   const [verifyStatus, setVerifyStatus] = useState<string | null>(null);
   const [signingKeyId, setSigningKeyId] = useState<string | null>(null);
@@ -442,7 +491,7 @@ export default function VerifyPage() {
 
     apiFetch(`/public/verify/${params.token}`)
       .then((data: VerifyResponse) => {
-        const resolvedTsaStatus = extractTimestampStatus(data);
+        const tsaDetails = buildTsaDetails(data);
 
         const mappedTimeline = (data.custodyEvents ?? []).map((ev) => ({
           eventType: ev.eventType ?? "UNKNOWN_EVENT",
@@ -453,16 +502,13 @@ export default function VerifyPage() {
         const generatedAtFallback =
           data.reportGeneratedAtUtc ??
           data.generatedAtUtc ??
-          data.tsaGenTimeUtc ??
-          data.tsa?.genTimeUtc ??
-          data.timestamp?.genTimeUtc ??
           findEventTime(mappedTimeline, ["REPORT_GENERATED"]) ??
           null;
 
         const verifiedAtFallback =
           data.verifiedAtUtc ??
           data.verificationCheckedAtUtc ??
-          findEventTime(mappedTimeline, ["VERIFY_VIEWED", "EVIDENCE_VIEWED"]) ??
+          findEventTime(mappedTimeline, ["SIGNATURE_APPLIED", "VERIFY_VIEWED"]) ??
           null;
 
         setHash(data.fileSha256 ?? null);
@@ -478,12 +524,15 @@ export default function VerifyPage() {
             ? String(data.reportVersion)
             : null
         );
-        setTsaStatus(resolvedTsaStatus);
+        setTsaStatus(tsaDetails.status);
+        setTsaProvider(tsaDetails.provider);
+        setTsaGenTimeUtc(tsaDetails.genTimeUtc);
+        setTsaSerialNumber(tsaDetails.serialNumber);
+        setTsaHashAlgorithm(tsaDetails.hashAlgorithm);
+        setTsaFailureReason(tsaDetails.failureReason);
         setPublicKeyPem(data.publicKeyPem ?? null);
         setSigningKeyId(data.signingKeyId ?? null);
         setTimeline(mappedTimeline);
-
-        addToast("Evidence verified successfully", "success");
       })
       .catch((err) => {
         captureException(err, { feature: "web_verify", token: params.token });
@@ -500,9 +549,9 @@ export default function VerifyPage() {
     const ts = (tsaStatus ?? "").toUpperCase();
 
     return [
-      { label: "Hash Matched", tone: "success" as const, show: Boolean(hash) },
+      { label: "Hash Present", tone: "success" as const, show: Boolean(hash) },
       {
-        label: "Signature Verified",
+        label: "Signature Present",
         tone: "success" as const,
         show: Boolean(signature),
       },
@@ -536,7 +585,7 @@ export default function VerifyPage() {
     () =>
       [
         {
-          label: "Verification Status",
+          label: "Record Status",
           value: statusTone(verifyStatus).label,
           show: true,
         },
@@ -544,6 +593,11 @@ export default function VerifyPage() {
           label: "Evidence ID",
           value: evidenceId ?? params?.token ?? "N/A",
           show: true,
+        },
+        {
+          label: "Report Version",
+          value: reportVersion ?? "N/A",
+          show: Boolean(reportVersion),
         },
         {
           label: "Generated At",
@@ -560,13 +614,60 @@ export default function VerifyPage() {
           value: mimeType ?? "N/A",
           show: Boolean(mimeType),
         },
+      ].filter((item) => item.show),
+    [verifyStatus, evidenceId, params?.token, reportVersion, generatedAt, verifiedAt, mimeType]
+  );
+
+  const technicalCards = useMemo(
+    () =>
+      [
         {
-          label: "Report Version",
-          value: reportVersion ?? "N/A",
-          show: Boolean(reportVersion),
+          label: "Signature Status",
+          content: (
+            <Badge
+              label={signature ? "Present" : "Unavailable"}
+              tone={signature ? "success" : "neutral"}
+            />
+          ),
+          show: true,
+        },
+        {
+          label: "Timestamp Status",
+          content: (
+            <Badge
+              label={timestampTone(tsaStatus).label}
+              tone={timestampTone(tsaStatus).tone}
+            />
+          ),
+          show: true,
+        },
+        {
+          label: "Timestamp Provider",
+          content: tsaProvider ?? null,
+          show: Boolean(tsaProvider),
+        },
+        {
+          label: "Timestamp Time",
+          content: tsaGenTimeUtc ? formatDateTime(tsaGenTimeUtc) : null,
+          show: Boolean(tsaGenTimeUtc),
+        },
+        {
+          label: "Timestamp Serial",
+          content: tsaSerialNumber ?? null,
+          show: Boolean(tsaSerialNumber),
+        },
+        {
+          label: "Hash Algorithm",
+          content: tsaHashAlgorithm ?? null,
+          show: Boolean(tsaHashAlgorithm),
+        },
+        {
+          label: "Signing Key",
+          content: signingKeyId ?? null,
+          show: Boolean(signingKeyId),
         },
       ].filter((item) => item.show),
-    [verifyStatus, evidenceId, params?.token, generatedAt, verifiedAt, mimeType, reportVersion]
+    [signature, tsaStatus, tsaProvider, tsaGenTimeUtc, tsaSerialNumber, tsaHashAlgorithm, signingKeyId]
   );
 
   return (
@@ -710,7 +811,7 @@ export default function VerifyPage() {
                   color: "#101828",
                 }}
               >
-                Evidence Verification
+                Evidence Integrity Review
               </h1>
               <p
                 className="page-subtitle"
@@ -722,8 +823,8 @@ export default function VerifyPage() {
                   maxWidth: 720,
                 }}
               >
-                Review integrity status, cryptographic materials, and the custody
-                timeline for this evidence record.
+                Review recorded integrity status, cryptographic materials, and the custody
+                timeline associated with this evidence record.
               </p>
             </div>
 
@@ -850,7 +951,7 @@ export default function VerifyPage() {
                             marginBottom: 6,
                           }}
                         >
-                          Verification Status
+                          Integrity Status
                         </div>
                         <div
                           style={{
@@ -861,7 +962,7 @@ export default function VerifyPage() {
                             marginBottom: 8,
                           }}
                         >
-                          Evidence Verified
+                          Integrity Materials Available
                         </div>
                         <div
                           style={{
@@ -871,9 +972,11 @@ export default function VerifyPage() {
                             maxWidth: 760,
                           }}
                         >
-                          This evidence record has been cryptographically verified.
-                          The integrity materials currently available indicate no
-                          post-verification tampering.
+                          This page confirms that PROOVRA recorded integrity-related
+                          materials for this evidence item at the time of signing.
+                          It supports review of hashes, signatures, timestamps, and custody
+                          events, but does not by itself prove authorship, factual truth,
+                          or legal admissibility of the underlying content.
                         </div>
                       </div>
                     </div>
@@ -888,6 +991,7 @@ export default function VerifyPage() {
                         fontSize: 13,
                         fontWeight: 800,
                         alignSelf: "flex-start",
+                        maxWidth: "100%",
                       }}
                     >
                       {statusTone(verifyStatus).label}
@@ -990,7 +1094,7 @@ export default function VerifyPage() {
                       }}
                     >
                       Review cryptographic identifiers and verification-related
-                      materials used to support this evidence record.
+                      materials recorded for this evidence item.
                     </div>
                   </div>
                 </div>
@@ -999,7 +1103,7 @@ export default function VerifyPage() {
                   {hash ? (
                     <MaterialField
                       label="File SHA-256"
-                      subtitle="Primary content hash for the evidence file."
+                      subtitle="Primary content hash recorded for the evidence file."
                       value={hash}
                       addToast={addToast}
                       copyMessage="File hash copied"
@@ -1036,65 +1140,60 @@ export default function VerifyPage() {
                     />
                   ) : null}
 
-                  <div
-                    style={{
-                      display: "grid",
-                      gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
-                      gap: 14,
-                    }}
-                  >
+                  {technicalCards.length > 0 ? (
                     <div
                       style={{
-                        border: "1px solid #E4E7EC",
-                        background: "#FCFCFD",
-                        borderRadius: 16,
-                        padding: 16,
+                        display: "grid",
+                        gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+                        gap: 14,
                       }}
                     >
-                      <div
-                        style={{
-                          fontSize: 12,
-                          color: "#667085",
-                          fontWeight: 700,
-                          marginBottom: 10,
-                        }}
-                      >
-                        Signature Status
-                      </div>
-                      <Badge
-                        label={signature ? "Present" : "Unavailable"}
-                        tone={signature ? "success" : "neutral"}
-                      />
-                    </div>
+                      {technicalCards.map((card) => (
+                        <div
+                          key={card.label}
+                          style={{
+                            border: "1px solid #E4E7EC",
+                            background: "#FCFCFD",
+                            borderRadius: 16,
+                            padding: 16,
+                            minWidth: 0,
+                            overflow: "hidden",
+                          }}
+                        >
+                          <div
+                            style={{
+                              fontSize: 12,
+                              color: "#667085",
+                              fontWeight: 700,
+                              marginBottom: 10,
+                            }}
+                          >
+                            {card.label}
+                          </div>
 
-                    <div
-                      style={{
-                        border: "1px solid #E4E7EC",
-                        background: "#FCFCFD",
-                        borderRadius: 16,
-                        padding: 16,
-                      }}
-                    >
-                      <div
-                        style={{
-                          fontSize: 12,
-                          color: "#667085",
-                          fontWeight: 700,
-                          marginBottom: 10,
-                        }}
-                      >
-                        Timestamp Status
-                      </div>
-                      <Badge
-                        label={timestampTone(tsaStatus).label}
-                        tone={timestampTone(tsaStatus).tone}
-                      />
+                          <div
+                            style={{
+                              fontSize: 14,
+                              color: "#101828",
+                              fontWeight: 700,
+                              lineHeight: 1.5,
+                              wordBreak: "break-word",
+                              overflowWrap: "anywhere",
+                              minWidth: 0,
+                            }}
+                          >
+                            {card.content}
+                          </div>
+                        </div>
+                      ))}
                     </div>
+                  ) : null}
 
+                  {tsaFailureReason ? (
                     <div
                       style={{
-                        border: "1px solid #E4E7EC",
-                        background: "#FCFCFD",
+                        border: "1px solid #FECACA",
+                        background: "#FEF2F2",
                         borderRadius: 16,
                         padding: 16,
                       }}
@@ -1102,25 +1201,26 @@ export default function VerifyPage() {
                       <div
                         style={{
                           fontSize: 12,
-                          color: "#667085",
-                          fontWeight: 700,
+                          color: "#991B1B",
+                          fontWeight: 800,
                           marginBottom: 8,
                         }}
                       >
-                        Signing Key
+                        Timestamp Failure Reason
                       </div>
                       <div
                         style={{
-                          fontSize: 14,
-                          color: "#101828",
-                          fontWeight: 700,
+                          fontSize: 13,
+                          color: "#7F1D1D",
+                          lineHeight: 1.6,
                           wordBreak: "break-word",
+                          overflowWrap: "anywhere",
                         }}
                       >
-                        {signingKeyId ?? "N/A"}
+                        {tsaFailureReason}
                       </div>
                     </div>
-                  </div>
+                  ) : null}
                 </div>
               </Card>
 

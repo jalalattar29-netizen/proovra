@@ -1,10 +1,4 @@
-/**
- * Standardized API Error System
- * Provides consistent error codes, types, and response formatting
- */
-
 export enum ErrorCode {
-  // Validation errors (400)
   VALIDATION_ERROR = "VALIDATION_ERROR",
   INVALID_REQUEST = "INVALID_REQUEST",
   MISSING_REQUIRED_FIELD = "MISSING_REQUIRED_FIELD",
@@ -12,20 +6,17 @@ export enum ErrorCode {
   FILE_TOO_LARGE = "FILE_TOO_LARGE",
   INVALID_MIME_TYPE = "INVALID_MIME_TYPE",
 
-  // Authentication errors (401)
   UNAUTHORIZED = "UNAUTHORIZED",
   INVALID_TOKEN = "INVALID_TOKEN",
   TOKEN_EXPIRED = "TOKEN_EXPIRED",
   INVALID_CREDENTIALS = "INVALID_CREDENTIALS",
   MISSING_AUTH_HEADER = "MISSING_AUTH_HEADER",
 
-  // Authorization errors (403)
   FORBIDDEN = "FORBIDDEN",
   INSUFFICIENT_PERMISSIONS = "INSUFFICIENT_PERMISSIONS",
   SUBSCRIPTION_REQUIRED = "SUBSCRIPTION_REQUIRED",
   RATE_LIMIT_EXCEEDED = "RATE_LIMIT_EXCEEDED",
 
-  // Not found errors (404)
   NOT_FOUND = "NOT_FOUND",
   EVIDENCE_NOT_FOUND = "EVIDENCE_NOT_FOUND",
   USER_NOT_FOUND = "USER_NOT_FOUND",
@@ -33,20 +24,17 @@ export enum ErrorCode {
   TEAM_NOT_FOUND = "TEAM_NOT_FOUND",
   WEBHOOK_NOT_FOUND = "WEBHOOK_NOT_FOUND",
 
-  // Conflict errors (409)
   CONFLICT = "CONFLICT",
   EMAIL_ALREADY_EXISTS = "EMAIL_ALREADY_EXISTS",
   DUPLICATE_EVIDENCE = "DUPLICATE_EVIDENCE",
   EVIDENCE_LOCKED = "EVIDENCE_LOCKED",
 
-  // Business logic errors (422)
   INVALID_STATE_TRANSITION = "INVALID_STATE_TRANSITION",
   EVIDENCE_ALREADY_SIGNED = "EVIDENCE_ALREADY_SIGNED",
   INVALID_VERIFICATION_TOKEN = "INVALID_VERIFICATION_TOKEN",
   PAYMENT_FAILED = "PAYMENT_FAILED",
   SUBSCRIPTION_INACTIVE = "SUBSCRIPTION_INACTIVE",
 
-  // Server errors (500)
   INTERNAL_SERVER_ERROR = "INTERNAL_SERVER_ERROR",
   DATABASE_ERROR = "DATABASE_ERROR",
   STORAGE_ERROR = "STORAGE_ERROR",
@@ -54,7 +42,6 @@ export enum ErrorCode {
   PAYMENT_SERVICE_ERROR = "PAYMENT_SERVICE_ERROR",
   EXTERNAL_SERVICE_ERROR = "EXTERNAL_SERVICE_ERROR",
 
-  // Webhook errors (webhook-specific)
   WEBHOOK_DELIVERY_FAILED = "WEBHOOK_DELIVERY_FAILED",
   WEBHOOK_SIGNATURE_INVALID = "WEBHOOK_SIGNATURE_INVALID",
 }
@@ -64,13 +51,6 @@ export interface ErrorDetails {
   reason?: string;
   value?: unknown;
   [key: string]: unknown;
-}
-
-export interface ApiError {
-  code: ErrorCode;
-  message: string;
-  statusCode: number;
-  details?: ErrorDetails;
 }
 
 export interface ErrorResponse {
@@ -83,12 +63,8 @@ export interface ErrorResponse {
   };
 }
 
-/**
- * Map error codes to HTTP status codes
- */
 export function getStatusCode(code: ErrorCode): number {
   switch (code) {
-    // 400 Bad Request
     case ErrorCode.VALIDATION_ERROR:
     case ErrorCode.INVALID_REQUEST:
     case ErrorCode.MISSING_REQUIRED_FIELD:
@@ -97,7 +73,6 @@ export function getStatusCode(code: ErrorCode): number {
     case ErrorCode.INVALID_MIME_TYPE:
       return 400;
 
-    // 401 Unauthorized
     case ErrorCode.UNAUTHORIZED:
     case ErrorCode.INVALID_TOKEN:
     case ErrorCode.TOKEN_EXPIRED:
@@ -105,14 +80,14 @@ export function getStatusCode(code: ErrorCode): number {
     case ErrorCode.MISSING_AUTH_HEADER:
       return 401;
 
-    // 403 Forbidden
     case ErrorCode.FORBIDDEN:
     case ErrorCode.INSUFFICIENT_PERMISSIONS:
     case ErrorCode.SUBSCRIPTION_REQUIRED:
-    case ErrorCode.RATE_LIMIT_EXCEEDED:
       return 403;
 
-    // 404 Not Found
+    case ErrorCode.RATE_LIMIT_EXCEEDED:
+      return 429;
+
     case ErrorCode.NOT_FOUND:
     case ErrorCode.EVIDENCE_NOT_FOUND:
     case ErrorCode.USER_NOT_FOUND:
@@ -121,14 +96,12 @@ export function getStatusCode(code: ErrorCode): number {
     case ErrorCode.WEBHOOK_NOT_FOUND:
       return 404;
 
-    // 409 Conflict
     case ErrorCode.CONFLICT:
     case ErrorCode.EMAIL_ALREADY_EXISTS:
     case ErrorCode.DUPLICATE_EVIDENCE:
     case ErrorCode.EVIDENCE_LOCKED:
       return 409;
 
-    // 422 Unprocessable Entity
     case ErrorCode.INVALID_STATE_TRANSITION:
     case ErrorCode.EVIDENCE_ALREADY_SIGNED:
     case ErrorCode.INVALID_VERIFICATION_TOKEN:
@@ -136,7 +109,6 @@ export function getStatusCode(code: ErrorCode): number {
     case ErrorCode.SUBSCRIPTION_INACTIVE:
       return 422;
 
-    // 500 Internal Server Error
     case ErrorCode.INTERNAL_SERVER_ERROR:
     case ErrorCode.DATABASE_ERROR:
     case ErrorCode.STORAGE_ERROR:
@@ -145,16 +117,11 @@ export function getStatusCode(code: ErrorCode): number {
     case ErrorCode.EXTERNAL_SERVICE_ERROR:
     case ErrorCode.WEBHOOK_DELIVERY_FAILED:
     case ErrorCode.WEBHOOK_SIGNATURE_INVALID:
-      return 500;
-
     default:
       return 500;
   }
 }
 
-/**
- * Get human-readable message for error code
- */
 export function getErrorMessage(code: ErrorCode): string {
   const messages: Record<ErrorCode, string> = {
     [ErrorCode.VALIDATION_ERROR]: "Request validation failed",
@@ -207,19 +174,12 @@ export function getErrorMessage(code: ErrorCode): string {
   return messages[code] ?? "An unexpected error occurred";
 }
 
-/**
- * Custom API error class
- */
 export class AppError extends Error {
   code: ErrorCode;
   statusCode: number;
   details?: ErrorDetails;
 
-  constructor(
-    code: ErrorCode,
-    message?: string,
-    details?: ErrorDetails
-  ) {
+  constructor(code: ErrorCode, message?: string, details?: ErrorDetails) {
     super(message ?? getErrorMessage(code));
     this.code = code;
     this.statusCode = getStatusCode(code);
@@ -229,9 +189,6 @@ export class AppError extends Error {
   }
 }
 
-/**
- * Create error response for API
- */
 export function createErrorResponse(
   code: ErrorCode,
   requestId?: string,
@@ -244,26 +201,11 @@ export function createErrorResponse(
       message: customMessage ?? getErrorMessage(code),
       requestId,
       timestamp: new Date().toISOString(),
-      ...(details && { details }),
+      ...(details ? { details } : {}),
     },
   };
 }
 
-/**
- * Type guard for AppError
- */
 export function isAppError(error: unknown): error is AppError {
   return error instanceof AppError;
-}
-
-/**
- * Type guard for validation error
- */
-export function isValidationError(error: unknown): boolean {
-  return (
-    error instanceof AppError &&
-    (error.code === ErrorCode.VALIDATION_ERROR ||
-      error.code === ErrorCode.MISSING_REQUIRED_FIELD ||
-      error.code === ErrorCode.INVALID_REQUEST)
-  );
 }
