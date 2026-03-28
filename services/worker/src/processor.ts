@@ -44,14 +44,12 @@ function buildPublicUrl(key: string): string | null {
 }
 
 function buildVerifyUrl(evidenceId: string): string {
-  const base = envValue("REPORT_VERIFY_BASE_URL", "https://app.proovra.com/verify").replace(
-    /\/+$/,
-    ""
-  );
+  const base = envValue(
+    "REPORT_VERIFY_BASE_URL",
+    "https://app.proovra.com/verify"
+  ).replace(/\/+$/, "");
 
-  return base.includes("?")
-    ? `${base}&evidenceId=${encodeURIComponent(evidenceId)}`
-    : `${base}?evidenceId=${encodeURIComponent(evidenceId)}`;
+  return `${base}/${encodeURIComponent(evidenceId)}`;
 }
 
 function buildEvidenceDetailUrl(evidenceId: string): string {
