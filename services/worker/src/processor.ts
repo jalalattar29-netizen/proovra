@@ -30,6 +30,16 @@ type VerificationEvidenceFile = {
   buffer: Buffer;
 };
 
+type PreparedReportArtifacts = {
+  reportPdf: Buffer;
+  verificationZip: Buffer | null;
+  reportKey: string;
+  verificationKey: string;
+  version: number;
+  now: Date;
+  evidenceId: string;
+};
+
 function envValue(name: string, fallback?: string): string {
   const raw = process.env[name];
   const trimmed = typeof raw === "string" ? raw.trim() : "";
@@ -53,14 +63,18 @@ function buildVerifyUrl(evidenceId: string): string {
 }
 
 function buildEvidenceDetailUrl(evidenceId: string): string {
-  const base = envValue("REPORT_APP_BASE_URL", "https://app.proovra.com").replace(
-    /\/+$/,
-    ""
-  );
+  const base = envValue(
+    "REPORT_APP_BASE_URL",
+    "https://app.proovra.com"
+  ).replace(/\/+$/, "");
   return `${base}/evidence/${encodeURIComponent(evidenceId)}`;
 }
 
-function shortHash(value: string | null | undefined, head = 12, tail = 10): string | null {
+function shortHash(
+  value: string | null | undefined,
+  head = 12,
+  tail = 10
+): string | null {
   const text = typeof value === "string" ? value.trim() : "";
   if (!text) return null;
   if (text.length <= head + tail + 3) return text;
@@ -105,19 +119,15 @@ function summarizePayloadForReport(
   const obj = payload as Record<string, unknown>;
 
   switch (event) {
-    case "EVIDENCE_CREATED": {
+    case "EVIDENCE_CREATED":
       return "Evidence record created.";
-    }
 
     case "UPLOAD_STARTED": {
       const uploadMode =
         normalizePayloadPrimitive(obj.mode) ??
         normalizePayloadPrimitive(obj.uploadKind);
 
-      return [
-        "Upload session started",
-        uploadMode ? `Mode: ${uploadMode}` : null,
-      ]
+      return ["Upload session started", uploadMode ? `Mode: ${uploadMode}` : null]
         .filter(Boolean)
         .join(" • ");
     }
@@ -146,7 +156,9 @@ function summarizePayloadForReport(
     case "SIGNATURE_APPLIED": {
       const signingKeyId = normalizePayloadPrimitive(obj.signingKeyId);
       const signingKeyVersion = normalizePayloadPrimitive(obj.signingKeyVersion);
-      const fingerprintHash = shortHash(normalizePayloadPrimitive(obj.fingerprintHash));
+      const fingerprintHash = shortHash(
+        normalizePayloadPrimitive(obj.fingerprintHash)
+      );
       const tsaStatus = normalizePayloadPrimitive(obj.tsaStatus);
       const tsaProvider = normalizePayloadPrimitive(obj.tsaProvider);
 
@@ -310,7 +322,10 @@ function extensionFromMimeType(mimeType: string | null | undefined): string {
   return "bin";
 }
 
-function basenameFromStorageKey(key: string | null | undefined, fallback: string): string {
+function basenameFromStorageKey(
+  key: string | null | undefined,
+  fallback: string
+): string {
   const raw = typeof key === "string" ? key.trim() : "";
   if (!raw) return fallback;
   const parts = raw.split("/");
@@ -320,17 +335,9 @@ function basenameFromStorageKey(key: string | null | undefined, fallback: string
 
 const { EvidenceStatus } = prismaPkg;
 
-type PreparedReportArtifacts = {
-  reportPdf: Buffer;
-  verificationZip: Buffer | null;
-  reportKey: string;
-  verificationKey: string;
-  version: number;
-  now: Date;
-  evidenceId: string;
-};
-
-async function prepareReportArtifacts(evidenceId: string): Promise<PreparedReportArtifacts> {
+async function prepareReportArtifacts(
+  evidenceId: string
+): Promise<PreparedReportArtifacts> {
   const evidence = await prisma.evidence.findFirst({
     where: { id: evidenceId, deletedAt: null },
   });
@@ -408,7 +415,9 @@ async function prepareReportArtifacts(evidenceId: string): Promise<PreparedRepor
       verificationEvidenceFiles.push({
         name: basenameFromStorageKey(
           part.storageKey,
-          `part-${String(index + 1).padStart(4, "0")}.${extensionFromMimeType(part.mimeType)}`
+          `part-${String(index + 1).padStart(4, "0")}.${extensionFromMimeType(
+            part.mimeType
+          )}`
         ),
         buffer: partBuffer,
       });
@@ -441,7 +450,9 @@ async function prepareReportArtifacts(evidenceId: string): Promise<PreparedRepor
       key: evidence.storageKey!,
     });
 
-    const singleEvidenceBuffer = await streamToBuffer(body as unknown as Readable);
+    const singleEvidenceBuffer = await streamToBuffer(
+      body as unknown as Readable
+    );
 
     verificationEvidenceFiles.push({
       name: basenameFromStorageKey(
@@ -500,6 +511,47 @@ async function prepareReportArtifacts(evidenceId: string): Promise<PreparedRepor
   const evidenceDetailUrl = buildEvidenceDetailUrl(evidence.id);
   const verifyUrl = buildVerifyUrl(evidence.id);
 
+  const reportGeneratedEventSequence =
+    (custodyEvents[custodyEvents.length - 1]?.sequence ?? 0) + 1;
+
+  const custodyEventsForReport = [
+    ...custodyEvents.map((ev) => ({
+      sequence: ev.sequence,
+      atUtc: ev.atUtc.toISOString(),
+      eventType: ev.eventType,
+      payloadSummary: summarizePayloadForReport(ev.eventType, ev.payload),
+    })),
+    {
+      sequence: reportGeneratedEventSequence,
+      atUtc: now.toISOString(),
+      eventType: "REPORT_GENERATED",
+      payloadSummary: summarizePayloadForReport("REPORT_GENERATED", {
+        phase: "report_generated",
+        reportVersion: provisionalVersion,
+        generatedAtUtc: now.toISOString(),
+      }),
+    },
+  ];
+
+  const custodyForVerificationPackage = [
+    ...custodyEvents.map((ev) => ({
+      sequence: ev.sequence,
+      atUtc: ev.atUtc.toISOString(),
+      eventType: ev.eventType,
+      payload: ev.payload,
+    })),
+    {
+      sequence: reportGeneratedEventSequence,
+      atUtc: now.toISOString(),
+      eventType: "REPORT_GENERATED",
+      payload: {
+        phase: "report_generated",
+        reportVersion: provisionalVersion,
+        generatedAtUtc: now.toISOString(),
+      } as Prisma.InputJsonValue,
+    },
+  ];
+
   const reportPdf = await buildReportPdf({
     evidence: {
       id: evidence.id,
@@ -536,12 +588,7 @@ async function prepareReportArtifacts(evidenceId: string): Promise<PreparedRepor
       tsaStatus: evidence.tsaStatus ?? null,
       tsaFailureReason: evidence.tsaFailureReason ?? null,
     },
-    custodyEvents: custodyEvents.map((ev) => ({
-      sequence: ev.sequence,
-      atUtc: ev.atUtc.toISOString(),
-      eventType: ev.eventType,
-      payloadSummary: summarizePayloadForReport(ev.eventType, ev.payload),
-    })),
+    custodyEvents: custodyEventsForReport,
     version: provisionalVersion,
     generatedAtUtc: now.toISOString(),
     buildInfo: env.WORKER_BUILD_INFO ?? null,
@@ -559,12 +606,7 @@ async function prepareReportArtifacts(evidenceId: string): Promise<PreparedRepor
         signature: signatureBase64,
         timestampToken: evidence.tsaTokenBase64 ?? null,
         publicKey: signingKey.publicKeyPem,
-        custody: custodyEvents.map((ev) => ({
-          sequence: ev.sequence,
-          atUtc: ev.atUtc.toISOString(),
-          eventType: ev.eventType,
-          payload: ev.payload,
-        })),
+        custody: custodyForVerificationPackage,
         evidenceId: evidence.id,
         reportVersion: provisionalVersion,
         signingKeyId,
@@ -676,21 +718,15 @@ export async function processGenerateReport(job: Job<GenerateReportJobData>) {
           !lockedEvidence.signingKeyId ||
           lockedEvidence.signingKeyVersion == null
         ) {
-          throw createWorkerError("SIGNED_EVIDENCE_CRYPTO_STATE_INCOMPLETE", false);
+          throw createWorkerError(
+            "SIGNED_EVIDENCE_CRYPTO_STATE_INCOMPLETE",
+            false
+          );
         }
-
-        const maxReport = await tx.report.aggregate({
-          where: { evidenceId: prepared.evidenceId },
-          _max: { version: true },
-        });
-
-        const version = (maxReport._max.version ?? 0) + 1;
-        const now = new Date();
-        const reportKey = `reports/${prepared.evidenceId}/v${version}.pdf`;
 
         await putObjectBuffer({
           bucket: env.S3_BUCKET,
-          key: reportKey,
+          key: prepared.reportKey,
           body: prepared.reportPdf,
           contentType: "application/pdf",
         });
@@ -698,10 +734,10 @@ export async function processGenerateReport(job: Job<GenerateReportJobData>) {
         await tx.report.create({
           data: {
             evidenceId: prepared.evidenceId,
-            version,
+            version: prepared.version,
             storageBucket: env.S3_BUCKET,
-            storageKey: reportKey,
-            generatedAtUtc: now,
+            storageKey: prepared.reportKey,
+            generatedAtUtc: prepared.now,
           },
         });
 
@@ -717,12 +753,12 @@ export async function processGenerateReport(job: Job<GenerateReportJobData>) {
           data: {
             evidenceId: prepared.evidenceId,
             eventType: "REPORT_GENERATED" as prismaPkg.CustodyEventType,
-            atUtc: now,
+            atUtc: prepared.now,
             sequence: nextSequence,
             payload: {
               phase: "report_generated",
-              reportVersion: version,
-              generatedAtUtc: now.toISOString(),
+              reportVersion: prepared.version,
+              generatedAtUtc: prepared.now.toISOString(),
             } as Prisma.InputJsonValue,
           },
         });
@@ -731,14 +767,14 @@ export async function processGenerateReport(job: Job<GenerateReportJobData>) {
           where: { id: prepared.evidenceId },
           data: {
             status: EvidenceStatus.REPORTED,
-            reportGeneratedAtUtc: now,
+            reportGeneratedAtUtc: prepared.now,
           },
         });
 
         return {
           skipped: false as const,
-          version,
-          reportKey,
+          version: prepared.version,
+          reportKey: prepared.reportKey,
         };
       },
       {

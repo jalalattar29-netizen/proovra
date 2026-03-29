@@ -176,7 +176,12 @@ function normalizeTimestampStatus(
   status: string | null | undefined
 ): "SUCCESS" | "WARNING" | "DANGER" | "NEUTRAL" {
   const s = safe(status, "").toUpperCase();
-  if (s === "GRANTED" || s === "STAMPED" || s === "VERIFIED" || s === "SUCCEEDED") {
+  if (
+    s === "GRANTED" ||
+    s === "STAMPED" ||
+    s === "VERIFIED" ||
+    s === "SUCCEEDED"
+  ) {
     return "SUCCESS";
   }
   if (s === "PENDING" || s === "UNAVAILABLE") {
@@ -915,6 +920,47 @@ function estimateQuickVerificationHeight(doc: PDFDoc, verifyUrl: string): number
   return 24 + p1 + label + link + p2;
 }
 
+function estimateKvGridHeight(
+  rows: Array<[string, string]>,
+  doc: PDFDoc,
+  options?: { colGap?: number }
+): number {
+  const w = doc.page.width - doc.page.margins.left - doc.page.margins.right;
+  const colGap = options?.colGap ?? 16;
+  const colW = (w - colGap) / 2;
+
+  const calcCellHeight = (row?: [string, string]): number => {
+    if (!row) return 0;
+    const [k, v] = row;
+
+    doc.font("Helvetica").fontSize(8.7);
+    const keyH = doc.heightOfString(k, { width: colW });
+
+    doc.font("Helvetica-Bold").fontSize(9.8);
+    const valueH = doc.heightOfString(v, { width: colW });
+
+    return keyH + valueH + 14;
+  };
+
+  let total = 0;
+  for (let i = 0; i < rows.length; i += 2) {
+    total += Math.max(calcCellHeight(rows[i]), calcCellHeight(rows[i + 1]));
+  }
+
+  return total;
+}
+
+function estimateEvidenceSummarySectionHeight(
+  doc: PDFDoc,
+  rows: Array<[string, string]>
+): number {
+  const titleHeight = 18;
+  const titleGap = 10;
+  const gridHeight = estimateKvGridHeight(rows, doc);
+  const bottomGap = 12;
+  return titleHeight + titleGap + gridHeight + bottomGap;
+}
+
 function estimateForensicIntegrityStatementHeight(
   doc: PDFDoc,
   opts: { verifyUrl: string; multipart: boolean }
@@ -1137,46 +1183,6 @@ function renderForensicIntegrityStatement(
   doc.restore();
 }
 
-function estimateKvGridHeight(
-  rows: Array<[string, string]>,
-  doc: PDFDoc,
-  options?: { colGap?: number }
-): number {
-  const w = doc.page.width - doc.page.margins.left - doc.page.margins.right;
-  const colGap = options?.colGap ?? 16;
-  const colW = (w - colGap) / 2;
-
-  const calcCellHeight = (row?: [string, string]): number => {
-    if (!row) return 0;
-    const [k, v] = row;
-
-    doc.font("Helvetica").fontSize(8.7);
-    const keyH = doc.heightOfString(k, { width: colW });
-
-    doc.font("Helvetica-Bold").fontSize(9.8);
-    const valueH = doc.heightOfString(v, { width: colW });
-
-    return keyH + valueH + 14;
-  };
-
-  let total = 0;
-  for (let i = 0; i < rows.length; i += 2) {
-    total += Math.max(calcCellHeight(rows[i]), calcCellHeight(rows[i + 1]));
-  }
-
-  return total;
-}
-
-function estimateEvidenceSummarySectionHeight(
-  doc: PDFDoc,
-  rows: Array<[string, string]>
-): number {
-  const titleBlock = 14 + 6;
-  const sectionBlock = 12 + 8 + 8;
-  const gridHeight = estimateKvGridHeight(rows, doc);
-  return titleBlock + sectionBlock + gridHeight + 16;
-}
-
 export async function buildReportPdf(params: {
   evidence: ReportEvidence;
   custodyEvents: ReportCustodyEvent[];
@@ -1201,8 +1207,7 @@ export async function buildReportPdf(params: {
 
   doc.info = {
     Title: `${BRAND.name} — Verifiable Evidence Report`,
-    Subject:
-      "Evidence Summary > Chain of Custody > Technical Appendix",
+    Subject: "Evidence Summary > Chain of Custody > Technical Appendix",
     Keywords: `PROOVRA_REPORT_VERSION=${params.version};PROOVRA_GENERATED_AT=${params.generatedAtUtc}${buildToken}`,
     Creator: BRAND.name,
     Producer: BRAND.name,
@@ -1264,6 +1269,7 @@ export async function buildReportPdf(params: {
         fontSize: 9.8,
         color: BRAND.ink,
       });
+
       if (fingerprintSummary.multipart) {
         safeParagraph(
           doc,
@@ -1355,7 +1361,8 @@ export async function buildReportPdf(params: {
           fingerprintSummary.mimeTypes.length > 0
             ? summarizeText(fingerprintSummary.mimeTypes.join(", "), 80)
             : "N/A",
-        ]
+        ],
+        ["Initial MIME at Creation", safe(params.evidence.mimeType)]
       );
     } else {
       evidenceSummaryRows.push(
@@ -1364,21 +1371,29 @@ export async function buildReportPdf(params: {
       );
     }
 
+    const neededHeight = estimateEvidenceSummarySectionHeight(
+      doc,
+      evidenceSummaryRows
+    );
+    const availableHeight =
+      doc.page.height - doc.page.margins.bottom - 10 - doc.y;
+
+    if (availableHeight < neededHeight) {
+      addPageWithHeader(doc);
+    }
+
     doc.save();
     doc.fillColor(BRAND.ink).font("Helvetica-Bold").fontSize(15);
     doc.text("Evidence Overview", doc.page.margins.left, doc.y);
     doc.restore();
     doc.moveDown(0.14);
 
-    // مهم: لا تعمل addPageWithHeader هون
-    // خلي الـ kvGrid يرسم ضمن الصفحة الحالية طالما بيوجد مكان فعلي
     kvGrid(doc, evidenceSummaryRows);
     doc.moveDown(0.12);
   }
 
-  // هاد هو الـ page break الصحيح: بعد ما يخلص Evidence Overview مباشرة
   addPageWithHeader(doc);
-  
+
   section(
     doc,
     "Quick Verification",
