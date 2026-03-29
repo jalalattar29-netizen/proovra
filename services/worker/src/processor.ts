@@ -108,9 +108,13 @@ function summarizePayloadForReport(
     case "EVIDENCE_CREATED": {
       const type = normalizePayloadPrimitive(obj.type);
       const mimeType = normalizePayloadPrimitive(obj.mimeType);
-      return [type ? `Type: ${type}` : null, mimeType ? `MIME: ${mimeType}` : null]
+      return [
+        "Initial evidence record created",
+        type ? `Initial type: ${type}` : null,
+        mimeType ? `Initial MIME: ${mimeType}` : null,
+      ]
         .filter(Boolean)
-        .join(" • ") || "Evidence record created.";
+        .join(" • ");
     }
 
     case "UPLOAD_STARTED": {
@@ -122,24 +126,27 @@ function summarizePayloadForReport(
         normalizePayloadPrimitive(obj.mimeType);
 
       return [
-        uploadMode ? `Upload: ${uploadMode}` : "Upload initialized",
-        mimeType ? `MIME: ${mimeType}` : null,
+        "Initial upload session started",
+        uploadMode ? `Mode: ${uploadMode}` : null,
+        mimeType ? `Initial MIME: ${mimeType}` : null,
       ]
         .filter(Boolean)
         .join(" • ");
     }
 
     case "UPLOAD_COMPLETED": {
-      const multipart = obj.multipart === true ? "Multipart" : "Single file";
+      const multipart = obj.multipart === true;
       const itemCount =
         typeof obj.itemCount === "number" && Number.isFinite(obj.itemCount)
           ? String(obj.itemCount)
           : null;
       const sizeBytes = normalizePayloadPrimitive(obj.sizeBytes);
       const hash = shortHash(normalizePayloadPrimitive(obj.fileSha256));
+
       return [
-        "Upload completed",
-        multipart,
+        multipart
+          ? "Evidence package completed as multipart"
+          : "Single-file upload completed",
         itemCount ? `Items: ${itemCount}` : null,
         sizeBytes ? `Size: ${sizeBytes} bytes` : null,
         hash ? `Hash: ${hash}` : null,
@@ -156,7 +163,7 @@ function summarizePayloadForReport(
       const tsaProvider = normalizePayloadPrimitive(obj.tsaProvider);
 
       return [
-        "Cryptographic signature applied",
+        "Cryptographic signature applied to completed evidence package",
         signingKeyId ? `Key: ${signingKeyId}` : null,
         signingKeyVersion ? `Version: ${signingKeyVersion}` : null,
         fingerprintHash ? `Fingerprint: ${fingerprintHash}` : null,

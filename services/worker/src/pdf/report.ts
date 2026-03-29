@@ -1325,7 +1325,6 @@ export async function buildReportPdf(params: {
       ["Uploaded (UTC)", safe(params.evidence.uploadedAtUtc)],
       ["Signed (UTC)", safe(params.evidence.signedAtUtc)],
       ["Report Generated (UTC)", safe(params.evidence.reportGeneratedAtUtc)],
-      ["MIME Type", safe(params.evidence.mimeType)],
       ["Size", formatBytesHuman(params.evidence.sizeBytes)],
       [
         "Duration",
@@ -1344,7 +1343,7 @@ export async function buildReportPdf(params: {
 
     if (fingerprintSummary.multipart) {
       evidenceSummaryRows.push(
-        ["Evidence Structure", "Multipart evidence"],
+        ["Evidence Structure", "Multipart evidence package"],
         ["Total Items", String(fingerprintSummary.itemCount)],
         ["Image Items", String(fingerprintSummary.imageCount)],
         ["Video Items", String(fingerprintSummary.videoCount)],
@@ -1352,14 +1351,18 @@ export async function buildReportPdf(params: {
         ["Document Items", String(fingerprintSummary.documentCount)],
         ["Fingerprint Parts", String(fingerprintSummary.partsCount)],
         [
-          "MIME Types",
+          "Package MIME Types",
           fingerprintSummary.mimeTypes.length > 0
             ? summarizeText(fingerprintSummary.mimeTypes.join(", "), 80)
             : "N/A",
-        ]
+        ],
+        ["Initial MIME at Creation", safe(params.evidence.mimeType)]
       );
     } else {
-      evidenceSummaryRows.push(["Evidence Structure", "Single file evidence"]);
+      evidenceSummaryRows.push(
+        ["Evidence Structure", "Single file evidence"],
+        ["MIME Type", safe(params.evidence.mimeType)]
+      );
     }
 
     const neededHeight = estimateEvidenceSummarySectionHeight(
@@ -1384,7 +1387,8 @@ export async function buildReportPdf(params: {
     doc.moveDown(0.12);
   }
 
-  ensurePageWithHeader(doc, estimateQuickVerificationHeight(doc, verifyUrl) + 28);
+  // force Quick Verification to start on a new page
+  addPageWithHeader(doc);
 
   section(
     doc,
