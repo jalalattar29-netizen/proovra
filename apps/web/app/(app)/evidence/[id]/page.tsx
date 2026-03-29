@@ -157,7 +157,6 @@ export default function EvidenceDetailPage() {
   const [status, setStatus] = useState("SIGNED");
   const [, setReportUrl] = useState<string | null>(null);
   const [createdAt, setCreatedAt] = useState<string | null>(null);
-  const [type, setType] = useState<string>("EVIDENCE");
   const [lockedAt, setLockedAt] = useState<string | null>(null);
   const [archivedAt, setArchivedAt] = useState<string | null>(null);
   const [plan, setPlan] = useState<string>("FREE");
@@ -275,7 +274,6 @@ export default function EvidenceDetailPage() {
           const ev = data?.evidence ?? {};
           setStatus(ev.status ?? "SIGNED");
           setCreatedAt(ev.createdAt ?? null);
-          setType(ev.type ?? "EVIDENCE");
           setLockedAt(ev.lockedAt ?? null);
           setArchivedAt(ev.archivedAt ?? null);
           setCaseId(ev.caseId ?? null);
@@ -383,7 +381,6 @@ export default function EvidenceDetailPage() {
         const ev = data?.evidence ?? {};
         setStatus(ev.status ?? "SIGNED");
         setCreatedAt(ev.createdAt ?? null);
-        setType(ev.type ?? "EVIDENCE");
         setLockedAt(ev.lockedAt ?? null);
         setArchivedAt(ev.archivedAt ?? null);
         setCaseId(ev.caseId ?? null);
