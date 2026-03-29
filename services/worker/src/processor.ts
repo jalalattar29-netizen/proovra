@@ -106,29 +106,17 @@ function summarizePayloadForReport(
 
   switch (event) {
     case "EVIDENCE_CREATED": {
-      const type = normalizePayloadPrimitive(obj.type);
-      const mimeType = normalizePayloadPrimitive(obj.mimeType);
-      return [
-        "Initial evidence record created",
-        type ? `Initial type: ${type}` : null,
-        mimeType ? `Initial MIME: ${mimeType}` : null,
-      ]
-        .filter(Boolean)
-        .join(" • ");
+      return "Evidence record created.";
     }
 
     case "UPLOAD_STARTED": {
       const uploadMode =
         normalizePayloadPrimitive(obj.mode) ??
         normalizePayloadPrimitive(obj.uploadKind);
-      const mimeType =
-        normalizePayloadPrimitive(obj.contentType) ??
-        normalizePayloadPrimitive(obj.mimeType);
 
       return [
-        "Initial upload session started",
+        "Upload session started",
         uploadMode ? `Mode: ${uploadMode}` : null,
-        mimeType ? `Initial MIME: ${mimeType}` : null,
       ]
         .filter(Boolean)
         .join(" • ");
@@ -145,7 +133,7 @@ function summarizePayloadForReport(
 
       return [
         multipart
-          ? "Evidence package completed as multipart"
+          ? "Multipart evidence package completed"
           : "Single-file upload completed",
         itemCount ? `Items: ${itemCount}` : null,
         sizeBytes ? `Size: ${sizeBytes} bytes` : null,
@@ -163,7 +151,7 @@ function summarizePayloadForReport(
       const tsaProvider = normalizePayloadPrimitive(obj.tsaProvider);
 
       return [
-        "Cryptographic signature applied to completed evidence package",
+        "Cryptographic signature applied",
         signingKeyId ? `Key: ${signingKeyId}` : null,
         signingKeyVersion ? `Version: ${signingKeyVersion}` : null,
         fingerprintHash ? `Fingerprint: ${fingerprintHash}` : null,

@@ -1355,8 +1355,7 @@ export async function buildReportPdf(params: {
           fingerprintSummary.mimeTypes.length > 0
             ? summarizeText(fingerprintSummary.mimeTypes.join(", "), 80)
             : "N/A",
-        ],
-        ["Initial MIME at Creation", safe(params.evidence.mimeType)]
+        ]
       );
     } else {
       evidenceSummaryRows.push(
@@ -1365,31 +1364,21 @@ export async function buildReportPdf(params: {
       );
     }
 
-    const neededHeight = estimateEvidenceSummarySectionHeight(
-      doc,
-      evidenceSummaryRows
-    );
-
-    const availableHeight =
-      doc.page.height - doc.page.margins.bottom - 10 - doc.y;
-
-    if (availableHeight < neededHeight) {
-      addPageWithHeader(doc);
-    }
-
     doc.save();
     doc.fillColor(BRAND.ink).font("Helvetica-Bold").fontSize(15);
     doc.text("Evidence Overview", doc.page.margins.left, doc.y);
     doc.restore();
     doc.moveDown(0.14);
 
+    // مهم: لا تعمل addPageWithHeader هون
+    // خلي الـ kvGrid يرسم ضمن الصفحة الحالية طالما بيوجد مكان فعلي
     kvGrid(doc, evidenceSummaryRows);
     doc.moveDown(0.12);
   }
 
-  // force Quick Verification to start on a new page
+  // هاد هو الـ page break الصحيح: بعد ما يخلص Evidence Overview مباشرة
   addPageWithHeader(doc);
-
+  
   section(
     doc,
     "Quick Verification",
