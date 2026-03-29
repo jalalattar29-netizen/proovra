@@ -46,12 +46,17 @@ const CreatePartBody = z.object({
   durationMs: z.number().int().positive().optional(),
 });
 
+const UpdateEvidenceTitleBody = z.object({
+  title: z.string().trim().min(1).max(160),
+});
+
 type ParamsId = { id: string };
 
 const { EvidenceStatus, PlanType } = prismaPkg;
 
 const SAFE_EVIDENCE_SELECT = {
   id: true,
+  title: true,
   ownerUserId: true,
   type: true,
   status: true,
@@ -145,7 +150,11 @@ function decimalToNumber(v: unknown): number | null {
   return null;
 }
 
-function shortHash(value: string | null | undefined, head = 12, tail = 10): string | null {
+function shortHash(
+  value: string | null | undefined,
+  head = 12,
+  tail = 10
+): string | null {
   const text = typeof value === "string" ? value.trim() : "";
   if (!text) return null;
   if (text.length <= head + tail + 3) return text;
@@ -173,6 +182,47 @@ function normalizePublicPayloadValue(value: unknown): string | null {
   return null;
 }
 
+function resolveEvidenceTitle(title: string | null | undefined): string {
+  const t = typeof title === "string" ? title.trim() : "";
+  return t || "Digital Evidence Record";
+}
+
+function statusLabel(status: prismaPkg.EvidenceStatus | string): string {
+  switch (String(status).toUpperCase()) {
+    case "REPORTED":
+      return "Verified";
+    case "SIGNED":
+      return "Signed";
+    case "UPLOADED":
+      return "Uploaded";
+    case "UPLOADING":
+      return "Uploading";
+    case "CREATED":
+    default:
+      return "Created";
+  }
+}
+
+function formatDisplayDateUtc(value: Date | string): string {
+  const d = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(d.getTime())) return "";
+  const day = d.getUTCDate().toString().padStart(2, "0");
+  const month = d.toLocaleString("en-GB", { month: "short", timeZone: "UTC" });
+  const year = d.getUTCFullYear();
+  return `${day} ${month} ${year}`;
+}
+
+function buildEvidenceSubtitle(params: {
+  itemCount: number;
+  status: prismaPkg.EvidenceStatus | string;
+  createdAt: Date | string;
+}): string {
+  const count = Math.max(1, params.itemCount || 1);
+  return `${count} ${count === 1 ? "item" : "items"} • ${statusLabel(
+    params.status
+  )} • ${formatDisplayDateUtc(params.createdAt)}`;
+}
+
 function summarizePublicPayload(
   eventType: prismaPkg.CustodyEventType,
   payload: prismaPkg.Prisma.JsonValue | null
@@ -187,37 +237,32 @@ function summarizePublicPayload(
   const obj = payload as Record<string, unknown>;
 
   switch (eventType) {
-    case prismaPkg.CustodyEventType.EVIDENCE_CREATED: {
-      const type = normalizePublicPayloadValue(obj.type);
-      const mimeType = normalizePublicPayloadValue(obj.mimeType);
-      return [type ? `Type: ${type}` : null, mimeType ? `MIME: ${mimeType}` : null]
-        .filter(Boolean)
-        .join(" • ") || "Evidence record created.";
-    }
+    case prismaPkg.CustodyEventType.EVIDENCE_CREATED:
+      return "Evidence record created.";
 
     case prismaPkg.CustodyEventType.UPLOAD_STARTED: {
-      const mimeType = normalizePublicPayloadValue(obj.mimeType);
       const uploadKind =
         normalizePublicPayloadValue(obj.uploadKind) ??
         normalizePublicPayloadValue(obj.mode);
       return [
-        uploadKind ? `Upload: ${uploadKind}` : "Upload initialized",
-        mimeType ? `MIME: ${mimeType}` : null,
+        "Upload session started",
+        uploadKind ? `Mode: ${uploadKind}` : null,
       ]
         .filter(Boolean)
         .join(" • ");
     }
 
     case prismaPkg.CustodyEventType.UPLOAD_COMPLETED: {
-      const multipart = obj.multipart === true ? "Multipart" : "Single file";
+      const multipart = obj.multipart === true;
       const itemCount =
         typeof obj.itemCount === "number" && Number.isFinite(obj.itemCount)
           ? String(obj.itemCount)
           : null;
       const sizeBytes = normalizePublicPayloadValue(obj.sizeBytes);
       return [
-        "Upload completed",
-        multipart,
+        multipart
+          ? "Multipart evidence package completed"
+          : "Single-file upload completed",
         itemCount ? `Items: ${itemCount}` : null,
         sizeBytes ? `Size: ${sizeBytes} bytes` : null,
       ]
@@ -336,6 +381,7 @@ function summarizePublicPayload(
 
 type SafeEvidence = {
   id: string;
+  title: string;
   type: prismaPkg.EvidenceType;
   status: prismaPkg.EvidenceStatus;
   createdAt: string;
@@ -365,6 +411,7 @@ type SafeEvidence = {
 function toSafeEvidence(e: SelectedEvidence): SafeEvidence {
   return {
     id: e.id,
+    title: resolveEvidenceTitle(e.title),
     type: e.type,
     status: e.status,
     createdAt: e.createdAt.toISOString(),
@@ -390,6 +437,13 @@ function toSafeEvidence(e: SelectedEvidence): SafeEvidence {
     caseId: e.caseId ?? null,
     teamId: e.teamId ?? null,
   };
+}
+
+async function getEvidenceItemCount(evidenceId: string): Promise<number> {
+  const count = await prisma.evidencePart.count({
+    where: { evidenceId },
+  });
+  return count > 0 ? count : 1;
 }
 
 async function appendCustodyEvent(params: {
@@ -606,6 +660,49 @@ export async function evidenceRoutes(app: FastifyInstance) {
       throw err;
     }
   });
+
+  app.patch(
+    "/v1/evidence/:id/title",
+    { preHandler: requireAuth },
+    async (req: FastifyRequest, reply) => {
+      const ownerUserId = getAuthUserId(req);
+      const id = z.string().uuid().parse((req.params as ParamsId).id);
+      const body = UpdateEvidenceTitleBody.parse(req.body);
+
+      (req as FastifyRequest & { evidenceId?: string }).evidenceId = id;
+      req.log = req.log.child({ evidenceId: id });
+
+      try {
+        await getEvidenceWithOwnerAccess(ownerUserId, id);
+      } catch (err) {
+        const statusCode =
+          err instanceof Error && "statusCode" in err
+            ? (err as Error & { statusCode?: number }).statusCode ?? 500
+            : 500;
+        const message = err instanceof Error ? err.message : "Unexpected error";
+        return reply.code(statusCode).send({ message });
+      }
+
+      const updated = await prisma.evidence.update({
+        where: { id },
+        data: { title: body.title },
+        select: SAFE_EVIDENCE_SELECT,
+      });
+
+      const itemCount = await getEvidenceItemCount(id);
+
+      return reply.code(200).send({
+        evidence: toSafeEvidence(updated),
+        itemCount,
+        displayTitle: resolveEvidenceTitle(updated.title),
+        displaySubtitle: buildEvidenceSubtitle({
+          itemCount,
+          status: updated.status,
+          createdAt: updated.createdAt,
+        }),
+      });
+    }
+  );
 
   app.post(
     "/v1/evidence/:id/parts",
@@ -1055,6 +1152,7 @@ export async function evidenceRoutes(app: FastifyInstance) {
         take: 50,
         select: {
           id: true,
+          title: true,
           type: true,
           status: true,
           createdAt: true,
@@ -1062,10 +1160,34 @@ export async function evidenceRoutes(app: FastifyInstance) {
           caseId: true,
           teamId: true,
           ownerUserId: true,
+          _count: {
+            select: { parts: true },
+          },
         },
       });
 
-      return reply.code(200).send({ items });
+      return reply.code(200).send({
+        items: items.map((item) => {
+          const itemCount = item._count.parts > 0 ? item._count.parts : 1;
+          return {
+            id: item.id,
+            title: resolveEvidenceTitle(item.title),
+            type: item.type,
+            status: item.status,
+            createdAt: item.createdAt.toISOString(),
+            archivedAt: item.archivedAt ? item.archivedAt.toISOString() : null,
+            caseId: item.caseId,
+            teamId: item.teamId,
+            ownerUserId: item.ownerUserId,
+            itemCount,
+            displaySubtitle: buildEvidenceSubtitle({
+              itemCount,
+              status: item.status,
+              createdAt: item.createdAt,
+            }),
+          };
+        }),
+      });
     }
 
     const memberTeams = await prisma.teamMember.findMany({
@@ -1107,6 +1229,7 @@ export async function evidenceRoutes(app: FastifyInstance) {
       take: 50,
       select: {
         id: true,
+        title: true,
         type: true,
         status: true,
         createdAt: true,
@@ -1114,10 +1237,34 @@ export async function evidenceRoutes(app: FastifyInstance) {
         caseId: true,
         teamId: true,
         ownerUserId: true,
+        _count: {
+          select: { parts: true },
+        },
       },
     });
 
-    return reply.code(200).send({ items });
+    return reply.code(200).send({
+      items: items.map((item) => {
+        const itemCount = item._count.parts > 0 ? item._count.parts : 1;
+        return {
+          id: item.id,
+          title: resolveEvidenceTitle(item.title),
+          type: item.type,
+          status: item.status,
+          createdAt: item.createdAt.toISOString(),
+          archivedAt: item.archivedAt ? item.archivedAt.toISOString() : null,
+          caseId: item.caseId,
+          teamId: item.teamId,
+          ownerUserId: item.ownerUserId,
+          itemCount,
+          displaySubtitle: buildEvidenceSubtitle({
+            itemCount,
+            status: item.status,
+            createdAt: item.createdAt,
+          }),
+        };
+      }),
+    });
   });
 
   app.get("/v1/evidence/:id", { preHandler: requireAuth }, async (req, reply) => {
@@ -1129,7 +1276,20 @@ export async function evidenceRoutes(app: FastifyInstance) {
 
     try {
       const evidence = await getEvidenceWithReadAccess(ownerUserId, id);
-      return reply.code(200).send({ evidence: toJsonSafe(evidence) });
+      const itemCount = await getEvidenceItemCount(id);
+
+      return reply.code(200).send({
+        evidence: toJsonSafe({
+          ...toSafeEvidence(evidence),
+          itemCount,
+          displayTitle: resolveEvidenceTitle(evidence.title),
+          displaySubtitle: buildEvidenceSubtitle({
+            itemCount,
+            status: evidence.status,
+            createdAt: evidence.createdAt,
+          }),
+        }),
+      });
     } catch (err) {
       const statusCode =
         err instanceof Error && "statusCode" in err
@@ -1368,6 +1528,7 @@ export async function evidenceRoutes(app: FastifyInstance) {
       where: { id, deletedAt: null },
       select: {
         id: true,
+        title: true,
         status: true,
         mimeType: true,
         reportGeneratedAtUtc: true,
@@ -1452,6 +1613,7 @@ export async function evidenceRoutes(app: FastifyInstance) {
 
     return reply.code(200).send({
       evidenceId: evidence.id,
+      title: resolveEvidenceTitle(evidence.title),
       status: evidence.status,
       mimeType: evidence.mimeType,
 

@@ -92,6 +92,22 @@ type OriginalResponse = {
   sizeBytes?: string | null;
 };
 
+type EvidenceResponse = {
+  evidence?: {
+    id?: string;
+    title?: string;
+    displayTitle?: string;
+    displaySubtitle?: string;
+    itemCount?: number;
+    status?: string;
+    createdAt?: string | null;
+    type?: string;
+    lockedAt?: string | null;
+    archivedAt?: string | null;
+    caseId?: string | null;
+  };
+};
+
 function getPartDisplayName(part: EvidencePart): string {
   const key = part.storageKey ?? "";
   const rawName = key.split("/").pop()?.trim();
@@ -116,6 +132,22 @@ function getPartDisplayName(part: EvidencePart): string {
   return `item-${part.partIndex + 1}${ext}`;
 }
 
+function resolveDisplayTitle(
+  evidence: EvidenceResponse["evidence"] | undefined
+): string {
+  return (
+    evidence?.displayTitle?.trim() ||
+    evidence?.title?.trim() ||
+    "Digital Evidence Record"
+  );
+}
+
+function resolveDisplaySubtitle(
+  evidence: EvidenceResponse["evidence"] | undefined
+): string {
+  return evidence?.displaySubtitle?.trim() || "";
+}
+
 export default function EvidenceDetailPage() {
   const { t } = useLocale();
   const params = useParams<{ id: string }>();
@@ -131,6 +163,13 @@ export default function EvidenceDetailPage() {
   const [plan, setPlan] = useState<string>("FREE");
   const [caseId, setCaseId] = useState<string | null>(null);
 
+  const [title, setTitle] = useState<string>("Digital Evidence Record");
+  const [displaySubtitle, setDisplaySubtitle] = useState<string>("");
+  const [itemCount, setItemCount] = useState<number>(1);
+  const [isEditingTitle, setIsEditingTitle] = useState(false);
+  const [titleDraft, setTitleDraft] = useState("");
+  const [titleBusy, setTitleBusy] = useState(false);
+
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [actionBusy, setActionBusy] = useState(false);
@@ -142,14 +181,21 @@ export default function EvidenceDetailPage() {
   const [selectedCaseId, setSelectedCaseId] = useState("");
   const [ownedCases, setOwnedCases] = useState<CaseOption[]>([]);
 
-  const [originalPreviewUrl, setOriginalPreviewUrl] = useState<string | null>(null);
-  const [originalDownloadUrl, setOriginalDownloadUrl] = useState<string | null>(null);
+  const [originalPreviewUrl, setOriginalPreviewUrl] = useState<string | null>(
+    null
+  );
+  const [originalDownloadUrl, setOriginalDownloadUrl] = useState<string | null>(
+    null
+  );
   const [originalMimeType, setOriginalMimeType] = useState<string | null>(null);
-  const [originalSizeBytes, setOriginalSizeBytes] = useState<string | null>(null);
+  const [originalSizeBytes, setOriginalSizeBytes] = useState<string | null>(
+    null
+  );
 
   const [parts, setParts] = useState<EvidencePart[]>([]);
   const [partsLoadFailed, setPartsLoadFailed] = useState(false);
-  const [verificationPackageAvailable, setVerificationPackageAvailable] = useState(false);
+  const [verificationPackageAvailable, setVerificationPackageAvailable] =
+    useState(false);
 
   const isMultipart = parts.length > 1;
 
@@ -225,13 +271,22 @@ export default function EvidenceDetailPage() {
         if (cancelled) return;
 
         if (evidenceRes.status === "fulfilled") {
-          const ev = evidenceRes.value?.evidence ?? {};
+          const data = evidenceRes.value as EvidenceResponse;
+          const ev = data?.evidence ?? {};
           setStatus(ev.status ?? "SIGNED");
           setCreatedAt(ev.createdAt ?? null);
           setType(ev.type ?? "EVIDENCE");
           setLockedAt(ev.lockedAt ?? null);
           setArchivedAt(ev.archivedAt ?? null);
           setCaseId(ev.caseId ?? null);
+          setTitle(resolveDisplayTitle(ev));
+          setTitleDraft(resolveDisplayTitle(ev));
+          setDisplaySubtitle(resolveDisplaySubtitle(ev));
+          setItemCount(
+            typeof ev.itemCount === "number" && ev.itemCount > 0
+              ? ev.itemCount
+              : 1
+          );
         } else {
           throw evidenceRes.reason;
         }
@@ -269,7 +324,9 @@ export default function EvidenceDetailPage() {
         }
 
         if (verificationPackageRes.status === "fulfilled") {
-          setVerificationPackageAvailable(Boolean(verificationPackageRes.value?.url));
+          setVerificationPackageAvailable(
+            Boolean(verificationPackageRes.value?.url)
+          );
         } else {
           setVerificationPackageAvailable(false);
         }
@@ -287,7 +344,8 @@ export default function EvidenceDetailPage() {
           setOriginalSizeBytes(null);
         }
       } catch (err) {
-        const message = err instanceof Error ? err.message : "Failed to load evidence";
+        const message =
+          err instanceof Error ? err.message : "Failed to load evidence";
         setError(message);
         captureException(err, {
           feature: "web_evidence_detail_load",
@@ -321,12 +379,20 @@ export default function EvidenceDetailPage() {
         ]);
 
       if (evidenceData.status === "fulfilled") {
-        setStatus(evidenceData.value.evidence?.status ?? "SIGNED");
-        setCreatedAt(evidenceData.value.evidence?.createdAt ?? null);
-        setType(evidenceData.value.evidence?.type ?? "EVIDENCE");
-        setLockedAt(evidenceData.value.evidence?.lockedAt ?? null);
-        setArchivedAt(evidenceData.value.evidence?.archivedAt ?? null);
-        setCaseId(evidenceData.value.evidence?.caseId ?? null);
+        const data = evidenceData.value as EvidenceResponse;
+        const ev = data?.evidence ?? {};
+        setStatus(ev.status ?? "SIGNED");
+        setCreatedAt(ev.createdAt ?? null);
+        setType(ev.type ?? "EVIDENCE");
+        setLockedAt(ev.lockedAt ?? null);
+        setArchivedAt(ev.archivedAt ?? null);
+        setCaseId(ev.caseId ?? null);
+        setTitle(resolveDisplayTitle(ev));
+        setTitleDraft(resolveDisplayTitle(ev));
+        setDisplaySubtitle(resolveDisplaySubtitle(ev));
+        setItemCount(
+          typeof ev.itemCount === "number" && ev.itemCount > 0 ? ev.itemCount : 1
+        );
       }
 
       if (reportData.status === "fulfilled") {
@@ -372,6 +438,60 @@ export default function EvidenceDetailPage() {
     }
   };
 
+  const handleStartEditTitle = () => {
+    setTitleDraft(title);
+    setIsEditingTitle(true);
+  };
+
+  const handleCancelEditTitle = () => {
+    setTitleDraft(title);
+    setIsEditingTitle(false);
+  };
+
+  const handleSaveTitle = async () => {
+    if (!params?.id) return;
+
+    const nextTitle = titleDraft.trim();
+    if (!nextTitle) {
+      addToast("Title cannot be empty", "error");
+      return;
+    }
+
+    setTitleBusy(true);
+    try {
+      const data = await apiFetch(`/v1/evidence/${params.id}/title`, {
+        method: "PATCH",
+        body: JSON.stringify({ title: nextTitle }),
+      });
+
+      const ev = data?.evidence ?? {};
+      const nextResolvedTitle = data?.displayTitle || resolveDisplayTitle(ev);
+      const nextResolvedSubtitle =
+        data?.displaySubtitle || resolveDisplaySubtitle(ev);
+
+      setTitle(nextResolvedTitle);
+      setTitleDraft(nextResolvedTitle);
+      setDisplaySubtitle(nextResolvedSubtitle);
+      setItemCount(
+        typeof data?.itemCount === "number" && data.itemCount > 0
+          ? data.itemCount
+          : itemCount
+      );
+      setIsEditingTitle(false);
+      addToast("Evidence title updated", "success");
+    } catch (err) {
+      captureException(err, {
+        feature: "web_evidence_update_title",
+        evidenceId: params.id,
+      });
+      const message =
+        err instanceof Error ? err.message : "Failed to update title";
+      addToast(message, "error");
+    } finally {
+      setTitleBusy(false);
+    }
+  };
+
   const handleLock = () => {
     setLockModalOpen(true);
   };
@@ -389,41 +509,14 @@ export default function EvidenceDetailPage() {
       setLockedAt(data.evidence?.lockedAt ?? new Date().toISOString());
       addToast("Evidence permanently locked", "success");
       setLockModalOpen(false);
+      await refreshEvidence();
     } catch (err) {
       captureException(err, {
         feature: "web_evidence_lock",
         evidenceId: params.id,
       });
-      const message = err instanceof Error ? err.message : "Failed to lock evidence";
-      setError(message);
-      addToast(message, "error");
-    } finally {
-      setActionBusy(false);
-    }
-  };
-
-  const handleDelete = async () => {
-    if (!params?.id) return;
-    if (lockedAt) {
-      addToast("Cannot delete locked evidence", "error");
-      return;
-    }
-    if (!window.confirm("Delete this evidence? This cannot be undone.")) return;
-
-    setActionBusy(true);
-    try {
-      addToast("Deleting evidence...", "info");
-      await apiFetch(`/v1/evidence/${params.id}`, { method: "DELETE" });
-      addToast("Evidence deleted", "success");
-      setTimeout(() => {
-        window.location.href = "/home";
-      }, 500);
-    } catch (err) {
-      captureException(err, {
-        feature: "web_evidence_delete",
-        evidenceId: params.id,
-      });
-      const message = err instanceof Error ? err.message : "Failed to delete evidence";
+      const message =
+        err instanceof Error ? err.message : "Failed to lock evidence";
       setError(message);
       addToast(message, "error");
     } finally {
@@ -448,12 +541,14 @@ export default function EvidenceDetailPage() {
       setArchivedAt(data.evidence?.archivedAt ?? new Date().toISOString());
       addToast("Evidence archived", "success");
       setArchiveModalOpen(false);
+      await refreshEvidence();
     } catch (err) {
       captureException(err, {
         feature: "web_evidence_archive",
         evidenceId: params.id,
       });
-      const message = err instanceof Error ? err.message : "Failed to archive evidence";
+      const message =
+        err instanceof Error ? err.message : "Failed to archive evidence";
       setError(message);
       addToast(message, "error");
     } finally {
@@ -473,12 +568,14 @@ export default function EvidenceDetailPage() {
       });
       setArchivedAt(data.evidence?.archivedAt ?? null);
       addToast("Evidence restored", "success");
+      await refreshEvidence();
     } catch (err) {
       captureException(err, {
         feature: "web_evidence_unarchive",
         evidenceId: params.id,
       });
-      const message = err instanceof Error ? err.message : "Failed to restore evidence";
+      const message =
+        err instanceof Error ? err.message : "Failed to restore evidence";
       setError(message);
       addToast(message, "error");
     } finally {
@@ -516,7 +613,9 @@ export default function EvidenceDetailPage() {
 
     try {
       addToast("Preparing verification package...", "info");
-      const data = await apiFetch(`/v1/evidence/${params.id}/verification-package`);
+      const data = await apiFetch(
+        `/v1/evidence/${params.id}/verification-package`
+      );
 
       if (!data?.url) {
         addToast("Verification package not available", "info");
@@ -647,7 +746,8 @@ export default function EvidenceDetailPage() {
         evidenceId: params.id,
         targetCaseId: selectedCaseId,
       });
-      const message = err instanceof Error ? err.message : "Failed to add evidence to case";
+      const message =
+        err instanceof Error ? err.message : "Failed to add evidence to case";
       addToast(message, "error");
     } finally {
       setActionBusy(false);
@@ -674,7 +774,10 @@ export default function EvidenceDetailPage() {
         evidenceId: params.id,
         caseId,
       });
-      const message = err instanceof Error ? err.message : "Failed to remove evidence from case";
+      const message =
+        err instanceof Error
+          ? err.message
+          : "Failed to remove evidence from case";
       addToast(message, "error");
     } finally {
       setActionBusy(false);
@@ -686,12 +789,78 @@ export default function EvidenceDetailPage() {
       <div className="app-hero app-hero-full">
         <div className="container">
           <div className="page-title" style={{ marginBottom: 0 }}>
-            <div>
-              <h1 className="hero-title pricing-hero-title" style={{ margin: 0 }}>
-                Evidence #{evidenceId}
-              </h1>
-              <p className="page-subtitle pricing-subtitle" style={{ marginTop: 6 }}>
-                {type}
+            <div style={{ width: "100%" }}>
+              {!isEditingTitle ? (
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 12,
+                    flexWrap: "wrap",
+                  }}
+                >
+                  <h1
+                    className="hero-title pricing-hero-title"
+                    style={{ margin: 0 }}
+                  >
+                    {title}
+                  </h1>
+
+                  <Button
+                    variant="secondary"
+                    onClick={handleStartEditTitle}
+                    disabled={loading || actionBusy || titleBusy}
+                  >
+                    Rename
+                  </Button>
+                </div>
+              ) : (
+                <div
+                  style={{
+                    display: "flex",
+                    gap: 10,
+                    flexWrap: "wrap",
+                    alignItems: "center",
+                  }}
+                >
+                  <input
+                    value={titleDraft}
+                    onChange={(e) => setTitleDraft(e.target.value)}
+                    maxLength={160}
+                    disabled={titleBusy}
+                    style={{
+                      minWidth: 320,
+                      maxWidth: "100%",
+                      flex: "1 1 420px",
+                      padding: "12px 14px",
+                      borderRadius: 12,
+                      border: "1px solid rgba(148,163,184,0.25)",
+                      background: "rgba(15, 23, 42, 0.45)",
+                      color: "#e2e8f0",
+                      fontSize: 16,
+                      fontWeight: 700,
+                    }}
+                  />
+
+                  <Button onClick={handleSaveTitle} disabled={titleBusy}>
+                    {titleBusy ? "Saving..." : "Save"}
+                  </Button>
+
+                  <Button
+                    variant="secondary"
+                    onClick={handleCancelEditTitle}
+                    disabled={titleBusy}
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              )}
+
+              <p
+                className="page-subtitle pricing-subtitle"
+                style={{ marginTop: 8 }}
+              >
+                {displaySubtitle || `${itemCount} item${itemCount === 1 ? "" : "s"}`}
               </p>
             </div>
           </div>
@@ -718,12 +887,14 @@ export default function EvidenceDetailPage() {
                 </div>
 
                 <div style={{ flex: 1 }}>
-                  <div style={{ fontWeight: 800, fontSize: 14 }}>{type}</div>
+                  <div style={{ fontWeight: 800, fontSize: 14 }}>{title}</div>
                   <div style={{ marginTop: 6 }}>
                     {status === "SIGNED" ? (
                       <span className="badge signed">{t("statusSigned")}</span>
                     ) : status === "PROCESSING" ? (
-                      <span className="badge processing">{t("statusProcessing")}</span>
+                      <span className="badge processing">
+                        {t("statusProcessing")}
+                      </span>
                     ) : status === "REPORTED" ? (
                       <span className="badge ready">REPORTED</span>
                     ) : (
@@ -731,7 +902,10 @@ export default function EvidenceDetailPage() {
                     )}
                   </div>
                   <div style={{ fontSize: 12, opacity: 0.85, marginTop: 8 }}>
-                    {createdAt ? `Created ${new Date(createdAt).toLocaleString()}` : "—"}
+                    {displaySubtitle ||
+                      (createdAt
+                        ? `Created ${new Date(createdAt).toLocaleString()}`
+                        : "—")}
                   </div>
                 </div>
               </div>
@@ -749,7 +923,9 @@ export default function EvidenceDetailPage() {
                         {status === "SIGNED" ? (
                           <span className="badge signed">{t("statusSigned")}</span>
                         ) : status === "PROCESSING" ? (
-                          <span className="badge processing">{t("statusProcessing")}</span>
+                          <span className="badge processing">
+                            {t("statusProcessing")}
+                          </span>
                         ) : status === "REPORTED" ? (
                           <span className="badge ready">REPORTED</span>
                         ) : (
@@ -769,12 +945,24 @@ export default function EvidenceDetailPage() {
                         }}
                       >
                         {lockedAt && (
-                          <span style={{ fontSize: 14, fontWeight: 700, color: "#65ebff" }}>
+                          <span
+                            style={{
+                              fontSize: 14,
+                              fontWeight: 700,
+                              color: "#65ebff",
+                            }}
+                          >
                             Evidence Locked
                           </span>
                         )}
                         {archivedAt && (
-                          <span style={{ fontSize: 14, fontWeight: 600, color: "#94a3b8" }}>
+                          <span
+                            style={{
+                              fontSize: 14,
+                              fontWeight: 600,
+                              color: "#94a3b8",
+                            }}
+                          >
                             Archived
                           </span>
                         )}
@@ -803,28 +991,64 @@ export default function EvidenceDetailPage() {
                     {isMultipart && (
                       <div className="row">
                         <div className="rowTitle evidence-meta-label">Contents</div>
-                        <div className="rowSub" style={{ margin: 0, textAlign: "right" }}>
-                          {partTypeSummary.imageCount > 0 && <div>{partTypeSummary.imageCount} image(s)</div>}
-                          {partTypeSummary.videoCount > 0 && <div>{partTypeSummary.videoCount} video(s)</div>}
-                          {partTypeSummary.audioCount > 0 && <div>{partTypeSummary.audioCount} audio item(s)</div>}
-                          {partTypeSummary.pdfCount > 0 && <div>{partTypeSummary.pdfCount} pdf/document(s)</div>}
-                          {partTypeSummary.otherCount > 0 && <div>{partTypeSummary.otherCount} other item(s)</div>}
+                        <div
+                          className="rowSub"
+                          style={{ margin: 0, textAlign: "right" }}
+                        >
+                          {partTypeSummary.imageCount > 0 && (
+                            <div>{partTypeSummary.imageCount} image(s)</div>
+                          )}
+                          {partTypeSummary.videoCount > 0 && (
+                            <div>{partTypeSummary.videoCount} video(s)</div>
+                          )}
+                          {partTypeSummary.audioCount > 0 && (
+                            <div>{partTypeSummary.audioCount} audio item(s)</div>
+                          )}
+                          {partTypeSummary.pdfCount > 0 && (
+                            <div>{partTypeSummary.pdfCount} pdf/document(s)</div>
+                          )}
+                          {partTypeSummary.otherCount > 0 && (
+                            <div>{partTypeSummary.otherCount} other item(s)</div>
+                          )}
                         </div>
                       </div>
                     )}
 
                     {lockedAt && (
-                      <div className="row" style={{ borderTop: "1px solid rgba(101, 235, 255, 0.15)" }}>
-                        <div style={{ fontSize: 13, color: "#cbd5e1", lineHeight: 1.5 }}>
-                          This evidence is permanently sealed and cannot be modified or deleted.
+                      <div
+                        className="row"
+                        style={{
+                          borderTop: "1px solid rgba(101, 235, 255, 0.15)",
+                        }}
+                      >
+                        <div
+                          style={{
+                            fontSize: 13,
+                            color: "#cbd5e1",
+                            lineHeight: 1.5,
+                          }}
+                        >
+                          This evidence is permanently sealed and cannot be modified.
                         </div>
                       </div>
                     )}
 
                     {archivedAt && (
-                      <div className="row" style={{ borderTop: "1px solid rgba(148, 163, 184, 0.15)" }}>
-                        <div style={{ fontSize: 13, color: "#cbd5e1", lineHeight: 1.5 }}>
-                          This evidence has been archived and removed from your active workspace.
+                      <div
+                        className="row"
+                        style={{
+                          borderTop: "1px solid rgba(148, 163, 184, 0.15)",
+                        }}
+                      >
+                        <div
+                          style={{
+                            fontSize: 13,
+                            color: "#cbd5e1",
+                            lineHeight: 1.5,
+                          }}
+                        >
+                          This evidence has been archived and removed from your
+                          active workspace.
                         </div>
                       </div>
                     )}
@@ -844,7 +1068,10 @@ export default function EvidenceDetailPage() {
               <div style={{ fontWeight: 800, marginBottom: 12 }}>Actions</div>
 
               <div className="footer-actions">
-                <Button onClick={handleDownloadReport} disabled={actionBusy || plan === "FREE"}>
+                <Button
+                  onClick={handleDownloadReport}
+                  disabled={actionBusy || plan === "FREE"}
+                >
                   {t("downloadReport")}
                 </Button>
 
@@ -905,8 +1132,10 @@ export default function EvidenceDetailPage() {
                 </Button>
 
                 {lockedAt && (
-                  <div style={{ fontSize: 12, color: "#94a3b8", padding: "8px 0" }}>
-                    ✓ This evidence is legally sealed and cannot be edited or deleted.
+                  <div
+                    style={{ fontSize: 12, color: "#94a3b8", padding: "8px 0" }}
+                  >
+                    ✓ This evidence is legally sealed and cannot be edited.
                   </div>
                 )}
 
@@ -919,8 +1148,11 @@ export default function EvidenceDetailPage() {
                     >
                       Restore Evidence
                     </Button>
-                    <div style={{ fontSize: 12, color: "#94a3b8", padding: "8px 0" }}>
-                      This evidence is archived. Click restore to bring it back to your active workspace.
+                    <div
+                      style={{ fontSize: 12, color: "#94a3b8", padding: "8px 0" }}
+                    >
+                      This evidence is archived. Click restore to bring it back to
+                      your active workspace.
                     </div>
                   </>
                 ) : (
@@ -932,26 +1164,13 @@ export default function EvidenceDetailPage() {
                     >
                       Archive Evidence
                     </Button>
-                    <div style={{ fontSize: 12, color: "#64748b", padding: "8px 0" }}>
-                      {lockedAt
-                        ? "You can archive this evidence as an alternative to deletion."
-                        : "Archive this evidence to remove it from your active workspace."}
+                    <div
+                      style={{ fontSize: 12, color: "#64748b", padding: "8px 0" }}
+                    >
+                      Archive this evidence to remove it from your active
+                      workspace.
                     </div>
                   </>
-                )}
-
-                <Button
-                  variant="secondary"
-                  onClick={handleDelete}
-                  disabled={actionBusy || Boolean(lockedAt)}
-                >
-                  Delete Evidence
-                </Button>
-
-                {lockedAt && (
-                  <div style={{ fontSize: 12, color: "#ef4444", padding: "8px 0" }}>
-                    This evidence is locked and cannot be deleted. Archive it instead.
-                  </div>
                 )}
               </div>
             </Card>
@@ -980,8 +1199,9 @@ export default function EvidenceDetailPage() {
                       lineHeight: 1.6,
                     }}
                   >
-                    This evidence contains <strong>{sortedParts.length}</strong> items.
-                    Each item below can be previewed and downloaded separately.
+                    This evidence contains <strong>{sortedParts.length}</strong>{" "}
+                    items. Each item below can be previewed and downloaded
+                    separately.
                   </div>
 
                   <div
@@ -1022,7 +1242,13 @@ export default function EvidenceDetailPage() {
                                 Item {part.partIndex + 1}
                                 {part.isPrimary ? " (Primary)" : ""}
                               </div>
-                              <div style={{ fontSize: 13, color: "#94a3b8", marginTop: 4 }}>
+                              <div
+                                style={{
+                                  fontSize: 13,
+                                  color: "#94a3b8",
+                                  marginTop: 4,
+                                }}
+                              >
                                 {displayName}
                               </div>
                             </div>
@@ -1160,8 +1386,8 @@ export default function EvidenceDetailPage() {
                                 lineHeight: 1.6,
                               }}
                             >
-                              Preview is not available inside the page for this file type.
-                              Use Open or Download.
+                              Preview is not available inside the page for this
+                              file type. Use Open or Download.
                             </div>
                           )}
                         </div>
@@ -1187,9 +1413,13 @@ export default function EvidenceDetailPage() {
                 </>
               ) : (
                 <>
-                  <div style={{ fontSize: 13, color: "#64748b", marginBottom: 14 }}>
+                  <div
+                    style={{ fontSize: 13, color: "#64748b", marginBottom: 14 }}
+                  >
                     {originalMimeType && <div>Type: {originalMimeType}</div>}
-                    {originalSizeBytes && <div>Size: {formatBytes(originalSizeBytes)}</div>}
+                    {originalSizeBytes && (
+                      <div>Size: {formatBytes(originalSizeBytes)}</div>
+                    )}
                   </div>
 
                   <div
@@ -1293,24 +1523,26 @@ export default function EvidenceDetailPage() {
                     </div>
                   )}
 
-                  {!originalPreviewUrl && (originalKind === "text" || originalKind === "other") && (
-                    <div
-                      style={{
-                        marginBottom: 12,
-                        padding: 16,
-                        borderRadius: 12,
-                        background: "rgba(15,23,42,0.35)",
-                        color: "#cbd5e1",
-                        fontSize: 14,
-                        lineHeight: 1.6,
-                      }}
-                    >
-                      <div style={{ marginBottom: 8 }}>
-                        Preview is not available for this file type inside the page.
+                  {!originalPreviewUrl &&
+                    (originalKind === "text" || originalKind === "other") && (
+                      <div
+                        style={{
+                          marginBottom: 12,
+                          padding: 16,
+                          borderRadius: 12,
+                          background: "rgba(15,23,42,0.35)",
+                          color: "#cbd5e1",
+                          fontSize: 14,
+                          lineHeight: 1.6,
+                        }}
+                      >
+                        <div style={{ marginBottom: 8 }}>
+                          Preview is not available for this file type inside the
+                          page.
+                        </div>
+                        <div>Use Open Original or Download Original.</div>
                       </div>
-                      <div>Use Open Original or Download Original.</div>
-                    </div>
-                  )}
+                    )}
 
                   {!originalPreviewUrl && !originalDownloadUrl && (
                     <div
@@ -1323,7 +1555,8 @@ export default function EvidenceDetailPage() {
                         lineHeight: 1.6,
                       }}
                     >
-                      Original file is not available for preview or download at this time.
+                      Original file is not available for preview or download at
+                      this time.
                     </div>
                   )}
                 </>
@@ -1411,7 +1644,6 @@ export default function EvidenceDetailPage() {
           <p style={{ marginBottom: 16 }}>Once locked:</p>
           <ul style={{ marginLeft: 20, marginBottom: 16, color: "#cbd5e1" }}>
             <li style={{ marginBottom: 8 }}>• The evidence cannot be edited</li>
-            <li style={{ marginBottom: 8 }}>• It cannot be deleted</li>
             <li>• It becomes legally sealed</li>
           </ul>
           <p style={{ marginTop: 16, fontWeight: 600, color: "#f87171" }}>

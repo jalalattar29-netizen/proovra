@@ -8,6 +8,7 @@ datasource db {
 
 model Evidence {
   id                       String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  title                    String?        @db.VarChar(160)
   type                     EvidenceType
   status                   EvidenceStatus @default(CREATED)
   ownerUserId              String         @map("owner_user_id")

@@ -1,23 +1,42 @@
-// D:\digital-witness\apps\web\app\(app)\home\page.tsx
 "use client";
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Badge, Button, Card, ListRow, useToast, EmptyState, Skeleton } from "../../../components/ui";
+import {
+  Badge,
+  Button,
+  Card,
+  ListRow,
+  useToast,
+  EmptyState,
+  Skeleton,
+} from "../../../components/ui";
 import { useLocale } from "../../providers";
 import { apiFetch } from "../../../lib/api";
 import { captureException } from "../../../lib/sentry";
+
+type HomeEvidenceItem = {
+  id: string;
+  title: string;
+  type: string;
+  status: string;
+  createdAt: string;
+  itemCount: number;
+  displaySubtitle: string;
+};
 
 export default function HomePage() {
   const { t } = useLocale();
   const { addToast } = useToast();
 
-  const [items, setItems] = useState<Array<{ id: string; type: string; status: string; createdAt: string }>>([]);
+  const [items, setItems] = useState<HomeEvidenceItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const isUuid = (value: string) =>
-    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+      value
+    );
 
   useEffect(() => {
     setLoading(true);
@@ -26,7 +45,9 @@ export default function HomePage() {
     apiFetch("/v1/evidence")
       .then((data) => {
         setItems(data.items ?? []);
-        if (data.items && data.items.length > 0) addToast(`Loaded ${data.items.length} evidence item(s)`, "success");
+        if (data.items && data.items.length > 0) {
+          addToast(`Loaded ${data.items.length} evidence item(s)`, "success");
+        }
       })
       .catch((err) => {
         const errorMessage = err?.message || "Failed to load evidence";
@@ -35,18 +56,27 @@ export default function HomePage() {
         addToast(errorMessage, "error");
       })
       .finally(() => setLoading(false));
-  }, []);
+  }, [addToast]);
 
   return (
     <div className="section app-section">
       <div className="app-hero app-hero-full">
         <div className="container">
-          <div className="page-title app-page-title" style={{ alignItems: "center", marginBottom: 0 }}>
+          <div
+            className="page-title app-page-title"
+            style={{ alignItems: "center", marginBottom: 0 }}
+          >
             <div>
-              <h1 className="hero-title pricing-hero-title" style={{ margin: 0 }}>
+              <h1
+                className="hero-title pricing-hero-title"
+                style={{ margin: 0 }}
+              >
                 {t("home")}
               </h1>
-              <p className="page-subtitle pricing-subtitle" style={{ marginTop: 6 }}>
+              <p
+                className="page-subtitle pricing-subtitle"
+                style={{ marginTop: 6 }}
+              >
                 {t("bullets")}
               </p>
             </div>
@@ -87,13 +117,15 @@ export default function HomePage() {
                   items.map((item) => {
                     const row = (
                       <ListRow
-                        title={item.type}
-                        subtitle={new Date(item.createdAt).toLocaleString()}
+                        title={item.title || "Digital Evidence Record"}
+                        subtitle={item.displaySubtitle}
                         badge={
                           item.status === "SIGNED" ? (
                             <Badge tone="signed">{t("statusSigned")}</Badge>
                           ) : item.status === "PROCESSING" ? (
-                            <Badge tone="processing">{t("statusProcessing")}</Badge>
+                            <Badge tone="processing">
+                              {t("statusProcessing")}
+                            </Badge>
                           ) : (
                             <Badge tone="ready">{t("statusReady")}</Badge>
                           )
@@ -118,19 +150,30 @@ export default function HomePage() {
 
               <div className="app-actions-grid">
                 <Link href="/capture">
-                  <Button className="navy-btn action-btn" onClick={() => addToast("Opening capture...", "info")}>
+                  <Button
+                    className="navy-btn action-btn"
+                    onClick={() => addToast("Opening capture...", "info")}
+                  >
                     New Capture
                   </Button>
                 </Link>
 
                 <Link href="/cases">
-                  <Button variant="secondary" className="navy-btn action-btn" onClick={() => addToast("Loading cases...", "info")}>
+                  <Button
+                    variant="secondary"
+                    className="navy-btn action-btn"
+                    onClick={() => addToast("Loading cases...", "info")}
+                  >
                     View Cases
                   </Button>
                 </Link>
 
                 <Link href="/settings">
-                  <Button variant="secondary" className="navy-btn action-btn" onClick={() => addToast("Opening settings...", "info")}>
+                  <Button
+                    variant="secondary"
+                    className="navy-btn action-btn"
+                    onClick={() => addToast("Opening settings...", "info")}
+                  >
                     Manage Settings
                   </Button>
                 </Link>
@@ -139,8 +182,12 @@ export default function HomePage() {
               <div className="status-banner" style={{ marginTop: 18 }}>
                 <div className="status-badge">✓</div>
                 <div>
-                  <div style={{ fontWeight: 700 }}>Trusted chain of custody</div>
-                  <div style={{ fontSize: 12, opacity: 0.85 }}>Capture → Sign → Report → Share</div>
+                  <div style={{ fontWeight: 700 }}>
+                    Trusted chain of custody
+                  </div>
+                  <div style={{ fontSize: 12, opacity: 0.85 }}>
+                    Capture → Sign → Report → Share
+                  </div>
                 </div>
               </div>
             </Card>
