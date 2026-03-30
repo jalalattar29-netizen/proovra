@@ -74,10 +74,15 @@ function normalizeMetadata(
   return Object.keys(out).length > 0 ? out : undefined;
 }
 
+function isObjectTaggingEnabled(): boolean {
+  return clean(process.env.S3_ENABLE_OBJECT_TAGGING)?.toLowerCase() === "true";
+}
+
 function normalizeTagging(
   tags?: Record<string, string | null | undefined>
 ): string | undefined {
   if (!tags) return undefined;
+  if (!isObjectTaggingEnabled()) return undefined;
 
   const parts: string[] = [];
 
@@ -99,13 +104,16 @@ function parsePositiveInt(value: string | null | undefined): number | null {
   return parsed;
 }
 
+function isObjectLockEnabled(): boolean {
+  return clean(process.env.S3_OBJECT_LOCK_ENABLED)?.toLowerCase() === "true";
+}
+
 function readObjectLockDefaults(): {
   mode?: ObjectLockMode;
   retainUntilDate?: Date;
   legalHold?: ObjectLockLegalHoldStatus;
 } {
-  const enabled = clean(process.env.S3_OBJECT_LOCK_ENABLED)?.toLowerCase() === "true";
-  if (!enabled) {
+  if (!isObjectLockEnabled()) {
     return {};
   }
 
@@ -182,7 +190,8 @@ export async function putObjectBuffer(params: {
   const metadata = normalizeMetadata(params.metadata);
   const tagging = normalizeTagging(params.tags);
 
-  const objectLock = params.immutable ? readObjectLockDefaults() : {};
+  const objectLock =
+    params.immutable && isObjectLockEnabled() ? readObjectLockDefaults() : {};
 
   await s3.send(
     new PutObjectCommand({
@@ -192,10 +201,14 @@ export async function putObjectBuffer(params: {
       ContentType: normalizeContentType(params.contentType),
       ContentLength: params.body.length,
       Metadata: metadata,
-      Tagging: tagging,
-      ObjectLockMode: objectLock.mode,
-      ObjectLockRetainUntilDate: objectLock.retainUntilDate,
-      ObjectLockLegalHoldStatus: objectLock.legalHold,
+      ...(tagging ? { Tagging: tagging } : {}),
+      ...(objectLock.mode ? { ObjectLockMode: objectLock.mode } : {}),
+      ...(objectLock.retainUntilDate
+        ? { ObjectLockRetainUntilDate: objectLock.retainUntilDate }
+        : {}),
+      ...(objectLock.legalHold
+        ? { ObjectLockLegalHoldStatus: objectLock.legalHold }
+        : {}),
     })
   );
 }
