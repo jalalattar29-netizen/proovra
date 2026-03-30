@@ -2,6 +2,7 @@ import type { Job } from "bullmq";
 import type { Readable } from "node:stream";
 import * as prismaPkg from "@prisma/client";
 import type { Prisma } from "@prisma/client";
+import { appendCustodyEventTx } from "./custody-events.js";
 import { prisma } from "./db.js";
 import { env } from "./config.js";
 import { logger, withJobContext } from "./logger.js";
@@ -38,6 +39,18 @@ type PreparedReportArtifacts = {
   version: number;
   now: Date;
   evidenceId: string;
+  anchorPayload: AnchorPayload;
+};
+
+type AnchorPayload = {
+  version: 1;
+  evidenceId: string;
+  reportVersion: number;
+  fileSha256: string;
+  fingerprintHash: string;
+  lastEventHash: string | null;
+  anchorHash: string;
+  generatedAtUtc: string;
 };
 
 function envValue(name: string, fallback?: string): string {
@@ -202,9 +215,15 @@ function summarizePayloadForReport(
 
     case "REPORT_GENERATED": {
       const reportVersion = normalizePayloadPrimitive(obj.reportVersion);
-      return reportVersion
-        ? `Verification report generated • Version: ${reportVersion}`
-        : "Verification report generated.";
+      const anchorHash = shortHash(normalizePayloadPrimitive(obj.anchorHash));
+      return [
+        reportVersion
+          ? `Verification report generated • Version: ${reportVersion}`
+          : "Verification report generated.",
+        anchorHash ? `Anchor: ${anchorHash}` : null,
+      ]
+        .filter(Boolean)
+        .join(" • ");
     }
 
     case "REPORT_DOWNLOADED": {
@@ -331,6 +350,35 @@ function basenameFromStorageKey(
   const parts = raw.split("/");
   const base = parts[parts.length - 1]?.trim();
   return base || fallback;
+}
+
+function buildAnchorPayload(params: {
+  evidenceId: string;
+  reportVersion: number;
+  fileSha256: string;
+  fingerprintHash: string;
+  lastEventHash: string | null;
+  generatedAtUtc: string;
+}): AnchorPayload {
+  const anchorHash = createHash("sha256")
+    .update(
+      [
+        params.fingerprintHash.trim().toLowerCase(),
+        (params.lastEventHash ?? "").trim().toLowerCase(),
+      ].join("|")
+    )
+    .digest("hex");
+
+  return {
+    version: 1,
+    evidenceId: params.evidenceId,
+    reportVersion: params.reportVersion,
+    fileSha256: params.fileSha256,
+    fingerprintHash: params.fingerprintHash,
+    lastEventHash: params.lastEventHash,
+    anchorHash,
+    generatedAtUtc: params.generatedAtUtc,
+  };
 }
 
 const { EvidenceStatus } = prismaPkg;
@@ -482,6 +530,7 @@ async function prepareReportArtifacts(
       atUtc: true,
       eventType: true,
       payload: true,
+      eventHash: true,
     },
   });
 
@@ -510,6 +559,19 @@ async function prepareReportArtifacts(
   const publicUrl = storageKey ? buildPublicUrl(storageKey) : null;
   const evidenceDetailUrl = buildEvidenceDetailUrl(evidence.id);
   const verifyUrl = buildVerifyUrl(evidence.id);
+  const lastEventHash =
+    custodyEvents.length > 0
+      ? custodyEvents[custodyEvents.length - 1]?.eventHash ?? null
+      : null;
+
+  const anchorPayload = buildAnchorPayload({
+    evidenceId: evidence.id,
+    reportVersion: provisionalVersion,
+    fileSha256,
+    fingerprintHash,
+    lastEventHash,
+    generatedAtUtc: now.toISOString(),
+  });
 
   const reportGeneratedEventSequence =
     (custodyEvents[custodyEvents.length - 1]?.sequence ?? 0) + 1;
@@ -529,6 +591,7 @@ async function prepareReportArtifacts(
         phase: "report_generated",
         reportVersion: provisionalVersion,
         generatedAtUtc: now.toISOString(),
+        anchorHash: anchorPayload.anchorHash,
       }),
     },
   ];
@@ -539,6 +602,7 @@ async function prepareReportArtifacts(
       atUtc: ev.atUtc.toISOString(),
       eventType: ev.eventType,
       payload: ev.payload,
+      eventHash: ev.eventHash ?? null,
     })),
     {
       sequence: reportGeneratedEventSequence,
@@ -548,7 +612,9 @@ async function prepareReportArtifacts(
         phase: "report_generated",
         reportVersion: provisionalVersion,
         generatedAtUtc: now.toISOString(),
+        anchorHash: anchorPayload.anchorHash,
       } as Prisma.InputJsonValue,
+      eventHash: null,
     },
   ];
 
@@ -611,6 +677,7 @@ async function prepareReportArtifacts(
         reportVersion: provisionalVersion,
         signingKeyId,
         signingKeyVersion,
+        anchor: anchorPayload,
       });
     } catch (verificationError) {
       captureException(verificationError, {
@@ -636,6 +703,7 @@ async function prepareReportArtifacts(
     version: provisionalVersion,
     now,
     evidenceId: evidence.id,
+    anchorPayload,
   };
 }
 
@@ -729,6 +797,18 @@ export async function processGenerateReport(job: Job<GenerateReportJobData>) {
           key: prepared.reportKey,
           body: prepared.reportPdf,
           contentType: "application/pdf",
+          immutable: true,
+          metadata: {
+            evidence_id: prepared.evidenceId,
+            report_version: String(prepared.version),
+            anchor_hash: prepared.anchorPayload.anchorHash,
+            artifact_type: "report_pdf",
+          },
+          tags: {
+            artifact: "report",
+            evidenceId: prepared.evidenceId,
+            immutable: "true",
+          },
         });
 
         await tx.report.create({
@@ -741,26 +821,17 @@ export async function processGenerateReport(job: Job<GenerateReportJobData>) {
           },
         });
 
-        const lastCustody = await tx.custodyEvent.findFirst({
-          where: { evidenceId: prepared.evidenceId },
-          orderBy: { sequence: "desc" },
-          select: { sequence: true },
-        });
-
-        const nextSequence = (lastCustody?.sequence ?? 0) + 1;
-
-        await tx.custodyEvent.create({
-          data: {
-            evidenceId: prepared.evidenceId,
-            eventType: "REPORT_GENERATED" as prismaPkg.CustodyEventType,
-            atUtc: prepared.now,
-            sequence: nextSequence,
-            payload: {
-              phase: "report_generated",
-              reportVersion: prepared.version,
-              generatedAtUtc: prepared.now.toISOString(),
-            } as Prisma.InputJsonValue,
-          },
+        await appendCustodyEventTx(tx, {
+          evidenceId: prepared.evidenceId,
+          eventType: prismaPkg.CustodyEventType.REPORT_GENERATED,
+          atUtc: prepared.now,
+          payload: {
+            phase: "report_generated",
+            reportVersion: prepared.version,
+            generatedAtUtc: prepared.now.toISOString(),
+            anchorHash: prepared.anchorPayload.anchorHash,
+            anchorVersion: prepared.anchorPayload.version,
+          } as Prisma.InputJsonValue,
         });
 
         await tx.evidence.update({
@@ -790,6 +861,18 @@ export async function processGenerateReport(job: Job<GenerateReportJobData>) {
           key: prepared.verificationKey,
           body: prepared.verificationZip,
           contentType: "application/zip",
+          immutable: true,
+          metadata: {
+            evidence_id: prepared.evidenceId,
+            report_version: String(prepared.version),
+            anchor_hash: prepared.anchorPayload.anchorHash,
+            artifact_type: "verification_package",
+          },
+          tags: {
+            artifact: "verification-package",
+            evidenceId: prepared.evidenceId,
+            immutable: "true",
+          },
         });
       } catch (verificationError) {
         captureException(verificationError, {
@@ -818,14 +901,17 @@ export async function processGenerateReport(job: Job<GenerateReportJobData>) {
     const durationMs = Date.now() - start;
 
     logger.info(
-      withJobContext({
-        requestId,
-        jobId: job.id,
-        evidenceId,
-        attempt: job.attemptsMade + 1,
-        durationMs,
-        status: finalized.skipped ? "already_completed" : "completed",
-      }),
+      {
+        ...withJobContext({
+          requestId,
+          jobId: job.id,
+          evidenceId,
+          attempt: job.attemptsMade + 1,
+          durationMs,
+          status: finalized.skipped ? "already_completed" : "completed",
+        }),
+        anchorHash: prepared.anchorPayload.anchorHash,
+      },
       finalized.skipped
         ? "GenerateReportJob skipped because report already exists"
         : "GenerateReportJob completed"

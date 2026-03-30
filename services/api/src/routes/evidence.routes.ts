@@ -13,6 +13,15 @@ import {
 } from "../storage.js";
 import { verifyJwt } from "../services/jwt.js";
 import { enforceRateLimit } from "../services/rate-limit.js";
+import {
+  appendCustodyEvent,
+  evaluateCustodyChain,
+  isAccessCustodyEventType,
+} from "../services/custody-events.service.js";
+import {
+  ed25519VerifyHexSignature,
+  sha256Hex,
+} from "../crypto.js";
 
 const EvidenceTypeSchema = prismaPkg.EvidenceType
   ? z.nativeEnum(prismaPkg.EvidenceType)
@@ -89,6 +98,14 @@ type SelectedEvidence = prismaPkg.Prisma.EvidenceGetPayload<{
   select: typeof SAFE_EVIDENCE_SELECT;
 }>;
 
+function readPositiveIntEnv(name: string, fallback: number): number {
+  const raw = process.env[name]?.trim();
+  if (!raw) return fallback;
+  const parsed = Number.parseInt(raw, 10);
+  if (!Number.isFinite(parsed) || parsed <= 0) return fallback;
+  return parsed;
+}
+
 function getTierLimit(plan: prismaPkg.PlanType) {
   switch (plan) {
     case PlanType.PAYG:
@@ -103,7 +120,10 @@ function getTierLimit(plan: prismaPkg.PlanType) {
 }
 
 function getVerifyLimit() {
-  return { max: 60, windowSec: 60 };
+  return {
+    max: readPositiveIntEnv("VERIFY_RATE_LIMIT_MAX", 60),
+    windowSec: readPositiveIntEnv("VERIFY_RATE_LIMIT_WINDOW_SEC", 60),
+  };
 }
 
 async function getUserPlan(userId: string) {
@@ -272,7 +292,9 @@ function summarizePublicPayload(
 
     case prismaPkg.CustodyEventType.SIGNATURE_APPLIED: {
       const signingKeyId = normalizePublicPayloadValue(obj.signingKeyId);
-      const signingKeyVersion = normalizePublicPayloadValue(obj.signingKeyVersion);
+      const signingKeyVersion = normalizePublicPayloadValue(
+        obj.signingKeyVersion
+      );
       const tsaStatus = normalizePublicPayloadValue(obj.tsaStatus);
       const tsaProvider = normalizePublicPayloadValue(obj.tsaProvider);
       return [
@@ -446,41 +468,6 @@ async function getEvidenceItemCount(evidenceId: string): Promise<number> {
   return count > 0 ? count : 1;
 }
 
-async function appendCustodyEvent(params: {
-  evidenceId: string;
-  eventType: prismaPkg.CustodyEventType;
-  payload?: prismaPkg.Prisma.InputJsonValue | null;
-  ip?: string | null;
-  userAgent?: string | null;
-}) {
-  await prisma.$transaction(async (tx) => {
-    await tx.$executeRaw`
-      SELECT pg_advisory_xact_lock(hashtext(${params.evidenceId}))
-    `;
-
-    const last = await tx.custodyEvent.findFirst({
-      where: { evidenceId: params.evidenceId },
-      orderBy: { sequence: "desc" },
-      select: { sequence: true },
-    });
-
-    const nextSeq = (last?.sequence ?? 0) + 1;
-
-    await tx.custodyEvent.create({
-      data: {
-        evidenceId: params.evidenceId,
-        eventType: params.eventType,
-        atUtc: new Date(),
-        sequence: nextSeq,
-        payload:
-          (params.payload ?? prismaPkg.Prisma.JsonNull) as prismaPkg.Prisma.InputJsonValue,
-        ip: params.ip ?? null,
-        userAgent: params.userAgent ?? null,
-      },
-    });
-  });
-}
-
 async function assertCaseAccess(userId: string, caseId: string) {
   const item = await prisma.case.findUnique({
     where: { id: caseId },
@@ -603,19 +590,32 @@ async function getEvidenceWithOwnerAccess(
   return evidence;
 }
 
+function must(name: string): string {
+  const v = process.env[name];
+  if (!v || !v.trim()) throw new Error(`${name} is not set`);
+  return v.trim();
+}
+
+function toJsonSafe<T>(value: T): T {
+  return JSON.parse(
+    JSON.stringify(value, (_k, v) => (typeof v === "bigint" ? v.toString() : v))
+  );
+}
+
+function getAnchorStatus() {
+  const mode = (process.env.ANCHOR_MODE ?? "ready").trim() || "ready";
+  const provider = process.env.ANCHOR_PROVIDER?.trim() || null;
+  const publicBaseUrl = process.env.ANCHOR_PUBLIC_BASE_URL?.trim() || null;
+
+  return {
+    mode,
+    provider,
+    publicBaseUrl,
+    configured: Boolean(provider),
+  };
+}
+
 export async function evidenceRoutes(app: FastifyInstance) {
-  function must(name: string): string {
-    const v = process.env[name];
-    if (!v || !v.trim()) throw new Error(`${name} is not set`);
-    return v.trim();
-  }
-
-  function toJsonSafe<T>(value: T): T {
-    return JSON.parse(
-      JSON.stringify(value, (_k, v) => (typeof v === "bigint" ? v.toString() : v))
-    );
-  }
-
   app.post("/v1/evidence", { preHandler: requireAuth }, async (req, reply) => {
     const body = CreateEvidenceBody.parse(req.body);
     const ownerUserId = getAuthUserId(req);
@@ -672,8 +672,9 @@ export async function evidenceRoutes(app: FastifyInstance) {
       (req as FastifyRequest & { evidenceId?: string }).evidenceId = id;
       req.log = req.log.child({ evidenceId: id });
 
+      let evidence: SelectedEvidence;
       try {
-        await getEvidenceWithOwnerAccess(ownerUserId, id);
+        evidence = await getEvidenceWithOwnerAccess(ownerUserId, id);
       } catch (err) {
         const statusCode =
           err instanceof Error && "statusCode" in err
@@ -681,6 +682,14 @@ export async function evidenceRoutes(app: FastifyInstance) {
             : 500;
         const message = err instanceof Error ? err.message : "Unexpected error";
         return reply.code(statusCode).send({ message });
+      }
+
+      if (
+        evidence.status === EvidenceStatus.SIGNED ||
+        evidence.status === EvidenceStatus.REPORTED ||
+        evidence.lockedAt
+      ) {
+        return reply.code(409).send({ message: "Evidence is immutable" });
       }
 
       const updated = await prisma.evidence.update({
@@ -908,7 +917,12 @@ export async function evidenceRoutes(app: FastifyInstance) {
     const where = {
       ownerUserId: guestUserId,
       deletedAt: null,
-      status: { notIn: [EvidenceStatus.SIGNED, EvidenceStatus.REPORTED] as prismaPkg.EvidenceStatus[] },
+      status: {
+        notIn: [
+          EvidenceStatus.SIGNED,
+          EvidenceStatus.REPORTED,
+        ] as prismaPkg.EvidenceStatus[],
+      },
       ...(body.evidenceIds?.length ? { id: { in: body.evidenceIds } } : {}),
     };
 
@@ -1532,14 +1546,12 @@ export async function evidenceRoutes(app: FastifyInstance) {
         status: true,
         mimeType: true,
         reportGeneratedAtUtc: true,
-
         fingerprintCanonicalJson: true,
         fingerprintHash: true,
         signatureBase64: true,
         signingKeyId: true,
         signingKeyVersion: true,
         fileSha256: true,
-
         tsaProvider: true,
         tsaUrl: true,
         tsaSerialNumber: true,
@@ -1580,27 +1592,27 @@ export async function evidenceRoutes(app: FastifyInstance) {
       return reply.code(404).send({ message: "Signing key not found" });
     }
 
-    await appendCustodyEvent({
-      evidenceId: id,
-      eventType: prismaPkg.CustodyEventType.VERIFY_VIEWED,
-      payload: {
-        accessMode: "public_verify",
-      },
-      ip: req.ip,
-      userAgent: req.headers["user-agent"],
-    }).catch(() => null);
-
-    const custodyEvents = await prisma.custodyEvent.findMany({
+    const allCustodyEvents = await prisma.custodyEvent.findMany({
       where: { evidenceId: id },
       orderBy: { sequence: "asc" },
-      take: 200,
+      take: 500,
       select: {
         sequence: true,
         atUtc: true,
         eventType: true,
         payload: true,
+        prevEventHash: true,
+        eventHash: true,
       },
     });
+
+    const forensicCustodyEvents = allCustodyEvents.filter(
+      (ev) => !isAccessCustodyEventType(ev.eventType)
+    );
+
+    const accessCustodyEvents = allCustodyEvents.filter((ev) =>
+      isAccessCustodyEventType(ev.eventType)
+    );
 
     const latestReport = await prisma.report.findFirst({
       where: { evidenceId: id },
@@ -1610,6 +1622,57 @@ export async function evidenceRoutes(app: FastifyInstance) {
         generatedAtUtc: true,
       },
     });
+
+    const recomputedFingerprintHash = sha256Hex(
+      evidence.fingerprintCanonicalJson
+    );
+    const canonicalHashMatches =
+      recomputedFingerprintHash === evidence.fingerprintHash;
+
+    let signatureValid = false;
+    try {
+      signatureValid = ed25519VerifyHexSignature({
+        messageHex: recomputedFingerprintHash,
+        signatureBase64: evidence.signatureBase64,
+        publicKeyPem: signingKey.publicKeyPem,
+      });
+    } catch {
+      signatureValid = false;
+    }
+
+    const timestampDigestMatches =
+      evidence.tsaStatus === "STAMPED"
+        ? (evidence.tsaMessageImprint ?? "").toLowerCase() ===
+          evidence.fileSha256.toLowerCase()
+        : true;
+
+    const custodyChain = evaluateCustodyChain({
+      evidenceId: id,
+      records: forensicCustodyEvents.map((ev) => ({
+        sequence: ev.sequence,
+        eventType: ev.eventType,
+        atUtc: ev.atUtc,
+        payload: ev.payload,
+        prevEventHash: ev.prevEventHash,
+        eventHash: ev.eventHash,
+      })),
+    });
+
+    const overallIntegrity =
+      canonicalHashMatches &&
+      signatureValid &&
+      custodyChain.valid &&
+      timestampDigestMatches;
+
+    void appendCustodyEvent({
+      evidenceId: id,
+      eventType: prismaPkg.CustodyEventType.VERIFY_VIEWED,
+      payload: {
+        accessMode: "public_verify",
+      },
+      ip: req.ip,
+      userAgent: req.headers["user-agent"],
+    }).catch(() => null);
 
     return reply.code(200).send({
       evidenceId: evidence.id,
@@ -1630,6 +1693,20 @@ export async function evidenceRoutes(app: FastifyInstance) {
       signingKeyId: evidence.signingKeyId,
       signingKeyVersion: evidence.signingKeyVersion,
       publicKeyPem: signingKey.publicKeyPem,
+
+      verification: {
+        canonicalHashMatches,
+        signatureValid,
+        custodyChainValid: custodyChain.valid,
+        custodyChainMode: custodyChain.mode,
+        custodyChainFailureReason: custodyChain.reason,
+        timestampDigestMatches,
+        overallIntegrity,
+        forensicEventCount: forensicCustodyEvents.length,
+        accessEventCount: accessCustodyEvents.length,
+      },
+
+      anchor: getAnchorStatus(),
 
       tsaStatus: evidence.tsaStatus,
       tsaProvider: evidence.tsaProvider,
@@ -1653,13 +1730,17 @@ export async function evidenceRoutes(app: FastifyInstance) {
         hashAlgorithm: evidence.tsaHashAlgorithm,
         messageImprint: shortHash(evidence.tsaMessageImprint),
         failureReason: evidence.tsaFailureReason,
+        digestMatchesFileHash: timestampDigestMatches,
       },
 
-      custodyEvents: custodyEvents.map((ev) => ({
+      custodyEvents: allCustodyEvents.map((ev) => ({
         sequence: ev.sequence,
         atUtc: ev.atUtc.toISOString(),
         eventType: ev.eventType,
         payloadSummary: summarizePublicPayload(ev.eventType, ev.payload),
+        prevEventHash: shortHash(ev.prevEventHash, 10, 8),
+        eventHash: shortHash(ev.eventHash, 10, 8),
+        category: isAccessCustodyEventType(ev.eventType) ? "access" : "forensic",
       })),
     });
   });

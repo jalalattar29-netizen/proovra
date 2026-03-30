@@ -22,6 +22,8 @@ type VerifyResponse = {
     eventType?: string | null;
     atUtc?: string | null;
     payloadSummary?: string | null;
+    prevEventHash?: string | null;
+    eventHash?: string | null;
   }>;
   status?: string | null;
   evidenceId?: string | null;
@@ -52,6 +54,7 @@ type VerifyResponse = {
     serialNumber?: string | null;
     hashAlgorithm?: string | null;
     failureReason?: string | null;
+    digestMatchesFileHash?: boolean | null;
   } | null;
   timestamp?: {
     status?: string | null;
@@ -62,12 +65,27 @@ type VerifyResponse = {
     hashAlgorithm?: string | null;
     failureReason?: string | null;
   } | null;
+  verification?: {
+    canonicalHashMatches?: boolean;
+    signatureValid?: boolean;
+    custodyChainValid?: boolean;
+    custodyChainMode?: string | null;
+    custodyChainFailureReason?: string | null;
+    timestampDigestMatches?: boolean;
+    anchorPresent?: boolean;
+    anchorHash?: string | null;
+    anchorValid?: boolean | null;
+    anchorMode?: string | null;
+    overallIntegrity?: boolean;
+  } | null;
 };
 
 type TimelineItem = {
   eventType: string;
   atUtc: string | null;
   payloadSummary: string | null;
+  prevEventHash?: string | null;
+  eventHash?: string | null;
 };
 
 type ToastFn = (
@@ -179,12 +197,8 @@ function timestampTone(
 ): { label: string; tone: "success" | "warning" | "neutral" } {
   const s = (status ?? "").toUpperCase();
 
-  if (s === "STAMPED") {
-    return { label: "STAMPED", tone: "success" };
-  }
-
-  if (s === "GRANTED") {
-    return { label: "GRANTED", tone: "success" };
+  if (s === "STAMPED" || s === "GRANTED") {
+    return { label: s, tone: "success" };
   }
 
   if (s === "PENDING") {
@@ -213,7 +227,11 @@ function buildTsaDetails(data: VerifyResponse) {
   return {
     status: extractTimestampStatus(data),
     provider: firstNonEmpty(data.tsa?.provider, data.timestamp?.provider, data.tsaProvider),
-    genTimeUtc: firstNonEmpty(data.tsa?.genTimeUtc, data.timestamp?.genTimeUtc, data.tsaGenTimeUtc),
+    genTimeUtc: firstNonEmpty(
+      data.tsa?.genTimeUtc,
+      data.timestamp?.genTimeUtc,
+      data.tsaGenTimeUtc
+    ),
     url: firstNonEmpty(data.tsa?.url, data.timestamp?.url, data.tsaUrl),
     serialNumber: firstNonEmpty(
       data.tsa?.serialNumber,
@@ -230,6 +248,10 @@ function buildTsaDetails(data: VerifyResponse) {
       data.timestamp?.failureReason,
       data.tsaFailureReason
     ),
+    digestMatchesFileHash:
+      typeof data.tsa?.digestMatchesFileHash === "boolean"
+        ? data.tsa.digestMatchesFileHash
+        : null,
   };
 }
 
@@ -483,6 +505,18 @@ export default function VerifyPage() {
   const [verifyStatus, setVerifyStatus] = useState<string | null>(null);
   const [signingKeyId, setSigningKeyId] = useState<string | null>(null);
 
+  const [canonicalHashMatches, setCanonicalHashMatches] = useState<boolean | null>(null);
+  const [signatureValid, setSignatureValid] = useState<boolean | null>(null);
+  const [custodyChainValid, setCustodyChainValid] = useState<boolean | null>(null);
+  const [custodyChainMode, setCustodyChainMode] = useState<string | null>(null);
+  const [custodyChainFailureReason, setCustodyChainFailureReason] = useState<string | null>(null);
+  const [timestampDigestMatches, setTimestampDigestMatches] = useState<boolean | null>(null);
+  const [anchorPresent, setAnchorPresent] = useState<boolean | null>(null);
+  const [anchorHash, setAnchorHash] = useState<string | null>(null);
+  const [anchorValid, setAnchorValid] = useState<boolean | null>(null);
+  const [anchorMode, setAnchorMode] = useState<string | null>(null);
+  const [overallIntegrity, setOverallIntegrity] = useState<boolean | null>(null);
+
   useEffect(() => {
     if (!params?.token) return;
 
@@ -497,6 +531,8 @@ export default function VerifyPage() {
           eventType: ev.eventType ?? "UNKNOWN_EVENT",
           atUtc: ev.atUtc ?? null,
           payloadSummary: ev.payloadSummary ?? null,
+          prevEventHash: ev.prevEventHash ?? null,
+          eventHash: ev.eventHash ?? null,
         }));
 
         const generatedAtFallback =
@@ -533,6 +569,50 @@ export default function VerifyPage() {
         setPublicKeyPem(data.publicKeyPem ?? null);
         setSigningKeyId(data.signingKeyId ?? null);
         setTimeline(mappedTimeline);
+
+        setCanonicalHashMatches(
+          typeof data.verification?.canonicalHashMatches === "boolean"
+            ? data.verification.canonicalHashMatches
+            : null
+        );
+        setSignatureValid(
+          typeof data.verification?.signatureValid === "boolean"
+            ? data.verification.signatureValid
+            : null
+        );
+        setCustodyChainValid(
+          typeof data.verification?.custodyChainValid === "boolean"
+            ? data.verification.custodyChainValid
+            : null
+        );
+        setCustodyChainMode(data.verification?.custodyChainMode ?? null);
+        setCustodyChainFailureReason(
+          data.verification?.custodyChainFailureReason ?? null
+        );
+        setTimestampDigestMatches(
+          typeof data.verification?.timestampDigestMatches === "boolean"
+            ? data.verification.timestampDigestMatches
+            : typeof tsaDetails.digestMatchesFileHash === "boolean"
+              ? tsaDetails.digestMatchesFileHash
+              : null
+        );
+        setAnchorPresent(
+          typeof data.verification?.anchorPresent === "boolean"
+            ? data.verification.anchorPresent
+            : null
+        );
+        setAnchorHash(data.verification?.anchorHash ?? null);
+        setAnchorValid(
+          typeof data.verification?.anchorValid === "boolean"
+            ? data.verification.anchorValid
+            : null
+        );
+        setAnchorMode(data.verification?.anchorMode ?? null);
+        setOverallIntegrity(
+          typeof data.verification?.overallIntegrity === "boolean"
+            ? data.verification.overallIntegrity
+            : null
+        );
       })
       .catch((err) => {
         captureException(err, { feature: "web_verify", token: params.token });
@@ -546,40 +626,134 @@ export default function VerifyPage() {
   }, [params?.token, t, addToast]);
 
   const verificationBadges = useMemo(() => {
-    const ts = (tsaStatus ?? "").toUpperCase();
+    const items: Array<{
+      label: string;
+      tone: "success" | "warning" | "neutral" | "info";
+      show: boolean;
+    }> = [];
 
-    return [
-      { label: "Hash Present", tone: "success" as const, show: Boolean(hash) },
-      {
-        label: "Signature Present",
-        tone: "success" as const,
-        show: Boolean(signature),
-      },
-      {
-        label:
-          ts === "STAMPED"
-            ? "Timestamp Stamped"
-            : ts === "GRANTED"
-              ? "Timestamp Granted"
-              : ts
-                ? `Timestamp ${ts}`
-                : "Timestamp Unavailable",
-        tone:
-          ts === "STAMPED" || ts === "GRANTED"
-            ? ("success" as const)
-            : ts
-              ? ("warning" as const)
-              : ("neutral" as const),
-        show: true,
-      },
-      {
-        label:
-          timeline.length > 0 ? "Custody Trail Available" : "Custody Trail Pending",
-        tone: timeline.length > 0 ? ("info" as const) : ("neutral" as const),
-        show: true,
-      },
-    ].filter((item) => item.show);
-  }, [hash, signature, tsaStatus, timeline.length]);
+    items.push({
+      label:
+        overallIntegrity === true
+          ? "Overall Integrity Verified"
+          : overallIntegrity === false
+            ? "Overall Integrity Failed"
+            : "Overall Integrity Pending",
+      tone:
+        overallIntegrity === true
+          ? "success"
+          : overallIntegrity === false
+            ? "warning"
+            : "neutral",
+      show: true,
+    });
+
+    items.push({
+      label:
+        canonicalHashMatches === true
+          ? "Fingerprint Valid"
+          : canonicalHashMatches === false
+            ? "Fingerprint Invalid"
+            : "Fingerprint Check Pending",
+      tone:
+        canonicalHashMatches === true
+          ? "success"
+          : canonicalHashMatches === false
+            ? "warning"
+            : "neutral",
+      show: true,
+    });
+
+    items.push({
+      label:
+        signatureValid === true
+          ? "Signature Valid"
+          : signatureValid === false
+            ? "Signature Invalid"
+            : "Signature Check Pending",
+      tone:
+        signatureValid === true
+          ? "success"
+          : signatureValid === false
+            ? "warning"
+            : "neutral",
+      show: true,
+    });
+
+    items.push({
+      label:
+        custodyChainValid === true
+          ? custodyChainMode === "legacy"
+            ? "Custody Trail Valid (Legacy)"
+            : "Custody Trail Valid"
+          : custodyChainValid === false
+            ? "Custody Trail Invalid"
+            : "Custody Trail Pending",
+      tone:
+        custodyChainValid === true
+          ? custodyChainMode === "legacy"
+            ? "info"
+            : "success"
+          : custodyChainValid === false
+            ? "warning"
+            : "neutral",
+      show: true,
+    });
+
+    items.push({
+      label:
+        timestampDigestMatches === true
+          ? "Timestamp Digest Matches"
+          : timestampDigestMatches === false
+            ? "Timestamp Digest Mismatch"
+            : "Timestamp Digest Unavailable",
+      tone:
+        timestampDigestMatches === true
+          ? "success"
+          : timestampDigestMatches === false
+            ? "warning"
+            : "neutral",
+      show: true,
+    });
+
+    items.push({
+      label:
+        anchorPresent === true
+          ? anchorValid === true
+            ? anchorMode
+              ? `Anchor Ready (${anchorMode})`
+              : "Anchor Ready"
+            : anchorValid === false
+              ? "Anchor Invalid"
+              : anchorMode
+                ? `Anchor Present (${anchorMode})`
+                : "Anchor Present"
+          : anchorPresent === false
+            ? "No Anchor"
+            : "Anchor Not Reported",
+      tone:
+        anchorPresent === true
+          ? anchorValid === true
+            ? "info"
+            : anchorValid === false
+              ? "warning"
+              : "neutral"
+          : "neutral",
+      show: true,
+    });
+
+    return items.filter((item) => item.show);
+  }, [
+    overallIntegrity,
+    canonicalHashMatches,
+    signatureValid,
+    custodyChainValid,
+    custodyChainMode,
+    timestampDigestMatches,
+    anchorPresent,
+    anchorValid,
+    anchorMode,
+  ]);
 
   const summaryFields = useMemo(
     () =>
@@ -625,8 +799,102 @@ export default function VerifyPage() {
           label: "Signature Status",
           content: (
             <Badge
-              label={signature ? "Present" : "Unavailable"}
-              tone={signature ? "success" : "neutral"}
+              label={
+                signatureValid === true
+                  ? "Valid"
+                  : signatureValid === false
+                    ? "Invalid"
+                    : signature
+                      ? "Present"
+                      : "Unavailable"
+              }
+              tone={
+                signatureValid === true
+                  ? "success"
+                  : signatureValid === false
+                    ? "warning"
+                    : signature
+                      ? "info"
+                      : "neutral"
+              }
+            />
+          ),
+          show: true,
+        },
+        {
+          label: "Fingerprint Status",
+          content: (
+            <Badge
+              label={
+                canonicalHashMatches === true
+                  ? "Valid"
+                  : canonicalHashMatches === false
+                    ? "Invalid"
+                    : "Pending"
+              }
+              tone={
+                canonicalHashMatches === true
+                  ? "success"
+                  : canonicalHashMatches === false
+                    ? "warning"
+                    : "neutral"
+              }
+            />
+          ),
+          show: true,
+        },
+        {
+          label: "Custody Chain",
+          content: (
+            <Badge
+              label={
+                custodyChainValid === true
+                  ? custodyChainMode === "legacy"
+                    ? "Valid (Legacy)"
+                    : "Valid"
+                  : custodyChainValid === false
+                    ? "Invalid"
+                    : "Pending"
+              }
+              tone={
+                custodyChainValid === true
+                  ? custodyChainMode === "legacy"
+                    ? "info"
+                    : "success"
+                  : custodyChainValid === false
+                    ? "warning"
+                    : "neutral"
+              }
+            />
+          ),
+          show: true,
+        },
+        {
+          label: "Anchor",
+          content: (
+            <Badge
+              label={
+                anchorPresent === true
+                  ? anchorValid === true
+                    ? anchorMode
+                      ? `Ready (${anchorMode})`
+                      : "Ready"
+                    : anchorValid === false
+                      ? "Invalid"
+                      : "Present"
+                  : anchorPresent === false
+                    ? "Absent"
+                    : "Not Reported"
+              }
+              tone={
+                anchorPresent === true
+                  ? anchorValid === true
+                    ? "info"
+                    : anchorValid === false
+                      ? "warning"
+                      : "neutral"
+                  : "neutral"
+              }
             />
           ),
           show: true,
@@ -667,7 +935,22 @@ export default function VerifyPage() {
           show: Boolean(signingKeyId),
         },
       ].filter((item) => item.show),
-    [signature, tsaStatus, tsaProvider, tsaGenTimeUtc, tsaSerialNumber, tsaHashAlgorithm, signingKeyId]
+    [
+      signature,
+      signatureValid,
+      canonicalHashMatches,
+      custodyChainValid,
+      custodyChainMode,
+      anchorPresent,
+      anchorValid,
+      anchorMode,
+      tsaStatus,
+      tsaProvider,
+      tsaGenTimeUtc,
+      tsaSerialNumber,
+      tsaHashAlgorithm,
+      signingKeyId,
+    ]
   );
 
   return (
@@ -926,18 +1209,23 @@ export default function VerifyPage() {
                           height: 60,
                           borderRadius: 999,
                           background:
-                            "linear-gradient(180deg, #16A34A 0%, #15803D 100%)",
+                            overallIntegrity === false
+                              ? "linear-gradient(180deg, #DC2626 0%, #B91C1C 100%)"
+                              : "linear-gradient(180deg, #16A34A 0%, #15803D 100%)",
                           display: "flex",
                           alignItems: "center",
                           justifyContent: "center",
                           color: "#fff",
                           fontSize: 28,
                           fontWeight: 800,
-                          boxShadow: "0 10px 24px rgba(22,163,74,0.22)",
+                          boxShadow:
+                            overallIntegrity === false
+                              ? "0 10px 24px rgba(220,38,38,0.22)"
+                              : "0 10px 24px rgba(22,163,74,0.22)",
                           flexShrink: 0,
                         }}
                       >
-                        ✓
+                        {overallIntegrity === false ? "!" : "✓"}
                       </div>
 
                       <div>
@@ -962,7 +1250,11 @@ export default function VerifyPage() {
                             marginBottom: 8,
                           }}
                         >
-                          Integrity Materials Available
+                          {overallIntegrity === true
+                            ? "Integrity Verified"
+                            : overallIntegrity === false
+                              ? "Integrity Review Required"
+                              : "Integrity Materials Available"}
                         </div>
                         <div
                           style={{
@@ -972,11 +1264,12 @@ export default function VerifyPage() {
                             maxWidth: 760,
                           }}
                         >
-                          This page confirms that PROOVRA recorded integrity-related
-                          materials for this evidence item at the time of signing.
-                          It supports review of hashes, signatures, timestamps, and custody
-                          events, but does not by itself prove authorship, factual truth,
-                          or legal admissibility of the underlying content.
+                          This page shows whether the recorded fingerprint,
+                          signature, timestamp linkage, hashed custody chain,
+                          and anchor-ready state pass technical verification
+                          checks. It does not by itself prove authorship,
+                          factual truth, or legal admissibility of the
+                          underlying content.
                         </div>
                       </div>
                     </div>
@@ -1009,6 +1302,39 @@ export default function VerifyPage() {
                       <Badge key={item.label} label={item.label} tone={item.tone} />
                     ))}
                   </div>
+
+                  {custodyChainFailureReason ? (
+                    <div
+                      style={{
+                        border: "1px solid #FECACA",
+                        background: "#FEF2F2",
+                        borderRadius: 16,
+                        padding: 16,
+                      }}
+                    >
+                      <div
+                        style={{
+                          fontSize: 12,
+                          color: "#991B1B",
+                          fontWeight: 800,
+                          marginBottom: 8,
+                        }}
+                      >
+                        Verification Warning
+                      </div>
+                      <div
+                        style={{
+                          fontSize: 13,
+                          color: "#7F1D1D",
+                          lineHeight: 1.6,
+                          wordBreak: "break-word",
+                          overflowWrap: "anywhere",
+                        }}
+                      >
+                        Custody chain check reported: {custodyChainFailureReason}
+                      </div>
+                    </div>
+                  ) : null}
                 </div>
               </Card>
 
@@ -1137,6 +1463,16 @@ export default function VerifyPage() {
                       value={publicKeyPem}
                       addToast={addToast}
                       copyMessage="Public key copied"
+                    />
+                  ) : null}
+
+                  {anchorHash ? (
+                    <MaterialField
+                      label="Anchor Hash"
+                      subtitle="Anchor-ready hash derived from the fingerprint hash and the latest hashed custody event."
+                      value={anchorHash}
+                      addToast={addToast}
+                      copyMessage="Anchor hash copied"
                     />
                   ) : null}
 
@@ -1384,6 +1720,39 @@ export default function VerifyPage() {
                                 ? event.payloadSummary
                                 : "No additional event summary provided."}
                             </div>
+
+                            {(event.prevEventHash || event.eventHash) ? (
+                              <div
+                                style={{
+                                  marginTop: 12,
+                                  display: "grid",
+                                  gap: 8,
+                                }}
+                              >
+                                {event.prevEventHash ? (
+                                  <div
+                                    style={{
+                                      fontSize: 12,
+                                      color: "#98A2B3",
+                                      wordBreak: "break-all",
+                                    }}
+                                  >
+                                    Prev Hash: {event.prevEventHash}
+                                  </div>
+                                ) : null}
+                                {event.eventHash ? (
+                                  <div
+                                    style={{
+                                      fontSize: 12,
+                                      color: "#98A2B3",
+                                      wordBreak: "break-all",
+                                    }}
+                                  >
+                                    Event Hash: {event.eventHash}
+                                  </div>
+                                ) : null}
+                              </div>
+                            ) : null}
                           </div>
                         </div>
                       );

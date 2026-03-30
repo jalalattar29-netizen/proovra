@@ -2,6 +2,7 @@ import { prisma } from "../db.js";
 import { getPublicBaseUrl, presignPutObject } from "../storage.js";
 import * as prismaPkg from "@prisma/client";
 import { ensureGuestIdentity } from "./auth.service.js";
+import { appendCustodyEventTx } from "./custody-events.service.js";
 
 function must(name: string): string {
   const v = process.env[name];
@@ -76,93 +77,92 @@ export async function createEvidence(params: {
   const capturedAt = new Date();
   const normalizedMimeType = normalizeUploadMimeType(params.mimeType);
 
-  const evidence = await prisma.evidence.create({
-    data: {
-      ownerUserId: params.ownerUserId,
-      type: params.type,
-      status: EvidenceStatus.CREATED,
-      mimeType: normalizedMimeType,
-      capturedAtUtc: capturedAt,
-      deviceTimeIso: params.deviceTimeIso ?? null,
-      lat: params.gps?.lat ?? null,
-      lng: params.gps?.lng ?? null,
-      accuracyMeters: params.gps?.accuracyMeters ?? null,
-      guestIdentityId: guestIdentity?.id ?? null,
-    },
-    select: {
-      id: true,
-      ownerUserId: true,
-      status: true,
-      type: true,
-      createdAt: true,
-    },
-  });
+  const created = await prisma.$transaction(async (tx) => {
+    const evidence = await tx.evidence.create({
+      data: {
+        ownerUserId: params.ownerUserId,
+        type: params.type,
+        status: EvidenceStatus.CREATED,
+        mimeType: normalizedMimeType,
+        capturedAtUtc: capturedAt,
+        deviceTimeIso: params.deviceTimeIso ?? null,
+        lat: params.gps?.lat ?? null,
+        lng: params.gps?.lng ?? null,
+        accuracyMeters: params.gps?.accuracyMeters ?? null,
+        guestIdentityId: guestIdentity?.id ?? null,
+      },
+      select: {
+        id: true,
+        status: true,
+      },
+    });
 
-  const key = `evidence/${evidence.id}/original`;
+    const key = `evidence/${evidence.id}/original`;
+
+    await appendCustodyEventTx(tx, {
+      evidenceId: evidence.id,
+      eventType: prismaPkg.CustodyEventType.EVIDENCE_CREATED,
+      atUtc: capturedAt,
+      payload: {
+        phase: "evidence_created",
+        type: params.type,
+        mimeType: normalizedMimeType,
+        deviceTimeIso: params.deviceTimeIso ?? null,
+        gps: params.gps
+          ? {
+              lat: params.gps.lat,
+              lng: params.gps.lng,
+              accuracyMeters: params.gps.accuracyMeters ?? null,
+            }
+          : null,
+      } as prismaPkg.Prisma.InputJsonValue,
+    });
+
+    await appendCustodyEventTx(tx, {
+      evidenceId: evidence.id,
+      eventType: prismaPkg.CustodyEventType.UPLOAD_STARTED,
+      atUtc: new Date(),
+      payload: {
+        phase: "upload_started",
+        uploadKind: "single",
+        bucket,
+        key,
+        contentType: normalizedMimeType,
+      } as prismaPkg.Prisma.InputJsonValue,
+    });
+
+    await tx.evidence.update({
+      where: { id: evidence.id },
+      data: {
+        status: EvidenceStatus.UPLOADING,
+        storageBucket: bucket,
+        storageKey: key,
+      },
+    });
+
+    return {
+      id: evidence.id,
+      key,
+    };
+  });
 
   const putUrl = await presignPutObject({
     bucket,
-    key,
+    key: created.key,
     contentType: normalizedMimeType,
     expiresInSeconds: 600,
   });
 
-  await prisma.custodyEvent.createMany({
-    data: [
-      {
-        evidenceId: evidence.id,
-        eventType: prismaPkg.CustodyEventType.EVIDENCE_CREATED,
-        atUtc: capturedAt,
-        sequence: 1,
-        payload: {
-          phase: "evidence_created",
-          type: params.type,
-          mimeType: normalizedMimeType,
-          deviceTimeIso: params.deviceTimeIso ?? null,
-          gps: params.gps
-            ? {
-                lat: params.gps.lat,
-                lng: params.gps.lng,
-                accuracyMeters: params.gps.accuracyMeters ?? null,
-              }
-            : null,
-        } as prismaPkg.Prisma.InputJsonValue,
-      },
-      {
-        evidenceId: evidence.id,
-        eventType: prismaPkg.CustodyEventType.UPLOAD_STARTED,
-        atUtc: new Date(),
-        sequence: 2,
-        payload: {
-          phase: "upload_started",
-          uploadKind: "single",
-          bucket,
-          key,
-          contentType: normalizedMimeType,
-        } as prismaPkg.Prisma.InputJsonValue,
-      },
-    ],
-  });
-
-  await prisma.evidence.update({
-    where: { id: evidence.id },
-    data: {
-      status: EvidenceStatus.UPLOADING,
-      storageBucket: bucket,
-      storageKey: key,
-    },
-  });
-
   const publicUrl = publicBase
-    ? `${publicBase.replace(/\/+$/, "")}/${key}`
+    ? `${publicBase.replace(/\/+$/, "")}/${created.key}`
     : null;
 
   return {
-    id: evidence.id,
+    id: created.id,
     status: EvidenceStatus.UPLOADING,
     upload: {
       bucket,
-      key,
+      key: created.key,
       putUrl,
       publicUrl,
       expiresInSeconds: 600,

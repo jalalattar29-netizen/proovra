@@ -108,22 +108,25 @@ model Case {
 }
 
 model CustodyEvent {
-  id         String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  evidenceId String           @map("evidence_id") @db.Uuid
-  eventType  CustodyEventType @map("event_type")
-  atUtc      DateTime         @map("at_utc") @db.Timestamptz(6)
-  sequence   Int              @map("sequence")
-  payload    Json?
-  ip         String?          @db.VarChar(45)
-  userAgent  String?          @map("user_agent") @db.VarChar(512)
-  createdAt  DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
-  evidence   Evidence         @relation(fields: [evidenceId], references: [id])
+  id            String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  evidenceId    String           @map("evidence_id") @db.Uuid
+  eventType     CustodyEventType @map("event_type")
+  atUtc         DateTime         @map("at_utc") @db.Timestamptz(6)
+  sequence      Int              @map("sequence")
+  payload       Json?
+  ip            String?          @db.VarChar(45)
+  userAgent     String?          @map("user_agent") @db.VarChar(512)
+  prevEventHash String?          @map("prev_event_hash") @db.VarChar(64)
+  eventHash     String?          @map("event_hash") @db.VarChar(64)
+  createdAt     DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  evidence      Evidence         @relation(fields: [evidenceId], references: [id])
 
   @@unique([evidenceId, sequence])
   @@index([evidenceId, sequence])
   @@index([evidenceId, atUtc])
   @@index([evidenceId])
   @@index([eventType])
+  @@index([eventHash])
   @@map("custody_events")
 }
 

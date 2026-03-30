@@ -6,6 +6,17 @@ type VerificationEvidenceFile = {
   buffer: Buffer;
 };
 
+type AnchorPayload = {
+  version: 1;
+  evidenceId: string;
+  reportVersion: number;
+  fileSha256: string;
+  fingerprintHash: string;
+  lastEventHash: string | null;
+  anchorHash: string;
+  generatedAtUtc: string;
+};
+
 function normalizeFileName(name: string, fallback: string): string {
   const trimmed = typeof name === "string" ? name.trim() : "";
   if (!trimmed) return fallback;
@@ -31,6 +42,7 @@ export async function createVerificationPackage(data: {
   reportVersion?: number;
   signingKeyId?: string;
   signingKeyVersion?: number;
+  anchor?: AnchorPayload | null;
 }) {
   return new Promise<Buffer>((resolve, reject) => {
     const archive = archiver("zip", { zlib: { level: 9 } });
@@ -138,11 +150,17 @@ export async function createVerificationPackage(data: {
       name: "custody.json",
     });
 
+    if (data.anchor) {
+      archive.append(JSON.stringify(data.anchor, null, 2), {
+        name: "anchor.json",
+      });
+    }
+
     archive.append(
       JSON.stringify(
         {
           packageType: "PROOVRA_VERIFICATION_PACKAGE",
-          version: 1,
+          version: 2,
           evidenceId: data.evidenceId ?? null,
           reportVersion: data.reportVersion ?? null,
           signingKeyId: data.signingKeyId ?? null,
@@ -150,12 +168,34 @@ export async function createVerificationPackage(data: {
           multipart: evidenceFiles.length > 1,
           fileCount: evidenceFiles.length,
           generatedAtUtc: new Date().toISOString(),
+          anchorIncluded: Boolean(data.anchor),
+          anchorMode: data.anchor ? "ready" : "none",
         },
         null,
         2
       ),
       {
         name: "package-manifest.json",
+      }
+    );
+
+    archive.append(
+      JSON.stringify(
+        {
+          verificationProfile: "FORENSIC_INTEGRITY",
+          containsFingerprint: true,
+          containsSignature: true,
+          containsPublicKey: true,
+          containsCustody: true,
+          containsTimestamp: Boolean(data.timestampToken),
+          containsAnchor: Boolean(data.anchor),
+          multipart: evidenceFiles.length > 1,
+        },
+        null,
+        2
+      ),
+      {
+        name: "integrity-summary.json",
       }
     );
 
@@ -191,8 +231,14 @@ Public key used to verify the signature.
 custody.json
 Chain of custody events recorded by the system.
 
+anchor.json
+Anchor-ready integrity payload that binds the fingerprint hash to the latest hashed custody event, when available.
+
 package-manifest.json
 Package metadata describing the verification bundle.
+
+integrity-summary.json
+High-level package integrity profile.
 
 HOW TO VERIFY
 
@@ -207,6 +253,7 @@ HOW TO VERIFY
    - Rebuild the multipart hash according to the platform rules.
 5) Verify Ed25519 signature using public-key.pem.
 6) Verify timestamp token using RFC3161 verification tools, if included.
+7) Review custody.json and, where present, anchor.json.
 
 LEGAL NOTE
 
@@ -244,7 +291,9 @@ code{background:#eef2ff;padding:2px 6px;border-radius:6px}
   <li>timestamp.tsr (if available)</li>
   <li>public-key.pem</li>
   <li>custody.json</li>
+  <li>anchor.json (if available)</li>
   <li>package-manifest.json</li>
+  <li>integrity-summary.json</li>
 </ul>
 
 <p>For multipart evidence, open <code>evidence-manifest.json</code> and review the files inside <code>evidence-parts/</code>.</p>

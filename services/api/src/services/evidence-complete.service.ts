@@ -1,16 +1,13 @@
 import { prisma } from "../db.js";
-import {
-  canonicalJson,
-  sha256Hex,
-  ed25519SignHexWithKeyPath,
-} from "../crypto.js";
+import { canonicalJson, sha256Hex } from "../crypto.js";
+import { getEvidenceSigner } from "../signing/signer.js";
 import { getObjectStream, headObject } from "../storage.js";
 import { sha256HexFromStream } from "../stream-hash.js";
 import { createEvidenceTimestamp } from "./timestamp.service.js";
 import * as prismaPkg from "@prisma/client";
 import { enqueueGenerateReportJob } from "../queue/report-queue.js";
-import { CustodyEventType } from "@prisma/client";
 import { Readable } from "stream";
+import { appendCustodyEventTx } from "./custody-events.service.js";
 
 type HttpError = Error & { statusCode: number };
 
@@ -36,23 +33,8 @@ type CompleteEvidenceReturn = {
   signingKeyVersion: number | null;
 };
 
-function must(name: string): string {
-  const v = process.env[name];
-  if (!v || !v.trim()) throw new Error(`${name} is not set`);
-  return v.trim();
-}
-
 function asIso(d: Date | null | undefined): string | null {
   return d ? d.toISOString() : null;
-}
-
-function mustInt(name: string): number {
-  const raw = must(name);
-  const v = Number.parseInt(raw, 10);
-  if (!Number.isFinite(v)) {
-    throw new Error(`${name} must be an integer`);
-  }
-  return v;
 }
 
 function readMaxEvidenceSizeBytes(): number {
@@ -303,6 +285,8 @@ export async function completeEvidence(params: {
   evidenceId: string;
   ownerUserId: string;
 }): Promise<CompleteEvidenceReturn> {
+  const signer = getEvidenceSigner();
+
   const final = await prisma.$transaction(
     async (tx) => {
       await tx.$executeRaw`
@@ -556,14 +540,7 @@ export async function completeEvidence(params: {
         fingerprintHash = sha256Hex(canonical);
       }
 
-      must("SIGNING_PRIVATE_KEY_PATH");
-      const signingKeyId = must("SIGNING_KEY_ID");
-      const signingKeyVersion = mustInt("SIGNING_KEY_VERSION");
-
-      const signatureBase64 = ed25519SignHexWithKeyPath(
-        fingerprintHash,
-        "SIGNING_PRIVATE_KEY_PATH"
-      );
+      const signResult = await signer.signFingerprintHex(fingerprintHash);
 
       const tsaResult = await createEvidenceTimestamp({
         digestHex: fileSha256,
@@ -600,12 +577,11 @@ export async function completeEvidence(params: {
           fileSha256,
           fingerprintCanonicalJson: canonical,
           fingerprintHash,
-          signatureBase64,
-          signingKeyId,
-          signingKeyVersion,
+          signatureBase64: signResult.signatureBase64,
+          signingKeyId: signResult.keyId,
+          signingKeyVersion: signResult.keyVersion,
           storageBucket: primaryBucket,
           storageKey: primaryKey,
-
           tsaProvider: tsaResult?.provider ?? null,
           tsaUrl: tsaResult?.url ?? null,
           tsaSerialNumber: tsaResult?.serialNumber ?? null,
@@ -627,55 +603,62 @@ export async function completeEvidence(params: {
         },
       });
 
-      const last = await tx.custodyEvent.findFirst({
-        where: { evidenceId: evidence.id },
-        orderBy: { sequence: "desc" },
-        select: { sequence: true },
+      await appendCustodyEventTx(tx, {
+        evidenceId: evidence.id,
+        eventType: prismaPkg.CustodyEventType.UPLOAD_COMPLETED,
+        atUtc: now,
+        payload: {
+          phase: "upload_completed",
+          multipart,
+          itemCount: multipartItemCount,
+          sizeBytes: sizeBytesNum,
+          mimeType: primaryMimeType,
+          fileSha256,
+        } as prismaPkg.Prisma.InputJsonValue,
       });
 
-      let nextSequence = (last?.sequence ?? 0) + 1;
+      await appendCustodyEventTx(tx, {
+        evidenceId: evidence.id,
+        eventType: prismaPkg.CustodyEventType.SIGNATURE_APPLIED,
+        atUtc: now,
+        payload: {
+          phase: "signature_applied",
+          fingerprintHash,
+          signingKeyId: signResult.keyId,
+          signingKeyVersion: signResult.keyVersion,
+          multipart,
+          itemCount: multipartItemCount,
+          tsaProvider: tsaResult?.provider ?? null,
+          tsaUrl: tsaResult?.url ?? null,
+          tsaSerialNumber: tsaResult?.serialNumber ?? null,
+          tsaGenTimeUtc: tsaResult?.genTimeUtc?.toISOString() ?? null,
+          tsaMessageImprint: tsaResult?.messageImprint ?? null,
+          tsaHashAlgorithm: tsaResult?.hashAlgorithm ?? null,
+          tsaStatus: tsaResult?.status ?? null,
+          tsaFailureReason: tsaResult?.failureReason ?? null,
+        } as prismaPkg.Prisma.InputJsonValue,
+      });
 
-      await tx.custodyEvent.create({
-        data: {
+      if (tsaResult) {
+        await appendCustodyEventTx(tx, {
           evidenceId: evidence.id,
-          eventType: CustodyEventType.UPLOAD_COMPLETED,
+          eventType:
+            tsaResult.status === "STAMPED"
+              ? prismaPkg.CustodyEventType.TIMESTAMP_APPLIED
+              : prismaPkg.CustodyEventType.TIMESTAMP_FAILED,
           atUtc: now,
-          sequence: nextSequence++,
           payload: {
-            phase: "upload_completed",
-            multipart,
-            itemCount: multipartItemCount,
-            sizeBytes: sizeBytesNum,
-            mimeType: primaryMimeType,
-            fileSha256,
+            tsaProvider: tsaResult.provider,
+            tsaUrl: tsaResult.url,
+            tsaSerialNumber: tsaResult.serialNumber,
+            tsaGenTimeUtc: tsaResult.genTimeUtc?.toISOString() ?? null,
+            tsaMessageImprint: tsaResult.messageImprint,
+            tsaHashAlgorithm: tsaResult.hashAlgorithm,
+            tsaStatus: tsaResult.status,
+            tsaFailureReason: tsaResult.failureReason,
           } as prismaPkg.Prisma.InputJsonValue,
-        },
-      });
-
-      await tx.custodyEvent.create({
-        data: {
-          evidenceId: evidence.id,
-          eventType: CustodyEventType.SIGNATURE_APPLIED,
-          atUtc: now,
-          sequence: nextSequence,
-          payload: {
-            phase: "signature_applied",
-            fingerprintHash,
-            signingKeyId,
-            signingKeyVersion,
-            multipart,
-            itemCount: multipartItemCount,
-            tsaProvider: tsaResult?.provider ?? null,
-            tsaUrl: tsaResult?.url ?? null,
-            tsaSerialNumber: tsaResult?.serialNumber ?? null,
-            tsaGenTimeUtc: tsaResult?.genTimeUtc?.toISOString() ?? null,
-            tsaMessageImprint: tsaResult?.messageImprint ?? null,
-            tsaHashAlgorithm: tsaResult?.hashAlgorithm ?? null,
-            tsaStatus: tsaResult?.status ?? null,
-            tsaFailureReason: tsaResult?.failureReason ?? null,
-          } as prismaPkg.Prisma.InputJsonValue,
-        },
-      });
+        });
+      }
 
       return {
         result: ev,

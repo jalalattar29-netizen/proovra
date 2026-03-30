@@ -3,6 +3,8 @@ import {
   GetObjectCommand,
   PutObjectCommand,
   HeadObjectCommand,
+  type ObjectLockLegalHoldStatus,
+  type ObjectLockMode,
 } from "@aws-sdk/client-s3";
 import { env } from "./config.js";
 
@@ -50,6 +52,89 @@ function normalizeContentType(contentType: string): string {
   return trimmed;
 }
 
+function normalizeMetadata(
+  metadata?: Record<string, string | null | undefined>
+): Record<string, string> | undefined {
+  if (!metadata) return undefined;
+
+  const out: Record<string, string> = {};
+
+  for (const [key, value] of Object.entries(metadata)) {
+    const normalizedKey = key.trim().toLowerCase();
+    const normalizedValue = clean(value);
+
+    if (!normalizedKey || !normalizedValue) continue;
+    if (normalizedKey.length > 128) continue;
+    if (normalizedValue.length > 1024) continue;
+    if (/[\r\n]/.test(normalizedKey) || /[\r\n]/.test(normalizedValue)) continue;
+
+    out[normalizedKey] = normalizedValue;
+  }
+
+  return Object.keys(out).length > 0 ? out : undefined;
+}
+
+function normalizeTagging(
+  tags?: Record<string, string | null | undefined>
+): string | undefined {
+  if (!tags) return undefined;
+
+  const parts: string[] = [];
+
+  for (const [key, value] of Object.entries(tags)) {
+    const k = clean(key);
+    const v = clean(value);
+    if (!k || !v) continue;
+    parts.push(`${encodeURIComponent(k)}=${encodeURIComponent(v)}`);
+  }
+
+  return parts.length > 0 ? parts.join("&") : undefined;
+}
+
+function parsePositiveInt(value: string | null | undefined): number | null {
+  const raw = clean(value);
+  if (!raw) return null;
+  const parsed = Number.parseInt(raw, 10);
+  if (!Number.isFinite(parsed) || parsed <= 0) return null;
+  return parsed;
+}
+
+function readObjectLockDefaults(): {
+  mode?: ObjectLockMode;
+  retainUntilDate?: Date;
+  legalHold?: ObjectLockLegalHoldStatus;
+} {
+  const enabled = clean(process.env.S3_OBJECT_LOCK_ENABLED)?.toLowerCase() === "true";
+  if (!enabled) {
+    return {};
+  }
+
+  const modeRaw = clean(process.env.S3_OBJECT_LOCK_MODE)?.toUpperCase();
+  const legalHoldRaw = clean(process.env.S3_OBJECT_LOCK_LEGAL_HOLD)?.toUpperCase();
+  const retainDays = parsePositiveInt(process.env.S3_OBJECT_LOCK_RETAIN_DAYS);
+
+  const mode: ObjectLockMode | undefined =
+    modeRaw === "GOVERNANCE" || modeRaw === "COMPLIANCE"
+      ? (modeRaw as ObjectLockMode)
+      : undefined;
+
+  const legalHold: ObjectLockLegalHoldStatus | undefined =
+    legalHoldRaw === "ON" || legalHoldRaw === "OFF"
+      ? (legalHoldRaw as ObjectLockLegalHoldStatus)
+      : undefined;
+
+  const retainUntilDate =
+    mode && retainDays
+      ? new Date(Date.now() + retainDays * 24 * 60 * 60 * 1000)
+      : undefined;
+
+  return {
+    mode,
+    retainUntilDate,
+    legalHold,
+  };
+}
+
 const endpoint = mustClean(env.S3_ENDPOINT, "S3_ENDPOINT");
 requireTls(endpoint);
 
@@ -75,7 +160,7 @@ export async function getObjectStream(params: { bucket: string; key: string }) {
   );
 
   if (!res.Body) throw new Error("S3 returned empty body");
-  return res.Body; // Node.js Readable
+  return res.Body;
 }
 
 export async function putObjectBuffer(params: {
@@ -83,6 +168,9 @@ export async function putObjectBuffer(params: {
   key: string;
   body: Buffer;
   contentType: string;
+  metadata?: Record<string, string | null | undefined>;
+  tags?: Record<string, string | null | undefined>;
+  immutable?: boolean;
 }) {
   const bucket = mustClean(params.bucket, "bucket");
   const key = mustClean(params.key, "key");
@@ -91,6 +179,11 @@ export async function putObjectBuffer(params: {
     throw new Error("putObjectBuffer: body must be a non-empty Buffer");
   }
 
+  const metadata = normalizeMetadata(params.metadata);
+  const tagging = normalizeTagging(params.tags);
+
+  const objectLock = params.immutable ? readObjectLockDefaults() : {};
+
   await s3.send(
     new PutObjectCommand({
       Bucket: bucket,
@@ -98,6 +191,11 @@ export async function putObjectBuffer(params: {
       Body: params.body,
       ContentType: normalizeContentType(params.contentType),
       ContentLength: params.body.length,
+      Metadata: metadata,
+      Tagging: tagging,
+      ObjectLockMode: objectLock.mode,
+      ObjectLockRetainUntilDate: objectLock.retainUntilDate,
+      ObjectLockLegalHoldStatus: objectLock.legalHold,
     })
   );
 }
@@ -117,5 +215,9 @@ export async function headObject(params: { bucket: string; key: string }) {
     sizeBytes: res.ContentLength ?? null,
     contentType: res.ContentType ?? null,
     etag: res.ETag ?? null,
+    metadata: res.Metadata ?? null,
+    objectLockMode: res.ObjectLockMode ?? null,
+    objectLockRetainUntilDate: res.ObjectLockRetainUntilDate ?? null,
+    objectLockLegalHoldStatus: res.ObjectLockLegalHoldStatus ?? null,
   };
 }

@@ -1,5 +1,5 @@
 import canonicalize from "canonicalize";
-import { createHash, sign } from "crypto";
+import { createHash, sign, verify } from "crypto";
 import { existsSync, readFileSync, statSync } from "fs";
 import { isAbsolute, resolve } from "path";
 
@@ -67,4 +67,26 @@ export function ed25519SignHexWithKeyPath(
   const sig = sign(null, msg, privateKeyPem);
 
   return sig.toString("base64");
+}
+
+export function ed25519VerifyHexSignature(params: {
+  messageHex: string;
+  signatureBase64: string;
+  publicKeyPem: string;
+}): boolean {
+  const normalizedHex = params.messageHex.trim().toLowerCase();
+
+  if (!/^[a-f0-9]+$/.test(normalizedHex) || normalizedHex.length % 2 !== 0) {
+    throw new Error("ed25519VerifyHexSignature: messageHex must be valid hex");
+  }
+
+  const publicKeyPem = params.publicKeyPem.trim();
+  if (!publicKeyPem.includes("BEGIN") || !publicKeyPem.includes("END")) {
+    throw new Error("ed25519VerifyHexSignature: publicKeyPem is invalid");
+  }
+
+  const msg = Buffer.from(normalizedHex, "hex");
+  const sig = Buffer.from(params.signatureBase64, "base64");
+
+  return verify(null, msg, `${publicKeyPem}\n`, sig);
 }

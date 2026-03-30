@@ -92,7 +92,9 @@ requireTls(endpoint);
 const region = clean(process.env.S3_REGION) ?? "auto";
 
 const forcePathStyle =
-  clean(process.env.S3_FORCE_PATH_STYLE)?.toLowerCase() === "false" ? false : true;
+  clean(process.env.S3_FORCE_PATH_STYLE)?.toLowerCase() === "false"
+    ? false
+    : true;
 
 export const s3 = new S3Client({
   region,
