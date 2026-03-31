@@ -3,8 +3,11 @@ import {
   GetObjectCommand,
   PutObjectCommand,
   HeadObjectCommand,
+  PutObjectLegalHoldCommand,
+  PutObjectRetentionCommand,
   type ObjectLockLegalHoldStatus,
   type ObjectLockMode,
+  type S3ClientConfig,
 } from "@aws-sdk/client-s3";
 import { env } from "./config.js";
 
@@ -22,7 +25,9 @@ function mustClean(value: string | null | undefined, fieldName: string): string 
   return trimmed;
 }
 
-function requireTls(endpoint: string) {
+function requireTls(endpoint: string | null) {
+  if (!endpoint) return;
+
   const allowInsecure = process.env.S3_ALLOW_INSECURE === "true";
   if (
     process.env.NODE_ENV === "production" &&
@@ -33,10 +38,16 @@ function requireTls(endpoint: string) {
   }
 }
 
-function readForcePathStyle(): boolean {
+function readForcePathStyle(endpoint: string | null): boolean {
   const raw = clean(process.env.S3_FORCE_PATH_STYLE)?.toLowerCase();
+
+  if (raw === "true") return true;
   if (raw === "false") return false;
-  return true;
+
+  // default:
+  // - custom endpoint (MinIO/R2/etc) => true
+  // - native AWS S3 => false
+  return Boolean(endpoint);
 }
 
 function normalizeContentType(contentType: string): string {
@@ -143,18 +154,27 @@ function readObjectLockDefaults(): {
   };
 }
 
-const endpoint = mustClean(env.S3_ENDPOINT, "S3_ENDPOINT");
-requireTls(endpoint);
+function buildS3ClientConfig(): S3ClientConfig {
+  const endpoint = clean(env.S3_ENDPOINT);
+  requireTls(endpoint);
 
-export const s3 = new S3Client({
-  region: mustClean(env.S3_REGION, "S3_REGION"),
-  endpoint,
-  credentials: {
-    accessKeyId: mustClean(env.S3_ACCESS_KEY, "S3_ACCESS_KEY"),
-    secretAccessKey: mustClean(env.S3_SECRET_KEY, "S3_SECRET_KEY"),
-  },
-  forcePathStyle: readForcePathStyle(),
-});
+  const config: S3ClientConfig = {
+    region: mustClean(env.S3_REGION, "S3_REGION"),
+    credentials: {
+      accessKeyId: mustClean(env.S3_ACCESS_KEY, "S3_ACCESS_KEY"),
+      secretAccessKey: mustClean(env.S3_SECRET_KEY, "S3_SECRET_KEY"),
+    },
+    forcePathStyle: readForcePathStyle(endpoint),
+  };
+
+  if (endpoint) {
+    config.endpoint = endpoint;
+  }
+
+  return config;
+}
+
+export const s3 = new S3Client(buildS3ClientConfig());
 
 export async function getObjectStream(params: { bucket: string; key: string }) {
   const bucket = mustClean(params.bucket, "bucket");
@@ -189,7 +209,6 @@ export async function putObjectBuffer(params: {
 
   const metadata = normalizeMetadata(params.metadata);
   const tagging = normalizeTagging(params.tags);
-
   const objectLock =
     params.immutable && isObjectLockEnabled() ? readObjectLockDefaults() : {};
 
@@ -211,6 +230,72 @@ export async function putObjectBuffer(params: {
         : {}),
     })
   );
+}
+
+export async function applyObjectRetention(params: {
+  bucket: string;
+  key: string;
+  mode?: ObjectLockMode;
+  retainUntilDate?: Date;
+  legalHold?: ObjectLockLegalHoldStatus;
+  bypassGovernance?: boolean;
+}) {
+  const bucket = mustClean(params.bucket, "bucket");
+  const key = mustClean(params.key, "key");
+
+  if (!isObjectLockEnabled()) {
+    return {
+      applied: false,
+      reason: "object_lock_disabled",
+    };
+  }
+
+  if (params.mode && params.retainUntilDate) {
+    await s3.send(
+      new PutObjectRetentionCommand({
+        Bucket: bucket,
+        Key: key,
+        Retention: {
+          Mode: params.mode,
+          RetainUntilDate: params.retainUntilDate,
+        },
+        ...(params.bypassGovernance ? { BypassGovernanceRetention: true } : {}),
+      })
+    );
+  }
+
+  if (params.legalHold) {
+    await s3.send(
+      new PutObjectLegalHoldCommand({
+        Bucket: bucket,
+        Key: key,
+        LegalHold: {
+          Status: params.legalHold,
+        },
+      })
+    );
+  }
+
+  return {
+    applied: true,
+  };
+}
+
+export async function applyDefaultObjectRetention(params: {
+  bucket: string;
+  key: string;
+  bypassGovernance?: boolean;
+}) {
+  const defaults = readObjectLockDefaults();
+
+  return applyObjectRetention({
+    bucket: params.bucket,
+    key: params.key,
+    mode: defaults.mode,
+    retainUntilDate: defaults.retainUntilDate,
+    legalHold: defaults.legalHold,
+    bypassGovernance: params.bypassGovernance,
+  });
 }
 
 export async function headObject(params: { bucket: string; key: string }) {

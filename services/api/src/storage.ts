@@ -3,6 +3,11 @@ import {
   PutObjectCommand,
   HeadObjectCommand,
   GetObjectCommand,
+  PutObjectLegalHoldCommand,
+  PutObjectRetentionCommand,
+  type ObjectLockLegalHoldStatus,
+  type ObjectLockMode,
+  type S3ClientConfig,
 } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
@@ -18,7 +23,9 @@ function clean(v: string | undefined | null): string | null {
   return t ? t : null;
 }
 
-function requireTls(endpoint: string) {
+function requireTls(endpoint: string | null) {
+  if (!endpoint) return;
+
   const allowInsecure = process.env.S3_ALLOW_INSECURE === "true";
   if (
     process.env.NODE_ENV === "production" &&
@@ -44,7 +51,7 @@ function isProbablyS3ApiEndpoint(url: string): boolean {
 
 /**
  * IMPORTANT:
- * S3_PUBLIC_BASE_URL must be a real public serving domain (custom domain / CDN / r2.dev),
+ * S3_PUBLIC_BASE_URL must be a real public serving domain (custom domain / CDN),
  * not the raw S3 API endpoint.
  */
 export function getPublicBaseUrl(): string | null {
@@ -74,6 +81,97 @@ function normalizeContentType(contentType: string): string {
   return trimmed;
 }
 
+function normalizeMetadata(
+  metadata?: Record<string, string | null | undefined>
+): Record<string, string> | undefined {
+  if (!metadata) return undefined;
+
+  const out: Record<string, string> = {};
+
+  for (const [key, value] of Object.entries(metadata)) {
+    const normalizedKey = key.trim().toLowerCase();
+    const normalizedValue = clean(value);
+
+    if (!normalizedKey || !normalizedValue) continue;
+    if (normalizedKey.length > 128) continue;
+    if (normalizedValue.length > 1024) continue;
+    if (/[\r\n]/.test(normalizedKey) || /[\r\n]/.test(normalizedValue)) continue;
+
+    out[normalizedKey] = normalizedValue;
+  }
+
+  return Object.keys(out).length > 0 ? out : undefined;
+}
+
+function isObjectTaggingEnabled(): boolean {
+  return clean(process.env.S3_ENABLE_OBJECT_TAGGING)?.toLowerCase() === "true";
+}
+
+function normalizeTagging(
+  tags?: Record<string, string | null | undefined>
+): string | undefined {
+  if (!tags) return undefined;
+  if (!isObjectTaggingEnabled()) return undefined;
+
+  const parts: string[] = [];
+
+  for (const [key, value] of Object.entries(tags)) {
+    const k = clean(key);
+    const v = clean(value);
+    if (!k || !v) continue;
+    parts.push(`${encodeURIComponent(k)}=${encodeURIComponent(v)}`);
+  }
+
+  return parts.length > 0 ? parts.join("&") : undefined;
+}
+
+function parsePositiveInt(value: string | null | undefined): number | null {
+  const raw = clean(value);
+  if (!raw) return null;
+  const parsed = Number.parseInt(raw, 10);
+  if (!Number.isFinite(parsed) || parsed <= 0) return null;
+  return parsed;
+}
+
+function isObjectLockEnabled(): boolean {
+  return clean(process.env.S3_OBJECT_LOCK_ENABLED)?.toLowerCase() === "true";
+}
+
+function readObjectLockDefaults(): {
+  mode?: ObjectLockMode;
+  retainUntilDate?: Date;
+  legalHold?: ObjectLockLegalHoldStatus;
+} {
+  if (!isObjectLockEnabled()) {
+    return {};
+  }
+
+  const modeRaw = clean(process.env.S3_OBJECT_LOCK_MODE)?.toUpperCase();
+  const legalHoldRaw = clean(process.env.S3_OBJECT_LOCK_LEGAL_HOLD)?.toUpperCase();
+  const retainDays = parsePositiveInt(process.env.S3_OBJECT_LOCK_RETAIN_DAYS);
+
+  const mode: ObjectLockMode | undefined =
+    modeRaw === "GOVERNANCE" || modeRaw === "COMPLIANCE"
+      ? (modeRaw as ObjectLockMode)
+      : undefined;
+
+  const legalHold: ObjectLockLegalHoldStatus | undefined =
+    legalHoldRaw === "ON" || legalHoldRaw === "OFF"
+      ? (legalHoldRaw as ObjectLockLegalHoldStatus)
+      : undefined;
+
+  const retainUntilDate =
+    mode && retainDays
+      ? new Date(Date.now() + retainDays * 24 * 60 * 60 * 1000)
+      : undefined;
+
+  return {
+    mode,
+    retainUntilDate,
+    legalHold,
+  };
+}
+
 function readPresignExpirySeconds(explicit?: number): number {
   const fallbackRaw = clean(process.env.S3_PRESIGN_EXPIRES_SECONDS);
   const fallbackParsed = fallbackRaw ? Number.parseInt(fallbackRaw, 10) : 600;
@@ -86,25 +184,32 @@ function readPresignExpirySeconds(explicit?: number): number {
   return base;
 }
 
-const endpoint = must("S3_ENDPOINT");
-requireTls(endpoint);
+function buildS3ClientConfig(): S3ClientConfig {
+  const endpoint = clean(process.env.S3_ENDPOINT);
+  requireTls(endpoint);
 
-const region = clean(process.env.S3_REGION) ?? "auto";
+  const config: S3ClientConfig = {
+    region: clean(process.env.S3_REGION) ?? "eu-central-1",
+    credentials: {
+      accessKeyId: must("S3_ACCESS_KEY"),
+      secretAccessKey: must("S3_SECRET_KEY"),
+    },
+    forcePathStyle:
+      clean(process.env.S3_FORCE_PATH_STYLE)?.toLowerCase() === "true"
+        ? true
+        : clean(process.env.S3_FORCE_PATH_STYLE)?.toLowerCase() === "false"
+          ? false
+          : Boolean(endpoint),
+  };
 
-const forcePathStyle =
-  clean(process.env.S3_FORCE_PATH_STYLE)?.toLowerCase() === "false"
-    ? false
-    : true;
+  if (endpoint) {
+    config.endpoint = endpoint;
+  }
 
-export const s3 = new S3Client({
-  region,
-  endpoint,
-  credentials: {
-    accessKeyId: must("S3_ACCESS_KEY"),
-    secretAccessKey: must("S3_SECRET_KEY"),
-  },
-  forcePathStyle,
-});
+  return config;
+}
+
+export const s3 = new S3Client(buildS3ClientConfig());
 
 export async function presignPutObject(params: {
   bucket: string;
@@ -152,6 +257,121 @@ export async function presignGetObject(params: {
   });
 }
 
+export async function putObjectBuffer(params: {
+  bucket: string;
+  key: string;
+  body: Buffer;
+  contentType: string;
+  metadata?: Record<string, string | null | undefined>;
+  tags?: Record<string, string | null | undefined>;
+  immutable?: boolean;
+}) {
+  const bucket = clean(params.bucket);
+  const key = clean(params.key);
+
+  if (!bucket || !key) {
+    throw new Error("putObjectBuffer: bucket/key are required");
+  }
+
+  if (!Buffer.isBuffer(params.body) || params.body.length <= 0) {
+    throw new Error("putObjectBuffer: body must be a non-empty Buffer");
+  }
+
+  const metadata = normalizeMetadata(params.metadata);
+  const tagging = normalizeTagging(params.tags);
+  const objectLock =
+    params.immutable && isObjectLockEnabled() ? readObjectLockDefaults() : {};
+
+  await s3.send(
+    new PutObjectCommand({
+      Bucket: bucket,
+      Key: key,
+      Body: params.body,
+      ContentType: normalizeContentType(params.contentType),
+      ContentLength: params.body.length,
+      Metadata: metadata,
+      ...(tagging ? { Tagging: tagging } : {}),
+      ...(objectLock.mode ? { ObjectLockMode: objectLock.mode } : {}),
+      ...(objectLock.retainUntilDate
+        ? { ObjectLockRetainUntilDate: objectLock.retainUntilDate }
+        : {}),
+      ...(objectLock.legalHold
+        ? { ObjectLockLegalHoldStatus: objectLock.legalHold }
+        : {}),
+    })
+  );
+}
+
+export async function applyObjectRetention(params: {
+  bucket: string;
+  key: string;
+  mode?: ObjectLockMode;
+  retainUntilDate?: Date;
+  legalHold?: ObjectLockLegalHoldStatus;
+  bypassGovernance?: boolean;
+}) {
+  const bucket = clean(params.bucket);
+  const key = clean(params.key);
+
+  if (!bucket || !key) {
+    throw new Error("applyObjectRetention: bucket/key are required");
+  }
+
+  if (!isObjectLockEnabled()) {
+    return {
+      applied: false,
+      reason: "object_lock_disabled",
+    };
+  }
+
+  if (params.mode && params.retainUntilDate) {
+    await s3.send(
+      new PutObjectRetentionCommand({
+        Bucket: bucket,
+        Key: key,
+        Retention: {
+          Mode: params.mode,
+          RetainUntilDate: params.retainUntilDate,
+        },
+        ...(params.bypassGovernance ? { BypassGovernanceRetention: true } : {}),
+      })
+    );
+  }
+
+  if (params.legalHold) {
+    await s3.send(
+      new PutObjectLegalHoldCommand({
+        Bucket: bucket,
+        Key: key,
+        LegalHold: {
+          Status: params.legalHold,
+        },
+      })
+    );
+  }
+
+  return {
+    applied: true,
+  };
+}
+
+export async function applyDefaultObjectRetention(params: {
+  bucket: string;
+  key: string;
+  bypassGovernance?: boolean;
+}) {
+  const defaults = readObjectLockDefaults();
+
+  return applyObjectRetention({
+    bucket: params.bucket,
+    key: params.key,
+    mode: defaults.mode,
+    retainUntilDate: defaults.retainUntilDate,
+    legalHold: defaults.legalHold,
+    bypassGovernance: params.bypassGovernance,
+  });
+}
+
 export async function headObject(params: { bucket: string; key: string }) {
   const bucket = clean(params.bucket);
   const key = clean(params.key);
@@ -171,6 +391,10 @@ export async function headObject(params: { bucket: string; key: string }) {
     sizeBytes: res.ContentLength ?? null,
     contentType: res.ContentType ?? null,
     etag: res.ETag ?? null,
+    metadata: res.Metadata ?? null,
+    objectLockMode: res.ObjectLockMode ?? null,
+    objectLockRetainUntilDate: res.ObjectLockRetainUntilDate ?? null,
+    objectLockLegalHoldStatus: res.ObjectLockLegalHoldStatus ?? null,
   };
 }
 

@@ -6,7 +6,12 @@ import { appendCustodyEventTx } from "./custody-events.js";
 import { prisma } from "./db.js";
 import { env } from "./config.js";
 import { logger, withJobContext } from "./logger.js";
-import { getObjectStream, headObject, putObjectBuffer } from "./storage.js";
+import {
+  applyDefaultObjectRetention,
+  getObjectStream,
+  headObject,
+  putObjectBuffer,
+} from "./storage.js";
 import { createHash, randomUUID } from "node:crypto";
 import { buildReportPdf } from "./pdf/report.js";
 import {
@@ -372,6 +377,29 @@ async function streamToBuffer(stream: Readable): Promise<Buffer> {
     chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
   }
   return Buffer.concat(chunks);
+}
+
+async function applyRetentionOrThrow(targets: Array<{ bucket: string; key: string }>) {
+  const deduped = Array.from(
+    new Map(targets.map((item) => [`${item.bucket}:${item.key}`, item])).values()
+  );
+
+  for (const target of deduped) {
+    try {
+      await applyDefaultObjectRetention({
+        bucket: target.bucket,
+        key: target.key,
+      });
+    } catch (error) {
+      const reason =
+        error instanceof Error ? error.message : "UNKNOWN_RETENTION_ERROR";
+
+      throw createWorkerError(
+        `OBJECT_RETENTION_APPLY_FAILED:${target.bucket}:${target.key}:${reason}`,
+        false
+      );
+    }
+  }
 }
 
 function extensionFromMimeType(mimeType: string | null | undefined): string {
@@ -876,6 +904,13 @@ export async function processGenerateReport(job: Job<GenerateReportJobData>) {
           },
         });
 
+        await applyRetentionOrThrow([
+          {
+            bucket: env.S3_BUCKET,
+            key: prepared.reportKey,
+          },
+        ]);
+
         await tx.report.create({
           data: {
             evidenceId: prepared.evidenceId,
@@ -896,7 +931,7 @@ export async function processGenerateReport(job: Job<GenerateReportJobData>) {
             generatedAtUtc: prepared.now.toISOString(),
             ...(prepared.anchorPayload
               ? {
-                  anchorHash: prepared.anchorPayload?.anchorHash ?? undefined,
+                  anchorHash: prepared.anchorPayload.anchorHash,
                   anchorVersion: prepared.anchorPayload.version,
                   anchorMode: prepared.anchorMode,
                 }
@@ -946,6 +981,13 @@ export async function processGenerateReport(job: Job<GenerateReportJobData>) {
             immutable: "true",
           },
         });
+
+        await applyRetentionOrThrow([
+          {
+            bucket: env.S3_BUCKET,
+            key: prepared.verificationKey,
+          },
+        ]);
       } catch (verificationError) {
         captureException(verificationError, {
           requestId,
@@ -970,126 +1012,128 @@ export async function processGenerateReport(job: Job<GenerateReportJobData>) {
       }
     }
 
-    if (!finalized.skipped && prepared.anchorMode === "active" && prepared.anchorPayload) {
-      try {
-        const anchorPublish = await publishAnchorIfConfigured({
-          anchor: prepared.anchorPayload,
-        });
+if (!finalized.skipped && prepared.anchorMode === "active" && prepared.anchorPayload) {
+  const anchorPayload = prepared.anchorPayload;
 
-        if (anchorPublish.published) {
-          await prisma.$transaction(async (tx) => {
-            await tx.evidenceAnchor.upsert({
-              where: {
-                evidenceId: prepared.evidenceId,
-              },
-              update: {
-                provider: anchorPublish.provider,
-                mode: prepared.anchorMode,
-                anchorHash: prepared.anchorPayload!.anchorHash,
-                receiptId: anchorPublish.receiptId,
-                transactionId: anchorPublish.transactionId,
-                publicUrl: anchorPublish.publicUrl,
-                anchoredAtUtc: new Date(anchorPublish.anchoredAtUtc),
-              },
-              create: {
-                evidenceId: prepared.evidenceId,
-                provider: anchorPublish.provider,
-                mode: prepared.anchorMode,
-                anchorHash: prepared.anchorPayload!.anchorHash,
-                receiptId: anchorPublish.receiptId,
-                transactionId: anchorPublish.transactionId,
-                publicUrl: anchorPublish.publicUrl,
-                anchoredAtUtc: new Date(anchorPublish.anchoredAtUtc),
-              },
-            });
+  try {
+    const anchorPublish = await publishAnchorIfConfigured({
+      anchor: anchorPayload,
+    });
 
-            await appendCustodyEventTx(tx, {
-              evidenceId: prepared.evidenceId,
-              eventType: prismaPkg.CustodyEventType.ANCHOR_PUBLISHED,
-              atUtc: new Date(anchorPublish.anchoredAtUtc),
-              payload: {
-                provider: anchorPublish.provider,
-                anchorMode: prepared.anchorMode,
-                anchorHash: prepared.anchorPayload?.anchorHash ?? undefined,
-                receiptId: anchorPublish.receiptId,
-                transactionId: anchorPublish.transactionId,
-                publicUrl: anchorPublish.publicUrl,
-                anchoredAtUtc: anchorPublish.anchoredAtUtc,
-              } as Prisma.InputJsonValue,
-            });
-          });
-        } else {
-          await prisma.$transaction(async (tx) => {
-            await appendCustodyEventTx(tx, {
-              evidenceId: prepared.evidenceId,
-              eventType: prismaPkg.CustodyEventType.ANCHOR_FAILED,
-              atUtc: new Date(),
-              payload: {
-                provider: anchorPublish.provider,
-                anchorMode: prepared.anchorMode,
-                anchorHash: prepared.anchorPayload?.anchorHash ?? null,
-                reason: anchorPublish.reason,
-              } as Prisma.InputJsonValue,
-            });
-          });
-
-          logger.warn(
-            {
-              ...withJobContext({
-                requestId,
-                jobId: job.id,
-                evidenceId,
-                attempt: job.attemptsMade + 1,
-                status: "anchor_not_published",
-              }),
-              anchorMode: prepared.anchorMode,
-              reason: anchorPublish.reason,
-            },
-            "Anchor publication was not completed"
-          );
-        }
-      } catch (anchorError) {
-        captureException(anchorError, {
-          requestId,
-          evidenceId,
-          jobId: job.id ?? null,
-          phase: "anchor_publish",
-        });
-
-        await prisma.$transaction(async (tx) => {
-          await appendCustodyEventTx(tx, {
+    if (anchorPublish.published) {
+      await prisma.$transaction(async (tx) => {
+        await tx.evidenceAnchor.upsert({
+          where: {
             evidenceId: prepared.evidenceId,
-            eventType: prismaPkg.CustodyEventType.ANCHOR_FAILED,
-            atUtc: new Date(),
-            payload: {
-              provider: env.ANCHOR_PROVIDER ?? null,
-              anchorMode: prepared.anchorMode,
-              anchorHash: prepared.anchorPayload?.anchorHash ?? null,
-              reason:
-                anchorError instanceof Error
-                  ? anchorError.message
-                  : "ANCHOR_PUBLISH_FAILED",
-            } as Prisma.InputJsonValue,
-          });
+          },
+          update: {
+            provider: anchorPublish.provider,
+            mode: prepared.anchorMode,
+            anchorHash: anchorPayload.anchorHash,
+            receiptId: anchorPublish.receiptId,
+            transactionId: anchorPublish.transactionId,
+            publicUrl: anchorPublish.publicUrl,
+            anchoredAtUtc: new Date(anchorPublish.anchoredAtUtc),
+          },
+          create: {
+            evidenceId: prepared.evidenceId,
+            provider: anchorPublish.provider,
+            mode: prepared.anchorMode,
+            anchorHash: anchorPayload.anchorHash,
+            receiptId: anchorPublish.receiptId,
+            transactionId: anchorPublish.transactionId,
+            publicUrl: anchorPublish.publicUrl,
+            anchoredAtUtc: new Date(anchorPublish.anchoredAtUtc),
+          },
         });
 
-        logger.error(
-          {
-            ...withJobContext({
-              requestId,
-              jobId: job.id,
-              evidenceId,
-              attempt: job.attemptsMade + 1,
-              status: "anchor_failed",
-            }),
-            err: anchorError,
+        await appendCustodyEventTx(tx, {
+          evidenceId: prepared.evidenceId,
+          eventType: prismaPkg.CustodyEventType.ANCHOR_PUBLISHED,
+          atUtc: new Date(anchorPublish.anchoredAtUtc),
+          payload: {
+            provider: anchorPublish.provider,
             anchorMode: prepared.anchorMode,
-            anchorHash: prepared.anchorPayload?.anchorHash ?? null,
-          },
-          "Anchor publication failed after report generation"
-        );
-      }
+            anchorHash: anchorPayload.anchorHash,
+            receiptId: anchorPublish.receiptId,
+            transactionId: anchorPublish.transactionId,
+            publicUrl: anchorPublish.publicUrl,
+            anchoredAtUtc: anchorPublish.anchoredAtUtc,
+          } as Prisma.InputJsonValue,
+        });
+      });
+    } else {
+      await prisma.$transaction(async (tx) => {
+        await appendCustodyEventTx(tx, {
+          evidenceId: prepared.evidenceId,
+          eventType: prismaPkg.CustodyEventType.ANCHOR_FAILED,
+          atUtc: new Date(),
+          payload: {
+            provider: anchorPublish.provider,
+            anchorMode: prepared.anchorMode,
+            anchorHash: anchorPayload.anchorHash,
+            reason: anchorPublish.reason,
+          } as Prisma.InputJsonValue,
+        });
+      });
+
+      logger.warn(
+        {
+          ...withJobContext({
+            requestId,
+            jobId: job.id,
+            evidenceId,
+            attempt: job.attemptsMade + 1,
+            status: "anchor_not_published",
+          }),
+          anchorMode: prepared.anchorMode,
+          reason: anchorPublish.reason,
+        },
+        "Anchor publication was not completed"
+      );
     }
+  } catch (anchorError) {
+    captureException(anchorError, {
+      requestId,
+      evidenceId,
+      jobId: job.id ?? null,
+      phase: "anchor_publish",
+    });
+
+    await prisma.$transaction(async (tx) => {
+      await appendCustodyEventTx(tx, {
+        evidenceId: prepared.evidenceId,
+        eventType: prismaPkg.CustodyEventType.ANCHOR_FAILED,
+        atUtc: new Date(),
+        payload: {
+          provider: env.ANCHOR_PROVIDER ?? null,
+          anchorMode: prepared.anchorMode,
+          anchorHash: anchorPayload.anchorHash,
+          reason:
+            anchorError instanceof Error
+              ? anchorError.message
+              : "ANCHOR_PUBLISH_FAILED",
+        } as Prisma.InputJsonValue,
+      });
+    });
+
+    logger.error(
+      {
+        ...withJobContext({
+          requestId,
+          jobId: job.id,
+          evidenceId,
+          attempt: job.attemptsMade + 1,
+          status: "anchor_failed",
+        }),
+        err: anchorError,
+        anchorMode: prepared.anchorMode,
+        anchorHash: anchorPayload.anchorHash,
+      },
+      "Anchor publication failed after report generation"
+    );
+  }
+}
 
     const durationMs = Date.now() - start;
 

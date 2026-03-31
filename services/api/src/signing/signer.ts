@@ -1,4 +1,5 @@
 import { ed25519SignHexWithKeyPath } from "../crypto.js";
+import { KmsEvidenceSigner } from "./kms-signer.js";
 
 function must(name: string): string {
   const v = process.env[name];
@@ -17,6 +18,16 @@ function mustInt(name: string): number {
   }
 
   return parsed;
+}
+
+function getSignerProvider(): "local-pem" | "aws-kms" {
+  const raw = (process.env.SIGNER_PROVIDER ?? "local-pem").trim().toLowerCase();
+
+  if (raw === "aws-kms") {
+    return "aws-kms";
+  }
+
+  return "local-pem";
 }
 
 export type SignFingerprintResult = {
@@ -50,11 +61,30 @@ class LocalPemEvidenceSigner implements EvidenceSigner {
   }
 }
 
+class AwsKmsEvidenceSigner implements EvidenceSigner {
+  private readonly kmsSigner = new KmsEvidenceSigner();
+
+  async signFingerprintHex(messageHex: string): Promise<SignFingerprintResult> {
+    const normalizedHex = messageHex.trim().toLowerCase();
+
+    if (!/^[a-f0-9]+$/.test(normalizedHex) || normalizedHex.length % 2 !== 0) {
+      throw new Error("signFingerprintHex: messageHex must be valid hex");
+    }
+
+    return this.kmsSigner.signFingerprintHex(normalizedHex);
+  }
+}
+
 let cachedSigner: EvidenceSigner | null = null;
 
 export function getEvidenceSigner(): EvidenceSigner {
   if (!cachedSigner) {
-    cachedSigner = new LocalPemEvidenceSigner();
+    const provider = getSignerProvider();
+
+    cachedSigner =
+      provider === "aws-kms"
+        ? new AwsKmsEvidenceSigner()
+        : new LocalPemEvidenceSigner();
   }
 
   return cachedSigner;

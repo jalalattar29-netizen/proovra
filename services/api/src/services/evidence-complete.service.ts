@@ -1,7 +1,11 @@
 import { prisma } from "../db.js";
 import { canonicalJson, sha256Hex } from "../crypto.js";
 import { getEvidenceSigner } from "../signing/signer.js";
-import { getObjectStream, headObject } from "../storage.js";
+import {
+  applyDefaultObjectRetention,
+  getObjectStream,
+  headObject,
+} from "../storage.js";
 import { sha256HexFromStream } from "../stream-hash.js";
 import { createEvidenceTimestamp } from "./timestamp.service.js";
 import * as prismaPkg from "@prisma/client";
@@ -19,6 +23,17 @@ type ProcessedPart = {
   mimeType: string | null;
   bucket: string;
   key: string;
+};
+
+type RetentionTarget = {
+  bucket: string;
+  key: string;
+};
+
+type CompleteEvidenceTransactionResult = {
+  result: CompleteEvidenceReturn;
+  shouldEnqueueReport: boolean;
+  retentionTargets: RetentionTarget[];
 };
 
 const { EvidenceStatus } = prismaPkg;
@@ -160,6 +175,28 @@ async function safeGetStream(bucket: string, key: string) {
   }
 }
 
+async function applyRetentionOrThrow(targets: RetentionTarget[]) {
+  const deduped = Array.from(
+    new Map(targets.map((item) => [`${item.bucket}:${item.key}`, item])).values()
+  );
+
+  for (const target of deduped) {
+    try {
+      await applyDefaultObjectRetention({
+        bucket: target.bucket,
+        key: target.key,
+      });
+    } catch (error) {
+      const reason =
+        error instanceof Error ? error.message : "UNKNOWN_RETENTION_ERROR";
+
+      throw new Error(
+        `EVIDENCE_RETENTION_APPLY_FAILED: bucket=${target.bucket} key=${target.key} reason=${reason}`
+      );
+    }
+  }
+}
+
 function buildMultipartSummary(parts: ProcessedPart[], totalSizeBytes: number) {
   const imageCount = parts.filter((p) =>
     String(p.mimeType ?? "").toLowerCase().startsWith("image/")
@@ -288,7 +325,7 @@ export async function completeEvidence(params: {
   const signer = getEvidenceSigner();
 
   const final = await prisma.$transaction(
-    async (tx) => {
+    async (tx): Promise<CompleteEvidenceTransactionResult> => {
       await tx.$executeRaw`
         SELECT pg_advisory_xact_lock(hashtext(${params.evidenceId}))
       `;
@@ -329,10 +366,20 @@ export async function completeEvidence(params: {
             signingKeyVersion: evidence.signingKeyVersion,
           },
           shouldEnqueueReport: false,
+          retentionTargets: [],
         };
       }
 
       if (evidence.status === EvidenceStatus.SIGNED) {
+        const retentionTargets: RetentionTarget[] = [];
+
+        if (evidenceBucket && evidenceKey) {
+          retentionTargets.push({
+            bucket: evidenceBucket,
+            key: evidenceKey,
+          });
+        }
+
         return {
           result: {
             id: evidence.id,
@@ -344,6 +391,7 @@ export async function completeEvidence(params: {
             signingKeyVersion: evidence.signingKeyVersion,
           },
           shouldEnqueueReport: plan !== prismaPkg.PlanType.FREE,
+          retentionTargets,
         };
       }
 
@@ -379,6 +427,7 @@ export async function completeEvidence(params: {
       let multipart = false;
       let canonical = "";
       let fingerprintHash = "";
+      const retentionTargets: RetentionTarget[] = [];
 
       const now = new Date();
       const uploadedAtUtcIso = now.toISOString();
@@ -427,6 +476,8 @@ export async function completeEvidence(params: {
             bucket,
             key,
           });
+
+          retentionTargets.push({ bucket, key });
         }
 
         if (updatedParts.length === 0) {
@@ -512,6 +563,7 @@ export async function completeEvidence(params: {
           normalizeObservedMimeType(meta.contentType) ?? evidenceMime ?? null;
         primaryBucket = bucket;
         primaryKey = key;
+        retentionTargets.push({ bucket, key });
 
         const body = await safeGetStream(bucket, key);
         fileSha256 = await sha256HexFromStream(body as unknown as Readable);
@@ -663,6 +715,7 @@ export async function completeEvidence(params: {
       return {
         result: ev,
         shouldEnqueueReport: plan !== prismaPkg.PlanType.FREE,
+        retentionTargets,
       };
     },
     {
@@ -670,6 +723,10 @@ export async function completeEvidence(params: {
       timeout: 120_000,
     }
   );
+
+  if (final.retentionTargets.length > 0) {
+    await applyRetentionOrThrow(final.retentionTargets);
+  }
 
   if (final.shouldEnqueueReport) {
     await enqueueGenerateReportJob(final.result.id);
