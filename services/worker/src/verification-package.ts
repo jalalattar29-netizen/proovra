@@ -6,6 +6,8 @@ type VerificationEvidenceFile = {
   buffer: Buffer;
 };
 
+type AnchorMode = "off" | "ready" | "active";
+
 type AnchorPayload = {
   version: 1;
   evidenceId: string;
@@ -30,6 +32,61 @@ function normalizeFileName(name: string, fallback: string): string {
   return normalized || fallback;
 }
 
+function normalizeAnchorMode(value: string | null | undefined): AnchorMode {
+  const raw = String(value ?? "ready").trim().toLowerCase();
+  if (raw === "off" || raw === "active") return raw;
+  return "ready";
+}
+
+function buildAnchorReadmeSection(params: {
+  anchorMode: AnchorMode;
+  hasAnchorPayload: boolean;
+  anchorProvider?: string | null;
+  anchorPublicBaseUrl?: string | null;
+}): string {
+  const providerLine = params.anchorProvider
+    ? `Provider: ${params.anchorProvider}`
+    : "Provider: Not configured";
+  const publicBaseLine = params.anchorPublicBaseUrl
+    ? `Public base URL: ${params.anchorPublicBaseUrl}`
+    : "Public base URL: Not configured";
+
+  if (params.anchorMode === "off") {
+    return `ANCHOR STATUS
+
+Anchor publication is disabled for this environment.
+No external publication claim is made for this package.
+${providerLine}
+${publicBaseLine}`;
+  }
+
+  if (params.anchorMode === "active") {
+    return `ANCHOR STATUS
+
+External anchor mode is enabled for this environment.
+${
+  params.hasAnchorPayload
+    ? "This package includes anchor-ready payload material."
+    : "This package does not include anchor payload material."
+}
+No external publication receipt or transaction identifier is attached inside this package yet.
+${providerLine}
+${publicBaseLine}`;
+  }
+
+  return `ANCHOR STATUS
+
+Anchor-ready mode is enabled for this environment.
+${
+  params.hasAnchorPayload
+    ? "This package includes anchor-ready integrity material."
+    : "This package does not include anchor-ready integrity material."
+}
+No external publication receipt or transaction identifier is attached to this record yet.
+${providerLine}
+${publicBaseLine}`;
+}
+
 export async function createVerificationPackage(data: {
   evidenceBuffer?: Buffer;
   evidenceFiles?: VerificationEvidenceFile[];
@@ -43,6 +100,9 @@ export async function createVerificationPackage(data: {
   signingKeyId?: string;
   signingKeyVersion?: number;
   anchor?: AnchorPayload | null;
+  anchorMode?: AnchorMode | null;
+  anchorProvider?: string | null;
+  anchorPublicBaseUrl?: string | null;
 }) {
   return new Promise<Buffer>((resolve, reject) => {
     const archive = archiver("zip", { zlib: { level: 9 } });
@@ -92,6 +152,9 @@ export async function createVerificationPackage(data: {
       fail(new Error("Verification package requires at least one evidence file"));
       return;
     }
+
+    const anchorMode = normalizeAnchorMode(data.anchorMode);
+    const anchorIncluded = Boolean(data.anchor);
 
     if (evidenceFiles.length === 1) {
       const file = evidenceFiles[0];
@@ -168,8 +231,11 @@ export async function createVerificationPackage(data: {
           multipart: evidenceFiles.length > 1,
           fileCount: evidenceFiles.length,
           generatedAtUtc: new Date().toISOString(),
-          anchorIncluded: Boolean(data.anchor),
-          anchorMode: data.anchor ? "ready" : "none",
+          anchorIncluded,
+          anchorMode,
+          anchorProvider: data.anchorProvider ?? null,
+          anchorPublicBaseUrl: data.anchorPublicBaseUrl ?? null,
+          externalPublicationAttached: false,
         },
         null,
         2
@@ -188,7 +254,8 @@ export async function createVerificationPackage(data: {
           containsPublicKey: true,
           containsCustody: true,
           containsTimestamp: Boolean(data.timestampToken),
-          containsAnchor: Boolean(data.anchor),
+          containsAnchor: anchorIncluded,
+          anchorMode,
           multipart: evidenceFiles.length > 1,
         },
         null,
@@ -254,6 +321,13 @@ HOW TO VERIFY
 5) Verify Ed25519 signature using public-key.pem.
 6) Verify timestamp token using RFC3161 verification tools, if included.
 7) Review custody.json and, where present, anchor.json.
+
+${buildAnchorReadmeSection({
+  anchorMode,
+  hasAnchorPayload: anchorIncluded,
+  anchorProvider: data.anchorProvider,
+  anchorPublicBaseUrl: data.anchorPublicBaseUrl,
+})}
 
 LEGAL NOTE
 

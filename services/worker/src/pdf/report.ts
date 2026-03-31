@@ -142,14 +142,16 @@ function parseFingerprintSummary(
       : 0;
     const summary = parsed?.file?.summary;
 
+    const itemCount =
+      typeof summary?.itemCount === "number"
+        ? summary.itemCount
+        : multipart
+          ? partsCount || 0
+          : 1;
+
     return {
       multipart,
-      itemCount:
-        typeof summary?.itemCount === "number"
-          ? summary.itemCount
-          : multipart
-            ? partsCount || 0
-            : 1,
+      itemCount,
       imageCount:
         typeof summary?.imageCount === "number" ? summary.imageCount : 0,
       videoCount:
@@ -189,6 +191,11 @@ function normalizeTimestampStatus(
   }
   if (s) return "DANGER";
   return "NEUTRAL";
+}
+
+function evidenceStructureLabel(summary: ParsedFingerprintSummary): string {
+  if (summary.itemCount <= 1) return "Single evidence item";
+  return "Multipart evidence package";
 }
 
 const __filename = fileURLToPath(import.meta.url);
@@ -896,37 +903,12 @@ function buildVerifyUrl(evidenceId: string, provided?: string | null): string {
   return `${base}/${encodeURIComponent(evidenceId)}`;
 }
 
-function estimateQuickVerificationHeight(doc: PDFDoc, verifyUrl: string): number {
-  const w = doc.page.width - doc.page.margins.left - doc.page.margins.right;
-
-  doc.font("Helvetica").fontSize(9.7);
-  const p1 = doc.heightOfString(
-    "Use the verification page to review integrity details, custody events, and technical validation materials associated with this evidence record.",
-    { width: w, lineGap: 1.8 }
-  );
-
-  doc.font("Helvetica-Bold").fontSize(9.8);
-  const label = doc.heightOfString("Verify link:", { width: w });
-
-  doc.font("Helvetica").fontSize(8.9);
-  const link = doc.heightOfString(verifyUrl, { width: w, lineGap: 1.8 });
-
-  doc.font("Helvetica").fontSize(9.2);
-  const p2 = doc.heightOfString(
-    "Technical verification supports detection of post-completion changes. It does not independently determine authorship, authenticity of real-world events, or legal effect.",
-    { width: w, lineGap: 1.8 }
-  );
-
-  return 24 + p1 + label + link + p2;
-}
-
-function estimateKvGridHeight(
-  rows: Array<[string, string]>,
+function estimateEvidenceSummarySectionHeight(
   doc: PDFDoc,
-  options?: { colGap?: number }
+  rows: Array<[string, string]>
 ): number {
   const w = doc.page.width - doc.page.margins.left - doc.page.margins.right;
-  const colGap = options?.colGap ?? 16;
+  const colGap = 16;
   const colW = (w - colGap) / 2;
 
   const calcCellHeight = (row?: [string, string]): number => {
@@ -942,28 +924,17 @@ function estimateKvGridHeight(
     return keyH + valueH + 14;
   };
 
-  let total = 0;
+  let gridHeight = 0;
   for (let i = 0; i < rows.length; i += 2) {
-    total += Math.max(calcCellHeight(rows[i]), calcCellHeight(rows[i + 1]));
+    gridHeight += Math.max(calcCellHeight(rows[i]), calcCellHeight(rows[i + 1]));
   }
 
-  return total;
-}
-
-function estimateEvidenceSummarySectionHeight(
-  doc: PDFDoc,
-  rows: Array<[string, string]>
-): number {
-  const titleHeight = 18;
-  const titleGap = 10;
-  const gridHeight = estimateKvGridHeight(rows, doc);
-  const bottomGap = 12;
-  return titleHeight + titleGap + gridHeight + bottomGap;
+  return 18 + 10 + gridHeight + 12;
 }
 
 function estimateForensicIntegrityStatementHeight(
   doc: PDFDoc,
-  opts: { verifyUrl: string; multipart: boolean }
+  opts: { verifyUrl: string; structureLabel: string }
 ): number {
   const w = doc.page.width - doc.page.margins.left - doc.page.margins.right;
 
@@ -989,9 +960,9 @@ function estimateForensicIntegrityStatementHeight(
 
   doc.font("Helvetica").fontSize(9.8);
   const bullets = [
-    opts.multipart
-      ? "• A SHA-256 cryptographic hash representing the multipart evidence set"
-      : "• A SHA-256 cryptographic hash of the original evidence file",
+    opts.structureLabel === "Single evidence item"
+      ? "• A SHA-256 cryptographic hash of the original evidence file"
+      : "• A SHA-256 cryptographic hash representing the multipart evidence set",
     "• A canonical fingerprint record describing the evidence state and metadata",
     "• A fingerprint hash derived from the canonical record",
     "• A digital signature generated using the PROOVRA signing key",
@@ -999,23 +970,24 @@ function estimateForensicIntegrityStatementHeight(
     "• A custody timeline documenting relevant system events",
   ];
 
-  const steps = opts.multipart
-    ? [
-        "1. Obtaining the complete multipart evidence set",
-        "2. Reviewing the canonical fingerprint and listed evidence parts",
-        "3. Validating the multipart composite hash against the included materials",
-        "4. Verifying the digital signature using the provided public key",
-        "5. Verifying the RFC 3161 timestamp token, when present",
-        "6. Reviewing the recorded chain of custody events",
-      ]
-    : [
-        "1. Obtaining the original evidence file",
-        "2. Computing the SHA-256 hash of the evidence file",
-        "3. Comparing the computed hash with the value listed in this report",
-        "4. Verifying the digital signature using the provided public key",
-        "5. Verifying the RFC 3161 timestamp token, when present",
-        "6. Reviewing the recorded chain of custody events",
-      ];
+  const steps =
+    opts.structureLabel === "Single evidence item"
+      ? [
+          "1. Obtaining the original evidence file",
+          "2. Computing the SHA-256 hash of the evidence file",
+          "3. Comparing the computed hash with the value listed in this report",
+          "4. Verifying the digital signature using the provided public key",
+          "5. Verifying the RFC 3161 timestamp token, when present",
+          "6. Reviewing the recorded chain of custody events",
+        ]
+      : [
+          "1. Obtaining the complete multipart evidence set",
+          "2. Reviewing the canonical fingerprint and listed evidence parts",
+          "3. Validating the multipart composite hash against the included materials",
+          "4. Verifying the digital signature using the provided public key",
+          "5. Verifying the RFC 3161 timestamp token, when present",
+          "6. Reviewing the recorded chain of custody events",
+        ];
 
   const bulletsHeight = bullets.reduce(
     (sum, item) => sum + doc.heightOfString(item, { width: w, lineGap: 1.8 }),
@@ -1069,7 +1041,7 @@ function estimateForensicIntegrityStatementHeight(
 
 function renderForensicIntegrityStatement(
   doc: PDFDoc,
-  opts: { verifyUrl: string; multipart: boolean }
+  opts: { verifyUrl: string; structureLabel: string }
 ): void {
   const x = doc.page.margins.left;
   const w = doc.page.width - doc.page.margins.left - doc.page.margins.right;
@@ -1095,9 +1067,9 @@ function renderForensicIntegrityStatement(
   doc.moveDown(0.12);
 
   const bullets = [
-    opts.multipart
-      ? "A SHA-256 cryptographic hash representing the multipart evidence set"
-      : "A SHA-256 cryptographic hash of the original evidence file",
+    opts.structureLabel === "Single evidence item"
+      ? "A SHA-256 cryptographic hash of the original evidence file"
+      : "A SHA-256 cryptographic hash representing the multipart evidence set",
     "A canonical fingerprint record describing the evidence state and metadata",
     "A fingerprint hash derived from the canonical record",
     "A digital signature generated using the PROOVRA signing key",
@@ -1117,23 +1089,24 @@ function renderForensicIntegrityStatement(
   doc.restore();
   doc.moveDown(0.12);
 
-  const steps = opts.multipart
-    ? [
-        "Obtaining the complete multipart evidence set",
-        "Reviewing the canonical fingerprint and listed evidence parts",
-        "Validating the multipart composite hash against the included materials",
-        "Verifying the digital signature using the provided public key",
-        "Verifying the RFC 3161 timestamp token, when present",
-        "Reviewing the recorded chain of custody events",
-      ]
-    : [
-        "Obtaining the original evidence file",
-        "Computing the SHA-256 hash of the evidence file",
-        "Comparing the computed hash with the value listed in this report",
-        "Verifying the digital signature using the provided public key",
-        "Verifying the RFC 3161 timestamp token, when present",
-        "Reviewing the recorded chain of custody events",
-      ];
+  const steps =
+    opts.structureLabel === "Single evidence item"
+      ? [
+          "Obtaining the original evidence file",
+          "Computing the SHA-256 hash of the evidence file",
+          "Comparing the computed hash with the value listed in this report",
+          "Verifying the digital signature using the provided public key",
+          "Verifying the RFC 3161 timestamp token, when present",
+          "Reviewing the recorded chain of custody events",
+        ]
+      : [
+          "Obtaining the complete multipart evidence set",
+          "Reviewing the canonical fingerprint and listed evidence parts",
+          "Validating the multipart composite hash against the included materials",
+          "Verifying the digital signature using the provided public key",
+          "Verifying the RFC 3161 timestamp token, when present",
+          "Reviewing the recorded chain of custody events",
+        ];
 
   for (let i = 0; i < steps.length; i++) {
     safeParagraph(doc, `${i + 1}. ${steps[i]}`, {
@@ -1218,6 +1191,7 @@ export async function buildReportPdf(params: {
   const chunks: Buffer[] = [];
   doc.on("data", (chunk: Buffer) => chunks.push(chunk));
 
+  const finalDisplayStatus = "REPORTED";
   const verifyUrl = buildVerifyUrl(params.evidence.id, params.verifyUrl);
   const technicalUrl = verifyUrl.includes("?")
     ? `${verifyUrl}&tab=technical`
@@ -1226,11 +1200,12 @@ export async function buildReportPdf(params: {
   const fingerprintSummary = parseFingerprintSummary(
     params.evidence.fingerprintCanonicalJson
   );
+  const structureLabel = evidenceStructureLabel(fingerprintSummary);
 
   const headerContext: HeaderContext = {
     evidenceId: params.evidence.id,
     generatedAtUtc: params.generatedAtUtc,
-    status: params.evidence.status,
+    status: finalDisplayStatus,
   };
 
   setHeaderContext(headerContext);
@@ -1269,14 +1244,11 @@ export async function buildReportPdf(params: {
         fontSize: 9.8,
         color: BRAND.ink,
       });
-
-      if (fingerprintSummary.multipart) {
-        safeParagraph(
-          doc,
-          `• Multipart evidence structure detected (${fingerprintSummary.itemCount} item${fingerprintSummary.itemCount === 1 ? "" : "s"})`,
-          { fontSize: 9.8, color: BRAND.ink }
-        );
-      }
+      safeParagraph(
+        doc,
+        `• ${structureLabel} detected (${Math.max(1, fingerprintSummary.itemCount)} item${Math.max(1, fingerprintSummary.itemCount) === 1 ? "" : "s"})`,
+        { fontSize: 9.8, color: BRAND.ink }
+      );
 
       const tsaTone = normalizeTimestampStatus(params.evidence.tsaStatus);
       if (tsaTone === "SUCCESS") {
@@ -1326,11 +1298,13 @@ export async function buildReportPdf(params: {
   {
     const evidenceSummaryRows: Array<[string, string]> = [
       ["Evidence ID", safe(params.evidence.id)],
-      ["Status", safe(params.evidence.status).toUpperCase()],
+      ["Status", finalDisplayStatus],
+      ["Display Label", "Verified / Reported"],
       ["Captured (UTC)", safe(params.evidence.capturedAtUtc)],
       ["Uploaded (UTC)", safe(params.evidence.uploadedAtUtc)],
       ["Signed (UTC)", safe(params.evidence.signedAtUtc)],
       ["Report Generated (UTC)", safe(params.evidence.reportGeneratedAtUtc)],
+      ["Evidence Structure", structureLabel],
       ["Size", formatBytesHuman(params.evidence.sizeBytes)],
       [
         "Duration",
@@ -1347,9 +1321,8 @@ export async function buildReportPdf(params: {
       ["Timestamp Status", safe(params.evidence.tsaStatus)],
     ];
 
-    if (fingerprintSummary.multipart) {
+    if (fingerprintSummary.itemCount > 1) {
       evidenceSummaryRows.push(
-        ["Evidence Structure", "Multipart evidence package"],
         ["Total Items", String(fingerprintSummary.itemCount)],
         ["Image Items", String(fingerprintSummary.imageCount)],
         ["Video Items", String(fingerprintSummary.videoCount)],
@@ -1366,7 +1339,7 @@ export async function buildReportPdf(params: {
       );
     } else {
       evidenceSummaryRows.push(
-        ["Evidence Structure", "Single file evidence"],
+        ["Total Items", "1"],
         ["MIME Type", safe(params.evidence.mimeType)]
       );
     }
@@ -1463,10 +1436,16 @@ export async function buildReportPdf(params: {
       );
       doc.moveDown(0.14);
 
-      if (fingerprintSummary.multipart) {
+      if (fingerprintSummary.itemCount > 1) {
         drawCallout(doc, {
           title: "Multipart evidence package",
-          body: `This evidence record contains ${fingerprintSummary.itemCount} item${fingerprintSummary.itemCount === 1 ? "" : "s"} grouped into a single signed evidence package. Integrity review should consider the complete package rather than an isolated item only.`,
+          body: `This evidence record contains ${fingerprintSummary.itemCount} items grouped into a single signed evidence package. Integrity review should consider the complete package rather than an isolated item only.`,
+          tone: "neutral",
+        });
+      } else {
+        drawCallout(doc, {
+          title: "Single evidence item",
+          body: "This evidence record represents a single signed evidence item. Integrity review should evaluate the file hash, fingerprint hash, signature, timestamp record, and custody chain together.",
           tone: "neutral",
         });
       }
@@ -1543,7 +1522,7 @@ export async function buildReportPdf(params: {
         { maxChars: 320 }
       );
 
-      if (fingerprintSummary.multipart) {
+      if (fingerprintSummary.itemCount > 1) {
         ensureSpace(doc, 180);
 
         doc.save();
@@ -1553,7 +1532,7 @@ export async function buildReportPdf(params: {
         doc.moveDown(0.14);
 
         kvGrid(doc, [
-          ["Multipart", "Yes"],
+          ["Structure", structureLabel],
           ["Total Items", String(fingerprintSummary.itemCount)],
           ["Fingerprint Parts", String(fingerprintSummary.partsCount)],
           ["Images", String(fingerprintSummary.imageCount)],
@@ -1679,7 +1658,7 @@ export async function buildReportPdf(params: {
 
   const forensicBlockHeight = estimateForensicIntegrityStatementHeight(doc, {
     verifyUrl,
-    multipart: fingerprintSummary.multipart,
+    structureLabel,
   });
 
   ensurePageWithHeader(doc, forensicBlockHeight + 40);
@@ -1690,7 +1669,7 @@ export async function buildReportPdf(params: {
     () => {
       renderForensicIntegrityStatement(doc, {
         verifyUrl,
-        multipart: fingerprintSummary.multipart,
+        structureLabel,
       });
     },
     { minSpace: 140 }

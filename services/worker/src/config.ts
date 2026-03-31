@@ -19,6 +19,15 @@ const optionalPositiveInt = z.preprocess((value) => {
   return Number.isFinite(parsed) ? parsed : value;
 }, z.number().int().positive().optional());
 
+const anchorModeSchema = z.preprocess(
+  (value) => {
+    if (typeof value !== "string") return value;
+    const trimmed = value.trim().toLowerCase();
+    return trimmed === "" ? undefined : trimmed;
+  },
+  z.enum(["off", "ready", "active"]).default("ready")
+);
+
 const EnvSchema = z.object({
   DATABASE_URL: z.string().min(1),
   REDIS_URL: z.string().min(1),
@@ -55,7 +64,7 @@ const EnvSchema = z.object({
   REPORT_APP_BASE_URL: optionalUrl,
 
   ANCHOR_PROVIDER: optionalTrimmedString,
-  ANCHOR_MODE: optionalTrimmedString,
+  ANCHOR_MODE: anchorModeSchema,
   ANCHOR_PUBLIC_BASE_URL: optionalUrl,
 
   SENTRY_DSN: optionalTrimmedString,

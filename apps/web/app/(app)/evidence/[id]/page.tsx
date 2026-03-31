@@ -50,6 +50,57 @@ function getEvidenceKind(
   return "other";
 }
 
+function getDisplayStatusMeta(
+  rawStatus: string | null | undefined,
+  labels: {
+    signed: string;
+    processing: string;
+  }
+): {
+  label: string;
+  className: string;
+} {
+  const status = (rawStatus ?? "").trim().toUpperCase();
+
+  switch (status) {
+    case "REPORTED":
+      return {
+        label: "REPORTED",
+        className: "badge ready",
+      };
+
+    case "SIGNED":
+      return {
+        label: labels.signed,
+        className: "badge signed",
+      };
+
+    case "UPLOADED":
+      return {
+        label: "UPLOADED",
+        className: "badge ready",
+      };
+
+    case "UPLOADING":
+      return {
+        label: labels.processing,
+        className: "badge processing",
+      };
+
+    case "CREATED":
+      return {
+        label: "CREATED",
+        className: "badge processing",
+      };
+
+    default:
+      return {
+        label: status || "UNKNOWN",
+        className: "badge ready",
+      };
+  }
+}
+
 type CaseOption = {
   id: string;
   name: string;
@@ -154,7 +205,7 @@ export default function EvidenceDetailPage() {
   const { addToast } = useToast();
   const evidenceId = params?.id ?? "unknown";
 
-  const [status, setStatus] = useState("SIGNED");
+  const [status, setStatus] = useState("CREATED");
   const [, setReportUrl] = useState<string | null>(null);
   const [createdAt, setCreatedAt] = useState<string | null>(null);
   const [lockedAt, setLockedAt] = useState<string | null>(null);
@@ -239,6 +290,20 @@ export default function EvidenceDetailPage() {
     );
   }, [sortedParts]);
 
+const displayStatusMeta = useMemo(
+  () =>
+    getDisplayStatusMeta(status, {
+      signed: t("statusSigned"),
+      processing: t("statusProcessing"),
+    }),
+  [status, t]
+);
+
+  const isImmutable = useMemo(() => {
+    const normalized = status.trim().toUpperCase();
+    return Boolean(lockedAt) || normalized === "SIGNED" || normalized === "REPORTED";
+  }, [status, lockedAt]);
+
   useEffect(() => {
     if (!params?.id) return;
 
@@ -272,7 +337,7 @@ export default function EvidenceDetailPage() {
         if (evidenceRes.status === "fulfilled") {
           const data = evidenceRes.value as EvidenceResponse;
           const ev = data?.evidence ?? {};
-          setStatus(ev.status ?? "SIGNED");
+          setStatus(ev.status ?? "CREATED");
           setCreatedAt(ev.createdAt ?? null);
           setLockedAt(ev.lockedAt ?? null);
           setArchivedAt(ev.archivedAt ?? null);
@@ -379,7 +444,7 @@ export default function EvidenceDetailPage() {
       if (evidenceData.status === "fulfilled") {
         const data = evidenceData.value as EvidenceResponse;
         const ev = data?.evidence ?? {};
-        setStatus(ev.status ?? "SIGNED");
+        setStatus(ev.status ?? "CREATED");
         setCreatedAt(ev.createdAt ?? null);
         setLockedAt(ev.lockedAt ?? null);
         setArchivedAt(ev.archivedAt ?? null);
@@ -436,6 +501,7 @@ export default function EvidenceDetailPage() {
   };
 
   const handleStartEditTitle = () => {
+    if (isImmutable) return;
     setTitleDraft(title);
     setIsEditingTitle(true);
   };
@@ -806,7 +872,7 @@ export default function EvidenceDetailPage() {
                   <Button
                     variant="secondary"
                     onClick={handleStartEditTitle}
-                    disabled={loading || actionBusy || titleBusy}
+                    disabled={loading || actionBusy || titleBusy || isImmutable}
                   >
                     Rename
                   </Button>
@@ -886,17 +952,9 @@ export default function EvidenceDetailPage() {
                 <div style={{ flex: 1 }}>
                   <div style={{ fontWeight: 800, fontSize: 14 }}>{title}</div>
                   <div style={{ marginTop: 6 }}>
-                    {status === "SIGNED" ? (
-                      <span className="badge signed">{t("statusSigned")}</span>
-                    ) : status === "PROCESSING" ? (
-                      <span className="badge processing">
-                        {t("statusProcessing")}
-                      </span>
-                    ) : status === "REPORTED" ? (
-                      <span className="badge ready">REPORTED</span>
-                    ) : (
-                      <span className="badge ready">{status}</span>
-                    )}
+                    <span className={displayStatusMeta.className}>
+                      {displayStatusMeta.label}
+                    </span>
                   </div>
                   <div style={{ fontSize: 12, opacity: 0.85, marginTop: 8 }}>
                     {displaySubtitle ||
@@ -917,17 +975,9 @@ export default function EvidenceDetailPage() {
                     <div className="row" style={{ borderTop: "none", paddingTop: 0 }}>
                       <div className="rowTitle evidence-meta-label">Status</div>
                       <div style={{ display: "flex", justifyContent: "flex-end" }}>
-                        {status === "SIGNED" ? (
-                          <span className="badge signed">{t("statusSigned")}</span>
-                        ) : status === "PROCESSING" ? (
-                          <span className="badge processing">
-                            {t("statusProcessing")}
-                          </span>
-                        ) : status === "REPORTED" ? (
-                          <span className="badge ready">REPORTED</span>
-                        ) : (
-                          <span className="badge ready">{status}</span>
-                        )}
+                        <span className={displayStatusMeta.className}>
+                          {displayStatusMeta.label}
+                        </span>
                       </div>
                     </div>
 

@@ -49,10 +49,6 @@ function normalizePayload(
   return payload as Prisma.InputJsonValue;
 }
 
-/**
- * Stable canonical JSON serializer for plain JSON values.
- * Keys are sorted recursively so API + worker generate identical hashes.
- */
 function canonicalJsonValue(value: unknown): string {
   if (value === null) return "null";
 

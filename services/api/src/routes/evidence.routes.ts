@@ -243,6 +243,24 @@ function buildEvidenceSubtitle(params: {
   )} • ${formatDisplayDateUtc(params.createdAt)}`;
 }
 
+function getCompletedEvidenceLabel(itemCount: number | null): string {
+  const count =
+    typeof itemCount === "number" && Number.isFinite(itemCount)
+      ? Math.max(0, itemCount)
+      : 0;
+  return count <= 1
+    ? "Single evidence item completed"
+    : "Multipart evidence package completed";
+}
+
+function normalizeAnchorMode(
+  value: string | null | undefined
+): "off" | "ready" | "active" {
+  const raw = String(value ?? "ready").trim().toLowerCase();
+  if (raw === "off" || raw === "active") return raw;
+  return "ready";
+}
+
 function summarizePublicPayload(
   eventType: prismaPkg.CustodyEventType,
   payload: prismaPkg.Prisma.JsonValue | null
@@ -273,17 +291,15 @@ function summarizePublicPayload(
     }
 
     case prismaPkg.CustodyEventType.UPLOAD_COMPLETED: {
-      const multipart = obj.multipart === true;
       const itemCount =
         typeof obj.itemCount === "number" && Number.isFinite(obj.itemCount)
-          ? String(obj.itemCount)
+          ? obj.itemCount
           : null;
       const sizeBytes = normalizePublicPayloadValue(obj.sizeBytes);
+
       return [
-        multipart
-          ? "Multipart evidence package completed"
-          : "Single-file upload completed",
-        itemCount ? `Items: ${itemCount}` : null,
+        getCompletedEvidenceLabel(itemCount),
+        itemCount != null ? `Items: ${itemCount}` : null,
         sizeBytes ? `Size: ${sizeBytes} bytes` : null,
       ]
         .filter(Boolean)
@@ -334,9 +350,17 @@ function summarizePublicPayload(
 
     case prismaPkg.CustodyEventType.REPORT_GENERATED: {
       const reportVersion = normalizePublicPayloadValue(obj.reportVersion);
-      return reportVersion
-        ? `Verification report generated • Version: ${reportVersion}`
-        : "Verification report generated.";
+      const anchorMode = normalizePublicPayloadValue(obj.anchorMode);
+      const anchorHash = normalizePublicPayloadValue(obj.anchorHash);
+      return [
+        reportVersion
+          ? `Verification report generated • Version: ${reportVersion}`
+          : "Verification report generated.",
+        anchorMode ? `Anchor Mode: ${anchorMode}` : null,
+        anchorHash ? `Anchor: ${shortHash(anchorHash)}` : null,
+      ]
+        .filter(Boolean)
+        .join(" • ");
     }
 
     case prismaPkg.CustodyEventType.REPORT_DOWNLOADED: {
@@ -603,7 +627,7 @@ function toJsonSafe<T>(value: T): T {
 }
 
 function getAnchorStatus() {
-  const mode = (process.env.ANCHOR_MODE ?? "ready").trim() || "ready";
+  const mode = normalizeAnchorMode(process.env.ANCHOR_MODE);
   const provider = process.env.ANCHOR_PROVIDER?.trim() || null;
   const publicBaseUrl = process.env.ANCHOR_PUBLIC_BASE_URL?.trim() || null;
 
@@ -612,6 +636,12 @@ function getAnchorStatus() {
     provider,
     publicBaseUrl,
     configured: Boolean(provider),
+    published: false,
+    anchorHash: null,
+    receiptId: null,
+    transactionId: null,
+    publicUrl: null,
+    anchoredAtUtc: null,
   };
 }
 
@@ -1674,6 +1704,23 @@ export async function evidenceRoutes(app: FastifyInstance) {
       userAgent: req.headers["user-agent"],
     }).catch(() => null);
 
+    const mapCustodyEvent = (ev: {
+      sequence: number;
+      atUtc: Date;
+      eventType: prismaPkg.CustodyEventType;
+      payload: prismaPkg.Prisma.JsonValue | null;
+      prevEventHash: string | null;
+      eventHash: string | null;
+    }) => ({
+      sequence: ev.sequence,
+      atUtc: ev.atUtc.toISOString(),
+      eventType: ev.eventType,
+      payloadSummary: summarizePublicPayload(ev.eventType, ev.payload),
+      prevEventHash: shortHash(ev.prevEventHash, 10, 8),
+      eventHash: shortHash(ev.eventHash, 10, 8),
+      category: isAccessCustodyEventType(ev.eventType) ? "access" : "forensic",
+    });
+
     return reply.code(200).send({
       evidenceId: evidence.id,
       title: resolveEvidenceTitle(evidence.title),
@@ -1733,15 +1780,9 @@ export async function evidenceRoutes(app: FastifyInstance) {
         digestMatchesFileHash: timestampDigestMatches,
       },
 
-      custodyEvents: allCustodyEvents.map((ev) => ({
-        sequence: ev.sequence,
-        atUtc: ev.atUtc.toISOString(),
-        eventType: ev.eventType,
-        payloadSummary: summarizePublicPayload(ev.eventType, ev.payload),
-        prevEventHash: shortHash(ev.prevEventHash, 10, 8),
-        eventHash: shortHash(ev.eventHash, 10, 8),
-        category: isAccessCustodyEventType(ev.eventType) ? "access" : "forensic",
-      })),
+      custodyEvents: allCustodyEvents.map(mapCustodyEvent),
+      forensicCustodyEvents: forensicCustodyEvents.map(mapCustodyEvent),
+      accessCustodyEvents: accessCustodyEvents.map(mapCustodyEvent),
     });
   });
 }

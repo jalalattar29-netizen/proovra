@@ -56,6 +56,7 @@ model Evidence {
   guestIdentity            GuestIdentity? @relation(fields: [guestIdentityId], references: [id])
   parts                    EvidencePart[]
   reports                  Report[]
+  anchor                   EvidenceAnchor?
 
   @@index([deletedAt])
   @@index([deletedAtUtc])
@@ -72,6 +73,26 @@ model Evidence {
   @@index([teamId])
   @@index([storageBucket, storageKey])
   @@map("evidence")
+}
+
+model EvidenceAnchor {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  evidenceId    String   @unique @map("evidence_id") @db.Uuid
+  provider      String   @db.VarChar(64)
+  mode          String   @db.VarChar(32)
+  anchorHash    String   @map("anchor_hash") @db.VarChar(64)
+  receiptId     String?  @map("receipt_id") @db.VarChar(255)
+  transactionId String?  @map("transaction_id") @db.VarChar(255)
+  publicUrl     String?  @map("public_url") @db.VarChar(1024)
+  anchoredAtUtc DateTime? @map("anchored_at_utc") @db.Timestamptz(6)
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  evidence      Evidence @relation(fields: [evidenceId], references: [id], onDelete: Cascade)
+
+  @@index([provider])
+  @@index([mode])
+  @@index([anchoredAtUtc])
+  @@map("evidence_anchors")
 }
 
 model EvidencePart {
@@ -433,6 +454,8 @@ enum CustodyEventType {
   TIMESTAMP_APPLIED
   TIMESTAMP_FAILED
   REPORT_GENERATED
+  ANCHOR_PUBLISHED
+  ANCHOR_FAILED
   EVIDENCE_VIEWED
   EVIDENCE_DOWNLOADED
   EVIDENCE_DELETED

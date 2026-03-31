@@ -24,6 +24,23 @@ type VerifyResponse = {
     payloadSummary?: string | null;
     prevEventHash?: string | null;
     eventHash?: string | null;
+    category?: "forensic" | "access" | null;
+  }>;
+  forensicCustodyEvents?: Array<{
+    eventType?: string | null;
+    atUtc?: string | null;
+    payloadSummary?: string | null;
+    prevEventHash?: string | null;
+    eventHash?: string | null;
+    category?: "forensic" | "access" | null;
+  }>;
+  accessCustodyEvents?: Array<{
+    eventType?: string | null;
+    atUtc?: string | null;
+    payloadSummary?: string | null;
+    prevEventHash?: string | null;
+    eventHash?: string | null;
+    category?: "forensic" | "access" | null;
   }>;
   status?: string | null;
   evidenceId?: string | null;
@@ -65,6 +82,18 @@ type VerifyResponse = {
     hashAlgorithm?: string | null;
     failureReason?: string | null;
   } | null;
+  anchor?: {
+    mode?: string | null;
+    provider?: string | null;
+    publicBaseUrl?: string | null;
+    configured?: boolean;
+    published?: boolean;
+    anchorHash?: string | null;
+    receiptId?: string | null;
+    transactionId?: string | null;
+    publicUrl?: string | null;
+    anchoredAtUtc?: string | null;
+  } | null;
   verification?: {
     canonicalHashMatches?: boolean;
     signatureValid?: boolean;
@@ -72,11 +101,9 @@ type VerifyResponse = {
     custodyChainMode?: string | null;
     custodyChainFailureReason?: string | null;
     timestampDigestMatches?: boolean;
-    anchorPresent?: boolean;
-    anchorHash?: string | null;
-    anchorValid?: boolean | null;
-    anchorMode?: string | null;
     overallIntegrity?: boolean;
+    forensicEventCount?: number;
+    accessEventCount?: number;
   } | null;
 };
 
@@ -86,6 +113,7 @@ type TimelineItem = {
   payloadSummary: string | null;
   prevEventHash?: string | null;
   eventHash?: string | null;
+  category?: "forensic" | "access" | null;
 };
 
 type ToastFn = (
@@ -252,6 +280,61 @@ function buildTsaDetails(data: VerifyResponse) {
       typeof data.tsa?.digestMatchesFileHash === "boolean"
         ? data.tsa.digestMatchesFileHash
         : null,
+  };
+}
+
+function buildAnchorPresentation(anchor?: VerifyResponse["anchor"] | null): {
+  badgeLabel: string;
+  badgeTone: "success" | "warning" | "neutral" | "info";
+  detailLabel: string;
+  detailText: string;
+} {
+  const mode = (anchor?.mode ?? "").trim().toLowerCase();
+
+  if (mode === "published" || anchor?.published === true) {
+    return {
+      badgeLabel: "Anchor Published",
+      badgeTone: "success",
+      detailLabel: "Anchor Status",
+      detailText:
+        "External anchor publication has been recorded for this evidence record.",
+    };
+  }
+
+  if (mode === "off") {
+    return {
+      badgeLabel: "Anchor Disabled",
+      badgeTone: "neutral",
+      detailLabel: "Anchor Status",
+      detailText: "External anchoring is currently disabled for this environment.",
+    };
+  }
+
+  if (mode === "active") {
+    return {
+      badgeLabel: "Anchor Active",
+      badgeTone: "info",
+      detailLabel: "Anchor Status",
+      detailText:
+        "External anchoring is active for this environment. A publication receipt is not attached to this record yet.",
+    };
+  }
+
+  if (mode === "ready") {
+    return {
+      badgeLabel: "Anchor Ready",
+      badgeTone: "info",
+      detailLabel: "Anchor Status",
+      detailText:
+        "External publication receipt is not yet attached to this record.",
+    };
+  }
+
+  return {
+    badgeLabel: "Anchor Not Reported",
+    badgeTone: "neutral",
+    detailLabel: "Anchor Status",
+    detailText: "Anchor status was not included in the verification response.",
   };
 }
 
@@ -486,7 +569,8 @@ export default function VerifyPage() {
   const [hash, setHash] = useState<string | null>(null);
   const [fingerprintHash, setFingerprintHash] = useState<string | null>(null);
   const [signature, setSignature] = useState<string | null>(null);
-  const [timeline, setTimeline] = useState<TimelineItem[]>([]);
+  const [forensicTimeline, setForensicTimeline] = useState<TimelineItem[]>([]);
+  const [accessTimeline, setAccessTimeline] = useState<TimelineItem[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -511,11 +595,18 @@ export default function VerifyPage() {
   const [custodyChainMode, setCustodyChainMode] = useState<string | null>(null);
   const [custodyChainFailureReason, setCustodyChainFailureReason] = useState<string | null>(null);
   const [timestampDigestMatches, setTimestampDigestMatches] = useState<boolean | null>(null);
-  const [anchorPresent, setAnchorPresent] = useState<boolean | null>(null);
-  const [anchorHash, setAnchorHash] = useState<string | null>(null);
-  const [anchorValid, setAnchorValid] = useState<boolean | null>(null);
-  const [anchorMode, setAnchorMode] = useState<string | null>(null);
   const [overallIntegrity, setOverallIntegrity] = useState<boolean | null>(null);
+
+  const [anchorMode, setAnchorMode] = useState<string | null>(null);
+  const [anchorProvider, setAnchorProvider] = useState<string | null>(null);
+  const [anchorPublicBaseUrl, setAnchorPublicBaseUrl] = useState<string | null>(null);
+  const [anchorConfigured, setAnchorConfigured] = useState<boolean | null>(null);
+  const [anchorPublished, setAnchorPublished] = useState<boolean | null>(null);
+  const [anchorHash, setAnchorHash] = useState<string | null>(null);
+  const [anchorReceiptId, setAnchorReceiptId] = useState<string | null>(null);
+  const [anchorTransactionId, setAnchorTransactionId] = useState<string | null>(null);
+  const [anchorPublicUrl, setAnchorPublicUrl] = useState<string | null>(null);
+  const [anchoredAtUtc, setAnchoredAtUtc] = useState<string | null>(null);
 
   useEffect(() => {
     if (!params?.token) return;
@@ -527,30 +618,55 @@ export default function VerifyPage() {
       .then((data: VerifyResponse) => {
         const tsaDetails = buildTsaDetails(data);
 
-        const mappedTimeline = (data.custodyEvents ?? []).map((ev) => ({
+        const rawTimeline: TimelineItem[] = (data.custodyEvents ?? []).map((ev) => ({
           eventType: ev.eventType ?? "UNKNOWN_EVENT",
           atUtc: ev.atUtc ?? null,
           payloadSummary: ev.payloadSummary ?? null,
           prevEventHash: ev.prevEventHash ?? null,
           eventHash: ev.eventHash ?? null,
+          category: ev.category ?? null,
         }));
+
+        const forensicOnly: TimelineItem[] =
+          data.forensicCustodyEvents && data.forensicCustodyEvents.length > 0
+            ? data.forensicCustodyEvents.map((ev) => ({
+                eventType: ev.eventType ?? "UNKNOWN_EVENT",
+                atUtc: ev.atUtc ?? null,
+                payloadSummary: ev.payloadSummary ?? null,
+                prevEventHash: ev.prevEventHash ?? null,
+                eventHash: ev.eventHash ?? null,
+                category: ev.category ?? "forensic",
+              }))
+            : rawTimeline.filter((item) => item.category !== "access");
+
+        const accessOnly: TimelineItem[] =
+          data.accessCustodyEvents && data.accessCustodyEvents.length > 0
+            ? data.accessCustodyEvents.map((ev) => ({
+                eventType: ev.eventType ?? "UNKNOWN_EVENT",
+                atUtc: ev.atUtc ?? null,
+                payloadSummary: ev.payloadSummary ?? null,
+                prevEventHash: ev.prevEventHash ?? null,
+                eventHash: ev.eventHash ?? null,
+                category: ev.category ?? "access",
+              }))
+            : rawTimeline.filter((item) => item.category === "access");
 
         const generatedAtFallback =
           data.reportGeneratedAtUtc ??
           data.generatedAtUtc ??
-          findEventTime(mappedTimeline, ["REPORT_GENERATED"]) ??
+          findEventTime(forensicOnly, ["REPORT_GENERATED"]) ??
           null;
 
         const verifiedAtFallback =
           data.verifiedAtUtc ??
           data.verificationCheckedAtUtc ??
-          findEventTime(mappedTimeline, ["SIGNATURE_APPLIED", "VERIFY_VIEWED"]) ??
+          findEventTime(forensicOnly, ["SIGNATURE_APPLIED"]) ??
           null;
 
         setHash(data.fileSha256 ?? null);
         setFingerprintHash(data.fingerprintHash ?? null);
         setSignature(data.signatureBase64 ?? null);
-        setVerifyStatus(data.status ?? "VERIFIED");
+        setVerifyStatus(data.status ?? "REPORTED");
         setEvidenceId(data.evidenceId ?? data.id ?? params.token ?? null);
         setMimeType(data.mimeType ?? null);
         setGeneratedAt(generatedAtFallback);
@@ -568,7 +684,8 @@ export default function VerifyPage() {
         setTsaFailureReason(tsaDetails.failureReason);
         setPublicKeyPem(data.publicKeyPem ?? null);
         setSigningKeyId(data.signingKeyId ?? null);
-        setTimeline(mappedTimeline);
+        setForensicTimeline(forensicOnly);
+        setAccessTimeline(accessOnly);
 
         setCanonicalHashMatches(
           typeof data.verification?.canonicalHashMatches === "boolean"
@@ -596,23 +713,26 @@ export default function VerifyPage() {
               ? tsaDetails.digestMatchesFileHash
               : null
         );
-        setAnchorPresent(
-          typeof data.verification?.anchorPresent === "boolean"
-            ? data.verification.anchorPresent
-            : null
-        );
-        setAnchorHash(data.verification?.anchorHash ?? null);
-        setAnchorValid(
-          typeof data.verification?.anchorValid === "boolean"
-            ? data.verification.anchorValid
-            : null
-        );
-        setAnchorMode(data.verification?.anchorMode ?? null);
         setOverallIntegrity(
           typeof data.verification?.overallIntegrity === "boolean"
             ? data.verification.overallIntegrity
             : null
         );
+
+        setAnchorMode(data.anchor?.mode ?? null);
+        setAnchorProvider(data.anchor?.provider ?? null);
+        setAnchorPublicBaseUrl(data.anchor?.publicBaseUrl ?? null);
+        setAnchorConfigured(
+          typeof data.anchor?.configured === "boolean" ? data.anchor.configured : null
+        );
+        setAnchorPublished(
+          typeof data.anchor?.published === "boolean" ? data.anchor.published : null
+        );
+        setAnchorHash(data.anchor?.anchorHash ?? null);
+        setAnchorReceiptId(data.anchor?.receiptId ?? null);
+        setAnchorTransactionId(data.anchor?.transactionId ?? null);
+        setAnchorPublicUrl(data.anchor?.publicUrl ?? null);
+        setAnchoredAtUtc(data.anchor?.anchoredAtUtc ?? null);
       })
       .catch((err) => {
         captureException(err, { feature: "web_verify", token: params.token });
@@ -624,6 +744,34 @@ export default function VerifyPage() {
         setLoading(false);
       });
   }, [params?.token, t, addToast]);
+
+  const anchorPresentation = useMemo(
+    () =>
+      buildAnchorPresentation({
+        mode: anchorMode,
+        provider: anchorProvider,
+        publicBaseUrl: anchorPublicBaseUrl,
+        configured: anchorConfigured ?? undefined,
+        published: anchorPublished ?? undefined,
+        anchorHash,
+        receiptId: anchorReceiptId,
+        transactionId: anchorTransactionId,
+        publicUrl: anchorPublicUrl,
+        anchoredAtUtc,
+      }),
+    [
+      anchorMode,
+      anchorProvider,
+      anchorPublicBaseUrl,
+      anchorConfigured,
+      anchorPublished,
+      anchorHash,
+      anchorReceiptId,
+      anchorTransactionId,
+      anchorPublicUrl,
+      anchoredAtUtc,
+    ]
+  );
 
   const verificationBadges = useMemo(() => {
     const items: Array<{
@@ -717,28 +865,8 @@ export default function VerifyPage() {
     });
 
     items.push({
-      label:
-        anchorPresent === true
-          ? anchorValid === true
-            ? anchorMode
-              ? `Anchor Ready (${anchorMode})`
-              : "Anchor Ready"
-            : anchorValid === false
-              ? "Anchor Invalid"
-              : anchorMode
-                ? `Anchor Present (${anchorMode})`
-                : "Anchor Present"
-          : anchorPresent === false
-            ? "No Anchor"
-            : "Anchor Not Reported",
-      tone:
-        anchorPresent === true
-          ? anchorValid === true
-            ? "info"
-            : anchorValid === false
-              ? "warning"
-              : "neutral"
-          : "neutral",
+      label: anchorPresentation.badgeLabel,
+      tone: anchorPresentation.badgeTone,
       show: true,
     });
 
@@ -750,9 +878,7 @@ export default function VerifyPage() {
     custodyChainValid,
     custodyChainMode,
     timestampDigestMatches,
-    anchorPresent,
-    anchorValid,
-    anchorMode,
+    anchorPresentation,
   ]);
 
   const summaryFields = useMemo(
@@ -873,28 +999,8 @@ export default function VerifyPage() {
           label: "Anchor",
           content: (
             <Badge
-              label={
-                anchorPresent === true
-                  ? anchorValid === true
-                    ? anchorMode
-                      ? `Ready (${anchorMode})`
-                      : "Ready"
-                    : anchorValid === false
-                      ? "Invalid"
-                      : "Present"
-                  : anchorPresent === false
-                    ? "Absent"
-                    : "Not Reported"
-              }
-              tone={
-                anchorPresent === true
-                  ? anchorValid === true
-                    ? "info"
-                    : anchorValid === false
-                      ? "warning"
-                      : "neutral"
-                  : "neutral"
-              }
+              label={anchorPresentation.badgeLabel}
+              tone={anchorPresentation.badgeTone}
             />
           ),
           show: true,
@@ -941,9 +1047,7 @@ export default function VerifyPage() {
       canonicalHashMatches,
       custodyChainValid,
       custodyChainMode,
-      anchorPresent,
-      anchorValid,
-      anchorMode,
+      anchorPresentation,
       tsaStatus,
       tsaProvider,
       tsaGenTimeUtc,
@@ -1266,7 +1370,7 @@ export default function VerifyPage() {
                         >
                           This page shows whether the recorded fingerprint,
                           signature, timestamp linkage, hashed custody chain,
-                          and anchor-ready state pass technical verification
+                          and anchor-ready or published state pass technical verification
                           checks. It does not by itself prove authorship,
                           factual truth, or legal admissibility of the
                           underlying content.
@@ -1301,6 +1405,91 @@ export default function VerifyPage() {
                     {verificationBadges.map((item) => (
                       <Badge key={item.label} label={item.label} tone={item.tone} />
                     ))}
+                  </div>
+
+                  <div
+                    style={{
+                      border: "1px solid #E4E7EC",
+                      background: "#FCFCFD",
+                      borderRadius: 16,
+                      padding: 16,
+                    }}
+                  >
+                    <div
+                      style={{
+                        fontSize: 12,
+                        color: "#667085",
+                        fontWeight: 800,
+                        marginBottom: 8,
+                      }}
+                    >
+                      {anchorPresentation.detailLabel}
+                    </div>
+                    <div
+                      style={{
+                        fontSize: 13,
+                        color: "#475467",
+                        lineHeight: 1.65,
+                        wordBreak: "break-word",
+                        overflowWrap: "anywhere",
+                      }}
+                    >
+                      {anchorPresentation.detailText}
+                    </div>
+
+                    {(anchorProvider ||
+                      anchorPublicBaseUrl ||
+                      anchorReceiptId ||
+                      anchorTransactionId ||
+                      anchorHash ||
+                      anchoredAtUtc) && (
+                      <div
+                        style={{
+                          marginTop: 10,
+                          display: "grid",
+                          gap: 6,
+                          fontSize: 12,
+                          color: "#667085",
+                        }}
+                      >
+                        {anchorProvider ? <div>Provider: {anchorProvider}</div> : null}
+                        {anchorHash ? (
+                          <div style={{ wordBreak: "break-all" }}>
+                            Anchor Hash: {anchorHash}
+                          </div>
+                        ) : null}
+                        {anchorReceiptId ? (
+                          <div style={{ wordBreak: "break-all" }}>
+                            Receipt ID: {anchorReceiptId}
+                          </div>
+                        ) : null}
+                        {anchorTransactionId ? (
+                          <div style={{ wordBreak: "break-all" }}>
+                            Transaction ID: {anchorTransactionId}
+                          </div>
+                        ) : null}
+                        {anchoredAtUtc ? (
+                          <div>Anchored At: {formatDateTime(anchoredAtUtc)}</div>
+                        ) : null}
+                        {anchorPublicUrl ? (
+                          <div style={{ wordBreak: "break-all" }}>
+                            Public URL:{" "}
+                            <a
+                              href={anchorPublicUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                            >
+                              {anchorPublicUrl}
+                            </a>
+                          </div>
+                        ) : null}
+                        {anchorPublicBaseUrl ? (
+                          <div style={{ wordBreak: "break-all" }}>
+                            Public Base URL: {anchorPublicBaseUrl}
+                          </div>
+                        ) : null}
+                      </div>
+                    )}
                   </div>
 
                   {custodyChainFailureReason ? (
@@ -1466,16 +1655,6 @@ export default function VerifyPage() {
                     />
                   ) : null}
 
-                  {anchorHash ? (
-                    <MaterialField
-                      label="Anchor Hash"
-                      subtitle="Anchor-ready hash derived from the fingerprint hash and the latest hashed custody event."
-                      value={anchorHash}
-                      addToast={addToast}
-                      copyMessage="Anchor hash copied"
-                    />
-                  ) : null}
-
                   {technicalCards.length > 0 ? (
                     <div
                       style={{
@@ -1589,20 +1768,19 @@ export default function VerifyPage() {
                         color: "#667085",
                       }}
                     >
-                      Recorded sequence of system events associated with this
-                      evidence item.
+                      Recorded forensic integrity events associated with this evidence item.
                     </div>
                   </div>
 
                   <Badge
-                    label={`${timeline.length} Event${timeline.length === 1 ? "" : "s"}`}
+                    label={`${forensicTimeline.length} Event${forensicTimeline.length === 1 ? "" : "s"}`}
                     tone="info"
                   />
                 </div>
 
-                {timeline.length === 0 ? (
+                {forensicTimeline.length === 0 ? (
                   <div style={{ fontSize: 13, color: "#667085" }}>
-                    No custody events recorded.
+                    No forensic custody events recorded.
                   </div>
                 ) : (
                   <div
@@ -1612,8 +1790,8 @@ export default function VerifyPage() {
                       gap: 14,
                     }}
                   >
-                    {timeline.map((event, idx) => {
-                      const isLast = idx === timeline.length - 1;
+                    {forensicTimeline.map((event, idx) => {
+                      const isLast = idx === forensicTimeline.length - 1;
 
                       return (
                         <div
@@ -1760,6 +1938,169 @@ export default function VerifyPage() {
                   </div>
                 )}
               </Card>
+
+              {accessTimeline.length > 0 ? (
+                <Card>
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      gap: 12,
+                      flexWrap: "wrap",
+                      marginBottom: 18,
+                    }}
+                  >
+                    <div>
+                      <h3
+                        style={{
+                          margin: 0,
+                          fontSize: 18,
+                          fontWeight: 800,
+                          color: "#101828",
+                        }}
+                      >
+                        Access Activity
+                      </h3>
+                      <div
+                        style={{
+                          marginTop: 6,
+                          fontSize: 13,
+                          color: "#667085",
+                        }}
+                      >
+                        Access-related viewing and download events are shown separately from the forensic custody chain.
+                      </div>
+                    </div>
+
+                    <Badge
+                      label={`${accessTimeline.length} Event${accessTimeline.length === 1 ? "" : "s"}`}
+                      tone="neutral"
+                    />
+                  </div>
+
+                  <div
+                    style={{
+                      position: "relative",
+                      display: "grid",
+                      gap: 14,
+                    }}
+                  >
+                    {accessTimeline.map((event, idx) => {
+                      const isLast = idx === accessTimeline.length - 1;
+
+                      return (
+                        <div
+                          key={`${event.eventType}-${event.atUtc}-${idx}`}
+                          style={{
+                            display: "grid",
+                            gridTemplateColumns: "28px minmax(0, 1fr)",
+                            gap: 14,
+                            alignItems: "start",
+                          }}
+                        >
+                          <div
+                            style={{
+                              position: "relative",
+                              display: "flex",
+                              justifyContent: "center",
+                              minHeight: 80,
+                            }}
+                          >
+                            <div
+                              style={{
+                                width: 14,
+                                height: 14,
+                                borderRadius: 999,
+                                background: "#98A2B3",
+                                border: "3px solid #EAECF0",
+                                marginTop: 6,
+                                zIndex: 1,
+                              }}
+                            />
+                            {!isLast ? (
+                              <div
+                                style={{
+                                  position: "absolute",
+                                  top: 22,
+                                  bottom: -18,
+                                  width: 2,
+                                  background: "#EAECF0",
+                                }}
+                              />
+                            ) : null}
+                          </div>
+
+                          <div
+                            style={{
+                              border: "1px solid #EAECF0",
+                              background: "#FFFFFF",
+                              borderRadius: 16,
+                              padding: 16,
+                              boxShadow: "0 1px 2px rgba(16,24,40,0.04)",
+                            }}
+                          >
+                            <div
+                              style={{
+                                display: "flex",
+                                alignItems: "flex-start",
+                                justifyContent: "space-between",
+                                gap: 12,
+                                flexWrap: "wrap",
+                                marginBottom: 10,
+                              }}
+                            >
+                              <div
+                                style={{
+                                  fontSize: 15,
+                                  fontWeight: 800,
+                                  color: "#101828",
+                                  minWidth: 0,
+                                  flex: "1 1 260px",
+                                }}
+                              >
+                                {normalizeEventLabel(event.eventType)}
+                              </div>
+
+                              <div
+                                style={{
+                                  fontSize: 12,
+                                  color: "#475467",
+                                  fontWeight: 700,
+                                  padding: "6px 10px",
+                                  borderRadius: 999,
+                                  background: "#F2F4F7",
+                                  border: "1px solid #EAECF0",
+                                  whiteSpace: "nowrap",
+                                  flexShrink: 0,
+                                }}
+                              >
+                                {formatDateTime(event.atUtc)}
+                              </div>
+                            </div>
+
+                            <div
+                              style={{
+                                fontSize: 13,
+                                lineHeight: 1.7,
+                                color: "#667085",
+                                wordBreak: "break-word",
+                                overflowWrap: "anywhere",
+                                whiteSpace: "pre-wrap",
+                                maxWidth: "100%",
+                              }}
+                            >
+                              {event.payloadSummary?.trim()
+                                ? event.payloadSummary
+                                : "No additional event summary provided."}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </Card>
+              ) : null}
 
               <Card>
                 <div

@@ -16,6 +16,7 @@ import {
 } from "./queue.js";
 import { captureException } from "./sentry.js";
 import { createVerificationPackage } from "./verification-package.js";
+import { publishAnchorIfConfigured } from "./anchor-publisher.js";
 
 type GenerateReportJobData = {
   evidenceId: string;
@@ -31,6 +32,8 @@ type VerificationEvidenceFile = {
   buffer: Buffer;
 };
 
+type AnchorMode = "off" | "ready" | "active";
+
 type PreparedReportArtifacts = {
   reportPdf: Buffer;
   verificationZip: Buffer | null;
@@ -39,7 +42,8 @@ type PreparedReportArtifacts = {
   version: number;
   now: Date;
   evidenceId: string;
-  anchorPayload: AnchorPayload;
+  anchorPayload: AnchorPayload | null;
+  anchorMode: AnchorMode;
 };
 
 type AnchorPayload = {
@@ -83,6 +87,18 @@ function buildEvidenceDetailUrl(evidenceId: string): string {
   return `${base}/evidence/${encodeURIComponent(evidenceId)}`;
 }
 
+function getAnchorMode(): AnchorMode {
+  const raw = String(env.ANCHOR_MODE ?? "ready")
+    .trim()
+    .toLowerCase();
+
+  if (raw === "off" || raw === "active") {
+    return raw;
+  }
+
+  return "ready";
+}
+
 function shortHash(
   value: string | null | undefined,
   head = 12,
@@ -124,6 +140,10 @@ function summarizePayloadForReport(
         return "Trusted timestamp applied.";
       case "TIMESTAMP_FAILED":
         return "Timestamp request failed.";
+      case "ANCHOR_PUBLISHED":
+        return "External anchor publication recorded.";
+      case "ANCHOR_FAILED":
+        return "External anchor publication failed.";
       default:
         return "No structured event details recorded.";
     }
@@ -147,17 +167,26 @@ function summarizePayloadForReport(
 
     case "UPLOAD_COMPLETED": {
       const multipart = obj.multipart === true;
-      const itemCount =
+      const itemCountValue =
         typeof obj.itemCount === "number" && Number.isFinite(obj.itemCount)
-          ? String(obj.itemCount)
+          ? obj.itemCount
           : null;
+      const itemCount =
+        itemCountValue !== null ? String(itemCountValue) : null;
       const sizeBytes = normalizePayloadPrimitive(obj.sizeBytes);
       const hash = shortHash(normalizePayloadPrimitive(obj.fileSha256));
 
+      const completionLabel =
+        itemCountValue !== null
+          ? itemCountValue <= 1
+            ? "Single evidence item completed"
+            : "Multipart evidence package completed"
+          : multipart
+            ? "Multipart evidence package completed"
+            : "Single evidence item completed";
+
       return [
-        multipart
-          ? "Multipart evidence package completed"
-          : "Single-file upload completed",
+        completionLabel,
         itemCount ? `Items: ${itemCount}` : null,
         sizeBytes ? `Size: ${sizeBytes} bytes` : null,
         hash ? `Hash: ${hash}` : null,
@@ -221,6 +250,34 @@ function summarizePayloadForReport(
           ? `Verification report generated • Version: ${reportVersion}`
           : "Verification report generated.",
         anchorHash ? `Anchor: ${anchorHash}` : null,
+      ]
+        .filter(Boolean)
+        .join(" • ");
+    }
+
+    case "ANCHOR_PUBLISHED": {
+      const provider = normalizePayloadPrimitive(obj.provider);
+      const transactionId = shortHash(
+        normalizePayloadPrimitive(obj.transactionId)
+      );
+      const receiptId = shortHash(normalizePayloadPrimitive(obj.receiptId));
+      return [
+        "External anchor publication recorded",
+        provider ? `Provider: ${provider}` : null,
+        transactionId ? `Tx: ${transactionId}` : null,
+        receiptId ? `Receipt: ${receiptId}` : null,
+      ]
+        .filter(Boolean)
+        .join(" • ");
+    }
+
+    case "ANCHOR_FAILED": {
+      const provider = normalizePayloadPrimitive(obj.provider);
+      const reason = normalizePayloadPrimitive(obj.reason);
+      return [
+        "External anchor publication failed",
+        provider ? `Provider: ${provider}` : null,
+        reason ? `Reason: ${reason}` : null,
       ]
         .filter(Boolean)
         .join(" • ");
@@ -554,6 +611,7 @@ async function prepareReportArtifacts(
 
   const provisionalVersion = (currentMaxReport._max.version ?? 0) + 1;
   const now = new Date();
+  const anchorMode = getAnchorMode();
   const reportKey = `reports/${evidence.id}/v${provisionalVersion}.pdf`;
   const verificationKey = `verification/${evidence.id}/package.zip`;
   const publicUrl = storageKey ? buildPublicUrl(storageKey) : null;
@@ -564,14 +622,17 @@ async function prepareReportArtifacts(
       ? custodyEvents[custodyEvents.length - 1]?.eventHash ?? null
       : null;
 
-  const anchorPayload = buildAnchorPayload({
-    evidenceId: evidence.id,
-    reportVersion: provisionalVersion,
-    fileSha256,
-    fingerprintHash,
-    lastEventHash,
-    generatedAtUtc: now.toISOString(),
-  });
+  const anchorPayload =
+    anchorMode === "off"
+      ? null
+      : buildAnchorPayload({
+          evidenceId: evidence.id,
+          reportVersion: provisionalVersion,
+          fileSha256,
+          fingerprintHash,
+          lastEventHash,
+          generatedAtUtc: now.toISOString(),
+        });
 
   const reportGeneratedEventSequence =
     (custodyEvents[custodyEvents.length - 1]?.sequence ?? 0) + 1;
@@ -591,7 +652,7 @@ async function prepareReportArtifacts(
         phase: "report_generated",
         reportVersion: provisionalVersion,
         generatedAtUtc: now.toISOString(),
-        anchorHash: anchorPayload.anchorHash,
+        ...(anchorPayload ? { anchorHash: anchorPayload.anchorHash } : {}),
       }),
     },
   ];
@@ -612,7 +673,7 @@ async function prepareReportArtifacts(
         phase: "report_generated",
         reportVersion: provisionalVersion,
         generatedAtUtc: now.toISOString(),
-        anchorHash: anchorPayload.anchorHash,
+        ...(anchorPayload ? { anchorHash: anchorPayload.anchorHash } : {}),
       } as Prisma.InputJsonValue,
       eventHash: null,
     },
@@ -678,6 +739,9 @@ async function prepareReportArtifacts(
         signingKeyId,
         signingKeyVersion,
         anchor: anchorPayload,
+        anchorMode,
+        anchorProvider: env.ANCHOR_PROVIDER ?? null,
+        anchorPublicBaseUrl: env.ANCHOR_PUBLIC_BASE_URL ?? null,
       });
     } catch (verificationError) {
       captureException(verificationError, {
@@ -704,6 +768,7 @@ async function prepareReportArtifacts(
     now,
     evidenceId: evidence.id,
     anchorPayload,
+    anchorMode,
   };
 }
 
@@ -801,7 +866,7 @@ export async function processGenerateReport(job: Job<GenerateReportJobData>) {
           metadata: {
             evidence_id: prepared.evidenceId,
             report_version: String(prepared.version),
-            anchor_hash: prepared.anchorPayload.anchorHash,
+            anchor_hash: prepared.anchorPayload?.anchorHash ?? undefined,
             artifact_type: "report_pdf",
           },
           tags: {
@@ -829,8 +894,15 @@ export async function processGenerateReport(job: Job<GenerateReportJobData>) {
             phase: "report_generated",
             reportVersion: prepared.version,
             generatedAtUtc: prepared.now.toISOString(),
-            anchorHash: prepared.anchorPayload.anchorHash,
-            anchorVersion: prepared.anchorPayload.version,
+            ...(prepared.anchorPayload
+              ? {
+                  anchorHash: prepared.anchorPayload?.anchorHash ?? undefined,
+                  anchorVersion: prepared.anchorPayload.version,
+                  anchorMode: prepared.anchorMode,
+                }
+              : {
+                  anchorMode: prepared.anchorMode,
+                }),
           } as Prisma.InputJsonValue,
         });
 
@@ -865,7 +937,7 @@ export async function processGenerateReport(job: Job<GenerateReportJobData>) {
           metadata: {
             evidence_id: prepared.evidenceId,
             report_version: String(prepared.version),
-            anchor_hash: prepared.anchorPayload.anchorHash,
+            anchor_hash: prepared.anchorPayload?.anchorHash ?? undefined,
             artifact_type: "verification_package",
           },
           tags: {
@@ -898,6 +970,127 @@ export async function processGenerateReport(job: Job<GenerateReportJobData>) {
       }
     }
 
+    if (!finalized.skipped && prepared.anchorMode === "active" && prepared.anchorPayload) {
+      try {
+        const anchorPublish = await publishAnchorIfConfigured({
+          anchor: prepared.anchorPayload,
+        });
+
+        if (anchorPublish.published) {
+          await prisma.$transaction(async (tx) => {
+            await tx.evidenceAnchor.upsert({
+              where: {
+                evidenceId: prepared.evidenceId,
+              },
+              update: {
+                provider: anchorPublish.provider,
+                mode: prepared.anchorMode,
+                anchorHash: prepared.anchorPayload!.anchorHash,
+                receiptId: anchorPublish.receiptId,
+                transactionId: anchorPublish.transactionId,
+                publicUrl: anchorPublish.publicUrl,
+                anchoredAtUtc: new Date(anchorPublish.anchoredAtUtc),
+              },
+              create: {
+                evidenceId: prepared.evidenceId,
+                provider: anchorPublish.provider,
+                mode: prepared.anchorMode,
+                anchorHash: prepared.anchorPayload!.anchorHash,
+                receiptId: anchorPublish.receiptId,
+                transactionId: anchorPublish.transactionId,
+                publicUrl: anchorPublish.publicUrl,
+                anchoredAtUtc: new Date(anchorPublish.anchoredAtUtc),
+              },
+            });
+
+            await appendCustodyEventTx(tx, {
+              evidenceId: prepared.evidenceId,
+              eventType: prismaPkg.CustodyEventType.ANCHOR_PUBLISHED,
+              atUtc: new Date(anchorPublish.anchoredAtUtc),
+              payload: {
+                provider: anchorPublish.provider,
+                anchorMode: prepared.anchorMode,
+                anchorHash: prepared.anchorPayload?.anchorHash ?? undefined,
+                receiptId: anchorPublish.receiptId,
+                transactionId: anchorPublish.transactionId,
+                publicUrl: anchorPublish.publicUrl,
+                anchoredAtUtc: anchorPublish.anchoredAtUtc,
+              } as Prisma.InputJsonValue,
+            });
+          });
+        } else {
+          await prisma.$transaction(async (tx) => {
+            await appendCustodyEventTx(tx, {
+              evidenceId: prepared.evidenceId,
+              eventType: prismaPkg.CustodyEventType.ANCHOR_FAILED,
+              atUtc: new Date(),
+              payload: {
+                provider: anchorPublish.provider,
+                anchorMode: prepared.anchorMode,
+                anchorHash: prepared.anchorPayload?.anchorHash ?? null,
+                reason: anchorPublish.reason,
+              } as Prisma.InputJsonValue,
+            });
+          });
+
+          logger.warn(
+            {
+              ...withJobContext({
+                requestId,
+                jobId: job.id,
+                evidenceId,
+                attempt: job.attemptsMade + 1,
+                status: "anchor_not_published",
+              }),
+              anchorMode: prepared.anchorMode,
+              reason: anchorPublish.reason,
+            },
+            "Anchor publication was not completed"
+          );
+        }
+      } catch (anchorError) {
+        captureException(anchorError, {
+          requestId,
+          evidenceId,
+          jobId: job.id ?? null,
+          phase: "anchor_publish",
+        });
+
+        await prisma.$transaction(async (tx) => {
+          await appendCustodyEventTx(tx, {
+            evidenceId: prepared.evidenceId,
+            eventType: prismaPkg.CustodyEventType.ANCHOR_FAILED,
+            atUtc: new Date(),
+            payload: {
+              provider: env.ANCHOR_PROVIDER ?? null,
+              anchorMode: prepared.anchorMode,
+              anchorHash: prepared.anchorPayload?.anchorHash ?? null,
+              reason:
+                anchorError instanceof Error
+                  ? anchorError.message
+                  : "ANCHOR_PUBLISH_FAILED",
+            } as Prisma.InputJsonValue,
+          });
+        });
+
+        logger.error(
+          {
+            ...withJobContext({
+              requestId,
+              jobId: job.id,
+              evidenceId,
+              attempt: job.attemptsMade + 1,
+              status: "anchor_failed",
+            }),
+            err: anchorError,
+            anchorMode: prepared.anchorMode,
+            anchorHash: prepared.anchorPayload?.anchorHash ?? null,
+          },
+          "Anchor publication failed after report generation"
+        );
+      }
+    }
+
     const durationMs = Date.now() - start;
 
     logger.info(
@@ -910,7 +1103,8 @@ export async function processGenerateReport(job: Job<GenerateReportJobData>) {
           durationMs,
           status: finalized.skipped ? "already_completed" : "completed",
         }),
-        anchorHash: prepared.anchorPayload.anchorHash,
+        anchorMode: prepared.anchorMode,
+        anchorHash: prepared.anchorPayload?.anchorHash ?? null,
       },
       finalized.skipped
         ? "GenerateReportJob skipped because report already exists"
