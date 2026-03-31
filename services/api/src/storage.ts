@@ -188,6 +188,8 @@ function buildS3ClientConfig(): S3ClientConfig {
   const endpoint = clean(process.env.S3_ENDPOINT);
   requireTls(endpoint);
 
+  const forcePathStyleRaw = clean(process.env.S3_FORCE_PATH_STYLE)?.toLowerCase();
+
   const config: S3ClientConfig = {
     region: clean(process.env.S3_REGION) ?? "eu-central-1",
     credentials: {
@@ -195,11 +197,15 @@ function buildS3ClientConfig(): S3ClientConfig {
       secretAccessKey: must("S3_SECRET_KEY"),
     },
     forcePathStyle:
-      clean(process.env.S3_FORCE_PATH_STYLE)?.toLowerCase() === "true"
+      forcePathStyleRaw === "true"
         ? true
-        : clean(process.env.S3_FORCE_PATH_STYLE)?.toLowerCase() === "false"
+        : forcePathStyleRaw === "false"
           ? false
           : Boolean(endpoint),
+
+    // مهم جداً: يمنع checksum headers التلقائية على presigned PUT
+    requestChecksumCalculation: "WHEN_REQUIRED",
+    responseChecksumValidation: "WHEN_REQUIRED",
   };
 
   if (endpoint) {
