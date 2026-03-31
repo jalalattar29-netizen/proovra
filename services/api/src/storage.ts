@@ -234,6 +234,7 @@ export async function presignPutObject(params: {
     Bucket: bucket,
     Key: key,
     ContentType: normalizeContentType(params.contentType),
+    ChecksumAlgorithm: "SHA256",
   });
 
   return getSignedUrl(s3, cmd, {
