@@ -10,6 +10,7 @@ import {
   type S3ClientConfig,
 } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
+import { createHash } from "node:crypto";
 
 function must(name: string): string {
   const v = process.env[name];
@@ -79,6 +80,17 @@ function normalizeContentType(contentType: string): string {
   }
 
   return trimmed;
+}
+
+function normalizeChecksumSha256Base64(
+  value?: string | null
+): string | undefined {
+  const raw = clean(value);
+  if (!raw) return undefined;
+  if (raw.length > 128) return undefined;
+  if (/[\r\n]/.test(raw)) return undefined;
+  if (!/^[A-Za-z0-9+/=]+$/.test(raw)) return undefined;
+  return raw;
 }
 
 function normalizeMetadata(
@@ -184,6 +196,10 @@ function readPresignExpirySeconds(explicit?: number): number {
   return base;
 }
 
+function sha256Base64(buffer: Buffer): string {
+  return createHash("sha256").update(buffer).digest("base64");
+}
+
 function buildS3ClientConfig(): S3ClientConfig {
   const endpoint = clean(process.env.S3_ENDPOINT);
   requireTls(endpoint);
@@ -203,7 +219,6 @@ function buildS3ClientConfig(): S3ClientConfig {
           ? false
           : Boolean(endpoint),
 
-    // مهم جداً: يمنع checksum headers التلقائية على presigned PUT
     requestChecksumCalculation: "WHEN_REQUIRED",
     responseChecksumValidation: "WHEN_REQUIRED",
   };
@@ -221,6 +236,7 @@ export async function presignPutObject(params: {
   bucket: string;
   key: string;
   contentType: string;
+  checksumSha256Base64?: string | null;
   expiresInSeconds?: number;
 }) {
   const bucket = clean(params.bucket);
@@ -230,11 +246,15 @@ export async function presignPutObject(params: {
     throw new Error("presignPutObject: bucket/key are required");
   }
 
+  const normalizedChecksum = normalizeChecksumSha256Base64(
+    params.checksumSha256Base64
+  );
+
   const cmd = new PutObjectCommand({
     Bucket: bucket,
     Key: key,
     ContentType: normalizeContentType(params.contentType),
-    ChecksumAlgorithm: "SHA256",
+    ...(normalizedChecksum ? { ChecksumSHA256: normalizedChecksum } : {}),
   });
 
   return getSignedUrl(s3, cmd, {
@@ -288,6 +308,7 @@ export async function putObjectBuffer(params: {
   const tagging = normalizeTagging(params.tags);
   const objectLock =
     params.immutable && isObjectLockEnabled() ? readObjectLockDefaults() : {};
+  const checksumSha256Base64 = sha256Base64(params.body);
 
   await s3.send(
     new PutObjectCommand({
@@ -297,6 +318,7 @@ export async function putObjectBuffer(params: {
       ContentType: normalizeContentType(params.contentType),
       ContentLength: params.body.length,
       Metadata: metadata,
+      ChecksumSHA256: checksumSha256Base64,
       ...(tagging ? { Tagging: tagging } : {}),
       ...(objectLock.mode ? { ObjectLockMode: objectLock.mode } : {}),
       ...(objectLock.retainUntilDate

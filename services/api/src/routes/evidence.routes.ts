@@ -31,6 +31,7 @@ const CreateEvidenceBody = z.object({
   type: EvidenceTypeSchema,
   mimeType: z.string().min(1).max(128).optional(),
   deviceTimeIso: z.string().min(1).max(64).optional(),
+  checksumSha256Base64: z.string().min(1).max(128).optional(),
   gps: z
     .object({
       lat: z.number(),
@@ -53,6 +54,7 @@ const CreatePartBody = z.object({
   partIndex: z.number().int().min(0),
   mimeType: z.string().min(1).max(128).optional(),
   durationMs: z.number().int().positive().optional(),
+  checksumSha256Base64: z.string().min(1).max(128).optional(),
 });
 
 const UpdateEvidenceTitleBody = z.object({
@@ -187,6 +189,17 @@ function normalizeMimeType(value: string | null | undefined): string | null {
   if (text.length > 128) return null;
   if (/[\r\n]/.test(text)) return null;
   if (!/^[a-z0-9!#$&^_.+-]+\/[a-z0-9!#$&^_.+-]+$/i.test(text)) return null;
+  return text;
+}
+
+function normalizeChecksumSha256Base64(
+  value: string | null | undefined
+): string | null {
+  const text = typeof value === "string" ? value.trim() : "";
+  if (!text) return null;
+  if (text.length > 128) return null;
+  if (/[\r\n]/.test(text)) return null;
+  if (!/^[A-Za-z0-9+/=]+$/.test(text)) return null;
   return text;
 }
 
@@ -661,6 +674,16 @@ export async function evidenceRoutes(app: FastifyInstance) {
       return reply.code(429).send({ message: "Rate limit exceeded" });
     }
 
+    const normalizedChecksum = normalizeChecksumSha256Base64(
+      body.checksumSha256Base64
+    );
+
+    if (body.checksumSha256Base64 && !normalizedChecksum) {
+      return reply
+        .code(400)
+        .send({ message: "Invalid checksumSha256Base64" });
+    }
+
     try {
       const result = await createEvidence({
         ownerUserId,
@@ -668,6 +691,7 @@ export async function evidenceRoutes(app: FastifyInstance) {
         mimeType: body.mimeType,
         deviceTimeIso: body.deviceTimeIso,
         gps: body.gps,
+        checksumSha256Base64: normalizedChecksum,
       });
 
       (req as FastifyRequest & { evidenceId?: string }).evidenceId = result.id;
@@ -685,6 +709,13 @@ export async function evidenceRoutes(app: FastifyInstance) {
 
       if (err instanceof Error && err.message === "FREE_LIMIT_REACHED") {
         return reply.code(402).send({ message: "Free plan limit reached" });
+      }
+
+      if (
+        err instanceof Error &&
+        err.message === "INVALID_CHECKSUM_SHA256_BASE64"
+      ) {
+        return reply.code(400).send({ message: "Invalid checksumSha256Base64" });
       }
 
       throw err;
@@ -753,6 +784,16 @@ export async function evidenceRoutes(app: FastifyInstance) {
 
       (req as FastifyRequest & { evidenceId?: string }).evidenceId = id;
       req.log = req.log.child({ evidenceId: id });
+
+      const normalizedChecksum = normalizeChecksumSha256Base64(
+        body.checksumSha256Base64
+      );
+
+      if (body.checksumSha256Base64 && !normalizedChecksum) {
+        return reply
+          .code(400)
+          .send({ message: "Invalid checksumSha256Base64" });
+      }
 
       try {
         await getEvidenceWithOwnerAccess(ownerUserId, id);
@@ -829,6 +870,7 @@ export async function evidenceRoutes(app: FastifyInstance) {
           bucket: result.part.storageBucket,
           key: result.part.storageKey,
           contentType: result.part.mimeType ?? "application/octet-stream",
+          checksumSha256Base64: normalizedChecksum,
           expiresInSeconds: 600,
         });
 
@@ -839,6 +881,7 @@ export async function evidenceRoutes(app: FastifyInstance) {
               bucket: result.part.storageBucket,
               key: result.part.storageKey,
               putUrl,
+              checksumRequired: Boolean(normalizedChecksum),
               expiresInSeconds: 600,
             },
           });
@@ -850,6 +893,7 @@ export async function evidenceRoutes(app: FastifyInstance) {
             bucket: result.part.storageBucket,
             key: result.part.storageKey,
             putUrl,
+            checksumRequired: Boolean(normalizedChecksum),
             expiresInSeconds: 600,
           },
         });

@@ -21,6 +21,29 @@ type SessionItem = {
   error?: string | null;
 };
 
+function arrayBufferToBase64(buffer: ArrayBuffer): string {
+  const bytes = new Uint8Array(buffer);
+  let binary = "";
+  const chunkSize = 0x8000;
+
+  for (let i = 0; i < bytes.length; i += chunkSize) {
+    const chunk = bytes.subarray(i, i + chunkSize);
+    binary += String.fromCharCode(...chunk);
+  }
+
+  return btoa(binary);
+}
+
+async function sha256Base64FromBlob(blob: Blob): Promise<string> {
+  if (!globalThis.crypto?.subtle) {
+    throw new Error("Web Crypto API is not available in this browser");
+  }
+
+  const buffer = await blob.arrayBuffer();
+  const digest = await globalThis.crypto.subtle.digest("SHA-256", buffer);
+  return arrayBufferToBase64(digest);
+}
+
 export default function CapturePage() {
   const { t } = useLocale();
   const router = useRouter();
@@ -327,13 +350,16 @@ export default function CapturePage() {
           )
         );
 
-        const part = await apiFetch(`/v1/evidence/${evidenceId}/parts`, {
-          method: "POST",
-          body: JSON.stringify({
-            partIndex: index,
-            mimeType: item.mimeType,
-          }),
-        });
+const checksumSha256Base64 = await sha256Base64FromBlob(item.file);
+
+const part = await apiFetch(`/v1/evidence/${evidenceId}/parts`, {
+  method: "POST",
+  body: JSON.stringify({
+    partIndex: index,
+    mimeType: item.mimeType,
+    checksumSha256Base64,
+  }),
+});
 
         await new Promise<void>((resolve, reject) => {
           const xhr = new XMLHttpRequest();
@@ -364,9 +390,10 @@ export default function CapturePage() {
             }
           };
 
-          xhr.open("PUT", part.upload.putUrl);
-          xhr.setRequestHeader("content-type", item.mimeType || "application/octet-stream");
-          xhr.send(item.file);
+xhr.open("PUT", part.upload.putUrl);
+xhr.setRequestHeader("content-type", item.mimeType || "application/octet-stream");
+xhr.setRequestHeader("x-amz-checksum-sha256", checksumSha256Base64);
+xhr.send(item.file);
         });
 
         setSessionItems((prev) =>
