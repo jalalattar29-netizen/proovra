@@ -23,15 +23,6 @@ function normalizeUploadMimeType(input?: string | null): string {
   return raw;
 }
 
-function normalizeChecksumSha256Base64(input?: string | null): string | null {
-  const raw = typeof input === "string" ? input.trim() : "";
-  if (!raw) return null;
-  if (raw.length > 128) return null;
-  if (/[\r\n]/.test(raw)) return null;
-  if (!/^[A-Za-z0-9+/=]+$/.test(raw)) return null;
-  return raw;
-}
-
 const { EvidenceStatus } = prismaPkg;
 
 export async function createEvidence(params: {
@@ -41,6 +32,7 @@ export async function createEvidence(params: {
   deviceTimeIso?: string;
   gps?: { lat: number; lng: number; accuracyMeters?: number };
   checksumSha256Base64?: string | null;
+  contentMd5Base64?: string | null;
 }) {
   const owner = await prisma.user.findUnique({
     where: { id: params.ownerUserId },
@@ -86,17 +78,6 @@ export async function createEvidence(params: {
   const publicBase = getPublicBaseUrl();
   const capturedAt = new Date();
   const normalizedMimeType = normalizeUploadMimeType(params.mimeType);
-  const normalizedChecksum = normalizeChecksumSha256Base64(
-    params.checksumSha256Base64
-  );
-
-  if (params.checksumSha256Base64 && !normalizedChecksum) {
-    const err = new Error("INVALID_CHECKSUM_SHA256_BASE64") as Error & {
-      statusCode?: number;
-    };
-    err.statusCode = 400;
-    throw err;
-  }
 
   const created = await prisma.$transaction(async (tx) => {
     const evidence = await tx.evidence.create({
@@ -149,7 +130,6 @@ export async function createEvidence(params: {
         bucket,
         key,
         contentType: normalizedMimeType,
-        checksumSha256Base64: normalizedChecksum,
       } as prismaPkg.Prisma.InputJsonValue,
     });
 
@@ -172,6 +152,8 @@ export async function createEvidence(params: {
     bucket,
     key: created.key,
     contentType: normalizedMimeType,
+    checksumSha256Base64: params.checksumSha256Base64 ?? null,
+    contentMd5Base64: params.contentMd5Base64 ?? null,
     expiresInSeconds: 600,
   });
 
@@ -187,7 +169,6 @@ export async function createEvidence(params: {
       key: created.key,
       putUrl,
       publicUrl,
-      checksumRequired: Boolean(normalizedChecksum),
       expiresInSeconds: 600,
     },
   };

@@ -82,6 +82,27 @@ function normalizeContentType(contentType: string): string {
   return trimmed;
 }
 
+function normalizeBase64Value(value?: string | null): string | undefined {
+  const raw = clean(value);
+  if (!raw) return undefined;
+  if (raw.length > 128) return undefined;
+  if (/[\r\n]/.test(raw)) return undefined;
+  if (!/^[A-Za-z0-9+/=]+$/.test(raw)) return undefined;
+  return raw;
+}
+
+function normalizeChecksumSha256Base64(
+  value?: string | null
+): string | undefined {
+  return normalizeBase64Value(value);
+}
+
+function normalizeContentMd5Base64(
+  value?: string | null
+): string | undefined {
+  return normalizeBase64Value(value);
+}
+
 function normalizeMetadata(
   metadata?: Record<string, string | null | undefined>
 ): Record<string, string> | undefined {
@@ -189,6 +210,10 @@ function sha256Base64(buffer: Buffer): string {
   return createHash("sha256").update(buffer).digest("base64");
 }
 
+function md5Base64(buffer: Buffer): string {
+  return createHash("md5").update(buffer).digest("base64");
+}
+
 function buildS3ClientConfig(): S3ClientConfig {
   const endpoint = clean(process.env.S3_ENDPOINT);
   requireTls(endpoint);
@@ -207,7 +232,6 @@ function buildS3ClientConfig(): S3ClientConfig {
         : forcePathStyleRaw === "false"
           ? false
           : Boolean(endpoint),
-
     requestChecksumCalculation: "WHEN_REQUIRED",
     responseChecksumValidation: "WHEN_REQUIRED",
   };
@@ -225,6 +249,8 @@ export async function presignPutObject(params: {
   bucket: string;
   key: string;
   contentType: string;
+  checksumSha256Base64?: string | null;
+  contentMd5Base64?: string | null;
   expiresInSeconds?: number;
 }) {
   const bucket = clean(params.bucket);
@@ -234,10 +260,19 @@ export async function presignPutObject(params: {
     throw new Error("presignPutObject: bucket/key are required");
   }
 
+  const normalizedChecksum = normalizeChecksumSha256Base64(
+    params.checksumSha256Base64
+  );
+  const normalizedContentMd5 = normalizeContentMd5Base64(
+    params.contentMd5Base64
+  );
+
   const cmd = new PutObjectCommand({
     Bucket: bucket,
     Key: key,
     ContentType: normalizeContentType(params.contentType),
+    ...(normalizedChecksum ? { ChecksumSHA256: normalizedChecksum } : {}),
+    ...(normalizedContentMd5 ? { ContentMD5: normalizedContentMd5 } : {}),
   });
 
   return getSignedUrl(s3, cmd, {
@@ -292,6 +327,7 @@ export async function putObjectBuffer(params: {
   const objectLock =
     params.immutable && isObjectLockEnabled() ? readObjectLockDefaults() : {};
   const checksumSha256Base64 = sha256Base64(params.body);
+  const contentMd5Base64 = md5Base64(params.body);
 
   await s3.send(
     new PutObjectCommand({
@@ -302,6 +338,7 @@ export async function putObjectBuffer(params: {
       ContentLength: params.body.length,
       Metadata: metadata,
       ChecksumSHA256: checksumSha256Base64,
+      ContentMD5: contentMd5Base64,
       ...(tagging ? { Tagging: tagging } : {}),
       ...(objectLock.mode ? { ObjectLockMode: objectLock.mode } : {}),
       ...(objectLock.retainUntilDate

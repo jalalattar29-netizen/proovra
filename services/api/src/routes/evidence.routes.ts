@@ -32,6 +32,7 @@ const CreateEvidenceBody = z.object({
   mimeType: z.string().min(1).max(128).optional(),
   deviceTimeIso: z.string().min(1).max(64).optional(),
   checksumSha256Base64: z.string().min(1).max(128).optional(),
+  contentMd5Base64: z.string().min(1).max(128).optional(),
   gps: z
     .object({
       lat: z.number(),
@@ -55,6 +56,7 @@ const CreatePartBody = z.object({
   mimeType: z.string().min(1).max(128).optional(),
   durationMs: z.number().int().positive().optional(),
   checksumSha256Base64: z.string().min(1).max(128).optional(),
+  contentMd5Base64: z.string().min(1).max(128).optional(),
 });
 
 const UpdateEvidenceTitleBody = z.object({
@@ -193,6 +195,17 @@ function normalizeMimeType(value: string | null | undefined): string | null {
 }
 
 function normalizeChecksumSha256Base64(
+  value: string | null | undefined
+): string | null {
+  const text = typeof value === "string" ? value.trim() : "";
+  if (!text) return null;
+  if (text.length > 128) return null;
+  if (/[\r\n]/.test(text)) return null;
+  if (!/^[A-Za-z0-9+/=]+$/.test(text)) return null;
+  return text;
+}
+
+function normalizeContentMd5Base64(
   value: string | null | undefined
 ): string | null {
   const text = typeof value === "string" ? value.trim() : "";
@@ -677,11 +690,16 @@ export async function evidenceRoutes(app: FastifyInstance) {
     const normalizedChecksum = normalizeChecksumSha256Base64(
       body.checksumSha256Base64
     );
+    const normalizedContentMd5 = normalizeContentMd5Base64(
+      body.contentMd5Base64
+    );
 
     if (body.checksumSha256Base64 && !normalizedChecksum) {
-      return reply
-        .code(400)
-        .send({ message: "Invalid checksumSha256Base64" });
+      return reply.code(400).send({ message: "Invalid checksumSha256Base64" });
+    }
+
+    if (body.contentMd5Base64 && !normalizedContentMd5) {
+      return reply.code(400).send({ message: "Invalid contentMd5Base64" });
     }
 
     try {
@@ -692,6 +710,7 @@ export async function evidenceRoutes(app: FastifyInstance) {
         deviceTimeIso: body.deviceTimeIso,
         gps: body.gps,
         checksumSha256Base64: normalizedChecksum,
+        contentMd5Base64: normalizedContentMd5,
       });
 
       (req as FastifyRequest & { evidenceId?: string }).evidenceId = result.id;
@@ -709,13 +728,6 @@ export async function evidenceRoutes(app: FastifyInstance) {
 
       if (err instanceof Error && err.message === "FREE_LIMIT_REACHED") {
         return reply.code(402).send({ message: "Free plan limit reached" });
-      }
-
-      if (
-        err instanceof Error &&
-        err.message === "INVALID_CHECKSUM_SHA256_BASE64"
-      ) {
-        return reply.code(400).send({ message: "Invalid checksumSha256Base64" });
       }
 
       throw err;
@@ -788,11 +800,16 @@ export async function evidenceRoutes(app: FastifyInstance) {
       const normalizedChecksum = normalizeChecksumSha256Base64(
         body.checksumSha256Base64
       );
+      const normalizedContentMd5 = normalizeContentMd5Base64(
+        body.contentMd5Base64
+      );
 
       if (body.checksumSha256Base64 && !normalizedChecksum) {
-        return reply
-          .code(400)
-          .send({ message: "Invalid checksumSha256Base64" });
+        return reply.code(400).send({ message: "Invalid checksumSha256Base64" });
+      }
+
+      if (body.contentMd5Base64 && !normalizedContentMd5) {
+        return reply.code(400).send({ message: "Invalid contentMd5Base64" });
       }
 
       try {
@@ -870,6 +887,8 @@ export async function evidenceRoutes(app: FastifyInstance) {
           bucket: result.part.storageBucket,
           key: result.part.storageKey,
           contentType: result.part.mimeType ?? "application/octet-stream",
+          checksumSha256Base64: normalizedChecksum,
+          contentMd5Base64: normalizedContentMd5,
           expiresInSeconds: 600,
         });
 
@@ -881,6 +900,7 @@ export async function evidenceRoutes(app: FastifyInstance) {
               key: result.part.storageKey,
               putUrl,
               checksumRequired: Boolean(normalizedChecksum),
+              contentMd5Required: Boolean(normalizedContentMd5),
               expiresInSeconds: 600,
             },
           });
@@ -893,6 +913,7 @@ export async function evidenceRoutes(app: FastifyInstance) {
             key: result.part.storageKey,
             putUrl,
             checksumRequired: Boolean(normalizedChecksum),
+            contentMd5Required: Boolean(normalizedContentMd5),
             expiresInSeconds: 600,
           },
         });
