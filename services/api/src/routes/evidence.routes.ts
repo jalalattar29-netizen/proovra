@@ -870,7 +870,6 @@ export async function evidenceRoutes(app: FastifyInstance) {
           bucket: result.part.storageBucket,
           key: result.part.storageKey,
           contentType: result.part.mimeType ?? "application/octet-stream",
-          checksumSha256Base64: normalizedChecksum,
           expiresInSeconds: 600,
         });
 

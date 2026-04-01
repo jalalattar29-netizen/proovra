@@ -82,17 +82,6 @@ function normalizeContentType(contentType: string): string {
   return trimmed;
 }
 
-function normalizeChecksumSha256Base64(
-  value?: string | null
-): string | undefined {
-  const raw = clean(value);
-  if (!raw) return undefined;
-  if (raw.length > 128) return undefined;
-  if (/[\r\n]/.test(raw)) return undefined;
-  if (!/^[A-Za-z0-9+/=]+$/.test(raw)) return undefined;
-  return raw;
-}
-
 function normalizeMetadata(
   metadata?: Record<string, string | null | undefined>
 ): Record<string, string> | undefined {
@@ -236,7 +225,6 @@ export async function presignPutObject(params: {
   bucket: string;
   key: string;
   contentType: string;
-  checksumSha256Base64?: string | null;
   expiresInSeconds?: number;
 }) {
   const bucket = clean(params.bucket);
@@ -246,15 +234,10 @@ export async function presignPutObject(params: {
     throw new Error("presignPutObject: bucket/key are required");
   }
 
-  const normalizedChecksum = normalizeChecksumSha256Base64(
-    params.checksumSha256Base64
-  );
-
   const cmd = new PutObjectCommand({
     Bucket: bucket,
     Key: key,
     ContentType: normalizeContentType(params.contentType),
-    ...(normalizedChecksum ? { ChecksumSHA256: normalizedChecksum } : {}),
   });
 
   return getSignedUrl(s3, cmd, {
