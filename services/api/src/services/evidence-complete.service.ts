@@ -136,6 +136,30 @@ function isNotFoundLike(e: unknown): boolean {
   );
 }
 
+function isAlreadyObjectLockedLike(e: unknown): boolean {
+  const err = e as {
+    name?: unknown;
+    code?: unknown;
+    Code?: unknown;
+    message?: unknown;
+  };
+
+  const name = String(err?.name ?? "").toLowerCase();
+  const code = String(err?.code ?? err?.Code ?? "").toLowerCase();
+  const msg = String(err?.message ?? "").toLowerCase();
+
+  return (
+    name.includes("accessdenied") ||
+    code.includes("accessdenied") ||
+    code === "accessdenied" ||
+    msg.includes("access denied because object protected by object lock") ||
+    msg.includes("object protected by object lock") ||
+    msg.includes("object lock") ||
+    msg.includes("retention") ||
+    msg.includes("legal hold")
+  );
+}
+
 async function safeHead(bucket: string, key: string) {
   try {
     return await headObject({ bucket, key });
@@ -206,6 +230,10 @@ async function applyRetentionOrThrow(targets: RetentionTarget[]) {
         key: target.key,
       });
     } catch (error) {
+      if (isAlreadyObjectLockedLike(error)) {
+        continue;
+      }
+
       const reason =
         error instanceof Error ? error.message : "UNKNOWN_RETENTION_ERROR";
 
@@ -463,114 +491,114 @@ export async function completeEvidence(params: {
       if (parts.length > 0) {
         const updatedParts: ProcessedPart[] = [];
 
-        for (const part of parts) {
-          const bucket = clean(part.storageBucket);
-          const key = clean(part.storageKey);
+for (const part of parts) {
+  const bucket = clean(part.storageBucket);
+  const key = clean(part.storageKey);
 
-          if (!bucket || !key) {
-            const err: HttpError = Object.assign(
-              new Error("PART_STORAGE_NOT_SET"),
-              { statusCode: 400 }
-            );
-            throw err;
-          }
+  if (!bucket || !key) {
+    const err: HttpError = Object.assign(
+      new Error("PART_STORAGE_NOT_SET"),
+      { statusCode: 400 }
+    );
+    throw err;
+  }
 
-          const meta = await safeHead(bucket, key);
-          const size = meta.sizeBytes;
+  const meta = await safeHead(bucket, key);
+  const size = meta.sizeBytes;
 
-          if (!size || size <= 0) {
-            const err: HttpError = Object.assign(new Error("OBJECT_NOT_FOUND"), {
-              statusCode: 404,
-            });
-            throw err;
-          }
+  if (!size || size <= 0) {
+    const err: HttpError = Object.assign(new Error("OBJECT_NOT_FOUND"), {
+      statusCode: 404,
+    });
+    throw err;
+  }
 
-          const body = await safeGetStream(bucket, key);
-          const sha256 = await sha256HexFromStream(body as unknown as Readable);
+  const body = await safeGetStream(bucket, key);
+  const sha256 = await sha256HexFromStream(body as unknown as Readable);
 
-          sizeBytesNum += size;
+  sizeBytesNum += size;
 
-          const mimeType =
-            normalizeObservedMimeType(meta.contentType) ??
-            normalizeObservedMimeType(part.mimeType) ??
-            null;
+  const mimeType =
+    normalizeObservedMimeType(meta.contentType) ??
+    normalizeObservedMimeType(part.mimeType) ??
+    null;
 
-          updatedParts.push({
-            id: part.id,
-            partIndex: part.partIndex,
-            sizeBytes: BigInt(size),
-            sha256,
-            mimeType,
-            bucket,
-            key,
-          });
+  updatedParts.push({
+    id: part.id,
+    partIndex: part.partIndex,
+    sizeBytes: BigInt(size),
+    sha256,
+    mimeType,
+    bucket,
+    key,
+  });
 
-          retentionTargets.push({
-            bucket,
-            key,
-            evidencePartId: part.id,
-          });
-        }
+  retentionTargets.push({
+    bucket,
+    key,
+    evidencePartId: part.id,
+  });
+}
 
-        if (updatedParts.length === 0) {
-          const err: HttpError = Object.assign(
-            new Error("NO_VALID_PARTS_FOUND"),
-            {
-              statusCode: 400,
-            }
-          );
-          throw err;
-        }
+if (updatedParts.length === 0) {
+  const err: HttpError = Object.assign(
+    new Error("NO_VALID_PARTS_FOUND"),
+    {
+      statusCode: 400,
+    }
+  );
+  throw err;
+}
 
-        const maxBytes = readMaxEvidenceSizeBytes();
-        if (sizeBytesNum > maxBytes) {
-          const err: HttpError = Object.assign(new Error("EVIDENCE_TOO_LARGE"), {
-            statusCode: 413,
-          });
-          throw err;
-        }
+const maxBytes = readMaxEvidenceSizeBytes();
+if (sizeBytesNum > maxBytes) {
+  const err: HttpError = Object.assign(new Error("EVIDENCE_TOO_LARGE"), {
+    statusCode: 413,
+  });
+  throw err;
+}
 
-        primaryBucket = updatedParts[0].bucket;
-        primaryKey = updatedParts[0].key;
-        primaryMimeType =
-          updatedParts[0].mimeType ?? primaryMimeType ?? evidenceMime;
+primaryBucket = updatedParts[0].bucket;
+primaryKey = updatedParts[0].key;
+primaryMimeType =
+  updatedParts[0].mimeType ?? primaryMimeType ?? evidenceMime;
 
-        fileSha256 = sha256Hex(updatedParts.map((p) => p.sha256).join("|"));
-        multipart = true;
-        multipartItemCount = updatedParts.length;
+fileSha256 = sha256Hex(updatedParts.map((p) => p.sha256).join("|"));
+multipart = true;
+multipartItemCount = updatedParts.length;
 
-        await Promise.all(
-          updatedParts.map((p) =>
-            tx.evidencePart.update({
-              where: { id: p.id },
-              data: {
-                sizeBytes: p.sizeBytes,
-                sha256: p.sha256,
-                mimeType: p.mimeType,
-              },
-            })
-          )
-        );
+await Promise.all(
+  updatedParts.map((p) =>
+    tx.evidencePart.update({
+      where: { id: p.id },
+      data: {
+        sizeBytes: p.sizeBytes,
+        sha256: p.sha256,
+        mimeType: p.mimeType,
+      },
+    })
+  )
+);
 
-        const fingerprint = buildFingerprint({
-          evidence: {
-            id: evidence.id,
-            type: evidence.type,
-            capturedAtUtc: evidence.capturedAtUtc,
-            deviceTimeIso: evidence.deviceTimeIso,
-            lat: evidence.lat,
-            lng: evidence.lng,
-            accuracyMeters: evidence.accuracyMeters,
-          },
-          uploadedAtUtcIso,
-          multipart: {
-            parts: updatedParts,
-            totalSizeBytes: sizeBytesNum,
-          },
-        });
+const fingerprint = buildFingerprint({
+  evidence: {
+    id: evidence.id,
+    type: evidence.type,
+    capturedAtUtc: evidence.capturedAtUtc,
+    deviceTimeIso: evidence.deviceTimeIso,
+    lat: evidence.lat,
+    lng: evidence.lng,
+    accuracyMeters: evidence.accuracyMeters,
+  },
+  uploadedAtUtcIso,
+  multipart: {
+    parts: updatedParts,
+    totalSizeBytes: sizeBytesNum,
+  },
+});
 
-        canonical = canonicalJson(fingerprint);
-        fingerprintHash = sha256Hex(canonical);
+canonical = canonicalJson(fingerprint);
+fingerprintHash = sha256Hex(canonical);
       } else {
         const bucket = evidenceBucket!;
         const key = evidenceKey!;
@@ -599,7 +627,11 @@ export async function completeEvidence(params: {
           normalizeObservedMimeType(meta.contentType) ?? evidenceMime ?? null;
         primaryBucket = bucket;
         primaryKey = key;
-        retentionTargets.push({ bucket, key });
+
+        retentionTargets.push({
+          bucket,
+          key,
+        });
 
         const body = await safeGetStream(bucket, key);
         fileSha256 = await sha256HexFromStream(body as unknown as Readable);
@@ -633,7 +665,7 @@ export async function completeEvidence(params: {
       const tsaResult = await createEvidenceTimestamp({
         digestHex: fileSha256,
       });
-
+      
       if (plan === prismaPkg.PlanType.PAYG) {
         const decremented = await tx.entitlement.updateMany({
           where: {
@@ -772,79 +804,72 @@ export async function completeEvidence(params: {
     }
   );
 
-  if (final.retentionTargets.length > 0) {
-    await applyRetentionOrThrow(final.retentionTargets);
+if (final.retentionTargets.length > 0) {
+  await applyRetentionOrThrow(final.retentionTargets);
 
-    for (const target of final.retentionTargets) {
-      try {
-        const lockedMeta = await headObject({
-          bucket: target.bucket,
-          key: target.key,
-        });
+  const primaryTarget = final.retentionTargets[0];
 
-        if (target.evidencePartId) {
+  if (primaryTarget) {
+    try {
+      const lockedMeta = await headObject({
+        bucket: primaryTarget.bucket,
+        key: primaryTarget.key,
+      });
+
+      await prisma.evidence.update({
+        where: { id: final.result.id },
+        data: {
+          storageRegion: process.env.S3_REGION?.trim() || null,
+          storageObjectLockMode: lockedMeta.objectLockMode
+            ? String(lockedMeta.objectLockMode)
+            : null,
+          storageObjectLockRetainUntilUtc:
+            lockedMeta.objectLockRetainUntilDate ?? null,
+          storageObjectLockLegalHoldStatus:
+            lockedMeta.objectLockLegalHoldStatus
+              ? String(lockedMeta.objectLockLegalHoldStatus)
+              : null,
+        },
+      });
+
+      for (const target of final.retentionTargets) {
+        if (!target.evidencePartId) continue;
+
+        try {
+          const partMeta = await headObject({
+            bucket: target.bucket,
+            key: target.key,
+          });
+
           await prisma.evidencePart.update({
             where: { id: target.evidencePartId },
             data: {
               storageRegion: process.env.S3_REGION?.trim() || null,
-              storageObjectLockMode: lockedMeta.objectLockMode
-                ? String(lockedMeta.objectLockMode)
+              storageObjectLockMode: partMeta.objectLockMode
+                ? String(partMeta.objectLockMode)
                 : null,
               storageObjectLockRetainUntilUtc:
-                lockedMeta.objectLockRetainUntilDate ?? null,
+                partMeta.objectLockRetainUntilDate ?? null,
               storageObjectLockLegalHoldStatus:
-                lockedMeta.objectLockLegalHoldStatus
-                  ? String(lockedMeta.objectLockLegalHoldStatus)
+                partMeta.objectLockLegalHoldStatus
+                  ? String(partMeta.objectLockLegalHoldStatus)
                   : null,
             },
           });
+        } catch {
+          // ignore per-part snapshot failures
         }
-      } catch (error) {
-        const reason =
-          error instanceof Error
-            ? error.message
-            : "OBJECT_LOCK_PART_SNAPSHOT_FAILED";
-
-        throw new Error(
-          `EVIDENCE_PART_OBJECT_LOCK_SNAPSHOT_FAILED:${final.result.id}:${reason}`
-        );
       }
-    }
+    } catch (error) {
+      const reason =
+        error instanceof Error ? error.message : "OBJECT_LOCK_SNAPSHOT_FAILED";
 
-    const primaryTarget = final.retentionTargets[0];
-
-    if (primaryTarget) {
-      try {
-        const lockedMeta = await headObject({
-          bucket: primaryTarget.bucket,
-          key: primaryTarget.key,
-        });
-
-        await prisma.evidence.update({
-          where: { id: final.result.id },
-          data: {
-            storageRegion: process.env.S3_REGION?.trim() || null,
-            storageObjectLockMode: lockedMeta.objectLockMode
-              ? String(lockedMeta.objectLockMode)
-              : null,
-            storageObjectLockRetainUntilUtc:
-              lockedMeta.objectLockRetainUntilDate ?? null,
-            storageObjectLockLegalHoldStatus:
-              lockedMeta.objectLockLegalHoldStatus
-                ? String(lockedMeta.objectLockLegalHoldStatus)
-                : null,
-          },
-        });
-      } catch (error) {
-        const reason =
-          error instanceof Error ? error.message : "OBJECT_LOCK_SNAPSHOT_FAILED";
-
-        throw new Error(
-          `EVIDENCE_OBJECT_LOCK_SNAPSHOT_FAILED:${final.result.id}:${reason}`
-        );
-      }
+      throw new Error(
+        `EVIDENCE_OBJECT_LOCK_SNAPSHOT_FAILED:${final.result.id}:${reason}`
+      );
     }
   }
+}
 
   if (final.shouldEnqueueReport) {
     await enqueueGenerateReportJob(final.result.id);
