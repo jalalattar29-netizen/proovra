@@ -9,6 +9,7 @@ import {
   type ObjectLockMode,
   type S3ClientConfig,
 } from "@aws-sdk/client-s3";
+import { createHash } from "node:crypto";
 import { env } from "./config.js";
 
 function clean(value: string | null | undefined): string | null {
@@ -154,6 +155,14 @@ function readObjectLockDefaults(): {
   };
 }
 
+function sha256Base64(buffer: Buffer): string {
+  return createHash("sha256").update(buffer).digest("base64");
+}
+
+function md5Base64(buffer: Buffer): string {
+  return createHash("md5").update(buffer).digest("base64");
+}
+
 function buildS3ClientConfig(): S3ClientConfig {
   const endpoint = clean(env.S3_ENDPOINT);
   requireTls(endpoint);
@@ -165,6 +174,8 @@ function buildS3ClientConfig(): S3ClientConfig {
       secretAccessKey: mustClean(env.S3_SECRET_KEY, "S3_SECRET_KEY"),
     },
     forcePathStyle: readForcePathStyle(endpoint),
+    requestChecksumCalculation: "WHEN_REQUIRED",
+    responseChecksumValidation: "WHEN_REQUIRED",
   };
 
   if (endpoint) {
@@ -211,6 +222,8 @@ export async function putObjectBuffer(params: {
   const tagging = normalizeTagging(params.tags);
   const objectLock =
     params.immutable && isObjectLockEnabled() ? readObjectLockDefaults() : {};
+  const checksumSha256Base64 = sha256Base64(params.body);
+  const contentMd5Base64 = md5Base64(params.body);
 
   await s3.send(
     new PutObjectCommand({
@@ -220,6 +233,8 @@ export async function putObjectBuffer(params: {
       ContentType: normalizeContentType(params.contentType),
       ContentLength: params.body.length,
       Metadata: metadata,
+      ChecksumSHA256: checksumSha256Base64,
+      ContentMD5: contentMd5Base64,
       ...(tagging ? { Tagging: tagging } : {}),
       ...(objectLock.mode ? { ObjectLockMode: objectLock.mode } : {}),
       ...(objectLock.retainUntilDate

@@ -1,7 +1,6 @@
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import crypto from "node:crypto";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 
@@ -84,7 +83,7 @@ export async function createEvidenceTimestamp(params: {
   const tsaUrl = must("TSA_URL");
   const tsaUsername = must("TSA_USERNAME");
   const tsaPassword = must("TSA_PASSWORD");
-  const provider = optional("TSA_PROVIDER") ?? "GLOBALTRUST";
+  const provider = optional("TSA_PROVIDER") ?? "UNSPECIFIED_TSA";
   const hashAlgorithm = optional("TSA_HASH_ALGORITHM") ?? "sha256";
 
   const digestHex = params.digestHex.trim().toLowerCase();
@@ -93,14 +92,10 @@ export async function createEvidenceTimestamp(params: {
   }
 
   const workDir = await mkWorkDir();
-  const digestFile = path.join(workDir, "imprint.bin");
   const requestFile = path.join(workDir, "request.tsq");
   const responseFile = path.join(workDir, "response.tsr");
 
   try {
-    await fs.writeFile(digestFile, Buffer.from(digestHex, "hex"));
-
-    // openssl ts -query -digest <binary-digest> -sha256 -cert -out request.tsq
     await execFileAsync(
       "openssl",
       [
@@ -116,7 +111,6 @@ export async function createEvidenceTimestamp(params: {
       { timeout: timeoutMs() }
     );
 
-    // POST to GlobalTrust TSA with basic auth
     await execFileAsync(
       "curl",
       [
@@ -135,12 +129,30 @@ export async function createEvidenceTimestamp(params: {
       { timeout: timeoutMs() }
     );
 
-    // Verify / parse response text
     const { stdout } = await execFileAsync(
       "openssl",
       ["ts", "-reply", "-in", responseFile, "-text"],
       { timeout: timeoutMs() }
     );
+
+    const replyText = stdout.toLowerCase();
+    const granted =
+      replyText.includes("status: granted") ||
+      replyText.includes("status: grantedwithmods");
+
+    if (!granted) {
+      return {
+        provider,
+        url: tsaUrl,
+        serialNumber: null,
+        genTimeUtc: null,
+        tokenBase64: "",
+        messageImprint: digestHex,
+        hashAlgorithm,
+        status: "FAILED",
+        failureReason: "TSA response was not granted",
+      };
+    }
 
     const tokenBuffer = await fs.readFile(responseFile);
     const parsed = parseOpenSslReplyText(stdout);
@@ -170,6 +182,6 @@ export async function createEvidenceTimestamp(params: {
       failureReason: reason,
     };
   } finally {
-    await cleanup([digestFile, requestFile, responseFile, workDir]);
+    await cleanup([requestFile, responseFile, workDir]);
   }
 }

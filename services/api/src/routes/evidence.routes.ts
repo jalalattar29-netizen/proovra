@@ -84,6 +84,10 @@ const SAFE_EVIDENCE_SELECT = {
   mimeType: true,
   storageBucket: true,
   storageKey: true,
+  storageRegion: true,
+  storageObjectLockMode: true,
+  storageObjectLockRetainUntilUtc: true,
+  storageObjectLockLegalHoldStatus: true,
   sizeBytes: true,
   fileSha256: true,
   fingerprintHash: true,
@@ -101,6 +105,28 @@ const SAFE_EVIDENCE_SELECT = {
 type SelectedEvidence = prismaPkg.Prisma.EvidenceGetPayload<{
   select: typeof SAFE_EVIDENCE_SELECT;
 }>;
+
+type StorageProtectionSummary = {
+  immutable: boolean;
+  mode: string | null;
+  retainUntil: string | null;
+  legalHold: string | null;
+  region: string | null;
+  verified: boolean;
+} | null;
+
+type AnchorStatusSummary = {
+  mode: "off" | "ready" | "active";
+  provider: string | null;
+  publicBaseUrl: string | null;
+  configured: boolean;
+  published: boolean;
+  anchorHash: string | null;
+  receiptId: string | null;
+  transactionId: string | null;
+  publicUrl: string | null;
+  anchoredAtUtc: string | null;
+};
 
 function readPositiveIntEnv(name: string, fallback: number): number {
   const raw = process.env[name]?.trim();
@@ -145,7 +171,9 @@ function bigintToString(v: unknown): string | null {
 }
 
 function decimalToNumber(v: unknown): number | null {
-  if (v === null || v === undefined) return null;
+  if (v === null || v === undefined) {
+    return null;
+  }
 
   if (typeof v === "number") {
     return Number.isFinite(v) ? v : null;
@@ -308,10 +336,7 @@ function summarizePublicPayload(
       const uploadKind =
         normalizePublicPayloadValue(obj.uploadKind) ??
         normalizePublicPayloadValue(obj.mode);
-      return [
-        "Upload session started",
-        uploadKind ? `Mode: ${uploadKind}` : null,
-      ]
+      return ["Upload session started", uploadKind ? `Mode: ${uploadKind}` : null]
         .filter(Boolean)
         .join(" • ");
     }
@@ -384,6 +409,32 @@ function summarizePublicPayload(
           : "Verification report generated.",
         anchorMode ? `Anchor Mode: ${anchorMode}` : null,
         anchorHash ? `Anchor: ${shortHash(anchorHash)}` : null,
+      ]
+        .filter(Boolean)
+        .join(" • ");
+    }
+
+    case prismaPkg.CustodyEventType.ANCHOR_PUBLISHED: {
+      const provider = normalizePublicPayloadValue(obj.provider);
+      const receiptId = normalizePublicPayloadValue(obj.receiptId);
+      const transactionId = normalizePublicPayloadValue(obj.transactionId);
+      return [
+        "External anchor publication recorded",
+        provider ? `Provider: ${provider}` : null,
+        receiptId ? `Receipt: ${shortHash(receiptId)}` : null,
+        transactionId ? `Tx: ${shortHash(transactionId)}` : null,
+      ]
+        .filter(Boolean)
+        .join(" • ");
+    }
+
+    case prismaPkg.CustodyEventType.ANCHOR_FAILED: {
+      const provider = normalizePublicPayloadValue(obj.provider);
+      const reason = normalizePublicPayloadValue(obj.reason);
+      return [
+        "External anchor publication failed",
+        provider ? `Provider: ${provider}` : null,
+        reason ? `Reason: ${reason}` : null,
       ]
         .filter(Boolean)
         .join(" • ");
@@ -467,6 +518,10 @@ type SafeEvidence = {
   mimeType: string | null;
   storageBucket: string | null;
   storageKey: string | null;
+  storageRegion: string | null;
+  storageObjectLockMode: string | null;
+  storageObjectLockRetainUntilUtc: string | null;
+  storageObjectLockLegalHoldStatus: string | null;
   sizeBytes: string | null;
   fileSha256: string | null;
   fingerprintHash: string | null;
@@ -497,6 +552,13 @@ function toSafeEvidence(e: SelectedEvidence): SafeEvidence {
     mimeType: e.mimeType ?? null,
     storageBucket: e.storageBucket ?? null,
     storageKey: e.storageKey ?? null,
+    storageRegion: e.storageRegion ?? null,
+    storageObjectLockMode: e.storageObjectLockMode ?? null,
+    storageObjectLockRetainUntilUtc: e.storageObjectLockRetainUntilUtc
+      ? e.storageObjectLockRetainUntilUtc.toISOString()
+      : null,
+    storageObjectLockLegalHoldStatus:
+      e.storageObjectLockLegalHoldStatus ?? null,
     sizeBytes: bigintToString(e.sizeBytes),
     fileSha256: e.fileSha256 ?? null,
     fingerprintHash: e.fingerprintHash ?? null,
@@ -516,6 +578,134 @@ async function getEvidenceItemCount(evidenceId: string): Promise<number> {
     where: { evidenceId },
   });
   return count > 0 ? count : 1;
+}
+
+async function getStorageProtectionSummary(
+  bucket: string | null | undefined,
+  key: string | null | undefined,
+  snapshot?: {
+    storageRegion?: string | null;
+    storageObjectLockMode?: string | null;
+    storageObjectLockRetainUntilUtc?: Date | string | null;
+    storageObjectLockLegalHoldStatus?: string | null;
+  }
+): Promise<StorageProtectionSummary> {
+  const snapshotMode =
+    typeof snapshot?.storageObjectLockMode === "string"
+      ? snapshot.storageObjectLockMode
+      : null;
+
+  const snapshotRetainUntil =
+    snapshot?.storageObjectLockRetainUntilUtc instanceof Date
+      ? snapshot.storageObjectLockRetainUntilUtc.toISOString()
+      : typeof snapshot?.storageObjectLockRetainUntilUtc === "string"
+        ? snapshot.storageObjectLockRetainUntilUtc
+        : null;
+
+  const snapshotLegalHold =
+    typeof snapshot?.storageObjectLockLegalHoldStatus === "string"
+      ? snapshot.storageObjectLockLegalHoldStatus
+      : null;
+
+  const snapshotRegion =
+    typeof snapshot?.storageRegion === "string" && snapshot.storageRegion.trim()
+      ? snapshot.storageRegion.trim()
+      : process.env.S3_REGION?.trim() || null;
+
+  if (snapshotMode || snapshotRetainUntil || snapshotLegalHold) {
+    return {
+      immutable: snapshotMode === "COMPLIANCE" && Boolean(snapshotRetainUntil),
+      mode: snapshotMode,
+      retainUntil: snapshotRetainUntil,
+      legalHold: snapshotLegalHold,
+      region: snapshotRegion,
+      verified: true,
+    };
+  }
+
+  if (!bucket || !key) return null;
+
+  try {
+    const meta = await headObject({ bucket, key });
+    const mode = meta.objectLockMode ? String(meta.objectLockMode) : null;
+    const retainUntil =
+      meta.objectLockRetainUntilDate instanceof Date
+        ? meta.objectLockRetainUntilDate.toISOString()
+        : null;
+    const legalHold = meta.objectLockLegalHoldStatus
+      ? String(meta.objectLockLegalHoldStatus)
+      : null;
+    const immutable = mode === "COMPLIANCE" && Boolean(retainUntil);
+
+    return {
+      immutable,
+      mode,
+      retainUntil,
+      legalHold,
+      region: process.env.S3_REGION?.trim() || null,
+      verified: Boolean(mode || retainUntil || legalHold),
+    };
+  } catch {
+    return {
+      immutable: false,
+      mode: null,
+      retainUntil: null,
+      legalHold: null,
+      region: process.env.S3_REGION?.trim() || null,
+      verified: false,
+    };
+  }
+}
+
+async function getAnchorStatus(
+  evidenceId: string
+): Promise<AnchorStatusSummary> {
+  const mode = normalizeAnchorMode(process.env.ANCHOR_MODE);
+  const provider = process.env.ANCHOR_PROVIDER?.trim() || null;
+  const publicBaseUrl = process.env.ANCHOR_PUBLIC_BASE_URL?.trim() || null;
+
+  const anchor = await prisma.evidenceAnchor.findUnique({
+    where: { evidenceId },
+    select: {
+      mode: true,
+      provider: true,
+      anchorHash: true,
+      receiptId: true,
+      transactionId: true,
+      publicUrl: true,
+      anchoredAtUtc: true,
+    },
+  });
+
+  if (!anchor) {
+    return {
+      mode,
+      provider,
+      publicBaseUrl,
+      configured: Boolean(provider),
+      published: false,
+      anchorHash: null,
+      receiptId: null,
+      transactionId: null,
+      publicUrl: null,
+      anchoredAtUtc: null,
+    };
+  }
+
+  return {
+    mode: normalizeAnchorMode(anchor.mode),
+    provider: anchor.provider ?? provider,
+    publicBaseUrl,
+    configured: Boolean(anchor.provider ?? provider),
+    published: true,
+    anchorHash: anchor.anchorHash ?? null,
+    receiptId: anchor.receiptId ?? null,
+    transactionId: anchor.transactionId ?? null,
+    publicUrl: anchor.publicUrl ?? null,
+    anchoredAtUtc: anchor.anchoredAtUtc
+      ? anchor.anchoredAtUtc.toISOString()
+      : null,
+  };
 }
 
 async function assertCaseAccess(userId: string, caseId: string) {
@@ -652,25 +842,6 @@ function toJsonSafe<T>(value: T): T {
   );
 }
 
-function getAnchorStatus() {
-  const mode = normalizeAnchorMode(process.env.ANCHOR_MODE);
-  const provider = process.env.ANCHOR_PROVIDER?.trim() || null;
-  const publicBaseUrl = process.env.ANCHOR_PUBLIC_BASE_URL?.trim() || null;
-
-  return {
-    mode,
-    provider,
-    publicBaseUrl,
-    configured: Boolean(provider),
-    published: false,
-    anchorHash: null,
-    receiptId: null,
-    transactionId: null,
-    publicUrl: null,
-    anchoredAtUtc: null,
-  };
-}
-
 export async function evidenceRoutes(app: FastifyInstance) {
   app.post("/v1/evidence", { preHandler: requireAuth }, async (req, reply) => {
     const body = CreateEvidenceBody.parse(req.body);
@@ -723,7 +894,9 @@ export async function evidenceRoutes(app: FastifyInstance) {
       return reply.code(201).send(result);
     } catch (err) {
       if (err instanceof Error && err.message === "PAYG_CREDITS_REQUIRED") {
-        return reply.code(402).send({ message: "Pay-per-evidence credits required" });
+        return reply
+          .code(402)
+          .send({ message: "Pay-per-evidence credits required" });
       }
 
       if (err instanceof Error && err.message === "FREE_LIMIT_REACHED") {
@@ -772,9 +945,24 @@ export async function evidenceRoutes(app: FastifyInstance) {
       });
 
       const itemCount = await getEvidenceItemCount(id);
+      const storage = await getStorageProtectionSummary(
+        updated.storageBucket,
+        updated.storageKey,
+        {
+          storageRegion: updated.storageRegion,
+          storageObjectLockMode: updated.storageObjectLockMode,
+          storageObjectLockRetainUntilUtc:
+            updated.storageObjectLockRetainUntilUtc,
+          storageObjectLockLegalHoldStatus:
+            updated.storageObjectLockLegalHoldStatus,
+        }
+      );
 
       return reply.code(200).send({
-        evidence: toSafeEvidence(updated),
+        evidence: {
+          ...toSafeEvidence(updated),
+          storage,
+        },
         itemCount,
         displayTitle: resolveEvidenceTitle(updated.title),
         displaySubtitle: buildEvidenceSubtitle({
@@ -835,7 +1023,9 @@ export async function evidenceRoutes(app: FastifyInstance) {
           });
 
           if (!evidence || evidence.deletedAt) {
-            const err: Error & { statusCode?: number } = new Error("Evidence not found");
+            const err: Error & { statusCode?: number } = new Error(
+              "Evidence not found"
+            );
             err.statusCode = 404;
             throw err;
           }
@@ -851,7 +1041,9 @@ export async function evidenceRoutes(app: FastifyInstance) {
             evidence.status === EvidenceStatus.REPORTED ||
             evidence.lockedAt
           ) {
-            const err: Error & { statusCode?: number } = new Error("Evidence is immutable");
+            const err: Error & { statusCode?: number } = new Error(
+              "Evidence is immutable"
+            );
             err.statusCode = 409;
             throw err;
           }
@@ -963,12 +1155,26 @@ export async function evidenceRoutes(app: FastifyInstance) {
             expiresInSeconds: 600,
           });
 
+          const storage = await getStorageProtectionSummary(
+            part.storageBucket,
+            part.storageKey,
+            {
+              storageRegion: part.storageRegion,
+              storageObjectLockMode: part.storageObjectLockMode,
+              storageObjectLockRetainUntilUtc:
+                part.storageObjectLockRetainUntilUtc,
+              storageObjectLockLegalHoldStatus:
+                part.storageObjectLockLegalHoldStatus,
+            }
+          );
+
           return {
             ...toJsonSafe(part),
             url,
             isPrimary:
               evidence.storageBucket === part.storageBucket &&
               evidence.storageKey === part.storageKey,
+            storage,
           };
         })
       );
@@ -988,69 +1194,73 @@ export async function evidenceRoutes(app: FastifyInstance) {
     }
   );
 
-  app.post("/v1/evidence/claim", { preHandler: requireAuth }, async (req, reply) => {
-    const body = ClaimBody.parse(req.body);
+  app.post(
+    "/v1/evidence/claim",
+    { preHandler: requireAuth },
+    async (req, reply) => {
+      const body = ClaimBody.parse(req.body);
 
-    if (!body.guestToken) {
-      return reply.code(400).send({ message: "guest_token_required" });
-    }
+      if (!body.guestToken) {
+        return reply.code(400).send({ message: "guest_token_required" });
+      }
 
-    const secret = process.env.AUTH_JWT_SECRET;
-    if (!secret) {
-      return reply.code(500).send({ message: "AUTH_JWT_SECRET is not set" });
-    }
+      const secret = process.env.AUTH_JWT_SECRET;
+      if (!secret) {
+        return reply.code(500).send({ message: "AUTH_JWT_SECRET is not set" });
+      }
 
-    const payload = verifyJwt(body.guestToken, secret);
-    if (payload.provider !== "GUEST") {
-      return reply.code(400).send({ message: "invalid_guest_token" });
-    }
+      const payload = verifyJwt(body.guestToken, secret);
+      if (payload.provider !== "GUEST") {
+        return reply.code(400).send({ message: "invalid_guest_token" });
+      }
 
-    const guestUserId = payload.sub;
-    const userId = getAuthUserId(req);
+      const guestUserId = payload.sub;
+      const userId = getAuthUserId(req);
 
-    const where = {
-      ownerUserId: guestUserId,
-      deletedAt: null,
-      status: {
-        notIn: [
-          EvidenceStatus.SIGNED,
-          EvidenceStatus.REPORTED,
-        ] as prismaPkg.EvidenceStatus[],
-      },
-      ...(body.evidenceIds?.length ? { id: { in: body.evidenceIds } } : {}),
-    };
+      const where = {
+        ownerUserId: guestUserId,
+        deletedAt: null,
+        status: {
+          notIn: [
+            EvidenceStatus.SIGNED,
+            EvidenceStatus.REPORTED,
+          ] as prismaPkg.EvidenceStatus[],
+        },
+        ...(body.evidenceIds?.length ? { id: { in: body.evidenceIds } } : {}),
+      };
 
-    const evidence = await prisma.evidence.findMany({
-      where,
-      select: { id: true },
-    });
-
-    if (evidence.length === 0) {
-      return reply.code(200).send({ claimed: 0 });
-    }
-
-    await prisma.evidence.updateMany({
-      where,
-      data: { ownerUserId: userId },
-    });
-
-    await prisma.guestIdentity.updateMany({
-      where: { userId: guestUserId },
-      data: { claimedByUserId: userId, claimedAt: new Date() },
-    });
-
-    for (const item of evidence) {
-      await appendCustodyEvent({
-        evidenceId: item.id,
-        eventType: prismaPkg.CustodyEventType.EVIDENCE_CLAIMED,
-        payload: { fromUserId: guestUserId, toUserId: userId },
-        ip: req.ip,
-        userAgent: req.headers["user-agent"],
+      const evidence = await prisma.evidence.findMany({
+        where,
+        select: { id: true },
       });
-    }
 
-    return reply.code(200).send({ claimed: evidence.length });
-  });
+      if (evidence.length === 0) {
+        return reply.code(200).send({ claimed: 0 });
+      }
+
+      await prisma.evidence.updateMany({
+        where,
+        data: { ownerUserId: userId },
+      });
+
+      await prisma.guestIdentity.updateMany({
+        where: { userId: guestUserId },
+        data: { claimedByUserId: userId, claimedAt: new Date() },
+      });
+
+      for (const item of evidence) {
+        await appendCustodyEvent({
+          evidenceId: item.id,
+          eventType: prismaPkg.CustodyEventType.EVIDENCE_CLAIMED,
+          payload: { fromUserId: guestUserId, toUserId: userId },
+          ip: req.ip,
+          userAgent: req.headers["user-agent"],
+        }).catch(() => null);
+      }
+
+      return reply.code(200).send({ claimed: evidence.length });
+    }
+  );
 
   app.post(
     "/v1/evidence/:id/lock",
@@ -1079,7 +1289,9 @@ export async function evidenceRoutes(app: FastifyInstance) {
         evidence.status !== prismaPkg.EvidenceStatus.SIGNED &&
         evidence.status !== prismaPkg.EvidenceStatus.REPORTED
       ) {
-        return reply.code(400).send({ message: "Evidence must be signed before lock" });
+        return reply
+          .code(400)
+          .send({ message: "Evidence must be signed before lock" });
       }
 
       if (body.locked) {
@@ -1097,7 +1309,25 @@ export async function evidenceRoutes(app: FastifyInstance) {
           userAgent: req.headers["user-agent"],
         }).catch(() => null);
 
-        return reply.code(200).send({ evidence: toSafeEvidence(updated) });
+        const storage = await getStorageProtectionSummary(
+          updated.storageBucket,
+          updated.storageKey,
+          {
+            storageRegion: updated.storageRegion,
+            storageObjectLockMode: updated.storageObjectLockMode,
+            storageObjectLockRetainUntilUtc:
+              updated.storageObjectLockRetainUntilUtc,
+            storageObjectLockLegalHoldStatus:
+              updated.storageObjectLockLegalHoldStatus,
+          }
+        );
+
+        return reply.code(200).send({
+          evidence: {
+            ...toSafeEvidence(updated),
+            storage,
+          },
+        });
       }
 
       return reply.code(400).send({ message: "Unlock is not allowed" });
@@ -1127,7 +1357,24 @@ export async function evidenceRoutes(app: FastifyInstance) {
       }
 
       if (evidence.archivedAt) {
-        return reply.code(200).send({ evidence: toSafeEvidence(evidence) });
+        const storage = await getStorageProtectionSummary(
+          evidence.storageBucket,
+          evidence.storageKey,
+          {
+            storageRegion: evidence.storageRegion,
+            storageObjectLockMode: evidence.storageObjectLockMode,
+            storageObjectLockRetainUntilUtc:
+              evidence.storageObjectLockRetainUntilUtc,
+            storageObjectLockLegalHoldStatus:
+              evidence.storageObjectLockLegalHoldStatus,
+          }
+        );
+        return reply.code(200).send({
+          evidence: {
+            ...toSafeEvidence(evidence),
+            storage,
+          },
+        });
       }
 
       const updated = await prisma.evidence.update({
@@ -1144,7 +1391,25 @@ export async function evidenceRoutes(app: FastifyInstance) {
         userAgent: req.headers["user-agent"],
       }).catch(() => null);
 
-      return reply.code(200).send({ evidence: toSafeEvidence(updated) });
+      const storage = await getStorageProtectionSummary(
+        updated.storageBucket,
+        updated.storageKey,
+        {
+          storageRegion: updated.storageRegion,
+          storageObjectLockMode: updated.storageObjectLockMode,
+          storageObjectLockRetainUntilUtc:
+            updated.storageObjectLockRetainUntilUtc,
+          storageObjectLockLegalHoldStatus:
+            updated.storageObjectLockLegalHoldStatus,
+        }
+      );
+
+      return reply.code(200).send({
+        evidence: {
+          ...toSafeEvidence(updated),
+          storage,
+        },
+      });
     }
   );
 
@@ -1171,7 +1436,24 @@ export async function evidenceRoutes(app: FastifyInstance) {
       }
 
       if (!evidence.archivedAt) {
-        return reply.code(200).send({ evidence: toSafeEvidence(evidence) });
+        const storage = await getStorageProtectionSummary(
+          evidence.storageBucket,
+          evidence.storageKey,
+          {
+            storageRegion: evidence.storageRegion,
+            storageObjectLockMode: evidence.storageObjectLockMode,
+            storageObjectLockRetainUntilUtc:
+              evidence.storageObjectLockRetainUntilUtc,
+            storageObjectLockLegalHoldStatus:
+              evidence.storageObjectLockLegalHoldStatus,
+          }
+        );
+        return reply.code(200).send({
+          evidence: {
+            ...toSafeEvidence(evidence),
+            storage,
+          },
+        });
       }
 
       const updated = await prisma.evidence.update({
@@ -1188,7 +1470,25 @@ export async function evidenceRoutes(app: FastifyInstance) {
         userAgent: req.headers["user-agent"],
       }).catch(() => null);
 
-      return reply.code(200).send({ evidence: toSafeEvidence(updated) });
+      const storage = await getStorageProtectionSummary(
+        updated.storageBucket,
+        updated.storageKey,
+        {
+          storageRegion: updated.storageRegion,
+          storageObjectLockMode: updated.storageObjectLockMode,
+          storageObjectLockRetainUntilUtc:
+            updated.storageObjectLockRetainUntilUtc,
+          storageObjectLockLegalHoldStatus:
+            updated.storageObjectLockLegalHoldStatus,
+        }
+      );
+
+      return reply.code(200).send({
+        evidence: {
+          ...toSafeEvidence(updated),
+          storage,
+        },
+      });
     }
   );
 
@@ -1219,7 +1519,9 @@ export async function evidenceRoutes(app: FastifyInstance) {
         evidence.status === EvidenceStatus.REPORTED ||
         evidence.lockedAt
       ) {
-        return reply.code(409).send({ message: "Cannot delete signed or locked evidence" });
+        return reply
+          .code(409)
+          .send({ message: "Cannot delete signed or locked evidence" });
       }
 
       const now = new Date();
@@ -1234,7 +1536,7 @@ export async function evidenceRoutes(app: FastifyInstance) {
         payload: { deletedByUserId: ownerUserId },
         ip: req.ip,
         userAgent: req.headers["user-agent"],
-      });
+      }).catch(() => null);
 
       return reply.code(200).send({ deleted: true });
     }
@@ -1243,7 +1545,8 @@ export async function evidenceRoutes(app: FastifyInstance) {
   app.get("/v1/evidence", { preHandler: requireAuth }, async (req, reply) => {
     const ownerUserId = getAuthUserId(req);
     const caseIdRaw = (req.query as { caseId?: string }).caseId;
-    const includeArchivedRaw = (req.query as { includeArchived?: string }).includeArchived;
+    const includeArchivedRaw = (req.query as { includeArchived?: string })
+      .includeArchived;
     const caseId = caseIdRaw ? z.string().uuid().parse(caseIdRaw) : null;
     const includeArchived = includeArchivedRaw === "true";
 
@@ -1329,7 +1632,9 @@ export async function evidenceRoutes(app: FastifyInstance) {
         ...(includeArchived ? {} : { archivedAt: null }),
         OR: [
           { ownerUserId: ownerUserId },
-          ...(accessibleCaseIds.length > 0 ? [{ caseId: { in: accessibleCaseIds } }] : []),
+          ...(accessibleCaseIds.length > 0
+            ? [{ caseId: { in: accessibleCaseIds } }]
+            : []),
           ...(memberTeamIds.length > 0 ? [{ teamId: { in: memberTeamIds } }] : []),
         ],
       },
@@ -1375,38 +1680,57 @@ export async function evidenceRoutes(app: FastifyInstance) {
     });
   });
 
-  app.get("/v1/evidence/:id", { preHandler: requireAuth }, async (req, reply) => {
-    const id = z.string().uuid().parse((req.params as ParamsId).id);
-    const ownerUserId = getAuthUserId(req);
+  app.get(
+    "/v1/evidence/:id",
+    { preHandler: requireAuth },
+    async (req, reply) => {
+      const id = z.string().uuid().parse((req.params as ParamsId).id);
+      const ownerUserId = getAuthUserId(req);
 
-    (req as FastifyRequest & { evidenceId?: string }).evidenceId = id;
-    req.log = req.log.child({ evidenceId: id });
+      (req as FastifyRequest & { evidenceId?: string }).evidenceId = id;
+      req.log = req.log.child({ evidenceId: id });
 
-    try {
-      const evidence = await getEvidenceWithReadAccess(ownerUserId, id);
-      const itemCount = await getEvidenceItemCount(id);
+      try {
+        const evidence = await getEvidenceWithReadAccess(ownerUserId, id);
+        const itemCount = await getEvidenceItemCount(id);
+        const storage = await getStorageProtectionSummary(
+          evidence.storageBucket,
+          evidence.storageKey,
+          {
+            storageRegion: evidence.storageRegion,
+            storageObjectLockMode: evidence.storageObjectLockMode,
+            storageObjectLockRetainUntilUtc:
+              evidence.storageObjectLockRetainUntilUtc,
+            storageObjectLockLegalHoldStatus:
+              evidence.storageObjectLockLegalHoldStatus,
+          }
+        );
+        const anchor = await getAnchorStatus(id);
 
-      return reply.code(200).send({
-        evidence: toJsonSafe({
-          ...toSafeEvidence(evidence),
-          itemCount,
-          displayTitle: resolveEvidenceTitle(evidence.title),
-          displaySubtitle: buildEvidenceSubtitle({
+        return reply.code(200).send({
+          evidence: toJsonSafe({
+            ...toSafeEvidence(evidence),
             itemCount,
-            status: evidence.status,
-            createdAt: evidence.createdAt,
+            displayTitle: resolveEvidenceTitle(evidence.title),
+            displaySubtitle: buildEvidenceSubtitle({
+              itemCount,
+              status: evidence.status,
+              createdAt: evidence.createdAt,
+            }),
+            storage,
+            anchor,
           }),
-        }),
-      });
-    } catch (err) {
-      const statusCode =
-        err instanceof Error && "statusCode" in err
-          ? (err as Error & { statusCode?: number }).statusCode ?? 500
-          : 500;
-      const message = err instanceof Error ? err.message : "Unexpected error";
-      return reply.code(statusCode).send({ message });
+        });
+      } catch (err) {
+        const statusCode =
+          err instanceof Error && "statusCode" in err
+            ? (err as Error & { statusCode?: number }).statusCode ?? 500
+            : 500;
+        const message = err instanceof Error ? err.message : "Unexpected error";
+        return reply.code(statusCode).send({ message });
+      }
     }
-  });
+  );
 
   app.post(
     "/v1/evidence/:id/complete",
@@ -1443,11 +1767,55 @@ export async function evidenceRoutes(app: FastifyInstance) {
 
       try {
         const result = await completeEvidence({ evidenceId: id, ownerUserId });
-        return reply.code(200).send(result);
+
+        const refreshed = await prisma.evidence.findUnique({
+          where: { id },
+          select: SAFE_EVIDENCE_SELECT,
+        });
+
+        if (!refreshed) {
+          return reply.code(404).send({ message: "Evidence not found" });
+        }
+
+        const storage = await getStorageProtectionSummary(
+          refreshed.storageBucket,
+          refreshed.storageKey,
+          {
+            storageRegion: refreshed.storageRegion,
+            storageObjectLockMode: refreshed.storageObjectLockMode,
+            storageObjectLockRetainUntilUtc:
+              refreshed.storageObjectLockRetainUntilUtc,
+            storageObjectLockLegalHoldStatus:
+              refreshed.storageObjectLockLegalHoldStatus,
+          }
+        );
+
+        return reply.code(200).send({
+          ...toJsonSafe(result),
+          storage,
+        });
       } catch (err) {
         if (err instanceof Error && err.message === "PAYG_CREDITS_REQUIRED") {
-          return reply.code(402).send({ message: "Pay-per-evidence credits required" });
+          return reply
+            .code(402)
+            .send({ message: "Pay-per-evidence credits required" });
         }
+
+        if (
+          err instanceof Error &&
+          err.message === "Cannot complete evidence without an uploaded file"
+        ) {
+          return reply.code(400).send({ message: err.message });
+        }
+
+        if (
+          err instanceof Error &&
+          (err.message.startsWith("OBJECT_HEAD_FAILED:") ||
+            err.message.startsWith("OBJECT_GET_FAILED:"))
+        ) {
+          return reply.code(404).send({ message: "Uploaded object not found" });
+        }
+
         throw err;
       }
     }
@@ -1481,6 +1849,10 @@ export async function evidenceRoutes(app: FastifyInstance) {
           version: true,
           storageBucket: true,
           storageKey: true,
+          storageRegion: true,
+          storageObjectLockMode: true,
+          storageObjectLockRetainUntilUtc: true,
+          storageObjectLockLegalHoldStatus: true,
           generatedAtUtc: true,
         },
       });
@@ -1503,6 +1875,19 @@ export async function evidenceRoutes(app: FastifyInstance) {
         expiresInSeconds: 600,
       });
 
+      const storage = await getStorageProtectionSummary(
+        latest.storageBucket,
+        latest.storageKey,
+        {
+          storageRegion: latest.storageRegion,
+          storageObjectLockMode: latest.storageObjectLockMode,
+          storageObjectLockRetainUntilUtc:
+            latest.storageObjectLockRetainUntilUtc,
+          storageObjectLockLegalHoldStatus:
+            latest.storageObjectLockLegalHoldStatus,
+        }
+      );
+
       return reply.code(200).send({
         evidenceId: id,
         version: latest.version,
@@ -1510,6 +1895,7 @@ export async function evidenceRoutes(app: FastifyInstance) {
         key: latest.storageKey,
         url,
         generatedAtUtc: latest.generatedAtUtc.toISOString(),
+        storage,
       });
     }
   );
@@ -1557,6 +1943,19 @@ export async function evidenceRoutes(app: FastifyInstance) {
         userAgent: req.headers["user-agent"],
       }).catch(() => null);
 
+      const storage = await getStorageProtectionSummary(
+        evidence.storageBucket,
+        evidence.storageKey,
+        {
+          storageRegion: evidence.storageRegion,
+          storageObjectLockMode: evidence.storageObjectLockMode,
+          storageObjectLockRetainUntilUtc:
+            evidence.storageObjectLockRetainUntilUtc,
+          storageObjectLockLegalHoldStatus:
+            evidence.storageObjectLockLegalHoldStatus,
+        }
+      );
+
       return reply.code(200).send({
         evidenceId: id,
         bucket: evidence.storageBucket,
@@ -1564,6 +1963,7 @@ export async function evidenceRoutes(app: FastifyInstance) {
         url,
         mimeType: evidence.mimeType,
         sizeBytes: evidence.sizeBytes?.toString() ?? null,
+        storage,
       });
     }
   );
@@ -1595,7 +1995,9 @@ export async function evidenceRoutes(app: FastifyInstance) {
       try {
         const meta = await headObject({ bucket, key });
         if (!meta.sizeBytes || meta.sizeBytes <= 0) {
-          return reply.code(404).send({ message: "Verification package not found" });
+          return reply
+            .code(404)
+            .send({ message: "Verification package not found" });
         }
       } catch {
         return reply.code(404).send({ message: "Verification package not found" });
@@ -1607,10 +2009,13 @@ export async function evidenceRoutes(app: FastifyInstance) {
         expiresInSeconds: 600,
       });
 
+      const storage = await getStorageProtectionSummary(bucket, key);
+
       return reply.code(200).send({
         evidenceId: id,
         key,
         url,
+        storage,
       });
     }
   );
@@ -1654,6 +2059,12 @@ export async function evidenceRoutes(app: FastifyInstance) {
         tsaHashAlgorithm: true,
         tsaStatus: true,
         tsaFailureReason: true,
+        storageBucket: true,
+        storageKey: true,
+        storageRegion: true,
+        storageObjectLockMode: true,
+        storageObjectLockRetainUntilUtc: true,
+        storageObjectLockLegalHoldStatus: true,
       },
     });
 
@@ -1717,6 +2128,8 @@ export async function evidenceRoutes(app: FastifyInstance) {
       },
     });
 
+    const anchor = await getAnchorStatus(id);
+
     const recomputedFingerprintHash = sha256Hex(
       evidence.fingerprintCanonicalJson
     );
@@ -1751,6 +2164,19 @@ export async function evidenceRoutes(app: FastifyInstance) {
         eventHash: ev.eventHash,
       })),
     });
+
+    const storageProtection = await getStorageProtectionSummary(
+      evidence.storageBucket,
+      evidence.storageKey,
+      {
+        storageRegion: evidence.storageRegion,
+        storageObjectLockMode: evidence.storageObjectLockMode,
+        storageObjectLockRetainUntilUtc:
+          evidence.storageObjectLockRetainUntilUtc,
+        storageObjectLockLegalHoldStatus:
+          evidence.storageObjectLockLegalHoldStatus,
+      }
+    );
 
     const overallIntegrity =
       canonicalHashMatches &&
@@ -1817,7 +2243,8 @@ export async function evidenceRoutes(app: FastifyInstance) {
         accessEventCount: accessCustodyEvents.length,
       },
 
-      anchor: getAnchorStatus(),
+      storage: storageProtection,
+      anchor,
 
       tsaStatus: evidence.tsaStatus,
       tsaProvider: evidence.tsaProvider,

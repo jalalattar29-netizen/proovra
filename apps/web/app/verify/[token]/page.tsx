@@ -45,6 +45,7 @@ type VerifyResponse = {
   status?: string | null;
   evidenceId?: string | null;
   id?: string | null;
+  title?: string | null;
   reportGeneratedAtUtc?: string | null;
   generatedAtUtc?: string | null;
   verifiedAtUtc?: string | null;
@@ -105,6 +106,14 @@ type VerifyResponse = {
     forensicEventCount?: number;
     accessEventCount?: number;
   } | null;
+  storage?: {
+    immutable?: boolean;
+    mode?: string | null;
+    retainUntil?: string | null;
+    legalHold?: string | null;
+    region?: string | null;
+    verified?: boolean;
+  } | null;
 };
 
 type TimelineItem = {
@@ -121,6 +130,15 @@ type ToastFn = (
   type: "success" | "info" | "error" | "warning",
   duration?: number
 ) => void;
+
+type StorageProtection = {
+  immutable: boolean | null;
+  mode: string | null;
+  retainUntil: string | null;
+  legalHold: string | null;
+  region: string | null;
+  verified: boolean | null;
+};
 
 function formatDateTime(value?: string | null): string {
   if (!value) return "N/A";
@@ -335,6 +353,66 @@ function buildAnchorPresentation(anchor?: VerifyResponse["anchor"] | null): {
     badgeTone: "neutral",
     detailLabel: "Anchor Status",
     detailText: "Anchor status was not included in the verification response.",
+  };
+}
+
+function buildStoragePresentation(
+  storage?:
+    | {
+        immutable?: boolean | null;
+        mode?: string | null;
+        retainUntil?: string | null;
+        legalHold?: string | null;
+        region?: string | null;
+        verified?: boolean | null;
+      }
+    | null
+): {
+  badgeLabel: string;
+  badgeTone: "success" | "warning" | "neutral" | "info";
+  detailLabel: string;
+  detailText: string;
+} {
+  const mode = (storage?.mode ?? "").trim().toUpperCase();
+  const immutable = storage?.immutable === true;
+  const verified = storage?.verified === true;
+
+  if (immutable && mode === "COMPLIANCE") {
+    return {
+      badgeLabel: "Immutable Storage Locked",
+      badgeTone: "success",
+      detailLabel: "Storage Protection",
+      detailText:
+        "This evidence is stored under immutable Object Lock protection in COMPLIANCE mode. Protected objects cannot be altered or deleted before the retention deadline expires.",
+    };
+  }
+
+  if (mode === "GOVERNANCE") {
+    return {
+      badgeLabel: "Governance Retention Active",
+      badgeTone: "info",
+      detailLabel: "Storage Protection",
+      detailText:
+        "This evidence is stored with Object Lock governance retention. Retention controls are active, but governance mode is weaker than compliance mode.",
+    };
+  }
+
+  if (verified) {
+    return {
+      badgeLabel: "Storage Protection Reported",
+      badgeTone: "info",
+      detailLabel: "Storage Protection",
+      detailText:
+        "Storage protection metadata was returned for this evidence, but immutable compliance retention was not fully confirmed.",
+    };
+  }
+
+  return {
+    badgeLabel: "Storage Protection Unverified",
+    badgeTone: "neutral",
+    detailLabel: "Storage Protection",
+    detailText:
+      "Immutable storage metadata was not confirmed in the verification response.",
   };
 }
 
@@ -574,6 +652,7 @@ export default function VerifyPage() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
+  const [title, setTitle] = useState<string | null>(null);
   const [evidenceId, setEvidenceId] = useState<string | null>(null);
   const [mimeType, setMimeType] = useState<string | null>(null);
   const [generatedAt, setGeneratedAt] = useState<string | null>(null);
@@ -607,6 +686,10 @@ export default function VerifyPage() {
   const [anchorTransactionId, setAnchorTransactionId] = useState<string | null>(null);
   const [anchorPublicUrl, setAnchorPublicUrl] = useState<string | null>(null);
   const [anchoredAtUtc, setAnchoredAtUtc] = useState<string | null>(null);
+
+  const [storageProtection, setStorageProtection] = useState<StorageProtection | null>(
+    null
+  );
 
   useEffect(() => {
     if (!params?.token) return;
@@ -667,6 +750,7 @@ export default function VerifyPage() {
         setFingerprintHash(data.fingerprintHash ?? null);
         setSignature(data.signatureBase64 ?? null);
         setVerifyStatus(data.status ?? "REPORTED");
+        setTitle(data.title ?? null);
         setEvidenceId(data.evidenceId ?? data.id ?? params.token ?? null);
         setMimeType(data.mimeType ?? null);
         setGeneratedAt(generatedAtFallback);
@@ -733,6 +817,21 @@ export default function VerifyPage() {
         setAnchorTransactionId(data.anchor?.transactionId ?? null);
         setAnchorPublicUrl(data.anchor?.publicUrl ?? null);
         setAnchoredAtUtc(data.anchor?.anchoredAtUtc ?? null);
+
+        setStorageProtection({
+          immutable:
+            typeof data.storage?.immutable === "boolean"
+              ? data.storage.immutable
+              : null,
+          mode: data.storage?.mode ?? null,
+          retainUntil: data.storage?.retainUntil ?? null,
+          legalHold: data.storage?.legalHold ?? null,
+          region: data.storage?.region ?? null,
+          verified:
+            typeof data.storage?.verified === "boolean"
+              ? data.storage.verified
+              : null,
+        });
       })
       .catch((err) => {
         captureException(err, { feature: "web_verify", token: params.token });
@@ -771,6 +870,11 @@ export default function VerifyPage() {
       anchorPublicUrl,
       anchoredAtUtc,
     ]
+  );
+
+  const storagePresentation = useMemo(
+    () => buildStoragePresentation(storageProtection),
+    [storageProtection]
   );
 
   const verificationBadges = useMemo(() => {
@@ -870,6 +974,12 @@ export default function VerifyPage() {
       show: true,
     });
 
+    items.push({
+      label: storagePresentation.badgeLabel,
+      tone: storagePresentation.badgeTone,
+      show: true,
+    });
+
     return items.filter((item) => item.show);
   }, [
     overallIntegrity,
@@ -879,6 +989,7 @@ export default function VerifyPage() {
     custodyChainMode,
     timestampDigestMatches,
     anchorPresentation,
+    storagePresentation,
   ]);
 
   const summaryFields = useMemo(
@@ -887,6 +998,11 @@ export default function VerifyPage() {
         {
           label: "Record Status",
           value: statusTone(verifyStatus).label,
+          show: true,
+        },
+        {
+          label: "Evidence Title",
+          value: title ?? "Digital Evidence Record",
           show: true,
         },
         {
@@ -915,7 +1031,16 @@ export default function VerifyPage() {
           show: Boolean(mimeType),
         },
       ].filter((item) => item.show),
-    [verifyStatus, evidenceId, params?.token, reportVersion, generatedAt, verifiedAt, mimeType]
+    [
+      verifyStatus,
+      title,
+      evidenceId,
+      params?.token,
+      reportVersion,
+      generatedAt,
+      verifiedAt,
+      mimeType,
+    ]
   );
 
   const technicalCards = useMemo(
@@ -1006,6 +1131,16 @@ export default function VerifyPage() {
           show: true,
         },
         {
+          label: "Storage Protection",
+          content: (
+            <Badge
+              label={storagePresentation.badgeLabel}
+              tone={storagePresentation.badgeTone}
+            />
+          ),
+          show: true,
+        },
+        {
           label: "Timestamp Status",
           content: (
             <Badge
@@ -1048,6 +1183,7 @@ export default function VerifyPage() {
       custodyChainValid,
       custodyChainMode,
       anchorPresentation,
+      storagePresentation,
       tsaStatus,
       tsaProvider,
       tsaGenTimeUtc,
@@ -1210,8 +1346,9 @@ export default function VerifyPage() {
                   maxWidth: 720,
                 }}
               >
-                Review recorded integrity status, cryptographic materials, and the custody
-                timeline associated with this evidence record.
+                Review recorded integrity status, cryptographic materials, immutable
+                storage protection, and the custody timeline associated with this
+                evidence record.
               </p>
             </div>
 
@@ -1370,10 +1507,10 @@ export default function VerifyPage() {
                         >
                           This page shows whether the recorded fingerprint,
                           signature, timestamp linkage, hashed custody chain,
-                          and anchor-ready or published state pass technical verification
-                          checks. It does not by itself prove authorship,
-                          factual truth, or legal admissibility of the
-                          underlying content.
+                          immutable storage protection, and anchor-ready or published
+                          state pass technical verification checks. It does not by
+                          itself prove authorship, factual truth, or legal admissibility
+                          of the underlying content.
                         </div>
                       </div>
                     </div>
@@ -1486,6 +1623,75 @@ export default function VerifyPage() {
                         {anchorPublicBaseUrl ? (
                           <div style={{ wordBreak: "break-all" }}>
                             Public Base URL: {anchorPublicBaseUrl}
+                          </div>
+                        ) : null}
+                      </div>
+                    )}
+                  </div>
+
+                  <div
+                    style={{
+                      border: "1px solid #E4E7EC",
+                      background: "#FCFCFD",
+                      borderRadius: 16,
+                      padding: 16,
+                    }}
+                  >
+                    <div
+                      style={{
+                        fontSize: 12,
+                        color: "#667085",
+                        fontWeight: 800,
+                        marginBottom: 8,
+                      }}
+                    >
+                      {storagePresentation.detailLabel}
+                    </div>
+                    <div
+                      style={{
+                        fontSize: 13,
+                        color: "#475467",
+                        lineHeight: 1.65,
+                        wordBreak: "break-word",
+                        overflowWrap: "anywhere",
+                      }}
+                    >
+                      {storagePresentation.detailText}
+                    </div>
+
+                    {(storageProtection?.mode ||
+                      storageProtection?.retainUntil ||
+                      storageProtection?.legalHold ||
+                      storageProtection?.region ||
+                      storageProtection?.verified !== null) && (
+                      <div
+                        style={{
+                          marginTop: 10,
+                          display: "grid",
+                          gap: 6,
+                          fontSize: 12,
+                          color: "#667085",
+                        }}
+                      >
+                        {storageProtection?.mode ? (
+                          <div>Object Lock Mode: {storageProtection.mode}</div>
+                        ) : null}
+                        {storageProtection?.retainUntil ? (
+                          <div>
+                            Retention Until:{" "}
+                            {formatDateTime(storageProtection.retainUntil)}
+                          </div>
+                        ) : null}
+                        {storageProtection?.legalHold ? (
+                          <div>Legal Hold: {storageProtection.legalHold}</div>
+                        ) : null}
+                        {storageProtection?.region ? (
+                          <div>Storage Region: {storageProtection.region}</div>
+                        ) : null}
+                        {typeof storageProtection?.verified === "boolean" ? (
+                          <div>
+                            Protection Metadata Verified:{" "}
+                            {storageProtection.verified ? "Yes" : "No"}
                           </div>
                         ) : null}
                       </div>

@@ -28,6 +28,7 @@ type ProcessedPart = {
 type RetentionTarget = {
   bucket: string;
   key: string;
+  evidencePartId?: string;
 };
 
 type CompleteEvidenceTransactionResult = {
@@ -52,6 +53,10 @@ function asIso(d: Date | null | undefined): string | null {
   return d ? d.toISOString() : null;
 }
 
+function toIsoOrNull(value: Date | null | undefined): string | null {
+  return value ? value.toISOString() : null;
+}
+
 function readMaxEvidenceSizeBytes(): number {
   const raw = process.env.MAX_EVIDENCE_SIZE_MB;
   if (!raw) return 1024 * 1024 * 1024;
@@ -68,7 +73,9 @@ function clean(v: string | null | undefined): string | null {
   return t ? t : null;
 }
 
-function normalizeObservedMimeType(value: string | null | undefined): string | null {
+function normalizeObservedMimeType(
+  value: string | null | undefined
+): string | null {
   const raw = clean(value)?.toLowerCase() ?? null;
   if (!raw) return null;
   if (raw.length > 128) return null;
@@ -141,10 +148,16 @@ async function safeHead(bucket: string, key: string) {
     };
 
     const detail =
-      errObj?.name ?? errObj?.code ?? errObj?.Code ?? errObj?.message ?? "unknown";
+      errObj?.name ??
+      errObj?.code ??
+      errObj?.Code ??
+      errObj?.message ??
+      "unknown";
 
     const err: HttpError = Object.assign(
-      new Error(`OBJECT_HEAD_FAILED: ${String(detail)} bucket=${bucket} key=${key}`),
+      new Error(
+        `OBJECT_HEAD_FAILED: ${String(detail)} bucket=${bucket} key=${key}`
+      ),
       { statusCode: isNotFoundLike(e) ? 404 : 502 }
     );
 
@@ -164,10 +177,16 @@ async function safeGetStream(bucket: string, key: string) {
     };
 
     const detail =
-      errObj?.name ?? errObj?.code ?? errObj?.Code ?? errObj?.message ?? "unknown";
+      errObj?.name ??
+      errObj?.code ??
+      errObj?.Code ??
+      errObj?.message ??
+      "unknown";
 
     const err: HttpError = Object.assign(
-      new Error(`OBJECT_GET_FAILED: ${String(detail)} bucket=${bucket} key=${key}`),
+      new Error(
+        `OBJECT_GET_FAILED: ${String(detail)} bucket=${bucket} key=${key}`
+      ),
       { statusCode: isNotFoundLike(e) ? 404 : 502 }
     );
 
@@ -199,15 +218,21 @@ async function applyRetentionOrThrow(targets: RetentionTarget[]) {
 
 function buildMultipartSummary(parts: ProcessedPart[], totalSizeBytes: number) {
   const imageCount = parts.filter((p) =>
-    String(p.mimeType ?? "").toLowerCase().startsWith("image/")
+    String(p.mimeType ?? "")
+      .toLowerCase()
+      .startsWith("image/")
   ).length;
 
   const videoCount = parts.filter((p) =>
-    String(p.mimeType ?? "").toLowerCase().startsWith("video/")
+    String(p.mimeType ?? "")
+      .toLowerCase()
+      .startsWith("video/")
   ).length;
 
   const audioCount = parts.filter((p) =>
-    String(p.mimeType ?? "").toLowerCase().startsWith("audio/")
+    String(p.mimeType ?? "")
+      .toLowerCase()
+      .startsWith("audio/")
   ).length;
 
   const documentCount = parts.filter((p) => {
@@ -412,9 +437,12 @@ export async function completeEvidence(params: {
         plan === prismaPkg.PlanType.PAYG &&
         (entitlement?.credits ?? 0) <= 0
       ) {
-        const err: HttpError = Object.assign(new Error("PAYG_CREDITS_REQUIRED"), {
-          statusCode: 402,
-        });
+        const err: HttpError = Object.assign(
+          new Error("PAYG_CREDITS_REQUIRED"),
+          {
+            statusCode: 402,
+          }
+        );
         throw err;
       }
 
@@ -477,13 +505,20 @@ export async function completeEvidence(params: {
             key,
           });
 
-          retentionTargets.push({ bucket, key });
+          retentionTargets.push({
+            bucket,
+            key,
+            evidencePartId: part.id,
+          });
         }
 
         if (updatedParts.length === 0) {
-          const err: HttpError = Object.assign(new Error("NO_VALID_PARTS_FOUND"), {
-            statusCode: 400,
-          });
+          const err: HttpError = Object.assign(
+            new Error("NO_VALID_PARTS_FOUND"),
+            {
+              statusCode: 400,
+            }
+          );
           throw err;
         }
 
@@ -497,7 +532,8 @@ export async function completeEvidence(params: {
 
         primaryBucket = updatedParts[0].bucket;
         primaryKey = updatedParts[0].key;
-        primaryMimeType = updatedParts[0].mimeType ?? primaryMimeType ?? evidenceMime;
+        primaryMimeType =
+          updatedParts[0].mimeType ?? primaryMimeType ?? evidenceMime;
 
         fileSha256 = sha256Hex(updatedParts.map((p) => p.sha256).join("|"));
         multipart = true;
@@ -652,6 +688,10 @@ export async function completeEvidence(params: {
           signatureBase64: true,
           signingKeyId: true,
           signingKeyVersion: true,
+          storageRegion: true,
+          storageObjectLockMode: true,
+          storageObjectLockRetainUntilUtc: true,
+          storageObjectLockLegalHoldStatus: true,
         },
       });
 
@@ -713,7 +753,15 @@ export async function completeEvidence(params: {
       }
 
       return {
-        result: ev,
+        result: {
+          id: ev.id,
+          status: ev.status,
+          fileSha256: ev.fileSha256,
+          fingerprintHash: ev.fingerprintHash,
+          signatureBase64: ev.signatureBase64,
+          signingKeyId: ev.signingKeyId,
+          signingKeyVersion: ev.signingKeyVersion,
+        },
         shouldEnqueueReport: plan !== prismaPkg.PlanType.FREE,
         retentionTargets,
       };
@@ -726,6 +774,76 @@ export async function completeEvidence(params: {
 
   if (final.retentionTargets.length > 0) {
     await applyRetentionOrThrow(final.retentionTargets);
+
+    for (const target of final.retentionTargets) {
+      try {
+        const lockedMeta = await headObject({
+          bucket: target.bucket,
+          key: target.key,
+        });
+
+        if (target.evidencePartId) {
+          await prisma.evidencePart.update({
+            where: { id: target.evidencePartId },
+            data: {
+              storageRegion: process.env.S3_REGION?.trim() || null,
+              storageObjectLockMode: lockedMeta.objectLockMode
+                ? String(lockedMeta.objectLockMode)
+                : null,
+              storageObjectLockRetainUntilUtc:
+                lockedMeta.objectLockRetainUntilDate ?? null,
+              storageObjectLockLegalHoldStatus:
+                lockedMeta.objectLockLegalHoldStatus
+                  ? String(lockedMeta.objectLockLegalHoldStatus)
+                  : null,
+            },
+          });
+        }
+      } catch (error) {
+        const reason =
+          error instanceof Error
+            ? error.message
+            : "OBJECT_LOCK_PART_SNAPSHOT_FAILED";
+
+        throw new Error(
+          `EVIDENCE_PART_OBJECT_LOCK_SNAPSHOT_FAILED:${final.result.id}:${reason}`
+        );
+      }
+    }
+
+    const primaryTarget = final.retentionTargets[0];
+
+    if (primaryTarget) {
+      try {
+        const lockedMeta = await headObject({
+          bucket: primaryTarget.bucket,
+          key: primaryTarget.key,
+        });
+
+        await prisma.evidence.update({
+          where: { id: final.result.id },
+          data: {
+            storageRegion: process.env.S3_REGION?.trim() || null,
+            storageObjectLockMode: lockedMeta.objectLockMode
+              ? String(lockedMeta.objectLockMode)
+              : null,
+            storageObjectLockRetainUntilUtc:
+              lockedMeta.objectLockRetainUntilDate ?? null,
+            storageObjectLockLegalHoldStatus:
+              lockedMeta.objectLockLegalHoldStatus
+                ? String(lockedMeta.objectLockLegalHoldStatus)
+                : null,
+          },
+        });
+      } catch (error) {
+        const reason =
+          error instanceof Error ? error.message : "OBJECT_LOCK_SNAPSHOT_FAILED";
+
+        throw new Error(
+          `EVIDENCE_OBJECT_LOCK_SNAPSHOT_FAILED:${final.result.id}:${reason}`
+        );
+      }
+    }
   }
 
   if (final.shouldEnqueueReport) {

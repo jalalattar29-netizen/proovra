@@ -7,56 +7,61 @@ datasource db {
 }
 
 model Evidence {
-  id                       String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  title                    String?        @db.VarChar(160)
-  type                     EvidenceType
-  status                   EvidenceStatus @default(CREATED)
-  ownerUserId              String         @map("owner_user_id")
-  organizationId           String?        @map("organization_id") @db.Uuid
-  mimeType                 String?        @map("mime_type") @db.VarChar(128)
-  sizeBytes                BigInt?        @map("size_bytes")
-  durationSec              Float?         @map("duration_sec")
-  fileSha256               String?        @map("file_sha256") @db.VarChar(64)
-  storageBucket            String?        @map("storage_bucket") @db.VarChar(255)
-  storageKey               String?        @map("storage_key") @db.VarChar(512)
-  lat                      Float?
-  lng                      Float?
-  accuracyMeters           Float?         @map("accuracy_meters")
-  capturedAtUtc            DateTime?      @map("captured_at_utc") @db.Timestamptz(6)
-  uploadedAtUtc            DateTime?      @map("uploaded_at_utc") @db.Timestamptz(6)
-  signedAtUtc              DateTime?      @map("signed_at_utc") @db.Timestamptz(6)
-  reportGeneratedAtUtc     DateTime?      @map("report_generated_at_utc") @db.Timestamptz(6)
-  fingerprintCanonicalJson String?        @map("fingerprint_canonical_json")
-  fingerprintHash          String?        @map("fingerprint_hash") @db.VarChar(64)
-  signatureBase64          String?        @map("signature_base64") @db.VarChar(256)
-  signingKeyId             String?        @map("signing_key_id") @db.VarChar(64)
-  deletedAt                DateTime?      @map("deleted_at") @db.Timestamptz(6)
-  createdAt                DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt                DateTime       @updatedAt @map("updated_at") @db.Timestamptz(6)
-  deletedAtUtc             DateTime?      @map("deleted_at_utc") @db.Timestamptz(6)
-  retentionUntilUtc        DateTime?      @map("retention_until_utc") @db.Timestamptz(6)
-  deviceTimeIso            String?        @map("device_time_iso") @db.VarChar(64)
-  signingKeyVersion        Int?           @map("signing_key_version")
-  caseId                   String?        @map("case_id") @db.Uuid
-  teamId                   String?        @map("team_id") @db.Uuid
-  guestIdentityId          String?        @map("guest_identity_id") @db.Uuid
-  lockedAt                 DateTime?      @map("locked_at") @db.Timestamptz(6)
-  lockedByUserId           String?        @map("locked_by_user_id")
-  archivedAt               DateTime?      @map("archived_at") @db.Timestamptz(6)
-  tsaFailureReason         String?        @map("tsa_failure_reason")
-  tsaGenTimeUtc            DateTime?      @map("tsa_gen_time_utc") @db.Timestamptz(6)
-  tsaHashAlgorithm         String?        @map("tsa_hash_algorithm") @db.VarChar(32)
-  tsaMessageImprint        String?        @map("tsa_message_imprint") @db.VarChar(128)
-  tsaProvider              String?        @map("tsa_provider") @db.VarChar(64)
-  tsaSerialNumber          String?        @map("tsa_serial_number") @db.VarChar(255)
-  tsaStatus                String?        @map("tsa_status") @db.VarChar(32)
-  tsaTokenBase64           String?        @map("tsa_token_base64")
-  tsaUrl                   String?        @map("tsa_url") @db.VarChar(512)
-  custodyEvents            CustodyEvent[]
-  guestIdentity            GuestIdentity? @relation(fields: [guestIdentityId], references: [id])
-  parts                    EvidencePart[]
-  reports                  Report[]
-  anchor                   EvidenceAnchor?
+  id                               String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  title                            String?         @db.VarChar(160)
+  type                             EvidenceType
+  status                           EvidenceStatus  @default(CREATED)
+  ownerUserId                      String          @map("owner_user_id")
+  organizationId                   String?         @map("organization_id") @db.Uuid
+  mimeType                         String?         @map("mime_type") @db.VarChar(128)
+  sizeBytes                        BigInt?         @map("size_bytes")
+  durationSec                      Float?          @map("duration_sec")
+  fileSha256                       String?         @map("file_sha256") @db.VarChar(64)
+  storageBucket                    String?         @map("storage_bucket") @db.VarChar(255)
+  storageKey                       String?         @map("storage_key") @db.VarChar(512)
+  storageRegion                    String?         @map("storage_region") @db.VarChar(64)
+  storageObjectLockMode            String?         @map("storage_object_lock_mode") @db.VarChar(32)
+  storageObjectLockRetainUntilUtc  DateTime?       @map("storage_object_lock_retain_until_utc") @db.Timestamptz(6)
+  storageObjectLockLegalHoldStatus String?         @map("storage_object_lock_legal_hold_status") @db.VarChar(16)
+  lat                              Float?
+  lng                              Float?
+  accuracyMeters                   Float?          @map("accuracy_meters")
+  capturedAtUtc                    DateTime?       @map("captured_at_utc") @db.Timestamptz(6)
+  uploadedAtUtc                    DateTime?       @map("uploaded_at_utc") @db.Timestamptz(6)
+  signedAtUtc                      DateTime?       @map("signed_at_utc") @db.Timestamptz(6)
+  reportGeneratedAtUtc             DateTime?       @map("report_generated_at_utc") @db.Timestamptz(6)
+  fingerprintCanonicalJson         String?         @map("fingerprint_canonical_json")
+  fingerprintHash                  String?         @map("fingerprint_hash") @db.VarChar(64)
+  signatureBase64                  String?         @map("signature_base64") @db.VarChar(4096)
+  signingKeyId                     String?         @map("signing_key_id") @db.VarChar(64)
+  deletedAt                        DateTime?       @map("deleted_at") @db.Timestamptz(6)
+  createdAt                        DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                        DateTime        @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAtUtc                     DateTime?       @map("deleted_at_utc") @db.Timestamptz(6)
+  retentionUntilUtc                DateTime?       @map("retention_until_utc") @db.Timestamptz(6)
+  deviceTimeIso                    String?         @map("device_time_iso") @db.VarChar(64)
+  signingKeyVersion                Int?            @map("signing_key_version")
+  caseId                           String?         @map("case_id") @db.Uuid
+  teamId                           String?         @map("team_id") @db.Uuid
+  guestIdentityId                  String?         @map("guest_identity_id") @db.Uuid
+  lockedAt                         DateTime?       @map("locked_at") @db.Timestamptz(6)
+  lockedByUserId                   String?         @map("locked_by_user_id")
+  archivedAt                       DateTime?       @map("archived_at") @db.Timestamptz(6)
+  tsaFailureReason                 String?         @map("tsa_failure_reason")
+  tsaGenTimeUtc                    DateTime?       @map("tsa_gen_time_utc") @db.Timestamptz(6)
+  tsaHashAlgorithm                 String?         @map("tsa_hash_algorithm") @db.VarChar(32)
+  tsaMessageImprint                String?         @map("tsa_message_imprint") @db.VarChar(128)
+  tsaProvider                      String?         @map("tsa_provider") @db.VarChar(64)
+  tsaSerialNumber                  String?         @map("tsa_serial_number") @db.VarChar(255)
+  tsaStatus                        String?         @map("tsa_status") @db.VarChar(32)
+  tsaTokenBase64                   String?         @map("tsa_token_base64")
+  tsaUrl                           String?         @map("tsa_url") @db.VarChar(512)
+
+  custodyEvents                    CustodyEvent[]
+  guestIdentity                    GuestIdentity?  @relation(fields: [guestIdentityId], references: [id])
+  parts                            EvidencePart[]
+  reports                          Report[]
+  anchor                           EvidenceAnchor?
 
   @@index([deletedAt])
   @@index([deletedAtUtc])
@@ -72,22 +77,24 @@ model Evidence {
   @@index([status])
   @@index([teamId])
   @@index([storageBucket, storageKey])
+  @@index([storageObjectLockMode])
+  @@index([storageObjectLockRetainUntilUtc])
   @@map("evidence")
 }
 
 model EvidenceAnchor {
-  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  evidenceId    String   @unique @map("evidence_id") @db.Uuid
-  provider      String   @db.VarChar(64)
-  mode          String   @db.VarChar(32)
-  anchorHash    String   @map("anchor_hash") @db.VarChar(64)
-  receiptId     String?  @map("receipt_id") @db.VarChar(255)
-  transactionId String?  @map("transaction_id") @db.VarChar(255)
-  publicUrl     String?  @map("public_url") @db.VarChar(1024)
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  evidenceId    String    @unique @map("evidence_id") @db.Uuid
+  provider      String    @db.VarChar(64)
+  mode          String    @db.VarChar(32)
+  anchorHash    String    @map("anchor_hash") @db.VarChar(64)
+  receiptId     String?   @map("receipt_id") @db.VarChar(255)
+  transactionId String?   @map("transaction_id") @db.VarChar(255)
+  publicUrl     String?   @map("public_url") @db.VarChar(1024)
   anchoredAtUtc DateTime? @map("anchored_at_utc") @db.Timestamptz(6)
-  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt     DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
-  evidence      Evidence @relation(fields: [evidenceId], references: [id], onDelete: Cascade)
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  evidence      Evidence  @relation(fields: [evidenceId], references: [id], onDelete: Cascade)
 
   @@index([provider])
   @@index([mode])
@@ -96,21 +103,27 @@ model EvidenceAnchor {
 }
 
 model EvidencePart {
-  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  evidenceId    String   @map("evidence_id") @db.Uuid
-  partIndex     Int      @map("part_index")
-  storageBucket String   @map("storage_bucket") @db.VarChar(255)
-  storageKey    String   @map("storage_key") @db.VarChar(512)
-  sizeBytes     BigInt?  @map("size_bytes")
-  mimeType      String?  @map("mime_type") @db.VarChar(128)
-  sha256        String?  @map("sha256") @db.VarChar(64)
-  durationMs    Int?     @map("duration_ms")
-  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  evidence      Evidence @relation(fields: [evidenceId], references: [id], onDelete: Cascade)
+  id                               String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  evidenceId                       String    @map("evidence_id") @db.Uuid
+  partIndex                        Int       @map("part_index")
+  storageBucket                    String    @map("storage_bucket") @db.VarChar(255)
+  storageKey                       String    @map("storage_key") @db.VarChar(512)
+  storageRegion                    String?   @map("storage_region") @db.VarChar(64)
+  storageObjectLockMode            String?   @map("storage_object_lock_mode") @db.VarChar(32)
+  storageObjectLockRetainUntilUtc  DateTime? @map("storage_object_lock_retain_until_utc") @db.Timestamptz(6)
+  storageObjectLockLegalHoldStatus String?   @map("storage_object_lock_legal_hold_status") @db.VarChar(16)
+  sizeBytes                        BigInt?   @map("size_bytes")
+  mimeType                         String?   @map("mime_type") @db.VarChar(128)
+  sha256                           String?   @map("sha256") @db.VarChar(64)
+  durationMs                       Int?      @map("duration_ms")
+  createdAt                        DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  evidence                         Evidence  @relation(fields: [evidenceId], references: [id], onDelete: Cascade)
 
   @@unique([evidenceId, partIndex])
   @@index([evidenceId])
   @@index([storageBucket, storageKey])
+  @@index([storageObjectLockMode])
+  @@index([storageObjectLockRetainUntilUtc])
   @@map("evidence_parts")
 }
 
@@ -152,17 +165,23 @@ model CustodyEvent {
 }
 
 model Report {
-  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  evidenceId     String   @map("evidence_id") @db.Uuid
-  version        Int
-  storageBucket  String   @map("storage_bucket") @db.VarChar(255)
-  storageKey     String   @map("storage_key") @db.VarChar(512)
-  generatedAtUtc DateTime @map("generated_at_utc") @db.Timestamptz(6)
-  evidence       Evidence @relation(fields: [evidenceId], references: [id])
+  id                               String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  evidenceId                       String    @map("evidence_id") @db.Uuid
+  version                          Int
+  storageBucket                    String    @map("storage_bucket") @db.VarChar(255)
+  storageKey                       String    @map("storage_key") @db.VarChar(512)
+  storageRegion                    String?   @map("storage_region") @db.VarChar(64)
+  storageObjectLockMode            String?   @map("storage_object_lock_mode") @db.VarChar(32)
+  storageObjectLockRetainUntilUtc  DateTime? @map("storage_object_lock_retain_until_utc") @db.Timestamptz(6)
+  storageObjectLockLegalHoldStatus String?   @map("storage_object_lock_legal_hold_status") @db.VarChar(16)
+  generatedAtUtc                   DateTime  @map("generated_at_utc") @db.Timestamptz(6)
+  evidence                         Evidence  @relation(fields: [evidenceId], references: [id])
 
   @@unique([evidenceId, version])
   @@index([evidenceId])
   @@index([generatedAtUtc(sort: Desc)])
+  @@index([storageObjectLockMode])
+  @@index([storageObjectLockRetainUntilUtc])
   @@map("reports")
 }
 

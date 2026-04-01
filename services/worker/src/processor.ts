@@ -39,6 +39,25 @@ type VerificationEvidenceFile = {
 
 type AnchorMode = "off" | "ready" | "active";
 
+type AnchorPayload = {
+  version: 1;
+  evidenceId: string;
+  reportVersion: number;
+  fileSha256: string;
+  fingerprintHash: string;
+  lastEventHash: string | null;
+  anchorHash: string;
+  generatedAtUtc: string;
+};
+
+type EvidenceStorageSnapshot = {
+  storageRegion: string | null;
+  storageObjectLockMode: string | null;
+  storageObjectLockRetainUntilUtc: string | null;
+  storageObjectLockLegalHoldStatus: string | null;
+  storageImmutable: boolean;
+};
+
 type PreparedReportArtifacts = {
   reportPdf: Buffer;
   verificationZip: Buffer | null;
@@ -49,17 +68,7 @@ type PreparedReportArtifacts = {
   evidenceId: string;
   anchorPayload: AnchorPayload | null;
   anchorMode: AnchorMode;
-};
-
-type AnchorPayload = {
-  version: 1;
-  evidenceId: string;
-  reportVersion: number;
-  fileSha256: string;
-  fingerprintHash: string;
-  lastEventHash: string | null;
-  anchorHash: string;
-  generatedAtUtc: string;
+  evidenceStorage: EvidenceStorageSnapshot;
 };
 
 function envValue(name: string, fallback?: string): string {
@@ -93,9 +102,7 @@ function buildEvidenceDetailUrl(evidenceId: string): string {
 }
 
 function getAnchorMode(): AnchorMode {
-  const raw = String(env.ANCHOR_MODE ?? "ready")
-    .trim()
-    .toLowerCase();
+  const raw = String(env.ANCHOR_MODE ?? "ready").trim().toLowerCase();
 
   if (raw === "off" || raw === "active") {
     return raw;
@@ -379,7 +386,9 @@ async function streamToBuffer(stream: Readable): Promise<Buffer> {
   return Buffer.concat(chunks);
 }
 
-async function applyRetentionOrThrow(targets: Array<{ bucket: string; key: string }>) {
+async function applyRetentionOrThrow(
+  targets: Array<{ bucket: string; key: string }>
+) {
   const deduped = Array.from(
     new Map(targets.map((item) => [`${item.bucket}:${item.key}`, item])).values()
   );
@@ -466,6 +475,87 @@ function buildAnchorPayload(params: {
   };
 }
 
+async function resolveEvidenceStorageSnapshot(params: {
+  storageBucket: string | null;
+  storageKey: string | null;
+  storageRegion?: string | null;
+  storageObjectLockMode?: string | null;
+  storageObjectLockRetainUntilUtc?: Date | null;
+  storageObjectLockLegalHoldStatus?: string | null;
+}): Promise<EvidenceStorageSnapshot> {
+  const snapshotMode =
+    typeof params.storageObjectLockMode === "string"
+      ? params.storageObjectLockMode
+      : null;
+
+  const snapshotRetainUntil = params.storageObjectLockRetainUntilUtc
+    ? params.storageObjectLockRetainUntilUtc.toISOString()
+    : null;
+
+  const snapshotLegalHold =
+    typeof params.storageObjectLockLegalHoldStatus === "string"
+      ? params.storageObjectLockLegalHoldStatus
+      : null;
+
+  const snapshotRegion =
+    typeof params.storageRegion === "string" && params.storageRegion.trim()
+      ? params.storageRegion.trim()
+      : process.env.S3_REGION?.trim() || null;
+
+  if (snapshotMode || snapshotRetainUntil || snapshotLegalHold) {
+    return {
+      storageRegion: snapshotRegion,
+      storageObjectLockMode: snapshotMode,
+      storageObjectLockRetainUntilUtc: snapshotRetainUntil,
+      storageObjectLockLegalHoldStatus: snapshotLegalHold,
+      storageImmutable:
+        snapshotMode === "COMPLIANCE" && Boolean(snapshotRetainUntil),
+    };
+  }
+
+  if (!params.storageBucket || !params.storageKey) {
+    return {
+      storageRegion: snapshotRegion,
+      storageObjectLockMode: null,
+      storageObjectLockRetainUntilUtc: null,
+      storageObjectLockLegalHoldStatus: null,
+      storageImmutable: false,
+    };
+  }
+
+  try {
+    const meta = await headObject({
+      bucket: params.storageBucket,
+      key: params.storageKey,
+    });
+
+    const mode = meta.objectLockMode ? String(meta.objectLockMode) : null;
+    const retainUntil =
+      meta.objectLockRetainUntilDate instanceof Date
+        ? meta.objectLockRetainUntilDate.toISOString()
+        : null;
+    const legalHold = meta.objectLockLegalHoldStatus
+      ? String(meta.objectLockLegalHoldStatus)
+      : null;
+
+    return {
+      storageRegion: snapshotRegion,
+      storageObjectLockMode: mode,
+      storageObjectLockRetainUntilUtc: retainUntil,
+      storageObjectLockLegalHoldStatus: legalHold,
+      storageImmutable: mode === "COMPLIANCE" && Boolean(retainUntil),
+    };
+  } catch {
+    return {
+      storageRegion: snapshotRegion,
+      storageObjectLockMode: null,
+      storageObjectLockRetainUntilUtc: null,
+      storageObjectLockLegalHoldStatus: null,
+      storageImmutable: false,
+    };
+  }
+}
+
 const { EvidenceStatus } = prismaPkg;
 
 async function prepareReportArtifacts(
@@ -508,6 +598,17 @@ async function prepareReportArtifacts(
   const signatureBase64 = evidence.signatureBase64;
   const signingKeyId = evidence.signingKeyId;
   const signingKeyVersion = evidence.signingKeyVersion;
+
+  const evidenceStorage = await resolveEvidenceStorageSnapshot({
+    storageBucket: evidence.storageBucket ?? null,
+    storageKey: evidence.storageKey ?? null,
+    storageRegion: evidence.storageRegion ?? null,
+    storageObjectLockMode: evidence.storageObjectLockMode ?? null,
+    storageObjectLockRetainUntilUtc:
+      evidence.storageObjectLockRetainUntilUtc ?? null,
+    storageObjectLockLegalHoldStatus:
+      evidence.storageObjectLockLegalHoldStatus ?? null,
+  });
 
   const parts = await prisma.evidencePart.findMany({
     where: { evidenceId: evidence.id },
@@ -721,6 +822,13 @@ async function prepareReportArtifacts(
       storageBucket: storageBucket ?? "unknown",
       storageKey: storageKey ?? "multipart",
       publicUrl,
+      storageRegion: evidenceStorage.storageRegion,
+      storageImmutable: evidenceStorage.storageImmutable,
+      storageObjectLockMode: evidenceStorage.storageObjectLockMode,
+      storageObjectLockRetainUntilUtc:
+        evidenceStorage.storageObjectLockRetainUntilUtc,
+      storageObjectLockLegalHoldStatus:
+        evidenceStorage.storageObjectLockLegalHoldStatus,
       gps: {
         lat: evidence.lat?.toString() ?? null,
         lng: evidence.lng?.toString() ?? null,
@@ -797,6 +905,7 @@ async function prepareReportArtifacts(
     evidenceId: evidence.id,
     anchorPayload,
     anchorMode,
+    evidenceStorage,
   };
 }
 
@@ -911,12 +1020,27 @@ export async function processGenerateReport(job: Job<GenerateReportJobData>) {
           },
         ]);
 
+        const reportHead = await headObject({
+          bucket: env.S3_BUCKET,
+          key: prepared.reportKey,
+        });
+
         await tx.report.create({
           data: {
             evidenceId: prepared.evidenceId,
             version: prepared.version,
             storageBucket: env.S3_BUCKET,
             storageKey: prepared.reportKey,
+            storageRegion: process.env.S3_REGION?.trim() || null,
+            storageObjectLockMode: reportHead.objectLockMode
+              ? String(reportHead.objectLockMode)
+              : null,
+            storageObjectLockRetainUntilUtc:
+              reportHead.objectLockRetainUntilDate ?? null,
+            storageObjectLockLegalHoldStatus:
+              reportHead.objectLockLegalHoldStatus
+                ? String(reportHead.objectLockLegalHoldStatus)
+                : null,
             generatedAtUtc: prepared.now,
           },
         });
@@ -1012,128 +1136,132 @@ export async function processGenerateReport(job: Job<GenerateReportJobData>) {
       }
     }
 
-if (!finalized.skipped && prepared.anchorMode === "active" && prepared.anchorPayload) {
-  const anchorPayload = prepared.anchorPayload;
+    if (
+      !finalized.skipped &&
+      prepared.anchorMode === "active" &&
+      prepared.anchorPayload
+    ) {
+      const anchorPayload = prepared.anchorPayload;
 
-  try {
-    const anchorPublish = await publishAnchorIfConfigured({
-      anchor: anchorPayload,
-    });
-
-    if (anchorPublish.published) {
-      await prisma.$transaction(async (tx) => {
-        await tx.evidenceAnchor.upsert({
-          where: {
-            evidenceId: prepared.evidenceId,
-          },
-          update: {
-            provider: anchorPublish.provider,
-            mode: prepared.anchorMode,
-            anchorHash: anchorPayload.anchorHash,
-            receiptId: anchorPublish.receiptId,
-            transactionId: anchorPublish.transactionId,
-            publicUrl: anchorPublish.publicUrl,
-            anchoredAtUtc: new Date(anchorPublish.anchoredAtUtc),
-          },
-          create: {
-            evidenceId: prepared.evidenceId,
-            provider: anchorPublish.provider,
-            mode: prepared.anchorMode,
-            anchorHash: anchorPayload.anchorHash,
-            receiptId: anchorPublish.receiptId,
-            transactionId: anchorPublish.transactionId,
-            publicUrl: anchorPublish.publicUrl,
-            anchoredAtUtc: new Date(anchorPublish.anchoredAtUtc),
-          },
+      try {
+        const anchorPublish = await publishAnchorIfConfigured({
+          anchor: anchorPayload,
         });
 
-        await appendCustodyEventTx(tx, {
-          evidenceId: prepared.evidenceId,
-          eventType: prismaPkg.CustodyEventType.ANCHOR_PUBLISHED,
-          atUtc: new Date(anchorPublish.anchoredAtUtc),
-          payload: {
-            provider: anchorPublish.provider,
-            anchorMode: prepared.anchorMode,
-            anchorHash: anchorPayload.anchorHash,
-            receiptId: anchorPublish.receiptId,
-            transactionId: anchorPublish.transactionId,
-            publicUrl: anchorPublish.publicUrl,
-            anchoredAtUtc: anchorPublish.anchoredAtUtc,
-          } as Prisma.InputJsonValue,
-        });
-      });
-    } else {
-      await prisma.$transaction(async (tx) => {
-        await appendCustodyEventTx(tx, {
-          evidenceId: prepared.evidenceId,
-          eventType: prismaPkg.CustodyEventType.ANCHOR_FAILED,
-          atUtc: new Date(),
-          payload: {
-            provider: anchorPublish.provider,
-            anchorMode: prepared.anchorMode,
-            anchorHash: anchorPayload.anchorHash,
-            reason: anchorPublish.reason,
-          } as Prisma.InputJsonValue,
-        });
-      });
+        if (anchorPublish.published) {
+          await prisma.$transaction(async (tx) => {
+            await tx.evidenceAnchor.upsert({
+              where: {
+                evidenceId: prepared.evidenceId,
+              },
+              update: {
+                provider: anchorPublish.provider,
+                mode: prepared.anchorMode,
+                anchorHash: anchorPayload.anchorHash,
+                receiptId: anchorPublish.receiptId,
+                transactionId: anchorPublish.transactionId,
+                publicUrl: anchorPublish.publicUrl,
+                anchoredAtUtc: new Date(anchorPublish.anchoredAtUtc),
+              },
+              create: {
+                evidenceId: prepared.evidenceId,
+                provider: anchorPublish.provider,
+                mode: prepared.anchorMode,
+                anchorHash: anchorPayload.anchorHash,
+                receiptId: anchorPublish.receiptId,
+                transactionId: anchorPublish.transactionId,
+                publicUrl: anchorPublish.publicUrl,
+                anchoredAtUtc: new Date(anchorPublish.anchoredAtUtc),
+              },
+            });
 
-      logger.warn(
-        {
-          ...withJobContext({
-            requestId,
-            jobId: job.id,
-            evidenceId,
-            attempt: job.attemptsMade + 1,
-            status: "anchor_not_published",
-          }),
-          anchorMode: prepared.anchorMode,
-          reason: anchorPublish.reason,
-        },
-        "Anchor publication was not completed"
-      );
-    }
-  } catch (anchorError) {
-    captureException(anchorError, {
-      requestId,
-      evidenceId,
-      jobId: job.id ?? null,
-      phase: "anchor_publish",
-    });
+            await appendCustodyEventTx(tx, {
+              evidenceId: prepared.evidenceId,
+              eventType: prismaPkg.CustodyEventType.ANCHOR_PUBLISHED,
+              atUtc: new Date(anchorPublish.anchoredAtUtc),
+              payload: {
+                provider: anchorPublish.provider,
+                anchorMode: prepared.anchorMode,
+                anchorHash: anchorPayload.anchorHash,
+                receiptId: anchorPublish.receiptId,
+                transactionId: anchorPublish.transactionId,
+                publicUrl: anchorPublish.publicUrl,
+                anchoredAtUtc: anchorPublish.anchoredAtUtc,
+              } as Prisma.InputJsonValue,
+            });
+          });
+        } else {
+          await prisma.$transaction(async (tx) => {
+            await appendCustodyEventTx(tx, {
+              evidenceId: prepared.evidenceId,
+              eventType: prismaPkg.CustodyEventType.ANCHOR_FAILED,
+              atUtc: new Date(),
+              payload: {
+                provider: anchorPublish.provider,
+                anchorMode: prepared.anchorMode,
+                anchorHash: anchorPayload.anchorHash,
+                reason: anchorPublish.reason,
+              } as Prisma.InputJsonValue,
+            });
+          });
 
-    await prisma.$transaction(async (tx) => {
-      await appendCustodyEventTx(tx, {
-        evidenceId: prepared.evidenceId,
-        eventType: prismaPkg.CustodyEventType.ANCHOR_FAILED,
-        atUtc: new Date(),
-        payload: {
-          provider: env.ANCHOR_PROVIDER ?? null,
-          anchorMode: prepared.anchorMode,
-          anchorHash: anchorPayload.anchorHash,
-          reason:
-            anchorError instanceof Error
-              ? anchorError.message
-              : "ANCHOR_PUBLISH_FAILED",
-        } as Prisma.InputJsonValue,
-      });
-    });
-
-    logger.error(
-      {
-        ...withJobContext({
+          logger.warn(
+            {
+              ...withJobContext({
+                requestId,
+                jobId: job.id,
+                evidenceId,
+                attempt: job.attemptsMade + 1,
+                status: "anchor_not_published",
+              }),
+              anchorMode: prepared.anchorMode,
+              reason: anchorPublish.reason,
+            },
+            "Anchor publication was not completed"
+          );
+        }
+      } catch (anchorError) {
+        captureException(anchorError, {
           requestId,
-          jobId: job.id,
           evidenceId,
-          attempt: job.attemptsMade + 1,
-          status: "anchor_failed",
-        }),
-        err: anchorError,
-        anchorMode: prepared.anchorMode,
-        anchorHash: anchorPayload.anchorHash,
-      },
-      "Anchor publication failed after report generation"
-    );
-  }
-}
+          jobId: job.id ?? null,
+          phase: "anchor_publish",
+        });
+
+        await prisma.$transaction(async (tx) => {
+          await appendCustodyEventTx(tx, {
+            evidenceId: prepared.evidenceId,
+            eventType: prismaPkg.CustodyEventType.ANCHOR_FAILED,
+            atUtc: new Date(),
+            payload: {
+              provider: env.ANCHOR_PROVIDER ?? null,
+              anchorMode: prepared.anchorMode,
+              anchorHash: anchorPayload.anchorHash,
+              reason:
+                anchorError instanceof Error
+                  ? anchorError.message
+                  : "ANCHOR_PUBLISH_FAILED",
+            } as Prisma.InputJsonValue,
+          });
+        });
+
+        logger.error(
+          {
+            ...withJobContext({
+              requestId,
+              jobId: job.id,
+              evidenceId,
+              attempt: job.attemptsMade + 1,
+              status: "anchor_failed",
+            }),
+            err: anchorError,
+            anchorMode: prepared.anchorMode,
+            anchorHash: anchorPayload.anchorHash,
+          },
+          "Anchor publication failed after report generation"
+        );
+      }
+    }
 
     const durationMs = Date.now() - start;
 

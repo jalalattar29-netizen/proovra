@@ -268,12 +268,32 @@ export async function presignPutObject(params: {
     params.contentMd5Base64
   );
 
+  /**
+   * IMPORTANT:
+   * For browser/mobile direct uploads, we explicitly sign checksum headers,
+   * and we also attach Object Lock values to the command so uploads do not rely
+   * only on bucket defaults.
+   *
+   * We intentionally do NOT force Object Lock headers to stay as request headers
+   * from the client, because the current frontend only sends checksum headers.
+   * The SDK can safely carry Object Lock values in the signed request generated
+   * from this command.
+   */
+  const objectLock = readObjectLockDefaults();
+
   const cmd = new PutObjectCommand({
     Bucket: bucket,
     Key: key,
     ContentType: normalizedContentType,
     ...(normalizedChecksum ? { ChecksumSHA256: normalizedChecksum } : {}),
     ...(normalizedContentMd5 ? { ContentMD5: normalizedContentMd5 } : {}),
+    ...(objectLock.mode ? { ObjectLockMode: objectLock.mode } : {}),
+    ...(objectLock.retainUntilDate
+      ? { ObjectLockRetainUntilDate: objectLock.retainUntilDate }
+      : {}),
+    ...(objectLock.legalHold
+      ? { ObjectLockLegalHoldStatus: objectLock.legalHold }
+      : {}),
   });
 
   const signableHeaders = new Set<string>(["content-type"]);

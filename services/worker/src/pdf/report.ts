@@ -28,6 +28,11 @@ export type ReportEvidence = {
   storageBucket: string;
   storageKey: string;
   publicUrl: string | null;
+  storageRegion?: string | null;
+  storageImmutable?: boolean | null;
+  storageObjectLockMode?: string | null;
+  storageObjectLockRetainUntilUtc?: string | null;
+  storageObjectLockLegalHoldStatus?: string | null;
   gps: {
     lat: string | null;
     lng: string | null;
@@ -193,6 +198,24 @@ function normalizeTimestampStatus(
   return "NEUTRAL";
 }
 
+function normalizeStorageProtectionStatus(
+  immutable: boolean | null | undefined,
+  mode: string | null | undefined,
+  retainUntil: string | null | undefined
+): "SUCCESS" | "WARNING" | "DANGER" | "NEUTRAL" {
+  const normalizedMode = safe(mode, "").toUpperCase();
+  if (immutable && normalizedMode === "COMPLIANCE" && safe(retainUntil, "") !== "") {
+    return "SUCCESS";
+  }
+  if (immutable || normalizedMode === "GOVERNANCE") {
+    return "WARNING";
+  }
+  if (normalizedMode) {
+    return "DANGER";
+  }
+  return "NEUTRAL";
+}
+
 function evidenceStructureLabel(summary: ParsedFingerprintSummary): string {
   if (summary.itemCount <= 1) return "Single evidence item";
   return "Multipart evidence package";
@@ -206,6 +229,7 @@ const ASSETS_CANDIDATES: string[] = [
   path.resolve(__dirname, "../pdf/assets"),
   path.resolve(__dirname, "../assets"),
   path.resolve(process.cwd(), "src/pdf/assets"),
+  path.resolve(process.cwd(), "services/worker/src/pdf/assets"),
 ];
 
 function tryReadAsset(filename: string): Buffer | null {
@@ -946,7 +970,7 @@ function estimateForensicIntegrityStatementHeight(
 
   doc.font("Helvetica").fontSize(9.8);
   const intro2 = doc.heightOfString(
-    "PROOVRA applies cryptographic integrity controls, structured evidence fingerprinting, and timestamping records designed to preserve the integrity state of the submitted evidence at the time of completion.",
+    "PROOVRA applies cryptographic integrity controls, structured evidence fingerprinting, timestamping records, and immutable storage protection designed to preserve the integrity state of the submitted evidence at the time of completion.",
     { width: w, lineGap: 1.8 }
   );
 
@@ -967,7 +991,8 @@ function estimateForensicIntegrityStatementHeight(
     "• A fingerprint hash derived from the canonical record",
     "• A digital signature generated using the PROOVRA signing key",
     "• A trusted RFC 3161 timestamp token issued by the configured Time Stamping Authority, when available",
-    "• A custody timeline documenting relevant system events",
+    "• A chain of custody timeline documenting relevant system events",
+    "• Immutable storage controls using AWS S3 Object Lock, when enabled for the evidence object",
   ];
 
   const steps =
@@ -979,6 +1004,7 @@ function estimateForensicIntegrityStatementHeight(
           "4. Verifying the digital signature using the provided public key",
           "5. Verifying the RFC 3161 timestamp token, when present",
           "6. Reviewing the recorded chain of custody events",
+          "7. Reviewing immutable storage protection details, when present",
         ]
       : [
           "1. Obtaining the complete multipart evidence set",
@@ -987,6 +1013,7 @@ function estimateForensicIntegrityStatementHeight(
           "4. Verifying the digital signature using the provided public key",
           "5. Verifying the RFC 3161 timestamp token, when present",
           "6. Reviewing the recorded chain of custody events",
+          "7. Reviewing immutable storage protection details, when present",
         ];
 
   const bulletsHeight = bullets.reduce(
@@ -1055,7 +1082,7 @@ function renderForensicIntegrityStatement(
 
   safeParagraph(
     doc,
-    "PROOVRA applies cryptographic integrity controls, structured evidence fingerprinting, and timestamping records designed to preserve the integrity state of the submitted evidence at the time of completion.",
+    "PROOVRA applies cryptographic integrity controls, structured evidence fingerprinting, timestamping records, and immutable storage protection designed to preserve the integrity state of the submitted evidence at the time of completion.",
     { fontSize: 9.8, color: BRAND.ink }
   );
   doc.moveDown(0.18);
@@ -1075,6 +1102,7 @@ function renderForensicIntegrityStatement(
     "A digital signature generated using the PROOVRA signing key",
     "A trusted RFC 3161 timestamp token issued by the configured Time Stamping Authority, when available",
     "A custody timeline documenting relevant system events",
+    "Immutable storage protection using AWS S3 Object Lock, when available",
   ];
 
   for (const b of bullets) {
@@ -1098,6 +1126,7 @@ function renderForensicIntegrityStatement(
           "Verifying the digital signature using the provided public key",
           "Verifying the RFC 3161 timestamp token, when present",
           "Reviewing the recorded chain of custody events",
+          "Reviewing immutable storage details, when present",
         ]
       : [
           "Obtaining the complete multipart evidence set",
@@ -1106,6 +1135,7 @@ function renderForensicIntegrityStatement(
           "Verifying the digital signature using the provided public key",
           "Verifying the RFC 3161 timestamp token, when present",
           "Reviewing the recorded chain of custody events",
+          "Reviewing immutable storage details, when present",
         ];
 
   for (let i = 0; i < steps.length; i++) {
@@ -1226,7 +1256,7 @@ export async function buildReportPdf(params: {
 
     const color = verified ? BRAND.success : BRAND.danger;
 
-    ensureSpace(doc, 140);
+    ensureSpace(doc, 160);
 
     doc.save();
     doc.fillColor(color).font("Helvetica-Bold").fontSize(13.2);
@@ -1263,6 +1293,31 @@ export async function buildReportPdf(params: {
         });
       } else if (tsaTone === "DANGER") {
         safeParagraph(doc, "• Timestamp record reported a failure state", {
+          fontSize: 9.8,
+          color: BRAND.ink,
+        });
+      }
+
+      const storageTone = normalizeStorageProtectionStatus(
+        params.evidence.storageImmutable,
+        params.evidence.storageObjectLockMode,
+        params.evidence.storageObjectLockRetainUntilUtc
+      );
+
+      if (storageTone === "SUCCESS") {
+        safeParagraph(
+          doc,
+          "• Immutable storage protection verified (AWS S3 Object Lock / COMPLIANCE)",
+          { fontSize: 9.8, color: BRAND.ink }
+        );
+      } else if (storageTone === "WARNING") {
+        safeParagraph(
+          doc,
+          "• Storage protection is present but not fully verified as COMPLIANCE immutable storage",
+          { fontSize: 9.8, color: BRAND.ink }
+        );
+      } else if (storageTone === "DANGER") {
+        safeParagraph(doc, "• Storage protection information indicates a non-compliant state", {
           fontSize: 9.8,
           color: BRAND.ink,
         });
@@ -1319,6 +1374,20 @@ export async function buildReportPdf(params: {
       ["Timestamp Provider", safe(params.evidence.tsaProvider)],
       ["Timestamp Time (UTC)", safe(params.evidence.tsaGenTimeUtc)],
       ["Timestamp Status", safe(params.evidence.tsaStatus)],
+      ["Storage Region", safe(params.evidence.storageRegion)],
+      ["Object Lock Mode", safe(params.evidence.storageObjectLockMode)],
+      [
+        "Retention Until (UTC)",
+        safe(params.evidence.storageObjectLockRetainUntilUtc),
+      ],
+      [
+        "Legal Hold",
+        safe(params.evidence.storageObjectLockLegalHoldStatus, "OFF"),
+      ],
+      [
+        "Immutable Storage",
+        params.evidence.storageImmutable ? "Verified" : "Not Fully Verified",
+      ],
     ];
 
     if (fingerprintSummary.itemCount > 1) {
@@ -1376,7 +1445,7 @@ export async function buildReportPdf(params: {
 
       safeParagraph(
         doc,
-        "Use the verification page to review integrity details, custody events, and technical validation materials associated with this evidence record.",
+        "Use the verification page to review integrity details, custody events, technical validation materials, and immutable storage protection associated with this evidence record.",
         { fontSize: 9.7, color: BRAND.muted, gap: 1.8 }
       );
       doc.moveDown(0.14);
@@ -1423,6 +1492,46 @@ export async function buildReportPdf(params: {
     }
   }
 
+  ensurePageWithHeader(doc, 220);
+
+  section(
+    doc,
+    "Immutable Storage Protection",
+    () => {
+      const mode = safe(params.evidence.storageObjectLockMode);
+      const retainUntil = safe(params.evidence.storageObjectLockRetainUntilUtc);
+      const legalHold = safe(params.evidence.storageObjectLockLegalHoldStatus, "OFF");
+      const immutable =
+        params.evidence.storageImmutable === true &&
+        mode.toUpperCase() === "COMPLIANCE" &&
+        retainUntil !== "N/A";
+
+      kvGrid(doc, [
+        ["Storage Provider", "AWS S3 Object Lock"],
+        ["Immutable Storage", immutable ? "Verified" : "Not Fully Verified"],
+        ["Object Lock Mode", mode],
+        ["Retention Until (UTC)", retainUntil],
+        ["Legal Hold", legalHold],
+        ["Storage Region", safe(params.evidence.storageRegion)],
+        ["Bucket", safe(params.evidence.storageBucket)],
+        ["Object Key", summarizeText(safe(params.evidence.storageKey), 72)],
+      ]);
+
+      doc.moveDown(0.14);
+
+      drawCallout(doc, {
+        title: immutable
+          ? "Immutable storage verified"
+          : "Immutable storage requires review",
+        body: immutable
+          ? "This evidence object is recorded as protected by AWS S3 Object Lock in COMPLIANCE mode. This is designed to prevent deletion or overwrite until the listed retention date expires."
+          : "Immutable storage details are incomplete or not fully verified in this report. Review the verification page or backend metadata before relying on storage immutability conclusions.",
+        tone: immutable ? "success" : "warning",
+      });
+    },
+    { minSpace: 120 }
+  );
+
   ensurePageWithHeader(doc, 180);
 
   section(
@@ -1445,7 +1554,7 @@ export async function buildReportPdf(params: {
       } else {
         drawCallout(doc, {
           title: "Single evidence item",
-          body: "This evidence record represents a single signed evidence item. Integrity review should evaluate the file hash, fingerprint hash, signature, timestamp record, and custody chain together.",
+          body: "This evidence record represents a single signed evidence item. Integrity review should evaluate the file hash, fingerprint hash, signature, timestamp record, custody chain, and immutable storage protection together.",
           tone: "neutral",
         });
       }

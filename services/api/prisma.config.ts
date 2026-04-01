@@ -51,7 +51,9 @@ if (!databaseUrl) {
 
 export default defineConfig({
   schema: "prisma/schema.prisma",
-  migrations: { path: "prisma/migrations" },
+  migrations: {
+    path: "prisma/migrations",
+  },
   datasource: {
     url: databaseUrl,
     shadowDatabaseUrl: shadowUrl || undefined,

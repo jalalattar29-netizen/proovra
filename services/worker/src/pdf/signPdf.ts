@@ -1,4 +1,3 @@
-// D:\digital-witness\services\worker\src\pdf\signPdf.ts
 import fs from "node:fs";
 import path from "node:path";
 import { SignPdf } from "@signpdf/signpdf";
@@ -27,12 +26,23 @@ export function isPdfSigningEnabled(): boolean {
 function asBuffer(value: unknown): Buffer {
   if (Buffer.isBuffer(value)) return value;
   if (value instanceof Uint8Array) return Buffer.from(value);
-  throw new Error("Unexpected PDF binary type (expected Buffer/Uint8Array).");
+  throw new Error("Unexpected PDF binary type (expected Buffer or Uint8Array).");
+}
+
+function readPositiveIntEnv(name: string, fallback: number): number {
+  const raw = env(name);
+  if (!raw) return fallback;
+  const parsed = Number.parseInt(raw, 10);
+  if (!Number.isFinite(parsed) || parsed <= 0) return fallback;
+  return parsed;
 }
 
 async function signPdfBuffer(unsignedPdf: Buffer): Promise<Buffer> {
   const p12Path = resolveP12Path();
-  const passphrase = env("PDF_SIGNING_P12_PASSWORD") || "";
+  const passphrase =
+    env("PDF_SIGNING_P12_PASSWORD") ??
+    env("PDF_SIGNING_P12_PASS") ??
+    "";
 
   if (!fs.existsSync(p12Path)) {
     throw new Error(`PDF signing .p12 not found at ${p12Path}`);
@@ -48,11 +58,10 @@ async function signPdfBuffer(unsignedPdf: Buffer): Promise<Buffer> {
     throw new Error("PDF signing .p12 is empty");
   }
 
-  const signatureLength = Number(env("PDF_SIGNING_SIGNATURE_LENGTH") ?? "20000");
-  const safeSignatureLength =
-    Number.isFinite(signatureLength) && signatureLength > 8000
-      ? signatureLength
-      : 20000;
+  const safeSignatureLength = Math.max(
+    12000,
+    readPositiveIntEnv("PDF_SIGNING_SIGNATURE_LENGTH", 20000)
+  );
 
   let pdfWithPlaceholder: Buffer;
 
@@ -75,7 +84,6 @@ async function signPdfBuffer(unsignedPdf: Buffer): Promise<Buffer> {
   try {
     const signer = new P12Signer(p12Buffer, { passphrase });
     const signPdf = new SignPdf();
-
     const signedUnknown: unknown = await signPdf.sign(pdfWithPlaceholder, signer);
     return asBuffer(signedUnknown);
   } catch (e) {
