@@ -260,6 +260,7 @@ export async function presignPutObject(params: {
     throw new Error("presignPutObject: bucket/key are required");
   }
 
+  const normalizedContentType = normalizeContentType(params.contentType);
   const normalizedChecksum = normalizeChecksumSha256Base64(
     params.checksumSha256Base64
   );
@@ -270,13 +271,26 @@ export async function presignPutObject(params: {
   const cmd = new PutObjectCommand({
     Bucket: bucket,
     Key: key,
-    ContentType: normalizeContentType(params.contentType),
+    ContentType: normalizedContentType,
     ...(normalizedChecksum ? { ChecksumSHA256: normalizedChecksum } : {}),
     ...(normalizedContentMd5 ? { ContentMD5: normalizedContentMd5 } : {}),
   });
 
+  const signableHeaders = new Set<string>(["content-type"]);
+  const unhoistableHeaders = new Set<string>();
+
+  if (normalizedChecksum) {
+    unhoistableHeaders.add("x-amz-checksum-sha256");
+  }
+
+  if (normalizedContentMd5) {
+    unhoistableHeaders.add("content-md5");
+  }
+
   return getSignedUrl(s3, cmd, {
     expiresIn: readPresignExpirySeconds(params.expiresInSeconds),
+    signableHeaders,
+    ...(unhoistableHeaders.size > 0 ? { unhoistableHeaders } : {}),
   });
 }
 
