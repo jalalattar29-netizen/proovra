@@ -172,7 +172,6 @@ export async function createEvidence(params: {
     bucket,
     key: created.key,
     contentType: normalizedMimeType,
-    checksumSha256Base64: normalizedChecksum,
     expiresInSeconds: 600,
   });
 
