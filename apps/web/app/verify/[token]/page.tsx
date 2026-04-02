@@ -773,8 +773,62 @@ function MaterialField({
   );
 }
 
+function normalizeOtsFailureMessage(raw?: string | null): string | null {
+  if (!raw) return null;
+
+  const text = raw.trim();
+  if (!text) return null;
+
+  const lower = text.toLowerCase();
+
+  if (
+    lower.includes("cannot be greater than available calendar") ||
+    lower.includes("available calendar")
+  ) {
+    return "OpenTimestamps proof was created, but blockchain anchoring is not available yet. The proof still needs more time to be upgraded by the calendar service.";
+  }
+
+  if (
+    lower.includes("not found") &&
+    (lower.includes("ots") || lower.includes("opentimestamps"))
+  ) {
+    return "OpenTimestamps binary is not installed correctly in the worker environment.";
+  }
+
+  if (lower.includes("timed out") || lower.includes("timeout")) {
+    return "OpenTimestamps request timed out before the calendar service returned a result.";
+  }
+
+  if (
+    lower.includes("network") ||
+    lower.includes("econnreset") ||
+    lower.includes("enotfound") ||
+    lower.includes("fetch failed") ||
+    lower.includes("connection")
+  ) {
+    return "OpenTimestamps service could not be reached at the time of report generation.";
+  }
+
+  if (
+    lower.includes("stamp") &&
+    lower.includes("failed")
+  ) {
+    return "OpenTimestamps stamping did not complete successfully for this evidence record.";
+  }
+
+  return "OpenTimestamps processing did not complete successfully for this evidence record.";
+}
+
+function sanitizeOtsFailureTechnical(raw?: string | null): string | null {
+  if (!raw) return null;
+  const text = raw.trim();
+  if (!text) return null;
+
+  return text.replace(/\s+/g, " ").trim();
+}
+
 export default function VerifyPage() {
-  const { t } = useLocale();
+  useLocale();
   const params = useParams<{ token: string }>();
   const { addToast } = useToast();
 
@@ -995,7 +1049,7 @@ export default function VerifyPage() {
       .finally(() => {
         setLoading(false);
       });
-  }, [params?.token, t, addToast]);
+  }, [params?.token, addToast]);
 
   const anchorPresentation = useMemo(
     () =>
@@ -1052,6 +1106,16 @@ export default function VerifyPage() {
       otsFailureReason,
       otsProofBase64,
     ]
+  );
+
+  const otsFailureDisplayMessage = useMemo(
+    () => normalizeOtsFailureMessage(otsFailureReason),
+    [otsFailureReason]
+  );
+
+  const otsFailureTechnicalMessage = useMemo(
+    () => sanitizeOtsFailureTechnical(otsFailureReason),
+    [otsFailureReason]
   );
 
   const verificationBadges = useMemo(() => {
@@ -1395,6 +1459,10 @@ export default function VerifyPage() {
     ]
   );
 
+  const heroTitleSize = "clamp(2rem, 4.8vw, 3.4rem)";
+  const heroTextSize = "clamp(0.98rem, 1.5vw, 1.12rem)";
+  const cardTitleSize = "clamp(1.45rem, 2.2vw, 1.95rem)";
+
   return (
     <div className="page">
       <SilverWatermarkSection
@@ -1402,7 +1470,8 @@ export default function VerifyPage() {
         style={{
           position: "relative",
           overflow: "hidden",
-          paddingTop: 20,
+          paddingTop: 16,
+          paddingBottom: 24,
         }}
       >
         <div
@@ -1434,7 +1503,7 @@ export default function VerifyPage() {
         <div className="container" style={{ position: "relative", zIndex: 1 }}>
           <div
             style={{
-              marginBottom: 28,
+              marginBottom: 22,
               padding: "14px 18px",
               borderRadius: 18,
               border: "1px solid rgba(208,213,221,0.85)",
@@ -1518,7 +1587,7 @@ export default function VerifyPage() {
           <div
             className="page-title"
             style={{
-              marginBottom: 24,
+              marginBottom: 20,
               display: "flex",
               alignItems: "flex-end",
               justifyContent: "space-between",
@@ -1526,14 +1595,15 @@ export default function VerifyPage() {
               flexWrap: "wrap",
             }}
           >
-            <div>
+            <div style={{ minWidth: 0, flex: "1 1 620px" }}>
               <h1
                 style={{
                   margin: 0,
-                  fontSize: 48,
-                  lineHeight: 1.05,
+                  fontSize: heroTitleSize,
+                  lineHeight: 1.06,
                   letterSpacing: "-0.03em",
                   color: "#101828",
+                  maxWidth: 860,
                 }}
               >
                 Evidence Integrity Review
@@ -1543,9 +1613,10 @@ export default function VerifyPage() {
                 style={{
                   marginTop: 12,
                   marginBottom: 0,
-                  fontSize: 18,
+                  fontSize: heroTextSize,
                   color: "#667085",
-                  maxWidth: 720,
+                  maxWidth: 760,
+                  lineHeight: 1.65,
                 }}
               >
                 Review recorded integrity status, cryptographic materials, immutable
@@ -1564,6 +1635,8 @@ export default function VerifyPage() {
                 fontSize: 13,
                 fontWeight: 700,
                 backdropFilter: "blur(10px)",
+                maxWidth: "100%",
+                wordBreak: "break-word",
               }}
             >
               Token: {shortText(params?.token ?? "", 8, 8)}
@@ -1579,7 +1652,7 @@ export default function VerifyPage() {
                   <div
                     style={{
                       display: "grid",
-                      gridTemplateColumns: "repeat(3, 1fr)",
+                      gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
                       gap: 12,
                     }}
                   >
@@ -1644,6 +1717,8 @@ export default function VerifyPage() {
                         display: "flex",
                         alignItems: "center",
                         gap: 16,
+                        minWidth: 0,
+                        flex: "1 1 640px",
                       }}
                     >
                       <div
@@ -1671,7 +1746,7 @@ export default function VerifyPage() {
                         {overallIntegrity === false ? "!" : "✓"}
                       </div>
 
-                      <div>
+                      <div style={{ minWidth: 0 }}>
                         <div
                           style={{
                             fontSize: 12,
@@ -1686,11 +1761,12 @@ export default function VerifyPage() {
                         </div>
                         <div
                           style={{
-                            fontSize: 28,
+                            fontSize: cardTitleSize,
                             lineHeight: 1.12,
                             fontWeight: 800,
                             color: "#101828",
                             marginBottom: 8,
+                            wordBreak: "break-word",
                           }}
                         >
                           {overallIntegrity === true
@@ -1703,7 +1779,7 @@ export default function VerifyPage() {
                           style={{
                             fontSize: 15,
                             color: "#667085",
-                            lineHeight: 1.6,
+                            lineHeight: 1.65,
                             maxWidth: 760,
                           }}
                         >
@@ -2218,13 +2294,15 @@ export default function VerifyPage() {
                     </div>
                   ) : null}
 
-                  {otsFailureReason ? (
+                  {otsFailureDisplayMessage ? (
                     <div
                       style={{
                         border: "1px solid #FECACA",
                         background: "#FEF2F2",
                         borderRadius: 16,
                         padding: 16,
+                        display: "grid",
+                        gap: 10,
                       }}
                     >
                       <div
@@ -2232,25 +2310,64 @@ export default function VerifyPage() {
                           fontSize: 12,
                           color: "#991B1B",
                           fontWeight: 800,
-                          marginBottom: 8,
+                          marginBottom: 2,
                         }}
                       >
-                        OpenTimestamps Failure Reason
+                        OpenTimestamps Status Note
                       </div>
+
                       <div
                         style={{
                           fontSize: 13,
                           color: "#7F1D1D",
-                          lineHeight: 1.6,
+                          lineHeight: 1.65,
                           wordBreak: "break-word",
                           overflowWrap: "anywhere",
                         }}
                       >
-                        {otsFailureReason}
+                        {otsFailureDisplayMessage}
                       </div>
+
+                      {otsFailureTechnicalMessage ? (
+                        <details
+                          style={{
+                            marginTop: 2,
+                          }}
+                        >
+                          <summary
+                            style={{
+                              cursor: "pointer",
+                              fontSize: 12,
+                              fontWeight: 700,
+                              color: "#B42318",
+                              userSelect: "none",
+                            }}
+                          >
+                            Show technical details
+                          </summary>
+
+                          <div
+                            style={{
+                              marginTop: 10,
+                              padding: 12,
+                              borderRadius: 12,
+                              border: "1px solid #FECACA",
+                              background: "#FFF7F7",
+                              fontSize: 12,
+                              color: "#7F1D1D",
+                              lineHeight: 1.65,
+                              wordBreak: "break-all",
+                              fontFamily:
+                                'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
+                            }}
+                          >
+                            {otsFailureTechnicalMessage}
+                          </div>
+                        </details>
+                      ) : null}
                     </div>
                   ) : null}
-                </div>
+                                  </div>
               </Card>
 
               <Card>

@@ -909,14 +909,19 @@ async function prepareReportArtifacts(
       tsaHashAlgorithm: evidence.tsaHashAlgorithm ?? null,
       tsaStatus: evidence.tsaStatus ?? null,
       tsaFailureReason: evidence.tsaFailureReason ?? null,
-      otsProofBase64: otsResult?.proofBase64 ?? null,
-      otsHash: otsResult?.hash ?? null,
-      otsStatus: otsResult?.status ?? null,
-      otsCalendar: otsResult?.calendar ?? null,
-      otsBitcoinTxid: otsResult?.bitcoinTxid ?? null,
-      otsAnchoredAtUtc: otsResult?.anchoredAtUtc ?? null,
-      otsUpgradedAtUtc: otsResult?.upgradedAtUtc ?? null,
-      otsFailureReason: otsResult?.failureReason ?? null,
+      otsProofBase64: otsResult?.proofBase64 ?? evidence.otsProofBase64 ?? null,
+      otsHash: otsResult?.hash ?? evidence.otsHash ?? null,
+      otsStatus: otsResult?.status ?? evidence.otsStatus ?? null,
+      otsCalendar: otsResult?.calendar ?? evidence.otsCalendar ?? null,
+      otsBitcoinTxid: otsResult?.bitcoinTxid ?? evidence.otsBitcoinTxid ?? null,
+      otsAnchoredAtUtc:
+        otsResult?.anchoredAtUtc ??
+        (evidence.otsAnchoredAtUtc ? evidence.otsAnchoredAtUtc.toISOString() : null),
+      otsUpgradedAtUtc:
+        otsResult?.upgradedAtUtc ??
+        (evidence.otsUpgradedAtUtc ? evidence.otsUpgradedAtUtc.toISOString() : null),
+      otsFailureReason:
+        otsResult?.failureReason ?? evidence.otsFailureReason ?? null,
     },
     custodyEvents: custodyEventsForReport,
     version: provisionalVersion,
@@ -993,7 +998,6 @@ export async function processGenerateReport(job: Job<GenerateReportJobData>) {
   logger.info(ctx, "GenerateReportJob started");
 
   try {
-    // STEP 1: Load evidence and check if report was already generated
     const evidence = await prisma.evidence.findFirst({
       where: { id: evidenceId, deletedAt: null },
     });
@@ -1007,22 +1011,23 @@ export async function processGenerateReport(job: Job<GenerateReportJobData>) {
         where: { evidenceId },
         orderBy: { version: "desc" },
       });
+
       if (existingReport) {
         logger.info(ctx, "Report already generated, skipping");
         return;
       }
     }
 
-    // STEP 2: Create OpenTimestamp BEFORE building PDF
     let otsData: OtsStampResult | null = null;
+
     try {
       if (evidence.fingerprintCanonicalJson) {
-        // Calculate the version first
         const latestReport = await prisma.report.findFirst({
           where: { evidenceId },
           orderBy: { version: "desc" },
           select: { version: true },
         });
+
         const reportVersion = latestReport ? latestReport.version + 1 : 1;
 
         otsData = await createOpenTimestamp({
@@ -1040,7 +1045,6 @@ export async function processGenerateReport(job: Job<GenerateReportJobData>) {
         );
       }
     } catch (otsError) {
-      // OTS failure should not block report generation
       captureException(otsError, {
         ...ctx,
         phase: "ots_stamp_early",
@@ -1053,10 +1057,8 @@ export async function processGenerateReport(job: Job<GenerateReportJobData>) {
         },
         "OpenTimestamp creation failed, continuing with report generation"
       );
-      // otsData remains null, will be handled later
     }
 
-    // STEP 3: Prepare report artifacts (now with OTS data available)
     const prepared = await prepareReportArtifacts(evidenceId, otsData);
 
     const finalized = await prisma.$transaction(
@@ -1197,7 +1199,6 @@ export async function processGenerateReport(job: Job<GenerateReportJobData>) {
           } as Prisma.InputJsonValue,
         });
 
-        // STEP 4: Store OTS result in DB (if we have it)
         if (otsData) {
           if (otsData.status === "PENDING" || otsData.status === "ANCHORED") {
             await tx.evidence.update({
@@ -1255,7 +1256,6 @@ export async function processGenerateReport(job: Job<GenerateReportJobData>) {
               } as Prisma.InputJsonValue,
             });
           } else if (otsData.status === "DISABLED") {
-            // OTS is disabled - still record it in DB
             await tx.evidence.update({
               where: { id: prepared.evidenceId },
               data: {
@@ -1291,30 +1291,6 @@ export async function processGenerateReport(job: Job<GenerateReportJobData>) {
         timeout: 120_000,
       }
     );
-
-    if (!finalized.skipped) {
-      // Publish anchor if configured
-      if (prepared.anchorPayload && prepared.anchorMode === "active") {
-        try {
-          await publishAnchorIfConfigured({
-            anchor: prepared.anchorPayload,
-          });
-        } catch (anchorError) {
-          captureException(anchorError, {
-            ...ctx,
-            phase: "anchor_publish",
-          });
-
-          logger.error(
-            {
-              ...ctx,
-              err: anchorError,
-            },
-            "Anchor publication failed"
-          );
-        }
-      }
-    }
 
     if (!finalized.skipped && prepared.verificationZip) {
       try {

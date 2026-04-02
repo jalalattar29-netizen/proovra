@@ -66,7 +66,7 @@ export type OtsStampResult =
       bitcoinTxid: null;
       anchoredAtUtc: null;
       upgradedAtUtc: string | null;
-      failureReason: null;
+      failureReason: string | null;
     }
   | {
       status: "ANCHORED";
@@ -102,9 +102,48 @@ function sha256Hex(buffer: Buffer): string {
   return createHash("sha256").update(buffer).digest("hex");
 }
 
+function normalizeErrorMessage(error: unknown): string {
+  const raw =
+    error instanceof Error
+      ? error.message
+      : typeof error === "string"
+        ? error
+        : "OTS_OPERATION_FAILED";
+
+  return raw.replace(/\s+/g, " ").trim();
+}
+
+function isBinaryMissingMessage(message: string): boolean {
+  const m = message.toLowerCase();
+  return (
+    m.includes("not found") &&
+    (m.includes("ots") || m.includes("opentimestamps"))
+  );
+}
+
+function isPendingLikeUpgradeMessage(message: string): boolean {
+  const m = message.toLowerCase();
+
+  return (
+    m.includes("cannot be greater than available calendar") ||
+    m.includes("available calendar") ||
+    m.includes("pending confirmations") ||
+    m.includes("not enough attestations") ||
+    m.includes("still waiting") ||
+    m.includes("calendar") ||
+    m.includes("timeout") ||
+    m.includes("timed out") ||
+    m.includes("econnreset") ||
+    m.includes("enotfound") ||
+    m.includes("network") ||
+    m.includes("fetch failed") ||
+    m.includes("connection reset") ||
+    m.includes("temporary failure")
+  );
+}
+
 /**
  * Stamps real content bytes, not a text file containing a hex digest.
- * This is the correct OTS flow for your case.
  */
 export async function createOpenTimestamp(params: {
   content: Buffer;
@@ -130,7 +169,9 @@ export async function createOpenTimestamp(params: {
   const bin = otsBin();
   const calendar = calendarUrl();
   const workDir = await mkWorkDir();
-  const stem = clean(params.filenameStem)?.replace(/[^a-zA-Z0-9._-]+/g, "_") || "fingerprint";
+  const stem =
+    clean(params.filenameStem)?.replace(/[^a-zA-Z0-9._-]+/g, "_") ||
+    "fingerprint";
   const inputFile = path.join(workDir, `${stem}.json`);
   const proofFile = `${inputFile}.ots`;
   const contentHash = sha256Hex(params.content);
@@ -140,7 +181,7 @@ export async function createOpenTimestamp(params: {
 
     const stampArgs = [
       "stamp",
-      ...(calendar ? ["-c", calendar] : []),
+      ...(calendar ? ["-m", "1", "-c", calendar] : ["-m", "1"]),
       inputFile,
     ];
 
@@ -172,6 +213,7 @@ export async function createOpenTimestamp(params: {
 
       if (bitcoinTxid) {
         anchoredAtUtc = upgradedAtUtc;
+
         return {
           status: "ANCHORED",
           proofBase64: upgradedProofBase64,
@@ -192,21 +234,68 @@ export async function createOpenTimestamp(params: {
         bitcoinTxid: null,
         anchoredAtUtc: null,
         upgradedAtUtc,
-        failureReason: null,
+        failureReason: "OTS proof created but not yet anchored on Bitcoin.",
       };
-    } catch {
+    } catch (upgradeError) {
+      const message = normalizeErrorMessage(upgradeError);
+
+      try {
+        const latestProofBuffer = await fs.readFile(proofFile);
+        const latestProofBase64 = latestProofBuffer.toString("base64");
+
+        if (isPendingLikeUpgradeMessage(message)) {
+          return {
+            status: "PENDING",
+            proofBase64: latestProofBase64,
+            hash: contentHash,
+            calendar,
+            bitcoinTxid: null,
+            anchoredAtUtc: null,
+            upgradedAtUtc: null,
+            failureReason: message,
+          };
+        }
+
+        return {
+          status: "PENDING",
+          proofBase64: latestProofBase64,
+          hash: contentHash,
+          calendar,
+          bitcoinTxid: null,
+          anchoredAtUtc: null,
+          upgradedAtUtc: null,
+          failureReason: message,
+        };
+      } catch {
+        return {
+          status: "PENDING",
+          proofBase64,
+          hash: contentHash,
+          calendar,
+          bitcoinTxid: null,
+          anchoredAtUtc: null,
+          upgradedAtUtc: null,
+          failureReason: message,
+        };
+      }
+    }
+  } catch (error) {
+    const message = normalizeErrorMessage(error);
+
+    if (isBinaryMissingMessage(message)) {
       return {
-        status: "PENDING",
-        proofBase64,
+        status: "FAILED",
+        proofBase64: null,
         hash: contentHash,
         calendar,
         bitcoinTxid: null,
         anchoredAtUtc: null,
         upgradedAtUtc: null,
-        failureReason: null,
+        failureReason:
+          "OpenTimestamps binary is missing in the worker environment.",
       };
     }
-  } catch (error) {
+
     return {
       status: "FAILED",
       proofBase64: null,
@@ -215,7 +304,7 @@ export async function createOpenTimestamp(params: {
       bitcoinTxid: null,
       anchoredAtUtc: null,
       upgradedAtUtc: null,
-      failureReason: error instanceof Error ? error.message : "OTS_STAMP_FAILED",
+      failureReason: message,
     };
   } finally {
     await cleanup([workDir]);
