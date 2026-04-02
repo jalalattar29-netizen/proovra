@@ -27,11 +27,27 @@ RUN pnpm --filter proovra-api prisma:generate
 RUN pnpm --filter proovra-worker build
 
 FROM node:20-alpine AS runner
-RUN apk add --no-cache wget openssl ca-certificates python3 py3-pip
-RUN apk add --no-cache python3 py3-pip && \
-    pip3 install --no-cache-dir opentimestamps-client
 WORKDIR /app/services/worker
+
+RUN apk add --no-cache \
+    wget \
+    openssl \
+    ca-certificates \
+    python3 \
+    py3-pip \
+    python3-dev \
+    gcc \
+    musl-dev \
+    libffi-dev
+
+RUN python3 -m ensurepip || true
+RUN python3 -m venv /opt/ots-venv
+RUN /opt/ots-venv/bin/pip install --upgrade pip setuptools wheel
+RUN /opt/ots-venv/bin/pip install --no-cache-dir opentimestamps-client
+
+ENV PATH="/opt/ots-venv/bin:$PATH"
 ENV NODE_ENV=production
+
 RUN addgroup -S app && adduser -S app -G app
 
 COPY --from=deps /app/node_modules /app/node_modules
