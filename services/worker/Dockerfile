@@ -27,7 +27,8 @@ RUN pnpm --filter proovra-api prisma:generate
 RUN pnpm --filter proovra-worker build
 
 FROM node:20-alpine AS runner
-RUN apk add --no-cache wget openssl ca-certificates
+RUN apk add --no-cache wget openssl ca-certificates python3 py3-pip
+RUN pip3 install --no-cache-dir opentimestamps-client
 WORKDIR /app/services/worker
 ENV NODE_ENV=production
 RUN addgroup -S app && adduser -S app -G app
