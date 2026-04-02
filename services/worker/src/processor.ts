@@ -22,6 +22,7 @@ import {
 import { captureException } from "./sentry.js";
 import { createVerificationPackage } from "./verification-package.js";
 import { publishAnchorIfConfigured } from "./anchor-publisher.js";
+import { createOpenTimestamp } from "./ots.service.js";
 
 type GenerateReportJobData = {
   evidenceId: string;
@@ -69,6 +70,7 @@ type PreparedReportArtifacts = {
   anchorPayload: AnchorPayload | null;
   anchorMode: AnchorMode;
   evidenceStorage: EvidenceStorageSnapshot;
+  fingerprintCanonicalJson: string;
 };
 
 function envValue(name: string, fallback?: string): string {
@@ -156,6 +158,10 @@ function summarizePayloadForReport(
         return "External anchor publication recorded.";
       case "ANCHOR_FAILED":
         return "External anchor publication failed.";
+      case "OTS_APPLIED":
+        return "OpenTimestamp proof created.";
+      case "OTS_FAILED":
+        return "OpenTimestamp proof creation failed.";
       default:
         return "No structured event details recorded.";
     }
@@ -248,6 +254,30 @@ function summarizePayloadForReport(
       return [
         "Timestamp request failed",
         tsaStatus ? `Status: ${tsaStatus}` : null,
+        reason ? `Reason: ${reason}` : null,
+      ]
+        .filter(Boolean)
+        .join(" • ");
+    }
+
+    case "OTS_APPLIED": {
+      const otsStatus = normalizePayloadPrimitive(obj.otsStatus);
+      const bitcoinTxid = shortHash(normalizePayloadPrimitive(obj.bitcoinTxid));
+      const calendar = normalizePayloadPrimitive(obj.calendar);
+      return [
+        "OpenTimestamp proof created",
+        otsStatus ? `Status: ${otsStatus}` : null,
+        bitcoinTxid ? `Bitcoin Tx: ${bitcoinTxid}` : null,
+        calendar ? `Calendar: ${calendar}` : null,
+      ]
+        .filter(Boolean)
+        .join(" • ");
+    }
+
+    case "OTS_FAILED": {
+      const reason = normalizePayloadPrimitive(obj.failureReason);
+      return [
+        "OpenTimestamp proof creation failed",
         reason ? `Reason: ${reason}` : null,
       ]
         .filter(Boolean)
@@ -378,6 +408,30 @@ function isRetriableError(error: unknown): boolean {
   return true;
 }
 
+function isAlreadyObjectLockedLike(e: unknown): boolean {
+  const err = e as {
+    name?: unknown;
+    code?: unknown;
+    Code?: unknown;
+    message?: unknown;
+  };
+
+  const name = String(err?.name ?? "").toLowerCase();
+  const code = String(err?.code ?? err?.Code ?? "").toLowerCase();
+  const msg = String(err?.message ?? "").toLowerCase();
+
+  return (
+    name.includes("accessdenied") ||
+    code.includes("accessdenied") ||
+    code === "accessdenied" ||
+    msg.includes("access denied because object protected by object lock") ||
+    msg.includes("object protected by object lock") ||
+    msg.includes("object lock") ||
+    msg.includes("retention") ||
+    msg.includes("legal hold")
+  );
+}
+
 async function streamToBuffer(stream: Readable): Promise<Buffer> {
   const chunks: Buffer[] = [];
   for await (const chunk of stream) {
@@ -400,6 +454,10 @@ async function applyRetentionOrThrow(
         key: target.key,
       });
     } catch (error) {
+      if (isAlreadyObjectLockedLike(error)) {
+        continue;
+      }
+
       const reason =
         error instanceof Error ? error.message : "UNKNOWN_RETENTION_ERROR";
 
@@ -906,6 +964,7 @@ async function prepareReportArtifacts(
     anchorPayload,
     anchorMode,
     evidenceStorage,
+    fingerprintCanonicalJson,
   };
 }
 
@@ -1084,6 +1143,120 @@ export async function processGenerateReport(job: Job<GenerateReportJobData>) {
         timeout: 120_000,
       }
     );
+
+    if (!finalized.skipped) {
+      try {
+        const otsResult = await createOpenTimestamp({
+          content: Buffer.from(prepared.fingerprintCanonicalJson, "utf8"),
+          filenameStem: `fingerprint-${prepared.evidenceId}-v${prepared.version}`,
+        });
+
+        if (otsResult.status === "PENDING" || otsResult.status === "ANCHORED") {
+          await prisma.$transaction(async (tx) => {
+            await tx.evidence.update({
+              where: { id: prepared.evidenceId },
+              data: {
+                otsProofBase64: otsResult.proofBase64,
+                otsHash: otsResult.hash,
+                otsStatus: otsResult.status,
+                otsCalendar: otsResult.calendar,
+                otsBitcoinTxid: otsResult.bitcoinTxid,
+                otsAnchoredAtUtc: otsResult.anchoredAtUtc
+                  ? new Date(otsResult.anchoredAtUtc)
+                  : null,
+                otsUpgradedAtUtc: otsResult.upgradedAtUtc
+                  ? new Date(otsResult.upgradedAtUtc)
+                  : null,
+                otsFailureReason: null,
+              },
+            });
+
+            await appendCustodyEventTx(tx, {
+              evidenceId: prepared.evidenceId,
+              eventType: prismaPkg.CustodyEventType.OTS_APPLIED,
+              atUtc: new Date(),
+              payload: {
+                otsStatus: otsResult.status,
+                hash: otsResult.hash,
+                calendar: otsResult.calendar,
+                bitcoinTxid: otsResult.bitcoinTxid,
+                anchoredAtUtc: otsResult.anchoredAtUtc,
+                upgradedAtUtc: otsResult.upgradedAtUtc,
+              } as Prisma.InputJsonValue,
+            });
+          });
+        } else if (otsResult.status === "FAILED") {
+          await prisma.$transaction(async (tx) => {
+            await tx.evidence.update({
+              where: { id: prepared.evidenceId },
+              data: {
+                otsProofBase64: null,
+                otsHash: otsResult.hash,
+                otsStatus: otsResult.status,
+                otsCalendar: otsResult.calendar,
+                otsBitcoinTxid: null,
+                otsAnchoredAtUtc: null,
+                otsUpgradedAtUtc: null,
+                otsFailureReason: otsResult.failureReason,
+              },
+            });
+
+            await appendCustodyEventTx(tx, {
+              evidenceId: prepared.evidenceId,
+              eventType: prismaPkg.CustodyEventType.OTS_FAILED,
+              atUtc: new Date(),
+              payload: {
+                hash: otsResult.hash,
+                calendar: otsResult.calendar,
+                failureReason: otsResult.failureReason,
+              } as Prisma.InputJsonValue,
+            });
+          });
+        }
+      } catch (otsError) {
+        captureException(otsError, {
+          requestId,
+          evidenceId,
+          jobId: job.id ?? null,
+          phase: "ots_stamp",
+        });
+
+        await prisma.$transaction(async (tx) => {
+          await tx.evidence.update({
+            where: { id: prepared.evidenceId },
+            data: {
+              otsStatus: "FAILED",
+              otsFailureReason:
+                otsError instanceof Error ? otsError.message : "OTS_STAMP_FAILED",
+            },
+          });
+
+          await appendCustodyEventTx(tx, {
+            evidenceId: prepared.evidenceId,
+            eventType: prismaPkg.CustodyEventType.OTS_FAILED,
+            atUtc: new Date(),
+            payload: {
+              failureReason:
+                otsError instanceof Error ? otsError.message : "OTS_STAMP_FAILED",
+            } as Prisma.InputJsonValue,
+          });
+        });
+
+        logger.error(
+          {
+            ...withJobContext({
+              requestId,
+              jobId: job.id,
+              evidenceId,
+              attempt: job.attemptsMade + 1,
+              status: "ots_failed",
+            }),
+            err: otsError,
+          },
+          "OpenTimestamp stamping failed after report generation"
+        );
+      }
+    }
 
     if (!finalized.skipped && prepared.verificationZip) {
       try {

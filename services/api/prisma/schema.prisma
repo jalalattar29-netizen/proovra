@@ -56,6 +56,14 @@ model Evidence {
   tsaStatus                        String?         @map("tsa_status") @db.VarChar(32)
   tsaTokenBase64                   String?         @map("tsa_token_base64")
   tsaUrl                           String?         @map("tsa_url") @db.VarChar(512)
+  otsProofBase64        String?   @map("ots_proof_base64")
+  otsHash               String?   @map("ots_hash") @db.VarChar(64)
+  otsStatus             String?   @map("ots_status") @db.VarChar(32)
+  otsCalendar           String?   @map("ots_calendar") @db.VarChar(512)
+  otsBitcoinTxid        String?   @map("ots_bitcoin_txid") @db.VarChar(128)
+  otsAnchoredAtUtc      DateTime? @map("ots_anchored_at_utc") @db.Timestamptz(6)
+  otsUpgradedAtUtc      DateTime? @map("ots_upgraded_at_utc") @db.Timestamptz(6)
+  otsFailureReason      String?   @map("ots_failure_reason")
 
   custodyEvents                    CustodyEvent[]
   guestIdentity                    GuestIdentity?  @relation(fields: [guestIdentityId], references: [id])
@@ -79,6 +87,9 @@ model Evidence {
   @@index([storageBucket, storageKey])
   @@index([storageObjectLockMode])
   @@index([storageObjectLockRetainUntilUtc])
+  @@index([otsHash])
+  @@index([otsStatus])
+  @@index([otsAnchoredAtUtc])
   @@map("evidence")
 }
 
@@ -475,6 +486,8 @@ enum CustodyEventType {
   REPORT_GENERATED
   ANCHOR_PUBLISHED
   ANCHOR_FAILED
+  OTS_APPLIED
+  OTS_FAILED
   EVIDENCE_VIEWED
   EVIDENCE_DOWNLOADED
   EVIDENCE_DELETED

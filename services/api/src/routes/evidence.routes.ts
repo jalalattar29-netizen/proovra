@@ -399,6 +399,34 @@ function summarizePublicPayload(
         .join(" • ");
     }
 
+    case prismaPkg.CustodyEventType.OTS_APPLIED: {
+      const otsStatus = normalizePublicPayloadValue(obj.otsStatus);
+      const calendar = normalizePublicPayloadValue(obj.otsCalendar);
+      const bitcoinTxid = normalizePublicPayloadValue(obj.otsBitcoinTxid);
+
+      return [
+        "OpenTimestamps proof recorded",
+        otsStatus ? `Status: ${otsStatus}` : null,
+        calendar ? `Calendar: ${calendar}` : null,
+        bitcoinTxid ? `Bitcoin Tx: ${shortHash(bitcoinTxid)}` : null,
+      ]
+        .filter(Boolean)
+        .join(" • ");
+    }
+
+    case prismaPkg.CustodyEventType.OTS_FAILED: {
+      const otsStatus = normalizePublicPayloadValue(obj.otsStatus);
+      const reason = normalizePublicPayloadValue(obj.otsFailureReason);
+
+      return [
+        "OpenTimestamps failed",
+        otsStatus ? `Status: ${otsStatus}` : null,
+        reason ? `Reason: ${reason}` : null,
+      ]
+        .filter(Boolean)
+        .join(" • ");
+    }
+
     case prismaPkg.CustodyEventType.REPORT_GENERATED: {
       const reportVersion = normalizePublicPayloadValue(obj.reportVersion);
       const anchorMode = normalizePublicPayloadValue(obj.anchorMode);
@@ -1159,12 +1187,20 @@ export async function evidenceRoutes(app: FastifyInstance) {
             part.storageBucket,
             part.storageKey,
             {
-              storageRegion: part.storageRegion,
-              storageObjectLockMode: part.storageObjectLockMode,
+              storageRegion:
+                "storageRegion" in part ? (part.storageRegion as string | null) : null,
+              storageObjectLockMode:
+                "storageObjectLockMode" in part
+                  ? (part.storageObjectLockMode as string | null)
+                  : null,
               storageObjectLockRetainUntilUtc:
-                part.storageObjectLockRetainUntilUtc,
+                "storageObjectLockRetainUntilUtc" in part
+                  ? (part.storageObjectLockRetainUntilUtc as Date | null)
+                  : null,
               storageObjectLockLegalHoldStatus:
-                part.storageObjectLockLegalHoldStatus,
+                "storageObjectLockLegalHoldStatus" in part
+                  ? (part.storageObjectLockLegalHoldStatus as string | null)
+                  : null,
             }
           );
 
@@ -1635,7 +1671,9 @@ export async function evidenceRoutes(app: FastifyInstance) {
           ...(accessibleCaseIds.length > 0
             ? [{ caseId: { in: accessibleCaseIds } }]
             : []),
-          ...(memberTeamIds.length > 0 ? [{ teamId: { in: memberTeamIds } }] : []),
+          ...(memberTeamIds.length > 0
+            ? [{ teamId: { in: memberTeamIds } }]
+            : []),
         ],
       },
       orderBy: { createdAt: "desc" },
@@ -2051,6 +2089,7 @@ export async function evidenceRoutes(app: FastifyInstance) {
         signingKeyId: true,
         signingKeyVersion: true,
         fileSha256: true,
+
         tsaProvider: true,
         tsaUrl: true,
         tsaSerialNumber: true,
@@ -2059,6 +2098,16 @@ export async function evidenceRoutes(app: FastifyInstance) {
         tsaHashAlgorithm: true,
         tsaStatus: true,
         tsaFailureReason: true,
+
+        otsProofBase64: true,
+        otsHash: true,
+        otsStatus: true,
+        otsCalendar: true,
+        otsBitcoinTxid: true,
+        otsAnchoredAtUtc: true,
+        otsUpgradedAtUtc: true,
+        otsFailureReason: true,
+
         storageBucket: true,
         storageKey: true,
         storageRegion: true,
@@ -2153,6 +2202,13 @@ export async function evidenceRoutes(app: FastifyInstance) {
           evidence.fileSha256.toLowerCase()
         : true;
 
+    const otsHashMatches =
+      evidence.otsHash && evidence.fileSha256
+        ? evidence.otsHash.toLowerCase() === evidence.fileSha256.toLowerCase()
+        : evidence.otsStatus
+          ? false
+          : true;
+
     const custodyChain = evaluateCustodyChain({
       evidenceId: id,
       records: forensicCustodyEvents.map((ev) => ({
@@ -2238,6 +2294,7 @@ export async function evidenceRoutes(app: FastifyInstance) {
         custodyChainMode: custodyChain.mode,
         custodyChainFailureReason: custodyChain.reason,
         timestampDigestMatches,
+        otsHashMatches,
         overallIntegrity,
         forensicEventCount: forensicCustodyEvents.length,
         accessEventCount: accessCustodyEvents.length,
@@ -2269,6 +2326,22 @@ export async function evidenceRoutes(app: FastifyInstance) {
         messageImprint: shortHash(evidence.tsaMessageImprint),
         failureReason: evidence.tsaFailureReason,
         digestMatchesFileHash: timestampDigestMatches,
+      },
+
+      ots: {
+        status: evidence.otsStatus ?? null,
+        hash: evidence.otsHash ?? null,
+        calendar: evidence.otsCalendar ?? null,
+        bitcoinTxid: evidence.otsBitcoinTxid ?? null,
+        anchoredAtUtc: evidence.otsAnchoredAtUtc
+          ? evidence.otsAnchoredAtUtc.toISOString()
+          : null,
+        upgradedAtUtc: evidence.otsUpgradedAtUtc
+          ? evidence.otsUpgradedAtUtc.toISOString()
+          : null,
+        failureReason: evidence.otsFailureReason ?? null,
+        proofPresent: Boolean(evidence.otsProofBase64),
+        hashMatchesFileHash: otsHashMatches,
       },
 
       custodyEvents: allCustodyEvents.map(mapCustodyEvent),

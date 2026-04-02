@@ -1,0 +1,223 @@
+import fs from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
+import { createHash } from "node:crypto";
+
+const execFileAsync = promisify(execFile);
+
+function clean(value: string | null | undefined): string | null {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  return trimmed ? trimmed : null;
+}
+
+function enabled(): boolean {
+  return (process.env.OTS_ENABLED ?? "false").trim().toLowerCase() === "true";
+}
+
+function otsBin(): string {
+  return clean(process.env.OTS_BIN) ?? "ots";
+}
+
+function timeoutMs(): number {
+  const raw = clean(process.env.OTS_TIMEOUT_MS);
+  const parsed = raw ? Number.parseInt(raw, 10) : 30000;
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 30000;
+}
+
+function calendarUrl(): string | null {
+  return clean(process.env.OTS_CALENDAR_URL);
+}
+
+async function mkWorkDir(): Promise<string> {
+  return fs.mkdtemp(path.join(os.tmpdir(), "ots-"));
+}
+
+async function cleanup(paths: string[]): Promise<void> {
+  await Promise.all(
+    paths.map(async (p) => {
+      try {
+        await fs.rm(p, { force: true, recursive: true });
+      } catch {
+        // ignore cleanup errors
+      }
+    })
+  );
+}
+
+export type OtsStampResult =
+  | {
+      status: "DISABLED";
+      proofBase64: null;
+      hash: null;
+      calendar: null;
+      bitcoinTxid: null;
+      anchoredAtUtc: null;
+      upgradedAtUtc: null;
+      failureReason: null;
+    }
+  | {
+      status: "PENDING";
+      proofBase64: string;
+      hash: string;
+      calendar: string | null;
+      bitcoinTxid: null;
+      anchoredAtUtc: null;
+      upgradedAtUtc: string | null;
+      failureReason: null;
+    }
+  | {
+      status: "ANCHORED";
+      proofBase64: string;
+      hash: string;
+      calendar: string | null;
+      bitcoinTxid: string | null;
+      anchoredAtUtc: string | null;
+      upgradedAtUtc: string | null;
+      failureReason: null;
+    }
+  | {
+      status: "FAILED";
+      proofBase64: null;
+      hash: string | null;
+      calendar: string | null;
+      bitcoinTxid: null;
+      anchoredAtUtc: null;
+      upgradedAtUtc: null;
+      failureReason: string;
+    };
+
+function parseTxid(text: string): string | null {
+  const txidMatch = text.match(/\b[a-f0-9]{64}\b/i);
+  return txidMatch?.[0]?.toLowerCase() ?? null;
+}
+
+function nowIso(): string {
+  return new Date().toISOString();
+}
+
+function sha256Hex(buffer: Buffer): string {
+  return createHash("sha256").update(buffer).digest("hex");
+}
+
+/**
+ * Stamps real content bytes, not a text file containing a hex digest.
+ * This is the correct OTS flow for your case.
+ */
+export async function createOpenTimestamp(params: {
+  content: Buffer;
+  filenameStem?: string;
+}): Promise<OtsStampResult> {
+  if (!Buffer.isBuffer(params.content) || params.content.length === 0) {
+    throw new Error("createOpenTimestamp: content must be a non-empty Buffer");
+  }
+
+  if (!enabled()) {
+    return {
+      status: "DISABLED",
+      proofBase64: null,
+      hash: null,
+      calendar: null,
+      bitcoinTxid: null,
+      anchoredAtUtc: null,
+      upgradedAtUtc: null,
+      failureReason: null,
+    };
+  }
+
+  const bin = otsBin();
+  const calendar = calendarUrl();
+  const workDir = await mkWorkDir();
+  const stem = clean(params.filenameStem)?.replace(/[^a-zA-Z0-9._-]+/g, "_") || "fingerprint";
+  const inputFile = path.join(workDir, `${stem}.json`);
+  const proofFile = `${inputFile}.ots`;
+  const contentHash = sha256Hex(params.content);
+
+  try {
+    await fs.writeFile(inputFile, params.content);
+
+    const stampArgs = [
+      "stamp",
+      ...(calendar ? ["-c", calendar] : []),
+      inputFile,
+    ];
+
+    await execFileAsync(bin, stampArgs, {
+      timeout: timeoutMs(),
+      cwd: workDir,
+    });
+
+    const proofBuffer = await fs.readFile(proofFile);
+    const proofBase64 = proofBuffer.toString("base64");
+
+    let upgradedAtUtc: string | null = null;
+    let anchoredAtUtc: string | null = null;
+    let bitcoinTxid: string | null = null;
+
+    try {
+      const upgradeArgs = ["upgrade", proofFile];
+      const { stdout, stderr } = await execFileAsync(bin, upgradeArgs, {
+        timeout: timeoutMs(),
+        cwd: workDir,
+      });
+
+      const merged = `${stdout ?? ""}\n${stderr ?? ""}`;
+      upgradedAtUtc = nowIso();
+      bitcoinTxid = parseTxid(merged);
+
+      const upgradedBuffer = await fs.readFile(proofFile);
+      const upgradedProofBase64 = upgradedBuffer.toString("base64");
+
+      if (bitcoinTxid) {
+        anchoredAtUtc = upgradedAtUtc;
+        return {
+          status: "ANCHORED",
+          proofBase64: upgradedProofBase64,
+          hash: contentHash,
+          calendar,
+          bitcoinTxid,
+          anchoredAtUtc,
+          upgradedAtUtc,
+          failureReason: null,
+        };
+      }
+
+      return {
+        status: "PENDING",
+        proofBase64: upgradedProofBase64,
+        hash: contentHash,
+        calendar,
+        bitcoinTxid: null,
+        anchoredAtUtc: null,
+        upgradedAtUtc,
+        failureReason: null,
+      };
+    } catch {
+      return {
+        status: "PENDING",
+        proofBase64,
+        hash: contentHash,
+        calendar,
+        bitcoinTxid: null,
+        anchoredAtUtc: null,
+        upgradedAtUtc: null,
+        failureReason: null,
+      };
+    }
+  } catch (error) {
+    return {
+      status: "FAILED",
+      proofBase64: null,
+      hash: contentHash,
+      calendar,
+      bitcoinTxid: null,
+      anchoredAtUtc: null,
+      upgradedAtUtc: null,
+      failureReason: error instanceof Error ? error.message : "OTS_STAMP_FAILED",
+    };
+  } finally {
+    await cleanup([workDir]);
+  }
+}

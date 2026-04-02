@@ -83,6 +83,24 @@ type VerifyResponse = {
     hashAlgorithm?: string | null;
     failureReason?: string | null;
   } | null;
+  otsStatus?: string | null;
+  otsHash?: string | null;
+  otsCalendar?: string | null;
+  otsBitcoinTxid?: string | null;
+  otsAnchoredAtUtc?: string | null;
+  otsUpgradedAtUtc?: string | null;
+  otsFailureReason?: string | null;
+  otsProofBase64?: string | null;
+  ots?: {
+    status?: string | null;
+    hash?: string | null;
+    calendar?: string | null;
+    bitcoinTxid?: string | null;
+    anchoredAtUtc?: string | null;
+    upgradedAtUtc?: string | null;
+    failureReason?: string | null;
+    proofBase64?: string | null;
+  } | null;
   anchor?: {
     mode?: string | null;
     provider?: string | null;
@@ -140,6 +158,17 @@ type StorageProtection = {
   verified: boolean | null;
 };
 
+type OtsDetails = {
+  status: string | null;
+  hash: string | null;
+  calendar: string | null;
+  bitcoinTxid: string | null;
+  anchoredAtUtc: string | null;
+  upgradedAtUtc: string | null;
+  failureReason: string | null;
+  proofBase64: string | null;
+};
+
 function formatDateTime(value?: string | null): string {
   if (!value) return "N/A";
   const d = new Date(value);
@@ -174,6 +203,12 @@ function extractTimestampStatus(data: VerifyResponse): string | null {
   return String(raw).trim().toUpperCase();
 }
 
+function extractOtsStatus(data: VerifyResponse): string | null {
+  const raw = data.ots?.status ?? data.otsStatus ?? null;
+  if (!raw || !String(raw).trim()) return null;
+  return String(raw).trim().toUpperCase();
+}
+
 function findEventTime(
   timeline: TimelineItem[],
   eventNames: string[]
@@ -202,7 +237,8 @@ function statusTone(
     s === "VERIFIED" ||
     s === "SUCCEEDED" ||
     s === "SIGNED" ||
-    s === "REPORTED"
+    s === "REPORTED" ||
+    s === "ANCHORED"
   ) {
     return {
       label: s || "VERIFIED",
@@ -262,6 +298,34 @@ function timestampTone(
   return { label: "Unavailable", tone: "neutral" };
 }
 
+function otsTone(
+  status?: string | null
+): { label: string; tone: "success" | "warning" | "neutral" | "info" } {
+  const s = (status ?? "").toUpperCase();
+
+  if (s === "ANCHORED") {
+    return { label: "ANCHORED", tone: "success" };
+  }
+
+  if (s === "PENDING") {
+    return { label: "PENDING", tone: "warning" };
+  }
+
+  if (s === "FAILED") {
+    return { label: "FAILED", tone: "warning" };
+  }
+
+  if (s === "DISABLED") {
+    return { label: "DISABLED", tone: "neutral" };
+  }
+
+  if (s) {
+    return { label: s, tone: "info" };
+  }
+
+  return { label: "Unavailable", tone: "neutral" };
+}
+
 function firstNonEmpty(...values: Array<string | null | undefined>): string | null {
   for (const value of values) {
     if (typeof value === "string" && value.trim()) return value.trim();
@@ -298,6 +362,19 @@ function buildTsaDetails(data: VerifyResponse) {
       typeof data.tsa?.digestMatchesFileHash === "boolean"
         ? data.tsa.digestMatchesFileHash
         : null,
+  };
+}
+
+function buildOtsDetails(data: VerifyResponse): OtsDetails {
+  return {
+    status: extractOtsStatus(data),
+    hash: firstNonEmpty(data.ots?.hash, data.otsHash),
+    calendar: firstNonEmpty(data.ots?.calendar, data.otsCalendar),
+    bitcoinTxid: firstNonEmpty(data.ots?.bitcoinTxid, data.otsBitcoinTxid),
+    anchoredAtUtc: firstNonEmpty(data.ots?.anchoredAtUtc, data.otsAnchoredAtUtc),
+    upgradedAtUtc: firstNonEmpty(data.ots?.upgradedAtUtc, data.otsUpgradedAtUtc),
+    failureReason: firstNonEmpty(data.ots?.failureReason, data.otsFailureReason),
+    proofBase64: firstNonEmpty(data.ots?.proofBase64, data.otsProofBase64),
   };
 }
 
@@ -413,6 +490,63 @@ function buildStoragePresentation(
     detailLabel: "Storage Protection",
     detailText:
       "Immutable storage metadata was not confirmed in the verification response.",
+  };
+}
+
+function buildOtsPresentation(ots: OtsDetails): {
+  badgeLabel: string;
+  badgeTone: "success" | "warning" | "neutral" | "info";
+  detailLabel: string;
+  detailText: string;
+} {
+  const status = (ots.status ?? "").trim().toUpperCase();
+
+  if (status === "ANCHORED") {
+    return {
+      badgeLabel: "OTS Anchored",
+      badgeTone: "success",
+      detailLabel: "OpenTimestamps Status",
+      detailText:
+        "An OpenTimestamps proof is recorded and appears to be anchored. This adds an independent public-proof timestamping layer for the evidence digest.",
+    };
+  }
+
+  if (status === "PENDING") {
+    return {
+      badgeLabel: "OTS Pending",
+      badgeTone: "warning",
+      detailLabel: "OpenTimestamps Status",
+      detailText:
+        "An OpenTimestamps proof exists for this evidence digest, but the proof has not yet been upgraded to a final anchored state.",
+    };
+  }
+
+  if (status === "FAILED") {
+    return {
+      badgeLabel: "OTS Failed",
+      badgeTone: "warning",
+      detailLabel: "OpenTimestamps Status",
+      detailText:
+        "OpenTimestamps processing reported a failure for this evidence record.",
+    };
+  }
+
+  if (status === "DISABLED") {
+    return {
+      badgeLabel: "OTS Disabled",
+      badgeTone: "neutral",
+      detailLabel: "OpenTimestamps Status",
+      detailText:
+        "OpenTimestamps is disabled in this environment, so no public-proof timestamp was recorded for this evidence item.",
+    };
+  }
+
+  return {
+    badgeLabel: "OTS Not Reported",
+    badgeTone: "neutral",
+    detailLabel: "OpenTimestamps Status",
+    detailText:
+      "OpenTimestamps information was not included in the verification response.",
   };
 }
 
@@ -668,6 +802,15 @@ export default function VerifyPage() {
   const [verifyStatus, setVerifyStatus] = useState<string | null>(null);
   const [signingKeyId, setSigningKeyId] = useState<string | null>(null);
 
+  const [otsStatus, setOtsStatus] = useState<string | null>(null);
+  const [otsHash, setOtsHash] = useState<string | null>(null);
+  const [otsCalendar, setOtsCalendar] = useState<string | null>(null);
+  const [otsBitcoinTxid, setOtsBitcoinTxid] = useState<string | null>(null);
+  const [otsAnchoredAtUtc, setOtsAnchoredAtUtc] = useState<string | null>(null);
+  const [otsUpgradedAtUtc, setOtsUpgradedAtUtc] = useState<string | null>(null);
+  const [otsFailureReason, setOtsFailureReason] = useState<string | null>(null);
+  const [otsProofBase64, setOtsProofBase64] = useState<string | null>(null);
+
   const [canonicalHashMatches, setCanonicalHashMatches] = useState<boolean | null>(null);
   const [signatureValid, setSignatureValid] = useState<boolean | null>(null);
   const [custodyChainValid, setCustodyChainValid] = useState<boolean | null>(null);
@@ -700,6 +843,7 @@ export default function VerifyPage() {
     apiFetch(`/public/verify/${params.token}`)
       .then((data: VerifyResponse) => {
         const tsaDetails = buildTsaDetails(data);
+        const otsDetails = buildOtsDetails(data);
 
         const rawTimeline: TimelineItem[] = (data.custodyEvents ?? []).map((ev) => ({
           eventType: ev.eventType ?? "UNKNOWN_EVENT",
@@ -770,6 +914,15 @@ export default function VerifyPage() {
         setSigningKeyId(data.signingKeyId ?? null);
         setForensicTimeline(forensicOnly);
         setAccessTimeline(accessOnly);
+
+        setOtsStatus(otsDetails.status);
+        setOtsHash(otsDetails.hash);
+        setOtsCalendar(otsDetails.calendar);
+        setOtsBitcoinTxid(otsDetails.bitcoinTxid);
+        setOtsAnchoredAtUtc(otsDetails.anchoredAtUtc);
+        setOtsUpgradedAtUtc(otsDetails.upgradedAtUtc);
+        setOtsFailureReason(otsDetails.failureReason);
+        setOtsProofBase64(otsDetails.proofBase64);
 
         setCanonicalHashMatches(
           typeof data.verification?.canonicalHashMatches === "boolean"
@@ -877,6 +1030,30 @@ export default function VerifyPage() {
     [storageProtection]
   );
 
+  const otsPresentation = useMemo(
+    () =>
+      buildOtsPresentation({
+        status: otsStatus,
+        hash: otsHash,
+        calendar: otsCalendar,
+        bitcoinTxid: otsBitcoinTxid,
+        anchoredAtUtc: otsAnchoredAtUtc,
+        upgradedAtUtc: otsUpgradedAtUtc,
+        failureReason: otsFailureReason,
+        proofBase64: otsProofBase64,
+      }),
+    [
+      otsStatus,
+      otsHash,
+      otsCalendar,
+      otsBitcoinTxid,
+      otsAnchoredAtUtc,
+      otsUpgradedAtUtc,
+      otsFailureReason,
+      otsProofBase64,
+    ]
+  );
+
   const verificationBadges = useMemo(() => {
     const items: Array<{
       label: string;
@@ -969,6 +1146,12 @@ export default function VerifyPage() {
     });
 
     items.push({
+      label: otsPresentation.badgeLabel,
+      tone: otsPresentation.badgeTone,
+      show: true,
+    });
+
+    items.push({
       label: anchorPresentation.badgeLabel,
       tone: anchorPresentation.badgeTone,
       show: true,
@@ -988,6 +1171,7 @@ export default function VerifyPage() {
     custodyChainValid,
     custodyChainMode,
     timestampDigestMatches,
+    otsPresentation,
     anchorPresentation,
     storagePresentation,
   ]);
@@ -1121,6 +1305,11 @@ export default function VerifyPage() {
           show: true,
         },
         {
+          label: "OpenTimestamps",
+          content: <Badge label={otsTone(otsStatus).label} tone={otsTone(otsStatus).tone} />,
+          show: true,
+        },
+        {
           label: "Anchor",
           content: (
             <Badge
@@ -1175,6 +1364,16 @@ export default function VerifyPage() {
           content: signingKeyId ?? null,
           show: Boolean(signingKeyId),
         },
+        {
+          label: "OTS Calendar",
+          content: otsCalendar ?? null,
+          show: Boolean(otsCalendar),
+        },
+        {
+          label: "OTS Anchored At",
+          content: otsAnchoredAtUtc ? formatDateTime(otsAnchoredAtUtc) : null,
+          show: Boolean(otsAnchoredAtUtc),
+        },
       ].filter((item) => item.show),
     [
       signature,
@@ -1182,6 +1381,9 @@ export default function VerifyPage() {
       canonicalHashMatches,
       custodyChainValid,
       custodyChainMode,
+      otsStatus,
+      otsCalendar,
+      otsAnchoredAtUtc,
       anchorPresentation,
       storagePresentation,
       tsaStatus,
@@ -1347,8 +1549,8 @@ export default function VerifyPage() {
                 }}
               >
                 Review recorded integrity status, cryptographic materials, immutable
-                storage protection, and the custody timeline associated with this
-                evidence record.
+                storage protection, timestamp evidence, OpenTimestamps proofing, and
+                the custody timeline associated with this evidence record.
               </p>
             </div>
 
@@ -1507,10 +1709,10 @@ export default function VerifyPage() {
                         >
                           This page shows whether the recorded fingerprint,
                           signature, timestamp linkage, hashed custody chain,
-                          immutable storage protection, and anchor-ready or published
-                          state pass technical verification checks. It does not by
-                          itself prove authorship, factual truth, or legal admissibility
-                          of the underlying content.
+                          OpenTimestamps status, immutable storage protection, and
+                          anchor-ready or published state pass technical verification
+                          checks. It does not by itself prove authorship, factual truth,
+                          or legal admissibility of the underlying content.
                         </div>
                       </div>
                     </div>
@@ -1542,6 +1744,69 @@ export default function VerifyPage() {
                     {verificationBadges.map((item) => (
                       <Badge key={item.label} label={item.label} tone={item.tone} />
                     ))}
+                  </div>
+
+                  <div
+                    style={{
+                      border: "1px solid #E4E7EC",
+                      background: "#FCFCFD",
+                      borderRadius: 16,
+                      padding: 16,
+                    }}
+                  >
+                    <div
+                      style={{
+                        fontSize: 12,
+                        color: "#667085",
+                        fontWeight: 800,
+                        marginBottom: 8,
+                      }}
+                    >
+                      {otsPresentation.detailLabel}
+                    </div>
+                    <div
+                      style={{
+                        fontSize: 13,
+                        color: "#475467",
+                        lineHeight: 1.65,
+                        wordBreak: "break-word",
+                        overflowWrap: "anywhere",
+                      }}
+                    >
+                      {otsPresentation.detailText}
+                    </div>
+
+                    {(otsCalendar ||
+                      otsHash ||
+                      otsBitcoinTxid ||
+                      otsAnchoredAtUtc ||
+                      otsUpgradedAtUtc) && (
+                      <div
+                        style={{
+                          marginTop: 10,
+                          display: "grid",
+                          gap: 6,
+                          fontSize: 12,
+                          color: "#667085",
+                        }}
+                      >
+                        {otsCalendar ? <div>Calendar: {otsCalendar}</div> : null}
+                        {otsHash ? (
+                          <div style={{ wordBreak: "break-all" }}>OTS Hash: {otsHash}</div>
+                        ) : null}
+                        {otsBitcoinTxid ? (
+                          <div style={{ wordBreak: "break-all" }}>
+                            Bitcoin TxID: {otsBitcoinTxid}
+                          </div>
+                        ) : null}
+                        {otsAnchoredAtUtc ? (
+                          <div>Anchored At: {formatDateTime(otsAnchoredAtUtc)}</div>
+                        ) : null}
+                        {otsUpgradedAtUtc ? (
+                          <div>Upgraded At: {formatDateTime(otsUpgradedAtUtc)}</div>
+                        ) : null}
+                      </div>
+                    )}
                   </div>
 
                   <div
@@ -1814,8 +2079,8 @@ export default function VerifyPage() {
                         maxWidth: 760,
                       }}
                     >
-                      Review cryptographic identifiers and verification-related
-                      materials recorded for this evidence item.
+                      Review cryptographic identifiers, timestamp evidence, and
+                      OpenTimestamps materials recorded for this evidence item.
                     </div>
                   </div>
                 </div>
@@ -1858,6 +2123,16 @@ export default function VerifyPage() {
                       value={publicKeyPem}
                       addToast={addToast}
                       copyMessage="Public key copied"
+                    />
+                  ) : null}
+
+                  {otsProofBase64 ? (
+                    <MaterialField
+                      label="OpenTimestamps Proof"
+                      subtitle="Recorded OTS proof material for the evidence digest."
+                      value={otsProofBase64}
+                      addToast={addToast}
+                      copyMessage="OTS proof copied"
                     />
                   ) : null}
 
@@ -1939,6 +2214,39 @@ export default function VerifyPage() {
                         }}
                       >
                         {tsaFailureReason}
+                      </div>
+                    </div>
+                  ) : null}
+
+                  {otsFailureReason ? (
+                    <div
+                      style={{
+                        border: "1px solid #FECACA",
+                        background: "#FEF2F2",
+                        borderRadius: 16,
+                        padding: 16,
+                      }}
+                    >
+                      <div
+                        style={{
+                          fontSize: 12,
+                          color: "#991B1B",
+                          fontWeight: 800,
+                          marginBottom: 8,
+                        }}
+                      >
+                        OpenTimestamps Failure Reason
+                      </div>
+                      <div
+                        style={{
+                          fontSize: 13,
+                          color: "#7F1D1D",
+                          lineHeight: 1.6,
+                          wordBreak: "break-word",
+                          overflowWrap: "anywhere",
+                        }}
+                      >
+                        {otsFailureReason}
                       </div>
                     </div>
                   ) : null}

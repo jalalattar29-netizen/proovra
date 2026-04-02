@@ -16,6 +16,16 @@ export type ReportEvidence = {
   tsaHashAlgorithm: string | null;
   tsaStatus: string | null;
   tsaFailureReason: string | null;
+
+  otsProofBase64?: string | null;
+  otsHash?: string | null;
+  otsStatus?: string | null;
+  otsCalendar?: string | null;
+  otsBitcoinTxid?: string | null;
+  otsAnchoredAtUtc?: string | null;
+  otsUpgradedAtUtc?: string | null;
+  otsFailureReason?: string | null;
+
   id: string;
   status: string;
   capturedAtUtc: string | null;
@@ -84,7 +94,7 @@ function safe(value: string | null | undefined, fallback = "N/A"): string {
 
 function summarizeText(value: string, maxLength: number): string {
   if (value.length <= maxLength) return value;
-  return `${value.slice(0, Math.max(0, maxLength - 3))}...`;
+  return `${value.slice(0, Math.max(0, maxLength - 1))}…`;
 }
 
 function formatBytesHuman(bytesStr: string | null): string {
@@ -100,7 +110,7 @@ function formatBytesHuman(bytesStr: string | null): string {
   return `${v.toFixed(idx === 0 ? 0 : 2)} ${units[idx]}`;
 }
 
-function shortHash(h: string, head = 10, tail = 8): string {
+function shortHash(h: string | null | undefined, head = 10, tail = 8): string {
   const t = safe(h, "");
   if (!t) return "N/A";
   if (t.length <= head + tail + 3) return t;
@@ -198,13 +208,27 @@ function normalizeTimestampStatus(
   return "NEUTRAL";
 }
 
+function normalizeOtsStatus(
+  status: string | null | undefined
+): "SUCCESS" | "WARNING" | "DANGER" | "NEUTRAL" {
+  const s = safe(status, "").toUpperCase();
+  if (s === "ANCHORED") return "SUCCESS";
+  if (s === "PENDING") return "WARNING";
+  if (s === "FAILED") return "DANGER";
+  return "NEUTRAL";
+}
+
 function normalizeStorageProtectionStatus(
   immutable: boolean | null | undefined,
   mode: string | null | undefined,
   retainUntil: string | null | undefined
 ): "SUCCESS" | "WARNING" | "DANGER" | "NEUTRAL" {
   const normalizedMode = safe(mode, "").toUpperCase();
-  if (immutable && normalizedMode === "COMPLIANCE" && safe(retainUntil, "") !== "") {
+  if (
+    immutable &&
+    normalizedMode === "COMPLIANCE" &&
+    safe(retainUntil, "") !== ""
+  ) {
     return "SUCCESS";
   }
   if (immutable || normalizedMode === "GOVERNANCE") {
@@ -920,7 +944,9 @@ function buildVerifyUrl(evidenceId: string, provided?: string | null): string {
   const v = typeof provided === "string" ? provided.trim() : "";
   if (v) return v;
 
-  const base = (env("REPORT_VERIFY_BASE_URL") ?? "https://app.proovra.com/verify")
+  const base = (
+    env("REPORT_VERIFY_BASE_URL") ?? "https://app.proovra.com/verify"
+  )
     .trim()
     .replace(/\/+$/, "");
 
@@ -970,7 +996,7 @@ function estimateForensicIntegrityStatementHeight(
 
   doc.font("Helvetica").fontSize(9.8);
   const intro2 = doc.heightOfString(
-    "PROOVRA applies cryptographic integrity controls, structured evidence fingerprinting, timestamping records, and immutable storage protection designed to preserve the integrity state of the submitted evidence at the time of completion.",
+    "PROOVRA applies cryptographic integrity controls, structured evidence fingerprinting, trusted timestamping records, OpenTimestamps proofing, and immutable storage protection designed to preserve the integrity state of the submitted evidence at the time of completion.",
     { width: w, lineGap: 1.8 }
   );
 
@@ -991,6 +1017,7 @@ function estimateForensicIntegrityStatementHeight(
     "• A fingerprint hash derived from the canonical record",
     "• A digital signature generated using the PROOVRA signing key",
     "• A trusted RFC 3161 timestamp token issued by the configured Time Stamping Authority, when available",
+    "• An OpenTimestamps proof for the evidence digest, when available",
     "• A chain of custody timeline documenting relevant system events",
     "• Immutable storage controls using AWS S3 Object Lock, when enabled for the evidence object",
   ];
@@ -1003,8 +1030,9 @@ function estimateForensicIntegrityStatementHeight(
           "3. Comparing the computed hash with the value listed in this report",
           "4. Verifying the digital signature using the provided public key",
           "5. Verifying the RFC 3161 timestamp token, when present",
-          "6. Reviewing the recorded chain of custody events",
-          "7. Reviewing immutable storage protection details, when present",
+          "6. Verifying the OpenTimestamps proof, when present",
+          "7. Reviewing the recorded chain of custody events",
+          "8. Reviewing immutable storage protection details, when present",
         ]
       : [
           "1. Obtaining the complete multipart evidence set",
@@ -1012,8 +1040,9 @@ function estimateForensicIntegrityStatementHeight(
           "3. Validating the multipart composite hash against the included materials",
           "4. Verifying the digital signature using the provided public key",
           "5. Verifying the RFC 3161 timestamp token, when present",
-          "6. Reviewing the recorded chain of custody events",
-          "7. Reviewing immutable storage protection details, when present",
+          "6. Verifying the OpenTimestamps proof, when present",
+          "7. Reviewing the recorded chain of custody events",
+          "8. Reviewing immutable storage protection details, when present",
         ];
 
   const bulletsHeight = bullets.reduce(
@@ -1028,7 +1057,7 @@ function estimateForensicIntegrityStatementHeight(
 
   doc.font("Helvetica").fontSize(9.2);
   const note = doc.heightOfString(
-    "Where present, the RFC 3161 timestamp provides evidence that the signed integrity state existed at or before the issuance time recorded by the Time Stamping Authority.",
+    "Where present, the RFC 3161 timestamp provides evidence that the signed integrity state existed at or before the issuance time recorded by the Time Stamping Authority. Where present, OpenTimestamps provides additional independent public-proof anchoring information tied to the evidence hash.",
     { width: w, lineGap: 1.8 }
   );
 
@@ -1082,7 +1111,7 @@ function renderForensicIntegrityStatement(
 
   safeParagraph(
     doc,
-    "PROOVRA applies cryptographic integrity controls, structured evidence fingerprinting, timestamping records, and immutable storage protection designed to preserve the integrity state of the submitted evidence at the time of completion.",
+    "PROOVRA applies cryptographic integrity controls, structured evidence fingerprinting, trusted timestamping records, OpenTimestamps proofing, and immutable storage protection designed to preserve the integrity state of the submitted evidence at the time of completion.",
     { fontSize: 9.8, color: BRAND.ink }
   );
   doc.moveDown(0.18);
@@ -1101,6 +1130,7 @@ function renderForensicIntegrityStatement(
     "A fingerprint hash derived from the canonical record",
     "A digital signature generated using the PROOVRA signing key",
     "A trusted RFC 3161 timestamp token issued by the configured Time Stamping Authority, when available",
+    "An OpenTimestamps proof, when available",
     "A custody timeline documenting relevant system events",
     "Immutable storage protection using AWS S3 Object Lock, when available",
   ];
@@ -1125,6 +1155,7 @@ function renderForensicIntegrityStatement(
           "Comparing the computed hash with the value listed in this report",
           "Verifying the digital signature using the provided public key",
           "Verifying the RFC 3161 timestamp token, when present",
+          "Verifying the OpenTimestamps proof, when present",
           "Reviewing the recorded chain of custody events",
           "Reviewing immutable storage details, when present",
         ]
@@ -1134,6 +1165,7 @@ function renderForensicIntegrityStatement(
           "Validating the multipart composite hash against the included materials",
           "Verifying the digital signature using the provided public key",
           "Verifying the RFC 3161 timestamp token, when present",
+          "Verifying the OpenTimestamps proof, when present",
           "Reviewing the recorded chain of custody events",
           "Reviewing immutable storage details, when present",
         ];
@@ -1149,7 +1181,7 @@ function renderForensicIntegrityStatement(
 
   safeParagraph(
     doc,
-    "Where present, the RFC 3161 timestamp provides evidence that the signed integrity state existed at or before the issuance time recorded by the Time Stamping Authority.",
+    "Where present, the RFC 3161 timestamp provides evidence that the signed integrity state existed at or before the issuance time recorded by the Time Stamping Authority. Where present, OpenTimestamps provides additional public-proof anchoring tied to the evidence digest.",
     { fontSize: 9.2, color: BRAND.muted }
   );
   doc.moveDown(0.16);
@@ -1210,7 +1242,8 @@ export async function buildReportPdf(params: {
 
   doc.info = {
     Title: `${BRAND.name} — Verifiable Evidence Report`,
-    Subject: "Evidence Summary > Chain of Custody > Technical Appendix",
+    Subject:
+      "Evidence Summary > Chain of Custody > Technical Appendix > Verification",
     Keywords: `PROOVRA_REPORT_VERSION=${params.version};PROOVRA_GENERATED_AT=${params.generatedAtUtc}${buildToken}`,
     Creator: BRAND.name,
     Producer: BRAND.name,
@@ -1256,7 +1289,7 @@ export async function buildReportPdf(params: {
 
     const color = verified ? BRAND.success : BRAND.danger;
 
-    ensureSpace(doc, 160);
+    ensureSpace(doc, 190);
 
     doc.save();
     doc.fillColor(color).font("Helvetica-Bold").fontSize(13.2);
@@ -1282,17 +1315,35 @@ export async function buildReportPdf(params: {
 
       const tsaTone = normalizeTimestampStatus(params.evidence.tsaStatus);
       if (tsaTone === "SUCCESS") {
-        safeParagraph(doc, "• Trusted timestamp record available", {
+        safeParagraph(doc, "• Trusted RFC 3161 timestamp record available", {
           fontSize: 9.8,
           color: BRAND.ink,
         });
       } else if (tsaTone === "WARNING") {
-        safeParagraph(doc, "• Timestamp record is pending or unavailable", {
+        safeParagraph(doc, "• RFC 3161 timestamp record is pending or unavailable", {
           fontSize: 9.8,
           color: BRAND.ink,
         });
       } else if (tsaTone === "DANGER") {
-        safeParagraph(doc, "• Timestamp record reported a failure state", {
+        safeParagraph(doc, "• RFC 3161 timestamp record reported a failure state", {
+          fontSize: 9.8,
+          color: BRAND.ink,
+        });
+      }
+
+      const otsTone = normalizeOtsStatus(params.evidence.otsStatus);
+      if (otsTone === "SUCCESS") {
+        safeParagraph(doc, "• OpenTimestamps proof is anchored", {
+          fontSize: 9.8,
+          color: BRAND.ink,
+        });
+      } else if (otsTone === "WARNING") {
+        safeParagraph(doc, "• OpenTimestamps proof exists and is still pending anchor completion", {
+          fontSize: 9.8,
+          color: BRAND.ink,
+        });
+      } else if (otsTone === "DANGER") {
+        safeParagraph(doc, "• OpenTimestamps proof reported a failure state", {
           fontSize: 9.8,
           color: BRAND.ink,
         });
@@ -1317,10 +1368,11 @@ export async function buildReportPdf(params: {
           { fontSize: 9.8, color: BRAND.ink }
         );
       } else if (storageTone === "DANGER") {
-        safeParagraph(doc, "• Storage protection information indicates a non-compliant state", {
-          fontSize: 9.8,
-          color: BRAND.ink,
-        });
+        safeParagraph(
+          doc,
+          "• Storage protection information indicates a non-compliant state",
+          { fontSize: 9.8, color: BRAND.ink }
+        );
       }
     } else {
       safeParagraph(doc, "• Evidence integrity could not be fully verified", {
@@ -1371,9 +1423,11 @@ export async function buildReportPdf(params: {
       ["Fingerprint Hash", shortHash(params.evidence.fingerprintHash)],
       ["Signing Key", safe(params.evidence.signingKeyId)],
       ["Signing Key Version", String(params.evidence.signingKeyVersion)],
-      ["Timestamp Provider", safe(params.evidence.tsaProvider)],
-      ["Timestamp Time (UTC)", safe(params.evidence.tsaGenTimeUtc)],
-      ["Timestamp Status", safe(params.evidence.tsaStatus)],
+      ["RFC 3161 Provider", safe(params.evidence.tsaProvider)],
+      ["RFC 3161 Time (UTC)", safe(params.evidence.tsaGenTimeUtc)],
+      ["RFC 3161 Status", safe(params.evidence.tsaStatus)],
+      ["OTS Status", safe(params.evidence.otsStatus)],
+      ["OTS Anchored (UTC)", safe(params.evidence.otsAnchoredAtUtc)],
       ["Storage Region", safe(params.evidence.storageRegion)],
       ["Object Lock Mode", safe(params.evidence.storageObjectLockMode)],
       [
@@ -1445,7 +1499,7 @@ export async function buildReportPdf(params: {
 
       safeParagraph(
         doc,
-        "Use the verification page to review integrity details, custody events, technical validation materials, and immutable storage protection associated with this evidence record.",
+        "Use the verification page to review integrity details, custody events, technical validation materials, OpenTimestamps status, and immutable storage protection associated with this evidence record.",
         { fontSize: 9.7, color: BRAND.muted, gap: 1.8 }
       );
       doc.moveDown(0.14);
@@ -1500,7 +1554,10 @@ export async function buildReportPdf(params: {
     () => {
       const mode = safe(params.evidence.storageObjectLockMode);
       const retainUntil = safe(params.evidence.storageObjectLockRetainUntilUtc);
-      const legalHold = safe(params.evidence.storageObjectLockLegalHoldStatus, "OFF");
+      const legalHold = safe(
+        params.evidence.storageObjectLockLegalHoldStatus,
+        "OFF"
+      );
       const immutable =
         params.evidence.storageImmutable === true &&
         mode.toUpperCase() === "COMPLIANCE" &&
@@ -1532,6 +1589,61 @@ export async function buildReportPdf(params: {
     { minSpace: 120 }
   );
 
+  ensurePageWithHeader(doc, 190);
+
+  section(
+    doc,
+    "Trusted Timestamping",
+    () => {
+      kvGrid(doc, [
+        ["RFC 3161 Provider", safe(params.evidence.tsaProvider)],
+        ["RFC 3161 URL", safe(params.evidence.tsaUrl)],
+        ["RFC 3161 Serial", safe(params.evidence.tsaSerialNumber)],
+        ["RFC 3161 Time (UTC)", safe(params.evidence.tsaGenTimeUtc)],
+        ["RFC 3161 Hash Algorithm", safe(params.evidence.tsaHashAlgorithm)],
+        ["RFC 3161 Status", safe(params.evidence.tsaStatus)],
+
+        ["OTS Status", safe(params.evidence.otsStatus)],
+        ["OTS Calendar", safe(params.evidence.otsCalendar)],
+        ["OTS Anchored At (UTC)", safe(params.evidence.otsAnchoredAtUtc)],
+        ["OTS Upgraded At (UTC)", safe(params.evidence.otsUpgradedAtUtc)],
+        ["OTS Bitcoin TxID", shortHash(params.evidence.otsBitcoinTxid)],
+        ["OTS Hash", shortHash(params.evidence.otsHash)],
+      ]);
+
+      doc.moveDown(0.14);
+
+      const otsTone = normalizeOtsStatus(params.evidence.otsStatus);
+      drawCallout(doc, {
+        title:
+          otsTone === "SUCCESS"
+            ? "OpenTimestamps anchored"
+            : otsTone === "WARNING"
+              ? "OpenTimestamps pending"
+              : otsTone === "DANGER"
+                ? "OpenTimestamps failed"
+                : "OpenTimestamps unavailable",
+        body:
+          otsTone === "SUCCESS"
+            ? "An OpenTimestamps proof has been generated and upgraded to an anchored state. This provides additional independent public-proof evidence tied to the recorded evidence digest."
+            : otsTone === "WARNING"
+              ? "An OpenTimestamps proof is present but has not yet been upgraded to a final anchored state."
+              : otsTone === "DANGER"
+                ? `OpenTimestamps reported a failure state. ${safe(params.evidence.otsFailureReason, "")}`.trim()
+                : "No OpenTimestamps proof is recorded for this evidence item.",
+        tone:
+          otsTone === "SUCCESS"
+            ? "success"
+            : otsTone === "WARNING"
+              ? "warning"
+              : otsTone === "DANGER"
+                ? "danger"
+                : "neutral",
+      });
+    },
+    { minSpace: 120 }
+  );
+
   ensurePageWithHeader(doc, 180);
 
   section(
@@ -1554,7 +1666,7 @@ export async function buildReportPdf(params: {
       } else {
         drawCallout(doc, {
           title: "Single evidence item",
-          body: "This evidence record represents a single signed evidence item. Integrity review should evaluate the file hash, fingerprint hash, signature, timestamp record, custody chain, and immutable storage protection together.",
+          body: "This evidence record represents a single signed evidence item. Integrity review should evaluate the file hash, fingerprint hash, signature, timestamp records, OpenTimestamps proof status, custody chain, and immutable storage protection together.",
           tone: "neutral",
         });
       }
@@ -1599,7 +1711,7 @@ export async function buildReportPdf(params: {
     { minSpace: 110 }
   );
 
-  ensurePageWithHeader(doc, 330);
+  ensurePageWithHeader(doc, 360);
 
   section(
     doc,
@@ -1670,7 +1782,7 @@ export async function buildReportPdf(params: {
 
       doc.save();
       doc.fillColor(BRAND.ink).font("Helvetica-Bold").fontSize(10.6);
-      doc.text("Timestamp Authority", doc.page.margins.left, doc.y);
+      doc.text("RFC 3161 Time Stamping Authority", doc.page.margins.left, doc.y);
       doc.restore();
       doc.moveDown(0.14);
 
@@ -1719,7 +1831,7 @@ export async function buildReportPdf(params: {
 
         doc.save();
         doc.fillColor(BRAND.muted).font("Helvetica").fontSize(8.8);
-        doc.text("Timestamp Status", x, doc.y, { width: w });
+        doc.text("RFC 3161 Timestamp Status", x, doc.y, { width: w });
         doc.restore();
 
         doc.moveDown(0.06);
@@ -1739,6 +1851,73 @@ export async function buildReportPdf(params: {
           summarizeText(safe(params.evidence.tsaFailureReason), 160),
           { maxChars: 160 }
         );
+      }
+
+      ensureSpace(doc, 220);
+
+      doc.save();
+      doc.fillColor(BRAND.ink).font("Helvetica-Bold").fontSize(10.6);
+      doc.text("OpenTimestamps", doc.page.margins.left, doc.y);
+      doc.restore();
+      doc.moveDown(0.14);
+
+      kvGrid(doc, [
+        ["OTS Status", safe(params.evidence.otsStatus)],
+        ["OTS Calendar", safe(params.evidence.otsCalendar)],
+        ["OTS Anchored At (UTC)", safe(params.evidence.otsAnchoredAtUtc)],
+        ["OTS Upgraded At (UTC)", safe(params.evidence.otsUpgradedAtUtc)],
+        ["OTS Bitcoin TxID", safe(params.evidence.otsBitcoinTxid)],
+        ["OTS Hash", safe(params.evidence.otsHash)],
+      ]);
+
+      if (params.evidence.otsProofBase64) {
+        monospaceStrip(
+          doc,
+          "OTS Proof (Base64) (excerpt)",
+          safe(params.evidence.otsProofBase64),
+          { maxChars: 220 }
+        );
+      }
+
+      if (params.evidence.otsFailureReason) {
+        monospaceStrip(
+          doc,
+          "OTS Failure / Detail",
+          summarizeText(safe(params.evidence.otsFailureReason), 160),
+          { maxChars: 160 }
+        );
+      }
+
+      {
+        const status = safe(params.evidence.otsStatus).toUpperCase();
+        const tone = normalizeOtsStatus(status);
+        const x = doc.page.margins.left;
+        const w = doc.page.width - doc.page.margins.left - doc.page.margins.right;
+
+        const color =
+          tone === "SUCCESS"
+            ? BRAND.success
+            : tone === "WARNING"
+              ? BRAND.warning
+              : tone === "DANGER"
+                ? BRAND.danger
+                : BRAND.muted;
+
+        ensureSpace(doc, 42);
+
+        doc.save();
+        doc.fillColor(BRAND.muted).font("Helvetica").fontSize(8.8);
+        doc.text("OpenTimestamps Status", x, doc.y, { width: w });
+        doc.restore();
+
+        doc.moveDown(0.06);
+
+        doc.save();
+        doc.fillColor(color).font("Helvetica-Bold").fontSize(10.6);
+        doc.text(status || "UNAVAILABLE", x, doc.y, { width: w });
+        doc.restore();
+
+        doc.moveDown(0.2);
       }
 
       safeParagraph(
