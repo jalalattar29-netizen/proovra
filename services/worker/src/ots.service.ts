@@ -181,7 +181,7 @@ export async function createOpenTimestamp(params: {
 
     const stampArgs = [
       "stamp",
-      ...(calendar ? ["-m", "1", "-c", calendar] : ["-m", "1"]),
+      ...(calendar ? ["-c", calendar] : []),
       inputFile,
     ];
 
