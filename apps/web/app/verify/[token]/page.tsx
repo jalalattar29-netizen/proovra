@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import {
   Button,
@@ -207,6 +207,11 @@ function extractOtsStatus(data: VerifyResponse): string | null {
   const raw = data.ots?.status ?? data.otsStatus ?? null;
   if (!raw || !String(raw).trim()) return null;
   return String(raw).trim().toUpperCase();
+}
+
+function isOtsTerminalStatus(status?: string | null): boolean {
+  const s = (status ?? "").trim().toUpperCase();
+  return s === "ANCHORED" || s === "FAILED" || s === "DISABLED";
 }
 
 function findEventTime(
@@ -490,7 +495,7 @@ function buildStoragePresentation(
     detailLabel: "Storage Protection",
     detailText:
       "Immutable storage metadata was not confirmed in the verification response.",
-  };
+    };
 }
 
 function buildOtsPresentation(ots: OtsDetails): {
@@ -809,10 +814,7 @@ function normalizeOtsFailureMessage(raw?: string | null): string | null {
     return "OpenTimestamps service could not be reached at the time of report generation.";
   }
 
-  if (
-    lower.includes("stamp") &&
-    lower.includes("failed")
-  ) {
+  if (lower.includes("stamp") && lower.includes("failed")) {
     return "OpenTimestamps stamping did not complete successfully for this evidence record.";
   }
 
@@ -888,167 +890,241 @@ export default function VerifyPage() {
     null
   );
 
+  const pollingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const hasShownAnchoredToastRef = useRef(false);
+  const isMountedRef = useRef(true);
+
+  const clearPolling = () => {
+    if (pollingTimerRef.current) {
+      clearTimeout(pollingTimerRef.current);
+      pollingTimerRef.current = null;
+    }
+  };
+
+  const applyVerifyResponse = (data: VerifyResponse) => {
+    const tsaDetails = buildTsaDetails(data);
+    const otsDetails = buildOtsDetails(data);
+
+    const rawTimeline: TimelineItem[] = (data.custodyEvents ?? []).map((ev) => ({
+      eventType: ev.eventType ?? "UNKNOWN_EVENT",
+      atUtc: ev.atUtc ?? null,
+      payloadSummary: ev.payloadSummary ?? null,
+      prevEventHash: ev.prevEventHash ?? null,
+      eventHash: ev.eventHash ?? null,
+      category: ev.category ?? null,
+    }));
+
+    const forensicOnly: TimelineItem[] =
+      data.forensicCustodyEvents && data.forensicCustodyEvents.length > 0
+        ? data.forensicCustodyEvents.map((ev) => ({
+            eventType: ev.eventType ?? "UNKNOWN_EVENT",
+            atUtc: ev.atUtc ?? null,
+            payloadSummary: ev.payloadSummary ?? null,
+            prevEventHash: ev.prevEventHash ?? null,
+            eventHash: ev.eventHash ?? null,
+            category: ev.category ?? "forensic",
+          }))
+        : rawTimeline.filter((item) => item.category !== "access");
+
+    const accessOnly: TimelineItem[] =
+      data.accessCustodyEvents && data.accessCustodyEvents.length > 0
+        ? data.accessCustodyEvents.map((ev) => ({
+            eventType: ev.eventType ?? "UNKNOWN_EVENT",
+            atUtc: ev.atUtc ?? null,
+            payloadSummary: ev.payloadSummary ?? null,
+            prevEventHash: ev.prevEventHash ?? null,
+            eventHash: ev.eventHash ?? null,
+            category: ev.category ?? "access",
+          }))
+        : rawTimeline.filter((item) => item.category === "access");
+
+    const generatedAtFallback =
+      data.reportGeneratedAtUtc ??
+      data.generatedAtUtc ??
+      findEventTime(forensicOnly, ["REPORT_GENERATED"]) ??
+      null;
+
+    const verifiedAtFallback =
+      data.verifiedAtUtc ??
+      data.verificationCheckedAtUtc ??
+      findEventTime(forensicOnly, ["SIGNATURE_APPLIED"]) ??
+      null;
+
+    setHash(data.fileSha256 ?? null);
+    setFingerprintHash(data.fingerprintHash ?? null);
+    setSignature(data.signatureBase64 ?? null);
+    setVerifyStatus(data.status ?? "REPORTED");
+    setTitle(data.title ?? null);
+    setEvidenceId(data.evidenceId ?? data.id ?? params?.token ?? null);
+    setMimeType(data.mimeType ?? null);
+    setGeneratedAt(generatedAtFallback);
+    setVerifiedAt(verifiedAtFallback);
+    setReportVersion(
+      data.reportVersion !== undefined && data.reportVersion !== null
+        ? String(data.reportVersion)
+        : null
+    );
+    setTsaStatus(tsaDetails.status);
+    setTsaProvider(tsaDetails.provider);
+    setTsaGenTimeUtc(tsaDetails.genTimeUtc);
+    setTsaSerialNumber(tsaDetails.serialNumber);
+    setTsaHashAlgorithm(tsaDetails.hashAlgorithm);
+    setTsaFailureReason(tsaDetails.failureReason);
+    setPublicKeyPem(data.publicKeyPem ?? null);
+    setSigningKeyId(data.signingKeyId ?? null);
+    setForensicTimeline(forensicOnly);
+    setAccessTimeline(accessOnly);
+
+    setOtsStatus(otsDetails.status);
+    setOtsHash(otsDetails.hash);
+    setOtsCalendar(otsDetails.calendar);
+    setOtsBitcoinTxid(otsDetails.bitcoinTxid);
+    setOtsAnchoredAtUtc(otsDetails.anchoredAtUtc);
+    setOtsUpgradedAtUtc(otsDetails.upgradedAtUtc);
+    setOtsFailureReason(otsDetails.failureReason);
+    setOtsProofBase64(otsDetails.proofBase64);
+
+    setCanonicalHashMatches(
+      typeof data.verification?.canonicalHashMatches === "boolean"
+        ? data.verification.canonicalHashMatches
+        : null
+    );
+    setSignatureValid(
+      typeof data.verification?.signatureValid === "boolean"
+        ? data.verification.signatureValid
+        : null
+    );
+    setCustodyChainValid(
+      typeof data.verification?.custodyChainValid === "boolean"
+        ? data.verification.custodyChainValid
+        : null
+    );
+    setCustodyChainMode(data.verification?.custodyChainMode ?? null);
+    setCustodyChainFailureReason(
+      data.verification?.custodyChainFailureReason ?? null
+    );
+    setTimestampDigestMatches(
+      typeof data.verification?.timestampDigestMatches === "boolean"
+        ? data.verification.timestampDigestMatches
+        : typeof tsaDetails.digestMatchesFileHash === "boolean"
+          ? tsaDetails.digestMatchesFileHash
+          : null
+    );
+    setOverallIntegrity(
+      typeof data.verification?.overallIntegrity === "boolean"
+        ? data.verification.overallIntegrity
+        : null
+    );
+
+    setAnchorMode(data.anchor?.mode ?? null);
+    setAnchorProvider(data.anchor?.provider ?? null);
+    setAnchorPublicBaseUrl(data.anchor?.publicBaseUrl ?? null);
+    setAnchorConfigured(
+      typeof data.anchor?.configured === "boolean" ? data.anchor.configured : null
+    );
+    setAnchorPublished(
+      typeof data.anchor?.published === "boolean" ? data.anchor.published : null
+    );
+    setAnchorHash(data.anchor?.anchorHash ?? null);
+    setAnchorReceiptId(data.anchor?.receiptId ?? null);
+    setAnchorTransactionId(data.anchor?.transactionId ?? null);
+    setAnchorPublicUrl(data.anchor?.publicUrl ?? null);
+    setAnchoredAtUtc(data.anchor?.anchoredAtUtc ?? null);
+
+    setStorageProtection({
+      immutable:
+        typeof data.storage?.immutable === "boolean"
+          ? data.storage.immutable
+          : null,
+      mode: data.storage?.mode ?? null,
+      retainUntil: data.storage?.retainUntil ?? null,
+      legalHold: data.storage?.legalHold ?? null,
+      region: data.storage?.region ?? null,
+      verified:
+        typeof data.storage?.verified === "boolean"
+          ? data.storage.verified
+          : null,
+    });
+
+    return otsDetails;
+  };
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+      clearPolling();
+    };
+  }, []);
+
   useEffect(() => {
     if (!params?.token) return;
 
+    let cancelled = false;
+    clearPolling();
     setLoading(true);
     setError(null);
+    hasShownAnchoredToastRef.current = false;
 
-    apiFetch(`/public/verify/${params.token}`)
-      .then((data: VerifyResponse) => {
-        const tsaDetails = buildTsaDetails(data);
-        const otsDetails = buildOtsDetails(data);
+    const fetchVerify = async (background = false) => {
+      try {
+        const data = await apiFetch(`/public/verify/${params.token}`);
+        if (cancelled || !isMountedRef.current) return;
 
-        const rawTimeline: TimelineItem[] = (data.custodyEvents ?? []).map((ev) => ({
-          eventType: ev.eventType ?? "UNKNOWN_EVENT",
-          atUtc: ev.atUtc ?? null,
-          payloadSummary: ev.payloadSummary ?? null,
-          prevEventHash: ev.prevEventHash ?? null,
-          eventHash: ev.eventHash ?? null,
-          category: ev.category ?? null,
-        }));
+        const otsDetails = applyVerifyResponse(data);
 
-        const forensicOnly: TimelineItem[] =
-          data.forensicCustodyEvents && data.forensicCustodyEvents.length > 0
-            ? data.forensicCustodyEvents.map((ev) => ({
-                eventType: ev.eventType ?? "UNKNOWN_EVENT",
-                atUtc: ev.atUtc ?? null,
-                payloadSummary: ev.payloadSummary ?? null,
-                prevEventHash: ev.prevEventHash ?? null,
-                eventHash: ev.eventHash ?? null,
-                category: ev.category ?? "forensic",
-              }))
-            : rawTimeline.filter((item) => item.category !== "access");
+        if (!background) {
+          setError(null);
+        }
 
-        const accessOnly: TimelineItem[] =
-          data.accessCustodyEvents && data.accessCustodyEvents.length > 0
-            ? data.accessCustodyEvents.map((ev) => ({
-                eventType: ev.eventType ?? "UNKNOWN_EVENT",
-                atUtc: ev.atUtc ?? null,
-                payloadSummary: ev.payloadSummary ?? null,
-                prevEventHash: ev.prevEventHash ?? null,
-                eventHash: ev.eventHash ?? null,
-                category: ev.category ?? "access",
-              }))
-            : rawTimeline.filter((item) => item.category === "access");
+        if ((otsDetails.status ?? "").toUpperCase() === "ANCHORED") {
+          clearPolling();
 
-        const generatedAtFallback =
-          data.reportGeneratedAtUtc ??
-          data.generatedAtUtc ??
-          findEventTime(forensicOnly, ["REPORT_GENERATED"]) ??
-          null;
+          if (background && !hasShownAnchoredToastRef.current) {
+            hasShownAnchoredToastRef.current = true;
+            addToast("OpenTimestamps proof is now anchored", "success");
+          }
 
-        const verifiedAtFallback =
-          data.verifiedAtUtc ??
-          data.verificationCheckedAtUtc ??
-          findEventTime(forensicOnly, ["SIGNATURE_APPLIED"]) ??
-          null;
+          return;
+        }
 
-        setHash(data.fileSha256 ?? null);
-        setFingerprintHash(data.fingerprintHash ?? null);
-        setSignature(data.signatureBase64 ?? null);
-        setVerifyStatus(data.status ?? "REPORTED");
-        setTitle(data.title ?? null);
-        setEvidenceId(data.evidenceId ?? data.id ?? params.token ?? null);
-        setMimeType(data.mimeType ?? null);
-        setGeneratedAt(generatedAtFallback);
-        setVerifiedAt(verifiedAtFallback);
-        setReportVersion(
-          data.reportVersion !== undefined && data.reportVersion !== null
-            ? String(data.reportVersion)
-            : null
-        );
-        setTsaStatus(tsaDetails.status);
-        setTsaProvider(tsaDetails.provider);
-        setTsaGenTimeUtc(tsaDetails.genTimeUtc);
-        setTsaSerialNumber(tsaDetails.serialNumber);
-        setTsaHashAlgorithm(tsaDetails.hashAlgorithm);
-        setTsaFailureReason(tsaDetails.failureReason);
-        setPublicKeyPem(data.publicKeyPem ?? null);
-        setSigningKeyId(data.signingKeyId ?? null);
-        setForensicTimeline(forensicOnly);
-        setAccessTimeline(accessOnly);
+        if (isOtsTerminalStatus(otsDetails.status)) {
+          clearPolling();
+          return;
+        }
 
-        setOtsStatus(otsDetails.status);
-        setOtsHash(otsDetails.hash);
-        setOtsCalendar(otsDetails.calendar);
-        setOtsBitcoinTxid(otsDetails.bitcoinTxid);
-        setOtsAnchoredAtUtc(otsDetails.anchoredAtUtc);
-        setOtsUpgradedAtUtc(otsDetails.upgradedAtUtc);
-        setOtsFailureReason(otsDetails.failureReason);
-        setOtsProofBase64(otsDetails.proofBase64);
+        if ((otsDetails.status ?? "").toUpperCase() === "PENDING") {
+          clearPolling();
+          pollingTimerRef.current = setTimeout(() => {
+            void fetchVerify(true);
+          }, 30000);
+        }
+      } catch (err) {
+        if (cancelled || !isMountedRef.current) return;
 
-        setCanonicalHashMatches(
-          typeof data.verification?.canonicalHashMatches === "boolean"
-            ? data.verification.canonicalHashMatches
-            : null
-        );
-        setSignatureValid(
-          typeof data.verification?.signatureValid === "boolean"
-            ? data.verification.signatureValid
-            : null
-        );
-        setCustodyChainValid(
-          typeof data.verification?.custodyChainValid === "boolean"
-            ? data.verification.custodyChainValid
-            : null
-        );
-        setCustodyChainMode(data.verification?.custodyChainMode ?? null);
-        setCustodyChainFailureReason(
-          data.verification?.custodyChainFailureReason ?? null
-        );
-        setTimestampDigestMatches(
-          typeof data.verification?.timestampDigestMatches === "boolean"
-            ? data.verification.timestampDigestMatches
-            : typeof tsaDetails.digestMatchesFileHash === "boolean"
-              ? tsaDetails.digestMatchesFileHash
-              : null
-        );
-        setOverallIntegrity(
-          typeof data.verification?.overallIntegrity === "boolean"
-            ? data.verification.overallIntegrity
-            : null
-        );
-
-        setAnchorMode(data.anchor?.mode ?? null);
-        setAnchorProvider(data.anchor?.provider ?? null);
-        setAnchorPublicBaseUrl(data.anchor?.publicBaseUrl ?? null);
-        setAnchorConfigured(
-          typeof data.anchor?.configured === "boolean" ? data.anchor.configured : null
-        );
-        setAnchorPublished(
-          typeof data.anchor?.published === "boolean" ? data.anchor.published : null
-        );
-        setAnchorHash(data.anchor?.anchorHash ?? null);
-        setAnchorReceiptId(data.anchor?.receiptId ?? null);
-        setAnchorTransactionId(data.anchor?.transactionId ?? null);
-        setAnchorPublicUrl(data.anchor?.publicUrl ?? null);
-        setAnchoredAtUtc(data.anchor?.anchoredAtUtc ?? null);
-
-        setStorageProtection({
-          immutable:
-            typeof data.storage?.immutable === "boolean"
-              ? data.storage.immutable
-              : null,
-          mode: data.storage?.mode ?? null,
-          retainUntil: data.storage?.retainUntil ?? null,
-          legalHold: data.storage?.legalHold ?? null,
-          region: data.storage?.region ?? null,
-          verified:
-            typeof data.storage?.verified === "boolean"
-              ? data.storage.verified
-              : null,
-        });
-      })
-      .catch((err) => {
         captureException(err, { feature: "web_verify", token: params.token });
-        const message = err instanceof Error ? err.message : "Verification failed";
-        setError(message);
-        addToast(message, "error");
-      })
-      .finally(() => {
-        setLoading(false);
-      });
+
+        if (!background) {
+          const message =
+            err instanceof Error ? err.message : "Verification failed";
+          setError(message);
+          addToast(message, "error");
+        } else {
+          clearPolling();
+        }
+      } finally {
+        if (!cancelled && !background && isMountedRef.current) {
+          setLoading(false);
+        }
+      }
+    };
+
+    void fetchVerify(false);
+
+    return () => {
+      cancelled = true;
+      clearPolling();
+    };
   }, [params?.token, addToast]);
 
   const anchorPresentation = useMemo(
@@ -1459,9 +1535,9 @@ export default function VerifyPage() {
     ]
   );
 
-  const heroTitleSize = "clamp(2rem, 4.8vw, 3.4rem)";
-  const heroTextSize = "clamp(0.98rem, 1.5vw, 1.12rem)";
-  const cardTitleSize = "clamp(1.45rem, 2.2vw, 1.95rem)";
+const heroTitleSize = "clamp(1.65rem, 3vw, 2.6rem)";
+const heroTextSize = "clamp(0.92rem, 1.15vw, 1rem)";
+const cardTitleSize = "clamp(1.45rem, 2.2vw, 1.95rem)";
 
   return (
     <div className="page">
@@ -1600,10 +1676,10 @@ export default function VerifyPage() {
                 style={{
                   margin: 0,
                   fontSize: heroTitleSize,
-                  lineHeight: 1.06,
-                  letterSpacing: "-0.03em",
+                  lineHeight: 1.08,
+                  letterSpacing: "-0.025em",
                   color: "#101828",
-                  maxWidth: 860,
+                  maxWidth: 680,
                 }}
               >
                 Evidence Integrity Review
@@ -1611,12 +1687,12 @@ export default function VerifyPage() {
               <p
                 className="page-subtitle"
                 style={{
-                  marginTop: 12,
+                  marginTop: 10,
                   marginBottom: 0,
                   fontSize: heroTextSize,
                   color: "#667085",
-                  maxWidth: 760,
-                  lineHeight: 1.65,
+                  maxWidth: 620,
+                  lineHeight: 1.55,
                 }}
               >
                 Review recorded integrity status, cryptographic materials, immutable
@@ -2367,7 +2443,7 @@ export default function VerifyPage() {
                       ) : null}
                     </div>
                   ) : null}
-                                  </div>
+                </div>
               </Card>
 
               <Card>

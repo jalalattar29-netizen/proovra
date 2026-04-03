@@ -179,11 +179,11 @@ export async function createOpenTimestamp(params: {
   try {
     await fs.writeFile(inputFile, params.content);
 
-    const stampArgs = [
-      "stamp",
-      ...(calendar ? ["-c", calendar] : []),
-      inputFile,
-    ];
+const stampArgs = [
+  "stamp",
+  ...(calendar ? ["-c", calendar, "-m", "1"] : []),
+  inputFile,
+];
 
     await execFileAsync(bin, stampArgs, {
       timeout: timeoutMs(),

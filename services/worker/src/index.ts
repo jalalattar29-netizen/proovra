@@ -4,12 +4,15 @@ import { Worker } from "bullmq";
 import { logger, withJobContext } from "./logger.js";
 import {
   generateReportJobName,
+  otsUpgradeQueue,
+  otsUpgradeQueueName,
   redisConnection,
   reportDlqQueue,
   reportQueue,
   reportQueueName,
 } from "./queue.js";
 import { processGenerateReport } from "./processor.js";
+import { processOtsUpgrade } from "./ots-upgrade.processor.js";
 import { startHealthServer, type HealthServer } from "./health.js";
 import { captureException, initSentry } from "./sentry.js";
 
@@ -34,84 +37,98 @@ function emitOperationalAlert(params: {
   );
 }
 
+function bindWorkerEvents(
+  workerInstance: Worker,
+  jobKind: "report" | "ots-upgrade"
+) {
+  workerInstance.on("completed", (job) => {
+    const requestId = randomUUID();
+    const durationMs =
+      job.finishedOn && job.processedOn
+        ? job.finishedOn - job.processedOn
+        : null;
+
+    logger.info(
+      withJobContext({
+        requestId,
+        jobId: job.id,
+        evidenceId: (job.data as JobData | undefined)?.evidenceId,
+        attempt: job.attemptsMade + 1,
+        durationMs: durationMs ?? undefined,
+        status: "completed",
+      }),
+      `${jobKind}.job.completed`
+    );
+  });
+
+  workerInstance.on("failed", (job, err) => {
+    if (!job) return;
+
+    const requestId = randomUUID();
+    const durationMs =
+      job.finishedOn && job.processedOn
+        ? job.finishedOn - job.processedOn
+        : job.processedOn
+          ? Date.now() - job.processedOn
+          : null;
+
+    const context = {
+      ...withJobContext({
+        requestId,
+        jobId: job.id,
+        evidenceId: (job.data as JobData | undefined)?.evidenceId,
+        attempt: job.attemptsMade + 1,
+        durationMs: durationMs ?? undefined,
+        status: "failed",
+      }),
+    };
+
+    logger.error({ ...context, err }, `${jobKind}.job.failed`);
+    captureException(err, {
+      requestId,
+      evidenceId: (job.data as JobData | undefined)?.evidenceId,
+      jobId: job.id ?? null,
+      jobKind,
+    });
+
+    emitOperationalAlert({
+      requestId,
+      reason: `${jobKind}_job_failed`,
+      err,
+      context,
+    });
+  });
+
+  workerInstance.on("error", (err) => {
+    const requestId = randomUUID();
+    logger.error({ requestId, err, jobKind }, `${jobKind}.worker.error`);
+    captureException(err, { requestId, jobKind });
+
+    emitOperationalAlert({
+      requestId,
+      reason: `${jobKind}_worker_runtime_error`,
+      err,
+    });
+  });
+}
+
 initSentry();
 
-const worker = new Worker(reportQueueName, processGenerateReport, {
+const reportWorker = new Worker(reportQueueName, processGenerateReport, {
   connection: redisConnection,
   concurrency: 2,
 });
 
+const otsUpgradeWorker = new Worker(otsUpgradeQueueName, processOtsUpgrade, {
+  connection: redisConnection,
+  concurrency: 1,
+});
+
+bindWorkerEvents(reportWorker, "report");
+bindWorkerEvents(otsUpgradeWorker, "ots-upgrade");
+
 let healthServer: HealthServer | null = null;
 let shuttingDown = false;
-
-worker.on("completed", (job) => {
-  const requestId = randomUUID();
-  const durationMs =
-    job.finishedOn && job.processedOn
-      ? job.finishedOn - job.processedOn
-      : null;
-
-  logger.info(
-    withJobContext({
-      requestId,
-      jobId: job.id,
-      evidenceId: (job.data as JobData | undefined)?.evidenceId,
-      attempt: job.attemptsMade + 1,
-      durationMs: durationMs ?? undefined,
-      status: "completed",
-    }),
-    "job.completed"
-  );
-});
-
-worker.on("failed", (job, err) => {
-  if (!job) return;
-
-  const requestId = randomUUID();
-  const durationMs =
-    job.finishedOn && job.processedOn
-      ? job.finishedOn - job.processedOn
-      : job.processedOn
-        ? Date.now() - job.processedOn
-        : null;
-
-  const context = {
-    ...withJobContext({
-      requestId,
-      jobId: job.id,
-      evidenceId: (job.data as JobData | undefined)?.evidenceId,
-      attempt: job.attemptsMade + 1,
-      durationMs: durationMs ?? undefined,
-      status: "failed",
-    }),
-  };
-
-  logger.error({ ...context, err }, "job.failed");
-  captureException(err, {
-    requestId,
-    evidenceId: (job.data as JobData | undefined)?.evidenceId,
-    jobId: job.id ?? null,
-  });
-
-  emitOperationalAlert({
-    requestId,
-    reason: "worker_job_failed",
-    err,
-    context,
-  });
-});
-
-worker.on("error", (err) => {
-  const requestId = randomUUID();
-  logger.error({ requestId, err }, "worker.error");
-  captureException(err, { requestId });
-
-  emitOperationalAlert({
-    requestId,
-    reason: "worker_runtime_error",
-    err,
-  });
-});
 
 async function shutdown(exitCode: number) {
   if (shuttingDown) return;
@@ -120,24 +137,41 @@ async function shutdown(exitCode: number) {
   logger.info({ requestId: randomUUID(), exitCode }, "worker.shutdown_started");
 
   try {
-    await worker.pause(true);
+    await reportWorker.pause(true);
   } catch (err) {
     const requestId = randomUUID();
-    logger.error({ requestId, err }, "worker.pause_failed");
+    logger.error({ requestId, err }, "worker.pause_report_failed");
     captureException(err, { requestId });
   }
 
   try {
-    await worker.close();
+    await otsUpgradeWorker.pause(true);
   } catch (err) {
     const requestId = randomUUID();
-    logger.error({ requestId, err }, "worker.close_failed");
+    logger.error({ requestId, err }, "worker.pause_ots_upgrade_failed");
+    captureException(err, { requestId });
+  }
+
+  try {
+    await reportWorker.close();
+  } catch (err) {
+    const requestId = randomUUID();
+    logger.error({ requestId, err }, "worker.close_report_failed");
+    captureException(err, { requestId });
+  }
+
+  try {
+    await otsUpgradeWorker.close();
+  } catch (err) {
+    const requestId = randomUUID();
+    logger.error({ requestId, err }, "worker.close_ots_upgrade_failed");
     captureException(err, { requestId });
   }
 
   try {
     await reportQueue.close();
     await reportDlqQueue.close();
+    await otsUpgradeQueue.close();
   } catch (err) {
     const requestId = randomUUID();
     logger.error({ requestId, err }, "worker.queue_close_failed");

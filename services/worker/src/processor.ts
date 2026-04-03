@@ -15,7 +15,9 @@ import {
 import { createHash, randomUUID } from "node:crypto";
 import { buildReportPdf } from "./pdf/report.js";
 import {
+  enqueueReportJob as enqueueReportJobOnQueue,
   generateReportJobName,
+  otsUpgradeQueue,
   reportDlqQueue,
   reportQueue,
 } from "./queue.js";
@@ -26,6 +28,8 @@ import { createOpenTimestamp, type OtsStampResult } from "./ots.service.js";
 
 type GenerateReportJobData = {
   evidenceId: string;
+  forceRegenerate?: boolean;
+  regenerateReason?: string | null;
 };
 
 type WorkerError = Error & {
@@ -287,11 +291,14 @@ function summarizePayloadForReport(
     case "REPORT_GENERATED": {
       const reportVersion = normalizePayloadPrimitive(obj.reportVersion);
       const anchorHash = shortHash(normalizePayloadPrimitive(obj.anchorHash));
+      const refreshReason = normalizePayloadPrimitive(obj.refreshReason);
+
       return [
         reportVersion
           ? `Verification report generated • Version: ${reportVersion}`
           : "Verification report generated.",
         anchorHash ? `Anchor: ${anchorHash}` : null,
+        refreshReason ? `Refresh: ${refreshReason}` : null,
       ]
         .filter(Boolean)
         .join(" • ");
@@ -614,18 +621,60 @@ async function resolveEvidenceStorageSnapshot(params: {
   }
 }
 
+async function enqueueOtsUpgradeRetry(evidenceId: string) {
+  const jobId = `ots-upgrade-${evidenceId}`;
+  const existing = await otsUpgradeQueue.getJob(jobId);
+
+  if (existing) {
+    const state = await existing.getState();
+    if (
+      state === "waiting" ||
+      state === "delayed" ||
+      state === "active" ||
+      state === "prioritized"
+    ) {
+      return { enqueued: false, reason: `job_${state}` };
+    }
+  }
+
+  await otsUpgradeQueue.add(
+    "UpgradeOts",
+    { evidenceId },
+    {
+      jobId,
+      delay: 5 * 60 * 1000,
+      attempts: 20,
+      backoff: { type: "exponential", delay: 60_000 },
+      removeOnComplete: 100,
+      removeOnFail: false,
+    }
+  );
+
+  return { enqueued: true };
+}
+
 const { EvidenceStatus } = prismaPkg;
 
 async function prepareReportArtifacts(
   evidenceId: string,
-  otsResult?: OtsStampResult | null
+  otsResult?: OtsStampResult | null,
+  options?: {
+    allowReported?: boolean;
+    refreshReason?: string | null;
+  }
 ): Promise<PreparedReportArtifacts> {
   const evidence = await prisma.evidence.findFirst({
     where: { id: evidenceId, deletedAt: null },
   });
 
   if (!evidence) throw createWorkerError("EVIDENCE_NOT_FOUND", false);
-  if (evidence.status !== EvidenceStatus.SIGNED) {
+
+  const allowReported = options?.allowReported === true;
+
+  if (
+    evidence.status !== EvidenceStatus.SIGNED &&
+    !(allowReported && evidence.status === EvidenceStatus.REPORTED)
+  ) {
     if (evidence.status === EvidenceStatus.REPORTED) {
       throw createWorkerError("REPORT_ALREADY_GENERATED", false);
     }
@@ -637,7 +686,10 @@ async function prepareReportArtifacts(
   }
 
   if (!evidence.fingerprintCanonicalJson) {
-    throw createWorkerError("EVIDENCE_FINGERPRINT_CANONICAL_JSON_MISSING", false);
+    throw createWorkerError(
+      "EVIDENCE_FINGERPRINT_CANONICAL_JSON_MISSING",
+      false
+    );
   }
 
   if (!evidence.fingerprintHash) {
@@ -825,6 +877,8 @@ async function prepareReportArtifacts(
   const reportGeneratedEventSequence =
     (custodyEvents[custodyEvents.length - 1]?.sequence ?? 0) + 1;
 
+  const refreshReason = options?.refreshReason?.trim() || null;
+
   const custodyEventsForReport = [
     ...custodyEvents.map((ev) => ({
       sequence: ev.sequence,
@@ -841,6 +895,7 @@ async function prepareReportArtifacts(
         reportVersion: provisionalVersion,
         generatedAtUtc: now.toISOString(),
         ...(anchorPayload ? { anchorHash: anchorPayload.anchorHash } : {}),
+        ...(refreshReason ? { refreshReason } : {}),
       }),
     },
   ];
@@ -862,6 +917,7 @@ async function prepareReportArtifacts(
         reportVersion: provisionalVersion,
         generatedAtUtc: now.toISOString(),
         ...(anchorPayload ? { anchorHash: anchorPayload.anchorHash } : {}),
+        ...(refreshReason ? { refreshReason } : {}),
       } as Prisma.InputJsonValue,
       eventHash: null,
     },
@@ -916,10 +972,14 @@ async function prepareReportArtifacts(
       otsBitcoinTxid: otsResult?.bitcoinTxid ?? evidence.otsBitcoinTxid ?? null,
       otsAnchoredAtUtc:
         otsResult?.anchoredAtUtc ??
-        (evidence.otsAnchoredAtUtc ? evidence.otsAnchoredAtUtc.toISOString() : null),
+        (evidence.otsAnchoredAtUtc
+          ? evidence.otsAnchoredAtUtc.toISOString()
+          : null),
       otsUpgradedAtUtc:
         otsResult?.upgradedAtUtc ??
-        (evidence.otsUpgradedAtUtc ? evidence.otsUpgradedAtUtc.toISOString() : null),
+        (evidence.otsUpgradedAtUtc
+          ? evidence.otsUpgradedAtUtc.toISOString()
+          : null),
       otsFailureReason:
         otsResult?.failureReason ?? evidence.otsFailureReason ?? null,
     },
@@ -985,6 +1045,11 @@ async function prepareReportArtifacts(
 export async function processGenerateReport(job: Job<GenerateReportJobData>) {
   const start = Date.now();
   const evidenceId = job.data.evidenceId;
+  const forceRegenerate = job.data.forceRegenerate === true;
+  const regenerateReason =
+    typeof job.data.regenerateReason === "string"
+      ? job.data.regenerateReason.trim() || null
+      : null;
   const requestId = randomUUID();
 
   const ctx = withJobContext({
@@ -992,7 +1057,7 @@ export async function processGenerateReport(job: Job<GenerateReportJobData>) {
     jobId: job.id,
     evidenceId,
     attempt: job.attemptsMade + 1,
-    status: "started",
+    status: forceRegenerate ? "regenerating" : "started",
   });
 
   logger.info(ctx, "GenerateReportJob started");
@@ -1006,7 +1071,7 @@ export async function processGenerateReport(job: Job<GenerateReportJobData>) {
       throw createWorkerError("EVIDENCE_NOT_FOUND", false);
     }
 
-    if (evidence.status === EvidenceStatus.REPORTED) {
+    if (evidence.status === EvidenceStatus.REPORTED && !forceRegenerate) {
       const existingReport = await prisma.report.findFirst({
         where: { evidenceId },
         orderBy: { version: "desc" },
@@ -1021,7 +1086,7 @@ export async function processGenerateReport(job: Job<GenerateReportJobData>) {
     let otsData: OtsStampResult | null = null;
 
     try {
-      if (evidence.fingerprintCanonicalJson) {
+      if (!forceRegenerate && evidence.fingerprintCanonicalJson) {
         const latestReport = await prisma.report.findFirst({
           where: { evidenceId },
           orderBy: { version: "desc" },
@@ -1059,7 +1124,10 @@ export async function processGenerateReport(job: Job<GenerateReportJobData>) {
       );
     }
 
-    const prepared = await prepareReportArtifacts(evidenceId, otsData);
+    const prepared = await prepareReportArtifacts(evidenceId, otsData, {
+      allowReported: forceRegenerate,
+      refreshReason: regenerateReason,
+    });
 
     const finalized = await prisma.$transaction(
       async (tx) => {
@@ -1100,15 +1168,20 @@ export async function processGenerateReport(job: Job<GenerateReportJobData>) {
 
         if (
           lockedEvidence.status === EvidenceStatus.REPORTED &&
-          existingLatestReport
+          existingLatestReport &&
+          !forceRegenerate
         ) {
           return {
             skipped: true as const,
             existingReportVersion: existingLatestReport.version,
+            scheduleOtsUpgrade: false,
           };
         }
 
-        if (lockedEvidence.status !== EvidenceStatus.SIGNED) {
+        if (
+          lockedEvidence.status !== EvidenceStatus.SIGNED &&
+          !(forceRegenerate && lockedEvidence.status === EvidenceStatus.REPORTED)
+        ) {
           throw createWorkerError(
             `EVIDENCE_NOT_SIGNED:${lockedEvidence.status}`,
             false
@@ -1196,10 +1269,13 @@ export async function processGenerateReport(job: Job<GenerateReportJobData>) {
               : {
                   anchorMode: prepared.anchorMode,
                 }),
+            ...(regenerateReason ? { refreshReason: regenerateReason } : {}),
           } as Prisma.InputJsonValue,
         });
 
-        if (otsData) {
+        let scheduleOtsUpgrade = false;
+
+        if (!forceRegenerate && otsData) {
           if (otsData.status === "PENDING" || otsData.status === "ANCHORED") {
             await tx.evidence.update({
               where: { id: prepared.evidenceId },
@@ -1232,6 +1308,10 @@ export async function processGenerateReport(job: Job<GenerateReportJobData>) {
                 upgradedAtUtc: otsData.upgradedAtUtc,
               } as Prisma.InputJsonValue,
             });
+
+            if (otsData.status === "PENDING") {
+              scheduleOtsUpgrade = true;
+            }
           } else if (otsData.status === "FAILED") {
             await tx.evidence.update({
               where: { id: prepared.evidenceId },
@@ -1284,6 +1364,7 @@ export async function processGenerateReport(job: Job<GenerateReportJobData>) {
           skipped: false as const,
           version: prepared.version,
           reportKey: prepared.reportKey,
+          scheduleOtsUpgrade,
         };
       },
       {
@@ -1291,6 +1372,33 @@ export async function processGenerateReport(job: Job<GenerateReportJobData>) {
         timeout: 120_000,
       }
     );
+
+    if (!finalized.skipped && finalized.scheduleOtsUpgrade) {
+      try {
+        await enqueueOtsUpgradeRetry(prepared.evidenceId);
+      } catch (upgradeQueueError) {
+        captureException(upgradeQueueError, {
+          requestId,
+          evidenceId,
+          jobId: job.id ?? null,
+          phase: "ots_upgrade_enqueue",
+        });
+
+        logger.error(
+          {
+            ...withJobContext({
+              requestId,
+              jobId: job.id,
+              evidenceId,
+              attempt: job.attemptsMade + 1,
+              status: "ots_upgrade_enqueue_failed",
+            }),
+            err: upgradeQueueError,
+          },
+          "Failed to enqueue OTS upgrade retry job"
+        );
+      }
+    }
 
     if (!finalized.skipped && prepared.verificationZip) {
       try {
@@ -1344,6 +1452,7 @@ export async function processGenerateReport(job: Job<GenerateReportJobData>) {
     }
 
     if (
+      !forceRegenerate &&
       !finalized.skipped &&
       prepared.anchorMode === "active" &&
       prepared.anchorPayload
@@ -1484,6 +1593,8 @@ export async function processGenerateReport(job: Job<GenerateReportJobData>) {
         }),
         anchorMode: prepared.anchorMode,
         anchorHash: prepared.anchorPayload?.anchorHash ?? null,
+        forceRegenerate,
+        regenerateReason,
       },
       finalized.skipped
         ? "GenerateReportJob skipped because report already exists"
@@ -1597,27 +1708,12 @@ export async function processGenerateReport(job: Job<GenerateReportJobData>) {
   }
 }
 
-export async function enqueueReportJob(evidenceId: string) {
-  const jobId = `report-${evidenceId}`;
-
-  const existing = await reportQueue.getJob(jobId);
-
-  if (existing) {
-    const state = await existing.getState();
-    return { enqueued: false, reason: `job_${state}` };
+export async function enqueueReportJob(
+  evidenceId: string,
+  options?: {
+    forceRegenerate?: boolean;
+    regenerateReason?: string | null;
   }
-
-  await reportQueue.add(
-    generateReportJobName,
-    { evidenceId },
-    {
-      jobId,
-      attempts: 5,
-      backoff: { type: "exponential", delay: 1000 },
-      removeOnComplete: 100,
-      removeOnFail: false,
-    }
-  );
-
-  return { enqueued: true };
+) {
+  return enqueueReportJobOnQueue(evidenceId, options);
 }
