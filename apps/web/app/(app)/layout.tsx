@@ -8,6 +8,7 @@ import { SilverWatermarkSection } from "../../components/SilverWatermarkSection"
 import { AppHeader } from "../../components/header";
 import { Icons } from "../../components/icons";
 import { Footer } from "../../components/Footer";
+import AnalyticsTracker from "../../components/analytics-tracker";
 import { apiFetch } from "../../lib/api";
 import { useAuth } from "../providers";
 
@@ -86,6 +87,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="page app-page">
+      <AnalyticsTracker />
+
       <div className="blue-shell app-shell-top">
         <AppHeader hasSession={hasSession} onLogout={handleLogout} />
       </div>
@@ -96,35 +99,36 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
       <Footer />
 
-<nav className="app-bottom-nav">
-  <div className="container app-bottom-nav-inner">
-    {mobilePrimaryItems.map((item) => (
-      <Link
-        key={item.href}
-        href={item.href}
-        className={`app-bottom-nav-link ${isActive(item.href) ? "active" : ""}`}
-      >
-        <item.Icon />
-        <span>{item.label}</span>
-      </Link>
-    ))}
+      <nav className="app-bottom-nav">
+        <div className="container app-bottom-nav-inner">
+          {mobilePrimaryItems.map((item) => (
+            <Link
+              key={item.href}
+              href={item.href}
+              className={`app-bottom-nav-link ${isActive(item.href) ? "active" : ""}`}
+            >
+              <item.Icon />
+              <span>{item.label}</span>
+            </Link>
+          ))}
 
-    <button
-      type="button"
-      className={`app-bottom-nav-link app-bottom-nav-more-trigger app-bottom-nav-mobile-only ${
-        moreIsActive || moreOpen ? "active" : ""
-      }`}
-      onClick={() => setMoreOpen((prev) => !prev)}
-      aria-expanded={moreOpen}
-      aria-label="More navigation items"
-    >
-      <span className="app-bottom-nav-more-dots" aria-hidden="true">
-        •••
-      </span>
-      <span>More</span>
-    </button>
-  </div>
-</nav>
+          <button
+            type="button"
+            className={`app-bottom-nav-link app-bottom-nav-more-trigger app-bottom-nav-mobile-only ${
+              moreIsActive || moreOpen ? "active" : ""
+            }`}
+            onClick={() => setMoreOpen((prev) => !prev)}
+            aria-expanded={moreOpen}
+            aria-label="More navigation items"
+          >
+            <span className="app-bottom-nav-more-dots" aria-hidden="true">
+              •••
+            </span>
+            <span>More</span>
+          </button>
+        </div>
+      </nav>
+
       {moreOpen && (
         <>
           <button

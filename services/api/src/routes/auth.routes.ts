@@ -264,6 +264,21 @@ export async function authRoutes(app: FastifyInstance) {
       60 * 60 * 24 * 30
     );
 
+    // ANALYTICS: Track login_completed event (non-blocking, silently ignore errors)
+    prisma.analyticsEvent.create({
+      data: {
+        eventType: "login_completed",
+        userId: user.id,
+        sessionId: `server_${Date.now()}`,
+        visitorId: user?.id ? `server_user_${user.id}` : `server_anon_${Date.now()}`,
+        metadata: {
+          provider: user.provider ?? null
+        }
+      }
+    }).catch(() => {
+      // Silently ignore analytics errors
+    });
+
     maybeSetWebCookie(req, reply, token);
     return reply.code(200).send({ token, user });
   });

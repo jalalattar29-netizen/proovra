@@ -461,6 +461,52 @@ model PasswordResetToken {
   @@map("password_reset_tokens")
 }
 
+model AnalyticsEvent {
+  id           String   @id @default(uuid())
+  eventType    String
+  userId       String?
+  sessionId    String
+  visitorId    String
+
+  path         String?
+  referrer     String?
+
+  country      String?
+  city         String?
+  region       String?
+
+  device       String?
+  browser      String?
+
+  metadata     Json?
+
+  createdAt    DateTime @default(now())
+
+  @@index([eventType])
+  @@index([userId])
+  @@index([sessionId])
+  @@index([createdAt])
+}
+
+model AnalyticsSession {
+  id          String   @id @default(uuid())
+  visitorId   String
+  userId      String?
+
+  startedAt   DateTime @default(now())
+  lastSeenAt  DateTime @updatedAt
+
+  country     String?
+  city        String?
+
+  device      String?
+  browser     String?
+
+  @@index([visitorId])
+  @@index([userId])
+  @@index([startedAt])
+}
+
 enum EvidenceType {
   VIDEO
   AUDIO

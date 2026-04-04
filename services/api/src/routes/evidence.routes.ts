@@ -919,6 +919,22 @@ export async function evidenceRoutes(app: FastifyInstance) {
         "evidence.created"
       );
 
+      // ANALYTICS: Track evidence_created event (non-blocking, silently ignore errors)
+      prisma.analyticsEvent.create({
+        data: {
+          eventType: "evidence_created",
+          userId: ownerUserId,
+          sessionId: `server_${Date.now()}`,
+          visitorId: ownerUserId ? `server_user_${ownerUserId}` : `server_anon_${Date.now()}`,
+          metadata: {
+            type: body.type,
+            mimeType: body.mimeType ?? null
+          }
+        }
+      }).catch(() => {
+        // Silently ignore analytics errors
+      });
+
       return reply.code(201).send(result);
     } catch (err) {
       if (err instanceof Error && err.message === "PAYG_CREDITS_REQUIRED") {

@@ -20,6 +20,7 @@ import { enterpriseRoutes } from "./routes/enterprise.routes.js";
 import { teamManagementRoutes } from "./routes/team-management.routes.js";
 import { webhookRoutes } from "./routes/webhook.routes.js";
 import { auditRoutes } from "./routes/audit.routes.js";
+import analyticsRoutes from "./routes/analytics.routes.js";
 import {
   AppError,
   ErrorCode,
@@ -62,12 +63,47 @@ function isProovraOrigin(origin: string) {
   );
 }
 
+type GeoContext = {
+  country?: string;
+  city?: string;
+  region?: string;
+  colo?: string;
+};
+
+function extractGeoContext(req: {
+  headers: Record<string, string | string[] | undefined>;
+}): GeoContext {
+  const getHeader = (name: string) => {
+    const value = req.headers[name];
+    if (Array.isArray(value)) return value[0];
+    return typeof value === "string" && value.trim() ? value.trim() : undefined;
+  };
+
+  const country = getHeader("cf-ipcountry");
+  const city = getHeader("cf-ipcity");
+  const region =
+    getHeader("cf-region") ??
+    getHeader("cf-region-code") ??
+    getHeader("x-vercel-ip-country-region");
+  const colo = getHeader("cf-ray");
+
+  const geo: GeoContext = {};
+
+  if (country) geo.country = country;
+  if (city) geo.city = city;
+  if (region) geo.region = region;
+  if (colo) geo.colo = colo;
+
+  return geo;
+}
+
 function buildRequestContext(req: {
   id: string;
   method: string;
   url: string;
   user?: { sub?: string };
   evidenceId?: string;
+  geo?: GeoContext;
 }) {
   const context: Record<string, unknown> = {
     requestId: req.id,
@@ -77,6 +113,7 @@ function buildRequestContext(req: {
 
   if (req.user?.sub) context.userId = req.user.sub;
   if (req.evidenceId) context.evidenceId = req.evidenceId;
+  if (req.geo && Object.keys(req.geo).length > 0) context.geo = req.geo;
 
   return context;
 }
@@ -184,28 +221,48 @@ export async function buildServer() {
 
   await app.register(cookie);
 
-  app.addHook("onRequest", async (req, reply) => {
-    (req as typeof req & { startTimeMs?: number }).startTimeMs = Date.now();
-    req.log = req.log.child({ requestId: req.id });
+app.addHook("onRequest", async (req, reply) => {
+  const requestWithMeta = req as typeof req & {
+    startTimeMs?: number;
+    geo?: GeoContext;
+  };
 
-    reply.header("x-request-id", req.id);
-    reply.header("x-content-type-options", "nosniff");
-    reply.header("x-frame-options", "DENY");
-    reply.header("referrer-policy", "same-origin");
-    reply.header("permissions-policy", "geolocation=(self)");
-
-    if (process.env.NODE_ENV === "production") {
-      reply.header(
-        "strict-transport-security",
-        "max-age=63072000; includeSubDomains; preload"
-      );
-    }
+  requestWithMeta.startTimeMs = Date.now();
+  requestWithMeta.geo = extractGeoContext({
+    headers: req.headers as Record<string, string | string[] | undefined>,
   });
+
+  const childContext: Record<string, unknown> = { requestId: req.id };
+  if (requestWithMeta.geo && Object.keys(requestWithMeta.geo).length > 0) {
+    childContext.geo = requestWithMeta.geo;
+  }
+
+  req.log = req.log.child(childContext);
+
+  reply.header("x-request-id", req.id);
+  reply.header("x-content-type-options", "nosniff");
+  reply.header("x-frame-options", "DENY");
+  reply.header("referrer-policy", "same-origin");
+  reply.header("permissions-policy", "geolocation=(self)");
+
+  if (process.env.NODE_ENV === "production") {
+    reply.header(
+      "strict-transport-security",
+      "max-age=63072000; includeSubDomains; preload"
+    );
+  }
+});
 
   app.addHook("onRequest", auditMiddleware);
 
   app.addHook("onResponse", async (req, reply) => {
-    const start = (req as typeof req & { startTimeMs?: number }).startTimeMs;
+    const requestWithMeta = req as typeof req & {
+      startTimeMs?: number;
+      evidenceId?: string;
+      geo?: GeoContext;
+    };
+
+    const start = requestWithMeta.startTimeMs;
     const durationMs = typeof start === "number" ? Date.now() - start : null;
 
     const logContext: Record<string, unknown> = {
@@ -217,9 +274,11 @@ export async function buildServer() {
     };
 
     if (req.user?.sub) logContext.userId = req.user.sub;
-    if ((req as typeof req & { evidenceId?: string }).evidenceId) {
-      logContext.evidenceId = (req as typeof req & { evidenceId?: string })
-        .evidenceId;
+    if (requestWithMeta.evidenceId) {
+      logContext.evidenceId = requestWithMeta.evidenceId;
+    }
+    if (requestWithMeta.geo && Object.keys(requestWithMeta.geo).length > 0) {
+      logContext.geo = requestWithMeta.geo;
     }
 
     if (reply.statusCode >= 500) {
@@ -241,9 +300,12 @@ export async function buildServer() {
   });
 
   app.setErrorHandler((err, req, reply) => {
-    const requestContext = buildRequestContext(
-      req as typeof req & { evidenceId?: string }
-    );
+    const requestWithMeta = req as typeof req & {
+      evidenceId?: string;
+      geo?: GeoContext;
+    };
+
+    const requestContext = buildRequestContext(requestWithMeta);
 
     const appError = normalizeUnknownError(err);
 
@@ -314,6 +376,7 @@ export async function buildServer() {
   await app.register(teamManagementRoutes);
   await app.register(webhookRoutes);
   await app.register(auditRoutes);
+  await app.register(analyticsRoutes);
 
   return app;
 }

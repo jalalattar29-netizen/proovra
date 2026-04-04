@@ -1254,6 +1254,24 @@ export async function processGenerateReport(job: Job<GenerateReportJobData>) {
       }
     );
 
+    if (!finalized.skipped) {
+      // ANALYTICS: Track report_generated event (non-blocking, silently ignore errors)
+      prisma.analyticsEvent.create({
+        data: {
+          eventType: "report_generated",
+          userId: evidence.ownerUserId,
+          sessionId: `server_${Date.now()}`,
+          visitorId: evidence.ownerUserId ? `server_user_${evidence.ownerUserId}` : `server_anon_${Date.now()}`,
+          metadata: {
+            evidenceId: prepared.evidenceId,
+            version: prepared.version
+          }
+        }
+      }).catch(() => {
+        // Silently ignore analytics errors
+      });
+    }
+
     if (!finalized.skipped && finalized.scheduleOtsUpgrade) {
       try {
         await enqueueOtsUpgradeRetry(prepared.evidenceId);
