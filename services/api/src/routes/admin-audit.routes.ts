@@ -1,9 +1,5 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
-import {
-  assertMetadataMaxDepth,
-  METADATA_MAX_DEPTH_DEFAULT,
-} from "@proovra/shared";
 import { createErrorResponse, ErrorCode } from "../errors.js";
 import { requirePlatformAdmin } from "../middleware/require-platform-admin.js";
 import { enforceRateLimit } from "../services/rate-limit.js";
@@ -15,25 +11,14 @@ import {
 
 const PostBodySchema = z.object({
   action: z.string().min(1).max(128),
-  metadata: z
-    .record(z.string(), z.unknown())
-    .optional()
-    .default({})
-    .superRefine((val, ctx) => {
-      try {
-        assertMetadataMaxDepth(val, METADATA_MAX_DEPTH_DEFAULT);
-      } catch {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          message: "METADATA_DEPTH_EXCEEDED",
-        });
-      }
-    }),
+  metadata: z.record(z.string(), z.unknown()).optional().default({}),
 });
 
-function readUserAgent(req: { headers: Record<string, string | string[] | undefined> }): string | undefined {
-  const v = req.headers["user-agent"];
-  return Array.isArray(v) ? v[0] : v;
+function readUserAgent(req: {
+  headers: Record<string, string | string[] | undefined>;
+}): string | undefined {
+  const value = req.headers["user-agent"];
+  return Array.isArray(value) ? value[0] : value;
 }
 
 export async function adminAuditRoutes(app: FastifyInstance) {
@@ -46,28 +31,11 @@ export async function adminAuditRoutes(app: FastifyInstance) {
     async (req, reply) => {
       const parsed = PostBodySchema.safeParse(req.body ?? {});
       if (!parsed.success) {
-        const depthExceeded = parsed.error.issues.some(
-          (i) => i.message === "METADATA_DEPTH_EXCEEDED"
+        return reply.code(400).send(
+          createErrorResponse(ErrorCode.VALIDATION_ERROR, req.id, {
+            reason: parsed.error.message,
+          })
         );
-        if (depthExceeded) {
-          return reply
-            .code(400)
-            .send(
-              createErrorResponse(
-                ErrorCode.INVALID_REQUEST,
-                req.id,
-                { reason: "metadata nesting exceeds maximum depth" },
-                "Metadata too deeply nested"
-              )
-            );
-        }
-        return reply
-          .code(400)
-          .send(
-            createErrorResponse(ErrorCode.VALIDATION_ERROR, req.id, {
-              reason: parsed.error.message,
-            })
-          );
       }
 
       const rate = await enforceRateLimit({
@@ -75,17 +43,16 @@ export async function adminAuditRoutes(app: FastifyInstance) {
         max: 120,
         windowSec: 60,
       });
+
       if (!rate.allowed) {
-        return reply
-          .code(429)
-          .send(
-            createErrorResponse(
-              ErrorCode.RATE_LIMIT_EXCEEDED,
-              req.id,
-              undefined,
-              "Too many audit log requests"
-            )
-          );
+        return reply.code(429).send(
+          createErrorResponse(
+            ErrorCode.RATE_LIMIT_EXCEEDED,
+            req.id,
+            undefined,
+            "Too many audit log requests"
+          )
+        );
       }
 
       const userId = req.user!.sub;
@@ -103,31 +70,29 @@ export async function adminAuditRoutes(app: FastifyInstance) {
           ipAddress: ip,
           userAgent: readUserAgent(req),
         });
-      } catch (err) {
+      } catch (err: unknown) {
         if (err instanceof Error && err.message === "METADATA_TOO_LARGE") {
-          return reply
-            .code(400)
-            .send(
-              createErrorResponse(
-                ErrorCode.INVALID_REQUEST,
-                req.id,
-                { reason: "metadata exceeds maximum size" },
-                "Metadata too large"
-              )
-            );
+          return reply.code(400).send(
+            createErrorResponse(
+              ErrorCode.INVALID_REQUEST,
+              req.id,
+              { reason: "metadata exceeds maximum size" },
+              "Metadata too large"
+            )
+          );
         }
+
         if (err instanceof Error && err.message === "METADATA_DEPTH_EXCEEDED") {
-          return reply
-            .code(400)
-            .send(
-              createErrorResponse(
-                ErrorCode.INVALID_REQUEST,
-                req.id,
-                { reason: "metadata nesting exceeds maximum depth" },
-                "Metadata too deeply nested"
-              )
-            );
+          return reply.code(400).send(
+            createErrorResponse(
+              ErrorCode.INVALID_REQUEST,
+              req.id,
+              { reason: "metadata nesting exceeds maximum depth" },
+              "Metadata too deeply nested"
+            )
+          );
         }
+
         throw err;
       }
 
@@ -144,24 +109,25 @@ export async function adminAuditRoutes(app: FastifyInstance) {
         max: 120,
         windowSec: 60,
       });
+
       if (!rate.allowed) {
-        return reply
-          .code(429)
-          .send(
-            createErrorResponse(
-              ErrorCode.RATE_LIMIT_EXCEEDED,
-              req.id,
-              undefined,
-              "Too many audit log requests"
-            )
-          );
+        return reply.code(429).send(
+          createErrorResponse(
+            ErrorCode.RATE_LIMIT_EXCEEDED,
+            req.id,
+            undefined,
+            "Too many audit log requests"
+          )
+        );
       }
 
-      const q = req.query as { limit?: string; cursor?: string };
-      const limitRaw = q.limit ? Number.parseInt(q.limit, 10) : 20;
+      const query = req.query as { limit?: string; cursor?: string };
+      const limitRaw = query.limit ? Number.parseInt(query.limit, 10) : 20;
       const limit = Number.isFinite(limitRaw) ? limitRaw : 20;
       const cursorId =
-        typeof q.cursor === "string" && q.cursor.length > 0 ? q.cursor : null;
+        typeof query.cursor === "string" && query.cursor.length > 0
+          ? query.cursor
+          : null;
 
       const { items } = await listAdminAuditLogs({
         limit,
@@ -181,27 +147,27 @@ export async function adminAuditRoutes(app: FastifyInstance) {
         max: 60,
         windowSec: 60,
       });
+
       if (!rate.allowed) {
-        return reply
-          .code(429)
-          .send(
-            createErrorResponse(
-              ErrorCode.RATE_LIMIT_EXCEEDED,
-              req.id,
-              undefined,
-              "Too many verify requests"
-            )
-          );
+        return reply.code(429).send(
+          createErrorResponse(
+            ErrorCode.RATE_LIMIT_EXCEEDED,
+            req.id,
+            undefined,
+            "Too many verify requests"
+          )
+        );
       }
 
-      const q = req.query as { limit?: string };
-      const limitRaw = q.limit ? Number.parseInt(q.limit, 10) : NaN;
+      const query = req.query as { limit?: string };
+      const limitRaw = query.limit ? Number.parseInt(query.limit, 10) : NaN;
       const tailLimit =
         Number.isFinite(limitRaw) && limitRaw > 0 ? limitRaw : null;
 
       const result = await verifyAdminAuditChain(
         tailLimit != null ? { tailLimit } : undefined
       );
+
       return reply.code(200).send(result);
     }
   );

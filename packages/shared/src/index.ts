@@ -24,4 +24,3 @@ export const LegalVersionsSchema = z.object({
 export type LegalVersions = z.infer<typeof LegalVersionsSchema>;
 
 export * from "./i18n";
-export * from "./admin-audit-chain";

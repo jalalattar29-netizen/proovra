@@ -11,14 +11,12 @@
     "strict": true,
     "noEmit": true,
     "esModuleInterop": true,
-    "ignoreDeprecations": "6.0",
     "module": "esnext",
     "moduleResolution": "Bundler",
     "resolveJsonModule": true,
     "jsx": "preserve",
     "incremental": true,
     "isolatedModules": true,
-    "baseUrl": ".",
     "types": ["node"],
     "paths": {
       "@proovra/ui": [
@@ -37,18 +35,15 @@
   "include": [
     "app/**/*.ts",
     "app/**/*.tsx",
-
     "components/**/*.ts",
     "components/**/*.tsx",
-
     "lib/**/*.ts",
     "lib/**/*.tsx",
-
     "next-env.d.ts",
     "types/**/*.ts",
     ".next/types/**/*.ts"
   ],
-    "exclude": [
+  "exclude": [
     "node_modules"
   ]
 }

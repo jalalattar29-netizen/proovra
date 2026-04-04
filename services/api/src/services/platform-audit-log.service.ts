@@ -7,7 +7,7 @@ import {
   canonicalJsonForAuditHash,
   computeAuditLogChainHash,
   METADATA_MAX_DEPTH_DEFAULT,
-} from "@proovra/shared";
+} from "../lib/admin-audit-chain";
 import { prisma } from "../db.js";
 
 /** Legacy sentinel kept in DB for rows created before user_id could be null. */
