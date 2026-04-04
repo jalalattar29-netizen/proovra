@@ -25,6 +25,45 @@ function getSessionId(): string {
   return id;
 }
 
+function getRouteType(pathname: string): string {
+  if (pathname.startsWith("/admin")) return "admin";
+  if (pathname.startsWith("/auth")) return "auth";
+  if (pathname.startsWith("/api")) return "api";
+  if (pathname.startsWith("/app")) return "app";
+  return "public";
+}
+
+function humanizeEventType(eventType: string): string {
+  return eventType
+    .replace(/_/g, " ")
+    .replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+function buildDefaultMetadata(
+  eventType: string,
+  extra?: AnalyticsMetadata
+): AnalyticsMetadata {
+  const pathname =
+    typeof window !== "undefined" ? window.location.pathname : "/";
+
+  return {
+    routeType: getRouteType(pathname),
+    displayLabel: humanizeEventType(eventType),
+    eventClass:
+      eventType === "page_view"
+        ? "navigation"
+        : eventType === "login_completed"
+        ? "auth"
+        : eventType === "evidence_created"
+        ? "evidence"
+        : eventType === "report_generated"
+        ? "report"
+        : "custom",
+    severity: "info",
+    ...extra,
+  };
+}
+
 export async function trackEvent(
   eventType: string,
   metadata?: AnalyticsMetadata
@@ -44,7 +83,7 @@ export async function trackEvent(
           typeof document !== "undefined"
             ? document.referrer
             : null,
-        metadata: metadata ?? undefined,
+        metadata: buildDefaultMetadata(eventType, metadata),
       }),
     });
   } catch (e) {

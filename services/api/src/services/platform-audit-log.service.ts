@@ -3,7 +3,6 @@ import type { PrismaClient } from "@prisma/client";
 import {
   ADMIN_AUDIT_ADVISORY_LOCK_KEY,
   assertMetadataMaxDepth,
-  auditLogHashUserSegment,
   canonicalJsonForAuditHash,
   computeAuditLogChainHash,
   METADATA_MAX_DEPTH_DEFAULT,
@@ -15,8 +14,25 @@ const LEGACY_PUBLIC_VERIFY_USER_ID = "__public_verify__";
 
 const METADATA_MAX_BYTES = 5120;
 const MAX_ACTION_LEN = 128;
+const MAX_CATEGORY_LEN = 64;
+const MAX_SEVERITY_LEN = 16;
+const MAX_SOURCE_LEN = 64;
+const MAX_OUTCOME_LEN = 24;
+const MAX_RESOURCE_TYPE_LEN = 64;
+const MAX_RESOURCE_ID_LEN = 128;
+const MAX_REQUEST_ID_LEN = 64;
 
 type JsonPrimitive = string | number | boolean | null;
+
+function truncateString(
+  value: string | null | undefined,
+  max: number
+): string | null {
+  if (!value) return null;
+  const t = value.trim();
+  if (!t) return null;
+  return t.length > max ? t.slice(0, max) : t;
+}
 
 function sanitizeValue(
   value: unknown,
@@ -84,15 +100,19 @@ export type AppendPlatformAuditParams = {
   userId: string | null;
   isPublic?: boolean;
   action: string;
+  category?: string | null;
+  severity?: string | null;
+  source?: string | null;
+  outcome?: string | null;
+  resourceType?: string | null;
+  resourceId?: string | null;
+  requestId?: string | null;
   metadata: unknown;
   ipAddress?: string | null;
   userAgent?: string | null;
   db?: PrismaClient;
 };
 
-/**
- * Append-only audit row with global hash chain (advisory lock).
- */
 export async function appendPlatformAuditLog(
   params: AppendPlatformAuditParams
 ): Promise<void> {
@@ -109,6 +129,14 @@ export async function appendPlatformAuditLog(
   const sanitized = sanitizeAuditMetadata(params.metadata);
   assertMetadataSize(sanitized);
 
+  const category = truncateString(params.category, MAX_CATEGORY_LEN);
+  const severity = truncateString(params.severity, MAX_SEVERITY_LEN);
+  const source = truncateString(params.source, MAX_SOURCE_LEN);
+  const outcome = truncateString(params.outcome, MAX_OUTCOME_LEN);
+  const resourceType = truncateString(params.resourceType, MAX_RESOURCE_TYPE_LEN);
+  const resourceId = truncateString(params.resourceId, MAX_RESOURCE_ID_LEN);
+  const requestId = truncateString(params.requestId, MAX_REQUEST_ID_LEN);
+
   await db.$transaction(async (tx) => {
     await tx.$executeRaw`SELECT pg_advisory_xact_lock(${ADMIN_AUDIT_ADVISORY_LOCK_KEY})`;
 
@@ -119,9 +147,18 @@ export async function appendPlatformAuditLog(
 
     const createdAt = new Date();
     const metadataCanonical = canonicalJsonForAuditHash(sanitized as Prisma.JsonValue);
+
     const hash = computeAuditLogChainHash({
+      chainVersion: 2,
       userId,
       action,
+      category,
+      severity,
+      source,
+      outcome,
+      resourceType,
+      resourceId,
+      requestId,
       metadataCanonical,
       createdAtIso: createdAt.toISOString(),
       prevHash: last?.hash ?? null,
@@ -132,11 +169,19 @@ export async function appendPlatformAuditLog(
         userId,
         isPublic,
         action,
+        category,
+        severity,
+        source,
+        outcome,
+        resourceType,
+        resourceId,
+        requestId,
         metadata: sanitized,
         ipAddress: truncateIp(params.ipAddress ?? undefined),
         userAgent: truncateUa(params.userAgent ?? undefined, 512),
         hash,
         prevHash: last?.hash ?? null,
+        chainVersion: 2,
         createdAt,
       },
     });
@@ -148,9 +193,17 @@ function verifyOrderedRows(
     id: string;
     userId: string | null;
     action: string;
+    category: string | null;
+    severity: string | null;
+    source: string | null;
+    outcome: string | null;
+    resourceType: string | null;
+    resourceId: string | null;
+    requestId: string | null;
     metadata: Prisma.JsonValue;
     hash: string;
     prevHash: string | null;
+    chainVersion: number;
     createdAt: Date;
   }>,
   expectedPrevForFirst: string | null
@@ -163,17 +216,40 @@ function verifyOrderedRows(
     if (row.prevHash !== previousHash) {
       return { valid: false, brokenAt: row.id };
     }
+
     const metadataCanonical = canonicalJsonForAuditHash(row.metadata);
-    const expected = computeAuditLogChainHash({
-      userId: row.userId,
-      action: row.action,
-      metadataCanonical,
-      createdAtIso: row.createdAt.toISOString(),
-      prevHash: previousHash,
-    });
+
+    const expected = computeAuditLogChainHash(
+      row.chainVersion >= 2
+        ? {
+            chainVersion: 2,
+            userId: row.userId,
+            action: row.action,
+            category: row.category,
+            severity: row.severity,
+            source: row.source,
+            outcome: row.outcome,
+            resourceType: row.resourceType,
+            resourceId: row.resourceId,
+            requestId: row.requestId,
+            metadataCanonical,
+            createdAtIso: row.createdAt.toISOString(),
+            prevHash: previousHash,
+          }
+        : {
+            chainVersion: 1,
+            userId: row.userId,
+            action: row.action,
+            metadataCanonical,
+            createdAtIso: row.createdAt.toISOString(),
+            prevHash: previousHash,
+          }
+    );
+
     if (expected !== row.hash) {
       return { valid: false, brokenAt: row.id };
     }
+
     previousHash = row.hash;
   }
 
@@ -200,9 +276,17 @@ export async function verifyAdminAuditChain(options?: {
     id: true,
     userId: true,
     action: true,
+    category: true,
+    severity: true,
+    source: true,
+    outcome: true,
+    resourceType: true,
+    resourceId: true,
+    requestId: true,
     metadata: true,
     hash: true,
     prevHash: true,
+    chainVersion: true,
     createdAt: true,
   } as const;
 
@@ -243,12 +327,18 @@ export async function verifyAdminAuditChain(options?: {
   const expectedPrev = predecessor?.hash ?? null;
   const result = verifyOrderedRows(rows, expectedPrev);
   if (!result.valid) return result;
+
   return { valid: true, partial: true, verifiedCount: rows.length };
 }
 
 export async function listAdminAuditLogs(params: {
   limit: number;
   cursorId?: string | null;
+  action?: string | null;
+  category?: string | null;
+  severity?: string | null;
+  outcome?: string | null;
+  search?: string | null;
   db?: PrismaClient;
 }): Promise<{
   items: Array<{
@@ -256,11 +346,19 @@ export async function listAdminAuditLogs(params: {
     userId: string | null;
     isPublic: boolean;
     action: string;
+    category: string | null;
+    severity: string | null;
+    source: string | null;
+    outcome: string | null;
+    resourceType: string | null;
+    resourceId: string | null;
+    requestId: string | null;
     metadata: Prisma.JsonValue;
     ipAddress: string | null;
     userAgent: string | null;
     hash: string;
     prevHash: string | null;
+    chainVersion: number;
     createdAt: string;
     anchoredAt: string | null;
   }>;
@@ -276,20 +374,41 @@ export async function listAdminAuditLogs(params: {
     });
   }
 
-  const where =
-    cursorRow !== null
+  const where: Prisma.AdminAuditLogWhereInput = {
+    ...(params.action ? { action: params.action } : {}),
+    ...(params.category ? { category: params.category } : {}),
+    ...(params.severity ? { severity: params.severity } : {}),
+    ...(params.outcome ? { outcome: params.outcome } : {}),
+    ...(params.search
       ? {
           OR: [
-            { createdAt: { lt: cursorRow.createdAt } },
+            { action: { contains: params.search, mode: "insensitive" } },
+            { category: { contains: params.search, mode: "insensitive" } },
+            { source: { contains: params.search, mode: "insensitive" } },
+            { resourceType: { contains: params.search, mode: "insensitive" } },
+            { resourceId: { contains: params.search, mode: "insensitive" } },
+            { requestId: { contains: params.search, mode: "insensitive" } },
+          ],
+        }
+      : {}),
+    ...(cursorRow !== null
+      ? {
+          AND: [
             {
-              AND: [
-                { createdAt: cursorRow.createdAt },
-                { id: { lt: cursorRow.id } },
+              OR: [
+                { createdAt: { lt: cursorRow.createdAt } },
+                {
+                  AND: [
+                    { createdAt: cursorRow.createdAt },
+                    { id: { lt: cursorRow.id } },
+                  ],
+                },
               ],
             },
           ],
         }
-      : {};
+      : {}),
+  };
 
   const rows = await db.adminAuditLog.findMany({
     where,
@@ -300,11 +419,19 @@ export async function listAdminAuditLogs(params: {
       userId: true,
       isPublic: true,
       action: true,
+      category: true,
+      severity: true,
+      source: true,
+      outcome: true,
+      resourceType: true,
+      resourceId: true,
+      requestId: true,
       metadata: true,
       ipAddress: true,
       userAgent: true,
       hash: true,
       prevHash: true,
+      chainVersion: true,
       createdAt: true,
       anchoredAt: true,
     },
@@ -313,15 +440,22 @@ export async function listAdminAuditLogs(params: {
   return {
     items: rows.map((r) => ({
       id: r.id,
-      userId:
-        r.userId === LEGACY_PUBLIC_VERIFY_USER_ID ? null : r.userId,
+      userId: r.userId === LEGACY_PUBLIC_VERIFY_USER_ID ? null : r.userId,
       isPublic: r.isPublic || r.userId === LEGACY_PUBLIC_VERIFY_USER_ID,
       action: r.action,
+      category: r.category,
+      severity: r.severity,
+      source: r.source,
+      outcome: r.outcome,
+      resourceType: r.resourceType,
+      resourceId: r.resourceId,
+      requestId: r.requestId,
       metadata: r.metadata,
       ipAddress: r.ipAddress,
       userAgent: r.userAgent,
       hash: r.hash,
       prevHash: r.prevHash,
+      chainVersion: r.chainVersion,
       createdAt: r.createdAt.toISOString(),
       anchoredAt: r.anchoredAt ? r.anchoredAt.toISOString() : null,
     })),

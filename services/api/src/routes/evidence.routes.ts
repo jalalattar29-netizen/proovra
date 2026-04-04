@@ -1,10 +1,12 @@
 import type { FastifyInstance, FastifyRequest } from "fastify";
 import { z } from "zod";
+import { randomUUID } from "crypto";
 import { requireAuth } from "../middleware/auth.js";
 import { getAuthUserId } from "../auth.js";
 import { createEvidence } from "../services/evidence.service.js";
 import { completeEvidence } from "../services/evidence-complete.service.js";
 import * as prismaPkg from "@prisma/client";
+import type { Prisma } from "@prisma/client";
 import { prisma } from "../db.js";
 import {
   presignGetObject,
@@ -157,21 +159,129 @@ function getVerifyLimit() {
   };
 }
 
-function auditEvidenceAccess(
-  req: FastifyRequest,
-  userId: string,
-  action: string,
-  metadata: Record<string, unknown>
-) {
+function readUserAgent(req: FastifyRequest): string | null {
   const ua = req.headers["user-agent"];
-  const userAgent = Array.isArray(ua) ? ua[0] : ua;
+  return Array.isArray(ua) ? ua[0] ?? null : ua ?? null;
+}
+
+function getRequestPath(req: FastifyRequest): string {
+  const url = req.url || "";
+  const qIndex = url.indexOf("?");
+  return qIndex >= 0 ? url.slice(0, qIndex) : url;
+}
+
+function classifyRouteType(path: string | null | undefined):
+  | "public"
+  | "app"
+  | "admin"
+  | "auth"
+  | "api"
+  | "unknown" {
+  if (!path) return "unknown";
+  if (path.startsWith("/admin")) return "admin";
+  if (path.startsWith("/auth")) return "auth";
+  if (path.startsWith("/api")) return "api";
+  if (path.startsWith("/app")) return "app";
+  return "public";
+}
+
+function humanizeEventType(eventType: string): string {
+  return eventType
+    .replace(/_/g, " ")
+    .replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+function auditEvidenceAction(
+  req: FastifyRequest,
+  params: {
+    userId: string | null;
+    action: string;
+    outcome?: "success" | "failure" | "blocked";
+    severity?: "info" | "warning" | "critical";
+    resourceId?: string | null;
+    metadata?: Record<string, unknown>;
+  }
+) {
   void appendPlatformAuditLog({
-    userId,
-    action,
-    metadata,
+    userId: params.userId,
+    action: params.action,
+    category: "evidence",
+    severity: params.severity ?? "info",
+    source: "api_evidence",
+    outcome: params.outcome ?? "success",
+    resourceType: "evidence",
+    resourceId: params.resourceId ?? null,
+    requestId: req.id,
+    metadata: params.metadata ?? {},
     ipAddress: req.ip,
-    userAgent: userAgent ?? null,
+    userAgent: readUserAgent(req),
   }).catch(() => null);
+}
+
+function auditVerificationAction(
+  req: FastifyRequest,
+  params: {
+    userId: string | null;
+    action: string;
+    resourceId?: string | null;
+    metadata?: Record<string, unknown>;
+  }
+) {
+  void appendPlatformAuditLog({
+    userId: params.userId,
+    isPublic: params.userId === null,
+    action: params.action,
+    category: "verification",
+    severity: "info",
+    source: "public_verify",
+    outcome: "success",
+    resourceType: "evidence_verification",
+    resourceId: params.resourceId ?? null,
+    requestId: req.id,
+    metadata: params.metadata ?? {},
+    ipAddress: req.ip,
+    userAgent: readUserAgent(req),
+  }).catch(() => null);
+}
+
+function fireServerAnalyticsEvent(params: {
+  eventType: string;
+  userId: string;
+  req?: FastifyRequest;
+  entityType?: string | null;
+  entityId?: string | null;
+  severity?: string | null;
+  metadata?: Record<string, unknown>;
+}) {
+  const path = params.req ? getRequestPath(params.req) : null;
+  const routeType = classifyRouteType(path);
+
+  void prisma.analyticsEvent
+    .create({
+      data: {
+        eventType: params.eventType,
+        userId: params.userId,
+        sessionId: `server_${params.eventType}_${Date.now()}_${randomUUID()}`,
+        visitorId: `server_user_${params.userId}`,
+        path,
+        referrer: null,
+        routeType,
+        eventClass:
+          params.eventType === "evidence_created"
+            ? "evidence"
+            : params.eventType === "report_generated"
+            ? "report"
+            : "custom",
+        displayLabel: humanizeEventType(params.eventType),
+        entityType: params.entityType ?? "evidence",
+        entityId: params.entityId ?? null,
+        severity: params.severity ?? "info",
+        device: params.req ? readUserAgent(params.req) : "server",
+        browser: params.req ? readUserAgent(params.req) : "server",
+        metadata: (params.metadata ?? {}) as Prisma.InputJsonValue,
+      },
+    })
+    .catch(() => null);
 }
 
 async function getUserPlan(userId: string) {
@@ -189,9 +299,7 @@ function bigintToString(v: unknown): string | null {
 }
 
 function decimalToNumber(v: unknown): number | null {
-  if (v === null || v === undefined) {
-    return null;
-  }
+  if (v === null || v === undefined) return null;
 
   if (typeof v === "number") {
     return Number.isFinite(v) ? v : null;
@@ -645,8 +753,8 @@ async function getStorageProtectionSummary(
     snapshot?.storageObjectLockRetainUntilUtc instanceof Date
       ? snapshot.storageObjectLockRetainUntilUtc.toISOString()
       : typeof snapshot?.storageObjectLockRetainUntilUtc === "string"
-        ? snapshot.storageObjectLockRetainUntilUtc
-        : null;
+      ? snapshot.storageObjectLockRetainUntilUtc
+      : null;
 
   const snapshotLegalHold =
     typeof snapshot?.storageObjectLockLegalHoldStatus === "string"
@@ -901,6 +1009,13 @@ export async function evidenceRoutes(app: FastifyInstance) {
     });
 
     if (!rate.allowed) {
+      auditEvidenceAction(req, {
+        userId: ownerUserId,
+        action: "evidence.create",
+        outcome: "blocked",
+        severity: "warning",
+        metadata: { reason: "rate_limit_exceeded", plan },
+      });
       return reply.code(429).send({ message: "Rate limit exceeded" });
     }
 
@@ -932,38 +1047,66 @@ export async function evidenceRoutes(app: FastifyInstance) {
 
       (req as FastifyRequest & { evidenceId?: string }).evidenceId = result.id;
       req.log = req.log.child({ evidenceId: result.id });
-      req.log.info(
-        { userId: ownerUserId, evidenceId: result.id },
-        "evidence.created"
-      );
 
-      // ANALYTICS: Track evidence_created event (non-blocking, silently ignore errors)
-      prisma.analyticsEvent.create({
-        data: {
-          eventType: "evidence_created",
-          userId: ownerUserId,
-          sessionId: `server_${Date.now()}`,
-          visitorId: ownerUserId ? `server_user_${ownerUserId}` : `server_anon_${Date.now()}`,
-          metadata: {
-            type: body.type,
-            mimeType: body.mimeType ?? null
-          }
-        }
-      }).catch(() => {
-        // Silently ignore analytics errors
+      fireServerAnalyticsEvent({
+        eventType: "evidence_created",
+        userId: ownerUserId,
+        req,
+        entityType: "evidence",
+        entityId: result.id,
+        severity: "info",
+        metadata: {
+          type: body.type,
+          mimeType: body.mimeType ?? null,
+          hasGps: Boolean(body.gps),
+        },
+      });
+
+      auditEvidenceAction(req, {
+        userId: ownerUserId,
+        action: "evidence.create",
+        outcome: "success",
+        resourceId: result.id,
+        metadata: {
+          type: body.type,
+          mimeType: body.mimeType ?? null,
+          hasGps: Boolean(body.gps),
+        },
       });
 
       return reply.code(201).send(result);
     } catch (err) {
       if (err instanceof Error && err.message === "PAYG_CREDITS_REQUIRED") {
+        auditEvidenceAction(req, {
+          userId: ownerUserId,
+          action: "evidence.create",
+          outcome: "blocked",
+          severity: "warning",
+          metadata: { reason: "PAYG_CREDITS_REQUIRED" },
+        });
         return reply
           .code(402)
           .send({ message: "Pay-per-evidence credits required" });
       }
 
       if (err instanceof Error && err.message === "FREE_LIMIT_REACHED") {
+        auditEvidenceAction(req, {
+          userId: ownerUserId,
+          action: "evidence.create",
+          outcome: "blocked",
+          severity: "warning",
+          metadata: { reason: "FREE_LIMIT_REACHED" },
+        });
         return reply.code(402).send({ message: "Free plan limit reached" });
       }
+
+      auditEvidenceAction(req, {
+        userId: ownerUserId,
+        action: "evidence.create",
+        outcome: "failure",
+        severity: "critical",
+        metadata: { reason: err instanceof Error ? err.message : "unknown_error" },
+      });
 
       throw err;
     }
@@ -997,6 +1140,14 @@ export async function evidenceRoutes(app: FastifyInstance) {
         evidence.status === EvidenceStatus.REPORTED ||
         evidence.lockedAt
       ) {
+        auditEvidenceAction(req, {
+          userId: ownerUserId,
+          action: "evidence.update_title",
+          outcome: "blocked",
+          severity: "warning",
+          resourceId: id,
+          metadata: { reason: "immutable_evidence" },
+        });
         return reply.code(409).send({ message: "Evidence is immutable" });
       }
 
@@ -1004,6 +1155,14 @@ export async function evidenceRoutes(app: FastifyInstance) {
         where: { id },
         data: { title: body.title },
         select: SAFE_EVIDENCE_SELECT,
+      });
+
+      auditEvidenceAction(req, {
+        userId: ownerUserId,
+        action: "evidence.update_title",
+        outcome: "success",
+        resourceId: id,
+        metadata: { title: body.title },
       });
 
       const itemCount = await getEvidenceItemCount(id);
@@ -1137,6 +1296,17 @@ export async function evidenceRoutes(app: FastifyInstance) {
           return { part, created: true as const };
         });
 
+        auditEvidenceAction(req, {
+          userId: ownerUserId,
+          action: "evidence.part_presign_created",
+          outcome: "success",
+          resourceId: id,
+          metadata: {
+            partIndex: body.partIndex,
+            created: result.created,
+          },
+        });
+
         const putUrl = await presignPutObject({
           bucket: result.part.storageBucket,
           key: result.part.storageKey,
@@ -1172,6 +1342,18 @@ export async function evidenceRoutes(app: FastifyInstance) {
           },
         });
       } catch (err) {
+        auditEvidenceAction(req, {
+          userId: ownerUserId,
+          action: "evidence.part_presign_created",
+          outcome: "failure",
+          severity: "warning",
+          resourceId: id,
+          metadata: {
+            reason: err instanceof Error ? err.message : "unknown_error",
+            partIndex: body.partIndex,
+          },
+        });
+
         const statusCode =
           err instanceof Error && "statusCode" in err
             ? (err as Error & { statusCode?: number }).statusCode ?? 500
@@ -1248,6 +1430,14 @@ export async function evidenceRoutes(app: FastifyInstance) {
           };
         })
       );
+
+      auditEvidenceAction(req, {
+        userId: ownerUserId,
+        action: "evidence.parts_listed",
+        outcome: "success",
+        resourceId: id,
+        metadata: { partCount: parts.length },
+      });
 
       return reply.code(200).send({
         evidenceId: id,
@@ -1326,6 +1516,17 @@ export async function evidenceRoutes(app: FastifyInstance) {
           ip: req.ip,
           userAgent: req.headers["user-agent"],
         }).catch(() => null);
+
+        auditEvidenceAction(req, {
+          userId,
+          action: "evidence.claimed",
+          outcome: "success",
+          resourceId: item.id,
+          metadata: {
+            fromUserId: guestUserId,
+            toUserId: userId,
+          },
+        });
       }
 
       return reply.code(200).send({ claimed: evidence.length });
@@ -1359,6 +1560,14 @@ export async function evidenceRoutes(app: FastifyInstance) {
         evidence.status !== prismaPkg.EvidenceStatus.SIGNED &&
         evidence.status !== prismaPkg.EvidenceStatus.REPORTED
       ) {
+        auditEvidenceAction(req, {
+          userId: ownerUserId,
+          action: "evidence.lock",
+          outcome: "blocked",
+          severity: "warning",
+          resourceId: id,
+          metadata: { reason: "not_signed_yet" },
+        });
         return reply
           .code(400)
           .send({ message: "Evidence must be signed before lock" });
@@ -1378,6 +1587,14 @@ export async function evidenceRoutes(app: FastifyInstance) {
           ip: req.ip,
           userAgent: req.headers["user-agent"],
         }).catch(() => null);
+
+        auditEvidenceAction(req, {
+          userId: ownerUserId,
+          action: "evidence.lock",
+          outcome: "success",
+          resourceId: id,
+          metadata: { lockedByUserId: ownerUserId },
+        });
 
         const storage = await getStorageProtectionSummary(
           updated.storageBucket,
@@ -1461,6 +1678,14 @@ export async function evidenceRoutes(app: FastifyInstance) {
         userAgent: req.headers["user-agent"],
       }).catch(() => null);
 
+      auditEvidenceAction(req, {
+        userId: ownerUserId,
+        action: "evidence.archive",
+        outcome: "success",
+        resourceId: id,
+        metadata: { archivedByUserId: ownerUserId },
+      });
+
       const storage = await getStorageProtectionSummary(
         updated.storageBucket,
         updated.storageKey,
@@ -1540,6 +1765,14 @@ export async function evidenceRoutes(app: FastifyInstance) {
         userAgent: req.headers["user-agent"],
       }).catch(() => null);
 
+      auditEvidenceAction(req, {
+        userId: ownerUserId,
+        action: "evidence.unarchive",
+        outcome: "success",
+        resourceId: id,
+        metadata: { restoredByUserId: ownerUserId },
+      });
+
       const storage = await getStorageProtectionSummary(
         updated.storageBucket,
         updated.storageKey,
@@ -1589,6 +1822,14 @@ export async function evidenceRoutes(app: FastifyInstance) {
         evidence.status === EvidenceStatus.REPORTED ||
         evidence.lockedAt
       ) {
+        auditEvidenceAction(req, {
+          userId: ownerUserId,
+          action: "evidence.delete",
+          outcome: "blocked",
+          severity: "warning",
+          resourceId: id,
+          metadata: { reason: "signed_or_locked" },
+        });
         return reply
           .code(409)
           .send({ message: "Cannot delete signed or locked evidence" });
@@ -1607,6 +1848,14 @@ export async function evidenceRoutes(app: FastifyInstance) {
         ip: req.ip,
         userAgent: req.headers["user-agent"],
       }).catch(() => null);
+
+      auditEvidenceAction(req, {
+        userId: ownerUserId,
+        action: "evidence.delete",
+        outcome: "success",
+        resourceId: id,
+        metadata: { deletedByUserId: ownerUserId },
+      });
 
       return reply.code(200).send({ deleted: true });
     }
@@ -1644,6 +1893,17 @@ export async function evidenceRoutes(app: FastifyInstance) {
           _count: {
             select: { parts: true },
           },
+        },
+      });
+
+      auditEvidenceAction(req, {
+        userId: ownerUserId,
+        action: "evidence.list",
+        outcome: "success",
+        metadata: {
+          caseId,
+          includeArchived,
+          count: items.length,
         },
       });
 
@@ -1728,6 +1988,16 @@ export async function evidenceRoutes(app: FastifyInstance) {
       },
     });
 
+    auditEvidenceAction(req, {
+      userId: ownerUserId,
+      action: "evidence.list",
+      outcome: "success",
+      metadata: {
+        includeArchived,
+        count: items.length,
+      },
+    });
+
     return reply.code(200).send({
       items: items.map((item) => {
         const itemCount = item._count.parts > 0 ? item._count.parts : 1;
@@ -1779,8 +2049,15 @@ export async function evidenceRoutes(app: FastifyInstance) {
         );
         const anchor = await getAnchorStatus(id);
 
-        auditEvidenceAccess(req, ownerUserId, "evidence.viewed", {
-          evidenceId: id,
+        auditEvidenceAction(req, {
+          userId: ownerUserId,
+          action: "evidence.view",
+          outcome: "success",
+          resourceId: id,
+          metadata: {
+            itemCount,
+            status: evidence.status,
+          },
         });
 
         return reply.code(200).send({
@@ -1838,6 +2115,14 @@ export async function evidenceRoutes(app: FastifyInstance) {
       });
 
       if (!rate.allowed) {
+        auditEvidenceAction(req, {
+          userId: ownerUserId,
+          action: "evidence.complete",
+          outcome: "blocked",
+          severity: "warning",
+          resourceId: id,
+          metadata: { reason: "rate_limit_exceeded", plan },
+        });
         return reply.code(429).send({ message: "Rate limit exceeded" });
       }
 
@@ -1852,6 +2137,30 @@ export async function evidenceRoutes(app: FastifyInstance) {
         if (!refreshed) {
           return reply.code(404).send({ message: "Evidence not found" });
         }
+
+        fireServerAnalyticsEvent({
+          eventType: "report_generated",
+          userId: ownerUserId,
+          req,
+          entityType: "evidence",
+          entityId: id,
+          severity: "info",
+          metadata: {
+            evidenceId: id,
+            status: refreshed.status,
+          },
+        });
+
+        auditEvidenceAction(req, {
+          userId: ownerUserId,
+          action: "evidence.complete",
+          outcome: "success",
+          resourceId: id,
+          metadata: {
+            status: refreshed.status,
+            result: "completed",
+          },
+        });
 
         const storage = await getStorageProtectionSummary(
           refreshed.storageBucket,
@@ -1872,6 +2181,14 @@ export async function evidenceRoutes(app: FastifyInstance) {
         });
       } catch (err) {
         if (err instanceof Error && err.message === "PAYG_CREDITS_REQUIRED") {
+          auditEvidenceAction(req, {
+            userId: ownerUserId,
+            action: "evidence.complete",
+            outcome: "blocked",
+            severity: "warning",
+            resourceId: id,
+            metadata: { reason: "PAYG_CREDITS_REQUIRED" },
+          });
           return reply
             .code(402)
             .send({ message: "Pay-per-evidence credits required" });
@@ -1881,6 +2198,14 @@ export async function evidenceRoutes(app: FastifyInstance) {
           err instanceof Error &&
           err.message === "Cannot complete evidence without an uploaded file"
         ) {
+          auditEvidenceAction(req, {
+            userId: ownerUserId,
+            action: "evidence.complete",
+            outcome: "failure",
+            severity: "warning",
+            resourceId: id,
+            metadata: { reason: err.message },
+          });
           return reply.code(400).send({ message: err.message });
         }
 
@@ -1889,8 +2214,25 @@ export async function evidenceRoutes(app: FastifyInstance) {
           (err.message.startsWith("OBJECT_HEAD_FAILED:") ||
             err.message.startsWith("OBJECT_GET_FAILED:"))
         ) {
+          auditEvidenceAction(req, {
+            userId: ownerUserId,
+            action: "evidence.complete",
+            outcome: "failure",
+            severity: "warning",
+            resourceId: id,
+            metadata: { reason: "uploaded_object_not_found" },
+          });
           return reply.code(404).send({ message: "Uploaded object not found" });
         }
+
+        auditEvidenceAction(req, {
+          userId: ownerUserId,
+          action: "evidence.complete",
+          outcome: "failure",
+          severity: "critical",
+          resourceId: id,
+          metadata: { reason: err instanceof Error ? err.message : "unknown_error" },
+        });
 
         throw err;
       }
@@ -1945,9 +2287,14 @@ export async function evidenceRoutes(app: FastifyInstance) {
         userAgent: req.headers["user-agent"],
       }).catch(() => null);
 
-      auditEvidenceAccess(req, ownerUserId, "evidence.report_viewed", {
-        evidenceId: id,
-        reportVersion: latest.version,
+      auditEvidenceAction(req, {
+        userId: ownerUserId,
+        action: "evidence.report_viewed",
+        outcome: "success",
+        resourceId: id,
+        metadata: {
+          reportVersion: latest.version,
+        },
       });
 
       const url = await presignGetObject({
@@ -2024,9 +2371,14 @@ export async function evidenceRoutes(app: FastifyInstance) {
         userAgent: req.headers["user-agent"],
       }).catch(() => null);
 
-      auditEvidenceAccess(req, ownerUserId, "evidence.downloaded", {
-        evidenceId: id,
-        accessMode: "original_presign",
+      auditEvidenceAction(req, {
+        userId: ownerUserId,
+        action: "evidence.downloaded",
+        outcome: "success",
+        resourceId: id,
+        metadata: {
+          accessMode: "original_presign",
+        },
       });
 
       const storage = await getStorageProtectionSummary(
@@ -2097,8 +2449,14 @@ export async function evidenceRoutes(app: FastifyInstance) {
 
       const storage = await getStorageProtectionSummary(bucket, key);
 
-      auditEvidenceAccess(req, ownerUserId, "verification.package_accessed", {
-        evidenceId: id,
+      auditEvidenceAction(req, {
+        userId: ownerUserId,
+        action: "verification.package_accessed",
+        outcome: "success",
+        resourceId: id,
+        metadata: {
+          packageKey: key,
+        },
       });
 
       return reply.code(200).send({
@@ -2119,6 +2477,12 @@ export async function evidenceRoutes(app: FastifyInstance) {
     });
 
     if (!rate.allowed) {
+      auditVerificationAction(req, {
+        userId: null,
+        action: "verification.page_opened",
+        resourceId: null,
+        metadata: { outcome: "rate_limited" },
+      });
       return reply.code(429).send({ message: "Rate limit exceeded" });
     }
 
@@ -2256,8 +2620,8 @@ export async function evidenceRoutes(app: FastifyInstance) {
       evidence.otsHash && evidence.fileSha256
         ? evidence.otsHash.toLowerCase() === evidence.fileSha256.toLowerCase()
         : evidence.otsStatus
-          ? false
-          : true;
+        ? false
+        : true;
 
     const custodyChain = evaluateCustodyChain({
       evidenceId: id,
@@ -2300,16 +2664,15 @@ export async function evidenceRoutes(app: FastifyInstance) {
       userAgent: req.headers["user-agent"],
     }).catch(() => null);
 
-    const ua = req.headers["user-agent"];
-    const userAgent = Array.isArray(ua) ? ua[0] : ua;
-    void appendPlatformAuditLog({
+    auditVerificationAction(req, {
       userId: null,
-      isPublic: true,
       action: "verification.page_opened",
-      metadata: { evidenceId: id },
-      ipAddress: req.ip,
-      userAgent: userAgent ?? null,
-    }).catch(() => null);
+      resourceId: id,
+      metadata: {
+        evidenceId: id,
+        overallIntegrity,
+      },
+    });
 
     const mapCustodyEvent = (ev: {
       sequence: number;
@@ -2337,8 +2700,8 @@ export async function evidenceRoutes(app: FastifyInstance) {
       reportGeneratedAtUtc: latestReport?.generatedAtUtc
         ? latestReport.generatedAtUtc.toISOString()
         : evidence.reportGeneratedAtUtc
-          ? evidence.reportGeneratedAtUtc.toISOString()
-          : null,
+        ? evidence.reportGeneratedAtUtc.toISOString()
+        : null,
       reportVersion: latestReport?.version ?? null,
 
       fileSha256: evidence.fileSha256,

@@ -64,6 +64,22 @@ export type ReportCustodyEvent = {
   payloadSummary: string;
 };
 
+export type ReportAdminAuditSummary = {
+  chainVersion?: number | null;
+  valid?: boolean | null;
+  partial?: boolean | null;
+  verifiedCount?: number | null;
+  brokenAt?: string | null;
+  latestHash?: string | null;
+  latestPrevHash?: string | null;
+  latestAction?: string | null;
+  latestCreatedAtUtc?: string | null;
+  exportUrl?: string | null;
+  requestId?: string | null;
+  source?: string | null;
+  note?: string | null;
+};
+
 type ParsedFingerprintSummary = {
   multipart: boolean;
   itemCount: number;
@@ -237,6 +253,16 @@ function normalizeStorageProtectionStatus(
   if (normalizedMode) {
     return "DANGER";
   }
+  return "NEUTRAL";
+}
+
+function normalizeAdminAuditTone(
+  summary: ReportAdminAuditSummary | null | undefined
+): "SUCCESS" | "WARNING" | "DANGER" | "NEUTRAL" {
+  if (!summary) return "NEUTRAL";
+  if (summary.valid === true) return "SUCCESS";
+  if (summary.valid === false) return "DANGER";
+  if (summary.partial) return "WARNING";
   return "NEUTRAL";
 }
 
@@ -1218,6 +1244,74 @@ function renderForensicIntegrityStatement(
   doc.restore();
 }
 
+function renderAdminAuditSection(
+  doc: PDFDoc,
+  audit: ReportAdminAuditSummary | null | undefined
+): void {
+  if (!audit) {
+    drawCallout(doc, {
+      title: "Admin audit summary unavailable",
+      body:
+        "No platform-admin audit summary was attached to this report build. This does not invalidate evidence integrity, but it means no admin-side forensic trace summary was embedded in the report.",
+      tone: "warning",
+    });
+    return;
+  }
+
+  const tone = normalizeAdminAuditTone(audit);
+
+  kvGrid(doc, [
+    ["Audit Chain Version", audit.chainVersion ? String(audit.chainVersion) : "N/A"],
+    [
+      "Audit Integrity",
+      audit.valid === true
+        ? "Valid"
+        : audit.valid === false
+          ? "Broken"
+          : audit.partial
+            ? "Partially Verified"
+            : "Unknown",
+    ],
+    ["Verified Rows", audit.verifiedCount != null ? String(audit.verifiedCount) : "N/A"],
+    ["Broken At", safe(audit.brokenAt)],
+    ["Latest Action", safe(audit.latestAction)],
+    ["Latest Action Time (UTC)", safe(audit.latestCreatedAtUtc)],
+    ["Latest Hash", shortHash(audit.latestHash)],
+    ["Previous Hash", shortHash(audit.latestPrevHash)],
+    ["Source", safe(audit.source)],
+    ["Request ID", safe(audit.requestId)],
+    ["Export URL", safe(audit.exportUrl)],
+    ["Operator Note", safe(audit.note)],
+  ]);
+
+  doc.moveDown(0.14);
+
+  drawCallout(doc, {
+    title:
+      tone === "SUCCESS"
+        ? "Admin audit chain verified"
+        : tone === "DANGER"
+          ? "Admin audit chain verification failed"
+          : tone === "WARNING"
+            ? "Admin audit chain partially verified"
+            : "Admin audit chain status unknown",
+    body:
+      tone === "SUCCESS"
+        ? "The attached administrative audit summary indicates a valid tamper-evident chain for the verified segment at report generation time."
+        : tone === "DANGER"
+          ? "The attached administrative audit summary indicates a broken or inconsistent audit segment. Administrative console provenance should be reviewed before relying on admin-side traceability."
+          : tone === "WARNING"
+            ? "Only a partial verification segment was attached. This still provides useful provenance context, but it is not equivalent to a full-chain verification."
+            : "Administrative forensic trace data was attached without a conclusive validation state.",
+    tone:
+      tone === "SUCCESS"
+        ? "success"
+        : tone === "DANGER"
+          ? "danger"
+          : "warning",
+  });
+}
+
 export async function buildReportPdf(params: {
   evidence: ReportEvidence;
   custodyEvents: ReportCustodyEvent[];
@@ -1226,6 +1320,7 @@ export async function buildReportPdf(params: {
   buildInfo?: string | null;
   verifyUrl?: string | null;
   downloadUrl?: string | null;
+  adminAudit?: ReportAdminAuditSummary | null;
 }): Promise<Buffer> {
   const doc = new PDFDocument({
     autoFirstPage: true,
@@ -1710,6 +1805,35 @@ export async function buildReportPdf(params: {
     },
     { minSpace: 110 }
   );
+
+  ensurePageWithHeader(doc, 220);
+
+  section(
+    doc,
+    "Administrative Forensic Trace",
+    () => {
+      renderAdminAuditSection(doc, params.adminAudit ?? null);
+    },
+    { minSpace: 120 }
+  );
+
+  {
+    const exportUrl = params.adminAudit?.exportUrl?.trim();
+    if (exportUrl) {
+      const qrBuf = await tryGenerateQrPngBuffer(exportUrl);
+      if (qrBuf) {
+        drawQrBlock(doc, {
+          title: "Administrative audit export",
+          qrBuffer: qrBuf,
+          size: 100,
+          caption:
+            "Scan to open the related administrative audit export or audit-trace reference for this report build.",
+          urlText: summarizeText(exportUrl, 90),
+          urlLink: exportUrl,
+        });
+      }
+    }
+  }
 
   ensurePageWithHeader(doc, 360);
 

@@ -464,68 +464,100 @@ model PasswordResetToken {
 }
 
 model AnalyticsEvent {
-  id           String   @id @default(uuid())
-  eventType    String
-  userId       String?
-  sessionId    String
-  visitorId    String
+  id             String   @id @default(uuid())
+  eventType      String
+  userId         String?
+  sessionId      String
+  visitorId      String
 
-  path         String?
-  referrer     String?
+  path           String?
+  referrer       String?
 
-  country      String?
-  city         String?
-  region       String?
+  country        String?
+  countryCode    String?  @map("country_code") @db.VarChar(8)
+  city           String?
+  cityNormalized String?  @map("city_normalized") @db.VarChar(160)
+  region         String?
 
-  device       String?
-  browser      String?
+  routeType      String?  @map("route_type") @db.VarChar(24)
+  eventClass     String?  @map("event_class") @db.VarChar(48)
+  displayLabel   String?  @map("display_label") @db.VarChar(120)
+  entityType     String?  @map("entity_type") @db.VarChar(64)
+  entityId       String?  @map("entity_id") @db.VarChar(128)
+  severity       String?  @db.VarChar(16)
 
-  metadata     Json?
+  device         String?
+  browser        String?
 
-  createdAt    DateTime @default(now())
+  metadata       Json?
+
+  createdAt      DateTime @default(now())
 
   @@index([eventType])
   @@index([userId])
   @@index([sessionId])
   @@index([createdAt])
+  @@index([routeType, createdAt])
+  @@index([countryCode, createdAt])
+  @@index([cityNormalized, createdAt])
+  @@index([path, createdAt])
 }
 
 model AnalyticsSession {
-  id          String   @id @default(uuid())
-  visitorId   String
-  userId      String?
+  id             String   @id @default(uuid())
+  visitorId      String
+  userId         String?
 
-  startedAt   DateTime @default(now())
-  lastSeenAt  DateTime @updatedAt
+  startedAt      DateTime @default(now())
+  lastSeenAt     DateTime @updatedAt
 
-  country     String?
-  city        String?
+  country        String?
+  countryCode    String?  @map("country_code") @db.VarChar(8)
+  city           String?
+  cityNormalized String?  @map("city_normalized") @db.VarChar(160)
 
-  device      String?
-  browser     String?
+  routeType      String?  @map("route_type") @db.VarChar(24)
+  landingPath    String?  @map("landing_path") @db.VarChar(512)
+
+  device         String?
+  browser        String?
 
   @@index([visitorId])
   @@index([userId])
   @@index([startedAt])
+  @@index([routeType, startedAt])
 }
 
-/// Append-only tamper-evident audit trail (hash chain). No updates or deletes via application code.
 model AdminAuditLog {
-  id         String    @id @default(uuid())
-  userId     String?   @map("user_id")
-  isPublic   Boolean   @default(false) @map("is_public")
-  action     String
-  metadata   Json
-  ipAddress  String?   @map("ip_address") @db.VarChar(45)
-  userAgent  String?   @map("user_agent") @db.VarChar(512)
-  hash       String    @db.VarChar(64)
-  prevHash   String?   @map("prev_hash") @db.VarChar(64)
-  anchoredAt DateTime? @map("anchored_at") @db.Timestamptz(6)
-  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  id           String    @id @default(uuid())
+  userId       String?   @map("user_id")
+  isPublic     Boolean   @default(false) @map("is_public")
+  action       String
+  category     String?   @db.VarChar(64)
+  severity     String?   @db.VarChar(16)
+  source       String?   @db.VarChar(64)
+  outcome      String?   @db.VarChar(24)
+  resourceType String?   @map("resource_type") @db.VarChar(64)
+  resourceId   String?   @map("resource_id") @db.VarChar(128)
+  requestId    String?   @map("request_id") @db.VarChar(64)
+  metadata     Json
+  ipAddress    String?   @map("ip_address") @db.VarChar(45)
+  userAgent    String?   @map("user_agent") @db.VarChar(512)
+  hash         String    @db.VarChar(64)
+  prevHash     String?   @map("prev_hash") @db.VarChar(64)
+  chainVersion Int       @default(2) @map("chain_version")
+  anchoredAt   DateTime? @map("anchored_at") @db.Timestamptz(6)
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
 
   @@index([userId])
   @@index([action])
   @@index([createdAt])
+  @@index([category, createdAt])
+  @@index([severity, createdAt])
+  @@index([requestId])
+  @@index([resourceType, resourceId])
+  @@index([hash])
+  @@index([prevHash])
   @@map("admin_audit_logs")
 }
 

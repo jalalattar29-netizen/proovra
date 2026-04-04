@@ -35,24 +35,37 @@ interface AdminStats {
 interface GeoItem {
   name: string | null;
   count: number;
+  share?: number;
+  countryCode?: string | null;
+  normalized?: string | null;
 }
 
 interface GeographyResponse {
+  total?: number;
   countries: GeoItem[];
   cities: GeoItem[];
 }
 
 interface TopPage {
   path: string | null;
+  routeType?: string | null;
   views: number;
+  share?: number;
 }
 
 interface RecentEvent {
   eventType: string;
+  label?: string;
+  eventClass?: string | null;
+  routeType?: string | null;
+  severity?: string | null;
   path: string | null;
   country: string | null;
+  countryCode?: string | null;
   city: string | null;
+  cityNormalized?: string | null;
   createdAt: string;
+  sessionId?: string | null;
   userId?: string | null;
 }
 
@@ -60,7 +73,6 @@ interface TrendPoint {
   date: string;
   pageViews: number;
   sessions: number;
-  /** When API returns multi-series trends, filter client-side by event type */
   eventType?: string | null;
 }
 
@@ -68,6 +80,8 @@ interface FunnelStep {
   key: string;
   label: string;
   count: number;
+  conversionFromPrevious: number | null;
+  dropOffFromPrevious: number | null;
 }
 
 interface StatCardProps {
@@ -75,6 +89,28 @@ interface StatCardProps {
   value: string | number;
   description: string;
   accent?: string;
+}
+
+interface AuditLogRow {
+  id: string;
+  userId: string | null;
+  isPublic: boolean;
+  action: string;
+  category?: string | null;
+  severity?: string | null;
+  source?: string | null;
+  outcome?: string | null;
+  resourceType?: string | null;
+  resourceId?: string | null;
+  requestId?: string | null;
+  metadata: unknown;
+  ipAddress: string | null;
+  userAgent: string | null;
+  hash: string;
+  prevHash: string | null;
+  chainVersion?: number;
+  createdAt: string;
+  anchoredAt: string | null;
 }
 
 type DateRangeKey = "24h" | "7d" | "30d";
@@ -86,32 +122,41 @@ type EventTypeFilter =
   | "evidence_created"
   | "report_generated";
 
-const DATE_RANGE_OPTIONS: { key: DateRangeKey; label: string; ms: number }[] = [
-  { key: "24h", label: "Last 24 hours", ms: 24 * 60 * 60 * 1000 },
-  { key: "7d", label: "Last 7 days", ms: 7 * 24 * 60 * 60 * 1000 },
-  { key: "30d", label: "Last 30 days", ms: 30 * 24 * 60 * 60 * 1000 },
+type RouteTypeFilter = "all" | "public" | "app" | "admin" | "auth" | "api" | "unknown";
+
+const DATE_RANGE_OPTIONS: { key: DateRangeKey; label: string }[] = [
+  { key: "24h", label: "Last 24 hours" },
+  { key: "7d", label: "Last 7 days" },
+  { key: "30d", label: "Last 30 days" },
 ];
 
 const EVENT_TYPE_OPTIONS: { value: EventTypeFilter; label: string }[] = [
-  { value: "all", label: "All" },
-  { value: "page_view", label: "page_view" },
-  { value: "login_completed", label: "login_completed" },
-  { value: "evidence_created", label: "evidence_created" },
-  { value: "report_generated", label: "report_generated" },
+  { value: "all", label: "All events" },
+  { value: "page_view", label: "Page View" },
+  { value: "login_completed", label: "Login Completed" },
+  { value: "evidence_created", label: "Evidence Created" },
+  { value: "report_generated", label: "Report Generated" },
+];
+
+const ROUTE_TYPE_OPTIONS: { value: RouteTypeFilter; label: string }[] = [
+  { value: "all", label: "All routes" },
+  { value: "public", label: "Public" },
+  { value: "app", label: "App" },
+  { value: "admin", label: "Admin" },
+  { value: "auth", label: "Auth" },
+  { value: "api", label: "API" },
+  { value: "unknown", label: "Unknown" },
 ];
 
 const UI = {
   pageBg: "transparent",
-  cardBg: "rgba(4, 17, 40, 0.72)",
   cardBgStrong: "rgba(5, 20, 48, 0.84)",
   innerPanelBg: "rgba(9, 28, 62, 0.82)",
-  innerPanelSoft: "rgba(13, 36, 78, 0.74)",
   border: "rgba(96, 165, 250, 0.18)",
   borderStrong: "rgba(148, 163, 184, 0.22)",
   textPrimary: "#F8FAFC",
   textSecondary: "#CBD5E1",
   textMuted: "#94A3B8",
-  textFaint: "#7C8CA5",
   heading: "#E2E8F0",
   toolbarBg: "rgba(15, 23, 42, 0.64)",
   toolbarActiveBg: "#E2E8F0",
@@ -129,8 +174,7 @@ const UI = {
 };
 
 function dateRangeLabel(range: DateRangeKey): string {
-  const found = DATE_RANGE_OPTIONS.find((o) => o.key === range);
-  return found?.label ?? "Selected range";
+  return DATE_RANGE_OPTIONS.find((o) => o.key === range)?.label ?? "Selected range";
 }
 
 function formatDisplayTimestamp(isoOrDate: string): string {
@@ -144,6 +188,18 @@ function formatDisplayTimestamp(isoOrDate: string): string {
   return `${y}-${m}-${day} ${h}:${min}`;
 }
 
+function humanizeKey(value: string): string {
+  return value
+    .replace(/_/g, " ")
+    .replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+function shortId(value: string | null | undefined): string {
+  if (!value) return "—";
+  if (value.length <= 12) return value;
+  return `${value.slice(0, 8)}…${value.slice(-4)}`;
+}
+
 function escapeCsvCell(value: string): string {
   if (/[",\n\r]/.test(value)) {
     return `"${value.replace(/"/g, '""')}"`;
@@ -152,12 +208,24 @@ function escapeCsvCell(value: string): string {
 }
 
 function buildAnalyticsCsv(rows: RecentEvent[]): string {
-  const header = ["eventType", "createdAt", "userId", "country", "city", "path"];
+  const header = [
+    "eventLabel",
+    "eventType",
+    "routeType",
+    "createdAt",
+    "userId",
+    "country",
+    "city",
+    "path",
+  ];
+
   const lines = [
     header.join(","),
     ...rows.map((row) =>
       [
+        escapeCsvCell(row.label ?? humanizeKey(row.eventType)),
         escapeCsvCell(row.eventType),
+        escapeCsvCell(row.routeType ?? ""),
         escapeCsvCell(formatDisplayTimestamp(row.createdAt)),
         escapeCsvCell(row.userId ?? ""),
         escapeCsvCell(row.country ?? ""),
@@ -166,6 +234,7 @@ function buildAnalyticsCsv(rows: RecentEvent[]): string {
       ].join(",")
     ),
   ];
+
   return lines.join("\r\n");
 }
 
@@ -182,25 +251,16 @@ function triggerCsvDownload(content: string, filename: string): void {
   URL.revokeObjectURL(url);
 }
 
-function exportFilenameForToday(): string {
+function exportFilenameForToday(prefix: string): string {
   const now = new Date();
   const y = now.getFullYear();
   const m = String(now.getMonth() + 1).padStart(2, "0");
   const d = String(now.getDate()).padStart(2, "0");
-  return `analytics_export_${y}-${m}-${d}.csv`;
+  return `${prefix}_${y}-${m}-${d}.csv`;
 }
 
-function buildAnalyticsQuery(
-  dateRange: DateRangeKey,
-  eventType: EventTypeFilter
-): string {
-  const params = new URLSearchParams();
-  params.set("dateRange", dateRange);
-  if (eventType !== "all") {
-    params.set("eventType", eventType);
-  }
-  const qs = params.toString();
-  return qs ? `?${qs}` : "";
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return !!value && typeof value === "object";
 }
 
 function httpStatusFromUnknownError(err: unknown): number | undefined {
@@ -209,10 +269,25 @@ function httpStatusFromUnknownError(err: unknown): number | undefined {
   return undefined;
 }
 
-/**
- * GET with dateRange/eventType query params; retries the same path without query
- * when the server rejects unknown params (400/422).
- */
+function buildAnalyticsQuery(params: {
+  dateRange: DateRangeKey;
+  eventType: EventTypeFilter;
+  routeType: RouteTypeFilter;
+  path: string | null;
+  countryCode: string | null;
+  city: string | null;
+}): string {
+  const qs = new URLSearchParams();
+  qs.set("dateRange", params.dateRange);
+  if (params.eventType !== "all") qs.set("eventType", params.eventType);
+  if (params.routeType !== "all") qs.set("routeType", params.routeType);
+  if (params.path) qs.set("path", params.path);
+  if (params.countryCode) qs.set("countryCode", params.countryCode);
+  if (params.city) qs.set("city", params.city);
+  const value = qs.toString();
+  return value ? `?${value}` : "";
+}
+
 async function apiFetchAdminAnalyticsGET(
   path: string,
   querySuffix: string
@@ -230,24 +305,9 @@ async function apiFetchAdminAnalyticsGET(
   }
 }
 
-interface AuditLogRow {
-  id: string;
-  userId: string | null;
-  isPublic: boolean;
-  action: string;
-  metadata: unknown;
-  ipAddress: string | null;
-  userAgent: string | null;
-  hash: string;
-  prevHash: string | null;
-  createdAt: string;
-  anchoredAt: string | null;
-}
-
 function formatAuditActor(userId: string | null, isPublic: boolean): string {
-  if (isPublic || userId === null) return "public";
-  if (userId.length <= 10) return userId;
-  return `${userId.slice(0, 8)}…`;
+  if (isPublic || userId === null) return "Public / system";
+  return shortId(userId);
 }
 
 function prettyMetadataJson(metadata: unknown): string {
@@ -333,7 +393,80 @@ function subCardStyle(extra?: CSSProperties): CSSProperties {
   };
 }
 
-// Professional StatCard Component
+function badgeStyle(color: string, bg: string): CSSProperties {
+  return {
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 6,
+    padding: "4px 8px",
+    fontSize: 11,
+    fontWeight: 700,
+    borderRadius: 999,
+    color,
+    background: bg,
+    whiteSpace: "nowrap",
+  };
+}
+
+function routeTypeBadge(routeType: string | null | undefined): JSX.Element {
+  const value = routeType ?? "unknown";
+  const styles: Record<string, CSSProperties> = {
+    public: badgeStyle("#93C5FD", "rgba(59,130,246,0.16)"),
+    app: badgeStyle("#6EE7B7", "rgba(16,185,129,0.16)"),
+    admin: badgeStyle("#FCD34D", "rgba(245,158,11,0.18)"),
+    auth: badgeStyle("#C4B5FD", "rgba(139,92,246,0.18)"),
+    api: badgeStyle("#F9A8D4", "rgba(236,72,153,0.18)"),
+    unknown: badgeStyle("#CBD5E1", "rgba(148,163,184,0.18)"),
+  };
+  return <span style={styles[value] ?? styles.unknown}>{humanizeKey(value)}</span>;
+}
+
+function severityBadge(severity: string | null | undefined): JSX.Element {
+  const value = severity ?? "info";
+  const styles: Record<string, CSSProperties> = {
+    info: badgeStyle("#93C5FD", "rgba(59,130,246,0.16)"),
+    warning: badgeStyle("#FCD34D", "rgba(245,158,11,0.18)"),
+    critical: badgeStyle("#FCA5A5", "rgba(239,68,68,0.18)"),
+  };
+  return <span style={styles[value] ?? styles.info}>{humanizeKey(value)}</span>;
+}
+
+function ProgressBar(props: {
+  value: number;
+  maxValue: number;
+  color: string;
+  height?: number;
+}): JSX.Element {
+  const { value, maxValue, color, height = 6 } = props;
+  const percentage = maxValue <= 0 ? 0 : Math.max(4, Math.round((value / maxValue) * 100));
+
+  return (
+    <div
+      style={{
+        width: "100%",
+        height,
+        backgroundColor: "rgba(226, 232, 240, 0.9)",
+        borderRadius: 999,
+        overflow: "hidden",
+      }}
+    >
+      <div
+        style={{
+          width: `${percentage}%`,
+          height: "100%",
+          backgroundColor: color,
+          borderRadius: 999,
+          boxShadow: `0 0 14px ${color}55`,
+        }}
+      />
+    </div>
+  );
+}
+
+function renderMiniBar(value: number, maxValue: number, color: string): JSX.Element {
+  return <ProgressBar value={value} maxValue={maxValue} color={color} height={8} />;
+}
+
 function StatCard({ title, value, description, accent = "#0B7BE5" }: StatCardProps) {
   return (
     <Card>
@@ -397,7 +530,6 @@ function StatCard({ title, value, description, accent = "#0B7BE5" }: StatCardPro
   );
 }
 
-// Loading Skeleton
 function StatSkeleton() {
   return (
     <Card>
@@ -421,17 +553,11 @@ function StatSkeleton() {
   );
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return !!value && typeof value === "object";
-}
-
 function isValidAdminStats(value: unknown): value is AdminStats {
   if (!isRecord(value)) return false;
-
   const subscriptionBreakdown = isRecord(value.subscriptionBreakdown)
     ? value.subscriptionBreakdown
     : undefined;
-
   const evidenceByType = isRecord(value.evidenceByType)
     ? value.evidenceByType
     : undefined;
@@ -465,7 +591,6 @@ function isGeoItem(value: unknown): value is GeoItem {
 function isValidGeographyResponse(value: unknown): value is GeographyResponse {
   if (!isRecord(value)) return false;
   if (!Array.isArray(value.countries) || !Array.isArray(value.cities)) return false;
-
   return value.countries.every(isGeoItem) && value.cities.every(isGeoItem);
 }
 
@@ -483,17 +608,12 @@ function isValidTopPages(value: unknown): value is TopPage[] {
 
 function isRecentEvent(value: unknown): value is RecentEvent {
   if (!isRecord(value)) return false;
-  const userIdOk =
-    !("userId" in value) ||
-    value.userId === null ||
-    typeof value.userId === "string";
   return (
     typeof value.eventType === "string" &&
     (typeof value.path === "string" || value.path === null) &&
     (typeof value.country === "string" || value.country === null) &&
     (typeof value.city === "string" || value.city === null) &&
-    typeof value.createdAt === "string" &&
-    userIdOk
+    typeof value.createdAt === "string"
   );
 }
 
@@ -503,15 +623,10 @@ function isValidRecentEvents(value: unknown): value is RecentEvent[] {
 
 function isTrendPoint(value: unknown): value is TrendPoint {
   if (!isRecord(value)) return false;
-  const eventTypeOk =
-    !("eventType" in value) ||
-    value.eventType === null ||
-    typeof value.eventType === "string";
   return (
     typeof value.date === "string" &&
     typeof value.pageViews === "number" &&
-    typeof value.sessions === "number" &&
-    eventTypeOk
+    typeof value.sessions === "number"
   );
 }
 
@@ -534,48 +649,7 @@ function isValidFunnel(value: unknown): value is FunnelStep[] {
 
 function maxTrendValue(points: TrendPoint[]): number {
   if (!points.length) return 1;
-  return Math.max(
-    1,
-    ...points.flatMap((point) => [point.pageViews, point.sessions])
-  );
-}
-
-// Enhanced Progress Bar Component
-function ProgressBar(props: {
-  value: number;
-  maxValue: number;
-  color: string;
-  height?: number;
-}): JSX.Element {
-  const { value, maxValue, color, height = 6 } = props;
-  const percentage = maxValue <= 0 ? 0 : Math.max(4, Math.round((value / maxValue) * 100));
-
-  return (
-    <div
-      style={{
-        width: "100%",
-        height,
-        backgroundColor: "rgba(226, 232, 240, 0.9)",
-        borderRadius: 999,
-        overflow: "hidden",
-      }}
-    >
-      <div
-        style={{
-          width: `${percentage}%`,
-          height: "100%",
-          backgroundColor: color,
-          borderRadius: 999,
-          boxShadow: `0 0 14px ${color}55`,
-        }}
-      />
-    </div>
-  );
-}
-
-// Enhanced Mini Bar for Trends
-function renderMiniBar(value: number, maxValue: number, color: string): JSX.Element {
-  return <ProgressBar value={value} maxValue={maxValue} color={color} height={8} />;
+  return Math.max(1, ...points.flatMap((point) => [point.pageViews, point.sessions]));
 }
 
 export default function AdminPage() {
@@ -592,44 +666,117 @@ export default function AdminPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [lastSuccessfulFetchAt, setLastSuccessfulFetchAt] = useState<string | null>(null);
+
   const [auditLogItems, setAuditLogItems] = useState<AuditLogRow[]>([]);
   const [auditLogsLoading, setAuditLogsLoading] = useState(false);
+  const [auditCursor, setAuditCursor] = useState<string | null>(null);
   const [chainVerify, setChainVerify] = useState<
-    | { valid: true }
+    | { valid: true; partial?: boolean; verifiedCount?: number }
     | { valid: false; brokenAt: string }
     | null
   >(null);
 
   const [dateRange, setDateRange] = useState<DateRangeKey>("7d");
   const [eventTypeFilter, setEventTypeFilter] = useState<EventTypeFilter>("all");
+  const [routeTypeFilter, setRouteTypeFilter] = useState<RouteTypeFilter>("all");
+  const [selectedPath, setSelectedPath] = useState<string | null>(null);
+  const [selectedCountryCode, setSelectedCountryCode] = useState<string | null>(null);
+  const [selectedCity, setSelectedCity] = useState<string | null>(null);
+
+  const [auditAction, setAuditAction] = useState("");
+  const [auditCategory, setAuditCategory] = useState("");
+  const [auditSeverity, setAuditSeverity] = useState("");
+  const [auditOutcome, setAuditOutcome] = useState("");
+  const [auditSearch, setAuditSearch] = useState("");
 
   const isAdminRole = user?.role === "admin";
-  const lastAuditedFilters = useRef<{ dateRange: DateRangeKey; eventType: EventTypeFilter } | null>(null);
+  const lastAuditedFilters = useRef<{
+    dateRange: DateRangeKey;
+    eventType: EventTypeFilter;
+    routeType: RouteTypeFilter;
+  } | null>(null);
 
-  const refreshAuditLogs = useCallback(async () => {
-    setAuditLogsLoading(true);
-    try {
-      const data = await apiFetch("/v1/admin/audit-log?limit=100", { method: "GET" });
-      if (isRecord(data) && Array.isArray(data.items)) {
-        setAuditLogItems(data.items as AuditLogRow[]);
-      } else {
+  const trendMax = useMemo(() => maxTrendValue(trends), [trends]);
+
+  const primaryInsight = useMemo(() => {
+    if (!stats) return null;
+    return {
+      activeRate: safeRatioPercent(stats.activeUsers, stats.totalUsers),
+      reportRate: safeRatioPercent(stats.reportsGenerated, stats.totalEvidence),
+    };
+  }, [stats]);
+
+  const funnelInsight = useMemo(() => {
+    const second = funnel[1];
+    const third = funnel[2];
+    const fourth = funnel[3];
+    return {
+      pageToLogin: second?.conversionFromPrevious ?? null,
+      loginToEvidence: third?.conversionFromPrevious ?? null,
+      evidenceToReport: fourth?.conversionFromPrevious ?? null,
+    };
+  }, [funnel]);
+
+  const currentAnalyticsQuery = useMemo(
+    () =>
+      buildAnalyticsQuery({
+        dateRange,
+        eventType: eventTypeFilter,
+        routeType: routeTypeFilter,
+        path: selectedPath,
+        countryCode: selectedCountryCode,
+        city: selectedCity,
+      }),
+    [dateRange, eventTypeFilter, routeTypeFilter, selectedPath, selectedCountryCode, selectedCity]
+  );
+
+  const refreshAuditLogs = useCallback(
+    async (cursor?: string | null) => {
+      setAuditLogsLoading(true);
+      try {
+        const qs = new URLSearchParams();
+        qs.set("limit", "20");
+        if (cursor) qs.set("cursor", cursor);
+        if (auditAction.trim()) qs.set("action", auditAction.trim());
+        if (auditCategory.trim()) qs.set("category", auditCategory.trim());
+        if (auditSeverity.trim()) qs.set("severity", auditSeverity.trim());
+        if (auditOutcome.trim()) qs.set("outcome", auditOutcome.trim());
+        if (auditSearch.trim()) qs.set("search", auditSearch.trim());
+
+        const data = await apiFetch(`/v1/admin/audit-log?${qs.toString()}`, {
+          method: "GET",
+        });
+
+        if (isRecord(data) && Array.isArray(data.items)) {
+          const items = data.items as AuditLogRow[];
+          setAuditLogItems(items);
+          setAuditCursor(items.length ? items[items.length - 1]?.id ?? null : null);
+        } else {
+          setAuditLogItems([]);
+          setAuditCursor(null);
+        }
+      } catch {
         setAuditLogItems([]);
+        setAuditCursor(null);
+      } finally {
+        setAuditLogsLoading(false);
       }
-    } catch {
-      setAuditLogItems([]);
-    } finally {
-      setAuditLogsLoading(false);
-    }
-  }, []);
+    },
+    [auditAction, auditCategory, auditSeverity, auditOutcome, auditSearch]
+  );
 
   const refreshChainVerify = useCallback(async () => {
     try {
-      const data = await apiFetch("/v1/admin/audit-log/verify", { method: "GET" });
+      const data = await apiFetch("/v1/admin/audit-log/verify?limit=1000", { method: "GET" });
       if (isRecord(data) && data.valid === true) {
-        setChainVerify({ valid: true });
+        setChainVerify({
+          valid: true,
+          partial: typeof data.partial === "boolean" ? data.partial : undefined,
+          verifiedCount:
+            typeof data.verifiedCount === "number" ? data.verifiedCount : undefined,
+        });
       } else if (isRecord(data) && data.valid === false) {
-        const brokenAt =
-          typeof data.brokenAt === "string" ? data.brokenAt : "unknown";
+        const brokenAt = typeof data.brokenAt === "string" ? data.brokenAt : "unknown";
         setChainVerify({ valid: false, brokenAt });
       } else {
         setChainVerify(null);
@@ -640,33 +787,38 @@ export default function AdminPage() {
   }, []);
 
   const sendAuditLog = useCallback(
-    async (action: string, metadata: Record<string, unknown>) => {
+    async (
+      action: string,
+      metadata: Record<string, unknown>,
+      extra?: {
+        category?: string;
+        severity?: "info" | "warning" | "critical";
+        source?: string;
+        outcome?: "success" | "failure" | "blocked";
+        resourceType?: string;
+        resourceId?: string;
+      }
+    ) => {
       if (!user?.id) return;
       try {
         await apiFetch("/v1/admin/audit-log", {
           method: "POST",
           body: JSON.stringify({
             action,
+            category: extra?.category ?? "analytics",
+            severity: extra?.severity ?? "info",
+            source: extra?.source ?? "admin_console",
+            outcome: extra?.outcome ?? "success",
+            resourceType: extra?.resourceType ?? "analytics_dashboard",
+            resourceId: extra?.resourceId,
             metadata,
           }),
         });
-        await refreshAuditLogs();
-        await refreshChainVerify();
       } catch {
-        /* Audit delivery failure must not disrupt admin operations */
+        /* do not block UI */
       }
     },
-    [user?.id, refreshAuditLogs, refreshChainVerify]
-  );
-
-  const trendMax = useMemo(() => maxTrendValue(trends), [trends]);
-
-  const trendPrimaryMetricLabel =
-    eventTypeFilter === "all" ? "Page views" : `${eventTypeFilter} (count)`;
-
-  const funnelMax = useMemo(
-    () => (funnel.length ? Math.max(1, ...funnel.map((step) => step.count)) : 1),
-    [funnel]
+    [user?.id]
   );
 
   const handleExportCsv = () => {
@@ -674,18 +826,55 @@ export default function AdminPage() {
       exportType: "analytics_csv",
       dateRange,
       eventType: eventTypeFilter,
+      routeType: routeTypeFilter,
+      path: selectedPath,
+      countryCode: selectedCountryCode,
+      city: selectedCity,
       rowCount: recent.length,
     });
+
     const csv = buildAnalyticsCsv(recent);
-    triggerCsvDownload(csv, exportFilenameForToday());
+    triggerCsvDownload(csv, exportFilenameForToday("analytics_export"));
     addToast("Exported filtered analytics to CSV", "success");
+  };
+
+  const handleExportAuditCsv = async () => {
+    try {
+      const qs = new URLSearchParams();
+      if (auditAction.trim()) qs.set("action", auditAction.trim());
+      if (auditCategory.trim()) qs.set("category", auditCategory.trim());
+      if (auditSeverity.trim()) qs.set("severity", auditSeverity.trim());
+      if (auditOutcome.trim()) qs.set("outcome", auditOutcome.trim());
+      if (auditSearch.trim()) qs.set("search", auditSearch.trim());
+
+      const response = await fetch(`/api/proxy/v1/admin/audit-log/export?${qs.toString()}`);
+      if (!response.ok) throw new Error("export_failed");
+      const text = await response.text();
+      triggerCsvDownload(text, exportFilenameForToday("admin_audit_export"));
+      void sendAuditLog(
+        "admin.audit.export_csv",
+        {
+          action: auditAction || null,
+          category: auditCategory || null,
+          severity: auditSeverity || null,
+          outcome: auditOutcome || null,
+          search: auditSearch || null,
+        },
+        { category: "audit", resourceType: "admin_audit" }
+      );
+      addToast("Exported audit log CSV", "success");
+    } catch {
+      addToast("Audit CSV export failed", "error");
+    }
   };
 
   useEffect(() => {
     if (!authReady || !isAdminRole) return;
-    void sendAuditLog("admin.analytics.page_access", {
-      surface: "admin_dashboard",
-    });
+    void sendAuditLog(
+      "admin.analytics.page_access",
+      { surface: "admin_dashboard" },
+      { category: "access", resourceType: "admin_dashboard" }
+    );
   }, [authReady, isAdminRole, sendAuditLog]);
 
   useEffect(() => {
@@ -695,16 +884,32 @@ export default function AdminPage() {
       return;
     }
     const prev = lastAuditedFilters.current;
-    lastAuditedFilters.current = { dateRange, eventType: eventTypeFilter };
-    if (!prev) return;
-    if (prev.dateRange === dateRange && prev.eventType === eventTypeFilter) return;
-    void sendAuditLog("admin.analytics.filter_change", {
+    lastAuditedFilters.current = {
       dateRange,
       eventType: eventTypeFilter,
-      previousDateRange: prev.dateRange,
-      previousEventType: prev.eventType,
-    });
-  }, [authReady, isAdminRole, dateRange, eventTypeFilter, sendAuditLog]);
+      routeType: routeTypeFilter,
+    };
+    if (!prev) return;
+    if (
+      prev.dateRange === dateRange &&
+      prev.eventType === eventTypeFilter &&
+      prev.routeType === routeTypeFilter
+    ) {
+      return;
+    }
+    void sendAuditLog(
+      "admin.analytics.filter_change",
+      {
+        dateRange,
+        eventType: eventTypeFilter,
+        routeType: routeTypeFilter,
+        previousDateRange: prev.dateRange,
+        previousEventType: prev.eventType,
+        previousRouteType: prev.routeType,
+      },
+      { category: "analytics", resourceType: "analytics_dashboard" }
+    );
+  }, [authReady, isAdminRole, dateRange, eventTypeFilter, routeTypeFilter, sendAuditLog]);
 
   useEffect(() => {
     if (!authReady || !isAdminRole) return;
@@ -713,9 +918,7 @@ export default function AdminPage() {
   }, [authReady, isAdminRole, refreshAuditLogs, refreshChainVerify]);
 
   useEffect(() => {
-    if (!authReady) {
-      return;
-    }
+    if (!authReady) return;
     if (!isAdminRole) {
       setLoading(false);
       setError("Access denied - admin only");
@@ -745,48 +948,21 @@ export default function AdminPage() {
       }
 
       setStats(summaryResponse);
+      setGeo(isValidGeographyResponse(geographyResponse) ? geographyResponse : { countries: [], cities: [] });
+      setPages(isValidTopPages(pagesResponse) ? pagesResponse : []);
+      setRecent(isValidRecentEvents(recentResponse) ? recentResponse : []);
+      setTrends(isValidTrendPoints(trendsResponse) ? trendsResponse : []);
+      setFunnel(isValidFunnel(funnelResponse) ? funnelResponse : []);
 
-      if (isValidGeographyResponse(geographyResponse)) {
-        setGeo(geographyResponse);
-      } else {
-        setGeo({ countries: [], cities: [] });
-      }
-
-      if (isValidTopPages(pagesResponse)) {
-        setPages(pagesResponse);
-      } else {
-        setPages([]);
-      }
-
-      if (isValidRecentEvents(recentResponse)) {
-        setRecent(recentResponse);
-      } else {
-        setRecent([]);
-      }
-
-      if (isValidTrendPoints(trendsResponse)) {
-        setTrends(trendsResponse);
-      } else {
-        setTrends([]);
-      }
-
-      if (isValidFunnel(funnelResponse)) {
-        setFunnel(funnelResponse);
-      } else {
-        setFunnel([]);
-      }
       return true;
     };
 
     const loadStats = async () => {
       setLoading(true);
       setError(null);
-      addToast("Loading admin dashboard...", "info");
-
-      const querySuffix = buildAnalyticsQuery(dateRange, eventTypeFilter);
 
       try {
-        const bundle = await tryFetchAdminDashboardBundle(querySuffix);
+        const bundle = await tryFetchAdminDashboardBundle(currentAnalyticsQuery);
         let summaryResponse: unknown;
         let geographyResponse: unknown;
         let pagesResponse: unknown;
@@ -810,12 +986,12 @@ export default function AdminPage() {
             trendsResponse,
             funnelResponse,
           ] = await Promise.all([
-            apiFetchAdminAnalyticsGET("/v1/admin/analytics/summary", querySuffix),
-            apiFetchAdminAnalyticsGET("/v1/admin/analytics/geography", querySuffix),
-            apiFetchAdminAnalyticsGET("/v1/admin/analytics/pages", querySuffix),
-            apiFetchAdminAnalyticsGET("/v1/admin/analytics/recent", querySuffix),
-            apiFetchAdminAnalyticsGET("/v1/admin/analytics/trends", querySuffix),
-            apiFetchAdminAnalyticsGET("/v1/admin/analytics/funnel", querySuffix),
+            apiFetchAdminAnalyticsGET("/v1/admin/analytics/summary", currentAnalyticsQuery),
+            apiFetchAdminAnalyticsGET("/v1/admin/analytics/geography", currentAnalyticsQuery),
+            apiFetchAdminAnalyticsGET("/v1/admin/analytics/pages", currentAnalyticsQuery),
+            apiFetchAdminAnalyticsGET("/v1/admin/analytics/recent", currentAnalyticsQuery),
+            apiFetchAdminAnalyticsGET("/v1/admin/analytics/trends", currentAnalyticsQuery),
+            apiFetchAdminAnalyticsGET("/v1/admin/analytics/funnel", currentAnalyticsQuery),
           ]);
         }
 
@@ -830,7 +1006,6 @@ export default function AdminPage() {
           );
           if (ok) {
             setLastSuccessfulFetchAt(new Date().toISOString());
-            addToast("Admin dashboard loaded", "success");
           } else {
             addToast("Analytics data could not be loaded", "error");
           }
@@ -843,15 +1018,10 @@ export default function AdminPage() {
           setRecent([]);
           setTrends([]);
           setFunnel([]);
-          setError(
-            "Could not load analytics. Check your connection and admin permissions, then retry."
-          );
-          addToast("Analytics request failed", "error");
+          setError("Could not load analytics. Check your connection and admin permissions, then retry.");
         }
       } finally {
-        if (!cancelled) {
-          setLoading(false);
-        }
+        if (!cancelled) setLoading(false);
       }
     };
 
@@ -860,7 +1030,7 @@ export default function AdminPage() {
     return () => {
       cancelled = true;
     };
-  }, [authReady, isAdminRole, addToast, dateRange, eventTypeFilter]);
+  }, [authReady, isAdminRole, currentAnalyticsQuery, addToast]);
 
   if (!authReady) {
     return (
@@ -930,11 +1100,7 @@ export default function AdminPage() {
 
   return (
     <div className="section app-section" style={{ backgroundColor: UI.pageBg }}>
-      {/* Hero Section */}
-      <div
-        className="app-hero app-hero-full"
-        style={{ borderBottom: `1px solid ${UI.borderStrong}` }}
-      >
+      <div className="app-hero app-hero-full" style={{ borderBottom: `1px solid ${UI.borderStrong}` }}>
         <div className="container">
           <div className="page-title" style={{ marginBottom: 0 }}>
             <div>
@@ -948,7 +1114,7 @@ export default function AdminPage() {
                   textShadow: "0 2px 18px rgba(15, 23, 42, 0.28)",
                 }}
               >
-                Analytics Dashboard
+                Analytics & Admin Audit
               </h1>
               <p
                 className="page-subtitle pricing-subtitle"
@@ -958,17 +1124,15 @@ export default function AdminPage() {
                   color: UI.textSecondary,
                 }}
               >
-                Platform overview, user metrics, and system insights
+                Operational analytics, funnel performance, and tamper-evident admin audit visibility
               </p>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Main Content */}
       <div className="app-body app-body-full" style={{ paddingTop: 32, paddingBottom: 48 }}>
         <div className="container">
-          {/* Error Message */}
           {error && (
             <div style={{ marginBottom: 24 }}>
               <Card>
@@ -989,7 +1153,6 @@ export default function AdminPage() {
             </div>
           )}
 
-          {/* Analytics toolbar: filters + export */}
           {!loading ? (
             <div style={{ marginBottom: 24 }}>
               <Card>
@@ -1070,11 +1233,9 @@ export default function AdminPage() {
                       <select
                         id="admin-event-type-filter"
                         value={eventTypeFilter}
-                        onChange={(e) =>
-                          setEventTypeFilter(e.target.value as EventTypeFilter)
-                        }
+                        onChange={(e) => setEventTypeFilter(e.target.value as EventTypeFilter)}
                         style={{
-                          minWidth: 200,
+                          minWidth: 190,
                           padding: "8px 12px",
                           fontSize: 13,
                           color: UI.inputText,
@@ -1083,7 +1244,6 @@ export default function AdminPage() {
                           borderRadius: 8,
                           cursor: "pointer",
                           outline: "none",
-                          boxShadow: "0 1px 2px rgba(2, 8, 23, 0.08)",
                         }}
                       >
                         {EVENT_TYPE_OPTIONS.map((opt) => (
@@ -1093,9 +1253,66 @@ export default function AdminPage() {
                         ))}
                       </select>
                     </div>
+
+                    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                      <label
+                        htmlFor="admin-route-type-filter"
+                        style={{
+                          fontSize: 11,
+                          fontWeight: 700,
+                          color: UI.textMuted,
+                          textTransform: "uppercase",
+                          letterSpacing: "0.08em",
+                        }}
+                      >
+                        Route type
+                      </label>
+                      <select
+                        id="admin-route-type-filter"
+                        value={routeTypeFilter}
+                        onChange={(e) => setRouteTypeFilter(e.target.value as RouteTypeFilter)}
+                        style={{
+                          minWidth: 160,
+                          padding: "8px 12px",
+                          fontSize: 13,
+                          color: UI.inputText,
+                          backgroundColor: UI.inputBg,
+                          border: "1px solid rgba(226, 232, 240, 0.65)",
+                          borderRadius: 8,
+                          cursor: "pointer",
+                          outline: "none",
+                        }}
+                      >
+                        {ROUTE_TYPE_OPTIONS.map((opt) => (
+                          <option key={opt.value} value={opt.value}>
+                            {opt.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
                   </div>
 
-                  <div style={{ display: "flex", alignItems: "flex-end" }}>
+                  <div style={{ display: "flex", gap: 10, alignItems: "flex-end" }}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedPath(null);
+                        setSelectedCountryCode(null);
+                        setSelectedCity(null);
+                      }}
+                      style={{
+                        padding: "8px 14px",
+                        fontSize: 13,
+                        fontWeight: 600,
+                        color: UI.inputText,
+                        backgroundColor: UI.inputBg,
+                        border: "1px solid rgba(226, 232, 240, 0.65)",
+                        borderRadius: 8,
+                        cursor: "pointer",
+                      }}
+                    >
+                      Clear drilldown
+                    </button>
                     <button
                       type="button"
                       onClick={handleExportCsv}
@@ -1108,18 +1325,6 @@ export default function AdminPage() {
                         border: "1px solid rgba(226, 232, 240, 0.65)",
                         borderRadius: 8,
                         cursor: "pointer",
-                        transition:
-                          "background-color 0.15s ease, border-color 0.15s ease, opacity 0.15s ease",
-                        boxShadow: "0 1px 2px rgba(2, 8, 23, 0.08)",
-                      }}
-                      onMouseDown={(e) => {
-                        e.currentTarget.style.backgroundColor = "#E2E8F0";
-                      }}
-                      onMouseUp={(e) => {
-                        e.currentTarget.style.backgroundColor = "#F8FAFC";
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.backgroundColor = "#F8FAFC";
                       }}
                     >
                       Export CSV
@@ -1130,7 +1335,6 @@ export default function AdminPage() {
             </div>
           ) : null}
 
-          {/* OVERVIEW SECTION */}
           {loading ? (
             <div
               style={{
@@ -1147,6 +1351,24 @@ export default function AdminPage() {
             </div>
           ) : stats ? (
             <>
+              <div style={{ marginBottom: 18, display: "flex", flexWrap: "wrap", gap: 8 }}>
+                {selectedPath ? (
+                  <span style={badgeStyle("#F8FAFC", "rgba(148,163,184,0.18)")}>
+                    Path drilldown: {selectedPath}
+                  </span>
+                ) : null}
+                {selectedCountryCode ? (
+                  <span style={badgeStyle("#F8FAFC", "rgba(148,163,184,0.18)")}>
+                    Country: {selectedCountryCode}
+                  </span>
+                ) : null}
+                {selectedCity ? (
+                  <span style={badgeStyle("#F8FAFC", "rgba(148,163,184,0.18)")}>
+                    City: {selectedCity}
+                  </span>
+                ) : null}
+              </div>
+
               <div style={{ marginBottom: 40 }}>
                 <h2 style={sectionTitleStyle()}>Overview</h2>
                 <div
@@ -1159,7 +1381,7 @@ export default function AdminPage() {
                   <StatCard
                     title="Total Users"
                     value={stats.totalUsers.toLocaleString()}
-                    description={`${stats.activeUsers.toLocaleString()} with analytics activity (${dateRangeLabel(dateRange)})`}
+                    description={`${stats.activeUsers.toLocaleString()} active (${primaryInsight?.activeRate ?? "0.0"}% activity rate)`}
                     accent="#3B82F6"
                   />
                   <StatCard
@@ -1169,37 +1391,43 @@ export default function AdminPage() {
                     accent="#10B981"
                   />
                   <StatCard
-                    title="Avg Evidence/User"
+                    title="Avg Evidence / User"
                     value={safeDivideDisplay(stats.totalEvidence, stats.totalUsers, 1)}
-                    description="Per registered user"
+                    description="Average evidence items per registered user"
                     accent="#F59E0B"
                   />
                   <StatCard
                     title="Report Rate"
-                    value={`${safeRatioPercent(stats.reportsGenerated, stats.totalEvidence)}%`}
-                    description="Of evidence has reports"
+                    value={`${primaryInsight?.reportRate ?? "0.0"}%`}
+                    description="Share of evidence that reached report generation"
                     accent="#8B5CF6"
                   />
                 </div>
               </div>
 
-              {/* ACTIVITY SECTION */}
               <div style={{ marginBottom: 40 }}>
                 <h2 style={sectionTitleStyle()}>Activity</h2>
 
-                {/* Trends */}
                 <Card style={{ marginBottom: 16 }}>
                   <div style={subCardStyle()}>
-                    <h3
+                    <div
                       style={{
-                        margin: "0 0 20px 0",
-                        fontSize: 15,
-                        fontWeight: 700,
-                        color: UI.textPrimary,
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "flex-start",
+                        gap: 16,
+                        marginBottom: 20,
                       }}
                     >
-                      Trends ({dateRangeLabel(dateRange)})
-                    </h3>
+                      <div>
+                        <h3 style={{ margin: "0 0 8px 0", fontSize: 15, fontWeight: 700, color: UI.textPrimary }}>
+                          Trends ({dateRangeLabel(dateRange)})
+                        </h3>
+                        <div style={{ color: UI.textSecondary, fontSize: 13 }}>
+                          Session volume versus primary event count over time
+                        </div>
+                      </div>
+                    </div>
 
                     {trends.length ? (
                       <div
@@ -1217,8 +1445,6 @@ export default function AdminPage() {
                               borderRadius: 16,
                               padding: 16,
                               backgroundColor: UI.innerPanelBg,
-                              transition: "all 0.2s",
-                              boxShadow: "inset 0 1px 0 rgba(255,255,255,0.02)",
                             }}
                           >
                             <div
@@ -1237,48 +1463,20 @@ export default function AdminPage() {
                             </div>
 
                             <div style={{ marginBottom: 10 }}>
-                              <div
-                                style={{
-                                  fontSize: 12,
-                                  color: UI.textSecondary,
-                                  marginBottom: 6,
-                                  fontWeight: 600,
-                                }}
-                              >
-                                {trendPrimaryMetricLabel}
+                              <div style={{ fontSize: 12, color: UI.textSecondary, marginBottom: 6, fontWeight: 600 }}>
+                                {eventTypeFilter === "all" ? "Page views" : humanizeKey(eventTypeFilter)}
                               </div>
-                              <div
-                                style={{
-                                  fontSize: 18,
-                                  fontWeight: 800,
-                                  color: "#93C5FD",
-                                  marginBottom: 8,
-                                }}
-                              >
+                              <div style={{ fontSize: 18, fontWeight: 800, color: "#93C5FD", marginBottom: 8 }}>
                                 {point.pageViews.toLocaleString()}
                               </div>
                               {renderMiniBar(point.pageViews, trendMax, "#3B82F6")}
                             </div>
 
                             <div style={{ marginTop: 12 }}>
-                              <div
-                                style={{
-                                  fontSize: 12,
-                                  color: UI.textSecondary,
-                                  marginBottom: 6,
-                                  fontWeight: 600,
-                                }}
-                              >
+                              <div style={{ fontSize: 12, color: UI.textSecondary, marginBottom: 6, fontWeight: 600 }}>
                                 Sessions
                               </div>
-                              <div
-                                style={{
-                                  fontSize: 18,
-                                  fontWeight: 800,
-                                  color: "#6EE7B7",
-                                  marginBottom: 8,
-                                }}
-                              >
+                              <div style={{ fontSize: 18, fontWeight: 800, color: "#6EE7B7", marginBottom: 8 }}>
                                 {point.sessions.toLocaleString()}
                               </div>
                               {renderMiniBar(point.sessions, trendMax, "#10B981")}
@@ -1287,45 +1485,52 @@ export default function AdminPage() {
                         ))}
                       </div>
                     ) : (
-                      <div
-                        style={{
-                          padding: 24,
-                          textAlign: "center",
-                          color: UI.emptyText,
-                        }}
-                      >
+                      <div style={{ padding: 24, textAlign: "center", color: UI.emptyText }}>
                         <p style={{ margin: 0 }}>No trend data yet.</p>
                       </div>
                     )}
                   </div>
                 </Card>
 
-                {/* Top Pages */}
                 <Card>
                   <div style={subCardStyle()}>
-                    <h3
+                    <div
                       style={{
-                        margin: "0 0 20px 0",
-                        fontSize: 15,
-                        fontWeight: 700,
-                        color: UI.textPrimary,
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "flex-start",
+                        gap: 16,
+                        marginBottom: 20,
                       }}
                     >
-                      Top Pages
-                    </h3>
+                      <div>
+                        <h3 style={{ margin: "0 0 8px 0", fontSize: 15, fontWeight: 700, color: UI.textPrimary }}>
+                          Top Pages
+                        </h3>
+                        <div style={{ color: UI.textSecondary, fontSize: 13 }}>
+                          Share of total page views, with route-type drilldown
+                        </div>
+                      </div>
+                    </div>
 
                     {pages.length ? (
                       <div style={{ display: "grid", gap: 12 }}>
                         {pages.slice(0, 10).map((item, idx) => (
-                          <div
+                          <button
                             key={`page-${item.path ?? "unknown"}`}
+                            type="button"
+                            onClick={() => setSelectedPath(item.path ?? null)}
                             style={{
                               display: "flex",
                               alignItems: "center",
                               gap: 12,
                               paddingBottom: 12,
-                              borderBottom:
-                                idx < pages.length - 1 ? `1px solid ${UI.border}` : "none",
+                              paddingTop: 4,
+                              border: "none",
+                              background: "transparent",
+                              borderBottom: idx < pages.length - 1 ? `1px solid ${UI.border}` : "none",
+                              cursor: "pointer",
+                              textAlign: "left",
                             }}
                           >
                             <div
@@ -1340,52 +1545,50 @@ export default function AdminPage() {
                                 fontSize: 12,
                                 fontWeight: 700,
                                 color: "#93C5FD",
+                                flexShrink: 0,
                               }}
                             >
                               {idx + 1}
                             </div>
                             <div style={{ flex: 1, minWidth: 0 }}>
-                              <div
-                                style={{
-                                  fontSize: 13,
-                                  fontWeight: 600,
-                                  color: UI.textPrimary,
-                                  wordBreak: "break-word",
-                                  marginBottom: 2,
-                                }}
-                              >
-                                {item.path ?? "Unknown"}
+                              <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginBottom: 4 }}>
+                                <div
+                                  style={{
+                                    fontSize: 13,
+                                    fontWeight: 600,
+                                    color: UI.textPrimary,
+                                    wordBreak: "break-word",
+                                  }}
+                                >
+                                  {item.path ?? "Unknown"}
+                                </div>
+                                {routeTypeBadge(item.routeType)}
                               </div>
-                              <div
-                                style={{
-                                  fontSize: 12,
-                                  color: UI.textSecondary,
-                                }}
-                              >
-                                {item.views.toLocaleString()} views
+                              <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
+                                <div style={{ fontSize: 12, color: UI.textSecondary }}>
+                                  {item.views.toLocaleString()} views
+                                </div>
+                                <div style={{ fontSize: 12, color: UI.textMuted }}>
+                                  {item.share?.toFixed(1) ?? "0.0"}% share
+                                </div>
+                              </div>
+                              <div style={{ marginTop: 8 }}>
+                                <ProgressBar
+                                  value={item.share ?? 0}
+                                  maxValue={100}
+                                  color="#3B82F6"
+                                  height={6}
+                                />
                               </div>
                             </div>
-                            <div
-                              style={{
-                                fontSize: 14,
-                                fontWeight: 700,
-                                color: UI.textPrimary,
-                                whiteSpace: "nowrap",
-                              }}
-                            >
-                              {item.views.toLocaleString()}
+                            <div style={{ fontSize: 14, fontWeight: 700, color: UI.textPrimary, whiteSpace: "nowrap" }}>
+                              {item.share?.toFixed(1) ?? "0.0"}%
                             </div>
-                          </div>
+                          </button>
                         ))}
                       </div>
                     ) : (
-                      <div
-                        style={{
-                          padding: 24,
-                          textAlign: "center",
-                          color: UI.emptyText,
-                        }}
-                      >
+                      <div style={{ padding: 24, textAlign: "center", color: UI.emptyText }}>
                         <p style={{ margin: 0 }}>No page analytics yet.</p>
                       </div>
                     )}
@@ -1393,21 +1596,18 @@ export default function AdminPage() {
                 </Card>
               </div>
 
-              {/* FUNNEL SECTION */}
               <div style={{ marginBottom: 40 }}>
                 <h2 style={sectionTitleStyle()}>Funnel</h2>
                 <Card>
                   <div style={subCardStyle()}>
-                    <h3
-                      style={{
-                        margin: "0 0 20px 0",
-                        fontSize: 15,
-                        fontWeight: 700,
-                        color: UI.textPrimary,
-                      }}
-                    >
-                      Product Funnel
-                    </h3>
+                    <div style={{ marginBottom: 20 }}>
+                      <h3 style={{ margin: "0 0 8px 0", fontSize: 15, fontWeight: 700, color: UI.textPrimary }}>
+                        Product Funnel
+                      </h3>
+                      <div style={{ color: UI.textSecondary, fontSize: 13 }}>
+                        Page → login {funnelInsight.pageToLogin ?? 0}% · login → evidence {funnelInsight.loginToEvidence ?? 0}% · evidence → report {funnelInsight.evidenceToReport ?? 0}%
+                      </div>
+                    </div>
 
                     {funnel.length ? (
                       <div style={{ display: "grid", gap: 16 }}>
@@ -1419,15 +1619,10 @@ export default function AdminPage() {
                                 justifyContent: "space-between",
                                 alignItems: "center",
                                 marginBottom: 8,
+                                gap: 12,
                               }}
                             >
-                              <div
-                                style={{
-                                  display: "flex",
-                                  alignItems: "center",
-                                  gap: 10,
-                                }}
-                              >
+                              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                                 <div
                                   style={{
                                     width: 32,
@@ -1445,39 +1640,30 @@ export default function AdminPage() {
                                   {idx + 1}
                                 </div>
                                 <div>
-                                  <div
-                                    style={{
-                                      fontSize: 13,
-                                      fontWeight: 600,
-                                      color: UI.textPrimary,
-                                    }}
-                                  >
+                                  <div style={{ fontSize: 13, fontWeight: 600, color: UI.textPrimary }}>
                                     {step.label}
                                   </div>
+                                  {idx > 0 ? (
+                                    <div style={{ fontSize: 11, color: UI.textSecondary }}>
+                                      Conversion {step.conversionFromPrevious?.toFixed(1) ?? "0.0"}% · Drop-off {step.dropOffFromPrevious?.toFixed(1) ?? "0.0"}%
+                                    </div>
+                                  ) : (
+                                    <div style={{ fontSize: 11, color: UI.textSecondary }}>
+                                      Entry step
+                                    </div>
+                                  )}
                                 </div>
                               </div>
-                              <div
-                                style={{
-                                  fontSize: 13,
-                                  fontWeight: 700,
-                                  color: UI.textPrimary,
-                                }}
-                              >
+                              <div style={{ fontSize: 13, fontWeight: 700, color: UI.textPrimary }}>
                                 {step.count.toLocaleString()}
                               </div>
                             </div>
-                            {renderMiniBar(step.count, funnelMax, "#F59E0B")}
+                            {renderMiniBar(step.count, Math.max(1, funnel[0]?.count ?? 1), "#F59E0B")}
                           </div>
                         ))}
                       </div>
                     ) : (
-                      <div
-                        style={{
-                          padding: 24,
-                          textAlign: "center",
-                          color: UI.emptyText,
-                        }}
-                      >
+                      <div style={{ padding: 24, textAlign: "center", color: UI.emptyText }}>
                         <p style={{ margin: 0 }}>No funnel data yet.</p>
                       </div>
                     )}
@@ -1485,7 +1671,6 @@ export default function AdminPage() {
                 </Card>
               </div>
 
-              {/* GEOGRAPHY SECTION */}
               <div style={{ marginBottom: 40 }}>
                 <h2 style={sectionTitleStyle()}>Geography</h2>
                 <div
@@ -1495,34 +1680,32 @@ export default function AdminPage() {
                     gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))",
                   }}
                 >
-                  {/* Countries */}
                   <Card>
                     <div style={subCardStyle()}>
-                      <h3
-                        style={{
-                          margin: "0 0 20px 0",
-                          fontSize: 14,
-                          fontWeight: 700,
-                          color: UI.textPrimary,
-                        }}
-                      >
+                      <h3 style={{ margin: "0 0 20px 0", fontSize: 14, fontWeight: 700, color: UI.textPrimary }}>
                         Top Countries
                       </h3>
 
                       {geo?.countries?.length ? (
                         <div style={{ display: "grid", gap: 10 }}>
                           {geo.countries.slice(0, 8).map((item, idx) => (
-                            <div
+                            <button
                               key={`country-${item.name ?? "unknown"}`}
+                              type="button"
+                              onClick={() => setSelectedCountryCode(item.countryCode ?? null)}
                               style={{
                                 display: "flex",
                                 alignItems: "center",
                                 gap: 12,
                                 paddingBottom: 10,
                                 borderBottom:
-                                  idx < Math.min(geo.countries.length, 8) - 1
-                                    ? `1px solid ${UI.border}`
-                                    : "none",
+                                  idx < Math.min(geo.countries.length, 8) - 1 ? `1px solid ${UI.border}` : "none",
+                                borderTop: "none",
+                                borderLeft: "none",
+                                borderRight: "none",
+                                background: "transparent",
+                                cursor: "pointer",
+                                textAlign: "left",
                               }}
                             >
                               <div
@@ -1537,77 +1720,62 @@ export default function AdminPage() {
                                   fontSize: 11,
                                   fontWeight: 700,
                                   color: "#7DD3FC",
+                                  flexShrink: 0,
                                 }}
                               >
                                 {idx + 1}
                               </div>
-                              <div style={{ flex: 1 }}>
-                                <div
-                                  style={{
-                                    fontSize: 13,
-                                    fontWeight: 600,
-                                    color: UI.textPrimary,
-                                  }}
-                                >
+                              <div style={{ flex: 1, minWidth: 0 }}>
+                                <div style={{ fontSize: 13, fontWeight: 600, color: UI.textPrimary }}>
                                   {item.name ?? "Unknown"}
                                 </div>
+                                <div style={{ fontSize: 11, color: UI.textSecondary }}>
+                                  {item.countryCode ?? "—"} · {item.share?.toFixed(1) ?? "0.0"}% share
+                                </div>
+                                <div style={{ marginTop: 8 }}>
+                                  <ProgressBar value={item.share ?? 0} maxValue={100} color="#0EA5E9" height={6} />
+                                </div>
                               </div>
-                              <div
-                                style={{
-                                  fontSize: 12,
-                                  fontWeight: 700,
-                                  color: UI.textSecondary,
-                                  whiteSpace: "nowrap",
-                                }}
-                              >
+                              <div style={{ fontSize: 12, fontWeight: 700, color: UI.textSecondary, whiteSpace: "nowrap" }}>
                                 {item.count.toLocaleString()}
                               </div>
-                            </div>
+                            </button>
                           ))}
                         </div>
                       ) : (
-                        <div
-                          style={{
-                            padding: 24,
-                            textAlign: "center",
-                            color: UI.emptyText,
-                            fontSize: 13,
-                          }}
-                        >
+                        <div style={{ padding: 24, textAlign: "center", color: UI.emptyText, fontSize: 13 }}>
                           No country data yet.
                         </div>
                       )}
                     </div>
                   </Card>
 
-                  {/* Cities */}
                   <Card>
                     <div style={subCardStyle()}>
-                      <h3
-                        style={{
-                          margin: "0 0 20px 0",
-                          fontSize: 14,
-                          fontWeight: 700,
-                          color: UI.textPrimary,
-                        }}
-                      >
+                      <h3 style={{ margin: "0 0 20px 0", fontSize: 14, fontWeight: 700, color: UI.textPrimary }}>
                         Top Cities
                       </h3>
 
                       {geo?.cities?.length ? (
                         <div style={{ display: "grid", gap: 10 }}>
                           {geo.cities.slice(0, 8).map((item, idx) => (
-                            <div
+                            <button
                               key={`city-${item.name ?? "unknown"}`}
+                              type="button"
+                              onClick={() => setSelectedCity(item.normalized ?? item.name ?? null)}
                               style={{
                                 display: "flex",
                                 alignItems: "center",
                                 gap: 12,
                                 paddingBottom: 10,
                                 borderBottom:
-                                  idx < Math.min(geo.cities.length, 8) - 1
-                                    ? `1px solid ${UI.border}`
-                                    : "none",
+                                  idx < Math.min(geo.cities.length, 8) - 1 ? `1px solid ${UI.border}` : "none",
+                                borderTop: "none",
+                                borderLeft: "none",
+                                borderRight: "none",
+                                background: "transparent",
+                                cursor: "pointer",
+                                textAlign: "left",
                               }}
                             >
                               <div
@@ -1622,43 +1790,30 @@ export default function AdminPage() {
                                   fontSize: 11,
                                   fontWeight: 700,
                                   color: "#93C5FD",
+                                  flexShrink: 0,
                                 }}
                               >
                                 {idx + 1}
                               </div>
-                              <div style={{ flex: 1 }}>
-                                <div
-                                  style={{
-                                    fontSize: 13,
-                                    fontWeight: 600,
-                                    color: UI.textPrimary,
-                                  }}
-                                >
+                              <div style={{ flex: 1, minWidth: 0 }}>
+                                <div style={{ fontSize: 13, fontWeight: 600, color: UI.textPrimary }}>
                                   {item.name ?? "Unknown"}
                                 </div>
+                                <div style={{ fontSize: 11, color: UI.textSecondary }}>
+                                  {item.share?.toFixed(1) ?? "0.0"}% share
+                                </div>
+                                <div style={{ marginTop: 8 }}>
+                                  <ProgressBar value={item.share ?? 0} maxValue={100} color="#3B82F6" height={6} />
+                                </div>
                               </div>
-                              <div
-                                style={{
-                                  fontSize: 12,
-                                  fontWeight: 700,
-                                  color: UI.textSecondary,
-                                  whiteSpace: "nowrap",
-                                }}
-                              >
+                              <div style={{ fontSize: 12, fontWeight: 700, color: UI.textSecondary, whiteSpace: "nowrap" }}>
                                 {item.count.toLocaleString()}
                               </div>
-                            </div>
+                            </button>
                           ))}
                         </div>
                       ) : (
-                        <div
-                          style={{
-                            padding: 24,
-                            textAlign: "center",
-                            color: UI.emptyText,
-                            fontSize: 13,
-                          }}
-                        >
+                        <div style={{ padding: 24, textAlign: "center", color: UI.emptyText, fontSize: 13 }}>
                           No city data yet.
                         </div>
                       )}
@@ -1667,19 +1822,11 @@ export default function AdminPage() {
                 </div>
               </div>
 
-              {/* RECENT EVENTS SECTION */}
               <div style={{ marginBottom: 40 }}>
                 <h2 style={sectionTitleStyle()}>Recent Activity</h2>
                 <Card>
                   <div style={subCardStyle()}>
-                    <h3
-                      style={{
-                        margin: "0 0 20px 0",
-                        fontSize: 15,
-                        fontWeight: 700,
-                        color: UI.textPrimary,
-                      }}
-                    >
+                    <h3 style={{ margin: "0 0 20px 0", fontSize: 15, fontWeight: 700, color: UI.textPrimary }}>
                       Latest Events
                     </h3>
 
@@ -1690,25 +1837,23 @@ export default function AdminPage() {
                             key={`${item.eventType}-${item.createdAt}-${index}`}
                             style={{
                               display: "grid",
-                              gridTemplateColumns: "120px 1fr auto",
+                              gridTemplateColumns: "180px 1fr auto",
                               gap: 16,
-                              alignItems: "center",
+                              alignItems: "start",
                               padding: "12px 0",
-                              borderBottom:
-                                index < arr.length - 1 ? `1px solid ${UI.border}` : "none",
+                              borderBottom: index < arr.length - 1 ? `1px solid ${UI.border}` : "none",
                             }}
                           >
-                            <div
-                              style={{
-                                fontSize: 12,
-                                fontWeight: 700,
-                                color: "#93C5FD",
-                                textTransform: "capitalize",
-                                wordBreak: "break-word",
-                              }}
-                            >
-                              {item.eventType}
+                            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                              <div style={{ fontSize: 12, fontWeight: 700, color: "#93C5FD" }}>
+                                {item.label ?? humanizeKey(item.eventType)}
+                              </div>
+                              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                                {routeTypeBadge(item.routeType)}
+                                {severityBadge(item.severity)}
+                              </div>
                             </div>
+
                             <div style={{ minWidth: 0 }}>
                               <div
                                 style={{
@@ -1716,49 +1861,27 @@ export default function AdminPage() {
                                   color: UI.textPrimary,
                                   fontWeight: 600,
                                   wordBreak: "break-word",
-                                  marginBottom: 2,
+                                  marginBottom: 4,
                                 }}
                               >
-                                {item.path ?? "No path"}
+                                {item.path ?? "No route path"}
                               </div>
-                              <div
-                                style={{
-                                  fontSize: 11,
-                                  color: UI.textSecondary,
-                                  marginBottom: 2,
-                                }}
-                              >
-                                user: {item.userId ?? "—"}
+                              <div style={{ fontSize: 11, color: UI.textSecondary, marginBottom: 4 }}>
+                                user: {shortId(item.userId)} · session: {shortId(item.sessionId)}
                               </div>
-                              <div
-                                style={{
-                                  fontSize: 11,
-                                  color: UI.textMuted,
-                                }}
-                              >
-                                {item.city ?? item.country ?? "Unknown location"}
+                              <div style={{ fontSize: 11, color: UI.textMuted }}>
+                                {item.city ?? item.country ?? "Location unavailable"}
                               </div>
                             </div>
-                            <div
-                              style={{
-                                fontSize: 11,
-                                color: UI.textSecondary,
-                                whiteSpace: "nowrap",
-                              }}
-                            >
+
+                            <div style={{ fontSize: 11, color: UI.textSecondary, whiteSpace: "nowrap" }}>
                               {formatDisplayTimestamp(item.createdAt)}
                             </div>
                           </div>
                         ))}
                       </div>
                     ) : (
-                      <div
-                        style={{
-                          padding: 24,
-                          textAlign: "center",
-                          color: UI.emptyText,
-                        }}
-                      >
+                      <div style={{ padding: 24, textAlign: "center", color: UI.emptyText }}>
                         <p style={{ margin: 0 }}>No recent activity yet.</p>
                       </div>
                     )}
@@ -1766,7 +1889,6 @@ export default function AdminPage() {
                 </Card>
               </div>
 
-              {/* SUBSCRIPTION & EVIDENCE BREAKDOWN */}
               <div style={{ marginBottom: 40 }}>
                 <h2 style={sectionTitleStyle()}>Breakdown</h2>
                 <div
@@ -1776,82 +1898,29 @@ export default function AdminPage() {
                     gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))",
                   }}
                 >
-                  {/* Subscription */}
                   <Card>
                     <div style={subCardStyle()}>
-                      <h3
-                        style={{
-                          margin: "0 0 20px 0",
-                          fontSize: 14,
-                          fontWeight: 700,
-                          color: UI.textPrimary,
-                        }}
-                      >
+                      <h3 style={{ margin: "0 0 20px 0", fontSize: 14, fontWeight: 700, color: UI.textPrimary }}>
                         Subscription Plans
                       </h3>
                       <div style={{ display: "grid", gap: 14 }}>
                         {[
-                          {
-                            label: "Free Plan",
-                            value: stats.subscriptionBreakdown.free,
-                            textColor: "#38BDF8",
-                          },
-                          {
-                            label: "Pay-Per-Evidence",
-                            value: stats.subscriptionBreakdown.payg,
-                            textColor: "#22C55E",
-                          },
-                          {
-                            label: "Pro Plan",
-                            value: stats.subscriptionBreakdown.pro,
-                            textColor: "#F59E0B",
-                          },
-                          {
-                            label: "Team Plan",
-                            value: stats.subscriptionBreakdown.team,
-                            textColor: "#EF4444",
-                          },
+                          { label: "Free Plan", value: stats.subscriptionBreakdown.free, textColor: "#38BDF8" },
+                          { label: "Pay-Per-Evidence", value: stats.subscriptionBreakdown.payg, textColor: "#22C55E" },
+                          { label: "Pro Plan", value: stats.subscriptionBreakdown.pro, textColor: "#F59E0B" },
+                          { label: "Team Plan", value: stats.subscriptionBreakdown.team, textColor: "#EF4444" },
                         ].map((plan) => (
                           <div key={plan.label}>
-                            <div
-                              style={{
-                                display: "flex",
-                                justifyContent: "space-between",
-                                marginBottom: 6,
-                              }}
-                            >
-                              <div
-                                style={{
-                                  fontSize: 12,
-                                  fontWeight: 600,
-                                  color: UI.textPrimary,
-                                }}
-                              >
+                            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
+                              <div style={{ fontSize: 12, fontWeight: 600, color: UI.textPrimary }}>
                                 {plan.label}
                               </div>
-                              <div
-                                style={{
-                                  fontSize: 12,
-                                  fontWeight: 700,
-                                  color: UI.textPrimary,
-                                }}
-                              >
+                              <div style={{ fontSize: 12, fontWeight: 700, color: UI.textPrimary }}>
                                 {safeRatioPercent(plan.value, stats.totalUsers)}%
                               </div>
                             </div>
-                            <ProgressBar
-                              value={plan.value}
-                              maxValue={stats.totalUsers}
-                              color={plan.textColor}
-                              height={6}
-                            />
-                            <div
-                              style={{
-                                fontSize: 11,
-                                color: UI.textSecondary,
-                                marginTop: 4,
-                              }}
-                            >
+                            <ProgressBar value={plan.value} maxValue={stats.totalUsers} color={plan.textColor} height={6} />
+                            <div style={{ fontSize: 11, color: UI.textSecondary, marginTop: 4 }}>
                               {plan.value.toLocaleString()} users
                             </div>
                           </div>
@@ -1860,17 +1929,9 @@ export default function AdminPage() {
                     </div>
                   </Card>
 
-                  {/* Evidence Type */}
                   <Card>
                     <div style={subCardStyle()}>
-                      <h3
-                        style={{
-                          margin: "0 0 20px 0",
-                          fontSize: 14,
-                          fontWeight: 700,
-                          color: UI.textPrimary,
-                        }}
-                      >
+                      <h3 style={{ margin: "0 0 20px 0", fontSize: 14, fontWeight: 700, color: UI.textPrimary }}>
                         Evidence by Type
                       </h3>
                       <div style={{ display: "grid", gap: 14 }}>
@@ -1881,45 +1942,16 @@ export default function AdminPage() {
                           { label: "Other", value: stats.evidenceByType.other, color: "#8B5CF6" },
                         ].map((type) => (
                           <div key={type.label}>
-                            <div
-                              style={{
-                                display: "flex",
-                                justifyContent: "space-between",
-                                marginBottom: 6,
-                              }}
-                            >
-                              <div
-                                style={{
-                                  fontSize: 12,
-                                  fontWeight: 600,
-                                  color: UI.textPrimary,
-                                }}
-                              >
+                            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
+                              <div style={{ fontSize: 12, fontWeight: 600, color: UI.textPrimary }}>
                                 {type.label}
                               </div>
-                              <div
-                                style={{
-                                  fontSize: 12,
-                                  fontWeight: 700,
-                                  color: UI.textPrimary,
-                                }}
-                              >
+                              <div style={{ fontSize: 12, fontWeight: 700, color: UI.textPrimary }}>
                                 {safeRatioPercent(type.value, stats.totalEvidence)}%
                               </div>
                             </div>
-                            <ProgressBar
-                              value={type.value}
-                              maxValue={stats.totalEvidence}
-                              color={type.color}
-                              height={6}
-                            />
-                            <div
-                              style={{
-                                fontSize: 11,
-                                color: UI.textSecondary,
-                                marginTop: 4,
-                              }}
-                            >
+                            <ProgressBar value={type.value} maxValue={stats.totalEvidence} color={type.color} height={6} />
+                            <div style={{ fontSize: 11, color: UI.textSecondary, marginTop: 4 }}>
                               {type.value.toLocaleString()} items
                             </div>
                           </div>
@@ -1930,144 +1962,298 @@ export default function AdminPage() {
                 </div>
               </div>
 
-              {/* Admin audit trail + integrity */}
               <div style={{ marginBottom: 40 }}>
                 <h2 style={sectionTitleStyle()}>Admin Audit</h2>
+
                 <Card style={{ marginBottom: 16 }}>
                   <div style={subCardStyle()}>
-                    <h3
-                      style={{
-                        margin: "0 0 12px 0",
-                        fontSize: 15,
-                        fontWeight: 700,
-                        color: UI.textPrimary,
-                      }}
-                    >
-                      Audit Integrity Status
-                    </h3>
-                    {chainVerify === null ? (
-                      <div style={{ fontSize: 13, color: UI.textSecondary }}>
-                        Verification not available yet.
+                    <div style={{ display: "flex", justifyContent: "space-between", gap: 16, flexWrap: "wrap" }}>
+                      <div>
+                        <h3 style={{ margin: "0 0 12px 0", fontSize: 15, fontWeight: 700, color: UI.textPrimary }}>
+                          Audit Integrity Status
+                        </h3>
+                        {chainVerify === null ? (
+                          <div style={{ fontSize: 13, color: UI.textSecondary }}>Verification not available yet.</div>
+                        ) : chainVerify.valid ? (
+                          <div>
+                            <div style={{ fontSize: 14, fontWeight: 700, color: UI.successText }}>
+                              ✅ Valid chain
+                            </div>
+                            <div style={{ marginTop: 6, fontSize: 12, color: UI.textSecondary }}>
+                              {chainVerify.partial ? "Tail verification" : "Full verification"}
+                              {typeof chainVerify.verifiedCount === "number"
+                                ? ` · ${chainVerify.verifiedCount.toLocaleString()} rows checked`
+                                : ""}
+                            </div>
+                          </div>
+                        ) : (
+                          <div style={{ fontSize: 14, fontWeight: 700, color: "#FCA5A5" }}>
+                            ❌ Tampering detected
+                            <div
+                              style={{
+                                marginTop: 8,
+                                fontSize: 12,
+                                fontWeight: 500,
+                                color: UI.textSecondary,
+                                fontFamily: "ui-monospace, monospace",
+                                wordBreak: "break-word",
+                              }}
+                            >
+                              brokenAt: {chainVerify.brokenAt}
+                            </div>
+                          </div>
+                        )}
                       </div>
-                    ) : chainVerify.valid ? (
-                      <div style={{ fontSize: 14, fontWeight: 700, color: UI.successText }}>
-                        ✅ Valid chain
-                      </div>
-                    ) : (
-                      <div style={{ fontSize: 14, fontWeight: 700, color: "#FCA5A5" }}>
-                        ❌ Tampering detected
-                        <div
+
+                      <div style={{ display: "flex", alignItems: "flex-end", gap: 10 }}>
+                        <button
+                          type="button"
+                          onClick={handleExportAuditCsv}
                           style={{
-                            marginTop: 8,
-                            fontSize: 12,
-                            fontWeight: 500,
-                            color: UI.textSecondary,
-                            fontFamily: "ui-monospace, monospace",
-                            wordBreak: "break-word",
+                            padding: "8px 14px",
+                            fontSize: 13,
+                            fontWeight: 600,
+                            color: UI.inputText,
+                            backgroundColor: UI.inputBg,
+                            border: "1px solid rgba(226, 232, 240, 0.65)",
+                            borderRadius: 8,
+                            cursor: "pointer",
                           }}
                         >
-                          brokenAt: {chainVerify.brokenAt}
-                        </div>
+                          Export Audit CSV
+                        </button>
                       </div>
-                    )}
+                    </div>
                   </div>
                 </Card>
+
                 <Card>
                   <div style={subCardStyle()}>
-                    <h3
-                      style={{
-                        margin: "0 0 20px 0",
-                        fontSize: 15,
-                        fontWeight: 700,
-                        color: UI.textPrimary,
-                      }}
-                    >
-                      Recent Admin Actions
-                    </h3>
+                    <div style={{ marginBottom: 20 }}>
+                      <h3 style={{ margin: "0 0 12px 0", fontSize: 15, fontWeight: 700, color: UI.textPrimary }}>
+                        Recent Admin Actions
+                      </h3>
 
-                    {auditLogsLoading ? (
                       <div
                         style={{
-                          padding: 12,
-                          textAlign: "center",
-                          color: UI.emptyText,
-                          fontSize: 13,
+                          display: "grid",
+                          gap: 12,
+                          gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+                          marginBottom: 16,
                         }}
                       >
+                        <input
+                          value={auditAction}
+                          onChange={(e) => setAuditAction(e.target.value)}
+                          placeholder="Action"
+                          style={{
+                            padding: "8px 12px",
+                            fontSize: 13,
+                            color: UI.inputText,
+                            backgroundColor: UI.inputBg,
+                            border: "1px solid rgba(226, 232, 240, 0.65)",
+                            borderRadius: 8,
+                            outline: "none",
+                          }}
+                        />
+                        <input
+                          value={auditCategory}
+                          onChange={(e) => setAuditCategory(e.target.value)}
+                          placeholder="Category"
+                          style={{
+                            padding: "8px 12px",
+                            fontSize: 13,
+                            color: UI.inputText,
+                            backgroundColor: UI.inputBg,
+                            border: "1px solid rgba(226, 232, 240, 0.65)",
+                            borderRadius: 8,
+                            outline: "none",
+                          }}
+                        />
+                        <input
+                          value={auditSeverity}
+                          onChange={(e) => setAuditSeverity(e.target.value)}
+                          placeholder="Severity"
+                          style={{
+                            padding: "8px 12px",
+                            fontSize: 13,
+                            color: UI.inputText,
+                            backgroundColor: UI.inputBg,
+                            border: "1px solid rgba(226, 232, 240, 0.65)",
+                            borderRadius: 8,
+                            outline: "none",
+                          }}
+                        />
+                        <input
+                          value={auditOutcome}
+                          onChange={(e) => setAuditOutcome(e.target.value)}
+                          placeholder="Outcome"
+                          style={{
+                            padding: "8px 12px",
+                            fontSize: 13,
+                            color: UI.inputText,
+                            backgroundColor: UI.inputBg,
+                            border: "1px solid rgba(226, 232, 240, 0.65)",
+                            borderRadius: 8,
+                            outline: "none",
+                          }}
+                        />
+                        <input
+                          value={auditSearch}
+                          onChange={(e) => setAuditSearch(e.target.value)}
+                          placeholder="Search"
+                          style={{
+                            padding: "8px 12px",
+                            fontSize: 13,
+                            color: UI.inputText,
+                            backgroundColor: UI.inputBg,
+                            border: "1px solid rgba(226, 232, 240, 0.65)",
+                            borderRadius: 8,
+                            outline: "none",
+                          }}
+                        />
+                      </div>
+
+                      <div style={{ display: "flex", gap: 10 }}>
+                        <button
+                          type="button"
+                          onClick={() => void refreshAuditLogs()}
+                          style={{
+                            padding: "8px 14px",
+                            fontSize: 13,
+                            fontWeight: 600,
+                            color: UI.inputText,
+                            backgroundColor: UI.inputBg,
+                            border: "1px solid rgba(226, 232, 240, 0.65)",
+                            borderRadius: 8,
+                            cursor: "pointer",
+                          }}
+                        >
+                          Apply filters
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setAuditAction("");
+                            setAuditCategory("");
+                            setAuditSeverity("");
+                            setAuditOutcome("");
+                            setAuditSearch("");
+                          }}
+                          style={{
+                            padding: "8px 14px",
+                            fontSize: 13,
+                            fontWeight: 600,
+                            color: UI.inputText,
+                            backgroundColor: UI.inputBg,
+                            border: "1px solid rgba(226, 232, 240, 0.65)",
+                            borderRadius: 8,
+                            cursor: "pointer",
+                          }}
+                        >
+                          Clear
+                        </button>
+                      </div>
+                    </div>
+
+                    {auditLogsLoading ? (
+                      <div style={{ padding: 12, textAlign: "center", color: UI.emptyText, fontSize: 13 }}>
                         Loading audit log…
                       </div>
                     ) : auditLogItems.length ? (
-                      <div style={{ display: "grid", gap: 1 }}>
-                        {auditLogItems.slice(0, 10).map((entry, index, arr) => (
-                          <div
-                            key={entry.id}
-                            style={{
-                              display: "grid",
-                              gridTemplateColumns: "1fr minmax(120px, auto)",
-                              gap: 12,
-                              alignItems: "start",
-                              padding: "12px 0",
-                              borderBottom:
-                                index < arr.length - 1 ? `1px solid ${UI.border}` : "none",
-                            }}
-                          >
-                            <div style={{ minWidth: 0 }}>
-                              <div
-                                style={{
-                                  fontSize: 12,
-                                  fontWeight: 700,
-                                  color: UI.textPrimary,
-                                  wordBreak: "break-word",
-                                  marginBottom: 4,
-                                }}
-                              >
-                                {entry.action}
-                              </div>
-                              <div
-                                style={{
-                                  fontSize: 10,
-                                  color: UI.textMuted,
-                                  marginBottom: 6,
-                                }}
-                              >
-                                user: {formatAuditActor(entry.userId, entry.isPublic)}
-                              </div>
-                              <pre
-                                style={{
-                                  fontSize: 11,
-                                  color: UI.textSecondary,
-                                  fontFamily: "ui-monospace, monospace",
-                                  wordBreak: "break-word",
-                                  lineHeight: 1.4,
-                                  margin: 0,
-                                  whiteSpace: "pre-wrap",
-                                }}
-                              >
-                                {prettyMetadataJson(entry.metadata)}
-                              </pre>
-                            </div>
+                      <>
+                        <div style={{ display: "grid", gap: 1 }}>
+                          {auditLogItems.map((entry, index, arr) => (
                             <div
+                              key={entry.id}
                               style={{
-                                fontSize: 11,
-                                color: UI.textSecondary,
-                                whiteSpace: "nowrap",
-                                textAlign: "right",
+                                display: "grid",
+                                gridTemplateColumns: "1fr minmax(150px, auto)",
+                                gap: 12,
+                                alignItems: "start",
+                                padding: "14px 0",
+                                borderBottom: index < arr.length - 1 ? `1px solid ${UI.border}` : "none",
                               }}
                             >
-                              {formatDisplayTimestamp(entry.createdAt)}
+                              <div style={{ minWidth: 0 }}>
+                                <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginBottom: 6 }}>
+                                  <div style={{ fontSize: 12, fontWeight: 700, color: UI.textPrimary, wordBreak: "break-word" }}>
+                                    {humanizeKey(entry.action)}
+                                  </div>
+                                  {entry.category ? (
+                                    <span style={badgeStyle("#C4B5FD", "rgba(139,92,246,0.18)")}>
+                                      {humanizeKey(entry.category)}
+                                    </span>
+                                  ) : null}
+                                  {severityBadge(entry.severity)}
+                                  {entry.outcome ? (
+                                    <span style={badgeStyle("#CBD5E1", "rgba(148,163,184,0.18)")}>
+                                      {humanizeKey(entry.outcome)}
+                                    </span>
+                                  ) : null}
+                                </div>
+
+                                <div style={{ fontSize: 10, color: UI.textMuted, marginBottom: 6 }}>
+                                  actor: {formatAuditActor(entry.userId, entry.isPublic)}
+                                  {entry.resourceType ? ` · ${entry.resourceType}` : ""}
+                                  {entry.resourceId ? ` · ${shortId(entry.resourceId)}` : ""}
+                                  {entry.requestId ? ` · req ${shortId(entry.requestId)}` : ""}
+                                </div>
+
+                                <div style={{ display: "grid", gap: 6 }}>
+                                  <div style={{ fontSize: 11, color: UI.textSecondary }}>
+                                    IP: {entry.ipAddress ?? "—"} · Chain v{entry.chainVersion ?? 1}
+                                    {entry.anchoredAt ? ` · anchored ${formatDisplayTimestamp(entry.anchoredAt)}` : ""}
+                                  </div>
+                                  <pre
+                                    style={{
+                                      fontSize: 11,
+                                      color: UI.textSecondary,
+                                      fontFamily: "ui-monospace, monospace",
+                                      wordBreak: "break-word",
+                                      lineHeight: 1.4,
+                                      margin: 0,
+                                      whiteSpace: "pre-wrap",
+                                    }}
+                                  >
+                                    {prettyMetadataJson(entry.metadata)}
+                                  </pre>
+                                </div>
+                              </div>
+
+                              <div style={{ fontSize: 11, color: UI.textSecondary, whiteSpace: "nowrap", textAlign: "right" }}>
+                                {formatDisplayTimestamp(entry.createdAt)}
+                              </div>
                             </div>
+                          ))}
+                        </div>
+
+                        <div style={{ marginTop: 16, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
+                          <div style={{ fontSize: 12, color: UI.textSecondary }}>
+                            Showing {auditLogItems.length} entries
                           </div>
-                        ))}
-                      </div>
+                          <button
+                            type="button"
+                            disabled={!auditCursor}
+                            onClick={() => void refreshAuditLogs(auditCursor)}
+                            style={{
+                              padding: "8px 14px",
+                              fontSize: 13,
+                              fontWeight: 600,
+                              color: UI.inputText,
+                              backgroundColor: UI.inputBg,
+                              border: "1px solid rgba(226, 232, 240, 0.65)",
+                              borderRadius: 8,
+                              cursor: auditCursor ? "pointer" : "not-allowed",
+                              opacity: auditCursor ? 1 : 0.5,
+                            }}
+                          >
+                            Load more
+                          </button>
+                        </div>
+                      </>
                     ) : (
-                      <div
-                        style={{
-                          padding: 12,
-                          textAlign: "center",
-                          color: UI.emptyText,
-                          fontSize: 13,
-                        }}
-                      >
+                      <div style={{ padding: 12, textAlign: "center", color: UI.emptyText, fontSize: 13 }}>
                         No audit log entries yet.
                       </div>
                     )}
@@ -2075,18 +2261,10 @@ export default function AdminPage() {
                 </Card>
               </div>
 
-              {/* System Status */}
               <div>
                 <Card>
                   <div style={subCardStyle()}>
-                    <h3
-                      style={{
-                        margin: "0 0 16px 0",
-                        fontSize: 15,
-                        fontWeight: 700,
-                        color: UI.textPrimary,
-                      }}
-                    >
+                    <h3 style={{ margin: "0 0 16px 0", fontSize: 15, fontWeight: 700, color: UI.textPrimary }}>
                       System Status
                     </h3>
                     <div
@@ -2097,30 +2275,20 @@ export default function AdminPage() {
                       }}
                     >
                       <div>
-                        <div style={{ fontSize: 12, color: UI.textMuted, marginBottom: 6 }}>
-                          API Version
-                        </div>
-                        <div style={{ fontSize: 14, fontWeight: 700, color: UI.textPrimary }}>
-                          v1
-                        </div>
+                        <div style={{ fontSize: 12, color: UI.textMuted, marginBottom: 6 }}>API Version</div>
+                        <div style={{ fontSize: 14, fontWeight: 700, color: UI.textPrimary }}>v1</div>
                       </div>
                       <div>
-                        <div style={{ fontSize: 12, color: UI.textMuted, marginBottom: 6 }}>
-                          Database
-                        </div>
-                        <div style={{ fontSize: 14, fontWeight: 700, color: UI.textPrimary }}>
-                          PostgreSQL
-                        </div>
+                        <div style={{ fontSize: 12, color: UI.textMuted, marginBottom: 6 }}>Data source</div>
+                        <div style={{ fontSize: 14, fontWeight: 700, color: UI.textPrimary }}>PostgreSQL + analytics events</div>
                       </div>
                       <div>
-                        <div style={{ fontSize: 12, color: UI.textMuted, marginBottom: 6 }}>
-                          Status
-                        </div>
+                        <div style={{ fontSize: 12, color: UI.textMuted, marginBottom: 6 }}>Audit integrity</div>
                         <div
                           style={{
                             fontSize: 13,
                             fontWeight: 700,
-                            color: UI.success,
+                            color: chainVerify && chainVerify.valid ? UI.success : "#FCA5A5",
                             display: "flex",
                             alignItems: "center",
                             gap: 6,
@@ -2131,21 +2299,20 @@ export default function AdminPage() {
                               width: 8,
                               height: 8,
                               borderRadius: 999,
-                              backgroundColor: UI.success,
-                              boxShadow: "0 0 12px rgba(52, 211, 153, 0.7)",
+                              backgroundColor: chainVerify && chainVerify.valid ? UI.success : "#EF4444",
+                              boxShadow:
+                                chainVerify && chainVerify.valid
+                                  ? "0 0 12px rgba(52, 211, 153, 0.7)"
+                                  : "0 0 12px rgba(239, 68, 68, 0.7)",
                             }}
                           />
-                          Healthy
+                          {chainVerify && chainVerify.valid ? "Verified" : "Needs review"}
                         </div>
                       </div>
                       <div>
-                        <div style={{ fontSize: 12, color: UI.textMuted, marginBottom: 6 }}>
-                          Last Updated
-                        </div>
+                        <div style={{ fontSize: 12, color: UI.textMuted, marginBottom: 6 }}>Last updated</div>
                         <div style={{ fontSize: 13, fontWeight: 600, color: UI.textPrimary }}>
-                          {lastSuccessfulFetchAt
-                            ? formatDisplayTimestamp(lastSuccessfulFetchAt)
-                            : "—"}
+                          {lastSuccessfulFetchAt ? formatDisplayTimestamp(lastSuccessfulFetchAt) : "—"}
                         </div>
                       </div>
                     </div>

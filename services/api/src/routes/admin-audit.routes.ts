@@ -11,6 +11,13 @@ import {
 
 const PostBodySchema = z.object({
   action: z.string().min(1).max(128),
+  category: z.string().max(64).optional(),
+  severity: z.enum(["info", "warning", "critical"]).optional(),
+  source: z.string().max(64).optional(),
+  outcome: z.enum(["success", "failure", "blocked"]).optional(),
+  resourceType: z.string().max(64).optional(),
+  resourceId: z.string().max(128).optional(),
+  requestId: z.string().max(64).optional(),
   metadata: z.record(z.string(), z.unknown()).optional().default({}),
 });
 
@@ -19,6 +26,14 @@ function readUserAgent(req: {
 }): string | undefined {
   const value = req.headers["user-agent"];
   return Array.isArray(value) ? value[0] : value;
+}
+
+function csvEscape(value: string | null | undefined): string {
+  const safe = value ?? "";
+  if (/[",\n\r]/.test(safe)) {
+    return `"${safe.replace(/"/g, '""')}"`;
+  }
+  return safe;
 }
 
 export async function adminAuditRoutes(app: FastifyInstance) {
@@ -66,6 +81,13 @@ export async function adminAuditRoutes(app: FastifyInstance) {
         await appendPlatformAuditLog({
           userId,
           action: parsed.data.action,
+          category: parsed.data.category ?? null,
+          severity: parsed.data.severity ?? "info",
+          source: parsed.data.source ?? "admin_console",
+          outcome: parsed.data.outcome ?? "success",
+          resourceType: parsed.data.resourceType ?? null,
+          resourceId: parsed.data.resourceId ?? null,
+          requestId: parsed.data.requestId ?? req.id,
           metadata: parsed.data.metadata ?? {},
           ipAddress: ip,
           userAgent: readUserAgent(req),
@@ -121,7 +143,7 @@ export async function adminAuditRoutes(app: FastifyInstance) {
         );
       }
 
-      const query = req.query as { limit?: string; cursor?: string };
+      const query = req.query as Record<string, string | undefined>;
       const limitRaw = query.limit ? Number.parseInt(query.limit, 10) : 20;
       const limit = Number.isFinite(limitRaw) ? limitRaw : 20;
       const cursorId =
@@ -132,9 +154,69 @@ export async function adminAuditRoutes(app: FastifyInstance) {
       const { items } = await listAdminAuditLogs({
         limit,
         cursorId,
+        action: query.action ?? null,
+        category: query.category ?? null,
+        severity: query.severity ?? null,
+        outcome: query.outcome ?? null,
+        search: query.search ?? null,
       });
 
       return reply.code(200).send({ items });
+    }
+  );
+
+  app.get(
+    "/v1/admin/audit-log/export",
+    { preHandler: requirePlatformAdmin },
+    async (req, reply) => {
+      const query = req.query as Record<string, string | undefined>;
+      const { items } = await listAdminAuditLogs({
+        limit: 100,
+        action: query.action ?? null,
+        category: query.category ?? null,
+        severity: query.severity ?? null,
+        outcome: query.outcome ?? null,
+        search: query.search ?? null,
+      });
+
+      const lines = [
+        [
+          "createdAt",
+          "action",
+          "category",
+          "severity",
+          "source",
+          "outcome",
+          "userId",
+          "resourceType",
+          "resourceId",
+          "requestId",
+          "ipAddress",
+        ].join(","),
+        ...items.map((item) =>
+          [
+            csvEscape(item.createdAt),
+            csvEscape(item.action),
+            csvEscape(item.category),
+            csvEscape(item.severity),
+            csvEscape(item.source),
+            csvEscape(item.outcome),
+            csvEscape(item.userId),
+            csvEscape(item.resourceType),
+            csvEscape(item.resourceId),
+            csvEscape(item.requestId),
+            csvEscape(item.ipAddress),
+          ].join(",")
+        ),
+      ];
+
+      return reply
+        .header("content-type", "text/csv; charset=utf-8")
+        .header(
+          "content-disposition",
+          `attachment; filename="admin-audit-export.csv"`
+        )
+        .send(lines.join("\r\n"));
     }
   );
 
