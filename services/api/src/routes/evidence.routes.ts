@@ -2177,8 +2177,6 @@ export async function evidenceRoutes(app: FastifyInstance) {
       },
     });
 
-    const anchor = await getAnchorStatus(id);
-
     const recomputedFingerprintHash = sha256Hex(
       evidence.fingerprintCanonicalJson
     );
@@ -2301,7 +2299,6 @@ export async function evidenceRoutes(app: FastifyInstance) {
       },
 
       storage: storageProtection,
-      anchor,
 
       tsaStatus: evidence.tsaStatus,
       tsaProvider: evidence.tsaProvider,

@@ -101,18 +101,6 @@ type VerifyResponse = {
     failureReason?: string | null;
     proofBase64?: string | null;
   } | null;
-  anchor?: {
-    mode?: string | null;
-    provider?: string | null;
-    publicBaseUrl?: string | null;
-    configured?: boolean;
-    published?: boolean;
-    anchorHash?: string | null;
-    receiptId?: string | null;
-    transactionId?: string | null;
-    publicUrl?: string | null;
-    anchoredAtUtc?: string | null;
-  } | null;
   verification?: {
     canonicalHashMatches?: boolean;
     signatureValid?: boolean;
@@ -380,61 +368,6 @@ function buildOtsDetails(data: VerifyResponse): OtsDetails {
     upgradedAtUtc: firstNonEmpty(data.ots?.upgradedAtUtc, data.otsUpgradedAtUtc),
     failureReason: firstNonEmpty(data.ots?.failureReason, data.otsFailureReason),
     proofBase64: firstNonEmpty(data.ots?.proofBase64, data.otsProofBase64),
-  };
-}
-
-function buildAnchorPresentation(anchor?: VerifyResponse["anchor"] | null): {
-  badgeLabel: string;
-  badgeTone: "success" | "warning" | "neutral" | "info";
-  detailLabel: string;
-  detailText: string;
-} {
-  const mode = (anchor?.mode ?? "").trim().toLowerCase();
-
-  if (mode === "published" || anchor?.published === true) {
-    return {
-      badgeLabel: "Anchor Published",
-      badgeTone: "success",
-      detailLabel: "Anchor Status",
-      detailText:
-        "External anchor publication has been recorded for this evidence record.",
-    };
-  }
-
-  if (mode === "off") {
-    return {
-      badgeLabel: "Anchor Disabled",
-      badgeTone: "neutral",
-      detailLabel: "Anchor Status",
-      detailText: "External anchoring is currently disabled for this environment.",
-    };
-  }
-
-  if (mode === "active") {
-    return {
-      badgeLabel: "Anchor Active",
-      badgeTone: "info",
-      detailLabel: "Anchor Status",
-      detailText:
-        "External anchoring is active for this environment. A publication receipt is not attached to this record yet.",
-    };
-  }
-
-  if (mode === "ready") {
-    return {
-      badgeLabel: "Anchor Ready",
-      badgeTone: "info",
-      detailLabel: "Anchor Status",
-      detailText:
-        "External publication receipt is not yet attached to this record.",
-    };
-  }
-
-  return {
-    badgeLabel: "Anchor Not Reported",
-    badgeTone: "neutral",
-    detailLabel: "Anchor Status",
-    detailText: "Anchor status was not included in the verification response.",
   };
 }
 
@@ -875,20 +808,7 @@ export default function VerifyPage() {
   const [timestampDigestMatches, setTimestampDigestMatches] = useState<boolean | null>(null);
   const [overallIntegrity, setOverallIntegrity] = useState<boolean | null>(null);
 
-  const [anchorMode, setAnchorMode] = useState<string | null>(null);
-  const [anchorProvider, setAnchorProvider] = useState<string | null>(null);
-  const [anchorPublicBaseUrl, setAnchorPublicBaseUrl] = useState<string | null>(null);
-  const [anchorConfigured, setAnchorConfigured] = useState<boolean | null>(null);
-  const [anchorPublished, setAnchorPublished] = useState<boolean | null>(null);
-  const [anchorHash, setAnchorHash] = useState<string | null>(null);
-  const [anchorReceiptId, setAnchorReceiptId] = useState<string | null>(null);
-  const [anchorTransactionId, setAnchorTransactionId] = useState<string | null>(null);
-  const [anchorPublicUrl, setAnchorPublicUrl] = useState<string | null>(null);
-  const [anchoredAtUtc, setAnchoredAtUtc] = useState<string | null>(null);
-
-  const [storageProtection, setStorageProtection] = useState<StorageProtection | null>(
-    null
-  );
+  const [storageProtection, setStorageProtection] = useState<StorageProtection | null>(null);
 
   const pollingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const hasShownAnchoredToastRef = useRef(false);
@@ -1016,21 +936,6 @@ export default function VerifyPage() {
         : null
     );
 
-    setAnchorMode(data.anchor?.mode ?? null);
-    setAnchorProvider(data.anchor?.provider ?? null);
-    setAnchorPublicBaseUrl(data.anchor?.publicBaseUrl ?? null);
-    setAnchorConfigured(
-      typeof data.anchor?.configured === "boolean" ? data.anchor.configured : null
-    );
-    setAnchorPublished(
-      typeof data.anchor?.published === "boolean" ? data.anchor.published : null
-    );
-    setAnchorHash(data.anchor?.anchorHash ?? null);
-    setAnchorReceiptId(data.anchor?.receiptId ?? null);
-    setAnchorTransactionId(data.anchor?.transactionId ?? null);
-    setAnchorPublicUrl(data.anchor?.publicUrl ?? null);
-    setAnchoredAtUtc(data.anchor?.anchoredAtUtc ?? null);
-
     setStorageProtection({
       immutable:
         typeof data.storage?.immutable === "boolean"
@@ -1126,34 +1031,6 @@ export default function VerifyPage() {
       clearPolling();
     };
   }, [params?.token, addToast]);
-
-  const anchorPresentation = useMemo(
-    () =>
-      buildAnchorPresentation({
-        mode: anchorMode,
-        provider: anchorProvider,
-        publicBaseUrl: anchorPublicBaseUrl,
-        configured: anchorConfigured ?? undefined,
-        published: anchorPublished ?? undefined,
-        anchorHash,
-        receiptId: anchorReceiptId,
-        transactionId: anchorTransactionId,
-        publicUrl: anchorPublicUrl,
-        anchoredAtUtc,
-      }),
-    [
-      anchorMode,
-      anchorProvider,
-      anchorPublicBaseUrl,
-      anchorConfigured,
-      anchorPublished,
-      anchorHash,
-      anchorReceiptId,
-      anchorTransactionId,
-      anchorPublicUrl,
-      anchoredAtUtc,
-    ]
-  );
 
   const storagePresentation = useMemo(
     () => buildStoragePresentation(storageProtection),
@@ -1292,12 +1169,6 @@ export default function VerifyPage() {
     });
 
     items.push({
-      label: anchorPresentation.badgeLabel,
-      tone: anchorPresentation.badgeTone,
-      show: true,
-    });
-
-    items.push({
       label: storagePresentation.badgeLabel,
       tone: storagePresentation.badgeTone,
       show: true,
@@ -1312,7 +1183,6 @@ export default function VerifyPage() {
     custodyChainMode,
     timestampDigestMatches,
     otsPresentation,
-    anchorPresentation,
     storagePresentation,
   ]);
 
@@ -1450,16 +1320,6 @@ export default function VerifyPage() {
           show: true,
         },
         {
-          label: "Anchor",
-          content: (
-            <Badge
-              label={anchorPresentation.badgeLabel}
-              tone={anchorPresentation.badgeTone}
-            />
-          ),
-          show: true,
-        },
-        {
           label: "Storage Protection",
           content: (
             <Badge
@@ -1524,7 +1384,6 @@ export default function VerifyPage() {
       otsStatus,
       otsCalendar,
       otsAnchoredAtUtc,
-      anchorPresentation,
       storagePresentation,
       tsaStatus,
       tsaProvider,
@@ -1956,91 +1815,6 @@ const cardTitleSize = "clamp(1.45rem, 2.2vw, 1.95rem)";
                         ) : null}
                         {otsUpgradedAtUtc ? (
                           <div>Upgraded At: {formatDateTime(otsUpgradedAtUtc)}</div>
-                        ) : null}
-                      </div>
-                    )}
-                  </div>
-
-                  <div
-                    style={{
-                      border: "1px solid #E4E7EC",
-                      background: "#FCFCFD",
-                      borderRadius: 16,
-                      padding: 16,
-                    }}
-                  >
-                    <div
-                      style={{
-                        fontSize: 12,
-                        color: "#667085",
-                        fontWeight: 800,
-                        marginBottom: 8,
-                      }}
-                    >
-                      {anchorPresentation.detailLabel}
-                    </div>
-                    <div
-                      style={{
-                        fontSize: 13,
-                        color: "#475467",
-                        lineHeight: 1.65,
-                        wordBreak: "break-word",
-                        overflowWrap: "anywhere",
-                      }}
-                    >
-                      {anchorPresentation.detailText}
-                    </div>
-
-                    {(anchorProvider ||
-                      anchorPublicBaseUrl ||
-                      anchorReceiptId ||
-                      anchorTransactionId ||
-                      anchorHash ||
-                      anchoredAtUtc) && (
-                      <div
-                        style={{
-                          marginTop: 10,
-                          display: "grid",
-                          gap: 6,
-                          fontSize: 12,
-                          color: "#667085",
-                        }}
-                      >
-                        {anchorProvider ? <div>Provider: {anchorProvider}</div> : null}
-                        {anchorHash ? (
-                          <div style={{ wordBreak: "break-all" }}>
-                            Anchor Hash: {anchorHash}
-                          </div>
-                        ) : null}
-                        {anchorReceiptId ? (
-                          <div style={{ wordBreak: "break-all" }}>
-                            Receipt ID: {anchorReceiptId}
-                          </div>
-                        ) : null}
-                        {anchorTransactionId ? (
-                          <div style={{ wordBreak: "break-all" }}>
-                            Transaction ID: {anchorTransactionId}
-                          </div>
-                        ) : null}
-                        {anchoredAtUtc ? (
-                          <div>Anchored At: {formatDateTime(anchoredAtUtc)}</div>
-                        ) : null}
-                        {anchorPublicUrl ? (
-                          <div style={{ wordBreak: "break-all" }}>
-                            Public URL:{" "}
-                            <a
-                              href={anchorPublicUrl}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                            >
-                              {anchorPublicUrl}
-                            </a>
-                          </div>
-                        ) : null}
-                        {anchorPublicBaseUrl ? (
-                          <div style={{ wordBreak: "break-all" }}>
-                            Public Base URL: {anchorPublicBaseUrl}
-                          </div>
                         ) : null}
                       </div>
                     )}
