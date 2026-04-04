@@ -4,6 +4,8 @@ type JwtPayload = {
   sub: string;
   provider: string;
   email?: string | null;
+  /** Present when user is a platform admin (dashboard / audit). */
+  role?: string | null;
   exp?: number;
 };
 

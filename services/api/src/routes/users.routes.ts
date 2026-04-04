@@ -17,6 +17,7 @@ function pickMe(u: any) {
     provider: u.provider,
     createdAt: u.createdAt,
     updatedAt: u.updatedAt,
+    ...(u.platformRole === "admin" ? { role: "admin" as const } : {}),
   };
 }
 

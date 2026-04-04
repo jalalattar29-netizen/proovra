@@ -1,10 +1,17 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+} from "react";
 import Link from "next/link";
 import { Button, Card, useToast, Skeleton } from "../../../components/ui";
 import { useAuth } from "../../providers";
-import { apiFetch } from "../../../lib/api";
+import { apiFetch, ApiError } from "../../../lib/api";
 
 interface AdminStats {
   totalUsers: number;
@@ -46,12 +53,15 @@ interface RecentEvent {
   country: string | null;
   city: string | null;
   createdAt: string;
+  userId?: string | null;
 }
 
 interface TrendPoint {
   date: string;
   pageViews: number;
   sessions: number;
+  /** When API returns multi-series trends, filter client-side by event type */
+  eventType?: string | null;
 }
 
 interface FunnelStep {
@@ -67,6 +77,28 @@ interface StatCardProps {
   accent?: string;
 }
 
+type DateRangeKey = "24h" | "7d" | "30d";
+
+type EventTypeFilter =
+  | "all"
+  | "page_view"
+  | "login_completed"
+  | "evidence_created"
+  | "report_generated";
+
+const DATE_RANGE_OPTIONS: { key: DateRangeKey; label: string; ms: number }[] = [
+  { key: "24h", label: "Last 24 hours", ms: 24 * 60 * 60 * 1000 },
+  { key: "7d", label: "Last 7 days", ms: 7 * 24 * 60 * 60 * 1000 },
+  { key: "30d", label: "Last 30 days", ms: 30 * 24 * 60 * 60 * 1000 },
+];
+
+const EVENT_TYPE_OPTIONS: { value: EventTypeFilter; label: string }[] = [
+  { value: "all", label: "All" },
+  { value: "page_view", label: "page_view" },
+  { value: "login_completed", label: "login_completed" },
+  { value: "evidence_created", label: "evidence_created" },
+  { value: "report_generated", label: "report_generated" },
+];
 
 const MOCK_STATS: AdminStats = {
   totalUsers: 12345,
@@ -86,6 +118,212 @@ const MOCK_STATS: AdminStats = {
     other: 1234
   }
 };
+
+function formatDisplayTimestamp(isoOrDate: string): string {
+  const d = new Date(isoOrDate);
+  if (Number.isNaN(d.getTime())) return isoOrDate;
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  const h = String(d.getHours()).padStart(2, "0");
+  const min = String(d.getMinutes()).padStart(2, "0");
+  return `${y}-${m}-${day} ${h}:${min}`;
+}
+
+function getDateRangeCutoffMs(range: DateRangeKey): number {
+  const found = DATE_RANGE_OPTIONS.find((o) => o.key === range);
+  return Date.now() - (found?.ms ?? DATE_RANGE_OPTIONS[2].ms);
+}
+
+function eventCreatedAtMs(ev: RecentEvent): number {
+  const t = new Date(ev.createdAt).getTime();
+  return Number.isNaN(t) ? 0 : t;
+}
+
+function isEventInDateRange(ev: RecentEvent, range: DateRangeKey): boolean {
+  return eventCreatedAtMs(ev) >= getDateRangeCutoffMs(range);
+}
+
+function parseTrendPointDate(point: TrendPoint): Date {
+  const raw = point.date.trim();
+  const d = raw.length <= 10 && !raw.includes("T")
+    ? new Date(`${raw}T00:00:00`)
+    : new Date(raw);
+  return d;
+}
+
+function isTrendInDateRange(point: TrendPoint, range: DateRangeKey): boolean {
+  const d = parseTrendPointDate(point);
+  if (Number.isNaN(d.getTime())) return false;
+  return d.getTime() >= getDateRangeCutoffMs(range);
+}
+
+function escapeCsvCell(value: string): string {
+  if (/[",\n\r]/.test(value)) {
+    return `"${value.replace(/"/g, '""')}"`;
+  }
+  return value;
+}
+
+function buildAnalyticsCsv(rows: RecentEvent[]): string {
+  const header = ["eventType", "createdAt", "userId", "country", "city", "path"];
+  const lines = [
+    header.join(","),
+    ...rows.map((row) =>
+      [
+        escapeCsvCell(row.eventType),
+        escapeCsvCell(formatDisplayTimestamp(row.createdAt)),
+        escapeCsvCell(row.userId ?? ""),
+        escapeCsvCell(row.country ?? ""),
+        escapeCsvCell(row.city ?? ""),
+        escapeCsvCell(row.path ?? ""),
+      ].join(",")
+    ),
+  ];
+  return lines.join("\r\n");
+}
+
+function triggerCsvDownload(content: string, filename: string): void {
+  const blob = new Blob([content], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.rel = "noopener";
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+function exportFilenameForToday(): string {
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = String(now.getMonth() + 1).padStart(2, "0");
+  const d = String(now.getDate()).padStart(2, "0");
+  return `analytics_export_${y}-${m}-${d}.csv`;
+}
+
+function buildAnalyticsQuery(
+  dateRange: DateRangeKey,
+  eventType: EventTypeFilter
+): string {
+  const params = new URLSearchParams();
+  params.set("dateRange", dateRange);
+  if (eventType !== "all") {
+    params.set("eventType", eventType);
+  }
+  const qs = params.toString();
+  return qs ? `?${qs}` : "";
+}
+
+function httpStatusFromUnknownError(err: unknown): number | undefined {
+  if (err instanceof ApiError) return err.statusCode;
+  if (isRecord(err) && typeof err.statusCode === "number") return err.statusCode;
+  return undefined;
+}
+
+/**
+ * GET with dateRange/eventType query params; retries the same path without query
+ * when the server rejects unknown params (400/422).
+ */
+async function apiFetchAdminAnalyticsGET(
+  path: string,
+  querySuffix: string
+): Promise<unknown> {
+  const init: RequestInit = { method: "GET" };
+  const withQuery = querySuffix ? `${path}${querySuffix}` : path;
+  try {
+    return await apiFetch(withQuery, init);
+  } catch (err: unknown) {
+    const status = httpStatusFromUnknownError(err);
+    if (querySuffix && (status === 400 || status === 422)) {
+      return apiFetch(path, init);
+    }
+    throw err;
+  }
+}
+
+interface AuditLogRow {
+  id: string;
+  userId: string | null;
+  isPublic: boolean;
+  action: string;
+  metadata: unknown;
+  ipAddress: string | null;
+  userAgent: string | null;
+  hash: string;
+  prevHash: string | null;
+  createdAt: string;
+  anchoredAt: string | null;
+}
+
+function formatAuditActor(userId: string | null, isPublic: boolean): string {
+  if (isPublic || userId === null) return "public";
+  if (userId.length <= 10) return userId;
+  return `${userId.slice(0, 8)}…`;
+}
+
+function prettyMetadataJson(metadata: unknown): string {
+  try {
+    return JSON.stringify(metadata, null, 2);
+  } catch {
+    return String(metadata);
+  }
+}
+
+type AdminAnalyticsBundle = {
+  summary: unknown;
+  geography: unknown;
+  pages: unknown;
+  recent: unknown;
+  trends: unknown;
+  funnel: unknown;
+};
+
+function isAdminDashboardBundle(value: unknown): value is AdminAnalyticsBundle {
+  if (!isRecord(value)) return false;
+  return (
+    "summary" in value &&
+    "geography" in value &&
+    "pages" in value &&
+    "recent" in value &&
+    "trends" in value &&
+    "funnel" in value
+  );
+}
+
+async function tryFetchAdminDashboardBundle(
+  querySuffix: string
+): Promise<AdminAnalyticsBundle | null> {
+  try {
+    const raw = await apiFetchAdminAnalyticsGET(
+      "/v1/admin/analytics/dashboard",
+      querySuffix
+    );
+    return isAdminDashboardBundle(raw) ? raw : null;
+  } catch {
+    return null;
+  }
+}
+
+function safeRatioPercent(numerator: number, denominator: number): string {
+  if (denominator <= 0 || !Number.isFinite(numerator) || !Number.isFinite(denominator)) {
+    return "0.0";
+  }
+  return ((numerator / denominator) * 100).toFixed(1);
+}
+
+function safeDivideDisplay(
+  numerator: number,
+  denominator: number,
+  decimals: number
+): string {
+  if (denominator <= 0 || !Number.isFinite(numerator) || !Number.isFinite(denominator)) {
+    return (0).toFixed(decimals);
+  }
+  return (numerator / denominator).toFixed(decimals);
+}
 
 // Professional StatCard Component
 function StatCard({ title, value, description, accent = "#0B7BE5" }: StatCardProps) {
@@ -211,13 +449,18 @@ function isValidTopPages(value: unknown): value is TopPage[] {
 }
 
 function isRecentEvent(value: unknown): value is RecentEvent {
+  if (!isRecord(value)) return false;
+  const userIdOk =
+    !("userId" in value) ||
+    value.userId === null ||
+    typeof value.userId === "string";
   return (
-    isRecord(value) &&
     typeof value.eventType === "string" &&
     (typeof value.path === "string" || value.path === null) &&
     (typeof value.country === "string" || value.country === null) &&
     (typeof value.city === "string" || value.city === null) &&
-    typeof value.createdAt === "string"
+    typeof value.createdAt === "string" &&
+    userIdOk
   );
 }
 
@@ -226,11 +469,16 @@ function isValidRecentEvents(value: unknown): value is RecentEvent[] {
 }
 
 function isTrendPoint(value: unknown): value is TrendPoint {
+  if (!isRecord(value)) return false;
+  const eventTypeOk =
+    !("eventType" in value) ||
+    value.eventType === null ||
+    typeof value.eventType === "string";
   return (
-    isRecord(value) &&
     typeof value.date === "string" &&
     typeof value.pageViews === "number" &&
-    typeof value.sessions === "number"
+    typeof value.sessions === "number" &&
+    eventTypeOk
   );
 }
 
@@ -295,7 +543,7 @@ function renderMiniBar(value: number, maxValue: number, color: string): JSX.Elem
 
 export default function AdminPage() {
   const { addToast } = useToast();
-  const { user } = useAuth();
+  const { user, authReady } = useAuth();
 
   const [stats, setStats] = useState<AdminStats | null>(null);
   const [geo, setGeo] = useState<GeographyResponse | null>(null);
@@ -306,13 +554,150 @@ export default function AdminPage() {
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [usingFallbackData, setUsingFallbackData] = useState(false);
+  const [lastSuccessfulFetchAt, setLastSuccessfulFetchAt] = useState<string | null>(null);
+  const [auditLogItems, setAuditLogItems] = useState<AuditLogRow[]>([]);
+  const [auditLogsLoading, setAuditLogsLoading] = useState(false);
+  const [chainVerify, setChainVerify] = useState<
+    | { valid: true }
+    | { valid: false; brokenAt: string }
+    | null
+  >(null);
 
-  const isAdmin = user?.id === "admin" || user?.email?.includes("admin");
-  const trendMax = maxTrendValue(trends);
-  const funnelMax = funnel.length ? Math.max(1, ...funnel.map((step) => step.count)) : 1;
+  const [dateRange, setDateRange] = useState<DateRangeKey>("7d");
+  const [eventTypeFilter, setEventTypeFilter] = useState<EventTypeFilter>("all");
+
+  const isAdminRole = user?.role === "admin";
+  const lastAuditedFilters = useRef<{ dateRange: DateRangeKey; eventType: EventTypeFilter } | null>(null);
+
+  const refreshAuditLogs = useCallback(async () => {
+    setAuditLogsLoading(true);
+    try {
+      const data = await apiFetch("/v1/admin/audit-log?limit=100", { method: "GET" });
+      if (isRecord(data) && Array.isArray(data.items)) {
+        setAuditLogItems(data.items as AuditLogRow[]);
+      } else {
+        setAuditLogItems([]);
+      }
+    } catch {
+      setAuditLogItems([]);
+    } finally {
+      setAuditLogsLoading(false);
+    }
+  }, []);
+
+  const refreshChainVerify = useCallback(async () => {
+    try {
+      const data = await apiFetch("/v1/admin/audit-log/verify", { method: "GET" });
+      if (isRecord(data) && data.valid === true) {
+        setChainVerify({ valid: true });
+      } else if (isRecord(data) && data.valid === false) {
+        const brokenAt =
+          typeof data.brokenAt === "string" ? data.brokenAt : "unknown";
+        setChainVerify({ valid: false, brokenAt });
+      } else {
+        setChainVerify(null);
+      }
+    } catch {
+      setChainVerify(null);
+    }
+  }, []);
+
+  const sendAuditLog = useCallback(
+    async (action: string, metadata: Record<string, unknown>) => {
+      if (!user?.id) return;
+      try {
+        await apiFetch("/v1/admin/audit-log", {
+          method: "POST",
+          body: JSON.stringify({
+            action,
+            metadata,
+          }),
+        });
+        await refreshAuditLogs();
+        await refreshChainVerify();
+      } catch {
+        /* Audit delivery failure must not disrupt admin operations */
+      }
+    },
+    [user?.id, refreshAuditLogs, refreshChainVerify]
+  );
+
+  const filteredRecent = useMemo(() => {
+    return recent
+      .filter((ev) => isEventInDateRange(ev, dateRange))
+      .filter((ev) => eventTypeFilter === "all" || ev.eventType === eventTypeFilter)
+      .sort((a, b) => eventCreatedAtMs(b) - eventCreatedAtMs(a));
+  }, [recent, dateRange, eventTypeFilter]);
+
+  const filteredTrends = useMemo(() => {
+    const hasEventDimension = trends.some((p) => typeof p.eventType === "string");
+    let pts = trends.filter((p) => isTrendInDateRange(p, dateRange));
+    if (eventTypeFilter !== "all" && hasEventDimension) {
+      pts = pts.filter((p) => p.eventType === eventTypeFilter);
+    }
+    return pts;
+  }, [trends, dateRange, eventTypeFilter]);
+
+  const trendMax = useMemo(
+    () => maxTrendValue(filteredTrends),
+    [filteredTrends]
+  );
+
+  const funnelMax = useMemo(
+    () => (funnel.length ? Math.max(1, ...funnel.map((step) => step.count)) : 1),
+    [funnel]
+  );
+
+  const handleExportCsv = () => {
+    if (usingFallbackData) return;
+    void sendAuditLog("admin.analytics.export_csv", {
+      exportType: "analytics_csv",
+      dateRange,
+      eventType: eventTypeFilter,
+      rowCount: filteredRecent.length,
+    });
+    const csv = buildAnalyticsCsv(filteredRecent);
+    triggerCsvDownload(csv, exportFilenameForToday());
+    addToast("Exported filtered analytics to CSV", "success");
+  };
 
   useEffect(() => {
-    if (!isAdmin) {
+    if (!authReady || !isAdminRole) return;
+    void sendAuditLog("admin.analytics.page_access", {
+      surface: "admin_dashboard",
+    });
+  }, [authReady, isAdminRole, sendAuditLog]);
+
+  useEffect(() => {
+    if (!authReady) return;
+    if (!isAdminRole) {
+      lastAuditedFilters.current = null;
+      return;
+    }
+    const prev = lastAuditedFilters.current;
+    lastAuditedFilters.current = { dateRange, eventType: eventTypeFilter };
+    if (!prev) return;
+    if (prev.dateRange === dateRange && prev.eventType === eventTypeFilter) return;
+    void sendAuditLog("admin.analytics.filter_change", {
+      dateRange,
+      eventType: eventTypeFilter,
+      previousDateRange: prev.dateRange,
+      previousEventType: prev.eventType,
+    });
+  }, [authReady, isAdminRole, dateRange, eventTypeFilter, sendAuditLog]);
+
+  useEffect(() => {
+    if (!authReady || !isAdminRole) return;
+    void refreshAuditLogs();
+    void refreshChainVerify();
+  }, [authReady, isAdminRole, refreshAuditLogs, refreshChainVerify]);
+
+  useEffect(() => {
+    if (!authReady) {
+      return;
+    }
+    if (!isAdminRole) {
       setLoading(false);
       setError("Access denied - admin only");
       addToast("You don't have access to this page", "error");
@@ -321,66 +706,106 @@ export default function AdminPage() {
 
     let cancelled = false;
 
+    const applyAnalyticsPayload = (
+      summaryResponse: unknown,
+      geographyResponse: unknown,
+      pagesResponse: unknown,
+      recentResponse: unknown,
+      trendsResponse: unknown,
+      funnelResponse: unknown
+    ) => {
+      let summaryFallback = false;
+      if (isValidAdminStats(summaryResponse)) {
+        setStats(summaryResponse);
+      } else {
+        setStats(MOCK_STATS);
+        summaryFallback = true;
+        setError("Live summary data is not ready yet. Showing fallback data.");
+      }
+      setUsingFallbackData(summaryFallback);
+
+      if (isValidGeographyResponse(geographyResponse)) {
+        setGeo(geographyResponse);
+      } else {
+        setGeo({ countries: [], cities: [] });
+      }
+
+      if (isValidTopPages(pagesResponse)) {
+        setPages(pagesResponse);
+      } else {
+        setPages([]);
+      }
+
+      if (isValidRecentEvents(recentResponse)) {
+        setRecent(recentResponse);
+      } else {
+        setRecent([]);
+      }
+
+      if (isValidTrendPoints(trendsResponse)) {
+        setTrends(trendsResponse);
+      } else {
+        setTrends([]);
+      }
+
+      if (isValidFunnel(funnelResponse)) {
+        setFunnel(funnelResponse);
+      } else {
+        setFunnel([]);
+      }
+    };
+
     const loadStats = async () => {
       setLoading(true);
       setError(null);
       addToast("Loading admin dashboard...", "info");
 
+      const querySuffix = buildAnalyticsQuery(dateRange, eventTypeFilter);
+
       try {
-        const [
-          summaryResponse,
-          geographyResponse,
-          pagesResponse,
-          recentResponse,
-          trendsResponse,
-          funnelResponse,
-        ] = await Promise.all([
-          apiFetch("/v1/admin/analytics/summary", { method: "GET" }),
-          apiFetch("/v1/admin/analytics/geography", { method: "GET" }),
-          apiFetch("/v1/admin/analytics/pages", { method: "GET" }),
-          apiFetch("/v1/admin/analytics/recent", { method: "GET" }),
-          apiFetch("/v1/admin/analytics/trends", { method: "GET" }),
-          apiFetch("/v1/admin/analytics/funnel", { method: "GET" }),
-        ]);
+        const bundle = await tryFetchAdminDashboardBundle(querySuffix);
+        let summaryResponse: unknown;
+        let geographyResponse: unknown;
+        let pagesResponse: unknown;
+        let recentResponse: unknown;
+        let trendsResponse: unknown;
+        let funnelResponse: unknown;
+
+        if (bundle) {
+          summaryResponse = bundle.summary;
+          geographyResponse = bundle.geography;
+          pagesResponse = bundle.pages;
+          recentResponse = bundle.recent;
+          trendsResponse = bundle.trends;
+          funnelResponse = bundle.funnel;
+        } else {
+          [
+            summaryResponse,
+            geographyResponse,
+            pagesResponse,
+            recentResponse,
+            trendsResponse,
+            funnelResponse,
+          ] = await Promise.all([
+            apiFetchAdminAnalyticsGET("/v1/admin/analytics/summary", querySuffix),
+            apiFetchAdminAnalyticsGET("/v1/admin/analytics/geography", querySuffix),
+            apiFetchAdminAnalyticsGET("/v1/admin/analytics/pages", querySuffix),
+            apiFetchAdminAnalyticsGET("/v1/admin/analytics/recent", querySuffix),
+            apiFetchAdminAnalyticsGET("/v1/admin/analytics/trends", querySuffix),
+            apiFetchAdminAnalyticsGET("/v1/admin/analytics/funnel", querySuffix),
+          ]);
+        }
 
         if (!cancelled) {
-          if (isValidAdminStats(summaryResponse)) {
-            setStats(summaryResponse);
-          } else {
-            setStats(MOCK_STATS);
-            setError("Live summary data is not ready yet. Showing fallback data.");
-          }
-
-          if (isValidGeographyResponse(geographyResponse)) {
-            setGeo(geographyResponse);
-          } else {
-            setGeo({ countries: [], cities: [] });
-          }
-
-          if (isValidTopPages(pagesResponse)) {
-            setPages(pagesResponse);
-          } else {
-            setPages([]);
-          }
-
-          if (isValidRecentEvents(recentResponse)) {
-            setRecent(recentResponse);
-          } else {
-            setRecent([]);
-          }
-
-          if (isValidTrendPoints(trendsResponse)) {
-            setTrends(trendsResponse);
-          } else {
-            setTrends([]);
-          }
-
-          if (isValidFunnel(funnelResponse)) {
-            setFunnel(funnelResponse);
-          } else {
-            setFunnel([]);
-          }
-
+          applyAnalyticsPayload(
+            summaryResponse,
+            geographyResponse,
+            pagesResponse,
+            recentResponse,
+            trendsResponse,
+            funnelResponse
+          );
+          setLastSuccessfulFetchAt(new Date().toISOString());
           addToast("Admin dashboard loaded", "success");
         }
       } catch {
@@ -391,6 +816,7 @@ export default function AdminPage() {
           setRecent([]);
           setTrends([]);
           setFunnel([]);
+          setUsingFallbackData(true);
           setError("Live analytics endpoints are unavailable. Showing fallback dashboard data.");
           addToast("Live analytics unavailable. Using fallback data.", "info");
         }
@@ -406,9 +832,29 @@ export default function AdminPage() {
     return () => {
       cancelled = true;
     };
-  }, [isAdmin, addToast]);
+  }, [authReady, isAdminRole, addToast, dateRange, eventTypeFilter]);
 
-  if (!isAdmin) {
+  if (!authReady) {
+    return (
+      <div className="section app-section">
+        <div className="container" style={{ paddingTop: 40 }}>
+          <div style={{
+            display: "grid",
+            gap: 16,
+            gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+            marginBottom: 24
+          }}>
+            <StatSkeleton />
+            <StatSkeleton />
+            <StatSkeleton />
+            <StatSkeleton />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!isAdminRole) {
     return (
       <div className="section app-section">
         <div className="container" style={{ paddingTop: 40 }}>
@@ -435,6 +881,19 @@ export default function AdminPage() {
       </div>
     );
   }
+
+  const toolbarSegmentStyle = (active: boolean): CSSProperties => ({
+    padding: "6px 14px",
+    fontSize: 13,
+    fontWeight: 500,
+    border: "none",
+    borderRadius: 6,
+    cursor: "pointer",
+    backgroundColor: active ? "#FFFFFF" : "transparent",
+    color: active ? "#0F172A" : "#64748B",
+    boxShadow: active ? "0 1px 2px rgba(15, 23, 42, 0.06)" : "none",
+    transition: "background-color 0.15s ease, color 0.15s ease, box-shadow 0.15s ease",
+  });
 
   return (
     <div className="section app-section" style={{ backgroundColor: "#F8FAFC" }}>
@@ -484,6 +943,163 @@ export default function AdminPage() {
             </div>
           )}
 
+          {!loading && usingFallbackData && stats ? (
+            <div style={{ marginBottom: 24 }}>
+              <Card>
+                <div style={{
+                  padding: 16,
+                  background: "#FFFBEB",
+                  borderRadius: 8,
+                  color: "#92400E",
+                  fontSize: 13,
+                  fontWeight: 600,
+                  borderLeft: "4px solid #F59E0B"
+                }}>
+                  ⚠️ Demo / fallback data
+                </div>
+              </Card>
+            </div>
+          ) : null}
+
+          {/* Analytics toolbar: filters + export */}
+          {!loading && stats ? (
+            <div style={{ marginBottom: 24 }}>
+              <Card>
+                <div
+                  style={{
+                    padding: "14px 18px",
+                    display: "flex",
+                    flexWrap: "wrap",
+                    alignItems: "center",
+                    gap: 16,
+                    justifyContent: "space-between",
+                  }}
+                >
+                  <div
+                    style={{
+                      display: "flex",
+                      flexWrap: "wrap",
+                      alignItems: "center",
+                      gap: 20,
+                      rowGap: 12,
+                    }}
+                  >
+                    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                      <span
+                        style={{
+                          fontSize: 11,
+                          fontWeight: 600,
+                          color: "#94A3B8",
+                          textTransform: "uppercase",
+                          letterSpacing: "0.04em",
+                        }}
+                      >
+                        Date range
+                      </span>
+                      <div
+                        role="group"
+                        aria-label="Date range"
+                        style={{
+                          display: "inline-flex",
+                          padding: 3,
+                          backgroundColor: "#F1F5F9",
+                          borderRadius: 8,
+                          border: "1px solid #E2E8F0",
+                          gap: 2,
+                        }}
+                      >
+                        {DATE_RANGE_OPTIONS.map((opt) => (
+                          <button
+                            key={opt.key}
+                            type="button"
+                            aria-pressed={dateRange === opt.key}
+                            onClick={() => setDateRange(opt.key)}
+                            style={toolbarSegmentStyle(dateRange === opt.key)}
+                          >
+                            {opt.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                      <label
+                        htmlFor="admin-event-type-filter"
+                        style={{
+                          fontSize: 11,
+                          fontWeight: 600,
+                          color: "#94A3B8",
+                          textTransform: "uppercase",
+                          letterSpacing: "0.04em",
+                        }}
+                      >
+                        Event type
+                      </label>
+                      <select
+                        id="admin-event-type-filter"
+                        value={eventTypeFilter}
+                        onChange={(e) =>
+                          setEventTypeFilter(e.target.value as EventTypeFilter)
+                        }
+                        style={{
+                          minWidth: 200,
+                          padding: "8px 12px",
+                          fontSize: 13,
+                          color: "#0F172A",
+                          backgroundColor: "#FFFFFF",
+                          border: "1px solid #E2E8F0",
+                          borderRadius: 8,
+                          cursor: "pointer",
+                          outline: "none",
+                        }}
+                      >
+                        {EVENT_TYPE_OPTIONS.map((opt) => (
+                          <option key={opt.value} value={opt.value}>
+                            {opt.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+
+                  <div style={{ display: "flex", alignItems: "flex-end" }}>
+                    <button
+                      type="button"
+                      onClick={handleExportCsv}
+                      disabled={usingFallbackData}
+                      title={usingFallbackData ? "Export disabled while demo or fallback data is shown" : undefined}
+                      style={{
+                        padding: "8px 14px",
+                        fontSize: 13,
+                        fontWeight: 500,
+                        color: "#334155",
+                        backgroundColor: "#FFFFFF",
+                        border: "1px solid #E2E8F0",
+                        borderRadius: 8,
+                        cursor: usingFallbackData ? "not-allowed" : "pointer",
+                        opacity: usingFallbackData ? 0.5 : 1,
+                        transition: "background-color 0.15s ease, border-color 0.15s ease, opacity 0.15s ease",
+                      }}
+                      onMouseDown={(e) => {
+                        if (usingFallbackData) return;
+                        e.currentTarget.style.backgroundColor = "#F8FAFC";
+                      }}
+                      onMouseUp={(e) => {
+                        if (usingFallbackData) return;
+                        e.currentTarget.style.backgroundColor = "#FFFFFF";
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.backgroundColor = "#FFFFFF";
+                      }}
+                    >
+                      Export CSV
+                    </button>
+                  </div>
+                </div>
+              </Card>
+            </div>
+          ) : null}
+
           {/* OVERVIEW SECTION */}
           {loading ? (
             <div style={{
@@ -529,13 +1145,13 @@ export default function AdminPage() {
                   />
                   <StatCard
                     title="Avg Evidence/User"
-                    value={(stats.totalEvidence / stats.totalUsers).toFixed(1)}
+                    value={safeDivideDisplay(stats.totalEvidence, stats.totalUsers, 1)}
                     description="Per registered user"
                     accent="#F59E0B"
                   />
                   <StatCard
                     title="Report Rate"
-                    value={`${(stats.reportsGenerated / stats.totalEvidence * 100).toFixed(1)}%`}
+                    value={`${safeRatioPercent(stats.reportsGenerated, stats.totalEvidence)}%`}
                     description="Of evidence has reports"
                     accent="#8B5CF6"
                   />
@@ -567,13 +1183,13 @@ export default function AdminPage() {
                       7-Day Trends
                     </h3>
 
-                    {trends.length ? (
+                    {filteredTrends.length ? (
                       <div style={{
                         display: "grid",
                         gap: 16,
                         gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))"
                       }}>
-                        {trends.map((point) => (
+                        {filteredTrends.map((point) => (
                           <div key={point.date} style={{
                             border: "1px solid #E2E8F0",
                             borderRadius: 12,
@@ -587,7 +1203,11 @@ export default function AdminPage() {
                               fontWeight: 600,
                               marginBottom: 12
                             }}>
-                              {point.date}
+                              {formatDisplayTimestamp(
+                                point.date.length <= 10 && !point.date.includes("T")
+                                  ? `${point.date}T12:00:00`
+                                  : point.date
+                              )}
                             </div>
 
                             <div style={{ marginBottom: 10 }}>
@@ -988,16 +1608,16 @@ export default function AdminPage() {
                       Latest Events
                     </h3>
 
-                    {recent.length ? (
+                    {filteredRecent.length ? (
                       <div style={{ display: "grid", gap: 1 }}>
-                        {recent.slice(0, 20).map((item, index) => (
+                        {filteredRecent.slice(0, 20).map((item, index, arr) => (
                           <div key={`${item.eventType}-${item.createdAt}-${index}`} style={{
                             display: "grid",
                             gridTemplateColumns: "120px 1fr auto",
                             gap: 16,
                             alignItems: "center",
                             padding: "12px 0",
-                            borderBottom: index < recent.length - 1 ? "1px solid #E2E8F0" : "none"
+                            borderBottom: index < arr.length - 1 ? "1px solid #E2E8F0" : "none"
                           }}>
                             <div style={{
                               fontSize: 12,
@@ -1030,12 +1650,7 @@ export default function AdminPage() {
                               color: "#64748B",
                               whiteSpace: "nowrap"
                             }}>
-                              {new Date(item.createdAt).toLocaleDateString("en-US", {
-                                month: "short",
-                                day: "numeric",
-                                hour: "2-digit",
-                                minute: "2-digit",
-                              })}
+                              {formatDisplayTimestamp(item.createdAt)}
                             </div>
                           </div>
                         ))}
@@ -1106,7 +1721,7 @@ export default function AdminPage() {
                                 fontWeight: 600,
                                 color: "#0F172A"
                               }}>
-                                {((plan.value / stats.totalUsers) * 100).toFixed(1)}%
+                                {safeRatioPercent(plan.value, stats.totalUsers)}%
                               </div>
                             </div>
                             <ProgressBar
@@ -1164,7 +1779,7 @@ export default function AdminPage() {
                                 fontWeight: 600,
                                 color: "#0F172A"
                               }}>
-                                {((type.value / stats.totalEvidence) * 100).toFixed(1)}%
+                                {safeRatioPercent(type.value, stats.totalEvidence)}%
                               </div>
                             </div>
                             <ProgressBar
@@ -1186,6 +1801,141 @@ export default function AdminPage() {
                     </div>
                   </Card>
                 </div>
+              </div>
+
+              {/* Admin audit trail + integrity */}
+              <div style={{ marginBottom: 40 }}>
+                <h2 style={{
+                  fontSize: 16,
+                  fontWeight: 700,
+                  color: "#64748B",
+                  marginBottom: 16,
+                  textTransform: "uppercase",
+                  letterSpacing: "0.5px"
+                }}>
+                  Admin Audit
+                </h2>
+                <Card style={{ marginBottom: 16 }}>
+                  <div style={{ padding: 24 }}>
+                    <h3 style={{
+                      margin: "0 0 12px 0",
+                      fontSize: 15,
+                      fontWeight: 600,
+                      color: "#0F172A"
+                    }}>
+                      Audit Integrity Status
+                    </h3>
+                    {chainVerify === null ? (
+                      <div style={{ fontSize: 13, color: "#64748B" }}>
+                        Verification not available yet.
+                      </div>
+                    ) : chainVerify.valid ? (
+                      <div style={{ fontSize: 14, fontWeight: 600, color: "#15803D" }}>
+                        ✅ Valid chain
+                      </div>
+                    ) : (
+                      <div style={{ fontSize: 14, fontWeight: 600, color: "#B91C1C" }}>
+                        ❌ Tampering detected
+                        <div style={{
+                          marginTop: 8,
+                          fontSize: 12,
+                          fontWeight: 500,
+                          color: "#64748B",
+                          fontFamily: "ui-monospace, monospace",
+                          wordBreak: "break-word"
+                        }}>
+                          brokenAt: {chainVerify.brokenAt}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </Card>
+                <Card>
+                  <div style={{ padding: 24 }}>
+                    <h3 style={{
+                      margin: "0 0 20px 0",
+                      fontSize: 15,
+                      fontWeight: 600,
+                      color: "#0F172A"
+                    }}>
+                      Recent Admin Actions
+                    </h3>
+
+                    {auditLogsLoading ? (
+                      <div style={{
+                        padding: 12,
+                        textAlign: "center",
+                        color: "#94A3B8",
+                        fontSize: 13
+                      }}>
+                        Loading audit log…
+                      </div>
+                    ) : auditLogItems.length ? (
+                      <div style={{ display: "grid", gap: 1 }}>
+                        {auditLogItems.slice(0, 10).map((entry, index, arr) => (
+                          <div
+                            key={entry.id}
+                            style={{
+                              display: "grid",
+                              gridTemplateColumns: "1fr minmax(120px, auto)",
+                              gap: 12,
+                              alignItems: "start",
+                              padding: "12px 0",
+                              borderBottom: index < arr.length - 1 ? "1px solid #E2E8F0" : "none"
+                            }}
+                          >
+                            <div style={{ minWidth: 0 }}>
+                              <div style={{
+                                fontSize: 12,
+                                fontWeight: 600,
+                                color: "#0F172A",
+                                wordBreak: "break-word",
+                                marginBottom: 4
+                              }}>
+                                {entry.action}
+                              </div>
+                              <div style={{
+                                fontSize: 10,
+                                color: "#94A3B8",
+                                marginBottom: 6
+                              }}>
+                                user: {formatAuditActor(entry.userId, entry.isPublic)}
+                              </div>
+                              <pre style={{
+                                fontSize: 11,
+                                color: "#64748B",
+                                fontFamily: "ui-monospace, monospace",
+                                wordBreak: "break-word",
+                                lineHeight: 1.4,
+                                margin: 0,
+                                whiteSpace: "pre-wrap"
+                              }}>
+                                {prettyMetadataJson(entry.metadata)}
+                              </pre>
+                            </div>
+                            <div style={{
+                              fontSize: 11,
+                              color: "#64748B",
+                              whiteSpace: "nowrap",
+                              textAlign: "right"
+                            }}>
+                              {formatDisplayTimestamp(entry.createdAt)}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div style={{
+                        padding: 12,
+                        textAlign: "center",
+                        color: "#94A3B8",
+                        fontSize: 13
+                      }}>
+                        No audit log entries yet.
+                      </div>
+                    )}
+                  </div>
+                </Card>
               </div>
 
               {/* System Status */}
@@ -1247,7 +1997,9 @@ export default function AdminPage() {
                           Last Updated
                         </div>
                         <div style={{ fontSize: 13, fontWeight: 500, color: "#0F172A" }}>
-                          {new Date().toLocaleTimeString()}
+                          {lastSuccessfulFetchAt
+                            ? formatDisplayTimestamp(lastSuccessfulFetchAt)
+                            : "—"}
                         </div>
                       </div>
                     </div>

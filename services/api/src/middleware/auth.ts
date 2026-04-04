@@ -51,6 +51,7 @@ export async function requireAuth(req: FastifyRequest, reply: FastifyReply) {
       sub: payload.sub,
       provider: payload.provider,
       email: payload.email,
+      role: payload.role ?? null,
     };
     req.log = req.log.child({ userId: payload.sub });
   } catch (err) {

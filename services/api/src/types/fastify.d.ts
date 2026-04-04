@@ -6,6 +6,7 @@ declare module "fastify" {
       sub: string;
       provider: string;
       email?: string | null;
+      role?: string | null;
     };
   }
 }

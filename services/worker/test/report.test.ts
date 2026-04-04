@@ -21,6 +21,15 @@ describe("report pdf builder", () => {
   it("builds a non-empty PDF buffer", async () => {
     const buffer = await buildReportPdf({
       evidence: {
+        tsaProvider: null,
+        tsaUrl: null,
+        tsaSerialNumber: null,
+        tsaGenTimeUtc: null,
+        tsaTokenBase64: null,
+        tsaMessageImprint: null,
+        tsaHashAlgorithm: null,
+        tsaStatus: null,
+        tsaFailureReason: null,
         id: "evidence-1",
         status: "SIGNED",
         capturedAtUtc: "2026-01-01T00:00:00.000Z",
@@ -70,6 +79,15 @@ describe("report pdf builder", () => {
   it("includes key sections in order", async () => {
     const buffer = await buildReportPdf({
       evidence: {
+        tsaProvider: null,
+        tsaUrl: null,
+        tsaSerialNumber: null,
+        tsaGenTimeUtc: null,
+        tsaTokenBase64: null,
+        tsaMessageImprint: null,
+        tsaHashAlgorithm: null,
+        tsaStatus: null,
+        tsaFailureReason: null,
         id: "evidence-2",
         status: "SIGNED",
         capturedAtUtc: "2026-01-01T00:00:00.000Z",

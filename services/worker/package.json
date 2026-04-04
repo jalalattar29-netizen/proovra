@@ -17,6 +17,7 @@
   "packageManager": "pnpm@10.28.2",
   "type": "module",
   "dependencies": {
+    "@proovra/shared": "workspace:*",
     "@aws-sdk/client-s3": "^3.980.0",
     "@aws-sdk/s3-request-presigner": "^3.980.0",
     "@prisma/adapter-pg": "^7.3.0",

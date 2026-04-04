@@ -11,6 +11,7 @@
     "strict": true,
     "noEmit": true,
     "esModuleInterop": true,
+    "ignoreDeprecations": "6.0",
     "module": "esnext",
     "moduleResolution": "Bundler",
     "resolveJsonModule": true,
@@ -18,6 +19,7 @@
     "incremental": true,
     "isolatedModules": true,
     "baseUrl": ".",
+    "types": ["node"],
     "paths": {
       "@proovra/ui": [
         "../../packages/ui/src/index.ts"

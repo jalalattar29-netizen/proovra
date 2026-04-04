@@ -15,7 +15,11 @@ overrides:
 
 importers:
 
-  .: {}
+  .:
+    devDependencies:
+      '@types/node':
+        specifier: ^25.5.2
+        version: 25.5.2
 
   apps/mobile:
     dependencies:
@@ -244,6 +248,9 @@ importers:
       '@prisma/client':
         specifier: ^7.3.0
         version: 7.4.2(prisma@7.4.2(@types/react@18.2.46)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.9.3))(typescript@5.9.3)
+      '@proovra/shared':
+        specifier: workspace:*
+        version: link:../../packages/shared
       '@sentry/node':
         specifier: ^10.38.0
         version: 10.41.0
@@ -332,6 +339,9 @@ importers:
       '@prisma/client':
         specifier: ^7.3.0
         version: 7.4.2(prisma@7.4.2(@types/react@18.2.46)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.9.3))(typescript@5.9.3)
+      '@proovra/shared':
+        specifier: workspace:*
+        version: link:../../packages/shared
       '@sentry/node':
         specifier: ^10.38.0
         version: 10.41.0
@@ -3245,6 +3255,9 @@ packages:
 
   '@types/node@25.3.3':
     resolution: {integrity: sha512-DpzbrH7wIcBaJibpKo9nnSQL0MTRdnWttGyE5haGwK86xgMOkFLp7vEyfQPGLOJh5wNYiJ3V9PmUMDhV9u8kkQ==}
+
+  '@types/node@25.5.2':
+    resolution: {integrity: sha512-tO4ZIRKNC+MDWV4qKVZe3Ql/woTnmHDr5JD8UI5hn2pwBrHEwOEMZK7WlNb5RKB6EoJ02gwmQS9OrjuFnZYdpg==}
 
   '@types/nodemailer@7.0.11':
     resolution: {integrity: sha512-E+U4RzR2dKrx+u3N4DlsmLaDC6mMZOM/TPROxA0UAPiTgI0y4CEFBmZE+coGWTjakDriRsXG368lNk1u9Q0a2g==}
@@ -11244,6 +11257,10 @@ snapshots:
       '@types/node': 25.3.3
 
   '@types/node@25.3.3':
+    dependencies:
+      undici-types: 7.18.2
+
+  '@types/node@25.5.2':
     dependencies:
       undici-types: 7.18.2
 

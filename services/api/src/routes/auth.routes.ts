@@ -64,6 +64,20 @@ export async function authRoutes(app: FastifyInstance) {
     throw new Error("AUTH_JWT_SECRET is not set");
   }
 
+  function jwtPayloadFromUser(user: {
+    id: string;
+    provider: string;
+    email: string | null;
+    platformRole?: string | null;
+  }) {
+    return {
+      sub: user.id,
+      provider: user.provider,
+      email: user.email,
+      ...(user.platformRole === "admin" ? { role: "admin" as const } : {}),
+    };
+  }
+
   function maybeSetWebCookie(req: FastifyRequest, reply: FastifyReply, token: string) {
     if (req.headers["x-web-client"] !== "1") {
       console.log("[Auth] Skipping cookie: x-web-client not set");
@@ -109,11 +123,7 @@ export async function authRoutes(app: FastifyInstance) {
     const user = await upsertUser(profile);
     await ensureGuestIdentity(user.id);
 
-    const token = signJwt(
-      { sub: user.id, provider: user.provider, email: user.email ?? null },
-      jwtSecret,
-      60 * 60 * 24 * 30
-    );
+    const token = signJwt(jwtPayloadFromUser(user), jwtSecret, 60 * 60 * 24 * 30);
     maybeSetWebCookie(req, reply, token);
     return reply.code(201).send({ token, user });
   });
@@ -135,11 +145,7 @@ export async function authRoutes(app: FastifyInstance) {
       const profile = await verifyGoogleIdToken(idToken);
       const user = await upsertUser(profile);
 
-      const token = signJwt(
-        { sub: user.id, provider: user.provider, email: user.email ?? null },
-        jwtSecret,
-        60 * 60 * 24 * 30
-      );
+      const token = signJwt(jwtPayloadFromUser(user), jwtSecret, 60 * 60 * 24 * 30);
       maybeSetWebCookie(req, reply, token);
       return reply.code(200).send({ token, user });
     } catch (err) {
@@ -191,11 +197,7 @@ export async function authRoutes(app: FastifyInstance) {
       const user = await upsertUserWithEmailLink(profile);
       console.log("[Apple Auth] User created/updated:", { id: user.id, email: user.email });
 
-      const token = signJwt(
-        { sub: user.id, provider: user.provider, email: user.email ?? null },
-        jwtSecret,
-        60 * 60 * 24 * 30
-      );
+      const token = signJwt(jwtPayloadFromUser(user), jwtSecret, 60 * 60 * 24 * 30);
 
       maybeSetWebCookie(req, reply, token);
       return reply.code(200).send({ token, user });
@@ -236,11 +238,7 @@ export async function authRoutes(app: FastifyInstance) {
       displayName: body.displayName ?? null
     });
 
-    const token = signJwt(
-      { sub: user.id, provider: user.provider, email: user.email ?? null },
-      jwtSecret,
-      60 * 60 * 24 * 30
-    );
+    const token = signJwt(jwtPayloadFromUser(user), jwtSecret, 60 * 60 * 24 * 30);
 
     maybeSetWebCookie(req, reply, token);
     return reply.code(201).send({ token, user });
@@ -258,11 +256,7 @@ export async function authRoutes(app: FastifyInstance) {
       return reply.code(401).send({ message: "invalid_credentials" });
     }
 
-    const token = signJwt(
-      { sub: user.id, provider: user.provider, email: user.email ?? null },
-      jwtSecret,
-      60 * 60 * 24 * 30
-    );
+    const token = signJwt(jwtPayloadFromUser(user), jwtSecret, 60 * 60 * 24 * 30);
 
     // ANALYTICS: Track login_completed event (non-blocking, silently ignore errors)
     prisma.analyticsEvent.create({
@@ -372,6 +366,7 @@ export async function authRoutes(app: FastifyInstance) {
         provider: user.provider,
         createdAt: user.createdAt,
         updatedAt: user.updatedAt,
+        ...(user.platformRole === "admin" ? { role: "admin" as const } : {}),
       },
     };
   });

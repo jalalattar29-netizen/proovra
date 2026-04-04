@@ -213,6 +213,8 @@ model User {
   id                     String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   email                  String?              @db.VarChar(320)
   displayName            String?              @map("display_name") @db.VarChar(120)
+  /// Platform-wide role (e.g. admin dashboard). Distinct from team roles.
+  platformRole           String?              @map("platform_role") @db.VarChar(32)
   provider               AuthProvider
   providerUserId         String               @map("provider_user_id") @db.VarChar(128)
   createdAt              DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
@@ -505,6 +507,26 @@ model AnalyticsSession {
   @@index([visitorId])
   @@index([userId])
   @@index([startedAt])
+}
+
+/// Append-only tamper-evident audit trail (hash chain). No updates or deletes via application code.
+model AdminAuditLog {
+  id         String    @id @default(uuid())
+  userId     String?   @map("user_id")
+  isPublic   Boolean   @default(false) @map("is_public")
+  action     String
+  metadata   Json
+  ipAddress  String?   @map("ip_address") @db.VarChar(45)
+  userAgent  String?   @map("user_agent") @db.VarChar(512)
+  hash       String    @db.VarChar(64)
+  prevHash   String?   @map("prev_hash") @db.VarChar(64)
+  anchoredAt DateTime? @map("anchored_at") @db.Timestamptz(6)
+  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([userId])
+  @@index([action])
+  @@index([createdAt])
+  @@map("admin_audit_logs")
 }
 
 enum EvidenceType {

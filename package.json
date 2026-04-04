@@ -29,5 +29,8 @@
       "expo-modules-autolinking": "2.0.8",
       "expo-modules-core": "2.2.3"
     }
+  },
+  "devDependencies": {
+    "@types/node": "^25.5.2"
   }
 }

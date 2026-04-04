@@ -24,6 +24,7 @@ import {
 import { captureException } from "./sentry.js";
 import { createVerificationPackage } from "./verification-package.js";
 import { createOpenTimestamp, type OtsStampResult } from "./ots.service.js";
+import { appendWorkerAuditLog } from "./platform-audit-append.js";
 
 type GenerateReportJobData = {
   evidenceId: string;
@@ -1270,6 +1271,15 @@ export async function processGenerateReport(job: Job<GenerateReportJobData>) {
       }).catch(() => {
         // Silently ignore analytics errors
       });
+
+      appendWorkerAuditLog({
+        userId: evidence.ownerUserId,
+        action: "evidence.report_generated",
+        metadata: {
+          evidenceId: prepared.evidenceId,
+          reportVersion: finalized.version,
+        },
+      }).catch(() => null);
     }
 
     if (!finalized.skipped && finalized.scheduleOtsUpgrade) {

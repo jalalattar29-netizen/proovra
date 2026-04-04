@@ -11,6 +11,8 @@ type AuthUser = {
   email?: string | null;
   displayName?: string | null;
   provider: string;
+  /** Server-authoritative role (e.g. admin). Omitted for non-admin users. */
+  role?: string | null;
 
   firstName?: string | null;
   lastName?: string | null;

@@ -21,6 +21,7 @@ import { teamManagementRoutes } from "./routes/team-management.routes.js";
 import { webhookRoutes } from "./routes/webhook.routes.js";
 import { auditRoutes } from "./routes/audit.routes.js";
 import analyticsRoutes from "./routes/analytics.routes.js";
+import { adminAuditRoutes } from "./routes/admin-audit.routes.js";
 import {
   AppError,
   ErrorCode,
@@ -377,6 +378,7 @@ app.addHook("onRequest", async (req, reply) => {
   await app.register(webhookRoutes);
   await app.register(auditRoutes);
   await app.register(analyticsRoutes);
+  await app.register(adminAuditRoutes);
 
   return app;
 }

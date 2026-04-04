@@ -18,6 +18,7 @@ import {
   evaluateCustodyChain,
   isAccessCustodyEventType,
 } from "../services/custody-events.service.js";
+import { appendPlatformAuditLog } from "../services/platform-audit-log.service.js";
 import {
   ed25519VerifyHexSignature,
   sha256Hex,
@@ -154,6 +155,23 @@ function getVerifyLimit() {
     max: readPositiveIntEnv("VERIFY_RATE_LIMIT_MAX", 60),
     windowSec: readPositiveIntEnv("VERIFY_RATE_LIMIT_WINDOW_SEC", 60),
   };
+}
+
+function auditEvidenceAccess(
+  req: FastifyRequest,
+  userId: string,
+  action: string,
+  metadata: Record<string, unknown>
+) {
+  const ua = req.headers["user-agent"];
+  const userAgent = Array.isArray(ua) ? ua[0] : ua;
+  void appendPlatformAuditLog({
+    userId,
+    action,
+    metadata,
+    ipAddress: req.ip,
+    userAgent: userAgent ?? null,
+  }).catch(() => null);
 }
 
 async function getUserPlan(userId: string) {
@@ -1761,6 +1779,10 @@ export async function evidenceRoutes(app: FastifyInstance) {
         );
         const anchor = await getAnchorStatus(id);
 
+        auditEvidenceAccess(req, ownerUserId, "evidence.viewed", {
+          evidenceId: id,
+        });
+
         return reply.code(200).send({
           evidence: toJsonSafe({
             ...toSafeEvidence(evidence),
@@ -1923,6 +1945,11 @@ export async function evidenceRoutes(app: FastifyInstance) {
         userAgent: req.headers["user-agent"],
       }).catch(() => null);
 
+      auditEvidenceAccess(req, ownerUserId, "evidence.report_viewed", {
+        evidenceId: id,
+        reportVersion: latest.version,
+      });
+
       const url = await presignGetObject({
         bucket: latest.storageBucket,
         key: latest.storageKey,
@@ -1997,6 +2024,11 @@ export async function evidenceRoutes(app: FastifyInstance) {
         userAgent: req.headers["user-agent"],
       }).catch(() => null);
 
+      auditEvidenceAccess(req, ownerUserId, "evidence.downloaded", {
+        evidenceId: id,
+        accessMode: "original_presign",
+      });
+
       const storage = await getStorageProtectionSummary(
         evidence.storageBucket,
         evidence.storageKey,
@@ -2064,6 +2096,10 @@ export async function evidenceRoutes(app: FastifyInstance) {
       });
 
       const storage = await getStorageProtectionSummary(bucket, key);
+
+      auditEvidenceAccess(req, ownerUserId, "verification.package_accessed", {
+        evidenceId: id,
+      });
 
       return reply.code(200).send({
         evidenceId: id,
@@ -2262,6 +2298,17 @@ export async function evidenceRoutes(app: FastifyInstance) {
       },
       ip: req.ip,
       userAgent: req.headers["user-agent"],
+    }).catch(() => null);
+
+    const ua = req.headers["user-agent"];
+    const userAgent = Array.isArray(ua) ? ua[0] : ua;
+    void appendPlatformAuditLog({
+      userId: null,
+      isPublic: true,
+      action: "verification.page_opened",
+      metadata: { evidenceId: id },
+      ipAddress: req.ip,
+      userAgent: userAgent ?? null,
     }).catch(() => null);
 
     const mapCustodyEvent = (ev: {
