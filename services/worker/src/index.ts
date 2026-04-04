@@ -37,6 +37,17 @@ function emitOperationalAlert(params: {
   );
 }
 
+function getErrorMessage(err: unknown): string {
+  if (err instanceof Error) return err.message;
+  if (typeof err === "string") return err;
+  return "";
+}
+
+function isExpectedOtsPendingError(jobKind: "report" | "ots-upgrade", err: unknown): boolean {
+  if (jobKind !== "ots-upgrade") return false;
+  return getErrorMessage(err).trim() === "NOT_ANCHORED_YET";
+}
+
 function bindWorkerEvents(
   workerInstance: Worker,
   jobKind: "report" | "ots-upgrade"
@@ -82,6 +93,17 @@ function bindWorkerEvents(
         status: "failed",
       }),
     };
+
+    if (isExpectedOtsPendingError(jobKind, err)) {
+      logger.warn(
+        {
+          ...context,
+          err,
+        },
+        `${jobKind}.job.pending_retry`
+      );
+      return;
+    }
 
     logger.error({ ...context, err }, `${jobKind}.job.failed`);
     captureException(err, {
