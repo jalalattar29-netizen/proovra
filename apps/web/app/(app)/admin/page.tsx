@@ -100,24 +100,38 @@ const EVENT_TYPE_OPTIONS: { value: EventTypeFilter; label: string }[] = [
   { value: "report_generated", label: "report_generated" },
 ];
 
-const MOCK_STATS: AdminStats = {
-  totalUsers: 12345,
-  activeUsers: 2345,
-  totalEvidence: 45678,
-  reportsGenerated: 8234,
-  subscriptionBreakdown: {
-    free: 8234,
-    payg: 2456,
-    pro: 1234,
-    team: 234
-  },
-  evidenceByType: {
-    photos: 32456,
-    videos: 8234,
-    documents: 3456,
-    other: 1234
-  }
+const UI = {
+  pageBg: "transparent",
+  cardBg: "rgba(4, 17, 40, 0.72)",
+  cardBgStrong: "rgba(5, 20, 48, 0.84)",
+  innerPanelBg: "rgba(9, 28, 62, 0.82)",
+  innerPanelSoft: "rgba(13, 36, 78, 0.74)",
+  border: "rgba(96, 165, 250, 0.18)",
+  borderStrong: "rgba(148, 163, 184, 0.22)",
+  textPrimary: "#F8FAFC",
+  textSecondary: "#CBD5E1",
+  textMuted: "#94A3B8",
+  textFaint: "#7C8CA5",
+  heading: "#E2E8F0",
+  toolbarBg: "rgba(15, 23, 42, 0.64)",
+  toolbarActiveBg: "#E2E8F0",
+  toolbarActiveText: "#0F172A",
+  toolbarIdleText: "#CBD5E1",
+  inputBg: "rgba(248, 250, 252, 0.96)",
+  inputText: "#0F172A",
+  success: "#34D399",
+  successText: "#86EFAC",
+  warning: "#F59E0B",
+  dangerBg: "rgba(127, 29, 29, 0.22)",
+  dangerBorder: "rgba(248, 113, 113, 0.42)",
+  dangerText: "#FECACA",
+  emptyText: "#AFC0D5",
 };
+
+function dateRangeLabel(range: DateRangeKey): string {
+  const found = DATE_RANGE_OPTIONS.find((o) => o.key === range);
+  return found?.label ?? "Selected range";
+}
 
 function formatDisplayTimestamp(isoOrDate: string): string {
   const d = new Date(isoOrDate);
@@ -128,34 +142,6 @@ function formatDisplayTimestamp(isoOrDate: string): string {
   const h = String(d.getHours()).padStart(2, "0");
   const min = String(d.getMinutes()).padStart(2, "0");
   return `${y}-${m}-${day} ${h}:${min}`;
-}
-
-function getDateRangeCutoffMs(range: DateRangeKey): number {
-  const found = DATE_RANGE_OPTIONS.find((o) => o.key === range);
-  return Date.now() - (found?.ms ?? DATE_RANGE_OPTIONS[2].ms);
-}
-
-function eventCreatedAtMs(ev: RecentEvent): number {
-  const t = new Date(ev.createdAt).getTime();
-  return Number.isNaN(t) ? 0 : t;
-}
-
-function isEventInDateRange(ev: RecentEvent, range: DateRangeKey): boolean {
-  return eventCreatedAtMs(ev) >= getDateRangeCutoffMs(range);
-}
-
-function parseTrendPointDate(point: TrendPoint): Date {
-  const raw = point.date.trim();
-  const d = raw.length <= 10 && !raw.includes("T")
-    ? new Date(`${raw}T00:00:00`)
-    : new Date(raw);
-  return d;
-}
-
-function isTrendInDateRange(point: TrendPoint, range: DateRangeKey): boolean {
-  const d = parseTrendPointDate(point);
-  if (Number.isNaN(d.getTime())) return false;
-  return d.getTime() >= getDateRangeCutoffMs(range);
 }
 
 function escapeCsvCell(value: string): string {
@@ -325,46 +311,87 @@ function safeDivideDisplay(
   return (numerator / denominator).toFixed(decimals);
 }
 
+function sectionTitleStyle(): CSSProperties {
+  return {
+    fontSize: 16,
+    fontWeight: 700,
+    color: UI.heading,
+    marginBottom: 16,
+    textTransform: "uppercase",
+    letterSpacing: "0.5px",
+  };
+}
+
+function subCardStyle(extra?: CSSProperties): CSSProperties {
+  return {
+    padding: 24,
+    background: UI.cardBgStrong,
+    border: `1px solid ${UI.border}`,
+    borderRadius: 20,
+    boxShadow: "0 14px 40px rgba(2, 8, 23, 0.16)",
+    ...extra,
+  };
+}
+
 // Professional StatCard Component
 function StatCard({ title, value, description, accent = "#0B7BE5" }: StatCardProps) {
   return (
     <Card>
-      <div style={{ padding: 20 }}>
+      <div
+        style={{
+          padding: 20,
+          background: UI.cardBgStrong,
+          border: `1px solid ${UI.border}`,
+          borderRadius: 20,
+          minHeight: 172,
+          boxShadow: "0 14px 40px rgba(2, 8, 23, 0.14)",
+        }}
+      >
         <div style={{ marginBottom: 12 }}>
-          <div style={{
-            fontSize: 12,
-            fontWeight: 600,
-            color: "#64748B",
-            textTransform: "uppercase",
-            letterSpacing: "0.5px"
-          }}>
+          <div
+            style={{
+              fontSize: 12,
+              fontWeight: 700,
+              color: UI.textMuted,
+              textTransform: "uppercase",
+              letterSpacing: "0.08em",
+            }}
+          >
             {title}
           </div>
         </div>
         <div style={{ marginBottom: 12 }}>
-          <div style={{
-            fontSize: 32,
-            fontWeight: 700,
-            color: "#0F172A",
-            lineHeight: 1
-          }}>
+          <div
+            style={{
+              fontSize: 32,
+              fontWeight: 800,
+              color: UI.textPrimary,
+              lineHeight: 1,
+              textShadow: "0 1px 0 rgba(2, 6, 23, 0.35)",
+            }}
+          >
             {value}
           </div>
         </div>
-        <div style={{
-          fontSize: 13,
-          color: "#64748B",
-          lineHeight: 1.5
-        }}>
+        <div
+          style={{
+            fontSize: 13,
+            color: UI.textSecondary,
+            lineHeight: 1.5,
+          }}
+        >
           {description}
         </div>
-        <div style={{
-          marginTop: 12,
-          height: 3,
-          width: 40,
-          backgroundColor: accent,
-          borderRadius: 999
-        }} />
+        <div
+          style={{
+            marginTop: 12,
+            height: 3,
+            width: 40,
+            backgroundColor: accent,
+            borderRadius: 999,
+            boxShadow: `0 0 16px ${accent}55`,
+          }}
+        />
       </div>
     </Card>
   );
@@ -374,7 +401,14 @@ function StatCard({ title, value, description, accent = "#0B7BE5" }: StatCardPro
 function StatSkeleton() {
   return (
     <Card>
-      <div style={{ padding: 20 }}>
+      <div
+        style={{
+          padding: 20,
+          background: UI.cardBgStrong,
+          border: `1px solid ${UI.border}`,
+          borderRadius: 20,
+        }}
+      >
         <div style={{ marginBottom: 12 }}>
           <Skeleton width="60%" height="14px" />
         </div>
@@ -419,7 +453,6 @@ function isValidAdminStats(value: unknown): value is AdminStats {
     typeof evidenceByType.other === "number"
   );
 }
-
 
 function isGeoItem(value: unknown): value is GeoItem {
   return (
@@ -518,19 +551,24 @@ function ProgressBar(props: {
   const percentage = maxValue <= 0 ? 0 : Math.max(4, Math.round((value / maxValue) * 100));
 
   return (
-    <div style={{
-      width: "100%",
-      height: height,
-      backgroundColor: "#E2E8F0",
-      borderRadius: 999,
-      overflow: "hidden",
-    }}>
-      <div style={{
-        width: `${percentage}%`,
-        height: "100%",
-        backgroundColor: color,
+    <div
+      style={{
+        width: "100%",
+        height,
+        backgroundColor: "rgba(226, 232, 240, 0.9)",
         borderRadius: 999,
-      }} />
+        overflow: "hidden",
+      }}
+    >
+      <div
+        style={{
+          width: `${percentage}%`,
+          height: "100%",
+          backgroundColor: color,
+          borderRadius: 999,
+          boxShadow: `0 0 14px ${color}55`,
+        }}
+      />
     </div>
   );
 }
@@ -539,7 +577,6 @@ function ProgressBar(props: {
 function renderMiniBar(value: number, maxValue: number, color: string): JSX.Element {
   return <ProgressBar value={value} maxValue={maxValue} color={color} height={8} />;
 }
-
 
 export default function AdminPage() {
   const { addToast } = useToast();
@@ -554,7 +591,6 @@ export default function AdminPage() {
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [usingFallbackData, setUsingFallbackData] = useState(false);
   const [lastSuccessfulFetchAt, setLastSuccessfulFetchAt] = useState<string | null>(null);
   const [auditLogItems, setAuditLogItems] = useState<AuditLogRow[]>([]);
   const [auditLogsLoading, setAuditLogsLoading] = useState(false);
@@ -623,26 +659,10 @@ export default function AdminPage() {
     [user?.id, refreshAuditLogs, refreshChainVerify]
   );
 
-  const filteredRecent = useMemo(() => {
-    return recent
-      .filter((ev) => isEventInDateRange(ev, dateRange))
-      .filter((ev) => eventTypeFilter === "all" || ev.eventType === eventTypeFilter)
-      .sort((a, b) => eventCreatedAtMs(b) - eventCreatedAtMs(a));
-  }, [recent, dateRange, eventTypeFilter]);
+  const trendMax = useMemo(() => maxTrendValue(trends), [trends]);
 
-  const filteredTrends = useMemo(() => {
-    const hasEventDimension = trends.some((p) => typeof p.eventType === "string");
-    let pts = trends.filter((p) => isTrendInDateRange(p, dateRange));
-    if (eventTypeFilter !== "all" && hasEventDimension) {
-      pts = pts.filter((p) => p.eventType === eventTypeFilter);
-    }
-    return pts;
-  }, [trends, dateRange, eventTypeFilter]);
-
-  const trendMax = useMemo(
-    () => maxTrendValue(filteredTrends),
-    [filteredTrends]
-  );
+  const trendPrimaryMetricLabel =
+    eventTypeFilter === "all" ? "Page views" : `${eventTypeFilter} (count)`;
 
   const funnelMax = useMemo(
     () => (funnel.length ? Math.max(1, ...funnel.map((step) => step.count)) : 1),
@@ -650,14 +670,13 @@ export default function AdminPage() {
   );
 
   const handleExportCsv = () => {
-    if (usingFallbackData) return;
     void sendAuditLog("admin.analytics.export_csv", {
       exportType: "analytics_csv",
       dateRange,
       eventType: eventTypeFilter,
-      rowCount: filteredRecent.length,
+      rowCount: recent.length,
     });
-    const csv = buildAnalyticsCsv(filteredRecent);
+    const csv = buildAnalyticsCsv(recent);
     triggerCsvDownload(csv, exportFilenameForToday());
     addToast("Exported filtered analytics to CSV", "success");
   };
@@ -713,16 +732,19 @@ export default function AdminPage() {
       recentResponse: unknown,
       trendsResponse: unknown,
       funnelResponse: unknown
-    ) => {
-      let summaryFallback = false;
-      if (isValidAdminStats(summaryResponse)) {
-        setStats(summaryResponse);
-      } else {
-        setStats(MOCK_STATS);
-        summaryFallback = true;
-        setError("Live summary data is not ready yet. Showing fallback data.");
+    ): boolean => {
+      if (!isValidAdminStats(summaryResponse)) {
+        setStats(null);
+        setGeo(null);
+        setPages([]);
+        setRecent([]);
+        setTrends([]);
+        setFunnel([]);
+        setError("Analytics summary response was invalid or incomplete.");
+        return false;
       }
-      setUsingFallbackData(summaryFallback);
+
+      setStats(summaryResponse);
 
       if (isValidGeographyResponse(geographyResponse)) {
         setGeo(geographyResponse);
@@ -753,6 +775,7 @@ export default function AdminPage() {
       } else {
         setFunnel([]);
       }
+      return true;
     };
 
     const loadStats = async () => {
@@ -797,7 +820,7 @@ export default function AdminPage() {
         }
 
         if (!cancelled) {
-          applyAnalyticsPayload(
+          const ok = applyAnalyticsPayload(
             summaryResponse,
             geographyResponse,
             pagesResponse,
@@ -805,20 +828,25 @@ export default function AdminPage() {
             trendsResponse,
             funnelResponse
           );
-          setLastSuccessfulFetchAt(new Date().toISOString());
-          addToast("Admin dashboard loaded", "success");
+          if (ok) {
+            setLastSuccessfulFetchAt(new Date().toISOString());
+            addToast("Admin dashboard loaded", "success");
+          } else {
+            addToast("Analytics data could not be loaded", "error");
+          }
         }
       } catch {
         if (!cancelled) {
-          setStats(MOCK_STATS);
-          setGeo({ countries: [], cities: [] });
+          setStats(null);
+          setGeo(null);
           setPages([]);
           setRecent([]);
           setTrends([]);
           setFunnel([]);
-          setUsingFallbackData(true);
-          setError("Live analytics endpoints are unavailable. Showing fallback dashboard data.");
-          addToast("Live analytics unavailable. Using fallback data.", "info");
+          setError(
+            "Could not load analytics. Check your connection and admin permissions, then retry."
+          );
+          addToast("Analytics request failed", "error");
         }
       } finally {
         if (!cancelled) {
@@ -838,12 +866,14 @@ export default function AdminPage() {
     return (
       <div className="section app-section">
         <div className="container" style={{ paddingTop: 40 }}>
-          <div style={{
-            display: "grid",
-            gap: 16,
-            gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-            marginBottom: 24
-          }}>
+          <div
+            style={{
+              display: "grid",
+              gap: 16,
+              gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+              marginBottom: 24,
+            }}
+          >
             <StatSkeleton />
             <StatSkeleton />
             <StatSkeleton />
@@ -859,17 +889,20 @@ export default function AdminPage() {
       <div className="section app-section">
         <div className="container" style={{ paddingTop: 40 }}>
           <Card>
-            <div style={{
-              padding: 32,
-              textAlign: "center",
-              background: "#FEE2E2",
-              borderRadius: 8,
-              color: "#991B1B"
-            }}>
+            <div
+              style={{
+                padding: 32,
+                textAlign: "center",
+                background: UI.dangerBg,
+                borderRadius: 16,
+                color: UI.dangerText,
+                border: `1px solid ${UI.dangerBorder}`,
+              }}
+            >
               <h2 style={{ margin: 0, marginBottom: 12, fontSize: 20, fontWeight: 600 }}>
                 Access Denied
               </h2>
-              <p style={{ margin: 0, fontSize: 14, marginBottom: 24 }}>
+              <p style={{ margin: 0, fontSize: 14, marginBottom: 24, color: UI.textSecondary }}>
                 This page is only accessible to administrators.
               </p>
               <Link href="/">
@@ -885,36 +918,46 @@ export default function AdminPage() {
   const toolbarSegmentStyle = (active: boolean): CSSProperties => ({
     padding: "6px 14px",
     fontSize: 13,
-    fontWeight: 500,
+    fontWeight: 600,
     border: "none",
     borderRadius: 6,
     cursor: "pointer",
-    backgroundColor: active ? "#FFFFFF" : "transparent",
-    color: active ? "#0F172A" : "#64748B",
-    boxShadow: active ? "0 1px 2px rgba(15, 23, 42, 0.06)" : "none",
+    backgroundColor: active ? UI.toolbarActiveBg : "transparent",
+    color: active ? UI.toolbarActiveText : UI.toolbarIdleText,
+    boxShadow: active ? "0 1px 2px rgba(15, 23, 42, 0.16)" : "none",
     transition: "background-color 0.15s ease, color 0.15s ease, box-shadow 0.15s ease",
   });
 
   return (
-    <div className="section app-section" style={{ backgroundColor: "#F8FAFC" }}>
+    <div className="section app-section" style={{ backgroundColor: UI.pageBg }}>
       {/* Hero Section */}
-      <div className="app-hero app-hero-full" style={{ borderBottom: "1px solid #E2E8F0" }}>
+      <div
+        className="app-hero app-hero-full"
+        style={{ borderBottom: `1px solid ${UI.borderStrong}` }}
+      >
         <div className="container">
           <div className="page-title" style={{ marginBottom: 0 }}>
             <div>
-              <h1 className="hero-title pricing-hero-title" style={{
-                margin: 0,
-                fontSize: 32,
-                fontWeight: 700,
-                color: "#0F172A"
-              }}>
+              <h1
+                className="hero-title pricing-hero-title"
+                style={{
+                  margin: 0,
+                  fontSize: 32,
+                  fontWeight: 800,
+                  color: UI.textPrimary,
+                  textShadow: "0 2px 18px rgba(15, 23, 42, 0.28)",
+                }}
+              >
                 Analytics Dashboard
               </h1>
-              <p className="page-subtitle pricing-subtitle" style={{
-                marginTop: 6,
-                fontSize: 15,
-                color: "#64748B"
-              }}>
+              <p
+                className="page-subtitle pricing-subtitle"
+                style={{
+                  marginTop: 6,
+                  fontSize: 15,
+                  color: UI.textSecondary,
+                }}
+              >
                 Platform overview, user metrics, and system insights
               </p>
             </div>
@@ -929,40 +972,25 @@ export default function AdminPage() {
           {error && (
             <div style={{ marginBottom: 24 }}>
               <Card>
-                <div style={{
-                  padding: 16,
-                  background: "#FEE2E2",
-                  borderRadius: 8,
-                  color: "#991B1B",
-                  fontSize: 13,
-                  borderLeft: "4px solid #DC2626"
-                }}>
+                <div
+                  style={{
+                    padding: 16,
+                    background: UI.dangerBg,
+                    borderRadius: 14,
+                    color: UI.dangerText,
+                    fontSize: 13,
+                    borderLeft: "4px solid #F87171",
+                    border: `1px solid ${UI.dangerBorder}`,
+                  }}
+                >
                   {error}
                 </div>
               </Card>
             </div>
           )}
 
-          {!loading && usingFallbackData && stats ? (
-            <div style={{ marginBottom: 24 }}>
-              <Card>
-                <div style={{
-                  padding: 16,
-                  background: "#FFFBEB",
-                  borderRadius: 8,
-                  color: "#92400E",
-                  fontSize: 13,
-                  fontWeight: 600,
-                  borderLeft: "4px solid #F59E0B"
-                }}>
-                  ⚠️ Demo / fallback data
-                </div>
-              </Card>
-            </div>
-          ) : null}
-
           {/* Analytics toolbar: filters + export */}
-          {!loading && stats ? (
+          {!loading ? (
             <div style={{ marginBottom: 24 }}>
               <Card>
                 <div
@@ -973,6 +1001,10 @@ export default function AdminPage() {
                     alignItems: "center",
                     gap: 16,
                     justifyContent: "space-between",
+                    background: UI.cardBgStrong,
+                    border: `1px solid ${UI.border}`,
+                    borderRadius: 20,
+                    boxShadow: "0 14px 40px rgba(2, 8, 23, 0.14)",
                   }}
                 >
                   <div
@@ -988,10 +1020,10 @@ export default function AdminPage() {
                       <span
                         style={{
                           fontSize: 11,
-                          fontWeight: 600,
-                          color: "#94A3B8",
+                          fontWeight: 700,
+                          color: UI.textMuted,
                           textTransform: "uppercase",
-                          letterSpacing: "0.04em",
+                          letterSpacing: "0.08em",
                         }}
                       >
                         Date range
@@ -1002,9 +1034,9 @@ export default function AdminPage() {
                         style={{
                           display: "inline-flex",
                           padding: 3,
-                          backgroundColor: "#F1F5F9",
+                          backgroundColor: UI.toolbarBg,
                           borderRadius: 8,
-                          border: "1px solid #E2E8F0",
+                          border: `1px solid ${UI.borderStrong}`,
                           gap: 2,
                         }}
                       >
@@ -1027,10 +1059,10 @@ export default function AdminPage() {
                         htmlFor="admin-event-type-filter"
                         style={{
                           fontSize: 11,
-                          fontWeight: 600,
-                          color: "#94A3B8",
+                          fontWeight: 700,
+                          color: UI.textMuted,
                           textTransform: "uppercase",
-                          letterSpacing: "0.04em",
+                          letterSpacing: "0.08em",
                         }}
                       >
                         Event type
@@ -1045,12 +1077,13 @@ export default function AdminPage() {
                           minWidth: 200,
                           padding: "8px 12px",
                           fontSize: 13,
-                          color: "#0F172A",
-                          backgroundColor: "#FFFFFF",
-                          border: "1px solid #E2E8F0",
+                          color: UI.inputText,
+                          backgroundColor: UI.inputBg,
+                          border: "1px solid rgba(226, 232, 240, 0.65)",
                           borderRadius: 8,
                           cursor: "pointer",
                           outline: "none",
+                          boxShadow: "0 1px 2px rgba(2, 8, 23, 0.08)",
                         }}
                       >
                         {EVENT_TYPE_OPTIONS.map((opt) => (
@@ -1066,30 +1099,27 @@ export default function AdminPage() {
                     <button
                       type="button"
                       onClick={handleExportCsv}
-                      disabled={usingFallbackData}
-                      title={usingFallbackData ? "Export disabled while demo or fallback data is shown" : undefined}
                       style={{
                         padding: "8px 14px",
                         fontSize: 13,
-                        fontWeight: 500,
-                        color: "#334155",
-                        backgroundColor: "#FFFFFF",
-                        border: "1px solid #E2E8F0",
+                        fontWeight: 600,
+                        color: UI.inputText,
+                        backgroundColor: UI.inputBg,
+                        border: "1px solid rgba(226, 232, 240, 0.65)",
                         borderRadius: 8,
-                        cursor: usingFallbackData ? "not-allowed" : "pointer",
-                        opacity: usingFallbackData ? 0.5 : 1,
-                        transition: "background-color 0.15s ease, border-color 0.15s ease, opacity 0.15s ease",
+                        cursor: "pointer",
+                        transition:
+                          "background-color 0.15s ease, border-color 0.15s ease, opacity 0.15s ease",
+                        boxShadow: "0 1px 2px rgba(2, 8, 23, 0.08)",
                       }}
                       onMouseDown={(e) => {
-                        if (usingFallbackData) return;
-                        e.currentTarget.style.backgroundColor = "#F8FAFC";
+                        e.currentTarget.style.backgroundColor = "#E2E8F0";
                       }}
                       onMouseUp={(e) => {
-                        if (usingFallbackData) return;
-                        e.currentTarget.style.backgroundColor = "#FFFFFF";
+                        e.currentTarget.style.backgroundColor = "#F8FAFC";
                       }}
                       onMouseLeave={(e) => {
-                        e.currentTarget.style.backgroundColor = "#FFFFFF";
+                        e.currentTarget.style.backgroundColor = "#F8FAFC";
                       }}
                     >
                       Export CSV
@@ -1102,12 +1132,14 @@ export default function AdminPage() {
 
           {/* OVERVIEW SECTION */}
           {loading ? (
-            <div style={{
-              display: "grid",
-              gap: 16,
-              gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-              marginBottom: 32
-            }}>
+            <div
+              style={{
+                display: "grid",
+                gap: 16,
+                gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+                marginBottom: 32,
+              }}
+            >
               <StatSkeleton />
               <StatSkeleton />
               <StatSkeleton />
@@ -1116,25 +1148,18 @@ export default function AdminPage() {
           ) : stats ? (
             <>
               <div style={{ marginBottom: 40 }}>
-                <h2 style={{
-                  fontSize: 16,
-                  fontWeight: 700,
-                  color: "#64748B",
-                  marginBottom: 16,
-                  textTransform: "uppercase",
-                  letterSpacing: "0.5px"
-                }}>
-                  Overview
-                </h2>
-                <div style={{
-                  display: "grid",
-                  gap: 16,
-                  gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))"
-                }}>
+                <h2 style={sectionTitleStyle()}>Overview</h2>
+                <div
+                  style={{
+                    display: "grid",
+                    gap: 16,
+                    gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+                  }}
+                >
                   <StatCard
                     title="Total Users"
                     value={stats.totalUsers.toLocaleString()}
-                    description={`${stats.activeUsers.toLocaleString()} active in last 30 days`}
+                    description={`${stats.activeUsers.toLocaleString()} with analytics activity (${dateRangeLabel(dateRange)})`}
                     accent="#3B82F6"
                   />
                   <StatCard
@@ -1160,49 +1185,50 @@ export default function AdminPage() {
 
               {/* ACTIVITY SECTION */}
               <div style={{ marginBottom: 40 }}>
-                <h2 style={{
-                  fontSize: 16,
-                  fontWeight: 700,
-                  color: "#64748B",
-                  marginBottom: 16,
-                  textTransform: "uppercase",
-                  letterSpacing: "0.5px"
-                }}>
-                  Activity
-                </h2>
-                
+                <h2 style={sectionTitleStyle()}>Activity</h2>
+
                 {/* Trends */}
                 <Card style={{ marginBottom: 16 }}>
-                  <div style={{ padding: 24 }}>
-                    <h3 style={{
-                      margin: "0 0 20px 0",
-                      fontSize: 15,
-                      fontWeight: 600,
-                      color: "#0F172A"
-                    }}>
-                      7-Day Trends
+                  <div style={subCardStyle()}>
+                    <h3
+                      style={{
+                        margin: "0 0 20px 0",
+                        fontSize: 15,
+                        fontWeight: 700,
+                        color: UI.textPrimary,
+                      }}
+                    >
+                      Trends ({dateRangeLabel(dateRange)})
                     </h3>
 
-                    {filteredTrends.length ? (
-                      <div style={{
-                        display: "grid",
-                        gap: 16,
-                        gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))"
-                      }}>
-                        {filteredTrends.map((point) => (
-                          <div key={point.date} style={{
-                            border: "1px solid #E2E8F0",
-                            borderRadius: 12,
-                            padding: 16,
-                            backgroundColor: "#F8FAFC",
-                            transition: "all 0.2s"
-                          }}>
-                            <div style={{
-                              fontSize: 12,
-                              color: "#64748B",
-                              fontWeight: 600,
-                              marginBottom: 12
-                            }}>
+                    {trends.length ? (
+                      <div
+                        style={{
+                          display: "grid",
+                          gap: 16,
+                          gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+                        }}
+                      >
+                        {trends.map((point) => (
+                          <div
+                            key={point.date}
+                            style={{
+                              border: `1px solid ${UI.borderStrong}`,
+                              borderRadius: 16,
+                              padding: 16,
+                              backgroundColor: UI.innerPanelBg,
+                              transition: "all 0.2s",
+                              boxShadow: "inset 0 1px 0 rgba(255,255,255,0.02)",
+                            }}
+                          >
+                            <div
+                              style={{
+                                fontSize: 12,
+                                color: UI.textMuted,
+                                fontWeight: 700,
+                                marginBottom: 12,
+                              }}
+                            >
                               {formatDisplayTimestamp(
                                 point.date.length <= 10 && !point.date.includes("T")
                                   ? `${point.date}T12:00:00`
@@ -1211,40 +1237,48 @@ export default function AdminPage() {
                             </div>
 
                             <div style={{ marginBottom: 10 }}>
-                              <div style={{
-                                fontSize: 12,
-                                color: "#0F172A",
-                                marginBottom: 6,
-                                fontWeight: 500
-                              }}>
-                                Page Views
+                              <div
+                                style={{
+                                  fontSize: 12,
+                                  color: UI.textSecondary,
+                                  marginBottom: 6,
+                                  fontWeight: 600,
+                                }}
+                              >
+                                {trendPrimaryMetricLabel}
                               </div>
-                              <div style={{
-                                fontSize: 18,
-                                fontWeight: 700,
-                                color: "#3B82F6",
-                                marginBottom: 8
-                              }}>
+                              <div
+                                style={{
+                                  fontSize: 18,
+                                  fontWeight: 800,
+                                  color: "#93C5FD",
+                                  marginBottom: 8,
+                                }}
+                              >
                                 {point.pageViews.toLocaleString()}
                               </div>
                               {renderMiniBar(point.pageViews, trendMax, "#3B82F6")}
                             </div>
 
                             <div style={{ marginTop: 12 }}>
-                              <div style={{
-                                fontSize: 12,
-                                color: "#0F172A",
-                                marginBottom: 6,
-                                fontWeight: 500
-                              }}>
+                              <div
+                                style={{
+                                  fontSize: 12,
+                                  color: UI.textSecondary,
+                                  marginBottom: 6,
+                                  fontWeight: 600,
+                                }}
+                              >
                                 Sessions
                               </div>
-                              <div style={{
-                                fontSize: 18,
-                                fontWeight: 700,
-                                color: "#10B981",
-                                marginBottom: 8
-                              }}>
+                              <div
+                                style={{
+                                  fontSize: 18,
+                                  fontWeight: 800,
+                                  color: "#6EE7B7",
+                                  marginBottom: 8,
+                                }}
+                              >
                                 {point.sessions.toLocaleString()}
                               </div>
                               {renderMiniBar(point.sessions, trendMax, "#10B981")}
@@ -1253,11 +1287,13 @@ export default function AdminPage() {
                         ))}
                       </div>
                     ) : (
-                      <div style={{
-                        padding: 24,
-                        textAlign: "center",
-                        color: "#94A3B8"
-                      }}>
+                      <div
+                        style={{
+                          padding: 24,
+                          textAlign: "center",
+                          color: UI.emptyText,
+                        }}
+                      >
                         <p style={{ margin: 0 }}>No trend data yet.</p>
                       </div>
                     )}
@@ -1266,74 +1302,90 @@ export default function AdminPage() {
 
                 {/* Top Pages */}
                 <Card>
-                  <div style={{ padding: 24 }}>
-                    <h3 style={{
-                      margin: "0 0 20px 0",
-                      fontSize: 15,
-                      fontWeight: 600,
-                      color: "#0F172A"
-                    }}>
+                  <div style={subCardStyle()}>
+                    <h3
+                      style={{
+                        margin: "0 0 20px 0",
+                        fontSize: 15,
+                        fontWeight: 700,
+                        color: UI.textPrimary,
+                      }}
+                    >
                       Top Pages
                     </h3>
 
                     {pages.length ? (
                       <div style={{ display: "grid", gap: 12 }}>
                         {pages.slice(0, 10).map((item, idx) => (
-                          <div key={`page-${item.path ?? "unknown"}`} style={{
-                            display: "flex",
-                            alignItems: "center",
-                            gap: 12,
-                            paddingBottom: 12,
-                            borderBottom: idx < pages.length - 1 ? "1px solid #E2E8F0" : "none"
-                          }}>
-                            <div style={{
-                              width: 28,
-                              height: 28,
-                              borderRadius: 6,
-                              backgroundColor: "#EFF6FF",
+                          <div
+                            key={`page-${item.path ?? "unknown"}`}
+                            style={{
                               display: "flex",
                               alignItems: "center",
-                              justifyContent: "center",
-                              fontSize: 12,
-                              fontWeight: 600,
-                              color: "#3B82F6"
-                            }}>
+                              gap: 12,
+                              paddingBottom: 12,
+                              borderBottom:
+                                idx < pages.length - 1 ? `1px solid ${UI.border}` : "none",
+                            }}
+                          >
+                            <div
+                              style={{
+                                width: 28,
+                                height: 28,
+                                borderRadius: 6,
+                                backgroundColor: "rgba(59, 130, 246, 0.16)",
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                fontSize: 12,
+                                fontWeight: 700,
+                                color: "#93C5FD",
+                              }}
+                            >
                               {idx + 1}
                             </div>
                             <div style={{ flex: 1, minWidth: 0 }}>
-                              <div style={{
-                                fontSize: 13,
-                                fontWeight: 500,
-                                color: "#0F172A",
-                                wordBreak: "break-word",
-                                marginBottom: 2
-                              }}>
+                              <div
+                                style={{
+                                  fontSize: 13,
+                                  fontWeight: 600,
+                                  color: UI.textPrimary,
+                                  wordBreak: "break-word",
+                                  marginBottom: 2,
+                                }}
+                              >
                                 {item.path ?? "Unknown"}
                               </div>
-                              <div style={{
-                                fontSize: 12,
-                                color: "#64748B"
-                              }}>
+                              <div
+                                style={{
+                                  fontSize: 12,
+                                  color: UI.textSecondary,
+                                }}
+                              >
                                 {item.views.toLocaleString()} views
                               </div>
                             </div>
-                            <div style={{
-                              fontSize: 14,
-                              fontWeight: 600,
-                              color: "#0F172A",
-                              whiteSpace: "nowrap"
-                            }}>
+                            <div
+                              style={{
+                                fontSize: 14,
+                                fontWeight: 700,
+                                color: UI.textPrimary,
+                                whiteSpace: "nowrap",
+                              }}
+                            >
                               {item.views.toLocaleString()}
                             </div>
                           </div>
                         ))}
                       </div>
                     ) : (
-                      <div style={{
-                        padding: 24,
-                        textAlign: "center",
-                        color: "#94A3B8"
-                      }}>
+                      <div
+                        style={{
+                          padding: 24,
+                          textAlign: "center",
+                          color: UI.emptyText,
+                        }}
+                      >
                         <p style={{ margin: 0 }}>No page analytics yet.</p>
                       </div>
                     )}
@@ -1343,24 +1395,17 @@ export default function AdminPage() {
 
               {/* FUNNEL SECTION */}
               <div style={{ marginBottom: 40 }}>
-                <h2 style={{
-                  fontSize: 16,
-                  fontWeight: 700,
-                  color: "#64748B",
-                  marginBottom: 16,
-                  textTransform: "uppercase",
-                  letterSpacing: "0.5px"
-                }}>
-                  Funnel
-                </h2>
+                <h2 style={sectionTitleStyle()}>Funnel</h2>
                 <Card>
-                  <div style={{ padding: 24 }}>
-                    <h3 style={{
-                      margin: "0 0 20px 0",
-                      fontSize: 15,
-                      fontWeight: 600,
-                      color: "#0F172A"
-                    }}>
+                  <div style={subCardStyle()}>
+                    <h3
+                      style={{
+                        margin: "0 0 20px 0",
+                        fontSize: 15,
+                        fontWeight: 700,
+                        color: UI.textPrimary,
+                      }}
+                    >
                       Product Funnel
                     </h3>
 
@@ -1368,46 +1413,56 @@ export default function AdminPage() {
                       <div style={{ display: "grid", gap: 16 }}>
                         {funnel.map((step, idx) => (
                           <div key={step.key}>
-                            <div style={{
-                              display: "flex",
-                              justifyContent: "space-between",
-                              alignItems: "center",
-                              marginBottom: 8
-                            }}>
-                              <div style={{
+                            <div
+                              style={{
                                 display: "flex",
+                                justifyContent: "space-between",
                                 alignItems: "center",
-                                gap: 10
-                              }}>
-                                <div style={{
-                                  width: 32,
-                                  height: 32,
-                                  borderRadius: 6,
-                                  backgroundColor: "#FEF3C7",
+                                marginBottom: 8,
+                              }}
+                            >
+                              <div
+                                style={{
                                   display: "flex",
                                   alignItems: "center",
-                                  justifyContent: "center",
-                                  fontSize: 13,
-                                  fontWeight: 600,
-                                  color: "#92400E"
-                                }}>
+                                  gap: 10,
+                                }}
+                              >
+                                <div
+                                  style={{
+                                    width: 32,
+                                    height: 32,
+                                    borderRadius: 8,
+                                    backgroundColor: "rgba(245, 158, 11, 0.18)",
+                                    display: "flex",
+                                    alignItems: "center",
+                                    justifyContent: "center",
+                                    fontSize: 13,
+                                    fontWeight: 700,
+                                    color: "#FCD34D",
+                                  }}
+                                >
                                   {idx + 1}
                                 </div>
                                 <div>
-                                  <div style={{
-                                    fontSize: 13,
-                                    fontWeight: 500,
-                                    color: "#0F172A"
-                                  }}>
+                                  <div
+                                    style={{
+                                      fontSize: 13,
+                                      fontWeight: 600,
+                                      color: UI.textPrimary,
+                                    }}
+                                  >
                                     {step.label}
                                   </div>
                                 </div>
                               </div>
-                              <div style={{
-                                fontSize: 13,
-                                fontWeight: 600,
-                                color: "#0F172A"
-                              }}>
+                              <div
+                                style={{
+                                  fontSize: 13,
+                                  fontWeight: 700,
+                                  color: UI.textPrimary,
+                                }}
+                              >
                                 {step.count.toLocaleString()}
                               </div>
                             </div>
@@ -1416,11 +1471,13 @@ export default function AdminPage() {
                         ))}
                       </div>
                     ) : (
-                      <div style={{
-                        padding: 24,
-                        textAlign: "center",
-                        color: "#94A3B8"
-                      }}>
+                      <div
+                        style={{
+                          padding: 24,
+                          textAlign: "center",
+                          color: UI.emptyText,
+                        }}
+                      >
                         <p style={{ margin: 0 }}>No funnel data yet.</p>
                       </div>
                     )}
@@ -1430,84 +1487,93 @@ export default function AdminPage() {
 
               {/* GEOGRAPHY SECTION */}
               <div style={{ marginBottom: 40 }}>
-                <h2 style={{
-                  fontSize: 16,
-                  fontWeight: 700,
-                  color: "#64748B",
-                  marginBottom: 16,
-                  textTransform: "uppercase",
-                  letterSpacing: "0.5px"
-                }}>
-                  Geography
-                </h2>
-                <div style={{
-                  display: "grid",
-                  gap: 16,
-                  gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))"
-                }}>
+                <h2 style={sectionTitleStyle()}>Geography</h2>
+                <div
+                  style={{
+                    display: "grid",
+                    gap: 16,
+                    gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))",
+                  }}
+                >
                   {/* Countries */}
                   <Card>
-                    <div style={{ padding: 24 }}>
-                      <h3 style={{
-                        margin: "0 0 20px 0",
-                        fontSize: 14,
-                        fontWeight: 600,
-                        color: "#0F172A"
-                      }}>
+                    <div style={subCardStyle()}>
+                      <h3
+                        style={{
+                          margin: "0 0 20px 0",
+                          fontSize: 14,
+                          fontWeight: 700,
+                          color: UI.textPrimary,
+                        }}
+                      >
                         Top Countries
                       </h3>
 
                       {geo?.countries?.length ? (
                         <div style={{ display: "grid", gap: 10 }}>
                           {geo.countries.slice(0, 8).map((item, idx) => (
-                            <div key={`country-${item.name ?? "unknown"}`} style={{
-                              display: "flex",
-                              alignItems: "center",
-                              gap: 12,
-                              paddingBottom: 10,
-                              borderBottom: idx < Math.min(geo.countries.length, 8) - 1 ? "1px solid #E2E8F0" : "none"
-                            }}>
-                              <div style={{
-                                width: 28,
-                                height: 28,
-                                borderRadius: 4,
-                                backgroundColor: "#E0F2FE",
+                            <div
+                              key={`country-${item.name ?? "unknown"}`}
+                              style={{
                                 display: "flex",
                                 alignItems: "center",
-                                justifyContent: "center",
-                                fontSize: 11,
-                                fontWeight: 700,
-                                color: "#0369A1"
-                              }}>
+                                gap: 12,
+                                paddingBottom: 10,
+                                borderBottom:
+                                  idx < Math.min(geo.countries.length, 8) - 1
+                                    ? `1px solid ${UI.border}`
+                                    : "none",
+                              }}
+                            >
+                              <div
+                                style={{
+                                  width: 28,
+                                  height: 28,
+                                  borderRadius: 6,
+                                  backgroundColor: "rgba(14, 165, 233, 0.16)",
+                                  display: "flex",
+                                  alignItems: "center",
+                                  justifyContent: "center",
+                                  fontSize: 11,
+                                  fontWeight: 700,
+                                  color: "#7DD3FC",
+                                }}
+                              >
                                 {idx + 1}
                               </div>
                               <div style={{ flex: 1 }}>
-                                <div style={{
-                                  fontSize: 13,
-                                  fontWeight: 500,
-                                  color: "#0F172A"
-                                }}>
+                                <div
+                                  style={{
+                                    fontSize: 13,
+                                    fontWeight: 600,
+                                    color: UI.textPrimary,
+                                  }}
+                                >
                                   {item.name ?? "Unknown"}
                                 </div>
                               </div>
-                              <div style={{
-                                fontSize: 12,
-                                fontWeight: 600,
-                                color: "#64748B",
-                                whiteSpace: "nowrap"
-                              }}>
+                              <div
+                                style={{
+                                  fontSize: 12,
+                                  fontWeight: 700,
+                                  color: UI.textSecondary,
+                                  whiteSpace: "nowrap",
+                                }}
+                              >
                                 {item.count.toLocaleString()}
                               </div>
                             </div>
                           ))}
                         </div>
                       ) : (
-                        <div style={{
-                          padding: 24,
-                          textAlign: "center",
-                          color: "#94A3B8",
-                          fontSize: 13
-                        }}>
+                        <div
+                          style={{
+                            padding: 24,
+                            textAlign: "center",
+                            color: UI.emptyText,
+                            fontSize: 13,
+                          }}
+                        >
                           No country data yet.
                         </div>
                       )}
@@ -1516,67 +1582,83 @@ export default function AdminPage() {
 
                   {/* Cities */}
                   <Card>
-                    <div style={{ padding: 24 }}>
-                      <h3 style={{
-                        margin: "0 0 20px 0",
-                        fontSize: 14,
-                        fontWeight: 600,
-                        color: "#0F172A"
-                      }}>
+                    <div style={subCardStyle()}>
+                      <h3
+                        style={{
+                          margin: "0 0 20px 0",
+                          fontSize: 14,
+                          fontWeight: 700,
+                          color: UI.textPrimary,
+                        }}
+                      >
                         Top Cities
                       </h3>
 
                       {geo?.cities?.length ? (
                         <div style={{ display: "grid", gap: 10 }}>
                           {geo.cities.slice(0, 8).map((item, idx) => (
-                            <div key={`city-${item.name ?? "unknown"}`} style={{
-                              display: "flex",
-                              alignItems: "center",
-                              gap: 12,
-                              paddingBottom: 10,
-                              borderBottom: idx < Math.min(geo.cities.length, 8) - 1 ? "1px solid #E2E8F0" : "none"
-                            }}>
-                              <div style={{
-                                width: 28,
-                                height: 28,
-                                borderRadius: 4,
-                                backgroundColor: "#DBEAFE",
+                            <div
+                              key={`city-${item.name ?? "unknown"}`}
+                              style={{
                                 display: "flex",
                                 alignItems: "center",
-                                justifyContent: "center",
-                                fontSize: 11,
-                                fontWeight: 700,
-                                color: "#0284C7"
-                              }}>
+                                gap: 12,
+                                paddingBottom: 10,
+                                borderBottom:
+                                  idx < Math.min(geo.cities.length, 8) - 1
+                                    ? `1px solid ${UI.border}`
+                                    : "none",
+                              }}
+                            >
+                              <div
+                                style={{
+                                  width: 28,
+                                  height: 28,
+                                  borderRadius: 6,
+                                  backgroundColor: "rgba(96, 165, 250, 0.16)",
+                                  display: "flex",
+                                  alignItems: "center",
+                                  justifyContent: "center",
+                                  fontSize: 11,
+                                  fontWeight: 700,
+                                  color: "#93C5FD",
+                                }}
+                              >
                                 {idx + 1}
                               </div>
                               <div style={{ flex: 1 }}>
-                                <div style={{
-                                  fontSize: 13,
-                                  fontWeight: 500,
-                                  color: "#0F172A"
-                                }}>
+                                <div
+                                  style={{
+                                    fontSize: 13,
+                                    fontWeight: 600,
+                                    color: UI.textPrimary,
+                                  }}
+                                >
                                   {item.name ?? "Unknown"}
                                 </div>
                               </div>
-                              <div style={{
-                                fontSize: 12,
-                                fontWeight: 600,
-                                color: "#64748B",
-                                whiteSpace: "nowrap"
-                              }}>
+                              <div
+                                style={{
+                                  fontSize: 12,
+                                  fontWeight: 700,
+                                  color: UI.textSecondary,
+                                  whiteSpace: "nowrap",
+                                }}
+                              >
                                 {item.count.toLocaleString()}
                               </div>
                             </div>
                           ))}
                         </div>
                       ) : (
-                        <div style={{
-                          padding: 24,
-                          textAlign: "center",
-                          color: "#94A3B8",
-                          fontSize: 13
-                        }}>
+                        <div
+                          style={{
+                            padding: 24,
+                            textAlign: "center",
+                            color: UI.emptyText,
+                            fontSize: 13,
+                          }}
+                        >
                           No city data yet.
                         </div>
                       )}
@@ -1587,80 +1669,96 @@ export default function AdminPage() {
 
               {/* RECENT EVENTS SECTION */}
               <div style={{ marginBottom: 40 }}>
-                <h2 style={{
-                  fontSize: 16,
-                  fontWeight: 700,
-                  color: "#64748B",
-                  marginBottom: 16,
-                  textTransform: "uppercase",
-                  letterSpacing: "0.5px"
-                }}>
-                  Recent Activity
-                </h2>
+                <h2 style={sectionTitleStyle()}>Recent Activity</h2>
                 <Card>
-                  <div style={{ padding: 24 }}>
-                    <h3 style={{
-                      margin: "0 0 20px 0",
-                      fontSize: 15,
-                      fontWeight: 600,
-                      color: "#0F172A"
-                    }}>
+                  <div style={subCardStyle()}>
+                    <h3
+                      style={{
+                        margin: "0 0 20px 0",
+                        fontSize: 15,
+                        fontWeight: 700,
+                        color: UI.textPrimary,
+                      }}
+                    >
                       Latest Events
                     </h3>
 
-                    {filteredRecent.length ? (
+                    {recent.length ? (
                       <div style={{ display: "grid", gap: 1 }}>
-                        {filteredRecent.slice(0, 20).map((item, index, arr) => (
-                          <div key={`${item.eventType}-${item.createdAt}-${index}`} style={{
-                            display: "grid",
-                            gridTemplateColumns: "120px 1fr auto",
-                            gap: 16,
-                            alignItems: "center",
-                            padding: "12px 0",
-                            borderBottom: index < arr.length - 1 ? "1px solid #E2E8F0" : "none"
-                          }}>
-                            <div style={{
-                              fontSize: 12,
-                              fontWeight: 600,
-                              color: "#3B82F6",
-                              textTransform: "capitalize",
-                              wordBreak: "break-word"
-                            }}>
+                        {recent.slice(0, 20).map((item, index, arr) => (
+                          <div
+                            key={`${item.eventType}-${item.createdAt}-${index}`}
+                            style={{
+                              display: "grid",
+                              gridTemplateColumns: "120px 1fr auto",
+                              gap: 16,
+                              alignItems: "center",
+                              padding: "12px 0",
+                              borderBottom:
+                                index < arr.length - 1 ? `1px solid ${UI.border}` : "none",
+                            }}
+                          >
+                            <div
+                              style={{
+                                fontSize: 12,
+                                fontWeight: 700,
+                                color: "#93C5FD",
+                                textTransform: "capitalize",
+                                wordBreak: "break-word",
+                              }}
+                            >
                               {item.eventType}
                             </div>
                             <div style={{ minWidth: 0 }}>
-                              <div style={{
-                                fontSize: 12,
-                                color: "#0F172A",
-                                fontWeight: 500,
-                                wordBreak: "break-word",
-                                marginBottom: 2
-                              }}>
+                              <div
+                                style={{
+                                  fontSize: 12,
+                                  color: UI.textPrimary,
+                                  fontWeight: 600,
+                                  wordBreak: "break-word",
+                                  marginBottom: 2,
+                                }}
+                              >
                                 {item.path ?? "No path"}
                               </div>
-                              <div style={{
-                                fontSize: 11,
-                                color: "#64748B"
-                              }}>
+                              <div
+                                style={{
+                                  fontSize: 11,
+                                  color: UI.textSecondary,
+                                  marginBottom: 2,
+                                }}
+                              >
+                                user: {item.userId ?? "—"}
+                              </div>
+                              <div
+                                style={{
+                                  fontSize: 11,
+                                  color: UI.textMuted,
+                                }}
+                              >
                                 {item.city ?? item.country ?? "Unknown location"}
                               </div>
                             </div>
-                            <div style={{
-                              fontSize: 11,
-                              color: "#64748B",
-                              whiteSpace: "nowrap"
-                            }}>
+                            <div
+                              style={{
+                                fontSize: 11,
+                                color: UI.textSecondary,
+                                whiteSpace: "nowrap",
+                              }}
+                            >
                               {formatDisplayTimestamp(item.createdAt)}
                             </div>
                           </div>
                         ))}
                       </div>
                     ) : (
-                      <div style={{
-                        padding: 24,
-                        textAlign: "center",
-                        color: "#94A3B8"
-                      }}>
+                      <div
+                        style={{
+                          padding: 24,
+                          textAlign: "center",
+                          color: UI.emptyText,
+                        }}
+                      >
                         <p style={{ margin: 0 }}>No recent activity yet.</p>
                       </div>
                     )}
@@ -1670,57 +1768,74 @@ export default function AdminPage() {
 
               {/* SUBSCRIPTION & EVIDENCE BREAKDOWN */}
               <div style={{ marginBottom: 40 }}>
-                <h2 style={{
-                  fontSize: 16,
-                  fontWeight: 700,
-                  color: "#64748B",
-                  marginBottom: 16,
-                  textTransform: "uppercase",
-                  letterSpacing: "0.5px"
-                }}>
-                  Breakdown
-                </h2>
-                <div style={{
-                  display: "grid",
-                  gap: 16,
-                  gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))"
-                }}>
+                <h2 style={sectionTitleStyle()}>Breakdown</h2>
+                <div
+                  style={{
+                    display: "grid",
+                    gap: 16,
+                    gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))",
+                  }}
+                >
                   {/* Subscription */}
                   <Card>
-                    <div style={{ padding: 24 }}>
-                      <h3 style={{
-                        margin: "0 0 20px 0",
-                        fontSize: 14,
-                        fontWeight: 600,
-                        color: "#0F172A"
-                      }}>
+                    <div style={subCardStyle()}>
+                      <h3
+                        style={{
+                          margin: "0 0 20px 0",
+                          fontSize: 14,
+                          fontWeight: 700,
+                          color: UI.textPrimary,
+                        }}
+                      >
                         Subscription Plans
                       </h3>
                       <div style={{ display: "grid", gap: 14 }}>
                         {[
-                          { label: "Free Plan", value: stats.subscriptionBreakdown.free, color: "#EFF6FF", textColor: "#0369A1" },
-                          { label: "Pay-Per-Evidence", value: stats.subscriptionBreakdown.payg, color: "#F0FDF4", textColor: "#16A34A" },
-                          { label: "Pro Plan", value: stats.subscriptionBreakdown.pro, color: "#FFFBEB", textColor: "#D97706" },
-                          { label: "Team Plan", value: stats.subscriptionBreakdown.team, color: "#FEF2F2", textColor: "#DC2626" }
+                          {
+                            label: "Free Plan",
+                            value: stats.subscriptionBreakdown.free,
+                            textColor: "#38BDF8",
+                          },
+                          {
+                            label: "Pay-Per-Evidence",
+                            value: stats.subscriptionBreakdown.payg,
+                            textColor: "#22C55E",
+                          },
+                          {
+                            label: "Pro Plan",
+                            value: stats.subscriptionBreakdown.pro,
+                            textColor: "#F59E0B",
+                          },
+                          {
+                            label: "Team Plan",
+                            value: stats.subscriptionBreakdown.team,
+                            textColor: "#EF4444",
+                          },
                         ].map((plan) => (
                           <div key={plan.label}>
-                            <div style={{
-                              display: "flex",
-                              justifyContent: "space-between",
-                              marginBottom: 6
-                            }}>
-                              <div style={{
-                                fontSize: 12,
-                                fontWeight: 500,
-                                color: "#0F172A"
-                              }}>
+                            <div
+                              style={{
+                                display: "flex",
+                                justifyContent: "space-between",
+                                marginBottom: 6,
+                              }}
+                            >
+                              <div
+                                style={{
+                                  fontSize: 12,
+                                  fontWeight: 600,
+                                  color: UI.textPrimary,
+                                }}
+                              >
                                 {plan.label}
                               </div>
-                              <div style={{
-                                fontSize: 12,
-                                fontWeight: 600,
-                                color: "#0F172A"
-                              }}>
+                              <div
+                                style={{
+                                  fontSize: 12,
+                                  fontWeight: 700,
+                                  color: UI.textPrimary,
+                                }}
+                              >
                                 {safeRatioPercent(plan.value, stats.totalUsers)}%
                               </div>
                             </div>
@@ -1730,11 +1845,13 @@ export default function AdminPage() {
                               color={plan.textColor}
                               height={6}
                             />
-                            <div style={{
-                              fontSize: 11,
-                              color: "#64748B",
-                              marginTop: 4
-                            }}>
+                            <div
+                              style={{
+                                fontSize: 11,
+                                color: UI.textSecondary,
+                                marginTop: 4,
+                              }}
+                            >
                               {plan.value.toLocaleString()} users
                             </div>
                           </div>
@@ -1745,13 +1862,15 @@ export default function AdminPage() {
 
                   {/* Evidence Type */}
                   <Card>
-                    <div style={{ padding: 24 }}>
-                      <h3 style={{
-                        margin: "0 0 20px 0",
-                        fontSize: 14,
-                        fontWeight: 600,
-                        color: "#0F172A"
-                      }}>
+                    <div style={subCardStyle()}>
+                      <h3
+                        style={{
+                          margin: "0 0 20px 0",
+                          fontSize: 14,
+                          fontWeight: 700,
+                          color: UI.textPrimary,
+                        }}
+                      >
                         Evidence by Type
                       </h3>
                       <div style={{ display: "grid", gap: 14 }}>
@@ -1759,26 +1878,32 @@ export default function AdminPage() {
                           { label: "Photos", value: stats.evidenceByType.photos, color: "#3B82F6" },
                           { label: "Videos", value: stats.evidenceByType.videos, color: "#10B981" },
                           { label: "Documents", value: stats.evidenceByType.documents, color: "#F59E0B" },
-                          { label: "Other", value: stats.evidenceByType.other, color: "#8B5CF6" }
+                          { label: "Other", value: stats.evidenceByType.other, color: "#8B5CF6" },
                         ].map((type) => (
                           <div key={type.label}>
-                            <div style={{
-                              display: "flex",
-                              justifyContent: "space-between",
-                              marginBottom: 6
-                            }}>
-                              <div style={{
-                                fontSize: 12,
-                                fontWeight: 500,
-                                color: "#0F172A"
-                              }}>
+                            <div
+                              style={{
+                                display: "flex",
+                                justifyContent: "space-between",
+                                marginBottom: 6,
+                              }}
+                            >
+                              <div
+                                style={{
+                                  fontSize: 12,
+                                  fontWeight: 600,
+                                  color: UI.textPrimary,
+                                }}
+                              >
                                 {type.label}
                               </div>
-                              <div style={{
-                                fontSize: 12,
-                                fontWeight: 600,
-                                color: "#0F172A"
-                              }}>
+                              <div
+                                style={{
+                                  fontSize: 12,
+                                  fontWeight: 700,
+                                  color: UI.textPrimary,
+                                }}
+                              >
                                 {safeRatioPercent(type.value, stats.totalEvidence)}%
                               </div>
                             </div>
@@ -1788,11 +1913,13 @@ export default function AdminPage() {
                               color={type.color}
                               height={6}
                             />
-                            <div style={{
-                              fontSize: 11,
-                              color: "#64748B",
-                              marginTop: 4
-                            }}>
+                            <div
+                              style={{
+                                fontSize: 11,
+                                color: UI.textSecondary,
+                                marginTop: 4,
+                              }}
+                            >
                               {type.value.toLocaleString()} items
                             </div>
                           </div>
@@ -1805,45 +1932,40 @@ export default function AdminPage() {
 
               {/* Admin audit trail + integrity */}
               <div style={{ marginBottom: 40 }}>
-                <h2 style={{
-                  fontSize: 16,
-                  fontWeight: 700,
-                  color: "#64748B",
-                  marginBottom: 16,
-                  textTransform: "uppercase",
-                  letterSpacing: "0.5px"
-                }}>
-                  Admin Audit
-                </h2>
+                <h2 style={sectionTitleStyle()}>Admin Audit</h2>
                 <Card style={{ marginBottom: 16 }}>
-                  <div style={{ padding: 24 }}>
-                    <h3 style={{
-                      margin: "0 0 12px 0",
-                      fontSize: 15,
-                      fontWeight: 600,
-                      color: "#0F172A"
-                    }}>
+                  <div style={subCardStyle()}>
+                    <h3
+                      style={{
+                        margin: "0 0 12px 0",
+                        fontSize: 15,
+                        fontWeight: 700,
+                        color: UI.textPrimary,
+                      }}
+                    >
                       Audit Integrity Status
                     </h3>
                     {chainVerify === null ? (
-                      <div style={{ fontSize: 13, color: "#64748B" }}>
+                      <div style={{ fontSize: 13, color: UI.textSecondary }}>
                         Verification not available yet.
                       </div>
                     ) : chainVerify.valid ? (
-                      <div style={{ fontSize: 14, fontWeight: 600, color: "#15803D" }}>
+                      <div style={{ fontSize: 14, fontWeight: 700, color: UI.successText }}>
                         ✅ Valid chain
                       </div>
                     ) : (
-                      <div style={{ fontSize: 14, fontWeight: 600, color: "#B91C1C" }}>
+                      <div style={{ fontSize: 14, fontWeight: 700, color: "#FCA5A5" }}>
                         ❌ Tampering detected
-                        <div style={{
-                          marginTop: 8,
-                          fontSize: 12,
-                          fontWeight: 500,
-                          color: "#64748B",
-                          fontFamily: "ui-monospace, monospace",
-                          wordBreak: "break-word"
-                        }}>
+                        <div
+                          style={{
+                            marginTop: 8,
+                            fontSize: 12,
+                            fontWeight: 500,
+                            color: UI.textSecondary,
+                            fontFamily: "ui-monospace, monospace",
+                            wordBreak: "break-word",
+                          }}
+                        >
                           brokenAt: {chainVerify.brokenAt}
                         </div>
                       </div>
@@ -1851,23 +1973,27 @@ export default function AdminPage() {
                   </div>
                 </Card>
                 <Card>
-                  <div style={{ padding: 24 }}>
-                    <h3 style={{
-                      margin: "0 0 20px 0",
-                      fontSize: 15,
-                      fontWeight: 600,
-                      color: "#0F172A"
-                    }}>
+                  <div style={subCardStyle()}>
+                    <h3
+                      style={{
+                        margin: "0 0 20px 0",
+                        fontSize: 15,
+                        fontWeight: 700,
+                        color: UI.textPrimary,
+                      }}
+                    >
                       Recent Admin Actions
                     </h3>
 
                     {auditLogsLoading ? (
-                      <div style={{
-                        padding: 12,
-                        textAlign: "center",
-                        color: "#94A3B8",
-                        fontSize: 13
-                      }}>
+                      <div
+                        style={{
+                          padding: 12,
+                          textAlign: "center",
+                          color: UI.emptyText,
+                          fontSize: 13,
+                        }}
+                      >
                         Loading audit log…
                       </div>
                     ) : auditLogItems.length ? (
@@ -1881,56 +2007,67 @@ export default function AdminPage() {
                               gap: 12,
                               alignItems: "start",
                               padding: "12px 0",
-                              borderBottom: index < arr.length - 1 ? "1px solid #E2E8F0" : "none"
+                              borderBottom:
+                                index < arr.length - 1 ? `1px solid ${UI.border}` : "none",
                             }}
                           >
                             <div style={{ minWidth: 0 }}>
-                              <div style={{
-                                fontSize: 12,
-                                fontWeight: 600,
-                                color: "#0F172A",
-                                wordBreak: "break-word",
-                                marginBottom: 4
-                              }}>
+                              <div
+                                style={{
+                                  fontSize: 12,
+                                  fontWeight: 700,
+                                  color: UI.textPrimary,
+                                  wordBreak: "break-word",
+                                  marginBottom: 4,
+                                }}
+                              >
                                 {entry.action}
                               </div>
-                              <div style={{
-                                fontSize: 10,
-                                color: "#94A3B8",
-                                marginBottom: 6
-                              }}>
+                              <div
+                                style={{
+                                  fontSize: 10,
+                                  color: UI.textMuted,
+                                  marginBottom: 6,
+                                }}
+                              >
                                 user: {formatAuditActor(entry.userId, entry.isPublic)}
                               </div>
-                              <pre style={{
-                                fontSize: 11,
-                                color: "#64748B",
-                                fontFamily: "ui-monospace, monospace",
-                                wordBreak: "break-word",
-                                lineHeight: 1.4,
-                                margin: 0,
-                                whiteSpace: "pre-wrap"
-                              }}>
+                              <pre
+                                style={{
+                                  fontSize: 11,
+                                  color: UI.textSecondary,
+                                  fontFamily: "ui-monospace, monospace",
+                                  wordBreak: "break-word",
+                                  lineHeight: 1.4,
+                                  margin: 0,
+                                  whiteSpace: "pre-wrap",
+                                }}
+                              >
                                 {prettyMetadataJson(entry.metadata)}
                               </pre>
                             </div>
-                            <div style={{
-                              fontSize: 11,
-                              color: "#64748B",
-                              whiteSpace: "nowrap",
-                              textAlign: "right"
-                            }}>
+                            <div
+                              style={{
+                                fontSize: 11,
+                                color: UI.textSecondary,
+                                whiteSpace: "nowrap",
+                                textAlign: "right",
+                              }}
+                            >
                               {formatDisplayTimestamp(entry.createdAt)}
                             </div>
                           </div>
                         ))}
                       </div>
                     ) : (
-                      <div style={{
-                        padding: 12,
-                        textAlign: "center",
-                        color: "#94A3B8",
-                        fontSize: 13
-                      }}>
+                      <div
+                        style={{
+                          padding: 12,
+                          textAlign: "center",
+                          color: UI.emptyText,
+                          fontSize: 13,
+                        }}
+                      >
                         No audit log entries yet.
                       </div>
                     )}
@@ -1941,62 +2078,71 @@ export default function AdminPage() {
               {/* System Status */}
               <div>
                 <Card>
-                  <div style={{ padding: 24 }}>
-                    <h3 style={{
-                      margin: "0 0 16px 0",
-                      fontSize: 15,
-                      fontWeight: 600,
-                      color: "#0F172A"
-                    }}>
+                  <div style={subCardStyle()}>
+                    <h3
+                      style={{
+                        margin: "0 0 16px 0",
+                        fontSize: 15,
+                        fontWeight: 700,
+                        color: UI.textPrimary,
+                      }}
+                    >
                       System Status
                     </h3>
-                    <div style={{
-                      display: "grid",
-                      gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
-                      gap: 16
-                    }}>
+                    <div
+                      style={{
+                        display: "grid",
+                        gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
+                        gap: 16,
+                      }}
+                    >
                       <div>
-                        <div style={{ fontSize: 12, color: "#64748B", marginBottom: 6 }}>
+                        <div style={{ fontSize: 12, color: UI.textMuted, marginBottom: 6 }}>
                           API Version
                         </div>
-                        <div style={{ fontSize: 14, fontWeight: 600, color: "#0F172A" }}>
+                        <div style={{ fontSize: 14, fontWeight: 700, color: UI.textPrimary }}>
                           v1
                         </div>
                       </div>
                       <div>
-                        <div style={{ fontSize: 12, color: "#64748B", marginBottom: 6 }}>
+                        <div style={{ fontSize: 12, color: UI.textMuted, marginBottom: 6 }}>
                           Database
                         </div>
-                        <div style={{ fontSize: 14, fontWeight: 600, color: "#0F172A" }}>
+                        <div style={{ fontSize: 14, fontWeight: 700, color: UI.textPrimary }}>
                           PostgreSQL
                         </div>
                       </div>
                       <div>
-                        <div style={{ fontSize: 12, color: "#64748B", marginBottom: 6 }}>
+                        <div style={{ fontSize: 12, color: UI.textMuted, marginBottom: 6 }}>
                           Status
                         </div>
-                        <div style={{
-                          fontSize: 13,
-                          fontWeight: 600,
-                          color: "#10B981",
-                          display: "flex",
-                          alignItems: "center",
-                          gap: 6
-                        }}>
-                          <span style={{
-                            width: 8,
-                            height: 8,
-                            borderRadius: 999,
-                            backgroundColor: "#10B981"
-                          }} />
+                        <div
+                          style={{
+                            fontSize: 13,
+                            fontWeight: 700,
+                            color: UI.success,
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 6,
+                          }}
+                        >
+                          <span
+                            style={{
+                              width: 8,
+                              height: 8,
+                              borderRadius: 999,
+                              backgroundColor: UI.success,
+                              boxShadow: "0 0 12px rgba(52, 211, 153, 0.7)",
+                            }}
+                          />
                           Healthy
                         </div>
                       </div>
                       <div>
-                        <div style={{ fontSize: 12, color: "#64748B", marginBottom: 6 }}>
+                        <div style={{ fontSize: 12, color: UI.textMuted, marginBottom: 6 }}>
                           Last Updated
                         </div>
-                        <div style={{ fontSize: 13, fontWeight: 500, color: "#0F172A" }}>
+                        <div style={{ fontSize: 13, fontWeight: 600, color: UI.textPrimary }}>
                           {lastSuccessfulFetchAt
                             ? formatDisplayTimestamp(lastSuccessfulFetchAt)
                             : "—"}

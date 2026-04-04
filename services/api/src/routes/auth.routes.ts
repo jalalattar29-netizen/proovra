@@ -1,5 +1,7 @@
 // D:\digital-witness\services\api\src\routes\auth.routes.ts
+import { randomUUID } from "node:crypto";
 import type { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
+import type { Prisma } from "@prisma/client";
 import { z } from "zod";
 
 import {
@@ -57,6 +59,26 @@ const PasswordResetConfirmBody = z.object({
   token: z.string().min(10),
   newPassword: z.string().min(8)
 });
+
+function fireLoginCompletedAnalytics(
+  userId: string,
+  metadata?: Record<string, unknown>
+): void {
+  const sessionId = `server_login_${randomUUID()}`;
+  void prisma.analyticsEvent
+    .create({
+      data: {
+        eventType: "login_completed",
+        userId,
+        sessionId,
+        visitorId: `server_user_${userId}`,
+        ...(metadata !== undefined
+          ? { metadata: metadata as Prisma.InputJsonValue }
+          : {}),
+      },
+    })
+    .catch(() => null);
+}
 
 export async function authRoutes(app: FastifyInstance) {
   const jwtSecret = process.env.AUTH_JWT_SECRET;
@@ -146,6 +168,9 @@ export async function authRoutes(app: FastifyInstance) {
       const user = await upsertUser(profile);
 
       const token = signJwt(jwtPayloadFromUser(user), jwtSecret, 60 * 60 * 24 * 30);
+      fireLoginCompletedAnalytics(user.id, {
+        provider: user.provider,
+      });
       maybeSetWebCookie(req, reply, token);
       return reply.code(200).send({ token, user });
     } catch (err) {
@@ -199,6 +224,9 @@ export async function authRoutes(app: FastifyInstance) {
 
       const token = signJwt(jwtPayloadFromUser(user), jwtSecret, 60 * 60 * 24 * 30);
 
+      fireLoginCompletedAnalytics(user.id, {
+        provider: user.provider,
+      });
       maybeSetWebCookie(req, reply, token);
       return reply.code(200).send({ token, user });
     } catch (err) {
@@ -258,19 +286,8 @@ export async function authRoutes(app: FastifyInstance) {
 
     const token = signJwt(jwtPayloadFromUser(user), jwtSecret, 60 * 60 * 24 * 30);
 
-    // ANALYTICS: Track login_completed event (non-blocking, silently ignore errors)
-    prisma.analyticsEvent.create({
-      data: {
-        eventType: "login_completed",
-        userId: user.id,
-        sessionId: `server_${Date.now()}`,
-        visitorId: user?.id ? `server_user_${user.id}` : `server_anon_${Date.now()}`,
-        metadata: {
-          provider: user.provider ?? null
-        }
-      }
-    }).catch(() => {
-      // Silently ignore analytics errors
+    fireLoginCompletedAnalytics(user.id, {
+      provider: user.provider,
     });
 
     maybeSetWebCookie(req, reply, token);
