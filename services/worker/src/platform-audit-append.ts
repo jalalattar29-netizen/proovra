@@ -6,7 +6,7 @@ import {
   ADMIN_AUDIT_ADVISORY_LOCK_KEY,
   canonicalJsonForAuditHash,
   computeAuditLogChainHash,
-} from "./lib/admin-audit-chain";
+} from "./lib/admin-audit-chain.js";
 import { prisma } from "./db.js";
 
 export async function appendWorkerAuditLog(params: {

@@ -7,7 +7,7 @@ import {
   canonicalJsonForAuditHash,
   computeAuditLogChainHash,
   METADATA_MAX_DEPTH_DEFAULT,
-} from "../lib/admin-audit-chain";
+} from "../lib/admin-audit-chain.js";
 import { prisma } from "../db.js";
 
 /** Legacy sentinel kept in DB for rows created before user_id could be null. */
