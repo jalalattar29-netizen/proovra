@@ -245,34 +245,6 @@ function resolveDisplaySubtitle(
   return evidence?.displaySubtitle?.trim() || "";
 }
 
-const metaLabelStyle: CSSProperties = {
-  fontSize: 12,
-  textTransform: "uppercase",
-  letterSpacing: "0.08em",
-  color: "#94a3b8",
-  fontWeight: 700,
-};
-
-const metaValueStyle: CSSProperties = {
-  fontSize: 14,
-  color: "#e2e8f0",
-  fontWeight: 600,
-  lineHeight: 1.5,
-  wordBreak: "break-word",
-};
-
-const dangerNoticeStyle: CSSProperties = {
-  marginTop: 12,
-  padding: 16,
-  borderRadius: 14,
-  background:
-    "linear-gradient(135deg, rgba(127,29,29,0.22), rgba(69,10,10,0.18))",
-  border: "1px solid rgba(248,113,113,0.22)",
-  color: "#fecaca",
-  fontSize: 13,
-  lineHeight: 1.65,
-};
-
 export default function EvidenceDetailPage() {
   const { t } = useLocale();
   const params = useParams<{ id: string }>();
@@ -300,7 +272,7 @@ export default function EvidenceDetailPage() {
   const [labelBusy, setLabelBusy] = useState(false);
 
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [, setError] = useState<string | null>(null);
   const [actionBusy, setActionBusy] = useState(false);
 
   const [lockModalOpen, setLockModalOpen] = useState(false);
