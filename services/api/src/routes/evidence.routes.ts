@@ -950,6 +950,8 @@ function must(name: string): string {
   return v.trim();
 }
 
+const EvidenceListScopeSchema = z.enum(["active", "archived", "all"]);
+
 function toJsonSafe<T>(value: T): T {
   return JSON.parse(
     JSON.stringify(value, (_k, v) => (typeof v === "bigint" ? v.toString() : v))
@@ -1823,11 +1825,60 @@ export async function evidenceRoutes(app: FastifyInstance) {
 
   app.get("/v1/evidence", { preHandler: requireAuth }, async (req, reply) => {
     const ownerUserId = getAuthUserId(req);
-    const caseIdRaw = (req.query as { caseId?: string }).caseId;
-    const includeArchivedRaw = (req.query as { includeArchived?: string })
-      .includeArchived;
-    const caseId = caseIdRaw ? z.string().uuid().parse(caseIdRaw) : null;
-    const includeArchived = includeArchivedRaw === "true";
+    const query = req.query as {
+      caseId?: string;
+      scope?: string;
+      includeArchived?: string;
+    };
+
+    const caseId = query.caseId ? z.string().uuid().parse(query.caseId) : null;
+
+    const scope =
+      typeof query.scope === "string" && query.scope.trim().length > 0
+        ? EvidenceListScopeSchema.parse(query.scope.trim().toLowerCase())
+        : query.includeArchived === "true"
+          ? "all"
+          : "active";
+
+    const archivedFilter =
+      scope === "active"
+        ? { archivedAt: null }
+        : scope === "archived"
+          ? { archivedAt: { not: null } }
+          : {};
+
+    const mapEvidenceListItem = (item: {
+      id: string;
+      title: string | null;
+      type: prismaPkg.EvidenceType;
+      status: prismaPkg.EvidenceStatus;
+      createdAt: Date;
+      archivedAt: Date | null;
+      caseId: string | null;
+      teamId: string | null;
+      ownerUserId: string;
+      _count: { parts: number };
+    }) => {
+      const itemCount = item._count.parts > 0 ? item._count.parts : 1;
+
+      return {
+        id: item.id,
+        title: resolveEvidenceTitle(item.title),
+        type: item.type,
+        status: item.status,
+        createdAt: item.createdAt.toISOString(),
+        archivedAt: item.archivedAt ? item.archivedAt.toISOString() : null,
+        caseId: item.caseId,
+        teamId: item.teamId,
+        ownerUserId: item.ownerUserId,
+        itemCount,
+        displaySubtitle: buildEvidenceSubtitle({
+          itemCount,
+          status: item.status,
+          createdAt: item.createdAt,
+        }),
+      };
+    };
 
     if (caseId) {
       await assertCaseAccess(ownerUserId, caseId);
@@ -1835,8 +1886,8 @@ export async function evidenceRoutes(app: FastifyInstance) {
       const items = await prisma.evidence.findMany({
         where: {
           deletedAt: null,
-          ...(includeArchived ? {} : { archivedAt: null }),
           caseId,
+          ...archivedFilter,
         },
         orderBy: { createdAt: "desc" },
         take: 50,
@@ -1862,32 +1913,14 @@ export async function evidenceRoutes(app: FastifyInstance) {
         outcome: "success",
         metadata: {
           caseId,
-          includeArchived,
+          scope,
           count: items.length,
         },
       });
 
       return reply.code(200).send({
-        items: items.map((item) => {
-          const itemCount = item._count.parts > 0 ? item._count.parts : 1;
-          return {
-            id: item.id,
-            title: resolveEvidenceTitle(item.title),
-            type: item.type,
-            status: item.status,
-            createdAt: item.createdAt.toISOString(),
-            archivedAt: item.archivedAt ? item.archivedAt.toISOString() : null,
-            caseId: item.caseId,
-            teamId: item.teamId,
-            ownerUserId: item.ownerUserId,
-            itemCount,
-            displaySubtitle: buildEvidenceSubtitle({
-              itemCount,
-              status: item.status,
-              createdAt: item.createdAt,
-            }),
-          };
-        }),
+        scope,
+        items: items.map(mapEvidenceListItem),
       });
     }
 
@@ -1900,7 +1933,7 @@ export async function evidenceRoutes(app: FastifyInstance) {
     const accessibleCases = await prisma.case.findMany({
       where: {
         OR: [
-          { ownerUserId: ownerUserId },
+          { ownerUserId },
           { access: { some: { userId: ownerUserId } } },
           ...(memberTeamIds.length > 0
             ? [
@@ -1919,9 +1952,9 @@ export async function evidenceRoutes(app: FastifyInstance) {
     const items = await prisma.evidence.findMany({
       where: {
         deletedAt: null,
-        ...(includeArchived ? {} : { archivedAt: null }),
+        ...archivedFilter,
         OR: [
-          { ownerUserId: ownerUserId },
+          { ownerUserId },
           ...(accessibleCaseIds.length > 0
             ? [{ caseId: { in: accessibleCaseIds } }]
             : []),
@@ -1953,32 +1986,14 @@ export async function evidenceRoutes(app: FastifyInstance) {
       action: "evidence.list",
       outcome: "success",
       metadata: {
-        includeArchived,
+        scope,
         count: items.length,
       },
     });
 
     return reply.code(200).send({
-      items: items.map((item) => {
-        const itemCount = item._count.parts > 0 ? item._count.parts : 1;
-        return {
-          id: item.id,
-          title: resolveEvidenceTitle(item.title),
-          type: item.type,
-          status: item.status,
-          createdAt: item.createdAt.toISOString(),
-          archivedAt: item.archivedAt ? item.archivedAt.toISOString() : null,
-          caseId: item.caseId,
-          teamId: item.teamId,
-          ownerUserId: item.ownerUserId,
-          itemCount,
-          displaySubtitle: buildEvidenceSubtitle({
-            itemCount,
-            status: item.status,
-            createdAt: item.createdAt,
-          }),
-        };
-      }),
+      scope,
+      items: items.map(mapEvidenceListItem),
     });
   });
 

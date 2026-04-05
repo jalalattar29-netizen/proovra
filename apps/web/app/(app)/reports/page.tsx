@@ -23,7 +23,7 @@ export default function ReportsPage() {
     setLoading(true);
     setError(null);
     
-    apiFetch("/v1/evidence")
+    apiFetch("/v1/evidence?scope=active")
       .then((data: { items?: Array<{ id: string; type: string; status: string; createdAt: string }> }) => {
         setItems(data.items ?? []);
         addToast("Reports loaded successfully", "success");

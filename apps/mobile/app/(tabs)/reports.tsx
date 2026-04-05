@@ -15,7 +15,7 @@ export default function ReportsScreen() {
   >([]);
 
   useEffect(() => {
-    apiFetch("/v1/evidence")
+    apiFetch("/v1/evidence?scope=active")
       .then((data) => {
         const reportsData =
           data.items?.map((item: { id: string; status: string; createdAt: string }) => ({

@@ -14,7 +14,7 @@ export default function HomeScreen() {
   >([]);
 
   useEffect(() => {
-    apiFetch("/v1/evidence")
+    apiFetch("/v1/evidence?scope=active")
       .then((data) => setItems(data.items ?? []))
       .catch(() => setItems([]));
   }, []);

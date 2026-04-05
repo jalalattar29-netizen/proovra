@@ -42,7 +42,7 @@ export default function HomePage() {
     setLoading(true);
     setError(null);
 
-    apiFetch("/v1/evidence")
+    apiFetch("/v1/evidence?scope=active")
       .then((data) => {
         setItems(data.items ?? []);
         if (data.items && data.items.length > 0) {
@@ -148,37 +148,46 @@ export default function HomePage() {
             <Card className="app-card">
               <div className="app-card-title">Quick Actions</div>
 
-              <div className="app-actions-grid">
-                <Link href="/capture">
-                  <Button
-                    className="navy-btn action-btn"
-                    onClick={() => addToast("Opening capture...", "info")}
-                  >
-                    New Capture
-                  </Button>
-                </Link>
+<div className="app-actions-grid">
+  <Link href="/capture">
+    <Button
+      className="navy-btn action-btn"
+      onClick={() => addToast("Opening capture...", "info")}
+    >
+      New Capture
+    </Button>
+  </Link>
 
-                <Link href="/cases">
-                  <Button
-                    variant="secondary"
-                    className="navy-btn action-btn"
-                    onClick={() => addToast("Loading cases...", "info")}
-                  >
-                    View Cases
-                  </Button>
-                </Link>
+  <Link href="/cases">
+    <Button
+      variant="secondary"
+      className="navy-btn action-btn"
+      onClick={() => addToast("Loading cases...", "info")}
+    >
+      View Cases
+    </Button>
+  </Link>
 
-                <Link href="/settings">
-                  <Button
-                    variant="secondary"
-                    className="navy-btn action-btn"
-                    onClick={() => addToast("Opening settings...", "info")}
-                  >
-                    Manage Settings
-                  </Button>
-                </Link>
-              </div>
+  <Link href="/archive">
+    <Button
+      variant="secondary"
+      className="navy-btn action-btn"
+      onClick={() => addToast("Opening archive...", "info")}
+    >
+      Archived Evidence
+    </Button>
+  </Link>
 
+  <Link href="/settings">
+    <Button
+      variant="secondary"
+      className="navy-btn action-btn"
+      onClick={() => addToast("Opening settings...", "info")}
+    >
+      Manage Settings
+    </Button>
+  </Link>
+</div>
               <div className="status-banner" style={{ marginTop: 18 }}>
                 <div className="status-badge">✓</div>
                 <div>

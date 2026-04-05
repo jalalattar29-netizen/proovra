@@ -1094,9 +1094,7 @@ const displayStatusMeta = useMemo(
                             lineHeight: 1.5,
                           }}
                         >
-                          This evidence has been archived and removed from your
-                          active workspace.
-                        </div>
+This evidence has been archived and removed from your active evidence list. It remains preserved and can be restored at any time.                        </div>
                       </div>
                     )}
 

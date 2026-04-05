@@ -92,7 +92,7 @@ export default function CaptureScreen() {
 
   const refreshRecent = useCallback(async () => {
     try {
-      const data = await apiFetch("/v1/evidence");
+      const data = await apiFetch("/v1/evidence?scope=active");
       setRecent(Array.isArray(data?.items) ? data.items : []);
     } catch {
       setRecent([]);

@@ -64,22 +64,6 @@ export type ReportCustodyEvent = {
   payloadSummary: string;
 };
 
-export type ReportAdminAuditSummary = {
-  chainVersion?: number | null;
-  valid?: boolean | null;
-  partial?: boolean | null;
-  verifiedCount?: number | null;
-  brokenAt?: string | null;
-  latestHash?: string | null;
-  latestPrevHash?: string | null;
-  latestAction?: string | null;
-  latestCreatedAtUtc?: string | null;
-  exportUrl?: string | null;
-  requestId?: string | null;
-  source?: string | null;
-  note?: string | null;
-};
-
 type ParsedFingerprintSummary = {
   multipart: boolean;
   itemCount: number;
@@ -253,16 +237,6 @@ function normalizeStorageProtectionStatus(
   if (normalizedMode) {
     return "DANGER";
   }
-  return "NEUTRAL";
-}
-
-function normalizeAdminAuditTone(
-  summary: ReportAdminAuditSummary | null | undefined
-): "SUCCESS" | "WARNING" | "DANGER" | "NEUTRAL" {
-  if (!summary) return "NEUTRAL";
-  if (summary.valid === true) return "SUCCESS";
-  if (summary.valid === false) return "DANGER";
-  if (summary.partial) return "WARNING";
   return "NEUTRAL";
 }
 
@@ -1022,7 +996,7 @@ function estimateForensicIntegrityStatementHeight(
 
   doc.font("Helvetica").fontSize(9.8);
   const intro2 = doc.heightOfString(
-    "PROOVRA applies cryptographic integrity controls, structured evidence fingerprinting, trusted timestamping records, OpenTimestamps proofing, and immutable storage protection designed to preserve the integrity state of the submitted evidence at the time of completion.",
+    "PROOVRA applies cryptographic integrity controls, structured evidence fingerprinting, trusted timestamping records, OpenTimestamps anchoring evidence, and immutable storage protection designed to preserve the integrity state of the submitted evidence at the time of completion.",
     { width: w, lineGap: 1.8 }
   );
 
@@ -1043,7 +1017,7 @@ function estimateForensicIntegrityStatementHeight(
     "• A fingerprint hash derived from the canonical record",
     "• A digital signature generated using the PROOVRA signing key",
     "• A trusted RFC 3161 timestamp token issued by the configured Time Stamping Authority, when available",
-    "• An OpenTimestamps proof for the evidence digest, when available",
+    "• OpenTimestamps anchoring evidence for the evidence digest, when available",
     "• A chain of custody timeline documenting relevant system events",
     "• Immutable storage controls using AWS S3 Object Lock, when enabled for the evidence object",
   ];
@@ -1063,7 +1037,7 @@ function estimateForensicIntegrityStatementHeight(
       : [
           "1. Obtaining the complete multipart evidence set",
           "2. Reviewing the canonical fingerprint and listed evidence parts",
-          "3. Validating the multipart composite hash against the included materials",
+          "3. Validating the multipart composite hash against the hashes and structure recorded in the canonical fingerprint",
           "4. Verifying the digital signature using the provided public key",
           "5. Verifying the RFC 3161 timestamp token, when present",
           "6. Verifying the OpenTimestamps proof, when present",
@@ -1083,7 +1057,7 @@ function estimateForensicIntegrityStatementHeight(
 
   doc.font("Helvetica").fontSize(9.2);
   const note = doc.heightOfString(
-    "Where present, the RFC 3161 timestamp provides evidence that the signed integrity state existed at or before the issuance time recorded by the Time Stamping Authority. Where present, OpenTimestamps provides additional independent public-proof anchoring information tied to the evidence hash.",
+    "Where present, the RFC 3161 timestamp provides evidence that the signed integrity state existed at or before the issuance time recorded by the Time Stamping Authority. Where present, OpenTimestamps provides additional independent public anchoring evidence linked to the recorded evidence digest.",
     { width: w, lineGap: 1.8 }
   );
 
@@ -1137,7 +1111,7 @@ function renderForensicIntegrityStatement(
 
   safeParagraph(
     doc,
-    "PROOVRA applies cryptographic integrity controls, structured evidence fingerprinting, trusted timestamping records, OpenTimestamps proofing, and immutable storage protection designed to preserve the integrity state of the submitted evidence at the time of completion.",
+    "PROOVRA applies cryptographic integrity controls, structured evidence fingerprinting, trusted timestamping records, OpenTimestamps anchoring evidence, and immutable storage protection designed to preserve the integrity state of the submitted evidence at the time of completion.",
     { fontSize: 9.8, color: BRAND.ink }
   );
   doc.moveDown(0.18);
@@ -1156,7 +1130,7 @@ function renderForensicIntegrityStatement(
     "A fingerprint hash derived from the canonical record",
     "A digital signature generated using the PROOVRA signing key",
     "A trusted RFC 3161 timestamp token issued by the configured Time Stamping Authority, when available",
-    "An OpenTimestamps proof, when available",
+    "OpenTimestamps anchoring evidence, when available",
     "A custody timeline documenting relevant system events",
     "Immutable storage protection using AWS S3 Object Lock, when available",
   ];
@@ -1188,7 +1162,7 @@ function renderForensicIntegrityStatement(
       : [
           "Obtaining the complete multipart evidence set",
           "Reviewing the canonical fingerprint and listed evidence parts",
-          "Validating the multipart composite hash against the included materials",
+          "Validating the multipart composite hash against the hashes and structure recorded in the canonical fingerprint",
           "Verifying the digital signature using the provided public key",
           "Verifying the RFC 3161 timestamp token, when present",
           "Verifying the OpenTimestamps proof, when present",
@@ -1207,7 +1181,7 @@ function renderForensicIntegrityStatement(
 
   safeParagraph(
     doc,
-    "Where present, the RFC 3161 timestamp provides evidence that the signed integrity state existed at or before the issuance time recorded by the Time Stamping Authority. Where present, OpenTimestamps provides additional public-proof anchoring tied to the evidence digest.",
+    "Where present, the RFC 3161 timestamp provides evidence that the signed integrity state existed at or before the issuance time recorded by the Time Stamping Authority. Where present, OpenTimestamps provides additional independent public anchoring evidence linked to the recorded evidence digest.",
     { fontSize: 9.2, color: BRAND.muted }
   );
   doc.moveDown(0.16);
@@ -1244,74 +1218,6 @@ function renderForensicIntegrityStatement(
   doc.restore();
 }
 
-function renderAdminAuditSection(
-  doc: PDFDoc,
-  audit: ReportAdminAuditSummary | null | undefined
-): void {
-  if (!audit) {
-    drawCallout(doc, {
-      title: "Admin audit summary unavailable",
-      body:
-        "No platform-admin audit summary was attached to this report build. This does not invalidate evidence integrity, but it means no admin-side forensic trace summary was embedded in the report.",
-      tone: "warning",
-    });
-    return;
-  }
-
-  const tone = normalizeAdminAuditTone(audit);
-
-  kvGrid(doc, [
-    ["Audit Chain Version", audit.chainVersion ? String(audit.chainVersion) : "N/A"],
-    [
-      "Audit Integrity",
-      audit.valid === true
-        ? "Valid"
-        : audit.valid === false
-          ? "Broken"
-          : audit.partial
-            ? "Partially Verified"
-            : "Unknown",
-    ],
-    ["Verified Rows", audit.verifiedCount != null ? String(audit.verifiedCount) : "N/A"],
-    ["Broken At", safe(audit.brokenAt)],
-    ["Latest Action", safe(audit.latestAction)],
-    ["Latest Action Time (UTC)", safe(audit.latestCreatedAtUtc)],
-    ["Latest Hash", shortHash(audit.latestHash)],
-    ["Previous Hash", shortHash(audit.latestPrevHash)],
-    ["Source", safe(audit.source)],
-    ["Request ID", safe(audit.requestId)],
-    ["Export URL", safe(audit.exportUrl)],
-    ["Operator Note", safe(audit.note)],
-  ]);
-
-  doc.moveDown(0.14);
-
-  drawCallout(doc, {
-    title:
-      tone === "SUCCESS"
-        ? "Admin audit chain verified"
-        : tone === "DANGER"
-          ? "Admin audit chain verification failed"
-          : tone === "WARNING"
-            ? "Admin audit chain partially verified"
-            : "Admin audit chain status unknown",
-    body:
-      tone === "SUCCESS"
-        ? "The attached administrative audit summary indicates a valid tamper-evident chain for the verified segment at report generation time."
-        : tone === "DANGER"
-          ? "The attached administrative audit summary indicates a broken or inconsistent audit segment. Administrative console provenance should be reviewed before relying on admin-side traceability."
-          : tone === "WARNING"
-            ? "Only a partial verification segment was attached. This still provides useful provenance context, but it is not equivalent to a full-chain verification."
-            : "Administrative forensic trace data was attached without a conclusive validation state.",
-    tone:
-      tone === "SUCCESS"
-        ? "success"
-        : tone === "DANGER"
-          ? "danger"
-          : "warning",
-  });
-}
-
 export async function buildReportPdf(params: {
   evidence: ReportEvidence;
   custodyEvents: ReportCustodyEvent[];
@@ -1320,7 +1226,6 @@ export async function buildReportPdf(params: {
   buildInfo?: string | null;
   verifyUrl?: string | null;
   downloadUrl?: string | null;
-  adminAudit?: ReportAdminAuditSummary | null;
 }): Promise<Buffer> {
   const doc = new PDFDocument({
     autoFirstPage: true,
@@ -1415,33 +1320,49 @@ export async function buildReportPdf(params: {
           color: BRAND.ink,
         });
       } else if (tsaTone === "WARNING") {
-        safeParagraph(doc, "• RFC 3161 timestamp record is pending or unavailable", {
-          fontSize: 9.8,
-          color: BRAND.ink,
-        });
+        safeParagraph(
+          doc,
+          "• RFC 3161 timestamp record is pending or unavailable",
+          {
+            fontSize: 9.8,
+            color: BRAND.ink,
+          }
+        );
       } else if (tsaTone === "DANGER") {
-        safeParagraph(doc, "• RFC 3161 timestamp record reported a failure state", {
-          fontSize: 9.8,
-          color: BRAND.ink,
-        });
+        safeParagraph(
+          doc,
+          "• RFC 3161 timestamp record reported a failure state",
+          {
+            fontSize: 9.8,
+            color: BRAND.ink,
+          }
+        );
       }
 
       const otsTone = normalizeOtsStatus(params.evidence.otsStatus);
       if (otsTone === "SUCCESS") {
-        safeParagraph(doc, "• OpenTimestamps proof is anchored", {
+        safeParagraph(doc, "• OpenTimestamps anchoring evidence is available", {
           fontSize: 9.8,
           color: BRAND.ink,
         });
       } else if (otsTone === "WARNING") {
-        safeParagraph(doc, "• OpenTimestamps proof exists and is still pending anchor completion", {
-          fontSize: 9.8,
-          color: BRAND.ink,
-        });
+        safeParagraph(
+          doc,
+          "• OpenTimestamps proof exists and is still pending anchor completion",
+          {
+            fontSize: 9.8,
+            color: BRAND.ink,
+          }
+        );
       } else if (otsTone === "DANGER") {
-        safeParagraph(doc, "• OpenTimestamps proof reported a failure state", {
-          fontSize: 9.8,
-          color: BRAND.ink,
-        });
+        safeParagraph(
+          doc,
+          "• OpenTimestamps processing reported a failure state",
+          {
+            fontSize: 9.8,
+            color: BRAND.ink,
+          }
+        );
       }
 
       const storageTone = normalizeStorageProtectionStatus(
@@ -1553,7 +1474,7 @@ export async function buildReportPdf(params: {
             ? summarizeText(fingerprintSummary.mimeTypes.join(", "), 80)
             : "N/A",
         ],
-        ["Initial MIME at Creation", safe(params.evidence.mimeType)]
+        ["Primary MIME Type", safe(params.evidence.mimeType)]
       );
     } else {
       evidenceSummaryRows.push(
@@ -1665,8 +1586,6 @@ export async function buildReportPdf(params: {
         ["Retention Until (UTC)", retainUntil],
         ["Legal Hold", legalHold],
         ["Storage Region", safe(params.evidence.storageRegion)],
-        ["Bucket", safe(params.evidence.storageBucket)],
-        ["Object Key", summarizeText(safe(params.evidence.storageKey), 72)],
       ]);
 
       doc.moveDown(0.14);
@@ -1720,7 +1639,7 @@ export async function buildReportPdf(params: {
                 : "OpenTimestamps unavailable",
         body:
           otsTone === "SUCCESS"
-            ? "An OpenTimestamps proof has been generated and upgraded to an anchored state. This provides additional independent public-proof evidence tied to the recorded evidence digest."
+            ? "An OpenTimestamps proof has been generated and upgraded to an anchored state. This provides additional independent public anchoring evidence linked to the recorded evidence digest."
             : otsTone === "WARNING"
               ? "An OpenTimestamps proof is present but has not yet been upgraded to a final anchored state."
               : otsTone === "DANGER"
@@ -1781,6 +1700,13 @@ export async function buildReportPdf(params: {
     doc,
     "Chain of Custody",
     () => {
+      safeParagraph(
+        doc,
+        "Events are presented in chain sequence order.",
+        { fontSize: 8.9, color: BRAND.muted, gap: 1.6 }
+      );
+      doc.moveDown(0.12);
+
       const innerW =
         doc.page.width - doc.page.margins.left - doc.page.margins.right;
       const colWidths = [
@@ -1805,35 +1731,6 @@ export async function buildReportPdf(params: {
     },
     { minSpace: 110 }
   );
-
-  ensurePageWithHeader(doc, 220);
-
-  section(
-    doc,
-    "Administrative Forensic Trace",
-    () => {
-      renderAdminAuditSection(doc, params.adminAudit ?? null);
-    },
-    { minSpace: 120 }
-  );
-
-  {
-    const exportUrl = params.adminAudit?.exportUrl?.trim();
-    if (exportUrl) {
-      const qrBuf = await tryGenerateQrPngBuffer(exportUrl);
-      if (qrBuf) {
-        drawQrBlock(doc, {
-          title: "Administrative audit export",
-          qrBuffer: qrBuf,
-          size: 100,
-          caption:
-            "Scan to open the related administrative audit export or audit-trace reference for this report build.",
-          urlText: summarizeText(exportUrl, 90),
-          urlLink: exportUrl,
-        });
-      }
-    }
-  }
 
   ensurePageWithHeader(doc, 360);
 
@@ -2004,9 +1901,14 @@ export async function buildReportPdf(params: {
       }
 
       if (params.evidence.otsFailureReason) {
+        const otsDetailLabel =
+          safe(params.evidence.otsStatus).toUpperCase() === "PENDING"
+            ? "OTS Upgrade Detail"
+            : "OTS Failure / Detail";
+
         monospaceStrip(
           doc,
-          "OTS Failure / Detail",
+          otsDetailLabel,
           summarizeText(safe(params.evidence.otsFailureReason), 160),
           { maxChars: 160 }
         );
