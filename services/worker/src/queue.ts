@@ -5,6 +5,8 @@ import { env } from "./config.js";
 export const reportQueueName = "report";
 export const reportDlqQueueName = "report-dlq";
 export const otsUpgradeQueueName = "ots-upgrade";
+export const evidencePurgeQueueName = "evidence-purge";
+export const purgeDeletedEvidenceJobName = "PurgeDeletedEvidenceJob";
 export const generateReportJobName = "GenerateReportJob";
 
 export type EnqueueReportJobOptions = {
@@ -16,6 +18,10 @@ export type ReportJobPayload = {
   evidenceId: string;
   forceRegenerate?: boolean;
   regenerateReason?: string | null;
+};
+
+export type PurgeDeletedEvidenceJobPayload = {
+  evidenceId: string;
 };
 
 export const redisConnection = new IORedis(env.REDIS_URL, {
@@ -44,6 +50,16 @@ export const otsUpgradeQueue = new Queue(otsUpgradeQueueName, {
   connection: redisConnection,
   defaultJobOptions: {
     attempts: 20,
+    backoff: { type: "exponential", delay: 60_000 },
+    removeOnComplete: 100,
+    removeOnFail: false,
+  },
+});
+
+export const evidencePurgeQueue = new Queue(evidencePurgeQueueName, {
+  connection: redisConnection,
+  defaultJobOptions: {
+    attempts: 5,
     backoff: { type: "exponential", delay: 60_000 },
     removeOnComplete: 100,
     removeOnFail: false,
@@ -111,4 +127,63 @@ export async function enqueueReportJob(
   });
 
   return { enqueued: true };
+}
+
+export function buildEvidencePurgeJobId(evidenceId: string): string {
+  return `evidence-purge-${evidenceId}`;
+}
+
+export async function enqueueEvidencePurgeJob(
+  evidenceId: string,
+  runAtUtc: string | Date
+) {
+  const when =
+    runAtUtc instanceof Date ? runAtUtc.getTime() : new Date(runAtUtc).getTime();
+
+  if (!Number.isFinite(when)) {
+    throw new Error("enqueueEvidencePurgeJob: invalid runAtUtc");
+  }
+
+  const delay = Math.max(0, when - Date.now());
+  const jobId = buildEvidencePurgeJobId(evidenceId);
+
+  const existing = await evidencePurgeQueue.getJob(jobId);
+
+  if (existing) {
+    const state = await existing.getState();
+
+    if (
+      state === "waiting" ||
+      state === "delayed" ||
+      state === "active" ||
+      state === "prioritized"
+    ) {
+      try {
+        await existing.remove();
+      } catch {
+        // ignore remove race conditions
+      }
+    } else {
+      try {
+        await existing.remove();
+      } catch {
+        // ignore remove race conditions
+      }
+    }
+  }
+
+  await evidencePurgeQueue.add(
+    purgeDeletedEvidenceJobName,
+    { evidenceId },
+    {
+      jobId,
+      delay,
+      attempts: 5,
+      backoff: { type: "exponential", delay: 60_000 },
+      removeOnComplete: 100,
+      removeOnFail: false,
+    }
+  );
+
+  return { enqueued: true, delay };
 }

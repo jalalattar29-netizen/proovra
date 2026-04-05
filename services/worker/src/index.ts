@@ -3,15 +3,21 @@ import { randomUUID } from "node:crypto";
 import { Worker } from "bullmq";
 import { logger, withJobContext } from "./logger.js";
 import {
+  evidencePurgeQueue,
+  evidencePurgeQueueName,
   generateReportJobName,
   otsUpgradeQueue,
   otsUpgradeQueueName,
+  purgeDeletedEvidenceJobName,
   redisConnection,
   reportDlqQueue,
   reportQueue,
   reportQueueName,
 } from "./queue.js";
-import { processGenerateReport } from "./processor.js";
+import {
+  processGenerateReport,
+  processPurgeDeletedEvidence,
+} from "./processor.js";
 import { processOtsUpgrade } from "./ots-upgrade.processor.js";
 import { startHealthServer, type HealthServer } from "./health.js";
 import { captureException, initSentry } from "./sentry.js";
@@ -43,16 +49,19 @@ function getErrorMessage(err: unknown): string {
   return "";
 }
 
-function isExpectedOtsPendingError(jobKind: "report" | "ots-upgrade", err: unknown): boolean {
-  if (jobKind !== "ots-upgrade") return false;
+function isExpectedOtsPendingError(
+  jobKind: "report" | "ots-upgrade" | "evidence-purge",
+  err: unknown
+): boolean {
+    if (jobKind !== "ots-upgrade") return false;
   return getErrorMessage(err).trim() === "NOT_ANCHORED_YET";
 }
 
 function bindWorkerEvents(
   workerInstance: Worker,
-  jobKind: "report" | "ots-upgrade"
+  jobKind: "report" | "ots-upgrade" | "evidence-purge"
 ) {
-  workerInstance.on("completed", (job) => {
+    workerInstance.on("completed", (job) => {
     const requestId = randomUUID();
     const durationMs =
       job.finishedOn && job.processedOn
@@ -146,8 +155,18 @@ const otsUpgradeWorker = new Worker(otsUpgradeQueueName, processOtsUpgrade, {
   concurrency: 1,
 });
 
+const evidencePurgeWorker = new Worker(
+  evidencePurgeQueueName,
+  processPurgeDeletedEvidence,
+  {
+    connection: redisConnection,
+    concurrency: 1,
+  }
+);
+
 bindWorkerEvents(reportWorker, "report");
 bindWorkerEvents(otsUpgradeWorker, "ots-upgrade");
+bindWorkerEvents(evidencePurgeWorker, "evidence-purge");
 
 let healthServer: HealthServer | null = null;
 let shuttingDown = false;
@@ -174,6 +193,14 @@ async function shutdown(exitCode: number) {
     captureException(err, { requestId });
   }
 
+    try {
+    await evidencePurgeWorker.pause(true);
+  } catch (err) {
+    const requestId = randomUUID();
+    logger.error({ requestId, err }, "worker.pause_evidence_purge_failed");
+    captureException(err, { requestId });
+  }
+
   try {
     await reportWorker.close();
   } catch (err) {
@@ -190,10 +217,19 @@ async function shutdown(exitCode: number) {
     captureException(err, { requestId });
   }
 
+    try {
+    await evidencePurgeWorker.close();
+  } catch (err) {
+    const requestId = randomUUID();
+    logger.error({ requestId, err }, "worker.close_evidence_purge_failed");
+    captureException(err, { requestId });
+  }
+
   try {
     await reportQueue.close();
     await reportDlqQueue.close();
     await otsUpgradeQueue.close();
+    await evidencePurgeQueue.close();
   } catch (err) {
     const requestId = randomUUID();
     logger.error({ requestId, err }, "worker.queue_close_failed");
@@ -274,6 +310,9 @@ process.on("uncaughtException", (err) => {
 });
 
 logger.info(
-  { requestId: randomUUID(), job: generateReportJobName },
+  {
+    requestId: randomUUID(),
+    jobs: [generateReportJobName, purgeDeletedEvidenceJobName],
+  },
   "worker.started"
 );

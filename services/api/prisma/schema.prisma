@@ -38,6 +38,8 @@ model Evidence {
   createdAt                        DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt                        DateTime        @updatedAt @map("updated_at") @db.Timestamptz(6)
   deletedAtUtc                     DateTime?       @map("deleted_at_utc") @db.Timestamptz(6)
+  deletedByUserId                   String?         @map("deleted_by_user_id")
+  deleteScheduledForUtc             DateTime?       @map("delete_scheduled_for_utc") @db.Timestamptz(6)
   retentionUntilUtc                DateTime?       @map("retention_until_utc") @db.Timestamptz(6)
   deviceTimeIso                    String?         @map("device_time_iso") @db.VarChar(64)
   signingKeyVersion                Int?            @map("signing_key_version")
@@ -73,6 +75,9 @@ model Evidence {
 
   @@index([deletedAt])
   @@index([deletedAtUtc])
+  @@index([deleteScheduledForUtc])
+  @@index([ownerUserId, deletedAt])
+  @@index([ownerUserId, deleteScheduledForUtc])
   @@index([fileSha256])
   @@index([fingerprintHash])
   @@index([guestIdentityId])
@@ -577,6 +582,7 @@ enum EvidenceStatus {
 }
 
 enum CustodyEventType {
+
   EVIDENCE_CREATED
   UPLOAD_STARTED
   UPLOAD_COMPLETED
@@ -591,6 +597,9 @@ enum CustodyEventType {
   EVIDENCE_VIEWED
   EVIDENCE_DOWNLOADED
   EVIDENCE_DELETED
+  EVIDENCE_DELETE_SCHEDULED
+  EVIDENCE_DELETE_RESTORED
+  EVIDENCE_PURGED
   VERIFY_VIEWED
   REPORT_DOWNLOADED
   EVIDENCE_LOCKED

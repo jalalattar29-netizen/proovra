@@ -19,11 +19,9 @@ import {
   isAccessCustodyEventType,
 } from "../services/custody-events.service.js";
 import { appendPlatformAuditLog } from "../services/platform-audit-log.service.js";
-import {
-  ed25519VerifyHexSignature,
-  sha256Hex,
-} from "../crypto.js";
+import { ed25519VerifyHexSignature, sha256Hex } from "../crypto.js";
 import { writeAnalyticsEvent } from "../services/analytics-event.service.js";
+import { enqueueEvidencePurgeJob } from "../../../worker/src/queue.js";
 
 const EvidenceTypeSchema = prismaPkg.EvidenceType
   ? z.nativeEnum(prismaPkg.EvidenceType)
@@ -61,8 +59,12 @@ const CreatePartBody = z.object({
   contentMd5Base64: z.string().min(1).max(128).optional(),
 });
 
-const UpdateEvidenceTitleBody = z.object({
-  title: z.string().trim().min(1).max(160),
+const UpdateEvidenceLabelBody = z.object({
+  label: z.string().trim().min(1).max(160),
+});
+
+const RestoreDeletedEvidenceBody = z.object({
+  restore: z.boolean().optional().default(true),
 });
 
 type ParamsId = { id: string };
@@ -102,6 +104,8 @@ const SAFE_EVIDENCE_SELECT = {
   caseId: true,
   teamId: true,
   deletedAt: true,
+  deletedAtUtc: true,
+  deleteScheduledForUtc: true,
 } as const;
 
 type SelectedEvidence = prismaPkg.Prisma.EvidenceGetPayload<{
@@ -161,6 +165,9 @@ type SafeEvidence = {
   archivedAt: string | null;
   caseId: string | null;
   teamId: string | null;
+  deletedAt: string | null;
+  deletedAtUtc: string | null;
+  deleteScheduledForUtc: string | null;
 };
 
 function readPositiveIntEnv(name: string, fallback: number): number {
@@ -399,10 +406,16 @@ function statusLabel(status: prismaPkg.EvidenceStatus | string): string {
 function formatDisplayDateUtc(value: Date | string): string {
   const d = value instanceof Date ? value : new Date(value);
   if (Number.isNaN(d.getTime())) return "";
+
   const day = d.getUTCDate().toString().padStart(2, "0");
   const month = d.toLocaleString("en-GB", { month: "short", timeZone: "UTC" });
   const year = d.getUTCFullYear();
-  return `${day} ${month} ${year}`;
+
+  const hours = d.getUTCHours().toString().padStart(2, "0");
+  const minutes = d.getUTCMinutes().toString().padStart(2, "0");
+  const seconds = d.getUTCSeconds().toString().padStart(2, "0");
+
+  return `${day} ${month} ${year}, ${hours}:${minutes}:${seconds} UTC`;
 }
 
 function buildEvidenceSubtitle(params: {
@@ -414,6 +427,10 @@ function buildEvidenceSubtitle(params: {
   return `${count} ${count === 1 ? "item" : "items"} • ${statusLabel(
     params.status
   )} • ${formatDisplayDateUtc(params.createdAt)}`;
+}
+
+function addDays(date: Date, days: number): Date {
+  return new Date(date.getTime() + days * 24 * 60 * 60 * 1000);
 }
 
 function getCompletedEvidenceLabel(itemCount: number | null): string {
@@ -684,6 +701,11 @@ function toSafeEvidence(e: SelectedEvidence): SafeEvidence {
     archivedAt: e.archivedAt ? e.archivedAt.toISOString() : null,
     caseId: e.caseId ?? null,
     teamId: e.teamId ?? null,
+    deletedAt: e.deletedAt ? e.deletedAt.toISOString() : null,
+    deletedAtUtc: e.deletedAtUtc ? e.deletedAtUtc.toISOString() : null,
+    deleteScheduledForUtc: e.deleteScheduledForUtc
+      ? e.deleteScheduledForUtc.toISOString()
+      : null,
   };
 }
 
@@ -713,8 +735,8 @@ async function getStorageProtectionSummary(
     snapshot?.storageObjectLockRetainUntilUtc instanceof Date
       ? snapshot.storageObjectLockRetainUntilUtc.toISOString()
       : typeof snapshot?.storageObjectLockRetainUntilUtc === "string"
-      ? snapshot.storageObjectLockRetainUntilUtc
-      : null;
+        ? snapshot.storageObjectLockRetainUntilUtc
+        : null;
 
   const snapshotLegalHold =
     typeof snapshot?.storageObjectLockLegalHoldStatus === "string"
@@ -950,7 +972,12 @@ function must(name: string): string {
   return v.trim();
 }
 
-const EvidenceListScopeSchema = z.enum(["active", "archived", "all"]);
+const EvidenceListScopeSchema = z.enum([
+  "active",
+  "archived",
+  "deleted",
+  "all",
+]);
 
 function toJsonSafe<T>(value: T): T {
   return JSON.parse(
@@ -1067,7 +1094,9 @@ export async function evidenceRoutes(app: FastifyInstance) {
         action: "evidence.create",
         outcome: "failure",
         severity: "critical",
-        metadata: { reason: err instanceof Error ? err.message : "unknown_error" },
+        metadata: {
+          reason: err instanceof Error ? err.message : "unknown_error",
+        },
       });
 
       throw err;
@@ -1075,12 +1104,12 @@ export async function evidenceRoutes(app: FastifyInstance) {
   });
 
   app.patch(
-    "/v1/evidence/:id/title",
+    "/v1/evidence/:id/label",
     { preHandler: requireAuth },
     async (req: FastifyRequest, reply) => {
       const ownerUserId = getAuthUserId(req);
       const id = z.string().uuid().parse((req.params as ParamsId).id);
-      const body = UpdateEvidenceTitleBody.parse(req.body);
+      const body = UpdateEvidenceLabelBody.parse(req.body);
 
       (req as FastifyRequest & { evidenceId?: string }).evidenceId = id;
       req.log = req.log.child({ evidenceId: id });
@@ -1097,34 +1126,30 @@ export async function evidenceRoutes(app: FastifyInstance) {
         return reply.code(statusCode).send({ message });
       }
 
-      if (
-        evidence.status === EvidenceStatus.SIGNED ||
-        evidence.status === EvidenceStatus.REPORTED ||
-        evidence.lockedAt
-      ) {
+      if (evidence.deletedAt) {
         auditEvidenceAction(req, {
           userId: ownerUserId,
-          action: "evidence.update_title",
+          action: "evidence.update_label",
           outcome: "blocked",
           severity: "warning",
           resourceId: id,
-          metadata: { reason: "immutable_evidence" },
+          metadata: { reason: "deleted_evidence" },
         });
-        return reply.code(409).send({ message: "Evidence is immutable" });
+        return reply.code(409).send({ message: "Evidence is deleted" });
       }
 
       const updated = await prisma.evidence.update({
         where: { id },
-        data: { title: body.title },
+        data: { title: body.label },
         select: SAFE_EVIDENCE_SELECT,
       });
 
       auditEvidenceAction(req, {
         userId: ownerUserId,
-        action: "evidence.update_title",
+        action: "evidence.update_label",
         outcome: "success",
         resourceId: id,
-        metadata: { title: body.title },
+        metadata: { label: body.label },
       });
 
       const itemCount = await getEvidenceItemCount(id);
@@ -1147,7 +1172,7 @@ export async function evidenceRoutes(app: FastifyInstance) {
           storage,
         },
         itemCount,
-        displayTitle: resolveEvidenceTitle(updated.title),
+        displayLabel: resolveEvidenceTitle(updated.title),
         displaySubtitle: buildEvidenceSubtitle({
           itemCount,
           status: updated.status,
@@ -1366,7 +1391,9 @@ export async function evidenceRoutes(app: FastifyInstance) {
             part.storageKey,
             {
               storageRegion:
-                "storageRegion" in part ? (part.storageRegion as string | null) : null,
+                "storageRegion" in part
+                  ? (part.storageRegion as string | null)
+                  : null,
               storageObjectLockMode:
                 "storageObjectLockMode" in part
                   ? (part.storageObjectLockMode as string | null)
@@ -1779,6 +1806,32 @@ export async function evidenceRoutes(app: FastifyInstance) {
         return reply.code(statusCode).send({ message });
       }
 
+      if (evidence.deletedAt) {
+        auditEvidenceAction(req, {
+          userId: ownerUserId,
+          action: "evidence.delete",
+          outcome: "blocked",
+          severity: "warning",
+          resourceId: id,
+          metadata: { reason: "already_deleted" },
+        });
+        return reply.code(409).send({ message: "Evidence is already deleted" });
+      }
+
+      if (evidence.archivedAt) {
+        auditEvidenceAction(req, {
+          userId: ownerUserId,
+          action: "evidence.delete",
+          outcome: "blocked",
+          severity: "warning",
+          resourceId: id,
+          metadata: { reason: "archived_evidence" },
+        });
+        return reply
+          .code(409)
+          .send({ message: "Archived evidence cannot be moved to trash" });
+      }
+
       if (
         evidence.status === EvidenceStatus.SIGNED ||
         evidence.status === EvidenceStatus.REPORTED ||
@@ -1798,15 +1851,43 @@ export async function evidenceRoutes(app: FastifyInstance) {
       }
 
       const now = new Date();
-      await prisma.evidence.update({
+      const deleteScheduledForUtc = addDays(now, 90);
+
+      const updated = await prisma.evidence.update({
         where: { id },
-        data: { deletedAt: now, deletedAtUtc: now },
+        data: {
+          deletedAt: now,
+          deletedAtUtc: now,
+          deleteScheduledForUtc,
+        },
+        select: SAFE_EVIDENCE_SELECT,
       });
+
+      try {
+        await enqueueEvidencePurgeJob(id, deleteScheduledForUtc);
+      } catch (queueError) {
+        auditEvidenceAction(req, {
+          userId: ownerUserId,
+          action: "evidence.purge_schedule",
+          outcome: "failure",
+          severity: "warning",
+          resourceId: id,
+          metadata: {
+            reason:
+              queueError instanceof Error
+                ? queueError.message
+                : "unknown_queue_error",
+          },
+        });
+      }
 
       await appendCustodyEvent({
         evidenceId: id,
         eventType: prismaPkg.CustodyEventType.EVIDENCE_DELETED,
-        payload: { deletedByUserId: ownerUserId },
+        payload: {
+          deletedByUserId: ownerUserId,
+          deleteScheduledForUtc: deleteScheduledForUtc.toISOString(),
+        },
         ip: req.ip,
         userAgent: req.headers["user-agent"],
       }).catch(() => null);
@@ -1816,10 +1897,95 @@ export async function evidenceRoutes(app: FastifyInstance) {
         action: "evidence.delete",
         outcome: "success",
         resourceId: id,
-        metadata: { deletedByUserId: ownerUserId },
+        metadata: {
+          deletedByUserId: ownerUserId,
+          deleteScheduledForUtc: deleteScheduledForUtc.toISOString(),
+        },
       });
 
-      return reply.code(200).send({ deleted: true });
+      return reply.code(200).send({
+        deleted: true,
+        evidence: toJsonSafe({
+          ...toSafeEvidence(updated),
+        }),
+      });
+    }
+  );
+
+  app.post(
+    "/v1/evidence/:id/restore",
+    { preHandler: requireAuth },
+    async (req: FastifyRequest, reply) => {
+      const ownerUserId = getAuthUserId(req);
+      const id = z.string().uuid().parse((req.params as ParamsId).id);
+      const body = RestoreDeletedEvidenceBody.parse(req.body);
+
+      (req as FastifyRequest & { evidenceId?: string }).evidenceId = id;
+      req.log = req.log.child({ evidenceId: id });
+
+      let evidence: SelectedEvidence | null;
+      try {
+        evidence = await prisma.evidence.findUnique({
+          where: { id },
+          select: SAFE_EVIDENCE_SELECT,
+        });
+
+        if (!evidence) {
+          return reply.code(404).send({ message: "Evidence not found" });
+        }
+
+        if (evidence.ownerUserId !== ownerUserId) {
+          return reply.code(403).send({ message: "Forbidden" });
+        }
+      } catch (err) {
+        const statusCode =
+          err instanceof Error && "statusCode" in err
+            ? (err as Error & { statusCode?: number }).statusCode ?? 500
+            : 500;
+        const message = err instanceof Error ? err.message : "Unexpected error";
+        return reply.code(statusCode).send({ message });
+      }
+
+      if (!body.restore) {
+        return reply.code(400).send({ message: "Restore is required" });
+      }
+
+      if (!evidence.deletedAt) {
+        return reply.code(409).send({ message: "Evidence is not deleted" });
+      }
+
+      const updated = await prisma.evidence.update({
+        where: { id },
+        data: {
+          deletedAt: null,
+          deletedAtUtc: null,
+          deleteScheduledForUtc: null,
+        },
+        select: SAFE_EVIDENCE_SELECT,
+      });
+
+      await appendCustodyEvent({
+        evidenceId: id,
+        eventType: prismaPkg.CustodyEventType.EVIDENCE_RESTORED,
+        payload: { restoredByUserId: ownerUserId, restoreSource: "trash" },
+        ip: req.ip,
+        userAgent: req.headers["user-agent"],
+      }).catch(() => null);
+
+      auditEvidenceAction(req, {
+        userId: ownerUserId,
+        action: "evidence.restore",
+        outcome: "success",
+        resourceId: id,
+        metadata: { restoredByUserId: ownerUserId, restoreSource: "trash" },
+      });
+
+      return reply.code(200).send({
+        restored: true,
+        evidence: toJsonSafe({
+          ...toSafeEvidence(updated),
+        }),
+      });
     }
   );
 
@@ -1829,6 +1995,7 @@ export async function evidenceRoutes(app: FastifyInstance) {
       caseId?: string;
       scope?: string;
       includeArchived?: string;
+      includeDeleted?: string;
     };
 
     const caseId = query.caseId ? z.string().uuid().parse(query.caseId) : null;
@@ -1836,16 +2003,25 @@ export async function evidenceRoutes(app: FastifyInstance) {
     const scope =
       typeof query.scope === "string" && query.scope.trim().length > 0
         ? EvidenceListScopeSchema.parse(query.scope.trim().toLowerCase())
-        : query.includeArchived === "true"
-          ? "all"
-          : "active";
+        : query.includeDeleted === "true"
+          ? "deleted"
+          : query.includeArchived === "true"
+            ? "all"
+            : "active";
 
     const archivedFilter =
       scope === "active"
         ? { archivedAt: null }
         : scope === "archived"
           ? { archivedAt: { not: null } }
-          : {};
+          : scope === "deleted"
+            ? {}
+            : {};
+
+    const deletedFilter =
+      scope === "deleted"
+        ? { deletedAt: { not: null as null | object } }
+        : { deletedAt: null };
 
     const mapEvidenceListItem = (item: {
       id: string;
@@ -1854,6 +2030,8 @@ export async function evidenceRoutes(app: FastifyInstance) {
       status: prismaPkg.EvidenceStatus;
       createdAt: Date;
       archivedAt: Date | null;
+      deletedAt: Date | null;
+      deleteScheduledForUtc: Date | null;
       caseId: string | null;
       teamId: string | null;
       ownerUserId: string;
@@ -1868,6 +2046,10 @@ export async function evidenceRoutes(app: FastifyInstance) {
         status: item.status,
         createdAt: item.createdAt.toISOString(),
         archivedAt: item.archivedAt ? item.archivedAt.toISOString() : null,
+        deletedAt: item.deletedAt ? item.deletedAt.toISOString() : null,
+        deleteScheduledForUtc: item.deleteScheduledForUtc
+          ? item.deleteScheduledForUtc.toISOString()
+          : null,
         caseId: item.caseId,
         teamId: item.teamId,
         ownerUserId: item.ownerUserId,
@@ -1885,7 +2067,7 @@ export async function evidenceRoutes(app: FastifyInstance) {
 
       const items = await prisma.evidence.findMany({
         where: {
-          deletedAt: null,
+          ...deletedFilter,
           caseId,
           ...archivedFilter,
         },
@@ -1898,6 +2080,8 @@ export async function evidenceRoutes(app: FastifyInstance) {
           status: true,
           createdAt: true,
           archivedAt: true,
+          deletedAt: true,
+          deleteScheduledForUtc: true,
           caseId: true,
           teamId: true,
           ownerUserId: true,
@@ -1951,7 +2135,7 @@ export async function evidenceRoutes(app: FastifyInstance) {
 
     const items = await prisma.evidence.findMany({
       where: {
-        deletedAt: null,
+        ...deletedFilter,
         ...archivedFilter,
         OR: [
           { ownerUserId },
@@ -1972,6 +2156,8 @@ export async function evidenceRoutes(app: FastifyInstance) {
         status: true,
         createdAt: true,
         archivedAt: true,
+        deletedAt: true,
+        deleteScheduledForUtc: true,
         caseId: true,
         teamId: true,
         ownerUserId: true,
@@ -2112,7 +2298,7 @@ export async function evidenceRoutes(app: FastifyInstance) {
         if (!refreshed) {
           return reply.code(404).send({ message: "Evidence not found" });
         }
-        
+
         auditEvidenceAction(req, {
           userId: ownerUserId,
           action: "evidence.complete",
@@ -2193,7 +2379,9 @@ export async function evidenceRoutes(app: FastifyInstance) {
           outcome: "failure",
           severity: "critical",
           resourceId: id,
-          metadata: { reason: err instanceof Error ? err.message : "unknown_error" },
+          metadata: {
+            reason: err instanceof Error ? err.message : "unknown_error",
+          },
         });
 
         throw err;
@@ -2356,10 +2544,14 @@ export async function evidenceRoutes(app: FastifyInstance) {
         }
       );
 
+      const originalFileName =
+        evidence.storageKey?.split("/").pop()?.trim() || null;
+
       return reply.code(200).send({
         evidenceId: id,
         bucket: evidence.storageBucket,
         key: evidence.storageKey,
+        originalFileName,
         url,
         mimeType: evidence.mimeType,
         sizeBytes: evidence.sizeBytes?.toString() ?? null,
@@ -2400,7 +2592,9 @@ export async function evidenceRoutes(app: FastifyInstance) {
             .send({ message: "Verification package not found" });
         }
       } catch {
-        return reply.code(404).send({ message: "Verification package not found" });
+        return reply
+          .code(404)
+          .send({ message: "Verification package not found" });
       }
 
       const url = await presignGetObject({
@@ -2582,20 +2776,20 @@ export async function evidenceRoutes(app: FastifyInstance) {
       evidence.otsHash && evidence.fileSha256
         ? evidence.otsHash.toLowerCase() === evidence.fileSha256.toLowerCase()
         : evidence.otsStatus
-        ? false
-        : true;
+          ? false
+          : true;
 
-const custodyChain = evaluateCustodyChain({
-  evidenceId: id,
-  records: allCustodyEvents.map((ev) => ({
-    sequence: ev.sequence,
-    eventType: ev.eventType,
-    atUtc: ev.atUtc,
-    payload: ev.payload,
-    prevEventHash: ev.prevEventHash,
-    eventHash: ev.eventHash,
-  })),
-});
+    const custodyChain = evaluateCustodyChain({
+      evidenceId: id,
+      records: allCustodyEvents.map((ev) => ({
+        sequence: ev.sequence,
+        eventType: ev.eventType,
+        atUtc: ev.atUtc,
+        payload: ev.payload,
+        prevEventHash: ev.prevEventHash,
+        eventHash: ev.eventHash,
+      })),
+    });
 
     const storageProtection = await getStorageProtectionSummary(
       evidence.storageBucket,
@@ -2662,8 +2856,8 @@ const custodyChain = evaluateCustodyChain({
       reportGeneratedAtUtc: latestReport?.generatedAtUtc
         ? latestReport.generatedAtUtc.toISOString()
         : evidence.reportGeneratedAtUtc
-        ? evidence.reportGeneratedAtUtc.toISOString()
-        : null,
+          ? evidence.reportGeneratedAtUtc.toISOString()
+          : null,
       reportVersion: latestReport?.version ?? null,
 
       fileSha256: evidence.fileSha256,

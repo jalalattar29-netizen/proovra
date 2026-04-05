@@ -2,6 +2,7 @@ import {
   S3Client,
   GetObjectCommand,
   PutObjectCommand,
+  DeleteObjectCommand,
   HeadObjectCommand,
   PutObjectLegalHoldCommand,
   PutObjectRetentionCommand,
@@ -332,5 +333,21 @@ export async function headObject(params: { bucket: string; key: string }) {
     objectLockMode: res.ObjectLockMode ?? null,
     objectLockRetainUntilDate: res.ObjectLockRetainUntilDate ?? null,
     objectLockLegalHoldStatus: res.ObjectLockLegalHoldStatus ?? null,
+  };
+}
+
+export async function deleteObject(params: { bucket: string; key: string }) {
+  const bucket = mustClean(params.bucket, "bucket");
+  const key = mustClean(params.key, "key");
+
+  await s3.send(
+    new DeleteObjectCommand({
+      Bucket: bucket,
+      Key: key,
+    })
+  );
+
+  return {
+    deleted: true,
   };
 }
