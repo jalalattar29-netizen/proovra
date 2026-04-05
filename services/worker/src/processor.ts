@@ -1273,18 +1273,21 @@ if (!finalized.skipped) {
     },
   }).catch(() => null);
 
-  appendWorkerAuditLog({
-    userId: evidence.ownerUserId,
-    action: "evidence.report_generated",
-    metadata: {
-      evidenceId: prepared.evidenceId,
-      reportVersion: finalized.version,
-      generatedAtUtc: prepared.now.toISOString(),
-      source: "worker",
-      forceRegenerate,
-      regenerateReason,
-    },
-  }).catch(() => null);
+appendWorkerAuditLog({
+  userId: evidence.ownerUserId,
+  action: "evidence.report_generated",
+  category: "evidence",
+  severity: "info",
+  source: "worker_report",
+  outcome: "success",
+  resourceType: "evidence",
+  resourceId: prepared.evidenceId,
+  requestId,
+  metadata: {
+    evidenceId: prepared.evidenceId,
+    reportVersion: finalized.version,
+  },
+}).catch(() => null);
 }
 
     if (!finalized.skipped && finalized.scheduleOtsUpgrade) {

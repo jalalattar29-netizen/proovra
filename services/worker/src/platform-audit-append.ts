@@ -1,6 +1,3 @@
-/**
- * Appends to the same global admin audit hash chain as the API (shared canonicalization + hash).
- */
 import type { Prisma } from "@prisma/client";
 import {
   ADMIN_AUDIT_ADVISORY_LOCK_KEY,
@@ -9,47 +6,34 @@ import {
 } from "./lib/admin-audit-chain.js";
 import { prisma } from "./db.js";
 
-function truncateString(
-  value: string | null | undefined,
-  max: number
-): string | null {
-  if (!value) return null;
-
-  const trimmed = value.trim();
-  if (!trimmed) return null;
-
-  return trimmed.length > max ? trimmed.slice(0, max) : trimmed;
-}
-
 export async function appendWorkerAuditLog(params: {
-  userId: string;
+  userId: string | null;
   action: string;
-  metadata: Prisma.InputJsonValue;
+  category?: string | null;
+  severity?: "info" | "warning" | "critical" | null;
+  source?: string | null;
+  outcome?: "success" | "failure" | "blocked" | null;
+  resourceType?: string | null;
+  resourceId?: string | null;
+  requestId?: string | null;
+  metadata?: Prisma.InputJsonValue;
 }): Promise<void> {
-  const action = truncateString(params.action, 128);
+  const action = params.action.trim().slice(0, 128);
   if (!action) return;
 
-  const category = "report";
-  const severity = "info";
-  const source = "worker_report";
-  const outcome = "success";
-  const resourceType = "evidence_report";
-
-  const metadataObject =
-    params.metadata && typeof params.metadata === "object"
-      ? (params.metadata as Record<string, unknown>)
-      : {};
-
-  const resourceId =
-    typeof metadataObject.evidenceId === "string" &&
-    metadataObject.evidenceId.trim()
-      ? metadataObject.evidenceId.trim().slice(0, 128)
-      : null;
-
-  const requestId = null;
+  const category = params.category?.trim().slice(0, 64) || null;
+  const severity = params.severity ?? "info";
+  const source = params.source?.trim().slice(0, 64) || "worker";
+  const outcome = params.outcome ?? "success";
+  const resourceType = params.resourceType?.trim().slice(0, 64) || null;
+  const resourceId = params.resourceId?.trim().slice(0, 128) || null;
+  const requestId = params.requestId?.trim().slice(0, 64) || null;
+  const metadata = (params.metadata ?? {}) as Prisma.InputJsonValue;
 
   await prisma.$transaction(async (tx) => {
-    await tx.$executeRaw`SELECT pg_advisory_xact_lock(${ADMIN_AUDIT_ADVISORY_LOCK_KEY})`;
+    await tx.$executeRaw`
+      SELECT pg_advisory_xact_lock(${ADMIN_AUDIT_ADVISORY_LOCK_KEY})
+    `;
 
     const last = await tx.adminAuditLog.findFirst({
       orderBy: [{ createdAt: "desc" }, { id: "desc" }],
@@ -58,12 +42,12 @@ export async function appendWorkerAuditLog(params: {
 
     const createdAt = new Date();
     const metadataCanonical = canonicalJsonForAuditHash(
-      params.metadata as Prisma.JsonValue
+      metadata as Prisma.JsonValue
     );
 
     const hash = computeAuditLogChainHash({
       chainVersion: 2,
-      userId: params.userId,
+      userId: params.userId ?? null,
       action,
       category,
       severity,
@@ -79,7 +63,7 @@ export async function appendWorkerAuditLog(params: {
 
     await tx.adminAuditLog.create({
       data: {
-        userId: params.userId,
+        userId: params.userId ?? null,
         isPublic: false,
         action,
         category,
@@ -89,7 +73,7 @@ export async function appendWorkerAuditLog(params: {
         resourceType,
         resourceId,
         requestId,
-        metadata: params.metadata,
+        metadata,
         ipAddress: null,
         userAgent: "proovra-worker",
         hash,

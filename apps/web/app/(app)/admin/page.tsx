@@ -15,7 +15,10 @@ import { apiFetch, ApiError } from "../../../lib/api";
 
 interface AdminStats {
   totalUsers: number;
+  registeredUsers: number;
+  guestUsers: number;
   activeUsers: number;
+  usersWithEvidence: number;
   totalEvidence: number;
   reportsGenerated: number;
   subscriptionBreakdown: {
@@ -571,7 +574,10 @@ function isValidAdminStats(value: unknown): value is AdminStats {
 
   return (
     typeof value.totalUsers === "number" &&
+    typeof value.registeredUsers === "number" &&
+    typeof value.guestUsers === "number" &&
     typeof value.activeUsers === "number" &&
+    typeof value.usersWithEvidence === "number" &&
     typeof value.totalEvidence === "number" &&
     typeof value.reportsGenerated === "number" &&
     !!subscriptionBreakdown &&
@@ -709,13 +715,13 @@ export default function AdminPage() {
 
   const trendMax = useMemo(() => maxTrendValue(trends), [trends]);
 
-  const primaryInsight = useMemo(() => {
-    if (!stats) return null;
-    return {
-      activeRate: safeRatioPercent(stats.activeUsers, stats.totalUsers),
-      reportRate: safeRatioPercent(stats.reportsGenerated, stats.totalEvidence),
-    };
-  }, [stats]);
+const primaryInsight = useMemo(() => {
+  if (!stats) return null;
+  return {
+    activeRate: safeRatioPercent(stats.activeUsers, stats.registeredUsers),
+    reportRate: safeRatioPercent(stats.reportsGenerated, stats.totalEvidence),
+  };
+}, [stats]);
 
   const funnelInsight = useMemo(() => {
     const second = funnel[1];
@@ -1429,38 +1435,62 @@ export default function AdminPage() {
 
               <div style={{ marginBottom: 40 }}>
                 <h2 style={sectionTitleStyle()}>Overview</h2>
-                <div
-                  style={{
-                    display: "grid",
-                    gap: 16,
-                    gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-                  }}
-                >
-                  <StatCard
-                    title="Total Users"
-                    value={stats.totalUsers.toLocaleString()}
-                    description={`${stats.activeUsers.toLocaleString()} active (${primaryInsight?.activeRate ?? "0.0"}% activity rate)`}
-                    accent="#3B82F6"
-                  />
-                  <StatCard
-                    title="Total Evidence"
-                    value={stats.totalEvidence.toLocaleString()}
-                    description={`${stats.reportsGenerated.toLocaleString()} reports generated`}
-                    accent="#10B981"
-                  />
-                  <StatCard
-                    title="Avg Evidence / User"
-                    value={safeDivideDisplay(stats.totalEvidence, stats.totalUsers, 1)}
-                    description="Average evidence items per registered user"
-                    accent="#F59E0B"
-                  />
-                  <StatCard
-                    title="Report Rate"
-                    value={`${primaryInsight?.reportRate ?? "0.0"}%`}
-                    description="Share of evidence that reached report generation"
-                    accent="#8B5CF6"
-                  />
-                </div>
+<div
+  style={{
+    display: "grid",
+    gap: 16,
+    gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+  }}
+>
+  <StatCard
+    title="Total Users"
+    value={stats.totalUsers.toLocaleString()}
+    description={`${stats.registeredUsers.toLocaleString()} registered + ${stats.guestUsers.toLocaleString()} guest`}
+    accent="#3B82F6"
+  />
+
+  <StatCard
+    title="Registered Users"
+    value={stats.registeredUsers.toLocaleString()}
+    description={`${stats.activeUsers.toLocaleString()} active (${primaryInsight?.activeRate ?? "0.0"}% activity rate)`}
+    accent="#06B6D4"
+  />
+
+  <StatCard
+    title="Guest Users"
+    value={stats.guestUsers.toLocaleString()}
+    description="Anonymous / guest identities created in the system"
+    accent="#64748B"
+  />
+
+  <StatCard
+    title="Users With Evidence"
+    value={stats.usersWithEvidence.toLocaleString()}
+    description="Distinct owners with at least one non-deleted evidence item"
+    accent="#A855F7"
+  />
+
+  <StatCard
+    title="Total Evidence"
+    value={stats.totalEvidence.toLocaleString()}
+    description={`${stats.reportsGenerated.toLocaleString()} reports generated`}
+    accent="#10B981"
+  />
+
+  <StatCard
+    title="Avg Evidence / Registered User"
+    value={safeDivideDisplay(stats.totalEvidence, stats.registeredUsers, 1)}
+    description="Average evidence items per registered user"
+    accent="#F59E0B"
+  />
+
+  <StatCard
+    title="Report Rate"
+    value={`${primaryInsight?.reportRate ?? "0.0"}%`}
+    description="Share of evidence that reached report generation"
+    accent="#8B5CF6"
+  />
+</div>
               </div>
 
               <div style={{ marginBottom: 40 }}>

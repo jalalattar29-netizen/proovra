@@ -193,23 +193,68 @@ async function countDistinctSessions(
 /**
  * IMPORTANT:
  * Summary is intentionally GLOBAL and does NOT apply dashboard filters.
- * This avoids the previous mixed behavior where some fields were filtered
- * and others were lifetime/global, which broke semantic consistency.
+ * This avoids mixed semantics in the overview cards.
+ *
+ * User metrics are split explicitly so guest identities do not inflate
+ * the meaning of "real" registered users.
  */
 async function getSummary() {
-  const [totalUsers, totalEvidence, reportsGenerated, activeUserRows] =
-    await Promise.all([
-      prisma.user.count(),
-      prisma.evidence.count(),
-      prisma.report.count(),
-      prisma.analyticsEvent.findMany({
-        where: {
-          userId: { not: null },
-        },
-        select: { userId: true },
-        distinct: ["userId"],
-      }),
-    ]);
+  const [
+    registeredUsers,
+    guestUsers,
+    usersWithEvidenceRows,
+    reportsGenerated,
+    activeAnalyticsUserRows,
+  ] = await Promise.all([
+    prisma.user.count({
+      where: {
+        provider: { not: "GUEST" },
+      },
+    }),
+
+    prisma.user.count({
+      where: {
+        provider: "GUEST",
+      },
+    }),
+
+    prisma.evidence.findMany({
+      where: {
+        deletedAt: null,
+      },
+      select: {
+        ownerUserId: true,
+      },
+      distinct: ["ownerUserId"],
+    }),
+
+    prisma.report.count(),
+
+    prisma.analyticsEvent.findMany({
+      where: {
+        userId: { not: null },
+      },
+      select: {
+        userId: true,
+      },
+      distinct: ["userId"],
+    }),
+  ]);
+
+  const activeUserIds = activeAnalyticsUserRows
+    .map((row) => row.userId)
+    .filter((value): value is string => typeof value === "string" && value.length > 0);
+
+  let activeRegisteredUsers = 0;
+
+  if (activeUserIds.length > 0) {
+    activeRegisteredUsers = await prisma.user.count({
+      where: {
+        id: { in: activeUserIds },
+        provider: { not: "GUEST" },
+      },
+    });
+  }
 
   const entitlements = await prisma.entitlement.groupBy({
     by: ["plan"],
@@ -219,6 +264,7 @@ async function getSummary() {
 
   const typeGroups = await prisma.evidence.groupBy({
     by: ["type"],
+    where: { deletedAt: null },
     _count: { type: true },
   });
 
@@ -252,10 +298,20 @@ async function getSummary() {
     else evidenceByType.other += c;
   }
 
+  const usersWithEvidence = usersWithEvidenceRows.length;
+  const totalUsers = registeredUsers + guestUsers;
+
   return {
     totalUsers,
-    activeUsers: activeUserRows.length,
-    totalEvidence,
+    registeredUsers,
+    guestUsers,
+    activeUsers: activeRegisteredUsers,
+    usersWithEvidence,
+    totalEvidence:
+      evidenceByType.photos +
+      evidenceByType.videos +
+      evidenceByType.documents +
+      evidenceByType.other,
     reportsGenerated,
     subscriptionBreakdown,
     evidenceByType,
