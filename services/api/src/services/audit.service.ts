@@ -1,44 +1,51 @@
-import { AppError, ErrorCode } from '../errors.js';
+import { AppError, ErrorCode } from "../errors.js";
+
+/**
+ * LEGACY AUDIT SERVICE
+ *
+ * Deprecated in favor of the active DB-backed tamper-evident admin audit chain.
+ *
+ * Active audit path:
+ * - services/api/src/services/platform-audit-log.service.ts
+ * - services/api/src/lib/admin-audit-chain.ts
+ * - services/api/src/routes/admin-audit.routes.ts
+ *
+ * This file is kept temporarily for backward compatibility with any old imports.
+ * It must not be used for new code.
+ */
 
 // Audit log actions
 export enum AuditAction {
-  // Evidence actions
-  EVIDENCE_CREATED = 'evidence_created',
-  EVIDENCE_UPDATED = 'evidence_updated',
-  EVIDENCE_DELETED = 'evidence_deleted',
-  EVIDENCE_VERIFIED = 'evidence_verified',
-  EVIDENCE_SHARED = 'evidence_shared',
+  EVIDENCE_CREATED = "evidence_created",
+  EVIDENCE_UPDATED = "evidence_updated",
+  EVIDENCE_DELETED = "evidence_deleted",
+  EVIDENCE_VERIFIED = "evidence_verified",
+  EVIDENCE_SHARED = "evidence_shared",
 
-  // Team actions
-  MEMBER_INVITED = 'member_invited',
-  MEMBER_JOINED = 'member_joined',
-  MEMBER_REMOVED = 'member_removed',
-  MEMBER_ROLE_CHANGED = 'member_role_changed',
-  ORGANIZATION_CREATED = 'organization_created',
-  ORGANIZATION_UPDATED = 'organization_updated',
+  MEMBER_INVITED = "member_invited",
+  MEMBER_JOINED = "member_joined",
+  MEMBER_REMOVED = "member_removed",
+  MEMBER_ROLE_CHANGED = "member_role_changed",
+  ORGANIZATION_CREATED = "organization_created",
+  ORGANIZATION_UPDATED = "organization_updated",
 
-  // API key actions
-  API_KEY_GENERATED = 'api_key_generated',
-  API_KEY_ROTATED = 'api_key_rotated',
-  API_KEY_REVOKED = 'api_key_revoked',
+  API_KEY_GENERATED = "api_key_generated",
+  API_KEY_ROTATED = "api_key_rotated",
+  API_KEY_REVOKED = "api_key_revoked",
 
-  // Batch actions
-  BATCH_CREATED = 'batch_created',
-  BATCH_PROCESSED = 'batch_processed',
-  BATCH_CANCELLED = 'batch_cancelled',
+  BATCH_CREATED = "batch_created",
+  BATCH_PROCESSED = "batch_processed",
+  BATCH_CANCELLED = "batch_cancelled",
 
-  // Auth actions
-  USER_LOGIN = 'user_login',
-  USER_LOGOUT = 'user_logout',
-  PASSWORD_CHANGED = 'password_changed',
+  USER_LOGIN = "user_login",
+  USER_LOGOUT = "user_logout",
+  PASSWORD_CHANGED = "password_changed",
 
-  // Admin actions
-  WEBHOOK_CREATED = 'webhook_created',
-  WEBHOOK_DELETED = 'webhook_deleted',
-  SETTINGS_CHANGED = 'settings_changed',
+  WEBHOOK_CREATED = "webhook_created",
+  WEBHOOK_DELETED = "webhook_deleted",
+  SETTINGS_CHANGED = "settings_changed",
 }
 
-// Audit log interface
 export interface AuditLog {
   id: string;
   userId: string;
@@ -47,7 +54,7 @@ export interface AuditLog {
   resourceId?: string;
   organizationId?: string;
   changes?: Record<string, { before: any; after: any }>;
-  status: 'success' | 'failure';
+  status: "success" | "failure";
   errorMessage?: string;
   ipAddress?: string;
   userAgent?: string;
@@ -55,29 +62,23 @@ export interface AuditLog {
   createdAt: Date;
 }
 
-// Audit log filter interface
 export interface AuditLogFilter {
   userId?: string;
   action?: AuditAction;
   resourceType?: string;
   resourceId?: string;
   organizationId?: string;
-  status?: 'success' | 'failure';
+  status?: "success" | "failure";
   dateFrom?: Date;
   dateTo?: Date;
   limit?: number;
   offset?: number;
 }
 
-// Service class
 export class AuditService {
-  // In-memory storage for MVP
   private logs = new Map<string, AuditLog>();
-  private retentionDays = 90; // Default 90 day retention
+  private retentionDays = 90;
 
-  /**
-   * Log an audit event
-   */
   logEvent(
     userId: string,
     action: AuditAction,
@@ -98,7 +99,7 @@ export class AuditService {
       userId,
       action,
       resourceType,
-      status: 'success',
+      status: "success",
       createdAt: new Date(),
       ...options,
     };
@@ -107,9 +108,6 @@ export class AuditService {
     return log;
   }
 
-  /**
-   * Log failure event
-   */
   logFailure(
     userId: string,
     action: AuditAction,
@@ -125,15 +123,12 @@ export class AuditService {
   ): AuditLog {
     const errorMessage = error instanceof Error ? error.message : String(error);
     const log = this.logEvent(userId, action, resourceType, options);
-    log.status = 'failure';
+    log.status = "failure";
     log.errorMessage = errorMessage;
     this.logs.set(log.id, log);
     return log;
   }
 
-  /**
-   * Get audit logs with filtering
-   */
   getLogs(filter: AuditLogFilter): {
     logs: AuditLog[];
     total: number;
@@ -142,7 +137,6 @@ export class AuditService {
   } {
     let logs = Array.from(this.logs.values());
 
-    // Apply filters
     if (filter.userId) {
       logs = logs.filter((l) => l.userId === filter.userId);
     }
@@ -168,10 +162,8 @@ export class AuditService {
       logs = logs.filter((l) => l.createdAt <= filter.dateTo!);
     }
 
-    // Sort by date descending
     logs.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
 
-    // Apply pagination
     const limit = filter.limit || 50;
     const offset = filter.offset || 0;
     const total = logs.length;
@@ -185,9 +177,6 @@ export class AuditService {
     };
   }
 
-  /**
-   * Get user activity summary
-   */
   getUserActivitySummary(userId: string, days = 7): {
     totalActions: number;
     actionsByType: Record<string, number>;
@@ -208,7 +197,7 @@ export class AuditService {
 
     for (const log of logs) {
       actionsByType[log.action] = (actionsByType[log.action] || 0) + 1;
-      if (log.status === 'success') {
+      if (log.status === "success") {
         successCount += 1;
       }
     }
@@ -221,9 +210,6 @@ export class AuditService {
     };
   }
 
-  /**
-   * Get organization activity summary
-   */
   getOrganizationActivitySummary(organizationId: string): {
     totalActions: number;
     actionsByType: Record<string, number>;
@@ -242,7 +228,7 @@ export class AuditService {
     for (const log of logs) {
       actionsByType[log.action] = (actionsByType[log.action] || 0) + 1;
       userActions[log.userId] = (userActions[log.userId] || 0) + 1;
-      if (log.status === 'failure') {
+      if (log.status === "failure") {
         failureCount += 1;
       }
     }
@@ -260,24 +246,20 @@ export class AuditService {
     };
   }
 
-  /**
-   * Export logs as CSV
-   */
   exportAsCSV(filter: AuditLogFilter): string {
     const logs = this.getLogs({ ...filter, limit: 10000 }).logs;
 
-    // CSV header
     const headers = [
-      'ID',
-      'Timestamp',
-      'User ID',
-      'Action',
-      'Resource Type',
-      'Resource ID',
-      'Status',
-      'Error Message',
-      'IP Address',
-      'User Agent',
+      "ID",
+      "Timestamp",
+      "User ID",
+      "Action",
+      "Resource Type",
+      "Resource ID",
+      "Status",
+      "Error Message",
+      "IP Address",
+      "User Agent",
     ];
 
     const rows = logs.map((log) => [
@@ -286,32 +268,30 @@ export class AuditService {
       log.userId,
       log.action,
       log.resourceType,
-      log.resourceId || '',
+      log.resourceId || "",
       log.status,
-      log.errorMessage || '',
-      log.ipAddress || '',
-      log.userAgent || '',
+      log.errorMessage || "",
+      log.ipAddress || "",
+      log.userAgent || "",
     ]);
 
-    // Escape CSV values
     const escapedRows = rows.map((row) =>
       row.map((cell) => {
-        if (typeof cell !== 'string') {
-          cell = String(cell);
+        const value = typeof cell === "string" ? cell : String(cell);
+        if (
+          value.includes(",") ||
+          value.includes('"') ||
+          value.includes("\n")
+        ) {
+          return `"${value.replace(/"/g, '""')}"`;
         }
-        if (cell.includes(',') || cell.includes('"') || cell.includes('\n')) {
-          return `"${cell.replace(/"/g, '""')}"`;
-        }
-        return cell;
+        return value;
       })
     );
 
-    return [headers, ...escapedRows].map((row) => row.join(',')).join('\n');
+    return [headers, ...escapedRows].map((row) => row.join(",")).join("\n");
   }
 
-  /**
-   * Clean up old logs (call periodically)
-   */
   cleanupOldLogs(): number {
     const cutoffDate = new Date();
     cutoffDate.setDate(cutoffDate.getDate() - this.retentionDays);
@@ -327,22 +307,16 @@ export class AuditService {
     return deletedCount;
   }
 
-  /**
-   * Set retention period in days
-   */
   setRetentionDays(days: number): void {
     if (days < 1) {
       throw new AppError(
         ErrorCode.VALIDATION_ERROR,
-        'Retention period must be at least 1 day'
+        "Retention period must be at least 1 day"
       );
     }
     this.retentionDays = days;
   }
 
-  /**
-   * Get log statistics
-   */
   getStatistics(days = 30): {
     totalLogs: number;
     logsPerDay: Record<string, number>;
@@ -362,10 +336,10 @@ export class AuditService {
     let successCount = 0;
 
     for (const log of logs) {
-      const day = log.createdAt.toISOString().split('T')[0];
+      const day = log.createdAt.toISOString().split("T")[0];
       logsPerDay[day] = (logsPerDay[day] || 0) + 1;
       actionCounts[log.action] = (actionCounts[log.action] || 0) + 1;
-      if (log.status === 'success') {
+      if (log.status === "success") {
         successCount += 1;
       }
     }
@@ -384,19 +358,19 @@ export class AuditService {
   }
 }
 
-// Singleton instance
 let auditService: AuditService | null = null;
 
 export function getAuditService(): AuditService {
   if (!auditService) {
     auditService = new AuditService();
-    // Start periodic cleanup
+
     setInterval(() => {
       const deleted = auditService?.cleanupOldLogs();
       if (deleted && deleted > 0) {
         console.log(`Cleaned up ${deleted} old audit logs`);
       }
-    }, 24 * 60 * 60 * 1000); // Daily cleanup
+    }, 24 * 60 * 60 * 1000);
   }
+
   return auditService;
 }

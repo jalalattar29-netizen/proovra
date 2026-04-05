@@ -1,7 +1,4 @@
-// D:\digital-witness\services\api\src\routes\auth.routes.ts
-import { randomUUID } from "node:crypto";
 import type { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
-import type { Prisma } from "@prisma/client";
 import { z } from "zod";
 
 import {
@@ -25,9 +22,10 @@ import {
 import { getEmailService } from "../services/email.service.js";
 import { requireAuth } from "../middleware/auth.js";
 import { prisma } from "../db.js";
-import { signJwt } from "../services/jwt.js";
+import { signJwt, verifyJwt } from "../services/jwt.js";
 import { getAuthUserId } from "../auth.js";
 import { appendPlatformAuditLog } from "../services/platform-audit-log.service.js";
+import { writeAnalyticsEvent } from "../services/analytics-event.service.js";
 
 const TokenBody = z.object({
   idToken: z.string().min(1).optional(),
@@ -66,98 +64,6 @@ function readUserAgent(req: FastifyRequest): string | null {
   return Array.isArray(ua) ? ua[0] ?? null : ua ?? null;
 }
 
-function classifyRouteType(path: string | null | undefined):
-  | "public"
-  | "app"
-  | "admin"
-  | "auth"
-  | "api"
-  | "unknown" {
-  if (!path) return "unknown";
-  if (path.startsWith("/admin")) return "admin";
-  if (path.startsWith("/auth")) return "auth";
-  if (path.startsWith("/api")) return "api";
-  if (path.startsWith("/app")) return "app";
-  return "public";
-}
-
-function humanizeEventType(eventType: string): string {
-  return eventType
-    .replace(/_/g, " ")
-    .replace(/\b\w/g, (c) => c.toUpperCase());
-}
-
-function getRequestPath(req: FastifyRequest): string {
-  const url = req.url || "";
-  const qIndex = url.indexOf("?");
-  return qIndex >= 0 ? url.slice(0, qIndex) : url;
-}
-
-async function writeServerAnalyticsEvent(params: {
-  eventType: string;
-  userId: string;
-  req?: FastifyRequest;
-  metadata?: Record<string, unknown>;
-  entityType?: string | null;
-  entityId?: string | null;
-  severity?: string | null;
-}): Promise<void> {
-  const path = params.req ? getRequestPath(params.req) : null;
-  const routeType = classifyRouteType(path);
-
-  await prisma.analyticsEvent.create({
-    data: {
-      eventType: params.eventType,
-      userId: params.userId,
-      sessionId: `server_${params.eventType}_${randomUUID()}`,
-      visitorId: `server_user_${params.userId}`,
-      path,
-      referrer: null,
-      routeType,
-      eventClass: "auth",
-      displayLabel: humanizeEventType(params.eventType),
-      entityType: params.entityType ?? "user",
-      entityId: params.entityId ?? params.userId,
-      severity: params.severity ?? "info",
-      device: params.req ? readUserAgent(params.req) : "server",
-      browser: params.req ? readUserAgent(params.req) : "server",
-      metadata: (params.metadata ?? {}) as Prisma.InputJsonValue,
-    },
-  });
-}
-
-function fireLoginCompletedAnalytics(
-  userId: string,
-  req?: FastifyRequest,
-  metadata?: Record<string, unknown>
-): void {
-  void writeServerAnalyticsEvent({
-    eventType: "login_completed",
-    userId,
-    req,
-    metadata,
-    entityType: "user",
-    entityId: userId,
-    severity: "info",
-  }).catch(() => null);
-}
-
-function fireRegisterCompletedAnalytics(
-  userId: string,
-  req?: FastifyRequest,
-  metadata?: Record<string, unknown>
-): void {
-  void writeServerAnalyticsEvent({
-    eventType: "register_completed",
-    userId,
-    req,
-    metadata,
-    entityType: "user",
-    entityId: userId,
-    severity: "info",
-  }).catch(() => null);
-}
-
 function auditAuthEvent(
   req: FastifyRequest,
   params: {
@@ -185,6 +91,42 @@ function auditAuthEvent(
   }).catch(() => null);
 }
 
+function fireLoginCompletedAnalytics(
+  userId: string,
+  req?: FastifyRequest,
+  metadata?: Record<string, unknown>
+): void {
+  void writeAnalyticsEvent({
+    eventType: "login_completed",
+    userId,
+    path: req?.url ?? null,
+    entityType: "user",
+    entityId: userId,
+    severity: "info",
+    metadata,
+    req,
+    skipSessionUpsert: true,
+  }).catch(() => null);
+}
+
+function fireRegisterCompletedAnalytics(
+  userId: string,
+  req?: FastifyRequest,
+  metadata?: Record<string, unknown>
+): void {
+  void writeAnalyticsEvent({
+    eventType: "register_completed",
+    userId,
+    path: req?.url ?? null,
+    entityType: "user",
+    entityId: userId,
+    severity: "info",
+    metadata,
+    req,
+    skipSessionUpsert: true,
+  }).catch(() => null);
+}
+
 export async function authRoutes(app: FastifyInstance) {
   const jwtSecret = process.env.AUTH_JWT_SECRET;
   if (!jwtSecret) {
@@ -205,7 +147,11 @@ export async function authRoutes(app: FastifyInstance) {
     };
   }
 
-  function maybeSetWebCookie(req: FastifyRequest, reply: FastifyReply, token: string) {
+  function maybeSetWebCookie(
+    req: FastifyRequest,
+    reply: FastifyReply,
+    token: string
+  ) {
     if (req.headers["x-web-client"] !== "1") {
       return;
     }
@@ -238,9 +184,6 @@ export async function authRoutes(app: FastifyInstance) {
     reply.setCookie("proovra_session", token, cookieOpts);
   }
 
-  // =========================
-  // Guest
-  // =========================
   app.post("/v1/auth/guest", async (req, reply) => {
     const profile = await createGuestProfile();
     const user = await upsertUser(profile);
@@ -268,9 +211,6 @@ export async function authRoutes(app: FastifyInstance) {
     return reply.code(201).send({ token, user });
   });
 
-  // =========================
-  // Google
-  // =========================
   app.post("/v1/auth/google", async (req, reply) => {
     try {
       const body = TokenBody.parse(req.body);
@@ -288,6 +228,7 @@ export async function authRoutes(app: FastifyInstance) {
           severity: "warning",
           metadata: { reason: "missing_id_token_or_code" },
         });
+
         return reply.code(400).send({ message: "invalid_id_token" });
       }
 
@@ -332,22 +273,22 @@ export async function authRoutes(app: FastifyInstance) {
           hint: "Code may be expired or already used. Ensure GOOGLE_REDIRECT_URI matches exactly.",
         });
       }
+
       if (message === "redirect_uri_mismatch") {
         return reply.code(400).send({
           message: "redirect_uri_mismatch",
           hint: "GOOGLE_REDIRECT_URI in API .env must match exactly: https://www.proovra.com/auth/callback",
         });
       }
+
       if (message === "token_exchange_failed") {
         return reply.code(502).send({ message: "token_exchange_failed" });
       }
+
       return reply.code(401).send({ message: "invalid_id_token" });
     }
   });
 
-  // =========================
-  // Apple
-  // =========================
   app.post("/v1/auth/apple", async (req, reply) => {
     try {
       const body = AppleBody.parse(req.body);
@@ -365,6 +306,7 @@ export async function authRoutes(app: FastifyInstance) {
           severity: "warning",
           metadata: { reason: "missing_id_token_or_code" },
         });
+
         return reply.code(400).send({ message: "invalid_id_token" });
       }
 
@@ -409,25 +351,26 @@ export async function authRoutes(app: FastifyInstance) {
           hint: "Code may be expired or already used. Ensure APPLE_REDIRECT_URI matches exactly.",
         });
       }
+
       if (message === "redirect_uri_mismatch") {
         return reply.code(400).send({
           message: "redirect_uri_mismatch",
           hint: "APPLE_REDIRECT_URI in API .env must match exactly: https://www.proovra.com/auth/callback",
         });
       }
+
       if (message === "token_exchange_failed") {
         return reply.code(502).send({ message: "token_exchange_failed" });
       }
+
       if (message === "apple_jwks_fetch_failed") {
         return reply.code(502).send({ message: "apple_jwks_fetch_failed" });
       }
+
       return reply.code(401).send({ message: "invalid_id_token" });
     }
   });
 
-  // =========================
-  // Email + Password
-  // =========================
   app.post("/v1/auth/email/register", async (req, reply) => {
     const body = EmailRegisterBody.parse(req.body);
 
@@ -506,9 +449,6 @@ export async function authRoutes(app: FastifyInstance) {
     return reply.code(200).send({ token, user });
   });
 
-  // =========================
-  // Password reset
-  // =========================
   app.post("/v1/auth/password-reset/request", async (req, reply) => {
     const body = PasswordResetRequestBody.parse(req.body);
 
@@ -600,21 +540,21 @@ export async function authRoutes(app: FastifyInstance) {
     return reply.code(200).send({ ok: true });
   });
 
-  // =========================
-  // Logout
-  // =========================
   app.post("/v1/auth/logout", async (req, reply) => {
     let userId: string | null = null;
 
     try {
       const authHeader = req.headers.authorization ?? "";
-      const bearer = authHeader.startsWith("Bearer ") ? authHeader.slice(7).trim() : "";
-if (bearer) {
-  const payload = verifyAppleIdToken(bearer);
-  void payload;
-}
+      const bearer = authHeader.startsWith("Bearer ")
+        ? authHeader.slice(7).trim()
+        : "";
+
+      if (bearer) {
+        const payload = verifyJwt(bearer, jwtSecret);
+        userId = payload.sub;
+      }
     } catch {
-      /* noop */
+      // noop
     }
 
     if (req.headers["x-web-client"] === "1") {
@@ -641,9 +581,6 @@ if (bearer) {
     return reply.code(200).send({ ok: true });
   });
 
-  // =========================
-  // Me
-  // =========================
   app.get("/v1/auth/me", { preHandler: requireAuth }, async (req: FastifyRequest) => {
     const userId = getAuthUserId(req);
     const user = await prisma.user.findUnique({ where: { id: userId } });

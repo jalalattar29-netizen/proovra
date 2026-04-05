@@ -3,6 +3,7 @@ import type { Readable } from "node:stream";
 import * as prismaPkg from "@prisma/client";
 import type { Prisma } from "@prisma/client";
 import { appendCustodyEventTx } from "./custody-events.js";
+import { appendWorkerAnalyticsEvent } from "./analytics-events.js";
 import { prisma } from "./db.js";
 import { env } from "./config.js";
 import { logger, withJobContext } from "./logger.js";
@@ -1255,32 +1256,36 @@ export async function processGenerateReport(job: Job<GenerateReportJobData>) {
       }
     );
 
-    if (!finalized.skipped) {
-      // ANALYTICS: Track report_generated event (non-blocking, silently ignore errors)
-      prisma.analyticsEvent.create({
-        data: {
-          eventType: "report_generated",
-          userId: evidence.ownerUserId,
-          sessionId: `server_${Date.now()}`,
-          visitorId: evidence.ownerUserId ? `server_user_${evidence.ownerUserId}` : `server_anon_${Date.now()}`,
-          metadata: {
-            evidenceId: prepared.evidenceId,
-            version: prepared.version
-          }
-        }
-      }).catch(() => {
-        // Silently ignore analytics errors
-      });
+if (!finalized.skipped) {
+  appendWorkerAnalyticsEvent({
+    eventType: "report_generated",
+    userId: evidence.ownerUserId,
+    entityType: "evidence",
+    entityId: prepared.evidenceId,
+    severity: "info",
+    metadata: {
+      evidenceId: prepared.evidenceId,
+      reportVersion: finalized.version,
+      generatedAtUtc: prepared.now.toISOString(),
+      source: "worker",
+      forceRegenerate,
+      regenerateReason,
+    },
+  }).catch(() => null);
 
-      appendWorkerAuditLog({
-        userId: evidence.ownerUserId,
-        action: "evidence.report_generated",
-        metadata: {
-          evidenceId: prepared.evidenceId,
-          reportVersion: finalized.version,
-        },
-      }).catch(() => null);
-    }
+  appendWorkerAuditLog({
+    userId: evidence.ownerUserId,
+    action: "evidence.report_generated",
+    metadata: {
+      evidenceId: prepared.evidenceId,
+      reportVersion: finalized.version,
+      generatedAtUtc: prepared.now.toISOString(),
+      source: "worker",
+      forceRegenerate,
+      regenerateReason,
+    },
+  }).catch(() => null);
+}
 
     if (!finalized.skipped && finalized.scheduleOtsUpgrade) {
       try {

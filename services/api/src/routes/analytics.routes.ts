@@ -3,6 +3,13 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "../db.js";
 import { requirePlatformAdmin } from "../middleware/require-platform-admin.js";
 import { verifyJwt } from "../services/jwt.js";
+import {
+  cleanDisplayCity,
+  normalizeCity,
+  normalizeCountryCode,
+  writeAnalyticsEvent,
+} from "../services/analytics-event.service.js";
+import { classifyRouteType } from "../lib/route-classification.js";
 
 type AnalyticsTrackBody = {
   eventType?: string;
@@ -11,6 +18,8 @@ type AnalyticsTrackBody = {
   visitorId?: string;
   path?: string | null;
   referrer?: string | null;
+  entityType?: string | null;
+  entityId?: string | null;
   metadata?: Prisma.InputJsonValue | null;
 };
 
@@ -53,15 +62,6 @@ type AdminAnalyticsQuery = {
 
 const ADMIN_PRE = { preHandler: requirePlatformAdmin };
 
-function readHeader(
-  headers: Record<string, string | string[] | undefined>,
-  name: string
-): string | null {
-  const value = headers[name];
-  if (Array.isArray(value)) return value[0] ?? null;
-  return typeof value === "string" && value.trim() ? value.trim() : null;
-}
-
 function formatDayKey(date: Date): string {
   return date.toISOString().slice(0, 10);
 }
@@ -71,9 +71,11 @@ function resolveTrackUserId(
   bodyUserId: string | null | undefined
 ): string | null {
   const secret = process.env.AUTH_JWT_SECRET;
+
   if (secret) {
     const auth = request.headers.authorization ?? "";
     const bearer = auth.startsWith("Bearer ") ? auth.slice(7).trim() : "";
+
     if (bearer) {
       try {
         return verifyJwt(bearer, secret).sub;
@@ -82,6 +84,7 @@ function resolveTrackUserId(
       }
     }
   }
+
   return bodyUserId ?? null;
 }
 
@@ -104,9 +107,11 @@ function parseAdminEventFilter(raw: string | undefined): AdminEventFilter {
     "evidence_created",
     "report_generated",
   ];
+
   if (raw && allowed.includes(raw as AdminEventFilter)) {
     return raw as AdminEventFilter;
   }
+
   return "all";
 }
 
@@ -120,91 +125,19 @@ function parseRouteType(raw: string | undefined): RouteType | "all" {
     "api",
     "unknown",
   ];
+
   if (raw && allowed.includes(raw as RouteType | "all")) {
     return raw as RouteType | "all";
   }
+
   return "all";
 }
 
 function safeTrim(value: string | undefined): string | null {
   if (!value) return null;
+
   const t = value.trim();
   return t ? t : null;
-}
-
-function safeDecodeMojibake(value: string | null): string | null {
-  if (!value) return null;
-  try {
-    if (/[ÃÂÐÑØÙÚÛÜÝÞß]/.test(value)) {
-      return Buffer.from(value, "latin1").toString("utf8");
-    }
-  } catch {
-    // noop
-  }
-  return value;
-}
-
-function normalizeCountryCode(value: string | null): string | null {
-  if (!value) return null;
-  const v = value.trim().toUpperCase();
-  if (!v) return null;
-  return v.slice(0, 8);
-}
-
-function normalizeCity(value: string | null): string | null {
-  const decoded = safeDecodeMojibake(value);
-  if (!decoded) return null;
-
-  const normalized = decoded
-    .normalize("NFKD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[^\p{L}\p{N}\s'-]/gu, "")
-    .replace(/\s+/g, " ")
-    .trim()
-    .toLowerCase()
-    .slice(0, 160);
-
-  return normalized || null;
-}
-
-function cleanDisplayCity(value: string | null): string | null {
-  const decoded = safeDecodeMojibake(value);
-  return decoded?.trim() ? decoded.trim() : null;
-}
-
-function classifyRouteType(path: string | null | undefined): RouteType {
-  if (!path) return "unknown";
-  if (path.startsWith("/admin")) return "admin";
-  if (path.startsWith("/auth")) return "auth";
-  if (path.startsWith("/api")) return "api";
-  if (path.startsWith("/app")) return "app";
-  if (
-    path === "/" ||
-    path.startsWith("/pricing") ||
-    path.startsWith("/about") ||
-    path.startsWith("/verify")
-  ) {
-    return "public";
-  }
-  return "public";
-}
-
-function classifyEventClass(eventType: string): string {
-  if (eventType === "page_view") return "navigation";
-  if (eventType === "login_completed") return "auth";
-  if (eventType === "evidence_created") return "evidence";
-  if (eventType === "report_generated") return "report";
-  return "custom";
-}
-
-function classifySeverity(_eventType: string): string {
-  return "info";
-}
-
-function humanizeEventType(eventType: string): string {
-  return eventType
-    .replace(/_/g, " ")
-    .replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
 function readAdminAnalyticsQuery(request: FastifyRequest): AdminAnalyticsQuery {
@@ -253,12 +186,17 @@ async function countDistinctSessions(
     select: { sessionId: true },
     distinct: ["sessionId"],
   });
+
   return rows.length;
 }
 
-async function getSummary(query: AdminAnalyticsQuery) {
-  const analyticsWhere = buildAnalyticsWhere(query);
-
+/**
+ * IMPORTANT:
+ * Summary is intentionally GLOBAL and does NOT apply dashboard filters.
+ * This avoids the previous mixed behavior where some fields were filtered
+ * and others were lifetime/global, which broke semantic consistency.
+ */
+async function getSummary() {
   const [totalUsers, totalEvidence, reportsGenerated, activeUserRows] =
     await Promise.all([
       prisma.user.count(),
@@ -266,7 +204,6 @@ async function getSummary(query: AdminAnalyticsQuery) {
       prisma.report.count(),
       prisma.analyticsEvent.findMany({
         where: {
-          ...analyticsWhere,
           userId: { not: null },
         },
         select: { userId: true },
@@ -308,6 +245,7 @@ async function getSummary(query: AdminAnalyticsQuery) {
 
   for (const row of typeGroups) {
     const c = row._count.type;
+
     if (row.type === "PHOTO") evidenceByType.photos += c;
     else if (row.type === "VIDEO") evidenceByType.videos += c;
     else if (row.type === "DOCUMENT") evidenceByType.documents += c;
@@ -325,81 +263,148 @@ async function getSummary(query: AdminAnalyticsQuery) {
 }
 
 async function getGeography(query: AdminAnalyticsQuery) {
-  const [countries, cities, totalGeoEvents] = await Promise.all([
-    prisma.analyticsEvent.groupBy({
-      by: ["country", "countryCode"],
-      _count: { country: true },
-      where: buildAnalyticsWhere(query, {
-        country: { not: null },
-      }),
-      orderBy: { _count: { country: "desc" } },
-      take: 10,
-    }),
-    prisma.analyticsEvent.groupBy({
-      by: ["city", "cityNormalized"],
-      _count: { city: true },
-      where: buildAnalyticsWhere(query, {
-        cityNormalized: { not: null },
-      }),
-      orderBy: { _count: { city: "desc" } },
-      take: 10,
-    }),
-    prisma.analyticsEvent.count({
-      where: buildAnalyticsWhere(query),
-    }),
-  ]);
+  const geoWhere = buildAnalyticsWhere(query);
+  const totalGeoEvents = await prisma.analyticsEvent.count({ where: geoWhere });
+
+  const countryRows = await prisma.analyticsEvent.findMany({
+    where: {
+      ...geoWhere,
+      countryCode: { not: null },
+    },
+    select: {
+      countryCode: true,
+      country: true,
+    },
+  });
+
+  const cityRows = await prisma.analyticsEvent.findMany({
+    where: {
+      ...geoWhere,
+      cityNormalized: { not: null },
+    },
+    select: {
+      city: true,
+      cityNormalized: true,
+    },
+  });
+
+  const countryMap = new Map<string, { count: number; display: string | null }>();
+
+  for (const row of countryRows) {
+    const key = row.countryCode ?? null;
+    if (!key) continue;
+
+    const existing = countryMap.get(key) ?? {
+      count: 0,
+      display: row.countryCode ?? row.country ?? null,
+    };
+
+    existing.count += 1;
+
+    if (!existing.display) {
+      existing.display = row.countryCode ?? row.country ?? null;
+    }
+
+    countryMap.set(key, existing);
+  }
+
+  const cityMap = new Map<string, { count: number; display: string | null }>();
+
+  for (const row of cityRows) {
+    const key = row.cityNormalized ?? null;
+    if (!key) continue;
+
+    const display = cleanDisplayCity(row.city) ?? row.cityNormalized;
+    const existing = cityMap.get(key) ?? { count: 0, display };
+
+    existing.count += 1;
+
+    if (!existing.display && display) {
+      existing.display = display;
+    }
+
+    cityMap.set(key, existing);
+  }
+
+  const countries = [...countryMap.entries()]
+    .map(([countryCode, value]) => ({
+      name: value.display,
+      countryCode,
+      count: value.count,
+      share:
+        totalGeoEvents > 0
+          ? Number(((value.count / totalGeoEvents) * 100).toFixed(1))
+          : 0,
+    }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 10);
+
+  const cities = [...cityMap.entries()]
+    .map(([normalized, value]) => ({
+      name: value.display,
+      normalized,
+      count: value.count,
+      share:
+        totalGeoEvents > 0
+          ? Number(((value.count / totalGeoEvents) * 100).toFixed(1))
+          : 0,
+    }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 10);
 
   return {
     total: totalGeoEvents,
-    countries: countries.map((c) => ({
-      name: c.country,
-      countryCode: c.countryCode,
-      count: c._count.country,
-      share:
-        totalGeoEvents > 0
-          ? Number(((c._count.country / totalGeoEvents) * 100).toFixed(1))
-          : 0,
-    })),
-    cities: cities.map((c) => ({
-      name: cleanDisplayCity(c.city),
-      normalized: c.cityNormalized,
-      count: c._count.city,
-      share:
-        totalGeoEvents > 0
-          ? Number(((c._count.city / totalGeoEvents) * 100).toFixed(1))
-          : 0,
-    })),
+    countries,
+    cities,
   };
 }
 
 async function getPages(query: AdminAnalyticsQuery) {
-  const [pages, totalPageViews] = await Promise.all([
-    prisma.analyticsEvent.groupBy({
-      by: ["path", "routeType"],
-      _count: { path: true },
-      where: buildAnalyticsWhere(query, {
-        eventType: "page_view",
-        path: { not: null },
-      }),
-      orderBy: { _count: { path: "desc" } },
-      take: 10,
+  const pageRows = await prisma.analyticsEvent.findMany({
+    where: buildAnalyticsWhere(query, {
+      eventType: "page_view",
+      path: { not: null },
     }),
-    prisma.analyticsEvent.count({
-      where: buildAnalyticsWhere(query, {
-        eventType: "page_view",
-      }),
-    }),
-  ]);
+    select: {
+      path: true,
+      routeType: true,
+    },
+  });
 
-  return pages.map((p) => ({
-    path: p.path,
-    routeType: p.routeType,
-    views: p._count.path,
-    share:
-      totalPageViews > 0
-        ? Number(((p._count.path / totalPageViews) * 100).toFixed(1))
-        : 0,
-  }));
+  const totalPageViews = pageRows.length;
+  const pageMap = new Map<string, { views: number; routeType: string }>();
+
+  for (const row of pageRows) {
+    const path = row.path ?? null;
+    if (!path) continue;
+
+    const effectiveRouteType = row.routeType ?? classifyRouteType(path);
+    const existing = pageMap.get(path) ?? {
+      views: 0,
+      routeType: effectiveRouteType,
+    };
+
+    existing.views += 1;
+
+    if (existing.routeType === "unknown" && effectiveRouteType !== "unknown") {
+      existing.routeType = effectiveRouteType;
+    }
+
+    pageMap.set(path, existing);
+  }
+
+  return [...pageMap.entries()]
+    .map(([path, value]) => ({
+      path,
+      routeType: value.routeType,
+      views: value.views,
+      share:
+        totalPageViews > 0
+          ? Number(((value.views / totalPageViews) * 100).toFixed(1))
+          : 0,
+    }))
+    .sort((a, b) => b.views - a.views)
+    .slice(0, 10);
 }
 
 async function getRecent(query: AdminAnalyticsQuery) {
@@ -426,12 +431,12 @@ async function getRecent(query: AdminAnalyticsQuery) {
 
   return events.map((e) => ({
     eventType: e.eventType,
-    label: e.displayLabel ?? humanizeEventType(e.eventType),
+    label: e.displayLabel ?? e.eventType,
     eventClass: e.eventClass,
-    routeType: e.routeType,
+    routeType: e.routeType ?? classifyRouteType(e.path),
     severity: e.severity,
     path: e.path,
-    country: e.country,
+    country: e.countryCode ?? e.country,
     countryCode: e.countryCode,
     city: cleanDisplayCity(e.city),
     cityNormalized: e.cityNormalized,
@@ -549,86 +554,23 @@ export default async function analyticsRoutes(app: FastifyInstance) {
 
       const resolvedUserId = resolveTrackUserId(request, body.userId ?? null);
 
-      const country =
-        readHeader(request.headers, "cf-ipcountry") ??
-        readHeader(request.headers, "x-vercel-ip-country");
-
-      const cityRaw =
-        readHeader(request.headers, "cf-ipcity") ??
-        readHeader(request.headers, "x-vercel-ip-city");
-
-      const region =
-        readHeader(request.headers, "cf-region") ??
-        readHeader(request.headers, "cf-region-code") ??
-        readHeader(request.headers, "x-vercel-ip-country-region");
-
-      const userAgent = readHeader(request.headers, "user-agent");
-      const path = body.path ?? null;
-      const routeType = classifyRouteType(path);
-      const displayCity = cleanDisplayCity(cityRaw);
-      const cityNormalized = normalizeCity(cityRaw);
-      const countryCode = normalizeCountryCode(country);
-
-      await prisma.analyticsSession.upsert({
-        where: {
-          id: body.sessionId,
-        },
-        update: {
-          userId: resolvedUserId ?? undefined,
-          lastSeenAt: new Date(),
-          country: country ?? undefined,
-          countryCode: countryCode ?? undefined,
-          city: displayCity ?? undefined,
-          cityNormalized: cityNormalized ?? undefined,
-          routeType,
-          landingPath: path ?? undefined,
-          device: userAgent ?? undefined,
-          browser: userAgent ?? undefined,
-        },
-        create: {
-          id: body.sessionId,
-          visitorId: body.visitorId,
-          userId: resolvedUserId,
-          country,
-          countryCode,
-          city: displayCity,
-          cityNormalized,
-          routeType,
-          landingPath: path,
-          device: userAgent,
-          browser: userAgent,
-        },
-      });
-
-      await prisma.analyticsEvent.create({
-        data: {
-          eventType: body.eventType,
-          userId: resolvedUserId,
-          sessionId: body.sessionId,
-          visitorId: body.visitorId,
-          path,
-          referrer: body.referrer ?? null,
-          country,
-          countryCode,
-          city: displayCity,
-          cityNormalized,
-          region,
-          routeType,
-          eventClass: classifyEventClass(body.eventType),
-          displayLabel: humanizeEventType(body.eventType),
-          severity: classifySeverity(body.eventType),
-          device: userAgent,
-          browser: userAgent,
-          metadata:
-            body.metadata != null
-              ? (body.metadata as Prisma.InputJsonValue)
-              : Prisma.JsonNull,
-        },
+      await writeAnalyticsEvent({
+        eventType: body.eventType,
+        userId: resolvedUserId,
+        sessionId: body.sessionId,
+        visitorId: body.visitorId,
+        path: body.path ?? null,
+        referrer: body.referrer ?? null,
+        entityType: body.entityType ?? null,
+        entityId: body.entityId ?? null,
+        metadata: body.metadata ?? null,
+        req: request,
       });
 
       return reply.code(200).send({ success: true });
     } catch (err: unknown) {
       request.log.error({ err }, "analytics.track.failed");
+
       return reply.code(500).send({
         success: false,
         error: "Analytics tracking failed",
@@ -636,39 +578,44 @@ export default async function analyticsRoutes(app: FastifyInstance) {
     }
   });
 
-  app.get("/v1/admin/analytics/dashboard", ADMIN_PRE, async (request, reply) => {
-    try {
-      const query = readAdminAnalyticsQuery(request);
+  app.get(
+    "/v1/admin/analytics/dashboard",
+    ADMIN_PRE,
+    async (request, reply) => {
+      try {
+        const query = readAdminAnalyticsQuery(request);
 
-      const [summary, geography, pages, recent, trends, funnel] =
-        await Promise.all([
-          getSummary(query),
-          getGeography(query),
-          getPages(query),
-          getRecent(query),
-          getTrends(query),
-          getFunnel(query),
-        ]);
+        const [summary, geography, pages, recent, trends, funnel] =
+          await Promise.all([
+            getSummary(),
+            getGeography(query),
+            getPages(query),
+            getRecent(query),
+            getTrends(query),
+            getFunnel(query),
+          ]);
 
-      return reply.send({
-        summary,
-        geography,
-        pages,
-        recent,
-        trends,
-        funnel,
-      });
-    } catch (err: unknown) {
-      app.log.error({ err }, "admin.analytics.dashboard.failed");
-      return reply.code(500).send({
-        error: "Failed to load admin analytics dashboard",
-      });
+        return reply.send({
+          summary,
+          geography,
+          pages,
+          recent,
+          trends,
+          funnel,
+        });
+      } catch (err: unknown) {
+        app.log.error({ err }, "admin.analytics.dashboard.failed");
+
+        return reply.code(500).send({
+          error: "Failed to load admin analytics dashboard",
+        });
+      }
     }
-  });
+  );
 
-  app.get("/v1/admin/analytics/summary", ADMIN_PRE, async (request, reply) => {
+  app.get("/v1/admin/analytics/summary", ADMIN_PRE, async (_request, reply) => {
     try {
-      return reply.send(await getSummary(readAdminAnalyticsQuery(request)));
+      return reply.send(await getSummary());
     } catch (err: unknown) {
       app.log.error({ err }, "admin.analytics.summary.failed");
       return reply.code(500).send({
@@ -677,14 +624,18 @@ export default async function analyticsRoutes(app: FastifyInstance) {
     }
   });
 
-  app.get("/v1/admin/analytics/geography", ADMIN_PRE, async (request, reply) => {
-    try {
-      return reply.send(await getGeography(readAdminAnalyticsQuery(request)));
-    } catch (err: unknown) {
-      app.log.error({ err }, "analytics.geography.failed");
-      return reply.code(500).send({ error: "Failed geography analytics" });
+  app.get(
+    "/v1/admin/analytics/geography",
+    ADMIN_PRE,
+    async (request, reply) => {
+      try {
+        return reply.send(await getGeography(readAdminAnalyticsQuery(request)));
+      } catch (err: unknown) {
+        app.log.error({ err }, "analytics.geography.failed");
+        return reply.code(500).send({ error: "Failed geography analytics" });
+      }
     }
-  });
+  );
 
   app.get("/v1/admin/analytics/pages", ADMIN_PRE, async (request, reply) => {
     try {

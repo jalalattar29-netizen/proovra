@@ -1,7 +1,7 @@
 import { apiFetch } from "./api";
 
 type AnalyticsMetadataValue = string | number | boolean | null;
-type AnalyticsMetadata = Record<string, AnalyticsMetadataValue>;
+export type AnalyticsMetadata = Record<string, AnalyticsMetadataValue>;
 
 function getVisitorId(): string {
   if (typeof window === "undefined") return "server";
@@ -25,11 +25,33 @@ function getSessionId(): string {
   return id;
 }
 
-function getRouteType(pathname: string): string {
-  if (pathname.startsWith("/admin")) return "admin";
-  if (pathname.startsWith("/auth")) return "auth";
-  if (pathname.startsWith("/api")) return "api";
-  if (pathname.startsWith("/app")) return "app";
+function normalizePath(pathname: string | null | undefined): string | null {
+  if (!pathname) return null;
+  const value = pathname.trim();
+  if (!value) return null;
+  return value.startsWith("/") ? value : `/${value}`;
+}
+
+function getRouteType(pathname: string | null | undefined): string {
+  const path = normalizePath(pathname);
+  if (!path) return "unknown";
+
+  if (path.startsWith("/admin")) return "admin";
+  if (path.startsWith("/auth")) return "auth";
+  if (path.startsWith("/api")) return "api";
+
+  if (
+    path === "/home" ||
+    path.startsWith("/capture") ||
+    path.startsWith("/cases") ||
+    path.startsWith("/teams") ||
+    path.startsWith("/reports") ||
+    path.startsWith("/billing") ||
+    path.startsWith("/settings")
+  ) {
+    return "app";
+  }
+
   return "public";
 }
 
@@ -39,26 +61,28 @@ function humanizeEventType(eventType: string): string {
     .replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
+function classifyEventClass(eventType: string): string {
+  if (eventType === "page_view") return "navigation";
+  if (
+    eventType === "login_completed" ||
+    eventType === "register_completed"
+  ) {
+    return "auth";
+  }
+  if (eventType === "evidence_created") return "evidence";
+  if (eventType === "report_generated") return "report";
+  return "custom";
+}
+
 function buildDefaultMetadata(
   eventType: string,
+  pathname: string | null,
   extra?: AnalyticsMetadata
 ): AnalyticsMetadata {
-  const pathname =
-    typeof window !== "undefined" ? window.location.pathname : "/";
-
   return {
     routeType: getRouteType(pathname),
     displayLabel: humanizeEventType(eventType),
-    eventClass:
-      eventType === "page_view"
-        ? "navigation"
-        : eventType === "login_completed"
-        ? "auth"
-        : eventType === "evidence_created"
-        ? "evidence"
-        : eventType === "report_generated"
-        ? "report"
-        : "custom",
+    eventClass: classifyEventClass(eventType),
     severity: "info",
     ...extra,
   };
@@ -66,24 +90,28 @@ function buildDefaultMetadata(
 
 export async function trackEvent(
   eventType: string,
-  metadata?: AnalyticsMetadata
+  metadata?: AnalyticsMetadata,
+  options?: { pathname?: string | null; referrer?: string | null }
 ): Promise<void> {
   try {
+    const pathname = normalizePath(
+      options?.pathname ??
+        (typeof window !== "undefined" ? window.location.pathname : null)
+    );
+
+    const referrer =
+      options?.referrer ??
+      (typeof document !== "undefined" ? document.referrer : null);
+
     await apiFetch("/v1/analytics/track", {
       method: "POST",
       body: JSON.stringify({
         eventType,
         visitorId: getVisitorId(),
         sessionId: getSessionId(),
-        path:
-          typeof window !== "undefined"
-            ? window.location.pathname
-            : null,
-        referrer:
-          typeof document !== "undefined"
-            ? document.referrer
-            : null,
-        metadata: buildDefaultMetadata(eventType, metadata),
+        path: pathname,
+        referrer: referrer || null,
+        metadata: buildDefaultMetadata(eventType, pathname, metadata),
       }),
     });
   } catch (e) {

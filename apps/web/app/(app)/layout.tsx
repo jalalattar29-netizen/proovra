@@ -19,7 +19,7 @@ const BOTTOM_NAV = [
   { href: "/teams", label: "Teams", Icon: Icons.Teams },
   { href: "/reports", label: "Reports", Icon: Icons.Reports },
   { href: "/billing", label: "Billing", Icon: Icons.Billing },
-  { href: "/settings", label: "Settings", Icon: Icons.Settings }
+  { href: "/settings", label: "Settings", Icon: Icons.Settings },
 ];
 
 const MOBILE_PRIMARY_NAV = ["/home", "/capture", "/cases"];
@@ -30,14 +30,20 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const [moreOpen, setMoreOpen] = useState(false);
 
+  const isAdminSurface =
+    pathname === "/admin" || pathname?.startsWith("/admin/");
+
   useEffect(() => {
     if (!authReady) return;
 
     const stored =
-      typeof window !== "undefined" ? localStorage.getItem("proovra-token") : null;
+      typeof window !== "undefined"
+        ? localStorage.getItem("proovra-token")
+        : null;
 
     if (!hasSession && !stored) {
-      const webBase = process.env.NEXT_PUBLIC_WEB_BASE || "https://www.proovra.com";
+      const webBase =
+        process.env.NEXT_PUBLIC_WEB_BASE || "https://www.proovra.com";
       const next = pathname ? encodeURIComponent(pathname) : "";
       const returnUrl = next ? `returnUrl=${next}` : "";
       const separator = returnUrl ? "?" : "";
@@ -86,50 +92,55 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   if (!hasSession) return null;
 
   return (
-    <div className="page app-page">
+    <div className={`page app-page ${isAdminSurface ? "app-page-admin" : ""}`}>
       <AnalyticsTracker />
 
       <div className="blue-shell app-shell-top">
         <AppHeader hasSession={hasSession} onLogout={handleLogout} />
       </div>
 
-      <SilverWatermarkSection as="main" className="app-content">
+      <SilverWatermarkSection
+        as="main"
+        className={`app-content ${isAdminSurface ? "app-content-admin" : ""}`}
+      >
         {children}
       </SilverWatermarkSection>
 
-      <Footer />
+      {!isAdminSurface ? <Footer /> : null}
 
-      <nav className="app-bottom-nav">
-        <div className="container app-bottom-nav-inner">
-          {mobilePrimaryItems.map((item) => (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={`app-bottom-nav-link ${isActive(item.href) ? "active" : ""}`}
+      {!isAdminSurface ? (
+        <nav className="app-bottom-nav">
+          <div className="container app-bottom-nav-inner">
+            {mobilePrimaryItems.map((item) => (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={`app-bottom-nav-link ${isActive(item.href) ? "active" : ""}`}
+              >
+                <item.Icon />
+                <span>{item.label}</span>
+              </Link>
+            ))}
+
+            <button
+              type="button"
+              className={`app-bottom-nav-link app-bottom-nav-more-trigger app-bottom-nav-mobile-only ${
+                moreIsActive || moreOpen ? "active" : ""
+              }`}
+              onClick={() => setMoreOpen((prev) => !prev)}
+              aria-expanded={moreOpen}
+              aria-label="More navigation items"
             >
-              <item.Icon />
-              <span>{item.label}</span>
-            </Link>
-          ))}
+              <span className="app-bottom-nav-more-dots" aria-hidden="true">
+                •••
+              </span>
+              <span>More</span>
+            </button>
+          </div>
+        </nav>
+      ) : null}
 
-          <button
-            type="button"
-            className={`app-bottom-nav-link app-bottom-nav-more-trigger app-bottom-nav-mobile-only ${
-              moreIsActive || moreOpen ? "active" : ""
-            }`}
-            onClick={() => setMoreOpen((prev) => !prev)}
-            aria-expanded={moreOpen}
-            aria-label="More navigation items"
-          >
-            <span className="app-bottom-nav-more-dots" aria-hidden="true">
-              •••
-            </span>
-            <span>More</span>
-          </button>
-        </div>
-      </nav>
-
-      {moreOpen && (
+      {!isAdminSurface && moreOpen ? (
         <>
           <button
             type="button"
@@ -165,7 +176,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             </div>
           </div>
         </>
-      )}
+      ) : null}
     </div>
   );
 }

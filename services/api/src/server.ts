@@ -19,7 +19,6 @@ import { aiRoutes } from "./routes/ai.routes.js";
 import { enterpriseRoutes } from "./routes/enterprise.routes.js";
 import { teamManagementRoutes } from "./routes/team-management.routes.js";
 import { webhookRoutes } from "./routes/webhook.routes.js";
-import { auditRoutes } from "./routes/audit.routes.js";
 import analyticsRoutes from "./routes/analytics.routes.js";
 import { adminAuditRoutes } from "./routes/admin-audit.routes.js";
 import {
@@ -222,37 +221,37 @@ export async function buildServer() {
 
   await app.register(cookie);
 
-app.addHook("onRequest", async (req, reply) => {
-  const requestWithMeta = req as typeof req & {
-    startTimeMs?: number;
-    geo?: GeoContext;
-  };
+  app.addHook("onRequest", async (req, reply) => {
+    const requestWithMeta = req as typeof req & {
+      startTimeMs?: number;
+      geo?: GeoContext;
+    };
 
-  requestWithMeta.startTimeMs = Date.now();
-  requestWithMeta.geo = extractGeoContext({
-    headers: req.headers as Record<string, string | string[] | undefined>,
+    requestWithMeta.startTimeMs = Date.now();
+    requestWithMeta.geo = extractGeoContext({
+      headers: req.headers as Record<string, string | string[] | undefined>,
+    });
+
+    const childContext: Record<string, unknown> = { requestId: req.id };
+    if (requestWithMeta.geo && Object.keys(requestWithMeta.geo).length > 0) {
+      childContext.geo = requestWithMeta.geo;
+    }
+
+    req.log = req.log.child(childContext);
+
+    reply.header("x-request-id", req.id);
+    reply.header("x-content-type-options", "nosniff");
+    reply.header("x-frame-options", "DENY");
+    reply.header("referrer-policy", "same-origin");
+    reply.header("permissions-policy", "geolocation=(self)");
+
+    if (process.env.NODE_ENV === "production") {
+      reply.header(
+        "strict-transport-security",
+        "max-age=63072000; includeSubDomains; preload"
+      );
+    }
   });
-
-  const childContext: Record<string, unknown> = { requestId: req.id };
-  if (requestWithMeta.geo && Object.keys(requestWithMeta.geo).length > 0) {
-    childContext.geo = requestWithMeta.geo;
-  }
-
-  req.log = req.log.child(childContext);
-
-  reply.header("x-request-id", req.id);
-  reply.header("x-content-type-options", "nosniff");
-  reply.header("x-frame-options", "DENY");
-  reply.header("referrer-policy", "same-origin");
-  reply.header("permissions-policy", "geolocation=(self)");
-
-  if (process.env.NODE_ENV === "production") {
-    reply.header(
-      "strict-transport-security",
-      "max-age=63072000; includeSubDomains; preload"
-    );
-  }
-});
 
   app.addHook("onRequest", auditMiddleware);
 
@@ -376,7 +375,6 @@ app.addHook("onRequest", async (req, reply) => {
   await app.register(enterpriseRoutes);
   await app.register(teamManagementRoutes);
   await app.register(webhookRoutes);
-  await app.register(auditRoutes);
   await app.register(analyticsRoutes);
   await app.register(adminAuditRoutes);
 

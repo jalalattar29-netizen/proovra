@@ -122,7 +122,14 @@ type EventTypeFilter =
   | "evidence_created"
   | "report_generated";
 
-type RouteTypeFilter = "all" | "public" | "app" | "admin" | "auth" | "api" | "unknown";
+type RouteTypeFilter =
+  | "all"
+  | "public"
+  | "app"
+  | "admin"
+  | "auth"
+  | "api"
+  | "unknown";
 
 const DATE_RANGE_OPTIONS: { key: DateRangeKey; label: string }[] = [
   { key: "24h", label: "Last 24 hours" },
@@ -695,6 +702,10 @@ export default function AdminPage() {
     eventType: EventTypeFilter;
     routeType: RouteTypeFilter;
   } | null>(null);
+  const refreshAuditLogsRef = useRef<
+    ((cursor?: string | null) => Promise<void>) | null
+  >(null);
+  const hasMountedAuditFiltersRef = useRef(false);
 
   const trendMax = useMemo(() => maxTrendValue(trends), [trends]);
 
@@ -749,14 +760,33 @@ export default function AdminPage() {
 
         if (isRecord(data) && Array.isArray(data.items)) {
           const items = data.items as AuditLogRow[];
-          setAuditLogItems(items);
+
+          setAuditLogItems((prev) => {
+            if (!cursor) return items;
+
+            const existingIds = new Set(prev.map((item) => item.id));
+            const merged = [...prev];
+
+            for (const item of items) {
+              if (!existingIds.has(item.id)) {
+                merged.push(item);
+              }
+            }
+
+            return merged;
+          });
+
           setAuditCursor(items.length ? items[items.length - 1]?.id ?? null : null);
         } else {
-          setAuditLogItems([]);
+          if (!cursor) {
+            setAuditLogItems([]);
+          }
           setAuditCursor(null);
         }
       } catch {
-        setAuditLogItems([]);
+        if (!cursor) {
+          setAuditLogItems([]);
+        }
         setAuditCursor(null);
       } finally {
         setAuditLogsLoading(false);
@@ -764,6 +794,10 @@ export default function AdminPage() {
     },
     [auditAction, auditCategory, auditSeverity, auditOutcome, auditSearch]
   );
+
+  useEffect(() => {
+    refreshAuditLogsRef.current = refreshAuditLogs;
+  }, [refreshAuditLogs]);
 
   const refreshChainVerify = useCallback(async () => {
     try {
@@ -913,9 +947,29 @@ export default function AdminPage() {
 
   useEffect(() => {
     if (!authReady || !isAdminRole) return;
-    void refreshAuditLogs();
+    void refreshAuditLogsRef.current?.(null);
     void refreshChainVerify();
-  }, [authReady, isAdminRole, refreshAuditLogs, refreshChainVerify]);
+  }, [authReady, isAdminRole, refreshChainVerify]);
+
+  useEffect(() => {
+    if (!authReady || !isAdminRole) return;
+
+    if (!hasMountedAuditFiltersRef.current) {
+      hasMountedAuditFiltersRef.current = true;
+      return;
+    }
+
+    void refreshAuditLogs(null);
+  }, [
+    authReady,
+    isAdminRole,
+    auditAction,
+    auditCategory,
+    auditSeverity,
+    auditOutcome,
+    auditSearch,
+    refreshAuditLogs,
+  ]);
 
   useEffect(() => {
     if (!authReady) return;
@@ -948,7 +1002,11 @@ export default function AdminPage() {
       }
 
       setStats(summaryResponse);
-      setGeo(isValidGeographyResponse(geographyResponse) ? geographyResponse : { countries: [], cities: [] });
+      setGeo(
+        isValidGeographyResponse(geographyResponse)
+          ? geographyResponse
+          : { countries: [], cities: [] }
+      );
       setPages(isValidTopPages(pagesResponse) ? pagesResponse : []);
       setRecent(isValidRecentEvents(recentResponse) ? recentResponse : []);
       setTrends(isValidTrendPoints(trendsResponse) ? trendsResponse : []);
@@ -1517,9 +1575,12 @@ export default function AdminPage() {
                       <div style={{ display: "grid", gap: 12 }}>
                         {pages.slice(0, 10).map((item, idx) => (
                           <button
-                            key={`page-${item.path ?? "unknown"}`}
+                            key={`page-${item.path ?? "unknown"}-${item.routeType ?? "unknown"}-${idx}`}
                             type="button"
-                            onClick={() => setSelectedPath(item.path ?? null)}
+                            onClick={() => {
+                              const nextPath = item.path ?? null;
+                              setSelectedPath((prev) => (prev === nextPath ? null : nextPath));
+                            }}
                             style={{
                               display: "flex",
                               alignItems: "center",
@@ -1692,7 +1753,12 @@ export default function AdminPage() {
                             <button
                               key={`country-${item.name ?? "unknown"}`}
                               type="button"
-                              onClick={() => setSelectedCountryCode(item.countryCode ?? null)}
+                              onClick={() => {
+                                const nextCountryCode = item.countryCode ?? null;
+                                setSelectedCountryCode((prev) =>
+                                  prev === nextCountryCode ? null : nextCountryCode
+                                );
+                              }}
                               style={{
                                 display: "flex",
                                 alignItems: "center",
@@ -1762,7 +1828,10 @@ export default function AdminPage() {
                             <button
                               key={`city-${item.name ?? "unknown"}`}
                               type="button"
-                              onClick={() => setSelectedCity(item.normalized ?? item.name ?? null)}
+                              onClick={() => {
+                                const nextCity = item.normalized ?? item.name ?? null;
+                                setSelectedCity((prev) => (prev === nextCity ? null : nextCity));
+                              }}
                               style={{
                                 display: "flex",
                                 alignItems: "center",
@@ -1867,7 +1936,7 @@ export default function AdminPage() {
                                 {item.path ?? "No route path"}
                               </div>
                               <div style={{ fontSize: 11, color: UI.textSecondary, marginBottom: 4 }}>
-                                user: {shortId(item.userId)} · session: {shortId(item.sessionId)}
+                                Actor {shortId(item.userId)} · Session {shortId(item.sessionId)}
                               </div>
                               <div style={{ fontSize: 11, color: UI.textMuted }}>
                                 {item.city ?? item.country ?? "Location unavailable"}
@@ -2117,7 +2186,7 @@ export default function AdminPage() {
                       <div style={{ display: "flex", gap: 10 }}>
                         <button
                           type="button"
-                          onClick={() => void refreshAuditLogs()}
+                          onClick={() => void refreshAuditLogs(null)}
                           style={{
                             padding: "8px 14px",
                             fontSize: 13,
@@ -2139,6 +2208,10 @@ export default function AdminPage() {
                             setAuditSeverity("");
                             setAuditOutcome("");
                             setAuditSearch("");
+
+                            setTimeout(() => {
+                              void refreshAuditLogs(null);
+                            }, 0);
                           }}
                           style={{
                             padding: "8px 14px",
@@ -2279,8 +2352,8 @@ export default function AdminPage() {
                         <div style={{ fontSize: 14, fontWeight: 700, color: UI.textPrimary }}>v1</div>
                       </div>
                       <div>
-                        <div style={{ fontSize: 12, color: UI.textMuted, marginBottom: 6 }}>Data source</div>
-                        <div style={{ fontSize: 14, fontWeight: 700, color: UI.textPrimary }}>PostgreSQL + analytics events</div>
+                        <div style={{ fontSize: 12, color: UI.textMuted, marginBottom: 6 }}>Dashboard source</div>
+                        <div style={{ fontSize: 14, fontWeight: 700, color: UI.textPrimary }}>PostgreSQL analytics aggregates</div>
                       </div>
                       <div>
                         <div style={{ fontSize: 12, color: UI.textMuted, marginBottom: 6 }}>Audit integrity</div>
@@ -2288,7 +2361,12 @@ export default function AdminPage() {
                           style={{
                             fontSize: 13,
                             fontWeight: 700,
-                            color: chainVerify && chainVerify.valid ? UI.success : "#FCA5A5",
+                            color:
+                              chainVerify === null
+                                ? "#FCD34D"
+                                : chainVerify.valid
+                                ? UI.success
+                                : "#FCA5A5",
                             display: "flex",
                             alignItems: "center",
                             gap: 6,
@@ -2299,14 +2377,25 @@ export default function AdminPage() {
                               width: 8,
                               height: 8,
                               borderRadius: 999,
-                              backgroundColor: chainVerify && chainVerify.valid ? UI.success : "#EF4444",
+                              backgroundColor:
+                                chainVerify === null
+                                  ? "#F59E0B"
+                                  : chainVerify.valid
+                                  ? UI.success
+                                  : "#EF4444",
                               boxShadow:
-                                chainVerify && chainVerify.valid
+                                chainVerify === null
+                                  ? "0 0 12px rgba(245, 158, 11, 0.7)"
+                                  : chainVerify.valid
                                   ? "0 0 12px rgba(52, 211, 153, 0.7)"
                                   : "0 0 12px rgba(239, 68, 68, 0.7)",
                             }}
                           />
-                          {chainVerify && chainVerify.valid ? "Verified" : "Needs review"}
+                          {chainVerify === null
+                            ? "Unavailable"
+                            : chainVerify.valid
+                            ? "Verified"
+                            : "Needs review"}
                         </div>
                       </div>
                       <div>

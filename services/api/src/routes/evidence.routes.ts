@@ -1,12 +1,10 @@
 import type { FastifyInstance, FastifyRequest } from "fastify";
 import { z } from "zod";
-import { randomUUID } from "crypto";
 import { requireAuth } from "../middleware/auth.js";
 import { getAuthUserId } from "../auth.js";
 import { createEvidence } from "../services/evidence.service.js";
 import { completeEvidence } from "../services/evidence-complete.service.js";
 import * as prismaPkg from "@prisma/client";
-import type { Prisma } from "@prisma/client";
 import { prisma } from "../db.js";
 import {
   presignGetObject,
@@ -25,6 +23,7 @@ import {
   ed25519VerifyHexSignature,
   sha256Hex,
 } from "../crypto.js";
+import { writeAnalyticsEvent } from "../services/analytics-event.service.js";
 
 const EvidenceTypeSchema = prismaPkg.EvidenceType
   ? z.nativeEnum(prismaPkg.EvidenceType)
@@ -131,6 +130,39 @@ type AnchorStatusSummary = {
   anchoredAtUtc: string | null;
 };
 
+type SafeEvidence = {
+  id: string;
+  title: string;
+  type: prismaPkg.EvidenceType;
+  status: prismaPkg.EvidenceStatus;
+  createdAt: string;
+  uploadedAtUtc: string | null;
+  signedAtUtc: string | null;
+  capturedAtUtc: string | null;
+  deviceTimeIso: string | null;
+  lat: number | null;
+  lng: number | null;
+  accuracyMeters: number | null;
+  mimeType: string | null;
+  storageBucket: string | null;
+  storageKey: string | null;
+  storageRegion: string | null;
+  storageObjectLockMode: string | null;
+  storageObjectLockRetainUntilUtc: string | null;
+  storageObjectLockLegalHoldStatus: string | null;
+  sizeBytes: string | null;
+  fileSha256: string | null;
+  fingerprintHash: string | null;
+  signatureBase64: string | null;
+  signingKeyId: string | null;
+  signingKeyVersion: number | null;
+  lockedAt: string | null;
+  lockedByUserId: string | null;
+  archivedAt: string | null;
+  caseId: string | null;
+  teamId: string | null;
+};
+
 function readPositiveIntEnv(name: string, fallback: number): number {
   const raw = process.env[name]?.trim();
   if (!raw) return fallback;
@@ -168,27 +200,6 @@ function getRequestPath(req: FastifyRequest): string {
   const url = req.url || "";
   const qIndex = url.indexOf("?");
   return qIndex >= 0 ? url.slice(0, qIndex) : url;
-}
-
-function classifyRouteType(path: string | null | undefined):
-  | "public"
-  | "app"
-  | "admin"
-  | "auth"
-  | "api"
-  | "unknown" {
-  if (!path) return "unknown";
-  if (path.startsWith("/admin")) return "admin";
-  if (path.startsWith("/auth")) return "auth";
-  if (path.startsWith("/api")) return "api";
-  if (path.startsWith("/app")) return "app";
-  return "public";
-}
-
-function humanizeEventType(eventType: string): string {
-  return eventType
-    .replace(/_/g, " ")
-    .replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
 function auditEvidenceAction(
@@ -244,7 +255,7 @@ function auditVerificationAction(
   }).catch(() => null);
 }
 
-function fireServerAnalyticsEvent(params: {
+function fireEvidenceAnalyticsEvent(params: {
   eventType: string;
   userId: string;
   req?: FastifyRequest;
@@ -253,35 +264,17 @@ function fireServerAnalyticsEvent(params: {
   severity?: string | null;
   metadata?: Record<string, unknown>;
 }) {
-  const path = params.req ? getRequestPath(params.req) : null;
-  const routeType = classifyRouteType(path);
-
-  void prisma.analyticsEvent
-    .create({
-      data: {
-        eventType: params.eventType,
-        userId: params.userId,
-        sessionId: `server_${params.eventType}_${Date.now()}_${randomUUID()}`,
-        visitorId: `server_user_${params.userId}`,
-        path,
-        referrer: null,
-        routeType,
-        eventClass:
-          params.eventType === "evidence_created"
-            ? "evidence"
-            : params.eventType === "report_generated"
-            ? "report"
-            : "custom",
-        displayLabel: humanizeEventType(params.eventType),
-        entityType: params.entityType ?? "evidence",
-        entityId: params.entityId ?? null,
-        severity: params.severity ?? "info",
-        device: params.req ? readUserAgent(params.req) : "server",
-        browser: params.req ? readUserAgent(params.req) : "server",
-        metadata: (params.metadata ?? {}) as Prisma.InputJsonValue,
-      },
-    })
-    .catch(() => null);
+  void writeAnalyticsEvent({
+    eventType: params.eventType,
+    userId: params.userId,
+    path: params.req ? getRequestPath(params.req) : null,
+    entityType: params.entityType ?? "evidence",
+    entityId: params.entityId ?? null,
+    severity: params.severity ?? "info",
+    metadata: params.metadata ?? {},
+    req: params.req,
+    skipSessionUpsert: true,
+  }).catch(() => null);
 }
 
 async function getUserPlan(userId: string) {
@@ -656,39 +649,6 @@ function summarizePublicPayload(
   }
 }
 
-type SafeEvidence = {
-  id: string;
-  title: string;
-  type: prismaPkg.EvidenceType;
-  status: prismaPkg.EvidenceStatus;
-  createdAt: string;
-  uploadedAtUtc: string | null;
-  signedAtUtc: string | null;
-  capturedAtUtc: string | null;
-  deviceTimeIso: string | null;
-  lat: number | null;
-  lng: number | null;
-  accuracyMeters: number | null;
-  mimeType: string | null;
-  storageBucket: string | null;
-  storageKey: string | null;
-  storageRegion: string | null;
-  storageObjectLockMode: string | null;
-  storageObjectLockRetainUntilUtc: string | null;
-  storageObjectLockLegalHoldStatus: string | null;
-  sizeBytes: string | null;
-  fileSha256: string | null;
-  fingerprintHash: string | null;
-  signatureBase64: string | null;
-  signingKeyId: string | null;
-  signingKeyVersion: number | null;
-  lockedAt: string | null;
-  lockedByUserId: string | null;
-  archivedAt: string | null;
-  caseId: string | null;
-  teamId: string | null;
-};
-
 function toSafeEvidence(e: SelectedEvidence): SafeEvidence {
   return {
     id: e.id,
@@ -1048,7 +1008,7 @@ export async function evidenceRoutes(app: FastifyInstance) {
       (req as FastifyRequest & { evidenceId?: string }).evidenceId = result.id;
       req.log = req.log.child({ evidenceId: result.id });
 
-      fireServerAnalyticsEvent({
+      fireEvidenceAnalyticsEvent({
         eventType: "evidence_created",
         userId: ownerUserId,
         req,
@@ -2137,20 +2097,7 @@ export async function evidenceRoutes(app: FastifyInstance) {
         if (!refreshed) {
           return reply.code(404).send({ message: "Evidence not found" });
         }
-
-        fireServerAnalyticsEvent({
-          eventType: "report_generated",
-          userId: ownerUserId,
-          req,
-          entityType: "evidence",
-          entityId: id,
-          severity: "info",
-          metadata: {
-            evidenceId: id,
-            status: refreshed.status,
-          },
-        });
-
+        
         auditEvidenceAction(req, {
           userId: ownerUserId,
           action: "evidence.complete",

@@ -21,16 +21,37 @@ const MAX_OUTCOME_LEN = 24;
 const MAX_RESOURCE_TYPE_LEN = 64;
 const MAX_RESOURCE_ID_LEN = 128;
 const MAX_REQUEST_ID_LEN = 64;
+const VERIFY_TAIL_MAX = 50_000;
 
 type JsonPrimitive = string | number | boolean | null;
+
+type AuditRowForVerify = {
+  id: string;
+  userId: string | null;
+  action: string;
+  category: string | null;
+  severity: string | null;
+  source: string | null;
+  outcome: string | null;
+  resourceType: string | null;
+  resourceId: string | null;
+  requestId: string | null;
+  metadata: Prisma.JsonValue;
+  hash: string;
+  prevHash: string | null;
+  chainVersion: number;
+  createdAt: Date;
+};
 
 function truncateString(
   value: string | null | undefined,
   max: number
 ): string | null {
   if (!value) return null;
+
   const t = value.trim();
   if (!t) return null;
+
   return t.length > max ? t.slice(0, max) : t;
 }
 
@@ -40,25 +61,35 @@ function sanitizeValue(
 ): JsonPrimitive | unknown[] | Record<string, unknown> {
   if (depth > 6) return "[max_depth]";
   if (value === null) return null;
+
   if (typeof value === "string") {
     return value.length > 2000 ? `${value.slice(0, 2000)}…` : value;
   }
+
   if (typeof value === "number") {
     return Number.isFinite(value) ? value : null;
   }
+
   if (typeof value === "boolean") return value;
+
   if (Array.isArray(value)) {
-    return value.slice(0, 50).map((v) => sanitizeValue(v, depth + 1)) as unknown[];
+    return value
+      .slice(0, 50)
+      .map((v) => sanitizeValue(v, depth + 1)) as unknown[];
   }
+
   if (typeof value === "object") {
     const entries = Object.entries(value as Record<string, unknown>).slice(0, 40);
     const out: Record<string, unknown> = {};
+
     for (const [k, v] of entries) {
       const key = k.length > 120 ? k.slice(0, 120) : k;
       out[key] = sanitizeValue(v, depth + 1);
     }
+
     return out;
   }
+
   return null;
 }
 
@@ -66,12 +97,15 @@ export function sanitizeAuditMetadata(raw: unknown): Prisma.InputJsonValue {
   if (raw === null || raw === undefined) {
     return {};
   }
+
   if (typeof raw === "object") {
     assertMetadataMaxDepth(raw, METADATA_MAX_DEPTH_DEFAULT);
   }
+
   if (typeof raw !== "object" || Array.isArray(raw)) {
     return { value: sanitizeValue(raw, 0) } as Prisma.InputJsonValue;
   }
+
   return sanitizeValue(raw, 0) as Prisma.InputJsonValue;
 }
 
@@ -84,15 +118,19 @@ export function assertMetadataSize(metadata: Prisma.InputJsonValue): void {
 
 function truncateUa(ua: string | undefined, max: number): string | null {
   if (!ua) return null;
+
   const t = ua.trim();
   if (!t) return null;
+
   return t.length > max ? t.slice(0, max) : t;
 }
 
 function truncateIp(ip: string | undefined): string | null {
   if (!ip) return null;
+
   const t = ip.trim();
   if (!t) return null;
+
   return t.length > 45 ? t.slice(0, 45) : t;
 }
 
@@ -121,6 +159,7 @@ export async function appendPlatformAuditLog(
 
   const isPublic = params.isPublic === true;
   const userId = params.userId;
+
   if (!isPublic && (userId === null || userId === "")) {
     throw new Error("INVALID_USER_ID");
   }
@@ -146,7 +185,9 @@ export async function appendPlatformAuditLog(
     });
 
     const createdAt = new Date();
-    const metadataCanonical = canonicalJsonForAuditHash(sanitized as Prisma.JsonValue);
+    const metadataCanonical = canonicalJsonForAuditHash(
+      sanitized as Prisma.JsonValue
+    );
 
     const hash = computeAuditLogChainHash({
       chainVersion: 2,
@@ -188,24 +229,43 @@ export async function appendPlatformAuditLog(
   });
 }
 
+function computeExpectedHashForRow(
+  row: AuditRowForVerify,
+  previousHash: string | null,
+  version: 1 | 2
+): string {
+  const metadataCanonical = canonicalJsonForAuditHash(row.metadata);
+
+  if (version === 2) {
+    return computeAuditLogChainHash({
+      chainVersion: 2,
+      userId: row.userId,
+      action: row.action,
+      category: row.category,
+      severity: row.severity,
+      source: row.source,
+      outcome: row.outcome,
+      resourceType: row.resourceType,
+      resourceId: row.resourceId,
+      requestId: row.requestId,
+      metadataCanonical,
+      createdAtIso: row.createdAt.toISOString(),
+      prevHash: previousHash,
+    });
+  }
+
+  return computeAuditLogChainHash({
+    chainVersion: 1,
+    userId: row.userId,
+    action: row.action,
+    metadataCanonical,
+    createdAtIso: row.createdAt.toISOString(),
+    prevHash: previousHash,
+  });
+}
+
 function verifyOrderedRows(
-  rows: Array<{
-    id: string;
-    userId: string | null;
-    action: string;
-    category: string | null;
-    severity: string | null;
-    source: string | null;
-    outcome: string | null;
-    resourceType: string | null;
-    resourceId: string | null;
-    requestId: string | null;
-    metadata: Prisma.JsonValue;
-    hash: string;
-    prevHash: string | null;
-    chainVersion: number;
-    createdAt: Date;
-  }>,
+  rows: AuditRowForVerify[],
   expectedPrevForFirst: string | null
 ):
   | { valid: true }
@@ -217,33 +277,10 @@ function verifyOrderedRows(
       return { valid: false, brokenAt: row.id };
     }
 
-    const metadataCanonical = canonicalJsonForAuditHash(row.metadata);
-
-    const expected = computeAuditLogChainHash(
-      row.chainVersion >= 2
-        ? {
-            chainVersion: 2,
-            userId: row.userId,
-            action: row.action,
-            category: row.category,
-            severity: row.severity,
-            source: row.source,
-            outcome: row.outcome,
-            resourceType: row.resourceType,
-            resourceId: row.resourceId,
-            requestId: row.requestId,
-            metadataCanonical,
-            createdAtIso: row.createdAt.toISOString(),
-            prevHash: previousHash,
-          }
-        : {
-            chainVersion: 1,
-            userId: row.userId,
-            action: row.action,
-            metadataCanonical,
-            createdAtIso: row.createdAt.toISOString(),
-            prevHash: previousHash,
-          }
+    const expected = computeExpectedHashForRow(
+      row,
+      previousHash,
+      row.chainVersion === 2 ? 2 : 1
     );
 
     if (expected !== row.hash) {
@@ -256,8 +293,6 @@ function verifyOrderedRows(
   return { valid: true };
 }
 
-const VERIFY_TAIL_MAX = 50_000;
-
 export async function verifyAdminAuditChain(options?: {
   db?: PrismaClient;
   tailLimit?: number | null;
@@ -267,6 +302,7 @@ export async function verifyAdminAuditChain(options?: {
 > {
   const db = options?.db ?? prisma;
   const rawLimit = options?.tailLimit;
+
   const tailLimit =
     rawLimit != null && Number.isFinite(rawLimit) && rawLimit > 0
       ? Math.min(Math.floor(rawLimit), VERIFY_TAIL_MAX)
@@ -295,6 +331,7 @@ export async function verifyAdminAuditChain(options?: {
       orderBy: [{ createdAt: "asc" }, { id: "asc" }],
       select,
     });
+
     return verifyOrderedRows(rows, null);
   }
 
@@ -311,6 +348,7 @@ export async function verifyAdminAuditChain(options?: {
   }
 
   const first = rows[0];
+
   const predecessor = await db.adminAuditLog.findFirst({
     where: {
       OR: [
@@ -326,9 +364,79 @@ export async function verifyAdminAuditChain(options?: {
 
   const expectedPrev = predecessor?.hash ?? null;
   const result = verifyOrderedRows(rows, expectedPrev);
+
   if (!result.valid) return result;
 
   return { valid: true, partial: true, verifiedCount: rows.length };
+}
+
+export async function repairAdminAuditChainVersions(options?: {
+  db?: PrismaClient;
+  dryRun?: boolean;
+}): Promise<{
+  totalRows: number;
+  updatedRows: number;
+  brokenAt: string | null;
+}> {
+  const db = options?.db ?? prisma;
+  const dryRun = options?.dryRun === true;
+
+  const rows = await db.adminAuditLog.findMany({
+    orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+    select: {
+      id: true,
+      userId: true,
+      action: true,
+      category: true,
+      severity: true,
+      source: true,
+      outcome: true,
+      resourceType: true,
+      resourceId: true,
+      requestId: true,
+      metadata: true,
+      hash: true,
+      prevHash: true,
+      chainVersion: true,
+      createdAt: true,
+    },
+  });
+
+  let previousHash: string | null = null;
+  let updatedRows = 0;
+
+  for (const row of rows) {
+    if (row.prevHash !== previousHash) {
+      return { totalRows: rows.length, updatedRows, brokenAt: row.id };
+    }
+
+    const expectedV1 = computeExpectedHashForRow(row, previousHash, 1);
+    const expectedV2 = computeExpectedHashForRow(row, previousHash, 2);
+
+    let resolvedVersion: 1 | 2 | null = null;
+
+    if (expectedV2 === row.hash) resolvedVersion = 2;
+    else if (expectedV1 === row.hash) resolvedVersion = 1;
+
+    if (resolvedVersion === null) {
+      return { totalRows: rows.length, updatedRows, brokenAt: row.id };
+    }
+
+    if (row.chainVersion !== resolvedVersion) {
+      updatedRows += 1;
+
+      if (!dryRun) {
+        await db.adminAuditLog.update({
+          where: { id: row.id },
+          data: { chainVersion: resolvedVersion },
+        });
+      }
+    }
+
+    previousHash = row.hash;
+  }
+
+  return { totalRows: rows.length, updatedRows, brokenAt: null };
 }
 
 export async function listAdminAuditLogs(params: {
@@ -367,6 +475,7 @@ export async function listAdminAuditLogs(params: {
   const take = Math.min(Math.max(params.limit, 1), 100);
 
   let cursorRow: { id: string; createdAt: Date } | null = null;
+
   if (params.cursorId) {
     cursorRow = await db.adminAuditLog.findUnique({
       where: { id: params.cursorId },
