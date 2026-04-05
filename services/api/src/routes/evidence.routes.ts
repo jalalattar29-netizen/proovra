@@ -21,7 +21,6 @@ import {
 import { appendPlatformAuditLog } from "../services/platform-audit-log.service.js";
 import { ed25519VerifyHexSignature, sha256Hex } from "../crypto.js";
 import { writeAnalyticsEvent } from "../services/analytics-event.service.js";
-import { enqueueEvidencePurgeJob } from "../../../worker/src/queue.js";
 
 const EvidenceTypeSchema = prismaPkg.EvidenceType
   ? z.nativeEnum(prismaPkg.EvidenceType)
@@ -880,7 +879,7 @@ async function getEvidenceWithReadAccess(
     select: SAFE_EVIDENCE_SELECT,
   });
 
-  if (!evidence || evidence.deletedAt) {
+  if (!evidence) {
     const err: Error & { statusCode?: number } = new Error("Evidence not found");
     err.statusCode = 404;
     throw err;
@@ -951,7 +950,7 @@ async function getEvidenceWithOwnerAccess(
     select: SAFE_EVIDENCE_SELECT,
   });
 
-  if (!evidence || evidence.deletedAt) {
+  if (!evidence) {
     const err: Error & { statusCode?: number } = new Error("Evidence not found");
     err.statusCode = 404;
     throw err;
@@ -1748,8 +1747,8 @@ export async function evidenceRoutes(app: FastifyInstance) {
 
       await appendCustodyEvent({
         evidenceId: id,
-        eventType: prismaPkg.CustodyEventType.EVIDENCE_RESTORED,
-        payload: { restoredByUserId: ownerUserId },
+        eventType: prismaPkg.CustodyEventType.EVIDENCE_DELETE_RESTORED,
+        payload: { restoredByUserId: ownerUserId, restoreSource: "trash" },
         ip: req.ip,
         userAgent: req.headers["user-agent"],
       }).catch(() => null);
@@ -1863,29 +1862,12 @@ export async function evidenceRoutes(app: FastifyInstance) {
         select: SAFE_EVIDENCE_SELECT,
       });
 
-      try {
-        await enqueueEvidencePurgeJob(id, deleteScheduledForUtc);
-      } catch (queueError) {
-        auditEvidenceAction(req, {
-          userId: ownerUserId,
-          action: "evidence.purge_schedule",
-          outcome: "failure",
-          severity: "warning",
-          resourceId: id,
-          metadata: {
-            reason:
-              queueError instanceof Error
-                ? queueError.message
-                : "unknown_queue_error",
-          },
-        });
-      }
-
       await appendCustodyEvent({
         evidenceId: id,
-        eventType: prismaPkg.CustodyEventType.EVIDENCE_DELETED,
+        eventType: prismaPkg.CustodyEventType.EVIDENCE_DELETE_SCHEDULED,
         payload: {
           deletedByUserId: ownerUserId,
+          deletedAtUtc: now.toISOString(),
           deleteScheduledForUtc: deleteScheduledForUtc.toISOString(),
         },
         ip: req.ip,
