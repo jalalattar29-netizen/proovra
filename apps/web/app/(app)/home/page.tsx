@@ -45,9 +45,6 @@ export default function HomePage() {
     apiFetch("/v1/evidence?scope=active")
       .then((data) => {
         setItems(data.items ?? []);
-        if (data.items && data.items.length > 0) {
-          addToast(`Loaded ${data.items.length} evidence item(s)`, "success");
-        }
       })
       .catch((err) => {
         const errorMessage = err?.message || "Failed to load evidence";
@@ -148,46 +145,57 @@ export default function HomePage() {
             <Card className="app-card">
               <div className="app-card-title">Quick Actions</div>
 
-<div className="app-actions-grid">
-  <Link href="/capture">
-    <Button
-      className="navy-btn action-btn"
-      onClick={() => addToast("Opening capture...", "info")}
-    >
-      New Capture
-    </Button>
-  </Link>
+              <div className="app-actions-grid">
+                <Link href="/capture">
+                  <Button
+                    className="navy-btn action-btn"
+                    onClick={() => addToast("Opening capture...", "info")}
+                  >
+                    New Capture
+                  </Button>
+                </Link>
 
-  <Link href="/cases">
-    <Button
-      variant="secondary"
-      className="navy-btn action-btn"
-      onClick={() => addToast("Loading cases...", "info")}
-    >
-      View Cases
-    </Button>
-  </Link>
+                <Link href="/cases">
+                  <Button
+                    variant="secondary"
+                    className="navy-btn action-btn"
+                    onClick={() => addToast("Loading cases...", "info")}
+                  >
+                    View Cases
+                  </Button>
+                </Link>
 
-  <Link href="/archive">
-    <Button
-      variant="secondary"
-      className="navy-btn action-btn"
-      onClick={() => addToast("Opening archive...", "info")}
-    >
-      Archived Evidence
-    </Button>
-  </Link>
+                <Link href="/archive">
+                  <Button
+                    variant="secondary"
+                    className="navy-btn action-btn"
+                    onClick={() => addToast("Opening archive...", "info")}
+                  >
+                    Archived Evidence
+                  </Button>
+                </Link>
 
-  <Link href="/settings">
-    <Button
-      variant="secondary"
-      className="navy-btn action-btn"
-      onClick={() => addToast("Opening settings...", "info")}
-    >
-      Manage Settings
-    </Button>
-  </Link>
-</div>
+                <Link href="/deleted">
+                  <Button
+                    variant="secondary"
+                    className="navy-btn action-btn"
+                    onClick={() => addToast("Opening deleted evidence...", "info")}
+                  >
+                    Deleted Evidence
+                  </Button>
+                </Link>
+
+                <Link href="/settings">
+                  <Button
+                    variant="secondary"
+                    className="navy-btn action-btn"
+                    onClick={() => addToast("Opening settings...", "info")}
+                  >
+                    Manage Settings
+                  </Button>
+                </Link>
+              </div>
+
               <div className="status-banner" style={{ marginTop: 18 }}>
                 <div className="status-badge">✓</div>
                 <div>

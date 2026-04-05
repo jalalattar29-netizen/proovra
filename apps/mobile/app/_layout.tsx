@@ -1,38 +1,45 @@
-// D:\digital-witness\apps\mobile\app\_layout.tsx
-import { Stack } from "expo-router";
-import { LocaleProvider } from "../src/locale-context";
-import { AuthProvider } from "../src/auth-context";
-import { ToastProvider } from "../src/toast-context";
-import { initSentry } from "../src/sentry";
-import { ErrorBoundary } from "../src/error-boundary";
-import { appTheme } from "../src/app-theme";
+import { Tabs } from "expo-router";
+import React from "react";
 
-export default function RootLayout() {
-  initSentry();
+export default function TabsLayout() {
   return (
-    <ErrorBoundary>
-      {/* خلفية عامة حتى ما يطلع white flash */}
-      <LocaleProvider>
-        <AuthProvider>
-          <ToastProvider>
-            <Stack
-              screenOptions={{
-                headerShown: false,
-                contentStyle: { backgroundColor: appTheme.bg }
-              }}
-            >
-              <Stack.Screen name="index" options={{ headerShown: false }} />
-              <Stack.Screen name="(tabs)" />
-              <Stack.Screen name="(stack)/auth" />
-              <Stack.Screen name="(stack)/capture" />
-              <Stack.Screen name="(stack)/billing" />
-              <Stack.Screen name="(stack)/case/[id]" />
-              <Stack.Screen name="(stack)/evidence/[id]" />
-              <Stack.Screen name="verify" />
-            </Stack>
-          </ToastProvider>
-        </AuthProvider>
-      </LocaleProvider>
-    </ErrorBoundary>
+    <Tabs
+      screenOptions={{
+        headerShown: false,
+        tabBarActiveTintColor: "#8ae9ff",
+        tabBarInactiveTintColor: "#7c8aa5",
+        tabBarStyle: {
+          backgroundColor: "#050b18",
+          borderTopColor: "rgba(101,235,255,0.14)",
+          height: 66,
+          paddingTop: 8,
+          paddingBottom: 8,
+        },
+        sceneStyle: {
+          backgroundColor: "#050b18",
+        },
+      }}
+    >
+      <Tabs.Screen
+        name="home"
+        options={{
+          title: "Home",
+        }}
+      />
+
+      <Tabs.Screen
+        name="archive"
+        options={{
+          title: "Archived Evidence",
+        }}
+      />
+
+      <Tabs.Screen
+        name="deleted"
+        options={{
+          title: "Deleted Evidence",
+        }}
+      />
+    </Tabs>
   );
 }

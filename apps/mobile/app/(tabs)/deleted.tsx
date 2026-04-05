@@ -13,19 +13,21 @@ import {
 import { useRouter } from "expo-router";
 import { apiFetch } from "../../src/api";
 
-type ArchivedItem = {
+type DeletedEvidenceItem = {
   id: string;
   title?: string | null;
+  type?: string | null;
   status?: string | null;
   createdAt?: string | null;
-  archivedAt?: string | null;
+  deletedAt?: string | null;
+  deleteScheduledForUtc?: string | null;
   itemCount?: number;
   displaySubtitle?: string | null;
 };
 
-type ArchivedResponse = {
+type DeletedEvidenceResponse = {
   scope?: string;
-  items?: ArchivedItem[];
+  items?: DeletedEvidenceItem[];
 };
 
 function formatUtcDateTime(value: string | null | undefined): string {
@@ -47,21 +49,21 @@ function formatUtcDateTime(value: string | null | undefined): string {
   return `${day} ${month} ${year}, ${hours}:${minutes}:${seconds} UTC`;
 }
 
-function resolveTitle(item: ArchivedItem): string {
+function resolveTitle(item: DeletedEvidenceItem): string {
   const raw = typeof item.title === "string" ? item.title.trim() : "";
   return raw || "Digital Evidence Record";
 }
 
-export default function ArchiveScreen() {
+export default function DeletedEvidenceScreen() {
   const router = useRouter();
 
-  const [items, setItems] = useState<ArchivedItem[]>([]);
+  const [items, setItems] = useState<DeletedEvidenceItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [restoringId, setRestoringId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const loadArchivedEvidence = useCallback(async (isRefresh = false) => {
+  const loadDeletedEvidence = useCallback(async (isRefresh = false) => {
     try {
       if (isRefresh) {
         setRefreshing(true);
@@ -72,13 +74,13 @@ export default function ArchiveScreen() {
       setError(null);
 
       const data = (await apiFetch(
-        "/v1/evidence?scope=archived"
-      )) as ArchivedResponse;
+        "/v1/evidence?scope=deleted"
+      )) as DeletedEvidenceResponse;
 
       setItems(Array.isArray(data?.items) ? data.items : []);
     } catch (err) {
       const message =
-        err instanceof Error ? err.message : "Failed to load archived evidence";
+        err instanceof Error ? err.message : "Failed to load deleted evidence";
       setError(message);
     } finally {
       setLoading(false);
@@ -87,12 +89,12 @@ export default function ArchiveScreen() {
   }, []);
 
   useEffect(() => {
-    void loadArchivedEvidence();
-  }, [loadArchivedEvidence]);
+    void loadDeletedEvidence();
+  }, [loadDeletedEvidence]);
 
   const handleRefresh = useCallback(async () => {
-    await loadArchivedEvidence(true);
-  }, [loadArchivedEvidence]);
+    await loadDeletedEvidence(true);
+  }, [loadDeletedEvidence]);
 
   const handleOpenEvidence = useCallback(
     (evidenceId: string) => {
@@ -101,12 +103,12 @@ export default function ArchiveScreen() {
     [router]
   );
 
-  const handleRestore = useCallback((item: ArchivedItem) => {
+  const handleRestore = useCallback((item: DeletedEvidenceItem) => {
     if (!item.id) return;
 
     Alert.alert(
       "Restore Evidence",
-      "Do you want to restore this evidence from archive?",
+      "Do you want to restore this evidence from secure trash?",
       [
         { text: "Cancel", style: "cancel" },
         {
@@ -115,9 +117,9 @@ export default function ArchiveScreen() {
             try {
               setRestoringId(item.id);
 
-              await apiFetch(`/v1/evidence/${item.id}/unarchive`, {
+              await apiFetch(`/v1/evidence/${item.id}/restore`, {
                 method: "POST",
-                body: JSON.stringify({}),
+                body: JSON.stringify({ restore: true }),
               });
 
               setItems((current) => current.filter((x) => x.id !== item.id));
@@ -130,7 +132,7 @@ export default function ArchiveScreen() {
               const message =
                 err instanceof Error
                   ? err.message
-                  : "Failed to restore archived evidence";
+                  : "Failed to restore evidence";
               Alert.alert("Restore failed", message);
             } finally {
               setRestoringId(null);
@@ -143,10 +145,10 @@ export default function ArchiveScreen() {
 
   const renderHeader = () => (
     <View style={styles.header}>
-      <Text style={styles.title}>Archived Evidence</Text>
+      <Text style={styles.title}>Deleted Evidence</Text>
       <Text style={styles.subtitle}>
-        Archived records are removed from the active workspace but remain safely
-        preserved and can be restored at any time.
+        Records in secure trash remain recoverable until their scheduled
+        permanent deletion date.
       </Text>
     </View>
   );
@@ -156,22 +158,22 @@ export default function ArchiveScreen() {
 
     return (
       <View style={styles.emptyCard}>
-        <Text style={styles.emptyTitle}>No archived evidence</Text>
+        <Text style={styles.emptyTitle}>No deleted evidence</Text>
         <Text style={styles.emptyText}>
-          Your archive is currently empty.
+          Your secure trash is currently empty.
         </Text>
       </View>
     );
   };
 
-  const renderItem = ({ item }: { item: ArchivedItem }) => {
+  const renderItem = ({ item }: { item: DeletedEvidenceItem }) => {
     const busy = restoringId === item.id;
 
     return (
       <View style={styles.card}>
         <View style={styles.badgeRow}>
           <View style={styles.badge}>
-            <Text style={styles.badgeText}>Archived</Text>
+            <Text style={styles.badgeText}>In Trash</Text>
           </View>
         </View>
 
@@ -184,13 +186,18 @@ export default function ArchiveScreen() {
 
         <View style={styles.metaBlock}>
           <Text style={styles.metaLine}>
-            <Text style={styles.metaLabel}>Archived At: </Text>
-            {formatUtcDateTime(item.archivedAt)}
+            <Text style={styles.metaLabel}>Deleted At: </Text>
+            {formatUtcDateTime(item.deletedAt)}
           </Text>
 
           <Text style={styles.metaLine}>
-            <Text style={styles.metaLabel}>Created At: </Text>
-            {formatUtcDateTime(item.createdAt)}
+            <Text style={styles.metaLabel}>Permanent Deletion Date: </Text>
+            {formatUtcDateTime(item.deleteScheduledForUtc)}
+          </Text>
+
+          <Text style={styles.metaLine}>
+            <Text style={styles.metaLabel}>Type: </Text>
+            {item.type || "Unknown"}
           </Text>
         </View>
 
@@ -224,7 +231,7 @@ export default function ArchiveScreen() {
         {renderHeader()}
         <View style={styles.loaderWrap}>
           <ActivityIndicator size="large" />
-          <Text style={styles.loaderText}>Loading archived evidence...</Text>
+          <Text style={styles.loaderText}>Loading deleted evidence...</Text>
         </View>
       </SafeAreaView>
     );
@@ -234,12 +241,12 @@ export default function ArchiveScreen() {
     <SafeAreaView style={styles.screen}>
       {error ? (
         <View style={styles.errorBanner}>
-          <Text style={styles.errorTitle}>Failed to load archived evidence</Text>
+          <Text style={styles.errorTitle}>Failed to load deleted evidence</Text>
           <Text style={styles.errorText}>{error}</Text>
 
           <TouchableOpacity
             style={[styles.button, styles.primaryButton, { marginTop: 12 }]}
-            onPress={() => void loadArchivedEvidence()}
+            onPress={() => void loadDeletedEvidence()}
             activeOpacity={0.85}
           >
             <Text style={styles.primaryButtonText}>Try Again</Text>
@@ -302,19 +309,19 @@ const styles = StyleSheet.create({
     padding: 16,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: "rgba(148,163,184,0.22)",
-    backgroundColor: "rgba(15,23,42,0.34)",
+    borderColor: "rgba(248,113,113,0.24)",
+    backgroundColor: "rgba(127,29,29,0.18)",
   },
   errorTitle: {
     fontSize: 16,
     fontWeight: "800",
-    color: "#e2e8f0",
+    color: "#fecaca",
     marginBottom: 6,
   },
   errorText: {
     fontSize: 14,
     lineHeight: 22,
-    color: "#cbd5e1",
+    color: "#fee2e2",
   },
   emptyCard: {
     padding: 18,
@@ -352,15 +359,15 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     borderRadius: 999,
     borderWidth: 1,
-    borderColor: "rgba(148,163,184,0.2)",
-    backgroundColor: "rgba(148,163,184,0.12)",
+    borderColor: "rgba(248,113,113,0.22)",
+    backgroundColor: "rgba(248,113,113,0.12)",
     alignItems: "center",
     justifyContent: "center",
   },
   badgeText: {
     fontSize: 12,
     fontWeight: "800",
-    color: "#cbd5e1",
+    color: "#fca5a5",
     textTransform: "uppercase",
     letterSpacing: 0.5,
   },
