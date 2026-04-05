@@ -1,11 +1,11 @@
 {
+  "extends": "expo/tsconfig.base",
   "compilerOptions": {
     "target": "ES2022",
     "module": "ES2022",
     "jsx": "react-jsx",
     "strict": true,
     "moduleResolution": "Bundler",
-    "baseUrl": ".",
     "paths": {
       "@proovra/ui": [
         "../../packages/ui/src/index.ts"
@@ -20,6 +20,5 @@
     "app/**/*.tsx",
     "src/**/*.ts",
     "src/**/*.tsx"
-  ],
-  "extends": "expo/tsconfig.base"
+  ]
 }
