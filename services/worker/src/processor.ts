@@ -9,6 +9,7 @@ import { env } from "./config.js";
 import { logger, withJobContext } from "./logger.js";
 import {
   applyDefaultObjectRetention,
+  deleteObject,
   getObjectStream,
   headObject,
   putObjectBuffer,
@@ -16,6 +17,7 @@ import {
 import { createHash, randomUUID } from "node:crypto";
 import { buildReportPdf } from "./pdf/report.js";
 import {
+  enqueueEvidencePurgeJob,
   enqueueReportJob as enqueueReportJobOnQueue,
   generateReportJobName,
   otsUpgradeQueue,
@@ -31,6 +33,10 @@ type GenerateReportJobData = {
   evidenceId: string;
   forceRegenerate?: boolean;
   regenerateReason?: string | null;
+};
+
+type PurgeDeletedEvidenceJobData = {
+  evidenceId: string;
 };
 
 type WorkerError = Error & {
@@ -418,6 +424,33 @@ async function applyRetentionOrThrow(
       );
     }
   }
+}
+
+async function deleteObjectIfExists(params: { bucket: string; key: string }) {
+  try {
+    await deleteObject({
+      bucket: params.bucket,
+      key: params.key,
+    });
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message.toLowerCase() : "unknown_error";
+
+    if (
+      message.includes("not found") ||
+      message.includes("no such key") ||
+      message.includes("nosuchkey") ||
+      message.includes("404")
+    ) {
+      return;
+    }
+
+    throw error;
+  }
+}
+
+function addDays(date: Date, days: number): Date {
+  return new Date(date.getTime() + days * 24 * 60 * 60 * 1000);
 }
 
 function extensionFromMimeType(mimeType: string | null | undefined): string {
@@ -1489,6 +1522,212 @@ appendWorkerAuditLog({
         "GenerateReportJob moved to DLQ"
       );
     }
+
+    throw error;
+  }
+}
+
+export async function processPurgeDeletedEvidence(
+  job: Job<PurgeDeletedEvidenceJobData>
+) {
+  const start = Date.now();
+  const evidenceId = job.data.evidenceId;
+  const requestId = randomUUID();
+
+  const ctx = withJobContext({
+    requestId,
+    jobId: job.id,
+    evidenceId,
+    attempt: job.attemptsMade + 1,
+    status: "purging",
+  });
+
+  logger.info(ctx, "PurgeDeletedEvidenceJob started");
+
+  try {
+    const evidence = await prisma.evidence.findUnique({
+      where: { id: evidenceId },
+      select: {
+        id: true,
+        ownerUserId: true,
+        deletedAt: true,
+        deleteScheduledForUtc: true,
+        archivedAt: true,
+        lockedAt: true,
+        storageBucket: true,
+        storageKey: true,
+      },
+    });
+
+    if (!evidence) {
+      logger.info(ctx, "PurgeDeletedEvidenceJob skipped because evidence does not exist");
+      return;
+    }
+
+    if (!evidence.deletedAt || !evidence.deleteScheduledForUtc) {
+      logger.info(ctx, "PurgeDeletedEvidenceJob skipped because evidence is not pending deletion");
+      return;
+    }
+
+    if (evidence.archivedAt) {
+      logger.info(ctx, "PurgeDeletedEvidenceJob skipped because evidence is archived");
+      return;
+    }
+
+    if (evidence.lockedAt) {
+      logger.info(ctx, "PurgeDeletedEvidenceJob skipped because evidence is locked");
+      return;
+    }
+
+    const now = new Date();
+    if (evidence.deleteScheduledForUtc.getTime() > now.getTime()) {
+      await enqueueEvidencePurgeJob(
+        evidence.id,
+        evidence.deleteScheduledForUtc.toISOString()
+      );
+
+      logger.info(
+        {
+          ...ctx,
+          rescheduledFor: evidence.deleteScheduledForUtc.toISOString(),
+        },
+        "PurgeDeletedEvidenceJob rescheduled because delete date is still in the future"
+      );
+      return;
+    }
+
+    const [parts, reports] = await Promise.all([
+      prisma.evidencePart.findMany({
+        where: { evidenceId: evidence.id },
+        select: {
+          id: true,
+          storageBucket: true,
+          storageKey: true,
+        },
+      }),
+      prisma.report.findMany({
+        where: { evidenceId: evidence.id },
+        select: {
+          id: true,
+          storageBucket: true,
+          storageKey: true,
+        },
+      }),
+    ]);
+
+    const verificationPackageKey = `verification/${evidence.id}/package.zip`;
+
+    if (evidence.storageBucket && evidence.storageKey) {
+      await deleteObjectIfExists({
+        bucket: evidence.storageBucket,
+        key: evidence.storageKey,
+      });
+    }
+
+    for (const part of parts) {
+      await deleteObjectIfExists({
+        bucket: part.storageBucket,
+        key: part.storageKey,
+      });
+    }
+
+    for (const report of reports) {
+      await deleteObjectIfExists({
+        bucket: report.storageBucket,
+        key: report.storageKey,
+      });
+    }
+
+    if (env.S3_BUCKET) {
+      await deleteObjectIfExists({
+        bucket: env.S3_BUCKET,
+        key: verificationPackageKey,
+      });
+    }
+
+    await prisma.$transaction(async (tx) => {
+      await appendCustodyEventTx(tx, {
+        evidenceId: evidence.id,
+        eventType: prismaPkg.CustodyEventType.EVIDENCE_PURGED,
+        atUtc: now,
+        payload: {
+          purgedAtUtc: now.toISOString(),
+          deletedAtUtc: evidence.deletedAt?.toISOString() ?? null,
+        } as Prisma.InputJsonValue,
+      });
+
+      await tx.report.deleteMany({
+        where: { evidenceId: evidence.id },
+      });
+
+      await tx.evidencePart.deleteMany({
+        where: { evidenceId: evidence.id },
+      });
+
+      await tx.evidenceAnchor.deleteMany({
+        where: { evidenceId: evidence.id },
+      });
+
+      await tx.custodyEvent.deleteMany({
+        where: { evidenceId: evidence.id },
+      });
+
+      await tx.evidence.delete({
+        where: { id: evidence.id },
+      });
+    });
+
+    appendWorkerAuditLog({
+      userId: evidence.ownerUserId,
+      action: "evidence.purged",
+      category: "evidence",
+      severity: "warning",
+      source: "worker_purge",
+      outcome: "success",
+      resourceType: "evidence",
+      resourceId: evidence.id,
+      requestId,
+      metadata: {
+        evidenceId: evidence.id,
+        deletedAtUtc: evidence.deletedAt.toISOString(),
+        purgedAtUtc: now.toISOString(),
+      },
+    }).catch(() => null);
+
+    const durationMs = Date.now() - start;
+
+    logger.info(
+      {
+        ...withJobContext({
+          requestId,
+          jobId: job.id,
+          evidenceId,
+          attempt: job.attemptsMade + 1,
+          durationMs,
+          status: "purged",
+        }),
+      },
+      "PurgeDeletedEvidenceJob completed"
+    );
+  } catch (error) {
+    captureException(error, { requestId, evidenceId, jobId: job.id ?? null });
+
+    const durationMs = Date.now() - start;
+
+    logger.error(
+      {
+        ...withJobContext({
+          requestId,
+          jobId: job.id,
+          evidenceId,
+          attempt: job.attemptsMade + 1,
+          durationMs,
+          status: "failed",
+        }),
+        err: error,
+      },
+      "PurgeDeletedEvidenceJob failed"
+    );
 
     throw error;
   }
