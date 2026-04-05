@@ -169,12 +169,12 @@ export function evaluateCustodyChain(params: {
 
   const hasAnyHashes = records.some((r) => r.eventHash || r.prevEventHash);
 
-  let previousSequence = 0;
-  let previousExpectedHash: string | null = null;
+let previousSequence: number | null = null;
+let previousExpectedHash: string | null = null;
 
-  for (const record of records) {
-    if (record.sequence !== previousSequence + 1) {
-      return {
+for (const record of records) {
+  if (previousSequence !== null && record.sequence !== previousSequence + 1) {
+          return {
         valid: false,
         mode: hasAnyHashes ? ("hashed" as const) : ("legacy" as const),
         reason: "sequence_gap",

@@ -2570,17 +2570,17 @@ export async function evidenceRoutes(app: FastifyInstance) {
         ? false
         : true;
 
-    const custodyChain = evaluateCustodyChain({
-      evidenceId: id,
-      records: forensicCustodyEvents.map((ev) => ({
-        sequence: ev.sequence,
-        eventType: ev.eventType,
-        atUtc: ev.atUtc,
-        payload: ev.payload,
-        prevEventHash: ev.prevEventHash,
-        eventHash: ev.eventHash,
-      })),
-    });
+const custodyChain = evaluateCustodyChain({
+  evidenceId: id,
+  records: allCustodyEvents.map((ev) => ({
+    sequence: ev.sequence,
+    eventType: ev.eventType,
+    atUtc: ev.atUtc,
+    payload: ev.payload,
+    prevEventHash: ev.prevEventHash,
+    eventHash: ev.eventHash,
+  })),
+});
 
     const storageProtection = await getStorageProtectionSummary(
       evidence.storageBucket,
