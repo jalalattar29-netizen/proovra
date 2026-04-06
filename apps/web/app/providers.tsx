@@ -18,9 +18,7 @@ type AuthUser = {
   email?: string | null;
   displayName?: string | null;
   provider: string;
-  /** Server-authoritative role (e.g. admin). Omitted for non-admin users. */
   role?: string | null;
-
   firstName?: string | null;
   lastName?: string | null;
   avatarUrl?: string | null;
@@ -28,7 +26,6 @@ type AuthUser = {
   timezone?: string | null;
   country?: string | null;
   bio?: string | null;
-
   createdAt?: string;
   updatedAt?: string;
 };
@@ -38,10 +35,8 @@ type AuthContextValue = {
   user: AuthUser | null;
   ensureGuest: () => Promise<void>;
   setToken: (token: string | null) => void;
-
   refreshMe: () => Promise<void>;
   updateUser: (next: AuthUser | null) => void;
-
   authReady: boolean;
   hasSession: boolean;
 };
@@ -102,7 +97,6 @@ export function Providers({ children }: { children: React.ReactNode }) {
 
   const [authReady, setAuthReady] = useState(false);
 
-  // Init sentry + initial locale
   useEffect(() => {
     if (typeof window !== "undefined") {
       const { locale: resolvedLocale, mode: resolvedMode } = resolveInitialLocale();
@@ -124,13 +118,14 @@ export function Providers({ children }: { children: React.ReactNode }) {
       maybeInitSentry();
     };
 
-    window.addEventListener(getCookieConsentEventName(), onConsentChanged);
+    const eventName = getCookieConsentEventName();
+    window.addEventListener(eventName, onConsentChanged);
+
     return () => {
-      window.removeEventListener(getCookieConsentEventName(), onConsentChanged);
+      window.removeEventListener(eventName, onConsentChanged);
     };
   }, []);
 
-  // Persist locale
   useEffect(() => {
     if (typeof document === "undefined") return;
 
@@ -151,7 +146,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
     const currentTranslations = translations[locale] || translations.en;
 
     const t = (key: keyof (typeof translations)["en"]) =>
-      currentTranslations[key as keyof (typeof translations)[Locale]] || translations.en[key];
+      currentTranslations[key as keyof typeof currentTranslations] || translations.en[key];
 
     const setLocale = (newLocale: Locale) => setLocaleState(newLocale);
     const setLocaleMode = (newMode: LocaleMode) => setModeState(newMode);
@@ -159,12 +154,12 @@ export function Providers({ children }: { children: React.ReactNode }) {
     return { locale, mode, setLocale, setLocaleMode, t, isRTL };
   }, [locale, mode]);
 
-  // Auth context
   const authValue = useMemo<AuthContextValue>(() => {
     const setToken = (next: string | null) => {
       setTokenState(next);
 
       if (typeof window === "undefined") return;
+
       try {
         if (next) {
           localStorage.setItem("proovra-token", next);
@@ -180,7 +175,6 @@ export function Providers({ children }: { children: React.ReactNode }) {
     const updateUser = (next: AuthUser | null) => setUser(next);
 
     const refreshMe = async () => {
-      // ✅ مهم: لا تفرّغ user/session إذا فشل الطلب مؤقتاً
       try {
         const meUser = await fetchMe();
         if (meUser) setUser(meUser);
@@ -208,38 +202,39 @@ export function Providers({ children }: { children: React.ReactNode }) {
       }
     };
 
-    // ✅ hasSession يعتمد أيضاً على localStorage لتجنب “لحظة false”
     const hasSession = Boolean(user || token || readStoredToken());
 
-    return { token, user, ensureGuest, setToken, refreshMe, updateUser, authReady, hasSession };
+    return {
+      token,
+      user,
+      ensureGuest,
+      setToken,
+      refreshMe,
+      updateUser,
+      authReady,
+      hasSession,
+    };
   }, [token, user, authReady]);
 
-  // Boot auth
   useEffect(() => {
     if (typeof window === "undefined") return;
 
     const stored = readStoredToken();
-    if (stored) setTokenState(stored);
+    if (stored) {
+      setTokenState(stored);
+    }
 
     void (async () => {
       try {
-        // إذا في token، حاول هات me، بس لا تقتل session إذا رجع null
         const meUser = await fetchMe();
-        if (meUser) setUser(meUser);
+        if (meUser) {
+          setUser(meUser);
+        }
       } finally {
         setAuthReady(true);
       }
     })();
   }, []);
-
-  return (
-    <AuthContext.Provider value={authValue}>
-      <LocaleContext.Provider value={localeValue}>
-        <ToastProvider>{children}</ToastProvider>
-      </LocaleContext.Provider>
-    </AuthContext.Provider>
-  );
-}
 
   useEffect(() => {
     if (!authReady || !user?.id) return;
@@ -247,7 +242,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
     const consent = readCookieConsentState();
     if (!consent) return;
 
-    if (isCookieConsentSyncedForUser(user.id, consent.updatedAt)) {
+    if (isCookieConsentSyncedForUser(user.id)) {
       return;
     }
 
@@ -259,16 +254,21 @@ export function Providers({ children }: { children: React.ReactNode }) {
         analytics: consent.analytics,
         marketing: consent.marketing,
         preferences: consent.preferences,
-        locale: consent.locale ?? null,
-        source: consent.source ?? "cookie_banner",
-        updatedAt: consent.updatedAt,
       }),
     })
       .then(() => {
-        markCookieConsentSyncedForUser(user.id, consent.updatedAt);
+        markCookieConsentSyncedForUser(user.id);
       })
       .catch(() => {
         // ignore sync failures; local consent remains authoritative client-side
       });
   }, [authReady, user?.id]);
-  
+
+  return (
+    <AuthContext.Provider value={authValue}>
+      <LocaleContext.Provider value={localeValue}>
+        <ToastProvider>{children}</ToastProvider>
+      </LocaleContext.Provider>
+    </AuthContext.Provider>
+  );
+}
