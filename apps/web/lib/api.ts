@@ -49,6 +49,11 @@ type ApiFetchOpts = {
   retryAuthOnce?: boolean;
 };
 
+function hasCookieSession(): boolean {
+  if (typeof document === "undefined") return false;
+  return document.cookie.split(";").some((part) => part.trim().startsWith("proovra_session="));
+}
+
 function readToken(): string | null {
   if (typeof window === "undefined") return null;
   return localStorage.getItem("proovra-token");
@@ -87,7 +92,13 @@ async function fetchWithAuthRetry(
     cache: "no-store"
   });
 
-  if (first.status !== 401 || !opts.retryAuthOnce || !opts.auth) return first;
+if (
+  first.status !== 401 ||
+  !opts.retryAuthOnce ||
+  (!opts.auth && !hasCookieSession())
+) {
+  return first;
+}
 
   // Retry once after re-reading token (covers fast hydration / token just written)
   const second = await fetch(url, {

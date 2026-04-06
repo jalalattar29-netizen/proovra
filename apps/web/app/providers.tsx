@@ -66,6 +66,17 @@ export function useAuth() {
 }
 
 async function fetchMe(): Promise<AuthUser | null> {
+  if (typeof window !== "undefined") {
+    const hasToken = Boolean(localStorage.getItem("proovra-token"));
+    const hasCookie = document.cookie
+      .split(";")
+      .some((part) => part.trim().startsWith("proovra_session="));
+
+    if (!hasToken && !hasCookie) {
+      return null;
+    }
+  }
+
   try {
     const me = await apiFetch("/v1/users/me", { method: "GET" });
     return (me?.user ?? null) as AuthUser | null;
@@ -86,6 +97,16 @@ function readStoredToken(): string | null {
   } catch {
     return null;
   }
+}
+
+function hasSessionCookie(): boolean {
+  if (typeof document === "undefined") return false;
+  return document.cookie.split(";").some((part) => part.trim().startsWith("proovra_session="));
+}
+
+function hasSessionCandidate(): boolean {
+  if (typeof window === "undefined") return false;
+  return Boolean(readStoredToken() || hasSessionCookie());
 }
 
 export function Providers({ children }: { children: React.ReactNode }) {
@@ -216,25 +237,30 @@ export function Providers({ children }: { children: React.ReactNode }) {
     };
   }, [token, user, authReady]);
 
-  useEffect(() => {
-    if (typeof window === "undefined") return;
+useEffect(() => {
+  if (typeof window === "undefined") return;
 
-    const stored = readStoredToken();
-    if (stored) {
-      setTokenState(stored);
-    }
+  const stored = readStoredToken();
+  if (stored) {
+    setTokenState(stored);
+  }
 
-    void (async () => {
-      try {
-        const meUser = await fetchMe();
-        if (meUser) {
-          setUser(meUser);
-        }
-      } finally {
-        setAuthReady(true);
+  if (!hasSessionCandidate()) {
+    setAuthReady(true);
+    return;
+  }
+
+  void (async () => {
+    try {
+      const meUser = await fetchMe();
+      if (meUser) {
+        setUser(meUser);
       }
-    })();
-  }, []);
+    } finally {
+      setAuthReady(true);
+    }
+  })();
+}, []);
 
   useEffect(() => {
     if (!authReady || !user?.id) return;
