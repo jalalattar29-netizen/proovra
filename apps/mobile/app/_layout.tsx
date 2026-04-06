@@ -20,26 +20,20 @@ export default function TabsLayout() {
         },
       }}
     >
-      <Tabs.Screen
-        name="home"
-        options={{
-          title: "Home",
-        }}
-      />
+<Tabs.Screen
+  name="archive"
+  options={{ title: "Archived Evidence" }}
+/>
 
-      <Tabs.Screen
-        name="archive"
-        options={{
-          title: "Archived Evidence",
-        }}
-      />
+<Tabs.Screen
+  name="deleted"
+  options={{ title: "Deleted Evidence" }}
+/>
 
-      <Tabs.Screen
-        name="deleted"
-        options={{
-          title: "Deleted Evidence",
-        }}
-      />
+<Tabs.Screen
+  name="locked"
+  options={{ title: "Locked Evidence" }}
+/>
     </Tabs>
   );
 }

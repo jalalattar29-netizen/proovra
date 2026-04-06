@@ -145,56 +145,66 @@ export default function HomePage() {
             <Card className="app-card">
               <div className="app-card-title">Quick Actions</div>
 
-              <div className="app-actions-grid">
-                <Link href="/capture">
-                  <Button
-                    className="navy-btn action-btn"
-                    onClick={() => addToast("Opening capture...", "info")}
-                  >
-                    New Capture
-                  </Button>
-                </Link>
+<div className="app-actions-grid">
+  <Link href="/capture">
+    <Button
+      className="navy-btn action-btn"
+      onClick={() => addToast("Opening capture...", "info")}
+    >
+      New Capture
+    </Button>
+  </Link>
 
-                <Link href="/cases">
-                  <Button
-                    variant="secondary"
-                    className="navy-btn action-btn"
-                    onClick={() => addToast("Loading cases...", "info")}
-                  >
-                    View Cases
-                  </Button>
-                </Link>
+  <Link href="/cases">
+    <Button
+      variant="secondary"
+      className="navy-btn action-btn"
+      onClick={() => addToast("Loading cases...", "info")}
+    >
+      View Cases
+    </Button>
+  </Link>
 
-                <Link href="/archive">
-                  <Button
-                    variant="secondary"
-                    className="navy-btn action-btn"
-                    onClick={() => addToast("Opening archive...", "info")}
-                  >
-                    Archived Evidence
-                  </Button>
-                </Link>
+  <Link href="/archive">
+    <Button
+      variant="secondary"
+      className="navy-btn action-btn"
+      onClick={() => addToast("Opening archive...", "info")}
+    >
+      Archived Evidence
+    </Button>
+  </Link>
 
-                <Link href="/deleted">
-                  <Button
-                    variant="secondary"
-                    className="navy-btn action-btn"
-                    onClick={() => addToast("Opening deleted evidence...", "info")}
-                  >
-                    Deleted Evidence
-                  </Button>
-                </Link>
+  <Link href="/deleted">
+    <Button
+      variant="secondary"
+      className="navy-btn action-btn"
+      onClick={() => addToast("Opening deleted evidence...", "info")}
+    >
+      Deleted Evidence
+    </Button>
+  </Link>
 
-                <Link href="/settings">
-                  <Button
-                    variant="secondary"
-                    className="navy-btn action-btn"
-                    onClick={() => addToast("Opening settings...", "info")}
-                  >
-                    Manage Settings
-                  </Button>
-                </Link>
-              </div>
+  <Link href="/locked">
+    <Button
+      variant="secondary"
+      className="navy-btn action-btn"
+      onClick={() => addToast("Opening locked evidence...", "info")}
+    >
+      Locked Evidence
+    </Button>
+  </Link>
+
+  <Link href="/settings">
+    <Button
+      variant="secondary"
+      className="navy-btn action-btn"
+      onClick={() => addToast("Opening settings...", "info")}
+    >
+      Manage Settings
+    </Button>
+  </Link>
+</div>
 
               <div className="status-banner" style={{ marginTop: 18 }}>
                 <div className="status-badge">✓</div>

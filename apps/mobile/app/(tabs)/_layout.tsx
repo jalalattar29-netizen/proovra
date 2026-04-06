@@ -8,7 +8,7 @@ export default function TabsLayout() {
       screenOptions={{
         headerShown: false,
         tabBarStyle: { display: "none" },
-        sceneStyle: { backgroundColor: appTheme.bg }
+        sceneStyle: { backgroundColor: appTheme.bg },
       }}
     >
       <Tabs.Screen name="index" />
@@ -16,6 +16,21 @@ export default function TabsLayout() {
       <Tabs.Screen name="reports" />
       <Tabs.Screen name="teams" />
       <Tabs.Screen name="settings" />
+
+      <Tabs.Screen
+        name="archive"
+        options={{ title: "Archived Evidence" }}
+      />
+
+      <Tabs.Screen
+        name="deleted"
+        options={{ title: "Deleted Evidence" }}
+      />
+
+      <Tabs.Screen
+        name="locked"
+        options={{ title: "Locked Evidence" }}
+      />
     </Tabs>
   );
 }

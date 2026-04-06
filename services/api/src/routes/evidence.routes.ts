@@ -975,6 +975,7 @@ const EvidenceListScopeSchema = z.enum([
   "active",
   "archived",
   "deleted",
+  "locked",
   "all",
 ]);
 
@@ -1817,38 +1818,6 @@ export async function evidenceRoutes(app: FastifyInstance) {
         return reply.code(409).send({ message: "Evidence is already deleted" });
       }
 
-      if (evidence.archivedAt) {
-        auditEvidenceAction(req, {
-          userId: ownerUserId,
-          action: "evidence.delete",
-          outcome: "blocked",
-          severity: "warning",
-          resourceId: id,
-          metadata: { reason: "archived_evidence" },
-        });
-        return reply
-          .code(409)
-          .send({ message: "Archived evidence cannot be moved to trash" });
-      }
-
-      if (
-        evidence.status === EvidenceStatus.SIGNED ||
-        evidence.status === EvidenceStatus.REPORTED ||
-        evidence.lockedAt
-      ) {
-        auditEvidenceAction(req, {
-          userId: ownerUserId,
-          action: "evidence.delete",
-          outcome: "blocked",
-          severity: "warning",
-          resourceId: id,
-          metadata: { reason: "signed_or_locked" },
-        });
-        return reply
-          .code(409)
-          .send({ message: "Cannot delete signed or locked evidence" });
-      }
-
       const now = new Date();
       const deleteScheduledForUtc = addDays(now, 90);
 
@@ -1992,18 +1961,23 @@ export async function evidenceRoutes(app: FastifyInstance) {
             : "active";
 
     const archivedFilter =
-      scope === "active"
-        ? { archivedAt: null }
-        : scope === "archived"
-          ? { archivedAt: { not: null } }
-          : scope === "deleted"
-            ? {}
-            : {};
+      scope === "archived"
+        ? { archivedAt: { not: null as null | object } }
+        : scope === "active" || scope === "locked"
+          ? { archivedAt: null }
+          : {};
 
     const deletedFilter =
       scope === "deleted"
         ? { deletedAt: { not: null as null | object } }
         : { deletedAt: null };
+
+    const lockedFilter =
+      scope === "locked"
+        ? { lockedAt: { not: null as null | object } }
+        : scope === "active" || scope === "archived"
+          ? { lockedAt: null }
+          : {};
 
     const mapEvidenceListItem = (item: {
       id: string;
@@ -2050,10 +2024,11 @@ export async function evidenceRoutes(app: FastifyInstance) {
       const items = await prisma.evidence.findMany({
         where: {
           ...deletedFilter,
-          caseId,
           ...archivedFilter,
+          ...lockedFilter,
+          caseId,
         },
-        orderBy: { createdAt: "desc" },
+                orderBy: { createdAt: "desc" },
         take: 50,
         select: {
           id: true,
@@ -2119,6 +2094,7 @@ export async function evidenceRoutes(app: FastifyInstance) {
       where: {
         ...deletedFilter,
         ...archivedFilter,
+        ...lockedFilter,
         OR: [
           { ownerUserId },
           ...(accessibleCaseIds.length > 0
@@ -2129,7 +2105,7 @@ export async function evidenceRoutes(app: FastifyInstance) {
             : []),
         ],
       },
-      orderBy: { createdAt: "desc" },
+            orderBy: { createdAt: "desc" },
       take: 50,
       select: {
         id: true,

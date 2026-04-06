@@ -305,9 +305,7 @@ export default function EvidenceDetailPage() {
   const isLocked = Boolean(lockedAt);
   const isArchived = Boolean(archivedAt);
   const isDeleted = Boolean(deletedAt);
-  const canDelete =
-    !isDeleted && !isArchived && !isLocked && !(status === "SIGNED" || status === "REPORTED");
-
+const canDelete = !isDeleted;
   const originalKind = useMemo(
     () => getEvidenceKind(originalMimeType),
     [originalMimeType]
