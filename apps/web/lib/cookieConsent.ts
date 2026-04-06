@@ -3,8 +3,16 @@
 import { apiFetch } from "./api";
 import { CONSENT_VERSION, saveConsentState } from "./consent";
 
+type CookieConsentCategories = {
+  categories?: string[];
+};
+
+type CookieConsentCallbackPayload = {
+  cookie?: CookieConsentCategories;
+};
+
 type CookieConsentApi = {
-  run: (config: unknown) => void;
+  run: (config: CookieConsentConfig) => void;
   showPreferences: () => void;
   getUserPreferences?: () => {
     acceptType?: string;
@@ -16,8 +24,69 @@ type CookieConsentImport = {
   default?: CookieConsentApi;
 } & Partial<CookieConsentApi>;
 
+type CookieConsentConfig = {
+  revision: number;
+  guiOptions: {
+    consentModal: {
+      layout: string;
+      position: string;
+      equalWeightButtons: boolean;
+    };
+    preferencesModal: {
+      layout: string;
+      equalWeightButtons: boolean;
+    };
+  };
+  categories: {
+    necessary: {
+      enabled: boolean;
+      readOnly: boolean;
+    };
+    preferences: {
+      enabled: boolean;
+      readOnly: boolean;
+    };
+    analytics: {
+      enabled: boolean;
+      readOnly: boolean;
+    };
+    marketing: {
+      enabled: boolean;
+      readOnly: boolean;
+    };
+  };
+  onFirstConsent: (payload: CookieConsentCallbackPayload) => Promise<void>;
+  onConsent: (payload: CookieConsentCallbackPayload) => Promise<void>;
+  onChange: (payload: CookieConsentCallbackPayload) => Promise<void>;
+  language: {
+    default: string;
+    translations: {
+      en: {
+        consentModal: {
+          title: string;
+          description: string;
+          acceptAllBtn: string;
+          acceptNecessaryBtn: string;
+          showPreferencesBtn: string;
+        };
+        preferencesModal: {
+          title: string;
+          acceptAllBtn: string;
+          acceptNecessaryBtn: string;
+          savePreferencesBtn: string;
+          sections: Array<{
+            title: string;
+            description: string;
+            linkedCategory: "necessary" | "preferences" | "analytics" | "marketing";
+          }>;
+        };
+      };
+    };
+  };
+};
+
 function pickDefault<T>(mod: CookieConsentImport): T {
-  return ((mod.default ?? mod) as unknown) as T;
+  return (mod.default ?? mod) as unknown as T;
 }
 
 function buildAcceptedState(categories: string[] = []) {
@@ -28,6 +97,10 @@ function buildAcceptedState(categories: string[] = []) {
     marketing: categories.includes("marketing"),
     consentVersion: CONSENT_VERSION,
   };
+}
+
+function extractAcceptedCategories(payload: CookieConsentCallbackPayload): string[] {
+  return Array.isArray(payload.cookie?.categories) ? payload.cookie.categories : [];
 }
 
 async function persistConsent(categories: string[] = []) {
@@ -47,9 +120,10 @@ async function persistConsent(categories: string[] = []) {
 export async function initCookieConsent(): Promise<void> {
   if (typeof window === "undefined" || typeof document === "undefined") return;
 
-  const w = window as unknown as {
+  const w = window as Window & {
     __PROOVRA_CC_INITIALIZED__?: boolean;
     __PROOVRA_COOKIE_CONSENT__?: CookieConsentApi;
+    __PROOVRA_CC_PREFS_HANDLER__?: () => void;
   };
 
   if (w.__PROOVRA_CC_INITIALIZED__) return;
@@ -65,13 +139,20 @@ export async function initCookieConsent(): Promise<void> {
 
   w.__PROOVRA_COOKIE_CONSENT__ = cc;
 
-  window.addEventListener("proovra:open-cookie-preferences", () => {
-    try {
-      w.__PROOVRA_COOKIE_CONSENT__?.showPreferences();
-    } catch {
-      // ignore
-    }
-  });
+  if (!w.__PROOVRA_CC_PREFS_HANDLER__) {
+    w.__PROOVRA_CC_PREFS_HANDLER__ = () => {
+      try {
+        w.__PROOVRA_COOKIE_CONSENT__?.showPreferences();
+      } catch {
+        // ignore
+      }
+    };
+
+    window.addEventListener(
+      "proovra:open-cookie-preferences",
+      w.__PROOVRA_CC_PREFS_HANDLER__
+    );
+  }
 
   cc.run({
     revision: 1,
@@ -104,17 +185,14 @@ export async function initCookieConsent(): Promise<void> {
         readOnly: false,
       },
     },
-    onFirstConsent: async ({ cookie }: any) => {
-      const accepted = Array.isArray(cookie?.categories) ? cookie.categories : [];
-      await persistConsent(accepted);
+    onFirstConsent: async (payload: CookieConsentCallbackPayload) => {
+      await persistConsent(extractAcceptedCategories(payload));
     },
-    onConsent: async ({ cookie }: any) => {
-      const accepted = Array.isArray(cookie?.categories) ? cookie.categories : [];
-      await persistConsent(accepted);
+    onConsent: async (payload: CookieConsentCallbackPayload) => {
+      await persistConsent(extractAcceptedCategories(payload));
     },
-    onChange: async ({ cookie }: any) => {
-      const accepted = Array.isArray(cookie?.categories) ? cookie.categories : [];
-      await persistConsent(accepted);
+    onChange: async (payload: CookieConsentCallbackPayload) => {
+      await persistConsent(extractAcceptedCategories(payload));
     },
     language: {
       default: "en",

@@ -1,8 +1,12 @@
 "use client";
 
-export type ConsentCategory = "necessary" | "preferences" | "analytics" | "marketing";
+export type ConsentCategory =
+  | "necessary"
+  | "preferences"
+  | "analytics"
+  | "marketing";
 
-type ConsentState = {
+export type ConsentState = {
   necessary: boolean;
   preferences: boolean;
   analytics: boolean;
@@ -12,6 +16,9 @@ type ConsentState = {
 };
 
 const CONSENT_STORAGE_KEY = "proovra-cookie-consent-state";
+const CONSENT_SYNC_PREFIX = "proovra-cookie-consent-synced:";
+const CONSENT_EVENT_NAME = "proovra:consent-updated";
+
 export const CONSENT_VERSION = "2026-04-06";
 
 function getDefaultConsentState(): ConsentState {
@@ -46,7 +53,8 @@ function readLocalConsent(): ConsentState {
         typeof parsed.consentVersion === "string" && parsed.consentVersion.trim()
           ? parsed.consentVersion
           : CONSENT_VERSION,
-      updatedAt: typeof parsed.updatedAt === "string" ? parsed.updatedAt : undefined,
+      updatedAt:
+        typeof parsed.updatedAt === "string" ? parsed.updatedAt : undefined,
     };
   } catch {
     return getDefaultConsentState();
@@ -55,6 +63,14 @@ function readLocalConsent(): ConsentState {
 
 export function getConsentState(): ConsentState {
   return readLocalConsent();
+}
+
+export function readCookieConsentState(): ConsentState {
+  return readLocalConsent();
+}
+
+export function getCookieConsentEventName(): string {
+  return CONSENT_EVENT_NAME;
 }
 
 export function hasNecessaryConsent(): boolean {
@@ -92,10 +108,35 @@ export function saveConsentState(next: Omit<ConsentState, "updatedAt">): void {
   }
 
   window.dispatchEvent(
-    new CustomEvent("proovra:consent-updated", {
+    new CustomEvent(CONSENT_EVENT_NAME, {
       detail: value,
     })
   );
+}
+
+export function isCookieConsentSyncedForUser(userId: string): boolean {
+  if (typeof window === "undefined") return false;
+  if (!userId.trim()) return false;
+
+  try {
+    const key = `${CONSENT_SYNC_PREFIX}${userId}`;
+    const value = window.localStorage.getItem(key);
+    return value === CONSENT_VERSION;
+  } catch {
+    return false;
+  }
+}
+
+export function markCookieConsentSyncedForUser(userId: string): void {
+  if (typeof window === "undefined") return;
+  if (!userId.trim()) return;
+
+  try {
+    const key = `${CONSENT_SYNC_PREFIX}${userId}`;
+    window.localStorage.setItem(key, CONSENT_VERSION);
+  } catch {
+    // ignore
+  }
 }
 
 export function openCookiePreferences(): void {
