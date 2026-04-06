@@ -84,6 +84,12 @@ function AppleIcon() {
   );
 }
 
+const REQUIRED_LEGAL_VERSIONS = {
+  terms: "2026-04-06",
+  privacy: "2026-04-06",
+  cookies: "2026-04-06",
+} as const;
+
 export default function LoginPage() {
   const { t } = useLocale();
   const { setToken } = useAuth();
@@ -91,6 +97,8 @@ export default function LoginPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const nextUrl = searchParams.get("next") || searchParams.get("returnUrl") || "/home";
+
+  const [acceptLegal, setAcceptLegal] = useState(false);
 
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -126,48 +134,112 @@ export default function LoginPage() {
     }
   };
 
-  const handleAuth = async (path: string, idToken?: string, code?: string, extraBody?: Record<string, unknown>) => {
+  const recordRequiredLegalAcceptances = async () => {
+    await apiFetch("/v1/users/legal-acceptance", {
+      method: "POST",
+      body: JSON.stringify({
+        source: "login",
+        acceptances: [
+          {
+            policyKey: "terms",
+            policyVersion: REQUIRED_LEGAL_VERSIONS.terms,
+          },
+          {
+            policyKey: "privacy",
+            policyVersion: REQUIRED_LEGAL_VERSIONS.privacy,
+          },
+          {
+            policyKey: "cookies",
+            policyVersion: REQUIRED_LEGAL_VERSIONS.cookies,
+          },
+        ],
+      }),
+    });
+  };
+
+  const handleAuth = async (
+    path: string,
+    idToken?: string,
+    code?: string,
+    extraBody?: Record<string, unknown>
+  ) => {
     if (!isMountedRef.current) return;
     if (inFlightRef.current) return;
 
-    inFlightRef.current = true;
-    setBusy(true);
-    setError(null);
+    if (!acceptLegal) {
+      const msg =
+        "You must accept the Terms of Service, Privacy Policy, and Cookie Policy before continuing.";
+      setError(msg);
+      addToast(msg, "error");
+      return;
+    }
 
     const provider = path.includes("google")
       ? "google"
       : path.includes("apple")
-      ? "apple"
-      : path.includes("guest")
-      ? "guest"
-      : "email";
+        ? "apple"
+        : path.includes("guest")
+          ? "guest"
+          : "email";
 
+    inFlightRef.current = true;
+    setBusy(true);
+    setError(null);
     setStatus(`Signing in via ${provider}...`);
 
-    const guestToken = typeof window !== "undefined" ? localStorage.getItem("proovra-token") : null;
+    const guestToken =
+      typeof window !== "undefined" ? localStorage.getItem("proovra-token") : null;
+
     authLogger.logTokenExchangeStart(provider, path);
 
     try {
       setReturnUrl(nextUrl);
 
       const payload = extraBody ?? (idToken ? { idToken } : code ? { code } : {});
-      authLogger.log("TOKEN_EXCHANGE", "request_payload", { endpoint: path, has_idToken: !!idToken, has_code: !!code }, provider);
+      authLogger.log(
+        "TOKEN_EXCHANGE",
+        "request_payload",
+        { endpoint: path, has_idToken: !!idToken, has_code: !!code },
+        provider
+      );
 
-      const data = await apiFetch(path, { method: "POST", body: JSON.stringify(payload) }, { auth: false });
+      const data = await apiFetch(
+        path,
+        { method: "POST", body: JSON.stringify(payload) },
+        { auth: false }
+      );
       authLogger.logTokenExchangeSuccess(provider, data);
 
       if (!isMountedRef.current) return;
 
+      if (!data?.token) {
+        throw new Error("Authentication failed: missing token");
+      }
+
       setToken(data.token);
+
+      try {
+        await recordRequiredLegalAcceptances();
+      } catch {
+        addToast(
+          "Sign-in completed, but legal acceptance logging could not be saved.",
+          "warning"
+        );
+      }
 
       const me = await apiFetch("/v1/auth/me", { method: "GET" });
       authLogger.logSessionValidation("/v1/auth/me", me);
 
-      if (!me?.user && !data.token) throw new Error("Session not confirmed");
+      if (!me?.user && !data.token) {
+        throw new Error("Session not confirmed");
+      }
 
       if (guestToken) {
         try {
-          await apiFetch("/v1/evidence/claim", { method: "POST", body: JSON.stringify({ guestToken }) });
+          await apiFetch("/v1/evidence/claim", {
+            method: "POST",
+            body: JSON.stringify({ guestToken }),
+          });
         } catch {
           // ignore
         }
@@ -183,7 +255,8 @@ export default function LoginPage() {
       authLogger.log("AUTH_SESSION_FAILED", "error", { message: msg, requestId }, provider);
       authLogger.logTokenExchangeError(provider, msg);
 
-      const providerLabel = provider === "guest" ? "" : provider.charAt(0).toUpperCase() + provider.slice(1);
+      const providerLabel =
+        provider === "guest" ? "" : provider.charAt(0).toUpperCase() + provider.slice(1);
       const displayMsg = providerLabel ? `${providerLabel} sign-in failed: ${msg}` : msg;
 
       setError(displayMsg);
@@ -204,7 +277,10 @@ export default function LoginPage() {
     const id = google?.accounts?.id;
     if (!id?.renderButton) return;
 
-    const width = Math.min(ui.socialMaxW, host.getBoundingClientRect().width || ui.socialMaxW);
+    const width = Math.min(
+      ui.socialMaxW,
+      host.getBoundingClientRect().width || ui.socialMaxW
+    );
 
     wrap.innerHTML = "";
     id.renderButton(wrap, {
@@ -272,8 +348,16 @@ export default function LoginPage() {
           return;
         }
 
-        const redirectUri = process.env.NEXT_PUBLIC_APPLE_REDIRECT_URI ?? `${window.location.origin}/auth/callback`;
-        auth.init({ clientId: appleClientId, scope: "name email", redirectURI: redirectUri, usePopup: true });
+        const redirectUri =
+          process.env.NEXT_PUBLIC_APPLE_REDIRECT_URI ??
+          `${window.location.origin}/auth/callback`;
+
+        auth.init({
+          clientId: appleClientId,
+          scope: "name email",
+          redirectURI: redirectUri,
+          usePopup: true,
+        });
         setAppleReady(true);
       })
       .catch(() => setAppleReady(false));
@@ -282,7 +366,7 @@ export default function LoginPage() {
       authLogger.log("CLEANUP", "unmount", {});
       isMountedRef.current = false;
     };
-  }, [nextUrl]);
+  }, [nextUrl, ui.socialMaxW]);
 
   const startApple = async () => {
     logDebug("Apple click");
@@ -342,7 +426,6 @@ export default function LoginPage() {
   return (
     <div className="page landing-page">
       <div className="blue-shell auth-screen auth-dark">
-        {/* ✅ نفس الهيدر مثل باقي الصفحات */}
         <MarketingHeader />
 
         <div className="container">
@@ -358,7 +441,6 @@ export default function LoginPage() {
               <h2 className="auth-title">{t("signInTitle")}</h2>
 
               <div className="auth-actions" style={{ display: "grid", gap: 12 }}>
-                {/* Google (نتركه مثل ما هو لأنه Google يرسم الزر بنفسه) */}
                 <div ref={googleBtnHostRef} style={SocialHostStyle} aria-label="Continue with Google">
                   <div
                     ref={googleBtnWrapRef}
@@ -372,7 +454,6 @@ export default function LoginPage() {
                   />
                 </div>
 
-                {/* Apple */}
                 <div style={SocialHostStyle}>
                   <button
                     type="button"
@@ -389,7 +470,6 @@ export default function LoginPage() {
 
                 <div className="auth-divider">{t("orDivider")}</div>
 
-                {/* Email */}
                 <form onSubmit={onEmailLogin} style={{ display: "grid", gap: 10 }}>
                   <div className="auth-input-wrap">
                     <span className="auth-input-icon" aria-hidden="true">
@@ -429,12 +509,50 @@ export default function LoginPage() {
                     </div>
                   </div>
 
+                  <label
+                    style={{
+                      display: "flex",
+                      alignItems: "flex-start",
+                      gap: 10,
+                      fontSize: 13,
+                      lineHeight: 1.6,
+                      color: "rgba(219, 235, 248, 0.82)",
+                    }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={acceptLegal}
+                      onChange={(e) => setAcceptLegal(e.target.checked)}
+                      disabled={busy}
+                      style={{ marginTop: 3 }}
+                    />
+                    <span>
+                      I agree to the{" "}
+                      <Link href="/legal/terms" className="auth-link">
+                        Terms of Service
+                      </Link>
+                      {", "}
+                      <Link href="/legal/privacy" className="auth-link">
+                        Privacy Policy
+                      </Link>
+                      {" and "}
+                      <Link href="/legal/cookies" className="auth-link">
+                        Cookie Policy
+                      </Link>
+                      .
+                    </span>
+                  </label>
+
                   <button className="auth-social-btn" type="submit" disabled={busy}>
                     Sign in with Email
                   </button>
                 </form>
 
-                <Button variant="secondary" onClick={() => handleAuth("/v1/auth/guest")} disabled={busy}>
+                <Button
+                  variant="secondary"
+                  onClick={() => handleAuth("/v1/auth/guest")}
+                  disabled={busy}
+                >
                   {t("continueGuest")}
                 </Button>
 

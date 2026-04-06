@@ -3,7 +3,13 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { Button, Card, ListRow, Badge, useToast } from "../../../../components/ui";
+import {
+  Button,
+  Card,
+  ListRow,
+  Badge,
+  useToast,
+} from "../../../../components/ui";
 import { Icons } from "../../../../components/icons";
 import { apiFetch } from "../../../../lib/api";
 import { captureException } from "../../../../lib/sentry";
@@ -31,9 +37,12 @@ interface CaseData {
 
 interface EvidenceItem {
   id: string;
+  title?: string;
   type: string;
   status: string;
   createdAt: string;
+  itemCount?: number;
+  displaySubtitle?: string;
 }
 
 interface TeamMember {
@@ -47,6 +56,39 @@ interface MeResponse {
   user?: {
     id: string;
   };
+}
+
+function resolveEvidenceTitle(item: EvidenceItem): string {
+  const title = typeof item.title === "string" ? item.title.trim() : "";
+  if (title) return title;
+
+  switch ((item.type ?? "").toUpperCase()) {
+    case "PHOTO":
+      return "Photo Evidence";
+    case "VIDEO":
+      return "Video Evidence";
+    case "AUDIO":
+      return "Audio Evidence";
+    case "DOCUMENT":
+      return "Document Evidence";
+    default:
+      return "Digital Evidence Record";
+  }
+}
+
+function resolveEvidenceSubtitle(item: EvidenceItem): string {
+  const subtitle =
+    typeof item.displaySubtitle === "string" ? item.displaySubtitle.trim() : "";
+  if (subtitle) return subtitle;
+
+  const count =
+    typeof item.itemCount === "number" && item.itemCount > 0
+      ? item.itemCount
+      : 1;
+
+  return `${count} item${count === 1 ? "" : "s"} • ${new Date(
+    item.createdAt
+  ).toLocaleString()}`;
 }
 
 export default function CaseDetailPage() {
@@ -88,7 +130,9 @@ export default function CaseDetailPage() {
       const [meRes, caseRes, evidenceRes] = await Promise.all([
         apiFetch("/v1/users/me") as Promise<MeResponse>,
         apiFetch(`/v1/cases/${caseId}`) as Promise<{ case?: CaseData }>,
-        apiFetch(`/v1/evidence?caseId=${caseId}`) as Promise<{ items?: EvidenceItem[] }>
+        apiFetch(`/v1/evidence?caseId=${caseId}`) as Promise<{
+          items?: EvidenceItem[];
+        }>,
       ]);
 
       setCurrentUserId(meRes?.user?.id ?? "");
@@ -111,7 +155,8 @@ export default function CaseDetailPage() {
         setTeamMembers([]);
       }
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : "Failed to load case";
+      const errorMessage =
+        err instanceof Error ? err.message : "Failed to load case";
       setError(errorMessage);
       captureException(err, { feature: "case_detail_load", caseId });
       addToast(errorMessage, "error");
@@ -139,14 +184,15 @@ export default function CaseDetailPage() {
     try {
       const updated = (await apiFetch(`/v1/cases/${caseId}`, {
         method: "PATCH",
-        body: JSON.stringify({ name: renameValue.trim() })
+        body: JSON.stringify({ name: renameValue.trim() }),
       })) as { name: string };
 
       setCaseData((prev) => (prev ? { ...prev, name: updated.name } : prev));
       setRenamingCase(false);
       addToast("Case renamed successfully", "success");
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : "Failed to rename case";
+      const errorMessage =
+        err instanceof Error ? err.message : "Failed to rename case";
       captureException(err, { feature: "case_rename", caseId });
       addToast(errorMessage, "error");
     } finally {
@@ -166,7 +212,8 @@ export default function CaseDetailPage() {
       addToast("Case deleted successfully", "success");
       setTimeout(() => router.push("/cases"), 400);
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : "Failed to delete case";
+      const errorMessage =
+        err instanceof Error ? err.message : "Failed to delete case";
       captureException(err, { feature: "case_delete", caseId });
       addToast(errorMessage, "error");
     } finally {
@@ -182,13 +229,14 @@ export default function CaseDetailPage() {
 
     try {
       await apiFetch(`/v1/cases/${caseId}/evidence/${evidenceId}`, {
-        method: "DELETE"
+        method: "DELETE",
       });
 
       setEvidence((prev) => prev.filter((item) => item.id !== evidenceId));
       addToast("Evidence removed from case", "success");
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : "Failed to remove evidence";
+      const errorMessage =
+        err instanceof Error ? err.message : "Failed to remove evidence";
       captureException(err, { feature: "case_remove_evidence", caseId });
       addToast(errorMessage, "error");
     } finally {
@@ -205,7 +253,7 @@ export default function CaseDetailPage() {
     try {
       await apiFetch(`/v1/cases/${caseId}/share-team`, {
         method: "POST",
-        body: JSON.stringify({ userId: selectedTeamMemberId })
+        body: JSON.stringify({ userId: selectedTeamMemberId }),
       });
 
       setSelectedTeamMemberId("");
@@ -213,7 +261,8 @@ export default function CaseDetailPage() {
       await loadData();
       addToast("Case shared successfully", "success");
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : "Failed to share case";
+      const errorMessage =
+        err instanceof Error ? err.message : "Failed to share case";
       captureException(err, { feature: "case_share_team", caseId });
       addToast(errorMessage, "error");
     } finally {
@@ -230,7 +279,7 @@ export default function CaseDetailPage() {
     try {
       await apiFetch(`/v1/cases/${caseId}/share-email`, {
         method: "POST",
-        body: JSON.stringify({ email: shareEmail.trim() })
+        body: JSON.stringify({ email: shareEmail.trim() }),
       });
 
       setShareEmail("");
@@ -238,7 +287,8 @@ export default function CaseDetailPage() {
       await loadData();
       addToast("Case shared successfully", "success");
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : "Failed to share case";
+      const errorMessage =
+        err instanceof Error ? err.message : "Failed to share case";
       captureException(err, { feature: "case_share_email", caseId });
       addToast(errorMessage, "error");
     } finally {
@@ -254,13 +304,14 @@ export default function CaseDetailPage() {
 
     try {
       await apiFetch(`/v1/cases/${caseId}/access/${accessId}`, {
-        method: "DELETE"
+        method: "DELETE",
       });
 
       await loadData();
       addToast("Access removed", "success");
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : "Failed to remove access";
+      const errorMessage =
+        err instanceof Error ? err.message : "Failed to remove access";
       captureException(err, { feature: "case_revoke_access", caseId });
       addToast(errorMessage, "error");
     } finally {
@@ -398,7 +449,8 @@ export default function CaseDetailPage() {
             <Card className="case-delete-card">
               <div className="case-delete-title">Delete Case?</div>
               <p className="case-delete-subtitle">
-                The case will be deleted, but all evidence will remain in your dashboard.
+                The case will be deleted, but all evidence will remain in your
+                dashboard.
               </p>
 
               <div className="case-inline-actions">
@@ -437,7 +489,9 @@ export default function CaseDetailPage() {
                       <div>
                         <div className="case-share-name">{displayLabel}</div>
                         {access.user?.email && access.user.displayName && (
-                          <div className="case-share-email">{access.user.email}</div>
+                          <div className="case-share-email">
+                            {access.user.email}
+                          </div>
                         )}
                       </div>
 
@@ -475,7 +529,9 @@ export default function CaseDetailPage() {
                           type="radio"
                           value="team"
                           checked={shareMethod === "team"}
-                          onChange={(e) => setShareMethod(e.target.value as "team")}
+                          onChange={(e) =>
+                            setShareMethod(e.target.value as "team")
+                          }
                           disabled={!caseData.teamId || operationLoading}
                         />
                         <span>Share with Team Member</span>
@@ -486,7 +542,9 @@ export default function CaseDetailPage() {
                           type="radio"
                           value="email"
                           checked={shareMethod === "email"}
-                          onChange={(e) => setShareMethod(e.target.value as "email")}
+                          onChange={(e) =>
+                            setShareMethod(e.target.value as "email")
+                          }
                           disabled={operationLoading}
                         />
                         <span>Share by Email</span>
@@ -499,13 +557,18 @@ export default function CaseDetailPage() {
                           <>
                             <select
                               value={selectedTeamMemberId}
-                              onChange={(e) => setSelectedTeamMemberId(e.target.value)}
+                              onChange={(e) =>
+                                setSelectedTeamMemberId(e.target.value)
+                              }
                               className="case-select"
                               disabled={operationLoading}
                             >
                               <option value="">Select a team member...</option>
                               {teamMembers.map((member) => (
-                                <option key={member.userId} value={member.userId}>
+                                <option
+                                  key={member.userId}
+                                  value={member.userId}
+                                >
                                   {member.label}
                                 </option>
                               ))}
@@ -514,7 +577,9 @@ export default function CaseDetailPage() {
                             <Button
                               className="navy-btn"
                               onClick={handleShareTeam}
-                              disabled={!selectedTeamMemberId || operationLoading}
+                              disabled={
+                                !selectedTeamMemberId || operationLoading
+                              }
                             >
                               Share with Member
                             </Button>
@@ -570,8 +635,8 @@ export default function CaseDetailPage() {
                       className="case-evidence-main case-evidence-link"
                     >
                       <ListRow
-                        title={item.type}
-                        subtitle={new Date(item.createdAt).toLocaleString()}
+                        title={resolveEvidenceTitle(item)}
+                        subtitle={resolveEvidenceSubtitle(item)}
                         badge={
                           <Badge
                             tone={

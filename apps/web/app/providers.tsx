@@ -5,6 +5,13 @@ import { type Locale, type LocaleMode, resolveInitialLocale, translations } from
 import { apiFetch } from "../lib/api";
 import { initSentry } from "../lib/sentry";
 import { ToastProvider } from "../components/ui";
+import {
+  getCookieConsentEventName,
+  readCookieConsentState,
+  hasAnalyticsConsent,
+  isCookieConsentSyncedForUser,
+  markCookieConsentSyncedForUser,
+} from "../lib/consent";
 
 type AuthUser = {
   id: string;
@@ -97,12 +104,30 @@ export function Providers({ children }: { children: React.ReactNode }) {
 
   // Init sentry + initial locale
   useEffect(() => {
-    initSentry();
+    if (typeof window !== "undefined") {
+      const { locale: resolvedLocale, mode: resolvedMode } = resolveInitialLocale();
+      setLocaleState(resolvedLocale);
+      setModeState(resolvedMode);
+    }
+
+    const maybeInitSentry = () => {
+      if (hasAnalyticsConsent()) {
+        initSentry();
+      }
+    };
+
+    maybeInitSentry();
+
     if (typeof window === "undefined") return;
 
-    const { locale: resolvedLocale, mode: resolvedMode } = resolveInitialLocale();
-    setLocaleState(resolvedLocale);
-    setModeState(resolvedMode);
+    const onConsentChanged = () => {
+      maybeInitSentry();
+    };
+
+    window.addEventListener(getCookieConsentEventName(), onConsentChanged);
+    return () => {
+      window.removeEventListener(getCookieConsentEventName(), onConsentChanged);
+    };
   }, []);
 
   // Persist locale
@@ -215,3 +240,35 @@ export function Providers({ children }: { children: React.ReactNode }) {
     </AuthContext.Provider>
   );
 }
+
+  useEffect(() => {
+    if (!authReady || !user?.id) return;
+
+    const consent = readCookieConsentState();
+    if (!consent) return;
+
+    if (isCookieConsentSyncedForUser(user.id, consent.updatedAt)) {
+      return;
+    }
+
+    void apiFetch("/v1/users/cookie-consent", {
+      method: "POST",
+      body: JSON.stringify({
+        consentVersion: consent.consentVersion,
+        necessary: consent.necessary,
+        analytics: consent.analytics,
+        marketing: consent.marketing,
+        preferences: consent.preferences,
+        locale: consent.locale ?? null,
+        source: consent.source ?? "cookie_banner",
+        updatedAt: consent.updatedAt,
+      }),
+    })
+      .then(() => {
+        markCookieConsentSyncedForUser(user.id, consent.updatedAt);
+      })
+      .catch(() => {
+        // ignore sync failures; local consent remains authoritative client-side
+      });
+  }, [authReady, user?.id]);
+  

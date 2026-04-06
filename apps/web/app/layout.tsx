@@ -7,31 +7,27 @@ import CookieConsentInit from "./CookieConsentInit";
 
 export const metadata = {
   title: "PROO✓RA",
-  description: "Capture truth. Prove it forever."
+  description: "Capture truth. Prove it forever.",
 };
 
 const inter = Inter({
   subsets: ["latin"],
   variable: "--font-inter",
-  display: "swap"
+  display: "swap",
 });
 
-// ✅ Inter Tight for headings / brand / nav (display)
 const headerFont = Inter_Tight({
   subsets: ["latin"],
   variable: "--font-header",
-  display: "swap"
+  display: "swap",
 });
 
 const notoArabic = Noto_Sans_Arabic({
   subsets: ["arabic"],
   variable: "--font-arabic",
-  display: "swap"
+  display: "swap",
 });
 
-/**
- * ✅ CSS Tokens ثابتة (بدون @proovra/ui) لتختفي أخطاء الألوان نهائياً
- */
 const tokenCss = `
 :root {
   --color-primary: #0b1f53;
@@ -77,7 +73,11 @@ const tokenCss = `
 }
 `;
 
-export default async function RootLayout({ children }: { children: ReactNode }) {
+export default async function RootLayout({
+  children,
+}: {
+  children: ReactNode;
+}) {
   const nonce = (await headers()).get("x-nonce") ?? undefined;
 
   return (
@@ -96,9 +96,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
         <meta name="theme-color" content="#0f1d36" />
       </head>
       <body>
-        {/* ✅ Cookie Consent runs on client only */}
         <CookieConsentInit />
-
         <Providers>{children}</Providers>
       </body>
     </html>

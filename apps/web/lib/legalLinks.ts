@@ -14,5 +14,12 @@ export const LEGAL_LINKS: LegalLink[] = [
   { href: "/legal/verification-methodology", label: "Verification Methodology" },
   { href: "/legal/evidence-handling", label: "Evidence Handling" },
   { href: "/legal/impressum", label: "Impressum" },
-  { href: "/legal/support", label: "Support" }
+  { href: "/legal/support", label: "Support" },
+  { href: "/legal/subprocessors", label: "Subprocessors" },
+  { href: "/legal/data-retention", label: "Data Retention" },
+  { href: "/legal/abuse-reporting", label: "Abuse Reporting" },
+  { href: "/legal/incident-response", label: "Incident Response" },
+  { href: "/legal/toms", label: "Technical & Organizational Measures" },
+  { href: "/legal/privacy-matrix", label: "Privacy Matrix" },
+  { href: "/legal/legal-changelog", label: "Legal Changelog" },
 ];

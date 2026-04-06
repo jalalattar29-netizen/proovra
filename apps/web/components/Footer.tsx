@@ -12,7 +12,9 @@ function pickLinks(hrefs: string[]): LegalLink[] {
 const PRODUCT_LINKS = pickLinks([
   "/legal/security",
   "/legal/verification-methodology",
-  "/legal/evidence-handling"
+  "/legal/evidence-handling",
+  "/legal/subprocessors",
+  "/legal/data-retention",
 ]);
 
 const LEGAL_CORE_LINKS = pickLinks([
@@ -21,14 +23,16 @@ const LEGAL_CORE_LINKS = pickLinks([
   "/legal/cookies",
   "/legal/aup",
   "/legal/dpa",
-  "/legal/dmca"
+  "/legal/dmca",
 ]);
 
 const COMPANY_SUPPORT_LINKS = pickLinks([
   "/legal/law-enforcement",
   "/legal/transparency",
   "/legal/impressum",
-  "/legal/support"
+  "/legal/support",
+  "/legal/abuse-reporting",
+  "/legal/incident-response",
 ]);
 
 export function Footer() {
@@ -37,7 +41,9 @@ export function Footer() {
       <div className="footer-layout">
         <div className="footer-left">
           <div className="footer-brand">PROO✓RA</div>
-          <p className="footer-tagline">Verifiable digital evidence for legal, compliance, and investigations.</p>
+          <p className="footer-tagline">
+            Verifiable digital evidence for legal, compliance, and investigations.
+          </p>
           <a href="mailto:support@proovra.com">support@proovra.com</a>
         </div>
 

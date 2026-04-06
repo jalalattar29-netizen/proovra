@@ -1,40 +1,63 @@
-# Acceptable Use Policy (AUP)
+# Acceptable Use Policy
 
-Last Updated: 08.02.2026
+Last Updated: 06.04.2026
 
 This Acceptable Use Policy (“AUP”) explains what is allowed and prohibited when using Proovra.
 
 By using Proovra, you agree to follow this AUP in addition to our Terms of Service.
 
-## 1. Allowed Use
+## 1. PERMITTED USE
 
-You may use Proovra to capture, preserve, timestamp (where available), and verify digital materials for lawful purposes, including documentation, reporting, and dispute resolution.
+You may use Proovra only for lawful purposes.
 
-## 2. Prohibited Content and Activities
+Proovra may be used to capture, preserve, organize, verify, and review digital materials for legitimate documentation, audit, compliance, investigative, dispute-resolution, and similar lawful workflows.
+
+## 2. PROHIBITED USE
 
 You may not use Proovra to:
 
-- upload or distribute illegal content
-- upload content that violates the privacy rights of others (including unlawful surveillance or harassment)
-- upload child sexual abuse material (CSAM) or any exploitative content
-- upload content that promotes violence, terrorism, or organized criminal activity
-- upload malware, exploit code, or attempt unauthorized access
-- use the Services for fraud, impersonation, deception, or manipulation
-- interfere with platform security, availability, or integrity
-- use Proovra to generate “false evidence” packages intended to mislead courts, authorities, employers, or the public
+- upload, store, or distribute illegal content
+- violate privacy, data protection, or personality rights
+- engage in unlawful surveillance, harassment, or intimidation
+- upload CSAM or exploitative content
+- promote terrorism, organized crime, or serious violence
+- distribute malware, exploit code, or malicious payloads
+- interfere with service security, integrity, or availability
+- attempt unauthorized access
+- engage in fraud, impersonation, deception, or abuse
+- create or package knowingly misleading or fraudulent “evidence” intended to deceive courts, authorities, employers, insurers, customers, or the public
+- misuse verification links, reports, or team access features
 
-## 3. Account Security and Misuse
+## 3. ACCOUNT SECURITY
 
-You are responsible for safeguarding your devices and access credentials.
+You are responsible for safeguarding credentials, devices, and access routes used in connection with your account.
 
-We may suspend or terminate access where we reasonably believe misuse is occurring or where required by law.
+## 4. ENFORCEMENT
 
-## 4. Reporting Abuse
+Where we reasonably suspect misuse, abuse, legal risk, security risk, or violation of this AUP, Proovra may take action including:
 
-If you believe the platform is being misused, please report it to:
+- warning
+- access restriction
+- content disabling or removal
+- account suspension
+- account termination
+- preservation of records for investigation
+- reporting to authorities where legally required
+
+## 5. REPORTING MISUSE
+
+If you believe the platform is being misused, contact:
 
 support@proovra.com
 
-## 5. Enforcement
+## 6. NO OBLIGATION OF GENERAL MONITORING
 
-Proovra may remove content, disable access, or take other necessary actions to protect users, comply with law, and maintain platform integrity.
+Proovra does not promise proactive review of all user content. We may act based on reports, automated security signals, and legal obligations.
+
+## 7. CHANGES
+
+We may update this AUP from time to time.
+
+## 8. CONTACT
+
+support@proovra.com

@@ -1,48 +1,54 @@
-# Support Policy – Proovra
+# Support Policy
 
-Last Updated: 08.02.2026
+Last Updated: 06.04.2026
 
-This Support Policy explains how to contact Proovra, typical response expectations, and scope of support.
+This Support Policy explains how to contact Proovra, the general scope of support, and basic response expectations.
 
-## 1. HOW TO CONTACT US
+## 1. CONTACT CHANNELS
 
-General support: support@proovra.com
-
-Legal/privacy inquiries: legal@proovra.com
-
+General support: support@proovra.com  
+Legal and privacy: legal@proovra.com  
 Security issues: security@proovra.com
 
-## 2. WHAT SUPPORT COVERS
+## 2. WHAT SUPPORT MAY COVER
 
-We can help with:
+Support may assist with:
 
-- account access issues,
-- billing questions,
-- troubleshooting uploads and verification pages,
-- bug reports and usability issues,
-- product guidance and onboarding.
+- account access issues
+- billing and subscription questions
+- troubleshooting uploads, reports, and verification pages
+- bug reports and usability issues
+- product guidance and onboarding questions
 
-## 3. WHAT SUPPORT DOES NOT COVER
+## 3. WHAT SUPPORT DOES NOT PROVIDE
 
-We do not provide:
+Support does not provide:
 
-- legal advice,
-- forensic testimony or guaranteed admissibility opinions,
-- emergency services or real-time monitoring for user safety,
-- recovery of content you deleted (unless required/available).
+- legal advice
+- forensic testimony
+- guaranteed admissibility opinions
+- emergency response services
+- real-time monitoring for user safety
+- guaranteed recovery of deleted content
 
 ## 4. RESPONSE TIMES
 
-Response times may vary by plan:
+Response times vary depending on queue volume, issue severity, and service plan.
 
-- Free users: best-effort
-- Paid subscribers: prioritized support
+Any response target shown in the product, pricing, or enterprise documentation may apply only to the relevant plan.
 
-We may update response standards over time.
+## 5. ABUSE REPORTS
 
-## 5. ABUSE REPORTING
+If you believe Proovra is being used for abuse, unlawful conduct, or rights violations, report it to:
 
-If you believe Proovra is being used for abuse, illegal activity, or rights violations, report it to:  
 support@proovra.com
 
-Include relevant links and details. We may take action including suspension, removal, or reporting where legally required.
+Include relevant links, evidence identifiers, and available details.
+
+## 6. CHANGES
+
+We may update this policy from time to time.
+
+## 7. CONTACT
+
+support@proovra.com

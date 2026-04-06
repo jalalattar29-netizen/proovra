@@ -1,4 +1,4 @@
-import type { FastifyInstance } from "fastify";
+import type { FastifyInstance, FastifyRequest } from "fastify";
 import { z } from "zod";
 import { createErrorResponse, ErrorCode } from "../errors.js";
 import { requirePlatformAdmin } from "../middleware/require-platform-admin.js";
@@ -34,6 +34,31 @@ function csvEscape(value: string | null | undefined): string {
     return `"${safe.replace(/"/g, '""')}"`;
   }
   return safe;
+}
+
+function auditAdminAuditAccess(
+  req: FastifyRequest,
+  params: {
+    action: string;
+    outcome?: "success" | "failure" | "blocked";
+    severity?: "info" | "warning" | "critical";
+    metadata?: Record<string, unknown>;
+  }
+): void {
+  void appendPlatformAuditLog({
+    userId: req.user?.sub ?? null,
+    action: params.action,
+    category: "admin_audit_access",
+    severity: params.severity ?? "info",
+    source: "api_admin_audit",
+    outcome: params.outcome ?? "success",
+    resourceType: "admin_audit",
+    resourceId: null,
+    requestId: req.id,
+    metadata: params.metadata ?? {},
+    ipAddress: (req as { ip?: string }).ip,
+    userAgent: readUserAgent(req),
+  }).catch(() => null);
 }
 
 export async function adminAuditRoutes(app: FastifyInstance) {
@@ -161,6 +186,21 @@ export async function adminAuditRoutes(app: FastifyInstance) {
         search: query.search ?? null,
       });
 
+      auditAdminAuditAccess(req, {
+        action: "admin.audit_log_list_view",
+        outcome: "success",
+        metadata: {
+          limit,
+          cursorId,
+          action: query.action ?? null,
+          category: query.category ?? null,
+          severity: query.severity ?? null,
+          outcomeFilter: query.outcome ?? null,
+          search: query.search ?? null,
+          resultCount: items.length,
+        },
+      });
+
       return reply.code(200).send({ items });
     }
   );
@@ -177,6 +217,19 @@ export async function adminAuditRoutes(app: FastifyInstance) {
         severity: query.severity ?? null,
         outcome: query.outcome ?? null,
         search: query.search ?? null,
+      });
+
+      auditAdminAuditAccess(req, {
+        action: "admin.audit_log_export",
+        outcome: "success",
+        metadata: {
+          action: query.action ?? null,
+          category: query.category ?? null,
+          severity: query.severity ?? null,
+          outcomeFilter: query.outcome ?? null,
+          search: query.search ?? null,
+          resultCount: items.length,
+        },
       });
 
       const lines = [
@@ -249,6 +302,23 @@ export async function adminAuditRoutes(app: FastifyInstance) {
       const result = await verifyAdminAuditChain(
         tailLimit != null ? { tailLimit } : undefined
       );
+
+      auditAdminAuditAccess(req, {
+        action: "admin.audit_log_verify",
+        outcome: result.valid ? "success" : "failure",
+        severity: result.valid ? "info" : "warning",
+        metadata: {
+          tailLimit,
+          valid: result.valid,
+          ...(result.valid
+            ? {}
+            : { brokenAt: "brokenAt" in result ? result.brokenAt : null }),
+          ...(result.valid && "partial" in result ? { partial: result.partial } : {}),
+          ...(result.valid && "verifiedCount" in result
+            ? { verifiedCount: result.verifiedCount }
+            : {}),
+        },
+      });
 
       return reply.code(200).send(result);
     }

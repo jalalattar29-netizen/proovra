@@ -3,14 +3,123 @@
  * Endpoints for evidence analysis, classification, and insights
  */
 
-import type { FastifyInstance } from "fastify";
+import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { requireAuth } from "../middleware/auth.js";
+import { requireLegalAcceptance } from "../middleware/require-legal-acceptance.js";
 import { prisma } from "../db.js";
 import { AppError, ErrorCode } from "../errors.js";
 import { aiService } from "../services/ai.service.js";
+import { appendPlatformAuditLog } from "../services/platform-audit-log.service.js";
+import { writeAnalyticsEvent } from "../services/analytics-event.service.js";
+import { presignGetObject } from "../storage.js";
 
 // In-memory analysis cache (in production, would use Redis or DB)
 const analysisCache = new Map<string, any>();
+
+async function requireAuthAndLegal(req: FastifyRequest, reply: FastifyReply) {
+  await requireAuth(req, reply);
+  if (reply.sent) return;
+  await requireLegalAcceptance(req, reply);
+}
+
+function readUserAgent(req: FastifyRequest): string | null {
+  const ua = req.headers["user-agent"];
+  return Array.isArray(ua) ? ua[0] ?? null : ua ?? null;
+}
+
+function getRequestPath(req: FastifyRequest): string {
+  const url = req.url || "";
+  const qIndex = url.indexOf("?");
+  return qIndex >= 0 ? url.slice(0, qIndex) : url;
+}
+
+function auditAiAction(
+  req: FastifyRequest,
+  params: {
+    userId: string | null;
+    action: string;
+    outcome?: "success" | "failure" | "blocked";
+    severity?: "info" | "warning" | "critical";
+    resourceId?: string | null;
+    metadata?: Record<string, unknown>;
+  }
+): void {
+  void appendPlatformAuditLog({
+    userId: params.userId,
+    action: params.action,
+    category: "ai",
+    severity: params.severity ?? "info",
+    source: "api_ai",
+    outcome: params.outcome ?? "success",
+    resourceType: "evidence_ai",
+    resourceId: params.resourceId ?? null,
+    requestId: req.id,
+    metadata: params.metadata ?? {},
+    ipAddress: req.ip,
+    userAgent: readUserAgent(req),
+  }).catch(() => null);
+}
+
+function fireAiAnalytics(params: {
+  eventType: string;
+  userId: string;
+  req: FastifyRequest;
+  entityId?: string | null;
+  metadata?: Record<string, unknown>;
+}) {
+  void writeAnalyticsEvent({
+    eventType: params.eventType,
+    userId: params.userId,
+    path: getRequestPath(params.req),
+    entityType: "evidence_ai",
+    entityId: params.entityId ?? null,
+    severity: "info",
+    metadata: params.metadata ?? {},
+    req: params.req,
+    skipSessionUpsert: true,
+  }).catch(() => null);
+}
+
+async function getEvidenceImageUrlOrThrow(params: {
+  evidenceId: string;
+  userId: string;
+}) {
+  const evidence = await prisma.evidence.findFirst({
+    where: {
+      id: params.evidenceId,
+      ownerUserId: params.userId,
+      deletedAt: null,
+    },
+    select: {
+      id: true,
+      type: true,
+      storageBucket: true,
+      storageKey: true,
+    },
+  });
+
+  if (!evidence) {
+    throw new AppError(ErrorCode.EVIDENCE_NOT_FOUND);
+  }
+
+  if (!evidence.storageBucket || !evidence.storageKey) {
+    throw new AppError(
+      ErrorCode.INVALID_REQUEST,
+      "Evidence file is not available for AI analysis"
+    );
+  }
+
+  const imageUrl = await presignGetObject({
+    bucket: evidence.storageBucket,
+    key: evidence.storageKey,
+    expiresInSeconds: 600,
+  });
+
+  return {
+    evidence,
+    imageUrl,
+  };
+}
 
 export async function aiRoutes(app: FastifyInstance) {
   /**
@@ -19,39 +128,51 @@ export async function aiRoutes(app: FastifyInstance) {
    */
   app.post<{ Params: { id: string } }>(
     "/v1/evidence/:id/analyze",
-    { preHandler: [requireAuth] },
-    async (req: any, res: any) => {
+    { preHandler: [requireAuthAndLegal] },
+    async (req: any) => {
       const userId = req.user!.sub;
       const { id } = req.params;
 
       try {
-        // Get evidence
-        const evidence = await prisma.evidence.findFirst({
-          where: { id, ownerUserId: userId },
-          select: {
-            id: true,
-            type: true,
-            storageBucket: true,
-            storageKey: true,
+        const { evidence, imageUrl } = await getEvidenceImageUrlOrThrow({
+          evidenceId: id,
+          userId,
+        });
+
+        const analysis = await aiService.analyzeEvidence(imageUrl, evidence.type);
+
+        const cacheKey = `${userId}:${id}`;
+        const createdAt = new Date();
+
+        analysisCache.set(cacheKey, {
+          evidenceId: id,
+          ...analysis,
+          createdAt,
+        });
+
+        auditAiAction(req, {
+          userId,
+          action: "ai.analysis_run",
+          outcome: "success",
+          resourceId: id,
+          metadata: {
+            evidenceType: evidence.type,
+            classification: analysis.classification?.category ?? null,
+            riskLevel: analysis.moderation?.risk_level ?? null,
+            tagCount: Array.isArray(analysis.tags?.tags) ? analysis.tags.tags.length : 0,
           },
         });
 
-        if (!evidence) {
-          throw new AppError(ErrorCode.EVIDENCE_NOT_FOUND);
-        }
-
-        // Get signed URL for image
-        // For now, use a placeholder - in production, would get actual S3 URL
-        const imageUrl = `https://storage.example.com/${evidence.storageBucket}/${evidence.storageKey}`;
-
-        // Run AI analysis
-        const analysis = await aiService.analyzeEvidence(imageUrl, evidence.type);
-
-        // Cache analysis result (in-memory for now)
-        const cacheKey = `${userId}:${id}`;
-        analysisCache.set(cacheKey, {
-          ...analysis,
-          createdAt: new Date(),
+        fireAiAnalytics({
+          eventType: "ai_analysis_completed",
+          userId,
+          req,
+          entityId: id,
+          metadata: {
+            evidenceType: evidence.type,
+            classification: analysis.classification?.category ?? null,
+            riskLevel: analysis.moderation?.risk_level ?? null,
+          },
         });
 
         return {
@@ -63,13 +184,25 @@ export async function aiRoutes(app: FastifyInstance) {
             description: analysis.description,
             moderation: analysis.moderation,
             tags: analysis.tags,
-            createdAt: new Date(),
+            createdAt,
           },
         };
       } catch (error) {
+        auditAiAction(req, {
+          userId,
+          action: "ai.analysis_run",
+          outcome: "failure",
+          severity: "warning",
+          resourceId: id,
+          metadata: {
+            reason: error instanceof Error ? error.message : "unknown_error",
+          },
+        });
+
         if (error instanceof AppError) {
           throw error;
         }
+
         throw new AppError(
           ErrorCode.INTERNAL_SERVER_ERROR,
           "Failed to analyze evidence"
@@ -84,24 +217,40 @@ export async function aiRoutes(app: FastifyInstance) {
    */
   app.get<{ Params: { id: string } }>(
     "/v1/evidence/:id/analysis",
-    { preHandler: [requireAuth] },
+    { preHandler: [requireAuthAndLegal] },
     async (req: any) => {
       const userId = req.user!.sub;
       const { id } = req.params;
 
-      // Verify evidence exists and belongs to user
       const evidence = await prisma.evidence.findFirst({
-        where: { id, ownerUserId: userId },
+        where: { id, ownerUserId: userId, deletedAt: null },
         select: { id: true },
       });
 
       if (!evidence) {
+        auditAiAction(req, {
+          userId,
+          action: "ai.analysis_view",
+          outcome: "failure",
+          severity: "warning",
+          resourceId: id,
+          metadata: { reason: "evidence_not_found" },
+        });
         throw new AppError(ErrorCode.EVIDENCE_NOT_FOUND);
       }
 
-      // Get cached analysis result
       const cacheKey = `${userId}:${id}`;
       const analysis = analysisCache.get(cacheKey);
+
+      auditAiAction(req, {
+        userId,
+        action: "ai.analysis_view",
+        outcome: "success",
+        resourceId: id,
+        metadata: {
+          cached: Boolean(analysis),
+        },
+      });
 
       if (!analysis) {
         return {
@@ -120,27 +269,40 @@ export async function aiRoutes(app: FastifyInstance) {
    */
   app.post<{ Params: { id: string } }>(
     "/v1/evidence/:id/suggest-tags",
-    { preHandler: [requireAuth] },
+    { preHandler: [requireAuthAndLegal] },
     async (req: any) => {
       const userId = req.user!.sub;
       const { id } = req.params;
 
       try {
-        // Verify evidence exists
-        const evidence = await prisma.evidence.findFirst({
-          where: { id, ownerUserId: userId },
-          select: { id: true, type: true },
+        const { evidence, imageUrl } = await getEvidenceImageUrlOrThrow({
+          evidenceId: id,
+          userId,
         });
 
-        if (!evidence) {
-          throw new AppError(ErrorCode.EVIDENCE_NOT_FOUND);
-        }
-
-        // Get image URL
-        const imageUrl = `https://storage.example.com/evidence/${id}`;
-
-        // Get tags
         const tagSuggestion = await aiService.suggestTags(imageUrl, evidence.type);
+
+        auditAiAction(req, {
+          userId,
+          action: "ai.tags_suggested",
+          outcome: "success",
+          resourceId: id,
+          metadata: {
+            evidenceType: evidence.type,
+            tagCount: Array.isArray(tagSuggestion.tags) ? tagSuggestion.tags.length : 0,
+          },
+        });
+
+        fireAiAnalytics({
+          eventType: "ai_tags_suggested",
+          userId,
+          req,
+          entityId: id,
+          metadata: {
+            evidenceType: evidence.type,
+            tagCount: Array.isArray(tagSuggestion.tags) ? tagSuggestion.tags.length : 0,
+          },
+        });
 
         return {
           data: {
@@ -149,9 +311,21 @@ export async function aiRoutes(app: FastifyInstance) {
           },
         };
       } catch (error) {
+        auditAiAction(req, {
+          userId,
+          action: "ai.tags_suggested",
+          outcome: "failure",
+          severity: "warning",
+          resourceId: id,
+          metadata: {
+            reason: error instanceof Error ? error.message : "unknown_error",
+          },
+        });
+
         if (error instanceof AppError) {
           throw error;
         }
+
         throw new AppError(
           ErrorCode.INTERNAL_SERVER_ERROR,
           "Failed to suggest tags"
@@ -166,12 +340,11 @@ export async function aiRoutes(app: FastifyInstance) {
    */
   app.get(
     "/v1/insights",
-    { preHandler: [requireAuth] },
+    { preHandler: [requireAuthAndLegal] },
     async (req: any) => {
       const userId = req.user!.sub;
 
       try {
-        // Get all cached analyses for user
         const userAnalyses: any[] = [];
         analysisCache.forEach((analysis, key) => {
           if (key.startsWith(`${userId}:`)) {
@@ -179,38 +352,52 @@ export async function aiRoutes(app: FastifyInstance) {
           }
         });
 
-        // Aggregate classifications
         const classificationCounts: Record<string, number> = {};
         const moderationRisks: Record<string, number> = {};
         const allTags: Record<string, number> = {};
 
         userAnalyses.forEach((analysis) => {
-          // Count classifications
           const classification = analysis.classification?.category;
           if (classification) {
             classificationCounts[classification] =
               (classificationCounts[classification] || 0) + 1;
           }
 
-          // Count moderation risks
           const risk = analysis.moderation?.risk_level || "unknown";
           moderationRisks[risk] = (moderationRisks[risk] || 0) + 1;
 
-          // Count tags
           const tags = analysis.tags?.tags || [];
           tags.forEach((tag: string) => {
             allTags[tag] = (allTags[tag] || 0) + 1;
           });
         });
 
-        // Get API usage stats
         const usageStats = aiService.getUsageStats();
 
-        // Get total evidence count
         const evidenceCount = await prisma.evidence.count({
           where: {
             ownerUserId: userId,
             deletedAt: null,
+          },
+        });
+
+        auditAiAction(req, {
+          userId,
+          action: "ai.insights_view",
+          outcome: "success",
+          metadata: {
+            totalAnalyzed: userAnalyses.length,
+            totalEvidence: evidenceCount,
+          },
+        });
+
+        fireAiAnalytics({
+          eventType: "ai_insights_viewed",
+          userId,
+          req,
+          metadata: {
+            totalAnalyzed: userAnalyses.length,
+            totalEvidence: evidenceCount,
           },
         });
 
@@ -229,18 +416,26 @@ export async function aiRoutes(app: FastifyInstance) {
               total_cost_usd: usageStats.total_cost_usd.toFixed(2),
               average_cost_per_call: usageStats.average_cost_per_call.toFixed(4),
             },
-            recent_analyses: userAnalyses
-              .slice(0, 10)
-              .map((a) => ({
-                id: a.id || "unknown",
-                evidenceId: a.evidenceId || "unknown",
-                classification: a.classification?.category,
-                riskLevel: a.moderation?.risk_level,
-                createdAt: a.createdAt,
-              })),
+            recent_analyses: userAnalyses.slice(0, 10).map((a) => ({
+              id: a.id || "unknown",
+              evidenceId: a.evidenceId || "unknown",
+              classification: a.classification?.category,
+              riskLevel: a.moderation?.risk_level,
+              createdAt: a.createdAt,
+            })),
           },
         };
       } catch (error) {
+        auditAiAction(req, {
+          userId,
+          action: "ai.insights_view",
+          outcome: "failure",
+          severity: "warning",
+          metadata: {
+            reason: error instanceof Error ? error.message : "unknown_error",
+          },
+        });
+
         req.log.error({ error }, "Failed to get insights");
         throw new AppError(
           ErrorCode.INTERNAL_SERVER_ERROR,
@@ -256,27 +451,42 @@ export async function aiRoutes(app: FastifyInstance) {
    */
   app.post<{ Params: { id: string } }>(
     "/v1/evidence/:id/check-safety",
-    { preHandler: [requireAuth] },
+    { preHandler: [requireAuthAndLegal] },
     async (req: any) => {
       const userId = req.user!.sub;
       const { id } = req.params;
 
       try {
-        // Verify evidence exists
-        const evidence = await prisma.evidence.findFirst({
-          where: { id, ownerUserId: userId },
-          select: { id: true },
+        const { evidence, imageUrl } = await getEvidenceImageUrlOrThrow({
+          evidenceId: id,
+          userId,
         });
 
-        if (!evidence) {
-          throw new AppError(ErrorCode.EVIDENCE_NOT_FOUND);
-        }
-
-        // Get image URL
-        const imageUrl = `https://storage.example.com/evidence/${id}`;
-
-        // Check moderation
         const moderation = await aiService.checkModeration(imageUrl);
+
+        auditAiAction(req, {
+          userId,
+          action: "ai.safety_check",
+          outcome: "success",
+          resourceId: id,
+          metadata: {
+            evidenceType: evidence.type,
+            isSafe: moderation.is_safe,
+            riskLevel: moderation.risk_level,
+          },
+        });
+
+        fireAiAnalytics({
+          eventType: "ai_safety_checked",
+          userId,
+          req,
+          entityId: id,
+          metadata: {
+            evidenceType: evidence.type,
+            isSafe: moderation.is_safe,
+            riskLevel: moderation.risk_level,
+          },
+        });
 
         return {
           data: {
@@ -288,9 +498,21 @@ export async function aiRoutes(app: FastifyInstance) {
           },
         };
       } catch (error) {
+        auditAiAction(req, {
+          userId,
+          action: "ai.safety_check",
+          outcome: "failure",
+          severity: "warning",
+          resourceId: id,
+          metadata: {
+            reason: error instanceof Error ? error.message : "unknown_error",
+          },
+        });
+
         if (error instanceof AppError) {
           throw error;
         }
+
         throw new AppError(
           ErrorCode.INTERNAL_SERVER_ERROR,
           "Failed to check content safety"
@@ -305,9 +527,19 @@ export async function aiRoutes(app: FastifyInstance) {
    */
   app.get(
     "/v1/ai/usage",
-    { preHandler: [requireAuth] },
+    { preHandler: [requireAuthAndLegal] },
     async (req: any) => {
+      const userId = req.user!.sub;
       const stats = aiService.getUsageStats();
+
+      auditAiAction(req, {
+        userId,
+        action: "ai.usage_view",
+        outcome: "success",
+        metadata: {
+          totalCalls: stats.total_calls,
+        },
+      });
 
       return {
         data: {

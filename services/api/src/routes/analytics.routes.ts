@@ -10,6 +10,7 @@ import {
   writeAnalyticsEvent,
 } from "../services/analytics-event.service.js";
 import { classifyRouteType } from "../lib/route-classification.js";
+import { appendPlatformAuditLog } from "../services/platform-audit-log.service.js";
 
 type AnalyticsTrackBody = {
   eventType?: string;
@@ -61,6 +62,36 @@ type AdminAnalyticsQuery = {
 };
 
 const ADMIN_PRE = { preHandler: requirePlatformAdmin };
+
+function readUserAgent(req: FastifyRequest): string | null {
+  const ua = req.headers["user-agent"];
+  return Array.isArray(ua) ? ua[0] ?? null : ua ?? null;
+}
+
+function auditAdminAnalyticsAction(
+  req: FastifyRequest,
+  params: {
+    action: string;
+    outcome?: "success" | "failure" | "blocked";
+    severity?: "info" | "warning" | "critical";
+    metadata?: Record<string, unknown>;
+  }
+): void {
+  void appendPlatformAuditLog({
+    userId: req.user?.sub ?? null,
+    action: params.action,
+    category: "admin_analytics",
+    severity: params.severity ?? "info",
+    source: "api_admin_analytics",
+    outcome: params.outcome ?? "success",
+    resourceType: "analytics_dashboard",
+    resourceId: null,
+    requestId: req.id,
+    metadata: params.metadata ?? {},
+    ipAddress: req.ip,
+    userAgent: readUserAgent(req),
+  }).catch(() => null);
+}
 
 function formatDayKey(date: Date): string {
   return date.toISOString().slice(0, 10);
@@ -651,6 +682,19 @@ export default async function analyticsRoutes(app: FastifyInstance) {
             getFunnel(query),
           ]);
 
+        auditAdminAnalyticsAction(request, {
+          action: "admin.analytics.dashboard_view",
+          outcome: "success",
+          metadata: {
+            dateRange: query.dateRangeKey,
+            eventType: query.eventType,
+            routeType: query.routeType,
+            path: query.path,
+            countryCode: query.countryCode,
+            cityNormalized: query.cityNormalized,
+          },
+        });
+
         return reply.send({
           summary,
           geography,
@@ -660,6 +704,15 @@ export default async function analyticsRoutes(app: FastifyInstance) {
           funnel,
         });
       } catch (err: unknown) {
+        auditAdminAnalyticsAction(request, {
+          action: "admin.analytics.dashboard_view",
+          outcome: "failure",
+          severity: "warning",
+          metadata: {
+            reason: err instanceof Error ? err.message : "unknown_error",
+          },
+        });
+
         app.log.error({ err }, "admin.analytics.dashboard.failed");
 
         return reply.code(500).send({
@@ -669,10 +722,26 @@ export default async function analyticsRoutes(app: FastifyInstance) {
     }
   );
 
-  app.get("/v1/admin/analytics/summary", ADMIN_PRE, async (_request, reply) => {
+  app.get("/v1/admin/analytics/summary", ADMIN_PRE, async (request, reply) => {
     try {
-      return reply.send(await getSummary());
+      const result = await getSummary();
+
+      auditAdminAnalyticsAction(request, {
+        action: "admin.analytics.summary_view",
+        outcome: "success",
+      });
+
+      return reply.send(result);
     } catch (err: unknown) {
+      auditAdminAnalyticsAction(request, {
+        action: "admin.analytics.summary_view",
+        outcome: "failure",
+        severity: "warning",
+        metadata: {
+          reason: err instanceof Error ? err.message : "unknown_error",
+        },
+      });
+
       app.log.error({ err }, "admin.analytics.summary.failed");
       return reply.code(500).send({
         error: "Failed to load admin analytics summary",
@@ -685,8 +754,33 @@ export default async function analyticsRoutes(app: FastifyInstance) {
     ADMIN_PRE,
     async (request, reply) => {
       try {
-        return reply.send(await getGeography(readAdminAnalyticsQuery(request)));
+        const query = readAdminAnalyticsQuery(request);
+        const result = await getGeography(query);
+
+        auditAdminAnalyticsAction(request, {
+          action: "admin.analytics.geography_view",
+          outcome: "success",
+          metadata: {
+            dateRange: query.dateRangeKey,
+            eventType: query.eventType,
+            routeType: query.routeType,
+            path: query.path,
+            countryCode: query.countryCode,
+            cityNormalized: query.cityNormalized,
+          },
+        });
+
+        return reply.send(result);
       } catch (err: unknown) {
+        auditAdminAnalyticsAction(request, {
+          action: "admin.analytics.geography_view",
+          outcome: "failure",
+          severity: "warning",
+          metadata: {
+            reason: err instanceof Error ? err.message : "unknown_error",
+          },
+        });
+
         app.log.error({ err }, "analytics.geography.failed");
         return reply.code(500).send({ error: "Failed geography analytics" });
       }
@@ -695,8 +789,33 @@ export default async function analyticsRoutes(app: FastifyInstance) {
 
   app.get("/v1/admin/analytics/pages", ADMIN_PRE, async (request, reply) => {
     try {
-      return reply.send(await getPages(readAdminAnalyticsQuery(request)));
+      const query = readAdminAnalyticsQuery(request);
+      const result = await getPages(query);
+
+      auditAdminAnalyticsAction(request, {
+        action: "admin.analytics.pages_view",
+        outcome: "success",
+        metadata: {
+          dateRange: query.dateRangeKey,
+          eventType: query.eventType,
+          routeType: query.routeType,
+          path: query.path,
+          countryCode: query.countryCode,
+          cityNormalized: query.cityNormalized,
+        },
+      });
+
+      return reply.send(result);
     } catch (err: unknown) {
+      auditAdminAnalyticsAction(request, {
+        action: "admin.analytics.pages_view",
+        outcome: "failure",
+        severity: "warning",
+        metadata: {
+          reason: err instanceof Error ? err.message : "unknown_error",
+        },
+      });
+
       app.log.error({ err }, "analytics.pages.failed");
       return reply.code(500).send({ error: "Failed pages analytics" });
     }
@@ -704,8 +823,33 @@ export default async function analyticsRoutes(app: FastifyInstance) {
 
   app.get("/v1/admin/analytics/recent", ADMIN_PRE, async (request, reply) => {
     try {
-      return reply.send(await getRecent(readAdminAnalyticsQuery(request)));
+      const query = readAdminAnalyticsQuery(request);
+      const result = await getRecent(query);
+
+      auditAdminAnalyticsAction(request, {
+        action: "admin.analytics.recent_view",
+        outcome: "success",
+        metadata: {
+          dateRange: query.dateRangeKey,
+          eventType: query.eventType,
+          routeType: query.routeType,
+          path: query.path,
+          countryCode: query.countryCode,
+          cityNormalized: query.cityNormalized,
+        },
+      });
+
+      return reply.send(result);
     } catch (err: unknown) {
+      auditAdminAnalyticsAction(request, {
+        action: "admin.analytics.recent_view",
+        outcome: "failure",
+        severity: "warning",
+        metadata: {
+          reason: err instanceof Error ? err.message : "unknown_error",
+        },
+      });
+
       app.log.error({ err }, "analytics.recent.failed");
       return reply.code(500).send({ error: "Failed recent analytics" });
     }
@@ -713,8 +857,33 @@ export default async function analyticsRoutes(app: FastifyInstance) {
 
   app.get("/v1/admin/analytics/trends", ADMIN_PRE, async (request, reply) => {
     try {
-      return reply.send(await getTrends(readAdminAnalyticsQuery(request)));
+      const query = readAdminAnalyticsQuery(request);
+      const result = await getTrends(query);
+
+      auditAdminAnalyticsAction(request, {
+        action: "admin.analytics.trends_view",
+        outcome: "success",
+        metadata: {
+          dateRange: query.dateRangeKey,
+          eventType: query.eventType,
+          routeType: query.routeType,
+          path: query.path,
+          countryCode: query.countryCode,
+          cityNormalized: query.cityNormalized,
+        },
+      });
+
+      return reply.send(result);
     } catch (err: unknown) {
+      auditAdminAnalyticsAction(request, {
+        action: "admin.analytics.trends_view",
+        outcome: "failure",
+        severity: "warning",
+        metadata: {
+          reason: err instanceof Error ? err.message : "unknown_error",
+        },
+      });
+
       app.log.error({ err }, "analytics.trends.failed");
       return reply.code(500).send({ error: "Failed trends analytics" });
     }
@@ -722,8 +891,33 @@ export default async function analyticsRoutes(app: FastifyInstance) {
 
   app.get("/v1/admin/analytics/funnel", ADMIN_PRE, async (request, reply) => {
     try {
-      return reply.send(await getFunnel(readAdminAnalyticsQuery(request)));
+      const query = readAdminAnalyticsQuery(request);
+      const result = await getFunnel(query);
+
+      auditAdminAnalyticsAction(request, {
+        action: "admin.analytics.funnel_view",
+        outcome: "success",
+        metadata: {
+          dateRange: query.dateRangeKey,
+          eventType: query.eventType,
+          routeType: query.routeType,
+          path: query.path,
+          countryCode: query.countryCode,
+          cityNormalized: query.cityNormalized,
+        },
+      });
+
+      return reply.send(result);
     } catch (err: unknown) {
+      auditAdminAnalyticsAction(request, {
+        action: "admin.analytics.funnel_view",
+        outcome: "failure",
+        severity: "warning",
+        metadata: {
+          reason: err instanceof Error ? err.message : "unknown_error",
+        },
+      });
+
       app.log.error({ err }, "analytics.funnel.failed");
       return reply.code(500).send({ error: "Failed funnel analytics" });
     }

@@ -1,71 +1,119 @@
 # Data Processing Agreement (DPA)
 
-Last Updated: 08.02.2026
+Last Updated: 06.04.2026
 
-This Data Processing Agreement (“DPA”) forms part of the Terms of Service between Proovra and the user or organization using the Services.
+This Data Processing Agreement (“DPA”) forms part of the agreement between Proovra and the customer using the Services where Proovra processes personal data on behalf of that customer.
 
-This DPA applies where Proovra processes personal data on behalf of a user acting as a data controller.
+## 1. PARTIES
 
-## 1. Roles
+This DPA applies between:
 
-For purposes of applicable data protection laws:
+**Customer** = the user or organization acting as controller for customer-submitted personal data
 
-User / Organization = Data Controller  
-Proovra = Data Processor
+**Proovra** = the processor for such customer-submitted personal data, where applicable
 
-The controller determines the purposes and means of processing personal data uploaded to the platform.
+For website, account, billing, support, security, and certain platform-level processing, Proovra may also act as an independent controller.
 
-Proovra processes such data only on documented instructions from the controller.
+## 2. SUBJECT MATTER
 
-## 2. Subject Matter of Processing
+Proovra provides a digital evidence platform that may process personal data in connection with:
 
-Processing may include:
+- storage of uploaded or captured files
+- generation of hashes, fingerprints, signatures, and reports
+- custody event records
+- verification workflows
+- case and team features
+- support and technical operations
 
-- storage of uploaded files
-- generation of cryptographic hashes
-- digital signatures
-- timestamp records
-- custody event logs
-- verification reports
+## 3. NATURE AND PURPOSE OF PROCESSING
 
-Processing occurs solely to operate the Services.
+Processing is carried out solely to provide, secure, support, maintain, and improve the Services, and to comply with legal obligations and documented customer instructions as reflected in the Service configuration and customer use.
 
-## 3. Duration
+## 4. CATEGORIES OF DATA
 
-Processing continues for the duration of the user’s use of the Services and any retention periods necessary to preserve evidence integrity and security.
+Depending on customer use, personal data may include:
 
-## 4. Security Measures
+- account identifiers
+- names and email addresses
+- uploaded files and embedded personal data
+- technical metadata
+- logs and audit events
+- team and access information
+- evidence-related verification artifacts
 
-Proovra implements appropriate technical and organizational measures, including:
+## 5. DATA SUBJECTS
+
+Data subjects may include:
+
+- customer personnel
+- end users
+- uploaded-content subjects
+- reviewers, recipients, or collaborators
+- support contacts
+- other persons whose data appears in uploaded material
+
+## 6. PROCESSOR OBLIGATIONS
+
+Proovra shall:
+
+- process personal data only on documented instructions from the customer, unless otherwise required by law
+- ensure persons authorized to process data are bound by confidentiality
+- implement appropriate technical and organizational measures
+- assist the customer where reasonably possible with data subject requests, security matters, and compliance obligations
+- notify the customer without undue delay after becoming aware of a personal data breach affecting customer-controlled personal data, where applicable
+- delete or return personal data upon termination where required and technically feasible, except where retention is justified by law, security, fraud prevention, or evidentiary-integrity requirements
+
+## 7. SECURITY MEASURES
+
+Security measures may include, as appropriate:
 
 - encryption in transit
-- secure storage infrastructure
+- controlled hosting and storage environments
 - access controls
+- authentication controls
 - logging and audit mechanisms
-- key management practices
+- key-management practices
+- monitoring and incident response controls
 
-## 5. Subprocessors
+## 8. SUBPROCESSORS
 
-Proovra may use trusted infrastructure and service providers to operate the platform.
+Proovra may engage subprocessors to support delivery of the Services.
 
-Such providers are bound by contractual confidentiality and data protection obligations.
+Proovra will seek to impose appropriate data protection and confidentiality obligations on such subprocessors.
 
-## 6. Confidentiality
+## 9. INTERNATIONAL TRANSFERS
 
-Persons authorized to process personal data are subject to confidentiality obligations.
+Where personal data is transferred outside the EEA, UK, or Switzerland, Proovra will seek to use appropriate safeguards where required by law.
 
-## 7. Data Subject Rights
+## 10. AUDITS AND INFORMATION
 
-Proovra assists controllers, where reasonably possible, in responding to requests from data subjects exercising their rights under applicable law.
+Taking into account the nature of the Services, Proovra may provide information reasonably necessary to demonstrate compliance with this DPA, subject to proportionality, confidentiality, security, and practical limitations.
 
-## 8. Data Breach Notification
+## 11. RETENTION AND DELETION
 
-Proovra will notify the controller without undue delay after becoming aware of a personal data breach affecting processed data.
+Deletion or return obligations remain subject to legal, security, fraud-prevention, dispute, and evidentiary-integrity requirements, where applicable.
 
-## 9. Data Deletion
+## 12. GOVERNING LAW
 
-Upon termination of Services, personal data may be deleted or returned where technically feasible, except where retention is required for security, legal compliance, or evidentiary integrity.
+This DPA is governed by the same law governing the applicable customer agreement or Terms of Service, unless otherwise required by mandatory law.
 
-## 10. Governing Law
+## 13. CONTACT
 
-This DPA is governed by the same law as the Proovra Terms of Service.
+legal@proovra.com
+
+## Appendix A – Processing Details
+
+Subject Matter: Evidence processing platform  
+Nature: Storage, hashing, signing, verification  
+Duration: Duration of service + retention policy  
+Categories: Account data, evidence data, logs  
+Data Subjects: Users, uploaded content subjects  
+
+## Appendix B – Technical and Organizational Measures (TOMs)
+
+- Access control and authentication
+- Encryption in transit
+- Secure storage
+- Audit logging
+- Monitoring and alerting
+- Key management

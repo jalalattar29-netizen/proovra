@@ -2,6 +2,8 @@ import type { FastifyInstance, FastifyRequest } from "fastify";
 import { z } from "zod";
 import { requireAuth } from "../middleware/auth.js";
 import { getAuthUserId } from "../auth.js";
+import { requireLegalAcceptance } from "../middleware/require-legal-acceptance.js";
+import { createErrorResponse, ErrorCode } from "../errors.js";
 import { createEvidence } from "../services/evidence.service.js";
 import { completeEvidence } from "../services/evidence-complete.service.js";
 import * as prismaPkg from "@prisma/client";
@@ -69,6 +71,13 @@ const RestoreDeletedEvidenceBody = z.object({
 type ParamsId = { id: string };
 
 const { EvidenceStatus, PlanType } = prismaPkg;
+
+async function requireAuthAndLegal(req: FastifyRequest, reply: any) {
+  await requireAuth(req, reply);
+  if (reply.sent) return;
+
+  await requireLegalAcceptance(req, reply);
+}
 
 const SAFE_EVIDENCE_SELECT = {
   id: true,
@@ -986,7 +995,7 @@ function toJsonSafe<T>(value: T): T {
 }
 
 export async function evidenceRoutes(app: FastifyInstance) {
-  app.post("/v1/evidence", { preHandler: requireAuth }, async (req, reply) => {
+  app.post("/v1/evidence", { preHandler: requireAuthAndLegal }, async (req, reply) => {
     const body = CreateEvidenceBody.parse(req.body);
     const ownerUserId = getAuthUserId(req);
     const plan = await getUserPlan(ownerUserId);

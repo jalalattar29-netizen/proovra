@@ -3,29 +3,91 @@
  * API endpoints for API keys, batch analysis, team management, and webhooks
  */
 
-import type { FastifyInstance } from "fastify";
+import type { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
 import { requireAuth } from "../middleware/auth.js";
+import { requireLegalAcceptance } from "../middleware/require-legal-acceptance.js";
 import { prisma } from "../db.js";
 import { AppError, ErrorCode } from "../errors.js";
 import { apiKeyService } from "../services/api-keys.service.js";
 import { batchAnalysisService } from "../services/batch-analysis.service.js";
 import { getEmailService } from "../services/email.service.js";
 import { getWebhookService } from "../services/webhook.service.js";
+import { appendPlatformAuditLog } from "../services/platform-audit-log.service.js";
+import { writeAnalyticsEvent } from "../services/analytics-event.service.js";
+
+async function requireAuthAndLegal(req: FastifyRequest, reply: FastifyReply) {
+  await requireAuth(req, reply);
+  if (reply.sent) return;
+  await requireLegalAcceptance(req, reply);
+}
+
+function readUserAgent(req: FastifyRequest): string | null {
+  const ua = req.headers["user-agent"];
+  return Array.isArray(ua) ? ua[0] ?? null : ua ?? null;
+}
+
+function getRequestPath(req: FastifyRequest): string {
+  const url = req.url || "";
+  const qIndex = url.indexOf("?");
+  return qIndex >= 0 ? url.slice(0, qIndex) : url;
+}
+
+function auditEnterpriseAction(
+  req: FastifyRequest,
+  params: {
+    userId: string | null;
+    action: string;
+    outcome?: "success" | "failure" | "blocked";
+    severity?: "info" | "warning" | "critical";
+    resourceType?: string | null;
+    resourceId?: string | null;
+    metadata?: Record<string, unknown>;
+  }
+) {
+  void appendPlatformAuditLog({
+    userId: params.userId,
+    action: params.action,
+    category: "enterprise",
+    severity: params.severity ?? "info",
+    source: "api_enterprise",
+    outcome: params.outcome ?? "success",
+    resourceType: params.resourceType ?? "enterprise",
+    resourceId: params.resourceId ?? null,
+    requestId: req.id,
+    metadata: params.metadata ?? {},
+    ipAddress: req.ip,
+    userAgent: readUserAgent(req),
+  }).catch(() => null);
+}
+
+function fireEnterpriseAnalyticsEvent(params: {
+  eventType: string;
+  userId: string;
+  req: FastifyRequest;
+  entityType?: string | null;
+  entityId?: string | null;
+  severity?: string | null;
+  metadata?: Record<string, unknown>;
+}) {
+  void writeAnalyticsEvent({
+    eventType: params.eventType,
+    userId: params.userId,
+    path: getRequestPath(params.req),
+    entityType: params.entityType ?? "enterprise",
+    entityId: params.entityId ?? null,
+    severity: params.severity ?? "info",
+    metadata: params.metadata ?? {},
+    req: params.req,
+    skipSessionUpsert: true,
+  }).catch(() => null);
+}
 
 export async function enterpriseRoutes(app: FastifyInstance) {
-  /**
-   * API Keys Management
-   */
-
-  /**
-   * Generate new API key
-   * POST /v1/api-keys
-   */
   app.post<{
     Body: { name: string; scopes?: string[]; expiresInDays?: number };
   }>(
     "/v1/api-keys",
-    { preHandler: [requireAuth] },
+    { preHandler: [requireAuthAndLegal] },
     async (req: any) => {
       const userId = req.user!.sub;
       const { name, scopes, expiresInDays } = req.body;
@@ -42,6 +104,28 @@ export async function enterpriseRoutes(app: FastifyInstance) {
           expiresInDays
         );
 
+        auditEnterpriseAction(req, {
+          userId,
+          action: "enterprise.api_key_create",
+          outcome: "success",
+          resourceType: "api_key",
+          resourceId: metadata.id,
+          metadata: {
+            name: metadata.name,
+            scopes: metadata.scopes,
+            expiresAt: metadata.expiresAt,
+          },
+        });
+
+        fireEnterpriseAnalyticsEvent({
+          eventType: "api_key_created",
+          userId,
+          req,
+          entityType: "api_key",
+          entityId: metadata.id,
+          metadata: { scopes: metadata.scopes.length },
+        });
+
         return {
           data: {
             id: metadata.id,
@@ -51,32 +135,42 @@ export async function enterpriseRoutes(app: FastifyInstance) {
             rateLimit: metadata.rateLimit,
             scopes: metadata.scopes,
             isActive: metadata.isActive,
-            apiKey: raw, // Only shown once on creation
-            secret: raw, // For display purposes
+            apiKey: raw,
+            secret: raw,
           },
           message: "Save your API key securely. You won't be able to see it again.",
         };
-      } catch (error) {
-        throw new AppError(
-          ErrorCode.INTERNAL_SERVER_ERROR,
-          "Failed to generate API key"
-        );
+      } catch (_error) {
+        auditEnterpriseAction(req, {
+          userId,
+          action: "enterprise.api_key_create",
+          outcome: "failure",
+          severity: "critical",
+          resourceType: "api_key",
+          metadata: { name },
+        });
+
+        throw new AppError(ErrorCode.INTERNAL_SERVER_ERROR, "Failed to generate API key");
       }
     }
   );
 
-  /**
-   * List API keys
-   * GET /v1/api-keys
-   */
   app.get(
     "/v1/api-keys",
-    { preHandler: [requireAuth] },
+    { preHandler: [requireAuthAndLegal] },
     async (req: any) => {
       const userId = req.user!.sub;
 
       try {
         const keys = apiKeyService.listKeys(userId);
+
+        auditEnterpriseAction(req, {
+          userId,
+          action: "enterprise.api_keys_list",
+          outcome: "success",
+          resourceType: "api_key",
+          metadata: { count: keys.length },
+        });
 
         return {
           data: keys.map((key) => ({
@@ -88,25 +182,26 @@ export async function enterpriseRoutes(app: FastifyInstance) {
             rateLimit: key.rateLimit,
             scopes: key.scopes,
             isActive: key.isActive,
-            preview: `${key.keyHash.slice(0, 8)}...`, // Partial hash for identification
+            preview: `${key.keyHash.slice(0, 8)}...`,
           })),
         };
-      } catch (error) {
-        throw new AppError(
-          ErrorCode.INTERNAL_SERVER_ERROR,
-          "Failed to list API keys"
-        );
+      } catch (_error) {
+        auditEnterpriseAction(req, {
+          userId,
+          action: "enterprise.api_keys_list",
+          outcome: "failure",
+          severity: "critical",
+          resourceType: "api_key",
+        });
+
+        throw new AppError(ErrorCode.INTERNAL_SERVER_ERROR, "Failed to list API keys");
       }
     }
   );
 
-  /**
-   * Revoke API key
-   * DELETE /v1/api-keys/:id
-   */
   app.delete<{ Params: { id: string } }>(
     "/v1/api-keys/:id",
-    { preHandler: [requireAuth] },
+    { preHandler: [requireAuthAndLegal] },
     async (req: any) => {
       const userId = req.user!.sub;
       const { id } = req.params;
@@ -115,29 +210,57 @@ export async function enterpriseRoutes(app: FastifyInstance) {
         const revoked = apiKeyService.revokeKey(userId, id);
 
         if (!revoked) {
+          auditEnterpriseAction(req, {
+            userId,
+            action: "enterprise.api_key_revoke",
+            outcome: "failure",
+            severity: "warning",
+            resourceType: "api_key",
+            resourceId: id,
+            metadata: { reason: "not_found" },
+          });
           throw new AppError(ErrorCode.NOT_FOUND, "API key not found");
         }
+
+        auditEnterpriseAction(req, {
+          userId,
+          action: "enterprise.api_key_revoke",
+          outcome: "success",
+          resourceType: "api_key",
+          resourceId: id,
+        });
+
+        fireEnterpriseAnalyticsEvent({
+          eventType: "api_key_revoked",
+          userId,
+          req,
+          entityType: "api_key",
+          entityId: id,
+        });
 
         return { message: "API key revoked successfully" };
       } catch (error) {
         if (error instanceof AppError) {
           throw error;
         }
-        throw new AppError(
-          ErrorCode.INTERNAL_SERVER_ERROR,
-          "Failed to revoke API key"
-        );
+
+        auditEnterpriseAction(req, {
+          userId,
+          action: "enterprise.api_key_revoke",
+          outcome: "failure",
+          severity: "critical",
+          resourceType: "api_key",
+          resourceId: id,
+        });
+
+        throw new AppError(ErrorCode.INTERNAL_SERVER_ERROR, "Failed to revoke API key");
       }
     }
   );
 
-  /**
-   * Rotate API key
-   * POST /v1/api-keys/:id/rotate
-   */
   app.post<{ Params: { id: string }; Body: { name?: string } }>(
     "/v1/api-keys/:id/rotate",
-    { preHandler: [requireAuth] },
+    { preHandler: [requireAuthAndLegal] },
     async (req: any) => {
       const userId = req.user!.sub;
       const { id } = req.params;
@@ -147,8 +270,34 @@ export async function enterpriseRoutes(app: FastifyInstance) {
         const result = await apiKeyService.rotateKey(userId, id, name || "Rotated Key");
 
         if (!result) {
+          auditEnterpriseAction(req, {
+            userId,
+            action: "enterprise.api_key_rotate",
+            outcome: "failure",
+            severity: "warning",
+            resourceType: "api_key",
+            resourceId: id,
+            metadata: { reason: "not_found" },
+          });
           throw new AppError(ErrorCode.NOT_FOUND, "API key not found");
         }
+
+        auditEnterpriseAction(req, {
+          userId,
+          action: "enterprise.api_key_rotate",
+          outcome: "success",
+          resourceType: "api_key",
+          resourceId: result.metadata.id,
+          metadata: { name: result.metadata.name },
+        });
+
+        fireEnterpriseAnalyticsEvent({
+          eventType: "api_key_rotated",
+          userId,
+          req,
+          entityType: "api_key",
+          entityId: result.metadata.id,
+        });
 
         return {
           data: {
@@ -163,24 +312,27 @@ export async function enterpriseRoutes(app: FastifyInstance) {
         if (error instanceof AppError) {
           throw error;
         }
-        throw new AppError(
-          ErrorCode.INTERNAL_SERVER_ERROR,
-          "Failed to rotate API key"
-        );
+
+        auditEnterpriseAction(req, {
+          userId,
+          action: "enterprise.api_key_rotate",
+          outcome: "failure",
+          severity: "critical",
+          resourceType: "api_key",
+          resourceId: id,
+        });
+
+        throw new AppError(ErrorCode.INTERNAL_SERVER_ERROR, "Failed to rotate API key");
       }
     }
   );
 
-  /**
-   * Update API key rate limits
-   * PATCH /v1/api-keys/:id/rate-limit
-   */
   app.patch<{
     Params: { id: string };
     Body: { requestsPerMinute: number; requestsPerDay: number };
   }>(
     "/v1/api-keys/:id/rate-limit",
-    { preHandler: [requireAuth] },
+    { preHandler: [requireAuthAndLegal] },
     async (req: any) => {
       const userId = req.user!.sub;
       const { id } = req.params;
@@ -195,44 +347,58 @@ export async function enterpriseRoutes(app: FastifyInstance) {
         );
 
         if (!updated) {
+          auditEnterpriseAction(req, {
+            userId,
+            action: "enterprise.api_key_rate_limit_update",
+            outcome: "failure",
+            severity: "warning",
+            resourceType: "api_key",
+            resourceId: id,
+            metadata: { reason: "not_found" },
+          });
           throw new AppError(ErrorCode.NOT_FOUND, "API key not found");
         }
+
+        auditEnterpriseAction(req, {
+          userId,
+          action: "enterprise.api_key_rate_limit_update",
+          outcome: "success",
+          resourceType: "api_key",
+          resourceId: id,
+          metadata: { requestsPerMinute, requestsPerDay },
+        });
 
         return { message: "Rate limits updated successfully" };
       } catch (error) {
         if (error instanceof AppError) {
           throw error;
         }
-        throw new AppError(
-          ErrorCode.INTERNAL_SERVER_ERROR,
-          "Failed to update rate limits"
-        );
+
+        auditEnterpriseAction(req, {
+          userId,
+          action: "enterprise.api_key_rate_limit_update",
+          outcome: "failure",
+          severity: "critical",
+          resourceType: "api_key",
+          resourceId: id,
+        });
+
+        throw new AppError(ErrorCode.INTERNAL_SERVER_ERROR, "Failed to update rate limits");
       }
     }
   );
 
-  /**
-   * Batch Analysis
-   */
-
-  /**
-   * Create batch analysis job
-   * POST /v1/batch-analysis
-   */
   app.post<{
     Body: { evidenceIds: string[]; name: string; description?: string };
   }>(
     "/v1/batch-analysis",
-    { preHandler: [requireAuth] },
+    { preHandler: [requireAuthAndLegal] },
     async (req: any) => {
       const userId = req.user!.sub;
       const { evidenceIds, name, description } = req.body;
 
       if (!evidenceIds || !Array.isArray(evidenceIds) || evidenceIds.length === 0) {
-        throw new AppError(
-          ErrorCode.VALIDATION_ERROR,
-          "At least one evidence ID is required"
-        );
+        throw new AppError(ErrorCode.VALIDATION_ERROR, "At least one evidence ID is required");
       }
 
       if (!name) {
@@ -240,7 +406,6 @@ export async function enterpriseRoutes(app: FastifyInstance) {
       }
 
       try {
-        // Verify all evidence items belong to user
         const evidence = await prisma.evidence.findMany({
           where: {
             id: { in: evidenceIds },
@@ -251,14 +416,43 @@ export async function enterpriseRoutes(app: FastifyInstance) {
         });
 
         if (evidence.length !== evidenceIds.length) {
+          auditEnterpriseAction(req, {
+            userId,
+            action: "enterprise.batch_create",
+            outcome: "blocked",
+            severity: "warning",
+            resourceType: "batch_job",
+            metadata: { reason: "evidence_not_found_or_forbidden" },
+          });
+
           throw new AppError(
             ErrorCode.EVIDENCE_NOT_FOUND,
             "Some evidence items not found or you don't have access"
           );
         }
 
-        // Create batch job
         const job = batchAnalysisService.createJob(userId, evidenceIds, name, description);
+
+        auditEnterpriseAction(req, {
+          userId,
+          action: "enterprise.batch_create",
+          outcome: "success",
+          resourceType: "batch_job",
+          resourceId: job.id,
+          metadata: {
+            name: job.name,
+            totalItems: job.totalItems,
+          },
+        });
+
+        fireEnterpriseAnalyticsEvent({
+          eventType: "batch_job_created",
+          userId,
+          req,
+          entityType: "batch_job",
+          entityId: job.id,
+          metadata: { totalItems: job.totalItems },
+        });
 
         return {
           data: {
@@ -276,21 +470,23 @@ export async function enterpriseRoutes(app: FastifyInstance) {
         if (error instanceof AppError) {
           throw error;
         }
-        throw new AppError(
-          ErrorCode.INTERNAL_SERVER_ERROR,
-          "Failed to create batch job"
-        );
+
+        auditEnterpriseAction(req, {
+          userId,
+          action: "enterprise.batch_create",
+          outcome: "failure",
+          severity: "critical",
+          resourceType: "batch_job",
+        });
+
+        throw new AppError(ErrorCode.INTERNAL_SERVER_ERROR, "Failed to create batch job");
       }
     }
   );
 
-  /**
-   * Get batch job details
-   * GET /v1/batch-analysis/:id
-   */
   app.get<{ Params: { id: string } }>(
     "/v1/batch-analysis/:id",
-    { preHandler: [requireAuth] },
+    { preHandler: [requireAuthAndLegal] },
     async (req: any) => {
       const userId = req.user!.sub;
       const { id } = req.params;
@@ -299,8 +495,26 @@ export async function enterpriseRoutes(app: FastifyInstance) {
         const job = batchAnalysisService.getJob(userId, id);
 
         if (!job) {
+          auditEnterpriseAction(req, {
+            userId,
+            action: "enterprise.batch_view",
+            outcome: "failure",
+            severity: "warning",
+            resourceType: "batch_job",
+            resourceId: id,
+            metadata: { reason: "not_found" },
+          });
           throw new AppError(ErrorCode.NOT_FOUND, "Batch job not found");
         }
+
+        auditEnterpriseAction(req, {
+          userId,
+          action: "enterprise.batch_view",
+          outcome: "success",
+          resourceType: "batch_job",
+          resourceId: id,
+          metadata: { status: job.status },
+        });
 
         return {
           data: {
@@ -326,26 +540,37 @@ export async function enterpriseRoutes(app: FastifyInstance) {
         if (error instanceof AppError) {
           throw error;
         }
-        throw new AppError(
-          ErrorCode.INTERNAL_SERVER_ERROR,
-          "Failed to retrieve batch job"
-        );
+
+        auditEnterpriseAction(req, {
+          userId,
+          action: "enterprise.batch_view",
+          outcome: "failure",
+          severity: "critical",
+          resourceType: "batch_job",
+          resourceId: id,
+        });
+
+        throw new AppError(ErrorCode.INTERNAL_SERVER_ERROR, "Failed to retrieve batch job");
       }
     }
   );
 
-  /**
-   * List batch jobs for user
-   * GET /v1/batch-analysis
-   */
   app.get(
     "/v1/batch-analysis",
-    { preHandler: [requireAuth] },
+    { preHandler: [requireAuthAndLegal] },
     async (req: any) => {
       const userId = req.user!.sub;
 
       try {
         const jobs = batchAnalysisService.listJobs(userId);
+
+        auditEnterpriseAction(req, {
+          userId,
+          action: "enterprise.batch_list",
+          outcome: "success",
+          resourceType: "batch_job",
+          metadata: { count: jobs.length },
+        });
 
         return {
           data: jobs.map((job) => ({
@@ -362,22 +587,23 @@ export async function enterpriseRoutes(app: FastifyInstance) {
             ),
           })),
         };
-      } catch (error) {
-        throw new AppError(
-          ErrorCode.INTERNAL_SERVER_ERROR,
-          "Failed to list batch jobs"
-        );
+      } catch (_error) {
+        auditEnterpriseAction(req, {
+          userId,
+          action: "enterprise.batch_list",
+          outcome: "failure",
+          severity: "critical",
+          resourceType: "batch_job",
+        });
+
+        throw new AppError(ErrorCode.INTERNAL_SERVER_ERROR, "Failed to list batch jobs");
       }
     }
   );
 
-  /**
-   * Start processing batch job
-   * POST /v1/batch-analysis/:id/process
-   */
   app.post<{ Params: { id: string } }>(
     "/v1/batch-analysis/:id/process",
-    { preHandler: [requireAuth] },
+    { preHandler: [requireAuthAndLegal] },
     async (req: any) => {
       const userId = req.user!.sub;
       const { id } = req.params;
@@ -386,50 +612,73 @@ export async function enterpriseRoutes(app: FastifyInstance) {
         const job = batchAnalysisService.getJob(userId, id);
 
         if (!job) {
+          auditEnterpriseAction(req, {
+            userId,
+            action: "enterprise.batch_process",
+            outcome: "failure",
+            severity: "warning",
+            resourceType: "batch_job",
+            resourceId: id,
+            metadata: { reason: "not_found" },
+          });
           throw new AppError(ErrorCode.NOT_FOUND, "Batch job not found");
         }
 
-        // Start processing asynchronously and emit events on completion
         const processingPromise = batchAnalysisService.processBatch(id);
-        
-        // Fire and forget - don't wait for completion
-        processingPromise.then(() => {
-          // Batch completed - trigger webhook events
-          try {
-            const webhookService = getWebhookService();
-            const completedJob = batchAnalysisService.getJob(userId, id);
-            if (completedJob) {
-              // Get org ID from somewhere - we'll need to track it
-              // For now, skip webhook trigger
-            }
-          } catch (error) {
-            console.error('Failed to trigger webhook event:', error);
-          }
 
-          // Send completion email
-          try {
-            const emailService = getEmailService();
-            if (emailService.isConfigured()) {
+        processingPromise
+          .then(() => {
+            try {
+              const webhookService = getWebhookService();
               const completedJob = batchAnalysisService.getJob(userId, id);
               if (completedJob) {
-                const userEmail = req.user?.email || '';
-                if (userEmail) {
-                  emailService.sendBatchComplete(
-                    userEmail,
-                    'Organization', // TODO: Get actual org name
-                    completedJob.name,
-                    completedJob.totalItems,
-                    completedJob.failedItems,
-                    `${process.env.APP_URL || 'https://app.proovra.com'}/batch/${completedJob.id}`
-                  );
+                void webhookService;
+              }
+            } catch (error) {
+              console.error("Failed to trigger webhook event:", error);
+            }
+
+            try {
+              const emailService = getEmailService();
+              if (emailService.isConfigured()) {
+                const completedJob = batchAnalysisService.getJob(userId, id);
+                if (completedJob) {
+                  const userEmail = req.user?.email || "";
+                  if (userEmail) {
+                    void emailService.sendBatchComplete(
+                      userEmail,
+                      "Organization",
+                      completedJob.name,
+                      completedJob.totalItems,
+                      completedJob.failedItems,
+                      `${process.env.APP_URL || "https://app.proovra.com"}/batch/${completedJob.id}`
+                    );
+                  }
                 }
               }
+            } catch (error) {
+              console.error("Failed to send batch completion email:", error);
             }
-          } catch (error) {
-            console.error('Failed to send batch completion email:', error);
-          }
-        }).catch((error) => {
-          console.error('Error in batch processing completion handlers:', error);
+          })
+          .catch((error) => {
+            console.error("Error in batch processing completion handlers:", error);
+          });
+
+        auditEnterpriseAction(req, {
+          userId,
+          action: "enterprise.batch_process",
+          outcome: "success",
+          resourceType: "batch_job",
+          resourceId: id,
+          metadata: { status: "processing" },
+        });
+
+        fireEnterpriseAnalyticsEvent({
+          eventType: "batch_job_processing_started",
+          userId,
+          req,
+          entityType: "batch_job",
+          entityId: id,
         });
 
         return {
@@ -440,21 +689,24 @@ export async function enterpriseRoutes(app: FastifyInstance) {
         if (error instanceof AppError) {
           throw error;
         }
-        throw new AppError(
-          ErrorCode.INTERNAL_SERVER_ERROR,
-          "Failed to start batch processing"
-        );
+
+        auditEnterpriseAction(req, {
+          userId,
+          action: "enterprise.batch_process",
+          outcome: "failure",
+          severity: "critical",
+          resourceType: "batch_job",
+          resourceId: id,
+        });
+
+        throw new AppError(ErrorCode.INTERNAL_SERVER_ERROR, "Failed to start batch processing");
       }
     }
   );
 
-  /**
-   * Get batch results aggregation
-   * GET /v1/batch-analysis/:id/results
-   */
   app.get<{ Params: { id: string } }>(
     "/v1/batch-analysis/:id/results",
-    { preHandler: [requireAuth] },
+    { preHandler: [requireAuthAndLegal] },
     async (req: any) => {
       const userId = req.user!.sub;
       const { id } = req.params;
@@ -463,38 +715,64 @@ export async function enterpriseRoutes(app: FastifyInstance) {
         const job = batchAnalysisService.getJob(userId, id);
 
         if (!job) {
+          auditEnterpriseAction(req, {
+            userId,
+            action: "enterprise.batch_results_view",
+            outcome: "failure",
+            severity: "warning",
+            resourceType: "batch_job",
+            resourceId: id,
+            metadata: { reason: "not_found" },
+          });
           throw new AppError(ErrorCode.NOT_FOUND, "Batch job not found");
         }
 
         if (job.status !== "completed" && job.status !== "cancelled") {
-          throw new AppError(
-            ErrorCode.VALIDATION_ERROR,
-            "Batch job is still processing"
-          );
+          auditEnterpriseAction(req, {
+            userId,
+            action: "enterprise.batch_results_view",
+            outcome: "blocked",
+            severity: "warning",
+            resourceType: "batch_job",
+            resourceId: id,
+            metadata: { reason: "still_processing", status: job.status },
+          });
+          throw new AppError(ErrorCode.VALIDATION_ERROR, "Batch job is still processing");
         }
 
         const aggregatedResults = batchAnalysisService.getAggregateResults(id);
+
+        auditEnterpriseAction(req, {
+          userId,
+          action: "enterprise.batch_results_view",
+          outcome: "success",
+          resourceType: "batch_job",
+          resourceId: id,
+        });
 
         return { data: aggregatedResults };
       } catch (error) {
         if (error instanceof AppError) {
           throw error;
         }
-        throw new AppError(
-          ErrorCode.INTERNAL_SERVER_ERROR,
-          "Failed to retrieve batch results"
-        );
+
+        auditEnterpriseAction(req, {
+          userId,
+          action: "enterprise.batch_results_view",
+          outcome: "failure",
+          severity: "critical",
+          resourceType: "batch_job",
+          resourceId: id,
+        });
+
+        throw new AppError(ErrorCode.INTERNAL_SERVER_ERROR, "Failed to retrieve batch results");
       }
     }
   );
 
-  /**
-   * Cancel batch job
-   * POST /v1/batch-analysis/:id/cancel
-   */
   app.post<{ Params: { id: string } }>(
     "/v1/batch-analysis/:id/cancel",
-    { preHandler: [requireAuth] },
+    { preHandler: [requireAuthAndLegal] },
     async (req: any) => {
       const userId = req.user!.sub;
       const { id } = req.params;
@@ -503,29 +781,57 @@ export async function enterpriseRoutes(app: FastifyInstance) {
         const cancelled = batchAnalysisService.cancelJob(userId, id);
 
         if (!cancelled) {
+          auditEnterpriseAction(req, {
+            userId,
+            action: "enterprise.batch_cancel",
+            outcome: "failure",
+            severity: "warning",
+            resourceType: "batch_job",
+            resourceId: id,
+            metadata: { reason: "not_found" },
+          });
           throw new AppError(ErrorCode.NOT_FOUND, "Batch job not found");
         }
+
+        auditEnterpriseAction(req, {
+          userId,
+          action: "enterprise.batch_cancel",
+          outcome: "success",
+          resourceType: "batch_job",
+          resourceId: id,
+        });
+
+        fireEnterpriseAnalyticsEvent({
+          eventType: "batch_job_cancelled",
+          userId,
+          req,
+          entityType: "batch_job",
+          entityId: id,
+        });
 
         return { message: "Batch job cancelled" };
       } catch (error) {
         if (error instanceof AppError) {
           throw error;
         }
-        throw new AppError(
-          ErrorCode.INTERNAL_SERVER_ERROR,
-          "Failed to cancel batch job"
-        );
+
+        auditEnterpriseAction(req, {
+          userId,
+          action: "enterprise.batch_cancel",
+          outcome: "failure",
+          severity: "critical",
+          resourceType: "batch_job",
+          resourceId: id,
+        });
+
+        throw new AppError(ErrorCode.INTERNAL_SERVER_ERROR, "Failed to cancel batch job");
       }
     }
   );
 
-  /**
-   * Export batch results as CSV
-   * GET /v1/batch-analysis/:id/export
-   */
   app.get<{ Params: { id: string } }>(
     "/v1/batch-analysis/:id/export",
-    { preHandler: [requireAuth] },
+    { preHandler: [requireAuthAndLegal] },
     async (req: any, res: any) => {
       const userId = req.user!.sub;
       const { id } = req.params;
@@ -534,43 +840,63 @@ export async function enterpriseRoutes(app: FastifyInstance) {
         const job = batchAnalysisService.getJob(userId, id);
 
         if (!job) {
+          auditEnterpriseAction(req, {
+            userId,
+            action: "enterprise.batch_export",
+            outcome: "failure",
+            severity: "warning",
+            resourceType: "batch_job",
+            resourceId: id,
+            metadata: { reason: "not_found" },
+          });
           throw new AppError(ErrorCode.NOT_FOUND, "Batch job not found");
         }
 
         const csv = batchAnalysisService.exportAsCSV(id);
 
+        auditEnterpriseAction(req, {
+          userId,
+          action: "enterprise.batch_export",
+          outcome: "success",
+          resourceType: "batch_job",
+          resourceId: id,
+        });
+
         res.header("Content-Type", "text/csv");
-        res.header(
-          "Content-Disposition",
-          `attachment; filename="batch-${id}.csv"`
-        );
+        res.header("Content-Disposition", `attachment; filename="batch-${id}.csv"`);
 
         return res.send(csv);
       } catch (error) {
         if (error instanceof AppError) {
           throw error;
         }
-        throw new AppError(
-          ErrorCode.INTERNAL_SERVER_ERROR,
-          "Failed to export batch results"
-        );
+
+        auditEnterpriseAction(req, {
+          userId,
+          action: "enterprise.batch_export",
+          outcome: "failure",
+          severity: "critical",
+          resourceType: "batch_job",
+          resourceId: id,
+        });
+
+        throw new AppError(ErrorCode.INTERNAL_SERVER_ERROR, "Failed to export batch results");
       }
     }
   );
 
-  /**
-   * Webhooks & Quotas
-   */
-
-  /**
-   * Get usage quotas
-   * GET /v1/quotas
-   */
   app.get(
     "/v1/quotas",
-    { preHandler: [requireAuth] },
+    { preHandler: [requireAuthAndLegal] },
     async (req: any) => {
       const userId = req.user!.sub;
+
+      auditEnterpriseAction(req, {
+        userId,
+        action: "enterprise.quotas_view",
+        outcome: "success",
+        resourceType: "quotas",
+      });
 
       return {
         data: {
@@ -578,7 +904,7 @@ export async function enterpriseRoutes(app: FastifyInstance) {
             limit: 10000,
             used: 42,
             remaining: 9958,
-            resetDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days
+            resetDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
           },
           batchJobs: {
             limit: 100,
@@ -600,15 +926,18 @@ export async function enterpriseRoutes(app: FastifyInstance) {
     }
   );
 
-  /**
-   * Get usage statistics
-   * GET /v1/usage-stats
-   */
   app.get(
     "/v1/usage-stats",
-    { preHandler: [requireAuth] },
+    { preHandler: [requireAuthAndLegal] },
     async (req: any) => {
       const userId = req.user!.sub;
+
+      auditEnterpriseAction(req, {
+        userId,
+        action: "enterprise.usage_stats_view",
+        outcome: "success",
+        resourceType: "usage_stats",
+      });
 
       return {
         data: {

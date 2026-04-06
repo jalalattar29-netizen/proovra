@@ -1,44 +1,41 @@
 # Impressum
 
-Legal disclosure in accordance with §5 TMG.
+Last Updated: 06.04.2026
+
+Legal disclosure in accordance with § 5 DDG.
 
 ## Service Provider
 
-Proovra  
-Essen, North Rhine-Westphalia  
+Jalal Attar  
+Ruhlandplatz 3  
+45355 Essen  
 Germany
-
-Email: legal@proovra.com
-
-## Responsible for Content
-
-Proovra
 
 ## Contact
 
-General Support  
-support@proovra.com
+General Support: support@proovra.com  
+Legal Inquiries: legal@proovra.com  
+Security Reports: security@proovra.com
 
-Legal Inquiries  
-legal@proovra.com
+## Responsible for Content
 
-Security Reports  
-security@proovra.com
+Jalal Attar  
+Ruhlandplatz 3  
+45355 Essen  
+Germany
 
 ## Platform Description
 
-Proovra is a digital platform designed for capturing, preserving, signing, and verifying digital evidence such as photos, videos, and documents using cryptographic integrity mechanisms.
+Proovra is a digital platform for capturing, preserving, signing, organizing, and verifying digital evidence records, including photos, videos, documents, and related verification materials using cryptographic integrity mechanisms.
 
 ## Liability for Content
 
-The contents of our pages were created with great care. However, we cannot guarantee the accuracy, completeness, or timeliness of the content.
+The contents of these pages were created with care. However, we cannot guarantee accuracy, completeness, or timeliness.
 
 ## Liability for Links
 
-Our service may contain links to external websites. We have no influence over the contents of those websites and therefore cannot assume any liability for external content.
+Our pages may contain links to external sites. We have no control over the content of external websites and assume no liability for them.
 
 ## Copyright
 
-All content and works created by Proovra on these pages are subject to applicable copyright laws.
-
-Unauthorized reproduction, modification, or distribution requires prior written consent.
+All content and works created by Proovra on these pages are subject to applicable copyright law unless otherwise stated.

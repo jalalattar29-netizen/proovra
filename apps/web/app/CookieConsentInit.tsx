@@ -9,26 +9,58 @@ type CookieConsentModule = {
 
 export default function CookieConsentInit() {
   useEffect(() => {
-    let cancelled = false;
+    let isCancelled = false;
 
-    (async () => {
+    async function loadOptionalServices() {
+      try {
+        if (isCancelled) return;
+
+        const { hasAnalyticsConsent } = await import("../lib/consent");
+        if (isCancelled) return;
+
+        if (hasAnalyticsConsent()) {
+          const { initAnalytics } = await import("../lib/analytics");
+          if (isCancelled) return;
+          await initAnalytics();
+        }
+      } catch (error) {
+        console.warn("[cookie-consent] optional services init failed", error);
+      }
+    }
+
+    async function run() {
       try {
         const mod = (await import("../lib/cookieConsent")) as CookieConsentModule;
-        if (cancelled) return;
+
+        if (isCancelled) return;
 
         const init = mod.initCookieConsent ?? mod.default;
-        if (typeof init === "function") {
-          await init();
-        } else {
-          console.warn("[cookie-consent] init function not found in module");
+
+        if (typeof init !== "function") {
+          console.warn("[cookie-consent] init function not found in ../lib/cookieConsent");
+          return;
         }
-      } catch (err) {
-        console.warn("[cookie-consent] init failed", err);
+
+        await init();
+
+        if (isCancelled) return;
+
+        await loadOptionalServices();
+      } catch (error) {
+        console.warn("[cookie-consent] initialization failed", error);
       }
-    })();
+    }
+
+    const handleConsentUpdated = () => {
+      void loadOptionalServices();
+    };
+
+    void run();
+    window.addEventListener("proovra:consent-updated", handleConsentUpdated);
 
     return () => {
-      cancelled = true;
+      isCancelled = true;
+      window.removeEventListener("proovra:consent-updated", handleConsentUpdated);
     };
   }, []);
 

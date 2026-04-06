@@ -1,13 +1,16 @@
-import type { FastifyInstance, FastifyRequest } from "fastify";
+import type { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
 import { z } from "zod";
 import { randomUUID } from "node:crypto";
 import { Prisma } from "@prisma/client";
 import * as prismaPkg from "@prisma/client";
 import { prisma } from "../db.js";
 import { requireAuth } from "../middleware/auth.js";
+import { requireLegalAcceptance } from "../middleware/require-legal-acceptance.js";
 import { hasRole } from "../services/rbac.js";
 import { getAuthUserId } from "../auth.js";
 import { getEmailService } from "../services/email.service.js";
+import { appendPlatformAuditLog } from "../services/platform-audit-log.service.js";
+import { writeAnalyticsEvent } from "../services/analytics-event.service.js";
 
 const CreateTeamBody = z.object({
   name: z.string().min(1).max(120),
@@ -84,8 +87,74 @@ async function createActivity(
   }
 }
 
+async function requireAuthAndLegal(req: FastifyRequest, reply: FastifyReply) {
+  await requireAuth(req, reply);
+  if (reply.sent) return;
+  await requireLegalAcceptance(req, reply);
+}
+
+function readUserAgent(req: FastifyRequest): string | null {
+  const ua = req.headers["user-agent"];
+  return Array.isArray(ua) ? ua[0] ?? null : ua ?? null;
+}
+
+function getRequestPath(req: FastifyRequest): string {
+  const url = req.url || "";
+  const qIndex = url.indexOf("?");
+  return qIndex >= 0 ? url.slice(0, qIndex) : url;
+}
+
+function auditTeamAction(
+  req: FastifyRequest,
+  params: {
+    userId: string | null;
+    action: string;
+    outcome?: "success" | "failure" | "blocked";
+    severity?: "info" | "warning" | "critical";
+    resourceId?: string | null;
+    metadata?: Record<string, unknown>;
+  }
+) {
+  void appendPlatformAuditLog({
+    userId: params.userId,
+    action: params.action,
+    category: "teams",
+    severity: params.severity ?? "info",
+    source: "api_teams",
+    outcome: params.outcome ?? "success",
+    resourceType: "team",
+    resourceId: params.resourceId ?? null,
+    requestId: req.id,
+    metadata: params.metadata ?? {},
+    ipAddress: req.ip,
+    userAgent: readUserAgent(req),
+  }).catch(() => null);
+}
+
+function fireTeamAnalyticsEvent(params: {
+  eventType: string;
+  userId: string;
+  req: FastifyRequest;
+  entityType?: string | null;
+  entityId?: string | null;
+  severity?: string | null;
+  metadata?: Record<string, unknown>;
+}) {
+  void writeAnalyticsEvent({
+    eventType: params.eventType,
+    userId: params.userId,
+    path: getRequestPath(params.req),
+    entityType: params.entityType ?? "team",
+    entityId: params.entityId ?? null,
+    severity: params.severity ?? "info",
+    metadata: params.metadata ?? {},
+    req: params.req,
+    skipSessionUpsert: true,
+  }).catch(() => null);
+}
+
 export async function teamsRoutes(app: FastifyInstance) {
-  app.post("/v1/teams", { preHandler: requireAuth }, async (req, reply) => {
+  app.post("/v1/teams", { preHandler: requireAuthAndLegal }, async (req, reply) => {
     const body = CreateTeamBody.parse(req.body);
     const ownerUserId = getAuthUserId(req);
 
@@ -102,10 +171,25 @@ export async function teamsRoutes(app: FastifyInstance) {
       },
     });
 
+    auditTeamAction(req, {
+      userId: ownerUserId,
+      action: "teams.create",
+      outcome: "success",
+      resourceId: team.id,
+      metadata: { name: team.name },
+    });
+
+    fireTeamAnalyticsEvent({
+      eventType: "team_created",
+      userId: ownerUserId,
+      req,
+      entityId: team.id,
+    });
+
     return reply.code(201).send(team);
   });
 
-  app.get("/v1/teams", { preHandler: requireAuth }, async (req, reply) => {
+  app.get("/v1/teams", { preHandler: requireAuthAndLegal }, async (req, reply) => {
     const userId = getAuthUserId(req);
 
     const teams = await prisma.team.findMany({
@@ -156,12 +240,19 @@ export async function teamsRoutes(app: FastifyInstance) {
       })
     );
 
+    auditTeamAction(req, {
+      userId,
+      action: "teams.list",
+      outcome: "success",
+      metadata: { count: items.length },
+    });
+
     return reply.code(200).send({ teams: items });
   });
 
   app.get(
     "/v1/teams/:id",
-    { preHandler: requireAuth },
+    { preHandler: requireAuthAndLegal },
     async (req: FastifyRequest, reply) => {
       const teamId = z.string().uuid().parse((req.params as { id: string }).id);
       const userId = getAuthUserId(req);
@@ -174,11 +265,27 @@ export async function teamsRoutes(app: FastifyInstance) {
       });
 
       if (!team) {
+        auditTeamAction(req, {
+          userId,
+          action: "teams.view",
+          outcome: "failure",
+          severity: "warning",
+          resourceId: teamId,
+          metadata: { reason: "not_found" },
+        });
         return reply.code(404).send({ message: "Team not found" });
       }
 
       const actorMembership = team.members.find((m) => m.userId === userId);
       if (!actorMembership) {
+        auditTeamAction(req, {
+          userId,
+          action: "teams.view",
+          outcome: "blocked",
+          severity: "warning",
+          resourceId: teamId,
+          metadata: { reason: "forbidden" },
+        });
         return reply.code(403).send({ message: "Forbidden" });
       }
 
@@ -207,6 +314,20 @@ export async function teamsRoutes(app: FastifyInstance) {
 
       const caseCount = await prisma.case.count({
         where: { teamId },
+      });
+
+      auditTeamAction(req, {
+        userId,
+        action: "teams.view",
+        outcome: "success",
+        resourceId: teamId,
+      });
+
+      fireTeamAnalyticsEvent({
+        eventType: "team_viewed",
+        userId,
+        req,
+        entityId: teamId,
       });
 
       return reply.code(200).send({
@@ -249,13 +370,21 @@ export async function teamsRoutes(app: FastifyInstance) {
 
   app.get(
     "/v1/teams/:id/cases",
-    { preHandler: requireAuth },
+    { preHandler: requireAuthAndLegal },
     async (req: FastifyRequest, reply) => {
       const teamId = z.string().uuid().parse((req.params as { id: string }).id);
       const userId = getAuthUserId(req);
 
       const actor = await getActorMembership(teamId, userId);
       if (!actor) {
+        auditTeamAction(req, {
+          userId,
+          action: "teams.cases_list",
+          outcome: "blocked",
+          severity: "warning",
+          resourceId: teamId,
+          metadata: { reason: "forbidden" },
+        });
         return reply.code(403).send({ message: "Forbidden" });
       }
 
@@ -271,19 +400,35 @@ export async function teamsRoutes(app: FastifyInstance) {
         },
       });
 
+      auditTeamAction(req, {
+        userId,
+        action: "teams.cases_list",
+        outcome: "success",
+        resourceId: teamId,
+        metadata: { count: items.length },
+      });
+
       return reply.code(200).send({ items });
     }
   );
 
   app.get(
     "/v1/teams/:id/invites",
-    { preHandler: requireAuth },
+    { preHandler: requireAuthAndLegal },
     async (req: FastifyRequest, reply) => {
       const teamId = z.string().uuid().parse((req.params as { id: string }).id);
       const userId = getAuthUserId(req);
 
       const actor = await getActorMembership(teamId, userId);
       if (!actor || !hasRole(actor.role, prismaPkg.TeamRole.ADMIN)) {
+        auditTeamAction(req, {
+          userId,
+          action: "teams.invites_list",
+          outcome: "blocked",
+          severity: "warning",
+          resourceId: teamId,
+          metadata: { reason: "forbidden" },
+        });
         return reply.code(403).send({ message: "Forbidden" });
       }
 
@@ -294,6 +439,14 @@ export async function teamsRoutes(app: FastifyInstance) {
           expiresAt: { gt: new Date() },
         },
         orderBy: { createdAt: "desc" },
+      });
+
+      auditTeamAction(req, {
+        userId,
+        action: "teams.invites_list",
+        outcome: "success",
+        resourceId: teamId,
+        metadata: { count: invites.length },
       });
 
       return reply.code(200).send({
@@ -311,7 +464,7 @@ export async function teamsRoutes(app: FastifyInstance) {
 
   app.patch(
     "/v1/teams/:id",
-    { preHandler: requireAuth },
+    { preHandler: requireAuthAndLegal },
     async (req: FastifyRequest, reply) => {
       const teamId = z.string().uuid().parse((req.params as { id: string }).id);
       const body = UpdateTeamBody.parse(req.body);
@@ -319,6 +472,14 @@ export async function teamsRoutes(app: FastifyInstance) {
 
       const actor = await getActorMembership(teamId, userId);
       if (!actor || !hasRole(actor.role, prismaPkg.TeamRole.ADMIN)) {
+        auditTeamAction(req, {
+          userId,
+          action: "teams.update",
+          outcome: "blocked",
+          severity: "warning",
+          resourceId: teamId,
+          metadata: { reason: "forbidden" },
+        });
         return reply.code(403).send({ message: "Forbidden" });
       }
 
@@ -335,19 +496,45 @@ export async function teamsRoutes(app: FastifyInstance) {
         },
       });
 
+      auditTeamAction(req, {
+        userId,
+        action: "teams.update",
+        outcome: "success",
+        resourceId: teamId,
+        metadata: {
+          updatedFields: Object.keys(body),
+        },
+      });
+
+      fireTeamAnalyticsEvent({
+        eventType: "team_updated",
+        userId,
+        req,
+        entityId: teamId,
+        metadata: { updatedFields: Object.keys(body) },
+      });
+
       return reply.code(200).send(updated);
     }
   );
 
   app.delete(
     "/v1/teams/:id",
-    { preHandler: requireAuth },
+    { preHandler: requireAuthAndLegal },
     async (req: FastifyRequest, reply) => {
       const teamId = z.string().uuid().parse((req.params as { id: string }).id);
       const userId = getAuthUserId(req);
 
       const actor = await getActorMembership(teamId, userId);
       if (!actor || actor.role !== prismaPkg.TeamRole.OWNER) {
+        auditTeamAction(req, {
+          userId,
+          action: "teams.delete",
+          outcome: "blocked",
+          severity: "warning",
+          resourceId: teamId,
+          metadata: { reason: "only_owner_allowed" },
+        });
         return reply.code(403).send({ message: "Only the team owner can delete this team" });
       }
 
@@ -368,13 +555,27 @@ export async function teamsRoutes(app: FastifyInstance) {
         where: { id: teamId },
       });
 
+      auditTeamAction(req, {
+        userId,
+        action: "teams.delete",
+        outcome: "success",
+        resourceId: teamId,
+      });
+
+      fireTeamAnalyticsEvent({
+        eventType: "team_deleted",
+        userId,
+        req,
+        entityId: teamId,
+      });
+
       return reply.code(204).send();
     }
   );
 
   app.post(
     "/v1/teams/:id/invites",
-    { preHandler: requireAuth },
+    { preHandler: requireAuthAndLegal },
     async (req: FastifyRequest, reply) => {
       const teamId = z.string().uuid().parse((req.params as { id: string }).id);
       const body = InviteBody.parse(req.body);
@@ -383,6 +584,14 @@ export async function teamsRoutes(app: FastifyInstance) {
 
       const actor = await getActorMembership(teamId, userId);
       if (!actor || !hasRole(actor.role, prismaPkg.TeamRole.ADMIN)) {
+        auditTeamAction(req, {
+          userId,
+          action: "teams.invite_create",
+          outcome: "blocked",
+          severity: "warning",
+          resourceId: teamId,
+          metadata: { reason: "forbidden", email },
+        });
         return reply.code(403).send({ message: "Forbidden" });
       }
 
@@ -419,6 +628,18 @@ export async function teamsRoutes(app: FastifyInstance) {
           req.log.error({ err, teamId, email }, "Failed to resend existing invite email");
         }
 
+        auditTeamAction(req, {
+          userId,
+          action: "teams.invite_resend",
+          outcome: "success",
+          resourceId: teamId,
+          metadata: {
+            email,
+            inviteId: existingPendingInvite.id,
+            emailSent,
+          },
+        });
+
         return reply.code(200).send({
           invite: existingPendingInvite,
           inviteUrl: buildInviteUrl(existingPendingInvite.token),
@@ -446,6 +667,15 @@ export async function teamsRoutes(app: FastifyInstance) {
         });
 
         if (existingMember) {
+          auditTeamAction(req, {
+            userId,
+            action: "teams.invite_create",
+            outcome: "blocked",
+            severity: "warning",
+            resourceId: teamId,
+            metadata: { reason: "already_member", email },
+          });
+
           return reply.code(400).send({
             message: "That user is already a member of this team",
           });
@@ -475,17 +705,38 @@ export async function teamsRoutes(app: FastifyInstance) {
             select: { name: true },
           });
 
-          await emailService.sendTeamInvitation(
-            email,
-            team?.name || "PROOVRA",
-            token
-          );
-
+          await emailService.sendTeamInvitation(email, team?.name || "PROOVRA", token);
           emailSent = true;
         }
       } catch (err) {
         req.log.error({ err, teamId, email }, "Failed to send invite email");
       }
+
+      await createActivity(teamId, "invite_created", "invite", userId, invite.id, {
+        email,
+        role: invite.role,
+      });
+
+      auditTeamAction(req, {
+        userId,
+        action: "teams.invite_create",
+        outcome: "success",
+        resourceId: teamId,
+        metadata: {
+          inviteId: invite.id,
+          email,
+          role: invite.role,
+          emailSent,
+        },
+      });
+
+      fireTeamAnalyticsEvent({
+        eventType: "team_invite_created",
+        userId,
+        req,
+        entityId: teamId,
+        metadata: { email, role: invite.role },
+      });
 
       return reply.code(201).send({
         invite,
@@ -501,7 +752,7 @@ export async function teamsRoutes(app: FastifyInstance) {
 
   app.delete(
     "/v1/teams/:id/invites/:inviteId",
-    { preHandler: requireAuth },
+    { preHandler: requireAuthAndLegal },
     async (req: FastifyRequest, reply) => {
       const params = req.params as { id: string; inviteId: string };
       const teamId = z.string().uuid().parse(params.id);
@@ -510,6 +761,14 @@ export async function teamsRoutes(app: FastifyInstance) {
 
       const actor = await getActorMembership(teamId, userId);
       if (!actor || !hasRole(actor.role, prismaPkg.TeamRole.ADMIN)) {
+        auditTeamAction(req, {
+          userId,
+          action: "teams.invite_delete",
+          outcome: "blocked",
+          severity: "warning",
+          resourceId: teamId,
+          metadata: { reason: "forbidden", inviteId },
+        });
         return reply.code(403).send({ message: "Forbidden" });
       }
 
@@ -518,11 +777,31 @@ export async function teamsRoutes(app: FastifyInstance) {
       });
 
       if (!invite || invite.teamId !== teamId) {
+        auditTeamAction(req, {
+          userId,
+          action: "teams.invite_delete",
+          outcome: "failure",
+          severity: "warning",
+          resourceId: teamId,
+          metadata: { reason: "invite_not_found", inviteId },
+        });
         return reply.code(404).send({ message: "Invite not found" });
       }
 
       await prisma.teamInvite.delete({
         where: { id: inviteId },
+      });
+
+      await createActivity(teamId, "invite_deleted", "invite", userId, inviteId, {
+        email: invite.email,
+      });
+
+      auditTeamAction(req, {
+        userId,
+        action: "teams.invite_delete",
+        outcome: "success",
+        resourceId: teamId,
+        metadata: { inviteId, email: invite.email },
       });
 
       return reply.code(204).send();
@@ -531,7 +810,7 @@ export async function teamsRoutes(app: FastifyInstance) {
 
   app.patch(
     "/v1/teams/:id/members/:memberId",
-    { preHandler: requireAuth },
+    { preHandler: requireAuthAndLegal },
     async (req: FastifyRequest, reply) => {
       const params = req.params as { id: string; memberId: string };
       const teamId = z.string().uuid().parse(params.id);
@@ -541,6 +820,14 @@ export async function teamsRoutes(app: FastifyInstance) {
 
       const actor = await getActorMembership(teamId, userId);
       if (!actor || !hasRole(actor.role, prismaPkg.TeamRole.ADMIN)) {
+        auditTeamAction(req, {
+          userId,
+          action: "teams.member_update",
+          outcome: "blocked",
+          severity: "warning",
+          resourceId: teamId,
+          metadata: { reason: "forbidden", memberId },
+        });
         return reply.code(403).send({ message: "Forbidden" });
       }
 
@@ -554,10 +841,26 @@ export async function teamsRoutes(app: FastifyInstance) {
       });
 
       if (!target) {
+        auditTeamAction(req, {
+          userId,
+          action: "teams.member_update",
+          outcome: "failure",
+          severity: "warning",
+          resourceId: teamId,
+          metadata: { reason: "member_not_found", memberId },
+        });
         return reply.code(404).send({ message: "Member not found" });
       }
 
       if (target.role === prismaPkg.TeamRole.OWNER) {
+        auditTeamAction(req, {
+          userId,
+          action: "teams.member_update",
+          outcome: "blocked",
+          severity: "warning",
+          resourceId: teamId,
+          metadata: { reason: "owner_role_immutable", memberId },
+        });
         return reply.code(400).send({ message: "Owner role cannot be changed" });
       }
 
@@ -571,13 +874,33 @@ export async function teamsRoutes(app: FastifyInstance) {
         data: { role: body.role },
       });
 
+      await createActivity(teamId, "member_role_changed", "member", userId, memberId, {
+        role: body.role,
+      });
+
+      auditTeamAction(req, {
+        userId,
+        action: "teams.member_update",
+        outcome: "success",
+        resourceId: teamId,
+        metadata: { memberId, role: body.role },
+      });
+
+      fireTeamAnalyticsEvent({
+        eventType: "team_member_role_changed",
+        userId,
+        req,
+        entityId: teamId,
+        metadata: { memberId, role: body.role },
+      });
+
       return reply.code(200).send({ member: updated });
     }
   );
 
   app.delete(
     "/v1/teams/:id/members/:memberId",
-    { preHandler: requireAuth },
+    { preHandler: requireAuthAndLegal },
     async (req: FastifyRequest, reply) => {
       const params = req.params as { id: string; memberId: string };
       const teamId = z.string().uuid().parse(params.id);
@@ -586,6 +909,14 @@ export async function teamsRoutes(app: FastifyInstance) {
 
       const actor = await getActorMembership(teamId, userId);
       if (!actor || !hasRole(actor.role, prismaPkg.TeamRole.ADMIN)) {
+        auditTeamAction(req, {
+          userId,
+          action: "teams.member_delete",
+          outcome: "blocked",
+          severity: "warning",
+          resourceId: teamId,
+          metadata: { reason: "forbidden", memberId },
+        });
         return reply.code(403).send({ message: "Forbidden" });
       }
 
@@ -599,10 +930,26 @@ export async function teamsRoutes(app: FastifyInstance) {
       });
 
       if (!target) {
+        auditTeamAction(req, {
+          userId,
+          action: "teams.member_delete",
+          outcome: "failure",
+          severity: "warning",
+          resourceId: teamId,
+          metadata: { reason: "member_not_found", memberId },
+        });
         return reply.code(404).send({ message: "Member not found" });
       }
 
       if (target.role === prismaPkg.TeamRole.OWNER) {
+        auditTeamAction(req, {
+          userId,
+          action: "teams.member_delete",
+          outcome: "blocked",
+          severity: "warning",
+          resourceId: teamId,
+          metadata: { reason: "owner_cannot_be_removed", memberId },
+        });
         return reply.code(400).send({ message: "Owner cannot be removed" });
       }
 
@@ -615,13 +962,31 @@ export async function teamsRoutes(app: FastifyInstance) {
         },
       });
 
+      await createActivity(teamId, "member_removed", "member", userId, memberId);
+
+      auditTeamAction(req, {
+        userId,
+        action: "teams.member_delete",
+        outcome: "success",
+        resourceId: teamId,
+        metadata: { memberId },
+      });
+
+      fireTeamAnalyticsEvent({
+        eventType: "team_member_removed",
+        userId,
+        req,
+        entityId: teamId,
+        metadata: { memberId },
+      });
+
       return reply.code(204).send();
     }
   );
 
   app.post(
     "/v1/teams/invites/:token/accept",
-    { preHandler: requireAuth },
+    { preHandler: requireAuthAndLegal },
     async (req: FastifyRequest, reply) => {
       const token = z.string().min(8).parse((req.params as { token: string }).token);
       const userId = getAuthUserId(req);
@@ -631,14 +996,37 @@ export async function teamsRoutes(app: FastifyInstance) {
       });
 
       if (!invite) {
+        auditTeamAction(req, {
+          userId,
+          action: "teams.invite_accept",
+          outcome: "failure",
+          severity: "warning",
+          metadata: { reason: "invite_not_found" },
+        });
         return reply.code(404).send({ message: "Invite not found" });
       }
 
       if (invite.acceptedAt) {
+        auditTeamAction(req, {
+          userId,
+          action: "teams.invite_accept",
+          outcome: "blocked",
+          severity: "warning",
+          resourceId: invite.teamId,
+          metadata: { reason: "already_accepted", inviteId: invite.id },
+        });
         return reply.code(400).send({ message: "Invite already accepted" });
       }
 
       if (invite.expiresAt.getTime() < Date.now()) {
+        auditTeamAction(req, {
+          userId,
+          action: "teams.invite_accept",
+          outcome: "blocked",
+          severity: "warning",
+          resourceId: invite.teamId,
+          metadata: { reason: "invite_expired", inviteId: invite.id },
+        });
         return reply.code(400).send({ message: "Invite expired" });
       }
 
@@ -652,6 +1040,14 @@ export async function teamsRoutes(app: FastifyInstance) {
 
       const currentEmail = normalizeEmail(currentUser?.email ?? "");
       if (!currentEmail || currentEmail !== normalizeEmail(invite.email)) {
+        auditTeamAction(req, {
+          userId,
+          action: "teams.invite_accept",
+          outcome: "blocked",
+          severity: "warning",
+          resourceId: invite.teamId,
+          metadata: { reason: "email_mismatch", inviteId: invite.id },
+        });
         return reply.code(403).send({
           message: "You must be signed in with the invited email address",
         });
@@ -677,14 +1073,25 @@ export async function teamsRoutes(app: FastifyInstance) {
         data: { acceptedAt: new Date() },
       });
 
-      await createActivity(
-        invite.teamId,
-        "invite_accepted",
-        "member",
+      await createActivity(invite.teamId, "invite_accepted", "member", userId, userId, {
+        role: invite.role,
+      });
+
+      auditTeamAction(req, {
         userId,
+        action: "teams.invite_accept",
+        outcome: "success",
+        resourceId: invite.teamId,
+        metadata: { inviteId: invite.id, role: invite.role },
+      });
+
+      fireTeamAnalyticsEvent({
+        eventType: "team_invite_accepted",
         userId,
-        { role: invite.role }
-      );
+        req,
+        entityId: invite.teamId,
+        metadata: { inviteId: invite.id, role: invite.role },
+      });
 
       return reply.code(200).send({ invite: updated });
     }
@@ -692,13 +1099,21 @@ export async function teamsRoutes(app: FastifyInstance) {
 
   app.get(
     "/v1/teams/:id/activity",
-    { preHandler: requireAuth },
+    { preHandler: requireAuthAndLegal },
     async (req: FastifyRequest, reply) => {
       const teamId = z.string().uuid().parse((req.params as { id: string }).id);
       const userId = getAuthUserId(req);
 
       const actor = await getActorMembership(teamId, userId);
       if (!actor) {
+        auditTeamAction(req, {
+          userId,
+          action: "teams.activity_list",
+          outcome: "blocked",
+          severity: "warning",
+          resourceId: teamId,
+          metadata: { reason: "forbidden" },
+        });
         return reply.code(403).send({ message: "Forbidden" });
       }
 
@@ -726,22 +1141,30 @@ export async function teamsRoutes(app: FastifyInstance) {
       const usersById = new Map(users.map((u) => [u.id, u]));
 
       const enriched = activities.map((activity) => {
-        const actor = activity.actorUserId ? usersById.get(activity.actorUserId) : null;
+        const actorUser = activity.actorUserId ? usersById.get(activity.actorUserId) : null;
         return {
           id: activity.id,
           eventType: activity.eventType,
           targetType: activity.targetType,
           targetId: activity.targetId,
-          actor: actor
+          actor: actorUser
             ? {
-                id: actor.id,
-                email: actor.email,
-                displayName: actor.displayName,
+                id: actorUser.id,
+                email: actorUser.email,
+                displayName: actorUser.displayName,
               }
             : null,
           metadata: activity.metadata,
           createdAt: activity.createdAt,
         };
+      });
+
+      auditTeamAction(req, {
+        userId,
+        action: "teams.activity_list",
+        outcome: "success",
+        resourceId: teamId,
+        metadata: { count: activities.length },
       });
 
       return reply.code(200).send({ activities: enriched });
@@ -750,7 +1173,7 @@ export async function teamsRoutes(app: FastifyInstance) {
 
   app.post(
     "/v1/teams/:id/cases/link",
-    { preHandler: requireAuth },
+    { preHandler: requireAuthAndLegal },
     async (req: FastifyRequest, reply) => {
       const LinkCaseBody = z.object({ caseId: z.string().uuid() });
       const params = req.params as { id: string };
@@ -760,6 +1183,14 @@ export async function teamsRoutes(app: FastifyInstance) {
 
       const actor = await getActorMembership(teamId, userId);
       if (!actor || !hasRole(actor.role, prismaPkg.TeamRole.MEMBER)) {
+        auditTeamAction(req, {
+          userId,
+          action: "teams.case_link",
+          outcome: "blocked",
+          severity: "warning",
+          resourceId: teamId,
+          metadata: { reason: "forbidden", caseId },
+        });
         return reply.code(403).send({ message: "Forbidden" });
       }
 
@@ -768,14 +1199,38 @@ export async function teamsRoutes(app: FastifyInstance) {
       });
 
       if (!caseItem) {
+        auditTeamAction(req, {
+          userId,
+          action: "teams.case_link",
+          outcome: "failure",
+          severity: "warning",
+          resourceId: teamId,
+          metadata: { reason: "case_not_found", caseId },
+        });
         return reply.code(404).send({ message: "Case not found" });
       }
 
       if (caseItem.teamId) {
+        auditTeamAction(req, {
+          userId,
+          action: "teams.case_link",
+          outcome: "blocked",
+          severity: "warning",
+          resourceId: teamId,
+          metadata: { reason: "case_already_linked", caseId },
+        });
         return reply.code(400).send({ message: "Case is already linked to a team" });
       }
 
       if (caseItem.ownerUserId !== userId && !hasRole(actor.role, prismaPkg.TeamRole.ADMIN)) {
+        auditTeamAction(req, {
+          userId,
+          action: "teams.case_link",
+          outcome: "blocked",
+          severity: "warning",
+          resourceId: teamId,
+          metadata: { reason: "not_owner_or_admin", caseId },
+        });
         return reply.code(403).send({ message: "Only case owner or team admin can link case" });
       }
 
@@ -784,14 +1239,25 @@ export async function teamsRoutes(app: FastifyInstance) {
         data: { teamId },
       });
 
-      await createActivity(
-        teamId,
-        "case_linked",
-        "case",
+      await createActivity(teamId, "case_linked", "case", userId, caseId, {
+        caseName: updated.name,
+      });
+
+      auditTeamAction(req, {
         userId,
-        caseId,
-        { caseName: updated.name }
-      );
+        action: "teams.case_link",
+        outcome: "success",
+        resourceId: teamId,
+        metadata: { caseId, caseName: updated.name },
+      });
+
+      fireTeamAnalyticsEvent({
+        eventType: "team_case_linked",
+        userId,
+        req,
+        entityId: teamId,
+        metadata: { caseId },
+      });
 
       return reply.code(200).send(updated);
     }
@@ -799,7 +1265,7 @@ export async function teamsRoutes(app: FastifyInstance) {
 
   app.delete(
     "/v1/teams/:id/cases/:caseId",
-    { preHandler: requireAuth },
+    { preHandler: requireAuthAndLegal },
     async (req: FastifyRequest, reply) => {
       const params = req.params as { id: string; caseId: string };
       const teamId = z.string().uuid().parse(params.id);
@@ -808,6 +1274,14 @@ export async function teamsRoutes(app: FastifyInstance) {
 
       const actor = await getActorMembership(teamId, userId);
       if (!actor || !hasRole(actor.role, prismaPkg.TeamRole.ADMIN)) {
+        auditTeamAction(req, {
+          userId,
+          action: "teams.case_unlink",
+          outcome: "blocked",
+          severity: "warning",
+          resourceId: teamId,
+          metadata: { reason: "forbidden", caseId },
+        });
         return reply.code(403).send({ message: "Forbidden" });
       }
 
@@ -816,6 +1290,14 @@ export async function teamsRoutes(app: FastifyInstance) {
       });
 
       if (!caseItem || caseItem.teamId !== teamId) {
+        auditTeamAction(req, {
+          userId,
+          action: "teams.case_unlink",
+          outcome: "failure",
+          severity: "warning",
+          resourceId: teamId,
+          metadata: { reason: "case_not_found_in_team", caseId },
+        });
         return reply.code(404).send({ message: "Case not found in team" });
       }
 
@@ -824,14 +1306,25 @@ export async function teamsRoutes(app: FastifyInstance) {
         data: { teamId: null },
       });
 
-      await createActivity(
-        teamId,
-        "case_unlinked",
-        "case",
+      await createActivity(teamId, "case_unlinked", "case", userId, caseId, {
+        caseName: updated.name,
+      });
+
+      auditTeamAction(req, {
         userId,
-        caseId,
-        { caseName: updated.name }
-      );
+        action: "teams.case_unlink",
+        outcome: "success",
+        resourceId: teamId,
+        metadata: { caseId, caseName: updated.name },
+      });
+
+      fireTeamAnalyticsEvent({
+        eventType: "team_case_unlinked",
+        userId,
+        req,
+        entityId: teamId,
+        metadata: { caseId },
+      });
 
       return reply.code(200).send(updated);
     }

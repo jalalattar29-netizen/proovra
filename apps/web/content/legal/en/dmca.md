@@ -1,39 +1,43 @@
 # Copyright & DMCA Policy
 
-Last Updated: 08.02.2026
+Last Updated: 06.04.2026
 
 Proovra respects intellectual property rights and expects users to do the same.
 
-This policy explains how copyright owners may submit notices and how Proovra responds to such requests.
+This policy explains how copyright complaints may be submitted and how Proovra may respond.
 
-## 1. Copyright Complaints
+## 1. COPYRIGHT COMPLAINTS
 
-If you believe content hosted on Proovra infringes your copyright, you may submit a notice to:
+If you believe content hosted through Proovra infringes your copyright, you may submit a notice to:
 
 legal@proovra.com
 
-Your notice should include:
+Please include:
 
 - your full name and contact details
-- identification of the copyrighted work claimed to be infringed
-- identification of the content or evidence link claimed to be infringing (URL or evidence identifier)
+- identification of the copyrighted work
+- identification of the allegedly infringing content, URL, or evidence identifier
 - a statement that you have a good-faith belief the use is not authorized
-- a statement, under penalty of perjury, that the information is accurate and you are the rights holder (or authorized agent)
+- a statement that the information is accurate and that you are the rights holder or authorized to act on their behalf
 - your physical or electronic signature
 
-## 2. Counter-Notice (Where Applicable)
+## 2. COUNTER-NOTICES
 
-If you believe content was removed or restricted by mistake, you may submit a counter-notice to legal@proovra.com with:
+If you believe content was removed, restricted, or disabled by mistake, you may submit a counter-notice to legal@proovra.com including:
 
 - your name and contact details
-- the affected evidence identifier or URL
-- a statement that you have a good-faith belief removal was the result of error or misidentification
-- any information required by applicable law in your jurisdiction
+- identification of the affected content or identifier
+- a statement of good-faith belief that the action resulted from mistake or misidentification
+- any additional information required under applicable law
 
-## 3. Repeat Infringers
+## 3. REPEAT INFRINGEMENT
 
-In appropriate circumstances, Proovra may terminate accounts of repeat infringers.
+In appropriate circumstances, Proovra may suspend or terminate accounts of repeat infringers.
 
-## 4. Important Note
+## 4. IMPORTANT LIMITATION
 
-Proovra is a verification and integrity platform. We do not routinely review user-uploaded evidence. Requests are handled upon receipt and assessment.
+Proovra is a technical verification and integrity platform. We do not routinely review all user-uploaded material in advance.
+
+## 5. CONTACT
+
+legal@proovra.com

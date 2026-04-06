@@ -1,7 +1,11 @@
 import { apiFetch } from "./api";
+import { hasAnalyticsConsent } from "./consent";
+import { initSentry } from "./sentry";
 
 type AnalyticsMetadataValue = string | number | boolean | null;
 export type AnalyticsMetadata = Record<string, AnalyticsMetadataValue>;
+
+let analyticsInitialized = false;
 
 function getVisitorId(): string {
   if (typeof window === "undefined") return "server";
@@ -63,10 +67,7 @@ function humanizeEventType(eventType: string): string {
 
 function classifyEventClass(eventType: string): string {
   if (eventType === "page_view") return "navigation";
-  if (
-    eventType === "login_completed" ||
-    eventType === "register_completed"
-  ) {
+  if (eventType === "login_completed" || eventType === "register_completed") {
     return "auth";
   }
   if (eventType === "evidence_created") return "evidence";
@@ -88,20 +89,35 @@ function buildDefaultMetadata(
   };
 }
 
+export async function initAnalytics(): Promise<void> {
+  if (typeof window === "undefined") return;
+  if (analyticsInitialized) return;
+  if (!hasAnalyticsConsent()) return;
+
+  analyticsInitialized = true;
+
+  try {
+    initSentry();
+    console.info("[analytics] optional services initialized");
+  } catch (error) {
+    console.warn("[analytics] initialization failed", error);
+  }
+}
+
 export async function trackEvent(
   eventType: string,
   metadata?: AnalyticsMetadata,
   options?: { pathname?: string | null; referrer?: string | null }
 ): Promise<void> {
+  if (!hasAnalyticsConsent()) return;
+
   try {
     const pathname = normalizePath(
-      options?.pathname ??
-        (typeof window !== "undefined" ? window.location.pathname : null)
+      options?.pathname ?? (typeof window !== "undefined" ? window.location.pathname : null)
     );
 
     const referrer =
-      options?.referrer ??
-      (typeof document !== "undefined" ? document.referrer : null);
+      options?.referrer ?? (typeof document !== "undefined" ? document.referrer : null);
 
     await apiFetch("/v1/analytics/track", {
       method: "POST",

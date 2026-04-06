@@ -1,183 +1,275 @@
-import type { FastifyInstance, FastifyRequest } from "fastify";
-import * as prismaPkg from "@prisma/client";
-import {
-  addCredits,
-  ensureEntitlement,
-  recordPayment,
-  setPlan,
-  setTeamSeats,
-  upsertSubscription
-} from "../services/billing.service.js";
-import { parseStripeEvent, verifyStripeSignature } from "../services/stripe.service.js";
-import { verifyPayPalWebhook } from "../services/paypal.service.js";
+/**
+ * Advanced Search Routes
+ * Full-text search, filtering, and pagination for evidence
+ */
 
-const PAYG_CREDITS_PER_PURCHASE = 1;
+import type { FastifyInstance } from "fastify";
+import { z } from "zod";
+import { requireAuth } from "../middleware/auth.js";
+import { prisma } from "../db.js";
+import { AppError, ErrorCode } from "../errors.js";
 
-export async function webhooksRoutes(app: FastifyInstance) {
-  app.addContentTypeParser(
-    "application/json",
-    { parseAs: "buffer" },
-    (req, body, done) => {
-      done(null, body);
+export async function searchRoutes(app: FastifyInstance) {
+  /**
+   * Search evidence
+   * GET /v1/search/evidence?q=query&type=PHOTO&page=1&limit=20
+   */
+  app.get(
+    "/v1/search/evidence",
+    { preHandler: [requireAuth] },
+    async (req: any, res: any) => {
+      try {
+        const querySchema = z.object({
+          q: z.string().min(1).max(200).optional(),
+          type: z.enum(["PHOTO", "VIDEO", "AUDIO", "DOCUMENT"]).optional(),
+          status: z.enum(["PENDING", "SIGNED", "ARCHIVED"]).optional(),
+          fromDate: z.string().datetime().optional(),
+          toDate: z.string().datetime().optional(),
+          caseId: z.string().uuid().optional(),
+          page: z.number().int().min(1).default(1),
+          limit: z.number().int().min(1).max(100).default(20),
+          sortBy: z.enum(["createdAt", "updatedAt", "type"]).default("createdAt"),
+          sortOrder: z.enum(["asc", "desc"]).default("desc"),
+        });
+
+        const query = querySchema.parse(req.query);
+        const userId = req.user!.sub;
+
+        // Build where clause
+        const where: any = {
+          ownerUserId: userId,
+          deletedAt: null,
+        };
+
+        if (query.type) {
+          where.type = query.type;
+        }
+
+        if (query.status) {
+          where.status = query.status;
+        }
+
+        if (query.caseId) {
+          where.caseId = query.caseId;
+        }
+
+        if (query.fromDate || query.toDate) {
+          where.createdAt = {};
+          if (query.fromDate) {
+            where.createdAt.gte = new Date(query.fromDate);
+          }
+          if (query.toDate) {
+            where.createdAt.lte = new Date(query.toDate);
+          }
+        }
+
+        // Full-text search if query provided
+        if (query.q) {
+          where.OR = [
+            {
+              id: {
+                contains: query.q,
+                mode: "insensitive",
+              },
+            },
+            {
+              mimeType: {
+                contains: query.q,
+                mode: "insensitive",
+              },
+            },
+          ];
+        }
+
+        // Get total count
+        const total = await prisma.evidence.count({ where });
+
+        // Get paginated results
+        const skip = (query.page - 1) * query.limit;
+        const evidence = await prisma.evidence.findMany({
+          where,
+          select: {
+            id: true,
+            type: true,
+            status: true,
+            mimeType: true,
+            createdAt: true,
+            updatedAt: true,
+            caseId: true,
+          },
+          orderBy: {
+            [query.sortBy]: query.sortOrder,
+          },
+          skip,
+          take: query.limit,
+        });
+
+        return {
+          data: evidence,
+          pagination: {
+            page: query.page,
+            limit: query.limit,
+            total,
+            totalPages: Math.ceil(total / query.limit),
+          },
+        };
+      } catch (error) {
+        if (error instanceof z.ZodError) {
+          throw new AppError(
+            ErrorCode.VALIDATION_ERROR,
+            "Invalid search parameters",
+            { fields: error.flatten() }
+          );
+        }
+        throw error;
+      }
     }
   );
 
-  app.post("/stripe", async (req: FastifyRequest, reply) => {
-    const sig = req.headers["stripe-signature"];
-    if (typeof sig !== "string") {
-      return reply.code(400).send({ message: "Missing signature" });
-    }
-    const rawBody = req.body as Buffer;
-    verifyStripeSignature(rawBody, sig);
-    const event = parseStripeEvent(rawBody);
+  /**
+   * Search cases
+   * GET /v1/search/cases?q=query&page=1&limit=20
+   */
+  app.get(
+    "/v1/search/cases",
+    { preHandler: [requireAuth] },
+    async (req: any) => {
+      try {
+        const querySchema = z.object({
+          q: z.string().min(1).max(200).optional(),
+          page: z.number().int().min(1).default(1),
+          limit: z.number().int().min(1).max(100).default(20),
+          sortBy: z.enum(["createdAt", "name"]).default("createdAt"),
+          sortOrder: z.enum(["asc", "desc"]).default("desc"),
+        });
 
-    if (event.type === "checkout.session.completed") {
-      const session = event.data.object as {
-        id: string;
-        amount_total?: number;
-        currency?: string;
-        metadata?: { userId?: string; plan?: string };
-      };
-      const userId = session.metadata?.userId;
-      const plan = session.metadata?.plan as prismaPkg.PlanType | undefined;
-      if (userId && plan) {
-        await ensureEntitlement(userId);
-        if (plan === prismaPkg.PlanType.PAYG) {
-          await addCredits(userId, PAYG_CREDITS_PER_PURCHASE);
-        } else {
-          await setPlan(userId, plan);
-          if (plan === prismaPkg.PlanType.TEAM) {
-            await setTeamSeats(userId, 5);
-          }
+        const query = querySchema.parse(req.query);
+        const userId = req.user!.sub;
+
+        // Build where clause
+        const where: any = {
+          ownerUserId: userId,
+        };
+
+        // Full-text search
+        if (query.q) {
+          where.OR = [
+            {
+              name: {
+                contains: query.q,
+                mode: "insensitive",
+              },
+            },
+          ];
         }
-        await recordPayment({
-          userId,
-          provider: prismaPkg.PaymentProvider.STRIPE,
-          providerPaymentId: session.id,
-          amountCents: session.amount_total ?? 0,
-          currency: (session.currency ?? "usd").toUpperCase(),
-          status: prismaPkg.PaymentStatus.SUCCEEDED
-        });
-      }
-    }
 
-    if (
-      event.type === "customer.subscription.created" ||
-      event.type === "customer.subscription.updated" ||
-      event.type === "customer.subscription.deleted"
-    ) {
-      const subscription = event.data.object as {
-        id: string;
-        status?: string;
-        current_period_end?: number;
-        metadata?: { userId?: string; plan?: string };
-      };
-      const userId = subscription.metadata?.userId;
-      const plan = subscription.metadata?.plan as prismaPkg.PlanType | undefined;
-      if (userId && plan) {
-        const status =
-          subscription.status === "active"
-            ? prismaPkg.SubscriptionStatus.ACTIVE
-            : subscription.status === "past_due"
-            ? prismaPkg.SubscriptionStatus.PAST_DUE
-            : subscription.status === "trialing"
-            ? prismaPkg.SubscriptionStatus.TRIALING
-            : prismaPkg.SubscriptionStatus.CANCELED;
-        await upsertSubscription({
-          userId,
-          provider: prismaPkg.PaymentProvider.STRIPE,
-          providerSubId: subscription.id,
-          status,
-          plan,
-          currentPeriodEnd: subscription.current_period_end
-            ? new Date(subscription.current_period_end * 1000)
-            : null
+        // Get total count
+        const total = await prisma.case.count({ where });
+
+        // Get paginated results
+        const skip = (query.page - 1) * query.limit;
+        const cases = await prisma.case.findMany({
+          where,
+          select: {
+            id: true,
+            name: true,
+            createdAt: true,
+            updatedAt: true,
+          },
+          orderBy: {
+            [query.sortBy]: query.sortOrder,
+          },
+          skip,
+          take: query.limit,
         });
-        if (status === prismaPkg.SubscriptionStatus.CANCELED) {
-          await setPlan(userId, prismaPkg.PlanType.FREE);
-          await setTeamSeats(userId, 0);
-        } else {
-          await setPlan(userId, plan);
-          if (plan === prismaPkg.PlanType.TEAM) {
-            await setTeamSeats(userId, 5);
-          }
+
+        return {
+          data: cases,
+          pagination: {
+            page: query.page,
+            limit: query.limit,
+            total,
+            totalPages: Math.ceil(total / query.limit),
+          },
+        };
+      } catch (error) {
+        if (error instanceof z.ZodError) {
+          throw new AppError(
+            ErrorCode.VALIDATION_ERROR,
+            "Invalid search parameters",
+            { fields: error.flatten() }
+          );
         }
+        throw error;
       }
     }
+  );
 
-    if (event.type === "invoice.paid" || event.type === "invoice.payment_failed") {
-      const invoice = event.data.object as {
-        id: string;
-        status?: string;
-        amount_paid?: number;
-        currency?: string;
-        subscription?: string;
-        metadata?: { userId?: string; plan?: string };
-      };
-      const userId = invoice.metadata?.userId;
-      const plan = invoice.metadata?.plan as prismaPkg.PlanType | undefined;
-      if (userId && plan) {
-        const status =
-          invoice.status === "paid"
-            ? prismaPkg.PaymentStatus.SUCCEEDED
-            : prismaPkg.PaymentStatus.FAILED;
-        await recordPayment({
-          userId,
-          provider: prismaPkg.PaymentProvider.STRIPE,
-          providerPaymentId: invoice.id,
-          amountCents: invoice.amount_paid ?? 0,
-          currency: (invoice.currency ?? "usd").toUpperCase(),
-          status
-        });
-      }
-    }
-
-    return reply.code(200).send({ received: true });
-  });
-
-  app.post("/paypal", async (req: FastifyRequest, reply) => {
-    const rawBody = (req.body as Buffer).toString("utf8");
-    const verification = await verifyPayPalWebhook(req.headers, rawBody);
-    if (verification.verification_status !== "SUCCESS") {
-      return reply.code(400).send({ message: "Invalid webhook" });
-    }
-    const event = JSON.parse(rawBody) as {
-      event_type: string;
-      resource: {
-        id: string;
-        purchase_units?: Array<{
-          custom_id?: string;
-          description?: string;
-          amount?: { value?: string; currency_code?: string };
-        }>;
-      };
-    };
-    if (event.event_type === "CHECKOUT.ORDER.APPROVED") {
-      const unit = event.resource.purchase_units?.[0];
-      const userId = unit?.custom_id;
-      const description = unit?.description ?? "";
-      const planMatch = description.split(" ").pop() as prismaPkg.PlanType | undefined;
-      if (userId && planMatch) {
-        await ensureEntitlement(userId);
-        if (planMatch === prismaPkg.PlanType.PAYG) {
-          await addCredits(userId, PAYG_CREDITS_PER_PURCHASE);
-        } else {
-          await setPlan(userId, planMatch);
-          if (planMatch === prismaPkg.PlanType.TEAM) {
-            await setTeamSeats(userId, 5);
-          }
+  /**
+   * Get search suggestions/autocomplete
+   * GET /v1/search/suggest?q=query
+   */
+  app.get(
+    "/v1/search/suggest",
+    { preHandler: [requireAuth] },
+    async (req: any) => {
+      try {
+        const q = req.query.q as string;
+        if (!q || q.length < 2) {
+          return { suggestions: [] };
         }
-        await recordPayment({
-          userId,
-          provider: prismaPkg.PaymentProvider.PAYPAL,
-          providerPaymentId: event.resource.id,
-          amountCents: Math.round(Number(unit?.amount?.value ?? 0) * 100),
-          currency: unit?.amount?.currency_code ?? "USD",
-          status: prismaPkg.PaymentStatus.SUCCEEDED
+
+        const userId = req.user!.sub;
+        const searchTerm = q.toLowerCase();
+
+        const suggestions: Array<{
+          type: string;
+          id: string;
+          title: string;
+        }> = [];
+
+        // Evidence suggestions
+        const evidence = await prisma.evidence.findMany({
+          where: {
+            ownerUserId: userId,
+            deletedAt: null,
+            mimeType: { contains: searchTerm, mode: "insensitive" },
+          },
+          select: { id: true, type: true, createdAt: true },
+          take: 3,
         });
+
+        suggestions.push(
+          ...evidence.map((e: { id: string; type: string; createdAt: Date }) => ({
+            type: "evidence",
+            id: e.id,
+            title: `${e.type} - ${new Date(e.createdAt).toLocaleDateString()}`,
+          }))
+        );
+
+        // Case suggestions
+        const cases = await prisma.case.findMany({
+          where: {
+            ownerUserId: userId,
+            name: { contains: searchTerm, mode: "insensitive" },
+          },
+          select: { id: true, name: true },
+          take: 3,
+        });
+
+        suggestions.push(
+          ...cases.map((c: { id: string; name: string }) => ({
+            type: "case",
+            id: c.id,
+            title: c.name,
+          }))
+        );
+
+        return { suggestions };
+      } catch (error) {
+        req.log.error({ error }, "Search suggest failed");
+        return { suggestions: [] };
       }
     }
-
-    return reply.code(200).send({ received: true });
-  });
+  );
 }

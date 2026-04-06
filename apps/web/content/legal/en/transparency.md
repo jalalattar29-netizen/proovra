@@ -1,19 +1,38 @@
-# Transparency Report (Policy)
+# Transparency Policy
 
-Last Updated: 08.02.2026
+Last Updated: 06.04.2026
 
-Proovra aims to be transparent about government and legal requests.
+Proovra aims to provide reasonable transparency about legal demands, platform abuse handling, and integrity-related governance practices.
 
-## 1. Overview
+## 1. OVERVIEW
 
-We may receive requests from law enforcement or authorities.
+We may receive:
 
-We disclose data only when legally required through valid legal process.
+- law enforcement requests
+- court or governmental demands
+- abuse reports
+- copyright complaints
+- security reports
 
-## 2. User Notice
+We assess such matters according to applicable law, platform policy, and operational constraints.
 
-Where legally permitted, we may notify affected users before disclosure.
+## 2. USER NOTICE
 
-## 3. Future Reporting
+Where legally permitted and operationally appropriate, we may notify affected users before disclosing data or taking action in response to legal process.
 
-Proovra may publish aggregated statistics about requests (e.g., number of requests, types, and outcomes) when operationally feasible and legally permitted.
+## 3. AGGREGATED REPORTING
+
+Where feasible and legally permitted, Proovra may publish aggregated information relating to:
+
+- number of legal requests received
+- number of abuse reports received
+- number of enforcement actions taken
+- general categories of outcomes
+
+## 4. LIMITATIONS
+
+We may delay, limit, or omit reporting where prohibited by law, where disclosure would create security risks, or where operational constraints apply.
+
+## 5. CONTACT
+
+legal@proovra.com

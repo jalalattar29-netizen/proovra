@@ -1,11 +1,7 @@
 {
   "compilerOptions": {
     "target": "ES2022",
-    "lib": [
-      "DOM",
-      "DOM.Iterable",
-      "ES2022"
-    ],
+    "lib": ["DOM", "DOM.Iterable", "ES2022"],
     "allowJs": false,
     "skipLibCheck": true,
     "strict": true,
@@ -14,17 +10,14 @@
     "module": "esnext",
     "moduleResolution": "Bundler",
     "resolveJsonModule": true,
+    "allowArbitraryExtensions": true,
     "jsx": "preserve",
     "incremental": true,
     "isolatedModules": true,
     "types": ["node"],
     "paths": {
-      "@proovra/ui": [
-        "../../packages/ui/src/index.ts"
-      ],
-      "@proovra/shared": [
-        "../../packages/shared/src/index.ts"
-      ]
+      "@proovra/ui": ["../../packages/ui/src/index.ts"],
+      "@proovra/shared": ["../../packages/shared/src/index.ts"]
     },
     "plugins": [
       {
@@ -33,17 +26,11 @@
     ]
   },
   "include": [
-    "app/**/*.ts",
-    "app/**/*.tsx",
-    "components/**/*.ts",
-    "components/**/*.tsx",
-    "lib/**/*.ts",
-    "lib/**/*.tsx",
     "next-env.d.ts",
-    "types/**/*.ts",
+    "**/*.ts",
+    "**/*.tsx",
+    "**/*.d.ts",
     ".next/types/**/*.ts"
   ],
-  "exclude": [
-    "node_modules"
-  ]
+  "exclude": ["node_modules"]
 }

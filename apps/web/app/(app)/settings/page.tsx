@@ -10,6 +10,7 @@ import { Icons } from "../../../components/icons";
 import { apiFetch } from "../../../lib/api";
 import { LEGAL_LINKS } from "../../../lib/legalLinks";
 import { captureException } from "../../../lib/sentry";
+import { openCookiePreferences } from "../../../lib/consent";
 import { useAuth, useLocale } from "../../providers";
 
 type BillingStatusResponse = {
@@ -22,7 +23,6 @@ type UserMeResponse = {
     email?: string | null;
     displayName?: string | null;
     provider: string;
-
     firstName?: string | null;
     lastName?: string | null;
     avatarUrl?: string | null;
@@ -30,7 +30,6 @@ type UserMeResponse = {
     timezone?: string | null;
     country?: string | null;
     bio?: string | null;
-
     createdAt?: string;
     updatedAt?: string;
   } | null;
@@ -45,6 +44,26 @@ type UserProfileUpdatePayload = {
   timezone?: string | null;
   country?: string | null;
   bio?: string | null;
+};
+
+type LegalAcceptanceItem = {
+  id: string;
+  policyKey: string;
+  policyVersion: string;
+  acceptedAt: string;
+  source?: string | null;
+};
+
+type CookieConsentLatest = {
+  record?: {
+    id: string;
+    consentVersion: string;
+    necessary: boolean;
+    analytics: boolean;
+    marketing: boolean;
+    preferences: boolean;
+    createdAt: string;
+  } | null;
 };
 
 function asRecord(value: unknown): Record<string, unknown> | null {
@@ -88,6 +107,10 @@ export default function SettingsPage() {
   const [timezone, setTimezone] = useState<string>(user?.timezone ?? "");
   const [bio, setBio] = useState<string>(user?.bio ?? "");
 
+  const [legalAcceptances, setLegalAcceptances] = useState<LegalAcceptanceItem[]>([]);
+  const [latestCookieConsent, setLatestCookieConsent] =
+    useState<CookieConsentLatest["record"]>(null);
+
   useEffect(() => {
     setFirstName(user?.firstName ?? "");
     setLastName(user?.lastName ?? "");
@@ -95,7 +118,15 @@ export default function SettingsPage() {
     setCountry(user?.country ?? "");
     setTimezone(user?.timezone ?? "");
     setBio(user?.bio ?? "");
-  }, [user?.firstName, user?.lastName, user?.displayName, user?.country, user?.timezone, user?.bio, user?.id]);
+  }, [
+    user?.firstName,
+    user?.lastName,
+    user?.displayName,
+    user?.country,
+    user?.timezone,
+    user?.bio,
+    user?.id,
+  ]);
 
   useEffect(() => {
     apiFetch("/v1/billing/status")
@@ -108,6 +139,24 @@ export default function SettingsPage() {
         addToast("Could not load subscription status", "warning");
       });
   }, [addToast]);
+
+  useEffect(() => {
+    apiFetch("/v1/users/legal-acceptance")
+      .then((data: { items?: LegalAcceptanceItem[] }) => {
+        setLegalAcceptances(Array.isArray(data.items) ? data.items : []);
+      })
+      .catch(() => {
+        setLegalAcceptances([]);
+      });
+
+    apiFetch("/v1/users/cookie-consent/latest")
+      .then((data: CookieConsentLatest) => {
+        setLatestCookieConsent(data.record ?? null);
+      })
+      .catch(() => {
+        setLatestCookieConsent(null);
+      });
+  }, []);
 
   const initials = useMemo(() => {
     const a = (user?.displayName ?? user?.email ?? "?").trim();
@@ -139,18 +188,17 @@ export default function SettingsPage() {
         country: country.trim() || null,
         timezone: timezone.trim() || null,
         bio: bio.trim() || null,
-        locale: selectedLanguage
+        locale: selectedLanguage,
       };
 
       const res = await apiFetch("/v1/users/me", {
         method: "PATCH",
-        body: JSON.stringify(payload)
+        body: JSON.stringify(payload),
       });
 
       const updated = extractUserFromResponse(res);
       if (updated) {
         updateUser(updated);
-        // Sync locale to UI if it was updated
         if (updated.locale) {
           setLocale(updated.locale as Locale);
         }
@@ -159,8 +207,12 @@ export default function SettingsPage() {
       addToast("Profile updated", "success");
     } catch (err: unknown) {
       captureException(err, { feature: "web_settings_profile_save" });
-      const msg = err instanceof Error ? err.message : "Could not save profile. Please try again.";
-      addToast(msg.includes("404") ? "Profile endpoint not deployed yet (API 404)." : msg, "error");
+      const msg =
+        err instanceof Error ? err.message : "Could not save profile. Please try again.";
+      addToast(
+        msg.includes("404") ? "Profile endpoint not deployed yet (API 404)." : msg,
+        "error"
+      );
     }
   };
 
@@ -183,7 +235,6 @@ export default function SettingsPage() {
 
       <div className="app-body app-body-full">
         <div className="container" style={{ display: "grid", gap: 16 }}>
-          {/* A) Profile */}
           <Card>
             <div className="settings-section-header">
               <Icons.Dashboard />
@@ -199,9 +250,7 @@ export default function SettingsPage() {
                   <div className="profile-info-title">
                     {user?.displayName || user?.email || "Guest User"}
                   </div>
-                  {user?.email && (
-                    <div className="profile-info-email">{user.email}</div>
-                  )}
+                  {user?.email && <div className="profile-info-email">{user.email}</div>}
                 </div>
               </div>
 
@@ -209,11 +258,21 @@ export default function SettingsPage() {
                 <div className="profile-grid-2">
                   <div className="profile-form-group">
                     <div className="profile-field-label">First name</div>
-                    <Input value={firstName} onChange={setFirstName} placeholder="First name" maxLength={80} />
+                    <Input
+                      value={firstName}
+                      onChange={setFirstName}
+                      placeholder="First name"
+                      maxLength={80}
+                    />
                   </div>
                   <div className="profile-form-group">
                     <div className="profile-field-label">Last name</div>
-                    <Input value={lastName} onChange={setLastName} placeholder="Last name" maxLength={80} />
+                    <Input
+                      value={lastName}
+                      onChange={setLastName}
+                      placeholder="Last name"
+                      maxLength={80}
+                    />
                   </div>
                 </div>
 
@@ -230,7 +289,12 @@ export default function SettingsPage() {
                 <div className="profile-grid-2">
                   <div className="profile-form-group">
                     <div className="profile-field-label">Country</div>
-                    <Input value={country} onChange={setCountry} placeholder="e.g. Germany, Syria" maxLength={120} />
+                    <Input
+                      value={country}
+                      onChange={setCountry}
+                      placeholder="e.g. Germany, Syria"
+                      maxLength={120}
+                    />
                   </div>
                   <div className="profile-form-group">
                     <div className="profile-field-label">Timezone</div>
@@ -268,7 +332,6 @@ export default function SettingsPage() {
             </div>
           </Card>
 
-          {/* B) Security */}
           <Card>
             <div className="settings-section-header">
               <Icons.Security />
@@ -293,7 +356,6 @@ export default function SettingsPage() {
             </div>
           </Card>
 
-          {/* C) Language */}
           <Card>
             <div className="settings-section-header">
               <Icons.Settings />
@@ -334,7 +396,6 @@ export default function SettingsPage() {
             </div>
           </Card>
 
-          {/* D) Subscription */}
           <Card>
             <div className="settings-section-header">
               <Icons.Billing />
@@ -353,24 +414,59 @@ export default function SettingsPage() {
             </div>
           </Card>
 
-{/* E) Legal */}
-<Card>
-  <div className="settings-section-header">
-    <Icons.Security />
-    <span>Legal</span>
-  </div>
+          <Card>
+            <div className="settings-section-header">
+              <Icons.Security />
+              <span>Legal</span>
+            </div>
 
-  <div className="settings-section-body">
-    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-      {LEGAL_LINKS.map((link) => (
-        <Link key={link.href} href={link.href} className="settings-link">
-          {link.label}
-        </Link>
-      ))}
-    </div>
-  </div>
-</Card>
-      </div>
+            <div className="settings-section-body">
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {LEGAL_LINKS.map((link) => (
+                  <Link key={link.href} href={link.href} className="settings-link">
+                    {link.label}
+                  </Link>
+                ))}
+              </div>
+
+              <div style={{ marginTop: 16, display: "grid", gap: 10 }}>
+                <Button
+                  variant="secondary"
+                  onClick={() => {
+                    openCookiePreferences();
+                  }}
+                >
+                  Manage Cookie Preferences
+                </Button>
+
+                {latestCookieConsent ? (
+                  <div style={{ fontSize: 12, color: "var(--color-text)" }}>
+                    Cookie consent v{latestCookieConsent.consentVersion} — saved on{" "}
+                    {new Date(latestCookieConsent.createdAt).toLocaleString()}
+                  </div>
+                ) : null}
+
+                {legalAcceptances.length > 0 ? (
+                  <div style={{ display: "grid", gap: 6, marginTop: 6 }}>
+                    {legalAcceptances.slice(0, 4).map((item) => (
+                      <div
+                        key={item.id}
+                        style={{
+                          fontSize: 12,
+                          color: "var(--color-text)",
+                          opacity: 0.85,
+                        }}
+                      >
+                        {item.policyKey} v{item.policyVersion} —{" "}
+                        {new Date(item.acceptedAt).toLocaleString()}
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
+            </div>
+          </Card>
+        </div>
       </div>
     </div>
   );

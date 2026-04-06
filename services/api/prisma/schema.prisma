@@ -241,6 +241,8 @@ model User {
   subscriptions          Subscription[]
   teamMembers            TeamMember[]
   teamActivities         TeamActivity[]
+  cookieConsentRecords   CookieConsentRecord[]
+  legalAcceptances       UserLegalAcceptance[]
 
   @@unique([provider, providerUserId])
   @@index([email])
@@ -564,6 +566,43 @@ model AdminAuditLog {
   @@index([hash])
   @@index([prevHash])
   @@map("admin_audit_logs")
+}
+
+model UserLegalAcceptance {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId        String   @map("user_id") @db.Uuid
+  policyKey     String   @map("policy_key") @db.VarChar(64)
+  policyVersion String   @map("policy_version") @db.VarChar(32)
+  source        String?  @db.VarChar(64)
+  ipAddress     String?  @map("ip_address") @db.VarChar(45)
+  userAgent     String?  @map("user_agent") @db.VarChar(512)
+  acceptedAt    DateTime @default(now()) @map("accepted_at") @db.Timestamptz(6)
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, policyKey])
+  @@index([userId])
+  @@index([policyKey, policyVersion])
+  @@map("user_legal_acceptances")
+}
+
+model CookieConsentRecord {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId         String?  @map("user_id") @db.Uuid
+  consentVersion String   @map("consent_version") @db.VarChar(32)
+  necessary      Boolean  @default(true)
+  preferences    Boolean  @default(false)
+  analytics      Boolean  @default(false)
+  marketing      Boolean  @default(false)
+  source         String?  @db.VarChar(64)
+  ipAddress      String?  @map("ip_address") @db.VarChar(45)
+  userAgent      String?  @map("user_agent") @db.VarChar(512)
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  user           User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([userId, createdAt(sort: Desc)])
+  @@index([consentVersion])
+  @@map("cookie_consent_records")
 }
 
 enum EvidenceType {

@@ -1,121 +1,126 @@
-# Evidence Handling Policy – Proovra
+# Evidence Handling Policy
 
-Last Updated: 08.02.2026
+Last Updated: 06.04.2026
 
-This document explains how Proovra captures, processes, preserves, and verifies digital materials submitted to the platform.
+This document explains how Proovra captures, processes, preserves, organizes, and verifies digital materials submitted to the platform.
 
-This policy is intended to help users, investigators, journalists, legal professionals, and courts understand how evidence integrity is maintained within the Proovra system.
+It is intended to help users, investigators, legal professionals, journalists, insurers, auditors, and other reviewers understand how Proovra handles evidence-related materials and technical verification outputs.
 
 ## 1. PURPOSE
 
-Proovra is designed to help users capture and preserve digital materials in a way that allows later verification of their integrity.
+Proovra is designed to help users preserve digital materials in a way that supports later technical integrity verification.
 
-The platform provides tools to:
+The platform may provide tools to:
 
 - capture or upload files
 - generate cryptographic fingerprints
 - record custody events
-- produce verification reports
-- enable independent verification
+- generate signatures
+- generate reports
+- provide verification links
+- support later technical review
 
-Proovra does not determine the factual truth of any content.
+Proovra does not determine the factual truth of user content.
 
 ## 2. EVIDENCE SUBMISSION
 
-Users may submit materials including:
+Users may submit materials such as:
 
 - photographs
-- video recordings
+- videos
 - documents
-- other digital files
+- audio files
+- other digital files supported by the platform
 
-At the time of submission, the system may record metadata such as:
+Depending on the workflow, the system may also record associated metadata such as:
 
-- timestamp
-- file size
+- upload or capture time
 - file type
-- device metadata (if available)
-- optional location data (if enabled by the user)
+- file size
+- device-related metadata where available
+- optional location metadata where enabled by the user
+- technical processing metadata
 
-## 3. CRYPTOGRAPHIC FINGERPRINTING
+## 3. PROCESSING AND INTEGRITY ARTIFACTS
 
-When evidence is processed, Proovra generates cryptographic artifacts including:
+During or after processing, Proovra may generate technical artifacts such as:
 
-- SHA-256 file hash
-- canonical fingerprint record
-- fingerprint hash
-- system signature
+- file hashes
+- fingerprint records
+- fingerprint hashes
+- digital signatures
+- custody event records
+- verification outputs
+- timestamp-related metadata where enabled
+- OpenTimestamps-related metadata where enabled
 
-These artifacts allow later verification that the stored file has not been modified.
+These artifacts are intended to support tamper detection and subsequent technical review.
 
 ## 4. CHAIN OF CUSTODY
 
-The platform records custody events including actions such as:
+The platform is designed to maintain a custody record reflecting important system actions affecting the evidence record.
 
+This may include actions such as:
+
+- creation
 - upload
-- verification
-- signature generation
-- report creation
+- completion
+- signature application
+- report generation
+- verification activity
+- selected status changes
 
-Each event includes a timestamp and event type.
+The custody record is designed to support auditability of system-recorded events.
 
-The custody log is designed to provide an auditable sequence of system actions.
+## 5. SIGNATURES, REPORTS, AND VERIFICATION LINKS
 
-## 5. SIGNATURES AND VERIFICATION
-
-When evidence is completed, Proovra may generate:
+Once an evidence item reaches the relevant workflow stage, Proovra may provide:
 
 - digital signatures
-- integrity reports
+- verification reports
 - verification links
-- cryptographic artifacts
+- structured verification materials
 
-These outputs allow independent verification of evidence integrity.
+These outputs are intended to support later technical review by authorized recipients.
 
-However, signatures confirm **data integrity only**, not authorship or factual accuracy.
+## 6. STORAGE AND IMMUTABILITY
 
-## 6. EVIDENCE IMMUTABILITY
+Depending on the deployed storage configuration, Proovra may apply storage protection controls or preserve metadata relating to storage retention or immutability.
 
-Once an evidence record is finalized:
+However, storage behavior depends on the actual environment, selected infrastructure, and technical implementation.
 
-- hashes cannot be modified
-- signatures cannot be altered
-- custody logs are preserved
+## 7. USER CONTROL AND ACCESS
 
-If a user deletes their account, integrity artifacts may remain retained to preserve verification capability.
+Users remain responsible for:
 
-## 7. LIMITATIONS
+- controlling access to uploaded content
+- deciding who receives reports and verification links
+- sharing evidence lawfully
+- configuring teams, cases, and permissions appropriately
 
-Proovra does not:
+## 8. IMPORTANT LIMITATIONS
 
-- verify who created the content
-- verify where content was recorded unless metadata exists
-- determine whether content is truthful
-- provide legal certification of evidence
+Proovra does **not** independently verify:
 
-Admissibility of evidence is determined by courts or competent authorities.
+- who created the content
+- whether the content is truthful
+- whether the content was manipulated before submission
+- whether metadata supplied by the device is complete or accurate
+- whether an authority, court, insurer, or employer will accept a given record as evidence
 
-## 8. INDEPENDENT VERIFICATION
+Those determinations remain external to the platform.
 
-Anyone with access to the report or verification link may independently verify integrity by:
+## 9. DELETION, RETENTION, AND PRESERVATION
 
-1. downloading the original file
-2. computing the SHA-256 hash
-3. comparing it with the hash listed in the report
-4. validating the digital signature
+User-facing deletion and retention behavior may vary by workflow and system design.
 
-## 9. SECURITY AND STORAGE
+In some circumstances, technical integrity artifacts, logs, or reports may remain retained beyond deletion of user-facing content where reasonably necessary for security, legal compliance, fraud prevention, or evidentiary-integrity preservation.
 
-Proovra implements safeguards including:
+## 10. SECURITY
 
-- encrypted transport
-- controlled access
-- audit logging
-- key management practices
+Proovra uses technical and organizational measures designed to protect evidence-related data and platform operations, but no system can guarantee absolute security.
 
-No system can guarantee absolute security.
-
-## 10. CONTACT
+## 11. CONTACT
 
 For questions regarding evidence handling:
 

@@ -1,258 +1,233 @@
-# PRIVACY POLICY – PROOVRA
+# Privacy Policy
 
-Last Updated: 08.02.2026
+Last Updated: 06.04.2026
 
-This Privacy Policy describes how Proovra (“Proovra”, “we”, “us”, or “our”) collects, uses, processes, stores, and protects personal data when you access or use our websites, mobile applications, APIs, verification services, and related products (collectively, the “Services”).
+This Privacy Policy explains how Proovra (“Proovra”, “we”, “us”, or “our”) collects, uses, stores, shares, and protects personal data in connection with our websites, applications, APIs, verification pages, and related services (the “Services”).
 
-Proovra is a digital evidence capture, preservation, and verification platform designed for individuals, professionals, organizations, journalists, legal practitioners, and businesses.
+This policy is intended to help users, customers, reviewers, and business contacts understand how personal data is handled when using Proovra.
 
-By using the Services, you acknowledge that you have read and understood this Privacy Policy.
+## 1. WHO WE ARE
 
-## DATA CONTROLLER
+Controller for the website and Services, unless otherwise stated:
 
-For the purposes of applicable data protection laws (including the EU General Data Protection Regulation “GDPR”), the data controller responsible for processing personal data under this Privacy Policy is:
+Jalal Attar  
+Ruhlandplatz 3  
+45355 Essen  
+Germany
 
-- **Proovra** (pre-incorporation project)
-- **Location:** Essen, Germany
-- **Contact:** legal@proovra.com
+Contact:
+- support@proovra.com
+- legal@proovra.com
+- security@proovra.com
 
-If and when Proovra is incorporated, this section will be updated to reflect the registered legal entity details.
+## 2. SCOPE OF THIS POLICY
 
-## 1. CATEGORIES OF PERSONAL DATA WE COLLECT
+This Privacy Policy applies to personal data processed when you:
 
-Depending on how you interact with Proovra, we may collect and process the following categories of personal data.
+- visit our website
+- create or access an account
+- use our web or mobile applications
+- upload, capture, review, verify, or manage evidence
+- use cases, teams, sharing, or verification features
+- contact support or communicate with us
+- receive operational, billing, legal, or security communications
 
-### 1.1 Contact and Identification Information
+Where a business customer uses Proovra as a controller of uploaded content, Proovra may also act as a processor on that customer’s behalf for certain processing activities.
 
-Information that allows us to identify or contact you, including but not limited to:
+## 3. CATEGORIES OF PERSONAL DATA
 
-- Full name
-- Email address
-- Phone number
-- Mailing address (if provided)
-- Account identifiers
-- Information provided through third-party authentication providers (e.g., Google or Apple)
+Depending on how you use the Services, we may process:
 
-### 1.2 Account, Profile, and Access Data
+### Account and Identity Data
+- name
+- email address
+- account identifiers
+- authentication-related data
+- team and organizational role data
+- legal acceptance records
+- cookie preference records where linked to an authenticated account
 
-Information associated with the creation and administration of a Proovra account, including:
+### Evidence and User Content
+- uploaded files
+- photos, videos, audio, documents, and related materials
+- optional metadata associated with evidence
+- timestamps
+- file type and size
+- device and capture-related metadata where available
+- optional geolocation metadata where enabled by the user
 
-- Login credentials and authentication tokens
-- Account preferences and settings
-- Subscription and entitlement status
-- Team or organization membership
-- Role and permission assignments
-- Usage history and activity logs related to your account
+### Integrity and Verification Data
+- file hashes
+- fingerprint hashes
+- signatures
+- signing key references
+- custody event records
+- timestamp metadata
+- verification reports
+- verification package data
+- related technical verification materials
 
-### 1.3 Transaction and Billing Data
-
-When you purchase or subscribe to Proovra services, we may collect:
-
-- Transaction identifiers
-- Subscription tier and payment status
-- Purchase history
-- Limited billing metadata
-
-Payment information is processed by third-party payment providers (such as Stripe or PayPal). Proovra does not store full payment card numbers or sensitive financial credentials.
-
-### 1.4 Evidence and User-Generated Content
-
-When you use Proovra to capture or upload evidence, we process:
-
-- Photos, videos, documents, and files uploaded by you
-- File metadata (format, size, timestamps)
-- Cryptographic hashes and digital signatures
-- Custody and verification events
-- Optional user-provided notes, tags, or descriptions
-
-Proovra does not analyze, interpret, or assess the truthfulness of uploaded content. Our role is limited to integrity preservation and verification.
-
-### 1.5 Communication and Support Data
-
-We collect information when you communicate with us, including:
-
-- Emails, messages, or support requests
-- Content shared during troubleshooting or support interactions
-- Technical diagnostics voluntarily provided by you
-
-### 1.6 Usage and Behavioral Data
-
-We may automatically collect information related to how the Services are accessed or used, such as:
-
+### Technical and Usage Data
 - IP address
-- Device type and operating system
-- Browser or app version
-- Session timestamps
-- Error logs and performance data
+- device and browser information
+- logs
+- request metadata
+- service diagnostics
+- crash or error information
+- security and access events
 
-### 1.7 Optional Location Data
+### Billing and Transaction Data
+- billing identifiers
+- plan and subscription information
+- transaction metadata
+- payment provider references
 
-If you explicitly enable location capture:
+### Communications Data
+- support requests
+- legal requests
+- abuse reports
+- security reports
+- other communications sent to us
 
-- Approximate or precise location data may be attached to evidence
-- Location collection is optional and disabled by default
-- You may withdraw consent at any time via device or application settings
+## 4. PURPOSES OF PROCESSING
 
-### 1.8 Sensitive Personal Data
+We may process personal data for the following purposes:
 
-Proovra does not intentionally collect sensitive personal data (such as health, biometric, or political data) as part of normal operations.
+- providing and operating the Services
+- creating and managing user accounts
+- authenticating users
+- storing and processing evidence records
+- generating hashes, signatures, custody logs, reports, timestamps, and verification outputs
+- enabling evidence review and verification workflows
+- supporting collaboration, teams, and case management
+- processing billing and subscriptions
+- providing support
+- maintaining legal acceptance records and policy version records
+- storing cookie preference records where applicable
+- monitoring reliability, detecting errors, and improving the Services
+- maintaining security, preventing abuse, fraud, and unauthorized access
+- complying with legal obligations
+- establishing, exercising, or defending legal claims
 
-If sensitive data is processed:
+## 5. LEGAL BASES
 
-- It occurs only when strictly necessary
-- It is based on explicit consent or legal obligation
-- It is handled with heightened security safeguards
+Where GDPR applies, we may rely on one or more of the following legal bases:
 
-## 2. HOW WE USE PERSONAL DATA
+- **Article 6(1)(b) GDPR** – processing necessary for performance of a contract or to take steps at your request before entering a contract
+- **Article 6(1)(c) GDPR** – processing necessary for compliance with legal obligations
+- **Article 6(1)(f) GDPR** – processing necessary for legitimate interests, including platform security, fraud prevention, service reliability, product improvement, legal acceptance traceability, and legal risk management
+- **Article 6(1)(a) GDPR** – consent, where required, including for optional cookies or similar technologies where applicable
 
-We process personal data for the following purposes:
+Where special categories of personal data are uploaded by users, the lawful basis for such upload generally remains the responsibility of the user or customer controlling that content, unless Proovra determines otherwise in a specific context.
 
-- To create and manage user accounts
-- To authenticate users and secure access
-- To provide, operate, and maintain the Services
-- To capture, preserve, sign, timestamp (where available), and verify digital evidence
-- To generate verification reports and custody records
-- To enable sharing and public verification links
-- To manage teams, roles, and permissions
-- To process payments and subscriptions
-- To respond to inquiries and provide support
-- To comply with legal and regulatory obligations
-- To protect against fraud, abuse, and security threats
-- To improve product performance, reliability, and user experience
+## 6. COOKIES AND SIMILAR TECHNOLOGIES
 
-We do not sell personal data.
+We may use cookies and similar technologies for:
 
-## 3. LEGAL BASIS FOR PROCESSING
+- authentication
+- session continuity
+- security
+- preference storage
+- service performance
+- analytics and diagnostics, where enabled
 
-For users located in the European Economic Area (EEA), the United Kingdom, or Switzerland, Proovra processes personal data based on one or more of the following legal grounds:
+Where required by applicable law, non-essential cookies or similar technologies are used only after obtaining valid consent.
 
-- **Performance of a contract** (e.g., to provide the Services you request)
-- **User consent**, where required (e.g., optional features such as location capture or non-essential cookies)
-- **Legitimate interests** (including security, integrity, fraud prevention, service operation, and product improvement), where such interests are not overridden by your rights
-- **Compliance with legal obligations**
+Users may manage optional cookie choices through the cookie preference center where implemented.
 
-## 4. EVIDENCE INTEGRITY AND IMMUTABILITY
+Please also review our Cookie Policy.
 
-Once evidence is completed and cryptographically signed:
+## 7. DISCLOSURES AND RECIPIENTS
 
-- Hashes, signatures, and custody events are immutable
-- Records cannot be retroactively altered
-- Verification results remain valid even if an account is later closed
+We may disclose personal data to:
 
-This design is fundamental to evidentiary trust and legal reliability. Note that immutability may affect deletion requests for certain integrity records as described under **Data Retention** and **Your Rights**.
+- infrastructure, hosting, storage, and database providers
+- authentication providers
+- payment providers
+- monitoring, logging, and email providers
+- legal, security, or professional advisors where necessary
+- competent authorities where legally required
+- business counterparties in connection with lawful business transfers or restructurings, subject to appropriate safeguards
 
-## 5. DATA SHARING AND DISCLOSURE
+We do not sell personal data in the ordinary meaning of that term.
 
-We disclose personal data only in limited circumstances:
+## 8. SUBPROCESSORS
 
-### 5.1 At Your Direction
+We may use subprocessors and service providers to operate the Services.
 
-- When you generate a public verification link
-- When you share evidence or invite collaborators
-- When you authorize access to teams or third parties
+Please see our Subprocessors page for additional information regarding current subprocessors and processing roles.
 
-### 5.2 Service Providers
+## 9. INTERNATIONAL DATA TRANSFERS
 
-We engage trusted service providers to support:
+Where personal data is transferred outside the EEA, UK, or Switzerland, we will seek to rely on appropriate safeguards where required by applicable law, which may include Standard Contractual Clauses or another lawful transfer mechanism.
 
-- Cloud infrastructure and storage
-- Payment processing
-- Identity and authentication providers (where used)
-- Security and monitoring
+## 10. RETENTION
 
-These providers process data solely under contractual obligations and instructions from Proovra. Where required by law, we use appropriate contractual safeguards (such as data processing agreements) and require confidentiality and security obligations.
+We retain personal data only for as long as reasonably necessary for the purposes described in this policy, except where longer retention is justified by legal obligations, security requirements, fraud prevention, dispute handling, or evidentiary-integrity needs.
 
-### 5.3 Legal and Regulatory Requirements
+Please see our Data Retention Policy for additional information.
 
-We may disclose data when required to:
+## 11. SECURITY
 
-- Comply with applicable law
-- Respond to lawful requests from authorities
-- Protect rights, safety, or property
-- Investigate fraud or misuse
+We implement technical and organizational measures designed to protect personal data and platform integrity. These measures may include access controls, encryption in transit, controlled storage architecture, logging, monitoring, and key-management practices.
 
-## 6. INTERNATIONAL DATA TRANSFERS
+Additional security information may be described in our Security Policy, DPA, and TOMs-related materials.
 
-Proovra may process data in multiple jurisdictions depending on infrastructure location.
+No method of transmission or storage is absolutely secure, and we cannot guarantee absolute security.
 
-Where required, appropriate safeguards are applied to international transfers in accordance with applicable data protection laws (for example, by using recognized transfer mechanisms and contractual safeguards).
+## 12. DATA SUBJECT RIGHTS
 
-## 7. DATA RETENTION
+Where applicable under GDPR or similar laws, you may have rights including:
 
-We retain personal data only as long as necessary to:
+- access
+- rectification
+- erasure
+- restriction of processing
+- objection
+- data portability
+- withdrawal of consent where processing is based on consent
 
-- Provide the Services
-- Fulfill contractual and legal obligations
-- Preserve evidentiary integrity and verification capability
-- Maintain security and prevent fraud/abuse
+You may also have the right to lodge a complaint with a competent supervisory authority.
 
-Retention periods vary based on data type and regulatory requirements. In general:
+## 13. BUSINESS CUSTOMERS AND CONTROLLER / PROCESSOR ROLES
 
-- **Account data** is retained while your account remains active and for a reasonable period thereafter for compliance, security, and dispute handling.
-- **Security logs** may be retained for a limited period to protect the Services.
-- **Evidence integrity records** (such as hashes, signatures, timestamps where applicable, and custody logs) may be retained to preserve verification and auditability, including after account closure, subject to applicable law.
+Depending on the circumstances, Proovra may act as:
 
-## 8. DATA SECURITY
+- a **controller** for website, account, billing, support, legal acceptance logging, cookie preference records associated with account use, and certain platform security processing
+- a **processor** for evidence content and related customer-controlled data processed on behalf of a customer organization
 
-Proovra implements administrative, technical, and organizational safeguards, including:
+Where Proovra acts as a processor, the applicable Data Processing Agreement may apply.
 
-- Encryption in transit and at rest (where applicable)
-- Access controls and authentication mechanisms
-- Audit logging
-- Secure key management
-- Regular security reviews
+## 14. CHILDREN
 
-Despite these measures, no system can guarantee absolute security.
+The Services are not directed to children under the age required by applicable law for independent consent. Users must not upload unlawful exploitative content, including CSAM.
 
-## 9. YOUR RIGHTS
+## 15. POLICY VERSIONING AND CHANGES
 
-Depending on your jurisdiction (including the GDPR), you may have the right to:
+We may update this Privacy Policy from time to time.
 
-- Access your personal data
-- Correct inaccurate data
-- Request deletion or restriction of processing
-- Object to certain processing activities
-- Withdraw consent where applicable
-- **Data portability** (where applicable)
+Material changes will be posted on this page with an updated effective date.
 
-You may also have the right to **lodge a complaint with a supervisory authority** in your country of residence, place of work, or where an alleged infringement occurred.
+Where appropriate, we may maintain internal or user-facing records of accepted legal versions and may request renewed acceptance after material legal updates.
 
-Requests can be submitted to **legal@proovra.com**. We may need to verify your identity before responding.
+## 16. RELATED DOCUMENTS
 
-## 10. CHILDREN’S PRIVACY
+You may also review:
 
-Proovra is not intended for individuals under the age of 18.
-We do not knowingly collect personal data from minors.
+- Terms of Service
+- Cookie Policy
+- Data Processing Agreement (DPA)
+- Data Retention Policy
+- Subprocessors
+- Technical & Organizational Measures (TOMs)
+- Privacy Matrix
+- Legal Changelog
+- Security Policy
+- Evidence Handling Policy
+- Verification Methodology
 
-## 11. THIRD-PARTY WEBSITES AND SERVICES
+## 17. CONTACT
 
-Our Services may contain links to third-party websites or integrations.
-We are not responsible for the privacy practices or content of such third parties.
+For privacy questions or data protection requests, contact:
 
-## 12. COOKIES AND SIMILAR TECHNOLOGIES
-
-Proovra uses cookies and similar technologies to:
-
-- Enable essential functionality
-- Maintain sessions
-- Improve usability and performance
-
-Where required by law, consent mechanisms are provided. For more information, please refer to our Cookie Policy.
-
-## 13. CHANGES TO THIS PRIVACY POLICY
-
-We may update this Privacy Policy periodically.
-Material changes will be communicated through the Services or website.
-
-## 14. CONTACT INFORMATION
-
-For privacy-related inquiries:
-
-- Email: legal@proovra.com
-- Security: security@proovra.com
-- Support: support@proovra.com
-
-## 15. GOVERNING LANGUAGE
-
-This Privacy Policy is written in English.
-Translations may be provided for convenience; the English version prevails.
+legal@proovra.com

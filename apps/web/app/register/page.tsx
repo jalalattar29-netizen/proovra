@@ -90,6 +90,12 @@ function AppleIcon() {
   );
 }
 
+const REQUIRED_LEGAL_VERSIONS = {
+  terms: "2026-04-06",
+  privacy: "2026-04-06",
+  cookies: "2026-04-06",
+} as const;
+
 export default function RegisterPage() {
   const { t } = useLocale();
   const { setToken } = useAuth();
@@ -97,6 +103,8 @@ export default function RegisterPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const returnUrl = searchParams.get("returnUrl") || "/home";
+
+  const [acceptLegal, setAcceptLegal] = useState(false);
 
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -114,7 +122,6 @@ export default function RegisterPage() {
   const googleBtnHostRef = useRef<HTMLDivElement | null>(null);
 
   const ui = useMemo(() => {
-    // (نفس إحساس login)
     const cardShadow = "0 24px 70px rgba(2, 9, 22, 0.55)";
     const border = "1px solid rgba(101, 235, 255, 0.22)";
     const socialMaxW = 360;
@@ -129,32 +136,86 @@ export default function RegisterPage() {
     }
   };
 
-  const handleAuth = async (path: string, idToken?: string, code?: string, extraBody?: Record<string, unknown>) => {
-    if (inFlightRef.current) return;
-    inFlightRef.current = true;
+  const recordRequiredLegalAcceptances = async () => {
+    await apiFetch("/v1/users/legal-acceptance", {
+      method: "POST",
+      body: JSON.stringify({
+        source: "register",
+        acceptances: [
+          {
+            policyKey: "terms",
+            policyVersion: REQUIRED_LEGAL_VERSIONS.terms,
+          },
+          {
+            policyKey: "privacy",
+            policyVersion: REQUIRED_LEGAL_VERSIONS.privacy,
+          },
+          {
+            policyKey: "cookies",
+            policyVersion: REQUIRED_LEGAL_VERSIONS.cookies,
+          },
+        ],
+      }),
+    });
+  };
 
+  const handleAuth = async (
+    path: string,
+    idToken?: string,
+    code?: string,
+    extraBody?: Record<string, unknown>
+  ) => {
+    if (inFlightRef.current) return;
+
+    if (!acceptLegal) {
+      const msg =
+        "You must accept the Terms of Service, Privacy Policy, and Cookie Policy to create an account.";
+      setError(msg);
+      addToast(msg, "error");
+      return;
+    }
+
+    inFlightRef.current = true;
     setBusy(true);
     setError(null);
 
     const provider = path.includes("google")
       ? "google"
       : path.includes("apple")
-      ? "apple"
-      : path.includes("guest")
-      ? "guest"
-      : "email";
+        ? "apple"
+        : path.includes("guest")
+          ? "guest"
+          : "email";
 
     setStatus(`Signing in via ${provider}...`);
 
-    const guestToken = typeof window !== "undefined" ? localStorage.getItem("proovra-token") : null;
+    const guestToken =
+      typeof window !== "undefined" ? localStorage.getItem("proovra-token") : null;
 
     try {
       setReturnUrl(returnUrl);
 
       const payload = extraBody ?? (idToken ? { idToken } : code ? { code } : {});
-      const data = await apiFetch(path, { method: "POST", body: JSON.stringify(payload) }, { auth: false });
+      const data = await apiFetch(
+        path,
+        { method: "POST", body: JSON.stringify(payload) },
+        { auth: false }
+      );
+
+      if (!data?.token) {
+        throw new Error("Authentication failed: missing token");
+      }
 
       setToken(data.token);
+
+      try {
+        await recordRequiredLegalAcceptances();
+      } catch {
+        addToast(
+          "Account created, but legal acceptance logging could not be saved.",
+          "warning"
+        );
+      }
 
       if (guestToken) {
         try {
@@ -191,7 +252,10 @@ export default function RegisterPage() {
     const id = google?.accounts?.id;
     if (!id?.renderButton) return;
 
-    const width = Math.min(ui.socialMaxW, host.getBoundingClientRect().width || ui.socialMaxW);
+    const width = Math.min(
+      ui.socialMaxW,
+      host.getBoundingClientRect().width || ui.socialMaxW
+    );
 
     wrap.innerHTML = "";
     id.renderButton(wrap, {
@@ -258,7 +322,9 @@ export default function RegisterPage() {
           return;
         }
 
-        const redirectUri = process.env.NEXT_PUBLIC_APPLE_REDIRECT_URI ?? `${window.location.origin}/auth/callback`;
+        const redirectUri =
+          process.env.NEXT_PUBLIC_APPLE_REDIRECT_URI ??
+          `${window.location.origin}/auth/callback`;
 
         auth.init({
           clientId: appleClientId,
@@ -270,7 +336,7 @@ export default function RegisterPage() {
         setAppleReady(true);
       })
       .catch(() => setAppleReady(false));
-  }, [returnUrl]);
+  }, [returnUrl, ui.socialMaxW]);
 
   const startApple = async () => {
     setReturnUrl(returnUrl);
@@ -314,6 +380,7 @@ export default function RegisterPage() {
       setError("Please fill email and password.");
       return;
     }
+
     if (password !== password2) {
       setError("Passwords do not match.");
       return;
@@ -331,7 +398,6 @@ export default function RegisterPage() {
   return (
     <div className="page landing-page">
       <div className="blue-shell auth-screen auth-dark">
-        {/* ✅ نفس هيدر الموقع */}
         <MarketingHeader />
 
         <div className="container">
@@ -347,7 +413,6 @@ export default function RegisterPage() {
               <h2 className="auth-title">{t("createAccountTitle")}</h2>
 
               <div className="auth-actions" style={{ display: "grid", gap: 12 }}>
-                {/* Google */}
                 <div ref={googleBtnHostRef} style={SocialHostStyle} aria-label="Continue with Google">
                   <div
                     ref={googleBtnWrapRef}
@@ -361,9 +426,13 @@ export default function RegisterPage() {
                   />
                 </div>
 
-                {/* Apple */}
                 <div style={SocialHostStyle}>
-                  <button type="button" disabled={busy} onClick={() => void startApple()} className="auth-social-btn">
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => void startApple()}
+                    className="auth-social-btn"
+                  >
                     <span className="auth-social-icon" aria-hidden="true">
                       <AppleIcon />
                     </span>
@@ -373,7 +442,6 @@ export default function RegisterPage() {
 
                 <div className="auth-divider">{t("orDivider")}</div>
 
-                {/* Email register */}
                 <form onSubmit={onEmailRegister} style={{ display: "grid", gap: 10 }}>
                   <div className="auth-input-wrap">
                     <span className="auth-input-icon" aria-hidden="true">
@@ -420,12 +488,50 @@ export default function RegisterPage() {
                     />
                   </div>
 
+                  <label
+                    style={{
+                      display: "flex",
+                      alignItems: "flex-start",
+                      gap: 10,
+                      fontSize: 13,
+                      lineHeight: 1.6,
+                      color: "rgba(219, 235, 248, 0.82)",
+                    }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={acceptLegal}
+                      onChange={(e) => setAcceptLegal(e.target.checked)}
+                      disabled={busy}
+                      style={{ marginTop: 3 }}
+                    />
+                    <span>
+                      I agree to the{" "}
+                      <Link href="/legal/terms" className="auth-link">
+                        Terms of Service
+                      </Link>
+                      {", "}
+                      <Link href="/legal/privacy" className="auth-link">
+                        Privacy Policy
+                      </Link>
+                      {" and "}
+                      <Link href="/legal/cookies" className="auth-link">
+                        Cookie Policy
+                      </Link>
+                      .
+                    </span>
+                  </label>
+
                   <button className="auth-social-btn" type="submit" disabled={busy}>
                     Create account with Email
                   </button>
                 </form>
 
-                <Button variant="secondary" onClick={() => handleAuth("/v1/auth/guest")} disabled={busy}>
+                <Button
+                  variant="secondary"
+                  onClick={() => handleAuth("/v1/auth/guest")}
+                  disabled={busy}
+                >
                   {t("continueGuest")}
                 </Button>
 

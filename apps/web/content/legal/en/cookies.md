@@ -1,6 +1,6 @@
-# COOKIE POLICY – PROOVRA
+# Cookie Policy
 
-Last Updated: 08.02.2026
+Last Updated: 06.04.2026
 
 This Cookie Policy explains how Proovra (“Proovra”, “we”, “us”, or “our”) uses cookies and similar technologies on our websites and web-based Services.
 
@@ -8,126 +8,134 @@ This policy should be read together with our Privacy Policy.
 
 ## 1. WHAT ARE COOKIES?
 
-Cookies are small text files stored on your device by your browser when you visit a website.
+Cookies are small text files or similar technologies that store or access information on your device.
 
-They help websites function properly, remember preferences, improve security, and provide usage insights.
+They may support functions such as:
 
-We may also use similar technologies such as:
+- session continuity
+- login and authentication
+- preference storage
+- security
+- service performance
+- analytics and diagnostics
 
-- local storage
-- device identifiers
-- SDK identifiers
-- pixels
-- session storage
+For simplicity, this policy refers to all such technologies as “cookies.”
 
-For simplicity, this policy refers to all of these technologies as “cookies”.
-
-## 2. TYPES OF COOKIES WE USE
+## 2. TYPES OF COOKIES WE MAY USE
 
 ### 2.1 Strictly Necessary Cookies
 
-These cookies are required for the core operation and security of the Services.
+These cookies are necessary for the operation, security, and core functionality of the Services.
 
-They enable functions such as:
+They may support:
 
 - authentication and session management
 - account login
-- fraud prevention and security protection
-- load balancing
-- basic navigation and infrastructure stability
+- fraud prevention
+- infrastructure stability
+- security-related controls
+- navigation required for core service operation
 
-These cookies **cannot be disabled**, as the Services would not function properly without them.
-
-Legal basis (EEA/UK/CH): **legitimate interest** or **service necessity**.
+These cookies or similar technologies may be used without consent where permitted by applicable law because they are strictly necessary for the requested service.
 
 ### 2.2 Preference Cookies
 
-Preference cookies allow the Services to remember choices you make, such as:
+These cookies remember choices such as:
 
 - language settings
-- display preferences
-- regional configuration
+- interface preferences
+- user experience settings
 
-These cookies improve usability but are not strictly required.
+Where required by law, these are used only after valid consent unless they are strictly necessary for a function you requested.
 
-Legal basis: **user consent**, where applicable.
+### 2.3 Analytics and Diagnostics Cookies
 
-### 2.3 Analytics Cookies (Optional)
-
-Analytics cookies help us understand how the Services are used, such as:
+These technologies may help us understand:
 
 - page visits
 - feature usage
-- performance metrics
-- error tracking
+- error patterns
+- performance and reliability issues
 
-These insights allow us to improve reliability, performance, and usability.
+Where required by law, these technologies are used only after valid consent.
 
-Where required by law, analytics cookies are only enabled **after user consent**.
+### 2.4 Marketing Cookies
 
-### 2.4 Marketing Cookies (If Used)
+Proovra does not rely on advertising tracking as a core service function.
 
-Proovra currently does not rely on advertising tracking systems.
+If marketing or referral tracking is introduced in the future, it will be described in an updated policy and, where required, activated only after valid consent.
 
-If marketing or advertising cookies are introduced in the future, they may be used to:
+## 3. THIRD-PARTY TECHNOLOGIES
 
-- measure campaign performance
-- understand referral traffic
-- improve outreach effectiveness
-
-Where required by law, these cookies will **only be activated after explicit user consent**.
-
-## 3. THIRD-PARTY COOKIES
-
-Some cookies may be placed by third-party services integrated into the platform, such as:
+Some cookies or similar technologies may be set or supported by third-party providers, such as:
 
 - authentication providers
-- payment processors
-- infrastructure and monitoring providers
+- payment providers
+- infrastructure or monitoring providers
 
-These third parties may process limited technical information according to their own privacy policies.
+Those providers may process limited technical data according to their own policies and contractual arrangements.
 
-## 4. COOKIE RETENTION
+Please also see our Subprocessors page where applicable.
+
+## 4. LEGAL BASIS
+
+Where EU, EEA, UK, or Swiss law applies:
+
+- strictly necessary cookies may be used where required for the requested service
+- non-essential cookies or similar technologies are used only where valid consent is required and obtained
+
+## 5. COOKIE PREFERENCE CENTER
+
+Where implemented, users may manage optional cookie preferences through the cookie preference center.
+
+Preference choices may be versioned and stored to document consent status and later updates.
+
+## 6. RETENTION
 
 Cookies may persist for different periods depending on their purpose:
 
-- **Session cookies:** deleted when the browser session ends
-- **Persistent cookies:** stored for a limited period to remember preferences or settings
+- session cookies end when the session ends
+- persistent cookies may remain for a limited period until expiry or deletion
 
-Retention periods are minimized and periodically reviewed.
+Retention periods are reviewed and limited where practicable.
 
-## 5. HOW TO CONTROL COOKIES
+## 7. HOW TO CONTROL COOKIES
 
-You can control cookies through several methods:
+You may control cookies through:
 
-- browser settings (block or delete cookies)
-- consent banner controls (where implemented)
-- privacy or security browser extensions
+- browser settings
+- consent banner or cookie preference controls, where implemented
+- device or browser privacy settings
 
-Please note that blocking strictly necessary cookies may prevent login or core functionality of the Services.
+Blocking strictly necessary cookies may prevent parts of the Services from functioning correctly.
 
-You may withdraw consent for optional cookies at any time via available consent controls.
+## 8. DO NOT TRACK
 
-## 6. DO NOT TRACK SIGNALS
+Some browsers offer “Do Not Track” signals.
 
-Some browsers provide a “Do Not Track” signal.
+Because no uniform standard applies across all systems, Proovra may not respond uniformly to such signals.
 
-Due to the lack of a consistent industry standard, the Services may not respond uniformly to these signals.
+## 9. CHANGES TO THIS POLICY
 
-## 7. CHANGES TO THIS COOKIE POLICY
+We may update this Cookie Policy from time to time.
 
-We may update this Cookie Policy from time to time to reflect:
+If material changes are made, the updated version will be posted on this page with an updated effective date.
 
-- legal requirements
-- technical changes
-- service improvements
+Please also see the Legal Changelog where available.
 
-Updates will be published on this page.
+## 10. RELATED DOCUMENTS
 
-## 8. CONTACT
+You may also review:
 
-If you have questions about cookies or tracking technologies used by Proovra, you may contact:
+- Privacy Policy
+- Terms of Service
+- Data Retention Policy
+- Subprocessors
+- Technical & Organizational Measures (TOMs)
+- Legal Changelog
 
-- legal@proovra.com
-- security@proovra.com
-- support@proovra.com
+## 11. CONTACT
+
+For cookie-related questions, contact:
+
+legal@proovra.com

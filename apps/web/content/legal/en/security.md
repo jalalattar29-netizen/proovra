@@ -1,136 +1,125 @@
-# Security & Responsible Disclosure Policy – Proovra
+# Security & Responsible Disclosure Policy
 
-Last Updated: 08.02.2026
+Last Updated: 06.04.2026
 
-Proovra is designed for trust-sensitive workflows involving digital evidence preservation and verification.
+Proovra is designed for trust-sensitive workflows involving digital evidence preservation, integrity verification, and controlled access.
 
-This page describes our security approach and how security researchers can responsibly report vulnerabilities.
+This page describes our security approach and how researchers can responsibly report vulnerabilities.
 
----
+## 1. SECURITY OBJECTIVES
 
-# 1. SECURITY PRINCIPLES
+Our security program is designed to support:
 
-Our security program focuses on protecting:
-
-- confidentiality of user and account data
-- integrity of evidence artifacts (hashes, signatures, custody logs)
+- confidentiality of account and service data
+- integrity of evidence artifacts and verification materials
 - availability and reliability of the Services
+- resilience against unauthorized access, tampering, and abuse
 
-We design the platform to minimize unauthorized access, tampering, and misuse.
+## 2. TECHNICAL AND ORGANIZATIONAL MEASURES
 
----
+Security controls may include, depending on system role and environment:
 
-# 2. TECHNICAL AND ORGANIZATIONAL MEASURES
-
-Security controls may include:
-
-- encryption in transit (TLS)
+- encryption in transit
 - encryption at rest where applicable
-- least-privilege access control
-- audit logging for sensitive operations
-- environment separation (development / staging / production)
-- secure cryptographic key management
-- monitoring and anomaly detection
+- access control and least-privilege principles
+- audit logging for sensitive events
+- environment separation
+- secure secret and key management practices
+- monitoring, alerting, and anomaly detection
 - abuse prevention and rate limiting
-- routine dependency updates and security patching
+- dependency management and patching
+- backup and recovery controls where applicable
 
-Security practices evolve continuously as the platform develops.
+Security practices evolve over time.
 
----
+## 3. EVIDENCE INTEGRITY MODEL
 
-# 3. EVIDENCE INTEGRITY MODEL
+Proovra provides technical integrity-verification mechanisms, which may include:
 
-Proovra provides cryptographic integrity verification mechanisms.
+- file hashing
+- fingerprint hashing
+- digital signatures
+- custody event records
+- verification reports
+- timestamp-related evidence where enabled
+- OpenTimestamps-related evidence where enabled
 
-These include:
+These mechanisms are designed to support tamper detection and later technical verification.
 
-- hashes that detect file alterations
-- signatures generated at completion time
-- custody timeline events recording system activity
+## 4. IMPORTANT LIMITATIONS
 
-Important:
+Integrity verification does **not**, by itself, prove:
 
-Integrity verification confirms that **data has not changed since signing**, but it does **not prove authorship, context, or truthfulness of content**.
+- authorship
+- factual truth
+- legal admissibility
+- lawful provenance
+- absence of pre-capture manipulation
 
----
+Those questions may require external evidence, human review, and legal analysis.
 
-# 4. CUSTOMER SECURITY RESPONSIBILITIES
+## 5. CUSTOMER SECURITY RESPONSIBILITIES
 
-Users share responsibility for protecting their accounts and evidence.
+Users remain responsible for:
 
-Users should:
+- protecting credentials and devices
+- using strong authentication practices
+- managing team permissions carefully
+- controlling distribution of reports and verification links
+- reporting suspected compromise or misuse promptly
 
-- protect account credentials and devices
-- enable strong authentication practices
-- restrict team permissions appropriately
-- avoid sharing verification links publicly unless intended
-- report suspicious activity immediately
+## 6. RESPONSIBLE VULNERABILITY DISCLOSURE
 
----
+We welcome good-faith reports of security vulnerabilities.
 
-# 5. RESPONSIBLE VULNERABILITY DISCLOSURE
-
-We welcome responsible disclosure of security vulnerabilities.
-
-If you discover a vulnerability, please report it to:
+Please report security issues to:
 
 security@proovra.com
 
-Please include:
+Please include, where possible:
 
-- vulnerability description
-- potential impact
+- a clear description of the issue
+- affected URL, endpoint, feature, or workflow
+- impact assessment
 - reproduction steps
-- affected endpoints or URLs
-- proof-of-concept if safe to share
+- proof of concept, only where safe and lawful
 
----
+## 7. RESEARCH RULES
 
-# 6. RESPONSIBLE RESEARCH GUIDELINES
-
-When testing or reporting vulnerabilities, we ask that you:
+When testing or reporting, please:
 
 - avoid accessing data belonging to other users
-- avoid actions that may disrupt service availability
-- avoid modifying or deleting data
-- limit testing to what is necessary to demonstrate the issue
-- allow reasonable time for remediation before public disclosure
+- avoid modifying, deleting, or exfiltrating data
+- avoid disrupting service availability
+- avoid social engineering, phishing, spam, or physical attacks
+- limit testing to what is reasonably necessary to demonstrate the issue
+- give us reasonable time to investigate and remediate before public disclosure
 
----
+## 8. SAFE HARBOR
 
-# 7. SAFE HARBOR
+If you act in good faith, follow this policy, avoid harming users or the Services, and promptly report the issue to us, we do not intend to pursue legal action solely for your compliant security research.
 
-If you follow this policy and act in good faith, Proovra will not pursue legal action related to your security research.
+This safe harbor does not apply to unlawful conduct, data exfiltration, extortion, disruption, or conduct outside this policy.
 
-This safe harbor applies only to activities consistent with this policy.
+## 9. INCIDENT RESPONSE
 
----
+In the event of a security incident affecting personal data or service security, Proovra may:
 
-# 8. SECURITY INCIDENT RESPONSE
+- investigate and contain the issue
+- mitigate risks
+- preserve evidence and logs
+- notify affected users or customers where required
+- comply with legal notification obligations
 
-In the event of a security incident affecting user data, Proovra will:
+## 10. RESPONSE EXPECTATIONS
 
-- investigate the incident
-- mitigate potential impact
-- comply with applicable notification obligations
-- notify affected users where required by law
+Response times depend on severity and operational context, but we generally aim to:
 
----
+- acknowledge reports within a reasonable timeframe
+- assess severity and prioritize remediation
+- communicate status where appropriate
 
-# 9. RESPONSE TIMELINE
+## 11. CONTACT
 
-While timelines may vary, we generally aim to:
-
-- acknowledge vulnerability reports within a reasonable timeframe
-- investigate and prioritize based on risk severity
-- communicate status updates during remediation
-
----
-
-# 10. CONTACT
-
-Security Reports  
-security@proovra.com
-
-General Support  
-support@proovra.com
+Security reports: security@proovra.com  
+General support: support@proovra.com
