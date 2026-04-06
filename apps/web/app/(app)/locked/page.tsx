@@ -96,9 +96,6 @@ export default function LockedEvidencePage() {
             </div>
 
             <Link href="/evidence">
-              <Button variant="secondary" className="navy-btn">
-                Back to Evidence
-              </Button>
             </Link>
           </div>
         </div>

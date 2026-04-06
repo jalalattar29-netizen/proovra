@@ -723,7 +723,7 @@ const canDelete = !isDeleted;
 
     setActionBusy(true);
     try {
-      addToast("Moving evidence to secure trash...", "info");
+      addToast("Deleting evidence...", "info");
       const data = await apiFetch(`/v1/evidence/${params.id}`, {
         method: "DELETE",
       });
@@ -737,7 +737,7 @@ const canDelete = !isDeleted;
       setDeleteScheduledForUtc(nextDeleteScheduledForUtc);
       setDeleteModalOpen(false);
 
-      addToast("Evidence moved to trash", "success");
+      addToast("Evidence deleted", "success");
       await refreshEvidence();
     } catch (err) {
       captureException(err, {
@@ -1426,7 +1426,7 @@ return (
                   disabled={actionBusy || !canDelete}
                   className={canDelete ? "button-danger" : "button-disabled"}
                 >
-                  Move to Trash
+                  Delete Evidence
                 </Button>
 
                 <div className="evidence-callout evidence-callout-warning">
@@ -1810,7 +1810,7 @@ return (
     <Modal
       isOpen={deleteModalOpen}
       onClose={() => setDeleteModalOpen(false)}
-      title="Move this evidence to secure trash?"
+      title="Delete this evidence?"
       actions={
         <div style={{ display: "flex", gap: 10 }}>
           <Button
@@ -1825,7 +1825,7 @@ return (
             disabled={actionBusy}
             className="button-danger"
           >
-            {actionBusy ? "Moving..." : "Move to Trash"}
+            {actionBusy ? "Deleting..." : "Delete Evidence"}
           </Button>
         </div>
       }

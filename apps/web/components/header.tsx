@@ -29,7 +29,7 @@ const MARKETING_NAV: MarketingNavItem[] = [
 const APP_NAV: AppNavItem[] = [
   { href: "/home", label: "Dashboard", Icon: Icons.Dashboard },
   { href: "/capture", label: "Capture", Icon: Icons.Capture },
-  { href: "/cases", label: "Evidence", Icon: Icons.Evidence },
+  { href: "/cases", label: "Cases", Icon: Icons.Evidence },
   { href: "/teams", label: "Teams", Icon: Icons.Teams },
   { href: "/reports", label: "Reports", Icon: Icons.Reports },
   { href: "/billing", label: "Billing", Icon: Icons.Billing },
