@@ -20,10 +20,8 @@ export function CookieBanner() {
   const saveConsent = async (consent: Consent) => {
     localStorage.setItem(CONSENT_KEY, JSON.stringify(consent));
 
-    // ✅ FIX: unified event name
     window.dispatchEvent(new Event("proovra:consent-updated"));
 
-    // ✅ Send to backend (Stage 4)
     try {
       await fetch("/v1/users/cookie-consent", {
         method: "POST",
@@ -36,7 +34,7 @@ export function CookieBanner() {
           analytics: consent.analytics,
         }),
       });
-    } catch (e) {
+    } catch {
       console.warn("cookie consent sync failed");
     }
 
