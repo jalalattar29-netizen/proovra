@@ -72,16 +72,6 @@ export function CookieBanner() {
     }
   }, []);
 
-  const consentPreview = useMemo(
-    () => ({
-      necessary: true as const,
-      preferences,
-      analytics,
-      marketing,
-    }),
-    [preferences, analytics, marketing]
-  );
-
   const syncConsent = async (consent: Consent) => {
     try {
       await apiFetch("/v1/users/cookie-consent", {
