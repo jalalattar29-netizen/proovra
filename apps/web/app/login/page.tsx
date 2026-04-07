@@ -10,6 +10,10 @@ import { authLogger } from "../../lib/auth-logger";
 import { loadAppleIdentity, loadGoogleIdentity } from "../../lib/oauth";
 import { MarketingHeader } from "../../components/header";
 import { Footer } from "../../components/Footer";
+import {
+  clearPendingOAuthLegalAcceptance,
+  savePendingOAuthLegalAcceptance,
+} from "../../lib/legalAcceptance";
 
 const DEBUG_AUTH = process.env.NEXT_PUBLIC_DEBUG_AUTH === "1";
 
@@ -99,13 +103,10 @@ export default function LoginPage() {
   const nextUrl = searchParams.get("next") || searchParams.get("returnUrl") || "/home";
 
   const [acceptLegal, setAcceptLegal] = useState(false);
-
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);
-
   const [appleReady, setAppleReady] = useState(false);
-
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
@@ -114,6 +115,8 @@ export default function LoginPage() {
   const googleInitOnceRef = useRef(false);
   const googleBtnWrapRef = useRef<HTMLDivElement | null>(null);
   const googleBtnHostRef = useRef<HTMLDivElement | null>(null);
+  const acceptLegalRef = useRef(false);
+  const nextUrlRef = useRef(nextUrl);
 
   const ui = useMemo(() => {
     const cardShadow = "0 24px 70px rgba(2, 9, 22, 0.55)";
@@ -122,8 +125,40 @@ export default function LoginPage() {
     return { cardShadow, border, socialMaxW };
   }, []);
 
+  useEffect(() => {
+    acceptLegalRef.current = acceptLegal;
+  }, [acceptLegal]);
+
+  useEffect(() => {
+    nextUrlRef.current = nextUrl;
+  }, [nextUrl]);
+
   const logDebug = (msg: string) => {
     if (DEBUG_AUTH) console.info(`[Auth] ${msg}`);
+  };
+
+  const getRequiredAcceptances = () => [
+    {
+      policyKey: "terms" as const,
+      policyVersion: REQUIRED_LEGAL_VERSIONS.terms,
+    },
+    {
+      policyKey: "privacy" as const,
+      policyVersion: REQUIRED_LEGAL_VERSIONS.privacy,
+    },
+    {
+      policyKey: "cookies" as const,
+      policyVersion: REQUIRED_LEGAL_VERSIONS.cookies,
+    },
+  ];
+
+  const persistPendingOAuthLegalAcceptance = () => {
+    savePendingOAuthLegalAcceptance({
+      source: "login",
+      returnUrl: nextUrlRef.current.startsWith("/") ? nextUrlRef.current : "/home",
+      acceptances: getRequiredAcceptances(),
+      createdAt: new Date().toISOString(),
+    });
   };
 
   const setReturnUrl = (url: string) => {
@@ -139,20 +174,7 @@ export default function LoginPage() {
       method: "POST",
       body: JSON.stringify({
         source: "login",
-        acceptances: [
-          {
-            policyKey: "terms",
-            policyVersion: REQUIRED_LEGAL_VERSIONS.terms,
-          },
-          {
-            policyKey: "privacy",
-            policyVersion: REQUIRED_LEGAL_VERSIONS.privacy,
-          },
-          {
-            policyKey: "cookies",
-            policyVersion: REQUIRED_LEGAL_VERSIONS.cookies,
-          },
-        ],
+        acceptances: getRequiredAcceptances(),
       }),
     });
   };
@@ -166,7 +188,10 @@ export default function LoginPage() {
     if (!isMountedRef.current) return;
     if (inFlightRef.current) return;
 
-    if (!acceptLegal) {
+    const accepted = acceptLegalRef.current;
+    const currentNextUrl = nextUrlRef.current.startsWith("/") ? nextUrlRef.current : "/home";
+
+    if (!accepted) {
       const msg =
         "You must accept the Terms of Service, Privacy Policy, and Cookie Policy before continuing.";
       setError(msg);
@@ -182,6 +207,12 @@ export default function LoginPage() {
           ? "guest"
           : "email";
 
+    if (provider === "google" || provider === "apple") {
+      persistPendingOAuthLegalAcceptance();
+    } else {
+      clearPendingOAuthLegalAcceptance();
+    }
+
     inFlightRef.current = true;
     setBusy(true);
     setError(null);
@@ -193,7 +224,7 @@ export default function LoginPage() {
     authLogger.logTokenExchangeStart(provider, path);
 
     try {
-      setReturnUrl(nextUrl);
+      setReturnUrl(currentNextUrl);
 
       const payload = extraBody ?? (idToken ? { idToken } : code ? { code } : {});
       authLogger.log(
@@ -220,6 +251,7 @@ export default function LoginPage() {
 
       try {
         await recordRequiredLegalAcceptances();
+        clearPendingOAuthLegalAcceptance();
       } catch {
         addToast(
           "Sign-in completed, but legal acceptance logging could not be saved.",
@@ -245,7 +277,7 @@ export default function LoginPage() {
         }
       }
 
-      router.replace(nextUrl);
+      router.replace(currentNextUrl);
     } catch (err) {
       if (!isMountedRef.current) return;
 
@@ -366,12 +398,22 @@ export default function LoginPage() {
       authLogger.log("CLEANUP", "unmount", {});
       isMountedRef.current = false;
     };
-  }, [nextUrl, ui.socialMaxW]);
+  }, [ui.socialMaxW]);
 
   const startApple = async () => {
     logDebug("Apple click");
     authLogger.log("AUTH_START", "provider=apple", {});
-    setReturnUrl(nextUrl);
+    setReturnUrl(nextUrlRef.current);
+
+    if (!acceptLegalRef.current) {
+      const msg =
+        "You must accept the Terms of Service, Privacy Policy, and Cookie Policy before continuing.";
+      setError(msg);
+      addToast(msg, "error");
+      return;
+    }
+
+    persistPendingOAuthLegalAcceptance();
 
     if (busy || inFlightRef.current) return;
 
@@ -564,6 +606,7 @@ export default function LoginPage() {
                     <div style={{ fontWeight: 700, marginBottom: 6 }}>Auth Debug</div>
                     <div>Apple: {appleReady ? "ready" : "missing"}</div>
                     <div>nextUrl: {nextUrl}</div>
+                    <div>acceptLegal: {acceptLegal ? "true" : "false"}</div>
                   </div>
                 )}
               </div>

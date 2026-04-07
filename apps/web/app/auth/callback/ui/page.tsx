@@ -4,6 +4,10 @@ import { useEffect, useRef, useState } from "react";
 import { useAuth } from "../../../providers";
 import { useToast } from "../../../../components/ui";
 import { authLogger } from "../../../../lib/auth-logger";
+import {
+  clearPendingOAuthLegalAcceptance,
+  readPendingOAuthLegalAcceptance,
+} from "../../../../lib/legalAcceptance";
 
 type Provider = "apple" | "google";
 
@@ -69,12 +73,14 @@ export default function AppleCallbackPage() {
       searchParams.get("provider") ?? hashParams.get("provider");
     const state = searchParams.get("state") ?? hashParams.get("state");
     const storedState = sessionStorage.getItem("proovra-apple-state");
-    
+    const pendingLegal = readPendingOAuthLegalAcceptance();
+
     authLogger.log("AUTH_CALLBACK_RECEIVED", `provider=${providerRaw ?? "unknown"}`, {
       hasCode: !!code,
       hasIdToken: !!idToken,
       hasState: !!state,
-      hasStoredState: !!storedState
+      hasStoredState: !!storedState,
+      hasPendingLegal: !!pendingLegal,
     });
     authLogger.logCallbackReceived({
       idToken: !!idToken,
@@ -83,15 +89,22 @@ export default function AppleCallbackPage() {
       state: !!state,
       storedState: !!storedState
     });
+
     if (DEBUG_AUTH) {
-      console.info("[Auth] Callback received:", { provider: providerRaw, hasCode: !!code, hasIdToken: !!idToken });
+      console.info("[Auth] Callback received:", {
+        provider: providerRaw,
+        hasCode: !!code,
+        hasIdToken: !!idToken,
+        hasPendingLegal: !!pendingLegal,
+      });
     }
-    
+
     // Only validate state for Apple (Google uses static state="google")
     if (state && state !== "google" && storedState && state !== storedState) {
       authLogger.logError("callback_state_mismatch", `state=${state}, stored=${storedState}`);
       setError("OAuth state mismatch.");
       addToast("OAuth state mismatch. Please try again.", "error");
+      callbackProcessing = false;
       return;
     }
 
@@ -105,14 +118,20 @@ export default function AppleCallbackPage() {
 
     const oauthError = searchParams.get("error") ?? hashParams.get("error");
     const tokenToSend = idToken ?? code;
+
     if (tokenToSend && processedTokens.has(tokenToSend)) {
       if (DEBUG_AUTH) console.info("[Auth] Callback already processed for this token, skipping duplicate");
+      callbackProcessing = false;
       return;
     }
     if (tokenToSend) processedTokens.add(tokenToSend);
 
     if (!tokenToSend) {
-      if (oauthError === "access_denied" || oauthError === "user_cancelled_authorize" || oauthError === "user_cancelled_login") {
+      if (
+        oauthError === "access_denied" ||
+        oauthError === "user_cancelled_authorize" ||
+        oauthError === "user_cancelled_login"
+      ) {
         authLogger.log("CALLBACK", "user_cancelled", { error: oauthError }, provider ?? "unknown");
         setError("Sign-in was cancelled.");
         addToast("Sign-in was cancelled.", "info");
@@ -121,6 +140,7 @@ export default function AppleCallbackPage() {
         setError("Missing OAuth token.");
         addToast("Sign-in failed: Missing OAuth token.", "error");
       }
+      callbackProcessing = false;
       return;
     }
 
@@ -130,10 +150,12 @@ export default function AppleCallbackPage() {
       (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1")
         ? "http://localhost:8081"
         : "https://api.proovra.com");
+
     const endpoint =
       provider === "google"
         ? `${apiBase}/v1/auth/google`
         : `${apiBase}/v1/auth/apple`;
+
     const body =
       idToken
         ? { idToken }
@@ -155,7 +177,7 @@ export default function AppleCallbackPage() {
           body: JSON.stringify(body),
           credentials: "include"
         });
-        
+
         authLogger.log("CALLBACK", "token_exchange_response", {
           status: res.status,
           ok: res.ok
@@ -165,28 +187,70 @@ export default function AppleCallbackPage() {
           const text = await res.text();
           let errMsg = "Sign-in failed";
           try {
-            const errJson = JSON.parse(text) as { message?: string; hint?: string; error?: { message?: string } };
-            errMsg = [errJson.message, errJson.hint].filter(Boolean).join(" — ") || errJson.error?.message || errMsg;
-          } catch { void 0; }
+            const errJson = JSON.parse(text) as {
+              message?: string;
+              hint?: string;
+              error?: { message?: string };
+            };
+            errMsg =
+              [errJson.message, errJson.hint].filter(Boolean).join(" — ") ||
+              errJson.error?.message ||
+              errMsg;
+          } catch {
+            // ignore parse failure
+          }
           authLogger.logError("callback_exchange_failed", `${res.status}: ${text}`);
           authLogger.log("AUTH_SESSION_FAILED", "error", { code: "token_exchange", status: res.status, message: errMsg }, provider);
           throw new Error(errMsg);
         }
+
         const data = (await res.json()) as { token?: string };
         if (!data.token) {
           authLogger.logError("callback_no_token_in_response", "Response missing token");
           throw new Error("Missing access token");
         }
-        
+
         authLogger.log("CALLBACK", "token_received", {}, provider);
+
         if (!isMountedRef.current) return;
         setToken(data.token);
-        
+
+        if (pendingLegal?.acceptances?.length) {
+          try {
+            const legalRes = await fetch(`${apiBase}/v1/users/legal-acceptance`, {
+              method: "POST",
+              headers: {
+                "content-type": "application/json",
+                authorization: `Bearer ${data.token}`,
+                "x-web-client": "1",
+              },
+              body: JSON.stringify({
+                source: pendingLegal.source,
+                acceptances: pendingLegal.acceptances,
+              }),
+              credentials: "include",
+            });
+
+            if (legalRes.ok) {
+              clearPendingOAuthLegalAcceptance();
+            } else {
+              authLogger.log("CALLBACK", "legal_acceptance_not_saved", {
+                status: legalRes.status,
+              }, provider);
+            }
+          } catch (legalErr) {
+            authLogger.logError(
+              "callback_legal_acceptance_failed",
+              legalErr instanceof Error ? legalErr.message : "unknown error"
+            );
+          }
+        }
+
         const meRes = await fetch(`${apiBase}/v1/auth/me`, {
           headers: { authorization: `Bearer ${data.token}`, "x-web-client": "1" },
           credentials: "include"
         });
-        
+
         authLogger.log("CALLBACK", "session_validation", {
           status: meRes.status,
           ok: meRes.ok
@@ -196,26 +260,35 @@ export default function AppleCallbackPage() {
           authLogger.logError("callback_session_validation_failed", `/me returned ${meRes.status}`);
           throw new Error("Session not confirmed");
         }
-        
+
         let redirectTo = "/home";
+
         try {
-          const stored = sessionStorage.getItem("proovra-return-url");
-          if (stored && stored.startsWith("/")) {
-            redirectTo = stored;
-            sessionStorage.removeItem("proovra-return-url");
+          if (pendingLegal?.returnUrl && pendingLegal.returnUrl.startsWith("/")) {
+            redirectTo = pendingLegal.returnUrl;
+          } else {
+            const stored = sessionStorage.getItem("proovra-return-url");
+            if (stored && stored.startsWith("/")) {
+              redirectTo = stored;
+            }
           }
+          sessionStorage.removeItem("proovra-return-url");
         } catch {
-          void 0;
+          // ignore
         }
-        
+
         const meData = await meRes.json().catch(() => ({}));
         const userId = meData?.user?.id;
         authLogger.log("AUTH_SESSION_SUCCESS", `userId=${userId ?? "unknown"}`, { provider, redirectTo }, provider);
         authLogger.log("CALLBACK", "success", { redirectTo }, provider);
+
         if (!isMountedRef.current) return;
+
         const appBase = process.env.NEXT_PUBLIC_APP_BASE ?? "https://app.proovra.com";
         const target = `${appBase}${redirectTo}`;
         authLogger.log("CALLBACK", "redirecting", { target }, provider);
+
+        clearPendingOAuthLegalAcceptance();
         window.location.replace(target);
       } catch (err) {
         const msg = err instanceof Error ? err.message : "Sign-in failed";
@@ -224,10 +297,14 @@ export default function AppleCallbackPage() {
         if (!isMountedRef.current) return;
         setError(msg);
         addToast(msg, "error", 6000);
+      } finally {
+        callbackProcessing = false;
       }
     })();
 
-    return () => { isMountedRef.current = false; };
+    return () => {
+      isMountedRef.current = false;
+    };
   }, [setToken, addToast]);
 
   if (error) {

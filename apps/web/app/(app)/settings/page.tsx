@@ -112,6 +112,14 @@ export default function SettingsPage() {
     useState<CookieConsentLatest["record"]>(null);
 
   useEffect(() => {
+    const normalized = supportedLocales.includes(locale as Locale)
+      ? (locale as Locale)
+      : "en";
+
+    setSelectedLanguage(normalized);
+  }, [locale]);
+
+  useEffect(() => {
     setFirstName(user?.firstName ?? "");
     setLastName(user?.lastName ?? "");
     setDisplayName(user?.displayName ?? "");
@@ -141,6 +149,8 @@ export default function SettingsPage() {
   }, [addToast]);
 
   useEffect(() => {
+    if (!user?.id) return;
+
     apiFetch("/v1/users/legal-acceptance")
       .then((data: { items?: LegalAcceptanceItem[] }) => {
         setLegalAcceptances(Array.isArray(data.items) ? data.items : []);
@@ -156,7 +166,7 @@ export default function SettingsPage() {
       .catch(() => {
         setLatestCookieConsent(null);
       });
-  }, []);
+  }, [user?.id]);
 
   const initials = useMemo(() => {
     const a = (user?.displayName ?? user?.email ?? "?").trim();

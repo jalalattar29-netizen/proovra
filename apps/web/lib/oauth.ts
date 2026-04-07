@@ -4,9 +4,10 @@ const GOOGLE_CLIENT_ID_FALLBACK =
 export function buildGoogleAuthUrl(params: { state: string; origin?: string }): string {
   const clientId =
     process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID ?? GOOGLE_CLIENT_ID_FALLBACK;
-  // Must match API GOOGLE_CLIENT_ID and GOOGLE_REDIRECT_URI=https://www.proovra.com/auth/callback
+
   const redirectUri =
     process.env.NEXT_PUBLIC_GOOGLE_REDIRECT_URI ?? "https://www.proovra.com/auth/callback";
+
   const url = new URL("https://accounts.google.com/o/oauth2/v2/auth");
   url.searchParams.set("client_id", clientId);
   url.searchParams.set("redirect_uri", redirectUri);
@@ -24,25 +25,44 @@ let appleScriptPromise: Promise<void> | null = null;
 function loadScriptOnce(src: string): Promise<void> {
   return new Promise((resolve, reject) => {
     if (typeof document === "undefined") return resolve();
+
     const existing = document.querySelector(`script[src="${src}"]`) as HTMLScriptElement | null;
+
     if (existing?.dataset.loaded === "true") {
       resolve();
       return;
     }
+
     if (existing) {
-      existing.addEventListener("load", () => resolve());
-      existing.addEventListener("error", () => reject(new Error(`Failed to load ${src}`)));
+      existing.addEventListener("load", () => resolve(), { once: true });
+      existing.addEventListener(
+        "error",
+        () => reject(new Error(`Failed to load ${src}`)),
+        { once: true }
+      );
       return;
     }
+
     const script = document.createElement("script");
     script.src = src;
     script.async = true;
     script.defer = true;
-    script.addEventListener("load", () => {
-      script.dataset.loaded = "true";
-      resolve();
-    });
-    script.addEventListener("error", () => reject(new Error(`Failed to load ${src}`)));
+
+    script.addEventListener(
+      "load",
+      () => {
+        script.dataset.loaded = "true";
+        resolve();
+      },
+      { once: true }
+    );
+
+    script.addEventListener(
+      "error",
+      () => reject(new Error(`Failed to load ${src}`)),
+      { once: true }
+    );
+
     document.head.appendChild(script);
   });
 }
@@ -68,10 +88,12 @@ export function buildAppleAuthUrl(params: {
   scope?: string;
   origin?: string;
 }): string {
-  const clientId = "com.proovra.web";
-  // HARDCODED: Apple only accepts pre-registered URIs
-  // Must match exactly what's registered in Apple Developer Console
-  const redirectUri = "https://www.proovra.com/auth/callback";
+  const clientId =
+    process.env.NEXT_PUBLIC_APPLE_CLIENT_ID ?? "com.proovra.web";
+
+  const redirectUri =
+    process.env.NEXT_PUBLIC_APPLE_REDIRECT_URI ?? "https://www.proovra.com/auth/callback";
+
   const scope = params.scope ?? "name email";
   const url = new URL("https://appleid.apple.com/auth/authorize");
   url.searchParams.set("response_type", "code id_token");
