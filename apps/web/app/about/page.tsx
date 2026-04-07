@@ -14,9 +14,7 @@ export default function AboutPage() {
         <section className="section container hero-section-tight">
           <h1 className="hero-title">About PROO✓RA</h1>
           <p className="page-subtitle" style={{ marginTop: 10, maxWidth: 820 }}>
-            PROO✓RA is a technical evidence-integrity platform that helps you capture digital content with verifiable
-            timestamps, cryptographic fingerprints, and a transparent chain of custody — so integrity can be proven later
-            with confidence.
+PROO✓RA is a verifiable digital evidence platform that enables you to capture, seal, and prove the integrity of digital content using cryptographic fingerprints, trusted timestamps, and a transparent chain of custody.
           </p>
         </section>
       </div>
@@ -68,13 +66,22 @@ export default function AboutPage() {
             <h3>Why PROO✓RA exists</h3>
             <p>
               In a world where digital content can be altered, disputed, or dismissed in seconds, trust has become
-              fragile. PROO✓RA exists to restore that trust — by making integrity provable.
+              fragile. PROO✓RA exists to restore that trust — by making integrity independently verifiable.
             </p>
 
             <h3>What makes PROO✓RA different</h3>
+            <div className="about-card about-card--inline">
+  <div className="about-kicker">Integrity & Verification Stack</div>
+  <ul className="about-list">
+    <li>Cryptographic hashing (SHA-256) to fingerprint every file</li>
+    <li>Trusted timestamping (TSA) for time-based proof</li>
+    <li>Optional independent anchoring (e.g. OpenTimestamps)</li>
+    <li>Immutable chain-of-custody tracking</li>
+    <li>Signed PDF reports for external verification</li>
+  </ul>
+</div>
             <p>
-              PROO✓RA is not just storage. It is not file sharing. And it is not a legal shortcut. It is an evidence
-              integrity system.
+              PROO✓RA is not just storage. It is not file sharing. And it is not a legal shortcut. It is a verifiable, cryptographically-backed evidence system designed for high-trust environments.
             </p>
 
             <div className="about-card about-card--inline">
@@ -116,6 +123,11 @@ export default function AboutPage() {
             </div>
 
             <h3>Limitations</h3>
+            <h3>Verification, not trust</h3>
+<p>
+  PROO✓RA is designed so that evidence does not need to be trusted — it can be independently verified.
+  Anyone with access to the verification data can confirm integrity without relying on PROO✓RA itself.
+</p>
             <ul className="about-list">
               <li>PROO✓RA does not provide legal advice.</li>
               <li>PROO✓RA does not guarantee admissibility in any jurisdiction.</li>

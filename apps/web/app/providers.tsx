@@ -65,18 +65,16 @@ export function useAuth() {
   return ctx;
 }
 
-async function fetchMe(): Promise<AuthUser | null> {
-  if (typeof window !== "undefined") {
-    const hasToken = Boolean(localStorage.getItem("proovra-token"));
-    const hasCookie = document.cookie
-      .split(";")
-      .some((part) => part.trim().startsWith("proovra_session="));
-
-    if (!hasToken && !hasCookie) {
-      return null;
-    }
+function readStoredToken(): string | null {
+  if (typeof window === "undefined") return null;
+  try {
+    return localStorage.getItem("proovra-token");
+  } catch {
+    return null;
   }
+}
 
+async function fetchMe(): Promise<AuthUser | null> {
   try {
     const me = await apiFetch("/v1/users/me", { method: "GET" });
     return (me?.user ?? null) as AuthUser | null;
@@ -90,32 +88,12 @@ async function fetchMe(): Promise<AuthUser | null> {
   }
 }
 
-function readStoredToken(): string | null {
-  if (typeof window === "undefined") return null;
-  try {
-    return localStorage.getItem("proovra-token");
-  } catch {
-    return null;
-  }
-}
-
-function hasSessionCookie(): boolean {
-  if (typeof document === "undefined") return false;
-  return document.cookie.split(";").some((part) => part.trim().startsWith("proovra_session="));
-}
-
-function hasSessionCandidate(): boolean {
-  if (typeof window === "undefined") return false;
-  return Boolean(readStoredToken() || hasSessionCookie());
-}
-
 export function Providers({ children }: { children: React.ReactNode }) {
   const [locale, setLocaleState] = useState<Locale>("en");
   const [mode, setModeState] = useState<LocaleMode>("auto");
 
   const [token, setTokenState] = useState<string | null>(null);
   const [user, setUser] = useState<AuthUser | null>(null);
-
   const [authReady, setAuthReady] = useState(false);
 
   useEffect(() => {
@@ -198,7 +176,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
     const refreshMe = async () => {
       try {
         const meUser = await fetchMe();
-        if (meUser) setUser(meUser);
+        setUser(meUser);
       } catch {
         // keep previous user
       }
@@ -223,7 +201,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
       }
     };
 
-    const hasSession = Boolean(user || token || readStoredToken());
+    const hasSession = Boolean(user || token);
 
     return {
       token,
@@ -237,30 +215,23 @@ export function Providers({ children }: { children: React.ReactNode }) {
     };
   }, [token, user, authReady]);
 
-useEffect(() => {
-  if (typeof window === "undefined") return;
+  useEffect(() => {
+    if (typeof window === "undefined") return;
 
-  const stored = readStoredToken();
-  if (stored) {
-    setTokenState(stored);
-  }
-
-  if (!hasSessionCandidate()) {
-    setAuthReady(true);
-    return;
-  }
-
-  void (async () => {
-    try {
-      const meUser = await fetchMe();
-      if (meUser) {
-        setUser(meUser);
-      }
-    } finally {
-      setAuthReady(true);
+    const stored = readStoredToken();
+    if (stored) {
+      setTokenState(stored);
     }
-  })();
-}, []);
+
+    void (async () => {
+      try {
+        const meUser = await fetchMe();
+        setUser(meUser);
+      } finally {
+        setAuthReady(true);
+      }
+    })();
+  }, []);
 
   useEffect(() => {
     if (!authReady || !user?.id) return;
@@ -286,7 +257,7 @@ useEffect(() => {
         markCookieConsentSyncedForUser(user.id);
       })
       .catch(() => {
-        // ignore sync failures; local consent remains authoritative client-side
+        // ignore
       });
   }, [authReady, user?.id]);
 

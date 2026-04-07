@@ -1,10 +1,10 @@
 export type LegalLink = { href: string; label: string };
 
 export const LEGAL_LINKS: LegalLink[] = [
-  { href: "/privacy", label: "Privacy Policy" },
-  { href: "/terms", label: "Terms of Service" },
+  { href: "/legal/privacy", label: "Privacy Policy" },
+  { href: "/legal/terms", label: "Terms of Service" },
 
-  { href: "/legal/cookies", label: "Cookies" },
+  { href: "/legal/cookies", label: "Cookie Policy" },
   { href: "/legal/security", label: "Security" },
   { href: "/legal/dpa", label: "DPA" },
   { href: "/legal/law-enforcement", label: "Law Enforcement" },

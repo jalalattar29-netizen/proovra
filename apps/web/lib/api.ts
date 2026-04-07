@@ -1,7 +1,5 @@
 const DEFAULT_API_BASE = "https://api.proovra.com";
 const RAW_API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? DEFAULT_API_BASE;
-
-// Normalize once (remove trailing slash)
 const API_BASE = RAW_API_BASE.replace(/\/+$/, "");
 
 export interface ApiErrorResponse {
@@ -42,21 +40,17 @@ function asObject(value: unknown): Record<string, unknown> | null {
 }
 
 type ApiFetchOpts = {
-  /** default true: send Authorization if token exists */
   auth?: boolean;
-
-  /** default true: on 401 retry once with latest token from localStorage (helps hydration/race) */
   retryAuthOnce?: boolean;
 };
 
-function hasCookieSession(): boolean {
-  if (typeof document === "undefined") return false;
-  return document.cookie.split(";").some((part) => part.trim().startsWith("proovra_session="));
-}
-
 function readToken(): string | null {
   if (typeof window === "undefined") return null;
-  return localStorage.getItem("proovra-token");
+  try {
+    return localStorage.getItem("proovra-token");
+  } catch {
+    return null;
+  }
 }
 
 async function fetchWithAuthRetry(
@@ -89,23 +83,18 @@ async function fetchWithAuthRetry(
     ...init,
     headers: makeHeaders(),
     credentials: "include",
-    cache: "no-store"
+    cache: "no-store",
   });
 
-if (
-  first.status !== 401 ||
-  !opts.retryAuthOnce ||
-  (!opts.auth && !hasCookieSession())
-) {
-  return first;
-}
+  if (first.status !== 401 || !opts.retryAuthOnce) {
+    return first;
+  }
 
-  // Retry once after re-reading token (covers fast hydration / token just written)
   const second = await fetch(url, {
     ...init,
     headers: makeHeaders(),
     credentials: "include",
-    cache: "no-store"
+    cache: "no-store",
   });
 
   return second;
@@ -117,14 +106,13 @@ export async function apiFetch(path: string, init: RequestInit = {}, opts?: ApiF
 
   const finalOpts = {
     auth: opts?.auth !== false,
-    retryAuthOnce: opts?.retryAuthOnce !== false
+    retryAuthOnce: opts?.retryAuthOnce !== false,
   };
 
   let res: Response;
   try {
     res = await fetchWithAuthRetry(url, init, finalOpts);
   } catch (err: unknown) {
-    // Network / DNS / CORS / offline
     const e: GenericApiError = new Error(
       err instanceof Error ? err.message : "Network error while calling API"
     );
@@ -156,7 +144,6 @@ export async function apiFetch(path: string, init: RequestInit = {}, opts?: ApiF
     const hasStandardShape =
       !!errObj && typeof errObj["code"] === "string" && typeof errObj["message"] === "string";
 
-    // Case 1: { error: { code, message, requestId, timestamp, details } }
     if (hasStandardShape) {
       const requestIdFromBody =
         typeof errObj["requestId"] === "string" ? (errObj["requestId"] as string) : undefined;
@@ -176,14 +163,13 @@ export async function apiFetch(path: string, init: RequestInit = {}, opts?: ApiF
           message: String(errObj["message"]),
           requestId: requestIdFromBody ?? headerReqId,
           timestamp: timestampFromBody ?? new Date().toISOString(),
-          details: detailsFromBody
-        }
+          details: detailsFromBody,
+        },
       };
 
       throw new ApiError(normalized, res.status);
     }
 
-    // Case 2: { message: "..." } OR plain text/HTML/empty body
     const messageFromBody =
       obj && typeof obj["message"] === "string" ? (obj["message"] as string) : "";
     const message = messageFromBody || (raw && raw.trim()) || `HTTP ${res.status}: API error`;
@@ -203,7 +189,6 @@ export async function apiFetch(path: string, init: RequestInit = {}, opts?: ApiF
     throw error;
   }
 
-  // Some endpoints might return empty body (204)
   const contentType = res.headers.get("content-type") ?? "";
   if (!contentType.includes("application/json")) {
     return null;
