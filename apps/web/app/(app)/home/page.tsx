@@ -12,9 +12,9 @@ import {
   Skeleton,
 } from "../../../components/ui";
 import { useLocale } from "../../providers";
-import { MarketingHeader } from "../../../components/header";
 import { apiFetch } from "../../../lib/api";
 import { captureException } from "../../../lib/sentry";
+import { MarketingHeader } from "../../../components/header";
 
 type HomeEvidenceItem = {
   id: string;
@@ -56,95 +56,25 @@ export default function HomePage() {
       .finally(() => setLoading(false));
   }, [addToast]);
 
-  const velvetButtonStyle = {
-    borderColor: "rgba(183,157,132,0.24)",
+  const secondaryActionButtonStyle = {
+    borderColor: "rgba(214,184,157,0.18)",
     color: "#eef4f2",
     background:
-      "linear-gradient(180deg, rgba(64,106,104,0.94) 0%, rgba(26,52,55,0.98) 100%)",
-    boxShadow: "0 14px 28px rgba(9,27,28,0.22)",
+      "linear-gradient(180deg, rgba(255,255,255,0.055) 0%, rgba(255,255,255,0.02) 100%)",
+    boxShadow: "0 12px 24px rgba(0,0,0,0.14)",
   } as const;
 
-  const velvetButtonMutedStyle = {
-    borderColor: "rgba(183,157,132,0.18)",
-    color: "#edf2ef",
+  const primaryActionButtonStyle = {
+    borderColor: "rgba(158,216,207,0.24)",
+    color: "#eef4f2",
     background:
-      "linear-gradient(180deg, rgba(42,72,74,0.82) 0%, rgba(20,39,42,0.92) 100%)",
-    boxShadow: "0 10px 22px rgba(0,0,0,0.14)",
+      "linear-gradient(180deg, rgba(68,114,112,0.96) 0%, rgba(29,58,61,0.98) 100%)",
+    boxShadow: "0 16px 30px rgba(9,27,28,0.24)",
   } as const;
 
   return (
     <div className="page landing-page home-page-shell">
-      <style jsx global>{`
-        .home-page-shell .evidence-row-pro {
-          border: 1px solid rgba(183, 157, 132, 0.14);
-          background: linear-gradient(
-            180deg,
-            rgba(10, 28, 33, 0.88) 0%,
-            rgba(8, 20, 24, 0.94) 100%
-          );
-          box-shadow: 0 10px 24px rgba(0, 0, 0, 0.18);
-        }
-
-        .home-page-shell .evidence-row-pro:hover {
-          border-color: rgba(183, 157, 132, 0.22);
-          background: linear-gradient(
-            180deg,
-            rgba(12, 32, 37, 0.92) 0%,
-            rgba(9, 22, 27, 0.96) 100%
-          );
-          box-shadow: 0 14px 30px rgba(0, 0, 0, 0.22);
-        }
-
-        .home-page-shell .evidence-row-pro__icon {
-          background: linear-gradient(
-            180deg,
-            rgba(49, 82, 86, 0.60) 0%,
-            rgba(28, 48, 52, 0.48) 100%
-          );
-          border: 1px solid rgba(183, 157, 132, 0.12);
-        }
-
-        .home-page-shell .evidence-row-pro__icon-text {
-          color: rgba(239, 244, 241, 0.92);
-        }
-
-        .home-page-shell .evidence-row-pro__title {
-          color: #edf4f1;
-          font-weight: 700;
-        }
-
-        .home-page-shell .evidence-row-pro__subtitle {
-          color: rgba(213, 223, 220, 0.70);
-        }
-
-        .home-page-shell .evidence-row-pro__arrow {
-          color: rgba(214, 184, 157, 0.34);
-        }
-
-        .home-page-shell .evidence-row-pro:hover .evidence-row-pro__arrow {
-          color: rgba(214, 184, 157, 0.72);
-        }
-
-        .home-page-shell .badge.ready {
-          background: rgba(38, 130, 105, 0.16);
-          color: #93e2bf;
-          border-color: rgba(38, 130, 105, 0.30);
-        }
-
-        .home-page-shell .badge.signed {
-          background: rgba(183, 157, 132, 0.16);
-          color: #e7ccb1;
-          border-color: rgba(183, 157, 132, 0.28);
-        }
-
-        .home-page-shell .badge.processing {
-          background: rgba(245, 158, 11, 0.14);
-          color: #f6d98f;
-          border-color: rgba(245, 158, 11, 0.24);
-        }
-      `}</style>
-
-      <div className="relative overflow-hidden">
+      <div className="relative min-h-screen overflow-hidden">
         <div className="absolute inset-0">
           <img
             src="/images/site-velvet-bg.webp.png"
@@ -153,12 +83,12 @@ export default function HomePage() {
           />
         </div>
 
-        <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(8,18,22,0.84)_0%,rgba(8,18,22,0.74)_38%,rgba(8,18,22,0.68)_68%,rgba(8,18,22,0.74)_100%)]" />
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_16%_16%,rgba(158,216,207,0.08),transparent_24%)]" />
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_82%_24%,rgba(214,184,157,0.05),transparent_18%)]" />
-        <div className="absolute inset-0 opacity-[0.035] [background:repeating-linear-gradient(0deg,rgba(255,255,255,0.024)_0px,rgba(255,255,255,0.024)_1px,transparent_1px,transparent_4px)]" />
+        <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(8,18,22,0.84)_0%,rgba(8,18,22,0.74)_34%,rgba(8,18,22,0.68)_70%,rgba(8,18,22,0.74)_100%)]" />
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_16%_14%,rgba(158,216,207,0.09),transparent_24%)]" />
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_84%_22%,rgba(214,184,157,0.06),transparent_18%)]" />
+        <div className="absolute inset-0 opacity-[0.035] [background:repeating-linear-gradient(0deg,rgba(255,255,255,0.022)_0px,rgba(255,255,255,0.022)_1px,transparent_1px,transparent_4px)]" />
 
-        <div className="relative z-10">
+        <div className="relative z-10 min-h-screen">
           <MarketingHeader />
 
           <section className="mx-auto max-w-7xl px-6 pb-14 pt-10 md:px-8 md:pb-16 md:pt-14">
@@ -201,8 +131,8 @@ export default function HomePage() {
               <div className="flex shrink-0">
                 <Link href="/capture">
                   <Button
-                    className="min-w-[210px] rounded-[999px] border px-7 py-3 text-[1rem] font-semibold transition-all duration-200 hover:-translate-y-[1px] hover:brightness-[1.03]"
-                    style={velvetButtonStyle}
+                    className="min-w-[190px] rounded-[999px] border px-7 py-3 text-[0.95rem] font-semibold transition-all duration-200 hover:-translate-y-[1px] hover:brightness-[1.03]"
+                    style={primaryActionButtonStyle}
                   >
                     Capture Evidence
                   </Button>
@@ -211,7 +141,7 @@ export default function HomePage() {
             </div>
           </section>
 
-          <section className="relative px-6 pb-10 md:px-8 md:pb-12">
+          <section className="relative px-6 pb-12 md:px-8 md:pb-16">
             <div className="mx-auto max-w-7xl">
               <div className="grid gap-5 xl:grid-cols-[1.08fr_0.92fr]">
                 <Card
@@ -219,7 +149,7 @@ export default function HomePage() {
                   style={{
                     border: "1px solid rgba(183,157,132,0.22)",
                     boxShadow:
-                      "0 20px 38px rgba(0, 0, 0, 0.14), inset 0 1px 0 rgba(255,255,255,0.03)",
+                      "0 22px 42px rgba(0, 0, 0, 0.16), inset 0 1px 0 rgba(255,255,255,0.04)",
                   }}
                 >
                   <div className="absolute inset-0">
@@ -229,14 +159,20 @@ export default function HomePage() {
                       className="h-full w-full object-cover object-center scale-[1.12]"
                     />
                   </div>
-                  <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(7,18,22,0.76)_0%,rgba(6,16,20,0.80)_100%)]" />
-                  <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_14%,rgba(158,216,207,0.06),transparent_28%)]" />
-                  <div className="absolute inset-0 bg-[radial-gradient(circle_at_86%_18%,rgba(214,184,157,0.05),transparent_22%)]" />
+
+                  <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(8,20,24,0.78)_0%,rgba(7,18,22,0.84)_100%)]" />
+                  <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_14%,rgba(158,216,207,0.09),transparent_28%)]" />
+                  <div className="absolute inset-0 bg-[radial-gradient(circle_at_86%_18%,rgba(214,184,157,0.06),transparent_24%)]" />
 
                   <div className="relative z-10 p-6 md:p-7">
-                    <div className="mb-5 text-[1.15rem] font-semibold tracking-[-0.03em] text-[#f0f4f1]">
-                      <span className="text-[#f3f6f4]">Recent</span>{" "}
-                      <span className="text-[#d8dfdc]">Evidence</span>
+                    <div className="mb-5 flex items-center justify-between gap-4">
+                      <div className="text-[1rem] font-semibold tracking-[-0.02em] text-[#edf4f1]">
+                        {t("recentEvidence")}
+                      </div>
+
+                      <div className="inline-flex items-center rounded-full border border-[rgba(214,184,157,0.18)] bg-[rgba(255,255,255,0.04)] px-3 py-1.5 text-[0.74rem] font-medium uppercase tracking-[0.18em] text-[#d9d6cf]">
+                        Active records
+                      </div>
                     </div>
 
                     <div style={{ display: "grid", gap: 12 }}>
@@ -265,7 +201,7 @@ export default function HomePage() {
                               <Link href="/capture">
                                 <Button
                                   className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-medium"
-                                  style={velvetButtonStyle}
+                                  style={primaryActionButtonStyle}
                                 >
                                   {t("ctaCapture")}
                                 </Button>
@@ -276,7 +212,7 @@ export default function HomePage() {
                       ) : (
                         items.map((item) => {
                           const row = (
-                            <div className="rounded-[24px] border border-[rgba(183,157,132,0.14)] bg-[linear-gradient(180deg,rgba(9,28,33,0.82)_0%,rgba(8,21,25,0.90)_100%)] p-1 transition-all duration-200 hover:-translate-y-[1px] hover:border-[rgba(183,157,132,0.22)] hover:shadow-[0_14px_24px_rgba(0,0,0,0.12)]">
+                            <div className="rounded-[24px] border border-[rgba(183,157,132,0.16)] bg-[linear-gradient(180deg,rgba(10,26,31,0.84)_0%,rgba(8,20,25,0.92)_100%)] p-1 transition-all duration-200 hover:-translate-y-[1px] hover:border-[rgba(214,184,157,0.24)] hover:shadow-[0_16px_28px_rgba(0,0,0,0.14)]">
                               <ListRow
                                 title={item.title || "Digital Evidence Record"}
                                 subtitle={item.displaySubtitle}
@@ -311,7 +247,7 @@ export default function HomePage() {
                   style={{
                     border: "1px solid rgba(183,157,132,0.22)",
                     boxShadow:
-                      "0 20px 38px rgba(0, 0, 0, 0.14), inset 0 1px 0 rgba(255,255,255,0.03)",
+                      "0 22px 42px rgba(0, 0, 0, 0.16), inset 0 1px 0 rgba(255,255,255,0.04)",
                   }}
                 >
                   <div className="absolute inset-0">
@@ -321,21 +257,21 @@ export default function HomePage() {
                       className="h-full w-full object-cover object-center scale-[1.12]"
                     />
                   </div>
-                  <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(7,18,22,0.76)_0%,rgba(6,16,20,0.80)_100%)]" />
-                  <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_14%,rgba(158,216,207,0.06),transparent_28%)]" />
-                  <div className="absolute inset-0 bg-[radial-gradient(circle_at_86%_18%,rgba(214,184,157,0.05),transparent_22%)]" />
+
+                  <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(8,20,24,0.78)_0%,rgba(7,18,22,0.84)_100%)]" />
+                  <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_14%,rgba(158,216,207,0.09),transparent_28%)]" />
+                  <div className="absolute inset-0 bg-[radial-gradient(circle_at_86%_18%,rgba(214,184,157,0.06),transparent_24%)]" />
 
                   <div className="relative z-10 p-6 md:p-7">
-                    <div className="mb-5 text-[1.15rem] font-semibold tracking-[-0.03em] text-[#f0f4f1]">
-                      <span className="text-[#f3f6f4]">Quick</span>{" "}
-                      <span className="text-[#d8dfdc]">Actions</span>
+                    <div className="mb-5 text-[1rem] font-semibold tracking-[-0.02em] text-[#edf4f1]">
+                      Quick Actions
                     </div>
 
                     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                       <Link href="/capture">
                         <Button
                           className="w-full rounded-[999px] border px-5 py-3 text-[0.95rem] font-medium transition-all duration-200 hover:-translate-y-[1px] hover:brightness-[1.03]"
-                          style={velvetButtonStyle}
+                          style={primaryActionButtonStyle}
                           onClick={() => addToast("Opening capture...", "info")}
                         >
                           New Capture
@@ -346,7 +282,7 @@ export default function HomePage() {
                         <Button
                           variant="secondary"
                           className="w-full rounded-[999px] border px-5 py-3 text-[0.95rem] font-medium transition-all duration-200 hover:-translate-y-[1px]"
-                          style={velvetButtonMutedStyle}
+                          style={secondaryActionButtonStyle}
                           onClick={() => addToast("Loading cases...", "info")}
                         >
                           View Cases
@@ -357,7 +293,7 @@ export default function HomePage() {
                         <Button
                           variant="secondary"
                           className="w-full rounded-[999px] border px-5 py-3 text-[0.95rem] font-medium transition-all duration-200 hover:-translate-y-[1px]"
-                          style={velvetButtonMutedStyle}
+                          style={secondaryActionButtonStyle}
                           onClick={() => addToast("Opening archive...", "info")}
                         >
                           Archived Evidence
@@ -368,7 +304,7 @@ export default function HomePage() {
                         <Button
                           variant="secondary"
                           className="w-full rounded-[999px] border px-5 py-3 text-[0.95rem] font-medium transition-all duration-200 hover:-translate-y-[1px]"
-                          style={velvetButtonMutedStyle}
+                          style={secondaryActionButtonStyle}
                           onClick={() => addToast("Opening deleted evidence...", "info")}
                         >
                           Deleted Evidence
@@ -379,7 +315,7 @@ export default function HomePage() {
                         <Button
                           variant="secondary"
                           className="w-full rounded-[999px] border px-5 py-3 text-[0.95rem] font-medium transition-all duration-200 hover:-translate-y-[1px]"
-                          style={velvetButtonMutedStyle}
+                          style={secondaryActionButtonStyle}
                           onClick={() => addToast("Opening locked evidence...", "info")}
                         >
                           Locked Evidence
@@ -390,7 +326,7 @@ export default function HomePage() {
                         <Button
                           variant="secondary"
                           className="w-full rounded-[999px] border px-5 py-3 text-[0.95rem] font-medium transition-all duration-200 hover:-translate-y-[1px]"
-                          style={velvetButtonMutedStyle}
+                          style={secondaryActionButtonStyle}
                           onClick={() => addToast("Opening settings...", "info")}
                         >
                           Manage Settings
@@ -401,17 +337,20 @@ export default function HomePage() {
                     <div
                       className="mt-5 rounded-[24px] border px-4 py-4"
                       style={{
-                        border: "1px solid rgba(183,157,132,0.20)",
+                        border: "1px solid rgba(214,184,157,0.20)",
                         background:
-                          "linear-gradient(135deg, rgba(214,184,157,0.08), rgba(158,216,207,0.05))",
+                          "linear-gradient(135deg, rgba(214,184,157,0.08), rgba(158,216,207,0.06))",
+                        boxShadow: "0 14px 28px rgba(0,0,0,0.08)",
                       }}
                     >
                       <div className="flex items-start gap-3">
                         <div
-                          className="flex h-10 w-10 items-center justify-center rounded-full text-[1rem] font-semibold"
+                          className="flex h-11 w-11 items-center justify-center rounded-full text-[1rem] font-semibold"
                           style={{
-                            background: "rgba(214,184,157,0.12)",
-                            color: "#e1c0a0",
+                            background:
+                              "linear-gradient(180deg, rgba(214,184,157,0.18) 0%, rgba(158,216,207,0.10) 100%)",
+                            color: "#efd0b2",
+                            border: "1px solid rgba(214,184,157,0.22)",
                             boxShadow: "0 0 18px rgba(214,184,157,0.08)",
                           }}
                         >
@@ -426,6 +365,16 @@ export default function HomePage() {
                             Capture → Sign → Report → Share
                           </div>
                         </div>
+                      </div>
+                    </div>
+
+                    <div className="mt-4 rounded-[22px] border border-[rgba(158,216,207,0.12)] bg-[rgba(255,255,255,0.03)] px-4 py-4">
+                      <div className="mb-2 text-[0.78rem] font-semibold uppercase tracking-[0.18em] text-[#d6b89d]">
+                        Workspace flow
+                      </div>
+                      <div className="text-[0.92rem] leading-[1.75] text-[rgba(219,235,248,0.76)]">
+                        Everything important stays one click away, while the visual language remains
+                        consistent with your premium landing experience.
                       </div>
                     </div>
                   </div>
