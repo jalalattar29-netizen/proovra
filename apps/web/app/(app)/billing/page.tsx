@@ -40,7 +40,7 @@ export default function BillingPage() {
         addToast(errorMessage, "error");
       })
       .finally(() => setLoading(false));
-  }, []);
+  }, [addToast]);
 
   const startStripeCheckout = async (planType: PlanType) => {
     setCheckoutBusy(planType);
@@ -78,7 +78,10 @@ export default function BillingPage() {
         body: JSON.stringify({ plan: planType, currency }),
       });
 
-      const approve = (data.order?.links as PayPalLink[] | undefined)?.find((l) => l.rel === "approve");
+      const approve = (data.order?.links as PayPalLink[] | undefined)?.find(
+        (l) => l.rel === "approve"
+      );
+
       if (approve?.href) {
         addToast("Redirecting to PayPal...", "success");
         window.location.href = approve.href;
@@ -94,8 +97,38 @@ export default function BillingPage() {
     }
   };
 
+  const primaryVelvetButtonStyle = {
+    borderColor: "rgba(183,157,132,0.24)",
+    color: "#eef4f2",
+    background:
+      "linear-gradient(180deg, rgba(64,106,104,0.94) 0%, rgba(26,52,55,0.98) 100%)",
+    boxShadow: "0 14px 28px rgba(9,27,28,0.22)",
+  } as const;
+
+  const secondaryVelvetButtonStyle = {
+    borderColor: "rgba(183,157,132,0.18)",
+    color: "#edf2ef",
+    background:
+      "linear-gradient(180deg, rgba(42,72,74,0.82) 0%, rgba(20,39,42,0.92) 100%)",
+    boxShadow: "0 10px 22px rgba(0,0,0,0.14)",
+  } as const;
+
+  const shellCardStyle = {
+    border: "1px solid rgba(183,157,132,0.22)",
+    boxShadow:
+      "0 20px 38px rgba(0, 0, 0, 0.14), inset 0 1px 0 rgba(255,255,255,0.03)",
+  } as const;
+
   return (
     <div className="section app-section">
+      <style jsx global>{`
+        .billing-page-shell .btn:disabled {
+          opacity: 0.58 !important;
+          cursor: not-allowed;
+          filter: saturate(0.85);
+        }
+      `}</style>
+
       <div className="app-hero app-hero-full">
         <div className="container">
           <div className="page-title app-page-title" style={{ marginBottom: 0 }}>
@@ -117,96 +150,212 @@ export default function BillingPage() {
         </div>
       </div>
 
-      <div className="app-body app-body-full">
+      <div className="app-body app-body-full billing-page-shell">
         <div className="container" style={{ display: "grid", gap: 24 }}>
-          <Card className="app-card">
-            <div className="app-card-title">Current plan</div>
+          <Card
+            className="relative overflow-hidden rounded-[30px] border bg-transparent p-0 shadow-none"
+            style={shellCardStyle}
+          >
+            <div className="absolute inset-0">
+              <img
+                src="/images/site-velvet-bg.webp.png"
+                alt=""
+                className="h-full w-full object-cover object-center scale-[1.12]"
+              />
+            </div>
+            <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(7,18,22,0.76)_0%,rgba(6,16,20,0.80)_100%)]" />
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_14%,rgba(158,216,207,0.06),transparent_28%)]" />
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_86%_18%,rgba(214,184,157,0.05),transparent_22%)]" />
 
-            {loading ? (
-              <div style={{ display: "grid", gap: 8 }}>
-                <Skeleton width="100%" height="20px" />
-                <Skeleton width="60%" height="16px" />
+            <div className="relative z-10 p-6 md:p-7">
+              <div className="mb-5 text-[1.15rem] font-semibold tracking-[-0.03em] text-[#f0f4f1]">
+                <span className="text-[#f3f6f4]">Current</span>{" "}
+                <span className="text-[#d8dfdc]">Plan</span>
               </div>
-            ) : error ? (
-              <div className="app-inline-error">{error}</div>
-            ) : (
-              <>
-                <p
+
+              {loading ? (
+                <div style={{ display: "grid", gap: 12 }}>
+                  <div className="rounded-[22px] border border-white/6 bg-white/[0.03] p-4">
+                    <Skeleton width="100%" height="20px" />
+                  </div>
+                  <div className="rounded-[22px] border border-white/6 bg-white/[0.03] p-4">
+                    <Skeleton width="60%" height="16px" />
+                  </div>
+                </div>
+              ) : error ? (
+                <div className="rounded-[20px] border border-[rgba(255,120,120,0.16)] bg-[rgba(120,20,20,0.12)] px-4 py-3 text-[0.92rem] text-[#ffd7d7]">
+                  {error}
+                </div>
+              ) : (
+                <div
+                  className="rounded-[24px] border px-5 py-5"
                   style={{
-                    margin: 0,
-                    fontSize: 18,
-                    fontWeight: 700,
-                    color: "rgba(246,252,255,0.96)",
+                    border: "1px solid rgba(183,157,132,0.14)",
+                    background:
+                      "linear-gradient(180deg, rgba(9,28,33,0.82) 0%, rgba(8,21,25,0.90) 100%)",
+                    boxShadow: "0 14px 24px rgba(0,0,0,0.12)",
                   }}
                 >
-                  {plan} plan
-                </p>
-                {plan === "PAYG" && (
-                  <p className="app-muted" style={{ marginTop: 8 }}>
-                    Credits: {credits}
+                  <div
+                    style={{
+                      margin: 0,
+                      fontSize: 12,
+                      fontWeight: 700,
+                      letterSpacing: "0.14em",
+                      textTransform: "uppercase",
+                      color: "#d6b89d",
+                    }}
+                  >
+                    Active subscription
+                  </div>
+
+                  <p
+                    style={{
+                      margin: "10px 0 0",
+                      fontSize: 26,
+                      fontWeight: 700,
+                      letterSpacing: "-0.04em",
+                      color: "#edf4f1",
+                    }}
+                  >
+                    {plan} plan
                   </p>
-                )}
-                {plan === "TEAM" && (
-                  <p className="app-muted" style={{ marginTop: 8 }}>
-                    Team seats: {teamSeats}
-                  </p>
-                )}
-                {plan === "FREE" && (
-                  <p className="app-muted" style={{ marginTop: 8 }}>
-                    Upgrade to unlock more features
-                  </p>
-                )}
-              </>
-            )}
+
+                  {plan === "PAYG" && (
+                    <p
+                      style={{
+                        marginTop: 10,
+                        marginBottom: 0,
+                        fontSize: 14,
+                        lineHeight: 1.7,
+                        color: "rgba(219,235,248,0.76)",
+                      }}
+                    >
+                      Available usage credits:{" "}
+                      <span style={{ color: "#f3f6f4", fontWeight: 700 }}>{credits}</span>
+                    </p>
+                  )}
+
+                  {plan === "TEAM" && (
+                    <p
+                      style={{
+                        marginTop: 10,
+                        marginBottom: 0,
+                        fontSize: 14,
+                        lineHeight: 1.7,
+                        color: "rgba(219,235,248,0.76)",
+                      }}
+                    >
+                      Included team seats:{" "}
+                      <span style={{ color: "#f3f6f4", fontWeight: 700 }}>{teamSeats}</span>
+                    </p>
+                  )}
+
+                  {plan === "FREE" && (
+                    <p
+                      style={{
+                        marginTop: 10,
+                        marginBottom: 0,
+                        fontSize: 14,
+                        lineHeight: 1.7,
+                        color: "rgba(219,235,248,0.76)",
+                      }}
+                    >
+                      Upgrade when you need more reporting, sharing, and verification capacity.
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
           </Card>
 
-          <Card className="app-card">
-            <div className="app-card-title">Upgrade or switch plan</div>
+          <Card
+            className="relative overflow-hidden rounded-[30px] border bg-transparent p-0 shadow-none"
+            style={shellCardStyle}
+          >
+            <div className="absolute inset-0">
+              <img
+                src="/images/site-velvet-bg.webp.png"
+                alt=""
+                className="h-full w-full object-cover object-center scale-[1.12]"
+              />
+            </div>
+            <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(7,18,22,0.76)_0%,rgba(6,16,20,0.80)_100%)]" />
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_14%,rgba(158,216,207,0.06),transparent_28%)]" />
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_86%_18%,rgba(214,184,157,0.05),transparent_22%)]" />
 
-            {loading ? (
-              <div style={{ display: "grid", gap: 8 }}>
-                <Skeleton width="100%" height="40px" />
-                <Skeleton width="100%" height="40px" />
+            <div className="relative z-10 p-6 md:p-7">
+              <div className="mb-2 text-[1.15rem] font-semibold tracking-[-0.03em] text-[#f0f4f1]">
+                <span className="text-[#f3f6f4]">Upgrade or</span>{" "}
+                <span className="text-[#d8dfdc]">Switch Plan</span>
               </div>
-            ) : (
-              <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-                <Button
-                  className="navy-btn"
-                  variant="secondary"
-                  disabled={!!checkoutBusy || plan === "PAYG"}
-                  onClick={() => startStripeCheckout("PAYG")}
-                >
-                  {checkoutBusy === "PAYG" ? "Processing..." : "Pay-Per-Evidence"}
-                </Button>
 
-                <Button
-                  className="navy-btn"
-                  variant="secondary"
-                  disabled={!!checkoutBusy || plan === "PRO"}
-                  onClick={() => startStripeCheckout("PRO")}
-                >
-                  {checkoutBusy === "PRO" ? "Processing..." : "Upgrade to Pro"}
-                </Button>
+              <p
+                style={{
+                  margin: "0 0 18px",
+                  fontSize: 14,
+                  lineHeight: 1.7,
+                  color: "rgba(219,235,248,0.72)",
+                }}
+              >
+                Choose the billing path that matches how often you capture and verify evidence.
+              </p>
 
-                <Button
-                  className="navy-btn"
-                  variant="secondary"
-                  disabled={!!checkoutBusy || plan === "TEAM"}
-                  onClick={() => startStripeCheckout("TEAM")}
+              {loading ? (
+                <div style={{ display: "grid", gap: 12 }}>
+                  <div className="rounded-[22px] border border-white/6 bg-white/[0.03] p-4">
+                    <Skeleton width="100%" height="40px" />
+                  </div>
+                  <div className="rounded-[22px] border border-white/6 bg-white/[0.03] p-4">
+                    <Skeleton width="100%" height="40px" />
+                  </div>
+                </div>
+              ) : (
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+                    gap: 12,
+                  }}
                 >
-                  {checkoutBusy === "TEAM" ? "Processing..." : "Upgrade to Team"}
-                </Button>
+                  <Button
+                    className="rounded-[999px] border px-5 py-3 text-[0.95rem] font-medium transition-all duration-200 hover:-translate-y-[1px] hover:brightness-[1.03]"
+                    style={secondaryVelvetButtonStyle}
+                    disabled={!!checkoutBusy || plan === "PAYG"}
+                    onClick={() => startStripeCheckout("PAYG")}
+                  >
+                    {checkoutBusy === "PAYG" ? "Processing..." : "Pay-Per-Evidence"}
+                  </Button>
 
-                <Button
-                  className="navy-btn"
-                  variant="secondary"
-                  disabled={!!checkoutBusy}
-                  onClick={() => startPayPalCheckout("PAYG")}
-                >
-                  {checkoutBusy === "PAYG" ? "Processing..." : "PayPal"}
-                </Button>
-              </div>
-            )}
+                  <Button
+                    className="rounded-[999px] border px-5 py-3 text-[0.95rem] font-medium transition-all duration-200 hover:-translate-y-[1px] hover:brightness-[1.03]"
+                    style={primaryVelvetButtonStyle}
+                    disabled={!!checkoutBusy || plan === "PRO"}
+                    onClick={() => startStripeCheckout("PRO")}
+                  >
+                    {checkoutBusy === "PRO" ? "Processing..." : "Upgrade to Pro"}
+                  </Button>
+
+                  <Button
+                    className="rounded-[999px] border px-5 py-3 text-[0.95rem] font-medium transition-all duration-200 hover:-translate-y-[1px] hover:brightness-[1.03]"
+                    style={primaryVelvetButtonStyle}
+                    disabled={!!checkoutBusy || plan === "TEAM"}
+                    onClick={() => startStripeCheckout("TEAM")}
+                  >
+                    {checkoutBusy === "TEAM" ? "Processing..." : "Upgrade to Team"}
+                  </Button>
+
+                  <Button
+                    className="rounded-[999px] border px-5 py-3 text-[0.95rem] font-medium transition-all duration-200 hover:-translate-y-[1px]"
+                    style={secondaryVelvetButtonStyle}
+                    disabled={!!checkoutBusy}
+                    onClick={() => startPayPalCheckout("PAYG")}
+                  >
+                    {checkoutBusy === "PAYG" ? "Processing..." : "PayPal"}
+                  </Button>
+                </div>
+              )}
+            </div>
           </Card>
         </div>
       </div>
