@@ -511,6 +511,9 @@ export default function TeamDetailPage() {
             <h1 className="hero-title pricing-hero-title" style={{ margin: 0 }}>
               Loading team...
             </h1>
+            <p className="page-subtitle pricing-subtitle" style={{ marginTop: 6 }}>
+              Preparing team workspace and access details.
+            </p>
           </div>
         </div>
 
@@ -533,12 +536,36 @@ export default function TeamDetailPage() {
             <h1 className="hero-title pricing-hero-title" style={{ margin: 0 }}>
               Team
             </h1>
+            <p className="page-subtitle pricing-subtitle" style={{ marginTop: 6 }}>
+              Team details could not be loaded.
+            </p>
           </div>
         </div>
 
         <div className="app-body app-body-full">
           <div className="container">
-            <Card className="case-error-card">{error || "Team not found"}</Card>
+            <Card className="case-section-card app-card">
+              <div style={{ padding: 18 }}>
+                <div
+                  style={{
+                    fontWeight: 700,
+                    marginBottom: 10,
+                    color: "rgba(246,252,255,0.96)",
+                    letterSpacing: "-0.02em",
+                  }}
+                >
+                  Unable to load team
+                </div>
+
+                <div className="case-muted-text">{error || "Team not found."}</div>
+
+                <div style={{ marginTop: 14 }}>
+                  <Link href="/teams" style={{ textDecoration: "none" }}>
+                    <Button variant="secondary">Back to Teams</Button>
+                  </Link>
+                </div>
+              </div>
+            </Card>
           </div>
         </div>
       </div>
@@ -560,11 +587,28 @@ export default function TeamDetailPage() {
             </div>
 
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
-              <span className="badge ready">
+              <span
+                className="badge ready"
+                style={{
+                  background: "rgba(158,216,207,0.12)",
+                  borderColor: "rgba(158,216,207,0.22)",
+                  color: "#bfe8df",
+                }}
+              >
                 {team.stats?.memberCount ?? team.members?.length ?? 0} member
                 {(team.stats?.memberCount ?? team.members?.length ?? 0) === 1 ? "" : "s"}
               </span>
-              <span className="badge processing">{currentRole}</span>
+
+              <span
+                className="badge processing"
+                style={{
+                  background: "rgba(214,184,157,0.12)",
+                  borderColor: "rgba(214,184,157,0.22)",
+                  color: "#e6c9ae",
+                }}
+              >
+                {currentRole}
+              </span>
             </div>
           </div>
         </div>
@@ -572,8 +616,8 @@ export default function TeamDetailPage() {
 
       <div className="app-body app-body-full">
         <div className="container" style={{ display: "grid", gap: 16 }}>
-          <Card className="case-section-card">
-            <div style={{ padding: 16 }}>
+          <Card className="case-section-card app-card">
+            <div style={{ padding: 18 }}>
               <div
                 style={{
                   display: "flex",
@@ -584,12 +628,21 @@ export default function TeamDetailPage() {
                 }}
               >
                 <div style={{ flex: 1, minWidth: 260 }}>
-                  <div style={{ fontWeight: 700, marginBottom: 12, color: "#E2E8F0" }}>
+                  <div
+                    style={{
+                      fontWeight: 700,
+                      marginBottom: 12,
+                      color: "rgba(246,252,255,0.96)",
+                      letterSpacing: "-0.02em",
+                    }}
+                  >
                     Team overview
                   </div>
 
                   <label style={{ display: "grid", gap: 6 }}>
-                    <span style={{ fontSize: 12, color: "#94A3B8" }}>Team name</span>
+                    <span style={{ fontSize: 12, color: "rgba(219,235,248,0.72)" }}>
+                      Team name
+                    </span>
                     <input
                       value={teamName}
                       onChange={(e) => setTeamName(e.target.value)}
@@ -626,8 +679,8 @@ export default function TeamDetailPage() {
           </Card>
 
           {deleteConfirm && isOwner && (
-            <Card className="case-delete-card">
-              <div style={{ padding: 16 }}>
+            <Card className="case-delete-card app-card">
+              <div style={{ padding: 18 }}>
                 <div className="case-delete-title">Delete Team?</div>
                 <p className="case-delete-subtitle">
                   This will permanently delete the team, its members list, and pending invites.
@@ -655,9 +708,16 @@ export default function TeamDetailPage() {
           )}
 
           {canManageTeam && (
-            <Card className="case-section-card">
-              <div style={{ padding: 16 }}>
-                <div style={{ fontWeight: 700, marginBottom: 12, color: "#E2E8F0" }}>
+            <Card className="case-section-card app-card">
+              <div style={{ padding: 18 }}>
+                <div
+                  style={{
+                    fontWeight: 700,
+                    marginBottom: 12,
+                    color: "rgba(246,252,255,0.96)",
+                    letterSpacing: "-0.02em",
+                  }}
+                >
                   Invite member
                 </div>
 
@@ -695,9 +755,16 @@ export default function TeamDetailPage() {
             </Card>
           )}
 
-          <Card className="case-section-card">
-            <div style={{ padding: 16 }}>
-              <div style={{ fontWeight: 700, marginBottom: 12, color: "#E2E8F0" }}>
+          <Card className="case-section-card app-card">
+            <div style={{ padding: 18 }}>
+              <div
+                style={{
+                  fontWeight: 700,
+                  marginBottom: 12,
+                  color: "rgba(246,252,255,0.96)",
+                  letterSpacing: "-0.02em",
+                }}
+              >
                 Members
               </div>
 
@@ -747,7 +814,16 @@ export default function TeamDetailPage() {
                               </Button>
                             </>
                           ) : (
-                            <span className="badge processing">{member.role}</span>
+                            <span
+                              className="badge processing"
+                              style={{
+                                background: "rgba(214,184,157,0.12)",
+                                borderColor: "rgba(214,184,157,0.22)",
+                                color: "#e6c9ae",
+                              }}
+                            >
+                              {member.role}
+                            </span>
                           )}
                         </div>
                       </div>
@@ -759,9 +835,16 @@ export default function TeamDetailPage() {
           </Card>
 
           {canManageTeam && (
-            <Card className="case-section-card">
-              <div style={{ padding: 16 }}>
-                <div style={{ fontWeight: 700, marginBottom: 12, color: "#E2E8F0" }}>
+            <Card className="case-section-card app-card">
+              <div style={{ padding: 18 }}>
+                <div
+                  style={{
+                    fontWeight: 700,
+                    marginBottom: 12,
+                    color: "rgba(246,252,255,0.96)",
+                    letterSpacing: "-0.02em",
+                  }}
+                >
                   Pending invites
                 </div>
 
@@ -809,9 +892,16 @@ export default function TeamDetailPage() {
             </Card>
           )}
 
-          <Card className="case-section-card">
-            <div style={{ padding: 16 }}>
-              <div style={{ fontWeight: 700, marginBottom: 12, color: "#E2E8F0" }}>
+          <Card className="case-section-card app-card">
+            <div style={{ padding: 18 }}>
+              <div
+                style={{
+                  fontWeight: 700,
+                  marginBottom: 12,
+                  color: "rgba(246,252,255,0.96)",
+                  letterSpacing: "-0.02em",
+                }}
+              >
                 Team cases
               </div>
 
@@ -833,7 +923,16 @@ export default function TeamDetailPage() {
                           </div>
                         </div>
 
-                        <span className="badge ready">Open</span>
+                        <span
+                          className="badge ready"
+                          style={{
+                            background: "rgba(158,216,207,0.12)",
+                            borderColor: "rgba(158,216,207,0.22)",
+                            color: "#bfe8df",
+                          }}
+                        >
+                          Open
+                        </span>
                       </div>
                     </Link>
                   ))}
@@ -841,7 +940,7 @@ export default function TeamDetailPage() {
               )}
 
               {canManageTeam && (
-                <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid rgba(148, 163, 184, 0.16)" }}>
+                <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid rgba(148,163,184,0.16)" }}>
                   <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                     <Button className="navy-btn" onClick={handleCreateTeamCase}>
                       Create Team Case
@@ -862,7 +961,7 @@ export default function TeamDetailPage() {
                   </div>
 
                   {showAddCase && (
-                    <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid rgba(148, 163, 184, 0.16)" }}>
+                    <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid rgba(148,163,184,0.16)" }}>
                       <div className="case-muted-text" style={{ marginBottom: 10 }}>
                         {loadingAvailableCases
                           ? "Loading available cases..."
@@ -901,9 +1000,16 @@ export default function TeamDetailPage() {
           </Card>
 
           {activities.length > 0 && (
-            <Card className="case-section-card">
-              <div style={{ padding: 16 }}>
-                <div style={{ fontWeight: 700, marginBottom: 12, color: "#E2E8F0" }}>
+            <Card className="case-section-card app-card">
+              <div style={{ padding: 18 }}>
+                <div
+                  style={{
+                    fontWeight: 700,
+                    marginBottom: 12,
+                    color: "rgba(246,252,255,0.96)",
+                    letterSpacing: "-0.02em",
+                  }}
+                >
                   Recent activity
                 </div>
 
@@ -912,9 +1018,10 @@ export default function TeamDetailPage() {
                     <div
                       key={activity.id}
                       style={{
-                        padding: 8,
-                        borderRadius: 4,
-                        backgroundColor: "rgba(148, 163, 184, 0.05)",
+                        padding: 12,
+                        borderRadius: 14,
+                        background: "rgba(255,255,255,0.04)",
+                        border: "1px solid rgba(255,255,255,0.06)",
                       }}
                     >
                       <div className="case-share-name">

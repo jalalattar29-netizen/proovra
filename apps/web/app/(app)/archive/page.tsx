@@ -83,30 +83,24 @@ export default function ArchivePage() {
               <Skeleton width="100%" height="40px" />
             </div>
           ) : error ? (
-            <div
-              style={{
-                padding: 16,
-                background: "#FEE2E2",
-                borderRadius: 8,
-                color: "#991B1B",
-                fontSize: 12,
-              }}
-            >
-              {error}
-            </div>
+            <Card className="app-card">
+              <div className="app-inline-error">{error}</div>
+            </Card>
           ) : items.length === 0 ? (
-            <EmptyState
-              title="No archived evidence"
-              subtitle="When you archive evidence, it will appear here."
-              action={() => (
-                <Link href="/home">
-                  <Button>{t("home")}</Button>
-                </Link>
-              )}
-            />
+            <Card className="app-card">
+              <EmptyState
+                title="No archived evidence"
+                subtitle="When you archive evidence, it will appear here."
+                action={() => (
+                  <Link href="/home">
+                    <Button>{t("home")}</Button>
+                  </Link>
+                )}
+              />
+            </Card>
           ) : (
             items.map((item) => (
-              <Card key={item.id}>
+              <Card key={item.id} className="app-card">
                 {isUuid(item.id) ? (
                   <Link
                     href={`/evidence/${item.id}`}
@@ -121,7 +115,11 @@ export default function ArchivePage() {
                             ).toLocaleString()}`
                           : item.displaySubtitle
                       }
-                      badge={<Badge tone="ready">Archived</Badge>}
+                      badge={
+                        <Badge tone="ready">
+                          Archived
+                        </Badge>
+                      }
                     />
                   </Link>
                 ) : (

@@ -102,86 +102,118 @@ export default function TeamsPage() {
     }
   };
 
-  return (
-    <div className="section app-section">
-      <div className="app-hero app-hero-full">
-        <div className="container">
-          <div className="page-title" style={{ marginBottom: 0 }}>
-            <div>
-              <h1 className="hero-title pricing-hero-title" style={{ margin: 0 }}>
-                Teams
-              </h1>
-              <p className="page-subtitle pricing-subtitle" style={{ marginTop: 6 }}>
-                Manage collaborative workspaces, members, invites, and shared cases.
-              </p>
-            </div>
-
-            <Button className="navy-btn" onClick={handleCreate} disabled={creating}>
-              {creating ? "Creating..." : "Create Team"}
-            </Button>
+return (
+  <div className="section app-section">
+    <div className="app-hero app-hero-full">
+      <div className="container">
+        <div className="page-title" style={{ marginBottom: 0 }}>
+          <div>
+            <h1 className="hero-title pricing-hero-title" style={{ margin: 0 }}>
+              Teams
+            </h1>
+            <p className="page-subtitle pricing-subtitle" style={{ marginTop: 6 }}>
+              Manage collaborative workspaces, members, invites, and shared cases.
+            </p>
           </div>
+
+          <Button
+            className="navy-btn"
+            onClick={handleCreate}
+            disabled={creating}
+            style={{
+              borderColor: "rgba(214,184,157,0.20)",
+              background:
+                "linear-gradient(180deg, rgba(255,255,255,0.16) 0%, rgba(255,255,255,0.08) 100%)",
+              color: "#f3f7f5",
+            }}
+          >
+            {creating ? "Creating..." : "Create Team"}
+          </Button>
         </div>
       </div>
+    </div>
 
-      <div className="app-body app-body-full">
-        <div className="container" style={{ display: "grid", gap: 16 }}>
-          {loading ? (
-            <div style={{ display: "grid", gap: 12 }}>
-              <Skeleton width="100%" height="96px" />
-              <Skeleton width="100%" height="96px" />
-              <Skeleton width="100%" height="96px" />
-            </div>
-          ) : error ? (
-            <Card className="case-error-card">{error}</Card>
-          ) : teams.length === 0 ? (
-            <Card>
-              <EmptyState
-                title="No teams yet"
-                subtitle="Create a team to collaborate on shared cases and controlled access."
-                action={() => (
-                  <Button className="navy-btn" onClick={handleCreate} disabled={creating}>
-                    {creating ? "Creating..." : "Create Team"}
-                  </Button>
-                )}
-              />
-            </Card>
-          ) : (
-            teams.map((item) => (
-              <Card key={item.id} className="case-section-card">
-                <div style={{ padding: 16 }}>
-                  <div
-                    style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      gap: 16,
-                      alignItems: "center",
-                      flexWrap: "wrap",
-                    }}
-                  >
-                    <div style={{ flex: 1, minWidth: 260 }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-                        <div style={{ fontSize: 18, fontWeight: 700, color: "#E2E8F0" }}>
-                          {item.name}
-                        </div>
-                        {item.role ? <span className="badge processing">{item.role}</span> : null}
-                      </div>
-
+    <div className="app-body app-body-full">
+      <div className="container" style={{ display: "grid", gap: 16 }}>
+        {loading ? (
+          <div style={{ display: "grid", gap: 12 }}>
+            <Skeleton width="100%" height="96px" />
+            <Skeleton width="100%" height="96px" />
+            <Skeleton width="100%" height="96px" />
+          </div>
+        ) : error ? (
+          <Card className="case-error-card">{error}</Card>
+        ) : teams.length === 0 ? (
+          <Card className="app-card">
+            <EmptyState
+              title="No teams yet"
+              subtitle="Create a team to collaborate on shared cases and controlled access."
+              action={() => (
+                <Button className="navy-btn" onClick={handleCreate} disabled={creating}>
+                  {creating ? "Creating..." : "Create Team"}
+                </Button>
+              )}
+            />
+          </Card>
+        ) : (
+          teams.map((item) => (
+            <Card key={item.id} className="case-section-card app-card">
+              <div style={{ padding: 18 }}>
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    gap: 16,
+                    alignItems: "center",
+                    flexWrap: "wrap",
+                  }}
+                >
+                  <div style={{ flex: 1, minWidth: 260 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
                       <div
                         style={{
-                          display: "flex",
-                          gap: 10,
-                          flexWrap: "wrap",
-                          marginTop: 8,
-                          fontSize: 12,
-                          color: "#94A3B8",
+                          fontSize: 19,
+                          fontWeight: 700,
+                          color: "rgba(246,252,255,0.96)",
+                          letterSpacing: "-0.02em",
                         }}
                       >
-                        <span>{item.memberCount ?? 0} members</span>
-                        <span>{item.pendingInviteCount ?? 0} pending invites</span>
-                        <span>{item.caseCount ?? 0} cases</span>
+                        {item.name}
                       </div>
+
+                      {item.role ? (
+                        <span
+                          className="badge processing"
+                          style={{
+                            background: "rgba(214,184,157,0.12)",
+                            borderColor: "rgba(214,184,157,0.22)",
+                            color: "#e6c9ae",
+                          }}
+                        >
+                          {item.role}
+                        </span>
+                      ) : null}
                     </div>
 
+                    <div
+                      style={{
+                        display: "flex",
+                        gap: 10,
+                        flexWrap: "wrap",
+                        marginTop: 9,
+                        fontSize: 12,
+                        color: "rgba(219,235,248,0.72)",
+                      }}
+                    >
+                      <span>{item.memberCount ?? 0} members</span>
+                      <span style={{ color: "rgba(214,184,157,0.88)" }}>
+                        {item.pendingInviteCount ?? 0} pending invites
+                      </span>
+                      <span>{item.caseCount ?? 0} cases</span>
+                    </div>
+                  </div>
+
+                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                     <Link href={`/teams/${item.id}`} style={{ textDecoration: "none" }}>
                       <Button className="navy-btn">Open</Button>
                     </Link>
@@ -197,29 +229,32 @@ export default function TeamsPage() {
                     ) : null}
                   </div>
                 </div>
-              </Card>
-            ))
-          )}
-
-          {!loading && !error && teams.length > 0 ? (
-            <Card>
-              <div className="empty-state">
-                <div className="empty-state-icon empty-state-icon-svg team-empty-icon">
-                  <span className="team-empty-icon__glyph">
-                    <Icons.Teams />
-                  </span>
-                </div>
-                <div>Create another team when you need a separate workspace.</div>
-                <div style={{ marginTop: 16 }}>
-                  <Button className="navy-btn" onClick={handleCreate} disabled={creating}>
-                    {creating ? "Creating..." : "Create Team"}
-                  </Button>
-                </div>
               </div>
             </Card>
-          ) : null}
-        </div>
+          ))
+        )}
+
+        {!loading && !error && teams.length > 0 ? (
+          <Card className="app-card">
+            <div className="empty-state">
+              <div className="empty-state-icon empty-state-icon-svg team-empty-icon">
+                <span className="team-empty-icon__glyph">
+                  <Icons.Teams />
+                </span>
+              </div>
+              <div style={{ color: "rgba(219,235,248,0.82)" }}>
+                Create another team when you need a separate workspace.
+              </div>
+              <div style={{ marginTop: 16 }}>
+                <Button className="navy-btn" onClick={handleCreate} disabled={creating}>
+                  {creating ? "Creating..." : "Create Team"}
+                </Button>
+              </div>
+            </div>
+          </Card>
+        ) : null}
       </div>
     </div>
-  );
+  </div>
+);
 }

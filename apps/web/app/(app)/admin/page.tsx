@@ -160,25 +160,25 @@ const ROUTE_TYPE_OPTIONS: { value: RouteTypeFilter; label: string }[] = [
 
 const UI = {
   pageBg: "transparent",
-  cardBgStrong: "rgba(5, 20, 48, 0.84)",
-  innerPanelBg: "rgba(9, 28, 62, 0.82)",
-  border: "rgba(96, 165, 250, 0.18)",
-  borderStrong: "rgba(148, 163, 184, 0.22)",
-  textPrimary: "#F8FAFC",
-  textSecondary: "#CBD5E1",
-  textMuted: "#94A3B8",
-  heading: "#E2E8F0",
-  toolbarBg: "rgba(15, 23, 42, 0.64)",
-  toolbarActiveBg: "#E2E8F0",
-  toolbarActiveText: "#0F172A",
-  toolbarIdleText: "#CBD5E1",
-  inputBg: "rgba(248, 250, 252, 0.96)",
-  inputText: "#0F172A",
+  cardBgStrong: "linear-gradient(180deg, rgba(10, 24, 28, 0.90) 0%, rgba(7, 18, 22, 0.96) 100%)",
+  innerPanelBg: "rgba(255,255,255,0.035)",
+  border: "rgba(158, 216, 207, 0.14)",
+  borderStrong: "rgba(214, 184, 157, 0.16)",
+  textPrimary: "#F4F7F6",
+  textSecondary: "rgba(219, 235, 248, 0.80)",
+  textMuted: "rgba(219, 235, 248, 0.56)",
+  heading: "#F2F6F4",
+  toolbarBg: "rgba(255,255,255,0.04)",
+  toolbarActiveBg: "linear-gradient(135deg, rgba(214,184,157,0.90), rgba(183,157,132,0.88))",
+  toolbarActiveText: "#102126",
+  toolbarIdleText: "#D9E5E1",
+  inputBg: "rgba(255,255,255,0.92)",
+  inputText: "#102126",
   success: "#34D399",
   successText: "#86EFAC",
   warning: "#F59E0B",
   dangerBg: "rgba(127, 29, 29, 0.22)",
-  dangerBorder: "rgba(248, 113, 113, 0.42)",
+  dangerBorder: "rgba(248, 113, 113, 0.34)",
   dangerText: "#FECACA",
   emptyText: "#AFC0D5",
 };
@@ -383,12 +383,12 @@ function safeDivideDisplay(
 
 function sectionTitleStyle(): CSSProperties {
   return {
-    fontSize: 16,
-    fontWeight: 700,
+    fontSize: 15,
+    fontWeight: 800,
     color: UI.heading,
     marginBottom: 16,
     textTransform: "uppercase",
-    letterSpacing: "0.5px",
+    letterSpacing: "0.08em",
   };
 }
 
@@ -397,8 +397,8 @@ function subCardStyle(extra?: CSSProperties): CSSProperties {
     padding: 24,
     background: UI.cardBgStrong,
     border: `1px solid ${UI.border}`,
-    borderRadius: 20,
-    boxShadow: "0 14px 40px rgba(2, 8, 23, 0.16)",
+    borderRadius: 24,
+    boxShadow: "0 18px 44px rgba(0, 0, 0, 0.22)",
     ...extra,
   };
 }
@@ -415,6 +415,7 @@ function badgeStyle(color: string, bg: string): CSSProperties {
     color,
     background: bg,
     whiteSpace: "nowrap",
+    border: "1px solid rgba(255,255,255,0.06)",
   };
 }
 
@@ -455,7 +456,7 @@ function ProgressBar(props: {
       style={{
         width: "100%",
         height,
-        backgroundColor: "rgba(226, 232, 240, 0.9)",
+        backgroundColor: "rgba(255,255,255,0.08)",
         borderRadius: 999,
         overflow: "hidden",
       }}
@@ -479,25 +480,25 @@ function renderMiniBar(value: number, maxValue: number, color: string): JSX.Elem
 
 function StatCard({ title, value, description, accent = "#0B7BE5" }: StatCardProps) {
   return (
-    <Card>
+    <Card className="app-card">
       <div
         style={{
-          padding: 20,
+          padding: 22,
           background: UI.cardBgStrong,
           border: `1px solid ${UI.border}`,
-          borderRadius: 20,
-          minHeight: 172,
-          boxShadow: "0 14px 40px rgba(2, 8, 23, 0.14)",
+          borderRadius: 24,
+          minHeight: 176,
+          boxShadow: "0 18px 44px rgba(0, 0, 0, 0.22)",
         }}
       >
         <div style={{ marginBottom: 12 }}>
           <div
             style={{
-              fontSize: 12,
-              fontWeight: 700,
+              fontSize: 11,
+              fontWeight: 800,
               color: UI.textMuted,
               textTransform: "uppercase",
-              letterSpacing: "0.08em",
+              letterSpacing: "0.1em",
             }}
           >
             {title}
@@ -510,7 +511,6 @@ function StatCard({ title, value, description, accent = "#0B7BE5" }: StatCardPro
               fontWeight: 800,
               color: UI.textPrimary,
               lineHeight: 1,
-              textShadow: "0 1px 0 rgba(2, 6, 23, 0.35)",
             }}
           >
             {value}
@@ -520,16 +520,16 @@ function StatCard({ title, value, description, accent = "#0B7BE5" }: StatCardPro
           style={{
             fontSize: 13,
             color: UI.textSecondary,
-            lineHeight: 1.5,
+            lineHeight: 1.6,
           }}
         >
           {description}
         </div>
         <div
           style={{
-            marginTop: 12,
+            marginTop: 14,
             height: 3,
-            width: 40,
+            width: 42,
             backgroundColor: accent,
             borderRadius: 999,
             boxShadow: `0 0 16px ${accent}55`,
@@ -542,13 +542,13 @@ function StatCard({ title, value, description, accent = "#0B7BE5" }: StatCardPro
 
 function StatSkeleton() {
   return (
-    <Card>
+    <Card className="app-card">
       <div
         style={{
           padding: 20,
           background: UI.cardBgStrong,
           border: `1px solid ${UI.border}`,
-          borderRadius: 20,
+          borderRadius: 24,
         }}
       >
         <div style={{ marginBottom: 12 }}>
@@ -715,13 +715,13 @@ export default function AdminPage() {
 
   const trendMax = useMemo(() => maxTrendValue(trends), [trends]);
 
-const primaryInsight = useMemo(() => {
-  if (!stats) return null;
-  return {
-    activeRate: safeRatioPercent(stats.activeUsers, stats.registeredUsers),
-    reportRate: safeRatioPercent(stats.reportsGenerated, stats.totalEvidence),
-  };
-}, [stats]);
+  const primaryInsight = useMemo(() => {
+    if (!stats) return null;
+    return {
+      activeRate: safeRatioPercent(stats.activeUsers, stats.registeredUsers),
+      reportRate: safeRatioPercent(stats.reportsGenerated, stats.totalEvidence),
+    };
+  }, [stats]);
 
   const funnelInsight = useMemo(() => {
     const second = funnel[1];
@@ -1122,18 +1122,18 @@ const primaryInsight = useMemo(() => {
     return (
       <div className="section app-section">
         <div className="container" style={{ paddingTop: 40 }}>
-          <Card>
+          <Card className="app-card">
             <div
               style={{
                 padding: 32,
                 textAlign: "center",
                 background: UI.dangerBg,
-                borderRadius: 16,
+                borderRadius: 18,
                 color: UI.dangerText,
                 border: `1px solid ${UI.dangerBorder}`,
               }}
             >
-              <h2 style={{ margin: 0, marginBottom: 12, fontSize: 20, fontWeight: 600 }}>
+              <h2 style={{ margin: 0, marginBottom: 12, fontSize: 20, fontWeight: 700 }}>
                 Access Denied
               </h2>
               <p style={{ margin: 0, fontSize: 14, marginBottom: 24, color: UI.textSecondary }}>
@@ -1150,16 +1150,16 @@ const primaryInsight = useMemo(() => {
   }
 
   const toolbarSegmentStyle = (active: boolean): CSSProperties => ({
-    padding: "6px 14px",
+    padding: "7px 14px",
     fontSize: 13,
-    fontWeight: 600,
+    fontWeight: 700,
     border: "none",
-    borderRadius: 6,
+    borderRadius: 999,
     cursor: "pointer",
-    backgroundColor: active ? UI.toolbarActiveBg : "transparent",
+    background: active ? "linear-gradient(135deg, rgba(214,184,157,0.92), rgba(183,157,132,0.88))" : "transparent",
     color: active ? UI.toolbarActiveText : UI.toolbarIdleText,
-    boxShadow: active ? "0 1px 2px rgba(15, 23, 42, 0.16)" : "none",
-    transition: "background-color 0.15s ease, color 0.15s ease, box-shadow 0.15s ease",
+    boxShadow: active ? "0 8px 22px rgba(183,157,132,0.22)" : "none",
+    transition: "all 0.18s ease",
   });
 
   return (
@@ -1175,7 +1175,6 @@ const primaryInsight = useMemo(() => {
                   fontSize: 32,
                   fontWeight: 800,
                   color: UI.textPrimary,
-                  textShadow: "0 2px 18px rgba(15, 23, 42, 0.28)",
                 }}
               >
                 Analytics & Admin Audit
@@ -1199,12 +1198,12 @@ const primaryInsight = useMemo(() => {
         <div className="container">
           {error && (
             <div style={{ marginBottom: 24 }}>
-              <Card>
+              <Card className="app-card">
                 <div
                   style={{
                     padding: 16,
                     background: UI.dangerBg,
-                    borderRadius: 14,
+                    borderRadius: 16,
                     color: UI.dangerText,
                     fontSize: 13,
                     borderLeft: "4px solid #F87171",
@@ -1219,10 +1218,10 @@ const primaryInsight = useMemo(() => {
 
           {!loading ? (
             <div style={{ marginBottom: 24 }}>
-              <Card>
+              <Card className="app-card">
                 <div
                   style={{
-                    padding: "14px 18px",
+                    padding: "16px 18px",
                     display: "flex",
                     flexWrap: "wrap",
                     alignItems: "center",
@@ -1230,8 +1229,8 @@ const primaryInsight = useMemo(() => {
                     justifyContent: "space-between",
                     background: UI.cardBgStrong,
                     border: `1px solid ${UI.border}`,
-                    borderRadius: 20,
-                    boxShadow: "0 14px 40px rgba(2, 8, 23, 0.14)",
+                    borderRadius: 24,
+                    boxShadow: "0 18px 44px rgba(0, 0, 0, 0.22)",
                   }}
                 >
                   <div
@@ -1247,7 +1246,7 @@ const primaryInsight = useMemo(() => {
                       <span
                         style={{
                           fontSize: 11,
-                          fontWeight: 700,
+                          fontWeight: 800,
                           color: UI.textMuted,
                           textTransform: "uppercase",
                           letterSpacing: "0.08em",
@@ -1260,9 +1259,9 @@ const primaryInsight = useMemo(() => {
                         aria-label="Date range"
                         style={{
                           display: "inline-flex",
-                          padding: 3,
+                          padding: 4,
                           backgroundColor: UI.toolbarBg,
-                          borderRadius: 8,
+                          borderRadius: 999,
                           border: `1px solid ${UI.borderStrong}`,
                           gap: 2,
                         }}
@@ -1286,7 +1285,7 @@ const primaryInsight = useMemo(() => {
                         htmlFor="admin-event-type-filter"
                         style={{
                           fontSize: 11,
-                          fontWeight: 700,
+                          fontWeight: 800,
                           color: UI.textMuted,
                           textTransform: "uppercase",
                           letterSpacing: "0.08em",
@@ -1300,12 +1299,12 @@ const primaryInsight = useMemo(() => {
                         onChange={(e) => setEventTypeFilter(e.target.value as EventTypeFilter)}
                         style={{
                           minWidth: 190,
-                          padding: "8px 12px",
+                          padding: "10px 12px",
                           fontSize: 13,
                           color: UI.inputText,
                           backgroundColor: UI.inputBg,
                           border: "1px solid rgba(226, 232, 240, 0.65)",
-                          borderRadius: 8,
+                          borderRadius: 12,
                           cursor: "pointer",
                           outline: "none",
                         }}
@@ -1323,7 +1322,7 @@ const primaryInsight = useMemo(() => {
                         htmlFor="admin-route-type-filter"
                         style={{
                           fontSize: 11,
-                          fontWeight: 700,
+                          fontWeight: 800,
                           color: UI.textMuted,
                           textTransform: "uppercase",
                           letterSpacing: "0.08em",
@@ -1337,12 +1336,12 @@ const primaryInsight = useMemo(() => {
                         onChange={(e) => setRouteTypeFilter(e.target.value as RouteTypeFilter)}
                         style={{
                           minWidth: 160,
-                          padding: "8px 12px",
+                          padding: "10px 12px",
                           fontSize: 13,
                           color: UI.inputText,
                           backgroundColor: UI.inputBg,
                           border: "1px solid rgba(226, 232, 240, 0.65)",
-                          borderRadius: 8,
+                          borderRadius: 12,
                           cursor: "pointer",
                           outline: "none",
                         }}
@@ -1356,7 +1355,7 @@ const primaryInsight = useMemo(() => {
                     </div>
                   </div>
 
-                  <div style={{ display: "flex", gap: 10, alignItems: "flex-end" }}>
+                  <div style={{ display: "flex", gap: 10, alignItems: "flex-end", flexWrap: "wrap" }}>
                     <button
                       type="button"
                       onClick={() => {
@@ -1365,13 +1364,13 @@ const primaryInsight = useMemo(() => {
                         setSelectedCity(null);
                       }}
                       style={{
-                        padding: "8px 14px",
+                        padding: "10px 14px",
                         fontSize: 13,
-                        fontWeight: 600,
+                        fontWeight: 700,
                         color: UI.inputText,
                         backgroundColor: UI.inputBg,
                         border: "1px solid rgba(226, 232, 240, 0.65)",
-                        borderRadius: 8,
+                        borderRadius: 12,
                         cursor: "pointer",
                       }}
                     >
@@ -1381,13 +1380,13 @@ const primaryInsight = useMemo(() => {
                       type="button"
                       onClick={handleExportCsv}
                       style={{
-                        padding: "8px 14px",
+                        padding: "10px 14px",
                         fontSize: 13,
-                        fontWeight: 600,
+                        fontWeight: 700,
                         color: UI.inputText,
                         backgroundColor: UI.inputBg,
                         border: "1px solid rgba(226, 232, 240, 0.65)",
-                        borderRadius: 8,
+                        borderRadius: 12,
                         cursor: "pointer",
                       }}
                     >
@@ -1435,68 +1434,68 @@ const primaryInsight = useMemo(() => {
 
               <div style={{ marginBottom: 40 }}>
                 <h2 style={sectionTitleStyle()}>Overview</h2>
-<div
-  style={{
-    display: "grid",
-    gap: 16,
-    gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-  }}
->
-  <StatCard
-    title="Total Users"
-    value={stats.totalUsers.toLocaleString()}
-    description={`${stats.registeredUsers.toLocaleString()} registered + ${stats.guestUsers.toLocaleString()} guest`}
-    accent="#3B82F6"
-  />
+                <div
+                  style={{
+                    display: "grid",
+                    gap: 16,
+                    gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+                  }}
+                >
+                  <StatCard
+                    title="Total Users"
+                    value={stats.totalUsers.toLocaleString()}
+                    description={`${stats.registeredUsers.toLocaleString()} registered + ${stats.guestUsers.toLocaleString()} guest`}
+                    accent="#3B82F6"
+                  />
 
-  <StatCard
-    title="Registered Users"
-    value={stats.registeredUsers.toLocaleString()}
-    description={`${stats.activeUsers.toLocaleString()} active (${primaryInsight?.activeRate ?? "0.0"}% activity rate)`}
-    accent="#06B6D4"
-  />
+                  <StatCard
+                    title="Registered Users"
+                    value={stats.registeredUsers.toLocaleString()}
+                    description={`${stats.activeUsers.toLocaleString()} active (${primaryInsight?.activeRate ?? "0.0"}% activity rate)`}
+                    accent="#06B6D4"
+                  />
 
-  <StatCard
-    title="Guest Users"
-    value={stats.guestUsers.toLocaleString()}
-    description="Anonymous / guest identities created in the system"
-    accent="#64748B"
-  />
+                  <StatCard
+                    title="Guest Users"
+                    value={stats.guestUsers.toLocaleString()}
+                    description="Anonymous / guest identities created in the system"
+                    accent="#64748B"
+                  />
 
-  <StatCard
-    title="Users With Evidence"
-    value={stats.usersWithEvidence.toLocaleString()}
-    description="Distinct owners with at least one non-deleted evidence item"
-    accent="#A855F7"
-  />
+                  <StatCard
+                    title="Users With Evidence"
+                    value={stats.usersWithEvidence.toLocaleString()}
+                    description="Distinct owners with at least one non-deleted evidence item"
+                    accent="#A855F7"
+                  />
 
-  <StatCard
-    title="Total Evidence"
-    value={stats.totalEvidence.toLocaleString()}
-    description={`${stats.reportsGenerated.toLocaleString()} reports generated`}
-    accent="#10B981"
-  />
+                  <StatCard
+                    title="Total Evidence"
+                    value={stats.totalEvidence.toLocaleString()}
+                    description={`${stats.reportsGenerated.toLocaleString()} reports generated`}
+                    accent="#10B981"
+                  />
 
-  <StatCard
-    title="Avg Evidence / Registered User"
-    value={safeDivideDisplay(stats.totalEvidence, stats.registeredUsers, 1)}
-    description="Average evidence items per registered user"
-    accent="#F59E0B"
-  />
+                  <StatCard
+                    title="Avg Evidence / Registered User"
+                    value={safeDivideDisplay(stats.totalEvidence, stats.registeredUsers, 1)}
+                    description="Average evidence items per registered user"
+                    accent="#F59E0B"
+                  />
 
-  <StatCard
-    title="Report Rate"
-    value={`${primaryInsight?.reportRate ?? "0.0"}%`}
-    description="Share of evidence that reached report generation"
-    accent="#8B5CF6"
-  />
-</div>
+                  <StatCard
+                    title="Report Rate"
+                    value={`${primaryInsight?.reportRate ?? "0.0"}%`}
+                    description="Share of evidence that reached report generation"
+                    accent="#8B5CF6"
+                  />
+                </div>
               </div>
 
               <div style={{ marginBottom: 40 }}>
                 <h2 style={sectionTitleStyle()}>Activity</h2>
 
-                <Card style={{ marginBottom: 16 }}>
+                <Card className="app-card" style={{ marginBottom: 16 }}>
                   <div style={subCardStyle()}>
                     <div
                       style={{
@@ -1530,7 +1529,7 @@ const primaryInsight = useMemo(() => {
                             key={point.date}
                             style={{
                               border: `1px solid ${UI.borderStrong}`,
-                              borderRadius: 16,
+                              borderRadius: 18,
                               padding: 16,
                               backgroundColor: UI.innerPanelBg,
                             }}
@@ -1580,7 +1579,7 @@ const primaryInsight = useMemo(() => {
                   </div>
                 </Card>
 
-                <Card>
+                <Card className="app-card">
                   <div style={subCardStyle()}>
                     <div
                       style={{
@@ -1628,7 +1627,7 @@ const primaryInsight = useMemo(() => {
                               style={{
                                 width: 28,
                                 height: 28,
-                                borderRadius: 6,
+                                borderRadius: 8,
                                 backgroundColor: "rgba(59, 130, 246, 0.16)",
                                 display: "flex",
                                 alignItems: "center",
@@ -1646,7 +1645,7 @@ const primaryInsight = useMemo(() => {
                                 <div
                                   style={{
                                     fontSize: 13,
-                                    fontWeight: 600,
+                                    fontWeight: 700,
                                     color: UI.textPrimary,
                                     wordBreak: "break-word",
                                   }}
@@ -1672,7 +1671,7 @@ const primaryInsight = useMemo(() => {
                                 />
                               </div>
                             </div>
-                            <div style={{ fontSize: 14, fontWeight: 700, color: UI.textPrimary, whiteSpace: "nowrap" }}>
+                            <div style={{ fontSize: 14, fontWeight: 800, color: UI.textPrimary, whiteSpace: "nowrap" }}>
                               {item.share?.toFixed(1) ?? "0.0"}%
                             </div>
                           </button>
@@ -1689,7 +1688,7 @@ const primaryInsight = useMemo(() => {
 
               <div style={{ marginBottom: 40 }}>
                 <h2 style={sectionTitleStyle()}>Funnel</h2>
-                <Card>
+                <Card className="app-card">
                   <div style={subCardStyle()}>
                     <div style={{ marginBottom: 20 }}>
                       <h3 style={{ margin: "0 0 8px 0", fontSize: 15, fontWeight: 700, color: UI.textPrimary }}>
@@ -1718,7 +1717,7 @@ const primaryInsight = useMemo(() => {
                                   style={{
                                     width: 32,
                                     height: 32,
-                                    borderRadius: 8,
+                                    borderRadius: 10,
                                     backgroundColor: "rgba(245, 158, 11, 0.18)",
                                     display: "flex",
                                     alignItems: "center",
@@ -1731,7 +1730,7 @@ const primaryInsight = useMemo(() => {
                                   {idx + 1}
                                 </div>
                                 <div>
-                                  <div style={{ fontSize: 13, fontWeight: 600, color: UI.textPrimary }}>
+                                  <div style={{ fontSize: 13, fontWeight: 700, color: UI.textPrimary }}>
                                     {step.label}
                                   </div>
                                   {idx > 0 ? (
@@ -1745,7 +1744,7 @@ const primaryInsight = useMemo(() => {
                                   )}
                                 </div>
                               </div>
-                              <div style={{ fontSize: 13, fontWeight: 700, color: UI.textPrimary }}>
+                              <div style={{ fontSize: 13, fontWeight: 800, color: UI.textPrimary }}>
                                 {step.count.toLocaleString()}
                               </div>
                             </div>
@@ -1771,7 +1770,7 @@ const primaryInsight = useMemo(() => {
                     gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))",
                   }}
                 >
-                  <Card>
+                  <Card className="app-card">
                     <div style={subCardStyle()}>
                       <h3 style={{ margin: "0 0 20px 0", fontSize: 14, fontWeight: 700, color: UI.textPrimary }}>
                         Top Countries
@@ -1808,7 +1807,7 @@ const primaryInsight = useMemo(() => {
                                 style={{
                                   width: 28,
                                   height: 28,
-                                  borderRadius: 6,
+                                  borderRadius: 8,
                                   backgroundColor: "rgba(14, 165, 233, 0.16)",
                                   display: "flex",
                                   alignItems: "center",
@@ -1822,7 +1821,7 @@ const primaryInsight = useMemo(() => {
                                 {idx + 1}
                               </div>
                               <div style={{ flex: 1, minWidth: 0 }}>
-                                <div style={{ fontSize: 13, fontWeight: 600, color: UI.textPrimary }}>
+                                <div style={{ fontSize: 13, fontWeight: 700, color: UI.textPrimary }}>
                                   {item.name ?? "Unknown"}
                                 </div>
                                 <div style={{ fontSize: 11, color: UI.textSecondary }}>
@@ -1832,7 +1831,7 @@ const primaryInsight = useMemo(() => {
                                   <ProgressBar value={item.share ?? 0} maxValue={100} color="#0EA5E9" height={6} />
                                 </div>
                               </div>
-                              <div style={{ fontSize: 12, fontWeight: 700, color: UI.textSecondary, whiteSpace: "nowrap" }}>
+                              <div style={{ fontSize: 12, fontWeight: 800, color: UI.textSecondary, whiteSpace: "nowrap" }}>
                                 {item.count.toLocaleString()}
                               </div>
                             </button>
@@ -1846,7 +1845,7 @@ const primaryInsight = useMemo(() => {
                     </div>
                   </Card>
 
-                  <Card>
+                  <Card className="app-card">
                     <div style={subCardStyle()}>
                       <h3 style={{ margin: "0 0 20px 0", fontSize: 14, fontWeight: 700, color: UI.textPrimary }}>
                         Top Cities
@@ -1881,7 +1880,7 @@ const primaryInsight = useMemo(() => {
                                 style={{
                                   width: 28,
                                   height: 28,
-                                  borderRadius: 6,
+                                  borderRadius: 8,
                                   backgroundColor: "rgba(96, 165, 250, 0.16)",
                                   display: "flex",
                                   alignItems: "center",
@@ -1895,7 +1894,7 @@ const primaryInsight = useMemo(() => {
                                 {idx + 1}
                               </div>
                               <div style={{ flex: 1, minWidth: 0 }}>
-                                <div style={{ fontSize: 13, fontWeight: 600, color: UI.textPrimary }}>
+                                <div style={{ fontSize: 13, fontWeight: 700, color: UI.textPrimary }}>
                                   {item.name ?? "Unknown"}
                                 </div>
                                 <div style={{ fontSize: 11, color: UI.textSecondary }}>
@@ -1905,7 +1904,7 @@ const primaryInsight = useMemo(() => {
                                   <ProgressBar value={item.share ?? 0} maxValue={100} color="#3B82F6" height={6} />
                                 </div>
                               </div>
-                              <div style={{ fontSize: 12, fontWeight: 700, color: UI.textSecondary, whiteSpace: "nowrap" }}>
+                              <div style={{ fontSize: 12, fontWeight: 800, color: UI.textSecondary, whiteSpace: "nowrap" }}>
                                 {item.count.toLocaleString()}
                               </div>
                             </button>
@@ -1923,7 +1922,7 @@ const primaryInsight = useMemo(() => {
 
               <div style={{ marginBottom: 40 }}>
                 <h2 style={sectionTitleStyle()}>Recent Activity</h2>
-                <Card>
+                <Card className="app-card">
                   <div style={subCardStyle()}>
                     <h3 style={{ margin: "0 0 20px 0", fontSize: 15, fontWeight: 700, color: UI.textPrimary }}>
                       Latest Events
@@ -1944,7 +1943,7 @@ const primaryInsight = useMemo(() => {
                             }}
                           >
                             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                              <div style={{ fontSize: 12, fontWeight: 700, color: "#93C5FD" }}>
+                              <div style={{ fontSize: 12, fontWeight: 800, color: "#93C5FD" }}>
                                 {item.label ?? humanizeKey(item.eventType)}
                               </div>
                               <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
@@ -1958,7 +1957,7 @@ const primaryInsight = useMemo(() => {
                                 style={{
                                   fontSize: 12,
                                   color: UI.textPrimary,
-                                  fontWeight: 600,
+                                  fontWeight: 700,
                                   wordBreak: "break-word",
                                   marginBottom: 4,
                                 }}
@@ -1997,7 +1996,7 @@ const primaryInsight = useMemo(() => {
                     gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))",
                   }}
                 >
-                  <Card>
+                  <Card className="app-card">
                     <div style={subCardStyle()}>
                       <h3 style={{ margin: "0 0 20px 0", fontSize: 14, fontWeight: 700, color: UI.textPrimary }}>
                         Subscription Plans
@@ -2011,10 +2010,10 @@ const primaryInsight = useMemo(() => {
                         ].map((plan) => (
                           <div key={plan.label}>
                             <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
-                              <div style={{ fontSize: 12, fontWeight: 600, color: UI.textPrimary }}>
+                              <div style={{ fontSize: 12, fontWeight: 700, color: UI.textPrimary }}>
                                 {plan.label}
                               </div>
-                              <div style={{ fontSize: 12, fontWeight: 700, color: UI.textPrimary }}>
+                              <div style={{ fontSize: 12, fontWeight: 800, color: UI.textPrimary }}>
                                 {safeRatioPercent(plan.value, stats.totalUsers)}%
                               </div>
                             </div>
@@ -2028,7 +2027,7 @@ const primaryInsight = useMemo(() => {
                     </div>
                   </Card>
 
-                  <Card>
+                  <Card className="app-card">
                     <div style={subCardStyle()}>
                       <h3 style={{ margin: "0 0 20px 0", fontSize: 14, fontWeight: 700, color: UI.textPrimary }}>
                         Evidence by Type
@@ -2042,10 +2041,10 @@ const primaryInsight = useMemo(() => {
                         ].map((type) => (
                           <div key={type.label}>
                             <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
-                              <div style={{ fontSize: 12, fontWeight: 600, color: UI.textPrimary }}>
+                              <div style={{ fontSize: 12, fontWeight: 700, color: UI.textPrimary }}>
                                 {type.label}
                               </div>
-                              <div style={{ fontSize: 12, fontWeight: 700, color: UI.textPrimary }}>
+                              <div style={{ fontSize: 12, fontWeight: 800, color: UI.textPrimary }}>
                                 {safeRatioPercent(type.value, stats.totalEvidence)}%
                               </div>
                             </div>
@@ -2064,7 +2063,7 @@ const primaryInsight = useMemo(() => {
               <div style={{ marginBottom: 40 }}>
                 <h2 style={sectionTitleStyle()}>Admin Audit</h2>
 
-                <Card style={{ marginBottom: 16 }}>
+                <Card className="app-card" style={{ marginBottom: 16 }}>
                   <div style={subCardStyle()}>
                     <div style={{ display: "flex", justifyContent: "space-between", gap: 16, flexWrap: "wrap" }}>
                       <div>
@@ -2075,7 +2074,7 @@ const primaryInsight = useMemo(() => {
                           <div style={{ fontSize: 13, color: UI.textSecondary }}>Verification not available yet.</div>
                         ) : chainVerify.valid ? (
                           <div>
-                            <div style={{ fontSize: 14, fontWeight: 700, color: UI.successText }}>
+                            <div style={{ fontSize: 14, fontWeight: 800, color: UI.successText }}>
                               ✅ Valid chain
                             </div>
                             <div style={{ marginTop: 6, fontSize: 12, color: UI.textSecondary }}>
@@ -2086,7 +2085,7 @@ const primaryInsight = useMemo(() => {
                             </div>
                           </div>
                         ) : (
-                          <div style={{ fontSize: 14, fontWeight: 700, color: "#FCA5A5" }}>
+                          <div style={{ fontSize: 14, fontWeight: 800, color: "#FCA5A5" }}>
                             ❌ Tampering detected
                             <div
                               style={{
@@ -2109,13 +2108,13 @@ const primaryInsight = useMemo(() => {
                           type="button"
                           onClick={handleExportAuditCsv}
                           style={{
-                            padding: "8px 14px",
+                            padding: "10px 14px",
                             fontSize: 13,
-                            fontWeight: 600,
+                            fontWeight: 700,
                             color: UI.inputText,
                             backgroundColor: UI.inputBg,
                             border: "1px solid rgba(226, 232, 240, 0.65)",
-                            borderRadius: 8,
+                            borderRadius: 12,
                             cursor: "pointer",
                           }}
                         >
@@ -2126,7 +2125,7 @@ const primaryInsight = useMemo(() => {
                   </div>
                 </Card>
 
-                <Card>
+                <Card className="app-card">
                   <div style={subCardStyle()}>
                     <div style={{ marginBottom: 20 }}>
                       <h3 style={{ margin: "0 0 12px 0", fontSize: 15, fontWeight: 700, color: UI.textPrimary }}>
@@ -2146,12 +2145,12 @@ const primaryInsight = useMemo(() => {
                           onChange={(e) => setAuditAction(e.target.value)}
                           placeholder="Action"
                           style={{
-                            padding: "8px 12px",
+                            padding: "10px 12px",
                             fontSize: 13,
                             color: UI.inputText,
                             backgroundColor: UI.inputBg,
                             border: "1px solid rgba(226, 232, 240, 0.65)",
-                            borderRadius: 8,
+                            borderRadius: 12,
                             outline: "none",
                           }}
                         />
@@ -2160,12 +2159,12 @@ const primaryInsight = useMemo(() => {
                           onChange={(e) => setAuditCategory(e.target.value)}
                           placeholder="Category"
                           style={{
-                            padding: "8px 12px",
+                            padding: "10px 12px",
                             fontSize: 13,
                             color: UI.inputText,
                             backgroundColor: UI.inputBg,
                             border: "1px solid rgba(226, 232, 240, 0.65)",
-                            borderRadius: 8,
+                            borderRadius: 12,
                             outline: "none",
                           }}
                         />
@@ -2174,12 +2173,12 @@ const primaryInsight = useMemo(() => {
                           onChange={(e) => setAuditSeverity(e.target.value)}
                           placeholder="Severity"
                           style={{
-                            padding: "8px 12px",
+                            padding: "10px 12px",
                             fontSize: 13,
                             color: UI.inputText,
                             backgroundColor: UI.inputBg,
                             border: "1px solid rgba(226, 232, 240, 0.65)",
-                            borderRadius: 8,
+                            borderRadius: 12,
                             outline: "none",
                           }}
                         />
@@ -2188,12 +2187,12 @@ const primaryInsight = useMemo(() => {
                           onChange={(e) => setAuditOutcome(e.target.value)}
                           placeholder="Outcome"
                           style={{
-                            padding: "8px 12px",
+                            padding: "10px 12px",
                             fontSize: 13,
                             color: UI.inputText,
                             backgroundColor: UI.inputBg,
                             border: "1px solid rgba(226, 232, 240, 0.65)",
-                            borderRadius: 8,
+                            borderRadius: 12,
                             outline: "none",
                           }}
                         />
@@ -2202,29 +2201,29 @@ const primaryInsight = useMemo(() => {
                           onChange={(e) => setAuditSearch(e.target.value)}
                           placeholder="Search"
                           style={{
-                            padding: "8px 12px",
+                            padding: "10px 12px",
                             fontSize: 13,
                             color: UI.inputText,
                             backgroundColor: UI.inputBg,
                             border: "1px solid rgba(226, 232, 240, 0.65)",
-                            borderRadius: 8,
+                            borderRadius: 12,
                             outline: "none",
                           }}
                         />
                       </div>
 
-                      <div style={{ display: "flex", gap: 10 }}>
+                      <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
                         <button
                           type="button"
                           onClick={() => void refreshAuditLogs(null)}
                           style={{
-                            padding: "8px 14px",
+                            padding: "10px 14px",
                             fontSize: 13,
-                            fontWeight: 600,
+                            fontWeight: 700,
                             color: UI.inputText,
                             backgroundColor: UI.inputBg,
                             border: "1px solid rgba(226, 232, 240, 0.65)",
-                            borderRadius: 8,
+                            borderRadius: 12,
                             cursor: "pointer",
                           }}
                         >
@@ -2244,13 +2243,13 @@ const primaryInsight = useMemo(() => {
                             }, 0);
                           }}
                           style={{
-                            padding: "8px 14px",
+                            padding: "10px 14px",
                             fontSize: 13,
-                            fontWeight: 600,
+                            fontWeight: 700,
                             color: UI.inputText,
                             backgroundColor: UI.inputBg,
                             border: "1px solid rgba(226, 232, 240, 0.65)",
-                            borderRadius: 8,
+                            borderRadius: 12,
                             cursor: "pointer",
                           }}
                         >
@@ -2280,7 +2279,7 @@ const primaryInsight = useMemo(() => {
                             >
                               <div style={{ minWidth: 0 }}>
                                 <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginBottom: 6 }}>
-                                  <div style={{ fontSize: 12, fontWeight: 700, color: UI.textPrimary, wordBreak: "break-word" }}>
+                                  <div style={{ fontSize: 12, fontWeight: 800, color: UI.textPrimary, wordBreak: "break-word" }}>
                                     {humanizeKey(entry.action)}
                                   </div>
                                   {entry.category ? (
@@ -2314,7 +2313,7 @@ const primaryInsight = useMemo(() => {
                                       color: UI.textSecondary,
                                       fontFamily: "ui-monospace, monospace",
                                       wordBreak: "break-word",
-                                      lineHeight: 1.4,
+                                      lineHeight: 1.45,
                                       margin: 0,
                                       whiteSpace: "pre-wrap",
                                     }}
@@ -2340,13 +2339,13 @@ const primaryInsight = useMemo(() => {
                             disabled={!auditCursor}
                             onClick={() => void refreshAuditLogs(auditCursor)}
                             style={{
-                              padding: "8px 14px",
+                              padding: "10px 14px",
                               fontSize: 13,
-                              fontWeight: 600,
+                              fontWeight: 700,
                               color: UI.inputText,
                               backgroundColor: UI.inputBg,
                               border: "1px solid rgba(226, 232, 240, 0.65)",
-                              borderRadius: 8,
+                              borderRadius: 12,
                               cursor: auditCursor ? "pointer" : "not-allowed",
                               opacity: auditCursor ? 1 : 0.5,
                             }}
@@ -2365,7 +2364,7 @@ const primaryInsight = useMemo(() => {
               </div>
 
               <div>
-                <Card>
+                <Card className="app-card">
                   <div style={subCardStyle()}>
                     <h3 style={{ margin: "0 0 16px 0", fontSize: 15, fontWeight: 700, color: UI.textPrimary }}>
                       System Status
@@ -2379,7 +2378,7 @@ const primaryInsight = useMemo(() => {
                     >
                       <div>
                         <div style={{ fontSize: 12, color: UI.textMuted, marginBottom: 6 }}>API Version</div>
-                        <div style={{ fontSize: 14, fontWeight: 700, color: UI.textPrimary }}>v1</div>
+                        <div style={{ fontSize: 14, fontWeight: 800, color: UI.textPrimary }}>v1</div>
                       </div>
                       <div>
                         <div style={{ fontSize: 12, color: UI.textMuted, marginBottom: 6 }}>Dashboard source</div>
@@ -2390,7 +2389,7 @@ const primaryInsight = useMemo(() => {
                         <div
                           style={{
                             fontSize: 13,
-                            fontWeight: 700,
+                            fontWeight: 800,
                             color:
                               chainVerify === null
                                 ? "#FCD34D"
@@ -2424,13 +2423,13 @@ const primaryInsight = useMemo(() => {
                           {chainVerify === null
                             ? "Unavailable"
                             : chainVerify.valid
-                            ? "Verified"
-                            : "Needs review"}
+                              ? "Verified"
+                              : "Needs review"}
                         </div>
                       </div>
                       <div>
                         <div style={{ fontSize: 12, color: UI.textMuted, marginBottom: 6 }}>Last updated</div>
-                        <div style={{ fontSize: 13, fontWeight: 600, color: UI.textPrimary }}>
+                        <div style={{ fontSize: 13, fontWeight: 700, color: UI.textPrimary }}>
                           {lastSuccessfulFetchAt ? formatDisplayTimestamp(lastSuccessfulFetchAt) : "—"}
                         </div>
                       </div>

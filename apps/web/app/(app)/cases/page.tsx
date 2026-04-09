@@ -171,12 +171,16 @@ export default function CasesPage() {
                 Organize evidence into cases.
               </p>
 
-              <div style={{ display: "flex", gap: 6, marginTop: 12, flexWrap: "wrap" }}>
+              <div style={{ display: "flex", gap: 8, marginTop: 14, flexWrap: "wrap" }}>
                 <Button
                   variant={filter === "all" ? "primary" : "secondary"}
                   onClick={() => setFilter("all")}
                   className={filter === "all" ? "navy-btn" : "case-badge-btn"}
-                  style={{ padding: "6px 12px", fontSize: 12 }}
+                  style={{
+                    padding: "7px 14px",
+                    fontSize: 12,
+                    borderRadius: 999,
+                  }}
                 >
                   All ({cases.length})
                 </Button>
@@ -184,7 +188,11 @@ export default function CasesPage() {
                   variant={filter === "personal" ? "primary" : "secondary"}
                   onClick={() => setFilter("personal")}
                   className={filter === "personal" ? "navy-btn" : "case-badge-btn"}
-                  style={{ padding: "6px 12px", fontSize: 12 }}
+                  style={{
+                    padding: "7px 14px",
+                    fontSize: 12,
+                    borderRadius: 999,
+                  }}
                 >
                   Personal ({personalCases.length})
                 </Button>
@@ -192,7 +200,11 @@ export default function CasesPage() {
                   variant={filter === "team" ? "primary" : "secondary"}
                   onClick={() => setFilter("team")}
                   className={filter === "team" ? "navy-btn" : "case-badge-btn"}
-                  style={{ padding: "6px 12px", fontSize: 12 }}
+                  style={{
+                    padding: "7px 14px",
+                    fontSize: 12,
+                    borderRadius: 999,
+                  }}
                 >
                   Team ({teamCases.length})
                 </Button>
@@ -211,7 +223,7 @@ export default function CasesPage() {
       </div>
 
       <div className="app-body app-body-full">
-        <div className="container case-list-grid">
+        <div className="container case-list-grid" style={{ display: "grid", gap: 16 }}>
           {loading ? (
             <div style={{ display: "grid", gap: 12 }}>
               <Skeleton width="100%" height="84px" />
@@ -219,11 +231,11 @@ export default function CasesPage() {
               <Skeleton width="100%" height="84px" />
             </div>
           ) : error ? (
-            <Card className="case-error-card">
+            <Card className="case-error-card app-card">
               <div className="case-error-text">{error}</div>
             </Card>
           ) : filteredCases.length === 0 ? (
-            <Card className="case-section-card">
+            <Card className="case-section-card app-card">
               <EmptyState
                 title={filter === "all" ? "No cases yet" : `No ${filter} cases`}
                 subtitle={filter === "all" ? "Create one to organize your evidence by investigation." : `Try a different filter or create a new ${filter} case.`}
@@ -233,16 +245,28 @@ export default function CasesPage() {
             </Card>
           ) : (
             filteredCases.map((caseItem) => (
-              <Card key={caseItem.id} className="case-list-card">
+              <Card key={caseItem.id} className="case-list-card app-card">
                 <div className="case-list-row">
                   <Link
                     href={`/cases/${caseItem.id}`}
                     className="case-list-link"
+                    style={{ textDecoration: "none", color: "inherit", flex: 1 }}
                   >
-                    <div className="case-list-name">
+                    <div className="case-list-name" style={{ color: "rgba(246,252,255,0.96)", fontWeight: 800 }}>
                       {caseItem.name}
                       {caseItem.teamId && (
-                        <span className="badge ready" style={{ marginLeft: 8, fontSize: 11 }}>TEAM</span>
+                        <span
+                          className="badge ready"
+                          style={{
+                            marginLeft: 8,
+                            fontSize: 11,
+                            background: "rgba(158,216,207,0.12)",
+                            borderColor: "rgba(158,216,207,0.22)",
+                            color: "#bfe8df",
+                          }}
+                        >
+                          TEAM
+                        </span>
                       )}
                     </div>
                   </Link>
@@ -281,12 +305,12 @@ export default function CasesPage() {
             setRenameValue("");
           }}
         >
-          <Card className="card-modal case-modal-card">
+          <Card className="card-modal case-modal-card app-card">
             <div
               style={{ padding: 24 }}
               onClick={(e) => e.stopPropagation()}
             >
-              <h3 className="case-modal-title">Rename Case</h3>
+              <h3 className="case-modal-title" style={{ color: "rgba(246,252,255,0.96)" }}>Rename Case</h3>
 
               <input
                 type="text"
@@ -335,7 +359,7 @@ export default function CasesPage() {
             setDeletingId(null);
           }}
         >
-          <Card className="card-modal case-modal-card">
+          <Card className="card-modal case-modal-card app-card">
             <div
               style={{ padding: 24 }}
               onClick={(e) => e.stopPropagation()}

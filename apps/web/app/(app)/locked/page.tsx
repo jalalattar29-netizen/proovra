@@ -71,184 +71,168 @@ export default function LockedEvidencePage() {
     void loadLockedEvidence();
   }, [loadLockedEvidence]);
 
-  return (
-    <div className="section app-section">
-      <div className="app-hero app-hero-full">
-        <div className="container">
-          <div
-            className="page-title app-page-title"
-            style={{ alignItems: "center", marginBottom: 0 }}
-          >
-            <div>
-              <h1
-                className="hero-title pricing-hero-title"
-                style={{ margin: 0 }}
-              >
-                Locked Evidence
-              </h1>
-              <p
-                className="page-subtitle pricing-subtitle"
-                style={{ marginTop: 6 }}
-              >
-                Review permanently sealed evidence records that were removed
-                from the active workspace.
-              </p>
-            </div>
-
-            <Link href="/evidence">
-            </Link>
+return (
+  <div className="section app-section">
+    <div className="app-hero app-hero-full">
+      <div className="container">
+        <div className="page-title app-page-title" style={{ alignItems: "center", marginBottom: 0 }}>
+          <div>
+            <h1 className="hero-title pricing-hero-title" style={{ margin: 0 }}>
+              Locked Evidence
+            </h1>
+            <p className="page-subtitle pricing-subtitle" style={{ marginTop: 6 }}>
+              Review permanently sealed evidence records that were removed from the active workspace.
+            </p>
           </div>
+
+          <Link href="/evidence" style={{ textDecoration: "none" }}>
+            <Button variant="secondary">Open Evidence</Button>
+          </Link>
         </div>
       </div>
+    </div>
 
-      <div className="app-body app-body-full">
-        <div className="container">
-          <Card className="app-card">
-            <div className="app-card-title">Locked Records</div>
+    <div className="app-body app-body-full">
+      <div className="container">
+        <Card className="app-card">
+          <div className="app-card-title">Locked Records</div>
 
-            <div
-              style={{
-                marginBottom: 16,
-                padding: 14,
-                borderRadius: 12,
-                border: "1px solid rgba(96, 165, 250, 0.16)",
-                background:
-                  "linear-gradient(135deg, rgba(30,41,59,0.22), rgba(15,23,42,0.18))",
-                color: "#bfdbfe",
-                fontSize: 14,
-                lineHeight: 1.65,
-              }}
-            >
-              Items shown here are permanently sealed evidence records. They are
-              excluded from the active evidence list to keep the workspace clean,
-              while remaining fully preserved for review.
+          <div
+            style={{
+              marginBottom: 16,
+              padding: 14,
+              borderRadius: 14,
+              border: "1px solid rgba(214,184,157,0.18)",
+              background:
+                "linear-gradient(135deg, rgba(183,157,132,0.10), rgba(15,23,42,0.18))",
+              color: "#e6c9ae",
+              fontSize: 14,
+              lineHeight: 1.7,
+            }}
+          >
+            Items shown here are permanently sealed evidence records. They are excluded from the active
+            evidence list to keep the workspace clean, while remaining fully preserved for review.
+          </div>
+
+          {loading ? (
+            <div style={{ display: "grid", gap: 12 }}>
+              <Skeleton width="100%" height="72px" />
+              <Skeleton width="100%" height="72px" />
+              <Skeleton width="100%" height="72px" />
             </div>
-
-            {loading ? (
-              <div style={{ display: "grid", gap: 12 }}>
-                <Skeleton width="100%" height="72px" />
-                <Skeleton width="100%" height="72px" />
-                <Skeleton width="100%" height="72px" />
-              </div>
-            ) : error ? (
-              <div className="app-inline-error">{error}</div>
-            ) : items.length === 0 ? (
-              <EmptyState
-                title="No locked evidence"
-                subtitle="You do not have any permanently locked evidence yet."
-                action={() => (
-                  <Link href="/evidence">
-                    <Button className="navy-btn">Open Evidence</Button>
-                  </Link>
-                )}
-              />
-            ) : (
-              <div style={{ display: "grid", gap: 14 }}>
-                {items.map((item) => (
+          ) : error ? (
+            <div className="app-inline-error">{error}</div>
+          ) : items.length === 0 ? (
+            <EmptyState
+              title="No locked evidence"
+              subtitle="You do not have any permanently locked evidence yet."
+              action={() => (
+                <Link href="/evidence">
+                  <Button className="navy-btn">Open Evidence</Button>
+                </Link>
+              )}
+            />
+          ) : (
+            <div style={{ display: "grid", gap: 14 }}>
+              {items.map((item) => (
+                <div
+                  key={item.id}
+                  style={{
+                    display: "grid",
+                    gap: 12,
+                    padding: 16,
+                    borderRadius: 16,
+                    border: "1px solid rgba(255,255,255,0.08)",
+                    background: "rgba(255,255,255,0.035)",
+                  }}
+                >
                   <div
-                    key={item.id}
                     style={{
-                      display: "grid",
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "flex-start",
                       gap: 12,
-                      padding: 16,
-                      borderRadius: 14,
-                      border: "1px solid rgba(148, 163, 184, 0.14)",
-                      background: "rgba(15, 23, 42, 0.32)",
+                      flexWrap: "wrap",
                     }}
                   >
-                    <div
-                      style={{
-                        display: "flex",
-                        justifyContent: "space-between",
-                        alignItems: "flex-start",
-                        gap: 12,
-                        flexWrap: "wrap",
-                      }}
-                    >
-                      <div style={{ minWidth: 0 }}>
-                        <div
-                          style={{
-                            fontSize: 18,
-                            fontWeight: 800,
-                            color: "#f8fafc",
-                            wordBreak: "break-word",
-                          }}
-                        >
-                          {item.title || "Digital Evidence Record"}
-                        </div>
-
-                        <div
-                          style={{
-                            marginTop: 6,
-                            fontSize: 13,
-                            color: "#94a3b8",
-                            lineHeight: 1.6,
-                          }}
-                        >
-                          {item.displaySubtitle}
-                        </div>
+                    <div style={{ minWidth: 0 }}>
+                      <div
+                        style={{
+                          fontSize: 18,
+                          fontWeight: 700,
+                          color: "rgba(246,252,255,0.96)",
+                          wordBreak: "break-word",
+                          letterSpacing: "-0.02em",
+                        }}
+                      >
+                        {item.title || "Digital Evidence Record"}
                       </div>
 
                       <div
                         style={{
-                          display: "inline-flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          minHeight: 32,
-                          padding: "7px 11px",
-                          borderRadius: 999,
-                          fontSize: 12,
-                          fontWeight: 800,
-                          letterSpacing: "0.04em",
-                          textTransform: "uppercase",
-                          border: "1px solid rgba(96, 165, 250, 0.22)",
-                          background: "rgba(96, 165, 250, 0.12)",
-                          color: "#93c5fd",
+                          marginTop: 6,
+                          fontSize: 13,
+                          color: "rgba(219,235,248,0.72)",
+                          lineHeight: 1.6,
                         }}
                       >
-                        Locked
+                        {item.displaySubtitle}
                       </div>
                     </div>
 
                     <div
                       style={{
-                        display: "grid",
-                        gap: 6,
-                        fontSize: 13,
-                        color: "#cbd5e1",
-                        lineHeight: 1.6,
+                        display: "inline-flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        minHeight: 32,
+                        padding: "7px 11px",
+                        borderRadius: 999,
+                        fontSize: 12,
+                        fontWeight: 800,
+                        letterSpacing: "0.04em",
+                        textTransform: "uppercase",
+                        border: "1px solid rgba(214,184,157,0.22)",
+                        background: "rgba(214,184,157,0.12)",
+                        color: "#e6c9ae",
                       }}
                     >
-                      <div>
-                        <strong>Locked At:</strong>{" "}
-                        {formatUtcDateTime(item.lockedAt)}
-                      </div>
-                      <div>
-                        <strong>Items:</strong> {item.itemCount}
-                      </div>
-                      <div>
-                        <strong>Legal State:</strong> Permanently sealed
-                      </div>
-                    </div>
-
-                    <div
-                      style={{
-                        display: "flex",
-                        gap: 10,
-                        flexWrap: "wrap",
-                      }}
-                    >
-                      <Link href={`/evidence/${item.id}`}>
-                        <Button variant="secondary">Open Record</Button>
-                      </Link>
+                      Locked
                     </div>
                   </div>
-                ))}
-              </div>
-            )}
-          </Card>
-        </div>
+
+                  <div
+                    style={{
+                      display: "grid",
+                      gap: 6,
+                      fontSize: 13,
+                      color: "rgba(219,235,248,0.82)",
+                      lineHeight: 1.6,
+                    }}
+                  >
+                    <div>
+                      <strong style={{ color: "#f3f7f5" }}>Locked At:</strong> {formatUtcDateTime(item.lockedAt)}
+                    </div>
+                    <div>
+                      <strong style={{ color: "#f3f7f5" }}>Items:</strong> {item.itemCount}
+                    </div>
+                    <div>
+                      <strong style={{ color: "#f3f7f5" }}>Legal State:</strong> Permanently sealed
+                    </div>
+                  </div>
+
+                  <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                    <Link href={`/evidence/${item.id}`}>
+                      <Button variant="secondary">Open Record</Button>
+                    </Link>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </Card>
       </div>
     </div>
-  );
+  </div>
+);
 }

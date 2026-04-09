@@ -1,191 +1,405 @@
-// D:\digital-witness\apps\web\app\about\page.tsx
 "use client";
 
-import { SilverWatermarkSection } from "../../components/SilverWatermarkSection";
 import { MarketingHeader } from "../../components/header";
 import { Footer } from "../../components/Footer";
 
 export default function AboutPage() {
   return (
     <div className="page landing-page about-page">
-      <div className="blue-shell">
-        <MarketingHeader />
+      <div className="relative min-h-screen overflow-hidden">
+        <div className="absolute inset-0">
+          <img
+            src="/images/site-velvet-bg.webp.png"
+            alt=""
+            className="h-full w-full object-cover object-center"
+          />
+        </div>
 
-        <section className="section container hero-section-tight">
-          <h1 className="hero-title">About PROO✓RA</h1>
-          <p className="page-subtitle" style={{ marginTop: 10, maxWidth: 820 }}>
-PROO✓RA is a verifiable digital evidence platform that enables you to capture, seal, and prove the integrity of digital content using cryptographic fingerprints, trusted timestamps, and a transparent chain of custody.
-          </p>
-        </section>
-      </div>
+        <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(8,18,22,0.84)_0%,rgba(8,18,22,0.74)_34%,rgba(8,18,22,0.68)_100%)]" />
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_16%_14%,rgba(158,216,207,0.08),transparent_24%)]" />
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_84%_22%,rgba(214,184,157,0.06),transparent_18%)]" />
+        <div className="absolute inset-0 opacity-[0.035] [background:repeating-linear-gradient(0deg,rgba(255,255,255,0.022)_0px,rgba(255,255,255,0.022)_1px,transparent_1px,transparent_4px)]" />
 
-      <SilverWatermarkSection className="section section-body">
-        <div className="container">
-          {/* Top summary grid */}
-          <div className="about-grid">
-            <div className="about-card">
-              <div className="about-kicker">At a glance</div>
-              <ul className="about-list">
-                <li>Capture evidence with context and timestamps.</li>
-                <li>Lock integrity using cryptographic fingerprints.</li>
-                <li>Review custody events in a clear timeline.</li>
-                <li>Verify &amp; share via a neutral verification view or PDF report.</li>
-              </ul>
-            </div>
+        <div className="relative z-10 flex min-h-screen flex-col">
+          <MarketingHeader />
 
-            <div className="about-card">
-              <div className="about-kicker">How it works</div>
-              <ol className="about-list about-list--ordered">
-                <li>
-                  <strong>Capture</strong> a photo, video, document, or file with context.
-                </li>
-                <li>
-                  <strong>Fingerprint</strong> it cryptographically to create a verifiable integrity record.
-                </li>
-                <li>
-                  <strong>Custody</strong> events form a timeline that can be reviewed later.
-                </li>
-                <li>
-                  <strong>Verify &amp; report</strong> through a shareable verification view or PDF output.
-                </li>
-              </ol>
-            </div>
+          <section className="mx-auto w-full max-w-7xl px-6 pb-10 pt-10 md:px-8 md:pb-12 md:pt-14">
+            <div className="max-w-[900px]">
+              <div className="inline-flex rounded-full border border-white/10 bg-white/[0.055] px-4 py-2 text-[0.74rem] font-medium uppercase tracking-[0.2em] text-[#dce3e0] shadow-[0_10px_24px_rgba(0,0,0,0.10)] backdrop-blur-md">
+                About
+              </div>
 
-            <div className="about-card">
-              <div className="about-kicker">Important note</div>
-              <p className="about-muted" style={{ marginTop: 10 }}>
-                PROO✓RA is not a court, a law-enforcement authority, or a legal service provider. Verification confirms
-                the integrity and provenance of digital evidence — not the truthfulness or legal validity of the content
-                itself.
+              <h1 className="mt-5 max-w-[760px] text-[2rem] font-medium leading-[0.98] tracking-[-0.045em] text-[#edf1ef] md:text-[2.7rem] xl:text-[3.25rem]">
+                About PROO✓RA
+              </h1>
+
+              <p className="mt-5 max-w-[820px] text-[1rem] leading-[1.82] tracking-[-0.006em] text-[#c7cfcc]">
+                PROO✓RA is a verifiable digital evidence platform that enables you to capture,
+                seal, and prove the integrity of digital content using cryptographic fingerprints,
+                trusted timestamps, and a transparent chain of custody.
               </p>
-            </div>
-          </div>
 
-          {/* Main content (clean typography) */}
-          <div className="about-prose">
-            <h3>Why PROO✓RA exists</h3>
-            <p>
-              In a world where digital content can be altered, disputed, or dismissed in seconds, trust has become
-              fragile. PROO✓RA exists to restore that trust — by making integrity independently verifiable.
-            </p>
+              <div className="mt-6 flex flex-wrap gap-2.5">
+                <div className="rounded-full border border-white/10 bg-white/[0.055] px-3.5 py-2 text-[0.78rem] text-[#d7dfdb] shadow-[0_8px_18px_rgba(0,0,0,0.08)] backdrop-blur-md">
+                  <span className="mr-2 text-[#9dd2ca]">✓</span>
+                  Integrity-first platform
+                </div>
 
-            <h3>What makes PROO✓RA different</h3>
-            <div className="about-card about-card--inline">
-  <div className="about-kicker">Integrity & Verification Stack</div>
-  <ul className="about-list">
-    <li>Cryptographic hashing (SHA-256) to fingerprint every file</li>
-    <li>Trusted timestamping (TSA) for time-based proof</li>
-    <li>Optional independent anchoring (e.g. OpenTimestamps)</li>
-    <li>Immutable chain-of-custody tracking</li>
-    <li>Signed PDF reports for external verification</li>
-  </ul>
-</div>
-            <p>
-              PROO✓RA is not just storage. It is not file sharing. And it is not a legal shortcut. It is a verifiable, cryptographically-backed evidence system designed for high-trust environments.
-            </p>
+                <div className="rounded-full border border-white/10 bg-white/[0.055] px-3.5 py-2 text-[0.78rem] text-[#d7dfdb] shadow-[0_8px_18px_rgba(0,0,0,0.08)] backdrop-blur-md">
+                  <span className="mr-2 text-[#9dd2ca]">✓</span>
+                  Verification-ready workflows
+                </div>
 
-            <div className="about-card about-card--inline">
-              <div className="about-kicker">Every supported file can be</div>
-              <ul className="about-list">
-                <li>cryptographically fingerprinted,</li>
-                <li>securely stored,</li>
-                <li>time-bound to a verifiable moment,</li>
-                <li>linked to an immutable custody record,</li>
-                <li>independently verified without exposing the original content.</li>
-              </ul>
-            </div>
-
-            <h3>Who PROO✓RA is built for</h3>
-            <p className="about-muted">Teams that need proof that stands up to scrutiny — not screenshots.</p>
-
-            <div className="about-two-col">
-              <div className="about-card about-card--inline">
-                <div className="about-kicker">Common users</div>
-                <ul className="about-list">
-                  <li>legal professionals preparing or defending cases,</li>
-                  <li>compliance and risk teams documenting critical events,</li>
-                  <li>journalists and investigators protecting source material,</li>
-                  <li>companies safeguarding sensitive operational evidence,</li>
-                  <li>insurance and claims teams handling disputes.</li>
-                </ul>
-              </div>
-
-              <div className="about-card about-card--inline">
-                <div className="about-kicker">Principles</div>
-                <ul className="about-list">
-                  <li>Integrity first — evidence must speak for itself.</li>
-                  <li>No silent modifications — changes are visible or impossible.</li>
-                  <li>User control — you decide what to capture and what to share.</li>
-                  <li>Neutral by design — we preserve integrity, not meaning.</li>
-                  <li>Built for scrutiny — outputs are designed to be questioned.</li>
-                </ul>
+                <div className="rounded-full border border-[rgba(214,184,157,0.24)] bg-[linear-gradient(180deg,rgba(183,157,132,0.08)_0%,rgba(255,255,255,0.03)_100%)] px-3.5 py-2 text-[0.78rem] text-[#e1d4c7] shadow-[0_8px_18px_rgba(0,0,0,0.08)] backdrop-blur-md">
+                  <span className="mr-2 text-[#d6b89d]">✓</span>
+                  Built for scrutiny
+                </div>
               </div>
             </div>
+          </section>
 
-            <h3>Limitations</h3>
-            <h3>Verification, not trust</h3>
-<p>
-  PROO✓RA is designed so that evidence does not need to be trusted — it can be independently verified.
-  Anyone with access to the verification data can confirm integrity without relying on PROO✓RA itself.
-</p>
-            <ul className="about-list">
-              <li>PROO✓RA does not provide legal advice.</li>
-              <li>PROO✓RA does not guarantee admissibility in any jurisdiction.</li>
-              <li>PROO✓RA does not replace legal, forensic, or investigative professionals.</li>
-            </ul>
-          </div>
+          <section className="relative overflow-hidden bg-[#c9cfcd] pb-16 pt-6 md:pb-20">
+            <div className="pointer-events-none absolute inset-0" aria-hidden="true">
+              <img
+                src="/images/landing-network-bg.png"
+                alt=""
+                className="absolute inset-0 h-full w-full object-cover object-top opacity-[0.12] saturate-[0.55] brightness-[1.02] contrast-[0.94]"
+              />
+
+              <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(201,207,205,0.16)_0%,rgba(201,207,205,0.08)_22%,rgba(201,207,205,0.08)_78%,rgba(201,207,205,0.16)_100%)]" />
+              <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(201,207,205,0.18)_0%,rgba(201,207,205,0.06)_12%,rgba(201,207,205,0.00)_24%,rgba(201,207,205,0.00)_76%,rgba(201,207,205,0.06)_88%,rgba(201,207,205,0.18)_100%)]" />
+              <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_14%,rgba(255,255,255,0.10),transparent_18%)]" />
+              <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_52%,rgba(255,255,255,0.06),transparent_26%)]" />
+              <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_88%,rgba(255,255,255,0.04),transparent_24%)]" />
+              <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.028)_0%,rgba(255,255,255,0.012)_100%)]" />
+            </div>
+
+            <div className="container relative z-10">
+              <div className="grid gap-6 lg:grid-cols-3">
+                <div className="relative overflow-hidden rounded-[30px] border border-[rgba(79,112,107,0.22)] shadow-[0_30px_80px_rgba(0,0,0,0.14)]">
+                  <img
+                    src="/images/panel-silver.webp.png"
+                    alt=""
+                    className="absolute inset-0 h-full w-full object-cover object-center"
+                  />
+                  <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.28)_0%,rgba(245,247,244,0.45)_50%,rgba(236,239,236,0.58)_100%)]" />
+                  <div className="absolute inset-0 bg-[radial-gradient(circle_at_85%_18%,rgba(214,184,157,0.18),transparent_38%)]" />
+                  <div className="relative z-10 p-6 md:p-7">
+                    <div className="text-[0.76rem] font-semibold uppercase tracking-[0.24em] text-[#8e7863]">
+                      At a glance
+                    </div>
+                    <ul className="mt-4 grid gap-3">
+                      <li className="relative list-none pl-6 text-[0.98rem] leading-[1.8] text-[#55666a] before:absolute before:left-0 before:top-[0.78rem] before:h-2 before:w-2 before:rounded-full before:bg-[#7ea9a2] before:content-['']">
+                        Capture evidence with context and timestamps.
+                      </li>
+                      <li className="relative list-none pl-6 text-[0.98rem] leading-[1.8] text-[#55666a] before:absolute before:left-0 before:top-[0.78rem] before:h-2 before:w-2 before:rounded-full before:bg-[#7ea9a2] before:content-['']">
+                        Lock integrity using cryptographic fingerprints.
+                      </li>
+                      <li className="relative list-none pl-6 text-[0.98rem] leading-[1.8] text-[#55666a] before:absolute before:left-0 before:top-[0.78rem] before:h-2 before:w-2 before:rounded-full before:bg-[#7ea9a2] before:content-['']">
+                        Review custody events in a clear timeline.
+                      </li>
+                      <li className="relative list-none pl-6 text-[0.98rem] leading-[1.8] text-[#55666a] before:absolute before:left-0 before:top-[0.78rem] before:h-2 before:w-2 before:rounded-full before:bg-[#7ea9a2] before:content-['']">
+                        Verify &amp; share via a neutral verification view or PDF report.
+                      </li>
+                    </ul>
+                  </div>
+                </div>
+
+                <div className="relative overflow-hidden rounded-[30px] border border-[rgba(79,112,107,0.22)] shadow-[0_30px_80px_rgba(0,0,0,0.14)]">
+                  <img
+                    src="/images/panel-silver.webp.png"
+                    alt=""
+                    className="absolute inset-0 h-full w-full object-cover object-center"
+                  />
+                  <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.28)_0%,rgba(245,247,244,0.45)_50%,rgba(236,239,236,0.58)_100%)]" />
+                  <div className="absolute inset-0 bg-[radial-gradient(circle_at_85%_18%,rgba(214,184,157,0.18),transparent_38%)]" />
+                  <div className="relative z-10 p-6 md:p-7">
+                    <div className="text-[0.76rem] font-semibold uppercase tracking-[0.24em] text-[#8e7863]">
+                      How it works
+                    </div>
+                    <ol className="mt-4 grid gap-3 counter-reset-[about-counter]">
+                      <li className="relative list-none pl-10 text-[0.98rem] leading-[1.8] text-[#55666a] before:absolute before:left-0 before:top-[0.18rem] before:flex before:h-7 before:w-7 before:items-center before:justify-center before:rounded-full before:border before:border-[rgba(183,157,132,0.28)] before:bg-[rgba(183,157,132,0.10)] before:text-[0.78rem] before:font-semibold before:text-[#8f735a] before:content-[counter(about-counter)] [counter-increment:about-counter]">
+                        <strong className="font-semibold text-[#1f3438]">Capture</strong> a photo,
+                        video, document, or file with context.
+                      </li>
+                      <li className="relative list-none pl-10 text-[0.98rem] leading-[1.8] text-[#55666a] before:absolute before:left-0 before:top-[0.18rem] before:flex before:h-7 before:w-7 before:items-center before:justify-center before:rounded-full before:border before:border-[rgba(183,157,132,0.28)] before:bg-[rgba(183,157,132,0.10)] before:text-[0.78rem] before:font-semibold before:text-[#8f735a] before:content-[counter(about-counter)] [counter-increment:about-counter]">
+                        <strong className="font-semibold text-[#1f3438]">Fingerprint</strong> it
+                        cryptographically to create a verifiable integrity record.
+                      </li>
+                      <li className="relative list-none pl-10 text-[0.98rem] leading-[1.8] text-[#55666a] before:absolute before:left-0 before:top-[0.18rem] before:flex before:h-7 before:w-7 before:items-center before:justify-center before:rounded-full before:border before:border-[rgba(183,157,132,0.28)] before:bg-[rgba(183,157,132,0.10)] before:text-[0.78rem] before:font-semibold before:text-[#8f735a] before:content-[counter(about-counter)] [counter-increment:about-counter]">
+                        <strong className="font-semibold text-[#1f3438]">Custody</strong> events
+                        form a timeline that can be reviewed later.
+                      </li>
+                      <li className="relative list-none pl-10 text-[0.98rem] leading-[1.8] text-[#55666a] before:absolute before:left-0 before:top-[0.18rem] before:flex before:h-7 before:w-7 before:items-center before:justify-center before:rounded-full before:border before:border-[rgba(183,157,132,0.28)] before:bg-[rgba(183,157,132,0.10)] before:text-[0.78rem] before:font-semibold before:text-[#8f735a] before:content-[counter(about-counter)] [counter-increment:about-counter]">
+                        <strong className="font-semibold text-[#1f3438]">Verify &amp; report</strong>{" "}
+                        through a shareable verification view or PDF output.
+                      </li>
+                    </ol>
+                  </div>
+                </div>
+
+                <div className="relative overflow-hidden rounded-[30px] border border-[rgba(79,112,107,0.22)] shadow-[0_30px_80px_rgba(0,0,0,0.14)]">
+                  <img
+                    src="/images/panel-silver.webp.png"
+                    alt=""
+                    className="absolute inset-0 h-full w-full object-cover object-center"
+                  />
+                  <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.28)_0%,rgba(245,247,244,0.45)_50%,rgba(236,239,236,0.58)_100%)]" />
+                  <div className="absolute inset-0 bg-[radial-gradient(circle_at_85%_18%,rgba(214,184,157,0.18),transparent_38%)]" />
+                  <div className="relative z-10 p-6 md:p-7">
+                    <div className="text-[0.76rem] font-semibold uppercase tracking-[0.24em] text-[#8e7863]">
+                      Important note
+                    </div>
+                    <p className="mt-4 text-[0.98rem] leading-[1.88] text-[#55666a]">
+                      PROO✓RA is not a court, a law-enforcement authority, or a legal service
+                      provider. Verification confirms the integrity and provenance of digital
+                      evidence — not the truthfulness or legal validity of the content itself.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-6 relative overflow-hidden rounded-[30px] border border-[rgba(79,112,107,0.22)] shadow-[0_30px_80px_rgba(0,0,0,0.14)]">
+                <img
+                  src="/images/panel-silver.webp.png"
+                  alt=""
+                  className="absolute inset-0 h-full w-full object-cover object-center"
+                />
+                <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.28)_0%,rgba(245,247,244,0.45)_50%,rgba(236,239,236,0.58)_100%)]" />
+                <div className="absolute inset-0 bg-[radial-gradient(circle_at_85%_18%,rgba(214,184,157,0.18),transparent_38%)]" />
+
+                <div className="relative z-10 px-6 py-7 md:px-10 md:py-10 lg:px-12 lg:py-12 text-[#33464a]">
+                  <h2 className="mb-4 text-[1.42rem] font-semibold leading-[1.15] tracking-[-0.03em] text-[#1d3136]">
+                    Why PROO✓RA exists
+                  </h2>
+                  <p className="mb-6 text-[0.98rem] leading-[1.92] text-[#55666a]">
+                    In a world where digital content can be altered, disputed, or dismissed in
+                    seconds, trust has become fragile. PROO✓RA exists to restore that trust — by
+                    making integrity independently verifiable.
+                  </p>
+
+                  <h2 className="mb-4 mt-10 text-[1.42rem] font-semibold leading-[1.15] tracking-[-0.03em] text-[#1d3136]">
+                    What makes PROO✓RA different
+                  </h2>
+
+                  <div className="mb-6 rounded-[24px] border border-[rgba(79,112,107,0.18)] bg-[rgba(255,255,255,0.30)] p-6 shadow-[0_12px_28px_rgba(0,0,0,0.05)]">
+                    <div className="text-[0.76rem] font-semibold uppercase tracking-[0.24em] text-[#8e7863]">
+                      Integrity &amp; Verification Stack
+                    </div>
+                    <ul className="mt-4 grid gap-3">
+                      <li className="relative list-none pl-6 text-[0.98rem] leading-[1.8] text-[#55666a] before:absolute before:left-0 before:top-[0.78rem] before:h-2 before:w-2 before:rounded-full before:bg-[#7ea9a2] before:content-['']">
+                        Cryptographic hashing (SHA-256) to fingerprint every file
+                      </li>
+                      <li className="relative list-none pl-6 text-[0.98rem] leading-[1.8] text-[#55666a] before:absolute before:left-0 before:top-[0.78rem] before:h-2 before:w-2 before:rounded-full before:bg-[#7ea9a2] before:content-['']">
+                        Trusted timestamping (TSA) for time-based proof
+                      </li>
+                      <li className="relative list-none pl-6 text-[0.98rem] leading-[1.8] text-[#55666a] before:absolute before:left-0 before:top-[0.78rem] before:h-2 before:w-2 before:rounded-full before:bg-[#7ea9a2] before:content-['']">
+                        Optional independent anchoring (e.g. OpenTimestamps)
+                      </li>
+                      <li className="relative list-none pl-6 text-[0.98rem] leading-[1.8] text-[#55666a] before:absolute before:left-0 before:top-[0.78rem] before:h-2 before:w-2 before:rounded-full before:bg-[#7ea9a2] before:content-['']">
+                        Immutable chain-of-custody tracking
+                      </li>
+                      <li className="relative list-none pl-6 text-[0.98rem] leading-[1.8] text-[#55666a] before:absolute before:left-0 before:top-[0.78rem] before:h-2 before:w-2 before:rounded-full before:bg-[#7ea9a2] before:content-['']">
+                        Signed PDF reports for external verification
+                      </li>
+                    </ul>
+                  </div>
+
+                  <p className="mb-6 text-[0.98rem] leading-[1.92] text-[#55666a]">
+                    PROO✓RA is not just storage. It is not file sharing. And it is not a legal
+                    shortcut. It is a verifiable, cryptographically-backed evidence system designed
+                    for high-trust environments.
+                  </p>
+
+                  <div className="mb-6 rounded-[24px] border border-[rgba(79,112,107,0.18)] bg-[rgba(255,255,255,0.30)] p-6 shadow-[0_12px_28px_rgba(0,0,0,0.05)]">
+                    <div className="text-[0.76rem] font-semibold uppercase tracking-[0.24em] text-[#8e7863]">
+                      Every supported file can be
+                    </div>
+                    <ul className="mt-4 grid gap-3">
+                      <li className="relative list-none pl-6 text-[0.98rem] leading-[1.8] text-[#55666a] before:absolute before:left-0 before:top-[0.78rem] before:h-2 before:w-2 before:rounded-full before:bg-[#7ea9a2] before:content-['']">
+                        cryptographically fingerprinted,
+                      </li>
+                      <li className="relative list-none pl-6 text-[0.98rem] leading-[1.8] text-[#55666a] before:absolute before:left-0 before:top-[0.78rem] before:h-2 before:w-2 before:rounded-full before:bg-[#7ea9a2] before:content-['']">
+                        securely stored,
+                      </li>
+                      <li className="relative list-none pl-6 text-[0.98rem] leading-[1.8] text-[#55666a] before:absolute before:left-0 before:top-[0.78rem] before:h-2 before:w-2 before:rounded-full before:bg-[#7ea9a2] before:content-['']">
+                        time-bound to a verifiable moment,
+                      </li>
+                      <li className="relative list-none pl-6 text-[0.98rem] leading-[1.8] text-[#55666a] before:absolute before:left-0 before:top-[0.78rem] before:h-2 before:w-2 before:rounded-full before:bg-[#7ea9a2] before:content-['']">
+                        linked to an immutable custody record,
+                      </li>
+                      <li className="relative list-none pl-6 text-[0.98rem] leading-[1.8] text-[#55666a] before:absolute before:left-0 before:top-[0.78rem] before:h-2 before:w-2 before:rounded-full before:bg-[#7ea9a2] before:content-['']">
+                        independently verified without exposing the original content.
+                      </li>
+                    </ul>
+                  </div>
+
+                  <h2 className="mb-4 mt-10 text-[1.42rem] font-semibold leading-[1.15] tracking-[-0.03em] text-[#1d3136]">
+                    Who PROO✓RA is built for
+                  </h2>
+                  <p className="mb-6 text-[0.98rem] leading-[1.92] text-[#55666a]">
+                    Teams that need proof that stands up to scrutiny — not screenshots.
+                  </p>
+
+                  <div className="grid gap-6 lg:grid-cols-2">
+                    <div className="rounded-[24px] border border-[rgba(79,112,107,0.18)] bg-[rgba(255,255,255,0.30)] p-6 shadow-[0_12px_28px_rgba(0,0,0,0.05)]">
+                      <div className="text-[0.76rem] font-semibold uppercase tracking-[0.24em] text-[#8e7863]">
+                        Common users
+                      </div>
+                      <ul className="mt-4 grid gap-3">
+                        <li className="relative list-none pl-6 text-[0.98rem] leading-[1.8] text-[#55666a] before:absolute before:left-0 before:top-[0.78rem] before:h-2 before:w-2 before:rounded-full before:bg-[#7ea9a2] before:content-['']">
+                          legal professionals preparing or defending cases,
+                        </li>
+                        <li className="relative list-none pl-6 text-[0.98rem] leading-[1.8] text-[#55666a] before:absolute before:left-0 before:top-[0.78rem] before:h-2 before:w-2 before:rounded-full before:bg-[#7ea9a2] before:content-['']">
+                          compliance and risk teams documenting critical events,
+                        </li>
+                        <li className="relative list-none pl-6 text-[0.98rem] leading-[1.8] text-[#55666a] before:absolute before:left-0 before:top-[0.78rem] before:h-2 before:w-2 before:rounded-full before:bg-[#7ea9a2] before:content-['']">
+                          journalists and investigators protecting source material,
+                        </li>
+                        <li className="relative list-none pl-6 text-[0.98rem] leading-[1.8] text-[#55666a] before:absolute before:left-0 before:top-[0.78rem] before:h-2 before:w-2 before:rounded-full before:bg-[#7ea9a2] before:content-['']">
+                          companies safeguarding sensitive operational evidence,
+                        </li>
+                        <li className="relative list-none pl-6 text-[0.98rem] leading-[1.8] text-[#55666a] before:absolute before:left-0 before:top-[0.78rem] before:h-2 before:w-2 before:rounded-full before:bg-[#7ea9a2] before:content-['']">
+                          insurance and claims teams handling disputes.
+                        </li>
+                      </ul>
+                    </div>
+
+                    <div className="rounded-[24px] border border-[rgba(79,112,107,0.18)] bg-[rgba(255,255,255,0.30)] p-6 shadow-[0_12px_28px_rgba(0,0,0,0.05)]">
+                      <div className="text-[0.76rem] font-semibold uppercase tracking-[0.24em] text-[#8e7863]">
+                        Principles
+                      </div>
+                      <ul className="mt-4 grid gap-3">
+                        <li className="relative list-none pl-6 text-[0.98rem] leading-[1.8] text-[#55666a] before:absolute before:left-0 before:top-[0.78rem] before:h-2 before:w-2 before:rounded-full before:bg-[#7ea9a2] before:content-['']">
+                          Integrity first — evidence must speak for itself.
+                        </li>
+                        <li className="relative list-none pl-6 text-[0.98rem] leading-[1.8] text-[#55666a] before:absolute before:left-0 before:top-[0.78rem] before:h-2 before:w-2 before:rounded-full before:bg-[#7ea9a2] before:content-['']">
+                          No silent modifications — changes are visible or impossible.
+                        </li>
+                        <li className="relative list-none pl-6 text-[0.98rem] leading-[1.8] text-[#55666a] before:absolute before:left-0 before:top-[0.78rem] before:h-2 before:w-2 before:rounded-full before:bg-[#7ea9a2] before:content-['']">
+                          User control — you decide what to capture and what to share.
+                        </li>
+                        <li className="relative list-none pl-6 text-[0.98rem] leading-[1.8] text-[#55666a] before:absolute before:left-0 before:top-[0.78rem] before:h-2 before:w-2 before:rounded-full before:bg-[#7ea9a2] before:content-['']">
+                          Neutral by design — we preserve integrity, not meaning.
+                        </li>
+                        <li className="relative list-none pl-6 text-[0.98rem] leading-[1.8] text-[#55666a] before:absolute before:left-0 before:top-[0.78rem] before:h-2 before:w-2 before:rounded-full before:bg-[#7ea9a2] before:content-['']">
+                          Built for scrutiny — outputs are designed to be questioned.
+                        </li>
+                      </ul>
+                    </div>
+                  </div>
+
+                  <h2 className="mb-4 mt-10 text-[1.42rem] font-semibold leading-[1.15] tracking-[-0.03em] text-[#1d3136]">
+                    Limitations
+                  </h2>
+
+                  <h3 className="mb-3 mt-8 text-[1.05rem] font-semibold uppercase tracking-[0.14em] text-[#8e7863]">
+                    Verification, not trust
+                  </h3>
+                  <p className="mb-6 text-[0.98rem] leading-[1.92] text-[#55666a]">
+                    PROO✓RA is designed so that evidence does not need to be trusted — it can be
+                    independently verified. Anyone with access to the verification data can confirm
+                    integrity without relying on PROO✓RA itself.
+                  </p>
+
+                  <ul className="grid gap-3">
+                    <li className="relative list-none pl-6 text-[0.98rem] leading-[1.8] text-[#55666a] before:absolute before:left-0 before:top-[0.78rem] before:h-2 before:w-2 before:rounded-full before:bg-[#7ea9a2] before:content-['']">
+                      PROO✓RA does not provide legal advice.
+                    </li>
+                    <li className="relative list-none pl-6 text-[0.98rem] leading-[1.8] text-[#55666a] before:absolute before:left-0 before:top-[0.78rem] before:h-2 before:w-2 before:rounded-full before:bg-[#7ea9a2] before:content-['']">
+                      PROO✓RA does not guarantee admissibility in any jurisdiction.
+                    </li>
+                    <li className="relative list-none pl-6 text-[0.98rem] leading-[1.8] text-[#55666a] before:absolute before:left-0 before:top-[0.78rem] before:h-2 before:w-2 before:rounded-full before:bg-[#7ea9a2] before:content-['']">
+                      PROO✓RA does not replace legal, forensic, or investigative professionals.
+                    </li>
+                  </ul>
+                </div>
+              </div>
+
+              <div className="mt-6 relative overflow-hidden rounded-[30px] border border-[rgba(79,112,107,0.22)] shadow-[0_30px_80px_rgba(0,0,0,0.14)]">
+                <img
+                  src="/images/panel-silver.webp.png"
+                  alt=""
+                  className="absolute inset-0 h-full w-full object-cover object-center"
+                />
+                <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.28)_0%,rgba(245,247,244,0.45)_50%,rgba(236,239,236,0.58)_100%)]" />
+                <div className="absolute inset-0 bg-[radial-gradient(circle_at_85%_18%,rgba(214,184,157,0.18),transparent_38%)]" />
+
+                <div className="relative z-10 px-6 py-7 md:px-10 md:py-10 lg:px-12 lg:py-12">
+                  <h2 className="mb-3 text-[1.6rem] font-semibold leading-[1.08] tracking-[-0.035em] text-[#1d3136]">
+                    Built for High-Stakes Environments
+                  </h2>
+
+                  <p className="mb-8 text-[0.98rem] leading-[1.88] text-[#55666a]">
+                    When outcomes carry legal, financial, or reputational consequences, evidence
+                    cannot rely on trust alone — it must withstand examination.
+                  </p>
+
+                  <div className="grid gap-8 lg:grid-cols-2">
+                    <div>
+                      <h3 className="mb-3 text-[1.05rem] font-semibold uppercase tracking-[0.14em] text-[#8e7863]">
+                        Legal &amp; dispute-driven use cases
+                      </h3>
+                      <ul className="grid gap-3">
+                        <li className="relative list-none pl-6 text-[0.98rem] leading-[1.8] text-[#55666a] before:absolute before:left-0 before:top-[0.78rem] before:h-2 before:w-2 before:rounded-full before:bg-[#7ea9a2] before:content-['']">
+                          Documenting incidents prior to litigation
+                        </li>
+                        <li className="relative list-none pl-6 text-[0.98rem] leading-[1.8] text-[#55666a] before:absolute before:left-0 before:top-[0.78rem] before:h-2 before:w-2 before:rounded-full before:bg-[#7ea9a2] before:content-['']">
+                          Preserving time-sensitive materials
+                        </li>
+                        <li className="relative list-none pl-6 text-[0.98rem] leading-[1.8] text-[#55666a] before:absolute before:left-0 before:top-[0.78rem] before:h-2 before:w-2 before:rounded-full before:bg-[#7ea9a2] before:content-['']">
+                          Supporting investigations and disclosure workflows
+                        </li>
+                        <li className="relative list-none pl-6 text-[0.98rem] leading-[1.8] text-[#55666a] before:absolute before:left-0 before:top-[0.78rem] before:h-2 before:w-2 before:rounded-full before:bg-[#7ea9a2] before:content-['']">
+                          Preparing evidence for review or expert analysis
+                        </li>
+                      </ul>
+                    </div>
+
+                    <div>
+                      <h3 className="mb-3 text-[1.05rem] font-semibold uppercase tracking-[0.14em] text-[#8e7863]">
+                        Corporate, compliance &amp; investigations
+                      </h3>
+                      <ul className="grid gap-3">
+                        <li className="relative list-none pl-6 text-[0.98rem] leading-[1.8] text-[#55666a] before:absolute before:left-0 before:top-[0.78rem] before:h-2 before:w-2 before:rounded-full before:bg-[#7ea9a2] before:content-['']">
+                          Incident reviews and internal investigations
+                        </li>
+                        <li className="relative list-none pl-6 text-[0.98rem] leading-[1.8] text-[#55666a] before:absolute before:left-0 before:top-[0.78rem] before:h-2 before:w-2 before:rounded-full before:bg-[#7ea9a2] before:content-['']">
+                          Regulatory / compliance documentation
+                        </li>
+                        <li className="relative list-none pl-6 text-[0.98rem] leading-[1.8] text-[#55666a] before:absolute before:left-0 before:top-[0.78rem] before:h-2 before:w-2 before:rounded-full before:bg-[#7ea9a2] before:content-['']">
+                          Whistleblower-related evidence handling
+                        </li>
+                        <li className="relative list-none pl-6 text-[0.98rem] leading-[1.8] text-[#55666a] before:absolute before:left-0 before:top-[0.78rem] before:h-2 before:w-2 before:rounded-full before:bg-[#7ea9a2] before:content-['']">
+                          Post-incident reporting and audits
+                        </li>
+                      </ul>
+                    </div>
+                  </div>
+
+                  <h3 className="mb-3 mt-10 text-[1.05rem] font-semibold uppercase tracking-[0.14em] text-[#8e7863]">
+                    Journalism &amp; sensitive documentation
+                  </h3>
+                  <p className="text-[0.98rem] leading-[1.88] text-[#55666a]">
+                    Preserve integrity without publicly exposing sources or raw content —
+                    verification can happen independently, while access stays controlled by the
+                    owner.
+                  </p>
+
+                  <div className="my-8 h-px bg-[linear-gradient(90deg,transparent_0%,rgba(79,112,107,0.18)_18%,rgba(183,157,132,0.26)_50%,rgba(79,112,107,0.18)_82%,transparent_100%)]" />
+
+                  <p className="mb-0 text-[0.92rem] leading-[1.8] text-[#6a787b]">
+                    PROO✓RA is a technical integrity platform. It does not provide legal advice
+                    and does not guarantee admissibility of evidence in any jurisdiction.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <Footer />
         </div>
-      </SilverWatermarkSection>
-
-      {/* High-stakes section: same card style */}
-      <SilverWatermarkSection className="section">
-        <div className="container">
-          <div className="about-card about-card--big">
-            <h2 style={{ marginTop: 0 }}>Built for High-Stakes Environments</h2>
-            <p className="about-muted">
-              When outcomes carry legal, financial, or reputational consequences, evidence cannot rely on trust alone —
-              it must withstand examination.
-            </p>
-
-            <div className="about-two-col">
-              <div>
-                <h3>Legal &amp; dispute-driven use cases</h3>
-                <ul className="about-list">
-                  <li>Documenting incidents prior to litigation</li>
-                  <li>Preserving time-sensitive materials</li>
-                  <li>Supporting investigations and disclosure workflows</li>
-                  <li>Preparing evidence for review or expert analysis</li>
-                </ul>
-              </div>
-
-              <div>
-                <h3>Corporate, compliance &amp; investigations</h3>
-                <ul className="about-list">
-                  <li>Incident reviews and internal investigations</li>
-                  <li>Regulatory / compliance documentation</li>
-                  <li>Whistleblower-related evidence handling</li>
-                  <li>Post-incident reporting and audits</li>
-                </ul>
-              </div>
-            </div>
-
-            <h3>Journalism &amp; sensitive documentation</h3>
-            <p className="about-muted" style={{ marginBottom: 0 }}>
-              Preserve integrity without publicly exposing sources or raw content — verification can happen
-              independently, while access stays controlled by the owner.
-            </p>
-
-            <div className="about-divider" />
-
-            <p className="about-footnote">
-              PROO✓RA is a technical integrity platform. It does not provide legal advice and does not guarantee
-              admissibility of evidence in any jurisdiction.
-            </p>
-          </div>
-        </div>
-      </SilverWatermarkSection>
-
-      <Footer />
+      </div>
     </div>
   );
 }

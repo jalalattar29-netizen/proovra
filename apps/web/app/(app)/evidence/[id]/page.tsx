@@ -305,7 +305,7 @@ export default function EvidenceDetailPage() {
   const isLocked = Boolean(lockedAt);
   const isArchived = Boolean(archivedAt);
   const isDeleted = Boolean(deletedAt);
-const canDelete = !isDeleted;
+  const canDelete = !isDeleted;
   const originalKind = useMemo(
     () => getEvidenceKind(originalMimeType),
     [originalMimeType]
@@ -986,877 +986,1095 @@ const canDelete = !isDeleted;
     }
   };
 
-return (
-  <div className="section app-section">
-    <div className="app-hero app-hero-full">
-      <div className="container">
-        <div
-          className="page-title"
-          style={{ marginBottom: 0, display: "grid", gap: 14 }}
-        >
-          <div className="evidence-record-badges">
-            <span className="evidence-pill">Evidence Record</span>
-
-            <span className={displayStatusMeta.className}>
-              {displayStatusMeta.label}
-            </span>
-
-            {isLocked && (
-              <span className="evidence-pill evidence-pill-locked">
-                Locked
-              </span>
-            )}
-
-            {isArchived && (
-              <span className="evidence-pill evidence-pill-archived">
-                Archived
-              </span>
-            )}
-
-            {isDeleted && (
-              <span className="evidence-pill evidence-pill-deleted">
-                In Trash
-              </span>
-            )}
-
-            {hasCase && (
-              <span className="evidence-pill evidence-pill-case">
-                Case Attached
-              </span>
-            )}
-          </div>
-
-          <div style={{ width: "100%" }}>
-            {!isEditingLabel ? (
-              <div
+  return (
+    <div className="section app-section">
+      <div className="app-hero app-hero-full">
+        <div className="container">
+          <div
+            className="page-title"
+            style={{ marginBottom: 0, display: "grid", gap: 14 }}
+          >
+            <div className="evidence-record-badges">
+              <span
+                className="evidence-pill"
                 style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 12,
-                  flexWrap: "wrap",
+                  background: "rgba(255,255,255,0.05)",
+                  border: "1px solid rgba(255,255,255,0.09)",
+                  color: "rgba(246,252,255,0.92)",
                 }}
               >
-                <h1
-                  className="hero-title pricing-hero-title"
-                  style={{ margin: 0 }}
-                >
-                  {label}
-                </h1>
-
-                <Button
-                  variant="secondary"
-                  onClick={handleStartEditLabel}
-                  disabled={loading || actionBusy || labelBusy || isDeleted}
-                >
-                  Edit Label
-                </Button>
-              </div>
-            ) : (
-              <div
-                style={{
-                  display: "flex",
-                  gap: 10,
-                  flexWrap: "wrap",
-                  alignItems: "center",
-                }}
-              >
-                <input
-                  value={labelDraft}
-                  onChange={(e) => setLabelDraft(e.target.value)}
-                  maxLength={160}
-                  disabled={labelBusy}
-                  style={{
-                    minWidth: 320,
-                    maxWidth: "100%",
-                    flex: "1 1 420px",
-                    padding: "12px 14px",
-                    borderRadius: 12,
-                    border: "1px solid rgba(148,163,184,0.25)",
-                    background: "rgba(15, 23, 42, 0.45)",
-                    color: "#e2e8f0",
-                    fontSize: 16,
-                    fontWeight: 700,
-                  }}
-                />
-
-                <Button onClick={handleSaveLabel} disabled={labelBusy}>
-                  {labelBusy ? "Saving..." : "Save"}
-                </Button>
-
-                <Button
-                  variant="secondary"
-                  onClick={handleCancelEditLabel}
-                  disabled={labelBusy}
-                >
-                  Cancel
-                </Button>
-              </div>
-            )}
-
-            <p
-              className="page-subtitle pricing-subtitle"
-              style={{ marginTop: 8, marginBottom: 0 }}
-            >
-              {displaySubtitle ||
-                `${itemCount} item${itemCount === 1 ? "" : "s"}`}
-            </p>
-
-            <div className="evidence-hero-meta">
-              <span>Record ID: {shortId(evidenceId)}</span>
-              <span>Type: {getEvidenceTypeLabel(evidenceType)}</span>
-              <span>
-                {isMultipart ? `${sortedParts.length} items` : "Single file"}
+                Evidence Record
               </span>
+
+              <span className={displayStatusMeta.className}>
+                {displayStatusMeta.label}
+              </span>
+
+              {isLocked && (
+                <span className="evidence-pill evidence-pill-locked">
+                  Locked
+                </span>
+              )}
+
+              {isArchived && (
+                <span className="evidence-pill evidence-pill-archived">
+                  Archived
+                </span>
+              )}
+
+              {isDeleted && (
+                <span className="evidence-pill evidence-pill-deleted">
+                  In Trash
+                </span>
+              )}
+
+              {hasCase && (
+                <span className="evidence-pill evidence-pill-case">
+                  Case Attached
+                </span>
+              )}
             </div>
 
-            {isDeleted && (
-              <div className="evidence-delete-notice">
-                <div className="evidence-delete-notice-title">
-                  Secure trash retention active
-                </div>
-                <div className="evidence-delete-notice-text">
-                  This evidence has been moved to secure trash. It remains
-                  recoverable until{" "}
-                  <strong>{formatUtcDateTime(deleteScheduledForUtc)}</strong>.
-                  After that date, it is scheduled for permanent deletion.
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <div className="app-body app-body-full">
-      <div className="container">
-        <div className="grid-2">
-          <Card className="evidence-legal-card">
-            <div className="evidence-section-title">Record Summary</div>
-
-            <div className="evidence-legal-grid">
-              <div>
-                <div className="evidence-legal-title">User Label</div>
-                <div className="evidence-legal-value">{label}</div>
-              </div>
-
-              <div>
-                <div className="evidence-legal-title">Original Submitted File</div>
-                <div className="evidence-legal-value">
-                  {originalFileName || "Original filename not available"}
-                </div>
-              </div>
-
-              <div>
-                <div className="evidence-legal-title">Record ID</div>
-                <div className="evidence-legal-value">{evidenceId}</div>
-              </div>
-
-              <div>
-                <div className="evidence-legal-title">Evidence Type</div>
-                <div className="evidence-legal-value">
-                  {getEvidenceTypeLabel(evidenceType)}
-                </div>
-              </div>
-
-              <div>
-                <div className="evidence-legal-title">Structure</div>
-                <div className="evidence-legal-value">
-                  {isMultipart
-                    ? `Multipart record (${sortedParts.length} items)`
-                    : "Single-file record"}
-                </div>
-              </div>
-
-              <div>
-                <div className="evidence-legal-title">Case Assignment</div>
-                <div className="evidence-legal-value">
-                  {caseId ? "Attached to case" : "Not assigned to any case"}
-                </div>
-              </div>
-
-              <div>
-                <div className="evidence-legal-title">Subscription Plan</div>
-                <div className="evidence-legal-value">{plan}</div>
-              </div>
-            </div>
-          </Card>
-
-          <Card className="evidence-legal-card">
-            <div className="evidence-section-title">Integrity & Legal Status</div>
-
-            <div className="evidence-legal-grid">
-              <div>
-                <div className="evidence-legal-title">Current Status</div>
+            <div style={{ width: "100%" }}>
+              {!isEditingLabel ? (
                 <div
                   style={{
                     display: "flex",
-                    gap: 8,
+                    alignItems: "center",
+                    gap: 12,
+                    flexWrap: "wrap",
+                  }}
+                >
+                  <h1
+                    className="hero-title pricing-hero-title"
+                    style={{ margin: 0 }}
+                  >
+                    {label}
+                  </h1>
+
+                  <Button
+                    variant="secondary"
+                    onClick={handleStartEditLabel}
+                    disabled={loading || actionBusy || labelBusy || isDeleted}
+                  >
+                    Edit Label
+                  </Button>
+                </div>
+              ) : (
+                <div
+                  style={{
+                    display: "flex",
+                    gap: 10,
                     flexWrap: "wrap",
                     alignItems: "center",
                   }}
                 >
-                  <span className={displayStatusMeta.className}>
-                    {displayStatusMeta.label}
-                  </span>
+                  <input
+                    value={labelDraft}
+                    onChange={(e) => setLabelDraft(e.target.value)}
+                    maxLength={160}
+                    disabled={labelBusy}
+                    style={{
+                      minWidth: 320,
+                      maxWidth: "100%",
+                      flex: "1 1 420px",
+                      padding: "12px 14px",
+                      borderRadius: 14,
+                      border: "1px solid rgba(214,184,157,0.18)",
+                      background: "rgba(255,255,255,0.05)",
+                      color: "#eef4f1",
+                      fontSize: 16,
+                      fontWeight: 700,
+                      boxShadow: "0 12px 28px rgba(0,0,0,0.16)",
+                    }}
+                  />
 
-                  {isLocked && (
-                    <span className="evidence-pill evidence-pill-locked">
-                      Locked
-                    </span>
-                  )}
+                  <Button onClick={handleSaveLabel} disabled={labelBusy}>
+                    {labelBusy ? "Saving..." : "Save"}
+                  </Button>
 
-                  {isArchived && (
-                    <span className="evidence-pill evidence-pill-archived">
-                      Archived
-                    </span>
-                  )}
-
-                  {isDeleted && (
-                    <span className="evidence-pill evidence-pill-deleted">
-                      In Trash
-                    </span>
-                  )}
+                  <Button
+                    variant="secondary"
+                    onClick={handleCancelEditLabel}
+                    disabled={labelBusy}
+                  >
+                    Cancel
+                  </Button>
                 </div>
+              )}
+
+              <p
+                className="page-subtitle pricing-subtitle"
+                style={{ marginTop: 8, marginBottom: 0 }}
+              >
+                {displaySubtitle ||
+                  `${itemCount} item${itemCount === 1 ? "" : "s"}`}
+              </p>
+
+              <div
+                className="evidence-hero-meta"
+                style={{
+                  display: "flex",
+                  gap: 14,
+                  flexWrap: "wrap",
+                  marginTop: 14,
+                  fontSize: 13,
+                  color: "rgba(219,235,248,0.68)",
+                }}
+              >
+                <span>Record ID: {shortId(evidenceId)}</span>
+                <span>Type: {getEvidenceTypeLabel(evidenceType)}</span>
+                <span>
+                  {isMultipart ? `${sortedParts.length} items` : "Single file"}
+                </span>
               </div>
 
-              <div>
-                <div className="evidence-legal-title">Recorded At</div>
-                <div className="evidence-legal-value">
-                  {formatUtcDateTime(createdAt)}
-                </div>
-              </div>
-
-              <div>
-                <div className="evidence-legal-title">Locked At</div>
-                <div className="evidence-legal-value">
-                  {formatUtcDateTime(lockedAt)}
-                </div>
-              </div>
-
-              <div>
-                <div className="evidence-legal-title">Archived At</div>
-                <div className="evidence-legal-value">
-                  {formatUtcDateTime(archivedAt)}
-                </div>
-              </div>
-
-              <div>
-                <div className="evidence-legal-title">Deleted At</div>
-                <div className="evidence-legal-value">
-                  {formatUtcDateTime(deletedAt)}
-                </div>
-              </div>
-
-              <div>
-                <div className="evidence-legal-title">
-                  Permanent Deletion Date
-                </div>
-                <div className="evidence-legal-value">
-                  {formatUtcDateTime(deleteScheduledForUtc)}
-                </div>
-              </div>
-
-              <div>
-                <div className="evidence-legal-title">Legal State</div>
-                <div className="evidence-legal-value">
-                  {isDeleted
-                    ? "This record is currently in secure trash. It remains recoverable until the scheduled deletion date."
-                    : isLocked
-                      ? "This record has been permanently sealed. Its evidentiary state can no longer be modified."
-                      : isArchived
-                        ? "This record has been archived from the active workspace while remaining preserved in storage."
-                        : "This record is active and available for review."}
-                </div>
-              </div>
-
-              {isMultipart && (
-                <div>
-                  <div className="evidence-legal-title">Contained Items</div>
-                  <div className="evidence-legal-value" style={{ fontWeight: 500 }}>
-                    {partTypeSummary.imageCount > 0 && (
-                      <div>{partTypeSummary.imageCount} image(s)</div>
-                    )}
-                    {partTypeSummary.videoCount > 0 && (
-                      <div>{partTypeSummary.videoCount} video(s)</div>
-                    )}
-                    {partTypeSummary.audioCount > 0 && (
-                      <div>{partTypeSummary.audioCount} audio item(s)</div>
-                    )}
-                    {partTypeSummary.pdfCount > 0 && (
-                      <div>{partTypeSummary.pdfCount} pdf/document(s)</div>
-                    )}
-                    {partTypeSummary.otherCount > 0 && (
-                      <div>{partTypeSummary.otherCount} other item(s)</div>
-                    )}
+              {isDeleted && (
+                <div
+                  className="evidence-delete-notice"
+                  style={{
+                    marginTop: 16,
+                    padding: 16,
+                    borderRadius: 16,
+                    background:
+                      "linear-gradient(135deg, rgba(127,29,29,0.18), rgba(69,10,10,0.12))",
+                    border: "1px solid rgba(248,113,113,0.14)",
+                  }}
+                >
+                  <div
+                    className="evidence-delete-notice-title"
+                    style={{ color: "#fecaca", fontWeight: 800, marginBottom: 6 }}
+                  >
+                    Secure trash retention active
+                  </div>
+                  <div
+                    className="evidence-delete-notice-text"
+                    style={{ color: "rgba(254,202,202,0.86)", lineHeight: 1.7 }}
+                  >
+                    This evidence has been moved to secure trash. It remains
+                    recoverable until{" "}
+                    <strong>{formatUtcDateTime(deleteScheduledForUtc)}</strong>.
+                    After that date, it is scheduled for permanent deletion.
                   </div>
                 </div>
               )}
             </div>
-          </Card>
+          </div>
         </div>
+      </div>
 
-        <Card className="mt-6 evidence-legal-card">
-          <div className="evidence-section-title">Record Actions</div>
+      <div className="app-body app-body-full">
+        <div className="container">
+          <div className="grid-2">
+            <Card className="evidence-legal-card app-card">
+              <div className="evidence-section-title">Record Summary</div>
 
-          <div className="evidence-callout evidence-callout-soft" style={{ marginBottom: 14 }}>
-            Export, verify, assign, seal, archive, or manage this evidence
-            record.
-          </div>
+              <div className="evidence-legal-grid">
+                <div>
+                  <div className="evidence-legal-title">User Label</div>
+                  <div className="evidence-legal-value">{label}</div>
+                </div>
 
-          <div className="footer-actions">
-            <Button
-              onClick={handleDownloadReport}
-              disabled={actionBusy || plan === "FREE" || isDeleted}
-            >
-              {t("downloadReport")}
-            </Button>
+                <div>
+                  <div className="evidence-legal-title">Original Submitted File</div>
+                  <div className="evidence-legal-value">
+                    {originalFileName || "Original filename not available"}
+                  </div>
+                </div>
 
-            <Button
-              variant="secondary"
-              onClick={handleDownloadVerificationPackage}
-              disabled={actionBusy || !verificationPackageAvailable || isDeleted}
-            >
-              Download Verification Package
-            </Button>
+                <div>
+                  <div className="evidence-legal-title">Record ID</div>
+                  <div className="evidence-legal-value">{evidenceId}</div>
+                </div>
 
-            <Link href={`/share/${evidenceId}`}>
-              <Button variant="secondary" disabled={isDeleted}>
-                {t("shareLink")}
-              </Button>
-            </Link>
-          </div>
+                <div>
+                  <div className="evidence-legal-title">Evidence Type</div>
+                  <div className="evidence-legal-value">
+                    {getEvidenceTypeLabel(evidenceType)}
+                  </div>
+                </div>
 
-          {plan === "FREE" && (
-            <div style={{ fontSize: 12, color: "#64748b", marginTop: 10 }}>
-              Reports are disabled on Free. Upgrade to access PDF reports.
-            </div>
-          )}
+                <div>
+                  <div className="evidence-legal-title">Structure</div>
+                  <div className="evidence-legal-value">
+                    {isMultipart
+                      ? `Multipart record (${sortedParts.length} items)`
+                      : "Single-file record"}
+                  </div>
+                </div>
 
-          {!verificationPackageAvailable && (
-            <div style={{ fontSize: 12, color: "#64748b", marginTop: 10 }}>
-              Verification package is not available yet.
-            </div>
-          )}
+                <div>
+                  <div className="evidence-legal-title">Case Assignment</div>
+                  <div className="evidence-legal-value">
+                    {caseId ? "Attached to case" : "Not assigned to any case"}
+                  </div>
+                </div>
 
-          <div style={{ display: "grid", gap: 10, marginTop: 14 }}>
-            {!isDeleted && (
-              <>
-                <Button
-                  variant="secondary"
-                  onClick={handleOpenAssignCase}
-                  disabled={actionBusy || ownedCases.length === 0}
-                >
-                  {caseId ? "Move to Case" : "Add to Case"}
-                </Button>
+                <div>
+                  <div className="evidence-legal-title">Subscription Plan</div>
+                  <div className="evidence-legal-value">{plan}</div>
+                </div>
+              </div>
+            </Card>
 
-                {caseId && (
-                  <Button
-                    variant="secondary"
-                    onClick={handleRemoveFromCase}
-                    disabled={actionBusy}
+            <Card className="evidence-legal-card app-card">
+              <div className="evidence-section-title">Integrity & Legal Status</div>
+
+              <div className="evidence-legal-grid">
+                <div>
+                  <div className="evidence-legal-title">Current Status</div>
+                  <div
+                    style={{
+                      display: "flex",
+                      gap: 8,
+                      flexWrap: "wrap",
+                      alignItems: "center",
+                    }}
                   >
-                    Remove from Case
-                  </Button>
-                )}
+                    <span className={displayStatusMeta.className}>
+                      {displayStatusMeta.label}
+                    </span>
 
-                <Button
-                  onClick={handleLock}
-                  disabled={
-                    actionBusy ||
-                    Boolean(lockedAt) ||
-                    !(status === "SIGNED" || status === "REPORTED")
-                  }
-                  className={lockedAt ? "button-disabled" : "button-danger"}
-                >
-                  {lockedAt
-                    ? "Permanently Locked"
-                    : "Lock Evidence Permanently"}
-                </Button>
+                    {isLocked && (
+                      <span className="evidence-pill evidence-pill-locked">
+                        Locked
+                      </span>
+                    )}
 
-                {lockedAt && (
-                  <div style={{ fontSize: 12, color: "#94a3b8", padding: "8px 0" }}>
-                    ✓ This record is legally sealed and can no longer be edited.
+                    {isArchived && (
+                      <span className="evidence-pill evidence-pill-archived">
+                        Archived
+                      </span>
+                    )}
+
+                    {isDeleted && (
+                      <span className="evidence-pill evidence-pill-deleted">
+                        In Trash
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                <div>
+                  <div className="evidence-legal-title">Recorded At</div>
+                  <div className="evidence-legal-value">
+                    {formatUtcDateTime(createdAt)}
+                  </div>
+                </div>
+
+                <div>
+                  <div className="evidence-legal-title">Locked At</div>
+                  <div className="evidence-legal-value">
+                    {formatUtcDateTime(lockedAt)}
+                  </div>
+                </div>
+
+                <div>
+                  <div className="evidence-legal-title">Archived At</div>
+                  <div className="evidence-legal-value">
+                    {formatUtcDateTime(archivedAt)}
+                  </div>
+                </div>
+
+                <div>
+                  <div className="evidence-legal-title">Deleted At</div>
+                  <div className="evidence-legal-value">
+                    {formatUtcDateTime(deletedAt)}
+                  </div>
+                </div>
+
+                <div>
+                  <div className="evidence-legal-title">
+                    Permanent Deletion Date
+                  </div>
+                  <div className="evidence-legal-value">
+                    {formatUtcDateTime(deleteScheduledForUtc)}
+                  </div>
+                </div>
+
+                <div>
+                  <div className="evidence-legal-title">Legal State</div>
+                  <div className="evidence-legal-value">
+                    {isDeleted
+                      ? "This record is currently in secure trash. It remains recoverable until the scheduled deletion date."
+                      : isLocked
+                        ? "This record has been permanently sealed. Its evidentiary state can no longer be modified."
+                        : isArchived
+                          ? "This record has been archived from the active workspace while remaining preserved in storage."
+                          : "This record is active and available for review."}
+                  </div>
+                </div>
+
+                {isMultipart && (
+                  <div>
+                    <div className="evidence-legal-title">Contained Items</div>
+                    <div className="evidence-legal-value" style={{ fontWeight: 500 }}>
+                      {partTypeSummary.imageCount > 0 && (
+                        <div>{partTypeSummary.imageCount} image(s)</div>
+                      )}
+                      {partTypeSummary.videoCount > 0 && (
+                        <div>{partTypeSummary.videoCount} video(s)</div>
+                      )}
+                      {partTypeSummary.audioCount > 0 && (
+                        <div>{partTypeSummary.audioCount} audio item(s)</div>
+                      )}
+                      {partTypeSummary.pdfCount > 0 && (
+                        <div>{partTypeSummary.pdfCount} pdf/document(s)</div>
+                      )}
+                      {partTypeSummary.otherCount > 0 && (
+                        <div>{partTypeSummary.otherCount} other item(s)</div>
+                      )}
+                    </div>
                   </div>
                 )}
-
-                {archivedAt ? (
-                  <>
-                    <Button
-                      variant="secondary"
-                      onClick={handleUnarchive}
-                      disabled={actionBusy}
-                    >
-                      Restore Evidence
-                    </Button>
-                    <div
-                      style={{
-                        fontSize: 12,
-                        color: "#94a3b8",
-                        padding: "8px 0",
-                      }}
-                    >
-                      This record is archived. Restore it to return it to the
-                      active workspace.
-                    </div>
-                  </>
-                ) : (
-                  <>
-                    <Button
-                      variant="secondary"
-                      onClick={handleArchive}
-                      disabled={actionBusy}
-                    >
-                      Archive Evidence
-                    </Button>
-                    <div
-                      style={{
-                        fontSize: 12,
-                        color: "#64748b",
-                        padding: "8px 0",
-                      }}
-                    >
-                      Archive this record to remove it from active review while
-                      preserving it in storage.
-                    </div>
-                  </>
-                )}
-
-                <Button
-                  onClick={handleDelete}
-                  disabled={actionBusy || !canDelete}
-                  className={canDelete ? "button-danger" : "button-disabled"}
-                >
-                  Delete Evidence
-                </Button>
-
-                <div className="evidence-callout evidence-callout-warning">
-                  <strong>Trash retention:</strong> When moved to trash, this
-                  record stays recoverable for 90 days before permanent deletion.
-                </div>
-              </>
-            )}
-
-            {isDeleted && (
-              <>
-                <Button
-                  variant="secondary"
-                  onClick={handleRestoreDeleted}
-                  disabled={actionBusy}
-                >
-                  Restore from Trash
-                </Button>
-                <div style={{ fontSize: 12, color: "#94a3b8", padding: "8px 0" }}>
-                  This record is in secure trash and can be restored until{" "}
-                  {formatUtcDateTime(deleteScheduledForUtc)}.
-                </div>
-              </>
-            )}
+              </div>
+            </Card>
           </div>
-        </Card>
 
-        {(sortedParts.length > 0 ||
-          originalPreviewUrl ||
-          originalDownloadUrl ||
-          originalMimeType ||
-          originalSizeBytes) && (
-          <Card className="mt-6 evidence-legal-card">
-            <div className="evidence-section-title">
-              {isMultipart ? "Original Evidence Materials" : "Original Evidence"}
+          <Card className="mt-6 evidence-legal-card app-card">
+            <div className="evidence-section-title">Record Actions</div>
+
+            <div
+              className="evidence-callout evidence-callout-soft"
+              style={{
+                marginBottom: 14,
+                padding: 14,
+                borderRadius: 14,
+                background: "rgba(255,255,255,0.04)",
+                border: "1px solid rgba(255,255,255,0.06)",
+                color: "rgba(219,235,248,0.74)",
+              }}
+            >
+              Export, verify, assign, seal, archive, or manage this evidence
+              record.
             </div>
 
-            {isMultipart ? (
-              <>
-                <div className="evidence-callout" style={{ marginBottom: 16 }}>
-                  This record contains <strong>{sortedParts.length}</strong>{" "}
-                  original evidence items. Each item below can be reviewed and
-                  downloaded separately.
-                </div>
+            <div className="footer-actions">
+              <Button
+                onClick={handleDownloadReport}
+                disabled={actionBusy || plan === "FREE" || isDeleted}
+              >
+                {t("downloadReport")}
+              </Button>
 
-                <div style={{ display: "grid", gap: 16 }}>
-                  {sortedParts.map((part) => {
-                    const kind = getEvidenceKind(part.mimeType ?? null);
-                    const previewUrl = part.publicUrl ?? part.url ?? null;
-                    const downloadUrl = part.url ?? part.publicUrl ?? null;
-                    const displayName = getPartDisplayName(part);
+              <Button
+                variant="secondary"
+                onClick={handleDownloadVerificationPackage}
+                disabled={actionBusy || !verificationPackageAvailable || isDeleted}
+              >
+                Download Verification Package
+              </Button>
 
-                    return (
-                      <div key={part.id} className="evidence-item-card">
-                        <div className="evidence-item-header">
-                          <div>
-                            <div style={{ fontWeight: 800, color: "#e2e8f0" }}>
-                              Item {part.partIndex + 1}
-                              {part.isPrimary ? " (Primary)" : ""}
+              <Link href={`/share/${evidenceId}`}>
+                <Button variant="secondary" disabled={isDeleted}>
+                  {t("shareLink")}
+                </Button>
+              </Link>
+            </div>
+
+            {plan === "FREE" && (
+              <div style={{ fontSize: 12, color: "rgba(219,235,248,0.56)", marginTop: 10 }}>
+                Reports are disabled on Free. Upgrade to access PDF reports.
+              </div>
+            )}
+
+            {!verificationPackageAvailable && (
+              <div style={{ fontSize: 12, color: "rgba(219,235,248,0.56)", marginTop: 10 }}>
+                Verification package is not available yet.
+              </div>
+            )}
+
+            <div style={{ display: "grid", gap: 10, marginTop: 14 }}>
+              {!isDeleted && (
+                <>
+                  <Button
+                    variant="secondary"
+                    onClick={handleOpenAssignCase}
+                    disabled={actionBusy || ownedCases.length === 0}
+                  >
+                    {caseId ? "Move to Case" : "Add to Case"}
+                  </Button>
+
+                  {caseId && (
+                    <Button
+                      variant="secondary"
+                      onClick={handleRemoveFromCase}
+                      disabled={actionBusy}
+                    >
+                      Remove from Case
+                    </Button>
+                  )}
+
+                  <Button
+                    onClick={handleLock}
+                    disabled={
+                      actionBusy ||
+                      Boolean(lockedAt) ||
+                      !(status === "SIGNED" || status === "REPORTED")
+                    }
+                    className={lockedAt ? "button-disabled" : "button-danger"}
+                  >
+                    {lockedAt
+                      ? "Permanently Locked"
+                      : "Lock Evidence Permanently"}
+                  </Button>
+
+                  {lockedAt && (
+                    <div style={{ fontSize: 12, color: "rgba(219,235,248,0.64)", padding: "8px 0" }}>
+                      ✓ This record is legally sealed and can no longer be edited.
+                    </div>
+                  )}
+
+                  {archivedAt ? (
+                    <>
+                      <Button
+                        variant="secondary"
+                        onClick={handleUnarchive}
+                        disabled={actionBusy}
+                      >
+                        Restore Evidence
+                      </Button>
+                      <div
+                        style={{
+                          fontSize: 12,
+                          color: "rgba(219,235,248,0.64)",
+                          padding: "8px 0",
+                        }}
+                      >
+                        This record is archived. Restore it to return it to the
+                        active workspace.
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <Button
+                        variant="secondary"
+                        onClick={handleArchive}
+                        disabled={actionBusy}
+                      >
+                        Archive Evidence
+                      </Button>
+                      <div
+                        style={{
+                          fontSize: 12,
+                          color: "rgba(219,235,248,0.56)",
+                          padding: "8px 0",
+                        }}
+                      >
+                        Archive this record to remove it from active review while
+                        preserving it in storage.
+                      </div>
+                    </>
+                  )}
+
+                  <Button
+                    onClick={handleDelete}
+                    disabled={actionBusy || !canDelete}
+                    className={canDelete ? "button-danger" : "button-disabled"}
+                  >
+                    Delete Evidence
+                  </Button>
+
+                  <div
+                    className="evidence-callout evidence-callout-warning"
+                    style={{
+                      padding: 14,
+                      borderRadius: 14,
+                      background:
+                        "linear-gradient(135deg, rgba(214,184,157,0.10), rgba(214,184,157,0.04))",
+                      border: "1px solid rgba(214,184,157,0.14)",
+                      color: "rgba(230,201,174,0.92)",
+                    }}
+                  >
+                    <strong>Trash retention:</strong> When moved to trash, this
+                    record stays recoverable for 90 days before permanent deletion.
+                  </div>
+                </>
+              )}
+
+              {isDeleted && (
+                <>
+                  <Button
+                    variant="secondary"
+                    onClick={handleRestoreDeleted}
+                    disabled={actionBusy}
+                  >
+                    Restore from Trash
+                  </Button>
+                  <div style={{ fontSize: 12, color: "rgba(219,235,248,0.64)", padding: "8px 0" }}>
+                    This record is in secure trash and can be restored until{" "}
+                    {formatUtcDateTime(deleteScheduledForUtc)}.
+                  </div>
+                </>
+              )}
+            </div>
+          </Card>
+
+          {(sortedParts.length > 0 ||
+            originalPreviewUrl ||
+            originalDownloadUrl ||
+            originalMimeType ||
+            originalSizeBytes) && (
+            <Card className="mt-6 evidence-legal-card app-card">
+              <div className="evidence-section-title">
+                {isMultipart ? "Original Evidence Materials" : "Original Evidence"}
+              </div>
+
+              {isMultipart ? (
+                <>
+                  <div
+                    className="evidence-callout"
+                    style={{
+                      marginBottom: 16,
+                      padding: 14,
+                      borderRadius: 14,
+                      background: "rgba(255,255,255,0.04)",
+                      border: "1px solid rgba(255,255,255,0.06)",
+                      color: "rgba(219,235,248,0.76)",
+                    }}
+                  >
+                    This record contains <strong>{sortedParts.length}</strong>{" "}
+                    original evidence items. Each item below can be reviewed and
+                    downloaded separately.
+                  </div>
+
+                  <div style={{ display: "grid", gap: 16 }}>
+                    {sortedParts.map((part) => {
+                      const kind = getEvidenceKind(part.mimeType ?? null);
+                      const previewUrl = part.publicUrl ?? part.url ?? null;
+                      const downloadUrl = part.url ?? part.publicUrl ?? null;
+                      const displayName = getPartDisplayName(part);
+
+                      return (
+                        <div
+                          key={part.id}
+                          className="evidence-item-card"
+                          style={{
+                            padding: 16,
+                            borderRadius: 18,
+                            background: "rgba(255,255,255,0.04)",
+                            border: "1px solid rgba(255,255,255,0.06)",
+                            boxShadow: "0 12px 30px rgba(0,0,0,0.14)",
+                          }}
+                        >
+                          <div className="evidence-item-header">
+                            <div>
+                              <div style={{ fontWeight: 800, color: "#eef4f1" }}>
+                                Item {part.partIndex + 1}
+                                {part.isPrimary ? " (Primary)" : ""}
+                              </div>
+                              <div
+                                style={{
+                                  fontSize: 13,
+                                  color: "rgba(219,235,248,0.60)",
+                                  marginTop: 4,
+                                }}
+                              >
+                                {displayName}
+                              </div>
                             </div>
-                            <div
+
+                            <div className="evidence-item-actions">
+                              <Button
+                                variant="secondary"
+                                onClick={() => handleOpenPart(part)}
+                                disabled={!downloadUrl || isDeleted}
+                              >
+                                Open
+                              </Button>
+                              <Button
+                                variant="secondary"
+                                onClick={() => handleDownloadPart(part)}
+                                disabled={!downloadUrl || isDeleted}
+                              >
+                                Download
+                              </Button>
+                            </div>
+                          </div>
+
+                          <div
+                            className="evidence-meta-stack"
+                            style={{
+                              display: "grid",
+                              gap: 6,
+                              marginTop: 12,
+                              marginBottom: 14,
+                              color: "rgba(219,235,248,0.68)",
+                              fontSize: 13,
+                            }}
+                          >
+                            <div>Type: {part.mimeType ?? "Unknown"}</div>
+                            <div>Kind: {kind}</div>
+                            <div>Size: {formatBytes(part.sizeBytes ?? null)}</div>
+                          </div>
+
+                          {previewUrl && kind === "image" && (
+                            <img
+                              src={previewUrl}
+                              alt={`Evidence item ${part.partIndex + 1}`}
+                              className="evidence-preview-image"
                               style={{
-                                fontSize: 13,
-                                color: "#94a3b8",
-                                marginTop: 4,
+                                width: "100%",
+                                borderRadius: 16,
+                                border: "1px solid rgba(255,255,255,0.08)",
                               }}
-                            >
-                              {displayName}
-                            </div>
-                          </div>
+                            />
+                          )}
 
-                          <div className="evidence-item-actions">
-                            <Button
-                              variant="secondary"
-                              onClick={() => handleOpenPart(part)}
-                              disabled={!downloadUrl || isDeleted}
-                            >
-                              Open
-                            </Button>
-                            <Button
-                              variant="secondary"
-                              onClick={() => handleDownloadPart(part)}
-                              disabled={!downloadUrl || isDeleted}
-                            >
-                              Download
-                            </Button>
-                          </div>
-                        </div>
-
-                        <div className="evidence-meta-stack">
-                          <div>Type: {part.mimeType ?? "Unknown"}</div>
-                          <div>Kind: {kind}</div>
-                          <div>Size: {formatBytes(part.sizeBytes ?? null)}</div>
-                        </div>
-
-                        {previewUrl && kind === "image" && (
-                          <img
-                            src={previewUrl}
-                            alt={`Evidence item ${part.partIndex + 1}`}
-                            className="evidence-preview-image"
-                          />
-                        )}
-
-                        {previewUrl && kind === "video" && (
-                          <video
-                            src={previewUrl}
-                            controls
-                            preload="metadata"
-                            className="evidence-preview-video"
-                          />
-                        )}
-
-                        {previewUrl && kind === "audio" && (
-                          <div className="evidence-audio-box">
-                            <audio
+                          {previewUrl && kind === "video" && (
+                            <video
                               src={previewUrl}
                               controls
                               preload="metadata"
-                              style={{ width: "100%" }}
+                              className="evidence-preview-video"
+                              style={{
+                                width: "100%",
+                                borderRadius: 16,
+                                border: "1px solid rgba(255,255,255,0.08)",
+                              }}
                             />
-                          </div>
-                        )}
+                          )}
 
-                        {previewUrl && kind === "pdf" && (
-                          <div className="evidence-preview-frame">
-                            <iframe
-                              src={previewUrl}
-                              title={`Evidence PDF item ${part.partIndex + 1}`}
-                              className="evidence-iframe"
-                            />
-                          </div>
-                        )}
+                          {previewUrl && kind === "audio" && (
+                            <div
+                              className="evidence-audio-box"
+                              style={{
+                                padding: 14,
+                                borderRadius: 14,
+                                background: "rgba(255,255,255,0.03)",
+                                border: "1px solid rgba(255,255,255,0.06)",
+                              }}
+                            >
+                              <audio
+                                src={previewUrl}
+                                controls
+                                preload="metadata"
+                                style={{ width: "100%" }}
+                              />
+                            </div>
+                          )}
 
-                        {!previewUrl && (
-                          <div className="evidence-callout">
-                            Preview is not available for this item right now.
-                          </div>
-                        )}
+                          {previewUrl && kind === "pdf" && (
+                            <div className="evidence-preview-frame">
+                              <iframe
+                                src={previewUrl}
+                                title={`Evidence PDF item ${part.partIndex + 1}`}
+                                className="evidence-iframe"
+                                style={{
+                                  width: "100%",
+                                  minHeight: 520,
+                                  borderRadius: 16,
+                                  border: "1px solid rgba(255,255,255,0.08)",
+                                  background: "#fff",
+                                }}
+                              />
+                            </div>
+                          )}
 
-                        {previewUrl && (kind === "text" || kind === "other") && (
-                          <div className="evidence-callout">
-                            Preview is not available inside the page for this
-                            file type. Use Open or Download.
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
+                          {!previewUrl && (
+                            <div
+                              className="evidence-callout"
+                              style={{
+                                padding: 12,
+                                borderRadius: 14,
+                                background: "rgba(255,255,255,0.04)",
+                                border: "1px solid rgba(255,255,255,0.06)",
+                                color: "rgba(219,235,248,0.72)",
+                              }}
+                            >
+                              Preview is not available for this item right now.
+                            </div>
+                          )}
 
-                {partsLoadFailed && (
-                  <div className="evidence-callout" style={{ marginTop: 14 }}>
-                    Failed to load evidence parts.
+                          {previewUrl && (kind === "text" || kind === "other") && (
+                            <div
+                              className="evidence-callout"
+                              style={{
+                                padding: 12,
+                                borderRadius: 14,
+                                background: "rgba(255,255,255,0.04)",
+                                border: "1px solid rgba(255,255,255,0.06)",
+                                color: "rgba(219,235,248,0.72)",
+                              }}
+                            >
+                              Preview is not available inside the page for this
+                              file type. Use Open or Download.
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
-                )}
-              </>
-            ) : (
-              <>
-                <div className="evidence-callout" style={{ marginBottom: 16 }}>
-                  Original submitted evidence file. This file is preserved as
-                  part of the record.
-                </div>
 
-                <div className="evidence-meta-stack" style={{ marginBottom: 14 }}>
-                  {originalFileName && <div>Original file: {originalFileName}</div>}
-                  {originalMimeType && <div>Type: {originalMimeType}</div>}
-                  {originalSizeBytes && (
-                    <div>Size: {formatBytes(originalSizeBytes)}</div>
+                  {partsLoadFailed && (
+                    <div
+                      className="evidence-callout"
+                      style={{
+                        marginTop: 14,
+                        padding: 12,
+                        borderRadius: 14,
+                        background: "rgba(239,68,68,0.08)",
+                        border: "1px solid rgba(239,68,68,0.10)",
+                        color: "#fecaca",
+                      }}
+                    >
+                      Failed to load evidence parts.
+                    </div>
                   )}
-                </div>
-
-                <div
-                  style={{
-                    display: "flex",
-                    flexWrap: "wrap",
-                    gap: 10,
-                    marginBottom: 14,
-                  }}
-                >
-                  <Button
-                    variant="secondary"
-                    onClick={handleOpenOriginal}
-                    disabled={!originalDownloadUrl || isDeleted}
-                  >
-                    Open Original
-                  </Button>
-
-                  <Button
-                    variant="secondary"
-                    onClick={handleDownloadOriginal}
-                    disabled={!originalDownloadUrl || isDeleted}
-                  >
-                    Download Original
-                  </Button>
-                </div>
-
-                {originalPreviewUrl && originalKind === "image" && (
-                  <div style={{ marginBottom: 12 }}>
-                    <img
-                      src={originalPreviewUrl}
-                      alt="Evidence preview"
-                      className="evidence-preview-image"
-                    />
-                  </div>
-                )}
-
-                {originalPreviewUrl && originalKind === "video" && (
-                  <div style={{ marginBottom: 12 }}>
-                    <video
-                      src={originalPreviewUrl}
-                      controls
-                      preload="metadata"
-                      className="evidence-preview-video"
-                    />
-                  </div>
-                )}
-
-                {originalPreviewUrl && originalKind === "audio" && (
-                  <div className="evidence-audio-box" style={{ marginBottom: 12 }}>
-                    <audio
-                      src={originalPreviewUrl}
-                      controls
-                      preload="metadata"
-                      style={{ width: "100%" }}
-                    />
-                  </div>
-                )}
-
-                {originalPreviewUrl && originalKind === "pdf" && (
+                </>
+              ) : (
+                <>
                   <div
-                    className="evidence-preview-frame"
-                    style={{ marginBottom: 12 }}
+                    className="evidence-callout"
+                    style={{
+                      marginBottom: 16,
+                      padding: 14,
+                      borderRadius: 14,
+                      background: "rgba(255,255,255,0.04)",
+                      border: "1px solid rgba(255,255,255,0.06)",
+                      color: "rgba(219,235,248,0.76)",
+                    }}
                   >
-                    <iframe
-                      src={originalPreviewUrl}
-                      title="Original PDF evidence"
-                      className="evidence-iframe"
-                    />
+                    Original submitted evidence file. This file is preserved as
+                    part of the record.
                   </div>
-                )}
 
-                {!originalPreviewUrl &&
-                  (originalKind === "text" || originalKind === "other") && (
-                    <div className="evidence-callout" style={{ marginBottom: 12 }}>
-                      <div style={{ marginBottom: 8 }}>
-                        Preview is not available for this file type inside the
-                        page.
-                      </div>
-                      <div>Use Open Original or Download Original.</div>
+                  <div
+                    className="evidence-meta-stack"
+                    style={{
+                      marginBottom: 14,
+                      display: "grid",
+                      gap: 6,
+                      color: "rgba(219,235,248,0.68)",
+                      fontSize: 13,
+                    }}
+                  >
+                    {originalFileName && <div>Original file: {originalFileName}</div>}
+                    {originalMimeType && <div>Type: {originalMimeType}</div>}
+                    {originalSizeBytes && (
+                      <div>Size: {formatBytes(originalSizeBytes)}</div>
+                    )}
+                  </div>
+
+                  <div
+                    style={{
+                      display: "flex",
+                      flexWrap: "wrap",
+                      gap: 10,
+                      marginBottom: 14,
+                    }}
+                  >
+                    <Button
+                      variant="secondary"
+                      onClick={handleOpenOriginal}
+                      disabled={!originalDownloadUrl || isDeleted}
+                    >
+                      Open Original
+                    </Button>
+
+                    <Button
+                      variant="secondary"
+                      onClick={handleDownloadOriginal}
+                      disabled={!originalDownloadUrl || isDeleted}
+                    >
+                      Download Original
+                    </Button>
+                  </div>
+
+                  {originalPreviewUrl && originalKind === "image" && (
+                    <div style={{ marginBottom: 12 }}>
+                      <img
+                        src={originalPreviewUrl}
+                        alt="Evidence preview"
+                        className="evidence-preview-image"
+                        style={{
+                          width: "100%",
+                          borderRadius: 16,
+                          border: "1px solid rgba(255,255,255,0.08)",
+                        }}
+                      />
                     </div>
                   )}
 
-                {!originalPreviewUrl && !originalDownloadUrl && (
-                  <div className="evidence-callout">
-                    The original submitted file is currently unavailable for
-                    access.
-                  </div>
-                )}
-              </>
-            )}
-          </Card>
-        )}
-      </div>
-    </div>
+                  {originalPreviewUrl && originalKind === "video" && (
+                    <div style={{ marginBottom: 12 }}>
+                      <video
+                        src={originalPreviewUrl}
+                        controls
+                        preload="metadata"
+                        className="evidence-preview-video"
+                        style={{
+                          width: "100%",
+                          borderRadius: 16,
+                          border: "1px solid rgba(255,255,255,0.08)",
+                        }}
+                      />
+                    </div>
+                  )}
 
-    <Modal
-      isOpen={assignCaseModalOpen}
-      onClose={() => setAssignCaseModalOpen(false)}
-      title={caseId ? "Move evidence to case" : "Add evidence to case"}
-      actions={
-        <div style={{ display: "flex", gap: 10 }}>
-          <Button
-            variant="secondary"
-            onClick={() => setAssignCaseModalOpen(false)}
-            disabled={actionBusy}
-          >
-            Cancel
-          </Button>
-          <Button
-            onClick={handleConfirmAssignCase}
-            disabled={actionBusy || !selectedCaseId}
-          >
-            {actionBusy ? "Saving..." : caseId ? "Move" : "Add"}
-          </Button>
+                  {originalPreviewUrl && originalKind === "audio" && (
+                    <div
+                      className="evidence-audio-box"
+                      style={{
+                        marginBottom: 12,
+                        padding: 14,
+                        borderRadius: 14,
+                        background: "rgba(255,255,255,0.03)",
+                        border: "1px solid rgba(255,255,255,0.06)",
+                      }}
+                    >
+                      <audio
+                        src={originalPreviewUrl}
+                        controls
+                        preload="metadata"
+                        style={{ width: "100%" }}
+                      />
+                    </div>
+                  )}
+
+                  {originalPreviewUrl && originalKind === "pdf" && (
+                    <div
+                      className="evidence-preview-frame"
+                      style={{ marginBottom: 12 }}
+                    >
+                      <iframe
+                        src={originalPreviewUrl}
+                        title="Original PDF evidence"
+                        className="evidence-iframe"
+                        style={{
+                          width: "100%",
+                          minHeight: 620,
+                          borderRadius: 16,
+                          border: "1px solid rgba(255,255,255,0.08)",
+                          background: "#fff",
+                        }}
+                      />
+                    </div>
+                  )}
+
+                  {!originalPreviewUrl &&
+                    (originalKind === "text" || originalKind === "other") && (
+                      <div
+                        className="evidence-callout"
+                        style={{
+                          marginBottom: 12,
+                          padding: 12,
+                          borderRadius: 14,
+                          background: "rgba(255,255,255,0.04)",
+                          border: "1px solid rgba(255,255,255,0.06)",
+                          color: "rgba(219,235,248,0.72)",
+                        }}
+                      >
+                        <div style={{ marginBottom: 8 }}>
+                          Preview is not available for this file type inside the
+                          page.
+                        </div>
+                        <div>Use Open Original or Download Original.</div>
+                      </div>
+                    )}
+
+                  {!originalPreviewUrl && !originalDownloadUrl && (
+                    <div
+                      className="evidence-callout"
+                      style={{
+                        padding: 12,
+                        borderRadius: 14,
+                        background: "rgba(255,255,255,0.04)",
+                        border: "1px solid rgba(255,255,255,0.06)",
+                        color: "rgba(219,235,248,0.72)",
+                      }}
+                    >
+                      The original submitted file is currently unavailable for
+                      access.
+                    </div>
+                  )}
+                </>
+              )}
+            </Card>
+          )}
         </div>
-      }
-    >
-      <div style={{ display: "grid", gap: 12 }}>
-        <div style={{ fontSize: 14, color: "#cbd5e1", lineHeight: 1.6 }}>
-          Choose one of your accessible cases.
-        </div>
-
-        <select
-          value={selectedCaseId}
-          onChange={(e) => setSelectedCaseId(e.target.value)}
-          style={{
-            padding: 10,
-            borderRadius: 10,
-            border: "1px solid rgba(148, 163, 184, 0.25)",
-            background: "rgba(15, 23, 42, 0.45)",
-            color: "#e2e8f0",
-          }}
-        >
-          <option value="">Select a case...</option>
-          {ownedCases.map((item) => (
-            <option key={item.id} value={item.id}>
-              {item.name}
-              {item.teamId ? " (Team)" : " (Personal)"}
-            </option>
-          ))}
-        </select>
       </div>
-    </Modal>
 
-    <Modal
-      isOpen={lockModalOpen}
-      onClose={() => setLockModalOpen(false)}
-      title="Lock this evidence?"
-      actions={
-        <div style={{ display: "flex", gap: 10 }}>
-          <Button
-            variant="secondary"
-            onClick={() => setLockModalOpen(false)}
-            disabled={actionBusy}
-          >
-            Cancel
-          </Button>
-          <div style={{ position: "relative" }}>
+      <Modal
+        isOpen={assignCaseModalOpen}
+        onClose={() => setAssignCaseModalOpen(false)}
+        title={caseId ? "Move evidence to case" : "Add evidence to case"}
+        actions={
+          <div style={{ display: "flex", gap: 10 }}>
             <Button
-              onClick={handleConfirmLock}
+              variant="secondary"
+              onClick={() => setAssignCaseModalOpen(false)}
+              disabled={actionBusy}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleConfirmAssignCase}
+              disabled={actionBusy || !selectedCaseId}
+            >
+              {actionBusy ? "Saving..." : caseId ? "Move" : "Add"}
+            </Button>
+          </div>
+        }
+      >
+        <div style={{ display: "grid", gap: 12 }}>
+          <div style={{ fontSize: 14, color: "#cbd5e1", lineHeight: 1.6 }}>
+            Choose one of your accessible cases.
+          </div>
+
+          <select
+            value={selectedCaseId}
+            onChange={(e) => setSelectedCaseId(e.target.value)}
+            style={{
+              padding: 12,
+              borderRadius: 12,
+              border: "1px solid rgba(214,184,157,0.16)",
+              background: "rgba(255,255,255,0.05)",
+              color: "#eef4f1",
+            }}
+          >
+            <option value="">Select a case...</option>
+            {ownedCases.map((item) => (
+              <option key={item.id} value={item.id}>
+                {item.name}
+                {item.teamId ? " (Team)" : " (Personal)"}
+              </option>
+            ))}
+          </select>
+        </div>
+      </Modal>
+
+      <Modal
+        isOpen={lockModalOpen}
+        onClose={() => setLockModalOpen(false)}
+        title="Lock this evidence?"
+        actions={
+          <div style={{ display: "flex", gap: 10 }}>
+            <Button
+              variant="secondary"
+              onClick={() => setLockModalOpen(false)}
+              disabled={actionBusy}
+            >
+              Cancel
+            </Button>
+            <div style={{ position: "relative" }}>
+              <Button
+                onClick={handleConfirmLock}
+                disabled={actionBusy}
+                className="button-danger"
+              >
+                {actionBusy ? "Locking..." : "Lock permanently"}
+              </Button>
+            </div>
+          </div>
+        }
+      >
+        <div style={{ fontSize: 15, lineHeight: 1.7, color: "#e2e8f0" }}>
+          <p style={{ marginBottom: 16 }}>Once locked:</p>
+          <ul style={{ marginLeft: 20, marginBottom: 16, color: "#cbd5e1" }}>
+            <li style={{ marginBottom: 8 }}>• The evidence cannot be edited</li>
+            <li>• It becomes legally sealed</li>
+          </ul>
+          <p style={{ marginTop: 16, fontWeight: 700, color: "#fca5a5" }}>
+            This action is irreversible.
+          </p>
+        </div>
+      </Modal>
+
+      <Modal
+        isOpen={archiveModalOpen}
+        onClose={() => setArchiveModalOpen(false)}
+        title="Archive this evidence?"
+        actions={
+          <div style={{ display: "flex", gap: 10 }}>
+            <Button
+              variant="secondary"
+              onClick={() => setArchiveModalOpen(false)}
+              disabled={actionBusy}
+            >
+              Cancel
+            </Button>
+            <Button onClick={handleConfirmArchive} disabled={actionBusy}>
+              {actionBusy ? "Archiving..." : "Archive"}
+            </Button>
+          </div>
+        }
+      >
+        <div style={{ fontSize: 15, lineHeight: 1.7, color: "#e2e8f0" }}>
+          <p style={{ marginBottom: 12 }}>
+            This will remove the evidence from your active workspace.
+          </p>
+          <p style={{ marginBottom: 12 }}>
+            The evidence will remain stored and can be restored later if needed.
+          </p>
+        </div>
+      </Modal>
+
+      <Modal
+        isOpen={deleteModalOpen}
+        onClose={() => setDeleteModalOpen(false)}
+        title="Delete this evidence?"
+        actions={
+          <div style={{ display: "flex", gap: 10 }}>
+            <Button
+              variant="secondary"
+              onClick={() => setDeleteModalOpen(false)}
+              disabled={actionBusy}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleConfirmDelete}
               disabled={actionBusy}
               className="button-danger"
             >
-              {actionBusy ? "Locking..." : "Lock permanently"}
+              {actionBusy ? "Deleting..." : "Delete Evidence"}
             </Button>
           </div>
-        </div>
-      }
-    >
-      <div style={{ fontSize: 15, lineHeight: 1.6, color: "#e2e8f0" }}>
-        <p style={{ marginBottom: 16 }}>Once locked:</p>
-        <ul style={{ marginLeft: 20, marginBottom: 16, color: "#cbd5e1" }}>
-          <li style={{ marginBottom: 8 }}>• The evidence cannot be edited</li>
-          <li>• It becomes legally sealed</li>
-        </ul>
-        <p style={{ marginTop: 16, fontWeight: 600, color: "#f87171" }}>
-          This action is irreversible.
-        </p>
-      </div>
-    </Modal>
-
-    <Modal
-      isOpen={archiveModalOpen}
-      onClose={() => setArchiveModalOpen(false)}
-      title="Archive this evidence?"
-      actions={
-        <div style={{ display: "flex", gap: 10 }}>
-          <Button
-            variant="secondary"
-            onClick={() => setArchiveModalOpen(false)}
-            disabled={actionBusy}
+        }
+      >
+        <div style={{ display: "grid", gap: 14 }}>
+          <div
+            className="evidence-delete-notice"
+            style={{
+              padding: 16,
+              borderRadius: 16,
+              background:
+                "linear-gradient(135deg, rgba(127,29,29,0.18), rgba(69,10,10,0.12))",
+              border: "1px solid rgba(248,113,113,0.14)",
+            }}
           >
-            Cancel
-          </Button>
-          <Button onClick={handleConfirmArchive} disabled={actionBusy}>
-            {actionBusy ? "Archiving..." : "Archive"}
-          </Button>
-        </div>
-      }
-    >
-      <div style={{ fontSize: 15, lineHeight: 1.6, color: "#e2e8f0" }}>
-        <p style={{ marginBottom: 12 }}>
-          This will remove the evidence from your active workspace.
-        </p>
-        <p style={{ marginBottom: 12 }}>
-          The evidence will remain stored and can be restored later if needed.
-        </p>
-      </div>
-    </Modal>
-
-    <Modal
-      isOpen={deleteModalOpen}
-      onClose={() => setDeleteModalOpen(false)}
-      title="Delete this evidence?"
-      actions={
-        <div style={{ display: "flex", gap: 10 }}>
-          <Button
-            variant="secondary"
-            onClick={() => setDeleteModalOpen(false)}
-            disabled={actionBusy}
-          >
-            Cancel
-          </Button>
-          <Button
-            onClick={handleConfirmDelete}
-            disabled={actionBusy}
-            className="button-danger"
-          >
-            {actionBusy ? "Deleting..." : "Delete Evidence"}
-          </Button>
-        </div>
-      }
-    >
-      <div style={{ display: "grid", gap: 14 }}>
-        <div className="evidence-delete-notice">
-          <div className="evidence-delete-notice-title">
-            90-day recovery window
+            <div
+              className="evidence-delete-notice-title"
+              style={{ color: "#fecaca", fontWeight: 800, marginBottom: 6 }}
+            >
+              90-day recovery window
+            </div>
+            <div
+              className="evidence-delete-notice-text"
+              style={{ color: "rgba(254,202,202,0.86)", lineHeight: 1.7 }}
+            >
+              This evidence will be moved to secure trash and hidden from your
+              active workspace.
+              <br />
+              <br />
+              It will remain recoverable for <strong>90 days</strong>. After that
+              period, it is scheduled for permanent deletion.
+            </div>
           </div>
-          <div className="evidence-delete-notice-text">
-            This evidence will be moved to secure trash and hidden from your
-            active workspace.
-            <br />
-            <br />
-            It will remain recoverable for <strong>90 days</strong>. After that
-            period, it is scheduled for permanent deletion.
+
+          <div
+            style={{
+              fontSize: 13,
+              lineHeight: 1.65,
+              color: "#cbd5e1",
+            }}
+          >
+            Use this only when you no longer want the record in your active
+            workspace but still want a temporary recovery period.
           </div>
         </div>
-
-        <div
-          style={{
-            fontSize: 13,
-            lineHeight: 1.65,
-            color: "#cbd5e1",
-          }}
-        >
-          Use this only when you no longer want the record in your active
-          workspace but still want a temporary recovery period.
-        </div>
-      </div>
-    </Modal>
-  </div>
-);
+      </Modal>
+    </div>
+  );
 }

@@ -4,6 +4,8 @@ import { useMemo, useState, type KeyboardEvent } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "../../components/ui";
 import { MarketingHeader } from "../../components/header";
+import { Footer } from "../../components/Footer";
+import { SilverWatermarkSection } from "../../components/SilverWatermarkSection";
 
 function ShieldIcon() {
   return (
@@ -54,18 +56,44 @@ const TRUST_ITEMS = [
     title: "Hash and fingerprint checks",
     description: "Review file-level integrity markers and cryptographic fingerprints.",
     icon: <FingerprintIcon />,
+    accent: "teal",
   },
   {
     title: "Signature and custody timeline",
     description: "Inspect signing status, custody events, and evidentiary flow.",
     icon: <TimelineIcon />,
+    accent: "silver",
   },
   {
     title: "Timestamp and storage indicators",
     description: "See TSA, OpenTimestamps, and immutability-related storage signals.",
     icon: <LockIcon />,
+    accent: "bronze",
   },
 ] as const;
+
+function SilverCardShell({
+  children,
+  className = "",
+}: {
+  children: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <div
+      className={`relative overflow-hidden rounded-[28px] border border-[#4f706b]/18 shadow-[0_18px_38px_rgba(0,0,0,0.07),inset_0_1px_0_rgba(255,255,255,0.48)] ${className}`}
+    >
+      <img
+        src="/images/panel-silver.webp.png"
+        alt=""
+        className="absolute inset-0 h-full w-full object-cover object-center"
+      />
+      <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.24)_0%,rgba(248,249,246,0.34)_42%,rgba(239,241,238,0.42)_100%)]" />
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_16%_12%,rgba(255,255,255,0.34),transparent_28%)] opacity-90" />
+      <div className="relative z-10">{children}</div>
+    </div>
+  );
+}
 
 export default function VerifyIntroPage() {
   const [token, setToken] = useState("");
@@ -76,11 +104,7 @@ export default function VerifyIntroPage() {
 
   const ui = useMemo(
     () => ({
-      heroShadow: "0 28px 80px rgba(3, 10, 24, 0.42)",
-      heroBorder: "1px solid rgba(255, 255, 255, 0.10)",
-      panelBorder: "1px solid rgba(15, 23, 42, 0.08)",
-      softPanel: "linear-gradient(180deg, rgba(255,255,255,0.96), rgba(245,248,252,0.93))",
-      inputShadow: "0 10px 30px rgba(15, 23, 42, 0.08)",
+      inputShadow: "0 14px 32px rgba(6, 16, 22, 0.08)",
     }),
     []
   );
@@ -99,258 +123,212 @@ export default function VerifyIntroPage() {
 
   return (
     <div className="page landing-page">
-      <div className="blue-shell">
-        <MarketingHeader />
+      <div className="relative overflow-hidden">
+        <div className="absolute inset-0">
+          <img
+            src="/images/site-velvet-bg.webp.png"
+            alt=""
+            className="h-full w-full object-cover object-center"
+          />
+        </div>
 
-        <div className="container">
-          <main
-            style={{
-              minHeight: "calc(100vh - 92px)",
-              display: "grid",
-              alignItems: "center",
-              paddingTop: 48,
-              paddingBottom: 72,
-            }}
+        <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(8,18,22,0.84)_0%,rgba(8,18,22,0.74)_38%,rgba(8,18,22,0.66)_100%)]" />
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_16%_16%,rgba(158,216,207,0.09),transparent_24%)]" />
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_82%_24%,rgba(214,184,157,0.06),transparent_18%)]" />
+        <div className="absolute inset-0 opacity-[0.04] [background:repeating-linear-gradient(0deg,rgba(255,255,255,0.026)_0px,rgba(255,255,255,0.026)_1px,transparent_1px,transparent_4px)]" />
+
+        <div className="relative z-10">
+          <MarketingHeader />
+
+          <section className="mx-auto max-w-7xl px-6 pb-16 pt-10 md:px-8 md:pb-20 md:pt-14">
+            <div className="max-w-[760px]">
+              <div className="inline-flex rounded-full border border-white/10 bg-white/[0.055] px-4 py-2 text-[0.74rem] font-medium uppercase tracking-[0.2em] text-[#dce3e0] shadow-[0_10px_24px_rgba(0,0,0,0.10)] backdrop-blur-md">
+                Verify
+              </div>
+
+              <h1 className="mt-5 max-w-[680px] text-[1.72rem] font-medium leading-[1.01] tracking-[-0.04em] text-[#edf1ef] md:text-[2.28rem] lg:text-[2.9rem]">
+                Review digital evidence with a{" "}
+                <span className="text-[#bfe8df]">clearer trust trail</span>.
+              </h1>
+
+              <p className="mt-5 max-w-[700px] text-[0.96rem] leading-[1.8] tracking-[-0.006em] text-[#c7cfcc] md:text-[1rem]">
+                Open a PROOVRA verification token to inspect integrity materials,
+                signature state, custody history, timestamp evidence, and
+                preservation-related indicators in a clean review flow.
+              </p>
+
+              <div className="mt-6 flex flex-wrap gap-2.5">
+                <div className="rounded-full border border-white/10 bg-white/[0.055] px-3.5 py-2 text-[0.78rem] text-[#d7dfdb] shadow-[0_8px_18px_rgba(0,0,0,0.08)] backdrop-blur-md">
+                  <span className="mr-2 text-[#9dd2ca]">✓</span>
+                  Read-only verification flow
+                </div>
+
+                <div className="rounded-full border border-white/10 bg-white/[0.055] px-3.5 py-2 text-[0.78rem] text-[#d7dfdb] shadow-[0_8px_18px_rgba(0,0,0,0.08)] backdrop-blur-md">
+                  <span className="mr-2 text-[#9dd2ca]">✓</span>
+                  No account required for inspection
+                </div>
+
+                <div className="rounded-full border border-[rgba(214,184,157,0.24)] bg-[linear-gradient(180deg,rgba(183,157,132,0.08)_0%,rgba(255,255,255,0.03)_100%)] px-3.5 py-2 text-[0.78rem] text-[#e1d4c7] shadow-[0_8px_18px_rgba(0,0,0,0.08)] backdrop-blur-md">
+                  <span className="mr-2 text-[#d6b89d]">✓</span>
+                  Built for external review
+                </div>
+              </div>
+            </div>
+          </section>
+        </div>
+      </div>
+
+      <SilverWatermarkSection
+        className="section section-body relative overflow-hidden"
+        style={{ paddingTop: 48, paddingBottom: 56 }}
+      >
+        <div className="pointer-events-none absolute inset-0 z-0" aria-hidden="true">
+          <img
+            src="/images/landing-network-bg.png"
+            alt=""
+            className="absolute inset-0 h-full w-full object-cover object-top opacity-[0.12] saturate-[0.55] brightness-[1.02] contrast-[0.94]"
+          />
+          <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.08)_0%,rgba(255,255,255,0.03)_22%,rgba(255,255,255,0.03)_78%,rgba(255,255,255,0.08)_100%)]" />
+          <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(255,255,255,0.10)_0%,rgba(255,255,255,0.03)_12%,rgba(255,255,255,0.00)_24%,rgba(255,255,255,0.00)_76%,rgba(255,255,255,0.03)_88%,rgba(255,255,255,0.10)_100%)]" />
+        </div>
+
+        <div className="container relative z-10 mx-auto max-w-7xl px-6 md:px-8">
+          <section
+            className="grid gap-6 lg:grid-cols-[1.08fr_0.92fr]"
+            style={{ maxWidth: 1120, margin: "0 auto" }}
           >
-            <section
-              style={{
-                maxWidth: 1120,
-                width: "100%",
-                margin: "0 auto",
-                display: "grid",
-                gridTemplateColumns: "1.08fr 0.92fr",
-                gap: 24,
-                borderRadius: 30,
-                padding: 24,
-                background: "rgba(8, 17, 37, 0.30)",
-                backdropFilter: "blur(10px)",
-                border: ui.heroBorder,
-                boxShadow: ui.heroShadow,
-              }}
-            >
-              <div
-                style={{
-                  borderRadius: 26,
-                  padding: 32,
-                  background: ui.softPanel,
-                  border: ui.panelBorder,
-                  minHeight: 560,
-                  display: "flex",
-                  flexDirection: "column",
-                  justifyContent: "space-between",
-                }}
-              >
-                <div style={{ display: "grid", gap: 20 }}>
+            <SilverCardShell className="min-h-[560px]">
+              <div className="flex h-full flex-col justify-between p-7 md:p-8">
+                <div className="grid gap-6">
                   <div
-                    style={{
-                      display: "inline-flex",
-                      alignItems: "center",
-                      gap: 10,
-                      width: "fit-content",
-                      borderRadius: 999,
-                      padding: "10px 14px",
-                      background: "rgba(15, 23, 42, 0.08)",
-                      color: "#475569",
-                      fontSize: 12,
-                      fontWeight: 800,
-                      letterSpacing: "0.08em",
-                      textTransform: "uppercase",
-                    }}
+                    className="inline-flex w-fit items-center gap-2.5 rounded-full border border-[#23373b]/8 bg-[rgba(35,55,59,0.05)] px-4 py-2.5 text-[0.76rem] font-semibold uppercase tracking-[0.18em] text-[#566366]"
                   >
-                    <ShieldIcon />
+                    <span className="text-[#3f5e62]">
+                      <ShieldIcon />
+                    </span>
                     Verification portal
                   </div>
 
-                  <div style={{ display: "grid", gap: 14 }}>
-                    <h1
-                      style={{
-                        margin: 0,
-                        fontSize: "clamp(2rem, 4vw, 3.15rem)",
-                        lineHeight: 1.05,
-                        letterSpacing: "-0.03em",
-                        color: "#0f172a",
-                        fontWeight: 800,
-                        maxWidth: 700,
-                      }}
-                    >
-                      Review digital evidence with a clearer trust trail.
-                    </h1>
+                  <div className="grid gap-4">
+                    <h2 className="m-0 max-w-[720px] text-[1.9rem] font-semibold leading-[1.02] tracking-[-0.04em] text-[#16282d] md:text-[2.45rem]">
+                      Review digital evidence with a{" "}
+                      <span className="text-[#3e6b68]">clearer trust trail</span>.
+                    </h2>
 
-                    <p
-                      style={{
-                        margin: 0,
-                        fontSize: 17,
-                        lineHeight: 1.75,
-                        color: "#475569",
-                        maxWidth: 760,
-                      }}
-                    >
-                      Enter a verification token to inspect integrity materials, signature status,
-                      custody history, timestamp evidence, and storage-protection indicators
-                      associated with a PROOVRA evidence record.
+                    <p className="m-0 max-w-[760px] text-[1rem] leading-[1.82] text-[#5c6a6e]">
+                      Enter a verification token to inspect{" "}
+                      <span className="text-[#3e6b68]">integrity materials</span>,{" "}
+                      <span className="text-[#23373b]">signature status</span>, custody history,{" "}
+                      <span className="text-[#b79d84]">timestamp evidence</span>, and
+                      storage-protection indicators associated with a PROOVRA evidence record.
                     </p>
                   </div>
 
-                  <div
-                    style={{
-                      display: "grid",
-                      gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
-                      gap: 14,
-                    }}
-                  >
-                    {TRUST_ITEMS.map((item) => (
-                      <div
-                        key={item.title}
-                        style={{
-                          borderRadius: 20,
-                          padding: 18,
-                          background: "rgba(255,255,255,0.72)",
-                          border: "1px solid rgba(15, 23, 42, 0.08)",
-                          boxShadow: "0 8px 24px rgba(15, 23, 42, 0.05)",
-                          display: "grid",
-                          gap: 10,
-                        }}
-                      >
-                        <div
-                          style={{
-                            width: 40,
-                            height: 40,
-                            borderRadius: 12,
-                            display: "grid",
-                            placeItems: "center",
-                            background: "rgba(12, 27, 70, 0.08)",
-                            color: "#102a5c",
-                          }}
-                        >
-                          {item.icon}
-                        </div>
+                  <div className="grid gap-4 md:grid-cols-3">
+                    {TRUST_ITEMS.map((item) => {
+                      const isTeal = item.accent === "teal";
+                      const isBronze = item.accent === "bronze";
 
+                      return (
                         <div
+                          key={item.title}
+                          className="grid gap-3 rounded-[22px] border p-5"
                           style={{
-                            fontSize: 15,
-                            lineHeight: 1.35,
-                            fontWeight: 700,
-                            color: "#0f172a",
+                            background: isBronze
+                              ? "linear-gradient(180deg, rgba(255,255,255,0.78) 0%, rgba(248,245,241,0.94) 100%)"
+                              : "linear-gradient(180deg, rgba(255,255,255,0.76) 0%, rgba(245,246,244,0.92) 100%)",
+                            border: isBronze
+                              ? "1px solid rgba(183,157,132,0.16)"
+                              : "1px solid rgba(35,55,59,0.08)",
+                            boxShadow: "0 12px 28px rgba(0,0,0,0.05)",
                           }}
                         >
-                          {item.title}
-                        </div>
+                          <div
+                            className="grid h-10 w-10 place-items-center rounded-[14px]"
+                            style={{
+                              background: isTeal
+                                ? "rgba(62,107,104,0.10)"
+                                : isBronze
+                                  ? "rgba(183,157,132,0.14)"
+                                  : "rgba(35,55,59,0.08)",
+                              color: isTeal ? "#2d5f5c" : isBronze ? "#9b826b" : "#2f474c",
+                            }}
+                          >
+                            {item.icon}
+                          </div>
 
-                        <div
-                          style={{
-                            fontSize: 13.5,
-                            lineHeight: 1.6,
-                            color: "#64748b",
-                          }}
-                        >
-                          {item.description}
+                          <div
+                            className="text-[0.98rem] font-semibold leading-[1.35]"
+                            style={{
+                              color: isTeal ? "#18383d" : isBronze ? "#7f6450" : "#1e3237",
+                            }}
+                          >
+                            {item.title}
+                          </div>
+
+                          <div className="text-[0.88rem] leading-[1.65] text-[#667174]">
+                            {item.description}
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
 
-                <div
-                  style={{
-                    marginTop: 28,
-                    display: "flex",
-                    flexWrap: "wrap",
-                    gap: 10,
-                  }}
-                >
+                <div className="mt-8 flex flex-wrap gap-2.5">
                   {[
                     "Tamper-evident signals",
                     "Verification timeline",
                     "TSA / OTS visibility",
                     "Storage protection context",
-                  ].map((item) => (
+                  ].map((item, index) => (
                     <span
                       key={item}
-                      style={{
-                        borderRadius: 999,
-                        padding: "10px 14px",
-                        background: "rgba(12, 27, 70, 0.07)",
-                        border: "1px solid rgba(12, 27, 70, 0.08)",
-                        color: "#27416f",
-                        fontSize: 13,
-                        fontWeight: 700,
-                      }}
+                      className="rounded-full border px-3.5 py-2 text-[0.8rem] font-medium backdrop-blur-md"
+                      style={
+                        index === 2
+                          ? {
+                              border: "1px solid rgba(183,157,132,0.20)",
+                              background:
+                                "linear-gradient(180deg, rgba(183,157,132,0.10) 0%, rgba(255,255,255,0.08) 100%)",
+                              color: "#9b826b",
+                            }
+                          : {
+                              border: "1px solid rgba(35,55,59,0.08)",
+                              background: "rgba(35,55,59,0.05)",
+                              color: "#37595d",
+                            }
+                      }
                     >
                       {item}
                     </span>
                   ))}
                 </div>
               </div>
+            </SilverCardShell>
 
-              <div
-                style={{
-                  borderRadius: 26,
-                  padding: 28,
-                  background: "linear-gradient(180deg, rgba(8,17,37,0.88), rgba(8,17,37,0.72))",
-                  border: "1px solid rgba(148, 163, 184, 0.18)",
-                  display: "flex",
-                  flexDirection: "column",
-                  justifyContent: "center",
-                  minHeight: 560,
-                }}
-              >
-                <div style={{ display: "grid", gap: 20 }}>
-                  <div style={{ display: "grid", gap: 10 }}>
-                    <div
-                      style={{
-                        fontSize: 12,
-                        fontWeight: 800,
-                        letterSpacing: "0.08em",
-                        textTransform: "uppercase",
-                        color: "rgba(186, 200, 220, 0.82)",
-                      }}
-                    >
+            <SilverCardShell className="min-h-[560px]">
+              <div className="flex h-full flex-col justify-center p-7 md:p-8">
+                <div className="grid gap-5">
+                  <div className="grid gap-2.5">
+                    <div className="text-[0.76rem] font-semibold uppercase tracking-[0.18em] text-[#5f6d71]">
                       Open verification
                     </div>
 
-                    <h2
-                      style={{
-                        margin: 0,
-                        fontSize: 30,
-                        lineHeight: 1.1,
-                        color: "#f8fafc",
-                        fontWeight: 800,
-                        letterSpacing: "-0.02em",
-                      }}
-                    >
+                    <h2 className="m-0 text-[1.75rem] font-semibold leading-[1.08] tracking-[-0.03em] text-[#1b2f34] md:text-[2rem]">
                       Enter the verification token
                     </h2>
 
-                    <p
-                      style={{
-                        margin: 0,
-                        fontSize: 15,
-                        lineHeight: 1.75,
-                        color: "rgba(226, 232, 240, 0.76)",
-                      }}
-                    >
-                      Use the token from a PROOVRA report, verification link, or shared evidence
-                      record to open the verification view.
+                    <p className="m-0 text-[0.96rem] leading-[1.82] text-[#627277]">
+                      Use the token from a PROOVRA report, verification link, or shared evidence record to open
+                      the verification view.
                     </p>
                   </div>
 
-                  <div
-                    style={{
-                      display: "grid",
-                      gap: 14,
-                      padding: 18,
-                      borderRadius: 20,
-                      background: "rgba(255,255,255,0.04)",
-                      border: "1px solid rgba(255,255,255,0.08)",
-                    }}
-                  >
+                  <div className="grid gap-4 rounded-[22px] border border-[#23373b]/8 bg-[rgba(255,255,255,0.38)] p-5 backdrop-blur-md">
                     <label
                       htmlFor="verification-token"
-                      style={{
-                        fontSize: 13,
-                        fontWeight: 700,
-                        color: "rgba(226, 232, 240, 0.86)",
-                      }}
+                      className="text-[0.82rem] font-semibold text-[#405357]"
                     >
                       Verification token
                     </label>
@@ -367,58 +345,45 @@ export default function VerifyIntroPage() {
                         width: "100%",
                         height: 58,
                         borderRadius: 16,
-                        border: "1px solid rgba(148, 163, 184, 0.18)",
-                        background: "rgba(255,255,255,0.96)",
+                        border: "1px solid rgba(79,112,107,0.16)",
+                        background: "rgba(255,255,255,0.92)",
                         color: "#0f172a",
                         padding: "0 18px",
                         fontSize: 16,
-                        fontWeight: 600,
+                        fontWeight: 500,
                         outline: "none",
                         boxShadow: ui.inputShadow,
                       }}
                     />
 
-                    <Button onClick={handleVerify} disabled={!canSubmit}>
+                    <Button
+                      onClick={handleVerify}
+                      disabled={!canSubmit}
+                      className="h-[52px] rounded-[16px] px-5 text-[0.96rem] font-medium"
+                    >
                       Open verification
                     </Button>
                   </div>
 
-                  <div
-                    style={{
-                      display: "grid",
-                      gap: 12,
-                      paddingTop: 6,
-                    }}
-                  >
+                  <div className="grid gap-3 pt-1">
                     {[
                       "Review integrity signals without changing the original record.",
                       "Inspect custody events, signing state, and timestamp-related data.",
                       "Useful for external review, legal handoff, and independent checking.",
-                    ].map((item) => (
+                    ].map((item, index) => (
                       <div
                         key={item}
-                        style={{
-                          display: "flex",
-                          alignItems: "flex-start",
-                          gap: 10,
-                          color: "rgba(226, 232, 240, 0.84)",
-                          fontSize: 14,
-                          lineHeight: 1.65,
-                        }}
+                        className="flex items-start gap-3 text-[0.92rem] leading-[1.72] text-[#516267]"
                       >
                         <span
+                          className="mt-[0.1rem] inline-grid h-[22px] w-[22px] place-items-center rounded-full text-[0.72rem] font-semibold"
                           style={{
-                            width: 22,
-                            height: 22,
-                            borderRadius: 999,
-                            display: "inline-grid",
-                            placeItems: "center",
-                            background: "rgba(96, 165, 250, 0.16)",
-                            color: "#cfe0ff",
+                            background:
+                              index === 1
+                                ? "rgba(214,184,157,0.18)"
+                                : "rgba(62,107,104,0.12)",
+                            color: index === 1 ? "#9b826b" : "#376764",
                             flexShrink: 0,
-                            marginTop: 1,
-                            fontSize: 12,
-                            fontWeight: 800,
                           }}
                         >
                           ✓
@@ -428,28 +393,18 @@ export default function VerifyIntroPage() {
                     ))}
                   </div>
 
-                  <div
-                    style={{
-                      marginTop: 8,
-                      borderTop: "1px solid rgba(255,255,255,0.08)",
-                      paddingTop: 16,
-                      display: "flex",
-                      justifyContent: "space-between",
-                      gap: 12,
-                      flexWrap: "wrap",
-                      color: "rgba(186, 200, 220, 0.82)",
-                      fontSize: 12.5,
-                    }}
-                  >
+                  <div className="mt-2 flex flex-wrap justify-between gap-3 border-t border-[#23373b]/8 pt-4 text-[0.8rem] text-[#6a777b]">
                     <span>Read-only verification flow</span>
                     <span>No account required for inspection</span>
                   </div>
                 </div>
               </div>
-            </section>
-          </main>
+            </SilverCardShell>
+          </section>
         </div>
-      </div>
+      </SilverWatermarkSection>
+
+      <Footer />
     </div>
   );
 }

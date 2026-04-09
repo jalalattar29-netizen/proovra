@@ -49,12 +49,6 @@ export default function QuotasPage() {
     return Math.round((used / limit) * 100);
   };
 
-  const getUsageColor = (percent: number) => {
-    if (percent >= 90) return "bg-red-500";
-    if (percent >= 70) return "bg-yellow-500";
-    return "bg-green-500";
-  };
-
   const QuotaBar = ({
     label,
     used,
@@ -65,176 +59,271 @@ export default function QuotasPage() {
     limit: number;
   }) => {
     const percent = getUsagePercent(used, limit);
+    const barColor =
+      percent >= 90
+        ? "linear-gradient(90deg,#b91c1c,#ef4444)"
+        : percent >= 70
+          ? "linear-gradient(90deg,#b45309,#f59e0b)"
+          : "linear-gradient(90deg,#2f686d,#78bfc1)";
+
     return (
       <div>
-        <div className="flex justify-between text-sm mb-2">
-          <span className="text-gray-700 font-medium">{label}</span>
-          <span className="text-gray-600">
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            gap: 12,
+            marginBottom: 8,
+            fontSize: 13,
+          }}
+        >
+          <span style={{ color: "rgba(246,252,255,0.92)", fontWeight: 600 }}>{label}</span>
+          <span style={{ color: "rgba(219,235,248,0.72)" }}>
             {used} / {limit}
           </span>
         </div>
-        <div className="w-full bg-gray-200 rounded-full h-2">
+
+        <div
+          style={{
+            width: "100%",
+            height: 9,
+            borderRadius: 999,
+            background: "rgba(255,255,255,0.08)",
+            overflow: "hidden",
+          }}
+        >
           <div
-            className={`h-2 rounded-full transition-all ${getUsageColor(percent)}`}
-            style={{ width: `${percent}%` }}
+            style={{
+              height: "100%",
+              width: `${percent}%`,
+              borderRadius: 999,
+              background: barColor,
+              transition: "width 220ms ease",
+            }}
           />
         </div>
-        <div className="text-xs text-gray-500 mt-1">{percent}% used</div>
+
+        <div style={{ marginTop: 6, fontSize: 12, color: "rgba(219,235,248,0.62)" }}>
+          {percent}% used
+        </div>
       </div>
     );
   };
 
   if (loading) {
     return (
-      <div className="space-y-4 p-6">
-        <Skeleton width="100%" height="300px" />
-        <Skeleton width="100%" height="300px" />
+      <div className="section app-section">
+        <div className="app-hero app-hero-full">
+          <div className="container">
+            <h1 className="hero-title pricing-hero-title" style={{ margin: 0 }}>
+              Usage & Quotas
+            </h1>
+            <p className="page-subtitle pricing-subtitle" style={{ marginTop: 6 }}>
+              Loading usage and quota data...
+            </p>
+          </div>
+        </div>
+
+        <div className="app-body app-body-full">
+          <div className="container" style={{ display: "grid", gap: 16 }}>
+            <Skeleton width="100%" height="300px" />
+            <Skeleton width="100%" height="300px" />
+          </div>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="space-y-6 p-6">
-      {/* Header */}
-      <div>
-        <h1 className="text-3xl font-bold">Usage & Quotas</h1>
-        <p className="text-gray-600 mt-2">Monitor your API usage and quota limits</p>
+    <div className="section app-section">
+      <div className="app-hero app-hero-full">
+        <div className="container">
+          <h1 className="hero-title pricing-hero-title" style={{ margin: 0 }}>
+            Usage & Quotas
+          </h1>
+          <p className="page-subtitle pricing-subtitle" style={{ marginTop: 6 }}>
+            Monitor your API usage, batch activity, and quota limits.
+          </p>
+        </div>
       </div>
 
-      {/* Usage Stats */}
-      {stats && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {/* Daily Usage */}
-          <Card className="p-6">
-            <h3 className="text-lg font-bold mb-4">Daily Usage</h3>
-            <div className="space-y-4">
-              <div>
-                <div className="text-sm text-gray-600">Today</div>
-                <div className="text-3xl font-bold text-blue-600">
-                  {stats.dailyAnalyses.today}
-                </div>
-              </div>
-              <div>
-                <div className="text-sm text-gray-600">This Week</div>
-                <div className="text-3xl font-bold text-blue-600">
-                  {stats.dailyAnalyses.thisWeek}
-                </div>
-              </div>
-              <div>
-                <div className="text-sm text-gray-600">This Month</div>
-                <div className="text-3xl font-bold text-blue-600">
-                  {stats.dailyAnalyses.thisMonth}
-                </div>
-              </div>
-            </div>
-          </Card>
+      <div className="app-body app-body-full">
+        <div className="container" style={{ display: "grid", gap: 16 }}>
+          {stats && (
+            <div className="grid-2">
+              <Card className="app-card">
+                <div className="app-card-title">Daily Usage</div>
+                <div style={{ display: "grid", gap: 16 }}>
+                  <div>
+                    <div style={{ fontSize: 12, color: "rgba(219,235,248,0.64)" }}>Today</div>
+                    <div style={{ fontSize: 34, fontWeight: 800, color: "#bfe8df", marginTop: 4 }}>
+                      {stats.dailyAnalyses.today}
+                    </div>
+                  </div>
 
-          {/* Cost */}
-          <Card className="p-6">
-            <h3 className="text-lg font-bold mb-4">Cost</h3>
-            <div className="space-y-4">
-              <div>
-                <div className="text-sm text-gray-600">Total Cost</div>
-                <div className="text-3xl font-bold text-green-600">
-                  ${stats.costBreakdown.totalCost.toFixed(2)}
+                  <div>
+                    <div style={{ fontSize: 12, color: "rgba(219,235,248,0.64)" }}>This Week</div>
+                    <div style={{ fontSize: 30, fontWeight: 800, color: "rgba(246,252,255,0.96)", marginTop: 4 }}>
+                      {stats.dailyAnalyses.thisWeek}
+                    </div>
+                  </div>
+
+                  <div>
+                    <div style={{ fontSize: 12, color: "rgba(219,235,248,0.64)" }}>This Month</div>
+                    <div style={{ fontSize: 30, fontWeight: 800, color: "#e6c9ae", marginTop: 4 }}>
+                      {stats.dailyAnalyses.thisMonth}
+                    </div>
+                  </div>
                 </div>
-              </div>
-              <div>
-                <div className="text-sm text-gray-600">This Month</div>
-                <div className="text-2xl font-bold">
-                  ${stats.costBreakdown.thisMonth.toFixed(2)}
+              </Card>
+
+              <Card className="app-card">
+                <div className="app-card-title">Cost</div>
+                <div style={{ display: "grid", gap: 16 }}>
+                  <div>
+                    <div style={{ fontSize: 12, color: "rgba(219,235,248,0.64)" }}>Total Cost</div>
+                    <div style={{ fontSize: 34, fontWeight: 800, color: "#bfe8df", marginTop: 4 }}>
+                      ${stats.costBreakdown.totalCost.toFixed(2)}
+                    </div>
+                  </div>
+
+                  <div>
+                    <div style={{ fontSize: 12, color: "rgba(219,235,248,0.64)" }}>This Month</div>
+                    <div style={{ fontSize: 28, fontWeight: 800, color: "rgba(246,252,255,0.96)", marginTop: 4 }}>
+                      ${stats.costBreakdown.thisMonth.toFixed(2)}
+                    </div>
+                  </div>
+
+                  <div>
+                    <div style={{ fontSize: 12, color: "rgba(219,235,248,0.64)" }}>Avg per Analysis</div>
+                    <div style={{ fontSize: 28, fontWeight: 800, color: "#e6c9ae", marginTop: 4 }}>
+                      ${stats.costBreakdown.averagePerAnalysis.toFixed(4)}
+                    </div>
+                  </div>
                 </div>
-              </div>
-              <div>
-                <div className="text-sm text-gray-600">Avg per Analysis</div>
-                <div className="text-2xl font-bold">
-                  ${stats.costBreakdown.averagePerAnalysis.toFixed(4)}
-                </div>
-              </div>
+              </Card>
             </div>
+          )}
+
+          {quotas && (
+            <Card className="app-card">
+              <div className="app-card-title">Current Quotas</div>
+              <div style={{ display: "grid", gap: 22 }}>
+                <QuotaBar
+                  label="Analysis API Calls"
+                  used={quotas.analyses.used}
+                  limit={quotas.analyses.limit}
+                />
+                <QuotaBar
+                  label="Batch Jobs"
+                  used={quotas.batchJobs.used}
+                  limit={quotas.batchJobs.limit}
+                />
+                <QuotaBar
+                  label="API Keys"
+                  used={quotas.apiKeys.used}
+                  limit={quotas.apiKeys.limit}
+                />
+                <QuotaBar
+                  label="Team Members"
+                  used={quotas.teamMembers.used}
+                  limit={quotas.teamMembers.limit}
+                />
+
+                <div
+                  style={{
+                    paddingTop: 16,
+                    borderTop: "1px solid rgba(255,255,255,0.08)",
+                    fontSize: 13,
+                    color: "rgba(219,235,248,0.72)",
+                  }}
+                >
+                  Quotas reset on{" "}
+                  <strong style={{ color: "rgba(246,252,255,0.96)" }}>
+                    {new Date(quotas.analyses.resetDate).toLocaleDateString()}
+                  </strong>
+                </div>
+              </div>
+            </Card>
+          )}
+
+          {stats && (
+            <Card className="app-card">
+              <div className="app-card-title">Evidence Types Analyzed</div>
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))",
+                  gap: 14,
+                }}
+              >
+                {Object.entries(stats.topEvidenceTypes).map(([type, count]) => (
+                  <div
+                    key={type}
+                    style={{
+                      borderRadius: 16,
+                      border: "1px solid rgba(255,255,255,0.08)",
+                      background: "rgba(255,255,255,0.04)",
+                      padding: 16,
+                      textAlign: "center",
+                    }}
+                  >
+                    <div style={{ fontSize: 30, fontWeight: 800, color: "#bfe8df" }}>{count}</div>
+                    <div style={{ fontSize: 13, color: "rgba(219,235,248,0.68)", marginTop: 6 }}>
+                      {type}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </Card>
+          )}
+
+          {stats && (
+            <Card
+              className="app-card"
+              style={{
+                border: "1px solid rgba(158,216,207,0.16)",
+                background:
+                  "linear-gradient(135deg, rgba(158,216,207,0.10), rgba(214,184,157,0.08))",
+              }}
+            >
+              <div className="app-card-title">Active Services</div>
+              <div className="grid-2">
+                <div>
+                  <div style={{ fontSize: 32, fontWeight: 800, color: "rgba(246,252,255,0.96)" }}>
+                    {stats.activeApiKeys}
+                  </div>
+                  <div style={{ fontSize: 13, color: "rgba(219,235,248,0.68)" }}>Active API Keys</div>
+                </div>
+                <div>
+                  <div style={{ fontSize: 32, fontWeight: 800, color: "rgba(246,252,255,0.96)" }}>
+                    {stats.activeBatches}
+                  </div>
+                  <div style={{ fontSize: 13, color: "rgba(219,235,248,0.68)" }}>Active Batch Jobs</div>
+                </div>
+              </div>
+            </Card>
+          )}
+
+          <Card
+            className="app-card"
+            style={{
+              border: "1px solid rgba(214,184,157,0.16)",
+              background:
+                "linear-gradient(135deg, rgba(214,184,157,0.10), rgba(255,255,255,0.03))",
+            }}
+          >
+            <div className="app-card-title">Pricing</div>
+            <ul style={{ margin: 0, paddingLeft: 18, display: "grid", gap: 10, color: "rgba(219,235,248,0.78)" }}>
+              <li>Each AI analysis: $0.10</li>
+              <li>Monthly quota: 10,000 analyses per month</li>
+              <li>Batch processing: Included in standard quota</li>
+              <li>API keys: Unlimited</li>
+              <li>Team members: Up to 10 per account</li>
+            </ul>
           </Card>
         </div>
-      )}
-
-      {/* Quotas */}
-      {quotas && (
-        <Card className="p-6">
-          <h3 className="text-xl font-bold mb-6">Current Quotas</h3>
-          <div className="space-y-6">
-            <QuotaBar
-              label="Analysis API Calls"
-              used={quotas.analyses.used}
-              limit={quotas.analyses.limit}
-            />
-            <QuotaBar
-              label="Batch Jobs"
-              used={quotas.batchJobs.used}
-              limit={quotas.batchJobs.limit}
-            />
-            <QuotaBar
-              label="API Keys"
-              used={quotas.apiKeys.used}
-              limit={quotas.apiKeys.limit}
-            />
-            <QuotaBar
-              label="Team Members"
-              used={quotas.teamMembers.used}
-              limit={quotas.teamMembers.limit}
-            />
-
-            <div className="pt-4 border-t mt-6">
-              <div className="text-sm text-gray-600">
-                Quotas reset on{" "}
-                <strong>{new Date(quotas.analyses.resetDate).toLocaleDateString()}</strong>
-              </div>
-            </div>
-          </div>
-        </Card>
-      )}
-
-      {/* Evidence Types */}
-      {stats && (
-        <Card className="p-6">
-          <h3 className="text-xl font-bold mb-6">Evidence Types Analyzed</h3>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            {Object.entries(stats.topEvidenceTypes).map(([type, count]) => (
-              <div key={type} className="text-center">
-                <div className="text-3xl font-bold text-blue-600">{count}</div>
-                <div className="text-sm text-gray-600 capitalize mt-1">{type}</div>
-              </div>
-            ))}
-          </div>
-        </Card>
-      )}
-
-      {/* Active Services */}
-      {stats && (
-        <Card className="p-6 bg-blue-50 border border-blue-200">
-          <h3 className="text-lg font-bold mb-4">Active Services</h3>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <div className="text-2xl font-bold">{stats.activeApiKeys}</div>
-              <div className="text-sm text-gray-700">Active API Keys</div>
-            </div>
-            <div>
-              <div className="text-2xl font-bold">{stats.activeBatches}</div>
-              <div className="text-sm text-gray-700">Active Batch Jobs</div>
-            </div>
-          </div>
-        </Card>
-      )}
-
-      {/* Pricing Info */}
-      <Card className="p-6 bg-gray-50 border border-gray-200">
-        <h3 className="text-lg font-bold mb-2">Pricing</h3>
-        <ul className="text-sm space-y-2 text-gray-700">
-          <li>• Each AI analysis: $0.10</li>
-          <li>• Monthly quota: 10,000 analyses per month</li>
-          <li>• Batch processing: Included in standard quota</li>
-          <li>• API keys: Unlimited</li>
-          <li>• Team members: Up to 10 per account</li>
-        </ul>
-      </Card>
+      </div>
     </div>
   );
 }

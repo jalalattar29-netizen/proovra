@@ -1,4 +1,3 @@
-// D:\digital-witness\apps\web\app\(app)\billing\page.tsx
 "use client";
 
 import { useEffect, useState } from "react";
@@ -13,7 +12,7 @@ type PayPalLink = { rel: string; href: string };
 
 export default function BillingPage() {
   const { addToast } = useToast();
-const currency = detectCurrency();
+  const currency = detectCurrency();
   const [plan, setPlan] = useState("FREE");
   const [credits, setCredits] = useState(0);
   const [teamSeats, setTeamSeats] = useState(0);
@@ -50,7 +49,7 @@ const currency = detectCurrency();
     try {
       const data = await apiFetch("/v1/billing/checkout/stripe", {
         method: "POST",
-body: JSON.stringify({ plan: planType, currency }),
+        body: JSON.stringify({ plan: planType, currency }),
       });
 
       const url = data.session?.url as string | undefined;
@@ -76,7 +75,7 @@ body: JSON.stringify({ plan: planType, currency }),
     try {
       const data = await apiFetch("/v1/billing/checkout/paypal", {
         method: "POST",
-body: JSON.stringify({ plan: planType, currency }),
+        body: JSON.stringify({ plan: planType, currency }),
       });
 
       const approve = (data.order?.links as PayPalLink[] | undefined)?.find((l) => l.rel === "approve");
@@ -132,10 +131,31 @@ body: JSON.stringify({ plan: planType, currency }),
               <div className="app-inline-error">{error}</div>
             ) : (
               <>
-                <p style={{ margin: 0, fontSize: 16, fontWeight: 600 }}>{plan} plan</p>
-                {plan === "PAYG" && <p className="app-muted" style={{ marginTop: 8 }}>Credits: {credits}</p>}
-                {plan === "TEAM" && <p className="app-muted" style={{ marginTop: 8 }}>Team seats: {teamSeats}</p>}
-                {plan === "FREE" && <p className="app-muted" style={{ marginTop: 8 }}>Upgrade to unlock more features</p>}
+                <p
+                  style={{
+                    margin: 0,
+                    fontSize: 18,
+                    fontWeight: 700,
+                    color: "rgba(246,252,255,0.96)",
+                  }}
+                >
+                  {plan} plan
+                </p>
+                {plan === "PAYG" && (
+                  <p className="app-muted" style={{ marginTop: 8 }}>
+                    Credits: {credits}
+                  </p>
+                )}
+                {plan === "TEAM" && (
+                  <p className="app-muted" style={{ marginTop: 8 }}>
+                    Team seats: {teamSeats}
+                  </p>
+                )}
+                {plan === "FREE" && (
+                  <p className="app-muted" style={{ marginTop: 8 }}>
+                    Upgrade to unlock more features
+                  </p>
+                )}
               </>
             )}
           </Card>

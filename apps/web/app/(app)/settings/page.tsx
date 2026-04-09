@@ -226,258 +226,233 @@ export default function SettingsPage() {
     }
   };
 
-  return (
-    <div className="section app-section">
-      <div className="app-hero app-hero-full">
-        <div className="container">
-          <div className="page-title" style={{ marginBottom: 0 }}>
-            <div>
-              <h1 className="hero-title pricing-hero-title" style={{ margin: 0 }}>
-                {t("settings")}
-              </h1>
-              <p className="page-subtitle pricing-subtitle" style={{ marginTop: 6 }}>
-                Manage your account and preferences.
-              </p>
-            </div>
+return (
+  <div className="section app-section">
+    <div className="app-hero app-hero-full">
+      <div className="container">
+        <div className="page-title" style={{ marginBottom: 0 }}>
+          <div>
+            <h1 className="hero-title pricing-hero-title" style={{ margin: 0 }}>
+              {t("settings")}
+            </h1>
+            <p className="page-subtitle pricing-subtitle" style={{ marginTop: 6 }}>
+              Manage your account and preferences.
+            </p>
           </div>
         </div>
       </div>
+    </div>
 
-      <div className="app-body app-body-full">
-        <div className="container" style={{ display: "grid", gap: 16 }}>
-          <Card>
-            <div className="settings-section-header">
-              <Icons.Dashboard />
-              <span>Profile</span>
+    <div className="app-body app-body-full">
+      <div className="container" style={{ display: "grid", gap: 16 }}>
+        <Card className="app-card">
+          <div className="settings-section-header">
+            <Icons.Dashboard />
+            <span>Profile</span>
+          </div>
+
+          <div className="settings-section-body">
+            <div style={{ marginBottom: 16, display: "flex", alignItems: "center", gap: 12 }}>
+              <div className="profile-avatar">{initials}</div>
+
+              <div className="profile-info">
+                <div className="profile-info-label">Account</div>
+                <div className="profile-info-title">
+                  {user?.displayName || user?.email || "Guest User"}
+                </div>
+                {user?.email && <div className="profile-info-email">{user.email}</div>}
+              </div>
             </div>
 
-            <div className="settings-section-body">
-              <div style={{ marginBottom: 16, display: "flex", alignItems: "center", gap: 12 }}>
-                <div className="profile-avatar">{initials}</div>
-
-                <div className="profile-info">
-                  <div className="profile-info-label">Account</div>
-                  <div className="profile-info-title">
-                    {user?.displayName || user?.email || "Guest User"}
-                  </div>
-                  {user?.email && <div className="profile-info-email">{user.email}</div>}
-                </div>
-              </div>
-
-              <div className="profile-form-fields">
-                <div className="profile-grid-2">
-                  <div className="profile-form-group">
-                    <div className="profile-field-label">First name</div>
-                    <Input
-                      value={firstName}
-                      onChange={setFirstName}
-                      placeholder="First name"
-                      maxLength={80}
-                    />
-                  </div>
-                  <div className="profile-form-group">
-                    <div className="profile-field-label">Last name</div>
-                    <Input
-                      value={lastName}
-                      onChange={setLastName}
-                      placeholder="Last name"
-                      maxLength={80}
-                    />
-                  </div>
-                </div>
-
+            <div className="profile-form-fields">
+              <div className="profile-grid-2">
                 <div className="profile-form-group">
-                  <div className="profile-field-label">Display name</div>
-                  <Input
-                    value={displayName}
-                    onChange={setDisplayName}
-                    placeholder="Public display name"
-                    maxLength={120}
-                  />
+                  <div className="profile-field-label">First name</div>
+                  <Input value={firstName} onChange={setFirstName} placeholder="First name" maxLength={80} />
                 </div>
-
-                <div className="profile-grid-2">
-                  <div className="profile-form-group">
-                    <div className="profile-field-label">Country</div>
-                    <Input
-                      value={country}
-                      onChange={setCountry}
-                      placeholder="e.g. Germany, Syria"
-                      maxLength={120}
-                    />
-                  </div>
-                  <div className="profile-form-group">
-                    <div className="profile-field-label">Timezone</div>
-                    <Input
-                      value={timezone}
-                      onChange={setTimezone}
-                      placeholder="e.g. Europe/Berlin"
-                      maxLength={64}
-                    />
-                  </div>
-                </div>
-
                 <div className="profile-form-group">
-                  <div className="profile-field-label">Bio</div>
-                  <textarea
-                    className="input"
-                    value={bio}
-                    onChange={(e) => setBio(e.target.value.slice(0, 280))}
-                    placeholder="A short bio (optional)"
-                    rows={4}
-                    maxLength={280}
-                    style={{ resize: "vertical" }}
-                  />
+                  <div className="profile-field-label">Last name</div>
+                  <Input value={lastName} onChange={setLastName} placeholder="Last name" maxLength={80} />
                 </div>
               </div>
 
-              <div className="profile-actions">
-                <Button variant="secondary" onClick={handleSaveProfile}>
-                  Save profile
-                </Button>
-                <Button variant="secondary" onClick={handleSignOut}>
-                  Sign out
-                </Button>
-              </div>
-            </div>
-          </Card>
-
-          <Card>
-            <div className="settings-section-header">
-              <Icons.Security />
-              <span>Security</span>
-            </div>
-            <div className="settings-section-body">
-              <div className="settings-row">
-                <span className="settings-label">Login method</span>
-                <span>{user?.provider ?? "—"}</span>
-              </div>
-              <div className="settings-row">
-                <span className="settings-label">Session</span>
-                <span>Active</span>
+              <div className="profile-form-group">
+                <div className="profile-field-label">Display name</div>
+                <Input value={displayName} onChange={setDisplayName} placeholder="Public display name" maxLength={120} />
               </div>
 
-              <Link href="/legal/security" className="settings-link">
-                Security policy
-              </Link>
-              <a href="mailto:security@proovra.com" className="settings-link">
-                security@proovra.com
-              </a>
-            </div>
-          </Card>
-
-          <Card>
-            <div className="settings-section-header">
-              <Icons.Settings />
-              <span>{t("language")}</span>
-            </div>
-            <div className="settings-section-body">
-              <div className="settings-row">
-                <span className="settings-label">UI language</span>
-                <select
-                  value={selectedLanguage}
-                  onChange={(e) => setSelectedLanguage(e.target.value as Locale)}
-                  className="settings-select"
-                >
-                  {supportedLocales.map((lc) => (
-                    <option key={lc} value={lc}>
-                      {lc === "en"
-                        ? "English"
-                        : lc === "ar"
-                          ? "العربية"
-                          : lc === "de"
-                            ? "Deutsch"
-                            : lc === "fr"
-                              ? "Français"
-                              : lc === "es"
-                                ? "Español"
-                                : lc === "tr"
-                                  ? "Türkçe"
-                                  : lc === "ru"
-                                    ? "Русский"
-                                    : String(lc).toUpperCase()}
-                    </option>
-                  ))}
-                </select>
+              <div className="profile-grid-2">
+                <div className="profile-form-group">
+                  <div className="profile-field-label">Country</div>
+                  <Input value={country} onChange={setCountry} placeholder="e.g. Germany, Syria" maxLength={120} />
+                </div>
+                <div className="profile-form-group">
+                  <div className="profile-field-label">Timezone</div>
+                  <Input value={timezone} onChange={setTimezone} placeholder="e.g. Europe/Berlin" maxLength={64} />
+                </div>
               </div>
-              <p style={{ margin: 0, fontSize: 13, color: "var(--color-muted)" }}>
-                Language preference will be used for future UI updates.
-              </p>
-            </div>
-          </Card>
 
-          <Card>
-            <div className="settings-section-header">
-              <Icons.Billing />
-              <span>Subscription</span>
-            </div>
-            <div className="settings-section-body">
-              <div className="settings-row">
-                <span className="settings-label">Current plan</span>
-                <span>{plan}</span>
-              </div>
-              <div style={{ marginTop: 12 }}>
-                <Link href="/billing">
-                  <Button variant="secondary">Go to Billing</Button>
-                </Link>
+              <div className="profile-form-group">
+                <div className="profile-field-label">Bio</div>
+                <textarea
+                  className="input"
+                  value={bio}
+                  onChange={(e) => setBio(e.target.value.slice(0, 280))}
+                  placeholder="A short bio (optional)"
+                  rows={4}
+                  maxLength={280}
+                  style={{ resize: "vertical" }}
+                />
               </div>
             </div>
-          </Card>
 
-          <Card>
-            <div className="settings-section-header">
-              <Icons.Security />
-              <span>Legal</span>
+            <div className="profile-actions">
+              <Button variant="secondary" onClick={handleSaveProfile}>
+                Save profile
+              </Button>
+              <Button variant="secondary" onClick={handleSignOut}>
+                Sign out
+              </Button>
+            </div>
+          </div>
+        </Card>
+
+        <Card className="app-card">
+          <div className="settings-section-header">
+            <Icons.Security />
+            <span>Security</span>
+          </div>
+          <div className="settings-section-body">
+            <div className="settings-row">
+              <span className="settings-label">Login method</span>
+              <span>{user?.provider ?? "—"}</span>
+            </div>
+            <div className="settings-row">
+              <span className="settings-label">Session</span>
+              <span style={{ color: "#bfe8df" }}>Active</span>
             </div>
 
-            <div className="settings-section-body">
-              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                {LEGAL_LINKS.map((link) => (
-                  <Link key={link.href} href={link.href} className="settings-link">
-                    {link.label}
-                  </Link>
+            <Link href="/legal/security" className="settings-link">
+              Security policy
+            </Link>
+            <a href="mailto:security@proovra.com" className="settings-link">
+              security@proovra.com
+            </a>
+          </div>
+        </Card>
+
+        <Card className="app-card">
+          <div className="settings-section-header">
+            <Icons.Settings />
+            <span>{t("language")}</span>
+          </div>
+          <div className="settings-section-body">
+            <div className="settings-row">
+              <span className="settings-label">UI language</span>
+              <select
+                value={selectedLanguage}
+                onChange={(e) => setSelectedLanguage(e.target.value as Locale)}
+                className="settings-select"
+              >
+                {supportedLocales.map((lc) => (
+                  <option key={lc} value={lc}>
+                    {lc === "en"
+                      ? "English"
+                      : lc === "ar"
+                        ? "العربية"
+                        : lc === "de"
+                          ? "Deutsch"
+                          : lc === "fr"
+                            ? "Français"
+                            : lc === "es"
+                              ? "Español"
+                              : lc === "tr"
+                                ? "Türkçe"
+                                : lc === "ru"
+                                  ? "Русский"
+                                  : String(lc).toUpperCase()}
+                  </option>
                 ))}
-              </div>
-
-              <div style={{ marginTop: 16, display: "grid", gap: 10 }}>
-                <Button
-                  variant="secondary"
-                  onClick={() => {
-                    openCookiePreferences();
-                  }}
-                >
-                  Manage Cookie Preferences
-                </Button>
-
-                {latestCookieConsent ? (
-                  <div style={{ fontSize: 12, color: "var(--color-text)" }}>
-                    Cookie consent v{latestCookieConsent.consentVersion} — saved on{" "}
-                    {new Date(latestCookieConsent.createdAt).toLocaleString()}
-                  </div>
-                ) : null}
-
-                {legalAcceptances.length > 0 ? (
-                  <div style={{ display: "grid", gap: 6, marginTop: 6 }}>
-                    {legalAcceptances.slice(0, 4).map((item) => (
-                      <div
-                        key={item.id}
-                        style={{
-                          fontSize: 12,
-                          color: "var(--color-text)",
-                          opacity: 0.85,
-                        }}
-                      >
-                        {item.policyKey} v{item.policyVersion} —{" "}
-                        {new Date(item.acceptedAt).toLocaleString()}
-                      </div>
-                    ))}
-                  </div>
-                ) : null}
-              </div>
+              </select>
             </div>
-          </Card>
-        </div>
+            <p style={{ margin: 0, fontSize: 13, color: "var(--app-muted)" }}>
+              Language preference will be used for future UI updates.
+            </p>
+          </div>
+        </Card>
+
+        <Card className="app-card">
+          <div className="settings-section-header">
+            <Icons.Billing />
+            <span>Subscription</span>
+          </div>
+          <div className="settings-section-body">
+            <div className="settings-row">
+              <span className="settings-label">Current plan</span>
+              <span style={{ color: "#e6c9ae" }}>{plan}</span>
+            </div>
+            <div style={{ marginTop: 12 }}>
+              <Link href="/billing">
+                <Button variant="secondary">Go to Billing</Button>
+              </Link>
+            </div>
+          </div>
+        </Card>
+
+        <Card className="app-card">
+          <div className="settings-section-header">
+            <Icons.Security />
+            <span>Legal</span>
+          </div>
+
+          <div className="settings-section-body">
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {LEGAL_LINKS.map((link) => (
+                <Link key={link.href} href={link.href} className="settings-link">
+                  {link.label}
+                </Link>
+              ))}
+            </div>
+
+            <div style={{ marginTop: 16, display: "grid", gap: 10 }}>
+              <Button
+                variant="secondary"
+                onClick={() => {
+                  openCookiePreferences();
+                }}
+              >
+                Manage Cookie Preferences
+              </Button>
+
+              {latestCookieConsent ? (
+                <div style={{ fontSize: 12, color: "var(--app-text)" }}>
+                  Cookie consent v{latestCookieConsent.consentVersion} — saved on{" "}
+                  {new Date(latestCookieConsent.createdAt).toLocaleString()}
+                </div>
+              ) : null}
+
+              {legalAcceptances.length > 0 ? (
+                <div style={{ display: "grid", gap: 6, marginTop: 6 }}>
+                  {legalAcceptances.slice(0, 4).map((item) => (
+                    <div
+                      key={item.id}
+                      style={{
+                        fontSize: 12,
+                        color: "var(--app-text)",
+                        opacity: 0.85,
+                      }}
+                    >
+                      {item.policyKey} v{item.policyVersion} —{" "}
+                      {new Date(item.acceptedAt).toLocaleString()}
+                    </div>
+                  ))}
+                </div>
+              ) : null}
+            </div>
+          </div>
+        </Card>
       </div>
     </div>
-  );
+  </div>
+);
 }

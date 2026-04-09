@@ -123,8 +123,7 @@ export default function DeletedEvidencePage() {
               </p>
             </div>
 
-            <Link href="/evidence">
-            </Link>
+            <Link href="/evidence"></Link>
           </div>
         </div>
       </div>

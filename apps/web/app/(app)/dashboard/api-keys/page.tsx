@@ -130,209 +130,301 @@ export default function APIKeysPage() {
 
   if (loading) {
     return (
-      <div className="space-y-4 p-6">
-        <Skeleton width="100%" height="60px" />
-        <Skeleton width="100%" height="200px" />
-        <Skeleton width="100%" height="200px" />
+      <div className="section app-section">
+        <div className="app-hero app-hero-full">
+          <div className="container">
+            <h1 className="hero-title pricing-hero-title" style={{ margin: 0 }}>
+              API Keys
+            </h1>
+            <p className="page-subtitle pricing-subtitle" style={{ marginTop: 6 }}>
+              Loading API keys and integration access...
+            </p>
+          </div>
+        </div>
+
+        <div className="app-body app-body-full">
+          <div className="container" style={{ display: "grid", gap: 16 }}>
+            <Skeleton width="100%" height="60px" />
+            <Skeleton width="100%" height="200px" />
+            <Skeleton width="100%" height="200px" />
+          </div>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="space-y-6 p-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold">API Keys</h1>
-          <p className="text-gray-600 mt-2">Manage API keys for third-party integrations</p>
-        </div>
-        <Button onClick={() => setShowNewKeyForm(!showNewKeyForm)}>
-          + New API Key
-        </Button>
-      </div>
-
-      {/* Generated Key Display */}
-      {generatedKey && (
-        <Card className="p-6 bg-blue-50 border-2 border-blue-200">
-          <div className="space-y-4">
+    <div className="section app-section">
+      <div className="app-hero app-hero-full">
+        <div className="container">
+          <div className="page-title" style={{ marginBottom: 0 }}>
             <div>
-              <div className="text-sm font-semibold text-gray-700">API Key Created</div>
-              <p className="text-sm text-gray-600 mt-1">
-                Save this key securely. You won't be able to see it again.
+              <h1 className="hero-title pricing-hero-title" style={{ margin: 0 }}>
+                API Keys
+              </h1>
+              <p className="page-subtitle pricing-subtitle" style={{ marginTop: 6 }}>
+                Manage API keys for third-party integrations.
               </p>
             </div>
-            <div className="bg-white p-3 rounded font-mono text-sm break-all border border-gray-300">
-              {generatedKey.apiKey}
-            </div>
-            <div className="flex gap-2">
-              <Button
-                onClick={() => {
-                  navigator.clipboard.writeText(generatedKey.apiKey);
-                  addToast("Copied to clipboard", "success");
-                }}
-                className="flex-1"
-              >
-                Copy Key
-              </Button>
-              <Button onClick={() => setGeneratedKey(null)} variant="secondary" className="flex-1">
-                Done
-              </Button>
-            </div>
+            <Button onClick={() => setShowNewKeyForm(!showNewKeyForm)}>
+              + New API Key
+            </Button>
           </div>
-        </Card>
-      )}
+        </div>
+      </div>
 
-      {/* New Key Form */}
-      {showNewKeyForm && (
-        <Card className="p-6">
-          <form onSubmit={handleGenerateKey} className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Key Name
-              </label>
-              <input
-                type="text"
-                value={newKeyName}
-                onChange={(e) => setNewKeyName(e.target.value)}
-                placeholder="e.g., Webhook Integration"
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Expires In (days)
-              </label>
-              <select
-                value={newKeyDays}
-                onChange={(e) => setNewKeyDays(parseInt(e.target.value))}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value={30}>30 days</option>
-                <option value={90}>90 days</option>
-                <option value={365}>1 year</option>
-              </select>
-            </div>
-
-            <div className="flex gap-2">
-              <Button className="flex-1">
-                Generate Key
-              </Button>
-              <Button
-                onClick={() => setShowNewKeyForm(false)}
-                variant="secondary"
-                className="flex-1"
-              >
-                Cancel
-              </Button>
-            </div>
-          </form>
-        </Card>
-      )}
-
-      {/* Keys List */}
-      {keys.length === 0 ? (
-        <EmptyState
-          title="No API Keys"
-          subtitle="Create your first API key to integrate with third-party services"
-          action={() => <Button onClick={() => setShowNewKeyForm(true)}>Create API Key</Button>}
-        />
-      ) : (
-        <div className="space-y-4">
-          {keys.map((key) => (
-            <Card key={key.id} className="p-6">
-              <div className="flex items-start justify-between">
-                <div className="flex-1">
-                  <div className="flex items-center gap-2">
-                    <h3 className="text-lg font-semibold">{key.name}</h3>
-                    {!key.isActive && (
-                      <span className="px-2 py-1 text-xs font-medium bg-red-100 text-red-800 rounded">
-                        Revoked
-                      </span>
-                    )}
+      <div className="app-body app-body-full">
+        <div className="container" style={{ display: "grid", gap: 16 }}>
+          {generatedKey && (
+            <Card
+              className="app-card"
+              style={{
+                border: "1px solid rgba(158,216,207,0.20)",
+                background:
+                  "linear-gradient(135deg, rgba(158,216,207,0.10), rgba(255,255,255,0.03))",
+              }}
+            >
+              <div style={{ display: "grid", gap: 14 }}>
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: "rgba(246,252,255,0.96)" }}>
+                    API Key Created
                   </div>
-                  <div className="text-sm text-gray-500 mt-1 font-mono">{key.preview}</div>
-
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4">
-                    <div>
-                      <div className="text-xs text-gray-600">Created</div>
-                      <div className="text-sm font-medium">
-                        {new Date(key.createdAt).toLocaleDateString()}
-                      </div>
-                    </div>
-
-                    {key.lastUsedAt && (
-                      <div>
-                        <div className="text-xs text-gray-600">Last Used</div>
-                        <div className="text-sm font-medium">
-                          {new Date(key.lastUsedAt).toLocaleDateString()}
-                        </div>
-                      </div>
-                    )}
-
-                    {key.expiresAt && (
-                      <div>
-                        <div className="text-xs text-gray-600">Expires</div>
-                        <div className="text-sm font-medium">
-                          {new Date(key.expiresAt).toLocaleDateString()}
-                        </div>
-                      </div>
-                    )}
-
-                    <div>
-                      <div className="text-xs text-gray-600">Rate Limit</div>
-                      <div className="text-sm font-medium">
-                        {key.rateLimit.requestsPerMinute}/min
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="flex gap-1 mt-4 flex-wrap">
-                    {key.scopes.map((scope) => (
-                      <span
-                        key={scope}
-                        className="px-2 py-1 text-xs bg-gray-100 text-gray-700 rounded"
-                      >
-                        {scope}
-                      </span>
-                    ))}
-                  </div>
+                  <p style={{ fontSize: 13, color: "rgba(219,235,248,0.68)", marginTop: 6, marginBottom: 0 }}>
+                    Save this key securely. You won't be able to see it again.
+                  </p>
                 </div>
 
-                <div className="flex gap-2 ml-4">
-                  {key.isActive && (
-                    <Button
-                      onClick={() => handleRotateKey(key.id, key.name)}
-                      variant="secondary"
-                      className="text-sm"
-                    >
-                      Rotate
-                    </Button>
-                  )}
+                <div
+                  style={{
+                    background: "rgba(7,20,38,0.55)",
+                    padding: 14,
+                    borderRadius: 14,
+                    fontFamily: "monospace",
+                    fontSize: 13,
+                    wordBreak: "break-all",
+                    border: "1px solid rgba(255,255,255,0.08)",
+                    color: "#dff4ef",
+                  }}
+                >
+                  {generatedKey.apiKey}
+                </div>
+
+                <div style={{ display: "flex", gap: 10 }}>
                   <Button
-                    onClick={() => handleRevokeKey(key.id)}
-                    className="text-sm bg-red-600 hover:bg-red-700"
+                    onClick={() => {
+                      navigator.clipboard.writeText(generatedKey.apiKey);
+                      addToast("Copied to clipboard", "success");
+                    }}
+                    className="flex-1"
                   >
-                    Revoke
+                    Copy Key
+                  </Button>
+                  <Button onClick={() => setGeneratedKey(null)} variant="secondary" className="flex-1">
+                    Done
                   </Button>
                 </div>
               </div>
             </Card>
-          ))}
-        </div>
-      )}
+          )}
 
-      {/* Documentation */}
-      <Card className="p-6 bg-blue-50 border border-blue-200">
-        <h3 className="text-lg font-semibold mb-2">Usage</h3>
-        <div className="text-sm space-y-2">
-          <p>Include your API key in the Authorization header:</p>
-          <code className="block bg-white p-3 rounded text-xs border border-gray-300 overflow-auto">
-            curl -H "Authorization: Bearer YOUR_API_KEY" \
-            https://api.proovra.com/v1/batch-analysis
-          </code>
+          {showNewKeyForm && (
+            <Card className="app-card">
+              <form onSubmit={handleGenerateKey} style={{ display: "grid", gap: 14 }}>
+                <div>
+                  <label style={{ display: "block", fontSize: 13, marginBottom: 6, color: "rgba(219,235,248,0.72)" }}>
+                    Key Name
+                  </label>
+                  <input
+                    type="text"
+                    value={newKeyName}
+                    onChange={(e) => setNewKeyName(e.target.value)}
+                    placeholder="e.g., Webhook Integration"
+                    className="input"
+                  />
+                </div>
+
+                <div>
+                  <label style={{ display: "block", fontSize: 13, marginBottom: 6, color: "rgba(219,235,248,0.72)" }}>
+                    Expires In (days)
+                  </label>
+                  <select
+                    value={newKeyDays}
+                    onChange={(e) => setNewKeyDays(parseInt(e.target.value))}
+                    className="input"
+                  >
+                    <option value={30}>30 days</option>
+                    <option value={90}>90 days</option>
+                    <option value={365}>1 year</option>
+                  </select>
+                </div>
+
+                <div style={{ display: "flex", gap: 10 }}>
+                  <Button className="flex-1">Generate Key</Button>
+                  <Button
+                    onClick={() => setShowNewKeyForm(false)}
+                    variant="secondary"
+                    className="flex-1"
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              </form>
+            </Card>
+          )}
+
+          {keys.length === 0 ? (
+            <EmptyState
+              title="No API Keys"
+              subtitle="Create your first API key to integrate with third-party services"
+              action={() => <Button onClick={() => setShowNewKeyForm(true)}>Create API Key</Button>}
+            />
+          ) : (
+            <div style={{ display: "grid", gap: 16 }}>
+              {keys.map((key) => (
+                <Card key={key.id} className="app-card">
+                  <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16, flexWrap: "wrap" }}>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                        <h3 style={{ fontSize: 18, fontWeight: 700, margin: 0, color: "rgba(246,252,255,0.96)" }}>
+                          {key.name}
+                        </h3>
+                        {!key.isActive && (
+                          <span
+                            style={{
+                              padding: "6px 10px",
+                              borderRadius: 999,
+                              fontSize: 11,
+                              fontWeight: 700,
+                              background: "rgba(239,68,68,0.14)",
+                              color: "#fca5a5",
+                              border: "1px solid rgba(239,68,68,0.16)",
+                            }}
+                          >
+                            Revoked
+                          </span>
+                        )}
+                      </div>
+
+                      <div style={{ fontSize: 13, color: "rgba(219,235,248,0.58)", marginTop: 6, fontFamily: "monospace" }}>
+                        {key.preview}
+                      </div>
+
+                      <div
+                        style={{
+                          display: "grid",
+                          gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))",
+                          gap: 14,
+                          marginTop: 16,
+                        }}
+                      >
+                        <div>
+                          <div style={{ fontSize: 12, color: "rgba(219,235,248,0.56)" }}>Created</div>
+                          <div style={{ fontSize: 13, fontWeight: 600, color: "rgba(246,252,255,0.92)", marginTop: 4 }}>
+                            {new Date(key.createdAt).toLocaleDateString()}
+                          </div>
+                        </div>
+
+                        {key.lastUsedAt && (
+                          <div>
+                            <div style={{ fontSize: 12, color: "rgba(219,235,248,0.56)" }}>Last Used</div>
+                            <div style={{ fontSize: 13, fontWeight: 600, color: "rgba(246,252,255,0.92)", marginTop: 4 }}>
+                              {new Date(key.lastUsedAt).toLocaleDateString()}
+                            </div>
+                          </div>
+                        )}
+
+                        {key.expiresAt && (
+                          <div>
+                            <div style={{ fontSize: 12, color: "rgba(219,235,248,0.56)" }}>Expires</div>
+                            <div style={{ fontSize: 13, fontWeight: 600, color: "rgba(246,252,255,0.92)", marginTop: 4 }}>
+                              {new Date(key.expiresAt).toLocaleDateString()}
+                            </div>
+                          </div>
+                        )}
+
+                        <div>
+                          <div style={{ fontSize: 12, color: "rgba(219,235,248,0.56)" }}>Rate Limit</div>
+                          <div style={{ fontSize: 13, fontWeight: 600, color: "rgba(246,252,255,0.92)", marginTop: 4 }}>
+                            {key.rateLimit.requestsPerMinute}/min
+                          </div>
+                        </div>
+                      </div>
+
+                      <div style={{ display: "flex", gap: 8, marginTop: 16, flexWrap: "wrap" }}>
+                        {key.scopes.map((scope) => (
+                          <span
+                            key={scope}
+                            style={{
+                              padding: "6px 10px",
+                              borderRadius: 999,
+                              fontSize: 11,
+                              background: "rgba(255,255,255,0.06)",
+                              color: "rgba(219,235,248,0.76)",
+                              border: "1px solid rgba(255,255,255,0.08)",
+                            }}
+                          >
+                            {scope}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                      {key.isActive && (
+                        <Button
+                          onClick={() => handleRotateKey(key.id, key.name)}
+                          variant="secondary"
+                        >
+                          Rotate
+                        </Button>
+                      )}
+                      <Button
+                        onClick={() => handleRevokeKey(key.id)}
+                        style={{
+                          background: "linear-gradient(180deg,#991b1b 0%,#7f1d1d 100%)",
+                          border: "1px solid rgba(248,113,113,0.22)",
+                          color: "#fff",
+                        }}
+                      >
+                        Revoke
+                      </Button>
+                    </div>
+                  </div>
+                </Card>
+              ))}
+            </div>
+          )}
+
+          <Card
+            className="app-card"
+            style={{
+              border: "1px solid rgba(214,184,157,0.18)",
+              background:
+                "linear-gradient(135deg, rgba(214,184,157,0.10), rgba(255,255,255,0.03))",
+            }}
+          >
+            <div className="app-card-title">Usage</div>
+            <div style={{ fontSize: 13, color: "rgba(219,235,248,0.76)", display: "grid", gap: 10 }}>
+              <p style={{ margin: 0 }}>Include your API key in the Authorization header:</p>
+              <code
+                style={{
+                  display: "block",
+                  background: "rgba(7,20,38,0.55)",
+                  padding: 14,
+                  borderRadius: 14,
+                  fontSize: 12,
+                  border: "1px solid rgba(255,255,255,0.08)",
+                  overflow: "auto",
+                  color: "#dff4ef",
+                }}
+              >
+                curl -H "Authorization: Bearer YOUR_API_KEY" \
+                https://api.proovra.com/v1/batch-analysis
+              </code>
+            </div>
+          </Card>
         </div>
-      </Card>
+      </div>
     </div>
   );
 }

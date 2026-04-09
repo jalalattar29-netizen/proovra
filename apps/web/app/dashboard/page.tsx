@@ -6,13 +6,27 @@ import { useLocale } from "../providers";
 export default function DashboardPage() {
   const { t } = useLocale();
 
-  return (
-    <div className="page">
+return (
+  <div className="page">
+    {/* TOP */}
+    <div className="blue-shell">
       <TopBar title={t("brand")} />
-      <section className="section">
+
+      <div className="container" style={{ padding: "32px 0 60px" }}>
+        <h1 className="hero-title">Dashboard</h1>
+        <p className="page-subtitle">
+          Your evidence overview and activity
+        </p>
+      </div>
+    </div>
+
+    {/* BODY */}
+    <section className="section section-body">
+      <div className="container">
         <div className="grid-2">
-          <Card>
-            <h2 style={{ marginTop: 0 }}>Evidence</h2>
+          <Card className="app-card">
+            <h2 className="card-title">Evidence</h2>
+
             <div style={{ display: "grid", gap: 14 }}>
               <ListRow
                 title="Photo"
@@ -31,39 +45,36 @@ export default function DashboardPage() {
               />
             </div>
           </Card>
-          <Card>
+
+          <Card className="app-card">
             <div className="status-banner">
-              <div
-                style={{
-                  width: 44,
-                  height: 44,
-                  borderRadius: 14,
-                  background: "rgba(255,255,255,0.2)"
-                }}
-              />
+              <div className="status-icon" />
               <div>
-                <div style={{ fontWeight: 700 }}>VIDEO</div>
-                <div style={{ opacity: 0.8 }}>{t("statusSigned")}</div>
+                <div className="card-title-sm">VIDEO</div>
+                <div className="card-muted">{t("statusSigned")}</div>
               </div>
             </div>
-            <div style={{ marginTop: 14, fontSize: 12, color: "#64748b" }}>
-              2026-02-04 14:22 UTC
+
+            <div className="card-meta">2026-02-04 14:22 UTC</div>
+
+            <div className="hash-block">
+              <div className="hash-label">SHA-256</div>
+              <div className="hash-value">261577e3fb77c3eb2467...</div>
             </div>
-            <div style={{ marginTop: 12 }}>
-              <div style={{ fontSize: 11, color: "#64748b" }}>SHA-256</div>
-              <div style={{ fontWeight: 600 }}>261577e3fb77c3eb2467...</div>
+
+            <div className="hash-block">
+              <div className="hash-label">Ed25519</div>
+              <div className="hash-value">t+knXQVoWnnqqcPZJi46...</div>
             </div>
-            <div style={{ marginTop: 12 }}>
-              <div style={{ fontSize: 11, color: "#64748b" }}>Ed25519</div>
-              <div style={{ fontWeight: 600 }}>t+knXQVoWnnqqcPZJi46...</div>
-            </div>
+
             <div className="footer-actions">
               <Button>{t("downloadReport")}</Button>
               <Button variant="secondary">{t("shareLink")}</Button>
             </div>
           </Card>
         </div>
-      </section>
-    </div>
-  );
+      </div>
+    </section>
+  </div>
+);
 }

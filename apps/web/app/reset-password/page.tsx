@@ -71,90 +71,96 @@ export default function ResetPasswordPage() {
     }
   };
 
-  return (
-    <div className="blue-shell auth-screen">
-      <div className="container">
-        <header className="auth-top">
-          <Link href="/" className="auth-brand">
-            <img src="/brand/icon-512.png?v=2" alt="PROO✓RA" />
-            <span>{t("brand")}</span>
-          </Link>
+return (
+  <div className="page">
+    {/* TOP — Velvet */}
+    <div className="blue-shell">
+      <div className="container auth-top">
+        <Link href="/" className="auth-brand">
+          <img src="/brand/icon-512.png?v=2" alt="PROO✓RA" />
+          <span>{t("brand")}</span>
+        </Link>
 
-          <nav className="auth-top-links">
-            <Link href="/login">Login</Link>
-          </nav>
-        </header>
+        <nav className="auth-top-links">
+          <Link href="/login">Login</Link>
+        </nav>
+      </div>
 
-        <main className="auth-main">
-          <div className="auth-card">
-            <h2 className="auth-title">Choose a new password</h2>
-
-            <div className="auth-actions">
-              {done ? (
-                <>
-                  <div style={{ fontSize: 14, color: "#0f172a" }}>
-                    Password updated successfully. You can now sign in.
-                  </div>
-
-                  <Button variant="primary" onClick={() => router.push(`/login?returnUrl=${encodeURIComponent(returnUrl)}`)}>
-                    Go to login
-                  </Button>
-                </>
-              ) : (
-                <form id="reset-form" onSubmit={submit} style={{ width: "100%", display: "grid", gap: 10 }}>
-                  <input
-                    type="password"
-                    placeholder="New password"
-                    autoComplete="new-password"
-                    value={newPassword}
-                    onChange={(e) => setNewPassword(e.target.value)}
-                    disabled={busy}
-                    style={{
-                      width: "100%",
-                      height: 44,
-                      borderRadius: 10,
-                      border: "1px solid #e2e8f0",
-                      padding: "0 12px",
-                      background: "white",
-                    }}
-                  />
-                  <input
-                    type="password"
-                    placeholder="Confirm new password"
-                    autoComplete="new-password"
-                    value={confirm}
-                    onChange={(e) => setConfirm(e.target.value)}
-                    disabled={busy}
-                    style={{
-                      width: "100%",
-                      height: 44,
-                      borderRadius: 10,
-                      border: "1px solid #e2e8f0",
-                      padding: "0 12px",
-                      background: "white",
-                    }}
-                  />
-
-                  <Button
-                    variant="primary"
-                    disabled={busy || !token}
-                    onClick={() => (document.getElementById("reset-form") as HTMLFormElement | null)?.requestSubmit()}
-                  >
-                    Reset password
-                  </Button>
-
-                  {error && <div className="error-text">{error}</div>}
-                </form>
-              )}
-            </div>
-
-            <div className="auth-switch">
-              <span>Back to </span>
-              <Link href={`/login?returnUrl=${encodeURIComponent(returnUrl)}`}>login</Link>
-            </div>
-          </div>
-        </main>
+      <div className="container" style={{ padding: "40px 0 60px" }}>
+        <h1 className="hero-title">Reset Password</h1>
+        <p className="page-subtitle">
+          Choose a strong password to secure your account
+        </p>
       </div>
     </div>
-  );
+
+    {/* BODY — Dark clean */}
+    <section className="section section-body">
+      <div className="container" style={{ maxWidth: 460 }}>
+        <div className="auth-card legal-page">
+          <h2 className="auth-title" style={{ marginBottom: 16 }}>
+            Choose a new password
+          </h2>
+
+          <div className="auth-actions">
+            {done ? (
+              <>
+                <div style={{ fontSize: 14, color: "var(--app-text-muted)" }}>
+                  Password updated successfully. You can now sign in.
+                </div>
+
+                <Button
+                  onClick={() =>
+                    router.push(
+                      `/login?returnUrl=${encodeURIComponent(returnUrl)}`
+                    )
+                  }
+                >
+                  Go to login
+                </Button>
+              </>
+            ) : (
+              <form
+                id="reset-form"
+                onSubmit={submit}
+                style={{ display: "grid", gap: 12 }}
+              >
+                <input
+                  type="password"
+                  placeholder="New password"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  disabled={busy}
+                  className="auth-input"
+                />
+
+                <input
+                  type="password"
+                  placeholder="Confirm password"
+                  value={confirm}
+                  onChange={(e) => setConfirm(e.target.value)}
+                  disabled={busy}
+                  className="auth-input"
+                />
+
+                <Button disabled={busy || !token}>
+                  Reset password
+                </Button>
+
+                {error && <div className="error-text">{error}</div>}
+              </form>
+            )}
+          </div>
+
+          <div className="auth-switch">
+            <span>Back to </span>
+            <Link href={`/login?returnUrl=${encodeURIComponent(returnUrl)}`}>
+              login
+            </Link>
+          </div>
+        </div>
+      </div>
+    </section>
+  </div>
+);
 }

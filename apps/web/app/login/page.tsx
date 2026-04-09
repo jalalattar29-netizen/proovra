@@ -88,6 +88,17 @@ function AppleIcon() {
   );
 }
 
+function ShieldIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <path
+        fill="currentColor"
+        d="M12 2l7 3v6c0 5.25-3.438 10.125-7 11-3.562-.875-7-5.75-7-11V5l7-3Zm0 2.18L7 6.32V11c0 4.164 2.61 8.11 5 8.95 2.39-.84 5-4.786 5-8.95V6.32l-5-2.14Z"
+      />
+    </svg>
+  );
+}
+
 const REQUIRED_LEGAL_VERSIONS = {
   terms: "2026-04-06",
   privacy: "2026-04-06",
@@ -119,10 +130,11 @@ export default function LoginPage() {
   const nextUrlRef = useRef(nextUrl);
 
   const ui = useMemo(() => {
-    const cardShadow = "0 24px 70px rgba(2, 9, 22, 0.55)";
-    const border = "1px solid rgba(101, 235, 255, 0.22)";
+    const cardShadow = "0 26px 70px rgba(2, 9, 22, 0.16)";
+    const border = "1px solid rgba(79, 112, 107, 0.18)";
     const socialMaxW = 360;
-    return { cardShadow, border, socialMaxW };
+    const inputShadow = "0 12px 28px rgba(6, 16, 22, 0.08)";
+    return { cardShadow, border, socialMaxW, inputShadow };
   }, []);
 
   useEffect(() => {
@@ -309,10 +321,7 @@ export default function LoginPage() {
     const id = google?.accounts?.id;
     if (!id?.renderButton) return;
 
-    const width = Math.min(
-      ui.socialMaxW,
-      host.getBoundingClientRect().width || ui.socialMaxW
-    );
+    const width = Math.min(ui.socialMaxW, host.getBoundingClientRect().width || ui.socialMaxW);
 
     wrap.innerHTML = "";
     id.renderButton(wrap, {
@@ -467,160 +476,331 @@ export default function LoginPage() {
 
   return (
     <div className="page landing-page">
-      <div className="blue-shell auth-screen auth-dark">
-        <MarketingHeader />
+      <div className="relative min-h-screen overflow-hidden">
+        <div className="absolute inset-0">
+          <img
+            src="/images/site-velvet-bg.webp.png"
+            alt=""
+            className="h-full w-full object-cover object-center"
+          />
+        </div>
 
-        <div className="container">
-          <main className="auth-main">
-            <div
-              className="auth-card"
-              style={{
-                boxShadow: ui.cardShadow,
-                border: ui.border,
-                backdropFilter: "blur(12px)",
-              }}
-            >
-              <h2 className="auth-title">{t("signInTitle")}</h2>
+        <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(8,18,22,0.84)_0%,rgba(8,18,22,0.74)_38%,rgba(8,18,22,0.76)_100%)]" />
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_16%_16%,rgba(158,216,207,0.08),transparent_24%)]" />
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_82%_24%,rgba(214,184,157,0.06),transparent_18%)]" />
+        <div className="absolute inset-0 opacity-[0.035] [background:repeating-linear-gradient(0deg,rgba(255,255,255,0.024)_0px,rgba(255,255,255,0.024)_1px,transparent_1px,transparent_4px)]" />
 
-              <div className="auth-actions" style={{ display: "grid", gap: 12 }}>
-                <div ref={googleBtnHostRef} style={SocialHostStyle} aria-label="Continue with Google">
-                  <div
-                    ref={googleBtnWrapRef}
-                    style={{
-                      width: "100%",
-                      display: "flex",
-                      justifyContent: "center",
-                      opacity: busy ? 0.7 : 1,
-                      pointerEvents: busy ? "none" : "auto",
-                    }}
-                  />
-                </div>
+        <div className="relative z-10 flex min-h-screen flex-col">
+          <MarketingHeader />
 
-                <div style={SocialHostStyle}>
-                  <button
-                    type="button"
-                    disabled={busy}
-                    onClick={() => void startApple()}
-                    className="auth-social-btn"
-                  >
-                    <span className="auth-social-icon" aria-hidden="true">
-                      <AppleIcon />
-                    </span>
-                    {t("signInApple")}
-                  </button>
-                </div>
-
-                <div className="auth-divider">{t("orDivider")}</div>
-
-                <form onSubmit={onEmailLogin} style={{ display: "grid", gap: 10 }}>
-                  <div className="auth-input-wrap">
-                    <span className="auth-input-icon" aria-hidden="true">
-                      <EmailIcon />
-                    </span>
-                    <input
-                      className="auth-input"
-                      placeholder="Email"
-                      type="email"
-                      autoComplete="email"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      disabled={busy}
-                    />
-                  </div>
-
-                  <div style={{ display: "grid", gap: 6 }}>
-                    <div className="auth-input-wrap">
-                      <span className="auth-input-icon" aria-hidden="true">
-                        <LockIcon />
+          <main className="flex flex-1 items-center justify-center px-6 pb-14 pt-8 md:px-8 md:pb-20 md:pt-12">
+            <div className="w-full max-w-[1180px]">
+              <div className="grid gap-8 lg:grid-cols-[0.88fr_0.9fr] lg:items-center">
+                <section className="hidden lg:block">
+                  <div className="max-w-[500px]">
+                    <div className="inline-flex items-center gap-2.5 rounded-full border border-white/10 bg-white/[0.055] px-4 py-2 text-[0.74rem] font-medium uppercase tracking-[0.2em] text-[#dce3e0] shadow-[0_10px_24px_rgba(0,0,0,0.10)] backdrop-blur-md">
+                      <span className="text-[#9ed8cf]">
+                        <ShieldIcon />
                       </span>
-                      <input
-                        className="auth-input"
-                        placeholder="Password"
-                        type="password"
-                        autoComplete="current-password"
-                        value={password}
-                        onChange={(e) => setPassword(e.target.value)}
-                        disabled={busy}
-                      />
+                      Secure access
                     </div>
 
-                    <div style={{ display: "flex", justifyContent: "flex-end" }}>
-                      <Link href="/forgot-password" className="auth-link">
-                        Forgot password?
-                      </Link>
+                    <h1 className="mt-5 max-w-[520px] text-[1.85rem] font-medium leading-[1.02] tracking-[-0.04em] text-[#edf1ef] md:text-[2.35rem] xl:text-[2.8rem]">
+                      Sign in to continue your{" "}
+                      <span className="text-[#bfe8df]">evidence workflow</span>.
+                    </h1>
+
+                    <p className="mt-5 max-w-[500px] text-[0.98rem] leading-[1.82] tracking-[-0.006em] text-[#c7cfcc]">
+                      Access your dashboard, verification records, reports, and protected evidence
+                      flows using email, Google, Apple, or guest access.
+                    </p>
+
+                    <div className="mt-6 flex flex-wrap gap-2.5">
+                      <div className="rounded-full border border-white/10 bg-white/[0.055] px-3.5 py-2 text-[0.78rem] text-[#d7dfdb] shadow-[0_8px_18px_rgba(0,0,0,0.08)] backdrop-blur-md">
+                        <span className="mr-2 text-[#9dd2ca]">✓</span>
+                        Google and Apple sign-in
+                      </div>
+
+                      <div className="rounded-full border border-white/10 bg-white/[0.055] px-3.5 py-2 text-[0.78rem] text-[#d7dfdb] shadow-[0_8px_18px_rgba(0,0,0,0.08)] backdrop-blur-md">
+                        <span className="mr-2 text-[#9dd2ca]">✓</span>
+                        Email access available
+                      </div>
+
+                      <div className="rounded-full border border-[rgba(214,184,157,0.24)] bg-[linear-gradient(180deg,rgba(183,157,132,0.08)_0%,rgba(255,255,255,0.03)_100%)] px-3.5 py-2 text-[0.78rem] text-[#e1d4c7] shadow-[0_8px_18px_rgba(0,0,0,0.08)] backdrop-blur-md">
+                        <span className="mr-2 text-[#d6b89d]">✓</span>
+                        Guest access supported
+                      </div>
                     </div>
                   </div>
+                </section>
 
-                  <label
+                <section className="mx-auto w-full max-w-[540px]">
+                  <div
+                    className="auth-card auth-premium relative overflow-hidden rounded-[30px]"
                     style={{
-                      display: "flex",
-                      alignItems: "flex-start",
-                      gap: 10,
-                      fontSize: 13,
-                      lineHeight: 1.6,
-                      color: "rgba(219, 235, 248, 0.82)",
+                      boxShadow: "0 30px 80px rgba(0,0,0,0.18)",
+                      border: "1px solid rgba(79,112,107,0.22)",
                     }}
                   >
-                    <input
-                      type="checkbox"
-                      checked={acceptLegal}
-                      onChange={(e) => setAcceptLegal(e.target.checked)}
-                      disabled={busy}
-                      style={{ marginTop: 3 }}
+                    <img
+                      src="/images/panel-silver.webp.png"
+                      alt=""
+                      className="absolute inset-0 h-full w-full object-cover object-center"
                     />
-                    <span>
-                      I agree to the{" "}
-                      <Link href="/legal/terms" className="auth-link">
-                        Terms of Service
-                      </Link>
-                      {", "}
-                      <Link href="/legal/privacy" className="auth-link">
-                        Privacy Policy
-                      </Link>
-                      {" and "}
-                      <Link href="/legal/cookies" className="auth-link">
-                        Cookie Policy
-                      </Link>
-                      .
-                    </span>
-                  </label>
+                    <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.28)_0%,rgba(245,247,244,0.45)_50%,rgba(236,239,236,0.55)_100%)]" />
+                    <div className="absolute inset-0 bg-[radial-gradient(circle_at_85%_20%,rgba(214,184,157,0.18),transparent_40%)]" />
+                    <div className="absolute inset-0 bg-[radial-gradient(circle_at_15%_10%,rgba(255,255,255,0.35),transparent_30%)]" />
 
-                  <button className="auth-social-btn" type="submit" disabled={busy}>
-                    Sign in with Email
-                  </button>
-                </form>
+                    <div className="relative z-10 p-7 md:p-8">
+                      <div className="mb-6">
+                        <div className="inline-flex items-center gap-2.5 rounded-full border border-[#23373b]/8 bg-[rgba(35,55,59,0.05)] px-4 py-2.5 text-[0.74rem] font-semibold uppercase tracking-[0.18em] text-[#566366]">
+                          <span className="text-[#3f5e62]">
+                            <ShieldIcon />
+                          </span>
+                          Account access
+                        </div>
 
-                <Button
-                  variant="secondary"
-                  onClick={() => handleAuth("/v1/auth/guest")}
-                  disabled={busy}
-                >
-                  {t("continueGuest")}
-                </Button>
+                        <h2 className="mt-4 text-[1.9rem] font-semibold tracking-[-0.04em] text-[#16282d] md:text-[2.15rem]">
+                          {t("signInTitle")}
+                        </h2>
 
-                {error && <div className="error-text">{error}</div>}
-                {status && <div className="auth-status">{status}</div>}
+                        <p className="mt-3 text-[0.96rem] leading-[1.78] text-[#5c6a6e]">
+                          Continue with your preferred sign-in method and return safely to your
+                          PROOVRA workspace.
+                        </p>
+                      </div>
 
-                {DEBUG_AUTH && (
-                  <div className="auth-debug-panel">
-                    <div style={{ fontWeight: 700, marginBottom: 6 }}>Auth Debug</div>
-                    <div>Apple: {appleReady ? "ready" : "missing"}</div>
-                    <div>nextUrl: {nextUrl}</div>
-                    <div>acceptLegal: {acceptLegal ? "true" : "false"}</div>
+                      <div className="auth-actions" style={{ display: "grid", gap: 12 }}>
+                        <div ref={googleBtnHostRef} style={SocialHostStyle} aria-label="Continue with Google">
+                          <div
+                            ref={googleBtnWrapRef}
+                            style={{
+                              width: "100%",
+                              display: "flex",
+                              justifyContent: "center",
+                              opacity: busy ? 0.7 : 1,
+                              pointerEvents: busy ? "none" : "auto",
+                            }}
+                          />
+                        </div>
+
+                        <div style={SocialHostStyle}>
+                          <button
+                            type="button"
+                            disabled={busy}
+                            onClick={() => void startApple()}
+                            className="auth-social-btn"
+                            style={{
+                              background:
+                                "linear-gradient(180deg, rgba(62,96,99,0.96) 0%, rgba(24,43,48,0.98) 100%)",
+                              color: "#eef3f1",
+                              border: "1px solid rgba(79,112,107,0.28)",
+                              boxShadow: "0 14px 28px rgba(20,48,52,0.16)",
+                            }}
+                          >
+                            <span className="auth-social-icon" aria-hidden="true">
+                              <AppleIcon />
+                            </span>
+                            {t("signInApple")}
+                          </button>
+                        </div>
+
+                        <div
+                          className="auth-divider"
+                          style={{
+                            color: "#6c787c",
+                          }}
+                        >
+                          {t("orDivider")}
+                        </div>
+
+                        <form onSubmit={onEmailLogin} style={{ display: "grid", gap: 10 }}>
+                          <div className="auth-input-wrap">
+                            <span className="auth-input-icon" aria-hidden="true" style={{ color: "#446166" }}>
+                              <EmailIcon />
+                            </span>
+                            <input
+                              className="auth-input"
+                              placeholder="Email"
+                              type="email"
+                              autoComplete="email"
+                              value={email}
+                              onChange={(e) => setEmail(e.target.value)}
+                              disabled={busy}
+                              style={{
+                                background: "rgba(255,255,255,0.9)",
+                                border: "1px solid rgba(79,112,107,0.16)",
+                                boxShadow: ui.inputShadow,
+                                color: "#102126",
+                              }}
+                            />
+                          </div>
+
+                          <div style={{ display: "grid", gap: 6 }}>
+                            <div className="auth-input-wrap">
+                              <span className="auth-input-icon" aria-hidden="true" style={{ color: "#446166" }}>
+                                <LockIcon />
+                              </span>
+                              <input
+                                className="auth-input"
+                                placeholder="Password"
+                                type="password"
+                                autoComplete="current-password"
+                                value={password}
+                                onChange={(e) => setPassword(e.target.value)}
+                                disabled={busy}
+                                style={{
+                                  background: "rgba(255,255,255,0.9)",
+                                  border: "1px solid rgba(79,112,107,0.16)",
+                                  boxShadow: ui.inputShadow,
+                                  color: "#102126",
+                                }}
+                              />
+                            </div>
+
+                            <div style={{ display: "flex", justifyContent: "flex-end" }}>
+                              <Link href="/forgot-password" className="auth-link" style={{ color: "#45656a" }}>
+                                Forgot password?
+                              </Link>
+                            </div>
+                          </div>
+
+                          <label
+                            style={{
+                              display: "flex",
+                              alignItems: "flex-start",
+                              gap: 10,
+                              fontSize: 13,
+                              lineHeight: 1.6,
+                              color: "#5f6d71",
+                            }}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={acceptLegal}
+                              onChange={(e) => setAcceptLegal(e.target.checked)}
+                              disabled={busy}
+                              style={{ marginTop: 3 }}
+                            />
+                            <span>
+                              I agree to the{" "}
+                              <Link href="/legal/terms" className="auth-link" style={{ color: "#b79d84" }}>
+                                Terms of Service
+                              </Link>
+                              {", "}
+                              <Link href="/legal/privacy" className="auth-link" style={{ color: "#b79d84" }}>
+                                Privacy Policy
+                              </Link>
+                              {" and "}
+                              <Link href="/legal/cookies" className="auth-link" style={{ color: "#b79d84" }}>
+                                Cookie Policy
+                              </Link>
+                              .
+                            </span>
+                          </label>
+
+                          <button
+                            className="auth-social-btn"
+                            type="submit"
+                            disabled={busy}
+                            style={{
+                              background:
+                                "linear-gradient(180deg, rgba(62,96,99,0.96) 0%, rgba(24,43,48,0.98) 100%)",
+                              color: "#eef3f1",
+                              border: "1px solid rgba(79,112,107,0.28)",
+                              boxShadow: "0 14px 28px rgba(20,48,52,0.16)",
+                            }}
+                          >
+                            Sign in with Email
+                          </button>
+                        </form>
+
+                        <Button
+                          variant="secondary"
+                          onClick={() => handleAuth("/v1/auth/guest")}
+                          disabled={busy}
+                          style={{
+                            background:
+                              "linear-gradient(180deg, rgba(255,255,255,0.65) 0%, rgba(245,246,244,0.95) 100%)",
+                            color: "#23373b",
+                            border: "1px solid rgba(79,112,107,0.18)",
+                            boxShadow: "0 12px 24px rgba(0,0,0,0.06)",
+                          }}
+                        >
+                          {t("continueGuest")}
+                        </Button>
+
+                        {error && (
+                          <div
+                            className="error-text"
+                            style={{
+                              color: "#b42318",
+                              background: "rgba(255,255,255,0.52)",
+                              border: "1px solid rgba(180,35,24,0.12)",
+                              borderRadius: 14,
+                              padding: "10px 12px",
+                            }}
+                          >
+                            {error}
+                          </div>
+                        )}
+
+                        {status && (
+                          <div
+                            className="auth-status"
+                            style={{
+                              color: "#496268",
+                              background: "rgba(255,255,255,0.42)",
+                              border: "1px solid rgba(79,112,107,0.10)",
+                              borderRadius: 14,
+                              padding: "10px 12px",
+                            }}
+                          >
+                            {status}
+                          </div>
+                        )}
+
+                        {DEBUG_AUTH && (
+                          <div
+                            className="auth-debug-panel"
+                            style={{
+                              background: "rgba(255,255,255,0.42)",
+                              border: "1px solid rgba(79,112,107,0.10)",
+                              borderRadius: 16,
+                              padding: 12,
+                              color: "#4f5f63",
+                            }}
+                          >
+                            <div style={{ fontWeight: 700, marginBottom: 6 }}>Auth Debug</div>
+                            <div>Apple: {appleReady ? "ready" : "missing"}</div>
+                            <div>nextUrl: {nextUrl}</div>
+                            <div>acceptLegal: {acceptLegal ? "true" : "false"}</div>
+                          </div>
+                        )}
+                      </div>
+
+                      <div
+                        className="auth-switch"
+                        style={{
+                          marginTop: 18,
+                          color: "#617074",
+                        }}
+                      >
+                        <span>{t("register")}? </span>
+                        <Link href="/register" style={{ color: "#45656a", fontWeight: 600 }}>
+                          {t("register")}
+                        </Link>
+                      </div>
+                    </div>
                   </div>
-                )}
-              </div>
-
-              <div className="auth-switch">
-                <span>{t("register")}? </span>
-                <Link href="/register">{t("register")}</Link>
+                </section>
               </div>
             </div>
           </main>
+
+          <Footer />
         </div>
       </div>
-
-      <Footer />
     </div>
   );
 }

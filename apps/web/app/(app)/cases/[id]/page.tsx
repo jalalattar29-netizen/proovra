@@ -347,7 +347,7 @@ export default function CaseDetailPage() {
 
         <div className="app-body app-body-full">
           <div className="container">
-            <Card className="case-error-card">
+            <Card className="case-error-card app-card">
               {error || "Case not found"}
             </Card>
           </div>
@@ -371,6 +371,13 @@ export default function CaseDetailPage() {
                     maxLength={120}
                     className="case-rename-input"
                     autoFocus
+                    style={{
+                      background: "rgba(255,255,255,0.05)",
+                      border: "1px solid rgba(214,184,157,0.16)",
+                      borderRadius: 14,
+                      color: "#eef4f1",
+                      padding: "10px 14px",
+                    }}
                   />
                 ) : (
                   caseData.name
@@ -444,9 +451,9 @@ export default function CaseDetailPage() {
       </div>
 
       <div className="app-body app-body-full">
-        <div className="container case-detail-grid">
+        <div className="container case-detail-grid" style={{ display: "grid", gap: 16 }}>
           {deleteConfirm && isOwner && (
-            <Card className="case-delete-card">
+            <Card className="case-delete-card app-card">
               <div className="case-delete-title">Delete Case?</div>
               <p className="case-delete-subtitle">
                 The case will be deleted, but all evidence will remain in your
@@ -473,7 +480,7 @@ export default function CaseDetailPage() {
             </Card>
           )}
 
-          <Card className="case-section-card">
+          <Card className="case-section-card app-card">
             <div className="case-section-title">Sharing</div>
 
             {caseData.access.length === 0 ? (
@@ -522,7 +529,16 @@ export default function CaseDetailPage() {
                 </Button>
 
                 {showSharePanel && (
-                  <div className="case-panel">
+                  <div
+                    className="case-panel"
+                    style={{
+                      marginTop: 14,
+                      padding: 16,
+                      borderRadius: 16,
+                      background: "rgba(255,255,255,0.04)",
+                      border: "1px solid rgba(255,255,255,0.06)",
+                    }}
+                  >
                     <div className="case-radio-group">
                       <label className="case-radio-label">
                         <input
@@ -616,7 +632,7 @@ export default function CaseDetailPage() {
             )}
           </Card>
 
-          <Card className="case-section-card">
+          <Card className="case-section-card app-card">
             <div className="case-section-title">Evidence in Case</div>
 
             {evidence.length === 0 ? (
@@ -633,6 +649,7 @@ export default function CaseDetailPage() {
                     <Link
                       href={`/evidence/${item.id}`}
                       className="case-evidence-main case-evidence-link"
+                      style={{ textDecoration: "none", color: "inherit", flex: 1 }}
                     >
                       <ListRow
                         title={resolveEvidenceTitle(item)}

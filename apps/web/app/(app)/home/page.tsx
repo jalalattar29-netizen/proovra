@@ -89,7 +89,15 @@ export default function HomePage() {
         <div className="container">
           <div className="grid-2">
             <Card className="app-card">
-              <div className="app-card-title">{t("recentEvidence")}</div>
+              <div
+                className="app-card-title"
+                style={{
+                  color: "rgba(246,252,255,0.96)",
+                  letterSpacing: "-0.02em",
+                }}
+              >
+                {t("recentEvidence")}
+              </div>
 
               <div style={{ display: "grid", gap: 10 }}>
                 {loading ? (
@@ -143,76 +151,100 @@ export default function HomePage() {
             </Card>
 
             <Card className="app-card">
-              <div className="app-card-title">Quick Actions</div>
+              <div
+                className="app-card-title"
+                style={{
+                  color: "rgba(246,252,255,0.96)",
+                  letterSpacing: "-0.02em",
+                }}
+              >
+                Quick Actions
+              </div>
 
-<div className="app-actions-grid">
-  <Link href="/capture">
-    <Button
-      className="navy-btn action-btn"
-      onClick={() => addToast("Opening capture...", "info")}
-    >
-      New Capture
-    </Button>
-  </Link>
+              <div className="app-actions-grid">
+                <Link href="/capture">
+                  <Button
+                    className="navy-btn action-btn"
+                    onClick={() => addToast("Opening capture...", "info")}
+                  >
+                    New Capture
+                  </Button>
+                </Link>
 
-  <Link href="/cases">
-    <Button
-      variant="secondary"
-      className="navy-btn action-btn"
-      onClick={() => addToast("Loading cases...", "info")}
-    >
-      View Cases
-    </Button>
-  </Link>
+                <Link href="/cases">
+                  <Button
+                    variant="secondary"
+                    className="navy-btn action-btn"
+                    onClick={() => addToast("Loading cases...", "info")}
+                  >
+                    View Cases
+                  </Button>
+                </Link>
 
-  <Link href="/archive">
-    <Button
-      variant="secondary"
-      className="navy-btn action-btn"
-      onClick={() => addToast("Opening archive...", "info")}
-    >
-      Archived Evidence
-    </Button>
-  </Link>
+                <Link href="/archive">
+                  <Button
+                    variant="secondary"
+                    className="navy-btn action-btn"
+                    onClick={() => addToast("Opening archive...", "info")}
+                  >
+                    Archived Evidence
+                  </Button>
+                </Link>
 
-  <Link href="/deleted">
-    <Button
-      variant="secondary"
-      className="navy-btn action-btn"
-      onClick={() => addToast("Opening deleted evidence...", "info")}
-    >
-      Deleted Evidence
-    </Button>
-  </Link>
+                <Link href="/deleted">
+                  <Button
+                    variant="secondary"
+                    className="navy-btn action-btn"
+                    onClick={() => addToast("Opening deleted evidence...", "info")}
+                  >
+                    Deleted Evidence
+                  </Button>
+                </Link>
 
-  <Link href="/locked">
-    <Button
-      variant="secondary"
-      className="navy-btn action-btn"
-      onClick={() => addToast("Opening locked evidence...", "info")}
-    >
-      Locked Evidence
-    </Button>
-  </Link>
+                <Link href="/locked">
+                  <Button
+                    variant="secondary"
+                    className="navy-btn action-btn"
+                    onClick={() => addToast("Opening locked evidence...", "info")}
+                  >
+                    Locked Evidence
+                  </Button>
+                </Link>
 
-  <Link href="/settings">
-    <Button
-      variant="secondary"
-      className="navy-btn action-btn"
-      onClick={() => addToast("Opening settings...", "info")}
-    >
-      Manage Settings
-    </Button>
-  </Link>
-</div>
+                <Link href="/settings">
+                  <Button
+                    variant="secondary"
+                    className="navy-btn action-btn"
+                    onClick={() => addToast("Opening settings...", "info")}
+                  >
+                    Manage Settings
+                  </Button>
+                </Link>
+              </div>
 
-              <div className="status-banner" style={{ marginTop: 18 }}>
-                <div className="status-badge">✓</div>
+              <div
+                className="status-banner"
+                style={{
+                  marginTop: 18,
+                  border: "1px solid rgba(214,184,157,0.18)",
+                  background:
+                    "linear-gradient(135deg, rgba(214,184,157,0.10), rgba(158,216,207,0.08))",
+                }}
+              >
+                <div
+                  className="status-badge"
+                  style={{
+                    background: "rgba(214,184,157,0.16)",
+                    color: "#e6c9ae",
+                  }}
+                >
+                  ✓
+                </div>
                 <div>
-                  <div style={{ fontWeight: 700 }}>
+                  <div style={{ fontWeight: 700, color: "rgba(246,252,255,0.96)" }}>
                     Trusted chain of custody
                   </div>
-                  <div style={{ fontSize: 12, opacity: 0.85 }}>
+                  <div style={{ fontSize: 12, color: "rgba(219,235,248,0.72)" }}>
                     Capture → Sign → Report → Share
                   </div>
                 </div>

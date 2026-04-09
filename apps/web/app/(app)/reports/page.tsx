@@ -61,50 +61,48 @@ export default function ReportsPage() {
     (item) => item.status === "REPORTED" || item.status === "SIGNED"
   );
 
-  return (
-    <div className="section app-section">
-      <div className="app-hero app-hero-full">
-        <div className="container">
-          <div className="page-title" style={{ marginBottom: 0 }}>
-            <div>
-              <h1
-                className="hero-title pricing-hero-title"
-                style={{ margin: 0 }}
-              >
-                Reports
-              </h1>
-              <p
-                className="page-subtitle pricing-subtitle"
-                style={{ marginTop: 6 }}
-              >
-                Verifiable reports and custody timelines.
-              </p>
-            </div>
+return (
+  <div className="section app-section">
+    <div className="app-hero app-hero-full">
+      <div className="container">
+        <div className="page-title" style={{ marginBottom: 0 }}>
+          <div>
+            <h1 className="hero-title pricing-hero-title" style={{ margin: 0 }}>
+              Reports
+            </h1>
+            <p className="page-subtitle pricing-subtitle" style={{ marginTop: 6 }}>
+              Verifiable reports and custody timelines.
+            </p>
           </div>
         </div>
       </div>
+    </div>
 
-      <div className="app-body app-body-full">
-        <div className="container" style={{ display: "grid", gap: 16 }}>
-          {loading ? (
-            <div style={{ display: "grid", gap: 8 }}>
-              <Skeleton width="100%" height="40px" />
-              <Skeleton width="100%" height="40px" />
-              <Skeleton width="100%" height="40px" />
-            </div>
-          ) : error ? (
+    <div className="app-body app-body-full">
+      <div className="container" style={{ display: "grid", gap: 16 }}>
+        {loading ? (
+          <div style={{ display: "grid", gap: 8 }}>
+            <Skeleton width="100%" height="56px" />
+            <Skeleton width="100%" height="56px" />
+            <Skeleton width="100%" height="56px" />
+          </div>
+        ) : error ? (
+          <Card className="app-card">
             <div
               style={{
                 padding: 16,
-                background: "#FEE2E2",
-                borderRadius: 8,
-                color: "#991B1B",
-                fontSize: 12,
+                borderRadius: 14,
+                background: "rgba(127,29,29,0.18)",
+                border: "1px solid rgba(248,113,113,0.18)",
+                color: "#fecaca",
+                fontSize: 13,
               }}
             >
               {error}
             </div>
-          ) : withReports.length === 0 ? (
+          </Card>
+        ) : withReports.length === 0 ? (
+          <Card className="app-card">
             <EmptyState
               title="No reports yet"
               subtitle="Capture evidence and complete signing to generate verifiable reports."
@@ -114,31 +112,13 @@ export default function ReportsPage() {
                 </Link>
               )}
             />
-          ) : (
-            withReports.map((item) => (
-              <div
-                key={item.id}
-                style={{ cursor: "pointer", transition: "all 0.2s" }}
-              >
-                <Card>
-                  {isUuid(item.id) ? (
-                    <Link
-                      href={`/evidence/${item.id}`}
-                      style={{ display: "block", textDecoration: "none" }}
-                    >
-                      <ListRow
-                        title={item.title || "Digital Evidence Record"}
-                        subtitle={item.displaySubtitle}
-                        badge={
-                          item.status === "SIGNED" ? (
-                            <Badge tone="signed">{t("statusSigned")}</Badge>
-                          ) : (
-                            <Badge tone="ready">{t("statusReady")}</Badge>
-                          )
-                        }
-                      />
-                    </Link>
-                  ) : (
+          </Card>
+        ) : (
+          withReports.map((item) => (
+            <div key={item.id} style={{ cursor: "pointer", transition: "all 0.2s" }}>
+              <Card className="app-card">
+                {isUuid(item.id) ? (
+                  <Link href={`/evidence/${item.id}`} style={{ display: "block", textDecoration: "none" }}>
                     <ListRow
                       title={item.title || "Digital Evidence Record"}
                       subtitle={item.displaySubtitle}
@@ -150,13 +130,26 @@ export default function ReportsPage() {
                         )
                       }
                     />
-                  )}
-                </Card>
-              </div>
-            ))
-          )}
-        </div>
+                  </Link>
+                ) : (
+                  <ListRow
+                    title={item.title || "Digital Evidence Record"}
+                    subtitle={item.displaySubtitle}
+                    badge={
+                      item.status === "SIGNED" ? (
+                        <Badge tone="signed">{t("statusSigned")}</Badge>
+                      ) : (
+                        <Badge tone="ready">{t("statusReady")}</Badge>
+                      )
+                    }
+                  />
+                )}
+              </Card>
+            </div>
+          ))
+        )}
       </div>
     </div>
-  );
+  </div>
+);
 }
