@@ -1170,7 +1170,7 @@ textarea:focus-visible {
 
 .app-content {
   min-height: calc(100vh - 56px - 64px);
-  padding: 0 0 72px;
+  padding: 0;
   position: relative;
   z-index: 2;
   overflow: visible;
@@ -1183,7 +1183,7 @@ textarea:focus-visible {
 }
 
 .app-section {
-  padding: 0 0 48px;
+  padding: 0;
   flex: 1;
   display: flex;
   flex-direction: column;
@@ -2067,4 +2067,75 @@ body.camera-open {
 
 .auth-legal-check a:hover {
   color: #b79d84 !important;
+}
+
+/* =========================================================
+   HOME PAGE VELVET OVERRIDES
+   ========================================================= */
+
+.home-page-shell .evidence-row-pro {
+  border: 1px solid rgba(158, 216, 207, 0.10);
+  background: linear-gradient(
+    180deg,
+    rgba(8, 23, 30, 0.86) 0%,
+    rgba(7, 18, 24, 0.94) 100%
+  );
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.18);
+}
+
+.home-page-shell .evidence-row-pro:hover {
+  border-color: rgba(214, 184, 157, 0.18);
+  background: linear-gradient(
+    180deg,
+    rgba(10, 28, 35, 0.90) 0%,
+    rgba(8, 20, 26, 0.96) 100%
+  );
+  box-shadow: 0 14px 32px rgba(0, 0, 0, 0.22);
+}
+
+.home-page-shell .evidence-row-pro__icon {
+  background: linear-gradient(
+    180deg,
+    rgba(39, 68, 72, 0.58) 0%,
+    rgba(21, 39, 44, 0.44) 100%
+  );
+  border: 1px solid rgba(158, 216, 207, 0.10);
+}
+
+.home-page-shell .evidence-row-pro__icon-text {
+  color: rgba(236, 244, 241, 0.90);
+}
+
+.home-page-shell .evidence-row-pro__title {
+  color: #edf4f1;
+}
+
+.home-page-shell .evidence-row-pro__subtitle {
+  color: rgba(211, 223, 220, 0.68);
+}
+
+.home-page-shell .evidence-row-pro__arrow {
+  color: rgba(214, 184, 157, 0.26);
+}
+
+.home-page-shell .evidence-row-pro:hover .evidence-row-pro__arrow {
+  color: rgba(214, 184, 157, 0.62);
+}
+
+.home-page-shell .badge.ready {
+  background: rgba(46, 128, 108, 0.16);
+  color: #95e3c0;
+  border-color: rgba(46, 128, 108, 0.28);
+}
+
+.home-page-shell .badge.signed {
+  background: rgba(183, 157, 132, 0.14);
+  color: #e6c9ae;
+  border-color: rgba(183, 157, 132, 0.24);
+}
+
+.home-page-shell .badge.processing {
+  background: rgba(245, 158, 11, 0.14);
+  color: #f7d98a;
+  border-color: rgba(245, 158, 11, 0.24);
 }

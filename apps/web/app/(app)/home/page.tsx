@@ -55,24 +55,24 @@ export default function HomePage() {
       .finally(() => setLoading(false));
   }, [addToast]);
 
-  const actionButtonStyle = {
-    borderColor: "rgba(158,216,207,0.16)",
-    color: "#edf1ef",
+  const secondaryActionButtonStyle = {
+    borderColor: "rgba(158,216,207,0.14)",
+    color: "#e8f0ed",
     background:
-      "linear-gradient(180deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.018) 100%)",
+      "linear-gradient(180deg, rgba(255,255,255,0.045) 0%, rgba(255,255,255,0.018) 100%)",
     boxShadow: "0 10px 22px rgba(0,0,0,0.12)",
   } as const;
 
   const primaryActionButtonStyle = {
-    borderColor: "rgba(158,216,207,0.24)",
-    color: "#ecf5f2",
+    borderColor: "rgba(158,216,207,0.20)",
+    color: "#eef4f2",
     background:
-      "linear-gradient(180deg, rgba(90,164,159,0.44) 0%, rgba(45,91,89,0.82) 100%)",
-    boxShadow: "0 14px 28px rgba(13,43,44,0.22)",
+      "linear-gradient(180deg, rgba(68,114,112,0.92) 0%, rgba(29,58,61,0.96) 100%)",
+    boxShadow: "0 14px 28px rgba(9,27,28,0.22)",
   } as const;
 
   return (
-    <div className="page landing-page">
+    <div className="page landing-page home-page-shell">
       <div className="relative overflow-hidden">
         <div className="absolute inset-0">
           <img
@@ -83,9 +83,9 @@ export default function HomePage() {
         </div>
 
         <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(8,18,22,0.84)_0%,rgba(8,18,22,0.74)_38%,rgba(8,18,22,0.68)_68%,rgba(8,18,22,0.74)_100%)]" />
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_16%_16%,rgba(158,216,207,0.09),transparent_24%)]" />
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_82%_24%,rgba(214,184,157,0.06),transparent_18%)]" />
-        <div className="absolute inset-0 opacity-[0.04] [background:repeating-linear-gradient(0deg,rgba(255,255,255,0.026)_0px,rgba(255,255,255,0.026)_1px,transparent_1px,transparent_4px)]" />
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_16%_16%,rgba(158,216,207,0.08),transparent_24%)]" />
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_82%_24%,rgba(214,184,157,0.05),transparent_18%)]" />
+        <div className="absolute inset-0 opacity-[0.035] [background:repeating-linear-gradient(0deg,rgba(255,255,255,0.024)_0px,rgba(255,255,255,0.024)_1px,transparent_1px,transparent_4px)]" />
 
         <div className="relative z-10">
           <section className="mx-auto max-w-7xl px-6 pb-14 pt-10 md:px-8 md:pb-16 md:pt-14">
@@ -128,7 +128,7 @@ export default function HomePage() {
               <div className="flex shrink-0">
                 <Link href="/capture">
                   <Button
-                    className="rounded-[18px] border px-6 py-3 text-[0.95rem] font-semibold transition-all duration-200 hover:-translate-y-[1px] hover:brightness-[1.03]"
+                    className="min-w-[190px] rounded-[999px] border px-7 py-3 text-[0.95rem] font-semibold transition-all duration-200 hover:-translate-y-[1px] hover:brightness-[1.03]"
                     style={primaryActionButtonStyle}
                   >
                     Capture Evidence
@@ -138,28 +138,27 @@ export default function HomePage() {
             </div>
           </section>
 
-          <section className="relative px-6 pb-14 md:px-8 md:pb-16">
+          <section className="relative px-6 pb-10 md:px-8 md:pb-12">
             <div className="mx-auto max-w-7xl">
               <div className="grid gap-5 xl:grid-cols-[1.08fr_0.92fr]">
                 <Card
-                  className="relative overflow-hidden rounded-[28px] border bg-transparent p-0 shadow-none"
+                  className="relative overflow-hidden rounded-[30px] border bg-transparent p-0 shadow-none"
                   style={{
-                    border: "1px solid rgba(158,216,207,0.14)",
+                    border: "1px solid rgba(158,216,207,0.16)",
                     boxShadow:
-                      "0 18px 34px rgba(0, 0, 0, 0.14), inset 0 1px 0 rgba(255,255,255,0.04)",
+                      "0 20px 38px rgba(0, 0, 0, 0.14), inset 0 1px 0 rgba(255,255,255,0.04)",
                   }}
                 >
                   <div className="absolute inset-0">
                     <img
                       src="/images/site-velvet-bg.webp.png"
                       alt=""
-                      className="h-full w-full object-cover object-center scale-[1.08]"
+                      className="h-full w-full object-cover object-center scale-[1.12]"
                     />
                   </div>
-
-                  <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(7,18,22,0.76)_0%,rgba(6,16,20,0.78)_100%)]" />
-                  <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_14%,rgba(158,216,207,0.08),transparent_26%)]" />
-                  <div className="absolute inset-0 bg-[radial-gradient(circle_at_88%_18%,rgba(214,184,157,0.06),transparent_22%)]" />
+                  <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(7,18,22,0.72)_0%,rgba(6,16,20,0.74)_100%)]" />
+                  <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_14%,rgba(158,216,207,0.07),transparent_28%)]" />
+                  <div className="absolute inset-0 bg-[radial-gradient(circle_at_86%_18%,rgba(214,184,157,0.045),transparent_22%)]" />
 
                   <div className="relative z-10 p-6 md:p-7">
                     <div className="mb-5 text-[1rem] font-semibold tracking-[-0.02em] text-[#edf4f1]">
@@ -191,7 +190,7 @@ export default function HomePage() {
                             action={() => (
                               <Link href="/capture">
                                 <Button
-                                  className="rounded-[14px] border px-5 py-3 text-[0.92rem] font-medium"
+                                  className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-medium"
                                   style={primaryActionButtonStyle}
                                 >
                                   {t("ctaCapture")}
@@ -203,7 +202,7 @@ export default function HomePage() {
                       ) : (
                         items.map((item) => {
                           const row = (
-                            <div className="rounded-[22px] border border-[rgba(158,216,207,0.10)] bg-[linear-gradient(180deg,rgba(9,24,34,0.82)_0%,rgba(7,18,27,0.88)_100%)] p-1 transition-all duration-200 hover:-translate-y-[1px] hover:border-[rgba(214,184,157,0.18)] hover:shadow-[0_14px_24px_rgba(0,0,0,0.12)]">
+                            <div className="rounded-[24px] border border-[rgba(158,216,207,0.10)] bg-[linear-gradient(180deg,rgba(8,23,30,0.78)_0%,rgba(7,18,24,0.84)_100%)] p-1 transition-all duration-200 hover:-translate-y-[1px] hover:border-[rgba(214,184,157,0.18)] hover:shadow-[0_14px_24px_rgba(0,0,0,0.12)]">
                               <ListRow
                                 title={item.title || "Digital Evidence Record"}
                                 subtitle={item.displaySubtitle}
@@ -234,24 +233,23 @@ export default function HomePage() {
                 </Card>
 
                 <Card
-                  className="relative overflow-hidden rounded-[28px] border bg-transparent p-0 shadow-none"
+                  className="relative overflow-hidden rounded-[30px] border bg-transparent p-0 shadow-none"
                   style={{
-                    border: "1px solid rgba(158,216,207,0.14)",
+                    border: "1px solid rgba(158,216,207,0.16)",
                     boxShadow:
-                      "0 18px 34px rgba(0, 0, 0, 0.14), inset 0 1px 0 rgba(255,255,255,0.04)",
+                      "0 20px 38px rgba(0, 0, 0, 0.14), inset 0 1px 0 rgba(255,255,255,0.04)",
                   }}
                 >
                   <div className="absolute inset-0">
                     <img
                       src="/images/site-velvet-bg.webp.png"
                       alt=""
-                      className="h-full w-full object-cover object-center scale-[1.08]"
+                      className="h-full w-full object-cover object-center scale-[1.12]"
                     />
                   </div>
-
-                  <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(7,18,22,0.76)_0%,rgba(6,16,20,0.78)_100%)]" />
-                  <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_14%,rgba(158,216,207,0.08),transparent_26%)]" />
-                  <div className="absolute inset-0 bg-[radial-gradient(circle_at_88%_18%,rgba(214,184,157,0.06),transparent_22%)]" />
+                  <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(7,18,22,0.72)_0%,rgba(6,16,20,0.74)_100%)]" />
+                  <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_14%,rgba(158,216,207,0.07),transparent_28%)]" />
+                  <div className="absolute inset-0 bg-[radial-gradient(circle_at_86%_18%,rgba(214,184,157,0.045),transparent_22%)]" />
 
                   <div className="relative z-10 p-6 md:p-7">
                     <div className="mb-5 text-[1rem] font-semibold tracking-[-0.02em] text-[#edf4f1]">
@@ -261,7 +259,7 @@ export default function HomePage() {
                     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                       <Link href="/capture">
                         <Button
-                          className="w-full rounded-[18px] border px-5 py-3 text-[0.95rem] font-medium transition-all duration-200 hover:-translate-y-[1px] hover:brightness-[1.03]"
+                          className="w-full rounded-[999px] border px-5 py-3 text-[0.95rem] font-medium transition-all duration-200 hover:-translate-y-[1px] hover:brightness-[1.03]"
                           style={primaryActionButtonStyle}
                           onClick={() => addToast("Opening capture...", "info")}
                         >
@@ -272,8 +270,8 @@ export default function HomePage() {
                       <Link href="/cases">
                         <Button
                           variant="secondary"
-                          className="w-full rounded-[18px] border px-5 py-3 text-[0.95rem] font-medium transition-all duration-200 hover:-translate-y-[1px]"
-                          style={actionButtonStyle}
+                          className="w-full rounded-[999px] border px-5 py-3 text-[0.95rem] font-medium transition-all duration-200 hover:-translate-y-[1px]"
+                          style={secondaryActionButtonStyle}
                           onClick={() => addToast("Loading cases...", "info")}
                         >
                           View Cases
@@ -283,8 +281,8 @@ export default function HomePage() {
                       <Link href="/archive">
                         <Button
                           variant="secondary"
-                          className="w-full rounded-[18px] border px-5 py-3 text-[0.95rem] font-medium transition-all duration-200 hover:-translate-y-[1px]"
-                          style={actionButtonStyle}
+                          className="w-full rounded-[999px] border px-5 py-3 text-[0.95rem] font-medium transition-all duration-200 hover:-translate-y-[1px]"
+                          style={secondaryActionButtonStyle}
                           onClick={() => addToast("Opening archive...", "info")}
                         >
                           Archived Evidence
@@ -294,8 +292,8 @@ export default function HomePage() {
                       <Link href="/deleted">
                         <Button
                           variant="secondary"
-                          className="w-full rounded-[18px] border px-5 py-3 text-[0.95rem] font-medium transition-all duration-200 hover:-translate-y-[1px]"
-                          style={actionButtonStyle}
+                          className="w-full rounded-[999px] border px-5 py-3 text-[0.95rem] font-medium transition-all duration-200 hover:-translate-y-[1px]"
+                          style={secondaryActionButtonStyle}
                           onClick={() => addToast("Opening deleted evidence...", "info")}
                         >
                           Deleted Evidence
@@ -305,8 +303,8 @@ export default function HomePage() {
                       <Link href="/locked">
                         <Button
                           variant="secondary"
-                          className="w-full rounded-[18px] border px-5 py-3 text-[0.95rem] font-medium transition-all duration-200 hover:-translate-y-[1px]"
-                          style={actionButtonStyle}
+                          className="w-full rounded-[999px] border px-5 py-3 text-[0.95rem] font-medium transition-all duration-200 hover:-translate-y-[1px]"
+                          style={secondaryActionButtonStyle}
                           onClick={() => addToast("Opening locked evidence...", "info")}
                         >
                           Locked Evidence
@@ -316,8 +314,8 @@ export default function HomePage() {
                       <Link href="/settings">
                         <Button
                           variant="secondary"
-                          className="w-full rounded-[18px] border px-5 py-3 text-[0.95rem] font-medium transition-all duration-200 hover:-translate-y-[1px]"
-                          style={actionButtonStyle}
+                          className="w-full rounded-[999px] border px-5 py-3 text-[0.95rem] font-medium transition-all duration-200 hover:-translate-y-[1px]"
+                          style={secondaryActionButtonStyle}
                           onClick={() => addToast("Opening settings...", "info")}
                         >
                           Manage Settings
@@ -326,20 +324,20 @@ export default function HomePage() {
                     </div>
 
                     <div
-                      className="mt-5 rounded-[22px] border px-4 py-4"
+                      className="mt-5 rounded-[24px] border px-4 py-4"
                       style={{
                         border: "1px solid rgba(214,184,157,0.18)",
                         background:
-                          "linear-gradient(135deg, rgba(214,184,157,0.10), rgba(158,216,207,0.08))",
+                          "linear-gradient(135deg, rgba(214,184,157,0.08), rgba(158,216,207,0.06))",
                       }}
                     >
                       <div className="flex items-start gap-3">
                         <div
                           className="flex h-10 w-10 items-center justify-center rounded-full text-[1rem] font-semibold"
                           style={{
-                            background: "rgba(214,184,157,0.14)",
+                            background: "rgba(214,184,157,0.12)",
                             color: "#e1c0a0",
-                            boxShadow: "0 0 18px rgba(214,184,157,0.10)",
+                            boxShadow: "0 0 18px rgba(214,184,157,0.08)",
                           }}
                         >
                           ✓
