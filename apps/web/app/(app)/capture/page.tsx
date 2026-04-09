@@ -780,8 +780,28 @@ export default function CapturePage() {
                 justifyContent: "flex-end",
               }}
             >
-              <span className="badge ready">{sessionCountLabel}</span>
-              {sessionEvidenceId ? <span className="badge processing">Session active</span> : null}
+              <span
+                className="badge ready"
+                style={{
+                  background: "rgba(158,216,207,0.12)",
+                  borderColor: "rgba(158,216,207,0.22)",
+                  color: "#bfe8df",
+                }}
+              >
+                {sessionCountLabel}
+              </span>
+              {sessionEvidenceId ? (
+                <span
+                  className="badge processing"
+                  style={{
+                    background: "rgba(214,184,157,0.12)",
+                    borderColor: "rgba(214,184,157,0.22)",
+                    color: "#e6c9ae",
+                  }}
+                >
+                  Session active
+                </span>
+              ) : null}
             </div>
           </div>
         </div>
@@ -789,8 +809,8 @@ export default function CapturePage() {
 
       <div className="app-body app-body-full">
         <div className="container">
-          <Card>
-            <div style={{ display: "grid", gap: 16 }}>
+          <Card className="app-card">
+            <div style={{ display: "grid", gap: 18, padding: 2 }}>
               <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
                 {([
                   { label: t("photo"), value: "PHOTO" },
@@ -809,6 +829,22 @@ export default function CapturePage() {
                       if (fileInputRef.current) {
                         fileInputRef.current.value = "";
                       }
+                    }}
+                    style={{
+                      borderRadius: 999,
+                      padding: "10px 16px",
+                      fontWeight: 700,
+                      border:
+                        type === item.value
+                          ? "1px solid rgba(214,184,157,0.22)"
+                          : "1px solid rgba(255,255,255,0.08)",
+                      background:
+                        type === item.value
+                          ? "linear-gradient(180deg, rgba(214,184,157,0.14), rgba(214,184,157,0.08))"
+                          : "rgba(255,255,255,0.04)",
+                      color: type === item.value ? "#f3ddc6" : "rgba(246,252,255,0.84)",
+                      boxShadow:
+                        type === item.value ? "0 10px 24px rgba(0,0,0,0.16)" : "none",
                     }}
                   >
                     {item.label}
@@ -865,8 +901,23 @@ export default function CapturePage() {
                   await handleDroppedFiles(event.dataTransfer.files);
                 }}
                 onClick={openFilePicker}
+                style={{
+                  borderRadius: 22,
+                  border: "1px dashed rgba(214,184,157,0.18)",
+                  background:
+                    "linear-gradient(180deg, rgba(255,255,255,0.035), rgba(255,255,255,0.02))",
+                  boxShadow: "inset 0 1px 0 rgba(255,255,255,0.03)",
+                  padding: "30px 20px",
+                }}
               >
-                <div className="drop-hint">
+                <div
+                  className="drop-hint"
+                  style={{
+                    color: "rgba(246,252,255,0.82)",
+                    fontWeight: 600,
+                    fontSize: 15,
+                  }}
+                >
                   Drag &amp; drop or click to add{" "}
                   {type === "PHOTO"
                     ? "photos"
@@ -877,7 +928,15 @@ export default function CapturePage() {
                 </div>
               </div>
 
-              <label style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <label
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 10,
+                  color: "rgba(246,252,255,0.84)",
+                  fontSize: 14,
+                }}
+              >
                 <input
                   type="checkbox"
                   checked={useLocation}
@@ -888,13 +947,31 @@ export default function CapturePage() {
               </label>
 
               {locationPermissionDenied ? (
-                <div className="error-text">
+                <div
+                  className="error-text"
+                  style={{
+                    padding: 12,
+                    borderRadius: 14,
+                    background: "rgba(127,29,29,0.16)",
+                    border: "1px solid rgba(248,113,113,0.16)",
+                  }}
+                >
                   Location was not granted. The current session will continue without GPS metadata.
                 </div>
               ) : null}
 
               {sessionItems.length > 0 ? (
-                <div className="capture-preview-card">
+                <div
+                  className="capture-preview-card"
+                  style={{
+                    padding: 18,
+                    borderRadius: 22,
+                    background:
+                      "linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.025))",
+                    border: "1px solid rgba(214,184,157,0.12)",
+                    boxShadow: "0 18px 40px rgba(0,0,0,0.16)",
+                  }}
+                >
                   <div
                     style={{
                       display: "flex",
@@ -902,22 +979,31 @@ export default function CapturePage() {
                       justifyContent: "space-between",
                       gap: 12,
                       flexWrap: "wrap",
-                      marginBottom: 12,
+                      marginBottom: 14,
                     }}
                   >
-                    <div className="capture-preview-title">Session items</div>
+                    <div
+                      className="capture-preview-title"
+                      style={{
+                        color: "rgba(246,252,255,0.96)",
+                        fontWeight: 800,
+                        fontSize: 16,
+                      }}
+                    >
+                      Session items
+                    </div>
                     <div
                       style={{
                         display: "inline-flex",
                         alignItems: "center",
                         gap: 8,
-                        padding: "6px 12px",
+                        padding: "7px 12px",
                         borderRadius: 999,
-                        background: "rgba(101, 235, 255, 0.12)",
-                        border: "1px solid rgba(101, 235, 255, 0.22)",
-                        color: "#dff7ff",
+                        background: "rgba(214,184,157,0.12)",
+                        border: "1px solid rgba(214,184,157,0.22)",
+                        color: "#f0dbc6",
                         fontSize: 12,
-                        fontWeight: 700,
+                        fontWeight: 800,
                       }}
                     >
                       {sessionCountLabel}
@@ -935,10 +1021,11 @@ export default function CapturePage() {
                       <div
                         key={item.id}
                         style={{
-                          borderRadius: 16,
+                          borderRadius: 18,
                           overflow: "hidden",
-                          background: "rgba(7, 20, 38, 0.88)",
-                          border: "1px solid rgba(101, 235, 255, 0.16)",
+                          background: "rgba(8, 18, 34, 0.88)",
+                          border: "1px solid rgba(255,255,255,0.06)",
+                          boxShadow: "0 14px 30px rgba(0,0,0,0.16)",
                         }}
                       >
                         <div
@@ -961,8 +1048,8 @@ export default function CapturePage() {
                               height: 28,
                               borderRadius: 999,
                               background: "rgba(2, 6, 23, 0.82)",
-                              border: "1px solid rgba(101, 235, 255, 0.25)",
-                              color: "#e2f7ff",
+                              border: "1px solid rgba(214,184,157,0.25)",
+                              color: "#f2e0cf",
                               display: "grid",
                               placeItems: "center",
                               fontSize: 12,
@@ -1036,7 +1123,7 @@ export default function CapturePage() {
                         <div style={{ padding: 12, display: "grid", gap: 8 }}>
                           <div
                             style={{
-                              color: "#e2e8f0",
+                              color: "#eef4f1",
                               fontSize: 13,
                               fontWeight: 700,
                               whiteSpace: "nowrap",
@@ -1048,7 +1135,7 @@ export default function CapturePage() {
                             {item.file.name}
                           </div>
 
-                          <div style={{ fontSize: 12, color: "#94a3b8" }}>
+                          <div style={{ fontSize: 12, color: "rgba(219,235,248,0.60)" }}>
                             {(item.file.size / 1024 / 1024).toFixed(2)} MB
                           </div>
 
@@ -1087,13 +1174,48 @@ export default function CapturePage() {
               ) : null}
 
               {sessionCreating || busy ? (
-                <div className="uploading-hint">
+                <div
+                  className="uploading-hint"
+                  style={{
+                    padding: 12,
+                    borderRadius: 14,
+                    background: "rgba(255,255,255,0.04)",
+                    border: "1px solid rgba(255,255,255,0.06)",
+                    color: "rgba(246,252,255,0.84)",
+                  }}
+                >
                   {busy ? `Uploading… ${progress}%` : "Preparing session..."}
                 </div>
               ) : null}
 
-              {sessionInfo ? <div className="uploading-hint">{sessionInfo}</div> : null}
-              {error ? <div className="error-text">{error}</div> : null}
+              {sessionInfo ? (
+                <div
+                  className="uploading-hint"
+                  style={{
+                    padding: 12,
+                    borderRadius: 14,
+                    background: "rgba(255,255,255,0.04)",
+                    border: "1px solid rgba(255,255,255,0.06)",
+                    color: "rgba(246,252,255,0.84)",
+                  }}
+                >
+                  {sessionInfo}
+                </div>
+              ) : null}
+
+              {error ? (
+                <div
+                  className="error-text"
+                  style={{
+                    padding: 12,
+                    borderRadius: 14,
+                    background: "rgba(127,29,29,0.16)",
+                    border: "1px solid rgba(248,113,113,0.16)",
+                  }}
+                >
+                  {error}
+                </div>
+              ) : null}
 
               <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
                 <Button
@@ -1189,8 +1311,8 @@ export default function CapturePage() {
               padding: "10px 14px",
               borderRadius: 999,
               background: "rgba(2, 6, 23, 0.82)",
-              border: "1px solid rgba(101, 235, 255, 0.24)",
-              color: "#effcff",
+              border: "1px solid rgba(214,184,157,0.22)",
+              color: "#f2e0cf",
               fontSize: 13,
               fontWeight: 800,
               backdropFilter: "blur(10px)",

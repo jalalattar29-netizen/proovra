@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { Suspense, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useToast } from "../../components/ui";
@@ -9,6 +9,14 @@ import { MarketingHeader } from "../../components/header";
 import { Footer } from "../../components/Footer";
 
 export default function ForgotPasswordPage() {
+  return (
+    <Suspense fallback={null}>
+      <ForgotPasswordPageContent />
+    </Suspense>
+  );
+}
+
+function ForgotPasswordPageContent() {
   const { addToast } = useToast();
   const router = useRouter();
   const searchParams = useSearchParams();
