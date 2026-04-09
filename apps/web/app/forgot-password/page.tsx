@@ -132,7 +132,9 @@ function ForgotPasswordPageContent() {
                         <button
                           className="auth-social-btn"
                           onClick={() =>
-                            router.push(`/login?returnUrl=${encodeURIComponent(returnUrl)}`)
+                            router.push(
+                              `/login?returnUrl=${encodeURIComponent(returnUrl)}`
+                            )
                           }
                         >
                           Back to login
@@ -177,7 +179,9 @@ function ForgotPasswordPageContent() {
                     }}
                   >
                     <span>Remembered your password? </span>
-                    <Link href={`/login?returnUrl=${encodeURIComponent(returnUrl)}`}>
+                    <Link
+                      href={`/login?returnUrl=${encodeURIComponent(returnUrl)}`}
+                    >
                       Login
                     </Link>
                   </div>

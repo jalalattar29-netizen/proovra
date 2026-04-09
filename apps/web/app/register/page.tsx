@@ -1,6 +1,14 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import {
+  Suspense,
+  FormEvent,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+} from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Button, useToast } from "../../components/ui";
@@ -45,7 +53,12 @@ type GoogleGlobal = Window & {
 type AppleSignInResponse = { authorization?: { code?: string; id_token?: string } };
 
 type AppleAuth = {
-  init: (options: { clientId: string; scope: string; redirectURI: string; usePopup: boolean }) => void;
+  init: (options: {
+    clientId: string;
+    scope: string;
+    redirectURI: string;
+    usePopup: boolean;
+  }) => void;
   signIn: () => Promise<AppleSignInResponse>;
 };
 
@@ -112,6 +125,14 @@ const REQUIRED_LEGAL_VERSIONS = {
 } as const;
 
 export default function RegisterPage() {
+  return (
+    <Suspense fallback={null}>
+      <RegisterPageContent />
+    </Suspense>
+  );
+}
+
+function RegisterPageContent() {
   const { t } = useLocale();
   const { setToken } = useAuth();
   const { addToast } = useToast();
