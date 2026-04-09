@@ -502,53 +502,53 @@ function LoginPageContent() {
         </div>
 
         <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(8,18,22,0.84)_0%,rgba(8,18,22,0.74)_38%,rgba(8,18,22,0.76)_100%)]" />
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_16%_16%,rgba(158,216,207,0.08),transparent_24%)]" />
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_16%_16%,rgba(158,216,207,0.09),transparent_24%)]" />
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_82%_24%,rgba(214,184,157,0.06),transparent_18%)]" />
-        <div className="absolute inset-0 opacity-[0.035] [background:repeating-linear-gradient(0deg,rgba(255,255,255,0.024)_0px,rgba(255,255,255,0.024)_1px,transparent_1px,transparent_4px)]" />
+        <div className="absolute inset-0 opacity-[0.04] [background:repeating-linear-gradient(0deg,rgba(255,255,255,0.026)_0px,rgba(255,255,255,0.026)_1px,transparent_1px,transparent_4px)]" />
 
         <div className="relative z-10 flex min-h-screen flex-col">
           <MarketingHeader />
 
-          <main className="flex flex-1 items-center justify-center px-6 pb-14 pt-8 md:px-8 md:pb-20 md:pt-12">
-            <div className="w-full max-w-[1180px]">
-              <div className="grid gap-8 lg:grid-cols-[0.88fr_0.9fr] lg:items-center">
-                <section className="hidden lg:block">
-                  <div className="max-w-[500px]">
-                    <div className="inline-flex items-center gap-2.5 rounded-full border border-white/10 bg-white/[0.055] px-4 py-2 text-[0.74rem] font-medium uppercase tracking-[0.2em] text-[#dce3e0] shadow-[0_10px_24px_rgba(0,0,0,0.10)] backdrop-blur-md">
-                      <span className="text-[#9ed8cf]">
-                        <ShieldIcon />
-                      </span>
-                      Secure access
-                    </div>
+          <main className="flex flex-1 items-center px-6 pb-14 pt-10 md:px-8 md:pb-20 md:pt-14">
+            <div className="mx-auto w-full max-w-7xl">
+              <div className="grid gap-10 lg:grid-cols-[0.92fr_0.88fr] lg:items-center">
+<section className="hidden lg:block">
+  <div className="max-w-[900px]">
+    <div className="inline-flex items-center gap-2.5 rounded-full border border-white/10 bg-white/[0.055] px-4 py-2 text-[0.74rem] font-medium uppercase tracking-[0.2em] text-[#dce3e0] shadow-[0_10px_24px_rgba(0,0,0,0.10)] backdrop-blur-md">
+      <span className="text-[#9ed8cf]">
+        <ShieldIcon />
+      </span>
+      Secure access
+    </div>
 
-                    <h1 className="mt-5 max-w-[520px] text-[1.85rem] font-medium leading-[1.02] tracking-[-0.04em] text-[#edf1ef] md:text-[2.35rem] xl:text-[2.8rem]">
-                      Sign in to continue your{" "}
-                      <span className="text-[#bfe8df]">evidence workflow</span>.
-                    </h1>
+    <h1 className="mt-5 max-w-[760px] text-[2rem] font-medium leading-[0.98] tracking-[-0.045em] text-[#edf1ef] md:text-[2.7rem] xl:text-[3.25rem]">
+      Sign in to continue your{" "}
+      <span className="text-[#bfe8df]">evidence workflow</span>.
+    </h1>
 
-                    <p className="mt-5 max-w-[500px] text-[0.98rem] leading-[1.82] tracking-[-0.006em] text-[#c7cfcc]">
-                      Access your dashboard, verification records, reports, and protected evidence
-                      flows using email, Google, Apple, or guest access.
-                    </p>
+    <p className="mt-5 max-w-[760px] text-[1rem] leading-[1.82] tracking-[-0.006em] text-[#c7cfcc]">
+      Access your dashboard, verification records, reports, and protected evidence
+      flows using email, Google, Apple, or guest access.
+    </p>
 
-                    <div className="mt-6 flex flex-wrap gap-2.5">
-                      <div className="rounded-full border border-white/10 bg-white/[0.055] px-3.5 py-2 text-[0.78rem] text-[#d7dfdb] shadow-[0_8px_18px_rgba(0,0,0,0.08)] backdrop-blur-md">
-                        <span className="mr-2 text-[#9dd2ca]">✓</span>
-                        Google and Apple sign-in
-                      </div>
+    <div className="mt-6 flex flex-wrap gap-2.5">
+      <div className="rounded-full border border-white/10 bg-white/[0.055] px-3.5 py-2 text-[0.78rem] text-[#d7dfdb] shadow-[0_8px_18px_rgba(0,0,0,0.08)] backdrop-blur-md">
+        <span className="mr-2 text-[#9dd2ca]">✓</span>
+        Google and Apple sign-in
+      </div>
 
-                      <div className="rounded-full border border-white/10 bg-white/[0.055] px-3.5 py-2 text-[0.78rem] text-[#d7dfdb] shadow-[0_8px_18px_rgba(0,0,0,0.08)] backdrop-blur-md">
-                        <span className="mr-2 text-[#9dd2ca]">✓</span>
-                        Email access available
-                      </div>
+      <div className="rounded-full border border-white/10 bg-white/[0.055] px-3.5 py-2 text-[0.78rem] text-[#d7dfdb] shadow-[0_8px_18px_rgba(0,0,0,0.08)] backdrop-blur-md">
+        <span className="mr-2 text-[#9dd2ca]">✓</span>
+        Email access available
+      </div>
 
-                      <div className="rounded-full border border-[rgba(214,184,157,0.24)] bg-[linear-gradient(180deg,rgba(183,157,132,0.08)_0%,rgba(255,255,255,0.03)_100%)] px-3.5 py-2 text-[0.78rem] text-[#e1d4c7] shadow-[0_8px_18px_rgba(0,0,0,0.08)] backdrop-blur-md">
-                        <span className="mr-2 text-[#d6b89d]">✓</span>
-                        Guest access supported
-                      </div>
-                    </div>
-                  </div>
-                </section>
+      <div className="rounded-full border border-[rgba(214,184,157,0.24)] bg-[linear-gradient(180deg,rgba(183,157,132,0.08)_0%,rgba(255,255,255,0.03)_100%)] px-3.5 py-2 text-[0.78rem] text-[#e1d4c7] shadow-[0_8px_18px_rgba(0,0,0,0.08)] backdrop-blur-md">
+        <span className="mr-2 text-[#d6b89d]">✓</span>
+        Guest access supported
+      </div>
+    </div>
+  </div>
+</section>
 
                 <section className="mx-auto w-full max-w-[540px]">
                   <div
@@ -681,40 +681,45 @@ function LoginPageContent() {
                             </div>
                           </div>
 
-                          <label
-                            style={{
-                              display: "flex",
-                              alignItems: "flex-start",
-                              gap: 10,
-                              fontSize: 13,
-                              lineHeight: 1.6,
-                              color: "#5f6d71",
-                            }}
-                          >
-                            <input
-                              type="checkbox"
-                              checked={acceptLegal}
-                              onChange={(e) => setAcceptLegal(e.target.checked)}
-                              disabled={busy}
-                              style={{ marginTop: 3 }}
-                            />
-                            <span>
-                              I agree to the{" "}
-                              <Link href="/legal/terms" className="auth-link" style={{ color: "#b79d84" }}>
-                                Terms of Service
-                              </Link>
-                              {", "}
-                              <Link href="/legal/privacy" className="auth-link" style={{ color: "#b79d84" }}>
-                                Privacy Policy
-                              </Link>
-                              {" and "}
-                              <Link href="/legal/cookies" className="auth-link" style={{ color: "#b79d84" }}>
-                                Cookie Policy
-                              </Link>
-                              .
-                            </span>
-                          </label>
-
+<label
+  className="auth-legal-check"
+  style={{
+    display: "flex",
+    alignItems: "flex-start",
+    gap: 12,
+    padding: "12px 14px",
+    borderRadius: 16,
+    background: "rgba(255,255,255,0.34)",
+    border: "1px solid rgba(79,112,107,0.12)",
+    boxShadow: "inset 0 1px 0 rgba(255,255,255,0.22)",
+    fontSize: 14,
+    lineHeight: 1.75,
+    color: "#506166",
+  }}
+>
+  <input
+    type="checkbox"
+    checked={acceptLegal}
+    onChange={(e) => setAcceptLegal(e.target.checked)}
+    disabled={busy}
+    className="auth-legal-checkbox"
+  />
+  <span style={{ display: "block", paddingTop: 1 }}>
+    I agree to the{" "}
+    <Link href="/legal/terms" className="auth-link" style={{ color: "#9a7a5d", fontWeight: 600 }}>
+      Terms of Service
+    </Link>
+    {", "}
+    <Link href="/legal/privacy" className="auth-link" style={{ color: "#9a7a5d", fontWeight: 600 }}>
+      Privacy Policy
+    </Link>
+    {" and "}
+    <Link href="/legal/cookies" className="auth-link" style={{ color: "#9a7a5d", fontWeight: 600 }}>
+      Cookie Policy
+    </Link>
+    .
+  </span>
+</label>
                           <button
                             className="auth-social-btn"
                             type="submit"

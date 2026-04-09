@@ -2,6 +2,7 @@ import { headers } from "next/headers";
 import { notFound } from "next/navigation";
 import { Footer } from "../../../components/Footer";
 import { MarketingHeader } from "../../../components/header";
+import { SilverWatermarkSection } from "../../../components/SilverWatermarkSection";
 import {
   ALLOWED_LEGAL_SLUGS,
   loadLegalMarkdown,
@@ -32,7 +33,7 @@ export default async function LegalPage({
 
   return (
     <div className="page landing-page">
-      <div className="relative min-h-screen overflow-hidden">
+      <div className="relative overflow-hidden">
         <div className="absolute inset-0">
           <img
             src="/images/site-velvet-bg.webp.png"
@@ -41,112 +42,113 @@ export default async function LegalPage({
           />
         </div>
 
-        <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(8,18,22,0.84)_0%,rgba(8,18,22,0.74)_34%,rgba(8,18,22,0.68)_100%)]" />
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_16%_14%,rgba(158,216,207,0.08),transparent_24%)]" />
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_84%_22%,rgba(214,184,157,0.06),transparent_18%)]" />
-        <div className="absolute inset-0 opacity-[0.035] [background:repeating-linear-gradient(0deg,rgba(255,255,255,0.022)_0px,rgba(255,255,255,0.022)_1px,transparent_1px,transparent_4px)]" />
+        <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(8,18,22,0.84)_0%,rgba(8,18,22,0.74)_38%,rgba(8,18,22,0.66)_100%)]" />
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_16%_16%,rgba(158,216,207,0.09),transparent_24%)]" />
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_82%_24%,rgba(214,184,157,0.06),transparent_18%)]" />
+        <div className="absolute inset-0 opacity-[0.04] [background:repeating-linear-gradient(0deg,rgba(255,255,255,0.026)_0px,rgba(255,255,255,0.026)_1px,transparent_1px,transparent_4px)]" />
 
-        <div className="relative z-10 flex min-h-screen flex-col">
+        <div className="relative z-10">
           <MarketingHeader />
 
-          <section className="mx-auto w-full max-w-7xl px-6 pb-10 pt-10 md:px-8 md:pb-12 md:pt-14">
-            <div className="max-w-[900px]">
+          <section className="mx-auto max-w-7xl px-6 pb-16 pt-10 md:px-8 md:pb-20 md:pt-14">
+            <div className="max-w-[760px]">
               <div className="inline-flex rounded-full border border-white/10 bg-white/[0.055] px-4 py-2 text-[0.74rem] font-medium uppercase tracking-[0.2em] text-[#dce3e0] shadow-[0_10px_24px_rgba(0,0,0,0.10)] backdrop-blur-md">
                 Legal
               </div>
 
-              <h1 className="mt-5 max-w-[760px] text-[2rem] font-medium leading-[0.98] tracking-[-0.045em] text-[#edf1ef] md:text-[2.7rem] xl:text-[3.25rem]">
+              <h1 className="mt-5 max-w-[640px] text-[1.62rem] font-medium leading-[1.01] tracking-[-0.04em] text-[#edf1ef] md:text-[2.18rem] lg:text-[2.7rem]">
                 {title}
               </h1>
 
-              <p className="mt-5 max-w-[760px] text-[1rem] leading-[1.82] tracking-[-0.006em] text-[#c7cfcc]">
+              <p className="mt-5 max-w-[650px] text-[0.94rem] font-normal leading-[1.78] tracking-[-0.006em] text-[#c7cfcc] md:text-[0.98rem]">
                 Legal information, policy details, and operational guidance for{" "}
-                <span className="text-[#bfe8df]">PROO✓RA</span>.
+                <span className="text-[#e7ece9]">PROO✓RA</span>, structured for{" "}
+                <span className="text-[#bfe8df]">clarity</span>,{" "}
+                <span className="text-[#e6ebe8]">verification context</span>, and{" "}
+                <span className="text-[#d6b89d]">compliance reference</span>.
               </p>
 
               <div className="mt-6 flex flex-wrap gap-2.5">
-                <div className="rounded-full border border-white/10 bg-white/[0.055] px-3.5 py-2 text-[0.78rem] text-[#d7dfdb] shadow-[0_8px_18px_rgba(0,0,0,0.08)] backdrop-blur-md">
+                <div className="rounded-full border border-white/10 bg-white/[0.055] px-3.5 py-2 text-[0.78rem] font-normal text-[#d7dfdb] shadow-[0_8px_18px_rgba(0,0,0,0.08)] backdrop-blur-md">
                   <span className="mr-2 text-[#9dd2ca]">✓</span>
                   Structured legal reference
                 </div>
 
-                <div className="rounded-full border border-white/10 bg-white/[0.055] px-3.5 py-2 text-[0.78rem] text-[#d7dfdb] shadow-[0_8px_18px_rgba(0,0,0,0.08)] backdrop-blur-md">
+                <div className="rounded-full border border-white/10 bg-white/[0.055] px-3.5 py-2 text-[0.78rem] font-normal text-[#d7dfdb] shadow-[0_8px_18px_rgba(0,0,0,0.08)] backdrop-blur-md">
                   <span className="mr-2 text-[#9dd2ca]">✓</span>
                   Policy and compliance context
                 </div>
 
-                <div className="rounded-full border border-[rgba(214,184,157,0.24)] bg-[linear-gradient(180deg,rgba(183,157,132,0.08)_0%,rgba(255,255,255,0.03)_100%)] px-3.5 py-2 text-[0.78rem] text-[#e1d4c7] shadow-[0_8px_18px_rgba(0,0,0,0.08)] backdrop-blur-md">
+                <div className="rounded-full border border-[rgba(214,184,157,0.24)] bg-[linear-gradient(180deg,rgba(183,157,132,0.08)_0%,rgba(255,255,255,0.03)_100%)] px-3.5 py-2 text-[0.78rem] font-normal text-[#e1d4c7] shadow-[0_8px_18px_rgba(0,0,0,0.08)] backdrop-blur-md">
                   <span className="mr-2 text-[#d6b89d]">✓</span>
                   Updated legal materials
                 </div>
               </div>
             </div>
           </section>
-
-          <section className="relative overflow-hidden bg-[#c9cfcd] pb-16 pt-6 md:pb-20">
-            <div className="pointer-events-none absolute inset-0" aria-hidden="true">
-              <img
-                src="/images/landing-network-bg.png"
-                alt=""
-                className="absolute inset-0 h-full w-full object-cover object-top opacity-[0.12] saturate-[0.55] brightness-[1.02] contrast-[0.94]"
-              />
-
-              <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(201,207,205,0.16)_0%,rgba(201,207,205,0.08)_22%,rgba(201,207,205,0.08)_78%,rgba(201,207,205,0.16)_100%)]" />
-              <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(201,207,205,0.18)_0%,rgba(201,207,205,0.06)_12%,rgba(201,207,205,0.00)_24%,rgba(201,207,205,0.00)_76%,rgba(201,207,205,0.06)_88%,rgba(201,207,205,0.18)_100%)]" />
-              <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_14%,rgba(255,255,255,0.10),transparent_18%)]" />
-              <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_52%,rgba(255,255,255,0.06),transparent_26%)]" />
-              <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_88%,rgba(255,255,255,0.04),transparent_24%)]" />
-              <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.028)_0%,rgba(255,255,255,0.012)_100%)]" />
-            </div>
-
-            <div className="container relative z-10">
-              <article
-                className="
-                  legal-page relative overflow-hidden rounded-[30px] border border-[rgba(79,112,107,0.22)]
-                  shadow-[0_30px_80px_rgba(0,0,0,0.14)]
-                "
-              >
-                <img
-                  src="/images/panel-silver.webp.png"
-                  alt=""
-                  className="absolute inset-0 h-full w-full object-cover object-center"
-                />
-
-                <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.28)_0%,rgba(245,247,244,0.45)_50%,rgba(236,239,236,0.58)_100%)]" />
-                <div className="absolute inset-0 bg-[radial-gradient(circle_at_85%_18%,rgba(214,184,157,0.18),transparent_38%)]" />
-                <div className="absolute inset-0 bg-[radial-gradient(circle_at_15%_10%,rgba(255,255,255,0.34),transparent_28%)]" />
-
-                <div
-                  className="
-                    relative z-10 px-6 py-7 md:px-10 md:py-10 lg:px-12 lg:py-12
-                    text-[#33464a]
-                    [&_h1]:mb-5 [&_h1]:text-[2rem] [&_h1]:font-semibold [&_h1]:leading-[1.02] [&_h1]:tracking-[-0.04em] [&_h1]:text-[#16282d]
-                    [&_h2]:mb-4 [&_h2]:mt-10 [&_h2]:text-[1.42rem] [&_h2]:font-semibold [&_h2]:leading-[1.15] [&_h2]:tracking-[-0.03em] [&_h2]:text-[#1d3136]
-                    [&_h3]:mb-3 [&_h3]:mt-8 [&_h3]:text-[1.05rem] [&_h3]:font-semibold [&_h3]:uppercase [&_h3]:tracking-[0.14em] [&_h3]:text-[#8e7863]
-                    [&_p]:my-0 [&_p]:mb-4 [&_p]:text-[0.98rem] [&_p]:leading-[1.92] [&_p]:text-[#55666a]
-                    [&_strong]:font-semibold [&_strong]:text-[#1f3438]
-                    [&_em]:text-[#49666b]
-                    [&_a]:font-medium [&_a]:text-[#b79d84] hover:[&_a]:text-[#d6b89d]
-                    [&_ul]:my-4 [&_ul]:ml-0 [&_ul]:grid [&_ul]:gap-3 [&_ul]:pl-0
-                    [&_ol]:my-4 [&_ol]:ml-0 [&_ol]:grid [&_ol]:gap-3 [&_ol]:pl-0
-                    [&_li]:relative [&_li]:list-none [&_li]:pl-6 [&_li]:text-[0.98rem] [&_li]:leading-[1.85] [&_li]:text-[#55666a]
-                    [&_ul>li::before]:absolute [&_ul>li::before]:left-0 [&_ul>li::before]:top-[0.78rem] [&_ul>li::before]:h-2 [&_ul>li::before]:w-2 [&_ul>li::before]:rounded-full [&_ul>li::before]:bg-[#7ea9a2] [&_ul>li::before]:content-['']
-                    [&_ol]:counter-reset-[legal-counter]
-                    [&_ol>li]:pl-10
-                    [&_ol>li::before]:absolute [&_ol>li::before]:left-0 [&_ol>li::before]:top-[0.18rem] [&_ol>li::before]:flex [&_ol>li::before]:h-7 [&_ol>li::before]:w-7 [&_ol>li::before]:items-center [&_ol>li::before]:justify-center [&_ol>li::before]:rounded-full [&_ol>li::before]:border [&_ol>li::before]:border-[rgba(183,157,132,0.28)] [&_ol>li::before]:bg-[rgba(183,157,132,0.10)] [&_ol>li::before]:text-[0.78rem] [&_ol>li::before]:font-semibold [&_ol>li::before]:text-[#8f735a] [&_ol>li::before]:content-[counter(legal-counter)]
-                    [&_ol>li]:counter-increment-[legal-counter]
-                    [&_hr]:my-8 [&_hr]:border-0 [&_hr]:h-px [&_hr]:bg-[linear-gradient(90deg,transparent_0%,rgba(79,112,107,0.18)_18%,rgba(183,157,132,0.26)_50%,rgba(79,112,107,0.18)_82%,transparent_100%)]
-                  "
-                >
-                  {renderLegalMarkdown(content)}
-                </div>
-              </article>
-            </div>
-          </section>
-
-          <Footer />
         </div>
       </div>
+
+      <SilverWatermarkSection
+        className="section section-body relative overflow-hidden"
+        style={{ paddingTop: 48, paddingBottom: 56 }}
+      >
+        <div className="pointer-events-none absolute inset-0 z-0" aria-hidden="true">
+          <img
+            src="/images/landing-network-bg.png"
+            alt=""
+            className="absolute inset-0 h-full w-full object-cover object-top opacity-[0.12] saturate-[0.55] brightness-[1.02] contrast-[0.94]"
+          />
+          <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.08)_0%,rgba(255,255,255,0.03)_22%,rgba(255,255,255,0.03)_78%,rgba(255,255,255,0.08)_100%)]" />
+          <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(255,255,255,0.10)_0%,rgba(255,255,255,0.03)_12%,rgba(255,255,255,0.00)_24%,rgba(255,255,255,0.00)_76%,rgba(255,255,255,0.03)_88%,rgba(255,255,255,0.10)_100%)]" />
+        </div>
+
+        <div className="container relative z-10">
+          <article
+            className="
+              legal-page relative overflow-hidden rounded-[30px] border border-[rgba(79,112,107,0.22)]
+              shadow-[0_30px_80px_rgba(0,0,0,0.14)]
+            "
+          >
+            <img
+              src="/images/panel-silver.webp.png"
+              alt=""
+              className="absolute inset-0 h-full w-full object-cover object-center"
+            />
+
+            <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.28)_0%,rgba(245,247,244,0.45)_50%,rgba(236,239,236,0.58)_100%)]" />
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_85%_18%,rgba(214,184,157,0.18),transparent_38%)]" />
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_15%_10%,rgba(255,255,255,0.34),transparent_28%)]" />
+
+            <div
+              className="
+                relative z-10 px-6 py-7 md:px-10 md:py-10 lg:px-12 lg:py-12
+                text-[#33464a]
+                [&_h1]:mb-5 [&_h1]:text-[2rem] [&_h1]:font-semibold [&_h1]:leading-[1.02] [&_h1]:tracking-[-0.04em] [&_h1]:text-[#16282d]
+                [&_h2]:mb-4 [&_h2]:mt-10 [&_h2]:text-[1.42rem] [&_h2]:font-semibold [&_h2]:leading-[1.15] [&_h2]:tracking-[-0.03em] [&_h2]:text-[#1d3136]
+                [&_h3]:mb-3 [&_h3]:mt-8 [&_h3]:text-[1.05rem] [&_h3]:font-semibold [&_h3]:uppercase [&_h3]:tracking-[0.14em] [&_h3]:text-[#8e7863]
+                [&_p]:my-0 [&_p]:mb-4 [&_p]:text-[0.98rem] [&_p]:leading-[1.92] [&_p]:text-[#55666a]
+                [&_strong]:font-semibold [&_strong]:text-[#1f3438]
+                [&_em]:text-[#49666b]
+                [&_a]:font-medium [&_a]:text-[#b79d84] hover:[&_a]:text-[#d6b89d]
+                [&_ul]:my-4 [&_ul]:ml-0 [&_ul]:grid [&_ul]:gap-3 [&_ul]:pl-0
+                [&_ol]:my-4 [&_ol]:ml-0 [&_ol]:grid [&_ol]:gap-3 [&_ol]:pl-0
+                [&_li]:relative [&_li]:list-none [&_li]:pl-6 [&_li]:text-[0.98rem] [&_li]:leading-[1.85] [&_li]:text-[#55666a]
+                [&_ul>li::before]:absolute [&_ul>li::before]:left-0 [&_ul>li::before]:top-[0.78rem] [&_ul>li::before]:h-2 [&_ul>li::before]:w-2 [&_ul>li::before]:rounded-full [&_ul>li::before]:bg-[#7ea9a2] [&_ul>li::before]:content-['']
+                [&_ol]:counter-reset-[legal-counter]
+                [&_ol>li]:pl-10
+                [&_ol>li::before]:absolute [&_ol>li::before]:left-0 [&_ol>li::before]:top-[0.18rem] [&_ol>li::before]:flex [&_ol>li::before]:h-7 [&_ol>li::before]:w-7 [&_ol>li::before]:items-center [&_ol>li::before]:justify-center [&_ol>li::before]:rounded-full [&_ol>li::before]:border [&_ol>li::before]:border-[rgba(183,157,132,0.28)] [&_ol>li::before]:bg-[rgba(183,157,132,0.10)] [&_ol>li::before]:text-[0.78rem] [&_ol>li::before]:font-semibold [&_ol>li::before]:text-[#8f735a] [&_ol>li::before]:content-[counter(legal-counter)]
+                [&_ol>li]:counter-increment-[legal-counter]
+                [&_hr]:my-8 [&_hr]:border-0 [&_hr]:h-px [&_hr]:bg-[linear-gradient(90deg,transparent_0%,rgba(79,112,107,0.18)_18%,rgba(183,157,132,0.26)_50%,rgba(79,112,107,0.18)_82%,transparent_100%)]
+              "
+            >
+              {renderLegalMarkdown(content)}
+            </div>
+          </article>
+        </div>
+      </SilverWatermarkSection>
+
+      <Footer />
     </div>
   );
 }
