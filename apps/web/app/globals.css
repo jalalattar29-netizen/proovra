@@ -2216,3 +2216,38 @@ body.camera-open {
   );
   box-shadow: 0 14px 28px rgba(0, 0, 0, 0.08);
 }
+
+.marketing-velvet-card {
+  position: relative;
+  overflow: hidden;
+  border-radius: 28px;
+  border: 1px solid rgba(183, 157, 132, 0.20);
+  box-shadow:
+    0 22px 42px rgba(0, 0, 0, 0.16),
+    inset 0 1px 0 rgba(255, 255, 255, 0.03);
+}
+
+.marketing-velvet-card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: url("/images/site-velvet-bg.webp.png");
+  background-size: cover;
+  background-position: center;
+  transform: scale(1.12);
+}
+
+.marketing-velvet-card::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle at 18% 14%, rgba(158,216,207,0.06), transparent 28%),
+    radial-gradient(circle at 86% 18%, rgba(214,184,157,0.05), transparent 22%),
+    linear-gradient(180deg, rgba(8,20,24,0.82) 0%, rgba(7,18,22,0.90) 100%);
+}
+
+.marketing-velvet-card > * {
+  position: relative;
+  z-index: 1;
+}

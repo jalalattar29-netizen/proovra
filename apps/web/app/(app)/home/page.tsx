@@ -71,35 +71,19 @@ export default function HomePage() {
     boxShadow: "0 16px 30px rgba(9,27,28,0.22)",
   } as const;
 
-  return (
-    <div className="page landing-page home-page-shell">
-      <div className="relative min-h-screen overflow-hidden">
-        <div className="absolute inset-0">
-          <img
-            src="/images/site-velvet-bg.webp.png"
-            alt=""
-            className="h-full w-full object-cover object-center"
-          />
-        </div>
-
-        <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(8,18,22,0.84)_0%,rgba(8,18,22,0.76)_36%,rgba(8,18,22,0.70)_72%,rgba(8,18,22,0.76)_100%)]" />
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_16%_14%,rgba(158,216,207,0.08),transparent_24%)]" />
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_84%_22%,rgba(214,184,157,0.055),transparent_18%)]" />
-        <div className="absolute inset-0 opacity-[0.035] [background:repeating-linear-gradient(0deg,rgba(255,255,255,0.022)_0px,rgba(255,255,255,0.022)_1px,transparent_1px,transparent_4px)]" />
-
-        <div className="relative z-10">
-          <section className="mx-auto max-w-7xl px-6 pb-14 pt-10 md:px-8 md:pb-16 md:pt-14">
+return (
+  <div className="section app-section home-page-shell">
+              <section className="mx-auto max-w-7xl px-6 pb-14 pt-10 md:px-8 md:pb-16 md:pt-14">
             <div className="flex flex-col gap-8 lg:flex-row lg:items-end lg:justify-between">
               <div className="max-w-[760px]">
                 <div className="inline-flex rounded-full border border-white/10 bg-white/[0.055] px-4 py-2 text-[0.74rem] font-medium uppercase tracking-[0.2em] text-[#d7dfdc] shadow-[0_10px_24px_rgba(0,0,0,0.10)] backdrop-blur-md">
                   Dashboard
                 </div>
 
-                <h1 className="mt-5 max-w-[700px] text-[1.62rem] font-medium leading-[1.01] tracking-[-0.04em] text-[#dfe5e3] md:text-[2.18rem] lg:text-[2.7rem]">
-                  Your evidence workspace,{" "}
-                  <span className="text-[#cfd8d5]">ready for action</span>.
-                </h1>
-
+<h1 className="mt-5 max-w-[760px] text-[1.62rem] font-medium leading-[1.01] tracking-[-0.04em] text-[#edf1ef] md:text-[2.18rem] lg:text-[2.7rem]">
+  Your evidence workspace,{" "}
+  <span className="text-[#bfe8df]">ready for action</span>.
+</h1>
                 <p className="mt-5 max-w-[690px] text-[0.94rem] font-normal leading-[1.78] tracking-[-0.006em] text-[#b7c0bd] md:text-[0.98rem]">
                   Review your <span className="text-[#d5ddda]">latest evidence</span>, continue active{" "}
                   <span className="text-[#c5cfcb]">verification workflows</span>, and move quickly between{" "}
@@ -379,7 +363,5 @@ export default function HomePage() {
             </div>
           </section>
         </div>
-      </div>
-    </div>
   );
 }

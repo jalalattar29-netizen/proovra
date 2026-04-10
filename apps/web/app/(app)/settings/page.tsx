@@ -7,6 +7,7 @@ import { useEffect, useMemo, useState } from "react";
 import { supportedLocales, type Locale } from "@proovra/shared";
 import { Button, Card, useToast, Input } from "../../../components/ui";
 import { Icons } from "../../../components/icons";
+import { MarketingHeader } from "../../../components/header";
 import { apiFetch } from "../../../lib/api";
 import { LEGAL_LINKS } from "../../../lib/legalLinks";
 import { captureException } from "../../../lib/sentry";
@@ -88,26 +89,31 @@ function extractUserFromResponse(res: unknown): UserMeResponse["user"] | null {
   return null;
 }
 
-function settingsCardStyle() {
+function cardShellStyle() {
   return {
-    border: "1px solid rgba(158,216,207,0.16)",
+    border: "1px solid rgba(183,157,132,0.20)",
     boxShadow:
-      "0 18px 34px rgba(0, 0, 0, 0.10), inset 0 1px 0 rgba(255,255,255,0.06)",
+      "0 22px 42px rgba(0, 0, 0, 0.16), inset 0 1px 0 rgba(255,255,255,0.03)",
   } as const;
 }
 
-function settingsButtonClass() {
-  return "rounded-[16px] border border-[rgba(158,216,207,0.16)] bg-[linear-gradient(180deg,rgba(255,255,255,0.045)_0%,rgba(255,255,255,0.02)_100%)] px-5 py-3 text-[0.92rem] font-medium text-[#edf2f1] shadow-none transition-all duration-200 hover:-translate-y-[1px] hover:border-[rgba(158,216,207,0.26)] hover:bg-[linear-gradient(180deg,rgba(191,232,223,0.12)_0%,rgba(255,255,255,0.03)_100%)]";
+function velvetButtonClass(primary = false) {
+  if (primary) {
+    return "rounded-[999px] border px-5 py-3 text-[0.94rem] font-semibold text-[#edf2ef] shadow-[0_14px_28px_rgba(9,27,28,0.22)] transition-all duration-200 hover:-translate-y-[1px] hover:brightness-[1.03]";
+  }
+
+  return "rounded-[999px] border px-5 py-3 text-[0.94rem] font-semibold text-[#e6ece9] shadow-[0_10px_22px_rgba(0,0,0,0.14)] transition-all duration-200 hover:-translate-y-[1px] hover:brightness-[1.03]";
 }
 
 function sectionHeader(icon: React.ReactNode, title: string) {
   return (
-    <div
-      className="mb-5 flex items-center gap-3 text-[1rem] font-semibold tracking-[-0.02em]"
-      style={{ color: "rgba(246,252,255,0.96)" }}
-    >
-      <span className="text-[#bfe8df]">{icon}</span>
-      <span>{title}</span>
+    <div className="mb-5 flex items-center gap-3">
+      <span className="flex h-10 w-10 items-center justify-center rounded-full border border-[rgba(183,157,132,0.18)] bg-[linear-gradient(180deg,rgba(183,157,132,0.08)_0%,rgba(255,255,255,0.03)_100%)] text-[#d6b89d]">
+        {icon}
+      </span>
+      <div className="text-[1.08rem] font-semibold tracking-[-0.03em] text-[#e4ebe7]">
+        {title}
+      </div>
     </div>
   );
 }
@@ -251,8 +257,86 @@ export default function SettingsPage() {
   };
 
   return (
-    <div className="page landing-page">
-      <div className="relative overflow-hidden">
+    <div className="page landing-page settings-page-shell">
+      <style jsx global>{`
+        .settings-page-shell .settings-velvet-card {
+          position: relative;
+          overflow: hidden;
+        }
+
+        .settings-page-shell .settings-velvet-card__bg {
+          position: absolute;
+          inset: 0;
+          background-image: url("/images/site-velvet-bg.webp.png");
+          background-size: cover;
+          background-position: center;
+          transform: scale(1.12);
+        }
+
+        .settings-page-shell .settings-velvet-card__overlay {
+          position: absolute;
+          inset: 0;
+          background:
+            radial-gradient(circle at 18% 14%, rgba(158, 216, 207, 0.06), transparent 28%),
+            radial-gradient(circle at 86% 18%, rgba(214, 184, 157, 0.05), transparent 22%),
+            linear-gradient(180deg, rgba(8, 20, 24, 0.82) 0%, rgba(7, 18, 22, 0.90) 100%);
+        }
+
+        .settings-page-shell .settings-velvet-card__content {
+          position: relative;
+          z-index: 1;
+        }
+
+        .settings-page-shell input,
+        .settings-page-shell textarea,
+        .settings-page-shell select {
+          background: linear-gradient(
+            180deg,
+            rgba(20, 39, 42, 0.92) 0%,
+            rgba(13, 27, 30, 0.96) 100%
+          ) !important;
+          border: 1px solid rgba(183, 157, 132, 0.18) !important;
+          color: #edf2ef !important;
+          border-radius: 18px !important;
+          box-shadow: 0 10px 22px rgba(0, 0, 0, 0.12) !important;
+        }
+
+        .settings-page-shell input::placeholder,
+        .settings-page-shell textarea::placeholder {
+          color: rgba(205, 214, 210, 0.52) !important;
+        }
+
+        .settings-page-shell input:focus,
+        .settings-page-shell textarea:focus,
+        .settings-page-shell select:focus {
+          border-color: rgba(183, 157, 132, 0.28) !important;
+          box-shadow:
+            0 0 0 3px rgba(183, 157, 132, 0.08),
+            0 10px 22px rgba(0, 0, 0, 0.12) !important;
+        }
+
+        .settings-page-shell .settings-primary-btn {
+          border-color: rgba(183, 157, 132, 0.24) !important;
+          background: linear-gradient(
+            180deg,
+            rgba(69, 118, 115, 0.96) 0%,
+            rgba(29, 58, 60, 0.98) 100%
+          ) !important;
+          color: #eef4f2 !important;
+        }
+
+        .settings-page-shell .settings-secondary-btn {
+          border-color: rgba(183, 157, 132, 0.18) !important;
+          background: linear-gradient(
+            180deg,
+            rgba(43, 73, 75, 0.84) 0%,
+            rgba(18, 37, 39, 0.94) 100%
+          ) !important;
+          color: #e6ece9 !important;
+        }
+      `}</style>
+
+      <div className="relative min-h-screen overflow-hidden">
         <div className="absolute inset-0">
           <img
             src="/images/site-velvet-bg.webp.png"
@@ -267,18 +351,20 @@ export default function SettingsPage() {
         <div className="absolute inset-0 opacity-[0.04] [background:repeating-linear-gradient(0deg,rgba(255,255,255,0.026)_0px,rgba(255,255,255,0.026)_1px,transparent_1px,transparent_4px)]" />
 
         <div className="relative z-10">
+          <MarketingHeader />
+
           <section className="mx-auto max-w-7xl px-6 pb-10 pt-10 md:px-8 md:pb-12 md:pt-14">
             <div className="max-w-[760px]">
               <div className="inline-flex rounded-full border border-white/10 bg-white/[0.055] px-4 py-2 text-[0.74rem] font-medium uppercase tracking-[0.2em] text-[#dce3e0] shadow-[0_10px_24px_rgba(0,0,0,0.10)] backdrop-blur-md">
                 {t("settings")}
               </div>
 
-              <h1 className="mt-5 max-w-[720px] text-[1.62rem] font-medium leading-[1.01] tracking-[-0.04em] text-[#edf1ef] md:text-[2.18rem] lg:text-[2.7rem]">
+              <h1 className="mt-5 max-w-[720px] text-[1.72rem] font-medium leading-[1.01] tracking-[-0.04em] text-[#edf1ef] md:text-[2.28rem] lg:text-[2.9rem]">
                 Manage your{" "}
                 <span className="text-[#bfe8df]">account preferences</span>.
               </h1>
 
-              <p className="mt-5 max-w-[700px] text-[0.94rem] font-normal leading-[1.78] tracking-[-0.006em] text-[#c7cfcc] md:text-[0.98rem]">
+              <p className="mt-5 max-w-[700px] text-[0.96rem] font-normal leading-[1.8] tracking-[-0.006em] text-[#c7cfcc] md:text-[1rem]">
                 Update your <span className="text-[#e7ece9]">profile</span>, review{" "}
                 <span className="text-[#bfe8df]">security and legal settings</span>, and manage
                 your <span className="text-[#d6b89d]">subscription preferences</span> from one
@@ -305,61 +391,64 @@ export default function SettingsPage() {
           </section>
 
           <section className="relative px-6 pb-14 md:px-8 md:pb-16">
-            <div className="mx-auto max-w-7xl grid gap-5">
-              <Card className="relative overflow-hidden rounded-[28px] border bg-transparent p-0 shadow-none" style={settingsCardStyle()}>
-                <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(3,18,44,0.88)_0%,rgba(2,16,40,0.90)_100%)]" />
-                <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_0%,rgba(158,216,207,0.06),transparent_28%)]" />
-                <div className="absolute inset-0 bg-[radial-gradient(circle_at_84%_16%,rgba(214,184,157,0.05),transparent_22%)]" />
+            <div className="mx-auto grid max-w-7xl gap-5">
+              <Card
+                className="settings-velvet-card rounded-[30px] border bg-transparent p-0 shadow-none"
+                style={cardShellStyle()}
+              >
+                <div className="settings-velvet-card__bg" />
+                <div className="settings-velvet-card__overlay" />
 
-                <div className="relative z-10 p-5 md:p-6">
+                <div className="settings-velvet-card__content p-6 md:p-7">
                   {sectionHeader(<Icons.Dashboard />, "Profile")}
 
-                  <div style={{ marginBottom: 18, display: "flex", alignItems: "center", gap: 14 }}>
-                    <div
-                      className="flex h-14 w-14 items-center justify-center rounded-full"
-                      style={{
-                        background:
-                          "linear-gradient(180deg, rgba(191,232,223,0.18) 0%, rgba(255,255,255,0.06) 100%)",
-                        border: "1px solid rgba(158,216,207,0.16)",
-                        color: "#edf2f1",
-                        fontWeight: 800,
-                        fontSize: 20,
-                      }}
-                    >
+                  <div className="mb-5 flex items-center gap-4">
+                    <div className="flex h-16 w-16 items-center justify-center rounded-full border border-[rgba(183,157,132,0.18)] bg-[linear-gradient(180deg,rgba(183,157,132,0.12)_0%,rgba(255,255,255,0.03)_100%)] text-[1.35rem] font-bold text-[#edf2ef] shadow-[0_10px_22px_rgba(0,0,0,0.12)]">
                       {initials}
                     </div>
 
                     <div>
-                      <div style={{ fontSize: 12, color: "rgba(219,235,248,0.58)" }}>Account</div>
-                      <div style={{ fontSize: 18, fontWeight: 700, color: "rgba(246,252,255,0.96)" }}>
+                      <div className="text-[12px] text-[rgba(219,235,248,0.58)]">Account</div>
+                      <div className="text-[1.05rem] font-semibold tracking-[-0.02em] text-[#f1f5f2]">
                         {user?.displayName || user?.email || "Guest User"}
                       </div>
-                      {user?.email && (
-                        <div style={{ fontSize: 13, color: "rgba(219,235,248,0.72)" }}>
+                      {user?.email ? (
+                        <div className="text-[13px] text-[rgba(219,235,248,0.72)]">
                           {user.email}
                         </div>
-                      )}
+                      ) : null}
                     </div>
                   </div>
 
                   <div className="grid gap-4">
                     <div className="grid gap-4 md:grid-cols-2">
                       <div>
-                        <div style={{ marginBottom: 8, fontSize: 13, color: "rgba(219,235,248,0.72)" }}>
+                        <div className="mb-2 text-[13px] text-[rgba(219,235,248,0.72)]">
                           First name
                         </div>
-                        <Input value={firstName} onChange={setFirstName} placeholder="First name" maxLength={80} />
+                        <Input
+                          value={firstName}
+                          onChange={setFirstName}
+                          placeholder="First name"
+                          maxLength={80}
+                        />
                       </div>
+
                       <div>
-                        <div style={{ marginBottom: 8, fontSize: 13, color: "rgba(219,235,248,0.72)" }}>
+                        <div className="mb-2 text-[13px] text-[rgba(219,235,248,0.72)]">
                           Last name
                         </div>
-                        <Input value={lastName} onChange={setLastName} placeholder="Last name" maxLength={80} />
+                        <Input
+                          value={lastName}
+                          onChange={setLastName}
+                          placeholder="Last name"
+                          maxLength={80}
+                        />
                       </div>
                     </div>
 
                     <div>
-                      <div style={{ marginBottom: 8, fontSize: 13, color: "rgba(219,235,248,0.72)" }}>
+                      <div className="mb-2 text-[13px] text-[rgba(219,235,248,0.72)]">
                         Display name
                       </div>
                       <Input
@@ -372,7 +461,7 @@ export default function SettingsPage() {
 
                     <div className="grid gap-4 md:grid-cols-2">
                       <div>
-                        <div style={{ marginBottom: 8, fontSize: 13, color: "rgba(219,235,248,0.72)" }}>
+                        <div className="mb-2 text-[13px] text-[rgba(219,235,248,0.72)]">
                           Country
                         </div>
                         <Input
@@ -382,8 +471,9 @@ export default function SettingsPage() {
                           maxLength={120}
                         />
                       </div>
+
                       <div>
-                        <div style={{ marginBottom: 8, fontSize: 13, color: "rgba(219,235,248,0.72)" }}>
+                        <div className="mb-2 text-[13px] text-[rgba(219,235,248,0.72)]">
                           Timezone
                         </div>
                         <Input
@@ -396,9 +486,7 @@ export default function SettingsPage() {
                     </div>
 
                     <div>
-                      <div style={{ marginBottom: 8, fontSize: 13, color: "rgba(219,235,248,0.72)" }}>
-                        Bio
-                      </div>
+                      <div className="mb-2 text-[13px] text-[rgba(219,235,248,0.72)]">Bio</div>
                       <textarea
                         className="input"
                         value={bio}
@@ -411,11 +499,20 @@ export default function SettingsPage() {
                     </div>
                   </div>
 
-                  <div style={{ marginTop: 18, display: "flex", gap: 10, flexWrap: "wrap" }}>
-                    <Button variant="secondary" onClick={handleSaveProfile} className={settingsButtonClass()}>
+                  <div className="mt-5 flex flex-wrap gap-3">
+                    <Button
+                      variant="secondary"
+                      onClick={handleSaveProfile}
+                      className={`${velvetButtonClass(true)} settings-primary-btn`}
+                    >
                       Save profile
                     </Button>
-                    <Button variant="secondary" onClick={handleSignOut} className={settingsButtonClass()}>
+
+                    <Button
+                      variant="secondary"
+                      onClick={handleSignOut}
+                      className={`${velvetButtonClass()} settings-secondary-btn`}
+                    >
                       Sign out
                     </Button>
                   </div>
@@ -423,46 +520,57 @@ export default function SettingsPage() {
               </Card>
 
               <div className="grid gap-5 lg:grid-cols-2">
-                <Card className="relative overflow-hidden rounded-[28px] border bg-transparent p-0 shadow-none" style={settingsCardStyle()}>
-                  <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(3,18,44,0.88)_0%,rgba(2,16,40,0.90)_100%)]" />
-                  <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_0%,rgba(158,216,207,0.06),transparent_28%)]" />
-                  <div className="absolute inset-0 bg-[radial-gradient(circle_at_84%_16%,rgba(214,184,157,0.05),transparent_22%)]" />
+                <Card
+                  className="settings-velvet-card rounded-[30px] border bg-transparent p-0 shadow-none"
+                  style={cardShellStyle()}
+                >
+                  <div className="settings-velvet-card__bg" />
+                  <div className="settings-velvet-card__overlay" />
 
-                  <div className="relative z-10 p-5 md:p-6">
+                  <div className="settings-velvet-card__content p-6 md:p-7">
                     {sectionHeader(<Icons.Security />, "Security")}
 
                     <div className="grid gap-4">
                       <div className="flex items-center justify-between gap-4 border-b border-white/6 pb-3">
-                        <span style={{ color: "rgba(219,235,248,0.72)" }}>Login method</span>
-                        <span style={{ color: "rgba(246,252,255,0.96)" }}>{user?.provider ?? "—"}</span>
+                        <span className="text-[rgba(219,235,248,0.72)]">Login method</span>
+                        <span className="text-[#f1f5f2]">{user?.provider ?? "—"}</span>
                       </div>
 
                       <div className="flex items-center justify-between gap-4 border-b border-white/6 pb-3">
-                        <span style={{ color: "rgba(219,235,248,0.72)" }}>Session</span>
-                        <span style={{ color: "#bfe8df", fontWeight: 700 }}>Active</span>
+                        <span className="text-[rgba(219,235,248,0.72)]">Session</span>
+                        <span className="font-semibold text-[#bfe8df]">Active</span>
                       </div>
 
-                      <Link href="/legal/security" className="text-[0.95rem] text-[#dce7e4] transition-colors hover:text-[#bfe8df]">
+                      <Link
+                        href="/legal/security"
+                        className="text-[0.95rem] text-[#dce7e4] transition-colors hover:text-[#bfe8df]"
+                      >
                         Security policy
                       </Link>
-                      <a href="mailto:security@proovra.com" className="text-[0.95rem] text-[#dce7e4] transition-colors hover:text-[#bfe8df]">
+
+                      <a
+                        href="mailto:security@proovra.com"
+                        className="text-[0.95rem] text-[#dce7e4] transition-colors hover:text-[#bfe8df]"
+                      >
                         security@proovra.com
                       </a>
                     </div>
                   </div>
                 </Card>
 
-                <Card className="relative overflow-hidden rounded-[28px] border bg-transparent p-0 shadow-none" style={settingsCardStyle()}>
-                  <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(3,18,44,0.88)_0%,rgba(2,16,40,0.90)_100%)]" />
-                  <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_0%,rgba(158,216,207,0.06),transparent_28%)]" />
-                  <div className="absolute inset-0 bg-[radial-gradient(circle_at_84%_16%,rgba(214,184,157,0.05),transparent_22%)]" />
+                <Card
+                  className="settings-velvet-card rounded-[30px] border bg-transparent p-0 shadow-none"
+                  style={cardShellStyle()}
+                >
+                  <div className="settings-velvet-card__bg" />
+                  <div className="settings-velvet-card__overlay" />
 
-                  <div className="relative z-10 p-5 md:p-6">
+                  <div className="settings-velvet-card__content p-6 md:p-7">
                     {sectionHeader(<Icons.Settings />, t("language"))}
 
                     <div className="grid gap-4">
                       <div className="flex flex-col gap-3">
-                        <span style={{ color: "rgba(219,235,248,0.72)" }}>UI language</span>
+                        <span className="text-[rgba(219,235,248,0.72)]">UI language</span>
                         <select
                           value={selectedLanguage}
                           onChange={(e) => setSelectedLanguage(e.target.value as Locale)}
@@ -490,30 +598,35 @@ export default function SettingsPage() {
                         </select>
                       </div>
 
-                      <p style={{ margin: 0, fontSize: 13, color: "rgba(219,235,248,0.58)" }}>
+                      <p className="m-0 text-[13px] text-[rgba(219,235,248,0.58)]">
                         Language preference will be used for future UI updates.
                       </p>
                     </div>
                   </div>
                 </Card>
 
-                <Card className="relative overflow-hidden rounded-[28px] border bg-transparent p-0 shadow-none" style={settingsCardStyle()}>
-                  <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(3,18,44,0.88)_0%,rgba(2,16,40,0.90)_100%)]" />
-                  <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_0%,rgba(158,216,207,0.06),transparent_28%)]" />
-                  <div className="absolute inset-0 bg-[radial-gradient(circle_at_84%_16%,rgba(214,184,157,0.05),transparent_22%)]" />
+                <Card
+                  className="settings-velvet-card rounded-[30px] border bg-transparent p-0 shadow-none"
+                  style={cardShellStyle()}
+                >
+                  <div className="settings-velvet-card__bg" />
+                  <div className="settings-velvet-card__overlay" />
 
-                  <div className="relative z-10 p-5 md:p-6">
+                  <div className="settings-velvet-card__content p-6 md:p-7">
                     {sectionHeader(<Icons.Billing />, "Subscription")}
 
                     <div className="grid gap-4">
                       <div className="flex items-center justify-between gap-4 border-b border-white/6 pb-3">
-                        <span style={{ color: "rgba(219,235,248,0.72)" }}>Current plan</span>
-                        <span style={{ color: "#e6c9ae", fontWeight: 700 }}>{plan}</span>
+                        <span className="text-[rgba(219,235,248,0.72)]">Current plan</span>
+                        <span className="font-semibold text-[#d6b89d]">{plan}</span>
                       </div>
 
                       <div>
                         <Link href="/billing">
-                          <Button variant="secondary" className={settingsButtonClass()}>
+                          <Button
+                            variant="secondary"
+                            className={`${velvetButtonClass()} settings-secondary-btn`}
+                          >
                             Go to Billing
                           </Button>
                         </Link>
@@ -522,16 +635,18 @@ export default function SettingsPage() {
                   </div>
                 </Card>
 
-                <Card className="relative overflow-hidden rounded-[28px] border bg-transparent p-0 shadow-none" style={settingsCardStyle()}>
-                  <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(3,18,44,0.88)_0%,rgba(2,16,40,0.90)_100%)]" />
-                  <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_0%,rgba(158,216,207,0.06),transparent_28%)]" />
-                  <div className="absolute inset-0 bg-[radial-gradient(circle_at_84%_16%,rgba(214,184,157,0.05),transparent_22%)]" />
+                <Card
+                  className="settings-velvet-card rounded-[30px] border bg-transparent p-0 shadow-none"
+                  style={cardShellStyle()}
+                >
+                  <div className="settings-velvet-card__bg" />
+                  <div className="settings-velvet-card__overlay" />
 
-                  <div className="relative z-10 p-5 md:p-6">
+                  <div className="settings-velvet-card__content p-6 md:p-7">
                     {sectionHeader(<Icons.Security />, "Legal")}
 
                     <div className="grid gap-4">
-                      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                      <div className="flex flex-col gap-2">
                         {LEGAL_LINKS.map((link) => (
                           <Link
                             key={link.href}
@@ -543,27 +658,28 @@ export default function SettingsPage() {
                         ))}
                       </div>
 
-                      <div style={{ display: "grid", gap: 10, marginTop: 6 }}>
-                        <Button variant="secondary" onClick={() => openCookiePreferences()} className={settingsButtonClass()}>
+                      <div className="mt-1 grid gap-3">
+                        <Button
+                          variant="secondary"
+                          onClick={() => openCookiePreferences()}
+                          className={`${velvetButtonClass()} settings-secondary-btn`}
+                        >
                           Manage Cookie Preferences
                         </Button>
 
                         {latestCookieConsent ? (
-                          <div style={{ fontSize: 12, color: "rgba(219,235,248,0.72)" }}>
+                          <div className="text-[12px] text-[rgba(219,235,248,0.72)]">
                             Cookie consent v{latestCookieConsent.consentVersion} — saved on{" "}
                             {new Date(latestCookieConsent.createdAt).toLocaleString()}
                           </div>
                         ) : null}
 
                         {legalAcceptances.length > 0 ? (
-                          <div style={{ display: "grid", gap: 6, marginTop: 6 }}>
+                          <div className="mt-1 grid gap-2">
                             {legalAcceptances.slice(0, 4).map((item) => (
                               <div
                                 key={item.id}
-                                style={{
-                                  fontSize: 12,
-                                  color: "rgba(219,235,248,0.72)",
-                                }}
+                                className="text-[12px] text-[rgba(219,235,248,0.72)]"
                               >
                                 {item.policyKey} v{item.policyVersion} —{" "}
                                 {new Date(item.acceptedAt).toLocaleString()}

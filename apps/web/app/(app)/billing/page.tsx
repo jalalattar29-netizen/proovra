@@ -219,23 +219,13 @@ export default function BillingPage() {
                 Billing
               </div>
 
-              <h1
-                className="hero-title pricing-hero-title"
-                style={{
-                  margin: "16px 0 0",
-                  maxWidth: 760,
-                  fontSize: "clamp(2rem, 4vw, 3.2rem)",
-                  lineHeight: 1.02,
-                  letterSpacing: "-0.05em",
-                  fontWeight: 600,
-                  color: "#edf1ef",
-                }}
-              >
-                Manage your{" "}
-                <span style={{ color: "#bfe8df" }}>billing workspace</span>{" "}
-                with more clarity.
-              </h1>
-
+<h1
+  className="mt-5 max-w-[760px] text-[1.62rem] font-medium leading-[1.01] tracking-[-0.04em] text-[#edf1ef] md:text-[2.18rem] lg:text-[2.7rem]"
+  style={{ margin: "16px 0 0" }}
+>
+  Manage your billing workspace{" "}
+  <span style={{ color: "#bfe8df" }}>with more clarity</span>.
+</h1>
               <p
                 className="page-subtitle pricing-subtitle"
                 style={{

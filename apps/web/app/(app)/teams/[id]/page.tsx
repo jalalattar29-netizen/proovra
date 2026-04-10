@@ -3,7 +3,12 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { Button, Card, useToast, Skeleton } from "../../../../components/ui";
+import {
+  Button,
+  Card,
+  useToast,
+  Skeleton,
+} from "../../../../components/ui";
 import { apiFetch } from "../../../../lib/api";
 import { captureException } from "../../../../lib/sentry";
 
@@ -181,7 +186,7 @@ export default function TeamDetailPage() {
   };
 
   useEffect(() => {
-    loadData();
+    void loadData();
   }, [teamId]);
 
   const myMemberRecord = useMemo(() => {
@@ -503,16 +508,106 @@ export default function TeamDetailPage() {
     }
   };
 
+  const outerCardStyle = {
+    border: "1px solid rgba(183,157,132,0.20)",
+    boxShadow:
+      "0 22px 42px rgba(0,0,0,0.16), inset 0 1px 0 rgba(255,255,255,0.03)",
+  } as const;
+
+  const primaryButtonStyle = {
+    borderColor: "rgba(183,157,132,0.24)",
+    color: "#eef4f2",
+    background:
+      "linear-gradient(180deg, rgba(72,114,111,0.96) 0%, rgba(28,55,57,0.98) 100%)",
+    boxShadow: "0 14px 28px rgba(9,27,28,0.22)",
+  } as const;
+
+  const secondaryButtonStyle = {
+    borderColor: "rgba(183,157,132,0.18)",
+    color: "#e6ece9",
+    background:
+      "linear-gradient(180deg, rgba(43,73,75,0.84) 0%, rgba(18,37,39,0.94) 100%)",
+    boxShadow: "0 10px 22px rgba(0,0,0,0.14)",
+  } as const;
+
+  const dangerButtonStyle = {
+    borderColor: "rgba(220,120,120,0.22)",
+    color: "#ffe3e3",
+    background:
+      "linear-gradient(180deg, rgba(130,43,43,0.92) 0%, rgba(92,24,24,0.96) 100%)",
+    boxShadow: "0 12px 24px rgba(60, 12, 12, 0.22)",
+  } as const;
+
+  const inputStyle = {
+    width: "100%",
+    minHeight: 52,
+    padding: "0 16px",
+    borderRadius: 18,
+    fontSize: 15,
+    lineHeight: 1.2,
+    background: "rgba(255,255,255,0.05)",
+    border: "1px solid rgba(183,157,132,0.16)",
+    boxShadow: "0 12px 24px rgba(0,0,0,0.10)",
+    color: "#edf4f1",
+    outline: "none",
+  } as const;
+
+  const rowCardStyle = {
+    border: "1px solid rgba(183,157,132,0.14)",
+    background:
+      "linear-gradient(180deg, rgba(9,22,27,0.88) 0%, rgba(8,18,23,0.94) 100%)",
+    borderRadius: 22,
+    padding: 14,
+  } as const;
+
   if (loading) {
     return (
       <div className="section app-section">
         <div className="app-hero app-hero-full">
           <div className="container">
-            <h1 className="hero-title pricing-hero-title" style={{ margin: 0 }}>
-              Loading team...
+            <div
+              style={{
+                display: "inline-flex",
+                borderRadius: 999,
+                border: "1px solid rgba(255,255,255,0.10)",
+                background: "rgba(255,255,255,0.055)",
+                padding: "8px 16px",
+                fontSize: "0.74rem",
+                fontWeight: 600,
+                textTransform: "uppercase",
+                letterSpacing: "0.2em",
+                color: "#dce3e0",
+                boxShadow: "0 10px 24px rgba(0,0,0,0.10)",
+                backdropFilter: "blur(10px)",
+              }}
+            >
+              Team
+            </div>
+
+            <h1
+              style={{
+                margin: "16px 0 0",
+                fontSize: "clamp(2rem, 4vw, 3.05rem)",
+                lineHeight: 1.02,
+                letterSpacing: "-0.05em",
+                fontWeight: 600,
+                color: "#edf1ef",
+              }}
+            >
+              Loading{" "}
+              <span style={{ color: "#bfe8df" }}>team workspace</span>.
             </h1>
-            <p className="page-subtitle pricing-subtitle" style={{ marginTop: 6 }}>
-              Preparing team workspace and access details.
+
+            <p
+              style={{
+                marginTop: 16,
+                maxWidth: 720,
+                fontSize: "0.98rem",
+                lineHeight: 1.82,
+                color: "#c7cfcc",
+              }}
+            >
+              Preparing members, cases, invites, and access controls.
             </p>
           </div>
         </div>
@@ -533,35 +628,81 @@ export default function TeamDetailPage() {
       <div className="section app-section">
         <div className="app-hero app-hero-full">
           <div className="container">
-            <h1 className="hero-title pricing-hero-title" style={{ margin: 0 }}>
+            <div
+              style={{
+                display: "inline-flex",
+                borderRadius: 999,
+                border: "1px solid rgba(255,255,255,0.10)",
+                background: "rgba(255,255,255,0.055)",
+                padding: "8px 16px",
+                fontSize: "0.74rem",
+                fontWeight: 600,
+                textTransform: "uppercase",
+                letterSpacing: "0.2em",
+                color: "#dce3e0",
+                boxShadow: "0 10px 24px rgba(0,0,0,0.10)",
+                backdropFilter: "blur(10px)",
+              }}
+            >
               Team
+            </div>
+
+            <h1
+              style={{
+                margin: "16px 0 0",
+                fontSize: "clamp(2rem, 4vw, 3.05rem)",
+                lineHeight: 1.02,
+                letterSpacing: "-0.05em",
+                fontWeight: 600,
+                color: "#edf1ef",
+              }}
+            >
+              Team details{" "}
+              <span style={{ color: "#bfe8df" }}>could not load</span>.
             </h1>
-            <p className="page-subtitle pricing-subtitle" style={{ marginTop: 6 }}>
-              Team details could not be loaded.
-            </p>
           </div>
         </div>
 
         <div className="app-body app-body-full">
           <div className="container">
-            <Card className="case-section-card app-card">
-              <div style={{ padding: 18 }}>
+            <Card
+              className="relative overflow-hidden rounded-[30px] border bg-transparent p-0 shadow-none"
+              style={outerCardStyle}
+            >
+              <div className="absolute inset-0">
+                <img
+                  src="/images/site-velvet-bg.webp.png"
+                  alt=""
+                  className="h-full w-full object-cover object-center scale-[1.12]"
+                />
+              </div>
+              <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(8,20,24,0.80)_0%,rgba(7,18,22,0.90)_100%)]" />
+
+              <div className="relative z-10 p-6">
                 <div
                   style={{
                     fontWeight: 700,
                     marginBottom: 10,
-                    color: "rgba(246,252,255,0.96)",
+                    color: "#edf4f1",
                     letterSpacing: "-0.02em",
+                    fontSize: 20,
                   }}
                 >
                   Unable to load team
                 </div>
 
-                <div className="case-muted-text">{error || "Team not found."}</div>
+                <div style={{ color: "rgba(219,235,248,0.72)", lineHeight: 1.7 }}>
+                  {error || "Team not found."}
+                </div>
 
-                <div style={{ marginTop: 14 }}>
+                <div style={{ marginTop: 16 }}>
                   <Link href="/teams" style={{ textDecoration: "none" }}>
-                    <Button variant="secondary">Back to Teams</Button>
+                    <Button
+                      className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
+                      style={secondaryButtonStyle}
+                    >
+                      Back to Teams
+                    </Button>
                   </Link>
                 </div>
               </div>
@@ -576,22 +717,75 @@ export default function TeamDetailPage() {
     <div className="section app-section">
       <div className="app-hero app-hero-full">
         <div className="container">
-          <div className="page-title" style={{ marginBottom: 0 }}>
-            <div>
-              <h1 className="hero-title pricing-hero-title" style={{ margin: 0 }}>
-                {team.name ?? "Team"}
+          <div className="page-title app-page-title" style={{ marginBottom: 0 }}>
+            <div style={{ maxWidth: 820 }}>
+              <div
+                style={{
+                  display: "inline-flex",
+                  borderRadius: 999,
+                  border: "1px solid rgba(255,255,255,0.10)",
+                  background: "rgba(255,255,255,0.055)",
+                  padding: "8px 16px",
+                  fontSize: "0.74rem",
+                  fontWeight: 600,
+                  textTransform: "uppercase",
+                  letterSpacing: "0.2em",
+                  color: "#dce3e0",
+                  boxShadow: "0 10px 24px rgba(0,0,0,0.10)",
+                  backdropFilter: "blur(10px)",
+                }}
+              >
+                Team Workspace
+              </div>
+
+              <h1
+                style={{
+                  margin: "16px 0 0",
+                  maxWidth: 820,
+                  fontSize: "clamp(2rem, 4vw, 3.15rem)",
+                  lineHeight: 1.02,
+                  letterSpacing: "-0.05em",
+                  fontWeight: 600,
+                  color: "#edf1ef",
+                }}
+              >
+                {team.name ?? "Team"}{" "}
+                <span style={{ color: "#bfe8df" }}>access and collaboration</span>.
               </h1>
-              <p className="page-subtitle pricing-subtitle" style={{ marginTop: 6 }}>
-                Manage team access, members, invitations, and shared case visibility.
+
+              <p
+                style={{
+                  marginTop: 16,
+                  maxWidth: 720,
+                  fontSize: "0.98rem",
+                  lineHeight: 1.82,
+                  color: "#c7cfcc",
+                }}
+              >
+                Manage <span style={{ color: "#e7ece9" }}>members</span>,{" "}
+                <span style={{ color: "#bfe8df" }}>invites</span>, shared{" "}
+                <span style={{ color: "#e6ebe8" }}>team cases</span>, and recent{" "}
+                <span style={{ color: "#d6b89d" }}>activity</span> inside one controlled
+                workspace.
               </p>
             </div>
 
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
               <span
-                className="badge ready"
                 style={{
-                  background: "rgba(158,216,207,0.12)",
-                  borderColor: "rgba(158,216,207,0.22)",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  minHeight: 34,
+                  padding: "7px 14px",
+                  borderRadius: 999,
+                  fontSize: 12,
+                  fontWeight: 800,
+                  letterSpacing: "0.08em",
+                  textTransform: "uppercase",
+                  border: "1px solid rgba(158,216,207,0.20)",
+                  background:
+                    "linear-gradient(180deg, rgba(158,216,207,0.12) 0%, rgba(255,255,255,0.03) 100%)",
                   color: "#bfe8df",
                 }}
               >
@@ -600,11 +794,21 @@ export default function TeamDetailPage() {
               </span>
 
               <span
-                className="badge processing"
                 style={{
-                  background: "rgba(214,184,157,0.12)",
-                  borderColor: "rgba(214,184,157,0.22)",
-                  color: "#e6c9ae",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  minHeight: 34,
+                  padding: "7px 14px",
+                  borderRadius: 999,
+                  fontSize: 12,
+                  fontWeight: 800,
+                  letterSpacing: "0.08em",
+                  textTransform: "uppercase",
+                  border: "1px solid rgba(214,184,157,0.20)",
+                  background:
+                    "linear-gradient(180deg, rgba(183,157,132,0.12) 0%, rgba(255,255,255,0.03) 100%)",
+                  color: "#dcc0a5",
                 }}
               >
                 {currentRole}
@@ -615,9 +819,30 @@ export default function TeamDetailPage() {
       </div>
 
       <div className="app-body app-body-full">
-        <div className="container" style={{ display: "grid", gap: 16 }}>
-          <Card className="case-section-card app-card">
-            <div style={{ padding: 18 }}>
+        <div
+          className="container"
+          style={{
+            display: "grid",
+            gap: 18,
+            paddingBottom: 72,
+          }}
+        >
+          <Card
+            className="relative overflow-hidden rounded-[30px] border bg-transparent p-0 shadow-none"
+            style={outerCardStyle}
+          >
+            <div className="absolute inset-0">
+              <img
+                src="/images/site-velvet-bg.webp.png"
+                alt=""
+                className="h-full w-full object-cover object-center scale-[1.12]"
+              />
+            </div>
+            <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(8,20,24,0.80)_0%,rgba(7,18,22,0.90)_100%)]" />
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_14%,rgba(158,216,207,0.06),transparent_28%)]" />
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_86%_18%,rgba(214,184,157,0.05),transparent_22%)]" />
+
+            <div className="relative z-10 p-6 md:p-7">
               <div
                 style={{
                   display: "flex",
@@ -631,15 +856,16 @@ export default function TeamDetailPage() {
                   <div
                     style={{
                       fontWeight: 700,
-                      marginBottom: 12,
-                      color: "rgba(246,252,255,0.96)",
+                      marginBottom: 14,
+                      color: "#edf4f1",
                       letterSpacing: "-0.02em",
+                      fontSize: 20,
                     }}
                   >
                     Team overview
                   </div>
 
-                  <label style={{ display: "grid", gap: 6 }}>
+                  <label style={{ display: "grid", gap: 8 }}>
                     <span style={{ fontSize: 12, color: "rgba(219,235,248,0.72)" }}>
                       Team name
                     </span>
@@ -647,7 +873,7 @@ export default function TeamDetailPage() {
                       value={teamName}
                       onChange={(e) => setTeamName(e.target.value)}
                       disabled={!canManageTeam || savingName}
-                      className="case-text-input"
+                      style={inputStyle}
                     />
                   </label>
                 </div>
@@ -655,9 +881,10 @@ export default function TeamDetailPage() {
                 <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                   {canManageTeam && (
                     <Button
-                      className="navy-btn"
                       onClick={handleSaveTeamName}
                       disabled={savingName || !teamName.trim()}
+                      className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
+                      style={primaryButtonStyle}
                     >
                       {savingName ? "Saving..." : "Save name"}
                     </Button>
@@ -668,7 +895,8 @@ export default function TeamDetailPage() {
                       variant="secondary"
                       onClick={() => setDeleteConfirm(true)}
                       disabled={deletingTeam}
-                      className="case-danger-btn"
+                      className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
+                      style={dangerButtonStyle}
                     >
                       Delete Team
                     </Button>
@@ -679,18 +907,51 @@ export default function TeamDetailPage() {
           </Card>
 
           {deleteConfirm && isOwner && (
-            <Card className="case-delete-card app-card">
-              <div style={{ padding: 18 }}>
-                <div className="case-delete-title">Delete Team?</div>
-                <p className="case-delete-subtitle">
-                  This will permanently delete the team, its members list, and pending invites.
+            <Card
+              className="relative overflow-hidden rounded-[30px] border bg-transparent p-0 shadow-none"
+              style={{
+                ...outerCardStyle,
+                border: "1px solid rgba(220,120,120,0.24)",
+              }}
+            >
+              <div className="absolute inset-0">
+                <img
+                  src="/images/site-velvet-bg.webp.png"
+                  alt=""
+                  className="h-full w-full object-cover object-center scale-[1.12]"
+                />
+              </div>
+              <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(70,20,20,0.24)_0%,rgba(20,10,10,0.58)_100%)]" />
+
+              <div className="relative z-10 p-6">
+                <div
+                  style={{
+                    fontSize: 22,
+                    fontWeight: 700,
+                    color: "#ffe5e5",
+                    letterSpacing: "-0.03em",
+                  }}
+                >
+                  Delete team?
+                </div>
+
+                <p
+                  style={{
+                    marginTop: 10,
+                    color: "rgba(255,224,224,0.78)",
+                    lineHeight: 1.75,
+                  }}
+                >
+                  This will permanently delete the team, its members list, and all pending invites.
                 </p>
 
-                <div className="case-inline-actions">
+                <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 16 }}>
                   <Button
                     variant="secondary"
                     onClick={() => setDeleteConfirm(false)}
                     disabled={deletingTeam}
+                    className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
+                    style={secondaryButtonStyle}
                   >
                     Cancel
                   </Button>
@@ -698,7 +959,8 @@ export default function TeamDetailPage() {
                   <Button
                     onClick={handleDeleteTeam}
                     disabled={deletingTeam}
-                    className="case-delete-confirm-btn"
+                    className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
+                    style={dangerButtonStyle}
                   >
                     {deletingTeam ? "Deleting..." : "Delete Team"}
                   </Button>
@@ -708,14 +970,27 @@ export default function TeamDetailPage() {
           )}
 
           {canManageTeam && (
-            <Card className="case-section-card app-card">
-              <div style={{ padding: 18 }}>
+            <Card
+              className="relative overflow-hidden rounded-[30px] border bg-transparent p-0 shadow-none"
+              style={outerCardStyle}
+            >
+              <div className="absolute inset-0">
+                <img
+                  src="/images/site-velvet-bg.webp.png"
+                  alt=""
+                  className="h-full w-full object-cover object-center scale-[1.12]"
+                />
+              </div>
+              <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(8,20,24,0.80)_0%,rgba(7,18,22,0.90)_100%)]" />
+
+              <div className="relative z-10 p-6 md:p-7">
                 <div
                   style={{
                     fontWeight: 700,
-                    marginBottom: 12,
-                    color: "rgba(246,252,255,0.96)",
+                    marginBottom: 14,
+                    color: "#edf4f1",
                     letterSpacing: "-0.02em",
+                    fontSize: 20,
                   }}
                 >
                   Invite member
@@ -726,27 +1001,28 @@ export default function TeamDetailPage() {
                     placeholder="Email address"
                     value={inviteEmail}
                     onChange={(e) => setInviteEmail(e.target.value)}
-                    className="case-text-input"
                     disabled={inviting}
+                    style={inputStyle}
                   />
 
                   <select
                     value={inviteRole}
                     onChange={(e) => setInviteRole(e.target.value)}
-                    className="case-select"
                     disabled={inviting}
+                    style={inputStyle}
                   >
                     {["OWNER", "ADMIN", "MEMBER", "VIEWER"].map((role) => (
-                      <option key={role} value={role}>
+                      <option key={role} value={role} style={{ color: "#102126" }}>
                         {role}
                       </option>
                     ))}
                   </select>
 
                   <Button
-                    className="navy-btn"
                     onClick={handleInvite}
                     disabled={inviting || !inviteEmail.trim()}
+                    className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
+                    style={primaryButtonStyle}
                   >
                     {inviting ? "Sending..." : "Send invite"}
                   </Button>
@@ -755,21 +1031,34 @@ export default function TeamDetailPage() {
             </Card>
           )}
 
-          <Card className="case-section-card app-card">
-            <div style={{ padding: 18 }}>
+          <Card
+            className="relative overflow-hidden rounded-[30px] border bg-transparent p-0 shadow-none"
+            style={outerCardStyle}
+          >
+            <div className="absolute inset-0">
+              <img
+                src="/images/site-velvet-bg.webp.png"
+                alt=""
+                className="h-full w-full object-cover object-center scale-[1.12]"
+              />
+            </div>
+            <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(8,20,24,0.80)_0%,rgba(7,18,22,0.90)_100%)]" />
+
+            <div className="relative z-10 p-6 md:p-7">
               <div
                 style={{
                   fontWeight: 700,
-                  marginBottom: 12,
-                  color: "rgba(246,252,255,0.96)",
+                  marginBottom: 14,
+                  color: "#edf4f1",
                   letterSpacing: "-0.02em",
+                  fontSize: 20,
                 }}
               >
                 Members
               </div>
 
               {!team.members || team.members.length === 0 ? (
-                <div className="case-muted-text">No members found.</div>
+                <div style={{ color: "rgba(219,235,248,0.72)" }}>No members found.</div>
               ) : (
                 <div style={{ display: "grid", gap: 10 }}>
                   {team.members.map((member) => {
@@ -779,52 +1068,87 @@ export default function TeamDetailPage() {
                     const memberIsOwner = member.role === "OWNER";
 
                     return (
-                      <div key={member.userId} className="case-share-row">
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <div className="case-share-name">
-                            {name} {isSelf ? "(You)" : ""}
-                          </div>
-                          <div className="case-share-email">{email || member.userId}</div>
-                        </div>
-
-                        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-                          {canManageTeam && !memberIsOwner ? (
-                            <>
-                              <select
-                                value={member.role}
-                                onChange={(e) => handleRoleChange(member, e.target.value)}
-                                disabled={roleSavingKey === member.userId}
-                                className="case-select"
-                                style={{ minWidth: 120 }}
-                              >
-                                {ROLE_OPTIONS.map((role) => (
-                                  <option key={role} value={role}>
-                                    {role}
-                                  </option>
-                                ))}
-                              </select>
-
-                              <Button
-                                variant="secondary"
-                                onClick={() => handleRemoveMember(member)}
-                                disabled={removingMemberId === member.userId}
-                                className="case-danger-btn case-small-btn"
-                              >
-                                {removingMemberId === member.userId ? "Removing..." : "Remove"}
-                              </Button>
-                            </>
-                          ) : (
-                            <span
-                              className="badge processing"
+                      <div key={member.userId} style={rowCardStyle}>
+                        <div
+                          style={{
+                            display: "flex",
+                            justifyContent: "space-between",
+                            gap: 12,
+                            flexWrap: "wrap",
+                            alignItems: "center",
+                          }}
+                        >
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ color: "#edf4f1", fontWeight: 700 }}>
+                              {name} {isSelf ? "(You)" : ""}
+                            </div>
+                            <div
                               style={{
-                                background: "rgba(214,184,157,0.12)",
-                                borderColor: "rgba(214,184,157,0.22)",
-                                color: "#e6c9ae",
+                                color: "rgba(219,235,248,0.68)",
+                                fontSize: 13,
+                                marginTop: 4,
                               }}
                             >
-                              {member.role}
-                            </span>
-                          )}
+                              {email || member.userId}
+                            </div>
+                          </div>
+
+                          <div
+                            style={{
+                              display: "flex",
+                              gap: 8,
+                              flexWrap: "wrap",
+                              alignItems: "center",
+                            }}
+                          >
+                            {canManageTeam && !memberIsOwner ? (
+                              <>
+                                <select
+                                  value={member.role}
+                                  onChange={(e) => handleRoleChange(member, e.target.value)}
+                                  disabled={roleSavingKey === member.userId}
+                                  style={{ ...inputStyle, minWidth: 130, minHeight: 44 }}
+                                >
+                                  {ROLE_OPTIONS.map((role) => (
+                                    <option key={role} value={role} style={{ color: "#102126" }}>
+                                      {role}
+                                    </option>
+                                  ))}
+                                </select>
+
+                                <Button
+                                  variant="secondary"
+                                  onClick={() => handleRemoveMember(member)}
+                                  disabled={removingMemberId === member.userId}
+                                  className="rounded-[999px] border px-4 py-2.5 text-[0.88rem] font-semibold"
+                                  style={dangerButtonStyle}
+                                >
+                                  {removingMemberId === member.userId ? "Removing..." : "Remove"}
+                                </Button>
+                              </>
+                            ) : (
+                              <span
+                                style={{
+                                  display: "inline-flex",
+                                  alignItems: "center",
+                                  justifyContent: "center",
+                                  minHeight: 30,
+                                  padding: "6px 12px",
+                                  borderRadius: 999,
+                                  fontSize: 11,
+                                  fontWeight: 800,
+                                  letterSpacing: "0.12em",
+                                  textTransform: "uppercase",
+                                  border: "1px solid rgba(214,184,157,0.20)",
+                                  background:
+                                    "linear-gradient(180deg, rgba(183,157,132,0.12) 0%, rgba(255,255,255,0.03) 100%)",
+                                  color: "#dcc0a5",
+                                }}
+                              >
+                                {member.role}
+                              </span>
+                            )}
+                          </div>
                         </div>
                       </div>
                     );
@@ -835,54 +1159,85 @@ export default function TeamDetailPage() {
           </Card>
 
           {canManageTeam && (
-            <Card className="case-section-card app-card">
-              <div style={{ padding: 18 }}>
+            <Card
+              className="relative overflow-hidden rounded-[30px] border bg-transparent p-0 shadow-none"
+              style={outerCardStyle}
+            >
+              <div className="absolute inset-0">
+                <img
+                  src="/images/site-velvet-bg.webp.png"
+                  alt=""
+                  className="h-full w-full object-cover object-center scale-[1.12]"
+                />
+              </div>
+              <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(8,20,24,0.80)_0%,rgba(7,18,22,0.90)_100%)]" />
+
+              <div className="relative z-10 p-6 md:p-7">
                 <div
                   style={{
                     fontWeight: 700,
-                    marginBottom: 12,
-                    color: "rgba(246,252,255,0.96)",
+                    marginBottom: 14,
+                    color: "#edf4f1",
                     letterSpacing: "-0.02em",
+                    fontSize: 20,
                   }}
                 >
                   Pending invites
                 </div>
 
                 {invites.length === 0 ? (
-                  <div className="case-muted-text">No pending invites.</div>
+                  <div style={{ color: "rgba(219,235,248,0.72)" }}>No pending invites.</div>
                 ) : (
                   <div style={{ display: "grid", gap: 10 }}>
                     {invites.map((invite) => (
-                      <div key={invite.id} className="case-share-row">
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <div className="case-share-name">{invite.email}</div>
-                          <div className="case-share-email">
-                            {invite.role}
-                            {invite.expiresAt
-                              ? ` • expires ${new Date(invite.expiresAt).toLocaleString()}`
-                              : ""}
+                      <div key={invite.id} style={rowCardStyle}>
+                        <div
+                          style={{
+                            display: "flex",
+                            justifyContent: "space-between",
+                            gap: 12,
+                            flexWrap: "wrap",
+                            alignItems: "center",
+                          }}
+                        >
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ color: "#edf4f1", fontWeight: 700 }}>{invite.email}</div>
+                            <div
+                              style={{
+                                color: "rgba(219,235,248,0.68)",
+                                fontSize: 13,
+                                marginTop: 4,
+                              }}
+                            >
+                              {invite.role}
+                              {invite.expiresAt
+                                ? ` • expires ${new Date(invite.expiresAt).toLocaleString()}`
+                                : ""}
+                            </div>
                           </div>
-                        </div>
 
-                        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                          {invite.inviteUrl ? (
+                          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                            {invite.inviteUrl ? (
+                              <Button
+                                variant="secondary"
+                                onClick={() => copyInviteLink(invite)}
+                                className="rounded-[999px] border px-4 py-2.5 text-[0.88rem] font-semibold"
+                                style={secondaryButtonStyle}
+                              >
+                                Copy link
+                              </Button>
+                            ) : null}
+
                             <Button
                               variant="secondary"
-                              onClick={() => copyInviteLink(invite)}
-                              className="case-small-btn"
+                              onClick={() => handleDeleteInvite(invite.id)}
+                              disabled={deletingInviteId === invite.id}
+                              className="rounded-[999px] border px-4 py-2.5 text-[0.88rem] font-semibold"
+                              style={dangerButtonStyle}
                             >
-                              Copy link
+                              {deletingInviteId === invite.id ? "Deleting..." : "Delete"}
                             </Button>
-                          ) : null}
-
-                          <Button
-                            variant="secondary"
-                            onClick={() => handleDeleteInvite(invite.id)}
-                            disabled={deletingInviteId === invite.id}
-                            className="case-danger-btn case-small-btn"
-                          >
-                            {deletingInviteId === invite.id ? "Deleting..." : "Delete"}
-                          </Button>
+                          </div>
                         </div>
                       </div>
                     ))}
@@ -892,21 +1247,36 @@ export default function TeamDetailPage() {
             </Card>
           )}
 
-          <Card className="case-section-card app-card">
-            <div style={{ padding: 18 }}>
+          <Card
+            className="relative overflow-hidden rounded-[30px] border bg-transparent p-0 shadow-none"
+            style={outerCardStyle}
+          >
+            <div className="absolute inset-0">
+              <img
+                src="/images/site-velvet-bg.webp.png"
+                alt=""
+                className="h-full w-full object-cover object-center scale-[1.12]"
+              />
+            </div>
+            <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(8,20,24,0.80)_0%,rgba(7,18,22,0.90)_100%)]" />
+
+            <div className="relative z-10 p-6 md:p-7">
               <div
                 style={{
                   fontWeight: 700,
-                  marginBottom: 12,
-                  color: "rgba(246,252,255,0.96)",
+                  marginBottom: 14,
+                  color: "#edf4f1",
                   letterSpacing: "-0.02em",
+                  fontSize: 20,
                 }}
               >
                 Team cases
               </div>
 
               {teamCases.length === 0 ? (
-                <div className="case-muted-text">No cases linked to this team yet.</div>
+                <div style={{ color: "rgba(219,235,248,0.72)" }}>
+                  No cases linked to this team yet.
+                </div>
               ) : (
                 <div style={{ display: "grid", gap: 10 }}>
                   {teamCases.map((item) => (
@@ -915,24 +1285,50 @@ export default function TeamDetailPage() {
                       href={`/cases/${item.id}`}
                       style={{ textDecoration: "none", color: "inherit" }}
                     >
-                      <div className="case-evidence-row" style={{ cursor: "pointer" }}>
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <div className="case-share-name">{item.name}</div>
-                          <div className="case-share-email">
-                            {item.createdAt ? new Date(item.createdAt).toLocaleString() : ""}
-                          </div>
-                        </div>
-
-                        <span
-                          className="badge ready"
+                      <div style={{ ...rowCardStyle, cursor: "pointer" }}>
+                        <div
                           style={{
-                            background: "rgba(158,216,207,0.12)",
-                            borderColor: "rgba(158,216,207,0.22)",
-                            color: "#bfe8df",
+                            display: "flex",
+                            justifyContent: "space-between",
+                            gap: 12,
+                            flexWrap: "wrap",
+                            alignItems: "center",
                           }}
                         >
-                          Open
-                        </span>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ color: "#edf4f1", fontWeight: 700 }}>{item.name}</div>
+                            <div
+                              style={{
+                                color: "rgba(219,235,248,0.68)",
+                                fontSize: 13,
+                                marginTop: 4,
+                              }}
+                            >
+                              {item.createdAt ? new Date(item.createdAt).toLocaleString() : ""}
+                            </div>
+                          </div>
+
+                          <span
+                            style={{
+                              display: "inline-flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              minHeight: 30,
+                              padding: "6px 12px",
+                              borderRadius: 999,
+                              fontSize: 11,
+                              fontWeight: 800,
+                              letterSpacing: "0.12em",
+                              textTransform: "uppercase",
+                              border: "1px solid rgba(158,216,207,0.20)",
+                              background:
+                                "linear-gradient(180deg, rgba(158,216,207,0.12) 0%, rgba(255,255,255,0.03) 100%)",
+                              color: "#bfe8df",
+                            }}
+                          >
+                            Open
+                          </span>
+                        </div>
                       </div>
                     </Link>
                   ))}
@@ -940,9 +1336,19 @@ export default function TeamDetailPage() {
               )}
 
               {canManageTeam && (
-                <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid rgba(148,163,184,0.16)" }}>
+                <div
+                  style={{
+                    marginTop: 16,
+                    paddingTop: 16,
+                    borderTop: "1px solid rgba(183,157,132,0.14)",
+                  }}
+                >
                   <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                    <Button className="navy-btn" onClick={handleCreateTeamCase}>
+                    <Button
+                      onClick={handleCreateTeamCase}
+                      className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
+                      style={primaryButtonStyle}
+                    >
                       Create Team Case
                     </Button>
 
@@ -955,14 +1361,28 @@ export default function TeamDetailPage() {
                           void loadAvailableCases();
                         }
                       }}
+                      className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
+                      style={secondaryButtonStyle}
                     >
                       {showAddCase ? "Cancel" : "Add Existing Case"}
                     </Button>
                   </div>
 
                   {showAddCase && (
-                    <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid rgba(148,163,184,0.16)" }}>
-                      <div className="case-muted-text" style={{ marginBottom: 10 }}>
+                    <div
+                      style={{
+                        marginTop: 14,
+                        paddingTop: 14,
+                        borderTop: "1px solid rgba(183,157,132,0.14)",
+                      }}
+                    >
+                      <div
+                        style={{
+                          color: "rgba(219,235,248,0.72)",
+                          marginBottom: 12,
+                          lineHeight: 1.7,
+                        }}
+                      >
                         {loadingAvailableCases
                           ? "Loading available cases..."
                           : availableCases.length === 0
@@ -973,21 +1393,42 @@ export default function TeamDetailPage() {
                       {!loadingAvailableCases && availableCases.length > 0 && (
                         <div style={{ display: "grid", gap: 10 }}>
                           {availableCases.map((item) => (
-                            <div key={item.id} className="case-evidence-row">
-                              <div style={{ flex: 1, minWidth: 0 }}>
-                                <div className="case-share-name">{item.name}</div>
-                                <div className="case-share-email">
-                                  {item.createdAt ? new Date(item.createdAt).toLocaleString() : ""}
-                                </div>
-                              </div>
-
-                              <Button
-                                className="navy-btn case-small-btn"
-                                onClick={() => handleAddExistingCase(item.id)}
-                                disabled={linkingCaseId === item.id}
+                            <div key={item.id} style={rowCardStyle}>
+                              <div
+                                style={{
+                                  display: "flex",
+                                  justifyContent: "space-between",
+                                  gap: 12,
+                                  flexWrap: "wrap",
+                                  alignItems: "center",
+                                }}
                               >
-                                {linkingCaseId === item.id ? "Linking..." : "Link"}
-                              </Button>
+                                <div style={{ flex: 1, minWidth: 0 }}>
+                                  <div style={{ color: "#edf4f1", fontWeight: 700 }}>
+                                    {item.name}
+                                  </div>
+                                  <div
+                                    style={{
+                                      color: "rgba(219,235,248,0.68)",
+                                      fontSize: 13,
+                                      marginTop: 4,
+                                    }}
+                                  >
+                                    {item.createdAt
+                                      ? new Date(item.createdAt).toLocaleString()
+                                      : ""}
+                                  </div>
+                                </div>
+
+                                <Button
+                                  onClick={() => handleAddExistingCase(item.id)}
+                                  disabled={linkingCaseId === item.id}
+                                  className="rounded-[999px] border px-4 py-2.5 text-[0.88rem] font-semibold"
+                                  style={primaryButtonStyle}
+                                >
+                                  {linkingCaseId === item.id ? "Linking..." : "Link"}
+                                </Button>
+                              </div>
                             </div>
                           ))}
                         </div>
@@ -1000,14 +1441,27 @@ export default function TeamDetailPage() {
           </Card>
 
           {activities.length > 0 && (
-            <Card className="case-section-card app-card">
-              <div style={{ padding: 18 }}>
+            <Card
+              className="relative overflow-hidden rounded-[30px] border bg-transparent p-0 shadow-none"
+              style={outerCardStyle}
+            >
+              <div className="absolute inset-0">
+                <img
+                  src="/images/site-velvet-bg.webp.png"
+                  alt=""
+                  className="h-full w-full object-cover object-center scale-[1.12]"
+                />
+              </div>
+              <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(8,20,24,0.80)_0%,rgba(7,18,22,0.90)_100%)]" />
+
+              <div className="relative z-10 p-6 md:p-7">
                 <div
                   style={{
                     fontWeight: 700,
-                    marginBottom: 12,
-                    color: "rgba(246,252,255,0.96)",
+                    marginBottom: 14,
+                    color: "#edf4f1",
                     letterSpacing: "-0.02em",
+                    fontSize: 20,
                   }}
                 >
                   Recent activity
@@ -1018,21 +1472,32 @@ export default function TeamDetailPage() {
                     <div
                       key={activity.id}
                       style={{
-                        padding: 12,
-                        borderRadius: 14,
-                        background: "rgba(255,255,255,0.04)",
-                        border: "1px solid rgba(255,255,255,0.06)",
+                        ...rowCardStyle,
+                        padding: 14,
                       }}
                     >
-                      <div className="case-share-name">
+                      <div style={{ color: "#edf4f1", fontWeight: 700 }}>
                         {activity.eventType.replace(/_/g, " ")}
                       </div>
-                      <div className="case-share-email">
+                      <div
+                        style={{
+                          color: "rgba(219,235,248,0.68)",
+                          fontSize: 13,
+                          marginTop: 4,
+                        }}
+                      >
                         {activity.actor?.displayName || activity.actor?.email || "System"} •{" "}
                         {activity.createdAt ? new Date(activity.createdAt).toLocaleString() : ""}
                       </div>
                       {activity.metadata && (
-                        <div className="case-muted-text" style={{ marginTop: 4, fontSize: 11 }}>
+                        <div
+                          style={{
+                            marginTop: 6,
+                            fontSize: 11,
+                            color: "rgba(194,204,201,0.62)",
+                            lineHeight: 1.65,
+                          }}
+                        >
                           {JSON.stringify(activity.metadata).substring(0, 60)}
                         </div>
                       )}
