@@ -65,12 +65,12 @@ export default function HomePage() {
   const primaryActionButtonStyle = useMemo(
     () =>
       ({
-        borderColor: "rgba(191,232,223,0.18)",
-        color: "#dde6e3",
+        borderColor: "rgba(158,216,207,0.16)",
+        color: "#d4ddda",
         background:
-          "linear-gradient(180deg, rgba(70,109,107,0.54) 0%, rgba(21,41,45,0.72) 100%)",
+          "linear-gradient(180deg, rgba(58,93,97,0.22) 0%, rgba(16,33,38,0.34) 100%)",
         boxShadow:
-          "inset 0 1px 0 rgba(255,255,255,0.05), 0 14px 28px rgba(0,0,0,0.10)",
+          "inset 0 1px 0 rgba(255,255,255,0.04), 0 14px 28px rgba(0,0,0,0.08)",
         backdropFilter: "blur(10px)",
         WebkitBackdropFilter: "blur(10px)",
       }) as const,
@@ -80,10 +80,24 @@ export default function HomePage() {
   const secondaryActionButtonStyle = useMemo(
     () =>
       ({
-        borderColor: "rgba(191,232,223,0.16)",
-        color: "#d3ddda",
+        borderColor: "rgba(158,216,207,0.16)",
+        color: "#d4ddda",
         background:
-          "linear-gradient(180deg, rgba(62,98,96,0.30) 0%, rgba(14,30,34,0.42) 100%)",
+          "linear-gradient(180deg, rgba(58,93,97,0.22) 0%, rgba(16,33,38,0.34) 100%)",
+        boxShadow:
+          "inset 0 1px 0 rgba(255,255,255,0.04), 0 14px 28px rgba(0,0,0,0.08)",
+        backdropFilter: "blur(10px)",
+        WebkitBackdropFilter: "blur(10px)",
+      }) as const,
+    []
+  );
+
+  const velvetCardSurfaceStyle = useMemo(
+    () =>
+      ({
+        border: "1px solid rgba(158,216,207,0.14)",
+        background:
+          "linear-gradient(180deg, rgba(58,93,97,0.22) 0%, rgba(16,33,38,0.34) 100%)",
         boxShadow:
           "inset 0 1px 0 rgba(255,255,255,0.04), 0 14px 28px rgba(0,0,0,0.08)",
         backdropFilter: "blur(10px)",
@@ -212,13 +226,13 @@ export default function HomePage() {
                 <div style={{ display: "grid", gap: 12 }}>
                   {loading ? (
                     <div style={{ display: "grid", gap: 12 }}>
-                      <div className="rounded-[22px] border border-[rgba(191,232,223,0.12)] bg-[linear-gradient(180deg,rgba(62,98,96,0.26)_0%,rgba(14,30,34,0.38)_100%)] p-4">
+                      <div className="rounded-[22px] p-4" style={velvetCardSurfaceStyle}>
                         <Skeleton width="100%" height="20px" />
                       </div>
-                      <div className="rounded-[22px] border border-[rgba(191,232,223,0.12)] bg-[linear-gradient(180deg,rgba(62,98,96,0.26)_0%,rgba(14,30,34,0.38)_100%)] p-4">
+                      <div className="rounded-[22px] p-4" style={velvetCardSurfaceStyle}>
                         <Skeleton width="100%" height="20px" />
                       </div>
-                      <div className="rounded-[22px] border border-[rgba(191,232,223,0.12)] bg-[linear-gradient(180deg,rgba(62,98,96,0.26)_0%,rgba(14,30,34,0.38)_100%)] p-4">
+                      <div className="rounded-[22px] p-4" style={velvetCardSurfaceStyle}>
                         <Skeleton width="100%" height="20px" />
                       </div>
                     </div>
@@ -227,7 +241,7 @@ export default function HomePage() {
                       {error}
                     </div>
                   ) : items.length === 0 ? (
-                    <div className="rounded-[24px] border border-[rgba(191,232,223,0.12)] bg-[linear-gradient(180deg,rgba(62,98,96,0.26)_0%,rgba(14,30,34,0.38)_100%)] p-4">
+                    <div className="rounded-[24px] p-4" style={velvetCardSurfaceStyle}>
                       <EmptyState
                         title="No evidence yet"
                         subtitle="Capture your first file to see it here."
@@ -247,16 +261,8 @@ export default function HomePage() {
                     items.map((item) => {
                       const row = (
                         <div
-                          className="rounded-[24px] border p-1 transition-all duration-200 hover:-translate-y-[1px]"
-                          style={{
-                            border: "1px solid rgba(191,232,223,0.14)",
-                            background:
-                              "linear-gradient(180deg, rgba(62,98,96,0.28) 0%, rgba(14,30,34,0.42) 100%)",
-                            boxShadow:
-                              "inset 0 1px 0 rgba(255,255,255,0.03), 0 14px 28px rgba(0,0,0,0.08)",
-                            backdropFilter: "blur(10px)",
-                            WebkitBackdropFilter: "blur(10px)",
-                          }}
+                          className="rounded-[24px] p-1 transition-all duration-200 hover:-translate-y-[1px]"
+                          style={velvetCardSurfaceStyle}
                         >
                           <ListRow
                             title={item.title || "Digital Evidence Record"}
@@ -275,8 +281,7 @@ export default function HomePage() {
                                     color: "#c3ebe2",
                                     background:
                                       "linear-gradient(180deg, rgba(195,235,226,0.12) 0%, rgba(255,255,255,0.03) 100%)",
-                                    border:
-                                      "1px solid rgba(195,235,226,0.22)",
+                                    border: "1px solid rgba(195,235,226,0.22)",
                                     boxShadow:
                                       "inset 0 1px 0 rgba(255,255,255,0.16), 0 4px 10px rgba(60,110,102,0.10)",
                                   }}
@@ -356,29 +361,24 @@ export default function HomePage() {
 
                 <div
                   className="mt-5 rounded-[24px] border px-4 py-4"
-                  style={{
-                    border: "1px solid rgba(183,157,132,0.20)",
-                    background:
-                      "linear-gradient(135deg, rgba(183,157,132,0.07), rgba(255,255,255,0.025))",
-                    boxShadow: "0 14px 28px rgba(0,0,0,0.08)",
-                  }}
+                  style={velvetCardSurfaceStyle}
                 >
                   <div className="flex items-start gap-3">
                     <div
                       className="flex h-11 w-11 items-center justify-center rounded-full text-[1rem] font-semibold"
                       style={{
                         background:
-                          "linear-gradient(180deg, rgba(183,157,132,0.16) 0%, rgba(255,255,255,0.05) 100%)",
-                        color: "#dbc0a4",
-                        border: "1px solid rgba(183,157,132,0.20)",
-                        boxShadow: "0 0 18px rgba(183,157,132,0.07)",
+                          "linear-gradient(180deg, rgba(58,93,97,0.26) 0%, rgba(16,33,38,0.34) 100%)",
+                        color: "#cfe0dc",
+                        border: "1px solid rgba(158,216,207,0.14)",
+                        boxShadow: "0 0 18px rgba(0,0,0,0.06)",
                       }}
                     >
                       ✓
                     </div>
 
                     <div>
-                      <div className="font-bold text-[#d8e0dd]">
+                      <div className="font-bold text-[#d3dcd9]">
                         Trusted chain of custody
                       </div>
                       <div className="mt-1 text-[12px] text-[rgba(201,211,208,0.72)]">
@@ -388,8 +388,11 @@ export default function HomePage() {
                   </div>
                 </div>
 
-                <div className="mt-4 rounded-[22px] border border-[rgba(183,157,132,0.14)] bg-[rgba(255,255,255,0.028)] px-4 py-4">
-                  <div className="mb-2 text-[0.78rem] font-semibold uppercase tracking-[0.18em] text-[#c9ab8c]">
+                <div
+                  className="mt-4 rounded-[22px] px-4 py-4"
+                  style={velvetCardSurfaceStyle}
+                >
+                  <div className="mb-2 text-[0.78rem] font-semibold uppercase tracking-[0.18em] text-[#c8dcd6]">
                     Workspace flow
                   </div>
                   <div className="text-[0.92rem] leading-[1.75] text-[rgba(194,204,201,0.76)]">
