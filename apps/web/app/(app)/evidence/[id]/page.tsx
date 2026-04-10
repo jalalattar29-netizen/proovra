@@ -996,34 +996,32 @@ export default function EvidenceDetailPage() {
     []
   );
 
-  const heroPrimaryButtonStyle = useMemo(
+  const heroEditButtonStyle = useMemo(
     () =>
       ({
-        borderColor: "rgba(158,216,207,0.14)",
-        color: "#aebbb6",
+        borderColor: "rgba(183,157,132,0.18)",
+        color: "#eef3f1",
         background:
-          "linear-gradient(180deg, rgba(62,98,96,0.26) 0%, rgba(14,30,34,0.38) 100%)",
+          "linear-gradient(180deg, rgba(36,57,61,0.88) 0%, rgba(13,27,31,0.96) 100%)",
         boxShadow:
-          "inset 0 1px 0 rgba(255,255,255,0.04), 0 14px 28px rgba(0,0,0,0.08)",
+          "inset 0 1px 0 rgba(255,255,255,0.06), 0 12px 24px rgba(0,0,0,0.16)",
+        textShadow: "0 1px 0 rgba(0,0,0,0.22)",
         backdropFilter: "blur(10px)",
         WebkitBackdropFilter: "blur(10px)",
       }) as const,
     []
   );
 
-  const heroSecondaryButtonStyle = useMemo(
+  const heroSaveButtonStyle = useMemo(
     () =>
       ({
-        borderColor: "rgba(79,112,107,0.18)",
-        color: "#aebbb6",
-        backgroundImage:
-          "linear-gradient(180deg, rgba(8,20,24,0.78) 0%, rgba(7,18,22,0.88) 100%), url('/images/site-velvet-bg.webp.png')",
-        backgroundSize: "cover",
-        backgroundPosition: "center",
+        borderColor: "rgba(158,216,207,0.18)",
+        color: "#eef3f1",
+        background:
+          "linear-gradient(180deg, rgba(58,92,95,0.94) 0%, rgba(20,38,42,0.98) 100%)",
         boxShadow:
-          "inset 0 1px 0 rgba(255,255,255,0.03), 0 14px 28px rgba(0,0,0,0.10)",
-        backdropFilter: "blur(10px)",
-        WebkitBackdropFilter: "blur(10px)",
+          "inset 0 1px 0 rgba(255,255,255,0.08), 0 14px 28px rgba(18,40,44,0.18)",
+        textShadow: "0 1px 0 rgba(0,0,0,0.22)",
       }) as const,
     []
   );
@@ -1060,18 +1058,46 @@ export default function EvidenceDetailPage() {
     []
   );
 
+  const landingSoftAccentButtonStyle = useMemo(
+    () =>
+      ({
+        borderColor: "rgba(183,157,132,0.18)",
+        color: "#5f4c3d",
+        background:
+          "linear-gradient(180deg, rgba(250,249,246,0.76) 0%, rgba(239,236,232,0.92) 100%)",
+        boxShadow:
+          "0 10px 20px rgba(0,0,0,0.05), inset 0 1px 0 rgba(255,255,255,0.62)",
+        textShadow: "0 1px 0 rgba(255,255,255,0.28)",
+        backdropFilter: "blur(6px)",
+        WebkitBackdropFilter: "blur(6px)",
+      }) as const,
+    []
+  );
+
+  const landingBronzeButtonStyle = useMemo(
+    () =>
+      ({
+        borderColor: "rgba(183,157,132,0.24)",
+        color: "#f3ece5",
+        background:
+          "linear-gradient(180deg, rgba(115,85,62,0.96) 0%, rgba(67,48,36,0.98) 100%)",
+        boxShadow:
+          "inset 0 1px 0 rgba(255,255,255,0.07), 0 14px 28px rgba(71,49,35,0.16)",
+        textShadow: "0 1px 0 rgba(0,0,0,0.22)",
+      }) as const,
+    []
+  );
+
   const landingDangerButtonStyle = useMemo(
     () =>
       ({
-        borderColor: "rgba(194,78,78,0.24)",
-        color: "#fff1f1",
+        borderColor: "rgba(167,96,96,0.20)",
+        color: "#fff5f5",
         background:
-          "linear-gradient(180deg, rgba(156,50,50,0.94) 0%, rgba(108,28,28,0.98) 100%)",
+          "linear-gradient(180deg, rgba(134,72,72,0.94) 0%, rgba(101,50,50,0.98) 100%)",
         boxShadow:
-          "inset 0 1px 0 rgba(255,255,255,0.06), 0 14px 28px rgba(90,18,18,0.20)",
+          "inset 0 1px 0 rgba(255,255,255,0.05), 0 12px 24px rgba(90,18,18,0.14)",
         textShadow: "0 1px 0 rgba(0,0,0,0.22)",
-        backdropFilter: "blur(6px)",
-        WebkitBackdropFilter: "blur(6px)",
       }) as const,
     []
   );
@@ -1089,6 +1115,50 @@ export default function EvidenceDetailPage() {
       }) as const,
     []
   );
+
+  const previewShellStyle = useMemo(
+    () =>
+      ({
+        padding: 16,
+        borderRadius: 22,
+        background:
+          "linear-gradient(180deg, rgba(255,255,255,0.46) 0%, rgba(244,246,243,0.82) 100%)",
+        border: "1px solid rgba(79,112,107,0.10)",
+        boxShadow:
+          "inset 0 1px 0 rgba(255,255,255,0.62), 0 14px 28px rgba(0,0,0,0.05)",
+      }) as const,
+    []
+  );
+
+  const labelWords = useMemo(() => {
+    const trimmed = label.trim();
+    if (!trimmed) return { prefix: "", accent: "" };
+    const parts = trimmed.split(/\s+/);
+    if (parts.length === 1) return { prefix: "", accent: parts[0] };
+    return {
+      prefix: parts.slice(0, -1).join(" "),
+      accent: parts[parts.length - 1],
+    };
+  }, [label]);
+
+  const compactButtonClass =
+    "rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold transition-all duration-200 hover:-translate-y-[1px] hover:brightness-[1.03]";
+  const smallButtonClass =
+    "rounded-[999px] border px-4 py-2.5 text-[0.88rem] font-semibold transition-all duration-200 hover:-translate-y-[1px] hover:brightness-[1.03]";
+
+  const visibleStatusStyle =
+    displayStatusMeta.label === "Report Ready"
+      ? {
+          color: "#24484c",
+          background:
+            "linear-gradient(180deg, rgba(191,232,223,0.34) 0%, rgba(255,255,255,0.55) 100%)",
+          border: "1px solid rgba(79,112,107,0.18)",
+          boxShadow:
+            "inset 0 1px 0 rgba(255,255,255,0.55), 0 6px 14px rgba(41,83,85,0.08)",
+          fontWeight: 800,
+          letterSpacing: "0.1em",
+        }
+      : undefined;
 
   return (
     <div className="section app-section evidence-detail-page-shell">
@@ -1131,7 +1201,7 @@ export default function EvidenceDetailPage() {
                 className="evidence-record-badges"
                 style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 16 }}
               >
-                <span className={displayStatusMeta.className}>
+                <span className={displayStatusMeta.className} style={visibleStatusStyle}>
                   {displayStatusMeta.label}
                 </span>
 
@@ -1165,23 +1235,30 @@ export default function EvidenceDetailPage() {
                   style={{
                     display: "flex",
                     alignItems: "center",
-                    gap: 12,
+                    gap: 14,
                     flexWrap: "wrap",
                   }}
                 >
                   <h1
-                    className="max-w-[900px] text-[1.72rem] font-medium leading-[1.02] tracking-[-0.045em] text-[#d9e2df] md:text-[2.22rem] lg:text-[2.72rem]"
+                    className="max-w-[900px] text-[1.72rem] font-medium leading-[1.02] tracking-[-0.045em] text-[#e7ece9] md:text-[2.22rem] lg:text-[2.72rem]"
                     style={{ margin: 0 }}
                   >
-                    {label}
+                    {labelWords.prefix ? (
+                      <>
+                        {labelWords.prefix}{" "}
+                        <span style={{ color: "#c3ebe2" }}>{labelWords.accent}</span>
+                      </>
+                    ) : (
+                      <span style={{ color: "#c3ebe2" }}>{labelWords.accent}</span>
+                    )}
                   </h1>
 
                   <Button
                     variant="secondary"
                     onClick={handleStartEditLabel}
                     disabled={loading || actionBusy || labelBusy || isDeleted}
-                    className="proovra-velvet-primary rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
-                    style={heroSecondaryButtonStyle}
+                    className={compactButtonClass}
+                    style={heroEditButtonStyle}
                   >
                     Edit Label
                   </Button>
@@ -1218,8 +1295,8 @@ export default function EvidenceDetailPage() {
                   <Button
                     onClick={handleSaveLabel}
                     disabled={labelBusy}
-                    className="proovra-velvet-primary rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
-                    style={heroPrimaryButtonStyle}
+                    className={compactButtonClass}
+                    style={heroSaveButtonStyle}
                   >
                     {labelBusy ? "Saving..." : "Save"}
                   </Button>
@@ -1228,8 +1305,8 @@ export default function EvidenceDetailPage() {
                     variant="secondary"
                     onClick={handleCancelEditLabel}
                     disabled={labelBusy}
-                    className="proovra-velvet-primary rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
-                    style={heroSecondaryButtonStyle}
+                    className={compactButtonClass}
+                    style={heroEditButtonStyle}
                   >
                     Cancel
                   </Button>
@@ -1451,7 +1528,7 @@ export default function EvidenceDetailPage() {
                         marginTop: 10,
                       }}
                     >
-                      <span className={displayStatusMeta.className}>
+                      <span className={displayStatusMeta.className} style={visibleStatusStyle}>
                         {displayStatusMeta.label}
                       </span>
 
@@ -1589,7 +1666,7 @@ export default function EvidenceDetailPage() {
               <div
                 style={{
                   marginTop: 16,
-                  marginBottom: 14,
+                  marginBottom: 18,
                   padding: 14,
                   borderRadius: 16,
                   ...softCardStyle,
@@ -1600,153 +1677,213 @@ export default function EvidenceDetailPage() {
                 record.
               </div>
 
-              <div className="flex flex-wrap gap-3">
-                <Button
-                  onClick={handleDownloadReport}
-                  disabled={actionBusy || plan === "FREE" || isDeleted}
-                  className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
-                  style={landingPrimaryButtonStyle}
-                >
-                  {t("downloadReport")}
-                </Button>
-
-                <Button
-                  variant="secondary"
-                  onClick={handleDownloadVerificationPackage}
-                  disabled={actionBusy || !verificationPackageAvailable || isDeleted}
-                  className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
-                  style={landingSecondaryButtonStyle}
-                >
-                  Download Verification Package
-                </Button>
-
-                <Link href={`/share/${evidenceId}`}>
-                  <Button
-                    variant="secondary"
-                    disabled={isDeleted}
-                    className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
-                    style={landingSecondaryButtonStyle}
+              <div style={{ display: "grid", gap: 18 }}>
+                <div>
+                  <div
+                    style={{
+                      marginBottom: 12,
+                      fontSize: 12,
+                      fontWeight: 700,
+                      letterSpacing: "0.16em",
+                      textTransform: "uppercase",
+                      color: "#8f735a",
+                    }}
                   >
-                    {t("shareLink")}
-                  </Button>
-                </Link>
-              </div>
+                    Export & Sharing
+                  </div>
 
-              {plan === "FREE" && (
-                <div style={{ fontSize: 12, color: "#6a777b", marginTop: 10 }}>
-                  Reports are disabled on Free. Upgrade to access PDF reports.
-                </div>
-              )}
+                  <div className="flex flex-wrap gap-3">
+                    <Button
+                      onClick={handleDownloadReport}
+                      disabled={actionBusy || plan === "FREE" || isDeleted}
+                      className={compactButtonClass}
+                      style={landingPrimaryButtonStyle}
+                    >
+                      {t("downloadReport")}
+                    </Button>
 
-              {!verificationPackageAvailable && (
-                <div style={{ fontSize: 12, color: "#6a777b", marginTop: 10 }}>
-                  Verification package is not available yet.
-                </div>
-              )}
-
-              <div style={{ display: "grid", gap: 10, marginTop: 18 }}>
-                {!isDeleted && (
-                  <>
                     <Button
                       variant="secondary"
-                      onClick={handleOpenAssignCase}
-                      disabled={actionBusy || ownedCases.length === 0}
-                      className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
+                      onClick={handleDownloadVerificationPackage}
+                      disabled={actionBusy || !verificationPackageAvailable || isDeleted}
+                      className={compactButtonClass}
                       style={landingSecondaryButtonStyle}
                     >
-                      {caseId ? "Move to Case" : "Add to Case"}
+                      Download Verification Package
                     </Button>
 
-                    {caseId && (
+                    <Link href={`/share/${evidenceId}`}>
                       <Button
                         variant="secondary"
-                        onClick={handleRemoveFromCase}
-                        disabled={actionBusy}
-                        className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
+                        disabled={isDeleted}
+                        className={compactButtonClass}
+                        style={landingSoftAccentButtonStyle}
+                      >
+                        {t("shareLink")}
+                      </Button>
+                    </Link>
+                  </div>
+
+                  {plan === "FREE" && (
+                    <div style={{ fontSize: 12, color: "#6a777b", marginTop: 10 }}>
+                      Reports are disabled on Free. Upgrade to access PDF reports.
+                    </div>
+                  )}
+
+                  {!verificationPackageAvailable && (
+                    <div style={{ fontSize: 12, color: "#6a777b", marginTop: 10 }}>
+                      Verification package is not available yet.
+                    </div>
+                  )}
+                </div>
+
+                {!isDeleted && (
+                  <div>
+                    <div
+                      style={{
+                        marginBottom: 12,
+                        fontSize: 12,
+                        fontWeight: 700,
+                        letterSpacing: "0.16em",
+                        textTransform: "uppercase",
+                        color: "#8f735a",
+                      }}
+                    >
+                      Case & Organization
+                    </div>
+
+                    <div
+                      style={{
+                        display: "grid",
+                        gap: 12,
+                        gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+                      }}
+                    >
+                      <Button
+                        variant="secondary"
+                        onClick={handleOpenAssignCase}
+                        disabled={actionBusy || ownedCases.length === 0}
+                        className={compactButtonClass}
                         style={landingSecondaryButtonStyle}
                       >
-                        Remove from Case
+                        {caseId ? "Move to Case" : "Add to Case"}
                       </Button>
-                    )}
 
-                    <Button
-                      onClick={handleLock}
-                      disabled={
-                        actionBusy ||
-                        Boolean(lockedAt) ||
-                        !(status === "SIGNED" || status === "REPORTED")
-                      }
-                      className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
-                      style={lockedAt ? landingSecondaryButtonStyle : landingDangerButtonStyle}
+                      {caseId && (
+                        <Button
+                          variant="secondary"
+                          onClick={handleRemoveFromCase}
+                          disabled={actionBusy}
+                          className={compactButtonClass}
+                          style={landingSoftAccentButtonStyle}
+                        >
+                          Remove from Case
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {!isDeleted && (
+                  <div>
+                    <div
+                      style={{
+                        marginBottom: 12,
+                        fontSize: 12,
+                        fontWeight: 700,
+                        letterSpacing: "0.16em",
+                        textTransform: "uppercase",
+                        color: "#8f735a",
+                      }}
                     >
-                      {lockedAt
-                        ? "Permanently Locked"
-                        : "Lock Evidence Permanently"}
-                    </Button>
+                      Preservation Actions
+                    </div>
+
+                    <div
+                      style={{
+                        display: "grid",
+                        gap: 12,
+                        gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+                      }}
+                    >
+                      <Button
+                        onClick={handleLock}
+                        disabled={
+                          actionBusy ||
+                          Boolean(lockedAt) ||
+                          !(status === "SIGNED" || status === "REPORTED")
+                        }
+                        className={compactButtonClass}
+                        style={lockedAt ? landingSecondaryButtonStyle : landingBronzeButtonStyle}
+                      >
+                        {lockedAt
+                          ? "Permanently Locked"
+                          : "Lock Evidence Permanently"}
+                      </Button>
+
+                      {archivedAt ? (
+                        <Button
+                          variant="secondary"
+                          onClick={handleUnarchive}
+                          disabled={actionBusy}
+                          className={compactButtonClass}
+                          style={landingSecondaryButtonStyle}
+                        >
+                          Restore Evidence
+                        </Button>
+                      ) : (
+                        <Button
+                          variant="secondary"
+                          onClick={handleArchive}
+                          disabled={actionBusy}
+                          className={compactButtonClass}
+                          style={landingSecondaryButtonStyle}
+                        >
+                          Archive Evidence
+                        </Button>
+                      )}
+
+                      <Button
+                        onClick={handleDelete}
+                        disabled={actionBusy || !canDelete}
+                        className={compactButtonClass}
+                        style={canDelete ? landingDangerButtonStyle : landingSecondaryButtonStyle}
+                      >
+                        Delete Evidence
+                      </Button>
+                    </div>
 
                     {lockedAt && (
-                      <div style={{ fontSize: 12, color: "#6a777b", padding: "8px 0" }}>
+                      <div style={{ fontSize: 12, color: "#6a777b", paddingTop: 10 }}>
                         ✓ This record is legally sealed and can no longer be edited.
                       </div>
                     )}
 
                     {archivedAt ? (
-                      <>
-                        <Button
-                          variant="secondary"
-                          onClick={handleUnarchive}
-                          disabled={actionBusy}
-                          className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
-                          style={landingSecondaryButtonStyle}
-                        >
-                          Restore Evidence
-                        </Button>
-                        <div
-                          style={{
-                            fontSize: 12,
-                            color: "#6a777b",
-                            padding: "8px 0",
-                          }}
-                        >
-                          This record is archived. Restore it to return it to the
-                          active workspace.
-                        </div>
-                      </>
+                      <div
+                        style={{
+                          fontSize: 12,
+                          color: "#6a777b",
+                          paddingTop: 10,
+                        }}
+                      >
+                        This record is archived. Restore it to return it to the active workspace.
+                      </div>
                     ) : (
-                      <>
-                        <Button
-                          variant="secondary"
-                          onClick={handleArchive}
-                          disabled={actionBusy}
-                          className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
-                          style={landingSecondaryButtonStyle}
-                        >
-                          Archive Evidence
-                        </Button>
-                        <div
-                          style={{
-                            fontSize: 12,
-                            color: "#6a777b",
-                            padding: "8px 0",
-                          }}
-                        >
-                          Archive this record to remove it from active review while
-                          preserving it in storage.
-                        </div>
-                      </>
+                      <div
+                        style={{
+                          fontSize: 12,
+                          color: "#6a777b",
+                          paddingTop: 10,
+                        }}
+                      >
+                        Archive this record to remove it from active review while preserving it in storage.
+                      </div>
                     )}
-
-                    <Button
-                      onClick={handleDelete}
-                      disabled={actionBusy || !canDelete}
-                      className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
-                      style={canDelete ? landingDangerButtonStyle : landingSecondaryButtonStyle}
-                    >
-                      Delete Evidence
-                    </Button>
 
                     <div
                       style={{
+                        marginTop: 14,
                         padding: 14,
                         borderRadius: 16,
                         background:
@@ -1758,25 +1895,41 @@ export default function EvidenceDetailPage() {
                       <strong>Trash retention:</strong> When moved to trash, this
                       record stays recoverable for 90 days before permanent deletion.
                     </div>
-                  </>
+                  </div>
                 )}
 
                 {isDeleted && (
-                  <>
-                    <Button
-                      variant="secondary"
-                      onClick={handleRestoreDeleted}
-                      disabled={actionBusy}
-                      className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
-                      style={landingSecondaryButtonStyle}
+                  <div>
+                    <div
+                      style={{
+                        marginBottom: 12,
+                        fontSize: 12,
+                        fontWeight: 700,
+                        letterSpacing: "0.16em",
+                        textTransform: "uppercase",
+                        color: "#8f735a",
+                      }}
                     >
-                      Restore from Trash
-                    </Button>
-                    <div style={{ fontSize: 12, color: "#6a777b", padding: "8px 0" }}>
+                      Recovery
+                    </div>
+
+                    <div className="flex flex-wrap gap-3">
+                      <Button
+                        variant="secondary"
+                        onClick={handleRestoreDeleted}
+                        disabled={actionBusy}
+                        className={compactButtonClass}
+                        style={landingSecondaryButtonStyle}
+                      >
+                        Restore from Trash
+                      </Button>
+                    </div>
+
+                    <div style={{ fontSize: 12, color: "#6a777b", paddingTop: 10 }}>
                       This record is in secure trash and can be restored until{" "}
                       {formatUtcDateTime(deleteScheduledForUtc)}.
                     </div>
-                  </>
+                  </div>
                 )}
               </div>
             </div>
@@ -1834,8 +1987,8 @@ export default function EvidenceDetailPage() {
                           <div
                             key={part.id}
                             style={{
-                              padding: 16,
-                              borderRadius: 20,
+                              padding: 18,
+                              borderRadius: 24,
                               ...softCardStyle,
                             }}
                           >
@@ -1873,7 +2026,7 @@ export default function EvidenceDetailPage() {
                                   variant="secondary"
                                   onClick={() => handleOpenPart(part)}
                                   disabled={!downloadUrl || isDeleted}
-                                  className="rounded-[999px] border px-4 py-2.5 text-[0.88rem] font-semibold"
+                                  className={smallButtonClass}
                                   style={landingSecondaryButtonStyle}
                                 >
                                   Open
@@ -1882,8 +2035,8 @@ export default function EvidenceDetailPage() {
                                   variant="secondary"
                                   onClick={() => handleDownloadPart(part)}
                                   disabled={!downloadUrl || isDeleted}
-                                  className="rounded-[999px] border px-4 py-2.5 text-[0.88rem] font-semibold"
-                                  style={landingSecondaryButtonStyle}
+                                  className={smallButtonClass}
+                                  style={landingSoftAccentButtonStyle}
                                 >
                                   Download
                                 </Button>
@@ -1895,7 +2048,7 @@ export default function EvidenceDetailPage() {
                                 display: "grid",
                                 gap: 6,
                                 marginTop: 12,
-                                marginBottom: 14,
+                                marginBottom: 16,
                                 color: "#6a777b",
                                 fontSize: 13,
                               }}
@@ -1906,41 +2059,43 @@ export default function EvidenceDetailPage() {
                             </div>
 
                             {previewUrl && kind === "image" && (
-                              <img
-                                src={previewUrl}
-                                alt={`Evidence item ${part.partIndex + 1}`}
-                                className="evidence-preview-image"
-                                style={{
-                                  width: "100%",
-                                  borderRadius: 16,
-                                  border: "1px solid rgba(79,112,107,0.10)",
-                                }}
-                              />
+                              <div style={previewShellStyle}>
+                                <img
+                                  src={previewUrl}
+                                  alt={`Evidence item ${part.partIndex + 1}`}
+                                  className="evidence-preview-image"
+                                  style={{
+                                    width: "100%",
+                                    maxHeight: 560,
+                                    objectFit: "contain",
+                                    borderRadius: 16,
+                                    border: "1px solid rgba(79,112,107,0.10)",
+                                    display: "block",
+                                  }}
+                                />
+                              </div>
                             )}
 
                             {previewUrl && kind === "video" && (
-                              <video
-                                src={previewUrl}
-                                controls
-                                preload="metadata"
-                                className="evidence-preview-video"
-                                style={{
-                                  width: "100%",
-                                  borderRadius: 16,
-                                  border: "1px solid rgba(79,112,107,0.10)",
-                                }}
-                              />
+                              <div style={previewShellStyle}>
+                                <video
+                                  src={previewUrl}
+                                  controls
+                                  preload="metadata"
+                                  className="evidence-preview-video"
+                                  style={{
+                                    width: "100%",
+                                    maxHeight: 560,
+                                    borderRadius: 16,
+                                    border: "1px solid rgba(79,112,107,0.10)",
+                                    background: "#eef2ef",
+                                  }}
+                                />
+                              </div>
                             )}
 
                             {previewUrl && kind === "audio" && (
-                              <div
-                                style={{
-                                  padding: 14,
-                                  borderRadius: 14,
-                                  background: "rgba(255,255,255,0.42)",
-                                  border: "1px solid rgba(79,112,107,0.08)",
-                                }}
-                              >
+                              <div style={previewShellStyle}>
                                 <audio
                                   src={previewUrl}
                                   controls
@@ -1951,7 +2106,7 @@ export default function EvidenceDetailPage() {
                             )}
 
                             {previewUrl && kind === "pdf" && (
-                              <div>
+                              <div style={previewShellStyle}>
                                 <iframe
                                   src={previewUrl}
                                   title={`Evidence PDF item ${part.partIndex + 1}`}
@@ -2051,14 +2206,14 @@ export default function EvidenceDetailPage() {
                         display: "flex",
                         flexWrap: "wrap",
                         gap: 10,
-                        marginBottom: 14,
+                        marginBottom: 16,
                       }}
                     >
                       <Button
                         variant="secondary"
                         onClick={handleOpenOriginal}
                         disabled={!originalDownloadUrl || isDeleted}
-                        className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
+                        className={compactButtonClass}
                         style={landingSecondaryButtonStyle}
                       >
                         Open Original
@@ -2068,30 +2223,33 @@ export default function EvidenceDetailPage() {
                         variant="secondary"
                         onClick={handleDownloadOriginal}
                         disabled={!originalDownloadUrl || isDeleted}
-                        className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
-                        style={landingSecondaryButtonStyle}
+                        className={compactButtonClass}
+                        style={landingSoftAccentButtonStyle}
                       >
                         Download Original
                       </Button>
                     </div>
 
                     {originalPreviewUrl && originalKind === "image" && (
-                      <div style={{ marginBottom: 12 }}>
+                      <div style={previewShellStyle}>
                         <img
                           src={originalPreviewUrl}
                           alt="Evidence preview"
                           className="evidence-preview-image"
                           style={{
                             width: "100%",
+                            maxHeight: 620,
+                            objectFit: "contain",
                             borderRadius: 16,
                             border: "1px solid rgba(79,112,107,0.10)",
+                            display: "block",
                           }}
                         />
                       </div>
                     )}
 
                     {originalPreviewUrl && originalKind === "video" && (
-                      <div style={{ marginBottom: 12 }}>
+                      <div style={previewShellStyle}>
                         <video
                           src={originalPreviewUrl}
                           controls
@@ -2099,23 +2257,17 @@ export default function EvidenceDetailPage() {
                           className="evidence-preview-video"
                           style={{
                             width: "100%",
+                            maxHeight: 620,
                             borderRadius: 16,
                             border: "1px solid rgba(79,112,107,0.10)",
+                            background: "#eef2ef",
                           }}
                         />
                       </div>
                     )}
 
                     {originalPreviewUrl && originalKind === "audio" && (
-                      <div
-                        style={{
-                          marginBottom: 12,
-                          padding: 14,
-                          borderRadius: 14,
-                          background: "rgba(255,255,255,0.42)",
-                          border: "1px solid rgba(79,112,107,0.08)",
-                        }}
-                      >
+                      <div style={previewShellStyle}>
                         <audio
                           src={originalPreviewUrl}
                           controls
@@ -2126,7 +2278,7 @@ export default function EvidenceDetailPage() {
                     )}
 
                     {originalPreviewUrl && originalKind === "pdf" && (
-                      <div style={{ marginBottom: 12 }}>
+                      <div style={previewShellStyle}>
                         <iframe
                           src={originalPreviewUrl}
                           title="Original PDF evidence"
@@ -2193,7 +2345,7 @@ export default function EvidenceDetailPage() {
               variant="secondary"
               onClick={() => setAssignCaseModalOpen(false)}
               disabled={actionBusy}
-              className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
+              className={compactButtonClass}
               style={landingSecondaryButtonStyle}
             >
               Cancel
@@ -2201,7 +2353,7 @@ export default function EvidenceDetailPage() {
             <Button
               onClick={handleConfirmAssignCase}
               disabled={actionBusy || !selectedCaseId}
-              className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
+              className={compactButtonClass}
               style={landingPrimaryButtonStyle}
             >
               {actionBusy ? "Saving..." : caseId ? "Move" : "Add"}
@@ -2246,7 +2398,7 @@ export default function EvidenceDetailPage() {
               variant="secondary"
               onClick={() => setLockModalOpen(false)}
               disabled={actionBusy}
-              className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
+              className={compactButtonClass}
               style={landingSecondaryButtonStyle}
             >
               Cancel
@@ -2254,8 +2406,8 @@ export default function EvidenceDetailPage() {
             <Button
               onClick={handleConfirmLock}
               disabled={actionBusy}
-              className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
-              style={landingDangerButtonStyle}
+              className={compactButtonClass}
+              style={landingBronzeButtonStyle}
             >
               {actionBusy ? "Locking..." : "Lock permanently"}
             </Button>
@@ -2268,7 +2420,7 @@ export default function EvidenceDetailPage() {
             <li style={{ marginBottom: 8 }}>• The evidence cannot be edited</li>
             <li>• It becomes legally sealed</li>
           </ul>
-          <p style={{ marginTop: 16, fontWeight: 700, color: "#fca5a5" }}>
+          <p style={{ marginTop: 16, fontWeight: 700, color: "#f2d8bc" }}>
             This action is irreversible.
           </p>
         </div>
@@ -2284,7 +2436,7 @@ export default function EvidenceDetailPage() {
               variant="secondary"
               onClick={() => setArchiveModalOpen(false)}
               disabled={actionBusy}
-              className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
+              className={compactButtonClass}
               style={landingSecondaryButtonStyle}
             >
               Cancel
@@ -2292,7 +2444,7 @@ export default function EvidenceDetailPage() {
             <Button
               onClick={handleConfirmArchive}
               disabled={actionBusy}
-              className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
+              className={compactButtonClass}
               style={landingPrimaryButtonStyle}
             >
               {actionBusy ? "Archiving..." : "Archive"}
@@ -2320,7 +2472,7 @@ export default function EvidenceDetailPage() {
               variant="secondary"
               onClick={() => setDeleteModalOpen(false)}
               disabled={actionBusy}
-              className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
+              className={compactButtonClass}
               style={landingSecondaryButtonStyle}
             >
               Cancel
@@ -2328,7 +2480,7 @@ export default function EvidenceDetailPage() {
             <Button
               onClick={handleConfirmDelete}
               disabled={actionBusy}
-              className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
+              className={compactButtonClass}
               style={landingDangerButtonStyle}
             >
               {actionBusy ? "Deleting..." : "Delete Evidence"}
