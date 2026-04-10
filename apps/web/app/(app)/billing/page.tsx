@@ -103,7 +103,7 @@ export default function BillingPage() {
       ({
         border: "1px solid rgba(183,157,132,0.18)",
         boxShadow:
-          "0 22px 42px rgba(0,0,0,0.16), inset 0 1px 0 rgba(255,255,255,0.03)",
+          "0 18px 36px rgba(0,0,0,0.08), inset 0 1px 0 rgba(255,255,255,0.45)",
       }) as const,
     []
   );
@@ -111,14 +111,14 @@ export default function BillingPage() {
   const primaryVelvetButtonStyle = useMemo(
     () =>
       ({
-        borderColor: "rgba(158,216,207,0.14)",
-        color: "#aebbb6",
+        borderColor: "rgba(79,112,107,0.14)",
+        color: "#21353a",
         background:
-          "linear-gradient(180deg, rgba(62,98,96,0.26) 0%, rgba(14,30,34,0.38) 100%)",
+          "linear-gradient(180deg, rgba(255,255,255,0.72) 0%, rgba(244,246,244,0.92) 100%)",
         boxShadow:
-          "inset 0 1px 0 rgba(255,255,255,0.04), 0 14px 28px rgba(0,0,0,0.08)",
-        backdropFilter: "blur(10px)",
-        WebkitBackdropFilter: "blur(10px)",
+          "0 10px 22px rgba(0,0,0,0.06), inset 0 1px 0 rgba(255,255,255,0.65)",
+        backdropFilter: "blur(6px)",
+        WebkitBackdropFilter: "blur(6px)",
       }) as const,
     []
   );
@@ -126,16 +126,14 @@ export default function BillingPage() {
   const secondaryVelvetButtonStyle = useMemo(
     () =>
       ({
-        borderColor: "rgba(79,112,107,0.18)",
-        color: "#aebbb6",
-        backgroundImage:
-          "linear-gradient(180deg, rgba(8,20,24,0.78) 0%, rgba(7,18,22,0.88) 100%), url('/images/site-velvet-bg.webp.png')",
-        backgroundSize: "cover",
-        backgroundPosition: "center",
+        borderColor: "rgba(79,112,107,0.16)",
+        color: "#2a3b40",
+        background:
+          "linear-gradient(180deg, rgba(248,249,246,0.64) 0%, rgba(236,239,236,0.84) 100%)",
         boxShadow:
-          "inset 0 1px 0 rgba(255,255,255,0.03), 0 14px 28px rgba(0,0,0,0.10)",
-        backdropFilter: "blur(10px)",
-        WebkitBackdropFilter: "blur(10px)",
+          "0 10px 20px rgba(0,0,0,0.05), inset 0 1px 0 rgba(255,255,255,0.55)",
+        backdropFilter: "blur(6px)",
+        WebkitBackdropFilter: "blur(6px)",
       }) as const,
     []
   );
@@ -143,11 +141,11 @@ export default function BillingPage() {
   const innerVelvetCardStyle = useMemo(
     () =>
       ({
-        border: "1px solid rgba(158,216,207,0.14)",
+        border: "1px solid rgba(79,112,107,0.10)",
         boxShadow:
-          "inset 0 1px 0 rgba(255,255,255,0.04), 0 14px 28px rgba(0,0,0,0.08)",
-        backdropFilter: "blur(10px)",
-        WebkitBackdropFilter: "blur(10px)",
+          "inset 0 1px 0 rgba(255,255,255,0.42), 0 12px 26px rgba(0,0,0,0.06)",
+        backdropFilter: "blur(8px)",
+        WebkitBackdropFilter: "blur(8px)",
       }) as const,
     []
   );
@@ -161,11 +159,11 @@ export default function BillingPage() {
             marginBottom: 0,
             fontSize: 14,
             lineHeight: 1.72,
-            color: "rgba(201,211,208,0.76)",
+            color: "#5d6d71",
           }}
         >
           Available usage credits:{" "}
-          <span style={{ color: "#e7efec", fontWeight: 700 }}>{credits}</span>
+          <span style={{ color: "#1f3438", fontWeight: 700 }}>{credits}</span>
         </p>
       );
     }
@@ -178,11 +176,11 @@ export default function BillingPage() {
             marginBottom: 0,
             fontSize: 14,
             lineHeight: 1.72,
-            color: "rgba(201,211,208,0.76)",
+            color: "#5d6d71",
           }}
         >
           Included team seats:{" "}
-          <span style={{ color: "#e7efec", fontWeight: 700 }}>{teamSeats}</span>
+          <span style={{ color: "#1f3438", fontWeight: 700 }}>{teamSeats}</span>
         </p>
       );
     }
@@ -195,7 +193,7 @@ export default function BillingPage() {
             marginBottom: 0,
             fontSize: 14,
             lineHeight: 1.72,
-            color: "rgba(201,211,208,0.76)",
+            color: "#5d6d71",
           }}
         >
           Upgrade when you need more verification, reporting, and sharing capacity.
@@ -210,7 +208,7 @@ export default function BillingPage() {
           marginBottom: 0,
           fontSize: 14,
           lineHeight: 1.72,
-          color: "rgba(201,211,208,0.76)",
+          color: "#5d6d71",
         }}
       >
         Your subscription is active and ready for continued evidence workflows.
@@ -236,16 +234,16 @@ export default function BillingPage() {
                 style={{
                   display: "inline-flex",
                   alignItems: "center",
-                  gap: 8,
+                  gap: "0.72rem",
                   borderRadius: 999,
                   border: "1px solid rgba(255,255,255,0.10)",
-                  background: "rgba(255,255,255,0.04)",
+                  background: "rgba(255,255,255,0.055)",
                   padding: "8px 16px",
                   fontSize: "0.68rem",
                   fontWeight: 500,
                   textTransform: "uppercase",
                   letterSpacing: "0.28em",
-                  color: "#afbbb7",
+                  color: "#dce3e0",
                   boxShadow: "0 10px 24px rgba(0,0,0,0.08)",
                   backdropFilter: "blur(10px)",
                   WebkitBackdropFilter: "blur(10px)",
@@ -253,19 +251,20 @@ export default function BillingPage() {
               >
                 <span
                   style={{
-                    width: 4,
-                    height: 4,
+                    width: 6,
+                    height: 6,
                     borderRadius: 999,
                     background: "#b79d84",
-                    opacity: 0.8,
+                    opacity: 0.95,
                     display: "inline-block",
+                    flexShrink: 0,
                   }}
                 />
                 Billing
               </div>
 
               <h1
-                className="mt-5 max-w-[760px] text-[1.72rem] font-medium leading-[1.02] tracking-[-0.045em] text-[#d9e2df] md:text-[2.22rem] lg:text-[2.72rem]"
+                className="mt-5 max-w-[760px] text-[1.72rem] font-medium leading-[1.02] tracking-[-0.045em] text-[#e7ece9] md:text-[2.22rem] lg:text-[2.72rem]"
                 style={{ margin: "20px 0 0" }}
               >
                 Manage your billing workspace{" "}
@@ -280,15 +279,15 @@ export default function BillingPage() {
                   fontSize: "0.95rem",
                   lineHeight: 1.8,
                   letterSpacing: "-0.006em",
-                  color: "#aab5b2",
+                  color: "#c7cfcc",
                 }}
               >
                 Review your{" "}
-                <span style={{ color: "#cfd8d5" }}>current subscription</span>,
+                <span style={{ color: "#e6ebe8" }}>current subscription</span>,
                 switch between plans when needed, and manage{" "}
-                <span style={{ color: "#bbc7c3" }}>credits</span>,{" "}
-                <span style={{ color: "#d2dcd8" }}>team access</span>, and{" "}
-                <span style={{ color: "#d9ccbf" }}>payment upgrades</span> from one
+                <span style={{ color: "#bfe8df" }}>credits</span>,{" "}
+                <span style={{ color: "#e6ebe8" }}>team access</span>, and{" "}
+                <span style={{ color: "#d6b89d" }}>payment upgrades</span> from one
                 place.
               </p>
             </div>
@@ -311,19 +310,18 @@ export default function BillingPage() {
           >
             <div className="absolute inset-0">
               <img
-                src="/images/site-velvet-bg.webp.png"
+                src="/images/panel-silver.webp.png"
                 alt=""
-                className="h-full w-full scale-[1.12] object-cover object-center"
+                className="h-full w-full object-cover object-center"
               />
             </div>
-            <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(8,20,24,0.82)_0%,rgba(7,18,22,0.88)_100%)]" />
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_14%,rgba(158,216,207,0.05),transparent_28%)]" />
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_86%_18%,rgba(214,184,157,0.04),transparent_24%)]" />
+            <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.22)_0%,rgba(245,247,244,0.38)_45%,rgba(236,239,236,0.48)_100%)]" />
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_14%,rgba(255,255,255,0.32),transparent_30%)]" />
 
             <div className="relative z-10 p-6 md:p-7">
-              <div className="mb-5 text-[1.1rem] font-semibold tracking-[-0.02em] text-[#d2dbd8]">
-                <span style={{ color: "#d8e0dd" }}>Current</span>{" "}
-                <span style={{ color: "#d6b89d" }}>Plan</span>
+              <div className="mb-5 text-[1.1rem] font-semibold tracking-[-0.02em] text-[#21353a]">
+                <span style={{ color: "#21353a" }}>Current</span>{" "}
+                <span style={{ color: "#9b826b" }}>Plan</span>
               </div>
 
               {loading ? (
@@ -333,7 +331,7 @@ export default function BillingPage() {
                     style={{
                       ...innerVelvetCardStyle,
                       background:
-                        "linear-gradient(180deg, rgba(62,98,96,0.26) 0%, rgba(14,30,34,0.38) 100%)",
+                        "linear-gradient(180deg, rgba(255,255,255,0.58) 0%, rgba(243,245,242,0.90) 100%)",
                     }}
                   >
                     <Skeleton width="100%" height="20px" />
@@ -343,7 +341,7 @@ export default function BillingPage() {
                     style={{
                       ...innerVelvetCardStyle,
                       background:
-                        "linear-gradient(180deg, rgba(62,98,96,0.26) 0%, rgba(14,30,34,0.38) 100%)",
+                        "linear-gradient(180deg, rgba(255,255,255,0.58) 0%, rgba(243,245,242,0.90) 100%)",
                     }}
                   >
                     <Skeleton width="60%" height="16px" />
@@ -360,14 +358,13 @@ export default function BillingPage() {
                 >
                   <div className="absolute inset-0">
                     <img
-                      src="/images/site-velvet-bg.webp.png"
+                      src="/images/panel-silver.webp.png"
                       alt=""
-                      className="h-full w-full scale-[1.12] object-cover object-center"
+                      className="h-full w-full object-cover object-center"
                     />
                   </div>
-                  <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(14,31,34,0.74)_0%,rgba(8,20,24,0.90)_100%)]" />
-                  <div className="absolute inset-0 bg-[radial-gradient(circle_at_16%_18%,rgba(158,216,207,0.08),transparent_30%)]" />
-                  <div className="absolute inset-0 bg-[radial-gradient(circle_at_85%_20%,rgba(214,184,157,0.06),transparent_24%)]" />
+                  <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.20)_0%,rgba(245,247,244,0.42)_100%)]" />
+                  <div className="absolute inset-0 bg-[radial-gradient(circle_at_16%_18%,rgba(255,255,255,0.30),transparent_30%)]" />
 
                   <div className="relative z-10">
                     <div
@@ -377,7 +374,7 @@ export default function BillingPage() {
                         fontWeight: 700,
                         letterSpacing: "0.16em",
                         textTransform: "uppercase",
-                        color: "#d6b89d",
+                        color: "#9b826b",
                       }}
                     >
                       Active subscription
@@ -389,11 +386,11 @@ export default function BillingPage() {
                         fontSize: 30,
                         fontWeight: 700,
                         letterSpacing: "-0.05em",
-                        color: "#eef4f1",
+                        color: "#1f3438",
                       }}
                     >
-                      <span style={{ color: "#f3f6f4" }}>{plan}</span>{" "}
-                      <span style={{ color: "#c3ebe2" }}>plan</span>
+                      <span style={{ color: "#1f3438" }}>{plan}</span>{" "}
+                      <span style={{ color: "#3e6b68" }}>plan</span>
                     </p>
 
                     {renderCurrentPlanMeta()}
@@ -409,19 +406,18 @@ export default function BillingPage() {
           >
             <div className="absolute inset-0">
               <img
-                src="/images/site-velvet-bg.webp.png"
+                src="/images/panel-silver.webp.png"
                 alt=""
-                className="h-full w-full scale-[1.12] object-cover object-center"
+                className="h-full w-full object-cover object-center"
               />
             </div>
-            <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(8,20,24,0.82)_0%,rgba(7,18,22,0.88)_100%)]" />
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_14%,rgba(158,216,207,0.05),transparent_28%)]" />
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_86%_18%,rgba(214,184,157,0.04),transparent_24%)]" />
+            <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.22)_0%,rgba(245,247,244,0.38)_45%,rgba(236,239,236,0.48)_100%)]" />
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_14%,rgba(255,255,255,0.32),transparent_30%)]" />
 
             <div className="relative z-10 p-6 md:p-7">
-              <div className="mb-2 text-[1.1rem] font-semibold tracking-[-0.02em] text-[#d2dbd8]">
-                <span style={{ color: "#d8e0dd" }}>Upgrade or</span>{" "}
-                <span style={{ color: "#d6b89d" }}>Switch Plan</span>
+              <div className="mb-2 text-[1.1rem] font-semibold tracking-[-0.02em] text-[#21353a]">
+                <span style={{ color: "#21353a" }}>Upgrade or</span>{" "}
+                <span style={{ color: "#9b826b" }}>Switch Plan</span>
               </div>
 
               <p
@@ -429,7 +425,7 @@ export default function BillingPage() {
                   margin: "0 0 18px",
                   fontSize: 14,
                   lineHeight: 1.75,
-                  color: "rgba(194,204,201,0.76)",
+                  color: "#5d6d71",
                   maxWidth: 700,
                 }}
               >
@@ -444,7 +440,7 @@ export default function BillingPage() {
                     style={{
                       ...innerVelvetCardStyle,
                       background:
-                        "linear-gradient(180deg, rgba(62,98,96,0.26) 0%, rgba(14,30,34,0.38) 100%)",
+                        "linear-gradient(180deg, rgba(255,255,255,0.58) 0%, rgba(243,245,242,0.90) 100%)",
                     }}
                   >
                     <Skeleton width="100%" height="40px" />
@@ -454,7 +450,7 @@ export default function BillingPage() {
                     style={{
                       ...innerVelvetCardStyle,
                       background:
-                        "linear-gradient(180deg, rgba(62,98,96,0.26) 0%, rgba(14,30,34,0.38) 100%)",
+                        "linear-gradient(180deg, rgba(255,255,255,0.58) 0%, rgba(243,245,242,0.90) 100%)",
                     }}
                   >
                     <Skeleton width="100%" height="40px" />

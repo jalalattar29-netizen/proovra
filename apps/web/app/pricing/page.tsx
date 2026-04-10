@@ -141,8 +141,8 @@ export default function MarketingPricingPage() {
 
           <section className="mx-auto max-w-7xl px-6 pb-16 pt-10 md:px-8 md:pb-20 md:pt-14">
             <div className="max-w-[760px]">
-              <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.055] px-4 py-2 text-[0.74rem] font-medium uppercase tracking-[0.2em] text-[#dce3e0] shadow-[0_10px_24px_rgba(0,0,0,0.10)] backdrop-blur-md">
-                <span className="h-1.5 w-1.5 rounded-full bg-[#b79d84] opacity-90" />
+<div className="inline-flex items-center gap-[0.72rem] rounded-full border border-white/10 bg-white/[0.055] px-5 py-2 text-[0.74rem] font-medium uppercase tracking-[0.2em] text-[#dce3e0] shadow-[0_10px_24px_rgba(0,0,0,0.10)] backdrop-blur-md">
+  <span className="block h-[6px] w-[6px] shrink-0 rounded-full bg-[#b79d84] opacity-95" />
                 Pricing
               </div>
 
@@ -206,71 +206,8 @@ export default function MarketingPricingPage() {
               const isHovered = hoveredPlan === plan.key;
               const isHighlighted = !!plan.highlighted;
               const isBronze = plan.accent === "bronze";
-              const isTeam = plan.key === "TEAM";
-              const isFree = plan.key === "FREE";
               const ctaHref = hasSession ? appBilling : appRegister;
               const ctaLabel = hasSession ? "Go to Billing" : "Sign up";
-
-              const pricingButtonStyle = isHighlighted
-                ? {
-                    borderColor: "rgba(183,157,132,0.40)",
-                    color: "#edf3f0",
-                    backgroundImage:
-                      "linear-gradient(180deg, rgba(255,255,255,0.14) 0%, rgba(255,255,255,0.03) 34%, transparent 100%), url('/images/site-velvet-bg.webp.png')",
-                    backgroundSize: "cover",
-                    backgroundPosition: "center",
-                    boxShadow:
-                      isHovered
-                        ? "inset 0 1px 0 rgba(255,255,255,0.08), 0 16px 34px rgba(18,46,49,0.24)"
-                        : "inset 0 1px 0 rgba(255,255,255,0.07), 0 12px 26px rgba(18,46,49,0.18)",
-                  }
-                : isBronze
-                  ? {
-                      borderColor: "rgba(183,157,132,0.46)",
-                      color: "#d9c1ab",
-                      backgroundImage:
-                        "linear-gradient(180deg, rgba(255,255,255,0.12) 0%, rgba(255,255,255,0.025) 34%, transparent 100%), url('/images/site-velvet-bg.webp.png')",
-                      backgroundSize: "cover",
-                      backgroundPosition: "center",
-                      boxShadow:
-                        isHovered
-                          ? "inset 0 1px 0 rgba(255,255,255,0.06), 0 15px 32px rgba(58,39,25,0.20)"
-                          : "inset 0 1px 0 rgba(255,255,255,0.05), 0 10px 24px rgba(58,39,25,0.16)",
-                    }
-                  : isTeam
-                    ? {
-                        borderColor: "rgba(183,157,132,0.40)",
-                        color: "#e5ece8",
-                        backgroundImage:
-                          "linear-gradient(180deg, rgba(255,255,255,0.12) 0%, rgba(255,255,255,0.025) 34%, transparent 100%), url('/images/site-velvet-bg.webp.png')",
-                        backgroundSize: "cover",
-                        backgroundPosition: "center",
-                        boxShadow:
-                          isHovered
-                            ? "inset 0 1px 0 rgba(255,255,255,0.08), 0 16px 32px rgba(15,40,43,0.22)"
-                            : "inset 0 1px 0 rgba(255,255,255,0.06), 0 11px 24px rgba(15,40,43,0.17)",
-                      }
-                    : isFree
-                      ? {
-                          borderColor: "rgba(36,55,59,0.14)",
-                          color: "#294047",
-                          background:
-                            "linear-gradient(180deg, rgba(255,255,255,0.96) 0%, rgba(245,247,245,0.92) 100%)",
-                          boxShadow:
-                            isHovered
-                              ? "inset 0 1px 0 rgba(255,255,255,0.90), 0 12px 26px rgba(0,0,0,0.08)"
-                              : "inset 0 1px 0 rgba(255,255,255,0.88), 0 8px 18px rgba(0,0,0,0.06)",
-                        }
-                      : {
-                          borderColor: "rgba(36,55,59,0.10)",
-                          color: "#2a3b40",
-                          background:
-                            "linear-gradient(180deg, rgba(255,255,255,0.54) 0%, rgba(244,246,244,0.84) 100%)",
-                          boxShadow:
-                            isHovered
-                              ? "inset 0 1px 0 rgba(255,255,255,0.78), 0 12px 24px rgba(0,0,0,0.07)"
-                              : "inset 0 1px 0 rgba(255,255,255,0.72), 0 8px 18px rgba(0,0,0,0.05)",
-                        };
 
               return (
                 <div
@@ -394,14 +331,26 @@ export default function MarketingPricingPage() {
                           <a href={ctaHref} onClick={() => handlePlanSelect(plan.title)} className="block">
                             <Button
                               variant="secondary"
-                              className={`pricing-billing-btn w-full rounded-[18px] border px-5 py-3 text-[0.95rem] font-semibold ui-transition ${
+                              className={`pricing-billing-btn w-full rounded-[16px] border px-5 py-3 text-[0.95rem] font-medium ui-transition ${
                                 isHighlighted
                                   ? "hover-button-primary"
-                                  : isBronze || isTeam
-                                    ? "hover-button-secondary"
+                                  : isBronze
+                                    ? "hover-button-bronze"
                                     : "hover-button-secondary"
                               }`}
-                              style={pricingButtonStyle}
+                              style={{
+                                borderColor: isHighlighted
+                                  ? "rgba(158,216,207,0.22)"
+                                  : isBronze
+                                    ? "rgba(183,157,132,0.24)"
+                                    : "rgba(36,55,59,0.10)",
+                                color: isHighlighted ? "#214648" : isBronze ? "#8f7257" : "#2a3b40",
+                                background: isHighlighted
+                                  ? "linear-gradient(180deg, rgba(191,232,223,0.22) 0%, rgba(255,255,255,0.52) 100%)"
+                                  : isBronze
+                                    ? "linear-gradient(180deg, rgba(214,184,157,0.16) 0%, rgba(255,255,255,0.52) 100%)"
+                                    : "linear-gradient(180deg, rgba(255,255,255,0.54) 0%, rgba(244,246,244,0.84) 100%)",
+                              }}
                             >
                               {ctaLabel} ›
                             </Button>

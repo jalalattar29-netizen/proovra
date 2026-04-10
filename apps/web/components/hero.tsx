@@ -18,7 +18,8 @@ function VelvetButton({
   return (
     <a
       href={href}
-className={`group relative inline-flex h-[52px] items-center justify-center overflow-hidden rounded-[15px] border border-transparent px-7 text-[0.98rem] font-semibold ui-transition active:scale-[0.985] md:px-8 ${        bronze
+      className={`group relative inline-flex h-[52px] items-center justify-center overflow-hidden rounded-[15px] border border-transparent px-7 text-[0.98rem] font-semibold ui-transition active:scale-[0.985] md:px-8 ${
+        bronze
           ? "hover-button-bronze"
           : dark
             ? "hover-button-secondary"
@@ -34,26 +35,36 @@ className={`group relative inline-flex h-[52px] items-center justify-center over
       <div
         className={
           bronze
-            ? "absolute inset-0 rounded-[15px] border border-[rgba(183,157,132,0.46)] shadow-[inset_0_1px_0_rgba(255,255,255,0.05),0_10px_26px_rgba(0,0,0,0.18)]"
+            ? "absolute inset-0 bg-[linear-gradient(180deg,rgba(8,20,24,0.68)_0%,rgba(6,16,20,0.82)_100%)]"
             : dark
-              ? "absolute inset-0 rounded-[15px] border border-[rgba(183,157,132,0.46)] shadow-[inset_0_1px_0_rgba(255,255,255,0.04),0_10px_26px_rgba(0,0,0,0.18)]"
-              : "absolute inset-0 rounded-[15px] border border-[rgba(183,157,132,0.46)] ring-1 ring-white/10 shadow-[inset_0_1px_0_rgba(255,255,255,0.06),0_14px_30px_rgba(21,52,56,0.22)]"
+              ? "absolute inset-0 bg-[linear-gradient(180deg,rgba(7,22,27,0.72)_0%,rgba(5,16,20,0.86)_100%)]"
+              : "absolute inset-0 bg-[linear-gradient(180deg,rgba(9,28,33,0.62)_0%,rgba(6,18,22,0.82)_100%)]"
         }
       />
 
-      <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.12)_0%,rgba(255,255,255,0.025)_35%,transparent_100%)]" />
+      <div
+        className={
+          bronze
+            ? "absolute inset-0 rounded-[15px] border border-[rgba(183,157,132,0.46)] shadow-[inset_0_1px_0_rgba(255,255,255,0.04),0_10px_26px_rgba(0,0,0,0.22)]"
+            : dark
+              ? "absolute inset-0 rounded-[15px] border border-[rgba(183,157,132,0.34)] shadow-[inset_0_1px_0_rgba(255,255,255,0.035),0_10px_26px_rgba(0,0,0,0.24)]"
+              : "absolute inset-0 rounded-[15px] border border-[rgba(183,157,132,0.38)] ring-1 ring-white/8 shadow-[inset_0_1px_0_rgba(255,255,255,0.05),0_14px_30px_rgba(8,24,29,0.28)]"
+        }
+      />
 
-<span
-  className={
-    bronze
-      ? "relative z-10 inline-flex items-center text-[#b79d84]"
-      : dark
-        ? "relative z-10 inline-flex items-center text-[#dce2df]"
-        : "relative z-10 inline-flex items-center text-[#f3f5f4]"
-  }
->
-  {children}
-</span>
+      <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.09)_0%,rgba(255,255,255,0.018)_34%,transparent_100%)]" />
+
+      <span
+        className={
+          bronze
+            ? "relative z-10 inline-flex items-center text-[#b79d84]"
+            : dark
+              ? "relative z-10 inline-flex items-center text-[#dce2df]"
+              : "relative z-10 inline-flex items-center text-[#f3f5f4]"
+        }
+      >
+        {children}
+      </span>
     </a>
   );
 }
@@ -93,12 +104,12 @@ export function Hero({
           <div className="pointer-events-none absolute -left-6 top-44 h-72 w-72 rounded-full bg-[#1d3a40]/20 blur-[120px]" />
 
           <div
-            className={`relative z-10 inline-flex w-fit rounded-full border border-white/10 bg-white/[0.06] px-4 py-2 text-[0.86rem] font-bold uppercase tracking-[0.22em] text-[#dce3e0] shadow-[0_10px_24px_rgba(0,0,0,0.10)] backdrop-blur-md transition-all duration-700 ${
+            className={`relative z-10 inline-flex w-fit items-center gap-[0.72rem] rounded-full border border-white/10 bg-white/[0.06] px-5 py-2 text-[0.86rem] font-bold uppercase tracking-[0.22em] text-[#dce3e0] shadow-[0_10px_24px_rgba(0,0,0,0.10)] backdrop-blur-md transition-all duration-700 ${
               revealed ? "translate-y-0 opacity-100" : "translate-y-3 opacity-0"
             }`}
           >
-            <span className="h-1.5 w-1.5 rounded-full bg-[#b79d84] opacity-90" />
-            Secure Digital Evidence Platform
+            <span className="block h-[6px] w-[6px] shrink-0 rounded-full bg-[#b79d84] opacity-95" />
+            <span className="leading-none">Secure Digital Evidence Platform</span>
           </div>
 
           <div className="relative z-10 mt-5 max-w-[640px]">
@@ -195,7 +206,8 @@ export function Hero({
             <VelvetButton bronze href={sampleReportUrl}>
               <>
                 View sample report
-<ExternalLink className="ml-2 h-[15px] w-[15px] shrink-0 text-[#b79d84] stroke-[2.2]" />              </>
+                <ExternalLink className="ml-2 h-[15px] w-[15px] shrink-0 text-[#b79d84] stroke-[2.2]" />
+              </>
             </VelvetButton>
           </div>
 
