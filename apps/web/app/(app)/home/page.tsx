@@ -66,7 +66,7 @@ export default function HomePage() {
     () =>
       ({
         borderColor: "rgba(158,216,207,0.14)",
-        color: "#d7e0dd",
+        color: "#aebbb6",
         background:
           "linear-gradient(180deg, rgba(62,98,96,0.26) 0%, rgba(14,30,34,0.38) 100%)",
         boxShadow:
@@ -81,7 +81,7 @@ const actionButtonStyle = useMemo(
   () =>
     ({
       borderColor: "rgba(79,112,107,0.18)",
-      color: "#e7efec",
+      color: "#aebbb6",
       backgroundImage:
         "linear-gradient(180deg, rgba(8,20,24,0.78) 0%, rgba(7,18,22,0.88) 100%), url('/images/site-velvet-bg.webp.png')",
       backgroundSize: "cover",
