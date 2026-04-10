@@ -866,37 +866,48 @@ export default function EvidenceDetailPage() {
     }
   };
 
-  const handleDownloadOriginal = async () => {
-    if (!params?.id) return;
+const handleDownloadOriginal = async () => {
+  if (!params?.id) return;
 
-    try {
-      if (!originalDownloadUrl) {
-        const data = await apiFetch(`/v1/evidence/${params.id}/original`);
-        const nextUrl = data?.url ?? data?.publicUrl ?? null;
-        setOriginalPreviewUrl(data?.publicUrl ?? data?.url ?? null);
-        setOriginalDownloadUrl(nextUrl);
-        setOriginalMimeType(data?.mimeType ?? null);
-        setOriginalSizeBytes(data?.sizeBytes ?? null);
-        setOriginalFileName(data?.originalFileName ?? null);
+  try {
+    let downloadUrl = originalDownloadUrl;
+    let filename = originalFileName || "evidence-file";
 
-        if (!nextUrl) {
-          addToast("Original file not available", "info");
-          return;
-        }
+    if (!downloadUrl) {
+      const data = await apiFetch(`/v1/evidence/${params.id}/original`);
+      downloadUrl = data?.url ?? data?.publicUrl ?? null;
 
-        window.open(nextUrl, "_blank", "noopener,noreferrer");
-        return;
+      setOriginalPreviewUrl(data?.publicUrl ?? data?.url ?? null);
+      setOriginalDownloadUrl(downloadUrl);
+      setOriginalMimeType(data?.mimeType ?? null);
+      setOriginalSizeBytes(data?.sizeBytes ?? null);
+      setOriginalFileName(data?.originalFileName ?? null);
+
+      if (data?.originalFileName) {
+        filename = data.originalFileName;
       }
-
-      window.open(originalDownloadUrl, "_blank", "noopener,noreferrer");
-    } catch (err) {
-      captureException(err, {
-        feature: "web_evidence_download_original",
-        evidenceId: params.id,
-      });
-      addToast("Failed to download original", "error");
     }
-  };
+
+    if (!downloadUrl) {
+      addToast("Original file not available", "info");
+      return;
+    }
+
+    const link = document.createElement("a");
+    link.href = downloadUrl;
+    link.download = filename;
+    link.rel = "noopener noreferrer";
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  } catch (err) {
+    captureException(err, {
+      feature: "web_evidence_download_original",
+      evidenceId: params.id,
+    });
+    addToast("Failed to download original", "error");
+  }
+};
 
   const handleOpenPart = (part: EvidencePart) => {
     const url = part.url ?? part.publicUrl ?? null;
@@ -996,21 +1007,21 @@ export default function EvidenceDetailPage() {
     []
   );
 
-  const heroEditButtonStyle = useMemo(
-    () =>
-      ({
-        borderColor: "rgba(183,157,132,0.18)",
-        color: "#eef3f1",
-        background:
-          "linear-gradient(180deg, rgba(36,57,61,0.88) 0%, rgba(13,27,31,0.96) 100%)",
-        boxShadow:
-          "inset 0 1px 0 rgba(255,255,255,0.06), 0 12px 24px rgba(0,0,0,0.16)",
-        textShadow: "0 1px 0 rgba(0,0,0,0.22)",
-        backdropFilter: "blur(10px)",
-        WebkitBackdropFilter: "blur(10px)",
-      }) as const,
-    []
-  );
+const heroEditButtonStyle = useMemo(
+  () =>
+    ({
+      borderColor: "rgba(79,112,107,0.22)",
+      color: "#eef3f1",
+      background:
+        "linear-gradient(180deg, rgba(58,92,95,0.96) 0%, rgba(20,38,42,0.98) 100%)",
+      boxShadow:
+        "inset 0 1px 0 rgba(255,255,255,0.08), 0 16px 34px rgba(18,40,44,0.22)",
+      textShadow: "0 1px 0 rgba(0,0,0,0.22)",
+      backdropFilter: "blur(6px)",
+      WebkitBackdropFilter: "blur(6px)",
+    }) as const,
+  []
+);
 
   const heroSaveButtonStyle = useMemo(
     () =>
@@ -1473,6 +1484,104 @@ export default function EvidenceDetailPage() {
                         : "Single-file record"}
                     </div>
                   </div>
+
+                  <div>
+  <div className="text-[12px] uppercase tracking-[0.14em] text-[#9b826b]">
+    Evidence Composition
+  </div>
+
+  <div className="mt-2 flex flex-wrap gap-2">
+    {partTypeSummary.imageCount > 0 && (
+      <span
+        className="inline-flex items-center rounded-full px-3 py-1.5 text-[0.76rem] font-semibold"
+        style={{
+          border: "1px solid rgba(79,112,107,0.14)",
+          background:
+            "linear-gradient(180deg, rgba(191,232,223,0.24) 0%, rgba(255,255,255,0.55) 100%)",
+          color: "#2d5b59",
+          boxShadow:
+            "inset 0 1px 0 rgba(255,255,255,0.55), 0 6px 14px rgba(41,83,85,0.05)",
+        }}
+      >
+        {partTypeSummary.imageCount} image{partTypeSummary.imageCount > 1 ? "s" : ""}
+      </span>
+    )}
+
+    {partTypeSummary.videoCount > 0 && (
+      <span
+        className="inline-flex items-center rounded-full px-3 py-1.5 text-[0.76rem] font-semibold"
+        style={{
+          border: "1px solid rgba(79,112,107,0.14)",
+          background:
+            "linear-gradient(180deg, rgba(230,238,236,0.86) 0%, rgba(255,255,255,0.62) 100%)",
+          color: "#31484d",
+          boxShadow:
+            "inset 0 1px 0 rgba(255,255,255,0.58), 0 6px 14px rgba(0,0,0,0.04)",
+        }}
+      >
+        {partTypeSummary.videoCount} video{partTypeSummary.videoCount > 1 ? "s" : ""}
+      </span>
+    )}
+
+    {partTypeSummary.audioCount > 0 && (
+      <span
+        className="inline-flex items-center rounded-full px-3 py-1.5 text-[0.76rem] font-semibold"
+        style={{
+          border: "1px solid rgba(183,157,132,0.16)",
+          background:
+            "linear-gradient(180deg, rgba(244,238,232,0.88) 0%, rgba(255,255,255,0.64) 100%)",
+          color: "#7a624d",
+          boxShadow:
+            "inset 0 1px 0 rgba(255,255,255,0.58), 0 6px 14px rgba(92,69,50,0.04)",
+        }}
+      >
+        {partTypeSummary.audioCount} audio
+      </span>
+    )}
+
+    {partTypeSummary.pdfCount > 0 && (
+      <span
+        className="inline-flex items-center rounded-full px-3 py-1.5 text-[0.76rem] font-semibold"
+        style={{
+          border: "1px solid rgba(183,157,132,0.16)",
+          background:
+            "linear-gradient(180deg, rgba(248,243,238,0.9) 0%, rgba(255,255,255,0.66) 100%)",
+          color: "#8a6e57",
+          boxShadow:
+            "inset 0 1px 0 rgba(255,255,255,0.58), 0 6px 14px rgba(92,69,50,0.04)",
+        }}
+      >
+        {partTypeSummary.pdfCount} document{partTypeSummary.pdfCount > 1 ? "s" : ""}
+      </span>
+    )}
+
+    {partTypeSummary.otherCount > 0 && (
+      <span
+        className="inline-flex items-center rounded-full px-3 py-1.5 text-[0.76rem] font-semibold"
+        style={{
+          border: "1px solid rgba(79,112,107,0.12)",
+          background:
+            "linear-gradient(180deg, rgba(240,243,241,0.92) 0%, rgba(255,255,255,0.68) 100%)",
+          color: "#5f6d71",
+          boxShadow:
+            "inset 0 1px 0 rgba(255,255,255,0.56), 0 6px 14px rgba(0,0,0,0.03)",
+        }}
+      >
+        {partTypeSummary.otherCount} other
+      </span>
+    )}
+
+    {partTypeSummary.imageCount === 0 &&
+      partTypeSummary.videoCount === 0 &&
+      partTypeSummary.audioCount === 0 &&
+      partTypeSummary.pdfCount === 0 &&
+      partTypeSummary.otherCount === 0 && (
+        <div className="text-[0.92rem] leading-[1.7] text-[#5d6d71]">
+          Not available
+        </div>
+      )}
+  </div>
+</div>
 
                   <div>
                     <div className="text-[12px] uppercase tracking-[0.14em] text-[#9b826b]">
