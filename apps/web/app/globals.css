@@ -2139,3 +2139,80 @@ body.camera-open {
   color: #f7d98a;
   border-color: rgba(245, 158, 11, 0.24);
 }
+
+/* =========================================================
+   HOME PAGE PREMIUM BRONZE STATUS + VELVET POLISH
+   ========================================================= */
+
+.home-page-shell .home-bronze-status {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 30px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  line-height: 1;
+  color: #8f745c;
+  border: 1px solid rgba(183, 157, 132, 0.26);
+  background: linear-gradient(
+    180deg,
+    rgba(183, 157, 132, 0.16) 0%,
+    rgba(255, 255, 255, 0.08) 100%
+  );
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.22),
+    0 6px 14px rgba(92, 69, 50, 0.08);
+}
+
+.home-page-shell .home-bronze-status:hover {
+  border-color: rgba(183, 157, 132, 0.34);
+  color: #a18369;
+}
+
+.home-page-shell .home-velvet-card {
+  position: relative;
+  overflow: hidden;
+  border-radius: 30px;
+  border: 1px solid rgba(183, 157, 132, 0.20);
+  box-shadow:
+    0 22px 42px rgba(0, 0, 0, 0.16),
+    inset 0 1px 0 rgba(255, 255, 255, 0.03);
+}
+
+.home-page-shell .home-velvet-card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 18% 14%, rgba(158, 216, 207, 0.05), transparent 28%),
+    radial-gradient(circle at 86% 18%, rgba(214, 184, 157, 0.045), transparent 24%);
+  z-index: 0;
+}
+
+.home-page-shell .home-velvet-card > * {
+  position: relative;
+  z-index: 1;
+}
+
+.home-page-shell .home-silver-text {
+  color: #dbe2df;
+}
+
+.home-page-shell .home-silver-text-muted {
+  color: rgba(211, 223, 220, 0.72);
+}
+
+.home-page-shell .home-bronze-outline {
+  border: 1px solid rgba(183, 157, 132, 0.18);
+  background: linear-gradient(
+    135deg,
+    rgba(183, 157, 132, 0.07),
+    rgba(255, 255, 255, 0.025)
+  );
+  box-shadow: 0 14px 28px rgba(0, 0, 0, 0.08);
+}

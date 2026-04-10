@@ -125,17 +125,14 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_84%_22%,rgba(214,184,157,0.06),transparent_18%)]" />
         <div className="absolute inset-0 opacity-[0.03] [background:repeating-linear-gradient(0deg,rgba(255,255,255,0.02)_0px,rgba(255,255,255,0.02)_1px,transparent_1px,transparent_4px)]" />
 
-        <div className="relative z-10 flex min-h-screen flex-col">
-          <div className="blue-shell app-shell-top">
-            <AppHeader hasSession={hasSession} onLogout={handleLogout} />
-          </div>
+<div className="relative z-10 flex min-h-screen flex-col">
+  <AppHeader hasSession={hasSession} onLogout={handleLogout} />
 
-          <main className={`app-content ${isAdminSurface ? "app-content-admin" : ""}`}>
-            {children}
-          </main>
+  <main className={`app-content ${isAdminSurface ? "app-content-admin" : ""}`}>
+    {children}
+  </main>
 
-          {!isAdminSurface ? <Footer /> : null}
-
+  {!isAdminSurface ? <Footer /> : null}
           {!isAdminSurface ? (
             <nav className="app-bottom-nav">
               <div className="container app-bottom-nav-inner">

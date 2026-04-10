@@ -14,7 +14,6 @@ import {
 import { useLocale } from "../../providers";
 import { apiFetch } from "../../../lib/api";
 import { captureException } from "../../../lib/sentry";
-import { MarketingHeader } from "../../../components/header";
 
 type HomeEvidenceItem = {
   id: string;
@@ -57,20 +56,38 @@ export default function HomePage() {
   }, [addToast]);
 
   const secondaryActionButtonStyle = {
-    borderColor: "rgba(214,184,157,0.18)",
-    color: "#eef4f2",
+    borderColor: "rgba(183,157,132,0.18)",
+    color: "#dfe5e3",
     background:
-      "linear-gradient(180deg, rgba(255,255,255,0.055) 0%, rgba(255,255,255,0.02) 100%)",
+      "linear-gradient(180deg, rgba(255,255,255,0.04) 0%, rgba(255,255,255,0.015) 100%)",
     boxShadow: "0 12px 24px rgba(0,0,0,0.14)",
   } as const;
 
   const primaryActionButtonStyle = {
-    borderColor: "rgba(158,216,207,0.24)",
-    color: "#eef4f2",
+    borderColor: "rgba(183,157,132,0.22)",
+    color: "#edf1ef",
     background:
-      "linear-gradient(180deg, rgba(68,114,112,0.96) 0%, rgba(29,58,61,0.98) 100%)",
-    boxShadow: "0 16px 30px rgba(9,27,28,0.24)",
+      "linear-gradient(180deg, rgba(73,113,110,0.92) 0%, rgba(31,58,60,0.96) 100%)",
+    boxShadow: "0 16px 30px rgba(9,27,28,0.22)",
   } as const;
+
+  const bronzeReadyBadgeStyle = {
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    minHeight: 30,
+    padding: "6px 12px",
+    borderRadius: 999,
+    fontSize: 11,
+    fontWeight: 800,
+    letterSpacing: "0.08em",
+    textTransform: "uppercase" as const,
+    border: "1px solid rgba(183,157,132,0.26)",
+    color: "#8f745c",
+    background:
+      "linear-gradient(180deg, rgba(183,157,132,0.16) 0%, rgba(255,255,255,0.08) 100%)",
+    boxShadow: "inset 0 1px 0 rgba(255,255,255,0.24)",
+  };
 
   return (
     <div className="page landing-page home-page-shell">
@@ -83,46 +100,44 @@ export default function HomePage() {
           />
         </div>
 
-        <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(8,18,22,0.84)_0%,rgba(8,18,22,0.74)_34%,rgba(8,18,22,0.68)_70%,rgba(8,18,22,0.74)_100%)]" />
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_16%_14%,rgba(158,216,207,0.09),transparent_24%)]" />
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_84%_22%,rgba(214,184,157,0.06),transparent_18%)]" />
+        <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(8,18,22,0.84)_0%,rgba(8,18,22,0.76)_36%,rgba(8,18,22,0.70)_72%,rgba(8,18,22,0.76)_100%)]" />
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_16%_14%,rgba(158,216,207,0.08),transparent_24%)]" />
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_84%_22%,rgba(214,184,157,0.055),transparent_18%)]" />
         <div className="absolute inset-0 opacity-[0.035] [background:repeating-linear-gradient(0deg,rgba(255,255,255,0.022)_0px,rgba(255,255,255,0.022)_1px,transparent_1px,transparent_4px)]" />
 
-        <div className="relative z-10 min-h-screen">
-          <MarketingHeader />
-
+        <div className="relative z-10">
           <section className="mx-auto max-w-7xl px-6 pb-14 pt-10 md:px-8 md:pb-16 md:pt-14">
             <div className="flex flex-col gap-8 lg:flex-row lg:items-end lg:justify-between">
               <div className="max-w-[760px]">
-                <div className="inline-flex rounded-full border border-white/10 bg-white/[0.055] px-4 py-2 text-[0.74rem] font-medium uppercase tracking-[0.2em] text-[#dce3e0] shadow-[0_10px_24px_rgba(0,0,0,0.10)] backdrop-blur-md">
+                <div className="inline-flex rounded-full border border-white/10 bg-white/[0.055] px-4 py-2 text-[0.74rem] font-medium uppercase tracking-[0.2em] text-[#d7dfdc] shadow-[0_10px_24px_rgba(0,0,0,0.10)] backdrop-blur-md">
                   Dashboard
                 </div>
 
-                <h1 className="mt-5 max-w-[700px] text-[1.62rem] font-medium leading-[1.01] tracking-[-0.04em] text-[#edf1ef] md:text-[2.18rem] lg:text-[2.7rem]">
+                <h1 className="mt-5 max-w-[700px] text-[1.62rem] font-medium leading-[1.01] tracking-[-0.04em] text-[#dfe5e3] md:text-[2.18rem] lg:text-[2.7rem]">
                   Your evidence workspace,{" "}
-                  <span className="text-[#bfe8df]">ready for action</span>.
+                  <span className="text-[#cfd8d5]">ready for action</span>.
                 </h1>
 
-                <p className="mt-5 max-w-[690px] text-[0.94rem] font-normal leading-[1.78] tracking-[-0.006em] text-[#c7cfcc] md:text-[0.98rem]">
-                  Review your <span className="text-[#e7ece9]">latest evidence</span>, continue active{" "}
-                  <span className="text-[#bfe8df]">verification workflows</span>, and move quickly between{" "}
-                  <span className="text-[#e6ebe8]">capture</span>,{" "}
-                  <span className="text-[#d6b89d]">reports</span>, and custody-ready records.
+                <p className="mt-5 max-w-[690px] text-[0.94rem] font-normal leading-[1.78] tracking-[-0.006em] text-[#b7c0bd] md:text-[0.98rem]">
+                  Review your <span className="text-[#d5ddda]">latest evidence</span>, continue active{" "}
+                  <span className="text-[#c5cfcb]">verification workflows</span>, and move quickly between{" "}
+                  <span className="text-[#d8dfdc]">capture</span>,{" "}
+                  <span className="text-[#c9b5a0]">reports</span>, and custody-ready records.
                 </p>
 
                 <div className="mt-6 flex flex-wrap gap-2.5">
-                  <div className="rounded-full border border-white/10 bg-white/[0.055] px-3.5 py-2 text-[0.78rem] font-normal text-[#d7dfdb] shadow-[0_8px_18px_rgba(0,0,0,0.08)] backdrop-blur-md">
-                    <span className="mr-2 text-[#9dd2ca]">✓</span>
+                  <div className="rounded-full border border-white/10 bg-white/[0.055] px-3.5 py-2 text-[0.78rem] font-normal text-[#cdd5d2] shadow-[0_8px_18px_rgba(0,0,0,0.08)] backdrop-blur-md">
+                    <span className="mr-2 text-[#8fa8a2]">✓</span>
                     Active evidence at a glance
                   </div>
 
-                  <div className="rounded-full border border-white/10 bg-white/[0.055] px-3.5 py-2 text-[0.78rem] font-normal text-[#d7dfdb] shadow-[0_8px_18px_rgba(0,0,0,0.08)] backdrop-blur-md">
-                    <span className="mr-2 text-[#9dd2ca]">✓</span>
+                  <div className="rounded-full border border-white/10 bg-white/[0.055] px-3.5 py-2 text-[0.78rem] font-normal text-[#cdd5d2] shadow-[0_8px_18px_rgba(0,0,0,0.08)] backdrop-blur-md">
+                    <span className="mr-2 text-[#8fa8a2]">✓</span>
                     Fast access to core workflows
                   </div>
 
-                  <div className="rounded-full border border-[rgba(214,184,157,0.24)] bg-[linear-gradient(180deg,rgba(183,157,132,0.08)_0%,rgba(255,255,255,0.03)_100%)] px-3.5 py-2 text-[0.78rem] font-normal text-[#e1d4c7] shadow-[0_8px_18px_rgba(0,0,0,0.08)] backdrop-blur-md">
-                    <span className="mr-2 text-[#d6b89d]">✓</span>
+                  <div className="rounded-full border border-[rgba(214,184,157,0.22)] bg-[linear-gradient(180deg,rgba(183,157,132,0.08)_0%,rgba(255,255,255,0.03)_100%)] px-3.5 py-2 text-[0.78rem] font-normal text-[#d7c8ba] shadow-[0_8px_18px_rgba(0,0,0,0.08)] backdrop-blur-md">
+                    <span className="mr-2 text-[#b89978]">✓</span>
                     Trusted custody status visible
                   </div>
                 </div>
@@ -147,9 +162,9 @@ export default function HomePage() {
                 <Card
                   className="relative overflow-hidden rounded-[30px] border bg-transparent p-0 shadow-none"
                   style={{
-                    border: "1px solid rgba(183,157,132,0.22)",
+                    border: "1px solid rgba(183,157,132,0.20)",
                     boxShadow:
-                      "0 22px 42px rgba(0, 0, 0, 0.16), inset 0 1px 0 rgba(255,255,255,0.04)",
+                      "0 22px 42px rgba(0, 0, 0, 0.16), inset 0 1px 0 rgba(255,255,255,0.03)",
                   }}
                 >
                   <div className="absolute inset-0">
@@ -159,18 +174,17 @@ export default function HomePage() {
                       className="h-full w-full object-cover object-center scale-[1.12]"
                     />
                   </div>
-
-                  <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(8,20,24,0.78)_0%,rgba(7,18,22,0.84)_100%)]" />
-                  <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_14%,rgba(158,216,207,0.09),transparent_28%)]" />
-                  <div className="absolute inset-0 bg-[radial-gradient(circle_at_86%_18%,rgba(214,184,157,0.06),transparent_24%)]" />
+                  <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(8,20,24,0.82)_0%,rgba(7,18,22,0.88)_100%)]" />
+                  <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_14%,rgba(158,216,207,0.055),transparent_28%)]" />
+                  <div className="absolute inset-0 bg-[radial-gradient(circle_at_86%_18%,rgba(214,184,157,0.045),transparent_24%)]" />
 
                   <div className="relative z-10 p-6 md:p-7">
                     <div className="mb-5 flex items-center justify-between gap-4">
-                      <div className="text-[1rem] font-semibold tracking-[-0.02em] text-[#edf4f1]">
+                      <div className="text-[1rem] font-semibold tracking-[-0.02em] text-[#dbe2df]">
                         {t("recentEvidence")}
                       </div>
 
-                      <div className="inline-flex items-center rounded-full border border-[rgba(214,184,157,0.18)] bg-[rgba(255,255,255,0.04)] px-3 py-1.5 text-[0.74rem] font-medium uppercase tracking-[0.18em] text-[#d9d6cf]">
+                      <div className="inline-flex items-center rounded-full border border-[rgba(183,157,132,0.18)] bg-[rgba(255,255,255,0.035)] px-3 py-1.5 text-[0.74rem] font-medium uppercase tracking-[0.18em] text-[#cfc3b6]">
                         Active records
                       </div>
                     </div>
@@ -212,7 +226,7 @@ export default function HomePage() {
                       ) : (
                         items.map((item) => {
                           const row = (
-                            <div className="rounded-[24px] border border-[rgba(183,157,132,0.16)] bg-[linear-gradient(180deg,rgba(10,26,31,0.84)_0%,rgba(8,20,25,0.92)_100%)] p-1 transition-all duration-200 hover:-translate-y-[1px] hover:border-[rgba(214,184,157,0.24)] hover:shadow-[0_16px_28px_rgba(0,0,0,0.14)]">
+                            <div className="rounded-[24px] border border-[rgba(183,157,132,0.14)] bg-[linear-gradient(180deg,rgba(9,22,27,0.88)_0%,rgba(8,18,23,0.94)_100%)] p-1 transition-all duration-200 hover:-translate-y-[1px] hover:border-[rgba(183,157,132,0.24)] hover:shadow-[0_16px_28px_rgba(0,0,0,0.14)]">
                               <ListRow
                                 title={item.title || "Digital Evidence Record"}
                                 subtitle={item.displaySubtitle}
@@ -221,7 +235,8 @@ export default function HomePage() {
                                     <Badge tone="signed">{t("statusSigned")}</Badge>
                                   ) : item.status === "PROCESSING" ? (
                                     <Badge tone="processing">{t("statusProcessing")}</Badge>
-                                  ) : (
+                                  ) : item.status === "REPORTED" ? (
+<span className="home-bronze-status">Report Ready</span>                                  ) : (
                                     <Badge tone="ready">{t("statusReady")}</Badge>
                                   )
                                 }
@@ -245,9 +260,9 @@ export default function HomePage() {
                 <Card
                   className="relative overflow-hidden rounded-[30px] border bg-transparent p-0 shadow-none"
                   style={{
-                    border: "1px solid rgba(183,157,132,0.22)",
+                    border: "1px solid rgba(183,157,132,0.20)",
                     boxShadow:
-                      "0 22px 42px rgba(0, 0, 0, 0.16), inset 0 1px 0 rgba(255,255,255,0.04)",
+                      "0 22px 42px rgba(0, 0, 0, 0.16), inset 0 1px 0 rgba(255,255,255,0.03)",
                   }}
                 >
                   <div className="absolute inset-0">
@@ -257,13 +272,12 @@ export default function HomePage() {
                       className="h-full w-full object-cover object-center scale-[1.12]"
                     />
                   </div>
-
-                  <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(8,20,24,0.78)_0%,rgba(7,18,22,0.84)_100%)]" />
-                  <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_14%,rgba(158,216,207,0.09),transparent_28%)]" />
-                  <div className="absolute inset-0 bg-[radial-gradient(circle_at_86%_18%,rgba(214,184,157,0.06),transparent_24%)]" />
+                  <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(8,20,24,0.82)_0%,rgba(7,18,22,0.88)_100%)]" />
+                  <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_14%,rgba(158,216,207,0.055),transparent_28%)]" />
+                  <div className="absolute inset-0 bg-[radial-gradient(circle_at_86%_18%,rgba(214,184,157,0.045),transparent_24%)]" />
 
                   <div className="relative z-10 p-6 md:p-7">
-                    <div className="mb-5 text-[1rem] font-semibold tracking-[-0.02em] text-[#edf4f1]">
+                    <div className="mb-5 text-[1rem] font-semibold tracking-[-0.02em] text-[#dbe2df]">
                       Quick Actions
                     </div>
 
@@ -337,9 +351,9 @@ export default function HomePage() {
                     <div
                       className="mt-5 rounded-[24px] border px-4 py-4"
                       style={{
-                        border: "1px solid rgba(214,184,157,0.20)",
+                        border: "1px solid rgba(183,157,132,0.20)",
                         background:
-                          "linear-gradient(135deg, rgba(214,184,157,0.08), rgba(158,216,207,0.06))",
+                          "linear-gradient(135deg, rgba(183,157,132,0.07), rgba(255,255,255,0.025))",
                         boxShadow: "0 14px 28px rgba(0,0,0,0.08)",
                       }}
                     >
@@ -348,33 +362,33 @@ export default function HomePage() {
                           className="flex h-11 w-11 items-center justify-center rounded-full text-[1rem] font-semibold"
                           style={{
                             background:
-                              "linear-gradient(180deg, rgba(214,184,157,0.18) 0%, rgba(158,216,207,0.10) 100%)",
-                            color: "#efd0b2",
-                            border: "1px solid rgba(214,184,157,0.22)",
-                            boxShadow: "0 0 18px rgba(214,184,157,0.08)",
+                              "linear-gradient(180deg, rgba(183,157,132,0.16) 0%, rgba(255,255,255,0.05) 100%)",
+                            color: "#d4b18f",
+                            border: "1px solid rgba(183,157,132,0.20)",
+                            boxShadow: "0 0 18px rgba(183,157,132,0.07)",
                           }}
                         >
                           ✓
                         </div>
 
                         <div>
-                          <div className="font-bold text-[#edf4f1]">
+                          <div className="font-bold text-[#dfe6e3]">
                             Trusted chain of custody
                           </div>
-                          <div className="mt-1 text-[12px] text-[rgba(219,235,248,0.72)]">
+                          <div className="mt-1 text-[12px] text-[rgba(201,211,208,0.72)]">
                             Capture → Sign → Report → Share
                           </div>
                         </div>
                       </div>
                     </div>
 
-                    <div className="mt-4 rounded-[22px] border border-[rgba(158,216,207,0.12)] bg-[rgba(255,255,255,0.03)] px-4 py-4">
-                      <div className="mb-2 text-[0.78rem] font-semibold uppercase tracking-[0.18em] text-[#d6b89d]">
+                    <div className="mt-4 rounded-[22px] border border-[rgba(183,157,132,0.14)] bg-[rgba(255,255,255,0.028)] px-4 py-4">
+                      <div className="mb-2 text-[0.78rem] font-semibold uppercase tracking-[0.18em] text-[#b79d84]">
                         Workspace flow
                       </div>
-                      <div className="text-[0.92rem] leading-[1.75] text-[rgba(219,235,248,0.76)]">
+                      <div className="text-[0.92rem] leading-[1.75] text-[rgba(194,204,201,0.76)]">
                         Everything important stays one click away, while the visual language remains
-                        consistent with your premium landing experience.
+                        premium, quiet, and consistent with the rest of the platform.
                       </div>
                     </div>
                   </div>
