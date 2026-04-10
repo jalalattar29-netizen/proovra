@@ -571,20 +571,18 @@ export default function SettingsPage() {
                       <span className="font-semibold text-[#bfe8df]">Active</span>
                     </div>
 
-                    <Link
-                      href="/legal/security"
-                      className="text-[0.95rem] text-[#dce7e4] transition-colors hover:text-[#bfe8df]"
-                    >
-                      Security policy
-                    </Link>
-
-                    <a
-                      href="mailto:security@proovra.com"
-                      className="text-[0.95rem] text-[#dce7e4] transition-colors hover:text-[#bfe8df]"
-                    >
-                      security@proovra.com
-                    </a>
-                  </div>
+<Link
+  href="/legal/security"
+  className="app-bronze-link text-[0.95rem] text-[#dce7e4]"
+>
+  Security policy
+</Link>
+<a
+  href="mailto:security@proovra.com"
+  className="app-bronze-link text-[0.95rem] text-[#dce7e4]"
+>
+  security@proovra.com
+</a>                  </div>
                 </div>
               </Card>
 

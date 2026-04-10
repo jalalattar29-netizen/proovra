@@ -25,20 +25,63 @@ export default async function AppLegalPage({
 
   return (
     <div className="section app-section app-legal-page">
+      
+      {/* HERO */}
       <div className="app-hero app-hero-full">
         <div className="container">
-          <h1 className="hero-title pricing-hero-title" style={{ margin: 0 }}>
-            {titleFromSlug(slug)}
-          </h1>
-          <p className="page-subtitle pricing-subtitle" style={{ marginTop: 6 }}>
-            Legal information and policies for PROO✓RA.
-          </p>
+          <div style={{ maxWidth: 820 }}>
+            
+            <div
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 8,
+                borderRadius: 999,
+                border: "1px solid rgba(255,255,255,0.10)",
+                background: "rgba(255,255,255,0.04)",
+                padding: "8px 16px",
+                fontSize: "0.68rem",
+                fontWeight: 500,
+                textTransform: "uppercase",
+                letterSpacing: "0.28em",
+                color: "#afbbb7",
+                boxShadow: "0 10px 24px rgba(0,0,0,0.08)"
+              }}
+            >
+              <span
+                style={{
+                  width: 4,
+                  height: 4,
+                  borderRadius: 999,
+                  background: "#b79d84",
+                  opacity: 0.8,
+                  display: "inline-block"
+                }}
+              />
+              Legal
+            </div>
+
+            <h1 className="mt-5 max-w-[760px] text-[1.72rem] font-medium leading-[1.02] tracking-[-0.045em] text-[#d9e2df] md:text-[2.22rem] lg:text-[2.72rem]">
+              {titleFromSlug(slug)}
+            </h1>
+
+            <p className="mt-5 max-w-[720px] text-[0.95rem] leading-[1.8] tracking-[-0.006em] text-[#aab5b2]">
+              Legal information, policies, and compliance documentation for PROO✓RA.
+            </p>
+          </div>
         </div>
       </div>
 
+      {/* BODY */}
       <div className="app-body app-body-full app-legal-body">
         <div className="container">
-          <article className="auth-card legal-page">{renderLegalMarkdown(content)}</article>
+
+          <div className="app-legal-card">
+            <article className="legal-content">
+              {renderLegalMarkdown(content)}
+            </article>
+          </div>
+
         </div>
       </div>
     </div>

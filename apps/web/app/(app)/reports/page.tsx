@@ -86,24 +86,24 @@ export default function ReportsPage() {
     []
   );
 
-  const rowCardStyle = useMemo(
-    () =>
-      ({
-        border: "1px solid rgba(158,216,207,0.14)",
-        background:
-          "linear-gradient(180deg, rgba(62,98,96,0.24) 0%, rgba(14,30,34,0.36) 100%)",
-        borderRadius: 24,
-        boxShadow:
-          "inset 0 1px 0 rgba(255,255,255,0.04), 0 14px 28px rgba(0,0,0,0.08)",
-        backdropFilter: "blur(10px)",
-        WebkitBackdropFilter: "blur(10px)",
-      }) as const,
-    []
-  );
+const rowCardStyle = useMemo(
+  () =>
+    ({
+      border: "1px solid rgba(158,216,207,0.14)",
+      background:
+        "linear-gradient(180deg, rgba(62,98,96,0.26) 0%, rgba(14,30,34,0.38) 100%)",
+      borderRadius: 24,
+      boxShadow:
+        "inset 0 1px 0 rgba(255,255,255,0.04), 0 14px 28px rgba(0,0,0,0.08)",
+      backdropFilter: "blur(10px)",
+      WebkitBackdropFilter: "blur(10px)",
+    }) as const,
+  []
+);
 
   return (
-    <div className="section app-section">
-      <div className="app-hero app-hero-full">
+<div className="section app-section reports-page-shell">
+        <div className="app-hero app-hero-full">
         <div className="container">
           <div className="page-title app-page-title" style={{ marginBottom: 0 }}>
             <div style={{ maxWidth: 780 }}>
