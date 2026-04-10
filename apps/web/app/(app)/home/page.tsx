@@ -62,37 +62,37 @@ export default function HomePage() {
       .finally(() => setLoading(false));
   }, [addToast]);
 
-  const primaryActionButtonStyle = useMemo(
-    () =>
-      ({
-        borderColor: "rgba(79,112,107,0.14)",
-        color: "#23373b",
-        background:
-          "linear-gradient(180deg, rgba(255,255,255,0.82) 0%, rgba(243,245,242,0.95) 100%)",
-        boxShadow:
-          "0 10px 22px rgba(0,0,0,0.06), inset 0 1px 0 rgba(255,255,255,0.72)",
-        backdropFilter: "blur(6px)",
-        WebkitBackdropFilter: "blur(6px)",
-        textShadow: "0 1px 0 rgba(255,255,255,0.34)",
-      }) as const,
-    []
-  );
+const primaryActionButtonStyle = useMemo(
+  () =>
+    ({
+      borderColor: "rgba(79,112,107,0.22)",
+      color: "#eef3f1",
+      background:
+        "linear-gradient(180deg, rgba(58,92,95,0.96) 0%, rgba(20,38,42,0.98) 100%)",
+      boxShadow:
+        "inset 0 1px 0 rgba(255,255,255,0.08), 0 16px 34px rgba(18,40,44,0.22)",
+      textShadow: "0 1px 0 rgba(0,0,0,0.22)",
+      backdropFilter: "blur(6px)",
+      WebkitBackdropFilter: "blur(6px)",
+    }) as const,
+  []
+);
 
-  const actionButtonStyle = useMemo(
-    () =>
-      ({
-        borderColor: "rgba(79,112,107,0.14)",
-        color: "#23373b",
-        background:
-          "linear-gradient(180deg, rgba(255,255,255,0.80) 0%, rgba(243,245,242,0.94) 100%)",
-        boxShadow:
-          "0 10px 22px rgba(0,0,0,0.06), inset 0 1px 0 rgba(255,255,255,0.68)",
-        backdropFilter: "blur(6px)",
-        WebkitBackdropFilter: "blur(6px)",
-        textShadow: "0 1px 0 rgba(255,255,255,0.30)",
-      }) as const,
-    []
-  );
+const actionButtonStyle = useMemo(
+  () =>
+    ({
+      borderColor: "rgba(79,112,107,0.12)",
+      color: "#24373b",
+      background:
+        "linear-gradient(180deg, rgba(250,251,249,0.82) 0%, rgba(241,244,241,0.96) 100%)",
+      boxShadow:
+        "0 10px 20px rgba(0,0,0,0.05), inset 0 1px 0 rgba(255,255,255,0.70)",
+      textShadow: "0 1px 0 rgba(255,255,255,0.30)",
+      backdropFilter: "blur(6px)",
+      WebkitBackdropFilter: "blur(6px)",
+    }) as const,
+  []
+);
 
   const evidenceCardStyle = useMemo(
     () =>
@@ -203,7 +203,7 @@ export default function HomePage() {
       </section>
 
       <section
-        className="relative overflow-hidden px-6 pb-12 md:px-8 md:pb-16"
+className="relative overflow-hidden px-6 pt-8 pb-12 md:px-8 md:pt-10 md:pb-16"
         style={{
           background:
             "linear-gradient(180deg, rgba(239,241,238,0.96) 0%, rgba(234,237,234,0.98) 100%)",

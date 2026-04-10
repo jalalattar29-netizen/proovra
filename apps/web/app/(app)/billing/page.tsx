@@ -154,16 +154,18 @@ export default function BillingPage() {
     []
   );
 
-  const heroPricingButtonStyle = useMemo(
+const heroPricingButtonStyle = useMemo(
   () =>
     ({
       borderColor: "rgba(79,112,107,0.16)",
-      color: "#1f3d40",
+      color: "#24373b",
       background:
         "linear-gradient(180deg, rgba(255,255,255,0.88) 0%, rgba(241,244,241,0.96) 100%)",
       boxShadow:
         "0 10px 22px rgba(0,0,0,0.06), inset 0 1px 0 rgba(255,255,255,0.72)",
-      textShadow: "0 1px 0 rgba(255,255,255,0.32)",
+      textShadow: "0 1px 0 rgba(255,255,255,0.34)",
+      backdropFilter: "blur(6px)",
+      WebkitBackdropFilter: "blur(6px)",
     }) as const,
   []
 );
@@ -365,7 +367,7 @@ export default function BillingPage() {
           }}
         >
           <Card
-            className="relative overflow-hidden rounded-[30px] border bg-transparent p-0 shadow-none"
+className="relative overflow-hidden px-6 pt-8 pb-12 md:px-8 md:pt-10 md:pb-16"
             style={outerCardStyle}
           >
             <div className="absolute inset-0">
