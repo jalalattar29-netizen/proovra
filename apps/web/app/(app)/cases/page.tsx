@@ -218,14 +218,11 @@ export default function CasesPage() {
   const rowCardStyle = useMemo(
     () =>
       ({
-        border: "1px solid rgba(158,216,207,0.14)",
+        border: "1px solid rgba(158,216,207,0.10)",
         background:
-          "linear-gradient(180deg, rgba(62,98,96,0.24) 0%, rgba(14,30,34,0.36) 100%)",
-        borderRadius: 22,
-        boxShadow:
-          "inset 0 1px 0 rgba(255,255,255,0.04), 0 14px 28px rgba(0,0,0,0.08)",
-        backdropFilter: "blur(10px)",
-        WebkitBackdropFilter: "blur(10px)",
+          "linear-gradient(180deg, rgba(8,23,30,0.86) 0%, rgba(7,18,24,0.94) 100%)",
+        borderRadius: 24,
+        boxShadow: "0 10px 24px rgba(0,0,0,0.18)",
       }) as const,
     []
   );
@@ -293,7 +290,7 @@ export default function CasesPage() {
                 <Button
                   variant={filter === "all" ? "primary" : "secondary"}
                   onClick={() => setFilter("all")}
-                  className="rounded-[999px] border px-4 py-2 text-[0.82rem] font-semibold"
+                  className="proovra-velvet-primary rounded-[999px] border px-4 py-2 text-[0.82rem] font-semibold"
                   style={filter === "all" ? primaryButtonStyle : secondaryButtonStyle}
                 >
                   All ({cases.length})
@@ -301,7 +298,7 @@ export default function CasesPage() {
                 <Button
                   variant={filter === "personal" ? "primary" : "secondary"}
                   onClick={() => setFilter("personal")}
-                  className="rounded-[999px] border px-4 py-2 text-[0.82rem] font-semibold"
+                  className="proovra-velvet-primary rounded-[999px] border px-4 py-2 text-[0.82rem] font-semibold"
                   style={filter === "personal" ? primaryButtonStyle : secondaryButtonStyle}
                 >
                   Personal ({personalCases.length})
@@ -309,7 +306,7 @@ export default function CasesPage() {
                 <Button
                   variant={filter === "team" ? "primary" : "secondary"}
                   onClick={() => setFilter("team")}
-                  className="rounded-[999px] border px-4 py-2 text-[0.82rem] font-semibold"
+                  className="proovra-velvet-primary rounded-[999px] border px-4 py-2 text-[0.82rem] font-semibold"
                   style={filter === "team" ? primaryButtonStyle : secondaryButtonStyle}
                 >
                   Team ({teamCases.length})
@@ -320,7 +317,7 @@ export default function CasesPage() {
             <Button
               onClick={handleCreate}
               disabled={creating || busyId !== null}
-              className="rounded-[999px] border px-6 py-3 text-[0.95rem] font-semibold"
+              className="proovra-velvet-primary rounded-[999px] border px-6 py-3 text-[0.95rem] font-semibold"
               style={primaryButtonStyle}
             >
               {creating ? "Creating..." : "Create Case"}
@@ -462,7 +459,7 @@ export default function CasesPage() {
                         variant="secondary"
                         onClick={() => handleStartRename(caseItem)}
                         disabled={disableRowActions}
-                        className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
+                        className="proovra-velvet-primary rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
                         style={secondaryButtonStyle}
                       >
                         Rename
@@ -472,7 +469,7 @@ export default function CasesPage() {
                         variant="secondary"
                         onClick={() => handleStartDelete(caseItem.id)}
                         disabled={disableRowActions}
-                        className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
+                        className="proovra-velvet-primary rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
                         style={dangerButtonStyle}
                       >
                         Delete
@@ -554,7 +551,7 @@ export default function CasesPage() {
                       setRenameValue("");
                     }}
                     disabled={busyId !== null}
-                    className="w-full rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
+                    className="proovra-velvet-primary w-full rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
                     style={secondaryButtonStyle}
                   >
                     Cancel
@@ -565,7 +562,7 @@ export default function CasesPage() {
                   <Button
                     onClick={handleRename}
                     disabled={!renameValue.trim() || busyId !== null}
-                    className="w-full rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
+                    className="proovra-velvet-primary w-full rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
                     style={primaryButtonStyle}
                   >
                     Rename
@@ -625,7 +622,7 @@ export default function CasesPage() {
                     variant="secondary"
                     onClick={() => setDeletingId(null)}
                     disabled={busyId !== null}
-                    className="w-full rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
+                    className="proovra-velvet-primary w-full rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
                     style={secondaryButtonStyle}
                   >
                     Cancel
@@ -636,7 +633,7 @@ export default function CasesPage() {
                   <Button
                     onClick={handleDelete}
                     disabled={busyId !== null}
-                    className="w-full rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
+                    className="proovra-velvet-primary w-full rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
                     style={dangerButtonStyle}
                   >
                     Delete

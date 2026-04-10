@@ -346,12 +346,12 @@ const actionButtonStyle = useMemo(
                   {quickActions.map((action) => (
                     <Link key={action.href} href={action.href}>
 <Button
-  variant={action.primary ? "primary" : "secondary"}
-  className="flex w-full items-center justify-between rounded-[20px] border px-5 py-4 text-left text-[0.96rem] font-medium transition-all duration-200 hover:-translate-y-[1px]"
+  variant="secondary"
+  className="proovra-velvet-primary flex w-full items-center justify-between rounded-[20px] border px-5 py-4 text-left text-[0.96rem] font-medium transition-all duration-200 hover:-translate-y-[1px]"
   style={actionButtonStyle}
   onClick={() => addToast(action.toast, "info")}
 >
-  <span>{action.label}</span>
+    <span>{action.label}</span>
   <span className="ml-4 text-[1.05rem] opacity-55">›</span>
 </Button>
                     </Link>

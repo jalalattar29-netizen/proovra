@@ -366,14 +366,11 @@ export default function CaseDetailPage() {
   } as const;
 
   const rowCardStyle = {
-    border: "1px solid rgba(158,216,207,0.14)",
+    border: "1px solid rgba(158,216,207,0.10)",
     background:
-      "linear-gradient(180deg, rgba(62,98,96,0.24) 0%, rgba(14,30,34,0.36) 100%)",
-    borderRadius: 22,
-    boxShadow:
-      "inset 0 1px 0 rgba(255,255,255,0.04), 0 14px 28px rgba(0,0,0,0.08)",
-    backdropFilter: "blur(10px)",
-    WebkitBackdropFilter: "blur(10px)",
+      "linear-gradient(180deg, rgba(8,23,30,0.86) 0%, rgba(7,18,24,0.94) 100%)",
+    borderRadius: 24,
+    boxShadow: "0 10px 24px rgba(0,0,0,0.18)",
   } as const;
 
   if (loading) {
@@ -492,7 +489,7 @@ export default function CaseDetailPage() {
   }
 
   return (
-    <div className="section app-section case-detail-page-shell">
+    <div className="section app-section case-detail-page-shell home-page-shell">
       <div className="app-hero app-hero-full">
         <div className="container">
           <div className="page-title app-page-title" style={{ marginBottom: 0 }}>
@@ -585,7 +582,7 @@ export default function CaseDetailPage() {
                       setRenameValue(caseData.name);
                     }}
                     disabled={operationLoading}
-                    className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
+                    className="proovra-velvet-primary rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
                     style={secondaryButtonStyle}
                   >
                     Cancel
@@ -594,7 +591,7 @@ export default function CaseDetailPage() {
                   <Button
                     onClick={handleRenameSubmit}
                     disabled={!renameValue.trim() || operationLoading}
-                    className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
+                    className="proovra-velvet-primary rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
                     style={primaryButtonStyle}
                   >
                     Save
@@ -608,7 +605,7 @@ export default function CaseDetailPage() {
                         variant="secondary"
                         onClick={handleRenameStart}
                         disabled={operationLoading}
-                        className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
+                        className="proovra-velvet-primary rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
                         style={secondaryButtonStyle}
                       >
                         Rename
@@ -618,7 +615,7 @@ export default function CaseDetailPage() {
                         variant="secondary"
                         onClick={() => setDeleteConfirm(true)}
                         disabled={operationLoading}
-                        className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
+                        className="proovra-velvet-primary rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
                         style={dangerButtonStyle}
                       >
                         Delete
@@ -629,7 +626,7 @@ export default function CaseDetailPage() {
                   <Button
                     onClick={handleExport}
                     disabled={operationLoading}
-                    className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
+                    className="proovra-velvet-primary rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
                     style={primaryButtonStyle}
                   >
                     Export ZIP
@@ -684,7 +681,7 @@ export default function CaseDetailPage() {
                     variant="secondary"
                     onClick={() => setDeleteConfirm(false)}
                     disabled={operationLoading}
-                    className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
+                    className="proovra-velvet-primary rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
                     style={secondaryButtonStyle}
                   >
                     Cancel
@@ -693,7 +690,7 @@ export default function CaseDetailPage() {
                   <Button
                     onClick={handleDeleteCase}
                     disabled={operationLoading}
-                    className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
+                    className="proovra-velvet-primary rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
                     style={dangerButtonStyle}
                   >
                     Delete Case
@@ -766,7 +763,7 @@ export default function CaseDetailPage() {
                             variant="secondary"
                             onClick={() => handleRevokeAccess(access.id)}
                             disabled={operationLoading}
-                            className="rounded-[999px] border px-4 py-2.5 text-[0.88rem] font-semibold"
+                            className="proovra-velvet-primary rounded-[999px] border px-4 py-2.5 text-[0.88rem] font-semibold"
                             style={dangerButtonStyle}
                           >
                             Remove
@@ -784,7 +781,7 @@ export default function CaseDetailPage() {
                     variant="secondary"
                     onClick={() => setShowSharePanel(!showSharePanel)}
                     disabled={operationLoading}
-                    className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
+                    className="proovra-velvet-primary rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
                     style={secondaryButtonStyle}
                   >
                     {showSharePanel ? "Close" : "Share Case"}
@@ -867,7 +864,7 @@ export default function CaseDetailPage() {
                               <Button
                                 onClick={handleShareTeam}
                                 disabled={!selectedTeamMemberId || operationLoading}
-                                className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
+                                className="proovra-velvet-primary rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
                                 style={primaryButtonStyle}
                               >
                                 Share with Member
@@ -901,7 +898,7 @@ export default function CaseDetailPage() {
                             <Button
                               onClick={handleShareEmail}
                               disabled={!shareEmail.trim() || operationLoading}
-                              className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
+                              className="proovra-velvet-primary rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
                               style={primaryButtonStyle}
                             >
                               Share by Email
@@ -985,17 +982,27 @@ export default function CaseDetailPage() {
                           title={resolveEvidenceTitle(item)}
                           subtitle={resolveEvidenceSubtitle(item)}
                           badge={
-                            <Badge
-                              tone={
-                                item.status === "SIGNED"
-                                  ? "signed"
-                                  : item.status === "REPORTED"
-                                    ? "ready"
-                                    : "processing"
-                              }
-                            >
-                              {item.status}
-                            </Badge>
+                            item.status === "SIGNED" ? (
+                              <Badge tone="signed">Signed</Badge>
+                            ) : item.status === "PROCESSING" ? (
+                              <Badge tone="processing">Processing</Badge>
+                            ) : item.status === "REPORTED" ? (
+                              <span
+                                className="inline-flex min-h-[28px] items-center justify-center rounded-full px-3 py-[5px] text-[10.5px] font-semibold uppercase tracking-[0.12em]"
+                                style={{
+                                  color: "#c3ebe2",
+                                  background:
+                                    "linear-gradient(180deg, rgba(195,235,226,0.12) 0%, rgba(255,255,255,0.03) 100%)",
+                                  border: "1px solid rgba(195,235,226,0.22)",
+                                  boxShadow:
+                                    "inset 0 1px 0 rgba(255,255,255,0.16), 0 4px 10px rgba(60,110,102,0.10)",
+                                }}
+                              >
+                                Report Ready
+                              </span>
+                            ) : (
+                              <Badge tone="ready">Ready</Badge>
+                            )
                           }
                         />
                       </Link>
@@ -1006,7 +1013,7 @@ export default function CaseDetailPage() {
                             variant="secondary"
                             onClick={() => handleRemoveEvidence(item.id)}
                             disabled={operationLoading}
-                            className="rounded-[999px] border px-4 py-2.5 text-[0.88rem] font-semibold"
+                            className="proovra-velvet-primary rounded-[999px] border px-4 py-2.5 text-[0.88rem] font-semibold"
                             style={dangerButtonStyle}
                           >
                             Remove

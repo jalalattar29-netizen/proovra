@@ -565,26 +565,6 @@ export default function TeamDetailPage() {
     []
   );
 
-  const inputStyle = useMemo(
-    () =>
-      ({
-        width: "100%",
-        minHeight: 52,
-        padding: "0 16px",
-        borderRadius: 18,
-        fontSize: 15,
-        lineHeight: 1.2,
-        background: "rgba(255,255,255,0.05)",
-        border: "1px solid rgba(183,157,132,0.16)",
-        boxShadow: "0 12px 24px rgba(0,0,0,0.10)",
-        color: "#d8e0dd",
-        outline: "none",
-        backdropFilter: "blur(10px)",
-        WebkitBackdropFilter: "blur(10px)",
-      }) as const,
-    []
-  );
-
   const rowCardStyle = useMemo(
     () =>
       ({
@@ -752,7 +732,7 @@ export default function TeamDetailPage() {
                 <div style={{ marginTop: 16 }}>
                   <Link href="/teams" style={{ textDecoration: "none" }}>
                     <Button
-                      className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
+                      className="proovra-velvet-primary rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
                       style={secondaryButtonStyle}
                     >
                       Back to Teams
@@ -934,7 +914,7 @@ export default function TeamDetailPage() {
                       value={teamName}
                       onChange={(e) => setTeamName(e.target.value)}
                       disabled={!canManageTeam || savingName}
-                      style={inputStyle}
+                      className="proovra-field"
                     />
                   </label>
                 </div>
@@ -944,7 +924,7 @@ export default function TeamDetailPage() {
                     <Button
                       onClick={handleSaveTeamName}
                       disabled={savingName || !teamName.trim()}
-                      className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
+                      className="proovra-velvet-primary rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
                       style={primaryButtonStyle}
                     >
                       {savingName ? "Saving..." : "Save name"}
@@ -956,7 +936,7 @@ export default function TeamDetailPage() {
                       variant="secondary"
                       onClick={() => setDeleteConfirm(true)}
                       disabled={deletingTeam}
-                      className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
+                      className="proovra-velvet-danger rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
                       style={dangerButtonStyle}
                     >
                       Delete Team
@@ -1011,7 +991,7 @@ export default function TeamDetailPage() {
                     variant="secondary"
                     onClick={() => setDeleteConfirm(false)}
                     disabled={deletingTeam}
-                    className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
+                    className="proovra-velvet-primary rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
                     style={secondaryButtonStyle}
                   >
                     Cancel
@@ -1020,7 +1000,7 @@ export default function TeamDetailPage() {
                   <Button
                     onClick={handleDeleteTeam}
                     disabled={deletingTeam}
-                    className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
+                    className="proovra-velvet-danger rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
                     style={dangerButtonStyle}
                   >
                     {deletingTeam ? "Deleting..." : "Delete Team"}
@@ -1063,17 +1043,17 @@ export default function TeamDetailPage() {
                     value={inviteEmail}
                     onChange={(e) => setInviteEmail(e.target.value)}
                     disabled={inviting}
-                    style={inputStyle}
+                    className="proovra-field"
                   />
 
                   <select
                     value={inviteRole}
                     onChange={(e) => setInviteRole(e.target.value)}
                     disabled={inviting}
-                    style={inputStyle}
+                    className="proovra-field proovra-select"
                   >
                     {["OWNER", "ADMIN", "MEMBER", "VIEWER"].map((role) => (
-                      <option key={role} value={role} style={{ color: "#102126" }}>
+                      <option key={role} value={role}>
                         {role}
                       </option>
                     ))}
@@ -1082,7 +1062,7 @@ export default function TeamDetailPage() {
                   <Button
                     onClick={handleInvite}
                     disabled={inviting || !inviteEmail.trim()}
-                    className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
+                    className="proovra-velvet-primary rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
                     style={primaryButtonStyle}
                   >
                     {inviting ? "Sending..." : "Send invite"}
@@ -1168,10 +1148,11 @@ export default function TeamDetailPage() {
                                   value={member.role}
                                   onChange={(e) => handleRoleChange(member, e.target.value)}
                                   disabled={roleSavingKey === member.userId}
-                                  style={{ ...inputStyle, minWidth: 130, minHeight: 44 }}
+                                  className="proovra-field proovra-select"
+                                  style={{ minWidth: 130, minHeight: 44 }}
                                 >
                                   {ROLE_OPTIONS.map((role) => (
-                                    <option key={role} value={role} style={{ color: "#102126" }}>
+                                    <option key={role} value={role}>
                                       {role}
                                     </option>
                                   ))}
@@ -1181,7 +1162,7 @@ export default function TeamDetailPage() {
                                   variant="secondary"
                                   onClick={() => handleRemoveMember(member)}
                                   disabled={removingMemberId === member.userId}
-                                  className="rounded-[999px] border px-4 py-2.5 text-[0.88rem] font-semibold"
+                                  className="proovra-velvet-danger rounded-[999px] border px-4 py-2.5 text-[0.88rem] font-semibold"
                                   style={dangerButtonStyle}
                                 >
                                   {removingMemberId === member.userId ? "Removing..." : "Remove"}
@@ -1282,7 +1263,7 @@ export default function TeamDetailPage() {
                               <Button
                                 variant="secondary"
                                 onClick={() => copyInviteLink(invite)}
-                                className="rounded-[999px] border px-4 py-2.5 text-[0.88rem] font-semibold"
+                                className="proovra-velvet-primary rounded-[999px] border px-4 py-2.5 text-[0.88rem] font-semibold"
                                 style={secondaryButtonStyle}
                               >
                                 Copy link
@@ -1293,7 +1274,7 @@ export default function TeamDetailPage() {
                               variant="secondary"
                               onClick={() => handleDeleteInvite(invite.id)}
                               disabled={deletingInviteId === invite.id}
-                              className="rounded-[999px] border px-4 py-2.5 text-[0.88rem] font-semibold"
+                              className="proovra-velvet-danger rounded-[999px] border px-4 py-2.5 text-[0.88rem] font-semibold"
                               style={dangerButtonStyle}
                             >
                               {deletingInviteId === invite.id ? "Deleting..." : "Delete"}
@@ -1407,7 +1388,7 @@ export default function TeamDetailPage() {
                   <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                     <Button
                       onClick={handleCreateTeamCase}
-                      className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
+                      className="proovra-velvet-primary rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
                       style={primaryButtonStyle}
                     >
                       Create Team Case
@@ -1422,7 +1403,7 @@ export default function TeamDetailPage() {
                           void loadAvailableCases();
                         }
                       }}
-                      className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
+                      className="proovra-velvet-primary rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
                       style={secondaryButtonStyle}
                     >
                       {showAddCase ? "Cancel" : "Add Existing Case"}
@@ -1484,7 +1465,7 @@ export default function TeamDetailPage() {
                                 <Button
                                   onClick={() => handleAddExistingCase(item.id)}
                                   disabled={linkingCaseId === item.id}
-                                  className="rounded-[999px] border px-4 py-2.5 text-[0.88rem] font-semibold"
+                                  className="proovra-velvet-primary rounded-[999px] border px-4 py-2.5 text-[0.88rem] font-semibold"
                                   style={primaryButtonStyle}
                                 >
                                   {linkingCaseId === item.id ? "Linking..." : "Link"}

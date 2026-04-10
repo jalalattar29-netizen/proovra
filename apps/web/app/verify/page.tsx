@@ -143,6 +143,7 @@ export default function VerifyIntroPage() {
           <section className="mx-auto max-w-7xl px-6 pb-16 pt-10 md:px-8 md:pb-20 md:pt-14">
             <div className="max-w-[760px]">
               <div className="inline-flex rounded-full border border-white/10 bg-white/[0.055] px-4 py-2 text-[0.74rem] font-medium uppercase tracking-[0.2em] text-[#dce3e0] shadow-[0_10px_24px_rgba(0,0,0,0.10)] backdrop-blur-md">
+              <span className="h-1.5 w-1.5 rounded-full bg-[#b79d84] opacity-90" />
                 Verify
               </div>
 

@@ -1021,14 +1021,14 @@ export default function CapturePage() {
                 />
 
                 <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-                  <Button
-                    variant="secondary"
-                    onClick={openFilePicker}
-                    disabled={busy || sessionCreating}
-                    className="rounded-[999px] border px-5 py-3 text-[0.95rem] font-medium"
-                    style={secondaryButtonStyle}
-                  >
-                    {type === "PHOTO"
+<Button
+  variant="secondary"
+  onClick={openFilePicker}
+  disabled={busy || sessionCreating}
+  className="proovra-velvet-primary rounded-[999px] border px-5 py-3 text-[0.95rem] font-medium"
+  style={secondaryButtonStyle}
+>
+                      {type === "PHOTO"
                       ? "Add Photos"
                       : type === "VIDEO"
                         ? "Add Videos"
@@ -1036,14 +1036,14 @@ export default function CapturePage() {
                   </Button>
 
                   {type !== "DOCUMENT" ? (
-                    <Button
-                      variant="secondary"
-                      onClick={() => openCamera(type === "PHOTO" ? "PHOTO" : "VIDEO")}
-                      disabled={busy || sessionCreating}
-                      className="rounded-[999px] border px-5 py-3 text-[0.95rem] font-medium"
-                      style={secondaryButtonStyle}
-                    >
-                      {type === "PHOTO" ? "Open Camera" : "Open Video Recorder"}
+<Button
+  variant="secondary"
+  onClick={() => openCamera(type === "PHOTO" ? "PHOTO" : "VIDEO")}
+  disabled={busy || sessionCreating}
+  className="proovra-velvet-primary rounded-[999px] border px-5 py-3 text-[0.95rem] font-medium"
+  style={secondaryButtonStyle}
+>
+                        {type === "PHOTO" ? "Open Camera" : "Open Video Recorder"}
                     </Button>
                   ) : null}
                 </div>
@@ -1382,23 +1382,23 @@ export default function CapturePage() {
                 ) : null}
 
                 <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-                  <Button
-                    onClick={finalizeSession}
-                    disabled={busy || sessionCreating || sessionItems.length === 0}
-                    className="rounded-[999px] border px-5 py-3 text-[0.95rem] font-medium"
-                    style={primaryButtonStyle}
-                  >
-                    {busy ? "Capturing..." : "Finish & Sign"}
+<Button
+  onClick={finalizeSession}
+  disabled={busy || sessionCreating || sessionItems.length === 0}
+  className="proovra-velvet-primary rounded-[999px] border px-5 py-3 text-[0.95rem] font-medium"
+  style={primaryButtonStyle}
+>
+                      {busy ? "Capturing..." : "Finish & Sign"}
                   </Button>
 
-                  <Button
-                    variant="secondary"
-                    onClick={resetCaptureState}
-                    disabled={busy || sessionItems.length === 0}
-                    className="rounded-[999px] border px-5 py-3 text-[0.95rem] font-medium"
-                    style={secondaryButtonStyle}
-                  >
-                    Clear Session
+<Button
+  variant="secondary"
+  onClick={resetCaptureState}
+  disabled={busy || sessionItems.length === 0}
+  className="proovra-velvet-primary rounded-[999px] border px-5 py-3 text-[0.95rem] font-medium"
+  style={secondaryButtonStyle}
+>
+                      Clear Session
                   </Button>
                 </div>
               </div>

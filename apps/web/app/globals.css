@@ -3250,3 +3250,253 @@ html[dir="rtl"] .legal-content a::after {
   left: auto;
   right: 0;
 }
+
+/* =========================================================
+   CAMERA BUTTON SILVER HOVER
+   Makes capture overlay buttons match velvet silver hover
+   ========================================================= */
+
+.camera-icon-btn,
+.camera-capture-btn {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+}
+
+.camera-icon-btn::before,
+.camera-capture-btn::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background:
+    linear-gradient(
+      135deg,
+      rgba(255,255,255,0.00) 0%,
+      rgba(255,255,255,0.00) 58%,
+      rgba(232,236,233,0.16) 76%,
+      rgba(244,245,242,0.28) 88%,
+      rgba(255,255,255,0.00) 100%
+    );
+  opacity: 0;
+  transition: opacity 220ms ease;
+  z-index: 0;
+}
+
+.camera-icon-btn::after,
+.camera-capture-btn::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  box-shadow:
+    inset 0 0 0 1px rgba(244,245,242,0.00),
+    inset 0 0 24px rgba(244,245,242,0.00);
+  opacity: 0;
+  transition: box-shadow 220ms ease, opacity 220ms ease;
+  z-index: 0;
+}
+
+.camera-icon-btn > *,
+.camera-capture-btn > * {
+  position: relative;
+  z-index: 1;
+}
+
+.camera-icon-btn:hover:not(:disabled)::before,
+.camera-capture-btn:hover:not(:disabled)::before {
+  opacity: 1;
+}
+
+.camera-icon-btn:hover:not(:disabled)::after,
+.camera-capture-btn:hover:not(:disabled)::after {
+  opacity: 1;
+  box-shadow:
+    inset 0 0 0 1px rgba(236,238,234,0.16),
+    inset 0 0 28px rgba(236,238,234,0.12),
+    inset 0 1px 0 rgba(255,255,255,0.18);
+}
+
+.evidence-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 28px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  line-height: 1;
+}
+
+.evidence-pill-report-ready {
+  color: #c3ebe2;
+  background: linear-gradient(
+    180deg,
+    rgba(195,235,226,0.12) 0%,
+    rgba(255,255,255,0.03) 100%
+  );
+  border: 1px solid rgba(195,235,226,0.22);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.16),
+    0 4px 10px rgba(60,110,102,0.10);
+}
+
+.evidence-pill-locked {
+  color: #e6c9ae;
+  background: linear-gradient(
+    180deg,
+    rgba(183,157,132,0.16) 0%,
+    rgba(255,255,255,0.05) 100%
+  );
+  border: 1px solid rgba(183,157,132,0.24);
+}
+
+.evidence-pill-archived {
+  color: #d8e0dd;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.08);
+}
+
+.evidence-pill-deleted {
+  color: #fecaca;
+  background: rgba(127,29,29,0.24);
+  border: 1px solid rgba(248,113,113,0.18);
+}
+
+.evidence-pill-case {
+  color: #bfe8df;
+  background: linear-gradient(
+    180deg,
+    rgba(158,216,207,0.12) 0%,
+    rgba(255,255,255,0.03) 100%
+  );
+  border: 1px solid rgba(158,216,207,0.20);
+}
+
+/* =========================================================
+   GLOBAL PREMIUM FIELDS + SELECTS + DANGER HOVER
+   ========================================================= */
+
+.proovra-field {
+  width: 100%;
+  min-height: 52px;
+  padding: 0 16px;
+  border-radius: 18px;
+  font-size: 15px;
+  line-height: 1.2;
+  background: linear-gradient(
+    180deg,
+    rgba(20, 39, 42, 0.94) 0%,
+    rgba(13, 27, 30, 0.98) 100%
+  ) !important;
+  border: 1px solid rgba(232, 236, 233, 0.16) !important;
+  color: #d8e0dd !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    inset 0 0 0 1px rgba(244, 245, 242, 0.02),
+    0 10px 22px rgba(0, 0, 0, 0.14),
+    0 0 0 1px rgba(236, 238, 234, 0.03) !important;
+  outline: none;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  transition:
+    border-color 220ms ease,
+    box-shadow 220ms ease,
+    background-color 220ms ease,
+    transform 220ms ease;
+}
+
+.proovra-field::placeholder {
+  color: rgba(194, 204, 201, 0.52) !important;
+}
+
+.proovra-field:focus {
+  border-color: rgba(236, 238, 234, 0.24) !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    inset 0 0 20px rgba(236, 238, 234, 0.05),
+    0 0 0 3px rgba(236, 238, 234, 0.08),
+    0 12px 24px rgba(0, 0, 0, 0.14),
+    0 0 18px rgba(236, 238, 234, 0.06) !important;
+}
+
+.proovra-select {
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  padding-right: 48px;
+  cursor: pointer;
+  background-image:
+    linear-gradient(180deg, rgba(20, 39, 42, 0.94) 0%, rgba(13, 27, 30, 0.98) 100%),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='18' height='18' viewBox='0 0 24 24' fill='none' stroke='%23d6b89d' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+  background-repeat: no-repeat, no-repeat;
+  background-position: left top, right 16px center;
+  background-size: auto, 16px;
+}
+
+.proovra-select option {
+  background: #122126;
+  color: #d8e0dd;
+}
+
+.proovra-velvet-danger {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+}
+
+.proovra-velvet-danger::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background:
+    linear-gradient(
+      135deg,
+      rgba(255,255,255,0.00) 0%,
+      rgba(255,255,255,0.00) 58%,
+      rgba(255,235,235,0.12) 76%,
+      rgba(255,245,245,0.18) 88%,
+      rgba(255,255,255,0.00) 100%
+    );
+  opacity: 0;
+  transition: opacity 220ms ease;
+  z-index: 0;
+}
+
+.proovra-velvet-danger::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  box-shadow:
+    inset 0 0 0 1px rgba(255,255,255,0.00),
+    inset 0 0 24px rgba(255,255,255,0.00);
+  transition: box-shadow 220ms ease, opacity 220ms ease;
+  opacity: 0;
+  z-index: 0;
+}
+
+.proovra-velvet-danger > * {
+  position: relative;
+  z-index: 1;
+}
+
+.proovra-velvet-danger:hover::before {
+  opacity: 1;
+}
+
+.proovra-velvet-danger:hover::after {
+  opacity: 1;
+  box-shadow:
+    inset 0 0 0 1px rgba(255,235,235,0.10),
+    inset 0 0 24px rgba(255,235,235,0.08),
+    inset 0 1px 0 rgba(255,255,255,0.12);
+}

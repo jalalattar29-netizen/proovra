@@ -96,12 +96,8 @@ function cardShellStyle() {
   } as const;
 }
 
-function velvetButtonClass(primary = false) {
-  if (primary) {
-    return "rounded-[999px] border px-5 py-3 text-[0.94rem] font-semibold transition-all duration-200 hover:-translate-y-[1px] hover:brightness-[1.03]";
-  }
-
-  return "rounded-[999px] border px-5 py-3 text-[0.94rem] font-semibold transition-all duration-200 hover:-translate-y-[1px] hover:brightness-[1.03]";
+function velvetButtonClass() {
+  return "proovra-velvet-primary rounded-[999px] border px-5 py-3 text-[0.94rem] font-semibold transition-all duration-200 hover:-translate-y-[1px] hover:brightness-[1.03]";
 }
 
 function sectionHeader(icon: React.ReactNode, title: string) {
@@ -288,16 +284,21 @@ export default function SettingsPage() {
 
         .settings-page-shell input,
         .settings-page-shell textarea,
-        .settings-page-shell select {
+        .settings-page-shell select,
+        .settings-page-shell .input {
           background: linear-gradient(
             180deg,
-            rgba(20, 39, 42, 0.92) 0%,
-            rgba(13, 27, 30, 0.96) 100%
+            rgba(20, 39, 42, 0.94) 0%,
+            rgba(13, 27, 30, 0.98) 100%
           ) !important;
-          border: 1px solid rgba(183, 157, 132, 0.18) !important;
+          border: 1px solid rgba(232, 236, 233, 0.16) !important;
           color: #d8e0dd !important;
           border-radius: 18px !important;
-          box-shadow: 0 10px 22px rgba(0, 0, 0, 0.12) !important;
+          box-shadow:
+            inset 0 1px 0 rgba(255, 255, 255, 0.06),
+            inset 0 0 0 1px rgba(244, 245, 242, 0.02),
+            0 10px 22px rgba(0, 0, 0, 0.14),
+            0 0 0 1px rgba(236, 238, 234, 0.03) !important;
         }
 
         .settings-page-shell input::placeholder,
@@ -307,11 +308,20 @@ export default function SettingsPage() {
 
         .settings-page-shell input:focus,
         .settings-page-shell textarea:focus,
-        .settings-page-shell select:focus {
-          border-color: rgba(183, 157, 132, 0.28) !important;
+        .settings-page-shell select:focus,
+        .settings-page-shell .input:focus {
+          border-color: rgba(236, 238, 234, 0.24) !important;
           box-shadow:
-            0 0 0 3px rgba(183, 157, 132, 0.08),
-            0 10px 22px rgba(0, 0, 0, 0.12) !important;
+            inset 0 1px 0 rgba(255, 255, 255, 0.08),
+            inset 0 0 20px rgba(236, 238, 234, 0.05),
+            0 0 0 3px rgba(236, 238, 234, 0.08),
+            0 12px 24px rgba(0, 0, 0, 0.14),
+            0 0 18px rgba(236, 238, 234, 0.06) !important;
+          outline: none !important;
+        }
+
+        .settings-page-shell textarea {
+          min-height: 120px;
         }
 
         .settings-page-shell .settings-primary-btn {
@@ -342,6 +352,36 @@ export default function SettingsPage() {
             0 14px 28px rgba(0, 0, 0, 0.10) !important;
           backdrop-filter: blur(10px);
           -webkit-backdrop-filter: blur(10px);
+        }
+
+        .settings-page-shell .settings-select {
+          width: 100%;
+          min-height: 54px;
+          padding: 0 48px 0 16px !important;
+          appearance: none;
+          -webkit-appearance: none;
+          -moz-appearance: none;
+          background-image:
+            linear-gradient(180deg, rgba(20, 39, 42, 0.94) 0%, rgba(13, 27, 30, 0.98) 100%),
+            url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='18' height='18' viewBox='0 0 24 24' fill='none' stroke='%23d6b89d' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E") !important;
+          background-repeat: no-repeat, no-repeat !important;
+          background-position: left top, right 16px center !important;
+          background-size: auto, 16px !important;
+          cursor: pointer;
+        }
+
+        .settings-page-shell .settings-select option {
+          background: #122126;
+          color: #d8e0dd;
+        }
+
+        .settings-page-shell .settings-legal-links {
+          display: grid;
+          gap: 10px;
+        }
+
+        .settings-page-shell .settings-legal-links a {
+          width: fit-content;
         }
       `}</style>
 
@@ -389,9 +429,7 @@ export default function SettingsPage() {
                 <span className="text-[#c3ebe2]">account preferences</span>.
               </h1>
 
-              <p
-                className="mt-5 max-w-[700px] text-[0.95rem] font-normal leading-[1.8] tracking-[-0.006em] text-[#aab5b2] md:text-[0.99rem]"
-              >
+              <p className="mt-5 max-w-[700px] text-[0.95rem] font-normal leading-[1.8] tracking-[-0.006em] text-[#aab5b2] md:text-[0.99rem]">
                 Update your <span className="text-[#cfd8d5]">profile</span>, review{" "}
                 <span className="text-[#bbc7c3]">security and legal settings</span>, and
                 manage your <span className="text-[#d9ccbf]">subscription preferences</span>{" "}
@@ -533,7 +571,7 @@ export default function SettingsPage() {
                   <Button
                     variant="secondary"
                     onClick={handleSaveProfile}
-                    className={`${velvetButtonClass(true)} settings-primary-btn`}
+                    className={`${velvetButtonClass()} settings-primary-btn`}
                   >
                     Save profile
                   </Button>
@@ -571,18 +609,20 @@ export default function SettingsPage() {
                       <span className="font-semibold text-[#bfe8df]">Active</span>
                     </div>
 
-<Link
-  href="/legal/security"
-  className="app-bronze-link text-[0.95rem] text-[#dce7e4]"
->
-  Security policy
-</Link>
-<a
-  href="mailto:security@proovra.com"
-  className="app-bronze-link text-[0.95rem] text-[#dce7e4]"
->
-  security@proovra.com
-</a>                  </div>
+                    <Link
+                      href="/legal/security"
+                      className="app-bronze-link text-[0.95rem] text-[#dce7e4]"
+                    >
+                      Security policy
+                    </Link>
+
+                    <a
+                      href="mailto:security@proovra.com"
+                      className="app-bronze-link text-[0.95rem] text-[#dce7e4]"
+                    >
+                      security@proovra.com
+                    </a>
+                  </div>
                 </div>
               </Card>
 
@@ -674,12 +714,12 @@ export default function SettingsPage() {
                   {sectionHeader(<Icons.Security />, "Legal")}
 
                   <div className="grid gap-4">
-                    <div className="flex flex-col gap-2">
+                    <div className="settings-legal-links">
                       {LEGAL_LINKS.map((link) => (
                         <Link
                           key={link.href}
                           href={link.href}
-                          className="text-[0.95rem] text-[#dce7e4] transition-colors hover:text-[#bfe8df]"
+                          className="app-bronze-link text-[0.95rem] text-[#dce7e4]"
                         >
                           {link.label}
                         </Link>

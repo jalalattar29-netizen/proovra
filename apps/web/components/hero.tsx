@@ -97,6 +97,7 @@ export function Hero({
               revealed ? "translate-y-0 opacity-100" : "translate-y-3 opacity-0"
             }`}
           >
+            <span className="h-1.5 w-1.5 rounded-full bg-[#b79d84] opacity-90" />
             Secure Digital Evidence Platform
           </div>
 

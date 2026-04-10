@@ -108,8 +108,8 @@ function getDisplayStatusMeta(
   switch (status) {
     case "REPORTED":
       return {
-        label: "REPORTED",
-        className: "badge ready",
+        label: "Report Ready",
+        className: "evidence-pill evidence-pill-report-ready",
       };
 
     case "SIGNED":
@@ -1143,15 +1143,15 @@ export default function EvidenceDetailPage() {
                     {label}
                   </h1>
 
-                  <Button
-                    variant="secondary"
-                    onClick={handleStartEditLabel}
-                    disabled={loading || actionBusy || labelBusy || isDeleted}
-                    className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
-                    style={secondaryButtonStyle}
-                  >
-                    Edit Label
-                  </Button>
+<Button
+  variant="secondary"
+  onClick={handleStartEditLabel}
+  disabled={loading || actionBusy || labelBusy || isDeleted}
+  className="proovra-velvet-primary rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
+  style={secondaryButtonStyle}
+>
+  Edit Label
+</Button>
                 </div>
               ) : (
                 <div
@@ -1185,7 +1185,7 @@ export default function EvidenceDetailPage() {
                   <Button
                     onClick={handleSaveLabel}
                     disabled={labelBusy}
-                    className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
+className="proovra-velvet-primary rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
                     style={primaryButtonStyle}
                   >
                     {labelBusy ? "Saving..." : "Save"}
@@ -1195,7 +1195,7 @@ export default function EvidenceDetailPage() {
                     variant="secondary"
                     onClick={handleCancelEditLabel}
                     disabled={labelBusy}
-                    className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
+className="proovra-velvet-primary rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
                     style={secondaryButtonStyle}
                   >
                     Cancel
@@ -1556,7 +1556,7 @@ export default function EvidenceDetailPage() {
                 <Button
                   onClick={handleDownloadReport}
                   disabled={actionBusy || plan === "FREE" || isDeleted}
-                  className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
+className="proovra-velvet-primary rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
                   style={primaryButtonStyle}
                 >
                   {t("downloadReport")}
@@ -1566,7 +1566,7 @@ export default function EvidenceDetailPage() {
                   variant="secondary"
                   onClick={handleDownloadVerificationPackage}
                   disabled={actionBusy || !verificationPackageAvailable || isDeleted}
-                  className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
+className="proovra-velvet-primary rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
                   style={secondaryButtonStyle}
                 >
                   Download Verification Package
@@ -1576,7 +1576,7 @@ export default function EvidenceDetailPage() {
                   <Button
                     variant="secondary"
                     disabled={isDeleted}
-                    className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
+className="proovra-velvet-primary rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
                     style={secondaryButtonStyle}
                   >
                     {t("shareLink")}
@@ -1603,7 +1603,7 @@ export default function EvidenceDetailPage() {
                       variant="secondary"
                       onClick={handleOpenAssignCase}
                       disabled={actionBusy || ownedCases.length === 0}
-                      className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
+className="proovra-velvet-primary rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
                       style={secondaryButtonStyle}
                     >
                       {caseId ? "Move to Case" : "Add to Case"}
@@ -1614,7 +1614,7 @@ export default function EvidenceDetailPage() {
                         variant="secondary"
                         onClick={handleRemoveFromCase}
                         disabled={actionBusy}
-                        className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
+className="proovra-velvet-primary rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
                         style={secondaryButtonStyle}
                       >
                         Remove from Case
@@ -1628,7 +1628,7 @@ export default function EvidenceDetailPage() {
                         Boolean(lockedAt) ||
                         !(status === "SIGNED" || status === "REPORTED")
                       }
-                      className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
+className="proovra-velvet-primary rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
                       style={lockedAt ? secondaryButtonStyle : dangerButtonStyle}
                     >
                       {lockedAt
@@ -1648,7 +1648,7 @@ export default function EvidenceDetailPage() {
                           variant="secondary"
                           onClick={handleUnarchive}
                           disabled={actionBusy}
-                          className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
+className="proovra-velvet-primary rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
                           style={secondaryButtonStyle}
                         >
                           Restore Evidence
@@ -1670,7 +1670,7 @@ export default function EvidenceDetailPage() {
                           variant="secondary"
                           onClick={handleArchive}
                           disabled={actionBusy}
-                          className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
+className="proovra-velvet-primary rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
                           style={secondaryButtonStyle}
                         >
                           Archive Evidence
@@ -1691,7 +1691,7 @@ export default function EvidenceDetailPage() {
                     <Button
                       onClick={handleDelete}
                       disabled={actionBusy || !canDelete}
-                      className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
+className="proovra-velvet-primary rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
                       style={canDelete ? dangerButtonStyle : secondaryButtonStyle}
                     >
                       Delete Evidence
@@ -1719,7 +1719,7 @@ export default function EvidenceDetailPage() {
                       variant="secondary"
                       onClick={handleRestoreDeleted}
                       disabled={actionBusy}
-                      className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
+                      className="proovra-velvet-primary rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
                       style={secondaryButtonStyle}
                     >
                       Restore from Trash
@@ -2011,7 +2011,7 @@ export default function EvidenceDetailPage() {
                         variant="secondary"
                         onClick={handleOpenOriginal}
                         disabled={!originalDownloadUrl || isDeleted}
-                        className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
+className="proovra-velvet-primary rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
                         style={secondaryButtonStyle}
                       >
                         Open Original
@@ -2021,7 +2021,7 @@ export default function EvidenceDetailPage() {
                         variant="secondary"
                         onClick={handleDownloadOriginal}
                         disabled={!originalDownloadUrl || isDeleted}
-                        className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
+className="proovra-velvet-primary rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
                         style={secondaryButtonStyle}
                       >
                         Download Original
@@ -2146,7 +2146,7 @@ export default function EvidenceDetailPage() {
               variant="secondary"
               onClick={() => setAssignCaseModalOpen(false)}
               disabled={actionBusy}
-              className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
+className="proovra-velvet-primary rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
               style={secondaryButtonStyle}
             >
               Cancel
@@ -2154,7 +2154,7 @@ export default function EvidenceDetailPage() {
             <Button
               onClick={handleConfirmAssignCase}
               disabled={actionBusy || !selectedCaseId}
-              className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
+className="proovra-velvet-primary rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
               style={primaryButtonStyle}
             >
               {actionBusy ? "Saving..." : caseId ? "Move" : "Add"}
@@ -2199,7 +2199,7 @@ export default function EvidenceDetailPage() {
               variant="secondary"
               onClick={() => setLockModalOpen(false)}
               disabled={actionBusy}
-              className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
+className="proovra-velvet-primary rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
               style={secondaryButtonStyle}
             >
               Cancel
@@ -2207,7 +2207,7 @@ export default function EvidenceDetailPage() {
             <Button
               onClick={handleConfirmLock}
               disabled={actionBusy}
-              className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
+className="proovra-velvet-primary rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
               style={dangerButtonStyle}
             >
               {actionBusy ? "Locking..." : "Lock permanently"}
@@ -2237,7 +2237,7 @@ export default function EvidenceDetailPage() {
               variant="secondary"
               onClick={() => setArchiveModalOpen(false)}
               disabled={actionBusy}
-              className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
+className="proovra-velvet-primary rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
               style={secondaryButtonStyle}
             >
               Cancel
@@ -2245,7 +2245,7 @@ export default function EvidenceDetailPage() {
             <Button
               onClick={handleConfirmArchive}
               disabled={actionBusy}
-              className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
+className="proovra-velvet-primary rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
               style={primaryButtonStyle}
             >
               {actionBusy ? "Archiving..." : "Archive"}
@@ -2273,7 +2273,7 @@ export default function EvidenceDetailPage() {
               variant="secondary"
               onClick={() => setDeleteModalOpen(false)}
               disabled={actionBusy}
-              className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
+className="proovra-velvet-primary rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
               style={secondaryButtonStyle}
             >
               Cancel
@@ -2281,7 +2281,7 @@ export default function EvidenceDetailPage() {
             <Button
               onClick={handleConfirmDelete}
               disabled={actionBusy}
-              className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
+className="proovra-velvet-primary rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
               style={dangerButtonStyle}
             >
               {actionBusy ? "Deleting..." : "Delete Evidence"}

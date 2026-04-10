@@ -256,13 +256,27 @@ const rowCardStyle = useMemo(
                         <ListRow
                           title={item.title || "Digital Evidence Record"}
                           subtitle={item.displaySubtitle}
-                          badge={
-                            item.status === "SIGNED" ? (
-                              <Badge tone="signed">{t("statusSigned")}</Badge>
-                            ) : (
-                              <Badge tone="ready">{t("statusReady")}</Badge>
-                            )
-                          }
+badge={
+  item.status === "SIGNED" ? (
+    <Badge tone="signed">{t("statusSigned")}</Badge>
+  ) : item.status === "REPORTED" ? (
+    <span
+      className="inline-flex min-h-[28px] items-center justify-center rounded-full px-3 py-[5px] text-[10.5px] font-semibold uppercase tracking-[0.12em]"
+      style={{
+        color: "#c3ebe2",
+        background:
+          "linear-gradient(180deg, rgba(195,235,226,0.12) 0%, rgba(255,255,255,0.03) 100%)",
+        border: "1px solid rgba(195,235,226,0.22)",
+        boxShadow:
+          "inset 0 1px 0 rgba(255,255,255,0.16), 0 4px 10px rgba(60,110,102,0.10)",
+      }}
+    >
+      Report Ready
+    </span>
+  ) : (
+    <Badge tone="ready">{t("statusReady")}</Badge>
+  )
+}
                         />
                       </div>
                     </Link>

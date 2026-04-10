@@ -82,20 +82,20 @@ export default function ArchivePage() {
     []
   );
 
-  const rowCardStyle = useMemo(
-    () =>
-      ({
-        border: "1px solid rgba(158,216,207,0.14)",
-        background:
-          "linear-gradient(180deg, rgba(62,98,96,0.24) 0%, rgba(14,30,34,0.36) 100%)",
-        borderRadius: 24,
-        boxShadow:
-          "inset 0 1px 0 rgba(255,255,255,0.04), 0 14px 28px rgba(0,0,0,0.08)",
-        backdropFilter: "blur(10px)",
-        WebkitBackdropFilter: "blur(10px)",
-      }) as const,
-    []
-  );
+const rowCardStyle = useMemo(
+  () =>
+    ({
+      border: "1px solid rgba(158,216,207,0.14)",
+      background:
+        "linear-gradient(180deg, rgba(62,98,96,0.26) 0%, rgba(14,30,34,0.38) 100%)",
+      borderRadius: 24,
+      boxShadow:
+        "inset 0 1px 0 rgba(255,255,255,0.04), 0 14px 28px rgba(0,0,0,0.08)",
+      backdropFilter: "blur(10px)",
+      WebkitBackdropFilter: "blur(10px)",
+    }) as const,
+  []
+);
 
   return (
     <div className="section app-section">
@@ -257,7 +257,21 @@ export default function ArchivePage() {
                                 ).toLocaleString()}`
                               : item.displaySubtitle
                           }
-                          badge={<Badge tone="ready">Archived</Badge>}
+badge={
+  <span
+    className="inline-flex min-h-[28px] items-center justify-center rounded-full px-3 py-[5px] text-[10.5px] font-semibold uppercase tracking-[0.12em]"
+    style={{
+      color: "#c3ebe2",
+      background:
+        "linear-gradient(180deg, rgba(195,235,226,0.12) 0%, rgba(255,255,255,0.03) 100%)",
+      border: "1px solid rgba(195,235,226,0.22)",
+      boxShadow:
+        "inset 0 1px 0 rgba(255,255,255,0.16), 0 4px 10px rgba(60,110,102,0.10)",
+    }}
+  >
+    Archived
+  </span>
+}
                         />
                       </div>
                     </Link>
@@ -266,7 +280,21 @@ export default function ArchivePage() {
                       <ListRow
                         title={item.title || "Digital Evidence Record"}
                         subtitle={item.displaySubtitle}
-                        badge={<Badge tone="ready">Archived</Badge>}
+badge={
+  <span
+    className="inline-flex min-h-[28px] items-center justify-center rounded-full px-3 py-[5px] text-[10.5px] font-semibold uppercase tracking-[0.12em]"
+    style={{
+      color: "#c3ebe2",
+      background:
+        "linear-gradient(180deg, rgba(195,235,226,0.12) 0%, rgba(255,255,255,0.03) 100%)",
+      border: "1px solid rgba(195,235,226,0.22)",
+      boxShadow:
+        "inset 0 1px 0 rgba(255,255,255,0.16), 0 4px 10px rgba(60,110,102,0.10)",
+    }}
+  >
+    Archived
+  </span>
+}
                       />
                     </div>
                   )}
