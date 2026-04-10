@@ -14,6 +14,7 @@ import {
 import { useLocale } from "../../providers";
 import { apiFetch } from "../../../lib/api";
 import { captureException } from "../../../lib/sentry";
+import { SilverWatermarkSection } from "../../../components/SilverWatermarkSection";
 
 type HomeEvidenceItem = {
   id: string;
@@ -62,13 +63,13 @@ export default function HomePage() {
       .finally(() => setLoading(false));
   }, [addToast]);
 
-  const velvetButtonStyle = useMemo(
+  const velvetSurfaceStyle = useMemo(
     () =>
       ({
-        borderColor: "rgba(183,157,132,0.16)",
-        color: "#d8e0dd",
+        borderColor: "rgba(183,157,132,0.14)",
+        color: "#cfd8d5",
         background:
-          "radial-gradient(circle at 86% 18%, rgba(158,216,207,0.08), transparent 26%), linear-gradient(180deg, rgba(255,255,255,0.03) 0%, rgba(255,255,255,0.02) 100%)",
+          "radial-gradient(circle at 86% 18%, rgba(158,216,207,0.08), transparent 26%), linear-gradient(180deg, rgba(255,255,255,0.028) 0%, rgba(255,255,255,0.02) 100%)",
         boxShadow:
           "inset 0 1px 0 rgba(255,255,255,0.03), 0 14px 28px rgba(0,0,0,0.08)",
         backdropFilter: "blur(10px)",
@@ -77,13 +78,22 @@ export default function HomePage() {
     []
   );
 
-  const actionButtonStyle = useMemo(
+  const silverCardShellStyle = useMemo(
     () =>
       ({
-        border: "1px solid rgba(79,112,107,0.14)",
-        color: "#d8e0dd",
+        border: "1px solid rgba(79,112,107,0.22)",
+        boxShadow:
+          "0 30px 80px rgba(0,0,0,0.14), inset 0 1px 0 rgba(255,255,255,0.42)",
+      }) as const,
+    []
+  );
+
+  const darkVelvetInnerStyle = useMemo(
+    () =>
+      ({
+        border: "1px solid rgba(79,112,107,0.16)",
         backgroundImage:
-          "linear-gradient(180deg, rgba(8,20,24,0.76) 0%, rgba(7,18,22,0.86) 100%), url('/images/site-velvet-bg.webp.png')",
+          "linear-gradient(180deg, rgba(8,20,24,0.84) 0%, rgba(7,18,22,0.92) 100%), url('/images/site-velvet-bg.webp.png')",
         backgroundSize: "cover",
         backgroundPosition: "center",
         boxShadow:
@@ -94,12 +104,13 @@ export default function HomePage() {
     []
   );
 
-  const evidenceRowShellStyle = useMemo(
+  const actionButtonStyle = useMemo(
     () =>
       ({
-        border: "1px solid rgba(79,112,107,0.14)",
+        borderColor: "rgba(79,112,107,0.18)",
+        color: "#e7efec",
         backgroundImage:
-          "linear-gradient(180deg, rgba(8,20,24,0.78) 0%, rgba(7,18,22,0.90) 100%), url('/images/site-velvet-bg.webp.png')",
+          "linear-gradient(180deg, rgba(8,20,24,0.78) 0%, rgba(7,18,22,0.88) 100%), url('/images/site-velvet-bg.webp.png')",
         backgroundSize: "cover",
         backgroundPosition: "center",
         boxShadow:
@@ -185,7 +196,7 @@ export default function HomePage() {
             <Link href="/capture">
               <Button
                 className="min-w-[198px] rounded-[999px] border px-7 py-3 text-[0.95rem] font-semibold transition-all duration-200 hover:-translate-y-[1px] hover:brightness-[1.03]"
-                style={velvetButtonStyle}
+                style={velvetSurfaceStyle}
               >
                 Capture Evidence
               </Button>
@@ -194,55 +205,49 @@ export default function HomePage() {
         </div>
       </section>
 
-      <section className="relative px-6 pb-16 pt-14 md:px-8 md:pb-20">
-        <div
-          className="pointer-events-none absolute left-1/2 top-0 h-full w-screen -translate-x-1/2"
-          aria-hidden="true"
-        >
+      <SilverWatermarkSection
+        className="section section-body relative overflow-hidden"
+        style={{ paddingTop: 48, paddingBottom: 56 }}
+      >
+        <div className="pointer-events-none absolute inset-0 z-0" aria-hidden="true">
           <img
-            src="/images/panel-silver.webp.png"
+            src="/images/landing-network-bg.png"
             alt=""
-            className="absolute inset-0 h-full w-full object-cover object-center"
+            className="absolute inset-0 h-full w-full object-cover object-top opacity-[0.12] saturate-[0.55] brightness-[1.02] contrast-[0.94]"
           />
-          <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.22)_0%,rgba(245,247,244,0.44)_48%,rgba(236,239,236,0.56)_100%)]" />
-          <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(255,255,255,0.12)_0%,rgba(255,255,255,0.03)_12%,rgba(255,255,255,0.00)_24%,rgba(255,255,255,0.00)_76%,rgba(255,255,255,0.03)_88%,rgba(255,255,255,0.12)_100%)]" />
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_16%_12%,rgba(255,255,255,0.34),transparent_28%)]" />
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_84%_18%,rgba(214,184,157,0.14),transparent_26%)]" />
+          <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.08)_0%,rgba(255,255,255,0.03)_22%,rgba(255,255,255,0.03)_78%,rgba(255,255,255,0.08)_100%)]" />
+          <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(255,255,255,0.10)_0%,rgba(255,255,255,0.03)_12%,rgba(255,255,255,0.00)_24%,rgba(255,255,255,0.00)_76%,rgba(255,255,255,0.03)_88%,rgba(255,255,255,0.10)_100%)]" />
         </div>
 
-        <div className="relative z-10 mx-auto w-full max-w-[1180px]">
+        <div className="container relative z-10">
           <div className="grid gap-5 xl:grid-cols-[1.08fr_0.92fr]">
             <Card
               className="relative overflow-hidden rounded-[30px] border bg-transparent p-0 shadow-none"
-              style={{
-                border: "1px solid rgba(79,112,107,0.22)",
-                boxShadow: "0 30px 80px rgba(0,0,0,0.14)",
-              }}
+              style={silverCardShellStyle}
             >
               <div className="absolute inset-0">
                 <img
-                  src="/images/site-velvet-bg.webp.png"
+                  src="/images/panel-silver.webp.png"
                   alt=""
-                  className="h-full w-full scale-[1.12] object-cover object-center"
+                  className="h-full w-full object-cover object-center"
                 />
               </div>
-              <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(8,18,22,0.84)_0%,rgba(8,18,22,0.76)_46%,rgba(8,18,22,0.70)_100%)]" />
-              <div className="absolute inset-0 bg-[radial-gradient(circle_at_16%_16%,rgba(158,216,207,0.08),transparent_24%)]" />
-              <div className="absolute inset-0 bg-[radial-gradient(circle_at_84%_18%,rgba(214,184,157,0.05),transparent_22%)]" />
-              <div className="absolute inset-0 opacity-[0.03] [background:repeating-linear-gradient(0deg,rgba(255,255,255,0.02)_0px,rgba(255,255,255,0.02)_1px,transparent_1px,transparent_4px)]" />
+              <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.28)_0%,rgba(245,247,244,0.45)_50%,rgba(236,239,236,0.58)_100%)]" />
+              <div className="absolute inset-0 bg-[radial-gradient(circle_at_85%_18%,rgba(214,184,157,0.16),transparent_38%)]" />
+              <div className="absolute inset-0 bg-[radial-gradient(circle_at_15%_10%,rgba(255,255,255,0.34),transparent_28%)]" />
 
               <div className="relative z-10 p-6 md:p-7">
                 <div className="mb-5 flex items-start justify-between gap-4">
                   <div>
-                    <div className="mb-2 text-[0.72rem] font-semibold uppercase tracking-[0.22em] text-[rgba(198,210,206,0.54)]">
+                    <div className="mb-2 text-[0.72rem] font-semibold uppercase tracking-[0.22em] text-[#8f7d6c]">
                       Records
                     </div>
-                    <div className="text-[1.12rem] font-semibold tracking-[-0.02em] text-[#dde5e2]">
+                    <div className="text-[1.12rem] font-semibold tracking-[-0.02em] text-[#21353a]">
                       {t("recentEvidence")}
                     </div>
                   </div>
 
-                  <div className="mt-1 inline-flex items-center rounded-full border border-[rgba(79,112,107,0.18)] bg-[rgba(255,255,255,0.03)] px-3 py-1.5 text-[0.7rem] font-medium uppercase tracking-[0.16em] text-[#cfd8d5]">
+                  <div className="mt-1 inline-flex items-center rounded-full border border-[rgba(79,112,107,0.16)] bg-[rgba(255,255,255,0.34)] px-3 py-1.5 text-[0.7rem] font-medium uppercase tracking-[0.16em] text-[#506468] shadow-[0_8px_18px_rgba(0,0,0,0.05)]">
                     Active records
                   </div>
                 </div>
@@ -250,22 +255,22 @@ export default function HomePage() {
                 <div style={{ display: "grid", gap: 12 }}>
                   {loading ? (
                     <div style={{ display: "grid", gap: 12 }}>
-                      <div className="rounded-[22px] p-4" style={evidenceRowShellStyle}>
+                      <div className="rounded-[22px] p-4" style={darkVelvetInnerStyle}>
                         <Skeleton width="100%" height="20px" />
                       </div>
-                      <div className="rounded-[22px] p-4" style={evidenceRowShellStyle}>
+                      <div className="rounded-[22px] p-4" style={darkVelvetInnerStyle}>
                         <Skeleton width="100%" height="20px" />
                       </div>
-                      <div className="rounded-[22px] p-4" style={evidenceRowShellStyle}>
+                      <div className="rounded-[22px] p-4" style={darkVelvetInnerStyle}>
                         <Skeleton width="100%" height="20px" />
                       </div>
                     </div>
                   ) : error ? (
-                    <div className="rounded-[20px] border border-[rgba(255,120,120,0.16)] bg-[rgba(120,20,20,0.12)] px-4 py-3 text-[0.92rem] text-[#ffd7d7]">
+                    <div className="rounded-[20px] border border-[rgba(255,120,120,0.16)] bg-[rgba(120,20,20,0.12)] px-4 py-3 text-[0.92rem] text-[#b42318]">
                       {error}
                     </div>
                   ) : items.length === 0 ? (
-                    <div className="rounded-[24px] p-4" style={evidenceRowShellStyle}>
+                    <div className="rounded-[24px] p-4" style={darkVelvetInnerStyle}>
                       <EmptyState
                         title="No evidence yet"
                         subtitle="Capture your first file to see it here."
@@ -273,7 +278,7 @@ export default function HomePage() {
                           <Link href="/capture">
                             <Button
                               className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-medium"
-                              style={velvetButtonStyle}
+                              style={velvetSurfaceStyle}
                             >
                               {t("ctaCapture")}
                             </Button>
@@ -285,8 +290,8 @@ export default function HomePage() {
                     items.map((item) => {
                       const row = (
                         <div
-                          className="home-evidence-row-shell rounded-[24px] p-1 transition-all duration-200 hover:-translate-y-[1px]"
-                          style={evidenceRowShellStyle}
+                          className="rounded-[24px] p-1 transition-all duration-200 hover:-translate-y-[1px] home-evidence-silver-row"
+                          style={darkVelvetInnerStyle}
                         >
                           <ListRow
                             title={item.title || "Digital Evidence Record"}
@@ -335,32 +340,28 @@ export default function HomePage() {
 
             <Card
               className="relative overflow-hidden rounded-[30px] border bg-transparent p-0 shadow-none"
-              style={{
-                border: "1px solid rgba(79,112,107,0.22)",
-                boxShadow: "0 30px 80px rgba(0,0,0,0.14)",
-              }}
+              style={silverCardShellStyle}
             >
               <div className="absolute inset-0">
                 <img
-                  src="/images/site-velvet-bg.webp.png"
+                  src="/images/panel-silver.webp.png"
                   alt=""
-                  className="h-full w-full scale-[1.12] object-cover object-center"
+                  className="h-full w-full object-cover object-center"
                 />
               </div>
-              <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(8,18,22,0.84)_0%,rgba(8,18,22,0.76)_46%,rgba(8,18,22,0.70)_100%)]" />
-              <div className="absolute inset-0 bg-[radial-gradient(circle_at_16%_16%,rgba(158,216,207,0.08),transparent_24%)]" />
-              <div className="absolute inset-0 bg-[radial-gradient(circle_at_84%_18%,rgba(214,184,157,0.05),transparent_22%)]" />
-              <div className="absolute inset-0 opacity-[0.03] [background:repeating-linear-gradient(0deg,rgba(255,255,255,0.02)_0px,rgba(255,255,255,0.02)_1px,transparent_1px,transparent_4px)]" />
+              <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.28)_0%,rgba(245,247,244,0.45)_50%,rgba(236,239,236,0.58)_100%)]" />
+              <div className="absolute inset-0 bg-[radial-gradient(circle_at_85%_18%,rgba(214,184,157,0.16),transparent_38%)]" />
+              <div className="absolute inset-0 bg-[radial-gradient(circle_at_15%_10%,rgba(255,255,255,0.34),transparent_28%)]" />
 
               <div className="relative z-10 p-6 md:p-7">
                 <div className="mb-5">
-                  <div className="mb-2 text-[0.72rem] font-semibold uppercase tracking-[0.22em] text-[rgba(198,210,206,0.54)]">
+                  <div className="mb-2 text-[0.72rem] font-semibold uppercase tracking-[0.22em] text-[#8f7d6c]">
                     Navigation
                   </div>
-                  <div className="text-[1.12rem] font-semibold tracking-[-0.02em] text-[#dde5e2]">
+                  <div className="text-[1.12rem] font-semibold tracking-[-0.02em] text-[#21353a]">
                     Quick Actions
                   </div>
-                  <div className="mt-2 max-w-[480px] text-[0.92rem] leading-[1.78] text-[rgba(199,209,206,0.70)]">
+                  <div className="mt-2 max-w-[480px] text-[0.92rem] leading-[1.78] text-[#55666a]">
                     Move through your workspace with a cleaner, focused action
                     flow.
                   </div>
@@ -371,7 +372,7 @@ export default function HomePage() {
                     <Link key={action.href} href={action.href}>
                       <Button
                         variant={action.primary ? "primary" : "secondary"}
-                        className="flex w-full items-center justify-between rounded-[20px] px-5 py-4 text-left text-[0.96rem] font-medium transition-all duration-200 hover:-translate-y-[1px]"
+                        className="flex w-full items-center justify-between rounded-[20px] border px-5 py-4 text-left text-[0.96rem] font-medium transition-all duration-200 hover:-translate-y-[1px]"
                         style={actionButtonStyle}
                         onClick={() => addToast(action.toast, "info")}
                       >
@@ -385,13 +386,11 @@ export default function HomePage() {
                 <div
                   className="mt-5 rounded-[24px] border px-4 py-4"
                   style={{
-                    border: "1px solid rgba(79,112,107,0.18)",
-                    backgroundImage:
-                      "linear-gradient(180deg, rgba(8,20,24,0.72) 0%, rgba(7,18,22,0.84) 100%), url('/images/site-velvet-bg.webp.png')",
-                    backgroundSize: "cover",
-                    backgroundPosition: "center",
+                    border: "1px solid rgba(183,157,132,0.18)",
+                    background:
+                      "linear-gradient(180deg, rgba(214,184,157,0.10) 0%, rgba(255,255,255,0.44) 100%)",
                     boxShadow:
-                      "inset 0 1px 0 rgba(255,255,255,0.03), 0 14px 28px rgba(0,0,0,0.10)",
+                      "0 14px 28px rgba(0,0,0,0.06), inset 0 1px 0 rgba(255,255,255,0.42)",
                   }}
                 >
                   <div className="flex items-start gap-3">
@@ -399,20 +398,20 @@ export default function HomePage() {
                       className="flex h-11 w-11 items-center justify-center rounded-full text-[1rem] font-semibold"
                       style={{
                         background:
-                          "linear-gradient(180deg, rgba(195,235,226,0.12) 0%, rgba(255,255,255,0.04) 100%)",
-                        color: "#c3ebe2",
-                        border: "1px solid rgba(195,235,226,0.18)",
-                        boxShadow: "0 0 18px rgba(60,110,102,0.08)",
+                          "linear-gradient(180deg, rgba(183,157,132,0.16) 0%, rgba(255,255,255,0.14) 100%)",
+                        color: "#9a826a",
+                        border: "1px solid rgba(183,157,132,0.22)",
+                        boxShadow: "0 0 18px rgba(183,157,132,0.07)",
                       }}
                     >
                       ✓
                     </div>
 
                     <div>
-                      <div className="font-bold text-[#dbe3e0]">
+                      <div className="font-bold text-[#24373b]">
                         Trusted chain of custody
                       </div>
-                      <div className="mt-1 text-[12px] text-[rgba(201,211,208,0.72)]">
+                      <div className="mt-1 text-[12px] text-[#667174]">
                         Capture → Sign → Report → Share
                       </div>
                     </div>
@@ -422,17 +421,17 @@ export default function HomePage() {
                 <div
                   className="mt-4 rounded-[22px] border px-4 py-4"
                   style={{
-                    border: "1px solid rgba(79,112,107,0.18)",
+                    border: "1px solid rgba(79,112,107,0.14)",
                     background:
-                      "linear-gradient(180deg, rgba(255,255,255,0.038) 0%, rgba(255,255,255,0.02) 100%)",
+                      "linear-gradient(180deg, rgba(255,255,255,0.42) 0%, rgba(244,246,244,0.72) 100%)",
                     boxShadow:
-                      "inset 0 1px 0 rgba(255,255,255,0.03), 0 14px 28px rgba(0,0,0,0.08)",
+                      "0 14px 28px rgba(0,0,0,0.05), inset 0 1px 0 rgba(255,255,255,0.44)",
                   }}
                 >
-                  <div className="mb-2 text-[0.78rem] font-semibold uppercase tracking-[0.18em] text-[#cdd6d3]">
+                  <div className="mb-2 text-[0.78rem] font-semibold uppercase tracking-[0.18em] text-[#8f7d6c]">
                     Workspace flow
                   </div>
-                  <div className="text-[0.92rem] leading-[1.75] text-[rgba(194,204,201,0.76)]">
+                  <div className="text-[0.92rem] leading-[1.75] text-[#55666a]">
                     Everything important stays one click away, while the visual
                     language remains premium, quiet, and consistent with the rest
                     of the platform.
@@ -442,50 +441,50 @@ export default function HomePage() {
             </Card>
           </div>
         </div>
-      </section>
+      </SilverWatermarkSection>
 
       <style jsx global>{`
-        .home-page-shell .home-evidence-row-shell .evidence-row-pro {
+        .home-page-shell .home-evidence-silver-row .evidence-row-pro {
           border: 1px solid rgba(79, 112, 107, 0.14);
           background: linear-gradient(
             180deg,
-            rgba(8, 20, 24, 0.84) 0%,
-            rgba(7, 18, 22, 0.92) 100%
+            rgba(8, 20, 24, 0.86) 0%,
+            rgba(7, 18, 22, 0.94) 100%
           );
           box-shadow: 0 10px 24px rgba(0, 0, 0, 0.18);
         }
 
-        .home-page-shell .home-evidence-row-shell .evidence-row-pro:hover {
+        .home-page-shell .home-evidence-silver-row .evidence-row-pro:hover {
           border-color: rgba(79, 112, 107, 0.22);
           background: linear-gradient(
             180deg,
-            rgba(10, 24, 28, 0.88) 0%,
-            rgba(8, 20, 24, 0.96) 100%
+            rgba(10, 24, 28, 0.90) 0%,
+            rgba(8, 20, 24, 0.97) 100%
           );
         }
 
-        .home-page-shell .home-evidence-row-shell .evidence-row-pro__icon {
+        .home-page-shell .home-evidence-silver-row .evidence-row-pro__icon {
           background: linear-gradient(
             180deg,
             rgba(39, 68, 72, 0.58) 0%,
             rgba(21, 39, 44, 0.44) 100%
           );
-          border: 1px solid rgba(158, 216, 207, 0.1);
+          border: 1px solid rgba(158, 216, 207, 0.10);
         }
 
-        .home-page-shell .home-evidence-row-shell .evidence-row-pro__title {
+        .home-page-shell .home-evidence-silver-row .evidence-row-pro__title {
           color: #d7dfdc !important;
         }
 
-        .home-page-shell .home-evidence-row-shell .evidence-row-pro__subtitle {
+        .home-page-shell .home-evidence-silver-row .evidence-row-pro__subtitle {
           color: rgba(198, 208, 205, 0.72) !important;
         }
 
-        .home-page-shell .home-evidence-row-shell .evidence-row-pro__icon-text {
+        .home-page-shell .home-evidence-silver-row .evidence-row-pro__icon-text {
           color: #d7dfdc !important;
         }
 
-        .home-page-shell .home-evidence-row-shell .evidence-row-pro__arrow {
+        .home-page-shell .home-evidence-silver-row .evidence-row-pro__arrow {
           color: rgba(198, 208, 205, 0.34) !important;
         }
       `}</style>
