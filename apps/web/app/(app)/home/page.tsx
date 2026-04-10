@@ -14,6 +14,7 @@ import {
 import { useLocale } from "../../providers";
 import { apiFetch } from "../../../lib/api";
 import { captureException } from "../../../lib/sentry";
+import { SilverWatermarkSection } from "../../../components/SilverWatermarkSection";
 
 type HomeEvidenceItem = {
   id: string;
@@ -175,8 +176,21 @@ export default function HomePage() {
         </div>
       </section>
 
-      <section className="relative px-6 pb-12 md:px-8 md:pb-16">
-        <div className="mx-auto w-full max-w-[1180px]">
+      <SilverWatermarkSection
+        className="section section-body relative overflow-hidden"
+        style={{ paddingTop: 48, paddingBottom: 56 }}
+      >
+        <div className="pointer-events-none absolute inset-0 z-0" aria-hidden="true">
+          <img
+            src="/images/landing-network-bg.png"
+            alt=""
+            className="absolute inset-0 h-full w-full object-cover object-top opacity-[0.12] saturate-[0.55] brightness-[1.02] contrast-[0.94]"
+          />
+          <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.08)_0%,rgba(255,255,255,0.03)_22%,rgba(255,255,255,0.03)_78%,rgba(255,255,255,0.08)_100%)]" />
+          <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(255,255,255,0.10)_0%,rgba(255,255,255,0.03)_12%,rgba(255,255,255,0.00)_24%,rgba(255,255,255,0.00)_76%,rgba(255,255,255,0.03)_88%,rgba(255,255,255,0.10)_100%)]" />
+        </div>
+
+        <div className="mx-auto w-full max-w-[1180px] px-6 md:px-8 relative z-10">
           <div className="grid gap-5 xl:grid-cols-[1.08fr_0.92fr]">
             <Card
               className="relative overflow-hidden rounded-[30px] border bg-transparent p-0 shadow-none"
@@ -389,7 +403,7 @@ export default function HomePage() {
             </Card>
           </div>
         </div>
-      </section>
+      </SilverWatermarkSection>
 
       <style jsx global>{`
         .home-page-shell .home-evidence-velvet-row .evidence-row-pro__title {
