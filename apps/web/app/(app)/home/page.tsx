@@ -71,24 +71,6 @@ export default function HomePage() {
     boxShadow: "0 16px 30px rgba(9,27,28,0.22)",
   } as const;
 
-  const bronzeReadyBadgeStyle = {
-    display: "inline-flex",
-    alignItems: "center",
-    justifyContent: "center",
-    minHeight: 30,
-    padding: "6px 12px",
-    borderRadius: 999,
-    fontSize: 11,
-    fontWeight: 800,
-    letterSpacing: "0.08em",
-    textTransform: "uppercase" as const,
-    border: "1px solid rgba(183,157,132,0.26)",
-    color: "#8f745c",
-    background:
-      "linear-gradient(180deg, rgba(183,157,132,0.16) 0%, rgba(255,255,255,0.08) 100%)",
-    boxShadow: "inset 0 1px 0 rgba(255,255,255,0.24)",
-  };
-
   return (
     <div className="page landing-page home-page-shell">
       <div className="relative min-h-screen overflow-hidden">
