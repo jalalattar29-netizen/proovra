@@ -62,36 +62,15 @@ export default function HomePage() {
       .finally(() => setLoading(false));
   }, [addToast]);
 
-  const primaryActionButtonStyle = useMemo(
+  const velvetSurfaceStyle = useMemo(
     () =>
       ({
-        borderColor: "rgba(158,216,207,0.14)",
+        borderColor: "rgba(183,157,132,0.14)",
         color: "#cfd8d5",
-        backgroundImage:
-          'linear-gradient(180deg, rgba(10,24,28,0.34) 0%, rgba(6,16,20,0.42) 100%), url("/images/site-velvet-bg.webp.png")',
-        backgroundPosition: "center, top right",
-        backgroundSize: "100% 100%, 220% 220%",
-        backgroundRepeat: "no-repeat, no-repeat",
+        background:
+          "radial-gradient(circle at 86% 18%, rgba(158,216,207,0.08), transparent 26%), linear-gradient(180deg, rgba(255,255,255,0.028) 0%, rgba(255,255,255,0.02) 100%)",
         boxShadow:
-          "inset 0 1px 0 rgba(255,255,255,0.04), 0 14px 28px rgba(0,0,0,0.08)",
-        backdropFilter: "blur(10px)",
-        WebkitBackdropFilter: "blur(10px)",
-      }) as const,
-    []
-  );
-
-  const secondaryActionButtonStyle = useMemo(
-    () =>
-      ({
-        borderColor: "rgba(158,216,207,0.14)",
-        color: "#cfd8d5",
-        backgroundImage:
-          'linear-gradient(180deg, rgba(10,24,28,0.34) 0%, rgba(6,16,20,0.42) 100%), url("/images/site-velvet-bg.webp.png")',
-        backgroundPosition: "center, top right",
-        backgroundSize: "100% 100%, 220% 220%",
-        backgroundRepeat: "no-repeat, no-repeat",
-        boxShadow:
-          "inset 0 1px 0 rgba(255,255,255,0.04), 0 14px 28px rgba(0,0,0,0.08)",
+          "inset 0 1px 0 rgba(255,255,255,0.03), 0 14px 28px rgba(0,0,0,0.08)",
         backdropFilter: "blur(10px)",
         WebkitBackdropFilter: "blur(10px)",
       }) as const,
@@ -101,14 +80,11 @@ export default function HomePage() {
   const evidenceVelvetCardStyle = useMemo(
     () =>
       ({
-        border: "1px solid rgba(158,216,207,0.14)",
-        backgroundImage:
-          'linear-gradient(180deg, rgba(10,24,28,0.34) 0%, rgba(6,16,20,0.42) 100%), url("/images/site-velvet-bg.webp.png")',
-        backgroundPosition: "center, top right",
-        backgroundSize: "100% 100%, 220% 220%",
-        backgroundRepeat: "no-repeat, no-repeat",
+        border: "1px solid rgba(183,157,132,0.14)",
+        background:
+          "radial-gradient(circle at 86% 18%, rgba(158,216,207,0.08), transparent 26%), linear-gradient(180deg, rgba(255,255,255,0.028) 0%, rgba(255,255,255,0.02) 100%)",
         boxShadow:
-          "inset 0 1px 0 rgba(255,255,255,0.04), 0 14px 28px rgba(0,0,0,0.08)",
+          "inset 0 1px 0 rgba(255,255,255,0.03), 0 14px 28px rgba(0,0,0,0.08)",
         backdropFilter: "blur(10px)",
         WebkitBackdropFilter: "blur(10px)",
       }) as const,
@@ -190,7 +166,7 @@ export default function HomePage() {
             <Link href="/capture">
               <Button
                 className="min-w-[198px] rounded-[999px] border px-7 py-3 text-[0.95rem] font-semibold transition-all duration-200 hover:-translate-y-[1px] hover:brightness-[1.03]"
-                style={primaryActionButtonStyle}
+                style={velvetSurfaceStyle}
               >
                 Capture Evidence
               </Button>
@@ -258,7 +234,7 @@ export default function HomePage() {
                           <Link href="/capture">
                             <Button
                               className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-medium"
-                              style={primaryActionButtonStyle}
+                              style={velvetSurfaceStyle}
                             >
                               {t("ctaCapture")}
                             </Button>
@@ -355,11 +331,7 @@ export default function HomePage() {
                       <Button
                         variant={action.primary ? "primary" : "secondary"}
                         className="flex w-full items-center justify-between rounded-[20px] border px-5 py-4 text-left text-[0.96rem] font-medium transition-all duration-200 hover:-translate-y-[1px]"
-                        style={
-                          action.primary
-                            ? primaryActionButtonStyle
-                            : secondaryActionButtonStyle
-                        }
+                        style={velvetSurfaceStyle}
                         onClick={() => addToast(action.toast, "info")}
                       >
                         <span>{action.label}</span>
@@ -429,7 +401,7 @@ export default function HomePage() {
         }
 
         .home-page-shell .home-evidence-velvet-row .evidence-row-pro__icon-text {
-          color: #d2dbd8 !important;
+          color: #cfd8d5 !important;
         }
 
         .home-page-shell .home-evidence-velvet-row .evidence-row-pro__arrow {
