@@ -508,57 +508,98 @@ export default function TeamDetailPage() {
     }
   };
 
-  const outerCardStyle = {
-    border: "1px solid rgba(183,157,132,0.20)",
-    boxShadow:
-      "0 22px 42px rgba(0,0,0,0.16), inset 0 1px 0 rgba(255,255,255,0.03)",
-  } as const;
+  const outerCardStyle = useMemo(
+    () =>
+      ({
+        border: "1px solid rgba(183,157,132,0.18)",
+        boxShadow:
+          "0 22px 42px rgba(0,0,0,0.16), inset 0 1px 0 rgba(255,255,255,0.03)",
+      }) as const,
+    []
+  );
 
-  const primaryButtonStyle = {
-    borderColor: "rgba(183,157,132,0.24)",
-    color: "#eef4f2",
-    background:
-      "linear-gradient(180deg, rgba(72,114,111,0.96) 0%, rgba(28,55,57,0.98) 100%)",
-    boxShadow: "0 14px 28px rgba(9,27,28,0.22)",
-  } as const;
+  const primaryButtonStyle = useMemo(
+    () =>
+      ({
+        borderColor: "rgba(158,216,207,0.14)",
+        color: "#aebbb6",
+        background:
+          "linear-gradient(180deg, rgba(62,98,96,0.26) 0%, rgba(14,30,34,0.38) 100%)",
+        boxShadow:
+          "inset 0 1px 0 rgba(255,255,255,0.04), 0 14px 28px rgba(0,0,0,0.08)",
+        backdropFilter: "blur(10px)",
+        WebkitBackdropFilter: "blur(10px)",
+      }) as const,
+    []
+  );
 
-  const secondaryButtonStyle = {
-    borderColor: "rgba(183,157,132,0.18)",
-    color: "#e6ece9",
-    background:
-      "linear-gradient(180deg, rgba(43,73,75,0.84) 0%, rgba(18,37,39,0.94) 100%)",
-    boxShadow: "0 10px 22px rgba(0,0,0,0.14)",
-  } as const;
+  const secondaryButtonStyle = useMemo(
+    () =>
+      ({
+        borderColor: "rgba(79,112,107,0.18)",
+        color: "#aebbb6",
+        backgroundImage:
+          "linear-gradient(180deg, rgba(8,20,24,0.78) 0%, rgba(7,18,22,0.88) 100%), url('/images/site-velvet-bg.webp.png')",
+        backgroundSize: "cover",
+        backgroundPosition: "center",
+        boxShadow:
+          "inset 0 1px 0 rgba(255,255,255,0.03), 0 14px 28px rgba(0,0,0,0.10)",
+        backdropFilter: "blur(10px)",
+        WebkitBackdropFilter: "blur(10px)",
+      }) as const,
+    []
+  );
 
-  const dangerButtonStyle = {
-    borderColor: "rgba(220,120,120,0.22)",
-    color: "#ffe3e3",
-    background:
-      "linear-gradient(180deg, rgba(130,43,43,0.92) 0%, rgba(92,24,24,0.96) 100%)",
-    boxShadow: "0 12px 24px rgba(60, 12, 12, 0.22)",
-  } as const;
+  const dangerButtonStyle = useMemo(
+    () =>
+      ({
+        borderColor: "rgba(220,120,120,0.22)",
+        color: "#f3d9d9",
+        background:
+          "linear-gradient(180deg, rgba(130,43,43,0.82) 0%, rgba(92,24,24,0.92) 100%)",
+        boxShadow:
+          "inset 0 1px 0 rgba(255,255,255,0.03), 0 12px 24px rgba(60,12,12,0.22)",
+        backdropFilter: "blur(10px)",
+        WebkitBackdropFilter: "blur(10px)",
+      }) as const,
+    []
+  );
 
-  const inputStyle = {
-    width: "100%",
-    minHeight: 52,
-    padding: "0 16px",
-    borderRadius: 18,
-    fontSize: 15,
-    lineHeight: 1.2,
-    background: "rgba(255,255,255,0.05)",
-    border: "1px solid rgba(183,157,132,0.16)",
-    boxShadow: "0 12px 24px rgba(0,0,0,0.10)",
-    color: "#edf4f1",
-    outline: "none",
-  } as const;
+  const inputStyle = useMemo(
+    () =>
+      ({
+        width: "100%",
+        minHeight: 52,
+        padding: "0 16px",
+        borderRadius: 18,
+        fontSize: 15,
+        lineHeight: 1.2,
+        background: "rgba(255,255,255,0.05)",
+        border: "1px solid rgba(183,157,132,0.16)",
+        boxShadow: "0 12px 24px rgba(0,0,0,0.10)",
+        color: "#d8e0dd",
+        outline: "none",
+        backdropFilter: "blur(10px)",
+        WebkitBackdropFilter: "blur(10px)",
+      }) as const,
+    []
+  );
 
-  const rowCardStyle = {
-    border: "1px solid rgba(183,157,132,0.14)",
-    background:
-      "linear-gradient(180deg, rgba(9,22,27,0.88) 0%, rgba(8,18,23,0.94) 100%)",
-    borderRadius: 22,
-    padding: 14,
-  } as const;
+  const rowCardStyle = useMemo(
+    () =>
+      ({
+        border: "1px solid rgba(158,216,207,0.14)",
+        background:
+          "linear-gradient(180deg, rgba(62,98,96,0.24) 0%, rgba(14,30,34,0.36) 100%)",
+        borderRadius: 22,
+        padding: 14,
+        boxShadow:
+          "inset 0 1px 0 rgba(255,255,255,0.04), 0 14px 28px rgba(0,0,0,0.08)",
+        backdropFilter: "blur(10px)",
+        WebkitBackdropFilter: "blur(10px)",
+      }) as const,
+    []
+  );
 
   if (loading) {
     return (
@@ -568,43 +609,50 @@ export default function TeamDetailPage() {
             <div
               style={{
                 display: "inline-flex",
+                alignItems: "center",
+                gap: 8,
                 borderRadius: 999,
                 border: "1px solid rgba(255,255,255,0.10)",
-                background: "rgba(255,255,255,0.055)",
+                background: "rgba(255,255,255,0.04)",
                 padding: "8px 16px",
-                fontSize: "0.74rem",
-                fontWeight: 600,
+                fontSize: "0.68rem",
+                fontWeight: 500,
                 textTransform: "uppercase",
-                letterSpacing: "0.2em",
-                color: "#dce3e0",
-                boxShadow: "0 10px 24px rgba(0,0,0,0.10)",
+                letterSpacing: "0.28em",
+                color: "#afbbb7",
+                boxShadow: "0 10px 24px rgba(0,0,0,0.08)",
                 backdropFilter: "blur(10px)",
+                WebkitBackdropFilter: "blur(10px)",
               }}
             >
+              <span
+                style={{
+                  width: 4,
+                  height: 4,
+                  borderRadius: 999,
+                  background: "#b79d84",
+                  opacity: 0.8,
+                  display: "inline-block",
+                }}
+              />
               Team
             </div>
 
             <h1
-              style={{
-                margin: "16px 0 0",
-                fontSize: "clamp(2rem, 4vw, 3.05rem)",
-                lineHeight: 1.02,
-                letterSpacing: "-0.05em",
-                fontWeight: 600,
-                color: "#edf1ef",
-              }}
+              className="mt-5 max-w-[760px] text-[1.72rem] font-medium leading-[1.02] tracking-[-0.045em] text-[#d9e2df] md:text-[2.22rem] lg:text-[2.72rem]"
+              style={{ margin: "20px 0 0" }}
             >
-              Loading{" "}
-              <span style={{ color: "#bfe8df" }}>team workspace</span>.
+              Loading <span style={{ color: "#c3ebe2" }}>team workspace</span>.
             </h1>
 
             <p
               style={{
-                marginTop: 16,
+                marginTop: 20,
                 maxWidth: 720,
-                fontSize: "0.98rem",
-                lineHeight: 1.82,
-                color: "#c7cfcc",
+                fontSize: "0.95rem",
+                lineHeight: 1.8,
+                letterSpacing: "-0.006em",
+                color: "#aab5b2",
               }}
             >
               Preparing members, cases, invites, and access controls.
@@ -631,34 +679,40 @@ export default function TeamDetailPage() {
             <div
               style={{
                 display: "inline-flex",
+                alignItems: "center",
+                gap: 8,
                 borderRadius: 999,
                 border: "1px solid rgba(255,255,255,0.10)",
-                background: "rgba(255,255,255,0.055)",
+                background: "rgba(255,255,255,0.04)",
                 padding: "8px 16px",
-                fontSize: "0.74rem",
-                fontWeight: 600,
+                fontSize: "0.68rem",
+                fontWeight: 500,
                 textTransform: "uppercase",
-                letterSpacing: "0.2em",
-                color: "#dce3e0",
-                boxShadow: "0 10px 24px rgba(0,0,0,0.10)",
+                letterSpacing: "0.28em",
+                color: "#afbbb7",
+                boxShadow: "0 10px 24px rgba(0,0,0,0.08)",
                 backdropFilter: "blur(10px)",
+                WebkitBackdropFilter: "blur(10px)",
               }}
             >
+              <span
+                style={{
+                  width: 4,
+                  height: 4,
+                  borderRadius: 999,
+                  background: "#b79d84",
+                  opacity: 0.8,
+                  display: "inline-block",
+                }}
+              />
               Team
             </div>
 
             <h1
-              style={{
-                margin: "16px 0 0",
-                fontSize: "clamp(2rem, 4vw, 3.05rem)",
-                lineHeight: 1.02,
-                letterSpacing: "-0.05em",
-                fontWeight: 600,
-                color: "#edf1ef",
-              }}
+              className="mt-5 max-w-[760px] text-[1.72rem] font-medium leading-[1.02] tracking-[-0.045em] text-[#d9e2df] md:text-[2.22rem] lg:text-[2.72rem]"
+              style={{ margin: "20px 0 0" }}
             >
-              Team details{" "}
-              <span style={{ color: "#bfe8df" }}>could not load</span>.
+              Team details <span style={{ color: "#c3ebe2" }}>could not load</span>.
             </h1>
           </div>
         </div>
@@ -676,14 +730,14 @@ export default function TeamDetailPage() {
                   className="h-full w-full object-cover object-center scale-[1.12]"
                 />
               </div>
-              <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(8,20,24,0.80)_0%,rgba(7,18,22,0.90)_100%)]" />
+              <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(8,20,24,0.82)_0%,rgba(7,18,22,0.88)_100%)]" />
 
               <div className="relative z-10 p-6">
                 <div
                   style={{
                     fontWeight: 700,
                     marginBottom: 10,
-                    color: "#edf4f1",
+                    color: "#d8e0dd",
                     letterSpacing: "-0.02em",
                     fontSize: 20,
                   }}
@@ -691,7 +745,7 @@ export default function TeamDetailPage() {
                   Unable to load team
                 </div>
 
-                <div style={{ color: "rgba(219,235,248,0.72)", lineHeight: 1.7 }}>
+                <div style={{ color: "rgba(194,204,201,0.76)", lineHeight: 1.7 }}>
                   {error || "Team not found."}
                 </div>
 
@@ -722,50 +776,57 @@ export default function TeamDetailPage() {
               <div
                 style={{
                   display: "inline-flex",
+                  alignItems: "center",
+                  gap: 8,
                   borderRadius: 999,
                   border: "1px solid rgba(255,255,255,0.10)",
-                  background: "rgba(255,255,255,0.055)",
+                  background: "rgba(255,255,255,0.04)",
                   padding: "8px 16px",
-                  fontSize: "0.74rem",
-                  fontWeight: 600,
+                  fontSize: "0.68rem",
+                  fontWeight: 500,
                   textTransform: "uppercase",
-                  letterSpacing: "0.2em",
-                  color: "#dce3e0",
-                  boxShadow: "0 10px 24px rgba(0,0,0,0.10)",
+                  letterSpacing: "0.28em",
+                  color: "#afbbb7",
+                  boxShadow: "0 10px 24px rgba(0,0,0,0.08)",
                   backdropFilter: "blur(10px)",
+                  WebkitBackdropFilter: "blur(10px)",
                 }}
               >
+                <span
+                  style={{
+                    width: 4,
+                    height: 4,
+                    borderRadius: 999,
+                    background: "#b79d84",
+                    opacity: 0.8,
+                    display: "inline-block",
+                  }}
+                />
                 Team Workspace
               </div>
 
               <h1
-                style={{
-                  margin: "16px 0 0",
-                  maxWidth: 820,
-                  fontSize: "clamp(2rem, 4vw, 3.15rem)",
-                  lineHeight: 1.02,
-                  letterSpacing: "-0.05em",
-                  fontWeight: 600,
-                  color: "#edf1ef",
-                }}
+                className="mt-5 max-w-[820px] text-[1.72rem] font-medium leading-[1.02] tracking-[-0.045em] text-[#d9e2df] md:text-[2.22rem] lg:text-[2.72rem]"
+                style={{ margin: "20px 0 0" }}
               >
                 {team.name ?? "Team"}{" "}
-                <span style={{ color: "#bfe8df" }}>access and collaboration</span>.
+                <span style={{ color: "#c3ebe2" }}>access and collaboration</span>.
               </h1>
 
               <p
                 style={{
-                  marginTop: 16,
+                  marginTop: 20,
                   maxWidth: 720,
-                  fontSize: "0.98rem",
-                  lineHeight: 1.82,
-                  color: "#c7cfcc",
+                  fontSize: "0.95rem",
+                  lineHeight: 1.8,
+                  letterSpacing: "-0.006em",
+                  color: "#aab5b2",
                 }}
               >
-                Manage <span style={{ color: "#e7ece9" }}>members</span>,{" "}
-                <span style={{ color: "#bfe8df" }}>invites</span>, shared{" "}
-                <span style={{ color: "#e6ebe8" }}>team cases</span>, and recent{" "}
-                <span style={{ color: "#d6b89d" }}>activity</span> inside one controlled
+                Manage <span style={{ color: "#cfd8d5" }}>members</span>,{" "}
+                <span style={{ color: "#bbc7c3" }}>invites</span>, shared{" "}
+                <span style={{ color: "#d2dcd8" }}>team cases</span>, and recent{" "}
+                <span style={{ color: "#d9ccbf" }}>activity</span> inside one controlled
                 workspace.
               </p>
             </div>
@@ -838,9 +899,9 @@ export default function TeamDetailPage() {
                 className="h-full w-full object-cover object-center scale-[1.12]"
               />
             </div>
-            <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(8,20,24,0.80)_0%,rgba(7,18,22,0.90)_100%)]" />
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_14%,rgba(158,216,207,0.06),transparent_28%)]" />
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_86%_18%,rgba(214,184,157,0.05),transparent_22%)]" />
+            <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(8,20,24,0.82)_0%,rgba(7,18,22,0.88)_100%)]" />
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_14%,rgba(158,216,207,0.05),transparent_28%)]" />
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_86%_18%,rgba(214,184,157,0.04),transparent_24%)]" />
 
             <div className="relative z-10 p-6 md:p-7">
               <div
@@ -857,7 +918,7 @@ export default function TeamDetailPage() {
                     style={{
                       fontWeight: 700,
                       marginBottom: 14,
-                      color: "#edf4f1",
+                      color: "#d8e0dd",
                       letterSpacing: "-0.02em",
                       fontSize: 20,
                     }}
@@ -866,7 +927,7 @@ export default function TeamDetailPage() {
                   </div>
 
                   <label style={{ display: "grid", gap: 8 }}>
-                    <span style={{ fontSize: 12, color: "rgba(219,235,248,0.72)" }}>
+                    <span style={{ fontSize: 12, color: "rgba(194,204,201,0.76)" }}>
                       Team name
                     </span>
                     <input
@@ -981,14 +1042,14 @@ export default function TeamDetailPage() {
                   className="h-full w-full object-cover object-center scale-[1.12]"
                 />
               </div>
-              <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(8,20,24,0.80)_0%,rgba(7,18,22,0.90)_100%)]" />
+              <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(8,20,24,0.82)_0%,rgba(7,18,22,0.88)_100%)]" />
 
               <div className="relative z-10 p-6 md:p-7">
                 <div
                   style={{
                     fontWeight: 700,
                     marginBottom: 14,
-                    color: "#edf4f1",
+                    color: "#d8e0dd",
                     letterSpacing: "-0.02em",
                     fontSize: 20,
                   }}
@@ -1042,14 +1103,14 @@ export default function TeamDetailPage() {
                 className="h-full w-full object-cover object-center scale-[1.12]"
               />
             </div>
-            <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(8,20,24,0.80)_0%,rgba(7,18,22,0.90)_100%)]" />
+            <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(8,20,24,0.82)_0%,rgba(7,18,22,0.88)_100%)]" />
 
             <div className="relative z-10 p-6 md:p-7">
               <div
                 style={{
                   fontWeight: 700,
                   marginBottom: 14,
-                  color: "#edf4f1",
+                  color: "#d8e0dd",
                   letterSpacing: "-0.02em",
                   fontSize: 20,
                 }}
@@ -1058,7 +1119,7 @@ export default function TeamDetailPage() {
               </div>
 
               {!team.members || team.members.length === 0 ? (
-                <div style={{ color: "rgba(219,235,248,0.72)" }}>No members found.</div>
+                <div style={{ color: "rgba(194,204,201,0.76)" }}>No members found.</div>
               ) : (
                 <div style={{ display: "grid", gap: 10 }}>
                   {team.members.map((member) => {
@@ -1079,12 +1140,12 @@ export default function TeamDetailPage() {
                           }}
                         >
                           <div style={{ flex: 1, minWidth: 0 }}>
-                            <div style={{ color: "#edf4f1", fontWeight: 700 }}>
+                            <div style={{ color: "#d8e0dd", fontWeight: 700 }}>
                               {name} {isSelf ? "(You)" : ""}
                             </div>
                             <div
                               style={{
-                                color: "rgba(219,235,248,0.68)",
+                                color: "rgba(194,204,201,0.72)",
                                 fontSize: 13,
                                 marginTop: 4,
                               }}
@@ -1170,14 +1231,14 @@ export default function TeamDetailPage() {
                   className="h-full w-full object-cover object-center scale-[1.12]"
                 />
               </div>
-              <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(8,20,24,0.80)_0%,rgba(7,18,22,0.90)_100%)]" />
+              <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(8,20,24,0.82)_0%,rgba(7,18,22,0.88)_100%)]" />
 
               <div className="relative z-10 p-6 md:p-7">
                 <div
                   style={{
                     fontWeight: 700,
                     marginBottom: 14,
-                    color: "#edf4f1",
+                    color: "#d8e0dd",
                     letterSpacing: "-0.02em",
                     fontSize: 20,
                   }}
@@ -1186,7 +1247,7 @@ export default function TeamDetailPage() {
                 </div>
 
                 {invites.length === 0 ? (
-                  <div style={{ color: "rgba(219,235,248,0.72)" }}>No pending invites.</div>
+                  <div style={{ color: "rgba(194,204,201,0.76)" }}>No pending invites.</div>
                 ) : (
                   <div style={{ display: "grid", gap: 10 }}>
                     {invites.map((invite) => (
@@ -1201,10 +1262,10 @@ export default function TeamDetailPage() {
                           }}
                         >
                           <div style={{ flex: 1, minWidth: 0 }}>
-                            <div style={{ color: "#edf4f1", fontWeight: 700 }}>{invite.email}</div>
+                            <div style={{ color: "#d8e0dd", fontWeight: 700 }}>{invite.email}</div>
                             <div
                               style={{
-                                color: "rgba(219,235,248,0.68)",
+                                color: "rgba(194,204,201,0.72)",
                                 fontSize: 13,
                                 marginTop: 4,
                               }}
@@ -1258,14 +1319,14 @@ export default function TeamDetailPage() {
                 className="h-full w-full object-cover object-center scale-[1.12]"
               />
             </div>
-            <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(8,20,24,0.80)_0%,rgba(7,18,22,0.90)_100%)]" />
+            <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(8,20,24,0.82)_0%,rgba(7,18,22,0.88)_100%)]" />
 
             <div className="relative z-10 p-6 md:p-7">
               <div
                 style={{
                   fontWeight: 700,
                   marginBottom: 14,
-                  color: "#edf4f1",
+                  color: "#d8e0dd",
                   letterSpacing: "-0.02em",
                   fontSize: 20,
                 }}
@@ -1274,7 +1335,7 @@ export default function TeamDetailPage() {
               </div>
 
               {teamCases.length === 0 ? (
-                <div style={{ color: "rgba(219,235,248,0.72)" }}>
+                <div style={{ color: "rgba(194,204,201,0.76)" }}>
                   No cases linked to this team yet.
                 </div>
               ) : (
@@ -1296,10 +1357,10 @@ export default function TeamDetailPage() {
                           }}
                         >
                           <div style={{ flex: 1, minWidth: 0 }}>
-                            <div style={{ color: "#edf4f1", fontWeight: 700 }}>{item.name}</div>
+                            <div style={{ color: "#d8e0dd", fontWeight: 700 }}>{item.name}</div>
                             <div
                               style={{
-                                color: "rgba(219,235,248,0.68)",
+                                color: "rgba(194,204,201,0.72)",
                                 fontSize: 13,
                                 marginTop: 4,
                               }}
@@ -1378,7 +1439,7 @@ export default function TeamDetailPage() {
                     >
                       <div
                         style={{
-                          color: "rgba(219,235,248,0.72)",
+                          color: "rgba(194,204,201,0.76)",
                           marginBottom: 12,
                           lineHeight: 1.7,
                         }}
@@ -1404,12 +1465,12 @@ export default function TeamDetailPage() {
                                 }}
                               >
                                 <div style={{ flex: 1, minWidth: 0 }}>
-                                  <div style={{ color: "#edf4f1", fontWeight: 700 }}>
+                                  <div style={{ color: "#d8e0dd", fontWeight: 700 }}>
                                     {item.name}
                                   </div>
                                   <div
                                     style={{
-                                      color: "rgba(219,235,248,0.68)",
+                                      color: "rgba(194,204,201,0.72)",
                                       fontSize: 13,
                                       marginTop: 4,
                                     }}
@@ -1452,14 +1513,14 @@ export default function TeamDetailPage() {
                   className="h-full w-full object-cover object-center scale-[1.12]"
                 />
               </div>
-              <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(8,20,24,0.80)_0%,rgba(7,18,22,0.90)_100%)]" />
+              <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(8,20,24,0.82)_0%,rgba(7,18,22,0.88)_100%)]" />
 
               <div className="relative z-10 p-6 md:p-7">
                 <div
                   style={{
                     fontWeight: 700,
                     marginBottom: 14,
-                    color: "#edf4f1",
+                    color: "#d8e0dd",
                     letterSpacing: "-0.02em",
                     fontSize: 20,
                   }}
@@ -1476,12 +1537,12 @@ export default function TeamDetailPage() {
                         padding: 14,
                       }}
                     >
-                      <div style={{ color: "#edf4f1", fontWeight: 700 }}>
+                      <div style={{ color: "#d8e0dd", fontWeight: 700 }}>
                         {activity.eventType.replace(/_/g, " ")}
                       </div>
                       <div
                         style={{
-                          color: "rgba(219,235,248,0.68)",
+                          color: "rgba(194,204,201,0.72)",
                           fontSize: 13,
                           marginTop: 4,
                         }}

@@ -758,17 +758,126 @@ export default function CapturePage() {
     return `${count} item${count === 1 ? "" : "s"} added`;
   }, [sessionItems.length]);
 
+  const outerCardStyle = useMemo(
+    () =>
+      ({
+        border: "1px solid rgba(183,157,132,0.18)",
+        boxShadow:
+          "0 22px 42px rgba(0,0,0,0.16), inset 0 1px 0 rgba(255,255,255,0.03)",
+      }) as const,
+    []
+  );
+
+  const primaryButtonStyle = useMemo(
+    () =>
+      ({
+        borderColor: "rgba(158,216,207,0.14)",
+        color: "#aebbb6",
+        background:
+          "linear-gradient(180deg, rgba(62,98,96,0.26) 0%, rgba(14,30,34,0.38) 100%)",
+        boxShadow:
+          "inset 0 1px 0 rgba(255,255,255,0.04), 0 14px 28px rgba(0,0,0,0.08)",
+        backdropFilter: "blur(10px)",
+        WebkitBackdropFilter: "blur(10px)",
+      }) as const,
+    []
+  );
+
+  const secondaryButtonStyle = useMemo(
+    () =>
+      ({
+        borderColor: "rgba(79,112,107,0.18)",
+        color: "#aebbb6",
+        backgroundImage:
+          "linear-gradient(180deg, rgba(8,20,24,0.78) 0%, rgba(7,18,22,0.88) 100%), url('/images/site-velvet-bg.webp.png')",
+        backgroundSize: "cover",
+        backgroundPosition: "center",
+        boxShadow:
+          "inset 0 1px 0 rgba(255,255,255,0.03), 0 14px 28px rgba(0,0,0,0.10)",
+        backdropFilter: "blur(10px)",
+        WebkitBackdropFilter: "blur(10px)",
+      }) as const,
+    []
+  );
+
   return (
-    <div className="section app-section">
+    <div className="section app-section capture-page-shell">
+      <style jsx global>{`
+        .capture-page-shell .capture-type-pill {
+          transition: all 0.2s ease;
+        }
+
+        .capture-page-shell .capture-type-pill:hover {
+          transform: translateY(-1px);
+        }
+
+        .capture-page-shell .camera-overlay-flash::after {
+          content: "";
+          position: absolute;
+          inset: 0;
+          background: rgba(255, 244, 214, 0.09);
+          pointer-events: none;
+        }
+      `}</style>
+
       <div className="app-hero app-hero-full">
         <div className="container">
-          <div className="page-title" style={{ marginBottom: 0 }}>
-            <div>
-              <h1 className="hero-title pricing-hero-title" style={{ margin: 0 }}>
+          <div className="page-title app-page-title" style={{ marginBottom: 0 }}>
+            <div style={{ maxWidth: 780 }}>
+              <div
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 8,
+                  borderRadius: 999,
+                  border: "1px solid rgba(255,255,255,0.10)",
+                  background: "rgba(255,255,255,0.04)",
+                  padding: "8px 16px",
+                  fontSize: "0.68rem",
+                  fontWeight: 500,
+                  textTransform: "uppercase",
+                  letterSpacing: "0.28em",
+                  color: "#afbbb7",
+                  boxShadow: "0 10px 24px rgba(0,0,0,0.08)",
+                  backdropFilter: "blur(10px)",
+                  WebkitBackdropFilter: "blur(10px)",
+                }}
+              >
+                <span
+                  style={{
+                    width: 4,
+                    height: 4,
+                    borderRadius: 999,
+                    background: "#b79d84",
+                    opacity: 0.8,
+                    display: "inline-block",
+                  }}
+                />
                 {t("capture")}
+              </div>
+
+              <h1
+                className="mt-5 max-w-[760px] text-[1.72rem] font-medium leading-[1.02] tracking-[-0.045em] text-[#d9e2df] md:text-[2.22rem] lg:text-[2.72rem]"
+                style={{ margin: "20px 0 0" }}
+              >
+                Capture signed evidence{" "}
+                <span style={{ color: "#c3ebe2" }}>in one clean session</span>.
               </h1>
-              <p className="page-subtitle pricing-subtitle" style={{ marginTop: 6 }}>
-                Capture multiple photos, videos, or files into one signed evidence session.
+
+              <p
+                style={{
+                  marginTop: 20,
+                  maxWidth: 720,
+                  fontSize: "0.95rem",
+                  lineHeight: 1.8,
+                  letterSpacing: "-0.006em",
+                  color: "#aab5b2",
+                }}
+              >
+                Add multiple <span style={{ color: "#cfd8d5" }}>photos</span>,{" "}
+                <span style={{ color: "#bbc7c3" }}>videos</span>, or{" "}
+                <span style={{ color: "#d9ccbf" }}>documents</span> into one
+                evidence record, then finalize and sign it as a single workflow.
               </p>
             </div>
 
@@ -781,22 +890,43 @@ export default function CapturePage() {
               }}
             >
               <span
-                className="badge ready"
                 style={{
-                  background: "rgba(158,216,207,0.12)",
-                  borderColor: "rgba(158,216,207,0.22)",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  minHeight: 34,
+                  padding: "7px 14px",
+                  borderRadius: 999,
+                  fontSize: 12,
+                  fontWeight: 800,
+                  letterSpacing: "0.08em",
+                  textTransform: "uppercase",
+                  border: "1px solid rgba(158,216,207,0.20)",
+                  background:
+                    "linear-gradient(180deg, rgba(158,216,207,0.12) 0%, rgba(255,255,255,0.03) 100%)",
                   color: "#bfe8df",
                 }}
               >
                 {sessionCountLabel}
               </span>
+
               {sessionEvidenceId ? (
                 <span
-                  className="badge processing"
                   style={{
-                    background: "rgba(214,184,157,0.12)",
-                    borderColor: "rgba(214,184,157,0.22)",
-                    color: "#e6c9ae",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    minHeight: 34,
+                    padding: "7px 14px",
+                    borderRadius: 999,
+                    fontSize: 12,
+                    fontWeight: 800,
+                    letterSpacing: "0.08em",
+                    textTransform: "uppercase",
+                    border: "1px solid rgba(214,184,157,0.20)",
+                    background:
+                      "linear-gradient(180deg, rgba(183,157,132,0.12) 0%, rgba(255,255,255,0.03) 100%)",
+                    color: "#dcc0a5",
                   }}
                 >
                   Session active
@@ -809,429 +939,468 @@ export default function CapturePage() {
 
       <div className="app-body app-body-full">
         <div className="container">
-          <Card className="app-card">
-            <div style={{ display: "grid", gap: 18, padding: 2 }}>
-              <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-                {([
-                  { label: t("photo"), value: "PHOTO" },
-                  { label: t("video"), value: "VIDEO" },
-                  { label: t("document"), value: "DOCUMENT" },
-                ] as const).map((item) => (
-                  <button
-                    key={item.value}
-                    type="button"
-                    className={`pill-button ${type === item.value ? "active" : ""}`}
-                    onClick={() => {
-                      setType(item.value);
-                      setError(null);
-                      setCameraError(null);
-                      closeCamera();
-                      if (fileInputRef.current) {
-                        fileInputRef.current.value = "";
-                      }
-                    }}
-                    style={{
-                      borderRadius: 999,
-                      padding: "10px 16px",
-                      fontWeight: 700,
-                      border:
-                        type === item.value
-                          ? "1px solid rgba(214,184,157,0.22)"
-                          : "1px solid rgba(255,255,255,0.08)",
-                      background:
-                        type === item.value
-                          ? "linear-gradient(180deg, rgba(214,184,157,0.14), rgba(214,184,157,0.08))"
-                          : "rgba(255,255,255,0.04)",
-                      color: type === item.value ? "#f3ddc6" : "rgba(246,252,255,0.84)",
-                      boxShadow:
-                        type === item.value ? "0 10px 24px rgba(0,0,0,0.16)" : "none",
-                    }}
-                  >
-                    {item.label}
-                  </button>
-                ))}
-              </div>
-
-              <input
-                type="file"
-                aria-label="Upload evidence files"
-                multiple
-                accept={
-                  type === "PHOTO"
-                    ? "image/*"
-                    : type === "VIDEO"
-                      ? "video/*"
-                      : "application/pdf,.pdf,.doc,.docx,.txt,.rtf"
-                }
-                onChange={async (event) => {
-                  await handleDroppedFiles(event.target.files);
-                  if (fileInputRef.current) {
-                    fileInputRef.current.value = "";
-                  }
-                }}
-                ref={fileInputRef}
-                style={{ display: "none" }}
+          <Card
+            className="relative overflow-hidden rounded-[30px] border bg-transparent p-0 shadow-none"
+            style={outerCardStyle}
+          >
+            <div className="absolute inset-0">
+              <img
+                src="/images/site-velvet-bg.webp.png"
+                alt=""
+                className="h-full w-full scale-[1.12] object-cover object-center"
               />
+            </div>
+            <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(8,20,24,0.82)_0%,rgba(7,18,22,0.88)_100%)]" />
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_14%,rgba(158,216,207,0.05),transparent_28%)]" />
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_86%_18%,rgba(214,184,157,0.04),transparent_24%)]" />
 
-              <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-                <Button variant="secondary" onClick={openFilePicker} disabled={busy || sessionCreating}>
-                  {type === "PHOTO"
-                    ? "Add Photos"
-                    : type === "VIDEO"
-                      ? "Add Videos"
-                      : "Add Documents"}
-                </Button>
+            <div className="relative z-10 p-6 md:p-7">
+              <div style={{ display: "grid", gap: 18, padding: 2 }}>
+                <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                  {([
+                    { label: t("photo"), value: "PHOTO" },
+                    { label: t("video"), value: "VIDEO" },
+                    { label: t("document"), value: "DOCUMENT" },
+                  ] as const).map((item) => (
+                    <button
+                      key={item.value}
+                      type="button"
+                      className="capture-type-pill"
+                      onClick={() => {
+                        setType(item.value);
+                        setError(null);
+                        setCameraError(null);
+                        closeCamera();
+                        if (fileInputRef.current) {
+                          fileInputRef.current.value = "";
+                        }
+                      }}
+                      style={{
+                        borderRadius: 999,
+                        padding: "10px 16px",
+                        fontWeight: 700,
+                        border:
+                          type === item.value
+                            ? "1px solid rgba(214,184,157,0.20)"
+                            : "1px solid rgba(255,255,255,0.08)",
+                        background:
+                          type === item.value
+                            ? "linear-gradient(180deg, rgba(183,157,132,0.12) 0%, rgba(255,255,255,0.03) 100%)"
+                            : "rgba(255,255,255,0.04)",
+                        color: type === item.value ? "#dcc0a5" : "#c7d1ce",
+                        boxShadow:
+                          type === item.value
+                            ? "0 10px 24px rgba(0,0,0,0.12)"
+                            : "none",
+                      }}
+                    >
+                      {item.label}
+                    </button>
+                  ))}
+                </div>
 
-                {type !== "DOCUMENT" ? (
+                <input
+                  type="file"
+                  aria-label="Upload evidence files"
+                  multiple
+                  accept={
+                    type === "PHOTO"
+                      ? "image/*"
+                      : type === "VIDEO"
+                        ? "video/*"
+                        : "application/pdf,.pdf,.doc,.docx,.txt,.rtf"
+                  }
+                  onChange={async (event) => {
+                    await handleDroppedFiles(event.target.files);
+                    if (fileInputRef.current) {
+                      fileInputRef.current.value = "";
+                    }
+                  }}
+                  ref={fileInputRef}
+                  style={{ display: "none" }}
+                />
+
+                <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
                   <Button
                     variant="secondary"
-                    onClick={() => openCamera(type === "PHOTO" ? "PHOTO" : "VIDEO")}
+                    onClick={openFilePicker}
                     disabled={busy || sessionCreating}
+                    className="rounded-[999px] border px-5 py-3 text-[0.95rem] font-medium"
+                    style={secondaryButtonStyle}
                   >
-                    {type === "PHOTO" ? "Open Camera" : "Open Video Recorder"}
+                    {type === "PHOTO"
+                      ? "Add Photos"
+                      : type === "VIDEO"
+                        ? "Add Videos"
+                        : "Add Documents"}
                   </Button>
-                ) : null}
-              </div>
 
-              <div
-                className="drop-zone"
-                onDragOver={(event) => event.preventDefault()}
-                onDrop={async (event) => {
-                  event.preventDefault();
-                  await handleDroppedFiles(event.dataTransfer.files);
-                }}
-                onClick={openFilePicker}
-                style={{
-                  borderRadius: 22,
-                  border: "1px dashed rgba(214,184,157,0.18)",
-                  background:
-                    "linear-gradient(180deg, rgba(255,255,255,0.035), rgba(255,255,255,0.02))",
-                  boxShadow: "inset 0 1px 0 rgba(255,255,255,0.03)",
-                  padding: "30px 20px",
-                }}
-              >
-                <div
-                  className="drop-hint"
-                  style={{
-                    color: "rgba(246,252,255,0.82)",
-                    fontWeight: 600,
-                    fontSize: 15,
-                  }}
-                >
-                  Drag &amp; drop or click to add{" "}
-                  {type === "PHOTO"
-                    ? "photos"
-                    : type === "VIDEO"
-                      ? "videos"
-                      : "documents"}{" "}
-                  to this evidence session
+                  {type !== "DOCUMENT" ? (
+                    <Button
+                      variant="secondary"
+                      onClick={() => openCamera(type === "PHOTO" ? "PHOTO" : "VIDEO")}
+                      disabled={busy || sessionCreating}
+                      className="rounded-[999px] border px-5 py-3 text-[0.95rem] font-medium"
+                      style={secondaryButtonStyle}
+                    >
+                      {type === "PHOTO" ? "Open Camera" : "Open Video Recorder"}
+                    </Button>
+                  ) : null}
                 </div>
-              </div>
 
-              <label
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 10,
-                  color: "rgba(246,252,255,0.84)",
-                  fontSize: 14,
-                }}
-              >
-                <input
-                  type="checkbox"
-                  checked={useLocation}
-                  onChange={(event) => setUseLocation(event.target.checked)}
-                  disabled={Boolean(sessionEvidenceId)}
-                />
-                Include location metadata on session creation
-              </label>
-
-              {locationPermissionDenied ? (
                 <div
-                  className="error-text"
-                  style={{
-                    padding: 12,
-                    borderRadius: 14,
-                    background: "rgba(127,29,29,0.16)",
-                    border: "1px solid rgba(248,113,113,0.16)",
+                  className="drop-zone"
+                  onDragOver={(event) => event.preventDefault()}
+                  onDrop={async (event) => {
+                    event.preventDefault();
+                    await handleDroppedFiles(event.dataTransfer.files);
                   }}
-                >
-                  Location was not granted. The current session will continue without GPS metadata.
-                </div>
-              ) : null}
-
-              {sessionItems.length > 0 ? (
-                <div
-                  className="capture-preview-card"
+                  onClick={openFilePicker}
                   style={{
-                    padding: 18,
-                    borderRadius: 22,
+                    borderRadius: 24,
+                    border: "1px dashed rgba(183,157,132,0.18)",
                     background:
-                      "linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.025))",
-                    border: "1px solid rgba(214,184,157,0.12)",
-                    boxShadow: "0 18px 40px rgba(0,0,0,0.16)",
+                      "linear-gradient(180deg, rgba(255,255,255,0.035), rgba(255,255,255,0.02))",
+                    boxShadow:
+                      "inset 0 1px 0 rgba(255,255,255,0.03), 0 18px 38px rgba(0,0,0,0.10)",
+                    padding: "34px 22px",
                   }}
                 >
                   <div
+                    className="drop-hint"
                     style={{
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "space-between",
-                      gap: 12,
-                      flexWrap: "wrap",
-                      marginBottom: 14,
+                      color: "#d8e0dd",
+                      fontWeight: 600,
+                      fontSize: 15,
                     }}
                   >
-                    <div
-                      className="capture-preview-title"
-                      style={{
-                        color: "rgba(246,252,255,0.96)",
-                        fontWeight: 800,
-                        fontSize: 16,
-                      }}
-                    >
-                      Session items
-                    </div>
-                    <div
-                      style={{
-                        display: "inline-flex",
-                        alignItems: "center",
-                        gap: 8,
-                        padding: "7px 12px",
-                        borderRadius: 999,
-                        background: "rgba(214,184,157,0.12)",
-                        border: "1px solid rgba(214,184,157,0.22)",
-                        color: "#f0dbc6",
-                        fontSize: 12,
-                        fontWeight: 800,
-                      }}
-                    >
-                      {sessionCountLabel}
-                    </div>
+                    Drag &amp; drop or click to add{" "}
+                    {type === "PHOTO"
+                      ? "photos"
+                      : type === "VIDEO"
+                        ? "videos"
+                        : "documents"}{" "}
+                    to this evidence session
                   </div>
+                </div>
 
+                <label
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 10,
+                    color: "rgba(199,209,206,0.92)",
+                    fontSize: 14,
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={useLocation}
+                    onChange={(event) => setUseLocation(event.target.checked)}
+                    disabled={Boolean(sessionEvidenceId)}
+                  />
+                  Include location metadata on session creation
+                </label>
+
+                {locationPermissionDenied ? (
                   <div
+                    className="error-text"
                     style={{
-                      display: "grid",
-                      gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))",
-                      gap: 12,
+                      padding: 12,
+                      borderRadius: 14,
+                      background: "rgba(127,29,29,0.16)",
+                      border: "1px solid rgba(248,113,113,0.16)",
+                      color: "#ffd7d7",
                     }}
                   >
-                    {sessionItems.map((item, index) => (
+                    Location was not granted. The current session will continue without GPS metadata.
+                  </div>
+                ) : null}
+
+                {sessionItems.length > 0 ? (
+                  <div
+                    className="capture-preview-card"
+                    style={{
+                      padding: 18,
+                      borderRadius: 24,
+                      background:
+                        "linear-gradient(180deg, rgba(62,98,96,0.18) 0%, rgba(14,30,34,0.28) 100%)",
+                      border: "1px solid rgba(158,216,207,0.14)",
+                      boxShadow:
+                        "inset 0 1px 0 rgba(255,255,255,0.04), 0 18px 40px rgba(0,0,0,0.16)",
+                      backdropFilter: "blur(10px)",
+                      WebkitBackdropFilter: "blur(10px)",
+                    }}
+                  >
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        gap: 12,
+                        flexWrap: "wrap",
+                        marginBottom: 14,
+                      }}
+                    >
                       <div
-                        key={item.id}
+                        className="capture-preview-title"
                         style={{
-                          borderRadius: 18,
-                          overflow: "hidden",
-                          background: "rgba(8, 18, 34, 0.88)",
-                          border: "1px solid rgba(255,255,255,0.06)",
-                          boxShadow: "0 14px 30px rgba(0,0,0,0.16)",
+                          color: "#d8e0dd",
+                          fontWeight: 800,
+                          fontSize: 16,
                         }}
                       >
+                        Session items
+                      </div>
+                      <div
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: 8,
+                          padding: "7px 12px",
+                          borderRadius: 999,
+                          background:
+                            "linear-gradient(180deg, rgba(183,157,132,0.12) 0%, rgba(255,255,255,0.03) 100%)",
+                          border: "1px solid rgba(214,184,157,0.20)",
+                          color: "#dcc0a5",
+                          fontSize: 12,
+                          fontWeight: 800,
+                        }}
+                      >
+                        {sessionCountLabel}
+                      </div>
+                    </div>
+
+                    <div
+                      style={{
+                        display: "grid",
+                        gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))",
+                        gap: 12,
+                      }}
+                    >
+                      {sessionItems.map((item, index) => (
                         <div
+                          key={item.id}
                           style={{
-                            position: "relative",
-                            aspectRatio: "1 / 1",
-                            background: "rgba(3, 10, 24, 0.95)",
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "center",
+                            borderRadius: 18,
+                            overflow: "hidden",
+                            background:
+                              "linear-gradient(180deg, rgba(9,22,27,0.88) 0%, rgba(8,18,23,0.94) 100%)",
+                            border: "1px solid rgba(158,216,207,0.12)",
+                            boxShadow: "0 14px 30px rgba(0,0,0,0.16)",
                           }}
                         >
                           <div
                             style={{
-                              position: "absolute",
-                              top: 8,
-                              left: 8,
-                              zIndex: 2,
-                              minWidth: 28,
-                              height: 28,
-                              borderRadius: 999,
-                              background: "rgba(2, 6, 23, 0.82)",
-                              border: "1px solid rgba(214,184,157,0.25)",
-                              color: "#f2e0cf",
-                              display: "grid",
-                              placeItems: "center",
-                              fontSize: 12,
-                              fontWeight: 800,
-                              padding: "0 8px",
+                              position: "relative",
+                              aspectRatio: "1 / 1",
+                              background: "rgba(3, 10, 24, 0.95)",
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "center",
                             }}
                           >
-                            {index + 1}
-                          </div>
-
-                          {!busy ? (
-                            <button
-                              type="button"
-                              onClick={() => removeSessionItem(item.id)}
+                            <div
                               style={{
                                 position: "absolute",
                                 top: 8,
-                                right: 8,
+                                left: 8,
                                 zIndex: 2,
-                                width: 30,
-                                height: 30,
+                                minWidth: 28,
+                                height: 28,
                                 borderRadius: 999,
-                                border: "1px solid rgba(239, 68, 68, 0.35)",
-                                background: "rgba(127, 29, 29, 0.78)",
-                                color: "#fff",
-                                cursor: "pointer",
+                                background: "rgba(2, 6, 23, 0.82)",
+                                border: "1px solid rgba(214,184,157,0.25)",
+                                color: "#f2e0cf",
+                                display: "grid",
+                                placeItems: "center",
+                                fontSize: 12,
                                 fontWeight: 800,
+                                padding: "0 8px",
                               }}
                             >
-                              ×
-                            </button>
-                          ) : null}
-
-                          {item.previewUrl && item.mimeType.startsWith("image/") ? (
-                            <img
-                              src={item.previewUrl}
-                              alt={item.file.name}
-                              style={{
-                                width: "100%",
-                                height: "100%",
-                                objectFit: "cover",
-                              }}
-                            />
-                          ) : item.previewUrl && item.mimeType.startsWith("video/") ? (
-                            <video
-                              src={item.previewUrl}
-                              muted
-                              playsInline
-                              controls={false}
-                              style={{
-                                width: "100%",
-                                height: "100%",
-                                objectFit: "cover",
-                              }}
-                            />
-                          ) : (
-                            <div
-                              style={{
-                                padding: 16,
-                                textAlign: "center",
-                                color: "#cbd5e1",
-                                fontSize: 13,
-                                lineHeight: 1.5,
-                              }}
-                            >
-                              Document
+                              {index + 1}
                             </div>
-                          )}
-                        </div>
 
-                        <div style={{ padding: 12, display: "grid", gap: 8 }}>
-                          <div
-                            style={{
-                              color: "#eef4f1",
-                              fontSize: 13,
-                              fontWeight: 700,
-                              whiteSpace: "nowrap",
-                              overflow: "hidden",
-                              textOverflow: "ellipsis",
-                            }}
-                            title={item.file.name}
-                          >
-                            {item.file.name}
+                            {!busy ? (
+                              <button
+                                type="button"
+                                onClick={() => removeSessionItem(item.id)}
+                                style={{
+                                  position: "absolute",
+                                  top: 8,
+                                  right: 8,
+                                  zIndex: 2,
+                                  width: 30,
+                                  height: 30,
+                                  borderRadius: 999,
+                                  border: "1px solid rgba(239, 68, 68, 0.35)",
+                                  background: "rgba(127, 29, 29, 0.78)",
+                                  color: "#fff",
+                                  cursor: "pointer",
+                                  fontWeight: 800,
+                                }}
+                              >
+                                ×
+                              </button>
+                            ) : null}
+
+                            {item.previewUrl && item.mimeType.startsWith("image/") ? (
+                              <img
+                                src={item.previewUrl}
+                                alt={item.file.name}
+                                style={{
+                                  width: "100%",
+                                  height: "100%",
+                                  objectFit: "cover",
+                                }}
+                              />
+                            ) : item.previewUrl && item.mimeType.startsWith("video/") ? (
+                              <video
+                                src={item.previewUrl}
+                                muted
+                                playsInline
+                                controls={false}
+                                style={{
+                                  width: "100%",
+                                  height: "100%",
+                                  objectFit: "cover",
+                                }}
+                              />
+                            ) : (
+                              <div
+                                style={{
+                                  padding: 16,
+                                  textAlign: "center",
+                                  color: "#cbd5e1",
+                                  fontSize: 13,
+                                  lineHeight: 1.5,
+                                }}
+                              >
+                                Document
+                              </div>
+                            )}
                           </div>
 
-                          <div style={{ fontSize: 12, color: "rgba(219,235,248,0.60)" }}>
-                            {(item.file.size / 1024 / 1024).toFixed(2)} MB
-                          </div>
-
-                          <div
-                            style={{
-                              height: 8,
-                              borderRadius: 999,
-                              background: "rgba(148, 163, 184, 0.14)",
-                              overflow: "hidden",
-                            }}
-                          >
+                          <div style={{ padding: 12, display: "grid", gap: 8 }}>
                             <div
                               style={{
-                                width: `${item.uploadProgress}%`,
-                                height: "100%",
-                                background: "linear-gradient(90deg, #22d3ee, #38bdf8)",
-                                transition: "width 0.2s ease",
+                                color: "#d8e0dd",
+                                fontSize: 13,
+                                fontWeight: 700,
+                                whiteSpace: "nowrap",
+                                overflow: "hidden",
+                                textOverflow: "ellipsis",
                               }}
-                            />
-                          </div>
+                              title={item.file.name}
+                            >
+                              {item.file.name}
+                            </div>
 
-                          <div style={{ fontSize: 12, color: "#cbd5e1" }}>
-                            {item.uploading
-                              ? `Uploading ${item.uploadProgress}%`
-                              : item.uploadProgress === 100
-                                ? "Uploaded"
-                                : "Ready"}
-                          </div>
+                            <div style={{ fontSize: 12, color: "rgba(194,204,201,0.60)" }}>
+                              {(item.file.size / 1024 / 1024).toFixed(2)} MB
+                            </div>
 
-                          {item.error ? <div className="error-text">{item.error}</div> : null}
+                            <div
+                              style={{
+                                height: 8,
+                                borderRadius: 999,
+                                background: "rgba(148, 163, 184, 0.14)",
+                                overflow: "hidden",
+                              }}
+                            >
+                              <div
+                                style={{
+                                  width: `${item.uploadProgress}%`,
+                                  height: "100%",
+                                  background:
+                                    "linear-gradient(90deg, rgba(195,235,226,0.85), rgba(158,216,207,0.65))",
+                                  transition: "width 0.2s ease",
+                                }}
+                              />
+                            </div>
+
+                            <div style={{ fontSize: 12, color: "#cbd5e1" }}>
+                              {item.uploading
+                                ? `Uploading ${item.uploadProgress}%`
+                                : item.uploadProgress === 100
+                                  ? "Uploaded"
+                                  : "Ready"}
+                            </div>
+
+                            {item.error ? <div className="error-text">{item.error}</div> : null}
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      ))}
+                    </div>
                   </div>
+                ) : null}
+
+                {sessionCreating || busy ? (
+                  <div
+                    className="uploading-hint"
+                    style={{
+                      padding: 12,
+                      borderRadius: 14,
+                      background: "rgba(255,255,255,0.04)",
+                      border: "1px solid rgba(255,255,255,0.06)",
+                      color: "#c7d1ce",
+                    }}
+                  >
+                    {busy ? `Uploading… ${progress}%` : "Preparing session..."}
+                  </div>
+                ) : null}
+
+                {sessionInfo ? (
+                  <div
+                    className="uploading-hint"
+                    style={{
+                      padding: 12,
+                      borderRadius: 14,
+                      background: "rgba(255,255,255,0.04)",
+                      border: "1px solid rgba(255,255,255,0.06)",
+                      color: "#c7d1ce",
+                    }}
+                  >
+                    {sessionInfo}
+                  </div>
+                ) : null}
+
+                {error ? (
+                  <div
+                    className="error-text"
+                    style={{
+                      padding: 12,
+                      borderRadius: 14,
+                      background: "rgba(127,29,29,0.16)",
+                      border: "1px solid rgba(248,113,113,0.16)",
+                      color: "#ffd7d7",
+                    }}
+                  >
+                    {error}
+                  </div>
+                ) : null}
+
+                <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                  <Button
+                    onClick={finalizeSession}
+                    disabled={busy || sessionCreating || sessionItems.length === 0}
+                    className="rounded-[999px] border px-5 py-3 text-[0.95rem] font-medium"
+                    style={primaryButtonStyle}
+                  >
+                    {busy ? "Capturing..." : "Finish & Sign"}
+                  </Button>
+
+                  <Button
+                    variant="secondary"
+                    onClick={resetCaptureState}
+                    disabled={busy || sessionItems.length === 0}
+                    className="rounded-[999px] border px-5 py-3 text-[0.95rem] font-medium"
+                    style={secondaryButtonStyle}
+                  >
+                    Clear Session
+                  </Button>
                 </div>
-              ) : null}
-
-              {sessionCreating || busy ? (
-                <div
-                  className="uploading-hint"
-                  style={{
-                    padding: 12,
-                    borderRadius: 14,
-                    background: "rgba(255,255,255,0.04)",
-                    border: "1px solid rgba(255,255,255,0.06)",
-                    color: "rgba(246,252,255,0.84)",
-                  }}
-                >
-                  {busy ? `Uploading… ${progress}%` : "Preparing session..."}
-                </div>
-              ) : null}
-
-              {sessionInfo ? (
-                <div
-                  className="uploading-hint"
-                  style={{
-                    padding: 12,
-                    borderRadius: 14,
-                    background: "rgba(255,255,255,0.04)",
-                    border: "1px solid rgba(255,255,255,0.06)",
-                    color: "rgba(246,252,255,0.84)",
-                  }}
-                >
-                  {sessionInfo}
-                </div>
-              ) : null}
-
-              {error ? (
-                <div
-                  className="error-text"
-                  style={{
-                    padding: 12,
-                    borderRadius: 14,
-                    background: "rgba(127,29,29,0.16)",
-                    border: "1px solid rgba(248,113,113,0.16)",
-                  }}
-                >
-                  {error}
-                </div>
-              ) : null}
-
-              <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-                <Button
-                  onClick={finalizeSession}
-                  disabled={busy || sessionCreating || sessionItems.length === 0}
-                >
-                  {busy ? "Capturing..." : "Finish & Sign"}
-                </Button>
-
-                <Button
-                  variant="secondary"
-                  onClick={resetCaptureState}
-                  disabled={busy || sessionItems.length === 0}
-                >
-                  Clear Session
-                </Button>
               </div>
             </div>
           </Card>

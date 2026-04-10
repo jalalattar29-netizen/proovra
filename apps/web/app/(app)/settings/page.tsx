@@ -7,7 +7,6 @@ import { useEffect, useMemo, useState } from "react";
 import { supportedLocales, type Locale } from "@proovra/shared";
 import { Button, Card, useToast, Input } from "../../../components/ui";
 import { Icons } from "../../../components/icons";
-import { MarketingHeader } from "../../../components/header";
 import { apiFetch } from "../../../lib/api";
 import { LEGAL_LINKS } from "../../../lib/legalLinks";
 import { captureException } from "../../../lib/sentry";
@@ -91,7 +90,7 @@ function extractUserFromResponse(res: unknown): UserMeResponse["user"] | null {
 
 function cardShellStyle() {
   return {
-    border: "1px solid rgba(183,157,132,0.20)",
+    border: "1px solid rgba(183,157,132,0.18)",
     boxShadow:
       "0 22px 42px rgba(0, 0, 0, 0.16), inset 0 1px 0 rgba(255,255,255,0.03)",
   } as const;
@@ -99,19 +98,19 @@ function cardShellStyle() {
 
 function velvetButtonClass(primary = false) {
   if (primary) {
-    return "rounded-[999px] border px-5 py-3 text-[0.94rem] font-semibold text-[#edf2ef] shadow-[0_14px_28px_rgba(9,27,28,0.22)] transition-all duration-200 hover:-translate-y-[1px] hover:brightness-[1.03]";
+    return "rounded-[999px] border px-5 py-3 text-[0.94rem] font-semibold transition-all duration-200 hover:-translate-y-[1px] hover:brightness-[1.03]";
   }
 
-  return "rounded-[999px] border px-5 py-3 text-[0.94rem] font-semibold text-[#e6ece9] shadow-[0_10px_22px_rgba(0,0,0,0.14)] transition-all duration-200 hover:-translate-y-[1px] hover:brightness-[1.03]";
+  return "rounded-[999px] border px-5 py-3 text-[0.94rem] font-semibold transition-all duration-200 hover:-translate-y-[1px] hover:brightness-[1.03]";
 }
 
 function sectionHeader(icon: React.ReactNode, title: string) {
   return (
     <div className="mb-5 flex items-center gap-3">
-      <span className="flex h-10 w-10 items-center justify-center rounded-full border border-[rgba(183,157,132,0.18)] bg-[linear-gradient(180deg,rgba(183,157,132,0.08)_0%,rgba(255,255,255,0.03)_100%)] text-[#d6b89d]">
+      <span className="flex h-10 w-10 items-center justify-center rounded-full border border-[rgba(183,157,132,0.18)] bg-[linear-gradient(180deg,rgba(183,157,132,0.08)_0%,rgba(255,255,255,0.03)_100%)] text-[#d6b89d] shadow-[0_10px_22px_rgba(0,0,0,0.10)]">
         {icon}
       </span>
-      <div className="text-[1.08rem] font-semibold tracking-[-0.03em] text-[#e4ebe7]">
+      <div className="text-[1.08rem] font-semibold tracking-[-0.03em] text-[#d8e0dd]">
         {title}
       </div>
     </div>
@@ -257,7 +256,7 @@ export default function SettingsPage() {
   };
 
   return (
-    <div className="page landing-page settings-page-shell">
+    <div className="section app-section settings-page-shell">
       <style jsx global>{`
         .settings-page-shell .settings-velvet-card {
           position: relative;
@@ -277,9 +276,9 @@ export default function SettingsPage() {
           position: absolute;
           inset: 0;
           background:
-            radial-gradient(circle at 18% 14%, rgba(158, 216, 207, 0.06), transparent 28%),
-            radial-gradient(circle at 86% 18%, rgba(214, 184, 157, 0.05), transparent 22%),
-            linear-gradient(180deg, rgba(8, 20, 24, 0.82) 0%, rgba(7, 18, 22, 0.90) 100%);
+            radial-gradient(circle at 18% 14%, rgba(158, 216, 207, 0.05), transparent 28%),
+            radial-gradient(circle at 86% 18%, rgba(214, 184, 157, 0.04), transparent 24%),
+            linear-gradient(180deg, rgba(8, 20, 24, 0.82) 0%, rgba(7, 18, 22, 0.88) 100%);
         }
 
         .settings-page-shell .settings-velvet-card__content {
@@ -296,14 +295,14 @@ export default function SettingsPage() {
             rgba(13, 27, 30, 0.96) 100%
           ) !important;
           border: 1px solid rgba(183, 157, 132, 0.18) !important;
-          color: #edf2ef !important;
+          color: #d8e0dd !important;
           border-radius: 18px !important;
           box-shadow: 0 10px 22px rgba(0, 0, 0, 0.12) !important;
         }
 
         .settings-page-shell input::placeholder,
         .settings-page-shell textarea::placeholder {
-          color: rgba(205, 214, 210, 0.52) !important;
+          color: rgba(194, 204, 201, 0.52) !important;
         }
 
         .settings-page-shell input:focus,
@@ -316,82 +315,241 @@ export default function SettingsPage() {
         }
 
         .settings-page-shell .settings-primary-btn {
-          border-color: rgba(183, 157, 132, 0.24) !important;
+          border-color: rgba(158, 216, 207, 0.14) !important;
           background: linear-gradient(
             180deg,
-            rgba(69, 118, 115, 0.96) 0%,
-            rgba(29, 58, 60, 0.98) 100%
+            rgba(62, 98, 96, 0.26) 0%,
+            rgba(14, 30, 34, 0.38) 100%
           ) !important;
-          color: #eef4f2 !important;
+          color: #aebbb6 !important;
+          box-shadow:
+            inset 0 1px 0 rgba(255, 255, 255, 0.04),
+            0 14px 28px rgba(0, 0, 0, 0.08) !important;
+          backdrop-filter: blur(10px);
+          -webkit-backdrop-filter: blur(10px);
         }
 
         .settings-page-shell .settings-secondary-btn {
-          border-color: rgba(183, 157, 132, 0.18) !important;
-          background: linear-gradient(
-            180deg,
-            rgba(43, 73, 75, 0.84) 0%,
-            rgba(18, 37, 39, 0.94) 100%
-          ) !important;
-          color: #e6ece9 !important;
+          border-color: rgba(79, 112, 107, 0.18) !important;
+          background-image:
+            linear-gradient(180deg, rgba(8, 20, 24, 0.78) 0%, rgba(7, 18, 22, 0.88) 100%),
+            url("/images/site-velvet-bg.webp.png") !important;
+          background-size: cover !important;
+          background-position: center !important;
+          color: #aebbb6 !important;
+          box-shadow:
+            inset 0 1px 0 rgba(255, 255, 255, 0.03),
+            0 14px 28px rgba(0, 0, 0, 0.10) !important;
+          backdrop-filter: blur(10px);
+          -webkit-backdrop-filter: blur(10px);
         }
       `}</style>
 
-      <div className="relative min-h-screen overflow-hidden">
-        <div className="absolute inset-0">
-          <img
-            src="/images/site-velvet-bg.webp.png"
-            alt=""
-            className="h-full w-full object-cover object-center"
-          />
-        </div>
-
-        <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(8,18,22,0.84)_0%,rgba(8,18,22,0.76)_34%,rgba(8,18,22,0.68)_62%,rgba(8,18,22,0.74)_100%)]" />
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_16%_16%,rgba(158,216,207,0.09),transparent_24%)]" />
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_82%_24%,rgba(214,184,157,0.06),transparent_18%)]" />
-        <div className="absolute inset-0 opacity-[0.04] [background:repeating-linear-gradient(0deg,rgba(255,255,255,0.026)_0px,rgba(255,255,255,0.026)_1px,transparent_1px,transparent_4px)]" />
-
-        <div className="relative z-10">
-          <MarketingHeader />
-
-          <section className="mx-auto max-w-7xl px-6 pb-10 pt-10 md:px-8 md:pb-12 md:pt-14">
-            <div className="max-w-[760px]">
-              <div className="inline-flex rounded-full border border-white/10 bg-white/[0.055] px-4 py-2 text-[0.74rem] font-medium uppercase tracking-[0.2em] text-[#dce3e0] shadow-[0_10px_24px_rgba(0,0,0,0.10)] backdrop-blur-md">
+      <div className="app-hero app-hero-full">
+        <div className="container">
+          <div className="page-title app-page-title" style={{ marginBottom: 0 }}>
+            <div style={{ maxWidth: 760 }}>
+              <div
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 8,
+                  borderRadius: 999,
+                  border: "1px solid rgba(255,255,255,0.10)",
+                  background: "rgba(255,255,255,0.04)",
+                  padding: "8px 16px",
+                  fontSize: "0.68rem",
+                  fontWeight: 500,
+                  textTransform: "uppercase",
+                  letterSpacing: "0.28em",
+                  color: "#afbbb7",
+                  boxShadow: "0 10px 24px rgba(0,0,0,0.08)",
+                  backdropFilter: "blur(10px)",
+                  WebkitBackdropFilter: "blur(10px)",
+                }}
+              >
+                <span
+                  style={{
+                    width: 4,
+                    height: 4,
+                    borderRadius: 999,
+                    background: "#b79d84",
+                    opacity: 0.8,
+                    display: "inline-block",
+                  }}
+                />
                 {t("settings")}
               </div>
 
-              <h1 className="mt-5 max-w-[720px] text-[1.72rem] font-medium leading-[1.01] tracking-[-0.04em] text-[#edf1ef] md:text-[2.28rem] lg:text-[2.9rem]">
+              <h1
+                className="mt-5 max-w-[720px] text-[1.72rem] font-medium leading-[1.02] tracking-[-0.045em] text-[#d9e2df] md:text-[2.22rem] lg:text-[2.72rem]"
+                style={{ margin: "20px 0 0" }}
+              >
                 Manage your{" "}
-                <span className="text-[#bfe8df]">account preferences</span>.
+                <span className="text-[#c3ebe2]">account preferences</span>.
               </h1>
 
-              <p className="mt-5 max-w-[700px] text-[0.96rem] font-normal leading-[1.8] tracking-[-0.006em] text-[#c7cfcc] md:text-[1rem]">
-                Update your <span className="text-[#e7ece9]">profile</span>, review{" "}
-                <span className="text-[#bfe8df]">security and legal settings</span>, and manage
-                your <span className="text-[#d6b89d]">subscription preferences</span> from one
-                place.
+              <p
+                className="mt-5 max-w-[700px] text-[0.95rem] font-normal leading-[1.8] tracking-[-0.006em] text-[#aab5b2] md:text-[0.99rem]"
+              >
+                Update your <span className="text-[#cfd8d5]">profile</span>, review{" "}
+                <span className="text-[#bbc7c3]">security and legal settings</span>, and
+                manage your <span className="text-[#d9ccbf]">subscription preferences</span>{" "}
+                from one place.
               </p>
 
               <div className="mt-6 flex flex-wrap gap-2.5">
-                <div className="rounded-full border border-white/10 bg-white/[0.055] px-3.5 py-2 text-[0.78rem] font-normal text-[#d7dfdb] shadow-[0_8px_18px_rgba(0,0,0,0.08)] backdrop-blur-md">
-                  <span className="mr-2 text-[#9dd2ca]">✓</span>
+                <div className="rounded-full border border-white/10 bg-white/[0.055] px-3.5 py-2 text-[0.78rem] font-normal text-[#c7d1ce] shadow-[0_8px_18px_rgba(0,0,0,0.08)] backdrop-blur-md">
+                  <span className="mr-2 text-[#91aca5]">✓</span>
                   Profile and identity controls
                 </div>
 
-                <div className="rounded-full border border-white/10 bg-white/[0.055] px-3.5 py-2 text-[0.78rem] font-normal text-[#d7dfdb] shadow-[0_8px_18px_rgba(0,0,0,0.08)] backdrop-blur-md">
-                  <span className="mr-2 text-[#9dd2ca]">✓</span>
+                <div className="rounded-full border border-white/10 bg-white/[0.055] px-3.5 py-2 text-[0.78rem] font-normal text-[#c7d1ce] shadow-[0_8px_18px_rgba(0,0,0,0.08)] backdrop-blur-md">
+                  <span className="mr-2 text-[#91aca5]">✓</span>
                   Language and security options
                 </div>
 
-                <div className="rounded-full border border-[rgba(214,184,157,0.24)] bg-[linear-gradient(180deg,rgba(183,157,132,0.08)_0%,rgba(255,255,255,0.03)_100%)] px-3.5 py-2 text-[0.78rem] font-normal text-[#e1d4c7] shadow-[0_8px_18px_rgba(0,0,0,0.08)] backdrop-blur-md">
-                  <span className="mr-2 text-[#d6b89d]">✓</span>
+                <div className="rounded-full border border-[rgba(214,184,157,0.18)] bg-[linear-gradient(180deg,rgba(183,157,132,0.07)_0%,rgba(255,255,255,0.028)_100%)] px-3.5 py-2 text-[0.78rem] font-normal text-[#d9ccbf] shadow-[0_8px_18px_rgba(0,0,0,0.08)] backdrop-blur-md">
+                  <span className="mr-2 text-[#c2a07f]">✓</span>
                   Legal and billing visibility
                 </div>
               </div>
             </div>
-          </section>
+          </div>
+        </div>
+      </div>
 
-          <section className="relative px-6 pb-14 md:px-8 md:pb-16">
-            <div className="mx-auto grid max-w-7xl gap-5">
+      <div className="app-body app-body-full">
+        <section className="relative px-6 pb-14 md:px-8 md:pb-16">
+          <div className="mx-auto grid max-w-7xl gap-5">
+            <Card
+              className="settings-velvet-card rounded-[30px] border bg-transparent p-0 shadow-none"
+              style={cardShellStyle()}
+            >
+              <div className="settings-velvet-card__bg" />
+              <div className="settings-velvet-card__overlay" />
+
+              <div className="settings-velvet-card__content p-6 md:p-7">
+                {sectionHeader(<Icons.Dashboard />, "Profile")}
+
+                <div className="mb-5 flex items-center gap-4">
+                  <div className="flex h-16 w-16 items-center justify-center rounded-full border border-[rgba(183,157,132,0.18)] bg-[linear-gradient(180deg,rgba(183,157,132,0.12)_0%,rgba(255,255,255,0.03)_100%)] text-[1.35rem] font-bold text-[#d8e0dd] shadow-[0_10px_22px_rgba(0,0,0,0.12)]">
+                    {initials}
+                  </div>
+
+                  <div>
+                    <div className="text-[12px] text-[rgba(194,204,201,0.58)]">Account</div>
+                    <div className="text-[1.05rem] font-semibold tracking-[-0.02em] text-[#d8e0dd]">
+                      {user?.displayName || user?.email || "Guest User"}
+                    </div>
+                    {user?.email ? (
+                      <div className="text-[13px] text-[rgba(194,204,201,0.72)]">
+                        {user.email}
+                      </div>
+                    ) : null}
+                  </div>
+                </div>
+
+                <div className="grid gap-4">
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <div>
+                      <div className="mb-2 text-[13px] text-[rgba(194,204,201,0.72)]">
+                        First name
+                      </div>
+                      <Input
+                        value={firstName}
+                        onChange={setFirstName}
+                        placeholder="First name"
+                        maxLength={80}
+                      />
+                    </div>
+
+                    <div>
+                      <div className="mb-2 text-[13px] text-[rgba(194,204,201,0.72)]">
+                        Last name
+                      </div>
+                      <Input
+                        value={lastName}
+                        onChange={setLastName}
+                        placeholder="Last name"
+                        maxLength={80}
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <div className="mb-2 text-[13px] text-[rgba(194,204,201,0.72)]">
+                      Display name
+                    </div>
+                    <Input
+                      value={displayName}
+                      onChange={setDisplayName}
+                      placeholder="Public display name"
+                      maxLength={120}
+                    />
+                  </div>
+
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <div>
+                      <div className="mb-2 text-[13px] text-[rgba(194,204,201,0.72)]">
+                        Country
+                      </div>
+                      <Input
+                        value={country}
+                        onChange={setCountry}
+                        placeholder="e.g. Germany, Syria"
+                        maxLength={120}
+                      />
+                    </div>
+
+                    <div>
+                      <div className="mb-2 text-[13px] text-[rgba(194,204,201,0.72)]">
+                        Timezone
+                      </div>
+                      <Input
+                        value={timezone}
+                        onChange={setTimezone}
+                        placeholder="e.g. Europe/Berlin"
+                        maxLength={64}
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <div className="mb-2 text-[13px] text-[rgba(194,204,201,0.72)]">Bio</div>
+                    <textarea
+                      className="input"
+                      value={bio}
+                      onChange={(e) => setBio(e.target.value.slice(0, 280))}
+                      placeholder="A short bio (optional)"
+                      rows={4}
+                      maxLength={280}
+                      style={{ resize: "vertical" }}
+                    />
+                  </div>
+                </div>
+
+                <div className="mt-5 flex flex-wrap gap-3">
+                  <Button
+                    variant="secondary"
+                    onClick={handleSaveProfile}
+                    className={`${velvetButtonClass(true)} settings-primary-btn`}
+                  >
+                    Save profile
+                  </Button>
+
+                  <Button
+                    variant="secondary"
+                    onClick={handleSignOut}
+                    className={`${velvetButtonClass()} settings-secondary-btn`}
+                  >
+                    Sign out
+                  </Button>
+                </div>
+              </div>
+            </Card>
+
+            <div className="grid gap-5 lg:grid-cols-2">
               <Card
                 className="settings-velvet-card rounded-[30px] border bg-transparent p-0 shadow-none"
                 style={cardShellStyle()}
@@ -400,301 +558,172 @@ export default function SettingsPage() {
                 <div className="settings-velvet-card__overlay" />
 
                 <div className="settings-velvet-card__content p-6 md:p-7">
-                  {sectionHeader(<Icons.Dashboard />, "Profile")}
-
-                  <div className="mb-5 flex items-center gap-4">
-                    <div className="flex h-16 w-16 items-center justify-center rounded-full border border-[rgba(183,157,132,0.18)] bg-[linear-gradient(180deg,rgba(183,157,132,0.12)_0%,rgba(255,255,255,0.03)_100%)] text-[1.35rem] font-bold text-[#edf2ef] shadow-[0_10px_22px_rgba(0,0,0,0.12)]">
-                      {initials}
-                    </div>
-
-                    <div>
-                      <div className="text-[12px] text-[rgba(219,235,248,0.58)]">Account</div>
-                      <div className="text-[1.05rem] font-semibold tracking-[-0.02em] text-[#f1f5f2]">
-                        {user?.displayName || user?.email || "Guest User"}
-                      </div>
-                      {user?.email ? (
-                        <div className="text-[13px] text-[rgba(219,235,248,0.72)]">
-                          {user.email}
-                        </div>
-                      ) : null}
-                    </div>
-                  </div>
+                  {sectionHeader(<Icons.Security />, "Security")}
 
                   <div className="grid gap-4">
-                    <div className="grid gap-4 md:grid-cols-2">
-                      <div>
-                        <div className="mb-2 text-[13px] text-[rgba(219,235,248,0.72)]">
-                          First name
-                        </div>
-                        <Input
-                          value={firstName}
-                          onChange={setFirstName}
-                          placeholder="First name"
-                          maxLength={80}
-                        />
-                      </div>
-
-                      <div>
-                        <div className="mb-2 text-[13px] text-[rgba(219,235,248,0.72)]">
-                          Last name
-                        </div>
-                        <Input
-                          value={lastName}
-                          onChange={setLastName}
-                          placeholder="Last name"
-                          maxLength={80}
-                        />
-                      </div>
+                    <div className="flex items-center justify-between gap-4 border-b border-white/6 pb-3">
+                      <span className="text-[rgba(194,204,201,0.72)]">Login method</span>
+                      <span className="text-[#d8e0dd]">{user?.provider ?? "—"}</span>
                     </div>
 
-                    <div>
-                      <div className="mb-2 text-[13px] text-[rgba(219,235,248,0.72)]">
-                        Display name
-                      </div>
-                      <Input
-                        value={displayName}
-                        onChange={setDisplayName}
-                        placeholder="Public display name"
-                        maxLength={120}
-                      />
+                    <div className="flex items-center justify-between gap-4 border-b border-white/6 pb-3">
+                      <span className="text-[rgba(194,204,201,0.72)]">Session</span>
+                      <span className="font-semibold text-[#bfe8df]">Active</span>
                     </div>
 
-                    <div className="grid gap-4 md:grid-cols-2">
-                      <div>
-                        <div className="mb-2 text-[13px] text-[rgba(219,235,248,0.72)]">
-                          Country
-                        </div>
-                        <Input
-                          value={country}
-                          onChange={setCountry}
-                          placeholder="e.g. Germany, Syria"
-                          maxLength={120}
-                        />
-                      </div>
-
-                      <div>
-                        <div className="mb-2 text-[13px] text-[rgba(219,235,248,0.72)]">
-                          Timezone
-                        </div>
-                        <Input
-                          value={timezone}
-                          onChange={setTimezone}
-                          placeholder="e.g. Europe/Berlin"
-                          maxLength={64}
-                        />
-                      </div>
-                    </div>
-
-                    <div>
-                      <div className="mb-2 text-[13px] text-[rgba(219,235,248,0.72)]">Bio</div>
-                      <textarea
-                        className="input"
-                        value={bio}
-                        onChange={(e) => setBio(e.target.value.slice(0, 280))}
-                        placeholder="A short bio (optional)"
-                        rows={4}
-                        maxLength={280}
-                        style={{ resize: "vertical" }}
-                      />
-                    </div>
-                  </div>
-
-                  <div className="mt-5 flex flex-wrap gap-3">
-                    <Button
-                      variant="secondary"
-                      onClick={handleSaveProfile}
-                      className={`${velvetButtonClass(true)} settings-primary-btn`}
+                    <Link
+                      href="/legal/security"
+                      className="text-[0.95rem] text-[#dce7e4] transition-colors hover:text-[#bfe8df]"
                     >
-                      Save profile
-                    </Button>
+                      Security policy
+                    </Link>
 
-                    <Button
-                      variant="secondary"
-                      onClick={handleSignOut}
-                      className={`${velvetButtonClass()} settings-secondary-btn`}
+                    <a
+                      href="mailto:security@proovra.com"
+                      className="text-[0.95rem] text-[#dce7e4] transition-colors hover:text-[#bfe8df]"
                     >
-                      Sign out
-                    </Button>
+                      security@proovra.com
+                    </a>
                   </div>
                 </div>
               </Card>
 
-              <div className="grid gap-5 lg:grid-cols-2">
-                <Card
-                  className="settings-velvet-card rounded-[30px] border bg-transparent p-0 shadow-none"
-                  style={cardShellStyle()}
-                >
-                  <div className="settings-velvet-card__bg" />
-                  <div className="settings-velvet-card__overlay" />
+              <Card
+                className="settings-velvet-card rounded-[30px] border bg-transparent p-0 shadow-none"
+                style={cardShellStyle()}
+              >
+                <div className="settings-velvet-card__bg" />
+                <div className="settings-velvet-card__overlay" />
 
-                  <div className="settings-velvet-card__content p-6 md:p-7">
-                    {sectionHeader(<Icons.Security />, "Security")}
+                <div className="settings-velvet-card__content p-6 md:p-7">
+                  {sectionHeader(<Icons.Settings />, t("language"))}
 
-                    <div className="grid gap-4">
-                      <div className="flex items-center justify-between gap-4 border-b border-white/6 pb-3">
-                        <span className="text-[rgba(219,235,248,0.72)]">Login method</span>
-                        <span className="text-[#f1f5f2]">{user?.provider ?? "—"}</span>
-                      </div>
-
-                      <div className="flex items-center justify-between gap-4 border-b border-white/6 pb-3">
-                        <span className="text-[rgba(219,235,248,0.72)]">Session</span>
-                        <span className="font-semibold text-[#bfe8df]">Active</span>
-                      </div>
-
-                      <Link
-                        href="/legal/security"
-                        className="text-[0.95rem] text-[#dce7e4] transition-colors hover:text-[#bfe8df]"
+                  <div className="grid gap-4">
+                    <div className="flex flex-col gap-3">
+                      <span className="text-[rgba(194,204,201,0.72)]">UI language</span>
+                      <select
+                        value={selectedLanguage}
+                        onChange={(e) => setSelectedLanguage(e.target.value as Locale)}
+                        className="settings-select"
                       >
-                        Security policy
-                      </Link>
-
-                      <a
-                        href="mailto:security@proovra.com"
-                        className="text-[0.95rem] text-[#dce7e4] transition-colors hover:text-[#bfe8df]"
-                      >
-                        security@proovra.com
-                      </a>
-                    </div>
-                  </div>
-                </Card>
-
-                <Card
-                  className="settings-velvet-card rounded-[30px] border bg-transparent p-0 shadow-none"
-                  style={cardShellStyle()}
-                >
-                  <div className="settings-velvet-card__bg" />
-                  <div className="settings-velvet-card__overlay" />
-
-                  <div className="settings-velvet-card__content p-6 md:p-7">
-                    {sectionHeader(<Icons.Settings />, t("language"))}
-
-                    <div className="grid gap-4">
-                      <div className="flex flex-col gap-3">
-                        <span className="text-[rgba(219,235,248,0.72)]">UI language</span>
-                        <select
-                          value={selectedLanguage}
-                          onChange={(e) => setSelectedLanguage(e.target.value as Locale)}
-                          className="settings-select"
-                        >
-                          {supportedLocales.map((lc) => (
-                            <option key={lc} value={lc}>
-                              {lc === "en"
-                                ? "English"
-                                : lc === "ar"
-                                  ? "العربية"
-                                  : lc === "de"
-                                    ? "Deutsch"
-                                    : lc === "fr"
-                                      ? "Français"
-                                      : lc === "es"
-                                        ? "Español"
-                                        : lc === "tr"
-                                          ? "Türkçe"
-                                          : lc === "ru"
-                                            ? "Русский"
-                                            : String(lc).toUpperCase()}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-
-                      <p className="m-0 text-[13px] text-[rgba(219,235,248,0.58)]">
-                        Language preference will be used for future UI updates.
-                      </p>
-                    </div>
-                  </div>
-                </Card>
-
-                <Card
-                  className="settings-velvet-card rounded-[30px] border bg-transparent p-0 shadow-none"
-                  style={cardShellStyle()}
-                >
-                  <div className="settings-velvet-card__bg" />
-                  <div className="settings-velvet-card__overlay" />
-
-                  <div className="settings-velvet-card__content p-6 md:p-7">
-                    {sectionHeader(<Icons.Billing />, "Subscription")}
-
-                    <div className="grid gap-4">
-                      <div className="flex items-center justify-between gap-4 border-b border-white/6 pb-3">
-                        <span className="text-[rgba(219,235,248,0.72)]">Current plan</span>
-                        <span className="font-semibold text-[#d6b89d]">{plan}</span>
-                      </div>
-
-                      <div>
-                        <Link href="/billing">
-                          <Button
-                            variant="secondary"
-                            className={`${velvetButtonClass()} settings-secondary-btn`}
-                          >
-                            Go to Billing
-                          </Button>
-                        </Link>
-                      </div>
-                    </div>
-                  </div>
-                </Card>
-
-                <Card
-                  className="settings-velvet-card rounded-[30px] border bg-transparent p-0 shadow-none"
-                  style={cardShellStyle()}
-                >
-                  <div className="settings-velvet-card__bg" />
-                  <div className="settings-velvet-card__overlay" />
-
-                  <div className="settings-velvet-card__content p-6 md:p-7">
-                    {sectionHeader(<Icons.Security />, "Legal")}
-
-                    <div className="grid gap-4">
-                      <div className="flex flex-col gap-2">
-                        {LEGAL_LINKS.map((link) => (
-                          <Link
-                            key={link.href}
-                            href={link.href}
-                            className="text-[0.95rem] text-[#dce7e4] transition-colors hover:text-[#bfe8df]"
-                          >
-                            {link.label}
-                          </Link>
+                        {supportedLocales.map((lc) => (
+                          <option key={lc} value={lc}>
+                            {lc === "en"
+                              ? "English"
+                              : lc === "ar"
+                                ? "العربية"
+                                : lc === "de"
+                                  ? "Deutsch"
+                                  : lc === "fr"
+                                    ? "Français"
+                                    : lc === "es"
+                                      ? "Español"
+                                      : lc === "tr"
+                                        ? "Türkçe"
+                                        : lc === "ru"
+                                          ? "Русский"
+                                          : String(lc).toUpperCase()}
+                          </option>
                         ))}
-                      </div>
+                      </select>
+                    </div>
 
-                      <div className="mt-1 grid gap-3">
+                    <p className="m-0 text-[13px] text-[rgba(194,204,201,0.58)]">
+                      Language preference will be used for future UI updates.
+                    </p>
+                  </div>
+                </div>
+              </Card>
+
+              <Card
+                className="settings-velvet-card rounded-[30px] border bg-transparent p-0 shadow-none"
+                style={cardShellStyle()}
+              >
+                <div className="settings-velvet-card__bg" />
+                <div className="settings-velvet-card__overlay" />
+
+                <div className="settings-velvet-card__content p-6 md:p-7">
+                  {sectionHeader(<Icons.Billing />, "Subscription")}
+
+                  <div className="grid gap-4">
+                    <div className="flex items-center justify-between gap-4 border-b border-white/6 pb-3">
+                      <span className="text-[rgba(194,204,201,0.72)]">Current plan</span>
+                      <span className="font-semibold text-[#d6b89d]">{plan}</span>
+                    </div>
+
+                    <div>
+                      <Link href="/billing">
                         <Button
                           variant="secondary"
-                          onClick={() => openCookiePreferences()}
                           className={`${velvetButtonClass()} settings-secondary-btn`}
                         >
-                          Manage Cookie Preferences
+                          Go to Billing
                         </Button>
-
-                        {latestCookieConsent ? (
-                          <div className="text-[12px] text-[rgba(219,235,248,0.72)]">
-                            Cookie consent v{latestCookieConsent.consentVersion} — saved on{" "}
-                            {new Date(latestCookieConsent.createdAt).toLocaleString()}
-                          </div>
-                        ) : null}
-
-                        {legalAcceptances.length > 0 ? (
-                          <div className="mt-1 grid gap-2">
-                            {legalAcceptances.slice(0, 4).map((item) => (
-                              <div
-                                key={item.id}
-                                className="text-[12px] text-[rgba(219,235,248,0.72)]"
-                              >
-                                {item.policyKey} v{item.policyVersion} —{" "}
-                                {new Date(item.acceptedAt).toLocaleString()}
-                              </div>
-                            ))}
-                          </div>
-                        ) : null}
-                      </div>
+                      </Link>
                     </div>
                   </div>
-                </Card>
-              </div>
+                </div>
+              </Card>
+
+              <Card
+                className="settings-velvet-card rounded-[30px] border bg-transparent p-0 shadow-none"
+                style={cardShellStyle()}
+              >
+                <div className="settings-velvet-card__bg" />
+                <div className="settings-velvet-card__overlay" />
+
+                <div className="settings-velvet-card__content p-6 md:p-7">
+                  {sectionHeader(<Icons.Security />, "Legal")}
+
+                  <div className="grid gap-4">
+                    <div className="flex flex-col gap-2">
+                      {LEGAL_LINKS.map((link) => (
+                        <Link
+                          key={link.href}
+                          href={link.href}
+                          className="text-[0.95rem] text-[#dce7e4] transition-colors hover:text-[#bfe8df]"
+                        >
+                          {link.label}
+                        </Link>
+                      ))}
+                    </div>
+
+                    <div className="mt-1 grid gap-3">
+                      <Button
+                        variant="secondary"
+                        onClick={() => openCookiePreferences()}
+                        className={`${velvetButtonClass()} settings-secondary-btn`}
+                      >
+                        Manage Cookie Preferences
+                      </Button>
+
+                      {latestCookieConsent ? (
+                        <div className="text-[12px] text-[rgba(194,204,201,0.72)]">
+                          Cookie consent v{latestCookieConsent.consentVersion} — saved on{" "}
+                          {new Date(latestCookieConsent.createdAt).toLocaleString()}
+                        </div>
+                      ) : null}
+
+                      {legalAcceptances.length > 0 ? (
+                        <div className="mt-1 grid gap-2">
+                          {legalAcceptances.slice(0, 4).map((item) => (
+                            <div
+                              key={item.id}
+                              className="text-[12px] text-[rgba(194,204,201,0.72)]"
+                            >
+                              {item.policyKey} v{item.policyVersion} —{" "}
+                              {new Date(item.acceptedAt).toLocaleString()}
+                            </div>
+                          ))}
+                        </div>
+                      ) : null}
+                    </div>
+                  </div>
+                </div>
+              </Card>
             </div>
-          </section>
-        </div>
+          </div>
+        </section>
       </div>
     </div>
   );

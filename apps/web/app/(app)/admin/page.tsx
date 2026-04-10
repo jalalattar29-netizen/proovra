@@ -161,30 +161,30 @@ const ROUTE_TYPE_OPTIONS: { value: RouteTypeFilter; label: string }[] = [
 const UI = {
   pageBg: "transparent",
   cardBgStrong:
-    "linear-gradient(180deg, rgba(8,18,34,0.92), rgba(8,18,34,0.84))",
+    "linear-gradient(180deg, rgba(8,20,24,0.82) 0%, rgba(7,18,22,0.90) 100%)",
   innerPanelBg:
-    "linear-gradient(180deg, rgba(255,255,255,0.045), rgba(255,255,255,0.03))",
-  border: "rgba(214, 184, 157, 0.12)",
-  borderStrong: "rgba(214, 184, 157, 0.18)",
-  textPrimary: "#F8FAFC",
-  textSecondary: "rgba(219, 235, 248, 0.82)",
-  textMuted: "rgba(219, 235, 248, 0.56)",
-  heading: "rgba(246, 252, 255, 0.96)",
-  toolbarBg: "rgba(255,255,255,0.05)",
+    "linear-gradient(180deg, rgba(255,255,255,0.045), rgba(255,255,255,0.025))",
+  border: "rgba(183,157,132,0.14)",
+  borderStrong: "rgba(183,157,132,0.20)",
+  textPrimary: "#edf4f1",
+  textSecondary: "rgba(211,223,220,0.76)",
+  textMuted: "rgba(194,204,201,0.56)",
+  heading: "#f3f7f5",
+  toolbarBg: "rgba(255,255,255,0.045)",
   toolbarActiveBg:
-    "linear-gradient(180deg, rgba(255,255,255,0.96), rgba(241,245,249,0.94))",
-  toolbarActiveText: "#102033",
-  toolbarIdleText: "rgba(219, 235, 248, 0.86)",
+    "linear-gradient(180deg, rgba(255,255,255,0.96), rgba(241,245,239,0.94))",
+  toolbarActiveText: "#102126",
+  toolbarIdleText: "rgba(219,235,248,0.86)",
   inputBg: "rgba(248, 250, 252, 0.98)",
-  inputText: "#0F172A",
-  success: "#34D399",
-  successText: "#86EFAC",
-  warning: "#F59E0B",
+  inputText: "#0f172a",
+  success: "#34d399",
+  successText: "#86efac",
+  warning: "#f59e0b",
   dangerBg: "rgba(127, 29, 29, 0.18)",
   dangerBorder: "rgba(248, 113, 113, 0.22)",
-  dangerText: "#FECACA",
-  emptyText: "rgba(219, 235, 248, 0.62)",
-  shadow: "0 20px 48px rgba(0, 0, 0, 0.22)",
+  dangerText: "#fecaca",
+  emptyText: "rgba(219,235,248,0.62)",
+  shadow: "0 22px 42px rgba(0, 0, 0, 0.16)",
 };
 
 function dateRangeLabel(range: DateRangeKey): string {
@@ -387,23 +387,24 @@ function safeDivideDisplay(
 
 function sectionTitleStyle(): CSSProperties {
   return {
-    fontSize: 15,
+    fontSize: 12,
     fontWeight: 800,
-    color: UI.heading,
-    marginBottom: 18,
+    color: UI.textMuted,
+    marginBottom: 16,
     textTransform: "uppercase",
-    letterSpacing: "0.12em",
+    letterSpacing: "0.16em",
   };
 }
 
 function subCardStyle(extra?: CSSProperties): CSSProperties {
   return {
     padding: 24,
+    borderRadius: 28,
     background: UI.cardBgStrong,
     border: `1px solid ${UI.border}`,
-    borderRadius: 22,
     boxShadow: UI.shadow,
     backdropFilter: "blur(14px)",
+    WebkitBackdropFilter: "blur(14px)",
     ...extra,
   };
 }
@@ -413,7 +414,7 @@ function badgeStyle(color: string, bg: string): CSSProperties {
     display: "inline-flex",
     alignItems: "center",
     gap: 6,
-    padding: "5px 10px",
+    padding: "6px 11px",
     fontSize: 11,
     fontWeight: 800,
     borderRadius: 999,
@@ -421,6 +422,9 @@ function badgeStyle(color: string, bg: string): CSSProperties {
     background: bg,
     whiteSpace: "nowrap",
     border: "1px solid rgba(255,255,255,0.06)",
+    lineHeight: 1,
+    textTransform: "uppercase",
+    letterSpacing: "0.06em",
   };
 }
 
@@ -428,8 +432,8 @@ function routeTypeBadge(routeType: string | null | undefined): JSX.Element {
   const value = routeType ?? "unknown";
   const styles: Record<string, CSSProperties> = {
     public: badgeStyle("#93C5FD", "rgba(59,130,246,0.16)"),
-    app: badgeStyle("#6EE7B7", "rgba(16,185,129,0.16)"),
-    admin: badgeStyle("#FCD34D", "rgba(245,158,11,0.18)"),
+    app: badgeStyle("#95E3C0", "rgba(46,128,108,0.16)"),
+    admin: badgeStyle("#E6C9AE", "rgba(183,157,132,0.16)"),
     auth: badgeStyle("#C4B5FD", "rgba(139,92,246,0.18)"),
     api: badgeStyle("#F9A8D4", "rgba(236,72,153,0.18)"),
     unknown: badgeStyle("#CBD5E1", "rgba(148,163,184,0.18)"),
@@ -461,7 +465,7 @@ function ProgressBar(props: {
       style={{
         width: "100%",
         height,
-        backgroundColor: "rgba(255,255,255,0.09)",
+        backgroundColor: "rgba(255,255,255,0.08)",
         borderRadius: 999,
         overflow: "hidden",
         border: "1px solid rgba(255,255,255,0.04)",
@@ -484,18 +488,19 @@ function renderMiniBar(value: number, maxValue: number, color: string): JSX.Elem
   return <ProgressBar value={value} maxValue={maxValue} color={color} height={8} />;
 }
 
-function StatCard({ title, value, description, accent = "#0B7BE5" }: StatCardProps) {
+function StatCard({ title, value, description, accent = "#3B82F6" }: StatCardProps) {
   return (
-    <Card className="app-card">
+    <Card className="app-card admin-metric-card">
       <div
         style={{
           padding: 22,
           background: UI.cardBgStrong,
           border: `1px solid ${UI.border}`,
-          borderRadius: 22,
-          minHeight: 178,
+          borderRadius: 28,
+          minHeight: 184,
           boxShadow: UI.shadow,
           backdropFilter: "blur(14px)",
+          WebkitBackdropFilter: "blur(14px)",
         }}
       >
         <div style={{ marginBottom: 14 }}>
@@ -511,6 +516,7 @@ function StatCard({ title, value, description, accent = "#0B7BE5" }: StatCardPro
             {title}
           </div>
         </div>
+
         <div style={{ marginBottom: 12 }}>
           <div
             style={{
@@ -524,20 +530,22 @@ function StatCard({ title, value, description, accent = "#0B7BE5" }: StatCardPro
             {value}
           </div>
         </div>
+
         <div
           style={{
             fontSize: 13,
             color: UI.textSecondary,
-            lineHeight: 1.6,
+            lineHeight: 1.65,
           }}
         >
           {description}
         </div>
+
         <div
           style={{
             marginTop: 14,
             height: 3,
-            width: 46,
+            width: 48,
             backgroundColor: accent,
             borderRadius: 999,
             boxShadow: `0 0 16px ${accent}55`,
@@ -556,7 +564,7 @@ function StatSkeleton() {
           padding: 22,
           background: UI.cardBgStrong,
           border: `1px solid ${UI.border}`,
-          borderRadius: 22,
+          borderRadius: 28,
         }}
       >
         <div style={{ marginBottom: 12 }}>
@@ -1106,7 +1114,7 @@ export default function AdminPage() {
 
   if (!authReady) {
     return (
-      <div className="section app-section">
+      <div className="section app-section admin-premium-shell">
         <div className="container" style={{ paddingTop: 40 }}>
           <div
             style={{
@@ -1128,7 +1136,7 @@ export default function AdminPage() {
 
   if (!isAdminRole) {
     return (
-      <div className="section app-section">
+      <div className="section app-section admin-premium-shell">
         <div className="container" style={{ paddingTop: 40 }}>
           <Card className="app-card">
             <div
@@ -1136,7 +1144,7 @@ export default function AdminPage() {
                 padding: 32,
                 textAlign: "center",
                 background: UI.dangerBg,
-                borderRadius: 18,
+                borderRadius: 22,
                 color: UI.dangerText,
                 border: `1px solid ${UI.dangerBorder}`,
                 boxShadow: UI.shadow,
@@ -1172,40 +1180,88 @@ export default function AdminPage() {
   });
 
   return (
-    <div className="section app-section" style={{ backgroundColor: UI.pageBg }}>
+    <div className="section app-section admin-premium-shell" style={{ backgroundColor: UI.pageBg }}>
       <div className="app-hero app-hero-full">
         <div className="container">
-          <div className="page-title" style={{ marginBottom: 0 }}>
-            <div>
-              <h1
-                className="hero-title pricing-hero-title"
+          <div className="page-title app-page-title" style={{ marginBottom: 0 }}>
+            <div style={{ maxWidth: 820 }}>
+              <div
                 style={{
-                  margin: 0,
-                  fontSize: 34,
-                  fontWeight: 800,
-                  color: UI.textPrimary,
-                  textShadow: "0 2px 18px rgba(15, 23, 42, 0.28)",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 10,
+                  borderRadius: 999,
+                  border: "1px solid rgba(255,255,255,0.10)",
+                  background: "rgba(255,255,255,0.055)",
+                  padding: "8px 16px",
+                  fontSize: "0.74rem",
+                  fontWeight: 600,
+                  textTransform: "uppercase",
+                  letterSpacing: "0.2em",
+                  color: "#dce3e0",
+                  boxShadow: "0 10px 24px rgba(0,0,0,0.10)",
+                  backdropFilter: "blur(10px)",
                 }}
               >
-                Analytics & Admin Audit
+                <span
+                  style={{
+                    width: 6,
+                    height: 6,
+                    borderRadius: 999,
+                    background: "#d6b89d",
+                    boxShadow: "0 0 10px rgba(214,184,157,0.45)",
+                  }}
+                />
+                Admin Console
+              </div>
+
+              <h1
+                className="mt-5 max-w-[820px] text-[1.72rem] font-medium leading-[1.01] tracking-[-0.045em] text-[#edf1ef] md:text-[2.28rem] lg:text-[2.95rem]"
+                style={{ margin: "16px 0 0" }}
+              >
+                Analytics, audit, and{" "}
+                <span style={{ color: "#bfe8df" }}>operational visibility</span>.
               </h1>
+
               <p
                 className="page-subtitle pricing-subtitle"
                 style={{
-                  marginTop: 6,
-                  fontSize: 15,
-                  color: UI.textSecondary,
-                  maxWidth: 900,
+                  marginTop: 16,
+                  maxWidth: 820,
+                  fontSize: "0.98rem",
+                  lineHeight: 1.82,
+                  color: "#c7cfcc",
                 }}
               >
-                Operational analytics, funnel performance, and tamper-evident admin audit visibility.
+                Review <span style={{ color: "#e7ece9" }}>product activity</span>, track{" "}
+                <span style={{ color: "#bfe8df" }}>funnel performance</span>, inspect{" "}
+                <span style={{ color: "#e6ebe8" }}>geography and traffic behavior</span>, and
+                verify <span style={{ color: "#d6b89d" }}>tamper-evident admin audit logs</span>{" "}
+                from one premium console.
               </p>
+
+              <div className="mt-6 flex flex-wrap gap-2.5">
+                <div className="rounded-full border border-white/10 bg-white/[0.055] px-3.5 py-2 text-[0.78rem] font-normal text-[#d7dfdb] shadow-[0_8px_18px_rgba(0,0,0,0.08)] backdrop-blur-md">
+                  <span className="mr-2 text-[#9dd2ca]">✓</span>
+                  Executive overview
+                </div>
+
+                <div className="rounded-full border border-white/10 bg-white/[0.055] px-3.5 py-2 text-[0.78rem] font-normal text-[#d7dfdb] shadow-[0_8px_18px_rgba(0,0,0,0.08)] backdrop-blur-md">
+                  <span className="mr-2 text-[#9dd2ca]">✓</span>
+                  Drilldown analytics
+                </div>
+
+                <div className="rounded-full border border-[rgba(214,184,157,0.24)] bg-[linear-gradient(180deg,rgba(183,157,132,0.08)_0%,rgba(255,255,255,0.03)_100%)] px-3.5 py-2 text-[0.78rem] font-normal text-[#e1d4c7] shadow-[0_8px_18px_rgba(0,0,0,0.08)] backdrop-blur-md">
+                  <span className="mr-2 text-[#d6b89d]">✓</span>
+                  Audit integrity checks
+                </div>
+              </div>
             </div>
           </div>
         </div>
       </div>
 
-      <div className="app-body app-body-full" style={{ paddingTop: 32, paddingBottom: 48 }}>
+      <div className="app-body app-body-full" style={{ paddingTop: 28, paddingBottom: 56 }}>
         <div className="container">
           {error && (
             <div style={{ marginBottom: 24 }}>
@@ -1214,7 +1270,7 @@ export default function AdminPage() {
                   style={{
                     padding: 16,
                     background: UI.dangerBg,
-                    borderRadius: 16,
+                    borderRadius: 18,
                     color: UI.dangerText,
                     fontSize: 13,
                     borderLeft: "4px solid #F87171",
@@ -1232,7 +1288,7 @@ export default function AdminPage() {
               <Card className="app-card">
                 <div
                   style={{
-                    padding: "16px 18px",
+                    padding: "18px 18px",
                     display: "flex",
                     flexWrap: "wrap",
                     alignItems: "center",
@@ -1240,7 +1296,7 @@ export default function AdminPage() {
                     justifyContent: "space-between",
                     background: UI.cardBgStrong,
                     border: `1px solid ${UI.border}`,
-                    borderRadius: 22,
+                    borderRadius: 28,
                     boxShadow: UI.shadow,
                   }}
                 >
@@ -1315,7 +1371,7 @@ export default function AdminPage() {
                           color: UI.inputText,
                           backgroundColor: UI.inputBg,
                           border: "1px solid rgba(226, 232, 240, 0.65)",
-                          borderRadius: 12,
+                          borderRadius: 14,
                           cursor: "pointer",
                           outline: "none",
                         }}
@@ -1352,7 +1408,7 @@ export default function AdminPage() {
                           color: UI.inputText,
                           backgroundColor: UI.inputBg,
                           border: "1px solid rgba(226, 232, 240, 0.65)",
-                          borderRadius: 12,
+                          borderRadius: 14,
                           cursor: "pointer",
                           outline: "none",
                         }}
@@ -1381,7 +1437,7 @@ export default function AdminPage() {
                         color: UI.inputText,
                         backgroundColor: UI.inputBg,
                         border: "1px solid rgba(226, 232, 240, 0.65)",
-                        borderRadius: 12,
+                        borderRadius: 14,
                         cursor: "pointer",
                       }}
                     >
@@ -1397,7 +1453,7 @@ export default function AdminPage() {
                         color: UI.inputText,
                         backgroundColor: UI.inputBg,
                         border: "1px solid rgba(226, 232, 240, 0.65)",
-                        borderRadius: 12,
+                        borderRadius: 14,
                         cursor: "pointer",
                       }}
                     >
@@ -1458,47 +1514,41 @@ export default function AdminPage() {
                     description={`${stats.registeredUsers.toLocaleString()} registered + ${stats.guestUsers.toLocaleString()} guest`}
                     accent="#3B82F6"
                   />
-
                   <StatCard
                     title="Registered Users"
                     value={stats.registeredUsers.toLocaleString()}
                     description={`${stats.activeUsers.toLocaleString()} active (${primaryInsight?.activeRate ?? "0.0"}% activity rate)`}
-                    accent="#06B6D4"
+                    accent="#0EA5E9"
                   />
-
                   <StatCard
                     title="Guest Users"
                     value={stats.guestUsers.toLocaleString()}
                     description="Anonymous / guest identities created in the system"
                     accent="#64748B"
                   />
-
                   <StatCard
                     title="Users With Evidence"
                     value={stats.usersWithEvidence.toLocaleString()}
                     description="Distinct owners with at least one non-deleted evidence item"
-                    accent="#A855F7"
+                    accent="#8B5CF6"
                   />
-
                   <StatCard
                     title="Total Evidence"
                     value={stats.totalEvidence.toLocaleString()}
                     description={`${stats.reportsGenerated.toLocaleString()} reports generated`}
                     accent="#10B981"
                   />
-
                   <StatCard
                     title="Avg Evidence / Registered User"
                     value={safeDivideDisplay(stats.totalEvidence, stats.registeredUsers, 1)}
                     description="Average evidence items per registered user"
                     accent="#F59E0B"
                   />
-
                   <StatCard
                     title="Report Rate"
                     value={`${primaryInsight?.reportRate ?? "0.0"}%`}
                     description="Share of evidence that reached report generation"
-                    accent="#8B5CF6"
+                    accent="#D6B89D"
                   />
                 </div>
               </div>
@@ -1540,7 +1590,7 @@ export default function AdminPage() {
                             key={point.date}
                             style={{
                               border: `1px solid ${UI.borderStrong}`,
-                              borderRadius: 18,
+                              borderRadius: 20,
                               padding: 16,
                               background: UI.innerPanelBg,
                               boxShadow: "inset 0 1px 0 rgba(255,255,255,0.03)",
@@ -1575,7 +1625,7 @@ export default function AdminPage() {
                               <div style={{ fontSize: 12, color: UI.textSecondary, marginBottom: 6, fontWeight: 700 }}>
                                 Sessions
                               </div>
-                              <div style={{ fontSize: 18, fontWeight: 800, color: "#6EE7B7", marginBottom: 8 }}>
+                              <div style={{ fontSize: 18, fontWeight: 800, color: "#95E3C0", marginBottom: 8 }}>
                                 {point.sessions.toLocaleString()}
                               </div>
                               {renderMiniBar(point.sessions, trendMax, "#10B981")}
@@ -1626,8 +1676,7 @@ export default function AdminPage() {
                               display: "flex",
                               alignItems: "center",
                               gap: 12,
-                              paddingBottom: 12,
-                              paddingTop: 4,
+                              padding: "6px 0 14px",
                               border: "none",
                               background: "transparent",
                               borderBottom: idx < pages.length - 1 ? `1px solid ${UI.border}` : "none",
@@ -1637,9 +1686,9 @@ export default function AdminPage() {
                           >
                             <div
                               style={{
-                                width: 30,
-                                height: 30,
-                                borderRadius: 8,
+                                width: 32,
+                                height: 32,
+                                borderRadius: 10,
                                 backgroundColor: "rgba(59, 130, 246, 0.16)",
                                 display: "flex",
                                 alignItems: "center",
@@ -1652,6 +1701,7 @@ export default function AdminPage() {
                             >
                               {idx + 1}
                             </div>
+
                             <div style={{ flex: 1, minWidth: 0 }}>
                               <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginBottom: 4 }}>
                                 <div
@@ -1666,6 +1716,7 @@ export default function AdminPage() {
                                 </div>
                                 {routeTypeBadge(item.routeType)}
                               </div>
+
                               <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
                                 <div style={{ fontSize: 12, color: UI.textSecondary }}>
                                   {item.views.toLocaleString()} views
@@ -1674,6 +1725,7 @@ export default function AdminPage() {
                                   {item.share?.toFixed(1) ?? "0.0"}% share
                                 </div>
                               </div>
+
                               <div style={{ marginTop: 8 }}>
                                 <ProgressBar
                                   value={item.share ?? 0}
@@ -1683,6 +1735,7 @@ export default function AdminPage() {
                                 />
                               </div>
                             </div>
+
                             <div style={{ fontSize: 14, fontWeight: 800, color: UI.textPrimary, whiteSpace: "nowrap" }}>
                               {item.share?.toFixed(1) ?? "0.0"}%
                             </div>
@@ -1729,14 +1782,14 @@ export default function AdminPage() {
                                   style={{
                                     width: 34,
                                     height: 34,
-                                    borderRadius: 10,
-                                    backgroundColor: "rgba(245, 158, 11, 0.18)",
+                                    borderRadius: 12,
+                                    backgroundColor: "rgba(183,157,132,0.18)",
                                     display: "flex",
                                     alignItems: "center",
                                     justifyContent: "center",
                                     fontSize: 13,
                                     fontWeight: 800,
-                                    color: "#FCD34D",
+                                    color: "#E6C9AE",
                                   }}
                                 >
                                   {idx + 1}
@@ -1756,11 +1809,12 @@ export default function AdminPage() {
                                   )}
                                 </div>
                               </div>
+
                               <div style={{ fontSize: 13, fontWeight: 800, color: UI.textPrimary }}>
                                 {step.count.toLocaleString()}
                               </div>
                             </div>
-                            {renderMiniBar(step.count, Math.max(1, funnel[0]?.count ?? 1), "#F59E0B")}
+                            {renderMiniBar(step.count, Math.max(1, funnel[0]?.count ?? 1), "#D6B89D")}
                           </div>
                         ))}
                       </div>
@@ -1819,7 +1873,7 @@ export default function AdminPage() {
                                 style={{
                                   width: 30,
                                   height: 30,
-                                  borderRadius: 8,
+                                  borderRadius: 10,
                                   backgroundColor: "rgba(14, 165, 233, 0.16)",
                                   display: "flex",
                                   alignItems: "center",
@@ -1832,6 +1886,7 @@ export default function AdminPage() {
                               >
                                 {idx + 1}
                               </div>
+
                               <div style={{ flex: 1, minWidth: 0 }}>
                                 <div style={{ fontSize: 13, fontWeight: 700, color: UI.textPrimary }}>
                                   {item.name ?? "Unknown"}
@@ -1843,6 +1898,7 @@ export default function AdminPage() {
                                   <ProgressBar value={item.share ?? 0} maxValue={100} color="#0EA5E9" height={6} />
                                 </div>
                               </div>
+
                               <div style={{ fontSize: 12, fontWeight: 800, color: UI.textSecondary, whiteSpace: "nowrap" }}>
                                 {item.count.toLocaleString()}
                               </div>
@@ -1892,8 +1948,8 @@ export default function AdminPage() {
                                 style={{
                                   width: 30,
                                   height: 30,
-                                  borderRadius: 8,
-                                  backgroundColor: "rgba(96, 165, 250, 0.16)",
+                                  borderRadius: 10,
+                                  backgroundColor: "rgba(59, 130, 246, 0.16)",
                                   display: "flex",
                                   alignItems: "center",
                                   justifyContent: "center",
@@ -1905,6 +1961,7 @@ export default function AdminPage() {
                               >
                                 {idx + 1}
                               </div>
+
                               <div style={{ flex: 1, minWidth: 0 }}>
                                 <div style={{ fontSize: 13, fontWeight: 700, color: UI.textPrimary }}>
                                   {item.name ?? "Unknown"}
@@ -1916,6 +1973,7 @@ export default function AdminPage() {
                                   <ProgressBar value={item.share ?? 0} maxValue={100} color="#3B82F6" height={6} />
                                 </div>
                               </div>
+
                               <div style={{ fontSize: 12, fontWeight: 800, color: UI.textSecondary, whiteSpace: "nowrap" }}>
                                 {item.count.toLocaleString()}
                               </div>
@@ -2082,6 +2140,7 @@ export default function AdminPage() {
                         <h3 style={{ margin: "0 0 12px 0", fontSize: 15, fontWeight: 800, color: UI.textPrimary }}>
                           Audit Integrity Status
                         </h3>
+
                         {chainVerify === null ? (
                           <div style={{ fontSize: 13, color: UI.textSecondary }}>Verification not available yet.</div>
                         ) : chainVerify.valid ? (
@@ -2126,7 +2185,7 @@ export default function AdminPage() {
                             color: UI.inputText,
                             backgroundColor: UI.inputBg,
                             border: "1px solid rgba(226, 232, 240, 0.65)",
-                            borderRadius: 12,
+                            borderRadius: 14,
                             cursor: "pointer",
                           }}
                         >
@@ -2162,7 +2221,7 @@ export default function AdminPage() {
                             color: UI.inputText,
                             backgroundColor: UI.inputBg,
                             border: "1px solid rgba(226, 232, 240, 0.65)",
-                            borderRadius: 12,
+                            borderRadius: 14,
                             outline: "none",
                           }}
                         />
@@ -2176,7 +2235,7 @@ export default function AdminPage() {
                             color: UI.inputText,
                             backgroundColor: UI.inputBg,
                             border: "1px solid rgba(226, 232, 240, 0.65)",
-                            borderRadius: 12,
+                            borderRadius: 14,
                             outline: "none",
                           }}
                         />
@@ -2190,7 +2249,7 @@ export default function AdminPage() {
                             color: UI.inputText,
                             backgroundColor: UI.inputBg,
                             border: "1px solid rgba(226, 232, 240, 0.65)",
-                            borderRadius: 12,
+                            borderRadius: 14,
                             outline: "none",
                           }}
                         />
@@ -2204,7 +2263,7 @@ export default function AdminPage() {
                             color: UI.inputText,
                             backgroundColor: UI.inputBg,
                             border: "1px solid rgba(226, 232, 240, 0.65)",
-                            borderRadius: 12,
+                            borderRadius: 14,
                             outline: "none",
                           }}
                         />
@@ -2218,7 +2277,7 @@ export default function AdminPage() {
                             color: UI.inputText,
                             backgroundColor: UI.inputBg,
                             border: "1px solid rgba(226, 232, 240, 0.65)",
-                            borderRadius: 12,
+                            borderRadius: 14,
                             outline: "none",
                           }}
                         />
@@ -2235,12 +2294,13 @@ export default function AdminPage() {
                             color: UI.inputText,
                             backgroundColor: UI.inputBg,
                             border: "1px solid rgba(226, 232, 240, 0.65)",
-                            borderRadius: 12,
+                            borderRadius: 14,
                             cursor: "pointer",
                           }}
                         >
                           Apply filters
                         </button>
+
                         <button
                           type="button"
                           onClick={() => {
@@ -2261,7 +2321,7 @@ export default function AdminPage() {
                             color: UI.inputText,
                             backgroundColor: UI.inputBg,
                             border: "1px solid rgba(226, 232, 240, 0.65)",
-                            borderRadius: 12,
+                            borderRadius: 14,
                             cursor: "pointer",
                           }}
                         >
@@ -2294,12 +2354,15 @@ export default function AdminPage() {
                                   <div style={{ fontSize: 12, fontWeight: 800, color: UI.textPrimary, wordBreak: "break-word" }}>
                                     {humanizeKey(entry.action)}
                                   </div>
+
                                   {entry.category ? (
                                     <span style={badgeStyle("#C4B5FD", "rgba(139,92,246,0.18)")}>
                                       {humanizeKey(entry.category)}
                                     </span>
                                   ) : null}
+
                                   {severityBadge(entry.severity)}
+
                                   {entry.outcome ? (
                                     <span style={badgeStyle("#CBD5E1", "rgba(148,163,184,0.18)")}>
                                       {humanizeKey(entry.outcome)}
@@ -2319,6 +2382,7 @@ export default function AdminPage() {
                                     IP: {entry.ipAddress ?? "—"} · Chain v{entry.chainVersion ?? 1}
                                     {entry.anchoredAt ? ` · anchored ${formatDisplayTimestamp(entry.anchoredAt)}` : ""}
                                   </div>
+
                                   <pre
                                     style={{
                                       fontSize: 11,
@@ -2346,6 +2410,7 @@ export default function AdminPage() {
                           <div style={{ fontSize: 12, color: UI.textSecondary }}>
                             Showing {auditLogItems.length} entries
                           </div>
+
                           <button
                             type="button"
                             disabled={!auditCursor}
@@ -2357,7 +2422,7 @@ export default function AdminPage() {
                               color: UI.inputText,
                               backgroundColor: UI.inputBg,
                               border: "1px solid rgba(226, 232, 240, 0.65)",
-                              borderRadius: 12,
+                              borderRadius: 14,
                               cursor: auditCursor ? "pointer" : "not-allowed",
                               opacity: auditCursor ? 1 : 0.5,
                             }}
@@ -2381,6 +2446,7 @@ export default function AdminPage() {
                     <h3 style={{ margin: "0 0 16px 0", fontSize: 15, fontWeight: 800, color: UI.textPrimary }}>
                       System Status
                     </h3>
+
                     <div
                       style={{
                         display: "grid",
@@ -2392,10 +2458,12 @@ export default function AdminPage() {
                         <div style={{ fontSize: 12, color: UI.textMuted, marginBottom: 6 }}>API Version</div>
                         <div style={{ fontSize: 14, fontWeight: 800, color: UI.textPrimary }}>v1</div>
                       </div>
+
                       <div>
                         <div style={{ fontSize: 12, color: UI.textMuted, marginBottom: 6 }}>Dashboard source</div>
                         <div style={{ fontSize: 14, fontWeight: 800, color: UI.textPrimary }}>PostgreSQL analytics aggregates</div>
                       </div>
+
                       <div>
                         <div style={{ fontSize: 12, color: UI.textMuted, marginBottom: 6 }}>Audit integrity</div>
                         <div
@@ -2439,6 +2507,7 @@ export default function AdminPage() {
                               : "Needs review"}
                         </div>
                       </div>
+
                       <div>
                         <div style={{ fontSize: 12, color: UI.textMuted, marginBottom: 6 }}>Last updated</div>
                         <div style={{ fontSize: 13, fontWeight: 700, color: UI.textPrimary }}>

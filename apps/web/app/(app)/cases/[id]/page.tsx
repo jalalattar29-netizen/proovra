@@ -324,12 +324,99 @@ export default function CaseDetailPage() {
     window.open(`/v1/cases/${caseId}/export`, "_blank");
   };
 
+  const outerCardStyle = {
+    border: "1px solid rgba(183,157,132,0.18)",
+    boxShadow:
+      "0 22px 42px rgba(0,0,0,0.16), inset 0 1px 0 rgba(255,255,255,0.03)",
+  } as const;
+
+  const primaryButtonStyle = {
+    borderColor: "rgba(158,216,207,0.14)",
+    color: "#aebbb6",
+    background:
+      "linear-gradient(180deg, rgba(62,98,96,0.26) 0%, rgba(14,30,34,0.38) 100%)",
+    boxShadow:
+      "inset 0 1px 0 rgba(255,255,255,0.04), 0 14px 28px rgba(0,0,0,0.08)",
+    backdropFilter: "blur(10px)",
+    WebkitBackdropFilter: "blur(10px)",
+  } as const;
+
+  const secondaryButtonStyle = {
+    borderColor: "rgba(79,112,107,0.18)",
+    color: "#aebbb6",
+    backgroundImage:
+      "linear-gradient(180deg, rgba(8,20,24,0.78) 0%, rgba(7,18,22,0.88) 100%), url('/images/site-velvet-bg.webp.png')",
+    backgroundSize: "cover",
+    backgroundPosition: "center",
+    boxShadow:
+      "inset 0 1px 0 rgba(255,255,255,0.03), 0 14px 28px rgba(0,0,0,0.10)",
+    backdropFilter: "blur(10px)",
+    WebkitBackdropFilter: "blur(10px)",
+  } as const;
+
+  const dangerButtonStyle = {
+    borderColor: "rgba(220,120,120,0.22)",
+    color: "#f3d9d9",
+    background:
+      "linear-gradient(180deg, rgba(130,43,43,0.82) 0%, rgba(92,24,24,0.92) 100%)",
+    boxShadow:
+      "inset 0 1px 0 rgba(255,255,255,0.03), 0 12px 24px rgba(60,12,12,0.22)",
+    backdropFilter: "blur(10px)",
+    WebkitBackdropFilter: "blur(10px)",
+  } as const;
+
+  const rowCardStyle = {
+    border: "1px solid rgba(158,216,207,0.14)",
+    background:
+      "linear-gradient(180deg, rgba(62,98,96,0.24) 0%, rgba(14,30,34,0.36) 100%)",
+    borderRadius: 22,
+    boxShadow:
+      "inset 0 1px 0 rgba(255,255,255,0.04), 0 14px 28px rgba(0,0,0,0.08)",
+    backdropFilter: "blur(10px)",
+    WebkitBackdropFilter: "blur(10px)",
+  } as const;
+
   if (loading) {
     return (
       <div className="section app-section">
         <div className="app-hero app-hero-full">
           <div className="container">
-            <h1 className="hero-title case-detail-title">Loading case...</h1>
+            <div
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 8,
+                borderRadius: 999,
+                border: "1px solid rgba(255,255,255,0.10)",
+                background: "rgba(255,255,255,0.04)",
+                padding: "8px 16px",
+                fontSize: "0.68rem",
+                fontWeight: 500,
+                textTransform: "uppercase",
+                letterSpacing: "0.28em",
+                color: "#afbbb7",
+                boxShadow: "0 10px 24px rgba(0,0,0,0.08)",
+              }}
+            >
+              <span
+                style={{
+                  width: 4,
+                  height: 4,
+                  borderRadius: 999,
+                  background: "#b79d84",
+                  opacity: 0.8,
+                  display: "inline-block",
+                }}
+              />
+              Case
+            </div>
+
+            <h1
+              className="mt-5 max-w-[760px] text-[1.72rem] font-medium leading-[1.02] tracking-[-0.045em] text-[#d9e2df] md:text-[2.22rem] lg:text-[2.72rem]"
+              style={{ margin: "20px 0 0" }}
+            >
+              Loading <span style={{ color: "#c3ebe2" }}>case workspace</span>.
+            </h1>
           </div>
         </div>
       </div>
@@ -341,14 +428,62 @@ export default function CaseDetailPage() {
       <div className="section app-section">
         <div className="app-hero app-hero-full">
           <div className="container">
-            <h1 className="hero-title case-detail-title">Error</h1>
+            <div
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 8,
+                borderRadius: 999,
+                border: "1px solid rgba(255,255,255,0.10)",
+                background: "rgba(255,255,255,0.04)",
+                padding: "8px 16px",
+                fontSize: "0.68rem",
+                fontWeight: 500,
+                textTransform: "uppercase",
+                letterSpacing: "0.28em",
+                color: "#afbbb7",
+                boxShadow: "0 10px 24px rgba(0,0,0,0.08)",
+              }}
+            >
+              <span
+                style={{
+                  width: 4,
+                  height: 4,
+                  borderRadius: 999,
+                  background: "#b79d84",
+                  opacity: 0.8,
+                  display: "inline-block",
+                }}
+              />
+              Case
+            </div>
+
+            <h1
+              className="mt-5 max-w-[760px] text-[1.72rem] font-medium leading-[1.02] tracking-[-0.045em] text-[#d9e2df] md:text-[2.22rem] lg:text-[2.72rem]"
+              style={{ margin: "20px 0 0" }}
+            >
+              Case details <span style={{ color: "#c3ebe2" }}>could not load</span>.
+            </h1>
           </div>
         </div>
 
         <div className="app-body app-body-full">
           <div className="container">
-            <Card className="case-error-card app-card">
-              {error || "Case not found"}
+            <Card
+              className="relative overflow-hidden rounded-[30px] border bg-transparent p-0 shadow-none"
+              style={outerCardStyle}
+            >
+              <div className="absolute inset-0">
+                <img
+                  src="/images/site-velvet-bg.webp.png"
+                  alt=""
+                  className="h-full w-full object-cover object-center scale-[1.12]"
+                />
+              </div>
+              <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(70,20,20,0.24)_0%,rgba(20,10,10,0.58)_100%)]" />
+              <div className="relative z-10 p-6 text-[#ffd7d7]">
+                {error || "Case not found"}
+              </div>
             </Card>
           </div>
         </div>
@@ -357,41 +492,90 @@ export default function CaseDetailPage() {
   }
 
   return (
-    <div className="section app-section">
+    <div className="section app-section case-detail-page-shell">
       <div className="app-hero app-hero-full">
         <div className="container">
-          <div className="page-title case-header-row">
-            <div>
-              <h1 className="hero-title pricing-hero-title case-detail-title">
+          <div className="page-title app-page-title" style={{ marginBottom: 0 }}>
+            <div style={{ maxWidth: 820 }}>
+              <div
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 8,
+                  borderRadius: 999,
+                  border: "1px solid rgba(255,255,255,0.10)",
+                  background: "rgba(255,255,255,0.04)",
+                  padding: "8px 16px",
+                  fontSize: "0.68rem",
+                  fontWeight: 500,
+                  textTransform: "uppercase",
+                  letterSpacing: "0.28em",
+                  color: "#afbbb7",
+                  boxShadow: "0 10px 24px rgba(0,0,0,0.08)",
+                }}
+              >
+                <span
+                  style={{
+                    width: 4,
+                    height: 4,
+                    borderRadius: 999,
+                    background: "#b79d84",
+                    opacity: 0.8,
+                    display: "inline-block",
+                  }}
+                />
+                Case
+              </div>
+
+              <h1
+                className="mt-5 max-w-[820px] text-[1.72rem] font-medium leading-[1.02] tracking-[-0.045em] text-[#d9e2df] md:text-[2.22rem] lg:text-[2.72rem]"
+                style={{ margin: "20px 0 0" }}
+              >
                 {renamingCase ? (
                   <input
                     type="text"
                     value={renameValue}
                     onChange={(e) => setRenameValue(e.target.value)}
                     maxLength={120}
-                    className="case-rename-input"
                     autoFocus
                     style={{
                       background: "rgba(255,255,255,0.05)",
                       border: "1px solid rgba(214,184,157,0.16)",
                       borderRadius: 14,
-                      color: "#eef4f1",
+                      color: "#d8e0dd",
                       padding: "10px 14px",
+                      width: "100%",
+                      maxWidth: 540,
                     }}
                   />
                 ) : (
-                  caseData.name
+                  <>
+                    {caseData.name}{" "}
+                    <span style={{ color: "#c3ebe2" }}>
+                      {isOwner ? "management workspace" : "shared workspace"}
+                    </span>
+                    .
+                  </>
                 )}
               </h1>
 
-              <p className="page-subtitle pricing-subtitle case-detail-subtitle">
+              <p
+                style={{
+                  marginTop: 20,
+                  maxWidth: 720,
+                  fontSize: "0.95rem",
+                  lineHeight: 1.8,
+                  letterSpacing: "-0.006em",
+                  color: "#aab5b2",
+                }}
+              >
                 {isOwner
-                  ? "Manage this case and the evidence already linked to it."
-                  : "You can view this shared case and the evidence inside it."}
+                  ? "Manage sharing, review evidence, export the case, and control access from one premium workspace."
+                  : "You can review this shared case and the evidence already linked to it."}
               </p>
             </div>
 
-            <div className="case-detail-actions">
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
               {renamingCase ? (
                 <>
                   <Button
@@ -401,14 +585,17 @@ export default function CaseDetailPage() {
                       setRenameValue(caseData.name);
                     }}
                     disabled={operationLoading}
+                    className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
+                    style={secondaryButtonStyle}
                   >
                     Cancel
                   </Button>
 
                   <Button
-                    className="navy-btn"
                     onClick={handleRenameSubmit}
                     disabled={!renameValue.trim() || operationLoading}
+                    className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
+                    style={primaryButtonStyle}
                   >
                     Save
                   </Button>
@@ -421,6 +608,8 @@ export default function CaseDetailPage() {
                         variant="secondary"
                         onClick={handleRenameStart}
                         disabled={operationLoading}
+                        className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
+                        style={secondaryButtonStyle}
                       >
                         Rename
                       </Button>
@@ -429,7 +618,8 @@ export default function CaseDetailPage() {
                         variant="secondary"
                         onClick={() => setDeleteConfirm(true)}
                         disabled={operationLoading}
-                        className="case-danger-btn"
+                        className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
+                        style={dangerButtonStyle}
                       >
                         Delete
                       </Button>
@@ -437,9 +627,10 @@ export default function CaseDetailPage() {
                   )}
 
                   <Button
-                    className="navy-btn"
                     onClick={handleExport}
                     disabled={operationLoading}
+                    className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
+                    style={primaryButtonStyle}
                   >
                     Export ZIP
                   </Button>
@@ -451,244 +642,382 @@ export default function CaseDetailPage() {
       </div>
 
       <div className="app-body app-body-full">
-        <div className="container case-detail-grid" style={{ display: "grid", gap: 16 }}>
+        <div className="container" style={{ display: "grid", gap: 18, paddingBottom: 72 }}>
           {deleteConfirm && isOwner && (
-            <Card className="case-delete-card app-card">
-              <div className="case-delete-title">Delete Case?</div>
-              <p className="case-delete-subtitle">
-                The case will be deleted, but all evidence will remain in your
-                dashboard.
-              </p>
+            <Card
+              className="relative overflow-hidden rounded-[30px] border bg-transparent p-0 shadow-none"
+              style={{ ...outerCardStyle, border: "1px solid rgba(220,120,120,0.24)" }}
+            >
+              <div className="absolute inset-0">
+                <img
+                  src="/images/site-velvet-bg.webp.png"
+                  alt=""
+                  className="h-full w-full object-cover object-center scale-[1.12]"
+                />
+              </div>
+              <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(70,20,20,0.24)_0%,rgba(20,10,10,0.58)_100%)]" />
 
-              <div className="case-inline-actions">
-                <Button
-                  variant="secondary"
-                  onClick={() => setDeleteConfirm(false)}
-                  disabled={operationLoading}
+              <div className="relative z-10 p-6">
+                <div
+                  style={{
+                    fontSize: 22,
+                    fontWeight: 700,
+                    color: "#ffe5e5",
+                    letterSpacing: "-0.03em",
+                  }}
                 >
-                  Cancel
-                </Button>
+                  Delete case?
+                </div>
 
-                <Button
-                  onClick={handleDeleteCase}
-                  disabled={operationLoading}
-                  className="case-delete-confirm-btn"
+                <p
+                  style={{
+                    marginTop: 10,
+                    color: "rgba(255,224,224,0.78)",
+                    lineHeight: 1.75,
+                  }}
                 >
-                  Delete Case
-                </Button>
+                  The case will be deleted, but all evidence will remain in your dashboard.
+                </p>
+
+                <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 16 }}>
+                  <Button
+                    variant="secondary"
+                    onClick={() => setDeleteConfirm(false)}
+                    disabled={operationLoading}
+                    className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
+                    style={secondaryButtonStyle}
+                  >
+                    Cancel
+                  </Button>
+
+                  <Button
+                    onClick={handleDeleteCase}
+                    disabled={operationLoading}
+                    className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
+                    style={dangerButtonStyle}
+                  >
+                    Delete Case
+                  </Button>
+                </div>
               </div>
             </Card>
           )}
 
-          <Card className="case-section-card app-card">
-            <div className="case-section-title">Sharing</div>
+          <Card
+            className="relative overflow-hidden rounded-[30px] border bg-transparent p-0 shadow-none"
+            style={outerCardStyle}
+          >
+            <div className="absolute inset-0">
+              <img
+                src="/images/site-velvet-bg.webp.png"
+                alt=""
+                className="h-full w-full object-cover object-center scale-[1.12]"
+              />
+            </div>
+            <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(8,20,24,0.82)_0%,rgba(7,18,22,0.88)_100%)]" />
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_14%,rgba(158,216,207,0.05),transparent_28%)]" />
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_86%_18%,rgba(214,184,157,0.04),transparent_24%)]" />
 
-            {caseData.access.length === 0 ? (
-              <div className="case-muted-text">Not shared with anyone yet.</div>
-            ) : (
-              <div className="case-share-list">
-                {caseData.access.map((access) => {
-                  const displayLabel =
-                    access.user?.displayName || access.user?.email || "User";
+            <div className="relative z-10 p-6 md:p-7">
+              <div
+                style={{
+                  fontWeight: 700,
+                  marginBottom: 14,
+                  color: "#d8e0dd",
+                  letterSpacing: "-0.02em",
+                  fontSize: 20,
+                }}
+              >
+                Sharing
+              </div>
 
-                  return (
-                    <div key={access.id} className="case-share-row">
-                      <div>
-                        <div className="case-share-name">{displayLabel}</div>
-                        {access.user?.email && access.user.displayName && (
-                          <div className="case-share-email">
-                            {access.user.email}
-                          </div>
+              {caseData.access.length === 0 ? (
+                <div style={{ color: "rgba(194,204,201,0.76)" }}>Not shared with anyone yet.</div>
+              ) : (
+                <div style={{ display: "grid", gap: 10, marginBottom: isOwner ? 16 : 0 }}>
+                  {caseData.access.map((access) => {
+                    const displayLabel =
+                      access.user?.displayName || access.user?.email || "User";
+
+                    return (
+                      <div
+                        key={access.id}
+                        style={{
+                          ...rowCardStyle,
+                          padding: 14,
+                          display: "flex",
+                          justifyContent: "space-between",
+                          gap: 12,
+                          flexWrap: "wrap",
+                          alignItems: "center",
+                        }}
+                      >
+                        <div>
+                          <div style={{ color: "#d8e0dd", fontWeight: 700 }}>{displayLabel}</div>
+                          {access.user?.email && access.user.displayName && (
+                            <div style={{ color: "rgba(194,204,201,0.72)", fontSize: 13, marginTop: 4 }}>
+                              {access.user.email}
+                            </div>
+                          )}
+                        </div>
+
+                        {isOwner && (
+                          <Button
+                            variant="secondary"
+                            onClick={() => handleRevokeAccess(access.id)}
+                            disabled={operationLoading}
+                            className="rounded-[999px] border px-4 py-2.5 text-[0.88rem] font-semibold"
+                            style={dangerButtonStyle}
+                          >
+                            Remove
+                          </Button>
                         )}
                       </div>
+                    );
+                  })}
+                </div>
+              )}
 
-                      {isOwner && (
-                        <Button
-                          variant="secondary"
-                          onClick={() => handleRevokeAccess(access.id)}
-                          disabled={operationLoading}
-                          className="case-danger-btn case-small-btn"
-                        >
-                          Remove
-                        </Button>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-
-            {isOwner && (
-              <>
-                <Button
-                  variant="secondary"
-                  onClick={() => setShowSharePanel(!showSharePanel)}
-                  disabled={operationLoading}
-                >
-                  {showSharePanel ? "Close" : "Share Case"}
-                </Button>
-
-                {showSharePanel && (
-                  <div
-                    className="case-panel"
-                    style={{
-                      marginTop: 14,
-                      padding: 16,
-                      borderRadius: 16,
-                      background: "rgba(255,255,255,0.04)",
-                      border: "1px solid rgba(255,255,255,0.06)",
-                    }}
+              {isOwner && (
+                <>
+                  <Button
+                    variant="secondary"
+                    onClick={() => setShowSharePanel(!showSharePanel)}
+                    disabled={operationLoading}
+                    className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
+                    style={secondaryButtonStyle}
                   >
-                    <div className="case-radio-group">
-                      <label className="case-radio-label">
-                        <input
-                          type="radio"
-                          value="team"
-                          checked={shareMethod === "team"}
-                          onChange={(e) =>
-                            setShareMethod(e.target.value as "team")
-                          }
-                          disabled={!caseData.teamId || operationLoading}
-                        />
-                        <span>Share with Team Member</span>
-                      </label>
+                    {showSharePanel ? "Close" : "Share Case"}
+                  </Button>
 
-                      <label className="case-radio-label">
-                        <input
-                          type="radio"
-                          value="email"
-                          checked={shareMethod === "email"}
-                          onChange={(e) =>
-                            setShareMethod(e.target.value as "email")
-                          }
-                          disabled={operationLoading}
-                        />
-                        <span>Share by Email</span>
-                      </label>
-                    </div>
-
-                    <div className="case-panel-grid">
-                      {shareMethod === "team" ? (
-                        caseData.teamId ? (
-                          <>
-                            <select
-                              value={selectedTeamMemberId}
-                              onChange={(e) =>
-                                setSelectedTeamMemberId(e.target.value)
-                              }
-                              className="case-select"
-                              disabled={operationLoading}
-                            >
-                              <option value="">Select a team member...</option>
-                              {teamMembers.map((member) => (
-                                <option
-                                  key={member.userId}
-                                  value={member.userId}
-                                >
-                                  {member.label}
-                                </option>
-                              ))}
-                            </select>
-
-                            <Button
-                              className="navy-btn"
-                              onClick={handleShareTeam}
-                              disabled={
-                                !selectedTeamMemberId || operationLoading
-                              }
-                            >
-                              Share with Member
-                            </Button>
-                          </>
-                        ) : (
-                          <div className="case-info-box">
-                            This case is not associated with a team.
-                          </div>
-                        )
-                      ) : (
-                        <>
+                  {showSharePanel && (
+                    <div
+                      style={{
+                        marginTop: 14,
+                        padding: 16,
+                        borderRadius: 20,
+                        background:
+                          "linear-gradient(180deg, rgba(62,98,96,0.18) 0%, rgba(14,30,34,0.28) 100%)",
+                        border: "1px solid rgba(158,216,207,0.14)",
+                        boxShadow:
+                          "inset 0 1px 0 rgba(255,255,255,0.04), 0 14px 28px rgba(0,0,0,0.08)",
+                      }}
+                    >
+                      <div style={{ display: "flex", gap: 16, flexWrap: "wrap", marginBottom: 14 }}>
+                        <label style={{ color: "#c7d1ce", display: "flex", alignItems: "center", gap: 8 }}>
                           <input
-                            type="email"
-                            placeholder="Email address"
-                            value={shareEmail}
-                            onChange={(e) => setShareEmail(e.target.value)}
-                            className="case-text-input"
+                            type="radio"
+                            value="team"
+                            checked={shareMethod === "team"}
+                            onChange={(e) =>
+                              setShareMethod(e.target.value as "team")
+                            }
+                            disabled={!caseData.teamId || operationLoading}
+                          />
+                          <span>Share with Team Member</span>
+                        </label>
+
+                        <label style={{ color: "#c7d1ce", display: "flex", alignItems: "center", gap: 8 }}>
+                          <input
+                            type="radio"
+                            value="email"
+                            checked={shareMethod === "email"}
+                            onChange={(e) =>
+                              setShareMethod(e.target.value as "email")
+                            }
                             disabled={operationLoading}
                           />
+                          <span>Share by Email</span>
+                        </label>
+                      </div>
 
-                          <Button
-                            className="navy-btn"
-                            onClick={handleShareEmail}
-                            disabled={!shareEmail.trim() || operationLoading}
-                          >
-                            Share by Email
-                          </Button>
-                        </>
-                      )}
+                      <div style={{ display: "grid", gap: 12 }}>
+                        {shareMethod === "team" ? (
+                          caseData.teamId ? (
+                            <>
+                              <select
+                                value={selectedTeamMemberId}
+                                onChange={(e) =>
+                                  setSelectedTeamMemberId(e.target.value)
+                                }
+                                disabled={operationLoading}
+                                style={{
+                                  width: "100%",
+                                  minHeight: 52,
+                                  padding: "0 16px",
+                                  borderRadius: 18,
+                                  fontSize: 15,
+                                  background: "rgba(255,255,255,0.05)",
+                                  border: "1px solid rgba(183,157,132,0.16)",
+                                  color: "#d8e0dd",
+                                }}
+                              >
+                                <option value="">Select a team member...</option>
+                                {teamMembers.map((member) => (
+                                  <option
+                                    key={member.userId}
+                                    value={member.userId}
+                                    style={{ color: "#102126" }}
+                                  >
+                                    {member.label}
+                                  </option>
+                                ))}
+                              </select>
+
+                              <Button
+                                onClick={handleShareTeam}
+                                disabled={!selectedTeamMemberId || operationLoading}
+                                className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
+                                style={primaryButtonStyle}
+                              >
+                                Share with Member
+                              </Button>
+                            </>
+                          ) : (
+                            <div style={{ color: "rgba(194,204,201,0.76)" }}>
+                              This case is not associated with a team.
+                            </div>
+                          )
+                        ) : (
+                          <>
+                            <input
+                              type="email"
+                              placeholder="Email address"
+                              value={shareEmail}
+                              onChange={(e) => setShareEmail(e.target.value)}
+                              disabled={operationLoading}
+                              style={{
+                                width: "100%",
+                                minHeight: 52,
+                                padding: "0 16px",
+                                borderRadius: 18,
+                                fontSize: 15,
+                                background: "rgba(255,255,255,0.05)",
+                                border: "1px solid rgba(183,157,132,0.16)",
+                                color: "#d8e0dd",
+                              }}
+                            />
+
+                            <Button
+                              onClick={handleShareEmail}
+                              disabled={!shareEmail.trim() || operationLoading}
+                              className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
+                              style={primaryButtonStyle}
+                            >
+                              Share by Email
+                            </Button>
+                          </>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                )}
-              </>
-            )}
+                  )}
+                </>
+              )}
+            </div>
           </Card>
 
-          <Card className="case-section-card app-card">
-            <div className="case-section-title">Evidence in Case</div>
+          <Card
+            className="relative overflow-hidden rounded-[30px] border bg-transparent p-0 shadow-none"
+            style={outerCardStyle}
+          >
+            <div className="absolute inset-0">
+              <img
+                src="/images/site-velvet-bg.webp.png"
+                alt=""
+                className="h-full w-full object-cover object-center scale-[1.12]"
+              />
+            </div>
+            <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(8,20,24,0.82)_0%,rgba(7,18,22,0.88)_100%)]" />
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_14%,rgba(158,216,207,0.05),transparent_28%)]" />
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_86%_18%,rgba(214,184,157,0.04),transparent_24%)]" />
 
-            {evidence.length === 0 ? (
-              <div className="empty-state">
-                <div className="empty-state-icon empty-state-icon-svg">
-                  <Icons.Evidence />
-                </div>
-                <div>No evidence in this case yet.</div>
+            <div className="relative z-10 p-6 md:p-7">
+              <div
+                style={{
+                  fontWeight: 700,
+                  marginBottom: 14,
+                  color: "#d8e0dd",
+                  letterSpacing: "-0.02em",
+                  fontSize: 20,
+                }}
+              >
+                Evidence in Case
               </div>
-            ) : (
-              <div className="case-evidence-list">
-                {evidence.map((item) => (
-                  <div key={item.id} className="case-evidence-row">
-                    <Link
-                      href={`/evidence/${item.id}`}
-                      className="case-evidence-main case-evidence-link"
-                      style={{ textDecoration: "none", color: "inherit", flex: 1 }}
-                    >
-                      <ListRow
-                        title={resolveEvidenceTitle(item)}
-                        subtitle={resolveEvidenceSubtitle(item)}
-                        badge={
-                          <Badge
-                            tone={
-                              item.status === "SIGNED"
-                                ? "signed"
-                                : item.status === "REPORTED"
-                                  ? "ready"
-                                  : "processing"
-                            }
-                          >
-                            {item.status}
-                          </Badge>
-                        }
-                      />
-                    </Link>
 
-                    {isOwner && (
-                      <div
-                        onClick={(e) => e.stopPropagation()}
-                        className="case-evidence-action"
-                      >
-                        <Button
-                          variant="secondary"
-                          onClick={() => handleRemoveEvidence(item.id)}
-                          disabled={operationLoading}
-                          className="case-danger-btn case-small-btn"
-                        >
-                          Remove
-                        </Button>
-                      </div>
-                    )}
+              {evidence.length === 0 ? (
+                <div className="empty-state">
+                  <div
+                    className="empty-state-icon empty-state-icon-svg"
+                    style={{
+                      width: 70,
+                      height: 70,
+                      borderRadius: 20,
+                      background:
+                        "linear-gradient(180deg, rgba(183,157,132,0.12) 0%, rgba(255,255,255,0.03) 100%)",
+                      border: "1px solid rgba(183,157,132,0.18)",
+                      color: "#d6b89d",
+                    }}
+                  >
+                    <Icons.Evidence />
                   </div>
-                ))}
-              </div>
-            )}
+                  <div style={{ color: "rgba(194,204,201,0.76)" }}>
+                    No evidence in this case yet.
+                  </div>
+                </div>
+              ) : (
+                <div style={{ display: "grid", gap: 10 }}>
+                  {evidence.map((item) => (
+                    <div
+                      key={item.id}
+                      style={{
+                        ...rowCardStyle,
+                        padding: 6,
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 10,
+                      }}
+                    >
+                      <Link
+                        href={`/evidence/${item.id}`}
+                        style={{ textDecoration: "none", color: "inherit", flex: 1 }}
+                      >
+                        <ListRow
+                          title={resolveEvidenceTitle(item)}
+                          subtitle={resolveEvidenceSubtitle(item)}
+                          badge={
+                            <Badge
+                              tone={
+                                item.status === "SIGNED"
+                                  ? "signed"
+                                  : item.status === "REPORTED"
+                                    ? "ready"
+                                    : "processing"
+                              }
+                            >
+                              {item.status}
+                            </Badge>
+                          }
+                        />
+                      </Link>
+
+                      {isOwner && (
+                        <div onClick={(e) => e.stopPropagation()}>
+                          <Button
+                            variant="secondary"
+                            onClick={() => handleRemoveEvidence(item.id)}
+                            disabled={operationLoading}
+                            className="rounded-[999px] border px-4 py-2.5 text-[0.88rem] font-semibold"
+                            style={dangerButtonStyle}
+                          >
+                            Remove
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </Card>
         </div>
       </div>

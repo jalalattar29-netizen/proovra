@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
   Button,
@@ -99,258 +99,334 @@ export default function DeletedEvidencePage() {
     }
   };
 
+  const outerCardStyle = useMemo(
+    () =>
+      ({
+        border: "1px solid rgba(183,157,132,0.18)",
+        boxShadow:
+          "0 22px 42px rgba(0,0,0,0.16), inset 0 1px 0 rgba(255,255,255,0.03)",
+      }) as const,
+    []
+  );
+
+  const primaryButtonStyle = useMemo(
+    () =>
+      ({
+        borderColor: "rgba(158,216,207,0.14)",
+        color: "#aebbb6",
+        background:
+          "linear-gradient(180deg, rgba(62,98,96,0.26) 0%, rgba(14,30,34,0.38) 100%)",
+        boxShadow:
+          "inset 0 1px 0 rgba(255,255,255,0.04), 0 14px 28px rgba(0,0,0,0.08)",
+        backdropFilter: "blur(10px)",
+        WebkitBackdropFilter: "blur(10px)",
+      }) as const,
+    []
+  );
+
+  const dangerButtonStyle = useMemo(
+    () =>
+      ({
+        borderColor: "rgba(220,120,120,0.22)",
+        color: "#f3d9d9",
+        background:
+          "linear-gradient(180deg, rgba(130,43,43,0.82) 0%, rgba(92,24,24,0.92) 100%)",
+        boxShadow:
+          "inset 0 1px 0 rgba(255,255,255,0.03), 0 12px 24px rgba(60,12,12,0.22)",
+        backdropFilter: "blur(10px)",
+        WebkitBackdropFilter: "blur(10px)",
+      }) as const,
+    []
+  );
+
+  const rowCardStyle = useMemo(
+    () =>
+      ({
+        border: "1px solid rgba(158,216,207,0.14)",
+        background:
+          "linear-gradient(180deg, rgba(62,98,96,0.24) 0%, rgba(14,30,34,0.36) 100%)",
+        borderRadius: 22,
+        boxShadow:
+          "inset 0 1px 0 rgba(255,255,255,0.04), 0 14px 28px rgba(0,0,0,0.08)",
+        backdropFilter: "blur(10px)",
+        WebkitBackdropFilter: "blur(10px)",
+      }) as const,
+    []
+  );
+
   return (
-    <div className="page landing-page">
-      <div className="relative overflow-hidden">
-        <div className="absolute inset-0">
-          <img
-            src="/images/site-velvet-bg.webp.png"
-            alt=""
-            className="h-full w-full object-cover object-center"
-          />
-        </div>
-
-        <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(8,18,22,0.84)_0%,rgba(8,18,22,0.76)_34%,rgba(8,18,22,0.68)_62%,rgba(8,18,22,0.74)_100%)]" />
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_16%_16%,rgba(158,216,207,0.09),transparent_24%)]" />
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_82%_24%,rgba(214,184,157,0.06),transparent_18%)]" />
-        <div className="absolute inset-0 opacity-[0.04] [background:repeating-linear-gradient(0deg,rgba(255,255,255,0.026)_0px,rgba(255,255,255,0.026)_1px,transparent_1px,transparent_4px)]" />
-
-        <div className="relative z-10">
-          <section className="mx-auto max-w-7xl px-6 pb-10 pt-10 md:px-8 md:pb-12 md:pt-14">
-            <div className="flex flex-col gap-8 lg:flex-row lg:items-end lg:justify-between">
-              <div className="max-w-[760px]">
-                <div className="inline-flex rounded-full border border-white/10 bg-white/[0.055] px-4 py-2 text-[0.74rem] font-medium uppercase tracking-[0.2em] text-[#dce3e0] shadow-[0_10px_24px_rgba(0,0,0,0.10)] backdrop-blur-md">
-                  Deleted Evidence
-                </div>
-
-                <h1 className="mt-5 max-w-[720px] text-[1.62rem] font-medium leading-[1.01] tracking-[-0.04em] text-[#edf1ef] md:text-[2.18rem] lg:text-[2.7rem]">
-                  Recover evidence inside the{" "}
-                  <span className="text-[#bfe8df]">trash window</span>.
-                </h1>
-
-                <p className="mt-5 max-w-[700px] text-[0.94rem] font-normal leading-[1.78] tracking-[-0.006em] text-[#c7cfcc] md:text-[0.98rem]">
-                  Review deleted records, inspect their{" "}
-                  <span className="text-[#e7ece9]">scheduled removal date</span>, and restore them
-                  before the <span className="text-[#d6b89d]">90-day recovery period</span> ends.
-                </p>
-
-                <div className="mt-6 flex flex-wrap gap-2.5">
-                  <div className="rounded-full border border-white/10 bg-white/[0.055] px-3.5 py-2 text-[0.78rem] font-normal text-[#d7dfdb] shadow-[0_8px_18px_rgba(0,0,0,0.08)] backdrop-blur-md">
-                    <span className="mr-2 text-[#9dd2ca]">✓</span>
-                    Secure trash visibility
-                  </div>
-
-                  <div className="rounded-full border border-white/10 bg-white/[0.055] px-3.5 py-2 text-[0.78rem] font-normal text-[#d7dfdb] shadow-[0_8px_18px_rgba(0,0,0,0.08)] backdrop-blur-md">
-                    <span className="mr-2 text-[#9dd2ca]">✓</span>
-                    Recovery before permanent removal
-                  </div>
-
-                  <div className="rounded-full border border-[rgba(214,184,157,0.24)] bg-[linear-gradient(180deg,rgba(183,157,132,0.08)_0%,rgba(255,255,255,0.03)_100%)] px-3.5 py-2 text-[0.78rem] font-normal text-[#e1d4c7] shadow-[0_8px_18px_rgba(0,0,0,0.08)] backdrop-blur-md">
-                    <span className="mr-2 text-[#d6b89d]">✓</span>
-                    Permanent deletion tracking
-                  </div>
-                </div>
-              </div>
-
-              <div className="flex shrink-0">
-                <Link href="/evidence">
-                  <Button className="rounded-[16px] border border-[rgba(158,216,207,0.22)] bg-[linear-gradient(180deg,rgba(191,232,223,0.20)_0%,rgba(255,255,255,0.08)_100%)] px-6 py-3 text-[0.95rem] font-medium text-[#e8f1ef] shadow-[0_12px_26px_rgba(0,0,0,0.12)] backdrop-blur-md transition-all duration-200 hover:-translate-y-[1px] hover:border-[rgba(158,216,207,0.30)] hover:bg-[linear-gradient(180deg,rgba(191,232,223,0.26)_0%,rgba(255,255,255,0.10)_100%)]">
-                    Open Evidence
-                  </Button>
-                </Link>
-              </div>
-            </div>
-          </section>
-
-          <section className="relative px-6 pb-14 md:px-8 md:pb-16">
-            <div className="mx-auto max-w-7xl">
-              <Card
-                className="relative overflow-hidden rounded-[28px] border bg-transparent p-0 shadow-none"
+    <div className="section app-section">
+      <div className="app-hero app-hero-full">
+        <div className="container">
+          <div className="page-title app-page-title" style={{ marginBottom: 0 }}>
+            <div className="max-w-[760px]">
+              <div
                 style={{
-                  border: "1px solid rgba(158,216,207,0.16)",
-                  boxShadow:
-                    "0 18px 34px rgba(0, 0, 0, 0.10), inset 0 1px 0 rgba(255,255,255,0.06)",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 8,
+                  borderRadius: 999,
+                  border: "1px solid rgba(255,255,255,0.10)",
+                  background: "rgba(255,255,255,0.04)",
+                  padding: "8px 16px",
+                  fontSize: "0.68rem",
+                  fontWeight: 500,
+                  textTransform: "uppercase",
+                  letterSpacing: "0.28em",
+                  color: "#afbbb7",
+                  boxShadow: "0 10px 24px rgba(0,0,0,0.08)",
                 }}
               >
-                <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(3,18,44,0.88)_0%,rgba(2,16,40,0.90)_100%)]" />
-                <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_0%,rgba(158,216,207,0.06),transparent_28%)]" />
-                <div className="absolute inset-0 bg-[radial-gradient(circle_at_84%_16%,rgba(214,184,157,0.05),transparent_22%)]" />
+                <span
+                  style={{
+                    width: 4,
+                    height: 4,
+                    borderRadius: 999,
+                    background: "#b79d84",
+                    opacity: 0.8,
+                    display: "inline-block",
+                  }}
+                />
+                Deleted Evidence
+              </div>
 
-                <div className="relative z-10 p-5 md:p-6">
-                  <div
-                    className="mb-5 text-[1rem] font-semibold tracking-[-0.02em]"
-                    style={{ color: "rgba(246,252,255,0.96)" }}
-                  >
-                    Deleted Records
+              <h1 className="mt-5 max-w-[720px] text-[1.72rem] font-medium leading-[1.02] tracking-[-0.045em] text-[#d9e2df] md:text-[2.22rem] lg:text-[2.72rem]">
+                Recover evidence inside the{" "}
+                <span className="text-[#c3ebe2]">trash window</span>.
+              </h1>
+
+              <p className="mt-5 max-w-[700px] text-[0.95rem] font-normal leading-[1.8] tracking-[-0.006em] text-[#aab5b2] md:text-[0.99rem]">
+                Review deleted records, inspect their{" "}
+                <span className="text-[#cfd8d5]">scheduled removal date</span>, and
+                restore them before the <span className="text-[#d9ccbf]">90-day recovery period</span> ends.
+              </p>
+
+              <div className="mt-6 flex flex-wrap gap-2.5">
+                <div className="rounded-full border border-white/10 bg-white/[0.055] px-3.5 py-2 text-[0.78rem] font-normal text-[#c7d1ce] shadow-[0_8px_18px_rgba(0,0,0,0.08)] backdrop-blur-md">
+                  <span className="mr-2 text-[#91aca5]">✓</span>
+                  Secure trash visibility
+                </div>
+
+                <div className="rounded-full border border-white/10 bg-white/[0.055] px-3.5 py-2 text-[0.78rem] font-normal text-[#c7d1ce] shadow-[0_8px_18px_rgba(0,0,0,0.08)] backdrop-blur-md">
+                  <span className="mr-2 text-[#91aca5]">✓</span>
+                  Recovery before permanent removal
+                </div>
+
+                <div className="rounded-full border border-[rgba(214,184,157,0.18)] bg-[linear-gradient(180deg,rgba(183,157,132,0.07)_0%,rgba(255,255,255,0.028)_100%)] px-3.5 py-2 text-[0.78rem] font-normal text-[#d9ccbf] shadow-[0_8px_18px_rgba(0,0,0,0.08)] backdrop-blur-md">
+                  <span className="mr-2 text-[#c2a07f]">✓</span>
+                  Permanent deletion tracking
+                </div>
+              </div>
+            </div>
+
+            <div className="flex shrink-0">
+              <Link href="/evidence">
+                <Button
+                  className="rounded-[999px] border px-6 py-3 text-[0.95rem] font-semibold"
+                  style={primaryButtonStyle}
+                >
+                  Open Evidence
+                </Button>
+              </Link>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="app-body app-body-full">
+        <section className="relative px-6 pb-14 md:px-8 md:pb-16">
+          <div className="mx-auto max-w-7xl">
+            <Card
+              className="relative overflow-hidden rounded-[30px] border bg-transparent p-0 shadow-none"
+              style={outerCardStyle}
+            >
+              <div className="absolute inset-0">
+                <img
+                  src="/images/site-velvet-bg.webp.png"
+                  alt=""
+                  className="h-full w-full object-cover object-center scale-[1.12]"
+                />
+              </div>
+              <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(8,20,24,0.82)_0%,rgba(7,18,22,0.88)_100%)]" />
+              <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_14%,rgba(158,216,207,0.05),transparent_28%)]" />
+              <div className="absolute inset-0 bg-[radial-gradient(circle_at_86%_18%,rgba(214,184,157,0.04),transparent_24%)]" />
+
+              <div className="relative z-10 p-5 md:p-6">
+                <div className="mb-5 text-[1.08rem] font-semibold tracking-[-0.02em] text-[#d8e0dd]">
+                  Deleted Records
+                </div>
+
+                <div
+                  style={{
+                    marginBottom: 16,
+                    padding: 14,
+                    borderRadius: 18,
+                    border: "1px solid rgba(248, 113, 113, 0.16)",
+                    background:
+                      "linear-gradient(135deg, rgba(127,29,29,0.18), rgba(214,184,157,0.10))",
+                    color: "#fecaca",
+                    fontSize: 14,
+                    lineHeight: 1.65,
+                  }}
+                >
+                  Items shown here are in secure trash. They remain recoverable until their
+                  scheduled permanent deletion date.
+                </div>
+
+                {loading ? (
+                  <div style={{ display: "grid", gap: 12 }}>
+                    <div style={{ ...rowCardStyle, padding: 18 }}>
+                      <Skeleton width="100%" height="72px" />
+                    </div>
+                    <div style={{ ...rowCardStyle, padding: 18 }}>
+                      <Skeleton width="100%" height="72px" />
+                    </div>
+                    <div style={{ ...rowCardStyle, padding: 18 }}>
+                      <Skeleton width="100%" height="72px" />
+                    </div>
                   </div>
-
-                  <div
-                    style={{
-                      marginBottom: 16,
-                      padding: 14,
-                      borderRadius: 18,
-                      border: "1px solid rgba(248, 113, 113, 0.16)",
-                      background:
-                        "linear-gradient(135deg, rgba(127,29,29,0.18), rgba(214,184,157,0.10))",
-                      color: "#fecaca",
-                      fontSize: 14,
-                      lineHeight: 1.65,
-                    }}
-                  >
-                    Items shown here are in secure trash. They remain recoverable until their
-                    scheduled permanent deletion date.
+                ) : error ? (
+                  <div className="rounded-[20px] border border-[rgba(255,120,120,0.16)] bg-[rgba(120,20,20,0.12)] px-4 py-3 text-[0.92rem] text-[#ffd7d7]">
+                    {error}
                   </div>
-
-                  {loading ? (
-                    <div style={{ display: "grid", gap: 12 }}>
-                      <div className="rounded-[22px] border border-white/5 bg-white/[0.02] p-4">
-                        <Skeleton width="100%" height="72px" />
-                      </div>
-                      <div className="rounded-[22px] border border-white/5 bg-white/[0.02] p-4">
-                        <Skeleton width="100%" height="72px" />
-                      </div>
-                      <div className="rounded-[22px] border border-white/5 bg-white/[0.02] p-4">
-                        <Skeleton width="100%" height="72px" />
-                      </div>
-                    </div>
-                  ) : error ? (
-                    <div className="rounded-[20px] border border-[rgba(255,120,120,0.16)] bg-[rgba(120,20,20,0.12)] px-4 py-3 text-[0.92rem] text-[#ffd7d7]">
-                      {error}
-                    </div>
-                  ) : items.length === 0 ? (
-                    <div className="rounded-[24px] border border-white/5 bg-white/[0.02] p-4">
-                      <EmptyState
-                        title="No deleted evidence"
-                        subtitle="Your secure trash is currently empty."
-                        action={() => (
-                          <Link href="/evidence">
-                            <Button className="rounded-[14px] border border-[rgba(158,216,207,0.22)] bg-[linear-gradient(180deg,rgba(191,232,223,0.20)_0%,rgba(255,255,255,0.08)_100%)] px-5 py-3 text-[0.92rem] font-medium text-[#e8f1ef]">
-                              Open Evidence
-                            </Button>
-                          </Link>
-                        )}
-                      />
-                    </div>
-                  ) : (
-                    <div style={{ display: "grid", gap: 14 }}>
-                      {items.map((item) => (
+                ) : items.length === 0 ? (
+                  <div className="rounded-[24px] p-4" style={rowCardStyle}>
+                    <EmptyState
+                      title="No deleted evidence"
+                      subtitle="Your secure trash is currently empty."
+                      action={() => (
+                        <Link href="/evidence">
+                          <Button
+                            className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
+                            style={primaryButtonStyle}
+                          >
+                            Open Evidence
+                          </Button>
+                        </Link>
+                      )}
+                    />
+                  </div>
+                ) : (
+                  <div style={{ display: "grid", gap: 14 }}>
+                    {items.map((item) => (
+                      <div
+                        key={item.id}
+                        style={{
+                          ...rowCardStyle,
+                          padding: 20,
+                          display: "grid",
+                          gap: 14,
+                        }}
+                      >
                         <div
-                          key={item.id}
-                          className="rounded-[22px] border border-white/5 bg-[linear-gradient(180deg,rgba(255,255,255,0.022)_0%,rgba(255,255,255,0.012)_100%)] p-5 transition-all duration-200 hover:border-[rgba(158,216,207,0.12)] hover:bg-[linear-gradient(180deg,rgba(255,255,255,0.035)_0%,rgba(255,255,255,0.018)_100%)]"
                           style={{
-                            display: "grid",
-                            gap: 14,
+                            display: "flex",
+                            justifyContent: "space-between",
+                            alignItems: "flex-start",
+                            gap: 12,
+                            flexWrap: "wrap",
                           }}
                         >
-                          <div
-                            style={{
-                              display: "flex",
-                              justifyContent: "space-between",
-                              alignItems: "flex-start",
-                              gap: 12,
-                              flexWrap: "wrap",
-                            }}
-                          >
-                            <div style={{ minWidth: 0 }}>
-                              <div
-                                style={{
-                                  fontSize: 18,
-                                  fontWeight: 800,
-                                  color: "#f8fafc",
-                                  wordBreak: "break-word",
-                                }}
-                              >
-                                {item.title || "Digital Evidence Record"}
-                              </div>
-
-                              <div
-                                style={{
-                                  marginTop: 6,
-                                  fontSize: 13,
-                                  color: "#94a3b8",
-                                  lineHeight: 1.6,
-                                }}
-                              >
-                                {item.displaySubtitle}
-                              </div>
+                          <div style={{ minWidth: 0 }}>
+                            <div
+                              style={{
+                                fontSize: 18,
+                                fontWeight: 800,
+                                color: "#d8e0dd",
+                                wordBreak: "break-word",
+                              }}
+                            >
+                              {item.title || "Digital Evidence Record"}
                             </div>
 
                             <div
                               style={{
-                                display: "inline-flex",
-                                alignItems: "center",
-                                justifyContent: "center",
-                                minHeight: 32,
-                                padding: "7px 11px",
-                                borderRadius: 999,
-                                fontSize: 12,
-                                fontWeight: 800,
-                                letterSpacing: "0.04em",
-                                textTransform: "uppercase",
-                                border: "1px solid rgba(248, 113, 113, 0.2)",
-                                background: "rgba(248, 113, 113, 0.12)",
-                                color: "#fca5a5",
+                                marginTop: 6,
+                                fontSize: 13,
+                                color: "rgba(194,204,201,0.72)",
+                                lineHeight: 1.6,
                               }}
                             >
-                              In Trash
+                              {item.displaySubtitle}
                             </div>
                           </div>
 
                           <div
                             style={{
-                              display: "grid",
-                              gap: 6,
-                              fontSize: 13,
-                              color: "#cbd5e1",
-                              lineHeight: 1.6,
+                              display: "inline-flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              minHeight: 32,
+                              padding: "7px 11px",
+                              borderRadius: 999,
+                              fontSize: 12,
+                              fontWeight: 800,
+                              letterSpacing: "0.04em",
+                              textTransform: "uppercase",
+                              border: "1px solid rgba(248,113,113,0.20)",
+                              background: "rgba(248,113,113,0.12)",
+                              color: "#fca5a5",
                             }}
                           >
-                            <div>
-                              <strong style={{ color: "#f3f7f5" }}>Deleted At:</strong>{" "}
-                              {formatUtcDateTime(item.deletedAt)}
-                            </div>
-                            <div>
-                              <strong style={{ color: "#f3f7f5" }}>Permanent Deletion Date:</strong>{" "}
-                              {formatUtcDateTime(item.deleteScheduledForUtc)}
-                            </div>
-                            <div>
-                              <strong style={{ color: "#f3f7f5" }}>Items:</strong> {item.itemCount}
-                            </div>
-                          </div>
-
-                          <div
-                            style={{
-                              display: "flex",
-                              gap: 10,
-                              flexWrap: "wrap",
-                            }}
-                          >
-                            <Link href={`/evidence/${item.id}`}>
-                              <Button
-                                variant="secondary"
-                                className="rounded-[16px] border border-[rgba(158,216,207,0.16)] bg-[linear-gradient(180deg,rgba(255,255,255,0.045)_0%,rgba(255,255,255,0.02)_100%)] px-5 py-3 text-[0.92rem] font-medium text-[#edf2f1] shadow-none transition-all duration-200 hover:-translate-y-[1px] hover:border-[rgba(158,216,207,0.26)] hover:bg-[linear-gradient(180deg,rgba(191,232,223,0.12)_0%,rgba(255,255,255,0.03)_100%)]"
-                              >
-                                Open Record
-                              </Button>
-                            </Link>
-
-                            <Button
-                              onClick={() => handleRestore(item.id)}
-                              disabled={actionBusyId === item.id}
-                              className="rounded-[16px] border border-[rgba(158,216,207,0.22)] bg-[linear-gradient(180deg,rgba(191,232,223,0.20)_0%,rgba(255,255,255,0.08)_100%)] px-5 py-3 text-[0.92rem] font-medium text-[#e8f1ef] shadow-[0_10px_22px_rgba(0,0,0,0.10)] backdrop-blur-md transition-all duration-200 hover:-translate-y-[1px] hover:border-[rgba(158,216,207,0.30)] hover:bg-[linear-gradient(180deg,rgba(191,232,223,0.26)_0%,rgba(255,255,255,0.10)_100%)] disabled:cursor-not-allowed disabled:opacity-70"
-                            >
-                              {actionBusyId === item.id ? "Restoring..." : "Restore from Trash"}
-                            </Button>
+                            In Trash
                           </div>
                         </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </Card>
-            </div>
-          </section>
-        </div>
+
+                        <div
+                          style={{
+                            display: "grid",
+                            gap: 6,
+                            fontSize: 13,
+                            color: "rgba(194,204,201,0.82)",
+                            lineHeight: 1.6,
+                          }}
+                        >
+                          <div>
+                            <strong style={{ color: "#d8e0dd" }}>Deleted At:</strong>{" "}
+                            {formatUtcDateTime(item.deletedAt)}
+                          </div>
+                          <div>
+                            <strong style={{ color: "#d8e0dd" }}>Permanent Deletion Date:</strong>{" "}
+                            {formatUtcDateTime(item.deleteScheduledForUtc)}
+                          </div>
+                          <div>
+                            <strong style={{ color: "#d8e0dd" }}>Items:</strong> {item.itemCount}
+                          </div>
+                        </div>
+
+                        <div
+                          style={{
+                            display: "flex",
+                            gap: 10,
+                            flexWrap: "wrap",
+                          }}
+                        >
+                          <Link href={`/evidence/${item.id}`}>
+                            <Button
+                              className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
+                              style={primaryButtonStyle}
+                            >
+                              Open Record
+                            </Button>
+                          </Link>
+
+                          <Button
+                            onClick={() => handleRestore(item.id)}
+                            disabled={actionBusyId === item.id}
+                            className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
+                            style={dangerButtonStyle}
+                          >
+                            {actionBusyId === item.id ? "Restoring..." : "Restore from Trash"}
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </Card>
+          </div>
+        </section>
       </div>
     </div>
   );

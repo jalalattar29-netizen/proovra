@@ -38,9 +38,7 @@ export default async function AppLegalPage({
 
       <div className="app-body app-body-full app-legal-body">
         <div className="container">
-          <article className="auth-card legal-page app-card">
-            {renderLegalMarkdown(content)}
-          </article>
+          <article className="auth-card legal-page">{renderLegalMarkdown(content)}</article>
         </div>
       </div>
     </div>
