@@ -1142,23 +1142,28 @@ export default function EvidenceDetailPage() {
   }, [label]);
 
   const compactButtonClass =
-    "rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold transition-all duration-200 hover:-translate-y-[1px] hover:brightness-[1.03]";
+    "rounded-[20px] border px-5 py-4 text-[0.96rem] font-medium transition-all duration-200 hover:-translate-y-[1px] hover:brightness-[1.03]";
   const smallButtonClass =
-    "rounded-[999px] border px-4 py-2.5 text-[0.88rem] font-semibold transition-all duration-200 hover:-translate-y-[1px] hover:brightness-[1.03]";
+    "rounded-[18px] border px-4 py-2.5 text-[0.88rem] font-semibold transition-all duration-200 hover:-translate-y-[1px] hover:brightness-[1.03]";
 
-  const visibleStatusStyle =
-    displayStatusMeta.label === "Report Ready"
-      ? {
-          color: "#24484c",
-          background:
-            "linear-gradient(180deg, rgba(191,232,223,0.34) 0%, rgba(255,255,255,0.55) 100%)",
-          border: "1px solid rgba(79,112,107,0.18)",
-          boxShadow:
-            "inset 0 1px 0 rgba(255,255,255,0.55), 0 6px 14px rgba(41,83,85,0.08)",
-          fontWeight: 800,
-          letterSpacing: "0.1em",
-        }
-      : undefined;
+  const heroStatusSharedStyle = {
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    minHeight: 34,
+    padding: "8px 14px",
+    borderRadius: 999,
+    border: "1px solid rgba(255,255,255,0.10)",
+    background: "rgba(255,255,255,0.04)",
+    color: "#d7dfdb",
+    fontSize: "0.78rem",
+    fontWeight: 700 as const,
+    letterSpacing: "0.08em",
+    textTransform: "uppercase" as const,
+    boxShadow: "0 8px 18px rgba(0,0,0,0.08)",
+    backdropFilter: "blur(10px)",
+    WebkitBackdropFilter: "blur(10px)",
+  };
 
   return (
     <div className="section app-section evidence-detail-page-shell">
@@ -1201,9 +1206,7 @@ export default function EvidenceDetailPage() {
                 className="evidence-record-badges"
                 style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 16 }}
               >
-                <span className={displayStatusMeta.className} style={visibleStatusStyle}>
-                  {displayStatusMeta.label}
-                </span>
+                <span style={heroStatusSharedStyle}>{displayStatusMeta.label}</span>
 
                 {isLocked && (
                   <span className="evidence-pill evidence-pill-locked">
@@ -1257,7 +1260,7 @@ export default function EvidenceDetailPage() {
                     variant="secondary"
                     onClick={handleStartEditLabel}
                     disabled={loading || actionBusy || labelBusy || isDeleted}
-                    className={compactButtonClass}
+                    className="rounded-[18px] border px-5 py-3 text-[0.92rem] font-semibold transition-all duration-200 hover:-translate-y-[1px] hover:brightness-[1.03]"
                     style={heroEditButtonStyle}
                   >
                     Edit Label
@@ -1295,7 +1298,7 @@ export default function EvidenceDetailPage() {
                   <Button
                     onClick={handleSaveLabel}
                     disabled={labelBusy}
-                    className={compactButtonClass}
+                    className="rounded-[18px] border px-5 py-3 text-[0.92rem] font-semibold transition-all duration-200 hover:-translate-y-[1px] hover:brightness-[1.03]"
                     style={heroSaveButtonStyle}
                   >
                     {labelBusy ? "Saving..." : "Save"}
@@ -1305,7 +1308,7 @@ export default function EvidenceDetailPage() {
                     variant="secondary"
                     onClick={handleCancelEditLabel}
                     disabled={labelBusy}
-                    className={compactButtonClass}
+                    className="rounded-[18px] border px-5 py-3 text-[0.92rem] font-semibold transition-all duration-200 hover:-translate-y-[1px] hover:brightness-[1.03]"
                     style={heroEditButtonStyle}
                   >
                     Cancel
@@ -1400,7 +1403,7 @@ export default function EvidenceDetailPage() {
         </div>
 
         <div className="container relative z-10" style={{ paddingBottom: 72 }}>
-          <div className="grid gap-5 lg:grid-cols-2">
+          <div className="grid gap-5 lg:grid-cols-[1.08fr_0.92fr]">
             <Card
               className="relative overflow-hidden rounded-[30px] border bg-transparent p-0 shadow-none"
               style={outerCardStyle}
@@ -1421,7 +1424,7 @@ export default function EvidenceDetailPage() {
                 </div>
 
                 <div
-                  className="mt-5 grid gap-4 sm:grid-cols-2"
+                  className="mt-5 grid gap-x-6 gap-y-4 sm:grid-cols-2"
                   style={{ color: "#5d6d71" }}
                 >
                   <div>
@@ -1438,7 +1441,7 @@ export default function EvidenceDetailPage() {
                       Original Submitted File
                     </div>
                     <div className="mt-2 text-[0.96rem] leading-[1.75] text-[#23373b]">
-                      {originalFileName || "Original filename not available"}
+                      {originalFileName || "0"}
                     </div>
                   </div>
 
@@ -1488,67 +1491,34 @@ export default function EvidenceDetailPage() {
                       {plan}
                     </div>
                   </div>
-                </div>
-              </div>
-            </Card>
 
-            <Card
-              className="relative overflow-hidden rounded-[30px] border bg-transparent p-0 shadow-none"
-              style={outerCardStyle}
-            >
-              <div className="absolute inset-0">
-                <img
-                  src="/images/panel-silver.webp.png"
-                  alt=""
-                  className="h-full w-full object-cover object-center"
-                />
-              </div>
-              <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.24)_0%,rgba(248,249,246,0.34)_42%,rgba(239,241,238,0.42)_100%)]" />
-              <div className="absolute inset-0 bg-[radial-gradient(circle_at_16%_12%,rgba(255,255,255,0.34),transparent_28%)] opacity-90" />
-
-              <div className="relative z-10 p-6 md:p-7">
-                <div className="text-[1.08rem] font-semibold tracking-[-0.02em] text-[#21353a]">
-                  Integrity & Legal Status
-                </div>
-
-                <div
-                  className="mt-5 grid gap-4 sm:grid-cols-2"
-                  style={{ color: "#5d6d71" }}
-                >
                   <div>
                     <div className="text-[12px] uppercase tracking-[0.14em] text-[#9b826b]">
                       Current Status
                     </div>
-                    <div
-                      style={{
-                        display: "flex",
-                        gap: 8,
-                        flexWrap: "wrap",
-                        alignItems: "center",
-                        marginTop: 10,
-                      }}
-                    >
-                      <span className={displayStatusMeta.className} style={visibleStatusStyle}>
+                    <div className="mt-2">
+                      <span
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          minHeight: 32,
+                          padding: "7px 13px",
+                          borderRadius: 999,
+                          border: "1px solid rgba(79,112,107,0.18)",
+                          background:
+                            "linear-gradient(180deg, rgba(191,232,223,0.34) 0%, rgba(255,255,255,0.55) 100%)",
+                          color: "#24484c",
+                          fontSize: "0.76rem",
+                          fontWeight: 800,
+                          letterSpacing: "0.08em",
+                          textTransform: "uppercase",
+                          boxShadow:
+                            "inset 0 1px 0 rgba(255,255,255,0.55), 0 6px 14px rgba(41,83,85,0.08)",
+                        }}
+                      >
                         {displayStatusMeta.label}
                       </span>
-
-                      {isLocked && (
-                        <span className="evidence-pill evidence-pill-locked">
-                          Locked
-                        </span>
-                      )}
-
-                      {isArchived && (
-                        <span className="evidence-pill evidence-pill-archived">
-                          Archived
-                        </span>
-                      )}
-
-                      {isDeleted && (
-                        <span className="evidence-pill evidence-pill-deleted">
-                          In Trash
-                        </span>
-                      )}
                     </div>
                   </div>
 
@@ -1611,87 +1581,30 @@ export default function EvidenceDetailPage() {
                             : "This record is active and available for review."}
                     </div>
                   </div>
-
-                  {isMultipart && (
-                    <div className="sm:col-span-2">
-                      <div className="text-[12px] uppercase tracking-[0.14em] text-[#9b826b]">
-                        Contained Items
-                      </div>
-                      <div
-                        className="mt-2 text-[0.96rem] leading-[1.8] text-[#23373b]"
-                        style={{ fontWeight: 500 }}
-                      >
-                        {partTypeSummary.imageCount > 0 && (
-                          <div>{partTypeSummary.imageCount} image(s)</div>
-                        )}
-                        {partTypeSummary.videoCount > 0 && (
-                          <div>{partTypeSummary.videoCount} video(s)</div>
-                        )}
-                        {partTypeSummary.audioCount > 0 && (
-                          <div>{partTypeSummary.audioCount} audio item(s)</div>
-                        )}
-                        {partTypeSummary.pdfCount > 0 && (
-                          <div>{partTypeSummary.pdfCount} pdf/document(s)</div>
-                        )}
-                        {partTypeSummary.otherCount > 0 && (
-                          <div>{partTypeSummary.otherCount} other item(s)</div>
-                        )}
-                      </div>
-                    </div>
-                  )}
                 </div>
               </div>
             </Card>
-          </div>
 
-          <Card
-            className="relative mt-6 overflow-hidden rounded-[30px] border bg-transparent p-0 shadow-none"
-            style={outerCardStyle}
-          >
-            <div className="absolute inset-0">
-              <img
-                src="/images/panel-silver.webp.png"
-                alt=""
-                className="h-full w-full object-cover object-center"
-              />
-            </div>
-            <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.24)_0%,rgba(248,249,246,0.34)_42%,rgba(239,241,238,0.42)_100%)]" />
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_16%_12%,rgba(255,255,255,0.34),transparent_28%)] opacity-90" />
-
-            <div className="relative z-10 p-6 md:p-7">
-              <div className="text-[1.08rem] font-semibold tracking-[-0.02em] text-[#21353a]">
-                Record Actions
+            <Card
+              className="relative overflow-hidden rounded-[30px] border bg-transparent p-0 shadow-none"
+              style={outerCardStyle}
+            >
+              <div className="absolute inset-0">
+                <img
+                  src="/images/panel-silver.webp.png"
+                  alt=""
+                  className="h-full w-full object-cover object-center"
+                />
               </div>
+              <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.24)_0%,rgba(248,249,246,0.34)_42%,rgba(239,241,238,0.42)_100%)]" />
+              <div className="absolute inset-0 bg-[radial-gradient(circle_at_16%_12%,rgba(255,255,255,0.34),transparent_28%)] opacity-90" />
 
-              <div
-                style={{
-                  marginTop: 16,
-                  marginBottom: 18,
-                  padding: 14,
-                  borderRadius: 16,
-                  ...softCardStyle,
-                  color: "#5d6d71",
-                }}
-              >
-                Export, verify, assign, seal, archive, or manage this evidence
-                record.
-              </div>
+              <div className="relative z-10 p-6 md:p-7">
+                <div className="text-[1.08rem] font-semibold tracking-[-0.02em] text-[#21353a]">
+                  Record Actions
+                </div>
 
-              <div style={{ display: "grid", gap: 18 }}>
-                <div>
-                  <div
-                    style={{
-                      marginBottom: 12,
-                      fontSize: 12,
-                      fontWeight: 700,
-                      letterSpacing: "0.16em",
-                      textTransform: "uppercase",
-                      color: "#8f735a",
-                    }}
-                  >
-                    Export & Sharing
-                  </div>
-
+                <div style={{ display: "grid", gap: 18, marginTop: 18 }}>
                   <div className="flex flex-wrap gap-3">
                     <Button
                       onClick={handleDownloadReport}
@@ -1724,196 +1637,114 @@ export default function EvidenceDetailPage() {
                     </Link>
                   </div>
 
-                  {plan === "FREE" && (
-                    <div style={{ fontSize: 12, color: "#6a777b", marginTop: 10 }}>
-                      Reports are disabled on Free. Upgrade to access PDF reports.
-                    </div>
+                  {!isDeleted && (
+                    <>
+                      <div>
+                        <div
+                          style={{
+                            marginBottom: 12,
+                            fontSize: 12,
+                            fontWeight: 700,
+                            letterSpacing: "0.16em",
+                            textTransform: "uppercase",
+                            color: "#8f735a",
+                          }}
+                        >
+                          Case & Organization
+                        </div>
+
+                        <div style={{ display: "grid", gap: 12 }}>
+                          <Button
+                            variant="secondary"
+                            onClick={handleOpenAssignCase}
+                            disabled={actionBusy || ownedCases.length === 0}
+                            className={compactButtonClass}
+                            style={landingSecondaryButtonStyle}
+                          >
+                            {caseId ? "Move to Case" : "Add to Case"}
+                          </Button>
+
+                          {caseId && (
+                            <Button
+                              variant="secondary"
+                              onClick={handleRemoveFromCase}
+                              disabled={actionBusy}
+                              className={compactButtonClass}
+                              style={landingSoftAccentButtonStyle}
+                            >
+                              Remove from Case
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+
+                      <div>
+                        <div
+                          style={{
+                            marginBottom: 12,
+                            fontSize: 12,
+                            fontWeight: 700,
+                            letterSpacing: "0.16em",
+                            textTransform: "uppercase",
+                            color: "#8f735a",
+                          }}
+                        >
+                          Preservation Actions
+                        </div>
+
+                        <div style={{ display: "grid", gap: 12 }}>
+                          <Button
+                            onClick={handleLock}
+                            disabled={
+                              actionBusy ||
+                              Boolean(lockedAt) ||
+                              !(status === "SIGNED" || status === "REPORTED")
+                            }
+                            className={compactButtonClass}
+                            style={lockedAt ? landingSecondaryButtonStyle : landingBronzeButtonStyle}
+                          >
+                            {lockedAt
+                              ? "Permanently Locked"
+                              : "Lock Evidence Permanently"}
+                          </Button>
+
+                          {archivedAt ? (
+                            <Button
+                              variant="secondary"
+                              onClick={handleUnarchive}
+                              disabled={actionBusy}
+                              className={compactButtonClass}
+                              style={landingSecondaryButtonStyle}
+                            >
+                              Restore Evidence
+                            </Button>
+                          ) : (
+                            <Button
+                              variant="secondary"
+                              onClick={handleArchive}
+                              disabled={actionBusy}
+                              className={compactButtonClass}
+                              style={landingSecondaryButtonStyle}
+                            >
+                              Archive Evidence
+                            </Button>
+                          )}
+
+                          <Button
+                            onClick={handleDelete}
+                            disabled={actionBusy || !canDelete}
+                            className={compactButtonClass}
+                            style={canDelete ? landingDangerButtonStyle : landingSecondaryButtonStyle}
+                          >
+                            Delete Evidence
+                          </Button>
+                        </div>
+                      </div>
+                    </>
                   )}
 
-                  {!verificationPackageAvailable && (
-                    <div style={{ fontSize: 12, color: "#6a777b", marginTop: 10 }}>
-                      Verification package is not available yet.
-                    </div>
-                  )}
-                </div>
-
-                {!isDeleted && (
-                  <div>
-                    <div
-                      style={{
-                        marginBottom: 12,
-                        fontSize: 12,
-                        fontWeight: 700,
-                        letterSpacing: "0.16em",
-                        textTransform: "uppercase",
-                        color: "#8f735a",
-                      }}
-                    >
-                      Case & Organization
-                    </div>
-
-                    <div
-                      style={{
-                        display: "grid",
-                        gap: 12,
-                        gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-                      }}
-                    >
-                      <Button
-                        variant="secondary"
-                        onClick={handleOpenAssignCase}
-                        disabled={actionBusy || ownedCases.length === 0}
-                        className={compactButtonClass}
-                        style={landingSecondaryButtonStyle}
-                      >
-                        {caseId ? "Move to Case" : "Add to Case"}
-                      </Button>
-
-                      {caseId && (
-                        <Button
-                          variant="secondary"
-                          onClick={handleRemoveFromCase}
-                          disabled={actionBusy}
-                          className={compactButtonClass}
-                          style={landingSoftAccentButtonStyle}
-                        >
-                          Remove from Case
-                        </Button>
-                      )}
-                    </div>
-                  </div>
-                )}
-
-                {!isDeleted && (
-                  <div>
-                    <div
-                      style={{
-                        marginBottom: 12,
-                        fontSize: 12,
-                        fontWeight: 700,
-                        letterSpacing: "0.16em",
-                        textTransform: "uppercase",
-                        color: "#8f735a",
-                      }}
-                    >
-                      Preservation Actions
-                    </div>
-
-                    <div
-                      style={{
-                        display: "grid",
-                        gap: 12,
-                        gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-                      }}
-                    >
-                      <Button
-                        onClick={handleLock}
-                        disabled={
-                          actionBusy ||
-                          Boolean(lockedAt) ||
-                          !(status === "SIGNED" || status === "REPORTED")
-                        }
-                        className={compactButtonClass}
-                        style={lockedAt ? landingSecondaryButtonStyle : landingBronzeButtonStyle}
-                      >
-                        {lockedAt
-                          ? "Permanently Locked"
-                          : "Lock Evidence Permanently"}
-                      </Button>
-
-                      {archivedAt ? (
-                        <Button
-                          variant="secondary"
-                          onClick={handleUnarchive}
-                          disabled={actionBusy}
-                          className={compactButtonClass}
-                          style={landingSecondaryButtonStyle}
-                        >
-                          Restore Evidence
-                        </Button>
-                      ) : (
-                        <Button
-                          variant="secondary"
-                          onClick={handleArchive}
-                          disabled={actionBusy}
-                          className={compactButtonClass}
-                          style={landingSecondaryButtonStyle}
-                        >
-                          Archive Evidence
-                        </Button>
-                      )}
-
-                      <Button
-                        onClick={handleDelete}
-                        disabled={actionBusy || !canDelete}
-                        className={compactButtonClass}
-                        style={canDelete ? landingDangerButtonStyle : landingSecondaryButtonStyle}
-                      >
-                        Delete Evidence
-                      </Button>
-                    </div>
-
-                    {lockedAt && (
-                      <div style={{ fontSize: 12, color: "#6a777b", paddingTop: 10 }}>
-                        ✓ This record is legally sealed and can no longer be edited.
-                      </div>
-                    )}
-
-                    {archivedAt ? (
-                      <div
-                        style={{
-                          fontSize: 12,
-                          color: "#6a777b",
-                          paddingTop: 10,
-                        }}
-                      >
-                        This record is archived. Restore it to return it to the active workspace.
-                      </div>
-                    ) : (
-                      <div
-                        style={{
-                          fontSize: 12,
-                          color: "#6a777b",
-                          paddingTop: 10,
-                        }}
-                      >
-                        Archive this record to remove it from active review while preserving it in storage.
-                      </div>
-                    )}
-
-                    <div
-                      style={{
-                        marginTop: 14,
-                        padding: 14,
-                        borderRadius: 16,
-                        background:
-                          "linear-gradient(135deg, rgba(214,184,157,0.10), rgba(214,184,157,0.04))",
-                        border: "1px solid rgba(214,184,157,0.14)",
-                        color: "#8f735a",
-                      }}
-                    >
-                      <strong>Trash retention:</strong> When moved to trash, this
-                      record stays recoverable for 90 days before permanent deletion.
-                    </div>
-                  </div>
-                )}
-
-                {isDeleted && (
-                  <div>
-                    <div
-                      style={{
-                        marginBottom: 12,
-                        fontSize: 12,
-                        fontWeight: 700,
-                        letterSpacing: "0.16em",
-                        textTransform: "uppercase",
-                        color: "#8f735a",
-                      }}
-                    >
-                      Recovery
-                    </div>
-
-                    <div className="flex flex-wrap gap-3">
+                  {isDeleted && (
+                    <div style={{ display: "grid", gap: 12 }}>
                       <Button
                         variant="secondary"
                         onClick={handleRestoreDeleted}
@@ -1924,16 +1755,53 @@ export default function EvidenceDetailPage() {
                         Restore from Trash
                       </Button>
                     </div>
+                  )}
 
-                    <div style={{ fontSize: 12, color: "#6a777b", paddingTop: 10 }}>
-                      This record is in secure trash and can be restored until{" "}
-                      {formatUtcDateTime(deleteScheduledForUtc)}.
+                  {plan === "FREE" && (
+                    <div style={{ fontSize: 12, color: "#6a777b" }}>
+                      Reports are disabled on Free. Upgrade to access PDF reports.
                     </div>
+                  )}
+
+                  {!verificationPackageAvailable && (
+                    <div style={{ fontSize: 12, color: "#6a777b" }}>
+                      Verification package is not available yet.
+                    </div>
+                  )}
+
+                  {lockedAt && (
+                    <div style={{ fontSize: 12, color: "#6a777b" }}>
+                      ✓ This record is legally sealed and can no longer be edited.
+                    </div>
+                  )}
+
+                  {archivedAt ? (
+                    <div style={{ fontSize: 12, color: "#6a777b" }}>
+                      This record is archived. Restore it to return it to the active workspace.
+                    </div>
+                  ) : !isDeleted ? (
+                    <div style={{ fontSize: 12, color: "#6a777b" }}>
+                      Archive this record to remove it from active review while preserving it in storage.
+                    </div>
+                  ) : null}
+
+                  <div
+                    style={{
+                      padding: 14,
+                      borderRadius: 16,
+                      background:
+                        "linear-gradient(135deg, rgba(214,184,157,0.10), rgba(214,184,157,0.04))",
+                      border: "1px solid rgba(214,184,157,0.14)",
+                      color: "#8f735a",
+                    }}
+                  >
+                    <strong>Trash retention:</strong> When moved to trash, this
+                    record stays recoverable for 90 days before permanent deletion.
                   </div>
-                )}
+                </div>
               </div>
-            </div>
-          </Card>
+            </Card>
+          </div>
 
           {(sortedParts.length > 0 ||
             originalPreviewUrl ||
@@ -2059,14 +1927,14 @@ export default function EvidenceDetailPage() {
                             </div>
 
                             {previewUrl && kind === "image" && (
-                              <div style={previewShellStyle}>
+                              <div style={{ ...previewShellStyle, maxWidth: 760, margin: "0 auto" }}>
                                 <img
                                   src={previewUrl}
                                   alt={`Evidence item ${part.partIndex + 1}`}
                                   className="evidence-preview-image"
                                   style={{
                                     width: "100%",
-                                    maxHeight: 560,
+                                    maxHeight: 420,
                                     objectFit: "contain",
                                     borderRadius: 16,
                                     border: "1px solid rgba(79,112,107,0.10)",
@@ -2077,7 +1945,7 @@ export default function EvidenceDetailPage() {
                             )}
 
                             {previewUrl && kind === "video" && (
-                              <div style={previewShellStyle}>
+                              <div style={{ ...previewShellStyle, maxWidth: 760, margin: "0 auto" }}>
                                 <video
                                   src={previewUrl}
                                   controls
@@ -2085,7 +1953,7 @@ export default function EvidenceDetailPage() {
                                   className="evidence-preview-video"
                                   style={{
                                     width: "100%",
-                                    maxHeight: 560,
+                                    maxHeight: 420,
                                     borderRadius: 16,
                                     border: "1px solid rgba(79,112,107,0.10)",
                                     background: "#eef2ef",
@@ -2095,7 +1963,7 @@ export default function EvidenceDetailPage() {
                             )}
 
                             {previewUrl && kind === "audio" && (
-                              <div style={previewShellStyle}>
+                              <div style={{ ...previewShellStyle, maxWidth: 760, margin: "0 auto" }}>
                                 <audio
                                   src={previewUrl}
                                   controls
@@ -2106,13 +1974,13 @@ export default function EvidenceDetailPage() {
                             )}
 
                             {previewUrl && kind === "pdf" && (
-                              <div style={previewShellStyle}>
+                              <div style={{ ...previewShellStyle, maxWidth: 760, margin: "0 auto" }}>
                                 <iframe
                                   src={previewUrl}
                                   title={`Evidence PDF item ${part.partIndex + 1}`}
                                   style={{
                                     width: "100%",
-                                    minHeight: 520,
+                                    minHeight: 460,
                                     borderRadius: 16,
                                     border: "1px solid rgba(79,112,107,0.10)",
                                     background: "#fff",
@@ -2231,14 +2099,14 @@ export default function EvidenceDetailPage() {
                     </div>
 
                     {originalPreviewUrl && originalKind === "image" && (
-                      <div style={previewShellStyle}>
+                      <div style={{ ...previewShellStyle, maxWidth: 760, margin: "0 auto" }}>
                         <img
                           src={originalPreviewUrl}
                           alt="Evidence preview"
                           className="evidence-preview-image"
                           style={{
                             width: "100%",
-                            maxHeight: 620,
+                            maxHeight: 420,
                             objectFit: "contain",
                             borderRadius: 16,
                             border: "1px solid rgba(79,112,107,0.10)",
@@ -2249,7 +2117,7 @@ export default function EvidenceDetailPage() {
                     )}
 
                     {originalPreviewUrl && originalKind === "video" && (
-                      <div style={previewShellStyle}>
+                      <div style={{ ...previewShellStyle, maxWidth: 760, margin: "0 auto" }}>
                         <video
                           src={originalPreviewUrl}
                           controls
@@ -2257,7 +2125,7 @@ export default function EvidenceDetailPage() {
                           className="evidence-preview-video"
                           style={{
                             width: "100%",
-                            maxHeight: 620,
+                            maxHeight: 420,
                             borderRadius: 16,
                             border: "1px solid rgba(79,112,107,0.10)",
                             background: "#eef2ef",
@@ -2267,7 +2135,7 @@ export default function EvidenceDetailPage() {
                     )}
 
                     {originalPreviewUrl && originalKind === "audio" && (
-                      <div style={previewShellStyle}>
+                      <div style={{ ...previewShellStyle, maxWidth: 760, margin: "0 auto" }}>
                         <audio
                           src={originalPreviewUrl}
                           controls
@@ -2278,13 +2146,13 @@ export default function EvidenceDetailPage() {
                     )}
 
                     {originalPreviewUrl && originalKind === "pdf" && (
-                      <div style={previewShellStyle}>
+                      <div style={{ ...previewShellStyle, maxWidth: 760, margin: "0 auto" }}>
                         <iframe
                           src={originalPreviewUrl}
                           title="Original PDF evidence"
                           style={{
                             width: "100%",
-                            minHeight: 620,
+                            minHeight: 460,
                             borderRadius: 16,
                             border: "1px solid rgba(79,112,107,0.10)",
                             background: "#fff",
@@ -2345,7 +2213,7 @@ export default function EvidenceDetailPage() {
               variant="secondary"
               onClick={() => setAssignCaseModalOpen(false)}
               disabled={actionBusy}
-              className={compactButtonClass}
+              className="rounded-[18px] border px-5 py-3 text-[0.92rem] font-semibold"
               style={landingSecondaryButtonStyle}
             >
               Cancel
@@ -2353,7 +2221,7 @@ export default function EvidenceDetailPage() {
             <Button
               onClick={handleConfirmAssignCase}
               disabled={actionBusy || !selectedCaseId}
-              className={compactButtonClass}
+              className="rounded-[18px] border px-5 py-3 text-[0.92rem] font-semibold"
               style={landingPrimaryButtonStyle}
             >
               {actionBusy ? "Saving..." : caseId ? "Move" : "Add"}
@@ -2398,7 +2266,7 @@ export default function EvidenceDetailPage() {
               variant="secondary"
               onClick={() => setLockModalOpen(false)}
               disabled={actionBusy}
-              className={compactButtonClass}
+              className="rounded-[18px] border px-5 py-3 text-[0.92rem] font-semibold"
               style={landingSecondaryButtonStyle}
             >
               Cancel
@@ -2406,7 +2274,7 @@ export default function EvidenceDetailPage() {
             <Button
               onClick={handleConfirmLock}
               disabled={actionBusy}
-              className={compactButtonClass}
+              className="rounded-[18px] border px-5 py-3 text-[0.92rem] font-semibold"
               style={landingBronzeButtonStyle}
             >
               {actionBusy ? "Locking..." : "Lock permanently"}
@@ -2436,7 +2304,7 @@ export default function EvidenceDetailPage() {
               variant="secondary"
               onClick={() => setArchiveModalOpen(false)}
               disabled={actionBusy}
-              className={compactButtonClass}
+              className="rounded-[18px] border px-5 py-3 text-[0.92rem] font-semibold"
               style={landingSecondaryButtonStyle}
             >
               Cancel
@@ -2444,7 +2312,7 @@ export default function EvidenceDetailPage() {
             <Button
               onClick={handleConfirmArchive}
               disabled={actionBusy}
-              className={compactButtonClass}
+              className="rounded-[18px] border px-5 py-3 text-[0.92rem] font-semibold"
               style={landingPrimaryButtonStyle}
             >
               {actionBusy ? "Archiving..." : "Archive"}
@@ -2472,7 +2340,7 @@ export default function EvidenceDetailPage() {
               variant="secondary"
               onClick={() => setDeleteModalOpen(false)}
               disabled={actionBusy}
-              className={compactButtonClass}
+              className="rounded-[18px] border px-5 py-3 text-[0.92rem] font-semibold"
               style={landingSecondaryButtonStyle}
             >
               Cancel
@@ -2480,7 +2348,7 @@ export default function EvidenceDetailPage() {
             <Button
               onClick={handleConfirmDelete}
               disabled={actionBusy}
-              className={compactButtonClass}
+              className="rounded-[18px] border px-5 py-3 text-[0.92rem] font-semibold"
               style={landingDangerButtonStyle}
             >
               {actionBusy ? "Deleting..." : "Delete Evidence"}
