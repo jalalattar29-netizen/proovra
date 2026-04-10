@@ -154,6 +154,20 @@ export default function BillingPage() {
     []
   );
 
+  const heroPricingButtonStyle = useMemo(
+  () =>
+    ({
+      borderColor: "rgba(79,112,107,0.16)",
+      color: "#1f3d40",
+      background:
+        "linear-gradient(180deg, rgba(255,255,255,0.88) 0%, rgba(241,244,241,0.96) 100%)",
+      boxShadow:
+        "0 10px 22px rgba(0,0,0,0.06), inset 0 1px 0 rgba(255,255,255,0.72)",
+      textShadow: "0 1px 0 rgba(255,255,255,0.32)",
+    }) as const,
+  []
+);
+
   const loadingCardStyle = useMemo(
     () =>
       ({
@@ -246,69 +260,80 @@ export default function BillingPage() {
 
       <div className="app-hero app-hero-full">
         <div className="container">
-          <div className="page-title app-page-title" style={{ marginBottom: 0 }}>
-            <div style={{ maxWidth: 780 }}>
-              <div
-                style={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: 8,
-                  borderRadius: 999,
-                  border: "1px solid rgba(255,255,255,0.10)",
-                  background: "rgba(255,255,255,0.04)",
-                  padding: "8px 16px",
-                  fontSize: "0.68rem",
-                  fontWeight: 500,
-                  textTransform: "uppercase",
-                  letterSpacing: "0.28em",
-                  color: "#afbbb7",
-                  boxShadow: "0 10px 24px rgba(0,0,0,0.08)",
-                  backdropFilter: "blur(10px)",
-                  WebkitBackdropFilter: "blur(10px)",
-                }}
-              >
-                <span
-                  style={{
-                    width: 4,
-                    height: 4,
-                    borderRadius: 999,
-                    background: "#b79d84",
-                    opacity: 0.8,
-                    display: "inline-block",
-                  }}
-                />
-                Billing
-              </div>
+<div className="page-title app-page-title" style={{ marginBottom: 0 }}>
+  <div style={{ maxWidth: 780 }}>
+    <div
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 8,
+        borderRadius: 999,
+        border: "1px solid rgba(255,255,255,0.10)",
+        background: "rgba(255,255,255,0.04)",
+        padding: "8px 16px",
+        fontSize: "0.68rem",
+        fontWeight: 500,
+        textTransform: "uppercase",
+        letterSpacing: "0.28em",
+        color: "#afbbb7",
+        boxShadow: "0 10px 24px rgba(0,0,0,0.08)",
+        backdropFilter: "blur(10px)",
+        WebkitBackdropFilter: "blur(10px)",
+      }}
+    >
+      <span
+        style={{
+          width: 4,
+          height: 4,
+          borderRadius: 999,
+          background: "#b79d84",
+          opacity: 0.8,
+          display: "inline-block",
+        }}
+      />
+      Billing
+    </div>
 
-              <h1
-                className="mt-5 max-w-[760px] text-[1.72rem] font-medium leading-[1.02] tracking-[-0.045em] text-[#d9e2df] md:text-[2.22rem] lg:text-[2.72rem]"
-                style={{ margin: "20px 0 0" }}
-              >
-                Manage your billing workspace{" "}
-                <span style={{ color: "#c3ebe2" }}>with more clarity</span>.
-              </h1>
+    <h1
+      className="mt-5 max-w-[760px] text-[1.72rem] font-medium leading-[1.02] tracking-[-0.045em] text-[#d9e2df] md:text-[2.22rem] lg:text-[2.72rem]"
+      style={{ margin: "20px 0 0" }}
+    >
+      Manage your billing workspace{" "}
+      <span style={{ color: "#c3ebe2" }}>with more clarity</span>.
+    </h1>
 
-              <p
-                className="page-subtitle pricing-subtitle"
-                style={{
-                  marginTop: 20,
-                  maxWidth: 720,
-                  fontSize: "0.95rem",
-                  lineHeight: 1.8,
-                  letterSpacing: "-0.006em",
-                  color: "#aab5b2",
-                }}
-              >
-                Review your{" "}
-                <span style={{ color: "#cfd8d5" }}>current subscription</span>,
-                switch between plans when needed, and manage{" "}
-                <span style={{ color: "#bbc7c3" }}>credits</span>,{" "}
-                <span style={{ color: "#d2dcd8" }}>team access</span>, and{" "}
-                <span style={{ color: "#d9ccbf" }}>payment upgrades</span> from one
-                place.
-              </p>
-            </div>
-          </div>
+    <p
+      className="page-subtitle pricing-subtitle"
+      style={{
+        marginTop: 20,
+        maxWidth: 720,
+        fontSize: "0.95rem",
+        lineHeight: 1.8,
+        letterSpacing: "-0.006em",
+        color: "#aab5b2",
+      }}
+    >
+      Review your{" "}
+      <span style={{ color: "#cfd8d5" }}>current subscription</span>,
+      switch between plans when needed, and manage{" "}
+      <span style={{ color: "#bbc7c3" }}>credits</span>,{" "}
+      <span style={{ color: "#d2dcd8" }}>team access</span>, and{" "}
+      <span style={{ color: "#d9ccbf" }}>payment upgrades</span> from one
+      place.
+    </p>
+  </div>
+
+  <div style={{ display: "flex", alignItems: "flex-start", paddingTop: 10 }}>
+    <Link href="/pricing">
+      <Button
+        className="min-w-[220px] rounded-[999px] border px-6 py-3 text-[0.92rem] font-semibold transition-all duration-200 hover:-translate-y-[1px] hover:brightness-[1.03]"
+        style={heroPricingButtonStyle}
+      >
+        View full pricing
+      </Button>
+    </Link>
+  </div>
+</div>
         </div>
       </div>
 

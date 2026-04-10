@@ -65,45 +65,55 @@ export default function HomePage() {
   const primaryActionButtonStyle = useMemo(
     () =>
       ({
-        borderColor: "rgba(158,216,207,0.14)",
-        color: "#aebbb6",
+        borderColor: "rgba(79,112,107,0.14)",
+        color: "#23373b",
         background:
-          "linear-gradient(180deg, rgba(62,98,96,0.26) 0%, rgba(14,30,34,0.38) 100%)",
+          "linear-gradient(180deg, rgba(255,255,255,0.82) 0%, rgba(243,245,242,0.95) 100%)",
         boxShadow:
-          "inset 0 1px 0 rgba(255,255,255,0.04), 0 14px 28px rgba(0,0,0,0.08)",
-        backdropFilter: "blur(10px)",
-        WebkitBackdropFilter: "blur(10px)",
+          "0 10px 22px rgba(0,0,0,0.06), inset 0 1px 0 rgba(255,255,255,0.72)",
+        backdropFilter: "blur(6px)",
+        WebkitBackdropFilter: "blur(6px)",
+        textShadow: "0 1px 0 rgba(255,255,255,0.34)",
       }) as const,
     []
   );
 
-const actionButtonStyle = useMemo(
-  () =>
-    ({
-      borderColor: "rgba(79,112,107,0.18)",
-      color: "#aebbb6",
-      backgroundImage:
-        "linear-gradient(180deg, rgba(8,20,24,0.78) 0%, rgba(7,18,22,0.88) 100%), url('/images/site-velvet-bg.webp.png')",
-      backgroundSize: "cover",
-      backgroundPosition: "center",
-      boxShadow:
-        "inset 0 1px 0 rgba(255,255,255,0.03), 0 14px 28px rgba(0,0,0,0.10)",
-      backdropFilter: "blur(10px)",
-      WebkitBackdropFilter: "blur(10px)",
-    }) as const,
-  []
-);
-
-  const evidenceVelvetCardStyle = useMemo(
+  const actionButtonStyle = useMemo(
     () =>
       ({
-        border: "1px solid rgba(158,216,207,0.14)",
+        borderColor: "rgba(79,112,107,0.14)",
+        color: "#23373b",
         background:
-          "linear-gradient(180deg, rgba(62,98,96,0.26) 0%, rgba(14,30,34,0.38) 100%)",
+          "linear-gradient(180deg, rgba(255,255,255,0.80) 0%, rgba(243,245,242,0.94) 100%)",
         boxShadow:
-          "inset 0 1px 0 rgba(255,255,255,0.04), 0 14px 28px rgba(0,0,0,0.08)",
-        backdropFilter: "blur(10px)",
-        WebkitBackdropFilter: "blur(10px)",
+          "0 10px 22px rgba(0,0,0,0.06), inset 0 1px 0 rgba(255,255,255,0.68)",
+        backdropFilter: "blur(6px)",
+        WebkitBackdropFilter: "blur(6px)",
+        textShadow: "0 1px 0 rgba(255,255,255,0.30)",
+      }) as const,
+    []
+  );
+
+  const evidenceCardStyle = useMemo(
+    () =>
+      ({
+        border: "1px solid rgba(79,112,107,0.10)",
+        background:
+          "linear-gradient(180deg, rgba(255,255,255,0.58) 0%, rgba(243,245,242,0.90) 100%)",
+        boxShadow:
+          "inset 0 1px 0 rgba(255,255,255,0.42), 0 12px 26px rgba(0,0,0,0.06)",
+        backdropFilter: "blur(8px)",
+        WebkitBackdropFilter: "blur(8px)",
+      }) as const,
+    []
+  );
+
+  const outerCardStyle = useMemo(
+    () =>
+      ({
+        border: "1px solid rgba(79,112,107,0.16)",
+        boxShadow:
+          "0 18px 38px rgba(0,0,0,0.08), inset 0 1px 0 rgba(255,255,255,0.48)",
       }) as const,
     []
   );
@@ -192,35 +202,46 @@ const actionButtonStyle = useMemo(
         </div>
       </section>
 
-      <section className="relative px-6 pb-12 md:px-8 md:pb-16">
-        <div className="mx-auto w-full max-w-[1180px]">
+      <section
+        className="relative overflow-hidden px-6 pb-12 md:px-8 md:pb-16"
+        style={{
+          background:
+            "linear-gradient(180deg, rgba(239,241,238,0.96) 0%, rgba(234,237,234,0.98) 100%)",
+        }}
+      >
+        <div className="pointer-events-none absolute inset-0 z-0" aria-hidden="true">
+          <img
+            src="/images/landing-network-bg.png"
+            alt=""
+            className="absolute inset-0 h-full w-full object-cover object-top opacity-[0.12] saturate-[0.55] brightness-[1.02] contrast-[0.94]"
+          />
+          <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.08)_0%,rgba(255,255,255,0.03)_22%,rgba(255,255,255,0.03)_78%,rgba(255,255,255,0.08)_100%)]" />
+          <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(255,255,255,0.10)_0%,rgba(255,255,255,0.03)_12%,rgba(255,255,255,0.00)_24%,rgba(255,255,255,0.00)_76%,rgba(255,255,255,0.03)_88%,rgba(255,255,255,0.10)_100%)]" />
+        </div>
+
+        <div className="relative z-10 mx-auto w-full max-w-[1180px]">
           <div className="grid gap-5 xl:grid-cols-[1.08fr_0.92fr]">
             <Card
               className="relative overflow-hidden rounded-[30px] border bg-transparent p-0 shadow-none"
-              style={{
-                border: "1px solid rgba(183,157,132,0.18)",
-                boxShadow:
-                  "0 22px 42px rgba(0, 0, 0, 0.16), inset 0 1px 0 rgba(255,255,255,0.03)",
-              }}
+              style={outerCardStyle}
             >
               <div className="absolute inset-0">
                 <img
-                  src="/images/site-velvet-bg.webp.png"
+                  src="/images/panel-silver.webp.png"
                   alt=""
-                  className="h-full w-full scale-[1.12] object-cover object-center"
+                  className="h-full w-full object-cover object-center"
                 />
               </div>
-              <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(8,20,24,0.82)_0%,rgba(7,18,22,0.88)_100%)]" />
-              <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_14%,rgba(158,216,207,0.05),transparent_28%)]" />
-              <div className="absolute inset-0 bg-[radial-gradient(circle_at_86%_18%,rgba(214,184,157,0.04),transparent_24%)]" />
+              <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.24)_0%,rgba(248,249,246,0.34)_42%,rgba(239,241,238,0.42)_100%)]" />
+              <div className="absolute inset-0 bg-[radial-gradient(circle_at_16%_12%,rgba(255,255,255,0.34),transparent_28%)] opacity-90" />
 
               <div className="relative z-10 p-6 md:p-7">
                 <div className="mb-5 flex items-start justify-between gap-4">
-                  <div className="text-[1.1rem] font-semibold tracking-[-0.02em] text-[#d2dbd8]">
+                  <div className="text-[1.1rem] font-semibold tracking-[-0.02em] text-[#21353a]">
                     {t("recentEvidence")}
                   </div>
 
-                  <div className="mt-1 inline-flex items-center rounded-full border border-[rgba(183,157,132,0.12)] bg-[rgba(255,255,255,0.028)] px-3 py-1.5 text-[0.7rem] font-medium uppercase tracking-[0.16em] text-[#c4ccc9]">
+                  <div className="mt-1 inline-flex items-center rounded-full border border-[rgba(183,157,132,0.18)] bg-[linear-gradient(180deg,rgba(183,157,132,0.08)_0%,rgba(255,255,255,0.05)_100%)] px-3 py-1.5 text-[0.7rem] font-medium uppercase tracking-[0.16em] text-[#9b826b]">
                     Active records
                   </div>
                 </div>
@@ -228,13 +249,13 @@ const actionButtonStyle = useMemo(
                 <div style={{ display: "grid", gap: 12 }}>
                   {loading ? (
                     <div style={{ display: "grid", gap: 12 }}>
-                      <div className="rounded-[22px] p-4" style={evidenceVelvetCardStyle}>
+                      <div className="rounded-[22px] p-4" style={evidenceCardStyle}>
                         <Skeleton width="100%" height="20px" />
                       </div>
-                      <div className="rounded-[22px] p-4" style={evidenceVelvetCardStyle}>
+                      <div className="rounded-[22px] p-4" style={evidenceCardStyle}>
                         <Skeleton width="100%" height="20px" />
                       </div>
-                      <div className="rounded-[22px] p-4" style={evidenceVelvetCardStyle}>
+                      <div className="rounded-[22px] p-4" style={evidenceCardStyle}>
                         <Skeleton width="100%" height="20px" />
                       </div>
                     </div>
@@ -243,28 +264,28 @@ const actionButtonStyle = useMemo(
                       {error}
                     </div>
                   ) : items.length === 0 ? (
-                    <div className="rounded-[24px] p-4" style={evidenceVelvetCardStyle}>
+                    <div className="rounded-[24px] p-4" style={evidenceCardStyle}>
                       <EmptyState
                         title="No evidence yet"
                         subtitle="Capture your first file to see it here."
-                        action={() => (
-                          <Link href="/capture">
-                            <Button
-                              className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-medium"
-                              style={primaryActionButtonStyle}
-                            >
-                              {t("ctaCapture")}
-                            </Button>
-                          </Link>
-                        )}
                       />
+                      <div className="mt-4 flex justify-center">
+                        <Link href="/capture">
+                          <Button
+                            className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
+                            style={primaryActionButtonStyle}
+                          >
+                            {t("ctaCapture")}
+                          </Button>
+                        </Link>
+                      </div>
                     </div>
                   ) : (
                     items.map((item) => {
                       const row = (
                         <div
                           className="rounded-[24px] p-1 transition-all duration-200 hover:-translate-y-[1px]"
-                          style={evidenceVelvetCardStyle}
+                          style={evidenceCardStyle}
                         >
                           <ListRow
                             title={item.title || "Digital Evidence Record"}
@@ -314,29 +335,24 @@ const actionButtonStyle = useMemo(
 
             <Card
               className="relative overflow-hidden rounded-[30px] border bg-transparent p-0 shadow-none"
-              style={{
-                border: "1px solid rgba(183,157,132,0.18)",
-                boxShadow:
-                  "0 22px 42px rgba(0, 0, 0, 0.16), inset 0 1px 0 rgba(255,255,255,0.03)",
-              }}
+              style={outerCardStyle}
             >
               <div className="absolute inset-0">
                 <img
-                  src="/images/site-velvet-bg.webp.png"
+                  src="/images/panel-silver.webp.png"
                   alt=""
-                  className="h-full w-full scale-[1.12] object-cover object-center"
+                  className="h-full w-full object-cover object-center"
                 />
               </div>
-              <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(8,20,24,0.82)_0%,rgba(7,18,22,0.88)_100%)]" />
-              <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_14%,rgba(158,216,207,0.05),transparent_28%)]" />
-              <div className="absolute inset-0 bg-[radial-gradient(circle_at_86%_18%,rgba(214,184,157,0.04),transparent_24%)]" />
+              <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.24)_0%,rgba(248,249,246,0.34)_42%,rgba(239,241,238,0.42)_100%)]" />
+              <div className="absolute inset-0 bg-[radial-gradient(circle_at_16%_12%,rgba(255,255,255,0.34),transparent_28%)] opacity-90" />
 
               <div className="relative z-10 p-6 md:p-7">
                 <div className="mb-5">
-                  <div className="text-[1.1rem] font-semibold tracking-[-0.02em] text-[#d2dbd8]">
+                  <div className="text-[1.1rem] font-semibold tracking-[-0.02em] text-[#21353a]">
                     Quick Actions
                   </div>
-                  <div className="mt-2 max-w-[480px] text-[0.9rem] leading-[1.7] text-[rgba(180,195,191,0.64)]">
+                  <div className="mt-2 max-w-[480px] text-[0.9rem] leading-[1.7] text-[#5d6d71]">
                     Move through your workspace with a cleaner, focused action
                     flow.
                   </div>
@@ -345,15 +361,17 @@ const actionButtonStyle = useMemo(
                 <div className="grid gap-3">
                   {quickActions.map((action) => (
                     <Link key={action.href} href={action.href}>
-<Button
-  variant="secondary"
-  className="proovra-velvet-primary flex w-full items-center justify-between rounded-[20px] border px-5 py-4 text-left text-[0.96rem] font-medium transition-all duration-200 hover:-translate-y-[1px]"
-  style={actionButtonStyle}
-  onClick={() => addToast(action.toast, "info")}
->
-    <span>{action.label}</span>
-  <span className="ml-4 text-[1.05rem] opacity-55">›</span>
-</Button>
+                      <Button
+                        variant="secondary"
+                        className="flex w-full items-center justify-between rounded-[20px] border px-5 py-4 text-left text-[0.96rem] font-semibold transition-all duration-200 hover:-translate-y-[1px]"
+                        style={actionButtonStyle}
+                        onClick={() => addToast(action.toast, "info")}
+                      >
+                        <span>{action.label}</span>
+                        <span className="ml-4 text-[1.05rem] text-[#9b826b] opacity-75">
+                          ›
+                        </span>
+                      </Button>
                     </Link>
                   ))}
                 </div>
@@ -361,10 +379,10 @@ const actionButtonStyle = useMemo(
                 <div
                   className="mt-5 rounded-[24px] border px-4 py-4"
                   style={{
-                    border: "1px solid rgba(183,157,132,0.20)",
+                    border: "1px solid rgba(183,157,132,0.18)",
                     background:
-                      "linear-gradient(135deg, rgba(183,157,132,0.07), rgba(255,255,255,0.025))",
-                    boxShadow: "0 14px 28px rgba(0,0,0,0.08)",
+                      "linear-gradient(180deg, rgba(250,248,245,0.62) 0%, rgba(243,239,234,0.86) 100%)",
+                    boxShadow: "0 12px 26px rgba(0,0,0,0.05)",
                   }}
                 >
                   <div className="flex items-start gap-3">
@@ -372,31 +390,31 @@ const actionButtonStyle = useMemo(
                       className="flex h-11 w-11 items-center justify-center rounded-full text-[1rem] font-semibold"
                       style={{
                         background:
-                          "linear-gradient(180deg, rgba(183,157,132,0.16) 0%, rgba(255,255,255,0.05) 100%)",
-                        color: "#dbc0a4",
+                          "linear-gradient(180deg, rgba(183,157,132,0.16) 0%, rgba(255,255,255,0.10) 100%)",
+                        color: "#9b826b",
                         border: "1px solid rgba(183,157,132,0.20)",
-                        boxShadow: "0 0 18px rgba(183,157,132,0.07)",
+                        boxShadow: "0 0 18px rgba(183,157,132,0.06)",
                       }}
                     >
                       ✓
                     </div>
 
                     <div>
-                      <div className="font-bold text-[#d8e0dd]">
+                      <div className="font-bold text-[#23373b]">
                         Trusted chain of custody
                       </div>
-                      <div className="mt-1 text-[12px] text-[rgba(201,211,208,0.72)]">
+                      <div className="mt-1 text-[12px] text-[#6a777b]">
                         Capture → Sign → Report → Share
                       </div>
                     </div>
                   </div>
                 </div>
 
-                <div className="mt-4 rounded-[22px] border border-[rgba(183,157,132,0.14)] bg-[rgba(255,255,255,0.028)] px-4 py-4">
-                  <div className="mb-2 text-[0.78rem] font-semibold uppercase tracking-[0.18em] text-[#c9ab8c]">
+                <div className="mt-4 rounded-[22px] border border-[rgba(79,112,107,0.10)] bg-[linear-gradient(180deg,rgba(255,255,255,0.52)_0%,rgba(243,245,242,0.82)_100%)] px-4 py-4">
+                  <div className="mb-2 text-[0.78rem] font-semibold uppercase tracking-[0.18em] text-[#9b826b]">
                     Workspace flow
                   </div>
-                  <div className="text-[0.92rem] leading-[1.75] text-[rgba(194,204,201,0.76)]">
+                  <div className="text-[0.92rem] leading-[1.75] text-[#5d6d71]">
                     Everything important stays one click away, while the visual
                     language remains premium, quiet, and consistent with the rest
                     of the platform.
