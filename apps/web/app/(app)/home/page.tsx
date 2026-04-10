@@ -77,20 +77,22 @@ export default function HomePage() {
     []
   );
 
-  const secondaryActionButtonStyle = useMemo(
-    () =>
-      ({
-        borderColor: "rgba(158,216,207,0.14)",
-        color: "#d7e0dd",
-        background:
-          "linear-gradient(180deg, rgba(62,98,96,0.26) 0%, rgba(14,30,34,0.38) 100%)",
-        boxShadow:
-          "inset 0 1px 0 rgba(255,255,255,0.04), 0 14px 28px rgba(0,0,0,0.08)",
-        backdropFilter: "blur(10px)",
-        WebkitBackdropFilter: "blur(10px)",
-      }) as const,
-    []
-  );
+const actionButtonStyle = useMemo(
+  () =>
+    ({
+      borderColor: "rgba(79,112,107,0.18)",
+      color: "#e7efec",
+      backgroundImage:
+        "linear-gradient(180deg, rgba(8,20,24,0.78) 0%, rgba(7,18,22,0.88) 100%), url('/images/site-velvet-bg.webp.png')",
+      backgroundSize: "cover",
+      backgroundPosition: "center",
+      boxShadow:
+        "inset 0 1px 0 rgba(255,255,255,0.03), 0 14px 28px rgba(0,0,0,0.10)",
+      backdropFilter: "blur(10px)",
+      WebkitBackdropFilter: "blur(10px)",
+    }) as const,
+  []
+);
 
   const evidenceVelvetCardStyle = useMemo(
     () =>
@@ -343,19 +345,15 @@ export default function HomePage() {
                 <div className="grid gap-3">
                   {quickActions.map((action) => (
                     <Link key={action.href} href={action.href}>
-                      <Button
-                        variant={action.primary ? "primary" : "secondary"}
-                        className="flex w-full items-center justify-between rounded-[20px] border px-5 py-4 text-left text-[0.96rem] font-medium transition-all duration-200 hover:-translate-y-[1px]"
-                        style={
-                          action.primary
-                            ? primaryActionButtonStyle
-                            : secondaryActionButtonStyle
-                        }
-                        onClick={() => addToast(action.toast, "info")}
-                      >
-                        <span>{action.label}</span>
-                        <span className="ml-4 text-[1.05rem] opacity-55">›</span>
-                      </Button>
+<Button
+  variant={action.primary ? "primary" : "secondary"}
+  className="flex w-full items-center justify-between rounded-[20px] border px-5 py-4 text-left text-[0.96rem] font-medium transition-all duration-200 hover:-translate-y-[1px]"
+  style={actionButtonStyle}
+  onClick={() => addToast(action.toast, "info")}
+>
+  <span>{action.label}</span>
+  <span className="ml-4 text-[1.05rem] opacity-55">›</span>
+</Button>
                     </Link>
                   ))}
                 </div>
