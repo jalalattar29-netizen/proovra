@@ -101,49 +101,65 @@ export default function BillingPage() {
   const outerCardStyle = useMemo(
     () =>
       ({
-        border: "1px solid rgba(183,157,132,0.18)",
+        border: "1px solid rgba(79,112,107,0.16)",
         boxShadow:
-          "0 18px 36px rgba(0,0,0,0.08), inset 0 1px 0 rgba(255,255,255,0.45)",
+          "0 18px 38px rgba(0,0,0,0.08), inset 0 1px 0 rgba(255,255,255,0.48)",
       }) as const,
     []
   );
 
-const primaryVelvetButtonStyle = useMemo(
-  () =>
-    ({
-      borderColor: "rgba(79,112,107,0.14)",
-      color: "#1e3237",
-      background:
-        "linear-gradient(180deg, rgba(255,255,255,0.82) 0%, rgba(242,245,242,0.96) 100%)",
-      boxShadow:
-        "0 10px 22px rgba(0,0,0,0.06), inset 0 1px 0 rgba(255,255,255,0.72)",
-      backdropFilter: "blur(6px)",
-      WebkitBackdropFilter: "blur(6px)",
-      textShadow: "0 1px 0 rgba(255,255,255,0.35)",
-    }) as const,
-  []
-);
+  const primarySoftButtonStyle = useMemo(
+    () =>
+      ({
+        borderColor: "rgba(79,112,107,0.14)",
+        color: "#23373b",
+        background:
+          "linear-gradient(180deg, rgba(255,255,255,0.80) 0%, rgba(243,245,242,0.95) 100%)",
+        boxShadow:
+          "0 10px 22px rgba(0,0,0,0.06), inset 0 1px 0 rgba(255,255,255,0.72)",
+        backdropFilter: "blur(6px)",
+        WebkitBackdropFilter: "blur(6px)",
+        textShadow: "0 1px 0 rgba(255,255,255,0.34)",
+      }) as const,
+    []
+  );
 
-const secondaryVelvetButtonStyle = useMemo(
-  () =>
-    ({
-      borderColor: "rgba(183,157,132,0.18)",
-      color: "#5f4c3d",
-      background:
-        "linear-gradient(180deg, rgba(250,249,246,0.74) 0%, rgba(239,236,232,0.92) 100%)",
-      boxShadow:
-        "0 10px 20px rgba(0,0,0,0.05), inset 0 1px 0 rgba(255,255,255,0.62)",
-      backdropFilter: "blur(6px)",
-      WebkitBackdropFilter: "blur(6px)",
-      textShadow: "0 1px 0 rgba(255,255,255,0.28)",
-    }) as const,
-  []
-);
+  const bronzeSoftButtonStyle = useMemo(
+    () =>
+      ({
+        borderColor: "rgba(183,157,132,0.22)",
+        color: "#6f5948",
+        background:
+          "linear-gradient(180deg, rgba(250,248,245,0.78) 0%, rgba(243,238,233,0.94) 100%)",
+        boxShadow:
+          "0 10px 20px rgba(0,0,0,0.05), inset 0 1px 0 rgba(255,255,255,0.66)",
+        backdropFilter: "blur(6px)",
+        WebkitBackdropFilter: "blur(6px)",
+        textShadow: "0 1px 0 rgba(255,255,255,0.28)",
+      }) as const,
+    []
+  );
 
-  const innerVelvetCardStyle = useMemo(
+  const dashboardButtonStyle = useMemo(
+    () =>
+      ({
+        borderColor: "rgba(79,112,107,0.18)",
+        color: "#eef3f1",
+        background:
+          "linear-gradient(180deg, rgba(62,96,99,0.96) 0%, rgba(24,43,48,0.98) 100%)",
+        boxShadow:
+          "inset 0 1px 0 rgba(255,255,255,0.08), 0 14px 30px rgba(20,48,52,0.20)",
+        textShadow: "0 1px 0 rgba(0,0,0,0.18)",
+      }) as const,
+    []
+  );
+
+  const loadingCardStyle = useMemo(
     () =>
       ({
         border: "1px solid rgba(79,112,107,0.10)",
+        background:
+          "linear-gradient(180deg, rgba(255,255,255,0.58) 0%, rgba(243,245,242,0.90) 100%)",
         boxShadow:
           "inset 0 1px 0 rgba(255,255,255,0.42), 0 12px 26px rgba(0,0,0,0.06)",
         backdropFilter: "blur(8px)",
@@ -218,27 +234,9 @@ const secondaryVelvetButtonStyle = useMemo(
     );
   };
 
-return (
-  <div
-    className="section app-section"
-    style={{
-      background:
-        "linear-gradient(180deg, rgba(241,243,240,0.76) 0%, rgba(236,239,236,0.92) 100%)",
-      position: "relative",
-      overflow: "hidden",
-    }}
-  >
-    <div className="absolute inset-0 pointer-events-none">
-  <img
-    src="/images/landing-network-bg.png"
-    alt=""
-    className="absolute inset-0 h-full w-full object-cover object-top opacity-[0.10] saturate-[0.55] brightness-[1.02] contrast-[0.94]"
-  />
-  <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.14)_0%,rgba(255,255,255,0.06)_24%,rgba(255,255,255,0.06)_76%,rgba(255,255,255,0.14)_100%)]" />
-  <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(255,255,255,0.12)_0%,rgba(255,255,255,0.03)_12%,rgba(255,255,255,0)_24%,rgba(255,255,255,0)_76%,rgba(255,255,255,0.03)_88%,rgba(255,255,255,0.12)_100%)]" />
-</div>
-
-          <style jsx global>{`
+  return (
+    <div className="section app-section">
+      <style jsx global>{`
         .billing-page-shell .btn:disabled {
           opacity: 0.58 !important;
           cursor: not-allowed;
@@ -246,24 +244,24 @@ return (
         }
       `}</style>
 
-<div className="app-hero app-hero-full relative z-10">
-          <div className="container">
+      <div className="app-hero app-hero-full">
+        <div className="container">
           <div className="page-title app-page-title" style={{ marginBottom: 0 }}>
             <div style={{ maxWidth: 780 }}>
               <div
                 style={{
                   display: "inline-flex",
                   alignItems: "center",
-                  gap: "0.72rem",
+                  gap: 8,
                   borderRadius: 999,
                   border: "1px solid rgba(255,255,255,0.10)",
-                  background: "rgba(255,255,255,0.055)",
+                  background: "rgba(255,255,255,0.04)",
                   padding: "8px 16px",
                   fontSize: "0.68rem",
                   fontWeight: 500,
                   textTransform: "uppercase",
                   letterSpacing: "0.28em",
-                  color: "#dce3e0",
+                  color: "#afbbb7",
                   boxShadow: "0 10px 24px rgba(0,0,0,0.08)",
                   backdropFilter: "blur(10px)",
                   WebkitBackdropFilter: "blur(10px)",
@@ -271,20 +269,19 @@ return (
               >
                 <span
                   style={{
-                    width: 6,
-                    height: 6,
+                    width: 4,
+                    height: 4,
                     borderRadius: 999,
                     background: "#b79d84",
-                    opacity: 0.95,
+                    opacity: 0.8,
                     display: "inline-block",
-                    flexShrink: 0,
                   }}
                 />
                 Billing
               </div>
 
               <h1
-                className="mt-5 max-w-[760px] text-[1.72rem] font-medium leading-[1.02] tracking-[-0.045em] text-[#e7ece9] md:text-[2.22rem] lg:text-[2.72rem]"
+                className="mt-5 max-w-[760px] text-[1.72rem] font-medium leading-[1.02] tracking-[-0.045em] text-[#d9e2df] md:text-[2.22rem] lg:text-[2.72rem]"
                 style={{ margin: "20px 0 0" }}
               >
                 Manage your billing workspace{" "}
@@ -299,15 +296,15 @@ return (
                   fontSize: "0.95rem",
                   lineHeight: 1.8,
                   letterSpacing: "-0.006em",
-                  color: "#c7cfcc",
+                  color: "#aab5b2",
                 }}
               >
                 Review your{" "}
-                <span style={{ color: "#e6ebe8" }}>current subscription</span>,
+                <span style={{ color: "#cfd8d5" }}>current subscription</span>,
                 switch between plans when needed, and manage{" "}
-                <span style={{ color: "#bfe8df" }}>credits</span>,{" "}
-                <span style={{ color: "#e6ebe8" }}>team access</span>, and{" "}
-                <span style={{ color: "#d6b89d" }}>payment upgrades</span> from one
+                <span style={{ color: "#bbc7c3" }}>credits</span>,{" "}
+                <span style={{ color: "#d2dcd8" }}>team access</span>, and{" "}
+                <span style={{ color: "#d9ccbf" }}>payment upgrades</span> from one
                 place.
               </p>
             </div>
@@ -315,9 +312,27 @@ return (
         </div>
       </div>
 
-<div className="app-body app-body-full billing-page-shell relative z-10">
-          <div
-          className="container"
+      <div
+        className="app-body app-body-full billing-page-shell"
+        style={{
+          position: "relative",
+          overflow: "hidden",
+          background:
+            "linear-gradient(180deg, rgba(239,241,238,0.96) 0%, rgba(234,237,234,0.98) 100%)",
+        }}
+      >
+        <div className="pointer-events-none absolute inset-0 z-0" aria-hidden="true">
+          <img
+            src="/images/landing-network-bg.png"
+            alt=""
+            className="absolute inset-0 h-full w-full object-cover object-top opacity-[0.12] saturate-[0.55] brightness-[1.02] contrast-[0.94]"
+          />
+          <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.08)_0%,rgba(255,255,255,0.03)_22%,rgba(255,255,255,0.03)_78%,rgba(255,255,255,0.08)_100%)]" />
+          <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(255,255,255,0.10)_0%,rgba(255,255,255,0.03)_12%,rgba(255,255,255,0.00)_24%,rgba(255,255,255,0.00)_76%,rgba(255,255,255,0.03)_88%,rgba(255,255,255,0.10)_100%)]" />
+        </div>
+
+        <div
+          className="container relative z-10"
           style={{
             display: "grid",
             gap: 24,
@@ -335,8 +350,8 @@ return (
                 className="h-full w-full object-cover object-center"
               />
             </div>
-            <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.22)_0%,rgba(245,247,244,0.38)_45%,rgba(236,239,236,0.48)_100%)]" />
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_14%,rgba(255,255,255,0.32),transparent_30%)]" />
+            <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.24)_0%,rgba(248,249,246,0.34)_42%,rgba(239,241,238,0.42)_100%)]" />
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_16%_12%,rgba(255,255,255,0.34),transparent_28%)] opacity-90" />
 
             <div className="relative z-10 p-6 md:p-7">
               <div className="mb-5 text-[1.1rem] font-semibold tracking-[-0.02em] text-[#21353a]">
@@ -346,24 +361,10 @@ return (
 
               {loading ? (
                 <div style={{ display: "grid", gap: 12 }}>
-                  <div
-                    className="rounded-[22px] p-4"
-                    style={{
-                      ...innerVelvetCardStyle,
-                      background:
-                        "linear-gradient(180deg, rgba(255,255,255,0.58) 0%, rgba(243,245,242,0.90) 100%)",
-                    }}
-                  >
+                  <div className="rounded-[22px] p-4" style={loadingCardStyle}>
                     <Skeleton width="100%" height="20px" />
                   </div>
-                  <div
-                    className="rounded-[22px] p-4"
-                    style={{
-                      ...innerVelvetCardStyle,
-                      background:
-                        "linear-gradient(180deg, rgba(255,255,255,0.58) 0%, rgba(243,245,242,0.90) 100%)",
-                    }}
-                  >
+                  <div className="rounded-[22px] p-4" style={loadingCardStyle}>
                     <Skeleton width="60%" height="16px" />
                   </div>
                 </div>
@@ -373,48 +374,42 @@ return (
                 </div>
               ) : (
                 <div
-                  className="relative overflow-hidden rounded-[26px] px-5 py-5"
-                  style={innerVelvetCardStyle}
+                  className="rounded-[24px] border px-5 py-5"
+                  style={{
+                    border: "1px solid rgba(79,112,107,0.10)",
+                    background:
+                      "linear-gradient(180deg, rgba(255,255,255,0.22) 0%, rgba(247,248,245,0.30) 100%)",
+                    boxShadow:
+                      "inset 0 1px 0 rgba(255,255,255,0.42), 0 10px 24px rgba(0,0,0,0.04)",
+                  }}
                 >
-                  <div className="absolute inset-0">
-                    <img
-                      src="/images/panel-silver.webp.png"
-                      alt=""
-                      className="h-full w-full object-cover object-center"
-                    />
+                  <div
+                    style={{
+                      margin: 0,
+                      fontSize: 12,
+                      fontWeight: 700,
+                      letterSpacing: "0.16em",
+                      textTransform: "uppercase",
+                      color: "#9b826b",
+                    }}
+                  >
+                    Active subscription
                   </div>
-                  <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.20)_0%,rgba(245,247,244,0.42)_100%)]" />
-                  <div className="absolute inset-0 bg-[radial-gradient(circle_at_16%_18%,rgba(255,255,255,0.30),transparent_30%)]" />
 
-                  <div className="relative z-10">
-                    <div
-                      style={{
-                        margin: 0,
-                        fontSize: 12,
-                        fontWeight: 700,
-                        letterSpacing: "0.16em",
-                        textTransform: "uppercase",
-                        color: "#9b826b",
-                      }}
-                    >
-                      Active subscription
-                    </div>
+                  <p
+                    style={{
+                      margin: "12px 0 0",
+                      fontSize: 30,
+                      fontWeight: 700,
+                      letterSpacing: "-0.05em",
+                      color: "#1f3438",
+                    }}
+                  >
+                    <span style={{ color: "#1f3438" }}>{plan}</span>{" "}
+                    <span style={{ color: "#3e6b68" }}>plan</span>
+                  </p>
 
-                    <p
-                      style={{
-                        margin: "12px 0 0",
-                        fontSize: 30,
-                        fontWeight: 700,
-                        letterSpacing: "-0.05em",
-                        color: "#1f3438",
-                      }}
-                    >
-                      <span style={{ color: "#1f3438" }}>{plan}</span>{" "}
-                      <span style={{ color: "#3e6b68" }}>plan</span>
-                    </p>
-
-                    {renderCurrentPlanMeta()}
-                  </div>
+                  {renderCurrentPlanMeta()}
                 </div>
               )}
             </div>
@@ -431,8 +426,8 @@ return (
                 className="h-full w-full object-cover object-center"
               />
             </div>
-            <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.22)_0%,rgba(245,247,244,0.38)_45%,rgba(236,239,236,0.48)_100%)]" />
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_14%,rgba(255,255,255,0.32),transparent_30%)]" />
+            <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.24)_0%,rgba(248,249,246,0.34)_42%,rgba(239,241,238,0.42)_100%)]" />
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_16%_12%,rgba(255,255,255,0.34),transparent_28%)] opacity-90" />
 
             <div className="relative z-10 p-6 md:p-7">
               <div className="mb-2 text-[1.1rem] font-semibold tracking-[-0.02em] text-[#21353a]">
@@ -455,24 +450,10 @@ return (
 
               {loading ? (
                 <div style={{ display: "grid", gap: 12 }}>
-                  <div
-                    className="rounded-[22px] p-4"
-                    style={{
-                      ...innerVelvetCardStyle,
-                      background:
-                        "linear-gradient(180deg, rgba(255,255,255,0.58) 0%, rgba(243,245,242,0.90) 100%)",
-                    }}
-                  >
+                  <div className="rounded-[22px] p-4" style={loadingCardStyle}>
                     <Skeleton width="100%" height="40px" />
                   </div>
-                  <div
-                    className="rounded-[22px] p-4"
-                    style={{
-                      ...innerVelvetCardStyle,
-                      background:
-                        "linear-gradient(180deg, rgba(255,255,255,0.58) 0%, rgba(243,245,242,0.90) 100%)",
-                    }}
-                  >
+                  <div className="rounded-[22px] p-4" style={loadingCardStyle}>
                     <Skeleton width="100%" height="40px" />
                   </div>
                 </div>
@@ -485,8 +466,8 @@ return (
                   }}
                 >
                   <Button
-                    className="rounded-[999px] border px-5 py-3 text-[0.95rem] font-medium transition-all duration-200 hover:-translate-y-[1px] hover:brightness-[1.03]"
-                    style={secondaryVelvetButtonStyle}
+                    className="rounded-[999px] border px-5 py-3 text-[0.95rem] font-semibold transition-all duration-200 hover:-translate-y-[1px] hover:brightness-[1.03]"
+                    style={bronzeSoftButtonStyle}
                     disabled={!!checkoutBusy || plan === "PAYG"}
                     onClick={() => startStripeCheckout("PAYG")}
                   >
@@ -494,8 +475,8 @@ return (
                   </Button>
 
                   <Button
-                    className="rounded-[999px] border px-5 py-3 text-[0.95rem] font-medium transition-all duration-200 hover:-translate-y-[1px] hover:brightness-[1.03]"
-                    style={primaryVelvetButtonStyle}
+                    className="rounded-[999px] border px-5 py-3 text-[0.95rem] font-semibold transition-all duration-200 hover:-translate-y-[1px] hover:brightness-[1.03]"
+                    style={primarySoftButtonStyle}
                     disabled={!!checkoutBusy || plan === "PRO"}
                     onClick={() => startStripeCheckout("PRO")}
                   >
@@ -503,8 +484,8 @@ return (
                   </Button>
 
                   <Button
-                    className="rounded-[999px] border px-5 py-3 text-[0.95rem] font-medium transition-all duration-200 hover:-translate-y-[1px] hover:brightness-[1.03]"
-                    style={primaryVelvetButtonStyle}
+                    className="rounded-[999px] border px-5 py-3 text-[0.95rem] font-semibold transition-all duration-200 hover:-translate-y-[1px] hover:brightness-[1.03]"
+                    style={primarySoftButtonStyle}
                     disabled={!!checkoutBusy || plan === "TEAM"}
                     onClick={() => startStripeCheckout("TEAM")}
                   >
@@ -512,8 +493,8 @@ return (
                   </Button>
 
                   <Button
-                    className="rounded-[999px] border px-5 py-3 text-[0.95rem] font-medium transition-all duration-200 hover:-translate-y-[1px]"
-                    style={secondaryVelvetButtonStyle}
+                    className="rounded-[999px] border px-5 py-3 text-[0.95rem] font-semibold transition-all duration-200 hover:-translate-y-[1px] hover:brightness-[1.03]"
+                    style={bronzeSoftButtonStyle}
                     disabled={!!checkoutBusy}
                     onClick={() => startPayPalCheckout("PAYG")}
                   >
@@ -533,8 +514,8 @@ return (
           >
             <Link href="/pricing">
               <Button
-                className="min-w-[220px] rounded-[999px] border px-7 py-3 text-[0.95rem] font-semibold transition-all duration-200 hover:-translate-y-[1px] hover:brightness-[1.03]"
-                style={primaryVelvetButtonStyle}
+                className="min-w-[300px] rounded-[999px] border px-7 py-3 text-[0.95rem] font-semibold transition-all duration-200 hover:-translate-y-[1px] hover:brightness-[1.03]"
+                style={dashboardButtonStyle}
               >
                 View full pricing
               </Button>
