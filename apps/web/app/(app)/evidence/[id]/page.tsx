@@ -989,14 +989,14 @@ export default function EvidenceDetailPage() {
   const outerCardStyle = useMemo(
     () =>
       ({
-        border: "1px solid rgba(183,157,132,0.18)",
+        border: "1px solid rgba(79,112,107,0.16)",
         boxShadow:
-          "0 22px 42px rgba(0,0,0,0.16), inset 0 1px 0 rgba(255,255,255,0.03)",
+          "0 18px 38px rgba(0,0,0,0.08), inset 0 1px 0 rgba(255,255,255,0.48)",
       }) as const,
     []
   );
 
-  const primaryButtonStyle = useMemo(
+  const heroPrimaryButtonStyle = useMemo(
     () =>
       ({
         borderColor: "rgba(158,216,207,0.14)",
@@ -1011,7 +1011,7 @@ export default function EvidenceDetailPage() {
     []
   );
 
-  const secondaryButtonStyle = useMemo(
+  const heroSecondaryButtonStyle = useMemo(
     () =>
       ({
         borderColor: "rgba(79,112,107,0.18)",
@@ -1028,17 +1028,50 @@ export default function EvidenceDetailPage() {
     []
   );
 
-  const dangerButtonStyle = useMemo(
+  const landingPrimaryButtonStyle = useMemo(
     () =>
       ({
-        borderColor: "rgba(220,120,120,0.22)",
-        color: "#f3d9d9",
+        borderColor: "rgba(79,112,107,0.22)",
+        color: "#eef3f1",
         background:
-          "linear-gradient(180deg, rgba(130,43,43,0.82) 0%, rgba(92,24,24,0.92) 100%)",
+          "linear-gradient(180deg, rgba(58,92,95,0.96) 0%, rgba(20,38,42,0.98) 100%)",
         boxShadow:
-          "inset 0 1px 0 rgba(255,255,255,0.03), 0 12px 24px rgba(60,12,12,0.22)",
-        backdropFilter: "blur(10px)",
-        WebkitBackdropFilter: "blur(10px)",
+          "inset 0 1px 0 rgba(255,255,255,0.08), 0 16px 34px rgba(18,40,44,0.22)",
+        textShadow: "0 1px 0 rgba(0,0,0,0.22)",
+        backdropFilter: "blur(6px)",
+        WebkitBackdropFilter: "blur(6px)",
+      }) as const,
+    []
+  );
+
+  const landingSecondaryButtonStyle = useMemo(
+    () =>
+      ({
+        borderColor: "rgba(79,112,107,0.12)",
+        color: "#24373b",
+        background:
+          "linear-gradient(180deg, rgba(250,251,249,0.82) 0%, rgba(241,244,241,0.96) 100%)",
+        boxShadow:
+          "0 10px 20px rgba(0,0,0,0.05), inset 0 1px 0 rgba(255,255,255,0.70)",
+        textShadow: "0 1px 0 rgba(255,255,255,0.30)",
+        backdropFilter: "blur(6px)",
+        WebkitBackdropFilter: "blur(6px)",
+      }) as const,
+    []
+  );
+
+  const landingDangerButtonStyle = useMemo(
+    () =>
+      ({
+        borderColor: "rgba(194,78,78,0.24)",
+        color: "#fff1f1",
+        background:
+          "linear-gradient(180deg, rgba(156,50,50,0.94) 0%, rgba(108,28,28,0.98) 100%)",
+        boxShadow:
+          "inset 0 1px 0 rgba(255,255,255,0.06), 0 14px 28px rgba(90,18,18,0.20)",
+        textShadow: "0 1px 0 rgba(0,0,0,0.22)",
+        backdropFilter: "blur(6px)",
+        WebkitBackdropFilter: "blur(6px)",
       }) as const,
     []
   );
@@ -1046,13 +1079,13 @@ export default function EvidenceDetailPage() {
   const softCardStyle = useMemo(
     () =>
       ({
-        border: "1px solid rgba(158,216,207,0.14)",
+        border: "1px solid rgba(79,112,107,0.10)",
         background:
-          "linear-gradient(180deg, rgba(62,98,96,0.22) 0%, rgba(14,30,34,0.34) 100%)",
+          "linear-gradient(180deg, rgba(255,255,255,0.58) 0%, rgba(243,245,242,0.90) 100%)",
         boxShadow:
-          "inset 0 1px 0 rgba(255,255,255,0.04), 0 14px 28px rgba(0,0,0,0.08)",
-        backdropFilter: "blur(10px)",
-        WebkitBackdropFilter: "blur(10px)",
+          "inset 0 1px 0 rgba(255,255,255,0.42), 0 12px 26px rgba(0,0,0,0.06)",
+        backdropFilter: "blur(8px)",
+        WebkitBackdropFilter: "blur(8px)",
       }) as const,
     []
   );
@@ -1143,15 +1176,15 @@ export default function EvidenceDetailPage() {
                     {label}
                   </h1>
 
-<Button
-  variant="secondary"
-  onClick={handleStartEditLabel}
-  disabled={loading || actionBusy || labelBusy || isDeleted}
-  className="proovra-velvet-primary rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
-  style={secondaryButtonStyle}
->
-  Edit Label
-</Button>
+                  <Button
+                    variant="secondary"
+                    onClick={handleStartEditLabel}
+                    disabled={loading || actionBusy || labelBusy || isDeleted}
+                    className="proovra-velvet-primary rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
+                    style={heroSecondaryButtonStyle}
+                  >
+                    Edit Label
+                  </Button>
                 </div>
               ) : (
                 <div
@@ -1185,8 +1218,8 @@ export default function EvidenceDetailPage() {
                   <Button
                     onClick={handleSaveLabel}
                     disabled={labelBusy}
-className="proovra-velvet-primary rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
-                    style={primaryButtonStyle}
+                    className="proovra-velvet-primary rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
+                    style={heroPrimaryButtonStyle}
                   >
                     {labelBusy ? "Saving..." : "Save"}
                   </Button>
@@ -1195,8 +1228,8 @@ className="proovra-velvet-primary rounded-[999px] border px-5 py-3 text-[0.92rem
                     variant="secondary"
                     onClick={handleCancelEditLabel}
                     disabled={labelBusy}
-className="proovra-velvet-primary rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
-                    style={secondaryButtonStyle}
+                    className="proovra-velvet-primary rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
+                    style={heroSecondaryButtonStyle}
                   >
                     Cancel
                   </Button>
@@ -1270,8 +1303,26 @@ className="proovra-velvet-primary rounded-[999px] border px-5 py-3 text-[0.92rem
         </div>
       </div>
 
-      <div className="app-body app-body-full">
-        <div className="container" style={{ paddingBottom: 72 }}>
+      <div
+        className="app-body app-body-full pt-8 md:pt-10"
+        style={{
+          position: "relative",
+          overflow: "hidden",
+          background:
+            "linear-gradient(180deg, rgba(239,241,238,0.96) 0%, rgba(234,237,234,0.98) 100%)",
+        }}
+      >
+        <div className="pointer-events-none absolute inset-0 z-0" aria-hidden="true">
+          <img
+            src="/images/landing-network-bg.png"
+            alt=""
+            className="absolute inset-0 h-full w-full object-cover object-top opacity-[0.12] saturate-[0.55] brightness-[1.02] contrast-[0.94]"
+          />
+          <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.08)_0%,rgba(255,255,255,0.03)_22%,rgba(255,255,255,0.03)_78%,rgba(255,255,255,0.08)_100%)]" />
+          <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(255,255,255,0.10)_0%,rgba(255,255,255,0.03)_12%,rgba(255,255,255,0.00)_24%,rgba(255,255,255,0.00)_76%,rgba(255,255,255,0.03)_88%,rgba(255,255,255,0.10)_100%)]" />
+        </div>
+
+        <div className="container relative z-10" style={{ paddingBottom: 72 }}>
           <div className="grid gap-5 lg:grid-cols-2">
             <Card
               className="relative overflow-hidden rounded-[30px] border bg-transparent p-0 shadow-none"
@@ -1279,65 +1330,64 @@ className="proovra-velvet-primary rounded-[999px] border px-5 py-3 text-[0.92rem
             >
               <div className="absolute inset-0">
                 <img
-                  src="/images/site-velvet-bg.webp.png"
+                  src="/images/panel-silver.webp.png"
                   alt=""
-                  className="h-full w-full object-cover object-center scale-[1.12]"
+                  className="h-full w-full object-cover object-center"
                 />
               </div>
-              <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(8,20,24,0.82)_0%,rgba(7,18,22,0.88)_100%)]" />
-              <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_14%,rgba(158,216,207,0.05),transparent_28%)]" />
-              <div className="absolute inset-0 bg-[radial-gradient(circle_at_86%_18%,rgba(214,184,157,0.04),transparent_24%)]" />
+              <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.24)_0%,rgba(248,249,246,0.34)_42%,rgba(239,241,238,0.42)_100%)]" />
+              <div className="absolute inset-0 bg-[radial-gradient(circle_at_16%_12%,rgba(255,255,255,0.34),transparent_28%)] opacity-90" />
 
               <div className="relative z-10 p-6 md:p-7">
-                <div className="text-[1.08rem] font-semibold tracking-[-0.02em] text-[#d8e0dd]">
+                <div className="text-[1.08rem] font-semibold tracking-[-0.02em] text-[#21353a]">
                   Record Summary
                 </div>
 
                 <div
                   className="mt-5 grid gap-4 sm:grid-cols-2"
-                  style={{ color: "rgba(194,204,201,0.82)" }}
+                  style={{ color: "#5d6d71" }}
                 >
                   <div>
-                    <div className="text-[12px] uppercase tracking-[0.14em] text-[#c2a07f]">
+                    <div className="text-[12px] uppercase tracking-[0.14em] text-[#9b826b]">
                       User Label
                     </div>
-                    <div className="mt-2 text-[0.96rem] leading-[1.75] text-[#d8e0dd]">
+                    <div className="mt-2 text-[0.96rem] leading-[1.75] text-[#23373b]">
                       {label}
                     </div>
                   </div>
 
                   <div>
-                    <div className="text-[12px] uppercase tracking-[0.14em] text-[#c2a07f]">
+                    <div className="text-[12px] uppercase tracking-[0.14em] text-[#9b826b]">
                       Original Submitted File
                     </div>
-                    <div className="mt-2 text-[0.96rem] leading-[1.75] text-[#d8e0dd]">
+                    <div className="mt-2 text-[0.96rem] leading-[1.75] text-[#23373b]">
                       {originalFileName || "Original filename not available"}
                     </div>
                   </div>
 
                   <div>
-                    <div className="text-[12px] uppercase tracking-[0.14em] text-[#c2a07f]">
+                    <div className="text-[12px] uppercase tracking-[0.14em] text-[#9b826b]">
                       Record ID
                     </div>
-                    <div className="mt-2 text-[0.96rem] leading-[1.75] text-[#d8e0dd] break-all">
+                    <div className="mt-2 break-all text-[0.96rem] leading-[1.75] text-[#23373b]">
                       {evidenceId}
                     </div>
                   </div>
 
                   <div>
-                    <div className="text-[12px] uppercase tracking-[0.14em] text-[#c2a07f]">
+                    <div className="text-[12px] uppercase tracking-[0.14em] text-[#9b826b]">
                       Evidence Type
                     </div>
-                    <div className="mt-2 text-[0.96rem] leading-[1.75] text-[#d8e0dd]">
+                    <div className="mt-2 text-[0.96rem] leading-[1.75] text-[#23373b]">
                       {getEvidenceTypeLabel(evidenceType)}
                     </div>
                   </div>
 
                   <div>
-                    <div className="text-[12px] uppercase tracking-[0.14em] text-[#c2a07f]">
+                    <div className="text-[12px] uppercase tracking-[0.14em] text-[#9b826b]">
                       Structure
                     </div>
-                    <div className="mt-2 text-[0.96rem] leading-[1.75] text-[#d8e0dd]">
+                    <div className="mt-2 text-[0.96rem] leading-[1.75] text-[#23373b]">
                       {isMultipart
                         ? `Multipart record (${sortedParts.length} items)`
                         : "Single-file record"}
@@ -1345,19 +1395,19 @@ className="proovra-velvet-primary rounded-[999px] border px-5 py-3 text-[0.92rem
                   </div>
 
                   <div>
-                    <div className="text-[12px] uppercase tracking-[0.14em] text-[#c2a07f]">
+                    <div className="text-[12px] uppercase tracking-[0.14em] text-[#9b826b]">
                       Case Assignment
                     </div>
-                    <div className="mt-2 text-[0.96rem] leading-[1.75] text-[#d8e0dd]">
+                    <div className="mt-2 text-[0.96rem] leading-[1.75] text-[#23373b]">
                       {caseId ? "Attached to case" : "Not assigned to any case"}
                     </div>
                   </div>
 
                   <div>
-                    <div className="text-[12px] uppercase tracking-[0.14em] text-[#c2a07f]">
+                    <div className="text-[12px] uppercase tracking-[0.14em] text-[#9b826b]">
                       Subscription Plan
                     </div>
-                    <div className="mt-2 text-[0.96rem] leading-[1.75] text-[#d8e0dd]">
+                    <div className="mt-2 text-[0.96rem] leading-[1.75] text-[#23373b]">
                       {plan}
                     </div>
                   </div>
@@ -1371,26 +1421,25 @@ className="proovra-velvet-primary rounded-[999px] border px-5 py-3 text-[0.92rem
             >
               <div className="absolute inset-0">
                 <img
-                  src="/images/site-velvet-bg.webp.png"
+                  src="/images/panel-silver.webp.png"
                   alt=""
-                  className="h-full w-full object-cover object-center scale-[1.12]"
+                  className="h-full w-full object-cover object-center"
                 />
               </div>
-              <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(8,20,24,0.82)_0%,rgba(7,18,22,0.88)_100%)]" />
-              <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_14%,rgba(158,216,207,0.05),transparent_28%)]" />
-              <div className="absolute inset-0 bg-[radial-gradient(circle_at_86%_18%,rgba(214,184,157,0.04),transparent_24%)]" />
+              <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.24)_0%,rgba(248,249,246,0.34)_42%,rgba(239,241,238,0.42)_100%)]" />
+              <div className="absolute inset-0 bg-[radial-gradient(circle_at_16%_12%,rgba(255,255,255,0.34),transparent_28%)] opacity-90" />
 
               <div className="relative z-10 p-6 md:p-7">
-                <div className="text-[1.08rem] font-semibold tracking-[-0.02em] text-[#d8e0dd]">
+                <div className="text-[1.08rem] font-semibold tracking-[-0.02em] text-[#21353a]">
                   Integrity & Legal Status
                 </div>
 
                 <div
                   className="mt-5 grid gap-4 sm:grid-cols-2"
-                  style={{ color: "rgba(194,204,201,0.82)" }}
+                  style={{ color: "#5d6d71" }}
                 >
                   <div>
-                    <div className="text-[12px] uppercase tracking-[0.14em] text-[#c2a07f]">
+                    <div className="text-[12px] uppercase tracking-[0.14em] text-[#9b826b]">
                       Current Status
                     </div>
                     <div
@@ -1427,55 +1476,55 @@ className="proovra-velvet-primary rounded-[999px] border px-5 py-3 text-[0.92rem
                   </div>
 
                   <div>
-                    <div className="text-[12px] uppercase tracking-[0.14em] text-[#c2a07f]">
+                    <div className="text-[12px] uppercase tracking-[0.14em] text-[#9b826b]">
                       Recorded At
                     </div>
-                    <div className="mt-2 text-[0.96rem] leading-[1.75] text-[#d8e0dd]">
+                    <div className="mt-2 text-[0.96rem] leading-[1.75] text-[#23373b]">
                       {formatUtcDateTime(createdAt)}
                     </div>
                   </div>
 
                   <div>
-                    <div className="text-[12px] uppercase tracking-[0.14em] text-[#c2a07f]">
+                    <div className="text-[12px] uppercase tracking-[0.14em] text-[#9b826b]">
                       Locked At
                     </div>
-                    <div className="mt-2 text-[0.96rem] leading-[1.75] text-[#d8e0dd]">
+                    <div className="mt-2 text-[0.96rem] leading-[1.75] text-[#23373b]">
                       {formatUtcDateTime(lockedAt)}
                     </div>
                   </div>
 
                   <div>
-                    <div className="text-[12px] uppercase tracking-[0.14em] text-[#c2a07f]">
+                    <div className="text-[12px] uppercase tracking-[0.14em] text-[#9b826b]">
                       Archived At
                     </div>
-                    <div className="mt-2 text-[0.96rem] leading-[1.75] text-[#d8e0dd]">
+                    <div className="mt-2 text-[0.96rem] leading-[1.75] text-[#23373b]">
                       {formatUtcDateTime(archivedAt)}
                     </div>
                   </div>
 
                   <div>
-                    <div className="text-[12px] uppercase tracking-[0.14em] text-[#c2a07f]">
+                    <div className="text-[12px] uppercase tracking-[0.14em] text-[#9b826b]">
                       Deleted At
                     </div>
-                    <div className="mt-2 text-[0.96rem] leading-[1.75] text-[#d8e0dd]">
+                    <div className="mt-2 text-[0.96rem] leading-[1.75] text-[#23373b]">
                       {formatUtcDateTime(deletedAt)}
                     </div>
                   </div>
 
                   <div>
-                    <div className="text-[12px] uppercase tracking-[0.14em] text-[#c2a07f]">
+                    <div className="text-[12px] uppercase tracking-[0.14em] text-[#9b826b]">
                       Permanent Deletion Date
                     </div>
-                    <div className="mt-2 text-[0.96rem] leading-[1.75] text-[#d8e0dd]">
+                    <div className="mt-2 text-[0.96rem] leading-[1.75] text-[#23373b]">
                       {formatUtcDateTime(deleteScheduledForUtc)}
                     </div>
                   </div>
 
                   <div className="sm:col-span-2">
-                    <div className="text-[12px] uppercase tracking-[0.14em] text-[#c2a07f]">
+                    <div className="text-[12px] uppercase tracking-[0.14em] text-[#9b826b]">
                       Legal State
                     </div>
-                    <div className="mt-2 text-[0.96rem] leading-[1.8] text-[#d8e0dd]">
+                    <div className="mt-2 text-[0.96rem] leading-[1.8] text-[#23373b]">
                       {isDeleted
                         ? "This record is currently in secure trash. It remains recoverable until the scheduled deletion date."
                         : isLocked
@@ -1488,11 +1537,11 @@ className="proovra-velvet-primary rounded-[999px] border px-5 py-3 text-[0.92rem
 
                   {isMultipart && (
                     <div className="sm:col-span-2">
-                      <div className="text-[12px] uppercase tracking-[0.14em] text-[#c2a07f]">
+                      <div className="text-[12px] uppercase tracking-[0.14em] text-[#9b826b]">
                         Contained Items
                       </div>
                       <div
-                        className="mt-2 text-[0.96rem] leading-[1.8] text-[#d8e0dd]"
+                        className="mt-2 text-[0.96rem] leading-[1.8] text-[#23373b]"
                         style={{ fontWeight: 500 }}
                       >
                         {partTypeSummary.imageCount > 0 && (
@@ -1524,17 +1573,16 @@ className="proovra-velvet-primary rounded-[999px] border px-5 py-3 text-[0.92rem
           >
             <div className="absolute inset-0">
               <img
-                src="/images/site-velvet-bg.webp.png"
+                src="/images/panel-silver.webp.png"
                 alt=""
-                className="h-full w-full object-cover object-center scale-[1.12]"
+                className="h-full w-full object-cover object-center"
               />
             </div>
-            <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(8,20,24,0.82)_0%,rgba(7,18,22,0.88)_100%)]" />
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_14%,rgba(158,216,207,0.05),transparent_28%)]" />
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_86%_18%,rgba(214,184,157,0.04),transparent_24%)]" />
+            <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.24)_0%,rgba(248,249,246,0.34)_42%,rgba(239,241,238,0.42)_100%)]" />
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_16%_12%,rgba(255,255,255,0.34),transparent_28%)] opacity-90" />
 
             <div className="relative z-10 p-6 md:p-7">
-              <div className="text-[1.08rem] font-semibold tracking-[-0.02em] text-[#d8e0dd]">
+              <div className="text-[1.08rem] font-semibold tracking-[-0.02em] text-[#21353a]">
                 Record Actions
               </div>
 
@@ -1545,7 +1593,7 @@ className="proovra-velvet-primary rounded-[999px] border px-5 py-3 text-[0.92rem
                   padding: 14,
                   borderRadius: 16,
                   ...softCardStyle,
-                  color: "rgba(194,204,201,0.78)",
+                  color: "#5d6d71",
                 }}
               >
                 Export, verify, assign, seal, archive, or manage this evidence
@@ -1556,8 +1604,8 @@ className="proovra-velvet-primary rounded-[999px] border px-5 py-3 text-[0.92rem
                 <Button
                   onClick={handleDownloadReport}
                   disabled={actionBusy || plan === "FREE" || isDeleted}
-className="proovra-velvet-primary rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
-                  style={primaryButtonStyle}
+                  className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
+                  style={landingPrimaryButtonStyle}
                 >
                   {t("downloadReport")}
                 </Button>
@@ -1566,8 +1614,8 @@ className="proovra-velvet-primary rounded-[999px] border px-5 py-3 text-[0.92rem
                   variant="secondary"
                   onClick={handleDownloadVerificationPackage}
                   disabled={actionBusy || !verificationPackageAvailable || isDeleted}
-className="proovra-velvet-primary rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
-                  style={secondaryButtonStyle}
+                  className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
+                  style={landingSecondaryButtonStyle}
                 >
                   Download Verification Package
                 </Button>
@@ -1576,8 +1624,8 @@ className="proovra-velvet-primary rounded-[999px] border px-5 py-3 text-[0.92rem
                   <Button
                     variant="secondary"
                     disabled={isDeleted}
-className="proovra-velvet-primary rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
-                    style={secondaryButtonStyle}
+                    className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
+                    style={landingSecondaryButtonStyle}
                   >
                     {t("shareLink")}
                   </Button>
@@ -1585,13 +1633,13 @@ className="proovra-velvet-primary rounded-[999px] border px-5 py-3 text-[0.92rem
               </div>
 
               {plan === "FREE" && (
-                <div style={{ fontSize: 12, color: "rgba(194,204,201,0.58)", marginTop: 10 }}>
+                <div style={{ fontSize: 12, color: "#6a777b", marginTop: 10 }}>
                   Reports are disabled on Free. Upgrade to access PDF reports.
                 </div>
               )}
 
               {!verificationPackageAvailable && (
-                <div style={{ fontSize: 12, color: "rgba(194,204,201,0.58)", marginTop: 10 }}>
+                <div style={{ fontSize: 12, color: "#6a777b", marginTop: 10 }}>
                   Verification package is not available yet.
                 </div>
               )}
@@ -1603,8 +1651,8 @@ className="proovra-velvet-primary rounded-[999px] border px-5 py-3 text-[0.92rem
                       variant="secondary"
                       onClick={handleOpenAssignCase}
                       disabled={actionBusy || ownedCases.length === 0}
-className="proovra-velvet-primary rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
-                      style={secondaryButtonStyle}
+                      className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
+                      style={landingSecondaryButtonStyle}
                     >
                       {caseId ? "Move to Case" : "Add to Case"}
                     </Button>
@@ -1614,8 +1662,8 @@ className="proovra-velvet-primary rounded-[999px] border px-5 py-3 text-[0.92rem
                         variant="secondary"
                         onClick={handleRemoveFromCase}
                         disabled={actionBusy}
-className="proovra-velvet-primary rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
-                        style={secondaryButtonStyle}
+                        className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
+                        style={landingSecondaryButtonStyle}
                       >
                         Remove from Case
                       </Button>
@@ -1628,8 +1676,8 @@ className="proovra-velvet-primary rounded-[999px] border px-5 py-3 text-[0.92rem
                         Boolean(lockedAt) ||
                         !(status === "SIGNED" || status === "REPORTED")
                       }
-className="proovra-velvet-primary rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
-                      style={lockedAt ? secondaryButtonStyle : dangerButtonStyle}
+                      className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
+                      style={lockedAt ? landingSecondaryButtonStyle : landingDangerButtonStyle}
                     >
                       {lockedAt
                         ? "Permanently Locked"
@@ -1637,7 +1685,7 @@ className="proovra-velvet-primary rounded-[999px] border px-5 py-3 text-[0.92rem
                     </Button>
 
                     {lockedAt && (
-                      <div style={{ fontSize: 12, color: "rgba(194,204,201,0.64)", padding: "8px 0" }}>
+                      <div style={{ fontSize: 12, color: "#6a777b", padding: "8px 0" }}>
                         ✓ This record is legally sealed and can no longer be edited.
                       </div>
                     )}
@@ -1648,15 +1696,15 @@ className="proovra-velvet-primary rounded-[999px] border px-5 py-3 text-[0.92rem
                           variant="secondary"
                           onClick={handleUnarchive}
                           disabled={actionBusy}
-className="proovra-velvet-primary rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
-                          style={secondaryButtonStyle}
+                          className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
+                          style={landingSecondaryButtonStyle}
                         >
                           Restore Evidence
                         </Button>
                         <div
                           style={{
                             fontSize: 12,
-                            color: "rgba(194,204,201,0.64)",
+                            color: "#6a777b",
                             padding: "8px 0",
                           }}
                         >
@@ -1670,15 +1718,15 @@ className="proovra-velvet-primary rounded-[999px] border px-5 py-3 text-[0.92rem
                           variant="secondary"
                           onClick={handleArchive}
                           disabled={actionBusy}
-className="proovra-velvet-primary rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
-                          style={secondaryButtonStyle}
+                          className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
+                          style={landingSecondaryButtonStyle}
                         >
                           Archive Evidence
                         </Button>
                         <div
                           style={{
                             fontSize: 12,
-                            color: "rgba(194,204,201,0.58)",
+                            color: "#6a777b",
                             padding: "8px 0",
                           }}
                         >
@@ -1691,8 +1739,8 @@ className="proovra-velvet-primary rounded-[999px] border px-5 py-3 text-[0.92rem
                     <Button
                       onClick={handleDelete}
                       disabled={actionBusy || !canDelete}
-className="proovra-velvet-primary rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
-                      style={canDelete ? dangerButtonStyle : secondaryButtonStyle}
+                      className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
+                      style={canDelete ? landingDangerButtonStyle : landingSecondaryButtonStyle}
                     >
                       Delete Evidence
                     </Button>
@@ -1704,7 +1752,7 @@ className="proovra-velvet-primary rounded-[999px] border px-5 py-3 text-[0.92rem
                         background:
                           "linear-gradient(135deg, rgba(214,184,157,0.10), rgba(214,184,157,0.04))",
                         border: "1px solid rgba(214,184,157,0.14)",
-                        color: "rgba(230,201,174,0.92)",
+                        color: "#8f735a",
                       }}
                     >
                       <strong>Trash retention:</strong> When moved to trash, this
@@ -1719,12 +1767,12 @@ className="proovra-velvet-primary rounded-[999px] border px-5 py-3 text-[0.92rem
                       variant="secondary"
                       onClick={handleRestoreDeleted}
                       disabled={actionBusy}
-                      className="proovra-velvet-primary rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
-                      style={secondaryButtonStyle}
+                      className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
+                      style={landingSecondaryButtonStyle}
                     >
                       Restore from Trash
                     </Button>
-                    <div style={{ fontSize: 12, color: "rgba(194,204,201,0.64)", padding: "8px 0" }}>
+                    <div style={{ fontSize: 12, color: "#6a777b", padding: "8px 0" }}>
                       This record is in secure trash and can be restored until{" "}
                       {formatUtcDateTime(deleteScheduledForUtc)}.
                     </div>
@@ -1745,17 +1793,16 @@ className="proovra-velvet-primary rounded-[999px] border px-5 py-3 text-[0.92rem
             >
               <div className="absolute inset-0">
                 <img
-                  src="/images/site-velvet-bg.webp.png"
+                  src="/images/panel-silver.webp.png"
                   alt=""
-                  className="h-full w-full object-cover object-center scale-[1.12]"
+                  className="h-full w-full object-cover object-center"
                 />
               </div>
-              <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(8,20,24,0.82)_0%,rgba(7,18,22,0.88)_100%)]" />
-              <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_14%,rgba(158,216,207,0.05),transparent_28%)]" />
-              <div className="absolute inset-0 bg-[radial-gradient(circle_at_86%_18%,rgba(214,184,157,0.04),transparent_24%)]" />
+              <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.24)_0%,rgba(248,249,246,0.34)_42%,rgba(239,241,238,0.42)_100%)]" />
+              <div className="absolute inset-0 bg-[radial-gradient(circle_at_16%_12%,rgba(255,255,255,0.34),transparent_28%)] opacity-90" />
 
               <div className="relative z-10 p-6 md:p-7">
-                <div className="text-[1.08rem] font-semibold tracking-[-0.02em] text-[#d8e0dd]">
+                <div className="text-[1.08rem] font-semibold tracking-[-0.02em] text-[#21353a]">
                   {isMultipart ? "Original Evidence Materials" : "Original Evidence"}
                 </div>
 
@@ -1768,7 +1815,7 @@ className="proovra-velvet-primary rounded-[999px] border px-5 py-3 text-[0.92rem
                         padding: 14,
                         borderRadius: 16,
                         ...softCardStyle,
-                        color: "rgba(194,204,201,0.78)",
+                        color: "#5d6d71",
                       }}
                     >
                       This record contains <strong>{sortedParts.length}</strong>{" "}
@@ -1803,14 +1850,14 @@ className="proovra-velvet-primary rounded-[999px] border px-5 py-3 text-[0.92rem
                               }}
                             >
                               <div>
-                                <div style={{ fontWeight: 800, color: "#d8e0dd" }}>
+                                <div style={{ fontWeight: 800, color: "#23373b" }}>
                                   Item {part.partIndex + 1}
                                   {part.isPrimary ? " (Primary)" : ""}
                                 </div>
                                 <div
                                   style={{
                                     fontSize: 13,
-                                    color: "rgba(194,204,201,0.60)",
+                                    color: "#6a777b",
                                     marginTop: 4,
                                   }}
                                 >
@@ -1827,7 +1874,7 @@ className="proovra-velvet-primary rounded-[999px] border px-5 py-3 text-[0.92rem
                                   onClick={() => handleOpenPart(part)}
                                   disabled={!downloadUrl || isDeleted}
                                   className="rounded-[999px] border px-4 py-2.5 text-[0.88rem] font-semibold"
-                                  style={secondaryButtonStyle}
+                                  style={landingSecondaryButtonStyle}
                                 >
                                   Open
                                 </Button>
@@ -1836,7 +1883,7 @@ className="proovra-velvet-primary rounded-[999px] border px-5 py-3 text-[0.92rem
                                   onClick={() => handleDownloadPart(part)}
                                   disabled={!downloadUrl || isDeleted}
                                   className="rounded-[999px] border px-4 py-2.5 text-[0.88rem] font-semibold"
-                                  style={secondaryButtonStyle}
+                                  style={landingSecondaryButtonStyle}
                                 >
                                   Download
                                 </Button>
@@ -1849,7 +1896,7 @@ className="proovra-velvet-primary rounded-[999px] border px-5 py-3 text-[0.92rem
                                 gap: 6,
                                 marginTop: 12,
                                 marginBottom: 14,
-                                color: "rgba(194,204,201,0.72)",
+                                color: "#6a777b",
                                 fontSize: 13,
                               }}
                             >
@@ -1866,7 +1913,7 @@ className="proovra-velvet-primary rounded-[999px] border px-5 py-3 text-[0.92rem
                                 style={{
                                   width: "100%",
                                   borderRadius: 16,
-                                  border: "1px solid rgba(255,255,255,0.08)",
+                                  border: "1px solid rgba(79,112,107,0.10)",
                                 }}
                               />
                             )}
@@ -1880,7 +1927,7 @@ className="proovra-velvet-primary rounded-[999px] border px-5 py-3 text-[0.92rem
                                 style={{
                                   width: "100%",
                                   borderRadius: 16,
-                                  border: "1px solid rgba(255,255,255,0.08)",
+                                  border: "1px solid rgba(79,112,107,0.10)",
                                 }}
                               />
                             )}
@@ -1890,8 +1937,8 @@ className="proovra-velvet-primary rounded-[999px] border px-5 py-3 text-[0.92rem
                                 style={{
                                   padding: 14,
                                   borderRadius: 14,
-                                  background: "rgba(255,255,255,0.03)",
-                                  border: "1px solid rgba(255,255,255,0.06)",
+                                  background: "rgba(255,255,255,0.42)",
+                                  border: "1px solid rgba(79,112,107,0.08)",
                                 }}
                               >
                                 <audio
@@ -1912,7 +1959,7 @@ className="proovra-velvet-primary rounded-[999px] border px-5 py-3 text-[0.92rem
                                     width: "100%",
                                     minHeight: 520,
                                     borderRadius: 16,
-                                    border: "1px solid rgba(255,255,255,0.08)",
+                                    border: "1px solid rgba(79,112,107,0.10)",
                                     background: "#fff",
                                   }}
                                 />
@@ -1924,9 +1971,9 @@ className="proovra-velvet-primary rounded-[999px] border px-5 py-3 text-[0.92rem
                                 style={{
                                   padding: 12,
                                   borderRadius: 14,
-                                  background: "rgba(255,255,255,0.04)",
-                                  border: "1px solid rgba(255,255,255,0.06)",
-                                  color: "rgba(194,204,201,0.72)",
+                                  background: "rgba(255,255,255,0.42)",
+                                  border: "1px solid rgba(79,112,107,0.08)",
+                                  color: "#6a777b",
                                 }}
                               >
                                 Preview is not available for this item right now.
@@ -1938,9 +1985,9 @@ className="proovra-velvet-primary rounded-[999px] border px-5 py-3 text-[0.92rem
                                 style={{
                                   padding: 12,
                                   borderRadius: 14,
-                                  background: "rgba(255,255,255,0.04)",
-                                  border: "1px solid rgba(255,255,255,0.06)",
-                                  color: "rgba(194,204,201,0.72)",
+                                  background: "rgba(255,255,255,0.42)",
+                                  border: "1px solid rgba(79,112,107,0.08)",
+                                  color: "#6a777b",
                                 }}
                               >
                                 Preview is not available inside the page for this
@@ -1960,7 +2007,7 @@ className="proovra-velvet-primary rounded-[999px] border px-5 py-3 text-[0.92rem
                           borderRadius: 14,
                           background: "rgba(239,68,68,0.08)",
                           border: "1px solid rgba(239,68,68,0.10)",
-                          color: "#fecaca",
+                          color: "#b42318",
                         }}
                       >
                         Failed to load evidence parts.
@@ -1976,7 +2023,7 @@ className="proovra-velvet-primary rounded-[999px] border px-5 py-3 text-[0.92rem
                         padding: 14,
                         borderRadius: 16,
                         ...softCardStyle,
-                        color: "rgba(194,204,201,0.78)",
+                        color: "#5d6d71",
                       }}
                     >
                       Original submitted evidence file. This file is preserved as
@@ -1988,7 +2035,7 @@ className="proovra-velvet-primary rounded-[999px] border px-5 py-3 text-[0.92rem
                         marginBottom: 14,
                         display: "grid",
                         gap: 6,
-                        color: "rgba(194,204,201,0.72)",
+                        color: "#6a777b",
                         fontSize: 13,
                       }}
                     >
@@ -2011,8 +2058,8 @@ className="proovra-velvet-primary rounded-[999px] border px-5 py-3 text-[0.92rem
                         variant="secondary"
                         onClick={handleOpenOriginal}
                         disabled={!originalDownloadUrl || isDeleted}
-className="proovra-velvet-primary rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
-                        style={secondaryButtonStyle}
+                        className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
+                        style={landingSecondaryButtonStyle}
                       >
                         Open Original
                       </Button>
@@ -2021,8 +2068,8 @@ className="proovra-velvet-primary rounded-[999px] border px-5 py-3 text-[0.92rem
                         variant="secondary"
                         onClick={handleDownloadOriginal}
                         disabled={!originalDownloadUrl || isDeleted}
-className="proovra-velvet-primary rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
-                        style={secondaryButtonStyle}
+                        className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
+                        style={landingSecondaryButtonStyle}
                       >
                         Download Original
                       </Button>
@@ -2037,7 +2084,7 @@ className="proovra-velvet-primary rounded-[999px] border px-5 py-3 text-[0.92rem
                           style={{
                             width: "100%",
                             borderRadius: 16,
-                            border: "1px solid rgba(255,255,255,0.08)",
+                            border: "1px solid rgba(79,112,107,0.10)",
                           }}
                         />
                       </div>
@@ -2053,7 +2100,7 @@ className="proovra-velvet-primary rounded-[999px] border px-5 py-3 text-[0.92rem
                           style={{
                             width: "100%",
                             borderRadius: 16,
-                            border: "1px solid rgba(255,255,255,0.08)",
+                            border: "1px solid rgba(79,112,107,0.10)",
                           }}
                         />
                       </div>
@@ -2065,8 +2112,8 @@ className="proovra-velvet-primary rounded-[999px] border px-5 py-3 text-[0.92rem
                           marginBottom: 12,
                           padding: 14,
                           borderRadius: 14,
-                          background: "rgba(255,255,255,0.03)",
-                          border: "1px solid rgba(255,255,255,0.06)",
+                          background: "rgba(255,255,255,0.42)",
+                          border: "1px solid rgba(79,112,107,0.08)",
                         }}
                       >
                         <audio
@@ -2087,7 +2134,7 @@ className="proovra-velvet-primary rounded-[999px] border px-5 py-3 text-[0.92rem
                             width: "100%",
                             minHeight: 620,
                             borderRadius: 16,
-                            border: "1px solid rgba(255,255,255,0.08)",
+                            border: "1px solid rgba(79,112,107,0.10)",
                             background: "#fff",
                           }}
                         />
@@ -2101,9 +2148,9 @@ className="proovra-velvet-primary rounded-[999px] border px-5 py-3 text-[0.92rem
                             marginBottom: 12,
                             padding: 12,
                             borderRadius: 14,
-                            background: "rgba(255,255,255,0.04)",
-                            border: "1px solid rgba(255,255,255,0.06)",
-                            color: "rgba(194,204,201,0.72)",
+                            background: "rgba(255,255,255,0.42)",
+                            border: "1px solid rgba(79,112,107,0.08)",
+                            color: "#6a777b",
                           }}
                         >
                           <div style={{ marginBottom: 8 }}>
@@ -2119,9 +2166,9 @@ className="proovra-velvet-primary rounded-[999px] border px-5 py-3 text-[0.92rem
                         style={{
                           padding: 12,
                           borderRadius: 14,
-                          background: "rgba(255,255,255,0.04)",
-                          border: "1px solid rgba(255,255,255,0.06)",
-                          color: "rgba(194,204,201,0.72)",
+                          background: "rgba(255,255,255,0.42)",
+                          border: "1px solid rgba(79,112,107,0.08)",
+                          color: "#6a777b",
                         }}
                       >
                         The original submitted file is currently unavailable for
@@ -2146,16 +2193,16 @@ className="proovra-velvet-primary rounded-[999px] border px-5 py-3 text-[0.92rem
               variant="secondary"
               onClick={() => setAssignCaseModalOpen(false)}
               disabled={actionBusy}
-className="proovra-velvet-primary rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
-              style={secondaryButtonStyle}
+              className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
+              style={landingSecondaryButtonStyle}
             >
               Cancel
             </Button>
             <Button
               onClick={handleConfirmAssignCase}
               disabled={actionBusy || !selectedCaseId}
-className="proovra-velvet-primary rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
-              style={primaryButtonStyle}
+              className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
+              style={landingPrimaryButtonStyle}
             >
               {actionBusy ? "Saving..." : caseId ? "Move" : "Add"}
             </Button>
@@ -2199,16 +2246,16 @@ className="proovra-velvet-primary rounded-[999px] border px-5 py-3 text-[0.92rem
               variant="secondary"
               onClick={() => setLockModalOpen(false)}
               disabled={actionBusy}
-className="proovra-velvet-primary rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
-              style={secondaryButtonStyle}
+              className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
+              style={landingSecondaryButtonStyle}
             >
               Cancel
             </Button>
             <Button
               onClick={handleConfirmLock}
               disabled={actionBusy}
-className="proovra-velvet-primary rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
-              style={dangerButtonStyle}
+              className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
+              style={landingDangerButtonStyle}
             >
               {actionBusy ? "Locking..." : "Lock permanently"}
             </Button>
@@ -2237,16 +2284,16 @@ className="proovra-velvet-primary rounded-[999px] border px-5 py-3 text-[0.92rem
               variant="secondary"
               onClick={() => setArchiveModalOpen(false)}
               disabled={actionBusy}
-className="proovra-velvet-primary rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
-              style={secondaryButtonStyle}
+              className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
+              style={landingSecondaryButtonStyle}
             >
               Cancel
             </Button>
             <Button
               onClick={handleConfirmArchive}
               disabled={actionBusy}
-className="proovra-velvet-primary rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
-              style={primaryButtonStyle}
+              className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
+              style={landingPrimaryButtonStyle}
             >
               {actionBusy ? "Archiving..." : "Archive"}
             </Button>
@@ -2273,16 +2320,16 @@ className="proovra-velvet-primary rounded-[999px] border px-5 py-3 text-[0.92rem
               variant="secondary"
               onClick={() => setDeleteModalOpen(false)}
               disabled={actionBusy}
-className="proovra-velvet-primary rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
-              style={secondaryButtonStyle}
+              className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
+              style={landingSecondaryButtonStyle}
             >
               Cancel
             </Button>
             <Button
               onClick={handleConfirmDelete}
               disabled={actionBusy}
-className="proovra-velvet-primary rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
-              style={dangerButtonStyle}
+              className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
+              style={landingDangerButtonStyle}
             >
               {actionBusy ? "Deleting..." : "Delete Evidence"}
             </Button>

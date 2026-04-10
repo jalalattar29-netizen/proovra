@@ -62,16 +62,16 @@ export default function HomePage() {
       .finally(() => setLoading(false));
   }, [addToast]);
 
-const primaryActionButtonStyle = useMemo(
+const velvetGreenButtonStyle = useMemo(
   () =>
     ({
-      borderColor: "rgba(79,112,107,0.22)",
-      color: "#eef3f1",
+      borderColor: "rgba(58,92,95,0.55)",
+      color: "#e6f1ee",
       background:
-        "linear-gradient(180deg, rgba(58,92,95,0.96) 0%, rgba(20,38,42,0.98) 100%)",
+        "linear-gradient(180deg, rgba(44,74,72,0.95) 0%, rgba(20,38,42,0.98) 100%)",
       boxShadow:
-        "inset 0 1px 0 rgba(255,255,255,0.08), 0 16px 34px rgba(18,40,44,0.22)",
-      textShadow: "0 1px 0 rgba(0,0,0,0.22)",
+        "inset 0 1px 0 rgba(255,255,255,0.08), 0 16px 34px rgba(12,30,32,0.35)",
+      textShadow: "0 1px 0 rgba(0,0,0,0.35)",
       backdropFilter: "blur(6px)",
       WebkitBackdropFilter: "blur(6px)",
     }) as const,
@@ -193,7 +193,7 @@ const actionButtonStyle = useMemo(
             <Link href="/capture">
               <Button
                 className="min-w-[198px] rounded-[999px] border px-7 py-3 text-[0.95rem] font-semibold transition-all duration-200 hover:-translate-y-[1px] hover:brightness-[1.03]"
-                style={primaryActionButtonStyle}
+                style={velvetGreenButtonStyle}
               >
                 Capture Evidence
               </Button>
@@ -273,7 +273,7 @@ className="relative overflow-hidden px-6 pt-8 pb-12 md:px-8 md:pt-10 md:pb-16"
                         <Link href="/capture">
                           <Button
                             className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
-                            style={primaryActionButtonStyle}
+                            style={velvetGreenButtonStyle}
                           >
                             {t("ctaCapture")}
                           </Button>

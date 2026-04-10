@@ -154,22 +154,22 @@ export default function BillingPage() {
     []
   );
 
-const heroPricingButtonStyle = useMemo(
+const velvetGreenButtonStyle = useMemo(
   () =>
     ({
-      borderColor: "rgba(79,112,107,0.16)",
-      color: "#24373b",
+      borderColor: "rgba(58,92,95,0.55)",
+      color: "#e6f1ee",
       background:
-        "linear-gradient(180deg, rgba(255,255,255,0.88) 0%, rgba(241,244,241,0.96) 100%)",
+        "linear-gradient(180deg, rgba(44,74,72,0.95) 0%, rgba(20,38,42,0.98) 100%)",
       boxShadow:
-        "0 10px 22px rgba(0,0,0,0.06), inset 0 1px 0 rgba(255,255,255,0.72)",
-      textShadow: "0 1px 0 rgba(255,255,255,0.34)",
+        "inset 0 1px 0 rgba(255,255,255,0.08), 0 16px 34px rgba(12,30,32,0.35)",
+      textShadow: "0 1px 0 rgba(0,0,0,0.35)",
       backdropFilter: "blur(6px)",
       WebkitBackdropFilter: "blur(6px)",
     }) as const,
   []
 );
-
+  
   const loadingCardStyle = useMemo(
     () =>
       ({
@@ -329,7 +329,7 @@ const heroPricingButtonStyle = useMemo(
     <Link href="/pricing">
       <Button
         className="min-w-[220px] rounded-[999px] border px-6 py-3 text-[0.92rem] font-semibold transition-all duration-200 hover:-translate-y-[1px] hover:brightness-[1.03]"
-        style={heroPricingButtonStyle}
+        style={velvetGreenButtonStyle}
       >
         View full pricing
       </Button>
@@ -339,16 +339,17 @@ const heroPricingButtonStyle = useMemo(
         </div>
       </div>
 
-      <div
-        className="app-body app-body-full billing-page-shell"
-        style={{
-          position: "relative",
-          overflow: "hidden",
-          background:
-            "linear-gradient(180deg, rgba(239,241,238,0.96) 0%, rgba(234,237,234,0.98) 100%)",
-        }}
-      >
-        <div className="pointer-events-none absolute inset-0 z-0" aria-hidden="true">
+<div
+  className="app-body app-body-full billing-page-shell"
+  style={{
+    position: "relative",
+    overflow: "hidden",
+    background:
+      "linear-gradient(180deg, rgba(239,241,238,0.96) 0%, rgba(234,237,234,0.98) 100%)",
+    paddingTop: 40,
+  }}
+>
+          <div className="pointer-events-none absolute inset-0 z-0" aria-hidden="true">
           <img
             src="/images/landing-network-bg.png"
             alt=""
