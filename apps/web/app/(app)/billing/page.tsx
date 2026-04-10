@@ -108,35 +108,37 @@ export default function BillingPage() {
     []
   );
 
-  const primaryVelvetButtonStyle = useMemo(
-    () =>
-      ({
-        borderColor: "rgba(79,112,107,0.14)",
-        color: "#21353a",
-        background:
-          "linear-gradient(180deg, rgba(255,255,255,0.72) 0%, rgba(244,246,244,0.92) 100%)",
-        boxShadow:
-          "0 10px 22px rgba(0,0,0,0.06), inset 0 1px 0 rgba(255,255,255,0.65)",
-        backdropFilter: "blur(6px)",
-        WebkitBackdropFilter: "blur(6px)",
-      }) as const,
-    []
-  );
+const primaryVelvetButtonStyle = useMemo(
+  () =>
+    ({
+      borderColor: "rgba(79,112,107,0.14)",
+      color: "#1e3237",
+      background:
+        "linear-gradient(180deg, rgba(255,255,255,0.82) 0%, rgba(242,245,242,0.96) 100%)",
+      boxShadow:
+        "0 10px 22px rgba(0,0,0,0.06), inset 0 1px 0 rgba(255,255,255,0.72)",
+      backdropFilter: "blur(6px)",
+      WebkitBackdropFilter: "blur(6px)",
+      textShadow: "0 1px 0 rgba(255,255,255,0.35)",
+    }) as const,
+  []
+);
 
-  const secondaryVelvetButtonStyle = useMemo(
-    () =>
-      ({
-        borderColor: "rgba(79,112,107,0.16)",
-        color: "#2a3b40",
-        background:
-          "linear-gradient(180deg, rgba(248,249,246,0.64) 0%, rgba(236,239,236,0.84) 100%)",
-        boxShadow:
-          "0 10px 20px rgba(0,0,0,0.05), inset 0 1px 0 rgba(255,255,255,0.55)",
-        backdropFilter: "blur(6px)",
-        WebkitBackdropFilter: "blur(6px)",
-      }) as const,
-    []
-  );
+const secondaryVelvetButtonStyle = useMemo(
+  () =>
+    ({
+      borderColor: "rgba(183,157,132,0.18)",
+      color: "#5f4c3d",
+      background:
+        "linear-gradient(180deg, rgba(250,249,246,0.74) 0%, rgba(239,236,232,0.92) 100%)",
+      boxShadow:
+        "0 10px 20px rgba(0,0,0,0.05), inset 0 1px 0 rgba(255,255,255,0.62)",
+      backdropFilter: "blur(6px)",
+      WebkitBackdropFilter: "blur(6px)",
+      textShadow: "0 1px 0 rgba(255,255,255,0.28)",
+    }) as const,
+  []
+);
 
   const innerVelvetCardStyle = useMemo(
     () =>
@@ -216,9 +218,27 @@ export default function BillingPage() {
     );
   };
 
-  return (
-    <div className="section app-section">
-      <style jsx global>{`
+return (
+  <div
+    className="section app-section"
+    style={{
+      background:
+        "linear-gradient(180deg, rgba(241,243,240,0.76) 0%, rgba(236,239,236,0.92) 100%)",
+      position: "relative",
+      overflow: "hidden",
+    }}
+  >
+    <div className="absolute inset-0 pointer-events-none">
+  <img
+    src="/images/landing-network-bg.png"
+    alt=""
+    className="absolute inset-0 h-full w-full object-cover object-top opacity-[0.10] saturate-[0.55] brightness-[1.02] contrast-[0.94]"
+  />
+  <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.14)_0%,rgba(255,255,255,0.06)_24%,rgba(255,255,255,0.06)_76%,rgba(255,255,255,0.14)_100%)]" />
+  <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(255,255,255,0.12)_0%,rgba(255,255,255,0.03)_12%,rgba(255,255,255,0)_24%,rgba(255,255,255,0)_76%,rgba(255,255,255,0.03)_88%,rgba(255,255,255,0.12)_100%)]" />
+</div>
+
+          <style jsx global>{`
         .billing-page-shell .btn:disabled {
           opacity: 0.58 !important;
           cursor: not-allowed;
@@ -226,8 +246,8 @@ export default function BillingPage() {
         }
       `}</style>
 
-      <div className="app-hero app-hero-full">
-        <div className="container">
+<div className="app-hero app-hero-full relative z-10">
+          <div className="container">
           <div className="page-title app-page-title" style={{ marginBottom: 0 }}>
             <div style={{ maxWidth: 780 }}>
               <div
@@ -295,8 +315,8 @@ export default function BillingPage() {
         </div>
       </div>
 
-      <div className="app-body app-body-full billing-page-shell">
-        <div
+<div className="app-body app-body-full billing-page-shell relative z-10">
+          <div
           className="container"
           style={{
             display: "grid",
