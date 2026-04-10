@@ -66,9 +66,12 @@ export default function HomePage() {
     () =>
       ({
         borderColor: "rgba(158,216,207,0.14)",
-        color: "#d7e0dd",
-        background:
-          "linear-gradient(180deg, rgba(62,98,96,0.26) 0%, rgba(14,30,34,0.38) 100%)",
+        color: "#cfd8d5",
+        backgroundImage:
+          'linear-gradient(180deg, rgba(10,24,28,0.34) 0%, rgba(6,16,20,0.42) 100%), url("/images/site-velvet-bg.webp.png")',
+        backgroundPosition: "center, top right",
+        backgroundSize: "100% 100%, 220% 220%",
+        backgroundRepeat: "no-repeat, no-repeat",
         boxShadow:
           "inset 0 1px 0 rgba(255,255,255,0.04), 0 14px 28px rgba(0,0,0,0.08)",
         backdropFilter: "blur(10px)",
@@ -81,9 +84,12 @@ export default function HomePage() {
     () =>
       ({
         borderColor: "rgba(158,216,207,0.14)",
-        color: "#d7e0dd",
-        background:
-          "linear-gradient(180deg, rgba(62,98,96,0.26) 0%, rgba(14,30,34,0.38) 100%)",
+        color: "#cfd8d5",
+        backgroundImage:
+          'linear-gradient(180deg, rgba(10,24,28,0.34) 0%, rgba(6,16,20,0.42) 100%), url("/images/site-velvet-bg.webp.png")',
+        backgroundPosition: "center, top right",
+        backgroundSize: "100% 100%, 220% 220%",
+        backgroundRepeat: "no-repeat, no-repeat",
         boxShadow:
           "inset 0 1px 0 rgba(255,255,255,0.04), 0 14px 28px rgba(0,0,0,0.08)",
         backdropFilter: "blur(10px)",
@@ -96,8 +102,11 @@ export default function HomePage() {
     () =>
       ({
         border: "1px solid rgba(158,216,207,0.14)",
-        background:
-          "linear-gradient(180deg, rgba(62,98,96,0.26) 0%, rgba(14,30,34,0.38) 100%)",
+        backgroundImage:
+          'linear-gradient(180deg, rgba(10,24,28,0.34) 0%, rgba(6,16,20,0.42) 100%), url("/images/site-velvet-bg.webp.png")',
+        backgroundPosition: "center, top right",
+        backgroundSize: "100% 100%, 220% 220%",
+        backgroundRepeat: "no-repeat, no-repeat",
         boxShadow:
           "inset 0 1px 0 rgba(255,255,255,0.04), 0 14px 28px rgba(0,0,0,0.08)",
         backdropFilter: "blur(10px)",
@@ -261,7 +270,7 @@ export default function HomePage() {
                     items.map((item) => {
                       const row = (
                         <div
-                          className="rounded-[24px] p-1 transition-all duration-200 hover:-translate-y-[1px]"
+                          className="rounded-[24px] p-1 transition-all duration-200 hover:-translate-y-[1px] home-evidence-velvet-row"
                           style={evidenceVelvetCardStyle}
                         >
                           <ListRow
@@ -409,6 +418,24 @@ export default function HomePage() {
           </div>
         </div>
       </section>
+
+      <style jsx global>{`
+        .home-page-shell .home-evidence-velvet-row .evidence-row-pro__title {
+          color: #cfd8d5 !important;
+        }
+
+        .home-page-shell .home-evidence-velvet-row .evidence-row-pro__subtitle {
+          color: rgba(198, 208, 205, 0.72) !important;
+        }
+
+        .home-page-shell .home-evidence-velvet-row .evidence-row-pro__icon-text {
+          color: #d2dbd8 !important;
+        }
+
+        .home-page-shell .home-evidence-velvet-row .evidence-row-pro__arrow {
+          color: rgba(198, 208, 205, 0.34) !important;
+        }
+      `}</style>
     </div>
   );
 }
