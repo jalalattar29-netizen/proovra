@@ -868,6 +868,10 @@ export default function TeamDetailPage() {
   return (
     <div className="section app-section teams-detail-page-shell">
 <style jsx global>{`
+  .teams-detail-page-shell .container {
+    max-width: 1360px !important;
+  }
+
   .teams-detail-page-shell .team-field,
   .teams-detail-page-shell .team-select {
     width: 100%;
@@ -925,20 +929,20 @@ export default function TeamDetailPage() {
 
   .teams-detail-page-shell .team-section-spacer {
     display: grid;
-    gap: 24px;
+    gap: 28px;
   }
 
   .teams-detail-page-shell .team-main-grid {
     display: grid;
-    grid-template-columns: minmax(0, 1.18fr) minmax(0, 0.82fr);
-    gap: 24px;
+    grid-template-columns: minmax(0, 1.34fr) minmax(360px, 0.9fr);
+    gap: 28px;
     align-items: stretch;
   }
 
   .teams-detail-page-shell .team-secondary-grid {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-    gap: 24px;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 28px;
     align-items: stretch;
   }
 
@@ -946,6 +950,7 @@ export default function TeamDetailPage() {
   .teams-detail-page-shell .team-secondary-grid > .team-card,
   .teams-detail-page-shell .team-section-spacer > .team-card {
     height: 100%;
+    min-height: 0 !important;
   }
 
   .teams-detail-page-shell .team-card {
@@ -958,13 +963,13 @@ export default function TeamDetailPage() {
     height: 100%;
     display: flex;
     flex-direction: column;
-    gap: 20px;
-    padding: 28px !important;
+    gap: 22px;
+    padding: 30px !important;
   }
 
   .teams-detail-page-shell .team-card-header {
     margin-bottom: 0;
-    max-width: 720px;
+    max-width: 760px;
   }
 
   .teams-detail-page-shell .team-card-title {
@@ -972,7 +977,7 @@ export default function TeamDetailPage() {
     font-weight: 700;
     color: #21353a;
     letter-spacing: -0.03em;
-    font-size: 1.25rem;
+    font-size: 1.65rem;
     line-height: 1.08;
   }
 
@@ -980,7 +985,7 @@ export default function TeamDetailPage() {
     color: #5d6d71;
     line-height: 1.72;
     font-size: 0.98rem;
-    max-width: 58ch;
+    max-width: 62ch;
   }
 
   .teams-detail-page-shell .team-stack {
@@ -991,21 +996,20 @@ export default function TeamDetailPage() {
   .teams-detail-page-shell .team-overview-layout {
     display: grid;
     grid-template-columns: minmax(0, 1fr);
-    gap: 16px;
+    gap: 18px;
     align-items: start;
     height: 100%;
   }
 
   .teams-detail-page-shell .team-side-panel {
     display: grid;
-    gap: 12px;
+    gap: 14px;
     align-content: start;
   }
 
   .teams-detail-page-shell .team-side-panel > div:first-child {
     padding: 18px !important;
     border-radius: 22px !important;
-    min-height: auto;
     display: flex;
     flex-direction: column;
     justify-content: center;
@@ -1013,16 +1017,11 @@ export default function TeamDetailPage() {
 
   .teams-detail-page-shell .team-side-panel-actions {
     display: grid;
-    gap: 10px;
-    margin-top: 0;
+    gap: 12px;
   }
 
   .teams-detail-page-shell .team-side-panel-actions > * {
     width: 100%;
-  }
-
-  .teams-detail-page-shell .team-secondary-grid > .team-card .team-card-inner > :last-child {
-    flex: 1;
   }
 
   .teams-detail-page-shell .team-cases-actions {
@@ -1045,7 +1044,25 @@ export default function TeamDetailPage() {
     border-radius: 22px !important;
   }
 
-  @media (max-width: 1140px) {
+  .teams-detail-page-shell .team-main-grid > .team-card:last-child .team-card-inner {
+    justify-content: flex-start;
+  }
+
+  .teams-detail-page-shell .team-secondary-grid > .team-card .team-card-inner > :last-child {
+    flex: 1;
+  }
+
+  @media (max-width: 1200px) {
+    .teams-detail-page-shell .container {
+      max-width: 1240px !important;
+    }
+
+    .teams-detail-page-shell .team-main-grid {
+      grid-template-columns: minmax(0, 1.18fr) minmax(320px, 0.88fr);
+    }
+  }
+
+  @media (max-width: 1080px) {
     .teams-detail-page-shell .team-main-grid,
     .teams-detail-page-shell .team-secondary-grid {
       grid-template-columns: 1fr;
@@ -1058,7 +1075,7 @@ export default function TeamDetailPage() {
     }
 
     .teams-detail-page-shell .team-card-title {
-      font-size: 1.18rem;
+      font-size: 1.35rem;
     }
 
     .teams-detail-page-shell .team-card-copy {
@@ -1073,7 +1090,7 @@ export default function TeamDetailPage() {
     }
 
     .teams-detail-page-shell .team-card-title {
-      font-size: 1.08rem;
+      font-size: 1.16rem;
       line-height: 1.1;
     }
 
@@ -1306,8 +1323,8 @@ className="rounded-[999px] border px-4 py-2.5 text-[0.88rem] font-semibold"
               <div className="absolute inset-0 bg-[radial-gradient(circle_at_16%_12%,rgba(255,255,255,0.34),transparent_28%)] opacity-90" />
 
 <div className="team-card-inner p-6 md:p-6">
-                  <div className="team-overview-layout">
-                  <div>
+<div className="team-overview-layout" style={{ height: "100%" }}>
+                    <div>
                     <div className="team-card-header">
                       <div className="team-card-title">Team overview</div>
                       <div className="team-card-copy">
@@ -1316,8 +1333,8 @@ className="rounded-[999px] border px-4 py-2.5 text-[0.88rem] font-semibold"
                       </div>
                     </div>
 
-<label style={{ display: "grid", gap: 8, width: "100%" }}>
-                        <span style={{ fontSize: 12, color: "#6a777b" }}>Team name</span>
+<label style={{ display: "grid", gap: 8, width: "100%", maxWidth: "100%" }}>
+                          <span style={{ fontSize: 12, color: "#6a777b" }}>Team name</span>
                       <input
                         value={teamName}
                         onChange={(e) => setTeamName(e.target.value)}
@@ -1386,8 +1403,11 @@ className="rounded-[999px] border px-4 py-2.5 text-[0.88rem] font-semibold"
                 <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.24)_0%,rgba(248,249,246,0.34)_42%,rgba(239,241,238,0.42)_100%)]" />
                 <div className="absolute inset-0 bg-[radial-gradient(circle_at_16%_12%,rgba(255,255,255,0.34),transparent_28%)] opacity-90" />
 
-<div className="team-card-inner p-6 md:p-6">
-                    <div className="team-card-header">
+<div
+  className="team-card-inner p-6 md:p-6"
+  style={{ justifyContent: "flex-start" }}
+>
+                      <div className="team-card-header">
                     <div className="team-card-title">Invite member</div>
                     <div className="team-card-copy">
                       Add a collaborator and assign the right level before they join the
@@ -1706,12 +1726,13 @@ className="rounded-[999px] border px-4 py-2.5 text-[0.88rem] font-semibold"
     display: "flex",
     justifyContent: "space-between",
     gap: 18,
-    alignItems: "center",
+    alignItems: "flex-start",
     flexWrap: "wrap",
     marginBottom: 18,
+    width: "100%",
   }}
 >
-                  <div>
+                    <div>
                   <div className="team-card-title">Team cases</div>
                   <div className="team-card-copy">
                     Cases currently attached to this team, with clear actions to open or
