@@ -1393,820 +1393,751 @@ export default function EvidenceDetailPage() {
           <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(255,255,255,0.10)_0%,rgba(255,255,255,0.03)_12%,rgba(255,255,255,0.00)_24%,rgba(255,255,255,0.00)_76%,rgba(255,255,255,0.03)_88%,rgba(255,255,255,0.10)_100%)]" />
         </div>
 
-        <div className="container relative z-10" style={{ paddingBottom: 72 }}>
-          <div
-            className="evidence-three-up"
-            style={{
-              display: "grid",
-              gridTemplateColumns: "1fr 0.9fr 0.95fr",
-              gap: 20,
-              alignItems: "start",
-            }}
-          >
-            <Card
-              className="relative overflow-hidden rounded-[30px] border bg-transparent p-0 shadow-none"
-              style={outerCardStyle}
-            >
-              <div className="absolute inset-0">
-                <img
-                  src="/images/panel-silver.webp.png"
-                  alt=""
-                  className="h-full w-full object-cover object-center"
-                />
-              </div>
-              <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.24)_0%,rgba(248,249,246,0.34)_42%,rgba(239,241,238,0.42)_100%)]" />
-              <div className="absolute inset-0 bg-[radial-gradient(circle_at_16%_12%,rgba(255,255,255,0.34),transparent_28%)] opacity-90" />
+<div className="container relative z-10" style={{ paddingBottom: 72 }}>
+  <div
+    style={{
+      display: "grid",
+      gap: 20,
+      gridTemplateColumns: "minmax(0, 1.08fr) minmax(0, 0.92fr)",
+      alignItems: "start",
+    }}
+  >
+    <Card
+      className="relative overflow-hidden rounded-[30px] border bg-transparent p-0 shadow-none"
+      style={outerCardStyle}
+    >
+      <div className="absolute inset-0">
+        <img
+          src="/images/panel-silver.webp.png"
+          alt=""
+          className="h-full w-full object-cover object-center"
+        />
+      </div>
+      <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.24)_0%,rgba(248,249,246,0.34)_42%,rgba(239,241,238,0.42)_100%)]" />
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_16%_12%,rgba(255,255,255,0.34),transparent_28%)] opacity-90" />
 
-              <div className="relative z-10 p-5 md:p-6">
-                <div className="text-[1.08rem] font-semibold tracking-[-0.02em] text-[#21353a]">
-                  Record Summary
-                </div>
+      <div className="relative z-10 p-6 md:p-7">
+        <div className="text-[1.08rem] font-semibold tracking-[-0.02em] text-[#21353a]">
+          Record Summary
+        </div>
 
-                <div className="mt-5 grid gap-4 sm:grid-cols-2" style={{ color: "#5d6d71" }}>
-                  <div>
-                    <div className="text-[12px] uppercase tracking-[0.14em] text-[#9b826b]">User Label</div>
-                    <div className="mt-2 text-[0.96rem] leading-[1.75] text-[#23373b]">{label}</div>
-                  </div>
+        <div
+          className="mt-5 grid gap-4 sm:grid-cols-2"
+          style={{ color: "#5d6d71" }}
+        >
+          <div>
+            <div className="text-[12px] uppercase tracking-[0.14em] text-[#9b826b]">
+              User Label
+            </div>
+            <div className="mt-2 text-[0.96rem] leading-[1.75] text-[#23373b]">
+              {label}
+            </div>
+          </div>
 
-                  <div>
-                    <div className="text-[12px] uppercase tracking-[0.14em] text-[#9b826b]">Original Submitted File</div>
-                    <div className="mt-2 text-[0.96rem] leading-[1.75] text-[#23373b]">
-                      {originalFileName || "Original filename not available"}
-                    </div>
-                  </div>
+          <div>
+            <div className="text-[12px] uppercase tracking-[0.14em] text-[#9b826b]">
+              Original Submitted File
+            </div>
+            <div className="mt-2 text-[0.96rem] leading-[1.75] text-[#23373b]">
+              {originalFileName || "Original filename not available"}
+            </div>
+          </div>
 
-                  <div>
-                    <div className="text-[12px] uppercase tracking-[0.14em] text-[#9b826b]">Record ID</div>
-                    <div className="mt-2 break-all text-[0.96rem] leading-[1.75] text-[#23373b]">
-                      {evidenceId}
-                    </div>
-                  </div>
+          <div>
+            <div className="text-[12px] uppercase tracking-[0.14em] text-[#9b826b]">
+              Record ID
+            </div>
+            <div className="mt-2 break-all text-[0.96rem] leading-[1.75] text-[#23373b]">
+              {evidenceId}
+            </div>
+          </div>
 
-                  <div>
-                    <div className="text-[12px] uppercase tracking-[0.14em] text-[#9b826b]">Evidence Type</div>
-                    <div className="mt-2 text-[0.96rem] leading-[1.75] text-[#23373b]">
-                      {getEvidenceTypeLabel(evidenceType)}
-                    </div>
-                  </div>
+          <div>
+            <div className="text-[12px] uppercase tracking-[0.14em] text-[#9b826b]">
+              Evidence Type
+            </div>
+            <div className="mt-2 text-[0.96rem] leading-[1.75] text-[#23373b]">
+              {getEvidenceTypeLabel(evidenceType)}
+            </div>
+          </div>
 
-                  <div>
-                    <div className="text-[12px] uppercase tracking-[0.14em] text-[#9b826b]">Structure</div>
-                    <div className="mt-2 text-[0.96rem] leading-[1.75] text-[#23373b]">
-                      {isMultipart ? `Multipart record (${sortedParts.length} items)` : "Single-file record"}
-                    </div>
-                  </div>
+          <div>
+            <div className="text-[12px] uppercase tracking-[0.14em] text-[#9b826b]">
+              Structure
+            </div>
+            <div className="mt-2 text-[0.96rem] leading-[1.75] text-[#23373b]">
+              {isMultipart
+                ? `Multipart record (${sortedParts.length} items)`
+                : "Single-file record"}
+            </div>
+          </div>
 
-                  <div>
-                    <div className="text-[12px] uppercase tracking-[0.14em] text-[#9b826b]">Evidence Composition</div>
-                    <div className="mt-2 flex flex-wrap gap-2">
-                      {partTypeSummary.imageCount > 0 && (
-                        <span className="inline-flex items-center rounded-full px-3 py-1.5 text-[0.76rem] font-semibold" style={silverReportReadyStyle}>
-                          {partTypeSummary.imageCount} image{partTypeSummary.imageCount > 1 ? "s" : ""}
-                        </span>
-                      )}
-                      {partTypeSummary.videoCount > 0 && (
-                        <span
-                          className="inline-flex items-center rounded-full px-3 py-1.5 text-[0.76rem] font-semibold"
-                          style={{
-                            border: "1px solid rgba(79,112,107,0.12)",
-                            background: "linear-gradient(180deg, rgba(240,243,241,0.92) 0%, rgba(255,255,255,0.68) 100%)",
-                            color: "#31484d",
-                            boxShadow: "inset 0 1px 0 rgba(255,255,255,0.56), 0 6px 14px rgba(0,0,0,0.03)",
-                          }}
-                        >
-                          {partTypeSummary.videoCount} video{partTypeSummary.videoCount > 1 ? "s" : ""}
-                        </span>
-                      )}
-                      {partTypeSummary.audioCount > 0 && (
-                        <span
-                          className="inline-flex items-center rounded-full px-3 py-1.5 text-[0.76rem] font-semibold"
-                          style={{
-                            border: "1px solid rgba(183,157,132,0.16)",
-                            background: "linear-gradient(180deg, rgba(244,238,232,0.88) 0%, rgba(255,255,255,0.64) 100%)",
-                            color: "#7a624d",
-                            boxShadow: "inset 0 1px 0 rgba(255,255,255,0.58), 0 6px 14px rgba(92,69,50,0.04)",
-                          }}
-                        >
-                          {partTypeSummary.audioCount} audio
-                        </span>
-                      )}
-                      {partTypeSummary.pdfCount > 0 && (
-                        <span
-                          className="inline-flex items-center rounded-full px-3 py-1.5 text-[0.76rem] font-semibold"
-                          style={{
-                            border: "1px solid rgba(183,157,132,0.16)",
-                            background: "linear-gradient(180deg, rgba(248,243,238,0.9) 0%, rgba(255,255,255,0.66) 100%)",
-                            color: "#8a6e57",
-                            boxShadow: "inset 0 1px 0 rgba(255,255,255,0.58), 0 6px 14px rgba(92,69,50,0.04)",
-                          }}
-                        >
-                          {partTypeSummary.pdfCount} document{partTypeSummary.pdfCount > 1 ? "s" : ""}
-                        </span>
-                      )}
-                      {partTypeSummary.otherCount > 0 && (
-                        <span
-                          className="inline-flex items-center rounded-full px-3 py-1.5 text-[0.76rem] font-semibold"
-                          style={{
-                            border: "1px solid rgba(79,112,107,0.12)",
-                            background: "linear-gradient(180deg, rgba(240,243,241,0.92) 0%, rgba(255,255,255,0.68) 100%)",
-                            color: "#5f6d71",
-                            boxShadow: "inset 0 1px 0 rgba(255,255,255,0.56), 0 6px 14px rgba(0,0,0,0.03)",
-                          }}
-                        >
-                          {partTypeSummary.otherCount} other
-                        </span>
-                      )}
-                      {partTypeSummary.imageCount === 0 &&
-                        partTypeSummary.videoCount === 0 &&
-                        partTypeSummary.audioCount === 0 &&
-                        partTypeSummary.pdfCount === 0 &&
-                        partTypeSummary.otherCount === 0 && (
-                          <div className="text-[0.92rem] leading-[1.7] text-[#5d6d71]">Not available</div>
-                        )}
-                    </div>
-                  </div>
-
-                  <div>
-                    <div className="text-[12px] uppercase tracking-[0.14em] text-[#9b826b]">Case Assignment</div>
-                    <div className="mt-2 text-[0.96rem] leading-[1.75] text-[#23373b]">
-                      {caseId ? "Attached to case" : "Not assigned to any case"}
-                    </div>
-                  </div>
-
-                  <div>
-                    <div className="text-[12px] uppercase tracking-[0.14em] text-[#9b826b]">Subscription Plan</div>
-                    <div className="mt-2 text-[0.96rem] leading-[1.75] text-[#23373b]">{plan}</div>
-                  </div>
-
-                  <div>
-                    <div className="text-[12px] uppercase tracking-[0.14em] text-[#9b826b]">Current Status</div>
-                    <div style={{ marginTop: 10 }}>
-                      {displayStatusMeta.label === "Report Ready" ? (
-                        <span className="inline-flex items-center rounded-full px-3 py-1.5 text-[0.76rem] font-semibold" style={silverReportReadyStyle}>
-                          Report Ready
-                        </span>
-                      ) : (
-                        <span className={displayStatusMeta.className}>{displayStatusMeta.label}</span>
-                      )}
-                    </div>
-                  </div>
-
-                  <div>
-                    <div className="text-[12px] uppercase tracking-[0.14em] text-[#9b826b]">Recorded At</div>
-                    <div className="mt-2 text-[0.96rem] leading-[1.75] text-[#23373b]">{formatUtcDateTime(createdAt)}</div>
-                  </div>
-
-                  <div>
-                    <div className="text-[12px] uppercase tracking-[0.14em] text-[#9b826b]">Locked At</div>
-                    <div className="mt-2 text-[0.96rem] leading-[1.75] text-[#23373b]">{formatUtcDateTime(lockedAt)}</div>
-                  </div>
-
-                  <div>
-                    <div className="text-[12px] uppercase tracking-[0.14em] text-[#9b826b]">Archived At</div>
-                    <div className="mt-2 text-[0.96rem] leading-[1.75] text-[#23373b]">{formatUtcDateTime(archivedAt)}</div>
-                  </div>
-
-                  <div>
-                    <div className="text-[12px] uppercase tracking-[0.14em] text-[#9b826b]">Deleted At</div>
-                    <div className="mt-2 text-[0.96rem] leading-[1.75] text-[#23373b]">{formatUtcDateTime(deletedAt)}</div>
-                  </div>
-
-                  <div>
-                    <div className="text-[12px] uppercase tracking-[0.14em] text-[#9b826b]">Permanent Deletion Date</div>
-                    <div className="mt-2 text-[0.96rem] leading-[1.75] text-[#23373b]">{formatUtcDateTime(deleteScheduledForUtc)}</div>
-                  </div>
-
-                  <div className="sm:col-span-2">
-                    <div className="text-[12px] uppercase tracking-[0.14em] text-[#9b826b]">Legal State</div>
-                    <div className="mt-2 text-[0.96rem] leading-[1.8] text-[#23373b]">
-                      {isDeleted
-                        ? "This record is currently in secure trash. It remains recoverable until the scheduled deletion date."
-                        : isLocked
-                          ? "This record has been permanently sealed. Its evidentiary state can no longer be modified."
-                          : isArchived
-                            ? "This record has been archived from the active workspace while remaining preserved in storage."
-                            : "This record is active and available for review."}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </Card>
-
-            {(sortedParts.length > 0 ||
-              originalPreviewUrl ||
-              originalDownloadUrl ||
-              originalMimeType ||
-              originalSizeBytes) && (
-              <Card
-                className="relative overflow-hidden rounded-[30px] border bg-transparent p-0 shadow-none"
-                style={outerCardStyle}
-              >
-                <div className="absolute inset-0">
-                  <img
-                    src="/images/panel-silver.webp.png"
-                    alt=""
-                    className="h-full w-full object-cover object-center"
-                  />
-                </div>
-                <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.24)_0%,rgba(248,249,246,0.34)_42%,rgba(239,241,238,0.42)_100%)]" />
-                <div className="absolute inset-0 bg-[radial-gradient(circle_at_16%_12%,rgba(255,255,255,0.34),transparent_28%)] opacity-90" />
-
-                <div className="relative z-10 p-5 md:p-6">
-                  <div className="text-[1.08rem] font-semibold tracking-[-0.02em] text-[#21353a]">
-                    Original Evidence
-                  </div>
-
-                  {!isMultipart ? (
-                    <>
-                      <div
-                        style={{
-                          marginTop: 16,
-                          marginBottom: 14,
-                          padding: 14,
-                          borderRadius: 16,
-                          ...softCardStyle,
-                          color: "#5d6d71",
-                        }}
-                      >
-                        Original submitted evidence file. This file is preserved as part of the record.
-                      </div>
-
-                      <div
-                        style={{
-                          marginBottom: 14,
-                          display: "grid",
-                          gap: 6,
-                          color: "#6a777b",
-                          fontSize: 13,
-                        }}
-                      >
-                        {originalFileName && <div>Original file: {originalFileName}</div>}
-                        {originalMimeType && <div>Type: {originalMimeType}</div>}
-                        {originalSizeBytes && <div>Size: {formatBytes(originalSizeBytes)}</div>}
-                      </div>
-
-                      <div
-                        style={{
-                          display: "flex",
-                          flexWrap: "wrap",
-                          gap: 10,
-                          marginBottom: 16,
-                        }}
-                      >
-                        <Button
-                          variant="secondary"
-                          onClick={handleOpenOriginal}
-                          disabled={!originalDownloadUrl || isDeleted}
-                          className="rounded-[999px] border px-4 py-2.5 text-[0.86rem] font-semibold"
-                          style={landingSecondaryButtonStyle}
-                        >
-                          Open Original
-                        </Button>
-
-                        <Button
-                          variant="secondary"
-                          onClick={handleDownloadOriginal}
-                          disabled={!originalDownloadUrl || isDeleted}
-                          className="rounded-[999px] border px-4 py-2.5 text-[0.86rem] font-semibold"
-                          style={landingTertiaryButtonStyle}
-                        >
-                          Download Original
-                        </Button>
-                      </div>
-
-                      {originalPreviewUrl && originalKind === "image" && (
-                        <div style={{ marginBottom: 12 }}>
-                          <img
-                            src={originalPreviewUrl}
-                            alt="Evidence preview"
-                            className="evidence-preview-image"
-                            style={{
-                              width: "100%",
-                              maxWidth: 420,
-                              margin: "0 auto",
-                              display: "block",
-                              borderRadius: 18,
-                              border: "1px solid rgba(79,112,107,0.10)",
-                              boxShadow: "0 14px 28px rgba(0,0,0,0.08)",
-                            }}
-                          />
-                        </div>
-                      )}
-
-                      {originalPreviewUrl && originalKind === "video" && (
-                        <div style={{ marginBottom: 12 }}>
-                          <video
-                            src={originalPreviewUrl}
-                            controls
-                            preload="metadata"
-                            className="evidence-preview-video"
-                            style={{
-                              width: "100%",
-                              maxWidth: 420,
-                              margin: "0 auto",
-                              display: "block",
-                              borderRadius: 18,
-                              border: "1px solid rgba(79,112,107,0.10)",
-                              boxShadow: "0 14px 28px rgba(0,0,0,0.08)",
-                            }}
-                          />
-                        </div>
-                      )}
-
-                      {originalPreviewUrl && originalKind === "audio" && (
-                        <div
-                          style={{
-                            marginBottom: 12,
-                            padding: 14,
-                            borderRadius: 14,
-                            background: "rgba(255,255,255,0.42)",
-                            border: "1px solid rgba(79,112,107,0.08)",
-                          }}
-                        >
-                          <audio
-                            src={originalPreviewUrl}
-                            controls
-                            preload="metadata"
-                            style={{ width: "100%" }}
-                          />
-                        </div>
-                      )}
-
-                      {originalPreviewUrl && originalKind === "pdf" && (
-                        <div style={{ marginBottom: 12 }}>
-                          <iframe
-                            src={originalPreviewUrl}
-                            title="Original PDF evidence"
-                            style={{
-                              width: "100%",
-                              minHeight: 420,
-                              maxWidth: 420,
-                              margin: "0 auto",
-                              display: "block",
-                              borderRadius: 18,
-                              border: "1px solid rgba(79,112,107,0.10)",
-                              background: "#fff",
-                              boxShadow: "0 14px 28px rgba(0,0,0,0.08)",
-                            }}
-                          />
-                        </div>
-                      )}
-
-                      {!originalPreviewUrl &&
-                        (originalKind === "text" || originalKind === "other") && (
-                          <div
-                            style={{
-                              marginBottom: 12,
-                              padding: 12,
-                              borderRadius: 14,
-                              background: "rgba(255,255,255,0.42)",
-                              border: "1px solid rgba(79,112,107,0.08)",
-                              color: "#6a777b",
-                            }}
-                          >
-                            <div style={{ marginBottom: 8 }}>
-                              Preview is not available for this file type inside the page.
-                            </div>
-                            <div>Use Open Original or Download Original.</div>
-                          </div>
-                        )}
-
-                      {!originalPreviewUrl && !originalDownloadUrl && (
-                        <div
-                          style={{
-                            padding: 12,
-                            borderRadius: 14,
-                            background: "rgba(255,255,255,0.42)",
-                            border: "1px solid rgba(79,112,107,0.08)",
-                            color: "#6a777b",
-                          }}
-                        >
-                          The original submitted file is currently unavailable for access.
-                        </div>
-                      )}
-                    </>
-                  ) : (
-                    <>
-                      <div
-                        style={{
-                          marginTop: 16,
-                          marginBottom: 16,
-                          padding: 14,
-                          borderRadius: 16,
-                          ...softCardStyle,
-                          color: "#5d6d71",
-                        }}
-                      >
-                        This record contains <strong>{sortedParts.length}</strong> original evidence items.
-                        Each item below can be reviewed and downloaded separately.
-                      </div>
-
-                      <div style={{ display: "grid", gap: 16 }}>
-                        {sortedParts.map((part) => {
-                          const kind = getEvidenceKind(part.mimeType ?? null);
-                          const previewUrl = part.publicUrl ?? part.url ?? null;
-                          const downloadUrl = part.url ?? part.publicUrl ?? null;
-                          const displayName = getPartDisplayName(part);
-
-                          return (
-                            <div
-                              key={part.id}
-                              style={{
-                                padding: 16,
-                                borderRadius: 20,
-                                ...softCardStyle,
-                              }}
-                            >
-                              <div
-                                className="evidence-item-header"
-                                style={{
-                                  display: "flex",
-                                  justifyContent: "space-between",
-                                  gap: 12,
-                                  flexWrap: "wrap",
-                                  alignItems: "center",
-                                }}
-                              >
-                                <div>
-                                  <div style={{ fontWeight: 800, color: "#23373b" }}>
-                                    Item {part.partIndex + 1}
-                                    {part.isPrimary ? " (Primary)" : ""}
-                                  </div>
-                                  <div style={{ fontSize: 13, color: "#6a777b", marginTop: 4 }}>
-                                    {displayName}
-                                  </div>
-                                </div>
-
-                                <div
-                                  className="evidence-item-actions"
-                                  style={{ display: "flex", gap: 10, flexWrap: "wrap" }}
-                                >
-                                  <Button
-                                    variant="secondary"
-                                    onClick={() => handleOpenPart(part)}
-                                    disabled={!downloadUrl || isDeleted}
-                                    className="rounded-[999px] border px-4 py-2.5 text-[0.86rem] font-semibold"
-                                    style={landingSecondaryButtonStyle}
-                                  >
-                                    Open
-                                  </Button>
-                                  <Button
-                                    variant="secondary"
-                                    onClick={() => handleDownloadPart(part)}
-                                    disabled={!downloadUrl || isDeleted}
-                                    className="rounded-[999px] border px-4 py-2.5 text-[0.86rem] font-semibold"
-                                    style={landingTertiaryButtonStyle}
-                                  >
-                                    Download
-                                  </Button>
-                                </div>
-                              </div>
-
-                              <div
-                                style={{
-                                  display: "grid",
-                                  gap: 6,
-                                  marginTop: 12,
-                                  marginBottom: 14,
-                                  color: "#6a777b",
-                                  fontSize: 13,
-                                }}
-                              >
-                                <div>Type: {part.mimeType ?? "Unknown"}</div>
-                                <div>Kind: {kind}</div>
-                                <div>Size: {formatBytes(part.sizeBytes ?? null)}</div>
-                              </div>
-
-                              {previewUrl && kind === "image" && (
-                                <img
-                                  src={previewUrl}
-                                  alt={`Evidence item ${part.partIndex + 1}`}
-                                  className="evidence-preview-image"
-                                  style={{
-                                    width: "100%",
-                                    maxWidth: 320,
-                                    margin: "0 auto",
-                                    display: "block",
-                                    borderRadius: 16,
-                                    border: "1px solid rgba(79,112,107,0.10)",
-                                    boxShadow: "0 12px 24px rgba(0,0,0,0.06)",
-                                  }}
-                                />
-                              )}
-
-                              {previewUrl && kind === "video" && (
-                                <video
-                                  src={previewUrl}
-                                  controls
-                                  preload="metadata"
-                                  className="evidence-preview-video"
-                                  style={{
-                                    width: "100%",
-                                    maxWidth: 320,
-                                    margin: "0 auto",
-                                    display: "block",
-                                    borderRadius: 16,
-                                    border: "1px solid rgba(79,112,107,0.10)",
-                                    boxShadow: "0 12px 24px rgba(0,0,0,0.06)",
-                                  }}
-                                />
-                              )}
-
-                              {previewUrl && kind === "audio" && (
-                                <div
-                                  style={{
-                                    padding: 14,
-                                    borderRadius: 14,
-                                    background: "rgba(255,255,255,0.42)",
-                                    border: "1px solid rgba(79,112,107,0.08)",
-                                  }}
-                                >
-                                  <audio
-                                    src={previewUrl}
-                                    controls
-                                    preload="metadata"
-                                    style={{ width: "100%" }}
-                                  />
-                                </div>
-                              )}
-
-                              {previewUrl && kind === "pdf" && (
-                                <div>
-                                  <iframe
-                                    src={previewUrl}
-                                    title={`Evidence PDF item ${part.partIndex + 1}`}
-                                    style={{
-                                      width: "100%",
-                                      minHeight: 360,
-                                      borderRadius: 16,
-                                      border: "1px solid rgba(79,112,107,0.10)",
-                                      background: "#fff",
-                                    }}
-                                  />
-                                </div>
-                              )}
-
-                              {!previewUrl && (
-                                <div
-                                  style={{
-                                    padding: 12,
-                                    borderRadius: 14,
-                                    background: "rgba(255,255,255,0.42)",
-                                    border: "1px solid rgba(79,112,107,0.08)",
-                                    color: "#6a777b",
-                                  }}
-                                >
-                                  Preview is not available for this item right now.
-                                </div>
-                              )}
-
-                              {previewUrl && (kind === "text" || kind === "other") && (
-                                <div
-                                  style={{
-                                    padding: 12,
-                                    borderRadius: 14,
-                                    background: "rgba(255,255,255,0.42)",
-                                    border: "1px solid rgba(79,112,107,0.08)",
-                                    color: "#6a777b",
-                                  }}
-                                >
-                                  Preview is not available inside the page for this file type. Use Open or Download.
-                                </div>
-                              )}
-                            </div>
-                          );
-                        })}
-                      </div>
-
-                      {partsLoadFailed && (
-                        <div
-                          style={{
-                            marginTop: 14,
-                            padding: 12,
-                            borderRadius: 14,
-                            background: "rgba(239,68,68,0.08)",
-                            border: "1px solid rgba(239,68,68,0.10)",
-                            color: "#b42318",
-                          }}
-                        >
-                          Failed to load evidence parts.
-                        </div>
-                      )}
-                    </>
-                  )}
-                </div>
-              </Card>
-            )}
-
-            <Card
-              className="relative overflow-hidden rounded-[30px] border bg-transparent p-0 shadow-none"
-              style={outerCardStyle}
-            >
-              <div className="absolute inset-0">
-                <img
-                  src="/images/panel-silver.webp.png"
-                  alt=""
-                  className="h-full w-full object-cover object-center"
-                />
-              </div>
-              <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.24)_0%,rgba(248,249,246,0.34)_42%,rgba(239,241,238,0.42)_100%)]" />
-              <div className="absolute inset-0 bg-[radial-gradient(circle_at_16%_12%,rgba(255,255,255,0.34),transparent_28%)] opacity-90" />
-
-              <div className="relative z-10 p-5 md:p-6">
-                <div className="text-[1.08rem] font-semibold tracking-[-0.02em] text-[#21353a]">
-                  Record Actions
-                </div>
-
-                <div
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns: "1fr 1fr",
-                    gap: 10,
-                    marginTop: 18,
-                    marginBottom: 18,
-                  }}
+          <div>
+            <div className="text-[12px] uppercase tracking-[0.14em] text-[#9b826b]">
+              Evidence Composition
+            </div>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {partTypeSummary.imageCount > 0 && (
+                <span
+                  className="inline-flex items-center rounded-full px-3 py-1.5 text-[0.76rem] font-semibold"
+                  style={silverReportReadyStyle}
                 >
-                  <Button
-                    onClick={handleDownloadReport}
-                    disabled={actionBusy || plan === "FREE" || isDeleted}
-                    className="rounded-[999px] border px-4 py-2.5 text-[0.86rem] font-semibold"
-                    style={landingPrimaryButtonStyle}
-                  >
-                    {t("downloadReport")}
-                  </Button>
+                  {partTypeSummary.imageCount} image
+                  {partTypeSummary.imageCount > 1 ? "s" : ""}
+                </span>
+              )}
 
-                  <Button
-                    variant="secondary"
-                    onClick={handleDownloadVerificationPackage}
-                    disabled={actionBusy || !verificationPackageAvailable || isDeleted}
-                    className="rounded-[999px] border px-4 py-2.5 text-[0.86rem] font-semibold"
-                    style={landingSecondaryButtonStyle}
-                  >
-                    Download Verification Package
-                  </Button>
-
-                  <div style={{ gridColumn: "1 / -1" }}>
-                    <Link href={`/share/${evidenceId}`}>
-                      <Button
-                        variant="secondary"
-                        disabled={isDeleted}
-                        className="w-full rounded-[999px] border px-4 py-2.5 text-[0.86rem] font-semibold"
-                        style={landingTertiaryButtonStyle}
-                      >
-                        {t("shareLink")}
-                      </Button>
-                    </Link>
-                  </div>
-                </div>
-
-                {plan === "FREE" && (
-                  <div style={{ fontSize: 12, color: "#6a777b", marginTop: -4, marginBottom: 12 }}>
-                    Reports are disabled on Free. Upgrade to access PDF reports.
-                  </div>
-                )}
-
-                {!verificationPackageAvailable && (
-                  <div style={{ fontSize: 12, color: "#6a777b", marginTop: -4, marginBottom: 12 }}>
-                    Verification package is not available yet.
-                  </div>
-                )}
-
-                <div
-                  className="mb-3 text-[0.78rem] font-semibold uppercase tracking-[0.18em] text-[#9b826b]"
-                  style={{ marginTop: 4 }}
-                >
-                  Case & Organization
-                </div>
-
-                <div style={{ display: "grid", gap: 10 }}>
-                  <Button
-                    variant="secondary"
-                    onClick={handleOpenAssignCase}
-                    disabled={actionBusy || ownedCases.length === 0}
-                    className="w-full rounded-[999px] border px-4 py-2.5 text-[0.86rem] font-semibold"
-                    style={landingSecondaryButtonStyle}
-                  >
-                    {caseId ? "Move to Case" : "Add to Case"}
-                  </Button>
-
-                  {caseId && (
-                    <Button
-                      variant="secondary"
-                      onClick={handleRemoveFromCase}
-                      disabled={actionBusy}
-                      className="w-full rounded-[999px] border px-4 py-2.5 text-[0.86rem] font-semibold"
-                      style={landingTertiaryButtonStyle}
-                    >
-                      Remove from Case
-                    </Button>
-                  )}
-                </div>
-
-                <div className="mb-3 mt-5 text-[0.78rem] font-semibold uppercase tracking-[0.18em] text-[#9b826b]">
-                  Preservation Actions
-                </div>
-
-                <div style={{ display: "grid", gap: 10 }}>
-                  <Button
-                    onClick={handleLock}
-                    disabled={
-                      actionBusy ||
-                      Boolean(lockedAt) ||
-                      !(status === "SIGNED" || status === "REPORTED")
-                    }
-                    className="w-full rounded-[999px] border px-4 py-2.5 text-[0.86rem] font-semibold"
-                    style={lockedAt ? landingSecondaryButtonStyle : landingDangerButtonStyle}
-                  >
-                    {lockedAt ? "Permanently Locked" : "Lock Evidence Permanently"}
-                  </Button>
-
-                  {archivedAt ? (
-                    <Button
-                      variant="secondary"
-                      onClick={handleUnarchive}
-                      disabled={actionBusy}
-                      className="w-full rounded-[999px] border px-4 py-2.5 text-[0.86rem] font-semibold"
-                      style={landingSecondaryButtonStyle}
-                    >
-                      Restore Evidence
-                    </Button>
-                  ) : (
-                    <Button
-                      variant="secondary"
-                      onClick={handleArchive}
-                      disabled={actionBusy}
-                      className="w-full rounded-[999px] border px-4 py-2.5 text-[0.86rem] font-semibold"
-                      style={landingSecondaryButtonStyle}
-                    >
-                      Archive Evidence
-                    </Button>
-                  )}
-
-                  {!isDeleted && (
-                    <Button
-                      onClick={handleDelete}
-                      disabled={actionBusy || !canDelete}
-                      className="w-full rounded-[999px] border px-4 py-2.5 text-[0.86rem] font-semibold"
-                      style={canDelete ? landingDeleteButtonStyle : landingSecondaryButtonStyle}
-                    >
-                      Delete Evidence
-                    </Button>
-                  )}
-
-                  {isDeleted && (
-                    <Button
-                      variant="secondary"
-                      onClick={handleRestoreDeleted}
-                      disabled={actionBusy}
-                      className="w-full rounded-[999px] border px-4 py-2.5 text-[0.86rem] font-semibold"
-                      style={landingSecondaryButtonStyle}
-                    >
-                      Restore from Trash
-                    </Button>
-                  )}
-                </div>
-
-                {lockedAt && (
-                  <div style={{ fontSize: 12, color: "#6a777b", paddingTop: 10 }}>
-                    ✓ This record is legally sealed and can no longer be edited.
-                  </div>
-                )}
-
-                {!archivedAt && !isDeleted && (
-                  <div style={{ fontSize: 12, color: "#6a777b", paddingTop: 10 }}>
-                    Archive this record to remove it from active review while preserving it in storage.
-                  </div>
-                )}
-
-                {archivedAt && (
-                  <div style={{ fontSize: 12, color: "#6a777b", paddingTop: 10 }}>
-                    This record is archived. Restore it to return it to the active workspace.
-                  </div>
-                )}
-
-                <div
+              {partTypeSummary.videoCount > 0 && (
+                <span
+                  className="inline-flex items-center rounded-full px-3 py-1.5 text-[0.76rem] font-semibold"
                   style={{
-                    marginTop: 16,
-                    padding: 14,
-                    borderRadius: 16,
+                    border: "1px solid rgba(79,112,107,0.12)",
                     background:
-                      "linear-gradient(135deg, rgba(214,184,157,0.10), rgba(214,184,157,0.04))",
-                    border: "1px solid rgba(214,184,157,0.14)",
-                    color: "#8f735a",
-                    lineHeight: 1.7,
+                      "linear-gradient(180deg, rgba(240,243,241,0.92) 0%, rgba(255,255,255,0.68) 100%)",
+                    color: "#31484d",
+                    boxShadow:
+                      "inset 0 1px 0 rgba(255,255,255,0.56), 0 6px 14px rgba(0,0,0,0.03)",
                   }}
                 >
-                  <strong>Trash retention:</strong> When moved to trash, this record stays recoverable for 90 days before permanent deletion.
-                </div>
-              </div>
-            </Card>
+                  {partTypeSummary.videoCount} video
+                  {partTypeSummary.videoCount > 1 ? "s" : ""}
+                </span>
+              )}
+
+              {partTypeSummary.audioCount > 0 && (
+                <span
+                  className="inline-flex items-center rounded-full px-3 py-1.5 text-[0.76rem] font-semibold"
+                  style={{
+                    border: "1px solid rgba(183,157,132,0.16)",
+                    background:
+                      "linear-gradient(180deg, rgba(244,238,232,0.88) 0%, rgba(255,255,255,0.64) 100%)",
+                    color: "#7a624d",
+                    boxShadow:
+                      "inset 0 1px 0 rgba(255,255,255,0.58), 0 6px 14px rgba(92,69,50,0.04)",
+                  }}
+                >
+                  {partTypeSummary.audioCount} audio
+                </span>
+              )}
+
+              {partTypeSummary.pdfCount > 0 && (
+                <span
+                  className="inline-flex items-center rounded-full px-3 py-1.5 text-[0.76rem] font-semibold"
+                  style={{
+                    border: "1px solid rgba(183,157,132,0.16)",
+                    background:
+                      "linear-gradient(180deg, rgba(248,243,238,0.9) 0%, rgba(255,255,255,0.66) 100%)",
+                    color: "#8a6e57",
+                    boxShadow:
+                      "inset 0 1px 0 rgba(255,255,255,0.58), 0 6px 14px rgba(92,69,50,0.04)",
+                  }}
+                >
+                  {partTypeSummary.pdfCount} document
+                  {partTypeSummary.pdfCount > 1 ? "s" : ""}
+                </span>
+              )}
+
+              {partTypeSummary.otherCount > 0 && (
+                <span
+                  className="inline-flex items-center rounded-full px-3 py-1.5 text-[0.76rem] font-semibold"
+                  style={{
+                    border: "1px solid rgba(79,112,107,0.12)",
+                    background:
+                      "linear-gradient(180deg, rgba(240,243,241,0.92) 0%, rgba(255,255,255,0.68) 100%)",
+                    color: "#5f6d71",
+                    boxShadow:
+                      "inset 0 1px 0 rgba(255,255,255,0.56), 0 6px 14px rgba(0,0,0,0.03)",
+                  }}
+                >
+                  {partTypeSummary.otherCount} other
+                </span>
+              )}
+
+              {partTypeSummary.imageCount === 0 &&
+                partTypeSummary.videoCount === 0 &&
+                partTypeSummary.audioCount === 0 &&
+                partTypeSummary.pdfCount === 0 &&
+                partTypeSummary.otherCount === 0 && (
+                  <div className="text-[0.92rem] leading-[1.7] text-[#5d6d71]">
+                    Not available
+                  </div>
+                )}
+            </div>
+          </div>
+
+          <div>
+            <div className="text-[12px] uppercase tracking-[0.14em] text-[#9b826b]">
+              Case Assignment
+            </div>
+            <div className="mt-2 text-[0.96rem] leading-[1.75] text-[#23373b]">
+              {caseId ? "Attached to case" : "Not assigned to any case"}
+            </div>
+          </div>
+
+          <div>
+            <div className="text-[12px] uppercase tracking-[0.14em] text-[#9b826b]">
+              Subscription Plan
+            </div>
+            <div className="mt-2 text-[0.96rem] leading-[1.75] text-[#23373b]">
+              {plan}
+            </div>
+          </div>
+
+          <div>
+            <div className="text-[12px] uppercase tracking-[0.14em] text-[#9b826b]">
+              Current Status
+            </div>
+            <div style={{ marginTop: 10 }}>
+              {displayStatusMeta.label === "Report Ready" ? (
+                <span
+                  className="inline-flex items-center rounded-full px-3 py-1.5 text-[0.76rem] font-semibold"
+                  style={silverReportReadyStyle}
+                >
+                  Report Ready
+                </span>
+              ) : (
+                <span className={displayStatusMeta.className}>
+                  {displayStatusMeta.label}
+                </span>
+              )}
+            </div>
+          </div>
+
+          <div>
+            <div className="text-[12px] uppercase tracking-[0.14em] text-[#9b826b]">
+              Recorded At
+            </div>
+            <div className="mt-2 text-[0.96rem] leading-[1.75] text-[#23373b]">
+              {formatUtcDateTime(createdAt)}
+            </div>
+          </div>
+
+          <div>
+            <div className="text-[12px] uppercase tracking-[0.14em] text-[#9b826b]">
+              Locked At
+            </div>
+            <div className="mt-2 text-[0.96rem] leading-[1.75] text-[#23373b]">
+              {formatUtcDateTime(lockedAt)}
+            </div>
+          </div>
+
+          <div>
+            <div className="text-[12px] uppercase tracking-[0.14em] text-[#9b826b]">
+              Archived At
+            </div>
+            <div className="mt-2 text-[0.96rem] leading-[1.75] text-[#23373b]">
+              {formatUtcDateTime(archivedAt)}
+            </div>
+          </div>
+
+          <div>
+            <div className="text-[12px] uppercase tracking-[0.14em] text-[#9b826b]">
+              Deleted At
+            </div>
+            <div className="mt-2 text-[0.96rem] leading-[1.75] text-[#23373b]">
+              {formatUtcDateTime(deletedAt)}
+            </div>
+          </div>
+
+          <div>
+            <div className="text-[12px] uppercase tracking-[0.14em] text-[#9b826b]">
+              Permanent Deletion Date
+            </div>
+            <div className="mt-2 text-[0.96rem] leading-[1.75] text-[#23373b]">
+              {formatUtcDateTime(deleteScheduledForUtc)}
+            </div>
+          </div>
+
+          <div className="sm:col-span-2">
+            <div className="text-[12px] uppercase tracking-[0.14em] text-[#9b826b]">
+              Legal State
+            </div>
+            <div className="mt-2 text-[0.96rem] leading-[1.8] text-[#23373b]">
+              {isDeleted
+                ? "This record is currently in secure trash. It remains recoverable until the scheduled deletion date."
+                : isLocked
+                  ? "This record has been permanently sealed. Its evidentiary state can no longer be modified."
+                  : isArchived
+                    ? "This record has been archived from the active workspace while remaining preserved in storage."
+                    : "This record is active and available for review."}
+            </div>
           </div>
         </div>
       </div>
+    </Card>
+
+    <Card
+      className="relative overflow-hidden rounded-[30px] border bg-transparent p-0 shadow-none"
+      style={outerCardStyle}
+    >
+      <div className="absolute inset-0">
+        <img
+          src="/images/panel-silver.webp.png"
+          alt=""
+          className="h-full w-full object-cover object-center"
+        />
+      </div>
+      <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.24)_0%,rgba(248,249,246,0.34)_42%,rgba(239,241,238,0.42)_100%)]" />
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_16%_12%,rgba(255,255,255,0.34),transparent_28%)] opacity-90" />
+
+      <div className="relative z-10 p-6 md:p-7">
+        <div className="text-[1.08rem] font-semibold tracking-[-0.02em] text-[#21353a]">
+          Record Actions
+        </div>
+
+        <div style={{ display: "grid", gap: 10, marginTop: 18 }}>
+          <Button
+            onClick={handleDownloadReport}
+            disabled={actionBusy || plan === "FREE" || isDeleted}
+            className="w-full rounded-[999px] border px-4 py-2.5 text-[0.86rem] font-semibold"
+            style={landingPrimaryButtonStyle}
+          >
+            {t("downloadReport")}
+          </Button>
+
+          <Button
+            variant="secondary"
+            onClick={handleDownloadVerificationPackage}
+            disabled={actionBusy || !verificationPackageAvailable || isDeleted}
+            className="w-full rounded-[999px] border px-4 py-2.5 text-[0.86rem] font-semibold"
+            style={landingSecondaryButtonStyle}
+          >
+            Download Verification Package
+          </Button>
+
+          <Link href={`/share/${evidenceId}`}>
+            <Button
+              variant="secondary"
+              disabled={isDeleted}
+              className="w-full rounded-[999px] border px-4 py-2.5 text-[0.86rem] font-semibold"
+              style={landingTertiaryButtonStyle}
+            >
+              {t("shareLink")}
+            </Button>
+          </Link>
+        </div>
+
+        {plan === "FREE" && (
+          <div style={{ fontSize: 12, color: "#6a777b", marginTop: 10 }}>
+            Reports are disabled on Free. Upgrade to access PDF reports.
+          </div>
+        )}
+
+        {!verificationPackageAvailable && (
+          <div style={{ fontSize: 12, color: "#6a777b", marginTop: 10 }}>
+            Verification package is not available yet.
+          </div>
+        )}
+
+        <div
+          className="mt-5 mb-3 text-[0.78rem] font-semibold uppercase tracking-[0.18em] text-[#9b826b]"
+        >
+          Case & Organization
+        </div>
+
+        <div style={{ display: "grid", gap: 10 }}>
+          <Button
+            variant="secondary"
+            onClick={handleOpenAssignCase}
+            disabled={actionBusy || ownedCases.length === 0}
+            className="w-full rounded-[999px] border px-4 py-2.5 text-[0.86rem] font-semibold"
+            style={landingSecondaryButtonStyle}
+          >
+            {caseId ? "Move to Case" : "Add to Case"}
+          </Button>
+
+          {caseId && (
+            <Button
+              variant="secondary"
+              onClick={handleRemoveFromCase}
+              disabled={actionBusy}
+              className="w-full rounded-[999px] border px-4 py-2.5 text-[0.86rem] font-semibold"
+              style={landingTertiaryButtonStyle}
+            >
+              Remove from Case
+            </Button>
+          )}
+        </div>
+
+        <div
+          className="mt-5 mb-3 text-[0.78rem] font-semibold uppercase tracking-[0.18em] text-[#9b826b]"
+        >
+          Preservation Actions
+        </div>
+
+        <div style={{ display: "grid", gap: 10 }}>
+          <Button
+            onClick={handleLock}
+            disabled={
+              actionBusy ||
+              Boolean(lockedAt) ||
+              !(status === "SIGNED" || status === "REPORTED")
+            }
+            className="w-full rounded-[999px] border px-4 py-2.5 text-[0.86rem] font-semibold"
+            style={lockedAt ? landingSecondaryButtonStyle : landingDangerButtonStyle}
+          >
+            {lockedAt ? "Permanently Locked" : "Lock Evidence Permanently"}
+          </Button>
+
+          {archivedAt ? (
+            <Button
+              variant="secondary"
+              onClick={handleUnarchive}
+              disabled={actionBusy}
+              className="w-full rounded-[999px] border px-4 py-2.5 text-[0.86rem] font-semibold"
+              style={landingSecondaryButtonStyle}
+            >
+              Restore Evidence
+            </Button>
+          ) : (
+            <Button
+              variant="secondary"
+              onClick={handleArchive}
+              disabled={actionBusy}
+              className="w-full rounded-[999px] border px-4 py-2.5 text-[0.86rem] font-semibold"
+              style={landingSecondaryButtonStyle}
+            >
+              Archive Evidence
+            </Button>
+          )}
+
+          {!isDeleted && (
+            <Button
+              onClick={handleDelete}
+              disabled={actionBusy || !canDelete}
+              className="w-full rounded-[999px] border px-4 py-2.5 text-[0.86rem] font-semibold"
+              style={canDelete ? landingDeleteButtonStyle : landingSecondaryButtonStyle}
+            >
+              Delete Evidence
+            </Button>
+          )}
+
+          {isDeleted && (
+            <Button
+              variant="secondary"
+              onClick={handleRestoreDeleted}
+              disabled={actionBusy}
+              className="w-full rounded-[999px] border px-4 py-2.5 text-[0.86rem] font-semibold"
+              style={landingSecondaryButtonStyle}
+            >
+              Restore from Trash
+            </Button>
+          )}
+        </div>
+
+        {lockedAt && (
+          <div style={{ fontSize: 12, color: "#6a777b", paddingTop: 10 }}>
+            ✓ This record is legally sealed and can no longer be edited.
+          </div>
+        )}
+
+        {!archivedAt && !isDeleted && (
+          <div style={{ fontSize: 12, color: "#6a777b", paddingTop: 10 }}>
+            Archive this record to remove it from active review while preserving it in storage.
+          </div>
+        )}
+
+        {archivedAt && (
+          <div style={{ fontSize: 12, color: "#6a777b", paddingTop: 10 }}>
+            This record is archived. Restore it to return it to the active workspace.
+          </div>
+        )}
+
+        <div
+          style={{
+            marginTop: 16,
+            padding: 14,
+            borderRadius: 16,
+            background:
+              "linear-gradient(135deg, rgba(214,184,157,0.10), rgba(214,184,157,0.04))",
+            border: "1px solid rgba(214,184,157,0.14)",
+            color: "#8f735a",
+            lineHeight: 1.7,
+          }}
+        >
+          <strong>Trash retention:</strong> When moved to trash, this
+          record stays recoverable for 90 days before permanent deletion.
+        </div>
+      </div>
+    </Card>
+  </div>
+
+  {(sortedParts.length > 0 ||
+    originalPreviewUrl ||
+    originalDownloadUrl ||
+    originalMimeType ||
+    originalSizeBytes) && (
+    <Card
+      className="relative mt-6 overflow-hidden rounded-[30px] border bg-transparent p-0 shadow-none"
+      style={outerCardStyle}
+    >
+      <div className="absolute inset-0">
+        <img
+          src="/images/panel-silver.webp.png"
+          alt=""
+          className="h-full w-full object-cover object-center"
+        />
+      </div>
+      <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.24)_0%,rgba(248,249,246,0.34)_42%,rgba(239,241,238,0.42)_100%)]" />
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_16%_12%,rgba(255,255,255,0.34),transparent_28%)] opacity-90" />
+
+      <div className="relative z-10 p-6 md:p-7">
+        <div className="text-[1.08rem] font-semibold tracking-[-0.02em] text-[#21353a]">
+          Original Evidence
+        </div>
+
+        {!isMultipart ? (
+          <>
+            <div
+              style={{
+                marginTop: 16,
+                marginBottom: 16,
+                padding: 14,
+                borderRadius: 16,
+                ...softCardStyle,
+                color: "#5d6d71",
+              }}
+            >
+              Original submitted evidence file. This file is preserved as part of the record.
+            </div>
+
+            <div
+              style={{
+                marginBottom: 14,
+                display: "grid",
+                gap: 6,
+                color: "#6a777b",
+                fontSize: 13,
+              }}
+            >
+              {originalFileName && <div>Original file: {originalFileName}</div>}
+              {originalMimeType && <div>Type: {originalMimeType}</div>}
+              {originalSizeBytes && <div>Size: {formatBytes(originalSizeBytes)}</div>}
+            </div>
+
+            <div
+              style={{
+                display: "flex",
+                flexWrap: "wrap",
+                gap: 10,
+                marginBottom: 16,
+              }}
+            >
+              <Button
+                variant="secondary"
+                onClick={handleOpenOriginal}
+                disabled={!originalDownloadUrl || isDeleted}
+                className="rounded-[999px] border px-4 py-2.5 text-[0.86rem] font-semibold"
+                style={landingSecondaryButtonStyle}
+              >
+                Open Original
+              </Button>
+
+              <Button
+                variant="secondary"
+                onClick={handleDownloadOriginal}
+                disabled={!originalDownloadUrl || isDeleted}
+                className="rounded-[999px] border px-4 py-2.5 text-[0.86rem] font-semibold"
+                style={landingTertiaryButtonStyle}
+              >
+                Download Original
+              </Button>
+            </div>
+
+            {originalPreviewUrl && originalKind === "image" && (
+              <div style={{ marginBottom: 12 }}>
+                <img
+                  src={originalPreviewUrl}
+                  alt="Evidence preview"
+                  className="evidence-preview-image"
+                  style={{
+                    width: "100%",
+                    maxWidth: 520,
+                    margin: "0 auto",
+                    display: "block",
+                    borderRadius: 18,
+                    border: "1px solid rgba(79,112,107,0.10)",
+                    boxShadow: "0 14px 28px rgba(0,0,0,0.08)",
+                  }}
+                />
+              </div>
+            )}
+
+            {originalPreviewUrl && originalKind === "video" && (
+              <div style={{ marginBottom: 12 }}>
+                <video
+                  src={originalPreviewUrl}
+                  controls
+                  preload="metadata"
+                  className="evidence-preview-video"
+                  style={{
+                    width: "100%",
+                    maxWidth: 520,
+                    margin: "0 auto",
+                    display: "block",
+                    borderRadius: 18,
+                    border: "1px solid rgba(79,112,107,0.10)",
+                    boxShadow: "0 14px 28px rgba(0,0,0,0.08)",
+                  }}
+                />
+              </div>
+            )}
+
+            {originalPreviewUrl && originalKind === "audio" && (
+              <div
+                style={{
+                  marginBottom: 12,
+                  padding: 14,
+                  borderRadius: 14,
+                  background: "rgba(255,255,255,0.42)",
+                  border: "1px solid rgba(79,112,107,0.08)",
+                }}
+              >
+                <audio
+                  src={originalPreviewUrl}
+                  controls
+                  preload="metadata"
+                  style={{ width: "100%" }}
+                />
+              </div>
+            )}
+
+            {originalPreviewUrl && originalKind === "pdf" && (
+              <div style={{ marginBottom: 12 }}>
+                <iframe
+                  src={originalPreviewUrl}
+                  title="Original PDF evidence"
+                  style={{
+                    width: "100%",
+                    minHeight: 560,
+                    borderRadius: 18,
+                    border: "1px solid rgba(79,112,107,0.10)",
+                    background: "#fff",
+                    boxShadow: "0 14px 28px rgba(0,0,0,0.08)",
+                  }}
+                />
+              </div>
+            )}
+          </>
+        ) : (
+          <div style={{ display: "grid", gap: 16, marginTop: 16 }}>
+            {sortedParts.map((part) => {
+              const kind = getEvidenceKind(part.mimeType ?? null);
+              const previewUrl = part.publicUrl ?? part.url ?? null;
+              const downloadUrl = part.url ?? part.publicUrl ?? null;
+              const displayName = getPartDisplayName(part);
+
+              return (
+                <div
+                  key={part.id}
+                  style={{
+                    padding: 16,
+                    borderRadius: 20,
+                    ...softCardStyle,
+                  }}
+                >
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      gap: 12,
+                      flexWrap: "wrap",
+                      alignItems: "center",
+                    }}
+                  >
+                    <div>
+                      <div style={{ fontWeight: 800, color: "#23373b" }}>
+                        Item {part.partIndex + 1}
+                        {part.isPrimary ? " (Primary)" : ""}
+                      </div>
+                      <div style={{ fontSize: 13, color: "#6a777b", marginTop: 4 }}>
+                        {displayName}
+                      </div>
+                    </div>
+
+                    <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                      <Button
+                        variant="secondary"
+                        onClick={() => handleOpenPart(part)}
+                        disabled={!downloadUrl || isDeleted}
+                        className="rounded-[999px] border px-4 py-2.5 text-[0.86rem] font-semibold"
+                        style={landingSecondaryButtonStyle}
+                      >
+                        Open
+                      </Button>
+                      <Button
+                        variant="secondary"
+                        onClick={() => handleDownloadPart(part)}
+                        disabled={!downloadUrl || isDeleted}
+                        className="rounded-[999px] border px-4 py-2.5 text-[0.86rem] font-semibold"
+                        style={landingTertiaryButtonStyle}
+                      >
+                        Download
+                      </Button>
+                    </div>
+                  </div>
+
+                  <div
+                    style={{
+                      display: "grid",
+                      gap: 6,
+                      marginTop: 12,
+                      marginBottom: 14,
+                      color: "#6a777b",
+                      fontSize: 13,
+                    }}
+                  >
+                    <div>Type: {part.mimeType ?? "Unknown"}</div>
+                    <div>Kind: {kind}</div>
+                    <div>Size: {formatBytes(part.sizeBytes ?? null)}</div>
+                  </div>
+
+                  {previewUrl && kind === "image" && (
+                    <img
+                      src={previewUrl}
+                      alt={`Evidence item ${part.partIndex + 1}`}
+                      style={{
+                        width: "100%",
+                        maxWidth: 420,
+                        margin: "0 auto",
+                        display: "block",
+                        borderRadius: 16,
+                        border: "1px solid rgba(79,112,107,0.10)",
+                        boxShadow: "0 12px 24px rgba(0,0,0,0.06)",
+                      }}
+                    />
+                  )}
+
+                  {previewUrl && kind === "video" && (
+                    <video
+                      src={previewUrl}
+                      controls
+                      preload="metadata"
+                      style={{
+                        width: "100%",
+                        maxWidth: 420,
+                        margin: "0 auto",
+                        display: "block",
+                        borderRadius: 16,
+                        border: "1px solid rgba(79,112,107,0.10)",
+                        boxShadow: "0 12px 24px rgba(0,0,0,0.06)",
+                      }}
+                    />
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    </Card>
+  )}
+</div>
+</div>
 
       <Modal
         isOpen={assignCaseModalOpen}
-        onClose={() => setAssignCaseModalOpen(false)}
+                onClose={() => setAssignCaseModalOpen(false)}
         title={caseId ? "Move evidence to case" : "Add evidence to case"}
         actions={
           <div style={{ display: "flex", gap: 10 }}>
@@ -2397,13 +2328,13 @@ export default function EvidenceDetailPage() {
         </div>
       </Modal>
 
-      <style jsx global>{`
-        @media (max-width: 1100px) {
-          .evidence-three-up {
-            grid-template-columns: 1fr !important;
-          }
-        }
-      `}</style>
+<style jsx global>{`
+  @media (max-width: 1100px) {
+    .evidence-detail-page-shell .container > div[style*="grid-template-columns: minmax(0, 1.08fr) minmax(0, 0.92fr)"] {
+      grid-template-columns: 1fr !important;
+    }
+  }
+`}</style>
     </div>
   );
 }
