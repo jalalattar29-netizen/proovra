@@ -76,6 +76,11 @@ export default async function AppLegalPage({
     inset 0 1px 0 rgba(255,255,255,0.48);
 }
 
+.app-legal-page .app-legal-card::before,
+.app-legal-page .app-legal-card::after {
+  display: none;
+}
+
 .app-legal-page .app-legal-card__bg {
   position: absolute;
   inset: 0;
@@ -98,7 +103,7 @@ export default async function AppLegalPage({
   z-index: 2;
   padding: 28px 30px;
 }
-  
+    
         .app-legal-page .app-legal-intro {
           margin-bottom: 22px;
           padding: 16px 18px;
