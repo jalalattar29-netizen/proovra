@@ -18,7 +18,7 @@ type AuthUser = {
   email?: string | null;
   displayName?: string | null;
   provider: string;
-  role?: string | null;
+  platformRole?: string | null;
   firstName?: string | null;
   lastName?: string | null;
   avatarUrl?: string | null;

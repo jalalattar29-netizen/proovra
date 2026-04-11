@@ -11,17 +11,22 @@ export async function requirePlatformAdmin(
   if (reply.sent) return;
 
   const userId = req.user!.sub;
-  const allowed = await isPlatformAdmin(userId, req.user?.role);
+  const role =
+    (req.user as { platformRole?: string | null; role?: string | null } | undefined)
+      ?.platformRole ??
+    (req.user as { role?: string | null } | undefined)?.role ??
+    null;
+
+  const allowed = await isPlatformAdmin(userId, role);
+
   if (!allowed) {
-    return reply
-      .code(403)
-      .send(
-        createErrorResponse(
-          ErrorCode.FORBIDDEN,
-          req.id,
-          undefined,
-          "Admin access required"
-        )
-      );
+    return reply.code(403).send(
+      createErrorResponse(
+        ErrorCode.FORBIDDEN,
+        req.id,
+        undefined,
+        "Admin access required"
+      )
+    );
   }
 }

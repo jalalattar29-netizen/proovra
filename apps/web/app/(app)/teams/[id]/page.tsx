@@ -180,6 +180,7 @@ export default function TeamDetailPage() {
   const [availableCases, setAvailableCases] = useState<AvailableCaseItem[]>([]);
   const [loadingAvailableCases, setLoadingAvailableCases] = useState(false);
   const [linkingCaseId, setLinkingCaseId] = useState<string | null>(null);
+  const [unlinkingCaseId, setUnlinkingCaseId] = useState<string | null>(null);
 
   const loadData = async () => {
     if (!teamId) return;
@@ -539,6 +540,42 @@ export default function TeamDetailPage() {
     }
   };
 
+  const handleUnlinkTeamCase = async (caseId: string) => {
+    if (!teamId || !canManageTeam) return;
+
+    const confirmed = window.confirm("Remove this case from the team?");
+    if (!confirmed) return;
+
+    setUnlinkingCaseId(caseId);
+
+    try {
+      await apiFetch(`/v1/teams/${teamId}/cases/${caseId}`, {
+        method: "DELETE",
+      });
+
+      const removedCase = teamCases.find((item) => item.id === caseId) ?? null;
+
+      setTeamCases((prev) => prev.filter((item) => item.id !== caseId));
+
+      if (removedCase) {
+        setAvailableCases((prev) => {
+          const exists = prev.some((item) => item.id === removedCase.id);
+          if (exists) return prev;
+          return [{ ...removedCase, teamId: null }, ...prev];
+        });
+      }
+
+      addToast("Case removed from team", "success");
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "Failed to remove case from team";
+      captureException(err, { feature: "team_case_unlink", teamId, caseId });
+      addToast(message, "error");
+    } finally {
+      setUnlinkingCaseId(null);
+    }
+  };
+
   const copyInviteLink = async (invite: TeamInvite) => {
     const url = invite.inviteUrl;
     if (!url) {
@@ -590,6 +627,22 @@ export default function TeamDetailPage() {
         boxShadow:
           "0 10px 20px rgba(0,0,0,0.05), inset 0 1px 0 rgba(255,255,255,0.70)",
         textShadow: "0 1px 0 rgba(255,255,255,0.30)",
+        backdropFilter: "blur(6px)",
+        WebkitBackdropFilter: "blur(6px)",
+      }) as const,
+    []
+  );
+
+  const tertiaryButtonStyle = useMemo(
+    () =>
+      ({
+        borderColor: "rgba(183,157,132,0.16)",
+        color: "#7a624d",
+        background:
+          "linear-gradient(180deg, rgba(244,238,232,0.88) 0%, rgba(255,255,255,0.64) 100%)",
+        boxShadow:
+          "0 10px 20px rgba(92,69,50,0.05), inset 0 1px 0 rgba(255,255,255,0.72)",
+        textShadow: "0 1px 0 rgba(255,255,255,0.32)",
         backdropFilter: "blur(6px)",
         WebkitBackdropFilter: "blur(6px)",
       }) as const,
@@ -691,14 +744,14 @@ export default function TeamDetailPage() {
                   flexShrink: 0,
                 }}
               />
-              Team Workspace
+              Team
             </div>
 
             <h1
               className="mt-5 max-w-[760px] text-[1.72rem] font-medium leading-[1.02] tracking-[-0.045em] text-[#d9e2df] md:text-[2.22rem] lg:text-[2.72rem]"
               style={{ margin: "20px 0 0" }}
             >
-              Loading <span style={{ color: "#c3ebe2" }}>team workspace</span>.
+              Loading <span style={{ color: "#c3ebe2" }}>team</span>.
             </h1>
 
             <p
@@ -711,7 +764,7 @@ export default function TeamDetailPage() {
                 color: "#aab5b2",
               }}
             >
-              Preparing members, cases, invites, and access controls.
+              Preparing members, invites, and linked team cases.
             </p>
           </div>
         </div>
@@ -768,7 +821,7 @@ export default function TeamDetailPage() {
                   flexShrink: 0,
                 }}
               />
-              Team Workspace
+              Team
             </div>
 
             <h1
@@ -897,8 +950,10 @@ export default function TeamDetailPage() {
           color: #23373b;
         }
 
-        @media (max-width: 1100px) {
-          .teams-detail-page-shell .team-main-grid {
+        @media (max-width: 1180px) {
+          .teams-detail-page-shell .team-main-grid,
+          .teams-detail-page-shell .team-secondary-grid,
+          .teams-detail-page-shell .team-bottom-grid {
             grid-template-columns: 1fr !important;
           }
         }
@@ -907,7 +962,7 @@ export default function TeamDetailPage() {
       <div className="app-hero app-hero-full">
         <div className="container">
           <div className="page-title app-page-title" style={{ marginBottom: 0 }}>
-            <div style={{ maxWidth: 820 }}>
+            <div style={{ maxWidth: 860 }}>
               <div
                 style={{
                   display: "inline-flex",
@@ -936,31 +991,30 @@ export default function TeamDetailPage() {
                     flexShrink: 0,
                   }}
                 />
-                Team Workspace
+                Team
               </div>
 
               <h1
                 className="mt-5 max-w-[820px] text-[1.72rem] font-medium leading-[1.02] tracking-[-0.045em] text-[#d9e2df] md:text-[2.22rem] lg:text-[2.72rem]"
                 style={{ margin: "20px 0 0" }}
               >
-                {team.name ?? "Team"}{" "}
-                <span style={{ color: "#c3ebe2" }}>access and collaboration</span>.
+                <span style={{ color: "#c3ebe2" }}>{team.name ?? "Team"}</span>
               </h1>
 
               <p
                 style={{
                   marginTop: 20,
-                  maxWidth: 720,
+                  maxWidth: 760,
                   fontSize: "0.95rem",
                   lineHeight: 1.8,
                   letterSpacing: "-0.006em",
                   color: "#aab5b2",
                 }}
               >
-                Manage <span style={{ color: "#cfd8d5" }}>members</span>,{" "}
-                <span style={{ color: "#bbc7c3" }}>invites</span>, shared{" "}
-                <span style={{ color: "#d2dcd8" }}>team cases</span>, and recent{" "}
-                <span style={{ color: "#d9ccbf" }}>activity</span> inside one controlled
+                Manage <span style={{ color: "#cfd8d5" }}>ownership</span>,{" "}
+                <span style={{ color: "#bbc7c3" }}>members</span>,{" "}
+                <span style={{ color: "#d2dcd8" }}>pending invites</span>, and linked{" "}
+                <span style={{ color: "#d9ccbf" }}>team cases</span> from one controlled
                 workspace.
               </p>
 
@@ -970,6 +1024,12 @@ export default function TeamDetailPage() {
                   {(team.stats?.memberCount ?? team.members?.length ?? 0).toString()} active
                   member
                   {(team.stats?.memberCount ?? team.members?.length ?? 0) === 1 ? "" : "s"}
+                </div>
+
+                <div className="rounded-full border border-white/10 bg-white/[0.055] px-3.5 py-2 text-[0.78rem] font-normal text-[#c7d1ce] shadow-[0_8px_18px_rgba(0,0,0,0.08)] backdrop-blur-md">
+                  <span className="mr-2 text-[#91aca5]">✓</span>
+                  {team.stats?.pendingInviteCount ?? invites.length} pending invite
+                  {(team.stats?.pendingInviteCount ?? invites.length) === 1 ? "" : "s"}
                 </div>
 
                 <div className="rounded-full border border-white/10 bg-white/[0.055] px-3.5 py-2 text-[0.78rem] font-normal text-[#c7d1ce] shadow-[0_8px_18px_rgba(0,0,0,0.08)] backdrop-blur-md">
@@ -1035,215 +1095,6 @@ export default function TeamDetailPage() {
             paddingBottom: 72,
           }}
         >
-          <div
-            className="team-main-grid"
-            style={{
-              display: "grid",
-              gridTemplateColumns: "minmax(0, 1.18fr) minmax(0, 0.82fr)",
-              gap: 18,
-              alignItems: "start",
-            }}
-          >
-            <Card
-              className="relative overflow-hidden rounded-[30px] border bg-transparent p-0 shadow-none"
-              style={outerCardStyle}
-            >
-              <div className="absolute inset-0">
-                <img
-                  src="/images/panel-silver.webp.png"
-                  alt=""
-                  className="h-full w-full object-cover object-center"
-                />
-              </div>
-              <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.24)_0%,rgba(248,249,246,0.34)_42%,rgba(239,241,238,0.42)_100%)]" />
-              <div className="absolute inset-0 bg-[radial-gradient(circle_at_16%_12%,rgba(255,255,255,0.34),transparent_28%)] opacity-90" />
-
-              <div className="relative z-10 p-6 md:p-7">
-                <div
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    gap: 16,
-                    alignItems: "flex-start",
-                    flexWrap: "wrap",
-                  }}
-                >
-                  <div style={{ flex: 1, minWidth: 260 }}>
-                    <div
-                      style={{
-                        fontWeight: 700,
-                        marginBottom: 6,
-                        color: "#21353a",
-                        letterSpacing: "-0.02em",
-                        fontSize: 20,
-                      }}
-                    >
-                      Team overview
-                    </div>
-
-                    <div style={{ color: "#5d6d71", lineHeight: 1.7, marginBottom: 16 }}>
-                      Control team identity, membership permissions, and workspace ownership.
-                    </div>
-
-                    <label style={{ display: "grid", gap: 8 }}>
-                      <span style={{ fontSize: 12, color: "#6a777b" }}>Team name</span>
-                      <input
-                        value={teamName}
-                        onChange={(e) => setTeamName(e.target.value)}
-                        disabled={!canManageTeam || savingName}
-                        className="team-field"
-                      />
-                    </label>
-                  </div>
-
-                  <div style={{ display: "grid", gap: 10, minWidth: 220 }}>
-                    <div
-                      style={{
-                        ...noteCardStyle,
-                        padding: 14,
-                      }}
-                    >
-                      <strong>Owner:</strong>{" "}
-                      {team.ownerUserId === currentUserId ? "You" : "Team owner"}
-                      <br />
-                      <strong>Pending invites:</strong>{" "}
-                      {team.stats?.pendingInviteCount ?? invites.length}
-                    </div>
-
-                    {canManageTeam && (
-                      <Button
-                        onClick={handleSaveTeamName}
-                        disabled={savingName || !teamName.trim()}
-                        className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
-                        style={primaryButtonStyle}
-                      >
-                        {savingName ? "Saving..." : "Save name"}
-                      </Button>
-                    )}
-
-                    {isOwner && (
-                      <Button
-                        variant="secondary"
-                        onClick={() => setDeleteConfirm(true)}
-                        disabled={deletingTeam}
-                        className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
-                        style={dangerButtonStyle}
-                      >
-                        Delete Team
-                      </Button>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </Card>
-
-            {canManageTeam ? (
-              <Card
-                className="relative overflow-hidden rounded-[30px] border bg-transparent p-0 shadow-none"
-                style={outerCardStyle}
-              >
-                <div className="absolute inset-0">
-                  <img
-                    src="/images/panel-silver.webp.png"
-                    alt=""
-                    className="h-full w-full object-cover object-center"
-                  />
-                </div>
-                <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.24)_0%,rgba(248,249,246,0.34)_42%,rgba(239,241,238,0.42)_100%)]" />
-                <div className="absolute inset-0 bg-[radial-gradient(circle_at_16%_12%,rgba(255,255,255,0.34),transparent_28%)] opacity-90" />
-
-                <div className="relative z-10 p-6 md:p-7">
-                  <div
-                    style={{
-                      fontWeight: 700,
-                      marginBottom: 6,
-                      color: "#21353a",
-                      letterSpacing: "-0.02em",
-                      fontSize: 20,
-                    }}
-                  >
-                    Invite member
-                  </div>
-
-                  <div style={{ color: "#5d6d71", lineHeight: 1.7, marginBottom: 16 }}>
-                    Add a collaborator with the right access level for this workspace.
-                  </div>
-
-                  <div style={{ display: "grid", gap: 10 }}>
-                    <input
-                      placeholder="Email address"
-                      value={inviteEmail}
-                      onChange={(e) => setInviteEmail(e.target.value)}
-                      disabled={inviting}
-                      className="team-field"
-                    />
-
-                    <select
-                      value={inviteRole}
-                      onChange={(e) => setInviteRole(e.target.value)}
-                      disabled={inviting}
-                      className="team-select"
-                    >
-                      {["OWNER", "ADMIN", "MEMBER", "VIEWER"].map((role) => (
-                        <option key={role} value={role}>
-                          {role}
-                        </option>
-                      ))}
-                    </select>
-
-                    <Button
-                      onClick={handleInvite}
-                      disabled={inviting || !inviteEmail.trim()}
-                      className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
-                      style={primaryButtonStyle}
-                    >
-                      {inviting ? "Sending..." : "Send invite"}
-                    </Button>
-                  </div>
-                </div>
-              </Card>
-            ) : (
-              <Card
-                className="relative overflow-hidden rounded-[30px] border bg-transparent p-0 shadow-none"
-                style={outerCardStyle}
-              >
-                <div className="absolute inset-0">
-                  <img
-                    src="/images/panel-silver.webp.png"
-                    alt=""
-                    className="h-full w-full object-cover object-center"
-                  />
-                </div>
-                <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.24)_0%,rgba(248,249,246,0.34)_42%,rgba(239,241,238,0.42)_100%)]" />
-                <div className="absolute inset-0 bg-[radial-gradient(circle_at_16%_12%,rgba(255,255,255,0.34),transparent_28%)] opacity-90" />
-
-                <div className="relative z-10 p-6 md:p-7">
-                  <div
-                    style={{
-                      fontWeight: 700,
-                      marginBottom: 6,
-                      color: "#21353a",
-                      letterSpacing: "-0.02em",
-                      fontSize: 20,
-                    }}
-                  >
-                    Access summary
-                  </div>
-
-                  <div
-                    style={{
-                      ...noteCardStyle,
-                      padding: 14,
-                    }}
-                  >
-                    You currently have <strong>{currentRole}</strong> access. Contact an owner
-                    or admin to manage members, invitations, or linked team cases.
-                  </div>
-                </div>
-              </Card>
-            )}
-          </div>
-
           {deleteConfirm && isOwner && (
             <Card
               className="relative overflow-hidden rounded-[30px] border bg-transparent p-0 shadow-none"
@@ -1312,7 +1163,213 @@ export default function TeamDetailPage() {
             className="team-main-grid"
             style={{
               display: "grid",
-              gridTemplateColumns: "minmax(0, 1.05fr) minmax(0, 0.95fr)",
+              gridTemplateColumns: "minmax(0, 1.1fr) minmax(0, 0.9fr)",
+              gap: 18,
+              alignItems: "start",
+            }}
+          >
+            <Card
+              className="relative overflow-hidden rounded-[30px] border bg-transparent p-0 shadow-none"
+              style={outerCardStyle}
+            >
+              <div className="absolute inset-0">
+                <img
+                  src="/images/panel-silver.webp.png"
+                  alt=""
+                  className="h-full w-full object-cover object-center"
+                />
+              </div>
+              <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.24)_0%,rgba(248,249,246,0.34)_42%,rgba(239,241,238,0.42)_100%)]" />
+              <div className="absolute inset-0 bg-[radial-gradient(circle_at_16%_12%,rgba(255,255,255,0.34),transparent_28%)] opacity-90" />
+
+              <div className="relative z-10 p-6 md:p-7">
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "minmax(0, 1fr) minmax(220px, 260px)",
+                    gap: 16,
+                    alignItems: "start",
+                  }}
+                >
+                  <div>
+                    <div
+                      style={{
+                        fontWeight: 700,
+                        marginBottom: 6,
+                        color: "#21353a",
+                        letterSpacing: "-0.02em",
+                        fontSize: 20,
+                      }}
+                    >
+                      Team overview
+                    </div>
+
+                    <div style={{ color: "#5d6d71", lineHeight: 1.7, marginBottom: 16 }}>
+                      Define the team identity, review ownership, and control the workspace
+                      structure from one place.
+                    </div>
+
+                    <label style={{ display: "grid", gap: 8 }}>
+                      <span style={{ fontSize: 12, color: "#6a777b" }}>Team name</span>
+                      <input
+                        value={teamName}
+                        onChange={(e) => setTeamName(e.target.value)}
+                        disabled={!canManageTeam || savingName}
+                        className="team-field"
+                      />
+                    </label>
+                  </div>
+
+                  <div style={{ display: "grid", gap: 10 }}>
+                    <div style={{ ...noteCardStyle, padding: 16 }}>
+                      <div style={{ marginBottom: 6 }}>
+                        <strong>Owner:</strong>{" "}
+                        {team.ownerUserId === currentUserId ? "You" : "Team owner"}
+                      </div>
+                      <div style={{ marginBottom: 6 }}>
+                        <strong>Your access:</strong> {currentRole}
+                      </div>
+                      <div>
+                        <strong>Pending invites:</strong>{" "}
+                        {team.stats?.pendingInviteCount ?? invites.length}
+                      </div>
+                    </div>
+
+                    {canManageTeam && (
+                      <Button
+                        onClick={handleSaveTeamName}
+                        disabled={savingName || !teamName.trim()}
+                        className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
+                        style={primaryButtonStyle}
+                      >
+                        {savingName ? "Saving..." : "Save name"}
+                      </Button>
+                    )}
+
+                    {isOwner && (
+                      <Button
+                        variant="secondary"
+                        onClick={() => setDeleteConfirm(true)}
+                        disabled={deletingTeam}
+                        className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
+                        style={dangerButtonStyle}
+                      >
+                        Delete Team
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </Card>
+
+            {canManageTeam ? (
+              <Card
+                className="relative overflow-hidden rounded-[30px] border bg-transparent p-0 shadow-none"
+                style={outerCardStyle}
+              >
+                <div className="absolute inset-0">
+                  <img
+                    src="/images/panel-silver.webp.png"
+                    alt=""
+                    className="h-full w-full object-cover object-center"
+                  />
+                </div>
+                <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.24)_0%,rgba(248,249,246,0.34)_42%,rgba(239,241,238,0.42)_100%)]" />
+                <div className="absolute inset-0 bg-[radial-gradient(circle_at_16%_12%,rgba(255,255,255,0.34),transparent_28%)] opacity-90" />
+
+                <div className="relative z-10 p-6 md:p-7">
+                  <div
+                    style={{
+                      fontWeight: 700,
+                      marginBottom: 6,
+                      color: "#21353a",
+                      letterSpacing: "-0.02em",
+                      fontSize: 20,
+                    }}
+                  >
+                    Invite member
+                  </div>
+
+                  <div style={{ color: "#5d6d71", lineHeight: 1.7, marginBottom: 16 }}>
+                    Add a collaborator and assign the right level before they join the
+                    workspace.
+                  </div>
+
+                  <div style={{ display: "grid", gap: 10 }}>
+                    <input
+                      placeholder="Email address"
+                      value={inviteEmail}
+                      onChange={(e) => setInviteEmail(e.target.value)}
+                      disabled={inviting}
+                      className="team-field"
+                    />
+
+                    <select
+                      value={inviteRole}
+                      onChange={(e) => setInviteRole(e.target.value)}
+                      disabled={inviting}
+                      className="team-select"
+                    >
+                      {["OWNER", "ADMIN", "MEMBER", "VIEWER"].map((role) => (
+                        <option key={role} value={role}>
+                          {role}
+                        </option>
+                      ))}
+                    </select>
+
+                    <Button
+                      onClick={handleInvite}
+                      disabled={inviting || !inviteEmail.trim()}
+                      className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
+                      style={primaryButtonStyle}
+                    >
+                      {inviting ? "Sending..." : "Send invite"}
+                    </Button>
+                  </div>
+                </div>
+              </Card>
+            ) : (
+              <Card
+                className="relative overflow-hidden rounded-[30px] border bg-transparent p-0 shadow-none"
+                style={outerCardStyle}
+              >
+                <div className="absolute inset-0">
+                  <img
+                    src="/images/panel-silver.webp.png"
+                    alt=""
+                    className="h-full w-full object-cover object-center"
+                  />
+                </div>
+                <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.24)_0%,rgba(248,249,246,0.34)_42%,rgba(239,241,238,0.42)_100%)]" />
+                <div className="absolute inset-0 bg-[radial-gradient(circle_at_16%_12%,rgba(255,255,255,0.34),transparent_28%)] opacity-90" />
+
+                <div className="relative z-10 p-6 md:p-7">
+                  <div
+                    style={{
+                      fontWeight: 700,
+                      marginBottom: 6,
+                      color: "#21353a",
+                      letterSpacing: "-0.02em",
+                      fontSize: 20,
+                    }}
+                  >
+                    Access summary
+                  </div>
+
+                  <div style={{ ...noteCardStyle, padding: 14 }}>
+                    You currently have <strong>{currentRole}</strong> access. Contact an
+                    owner or admin to manage members, invitations, or linked cases.
+                  </div>
+                </div>
+              </Card>
+            )}
+          </div>
+
+          <div
+            className="team-secondary-grid"
+            style={{
+              display: "grid",
+              gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1fr)",
               gap: 18,
               alignItems: "start",
             }}
@@ -1345,7 +1402,8 @@ export default function TeamDetailPage() {
                 </div>
 
                 <div style={{ color: "#5d6d71", lineHeight: 1.7, marginBottom: 16 }}>
-                  Review every collaborator in this team and adjust access where allowed.
+                  A clear view of who belongs to the team, who owns it, and who can
+                  manage access.
                 </div>
 
                 {!team.members || team.members.length === 0 ? (
@@ -1477,7 +1535,8 @@ export default function TeamDetailPage() {
                 </div>
 
                 <div style={{ color: "#5d6d71", lineHeight: 1.7, marginBottom: 16 }}>
-                  Monitor invitation links, expiry timing, and unaccepted team access.
+                  All invitations waiting for acceptance, with quick actions to manage
+                  them.
                 </div>
 
                 {invites.length === 0 ? (
@@ -1552,10 +1611,12 @@ export default function TeamDetailPage() {
           </div>
 
           <div
-            className="team-main-grid"
+            className="team-bottom-grid"
             style={{
               display: "grid",
-              gridTemplateColumns: "minmax(0, 1.02fr) minmax(0, 0.98fr)",
+              gridTemplateColumns: activities.length > 0
+                ? "minmax(0, 1.08fr) minmax(0, 0.92fr)"
+                : "1fr",
               gap: 18,
               alignItems: "start",
             }}
@@ -1577,91 +1638,34 @@ export default function TeamDetailPage() {
               <div className="relative z-10 p-6 md:p-7">
                 <div
                   style={{
-                    fontWeight: 700,
-                    marginBottom: 6,
-                    color: "#21353a",
-                    letterSpacing: "-0.02em",
-                    fontSize: 20,
+                    display: "flex",
+                    justifyContent: "space-between",
+                    gap: 16,
+                    alignItems: "flex-start",
+                    flexWrap: "wrap",
+                    marginBottom: 16,
                   }}
                 >
-                  Team cases
-                </div>
+                  <div>
+                    <div
+                      style={{
+                        fontWeight: 700,
+                        marginBottom: 6,
+                        color: "#21353a",
+                        letterSpacing: "-0.02em",
+                        fontSize: 20,
+                      }}
+                    >
+                      Team cases
+                    </div>
 
-                <div style={{ color: "#5d6d71", lineHeight: 1.7, marginBottom: 16 }}>
-                  Shared cases linked to this team and available to the permitted members.
-                </div>
-
-                {teamCases.length === 0 ? (
-                  <div style={{ color: "#5d6d71" }}>
-                    No cases linked to this team yet.
+                    <div style={{ color: "#5d6d71", lineHeight: 1.7 }}>
+                      Cases currently attached to this team, with clear actions to open or
+                      remove them.
+                    </div>
                   </div>
-                ) : (
-                  <div style={{ display: "grid", gap: 10 }}>
-                    {teamCases.map((item) => (
-                      <Link
-                        key={item.id}
-                        href={`/cases/${item.id}`}
-                        style={{ textDecoration: "none", color: "inherit" }}
-                      >
-                        <div style={{ ...rowCardStyle, cursor: "pointer" }}>
-                          <div
-                            style={{
-                              display: "flex",
-                              justifyContent: "space-between",
-                              gap: 12,
-                              flexWrap: "wrap",
-                              alignItems: "center",
-                            }}
-                          >
-                            <div style={{ flex: 1, minWidth: 0 }}>
-                              <div
-                                style={{
-                                  color: "#21353a",
-                                  fontWeight: 700,
-                                  fontSize: 16,
-                                }}
-                              >
-                                {item.name}
-                              </div>
-                              <div
-                                style={{
-                                  color: "#6a777b",
-                                  fontSize: 13,
-                                  marginTop: 4,
-                                }}
-                              >
-                                {item.createdAt
-                                  ? new Date(item.createdAt).toLocaleString()
-                                  : ""}
-                              </div>
-                            </div>
 
-                            <span
-                              style={{
-                                ...statPillBase,
-                                border: "1px solid rgba(79,112,107,0.16)",
-                                background:
-                                  "linear-gradient(180deg, rgba(191,232,223,0.20) 0%, rgba(255,255,255,0.42) 100%)",
-                                color: "#2d5b59",
-                              }}
-                            >
-                              Open
-                            </span>
-                          </div>
-                        </div>
-                      </Link>
-                    ))}
-                  </div>
-                )}
-
-                {canManageTeam && (
-                  <div
-                    style={{
-                      marginTop: 16,
-                      paddingTop: 16,
-                      borderTop: "1px solid rgba(79,112,107,0.10)",
-                    }}
-                  >
+                  {canManageTeam && (
                     <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                       <Button
                         onClick={handleCreateTeamCase}
@@ -1683,81 +1687,155 @@ export default function TeamDetailPage() {
                         className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
                         style={secondaryButtonStyle}
                       >
-                        {showAddCase ? "Cancel" : "Add Existing Case"}
+                        {showAddCase ? "Close" : "Add Existing Case"}
                       </Button>
                     </div>
+                  )}
+                </div>
 
-                    {showAddCase && (
-                      <div
-                        style={{
-                          marginTop: 14,
-                          paddingTop: 14,
-                          borderTop: "1px solid rgba(79,112,107,0.10)",
-                        }}
-                      >
+                {teamCases.length === 0 ? (
+                  <div style={{ color: "#5d6d71" }}>
+                    No cases linked to this team yet.
+                  </div>
+                ) : (
+                  <div style={{ display: "grid", gap: 10 }}>
+                    {teamCases.map((item) => (
+                      <div key={item.id} style={rowCardStyle}>
                         <div
                           style={{
-                            color: "#5d6d71",
-                            marginBottom: 12,
-                            lineHeight: 1.7,
+                            display: "flex",
+                            justifyContent: "space-between",
+                            gap: 12,
+                            flexWrap: "wrap",
+                            alignItems: "center",
                           }}
                         >
-                          {loadingAvailableCases
-                            ? "Loading available cases..."
-                            : availableCases.length === 0
-                              ? "No available personal cases"
-                              : "Select a case to link"}
-                        </div>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div
+                              style={{
+                                color: "#21353a",
+                                fontWeight: 700,
+                                fontSize: 16,
+                              }}
+                            >
+                              {item.name}
+                            </div>
+                            <div
+                              style={{
+                                color: "#6a777b",
+                                fontSize: 13,
+                                marginTop: 4,
+                                lineHeight: 1.6,
+                              }}
+                            >
+                              {item.createdAt
+                                ? new Date(item.createdAt).toLocaleString()
+                                : "Creation date not available"}
+                            </div>
+                          </div>
 
-                        {!loadingAvailableCases && availableCases.length > 0 && (
-                          <div style={{ display: "grid", gap: 10 }}>
-                            {availableCases.map((item) => (
-                              <div key={item.id} style={rowCardStyle}>
+                          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                            <Link
+                              href={`/cases/${item.id}`}
+                              style={{ textDecoration: "none" }}
+                            >
+                              <Button
+                                className="rounded-[999px] border px-4 py-2.5 text-[0.88rem] font-semibold"
+                                style={primaryButtonStyle}
+                              >
+                                Open
+                              </Button>
+                            </Link>
+
+                            {canManageTeam && (
+                              <Button
+                                variant="secondary"
+                                onClick={() => handleUnlinkTeamCase(item.id)}
+                                disabled={unlinkingCaseId === item.id}
+                                className="rounded-[999px] border px-4 py-2.5 text-[0.88rem] font-semibold"
+                                style={dangerButtonStyle}
+                              >
+                                {unlinkingCaseId === item.id
+                                  ? "Removing..."
+                                  : "Remove from Team"}
+                              </Button>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {showAddCase && canManageTeam && (
+                  <div
+                    style={{
+                      marginTop: 16,
+                      paddingTop: 16,
+                      borderTop: "1px solid rgba(79,112,107,0.10)",
+                    }}
+                  >
+                    <div
+                      style={{
+                        color: "#5d6d71",
+                        marginBottom: 12,
+                        lineHeight: 1.7,
+                      }}
+                    >
+                      {loadingAvailableCases
+                        ? "Loading available cases..."
+                        : availableCases.length === 0
+                          ? "No available personal cases to link."
+                          : "Choose a personal case to attach to this team."}
+                    </div>
+
+                    {!loadingAvailableCases && availableCases.length > 0 && (
+                      <div style={{ display: "grid", gap: 10 }}>
+                        {availableCases.map((item) => (
+                          <div key={item.id} style={rowCardStyle}>
+                            <div
+                              style={{
+                                display: "flex",
+                                justifyContent: "space-between",
+                                gap: 12,
+                                flexWrap: "wrap",
+                                alignItems: "center",
+                              }}
+                            >
+                              <div style={{ flex: 1, minWidth: 0 }}>
                                 <div
                                   style={{
-                                    display: "flex",
-                                    justifyContent: "space-between",
-                                    gap: 12,
-                                    flexWrap: "wrap",
-                                    alignItems: "center",
+                                    color: "#21353a",
+                                    fontWeight: 700,
+                                    fontSize: 16,
                                   }}
                                 >
-                                  <div style={{ flex: 1, minWidth: 0 }}>
-                                    <div
-                                      style={{
-                                        color: "#21353a",
-                                        fontWeight: 700,
-                                        fontSize: 16,
-                                      }}
-                                    >
-                                      {item.name}
-                                    </div>
-                                    <div
-                                      style={{
-                                        color: "#6a777b",
-                                        fontSize: 13,
-                                        marginTop: 4,
-                                      }}
-                                    >
-                                      {item.createdAt
-                                        ? new Date(item.createdAt).toLocaleString()
-                                        : ""}
-                                    </div>
-                                  </div>
-
-                                  <Button
-                                    onClick={() => handleAddExistingCase(item.id)}
-                                    disabled={linkingCaseId === item.id}
-                                    className="rounded-[999px] border px-4 py-2.5 text-[0.88rem] font-semibold"
-                                    style={primaryButtonStyle}
-                                  >
-                                    {linkingCaseId === item.id ? "Linking..." : "Link"}
-                                  </Button>
+                                  {item.name}
+                                </div>
+                                <div
+                                  style={{
+                                    color: "#6a777b",
+                                    fontSize: 13,
+                                    marginTop: 4,
+                                  }}
+                                >
+                                  {item.createdAt
+                                    ? new Date(item.createdAt).toLocaleString()
+                                    : ""}
                                 </div>
                               </div>
-                            ))}
+
+                              <Button
+                                onClick={() => handleAddExistingCase(item.id)}
+                                disabled={linkingCaseId === item.id}
+                                className="rounded-[999px] border px-4 py-2.5 text-[0.88rem] font-semibold"
+                                style={primaryButtonStyle}
+                              >
+                                {linkingCaseId === item.id ? "Linking..." : "Link"}
+                              </Button>
+                            </div>
                           </div>
-                        )}
+                        ))}
                       </div>
                     )}
                   </div>

@@ -3,12 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import {
-  Button,
-  Card,
-  ListRow,
-  useToast,
-} from "../../../../components/ui";
+import { Button, Card, useToast } from "../../../../components/ui";
 import { Icons } from "../../../../components/icons";
 import { apiFetch } from "../../../../lib/api";
 import { captureException } from "../../../../lib/sentry";
@@ -424,6 +419,47 @@ export default function CaseDetailPage() {
       "inset 0 1px 0 rgba(255,255,255,0.42), 0 12px 26px rgba(0,0,0,0.06)",
     backdropFilter: "blur(8px)",
     WebkitBackdropFilter: "blur(8px)",
+  } as const;
+
+  const caseEvidenceSurfaceStyle = {
+    background:
+      "linear-gradient(135deg, rgba(14,34,38,0.98) 0%, rgba(16,39,45,0.98) 38%, rgba(12,31,37,0.99) 100%)",
+    boxShadow:
+      "inset 0 1px 0 rgba(255,255,255,0.06), inset 0 0 0 1px rgba(90,124,118,0.08), 0 16px 28px rgba(7,18,22,0.18)",
+  } as const;
+
+  const caseEvidenceIconStyle = {
+    width: 42,
+    height: 42,
+    borderRadius: 14,
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    flexShrink: 0,
+    background:
+      "linear-gradient(180deg, rgba(22,47,54,0.95) 0%, rgba(18,35,41,0.98) 100%)",
+    border: "1px solid rgba(83,120,118,0.20)",
+    boxShadow:
+      "inset 0 1px 0 rgba(255,255,255,0.06), 0 10px 20px rgba(0,0,0,0.18)",
+    color: "#dce8e4",
+    fontSize: 14,
+    fontWeight: 800,
+    letterSpacing: "0.04em",
+  } as const;
+
+  const caseEvidenceTitleStyle = {
+    color: "#eef3f1",
+    fontWeight: 700,
+    fontSize: 15,
+    lineHeight: 1.25,
+    letterSpacing: "-0.01em",
+  } as const;
+
+  const caseEvidenceSubtitleStyle = {
+    color: "#9baeab",
+    fontSize: 13,
+    lineHeight: 1.5,
+    marginTop: 4,
   } as const;
 
   const reportReadyBadgeStyle = {
@@ -1124,18 +1160,82 @@ export default function CaseDetailPage() {
                           href={`/evidence/${item.id}`}
                           style={{ textDecoration: "none", color: "inherit", flex: 1 }}
                         >
-                          <ListRow
-                            title={resolveEvidenceTitle(item)}
-                            subtitle={resolveEvidenceSubtitle(item)}
-                            badge={
+                          <div
+                            style={{
+                              ...caseEvidenceSurfaceStyle,
+                              borderRadius: 20,
+                              minHeight: 74,
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "space-between",
+                              gap: 14,
+                              padding: "12px 16px 12px 14px",
+                            }}
+                          >
+                            <div
+                              style={{
+                                minWidth: 0,
+                                display: "flex",
+                                alignItems: "center",
+                                gap: 14,
+                                flex: 1,
+                              }}
+                            >
+                              <div style={caseEvidenceIconStyle}>EV</div>
+
+                              <div style={{ minWidth: 0, flex: 1 }}>
+                                <div
+                                  style={{
+                                    ...caseEvidenceTitleStyle,
+                                    whiteSpace: "nowrap",
+                                    overflow: "hidden",
+                                    textOverflow: "ellipsis",
+                                  }}
+                                >
+                                  {resolveEvidenceTitle(item)}
+                                </div>
+
+                                <div
+                                  style={{
+                                    ...caseEvidenceSubtitleStyle,
+                                    whiteSpace: "nowrap",
+                                    overflow: "hidden",
+                                    textOverflow: "ellipsis",
+                                  }}
+                                >
+                                  {resolveEvidenceSubtitle(item)}
+                                </div>
+                              </div>
+                            </div>
+
+                            <div
+                              style={{
+                                display: "flex",
+                                alignItems: "center",
+                                gap: 12,
+                                flexShrink: 0,
+                              }}
+                            >
                               <span
                                 className="inline-flex min-h-[32px] items-center justify-center rounded-full px-3.5 py-[6px] text-[10.5px] font-semibold uppercase tracking-[0.14em]"
                                 style={resolveCaseStatusStyle(statusMeta.tone)}
                               >
                                 {statusMeta.label}
                               </span>
-                            }
-                          />
+
+                              <span
+                                aria-hidden="true"
+                                style={{
+                                  color: "rgba(193,205,202,0.58)",
+                                  fontSize: 18,
+                                  lineHeight: 1,
+                                  transform: "translateY(-1px)",
+                                }}
+                              >
+                                ›
+                              </span>
+                            </div>
+                          </div>
                         </Link>
 
                         {isOwner && (

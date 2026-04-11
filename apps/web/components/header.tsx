@@ -25,13 +25,15 @@ const MARKETING_NAV: MarketingNavItem[] = [
 ];
 
 const APP_NAV: AppNavItem[] = [
-  { href: "/home", label: "Dashboard" },
+  { href: "/home", label: "Workspace" },
+  { href: "/dashboard", label: "Dashboard" },
   { href: "/capture", label: "Capture" },
   { href: "/cases", label: "Cases" },
   { href: "/teams", label: "Teams" },
   { href: "/reports", label: "Reports" },
   { href: "/billing", label: "Billing" },
   { href: "/settings", label: "Settings" },
+  { href: "/admin", label: "Admin" },
 ];
 
 function VelvetLinkButton({
@@ -203,7 +205,7 @@ export function AppHeader({
   const pathname = usePathname();
 
   const isActive = (href: string) =>
-    pathname === href || (href !== "/billing" && pathname?.startsWith(`${href}/`));
+    pathname === href || pathname?.startsWith(`${href}/`);
 
   return (
     <HeaderShell>
