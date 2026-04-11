@@ -66,44 +66,39 @@ export default async function AppLegalPage({
           z-index: 1;
         }
 
-        .app-legal-page .app-legal-card {
-          position: relative;
-          overflow: hidden;
-          border-radius: 30px;
-          border: 1px solid rgba(79,112,107,0.16);
-          box-shadow:
-            0 18px 38px rgba(0,0,0,0.08),
-            inset 0 1px 0 rgba(255,255,255,0.48);
-        }
+.app-legal-page .app-legal-card {
+  position: relative;
+  overflow: hidden;
+  border-radius: 30px;
+  border: 1px solid rgba(79,112,107,0.16);
+  box-shadow:
+    0 18px 38px rgba(0,0,0,0.08),
+    inset 0 1px 0 rgba(255,255,255,0.48);
+}
 
-        .app-legal-page .app-legal-card__bg {
-          position: absolute;
-          inset: 0;
-          background-image: url("/images/panel-silver.webp.png");
-          background-size: cover;
-          background-position: center;
-          background-repeat: no-repeat;
-          opacity: 1;
-        }
+.app-legal-page .app-legal-card__bg {
+  position: absolute;
+  inset: 0;
+  background-image: url("/images/panel-silver.webp.png");
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  z-index: 0;
+}
 
-        .app-legal-page .app-legal-card__overlay {
-          position: absolute;
-          inset: 0;
-          background:
-            linear-gradient(
-              180deg,
-              rgba(255,255,255,0.12) 0%,
-              rgba(255,255,255,0.08) 38%,
-              rgba(255,255,255,0.10) 100%
-            );
-        }
+.app-legal-page .app-legal-card__overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(255,255,255,0.08);
+  z-index: 1;
+}
 
-        .app-legal-page .app-legal-card__content {
-          position: relative;
-          z-index: 1;
-          padding: 28px 30px;
-        }
-
+.app-legal-page .app-legal-card__content {
+  position: relative;
+  z-index: 2;
+  padding: 28px 30px;
+}
+  
         .app-legal-page .app-legal-intro {
           margin-bottom: 22px;
           padding: 16px 18px;

@@ -923,34 +923,35 @@ export default function TeamDetailPage() {
           color: #23373b;
         }
 
-        .teams-detail-page-shell .team-main-grid {
-          display: grid;
-          grid-template-columns: minmax(0, 1.08fr) minmax(340px, 0.92fr);
-          gap: 22px;
-          align-items: stretch;
-        }
+.teams-detail-page-shell .team-main-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.18fr) minmax(0, 0.82fr);
+  gap: 22px;
+  align-items: start;
+}
 
-        .teams-detail-page-shell .team-secondary-grid {
-          display: grid;
-          grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-          gap: 22px;
-          align-items: stretch;
-        }
+.teams-detail-page-shell .team-secondary-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.04fr) minmax(0, 0.96fr);
+  gap: 22px;
+  align-items: start;
+}
 
         .teams-detail-page-shell .team-card {
           height: 100%;
         }
 
-        .teams-detail-page-shell .team-card-inner {
-          position: relative;
-          z-index: 10;
-          height: 100%;
-          display: flex;
-          flex-direction: column;
-        }
+.teams-detail-page-shell .team-card-inner {
+  position: relative;
+  z-index: 10;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+}
 
         .teams-detail-page-shell .team-card-header {
-          margin-bottom: 18px;
+          margin-bottom: 16px;
         }
 
         .teams-detail-page-shell .team-card-title {
@@ -971,12 +972,12 @@ export default function TeamDetailPage() {
           gap: 12px;
         }
 
-        .teams-detail-page-shell .team-overview-layout {
-          display: grid;
-          grid-template-columns: minmax(0, 1fr) minmax(250px, 290px);
-          gap: 20px;
-          align-items: start;
-        }
+.teams-detail-page-shell .team-overview-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(220px, 260px);
+  gap: 18px;
+  align-items: start;
+}
 
         .teams-detail-page-shell .team-side-panel {
           display: flex;
@@ -985,11 +986,15 @@ export default function TeamDetailPage() {
           height: 100%;
         }
 
-        .teams-detail-page-shell .team-side-panel-actions {
-          display: grid;
-          gap: 10px;
-          margin-top: auto;
-        }
+.teams-detail-page-shell .team-side-panel-actions {
+  display: grid;
+  gap: 10px;
+  margin-top: auto;
+}
+
+.teams-detail-page-shell .team-side-panel-actions > * {
+  width: 100%;
+}
 
         .teams-detail-page-shell .team-cases-actions {
           display: flex;
@@ -1216,7 +1221,7 @@ export default function TeamDetailPage() {
                     variant="secondary"
                     onClick={() => setDeleteConfirm(false)}
                     disabled={deletingTeam}
-                    className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
+className="rounded-[999px] border px-4 py-2.5 text-[0.88rem] font-semibold"
                     style={secondaryButtonStyle}
                   >
                     Cancel
@@ -1225,7 +1230,7 @@ export default function TeamDetailPage() {
                   <Button
                     onClick={handleDeleteTeam}
                     disabled={deletingTeam}
-                    className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
+className="rounded-[999px] border px-4 py-2.5 text-[0.88rem] font-semibold"
                     style={dangerButtonStyle}
                   >
                     {deletingTeam ? "Deleting..." : "Delete Team"}
@@ -1250,8 +1255,8 @@ export default function TeamDetailPage() {
               <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.24)_0%,rgba(248,249,246,0.34)_42%,rgba(239,241,238,0.42)_100%)]" />
               <div className="absolute inset-0 bg-[radial-gradient(circle_at_16%_12%,rgba(255,255,255,0.34),transparent_28%)] opacity-90" />
 
-              <div className="team-card-inner p-6 md:p-7">
-                <div className="team-overview-layout">
+<div className="team-card-inner p-6 md:p-6">
+                  <div className="team-overview-layout">
                   <div>
                     <div className="team-card-header">
                       <div className="team-card-title">Team overview</div>
@@ -1261,8 +1266,8 @@ export default function TeamDetailPage() {
                       </div>
                     </div>
 
-                    <label style={{ display: "grid", gap: 8 }}>
-                      <span style={{ fontSize: 12, color: "#6a777b" }}>Team name</span>
+<label style={{ display: "grid", gap: 8, maxWidth: 360 }}>
+                        <span style={{ fontSize: 12, color: "#6a777b" }}>Team name</span>
                       <input
                         value={teamName}
                         onChange={(e) => setTeamName(e.target.value)}
@@ -1273,7 +1278,7 @@ export default function TeamDetailPage() {
                   </div>
 
                   <div className="team-side-panel">
-                    <div style={{ ...noteCardStyle, padding: 16 }}>
+                    <div style={{ ...noteCardStyle, padding: 14 }}>
                       <div style={{ marginBottom: 6 }}>
                         <strong>Owner:</strong>{" "}
                         {team.ownerUserId === currentUserId ? "You" : "Team owner"}
@@ -1331,8 +1336,8 @@ export default function TeamDetailPage() {
                 <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.24)_0%,rgba(248,249,246,0.34)_42%,rgba(239,241,238,0.42)_100%)]" />
                 <div className="absolute inset-0 bg-[radial-gradient(circle_at_16%_12%,rgba(255,255,255,0.34),transparent_28%)] opacity-90" />
 
-                <div className="team-card-inner p-6 md:p-7">
-                  <div className="team-card-header">
+<div className="team-card-inner p-6 md:p-6">
+                    <div className="team-card-header">
                     <div className="team-card-title">Invite member</div>
                     <div className="team-card-copy">
                       Add a collaborator and assign the right level before they join the
@@ -1388,8 +1393,8 @@ export default function TeamDetailPage() {
                 <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.24)_0%,rgba(248,249,246,0.34)_42%,rgba(239,241,238,0.42)_100%)]" />
                 <div className="absolute inset-0 bg-[radial-gradient(circle_at_16%_12%,rgba(255,255,255,0.34),transparent_28%)] opacity-90" />
 
-                <div className="team-card-inner p-6 md:p-7">
-                  <div className="team-card-header">
+<div className="team-card-inner p-6 md:p-6">
+                    <div className="team-card-header">
                     <div className="team-card-title">Access summary</div>
                   </div>
 
@@ -1417,8 +1422,8 @@ export default function TeamDetailPage() {
               <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.24)_0%,rgba(248,249,246,0.34)_42%,rgba(239,241,238,0.42)_100%)]" />
               <div className="absolute inset-0 bg-[radial-gradient(circle_at_16%_12%,rgba(255,255,255,0.34),transparent_28%)] opacity-90" />
 
-              <div className="team-card-inner p-6 md:p-7">
-                <div className="team-card-header">
+<div className="team-card-inner p-6 md:p-6">
+                  <div className="team-card-header">
                   <div className="team-card-title">Members</div>
                   <div className="team-card-copy">
                     A clear view of who belongs to the team, who owns it, and who can
@@ -1541,8 +1546,8 @@ export default function TeamDetailPage() {
               <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.24)_0%,rgba(248,249,246,0.34)_42%,rgba(239,241,238,0.42)_100%)]" />
               <div className="absolute inset-0 bg-[radial-gradient(circle_at_16%_12%,rgba(255,255,255,0.34),transparent_28%)] opacity-90" />
 
-              <div className="team-card-inner p-6 md:p-7">
-                <div className="team-card-header">
+<div className="team-card-inner p-6 md:p-6">
+                  <div className="team-card-header">
                   <div className="team-card-title">Pending invites</div>
                   <div className="team-card-copy">
                     All invitations waiting for acceptance, with quick actions to manage
@@ -1550,10 +1555,20 @@ export default function TeamDetailPage() {
                   </div>
                 </div>
 
-                {invites.length === 0 ? (
-                  <div style={{ color: "#5d6d71" }}>No pending invites.</div>
-                ) : (
-                  <div className="team-stack">
+{invites.length === 0 ? (
+  <div
+    style={{
+      color: "#5d6d71",
+      paddingTop: 6,
+      minHeight: 72,
+      display: "flex",
+      alignItems: "flex-start",
+    }}
+  >
+    No pending invites.
+  </div>
+) : (
+                    <div className="team-stack">
                     {invites.map((invite) => (
                       <div key={invite.id} style={rowCardStyle}>
                         <div
@@ -1635,8 +1650,8 @@ export default function TeamDetailPage() {
             <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.24)_0%,rgba(248,249,246,0.34)_42%,rgba(239,241,238,0.42)_100%)]" />
             <div className="absolute inset-0 bg-[radial-gradient(circle_at_16%_12%,rgba(255,255,255,0.34),transparent_28%)] opacity-90" />
 
-            <div className="team-card-inner p-6 md:p-7">
-              <div
+<div className="team-card-inner p-6 md:p-6">
+                <div
                 style={{
                   display: "flex",
                   justifyContent: "space-between",
@@ -1847,8 +1862,8 @@ export default function TeamDetailPage() {
               <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.24)_0%,rgba(248,249,246,0.34)_42%,rgba(239,241,238,0.42)_100%)]" />
               <div className="absolute inset-0 bg-[radial-gradient(circle_at_16%_12%,rgba(255,255,255,0.34),transparent_28%)] opacity-90" />
 
-              <div className="team-card-inner p-6 md:p-7">
-                <div className="team-card-header">
+<div className="team-card-inner p-6 md:p-6">
+                  <div className="team-card-header">
                   <div className="team-card-title">Recent activity</div>
                   <div className="team-card-copy">
                     Latest actions captured inside the team workspace.
