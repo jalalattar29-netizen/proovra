@@ -245,6 +245,24 @@ function resolveDisplaySubtitle(
   return evidence?.displaySubtitle?.trim() || "";
 }
 
+function renderAccentLastWord(text: string) {
+  const trimmed = text.trim();
+  if (!trimmed) return "Digital Evidence Record";
+
+  const parts = trimmed.split(/\s+/);
+  if (parts.length === 1) {
+    return <span style={{ color: "#c3ebe2" }}>{parts[0]}</span>;
+  }
+
+  const last = parts.pop() ?? "";
+  return (
+    <>
+      {parts.join(" ")}{" "}
+      <span style={{ color: "#c3ebe2" }}>{last}</span>
+    </>
+  );
+}
+
 export default function EvidenceDetailPage() {
   const { t } = useLocale();
   const params = useParams<{ id: string }>();
@@ -823,7 +841,24 @@ export default function EvidenceDetailPage() {
       }
 
       setVerificationPackageAvailable(true);
-      window.open(data.url, "_blank", "noopener,noreferrer");
+
+      const response = await fetch(data.url);
+      if (!response.ok) {
+        window.open(data.url, "_blank", "noopener,noreferrer");
+        addToast("Verification package downloaded", "success");
+        return;
+      }
+
+      const blob = await response.blob();
+      const objectUrl = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = objectUrl;
+      link.download = `verification-package-${params.id}.zip`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(objectUrl);
+
       addToast("Verification package downloaded", "success");
     } catch (err) {
       captureException(err, {
@@ -866,48 +901,64 @@ export default function EvidenceDetailPage() {
     }
   };
 
-const handleDownloadOriginal = async () => {
-  if (!params?.id) return;
+  const handleDownloadOriginal = async () => {
+    if (!params?.id) return;
 
-  try {
-    let downloadUrl = originalDownloadUrl;
-    let filename = originalFileName || "evidence-file";
+    try {
+      let downloadUrl = originalDownloadUrl;
+      let filename = originalFileName || "evidence-file";
 
-    if (!downloadUrl) {
-      const data = await apiFetch(`/v1/evidence/${params.id}/original`);
-      downloadUrl = data?.url ?? data?.publicUrl ?? null;
+      if (!downloadUrl) {
+        const data = await apiFetch(`/v1/evidence/${params.id}/original`);
+        downloadUrl = data?.url ?? data?.publicUrl ?? null;
 
-      setOriginalPreviewUrl(data?.publicUrl ?? data?.url ?? null);
-      setOriginalDownloadUrl(downloadUrl);
-      setOriginalMimeType(data?.mimeType ?? null);
-      setOriginalSizeBytes(data?.sizeBytes ?? null);
-      setOriginalFileName(data?.originalFileName ?? null);
+        setOriginalPreviewUrl(data?.publicUrl ?? data?.url ?? null);
+        setOriginalDownloadUrl(downloadUrl);
+        setOriginalMimeType(data?.mimeType ?? null);
+        setOriginalSizeBytes(data?.sizeBytes ?? null);
+        setOriginalFileName(data?.originalFileName ?? null);
 
-      if (data?.originalFileName) {
-        filename = data.originalFileName;
+        if (data?.originalFileName) {
+          filename = data.originalFileName;
+        }
       }
-    }
 
-    if (!downloadUrl) {
-      addToast("Original file not available", "info");
-      return;
-    }
+      if (!downloadUrl) {
+        addToast("Original file not available", "info");
+        return;
+      }
 
-    const link = document.createElement("a");
-    link.href = downloadUrl;
-    link.download = filename;
-    link.rel = "noopener noreferrer";
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  } catch (err) {
-    captureException(err, {
-      feature: "web_evidence_download_original",
-      evidenceId: params.id,
-    });
-    addToast("Failed to download original", "error");
-  }
-};
+      const response = await fetch(downloadUrl);
+      if (!response.ok) {
+        const link = document.createElement("a");
+        link.href = downloadUrl;
+        link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        addToast("Original downloaded", "success");
+        return;
+      }
+
+      const blob = await response.blob();
+      const objectUrl = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = objectUrl;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(objectUrl);
+
+      addToast("Original downloaded", "success");
+    } catch (err) {
+      captureException(err, {
+        feature: "web_evidence_download_original",
+        evidenceId: params.id,
+      });
+      addToast("Failed to download original", "error");
+    }
+  };
 
   const handleOpenPart = (part: EvidencePart) => {
     const url = part.url ?? part.publicUrl ?? null;
@@ -918,13 +969,42 @@ const handleDownloadOriginal = async () => {
     window.open(url, "_blank", "noopener,noreferrer");
   };
 
-  const handleDownloadPart = (part: EvidencePart) => {
+  const handleDownloadPart = async (part: EvidencePart) => {
     const url = part.url ?? part.publicUrl ?? null;
     if (!url) {
       addToast("This item is not available right now", "info");
       return;
     }
-    window.open(url, "_blank", "noopener,noreferrer");
+
+    try {
+      const response = await fetch(url);
+      if (!response.ok) {
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = getPartDisplayName(part);
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        return;
+      }
+
+      const blob = await response.blob();
+      const objectUrl = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = objectUrl;
+      link.download = getPartDisplayName(part);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(objectUrl);
+    } catch (err) {
+      captureException(err, {
+        feature: "web_evidence_download_part",
+        evidenceId: params.id,
+        partId: part.id,
+      });
+      addToast("Failed to download this item", "error");
+    }
   };
 
   const handleOpenAssignCase = () => {
@@ -1007,32 +1087,50 @@ const handleDownloadOriginal = async () => {
     []
   );
 
-const heroEditButtonStyle = useMemo(
-  () =>
-    ({
-      borderColor: "rgba(79,112,107,0.22)",
-      color: "#eef3f1",
-      background:
-        "linear-gradient(180deg, rgba(58,92,95,0.96) 0%, rgba(20,38,42,0.98) 100%)",
-      boxShadow:
-        "inset 0 1px 0 rgba(255,255,255,0.08), 0 16px 34px rgba(18,40,44,0.22)",
-      textShadow: "0 1px 0 rgba(0,0,0,0.22)",
-      backdropFilter: "blur(6px)",
-      WebkitBackdropFilter: "blur(6px)",
-    }) as const,
-  []
-);
-
-  const heroSaveButtonStyle = useMemo(
+  const heroEditButtonStyle = useMemo(
     () =>
       ({
-        borderColor: "rgba(158,216,207,0.18)",
+        borderColor: "rgba(79,112,107,0.22)",
         color: "#eef3f1",
         background:
-          "linear-gradient(180deg, rgba(58,92,95,0.94) 0%, rgba(20,38,42,0.98) 100%)",
+          "linear-gradient(180deg, rgba(58,92,95,0.96) 0%, rgba(20,38,42,0.98) 100%)",
         boxShadow:
-          "inset 0 1px 0 rgba(255,255,255,0.08), 0 14px 28px rgba(18,40,44,0.18)",
+          "inset 0 1px 0 rgba(255,255,255,0.08), 0 16px 34px rgba(18,40,44,0.22)",
         textShadow: "0 1px 0 rgba(0,0,0,0.22)",
+        backdropFilter: "blur(6px)",
+        WebkitBackdropFilter: "blur(6px)",
+      }) as const,
+    []
+  );
+
+  const heroPrimaryButtonStyle = useMemo(
+    () =>
+      ({
+        borderColor: "rgba(158,216,207,0.14)",
+        color: "#aebbb6",
+        background:
+          "linear-gradient(180deg, rgba(62,98,96,0.26) 0%, rgba(14,30,34,0.38) 100%)",
+        boxShadow:
+          "inset 0 1px 0 rgba(255,255,255,0.04), 0 14px 28px rgba(0,0,0,0.08)",
+        backdropFilter: "blur(10px)",
+        WebkitBackdropFilter: "blur(10px)",
+      }) as const,
+    []
+  );
+
+  const heroSecondaryButtonStyle = useMemo(
+    () =>
+      ({
+        borderColor: "rgba(79,112,107,0.18)",
+        color: "#aebbb6",
+        backgroundImage:
+          "linear-gradient(180deg, rgba(8,20,24,0.78) 0%, rgba(7,18,22,0.88) 100%), url('/images/site-velvet-bg.webp.png')",
+        backgroundSize: "cover",
+        backgroundPosition: "center",
+        boxShadow:
+          "inset 0 1px 0 rgba(255,255,255,0.03), 0 14px 28px rgba(0,0,0,0.10)",
+        backdropFilter: "blur(10px)",
+        WebkitBackdropFilter: "blur(10px)",
       }) as const,
     []
   );
@@ -1069,32 +1167,18 @@ const heroEditButtonStyle = useMemo(
     []
   );
 
-  const landingSoftAccentButtonStyle = useMemo(
+  const landingTertiaryButtonStyle = useMemo(
     () =>
       ({
-        borderColor: "rgba(183,157,132,0.18)",
-        color: "#5f4c3d",
+        borderColor: "rgba(183,157,132,0.16)",
+        color: "#7a624d",
         background:
-          "linear-gradient(180deg, rgba(250,249,246,0.76) 0%, rgba(239,236,232,0.92) 100%)",
+          "linear-gradient(180deg, rgba(244,238,232,0.88) 0%, rgba(255,255,255,0.64) 100%)",
         boxShadow:
-          "0 10px 20px rgba(0,0,0,0.05), inset 0 1px 0 rgba(255,255,255,0.62)",
-        textShadow: "0 1px 0 rgba(255,255,255,0.28)",
+          "0 10px 20px rgba(92,69,50,0.05), inset 0 1px 0 rgba(255,255,255,0.72)",
+        textShadow: "0 1px 0 rgba(255,255,255,0.32)",
         backdropFilter: "blur(6px)",
         WebkitBackdropFilter: "blur(6px)",
-      }) as const,
-    []
-  );
-
-  const landingBronzeButtonStyle = useMemo(
-    () =>
-      ({
-        borderColor: "rgba(183,157,132,0.24)",
-        color: "#f3ece5",
-        background:
-          "linear-gradient(180deg, rgba(115,85,62,0.96) 0%, rgba(67,48,36,0.98) 100%)",
-        boxShadow:
-          "inset 0 1px 0 rgba(255,255,255,0.07), 0 14px 28px rgba(71,49,35,0.16)",
-        textShadow: "0 1px 0 rgba(0,0,0,0.22)",
       }) as const,
     []
   );
@@ -1102,13 +1186,31 @@ const heroEditButtonStyle = useMemo(
   const landingDangerButtonStyle = useMemo(
     () =>
       ({
-        borderColor: "rgba(167,96,96,0.20)",
-        color: "#fff5f5",
+        borderColor: "rgba(183,157,132,0.20)",
+        color: "#fff7f1",
         background:
-          "linear-gradient(180deg, rgba(134,72,72,0.94) 0%, rgba(101,50,50,0.98) 100%)",
+          "linear-gradient(180deg, rgba(142,102,72,0.96) 0%, rgba(102,68,45,0.98) 100%)",
         boxShadow:
-          "inset 0 1px 0 rgba(255,255,255,0.05), 0 12px 24px rgba(90,18,18,0.14)",
+          "inset 0 1px 0 rgba(255,255,255,0.06), 0 14px 28px rgba(90,58,36,0.18)",
         textShadow: "0 1px 0 rgba(0,0,0,0.22)",
+        backdropFilter: "blur(6px)",
+        WebkitBackdropFilter: "blur(6px)",
+      }) as const,
+    []
+  );
+
+  const landingDeleteButtonStyle = useMemo(
+    () =>
+      ({
+        borderColor: "rgba(194,78,78,0.20)",
+        color: "#fff3f3",
+        background:
+          "linear-gradient(180deg, rgba(164,84,84,0.94) 0%, rgba(130,62,62,0.98) 100%)",
+        boxShadow:
+          "inset 0 1px 0 rgba(255,255,255,0.06), 0 14px 28px rgba(90,18,18,0.14)",
+        textShadow: "0 1px 0 rgba(0,0,0,0.22)",
+        backdropFilter: "blur(6px)",
+        WebkitBackdropFilter: "blur(6px)",
       }) as const,
     []
   );
@@ -1127,54 +1229,23 @@ const heroEditButtonStyle = useMemo(
     []
   );
 
-  const previewShellStyle = useMemo(
-    () =>
-      ({
-        padding: 16,
-        borderRadius: 22,
-        background:
-          "linear-gradient(180deg, rgba(255,255,255,0.46) 0%, rgba(244,246,243,0.82) 100%)",
-        border: "1px solid rgba(79,112,107,0.10)",
-        boxShadow:
-          "inset 0 1px 0 rgba(255,255,255,0.62), 0 14px 28px rgba(0,0,0,0.05)",
-      }) as const,
-    []
-  );
+  const heroReportReadyStyle = {
+    border: "1px solid rgba(158,216,207,0.18)",
+    background:
+      "linear-gradient(180deg, rgba(191,232,223,0.16) 0%, rgba(255,255,255,0.05) 100%)",
+    color: "#dff4ef",
+    boxShadow:
+      "inset 0 1px 0 rgba(255,255,255,0.16), 0 4px 10px rgba(60,110,102,0.10)",
+  } as const;
 
-  const labelWords = useMemo(() => {
-    const trimmed = label.trim();
-    if (!trimmed) return { prefix: "", accent: "" };
-    const parts = trimmed.split(/\s+/);
-    if (parts.length === 1) return { prefix: "", accent: parts[0] };
-    return {
-      prefix: parts.slice(0, -1).join(" "),
-      accent: parts[parts.length - 1],
-    };
-  }, [label]);
-
-  const compactButtonClass =
-    "rounded-[20px] border px-5 py-4 text-[0.96rem] font-medium transition-all duration-200 hover:-translate-y-[1px] hover:brightness-[1.03]";
-  const smallButtonClass =
-    "rounded-[18px] border px-4 py-2.5 text-[0.88rem] font-semibold transition-all duration-200 hover:-translate-y-[1px] hover:brightness-[1.03]";
-
-  const heroStatusSharedStyle = {
-    display: "inline-flex",
-    alignItems: "center",
-    justifyContent: "center",
-    minHeight: 34,
-    padding: "8px 14px",
-    borderRadius: 999,
-    border: "1px solid rgba(255,255,255,0.10)",
-    background: "rgba(255,255,255,0.04)",
-    color: "#d7dfdb",
-    fontSize: "0.78rem",
-    fontWeight: 700 as const,
-    letterSpacing: "0.08em",
-    textTransform: "uppercase" as const,
-    boxShadow: "0 8px 18px rgba(0,0,0,0.08)",
-    backdropFilter: "blur(10px)",
-    WebkitBackdropFilter: "blur(10px)",
-  };
+  const silverReportReadyStyle = {
+    border: "1px solid rgba(79,112,107,0.14)",
+    background:
+      "linear-gradient(180deg, rgba(191,232,223,0.24) 0%, rgba(255,255,255,0.55) 100%)",
+    color: "#2d5b59",
+    boxShadow:
+      "inset 0 1px 0 rgba(255,255,255,0.55), 0 6px 14px rgba(41,83,85,0.05)",
+  } as const;
 
   return (
     <div className="section app-section evidence-detail-page-shell">
@@ -1186,7 +1257,7 @@ const heroEditButtonStyle = useMemo(
                 style={{
                   display: "inline-flex",
                   alignItems: "center",
-                  gap: 8,
+                  gap: "0.72rem",
                   borderRadius: 999,
                   border: "1px solid rgba(255,255,255,0.10)",
                   background: "rgba(255,255,255,0.04)",
@@ -1202,12 +1273,13 @@ const heroEditButtonStyle = useMemo(
               >
                 <span
                   style={{
-                    width: 4,
-                    height: 4,
+                    width: 6,
+                    height: 6,
                     borderRadius: 999,
                     background: "#b79d84",
-                    opacity: 0.8,
+                    opacity: 0.95,
                     display: "inline-block",
+                    flexShrink: 0,
                   }}
                 />
                 Evidence Record
@@ -1217,7 +1289,24 @@ const heroEditButtonStyle = useMemo(
                 className="evidence-record-badges"
                 style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 16 }}
               >
-                <span style={heroStatusSharedStyle}>{displayStatusMeta.label}</span>
+                {displayStatusMeta.label === "Report Ready" ? (
+                  <span
+                    className="evidence-pill evidence-pill-case"
+                    style={heroReportReadyStyle}
+                  >
+                    Report Ready
+                  </span>
+                ) : (
+                  <span className={displayStatusMeta.className}>
+                    {displayStatusMeta.label}
+                  </span>
+                )}
+
+                {hasCase && (
+                  <span className="evidence-pill evidence-pill-case">
+                    Case Attached
+                  </span>
+                )}
 
                 {isLocked && (
                   <span className="evidence-pill evidence-pill-locked">
@@ -1236,12 +1325,6 @@ const heroEditButtonStyle = useMemo(
                     In Trash
                   </span>
                 )}
-
-                {hasCase && (
-                  <span className="evidence-pill evidence-pill-case">
-                    Case Attached
-                  </span>
-                )}
               </div>
 
               {!isEditingLabel ? (
@@ -1249,29 +1332,22 @@ const heroEditButtonStyle = useMemo(
                   style={{
                     display: "flex",
                     alignItems: "center",
-                    gap: 14,
+                    gap: 12,
                     flexWrap: "wrap",
                   }}
                 >
                   <h1
-                    className="max-w-[900px] text-[1.72rem] font-medium leading-[1.02] tracking-[-0.045em] text-[#e7ece9] md:text-[2.22rem] lg:text-[2.72rem]"
+                    className="max-w-[900px] text-[1.72rem] font-medium leading-[1.02] tracking-[-0.045em] text-[#d9e2df] md:text-[2.22rem] lg:text-[2.72rem]"
                     style={{ margin: 0 }}
                   >
-                    {labelWords.prefix ? (
-                      <>
-                        {labelWords.prefix}{" "}
-                        <span style={{ color: "#c3ebe2" }}>{labelWords.accent}</span>
-                      </>
-                    ) : (
-                      <span style={{ color: "#c3ebe2" }}>{labelWords.accent}</span>
-                    )}
+                    {renderAccentLastWord(label)}
                   </h1>
 
                   <Button
                     variant="secondary"
                     onClick={handleStartEditLabel}
                     disabled={loading || actionBusy || labelBusy || isDeleted}
-                    className="rounded-[18px] border px-5 py-3 text-[0.92rem] font-semibold transition-all duration-200 hover:-translate-y-[1px] hover:brightness-[1.03]"
+                    className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
                     style={heroEditButtonStyle}
                   >
                     Edit Label
@@ -1309,8 +1385,8 @@ const heroEditButtonStyle = useMemo(
                   <Button
                     onClick={handleSaveLabel}
                     disabled={labelBusy}
-                    className="rounded-[18px] border px-5 py-3 text-[0.92rem] font-semibold transition-all duration-200 hover:-translate-y-[1px] hover:brightness-[1.03]"
-                    style={heroSaveButtonStyle}
+                    className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
+                    style={heroPrimaryButtonStyle}
                   >
                     {labelBusy ? "Saving..." : "Save"}
                   </Button>
@@ -1319,8 +1395,8 @@ const heroEditButtonStyle = useMemo(
                     variant="secondary"
                     onClick={handleCancelEditLabel}
                     disabled={labelBusy}
-                    className="rounded-[18px] border px-5 py-3 text-[0.92rem] font-semibold transition-all duration-200 hover:-translate-y-[1px] hover:brightness-[1.03]"
-                    style={heroEditButtonStyle}
+                    className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
+                    style={heroSecondaryButtonStyle}
                   >
                     Cancel
                   </Button>
@@ -1338,8 +1414,7 @@ const heroEditButtonStyle = useMemo(
                   color: "#aab5b2",
                 }}
               >
-                {displaySubtitle ||
-                  `${itemCount} item${itemCount === 1 ? "" : "s"}`}
+                {displaySubtitle || `${itemCount} item${itemCount === 1 ? "" : "s"}`}
               </p>
 
               <div
@@ -1414,7 +1489,15 @@ const heroEditButtonStyle = useMemo(
         </div>
 
         <div className="container relative z-10" style={{ paddingBottom: 72 }}>
-          <div className="grid gap-5 lg:grid-cols-[1.08fr_0.92fr]">
+          <div
+            className="evidence-three-up"
+            style={{
+              display: "grid",
+              gridTemplateColumns: "1fr 0.9fr 0.95fr",
+              gap: 20,
+              alignItems: "start",
+            }}
+          >
             <Card
               className="relative overflow-hidden rounded-[30px] border bg-transparent p-0 shadow-none"
               style={outerCardStyle}
@@ -1429,13 +1512,13 @@ const heroEditButtonStyle = useMemo(
               <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.24)_0%,rgba(248,249,246,0.34)_42%,rgba(239,241,238,0.42)_100%)]" />
               <div className="absolute inset-0 bg-[radial-gradient(circle_at_16%_12%,rgba(255,255,255,0.34),transparent_28%)] opacity-90" />
 
-              <div className="relative z-10 p-6 md:p-7">
+              <div className="relative z-10 p-5 md:p-6">
                 <div className="text-[1.08rem] font-semibold tracking-[-0.02em] text-[#21353a]">
                   Record Summary
                 </div>
 
                 <div
-                  className="mt-5 grid gap-x-6 gap-y-4 sm:grid-cols-2"
+                  className="mt-5 grid gap-4 sm:grid-cols-2"
                   style={{ color: "#5d6d71" }}
                 >
                   <div>
@@ -1452,7 +1535,7 @@ const heroEditButtonStyle = useMemo(
                       Original Submitted File
                     </div>
                     <div className="mt-2 text-[0.96rem] leading-[1.75] text-[#23373b]">
-                      {originalFileName || "0"}
+                      {originalFileName || "Original filename not available"}
                     </div>
                   </div>
 
@@ -1486,102 +1569,97 @@ const heroEditButtonStyle = useMemo(
                   </div>
 
                   <div>
-  <div className="text-[12px] uppercase tracking-[0.14em] text-[#9b826b]">
-    Evidence Composition
-  </div>
+                    <div className="text-[12px] uppercase tracking-[0.14em] text-[#9b826b]">
+                      Evidence Composition
+                    </div>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {partTypeSummary.imageCount > 0 && (
+                        <span
+                          className="inline-flex items-center rounded-full px-3 py-1.5 text-[0.76rem] font-semibold"
+                          style={silverReportReadyStyle}
+                        >
+                          {partTypeSummary.imageCount} image
+                          {partTypeSummary.imageCount > 1 ? "s" : ""}
+                        </span>
+                      )}
 
-  <div className="mt-2 flex flex-wrap gap-2">
-    {partTypeSummary.imageCount > 0 && (
-      <span
-        className="inline-flex items-center rounded-full px-3 py-1.5 text-[0.76rem] font-semibold"
-        style={{
-          border: "1px solid rgba(79,112,107,0.14)",
-          background:
-            "linear-gradient(180deg, rgba(191,232,223,0.24) 0%, rgba(255,255,255,0.55) 100%)",
-          color: "#2d5b59",
-          boxShadow:
-            "inset 0 1px 0 rgba(255,255,255,0.55), 0 6px 14px rgba(41,83,85,0.05)",
-        }}
-      >
-        {partTypeSummary.imageCount} image{partTypeSummary.imageCount > 1 ? "s" : ""}
-      </span>
-    )}
+                      {partTypeSummary.videoCount > 0 && (
+                        <span
+                          className="inline-flex items-center rounded-full px-3 py-1.5 text-[0.76rem] font-semibold"
+                          style={{
+                            border: "1px solid rgba(79,112,107,0.12)",
+                            background:
+                              "linear-gradient(180deg, rgba(240,243,241,0.92) 0%, rgba(255,255,255,0.68) 100%)",
+                            color: "#31484d",
+                            boxShadow:
+                              "inset 0 1px 0 rgba(255,255,255,0.56), 0 6px 14px rgba(0,0,0,0.03)",
+                          }}
+                        >
+                          {partTypeSummary.videoCount} video
+                          {partTypeSummary.videoCount > 1 ? "s" : ""}
+                        </span>
+                      )}
 
-    {partTypeSummary.videoCount > 0 && (
-      <span
-        className="inline-flex items-center rounded-full px-3 py-1.5 text-[0.76rem] font-semibold"
-        style={{
-          border: "1px solid rgba(79,112,107,0.14)",
-          background:
-            "linear-gradient(180deg, rgba(230,238,236,0.86) 0%, rgba(255,255,255,0.62) 100%)",
-          color: "#31484d",
-          boxShadow:
-            "inset 0 1px 0 rgba(255,255,255,0.58), 0 6px 14px rgba(0,0,0,0.04)",
-        }}
-      >
-        {partTypeSummary.videoCount} video{partTypeSummary.videoCount > 1 ? "s" : ""}
-      </span>
-    )}
+                      {partTypeSummary.audioCount > 0 && (
+                        <span
+                          className="inline-flex items-center rounded-full px-3 py-1.5 text-[0.76rem] font-semibold"
+                          style={{
+                            border: "1px solid rgba(183,157,132,0.16)",
+                            background:
+                              "linear-gradient(180deg, rgba(244,238,232,0.88) 0%, rgba(255,255,255,0.64) 100%)",
+                            color: "#7a624d",
+                            boxShadow:
+                              "inset 0 1px 0 rgba(255,255,255,0.58), 0 6px 14px rgba(92,69,50,0.04)",
+                          }}
+                        >
+                          {partTypeSummary.audioCount} audio
+                        </span>
+                      )}
 
-    {partTypeSummary.audioCount > 0 && (
-      <span
-        className="inline-flex items-center rounded-full px-3 py-1.5 text-[0.76rem] font-semibold"
-        style={{
-          border: "1px solid rgba(183,157,132,0.16)",
-          background:
-            "linear-gradient(180deg, rgba(244,238,232,0.88) 0%, rgba(255,255,255,0.64) 100%)",
-          color: "#7a624d",
-          boxShadow:
-            "inset 0 1px 0 rgba(255,255,255,0.58), 0 6px 14px rgba(92,69,50,0.04)",
-        }}
-      >
-        {partTypeSummary.audioCount} audio
-      </span>
-    )}
+                      {partTypeSummary.pdfCount > 0 && (
+                        <span
+                          className="inline-flex items-center rounded-full px-3 py-1.5 text-[0.76rem] font-semibold"
+                          style={{
+                            border: "1px solid rgba(183,157,132,0.16)",
+                            background:
+                              "linear-gradient(180deg, rgba(248,243,238,0.9) 0%, rgba(255,255,255,0.66) 100%)",
+                            color: "#8a6e57",
+                            boxShadow:
+                              "inset 0 1px 0 rgba(255,255,255,0.58), 0 6px 14px rgba(92,69,50,0.04)",
+                          }}
+                        >
+                          {partTypeSummary.pdfCount} document
+                          {partTypeSummary.pdfCount > 1 ? "s" : ""}
+                        </span>
+                      )}
 
-    {partTypeSummary.pdfCount > 0 && (
-      <span
-        className="inline-flex items-center rounded-full px-3 py-1.5 text-[0.76rem] font-semibold"
-        style={{
-          border: "1px solid rgba(183,157,132,0.16)",
-          background:
-            "linear-gradient(180deg, rgba(248,243,238,0.9) 0%, rgba(255,255,255,0.66) 100%)",
-          color: "#8a6e57",
-          boxShadow:
-            "inset 0 1px 0 rgba(255,255,255,0.58), 0 6px 14px rgba(92,69,50,0.04)",
-        }}
-      >
-        {partTypeSummary.pdfCount} document{partTypeSummary.pdfCount > 1 ? "s" : ""}
-      </span>
-    )}
+                      {partTypeSummary.otherCount > 0 && (
+                        <span
+                          className="inline-flex items-center rounded-full px-3 py-1.5 text-[0.76rem] font-semibold"
+                          style={{
+                            border: "1px solid rgba(79,112,107,0.12)",
+                            background:
+                              "linear-gradient(180deg, rgba(240,243,241,0.92) 0%, rgba(255,255,255,0.68) 100%)",
+                            color: "#5f6d71",
+                            boxShadow:
+                              "inset 0 1px 0 rgba(255,255,255,0.56), 0 6px 14px rgba(0,0,0,0.03)",
+                          }}
+                        >
+                          {partTypeSummary.otherCount} other
+                        </span>
+                      )}
 
-    {partTypeSummary.otherCount > 0 && (
-      <span
-        className="inline-flex items-center rounded-full px-3 py-1.5 text-[0.76rem] font-semibold"
-        style={{
-          border: "1px solid rgba(79,112,107,0.12)",
-          background:
-            "linear-gradient(180deg, rgba(240,243,241,0.92) 0%, rgba(255,255,255,0.68) 100%)",
-          color: "#5f6d71",
-          boxShadow:
-            "inset 0 1px 0 rgba(255,255,255,0.56), 0 6px 14px rgba(0,0,0,0.03)",
-        }}
-      >
-        {partTypeSummary.otherCount} other
-      </span>
-    )}
-
-    {partTypeSummary.imageCount === 0 &&
-      partTypeSummary.videoCount === 0 &&
-      partTypeSummary.audioCount === 0 &&
-      partTypeSummary.pdfCount === 0 &&
-      partTypeSummary.otherCount === 0 && (
-        <div className="text-[0.92rem] leading-[1.7] text-[#5d6d71]">
-          Not available
-        </div>
-      )}
-  </div>
-</div>
+                      {partTypeSummary.imageCount === 0 &&
+                        partTypeSummary.videoCount === 0 &&
+                        partTypeSummary.audioCount === 0 &&
+                        partTypeSummary.pdfCount === 0 &&
+                        partTypeSummary.otherCount === 0 && (
+                          <div className="text-[0.92rem] leading-[1.7] text-[#5d6d71]">
+                            Not available
+                          </div>
+                        )}
+                    </div>
+                  </div>
 
                   <div>
                     <div className="text-[12px] uppercase tracking-[0.14em] text-[#9b826b]">
@@ -1605,29 +1683,19 @@ const heroEditButtonStyle = useMemo(
                     <div className="text-[12px] uppercase tracking-[0.14em] text-[#9b826b]">
                       Current Status
                     </div>
-                    <div className="mt-2">
-                      <span
-                        style={{
-                          display: "inline-flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          minHeight: 32,
-                          padding: "7px 13px",
-                          borderRadius: 999,
-                          border: "1px solid rgba(79,112,107,0.18)",
-                          background:
-                            "linear-gradient(180deg, rgba(191,232,223,0.34) 0%, rgba(255,255,255,0.55) 100%)",
-                          color: "#24484c",
-                          fontSize: "0.76rem",
-                          fontWeight: 800,
-                          letterSpacing: "0.08em",
-                          textTransform: "uppercase",
-                          boxShadow:
-                            "inset 0 1px 0 rgba(255,255,255,0.55), 0 6px 14px rgba(41,83,85,0.08)",
-                        }}
-                      >
-                        {displayStatusMeta.label}
-                      </span>
+                    <div style={{ marginTop: 10 }}>
+                      {displayStatusMeta.label === "Report Ready" ? (
+                        <span
+                          className="inline-flex items-center rounded-full px-3 py-1.5 text-[0.76rem] font-semibold"
+                          style={silverReportReadyStyle}
+                        >
+                          Report Ready
+                        </span>
+                      ) : (
+                        <span className={displayStatusMeta.className}>
+                          {displayStatusMeta.label}
+                        </span>
+                      )}
                     </div>
                   </div>
 
@@ -1694,6 +1762,425 @@ const heroEditButtonStyle = useMemo(
               </div>
             </Card>
 
+            {(sortedParts.length > 0 ||
+              originalPreviewUrl ||
+              originalDownloadUrl ||
+              originalMimeType ||
+              originalSizeBytes) && (
+              <Card
+                className="relative overflow-hidden rounded-[30px] border bg-transparent p-0 shadow-none"
+                style={outerCardStyle}
+              >
+                <div className="absolute inset-0">
+                  <img
+                    src="/images/panel-silver.webp.png"
+                    alt=""
+                    className="h-full w-full object-cover object-center"
+                  />
+                </div>
+                <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.24)_0%,rgba(248,249,246,0.34)_42%,rgba(239,241,238,0.42)_100%)]" />
+                <div className="absolute inset-0 bg-[radial-gradient(circle_at_16%_12%,rgba(255,255,255,0.34),transparent_28%)] opacity-90" />
+
+                <div className="relative z-10 p-5 md:p-6">
+                  <div className="text-[1.08rem] font-semibold tracking-[-0.02em] text-[#21353a]">
+                    Original Evidence
+                  </div>
+
+                  {!isMultipart ? (
+                    <>
+                      <div
+                        style={{
+                          marginTop: 16,
+                          marginBottom: 14,
+                          padding: 14,
+                          borderRadius: 16,
+                          ...softCardStyle,
+                          color: "#5d6d71",
+                        }}
+                      >
+                        Original submitted evidence file. This file is preserved as
+                        part of the record.
+                      </div>
+
+                      <div
+                        style={{
+                          marginBottom: 14,
+                          display: "grid",
+                          gap: 6,
+                          color: "#6a777b",
+                          fontSize: 13,
+                        }}
+                      >
+                        {originalFileName && <div>Original file: {originalFileName}</div>}
+                        {originalMimeType && <div>Type: {originalMimeType}</div>}
+                        {originalSizeBytes && (
+                          <div>Size: {formatBytes(originalSizeBytes)}</div>
+                        )}
+                      </div>
+
+                      <div
+                        style={{
+                          display: "flex",
+                          flexWrap: "wrap",
+                          gap: 10,
+                          marginBottom: 16,
+                        }}
+                      >
+                        <Button
+                          variant="secondary"
+                          onClick={handleOpenOriginal}
+                          disabled={!originalDownloadUrl || isDeleted}
+                          className="rounded-[999px] border px-4 py-2.5 text-[0.86rem] font-semibold"
+                          style={landingSecondaryButtonStyle}
+                        >
+                          Open Original
+                        </Button>
+
+                        <Button
+                          variant="secondary"
+                          onClick={handleDownloadOriginal}
+                          disabled={!originalDownloadUrl || isDeleted}
+                          className="rounded-[999px] border px-4 py-2.5 text-[0.86rem] font-semibold"
+                          style={landingTertiaryButtonStyle}
+                        >
+                          Download Original
+                        </Button>
+                      </div>
+
+                      {originalPreviewUrl && originalKind === "image" && (
+                        <div style={{ marginBottom: 12 }}>
+                          <img
+                            src={originalPreviewUrl}
+                            alt="Evidence preview"
+                            className="evidence-preview-image"
+                            style={{
+                              width: "100%",
+                              maxWidth: 420,
+                              margin: "0 auto",
+                              display: "block",
+                              borderRadius: 18,
+                              border: "1px solid rgba(79,112,107,0.10)",
+                              boxShadow: "0 14px 28px rgba(0,0,0,0.08)",
+                            }}
+                          />
+                        </div>
+                      )}
+
+                      {originalPreviewUrl && originalKind === "video" && (
+                        <div style={{ marginBottom: 12 }}>
+                          <video
+                            src={originalPreviewUrl}
+                            controls
+                            preload="metadata"
+                            className="evidence-preview-video"
+                            style={{
+                              width: "100%",
+                              maxWidth: 420,
+                              margin: "0 auto",
+                              display: "block",
+                              borderRadius: 18,
+                              border: "1px solid rgba(79,112,107,0.10)",
+                              boxShadow: "0 14px 28px rgba(0,0,0,0.08)",
+                            }}
+                          />
+                        </div>
+                      )}
+
+                      {originalPreviewUrl && originalKind === "audio" && (
+                        <div
+                          style={{
+                            marginBottom: 12,
+                            padding: 14,
+                            borderRadius: 14,
+                            background: "rgba(255,255,255,0.42)",
+                            border: "1px solid rgba(79,112,107,0.08)",
+                          }}
+                        >
+                          <audio
+                            src={originalPreviewUrl}
+                            controls
+                            preload="metadata"
+                            style={{ width: "100%" }}
+                          />
+                        </div>
+                      )}
+
+                      {originalPreviewUrl && originalKind === "pdf" && (
+                        <div style={{ marginBottom: 12 }}>
+                          <iframe
+                            src={originalPreviewUrl}
+                            title="Original PDF evidence"
+                            style={{
+                              width: "100%",
+                              minHeight: 420,
+                              maxWidth: 420,
+                              margin: "0 auto",
+                              display: "block",
+                              borderRadius: 18,
+                              border: "1px solid rgba(79,112,107,0.10)",
+                              background: "#fff",
+                              boxShadow: "0 14px 28px rgba(0,0,0,0.08)",
+                            }}
+                          />
+                        </div>
+                      )}
+
+                      {!originalPreviewUrl &&
+                        (originalKind === "text" || originalKind === "other") && (
+                          <div
+                            style={{
+                              marginBottom: 12,
+                              padding: 12,
+                              borderRadius: 14,
+                              background: "rgba(255,255,255,0.42)",
+                              border: "1px solid rgba(79,112,107,0.08)",
+                              color: "#6a777b",
+                            }}
+                          >
+                            <div style={{ marginBottom: 8 }}>
+                              Preview is not available for this file type inside the
+                              page.
+                            </div>
+                            <div>Use Open Original or Download Original.</div>
+                          </div>
+                        )}
+
+                      {!originalPreviewUrl && !originalDownloadUrl && (
+                        <div
+                          style={{
+                            padding: 12,
+                            borderRadius: 14,
+                            background: "rgba(255,255,255,0.42)",
+                            border: "1px solid rgba(79,112,107,0.08)",
+                            color: "#6a777b",
+                          }}
+                        >
+                          The original submitted file is currently unavailable for
+                          access.
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <>
+                      <div
+                        style={{
+                          marginTop: 16,
+                          marginBottom: 16,
+                          padding: 14,
+                          borderRadius: 16,
+                          ...softCardStyle,
+                          color: "#5d6d71",
+                        }}
+                      >
+                        This record contains <strong>{sortedParts.length}</strong>{" "}
+                        original evidence items. Each item below can be reviewed and
+                        downloaded separately.
+                      </div>
+
+                      <div style={{ display: "grid", gap: 16 }}>
+                        {sortedParts.map((part) => {
+                          const kind = getEvidenceKind(part.mimeType ?? null);
+                          const previewUrl = part.publicUrl ?? part.url ?? null;
+                          const downloadUrl = part.url ?? part.publicUrl ?? null;
+                          const displayName = getPartDisplayName(part);
+
+                          return (
+                            <div
+                              key={part.id}
+                              style={{
+                                padding: 16,
+                                borderRadius: 20,
+                                ...softCardStyle,
+                              }}
+                            >
+                              <div
+                                className="evidence-item-header"
+                                style={{
+                                  display: "flex",
+                                  justifyContent: "space-between",
+                                  gap: 12,
+                                  flexWrap: "wrap",
+                                  alignItems: "center",
+                                }}
+                              >
+                                <div>
+                                  <div style={{ fontWeight: 800, color: "#23373b" }}>
+                                    Item {part.partIndex + 1}
+                                    {part.isPrimary ? " (Primary)" : ""}
+                                  </div>
+                                  <div
+                                    style={{
+                                      fontSize: 13,
+                                      color: "#6a777b",
+                                      marginTop: 4,
+                                    }}
+                                  >
+                                    {displayName}
+                                  </div>
+                                </div>
+
+                                <div
+                                  className="evidence-item-actions"
+                                  style={{ display: "flex", gap: 10, flexWrap: "wrap" }}
+                                >
+                                  <Button
+                                    variant="secondary"
+                                    onClick={() => handleOpenPart(part)}
+                                    disabled={!downloadUrl || isDeleted}
+                                    className="rounded-[999px] border px-4 py-2.5 text-[0.86rem] font-semibold"
+                                    style={landingSecondaryButtonStyle}
+                                  >
+                                    Open
+                                  </Button>
+                                  <Button
+                                    variant="secondary"
+                                    onClick={() => handleDownloadPart(part)}
+                                    disabled={!downloadUrl || isDeleted}
+                                    className="rounded-[999px] border px-4 py-2.5 text-[0.86rem] font-semibold"
+                                    style={landingTertiaryButtonStyle}
+                                  >
+                                    Download
+                                  </Button>
+                                </div>
+                              </div>
+
+                              <div
+                                style={{
+                                  display: "grid",
+                                  gap: 6,
+                                  marginTop: 12,
+                                  marginBottom: 14,
+                                  color: "#6a777b",
+                                  fontSize: 13,
+                                }}
+                              >
+                                <div>Type: {part.mimeType ?? "Unknown"}</div>
+                                <div>Kind: {kind}</div>
+                                <div>Size: {formatBytes(part.sizeBytes ?? null)}</div>
+                              </div>
+
+                              {previewUrl && kind === "image" && (
+                                <img
+                                  src={previewUrl}
+                                  alt={`Evidence item ${part.partIndex + 1}`}
+                                  className="evidence-preview-image"
+                                  style={{
+                                    width: "100%",
+                                    maxWidth: 320,
+                                    margin: "0 auto",
+                                    display: "block",
+                                    borderRadius: 16,
+                                    border: "1px solid rgba(79,112,107,0.10)",
+                                    boxShadow: "0 12px 24px rgba(0,0,0,0.06)",
+                                  }}
+                                />
+                              )}
+
+                              {previewUrl && kind === "video" && (
+                                <video
+                                  src={previewUrl}
+                                  controls
+                                  preload="metadata"
+                                  className="evidence-preview-video"
+                                  style={{
+                                    width: "100%",
+                                    maxWidth: 320,
+                                    margin: "0 auto",
+                                    display: "block",
+                                    borderRadius: 16,
+                                    border: "1px solid rgba(79,112,107,0.10)",
+                                    boxShadow: "0 12px 24px rgba(0,0,0,0.06)",
+                                  }}
+                                />
+                              )}
+
+                              {previewUrl && kind === "audio" && (
+                                <div
+                                  style={{
+                                    padding: 14,
+                                    borderRadius: 14,
+                                    background: "rgba(255,255,255,0.42)",
+                                    border: "1px solid rgba(79,112,107,0.08)",
+                                  }}
+                                >
+                                  <audio
+                                    src={previewUrl}
+                                    controls
+                                    preload="metadata"
+                                    style={{ width: "100%" }}
+                                  />
+                                </div>
+                              )}
+
+                              {previewUrl && kind === "pdf" && (
+                                <div>
+                                  <iframe
+                                    src={previewUrl}
+                                    title={`Evidence PDF item ${part.partIndex + 1}`}
+                                    style={{
+                                      width: "100%",
+                                      minHeight: 360,
+                                      borderRadius: 16,
+                                      border: "1px solid rgba(79,112,107,0.10)",
+                                      background: "#fff",
+                                    }}
+                                  />
+                                </div>
+                              )}
+
+                              {!previewUrl && (
+                                <div
+                                  style={{
+                                    padding: 12,
+                                    borderRadius: 14,
+                                    background: "rgba(255,255,255,0.42)",
+                                    border: "1px solid rgba(79,112,107,0.08)",
+                                    color: "#6a777b",
+                                  }}
+                                >
+                                  Preview is not available for this item right now.
+                                </div>
+                              )}
+
+                              {previewUrl && (kind === "text" || kind === "other") && (
+                                <div
+                                  style={{
+                                    padding: 12,
+                                    borderRadius: 14,
+                                    background: "rgba(255,255,255,0.42)",
+                                    border: "1px solid rgba(79,112,107,0.08)",
+                                    color: "#6a777b",
+                                  }}
+                                >
+                                  Preview is not available inside the page for this
+                                  file type. Use Open or Download.
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+
+                      {partsLoadFailed && (
+                        <div
+                          style={{
+                            marginTop: 14,
+                            padding: 12,
+                            borderRadius: 14,
+                            background: "rgba(239,68,68,0.08)",
+                            border: "1px solid rgba(239,68,68,0.10)",
+                            color: "#b42318",
+                          }}
+                        >
+                          Failed to load evidence parts.
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
+              </Card>
+            )}
+
             <Card
               className="relative overflow-hidden rounded-[30px] border bg-transparent p-0 shadow-none"
               style={outerCardStyle}
@@ -1708,607 +2195,198 @@ const heroEditButtonStyle = useMemo(
               <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.24)_0%,rgba(248,249,246,0.34)_42%,rgba(239,241,238,0.42)_100%)]" />
               <div className="absolute inset-0 bg-[radial-gradient(circle_at_16%_12%,rgba(255,255,255,0.34),transparent_28%)] opacity-90" />
 
-              <div className="relative z-10 p-6 md:p-7">
+              <div className="relative z-10 p-5 md:p-6">
                 <div className="text-[1.08rem] font-semibold tracking-[-0.02em] text-[#21353a]">
                   Record Actions
                 </div>
 
-                <div style={{ display: "grid", gap: 18, marginTop: 18 }}>
-                  <div className="flex flex-wrap gap-3">
-                    <Button
-                      onClick={handleDownloadReport}
-                      disabled={actionBusy || plan === "FREE" || isDeleted}
-                      className={compactButtonClass}
-                      style={landingPrimaryButtonStyle}
-                    >
-                      {t("downloadReport")}
-                    </Button>
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "1fr 1fr",
+                    gap: 10,
+                    marginTop: 18,
+                    marginBottom: 18,
+                  }}
+                >
+                  <Button
+                    onClick={handleDownloadReport}
+                    disabled={actionBusy || plan === "FREE" || isDeleted}
+                    className="rounded-[999px] border px-4 py-2.5 text-[0.86rem] font-semibold"
+                    style={landingPrimaryButtonStyle}
+                  >
+                    {t("downloadReport")}
+                  </Button>
 
-                    <Button
-                      variant="secondary"
-                      onClick={handleDownloadVerificationPackage}
-                      disabled={actionBusy || !verificationPackageAvailable || isDeleted}
-                      className={compactButtonClass}
-                      style={landingSecondaryButtonStyle}
-                    >
-                      Download Verification Package
-                    </Button>
+                  <Button
+                    variant="secondary"
+                    onClick={handleDownloadVerificationPackage}
+                    disabled={actionBusy || !verificationPackageAvailable || isDeleted}
+                    className="rounded-[999px] border px-4 py-2.5 text-[0.86rem] font-semibold"
+                    style={landingSecondaryButtonStyle}
+                  >
+                    Download Verification Package
+                  </Button>
 
+                  <div style={{ gridColumn: "1 / -1" }}>
                     <Link href={`/share/${evidenceId}`}>
                       <Button
                         variant="secondary"
                         disabled={isDeleted}
-                        className={compactButtonClass}
-                        style={landingSoftAccentButtonStyle}
+                        className="w-full rounded-[999px] border px-4 py-2.5 text-[0.86rem] font-semibold"
+                        style={landingTertiaryButtonStyle}
                       >
                         {t("shareLink")}
                       </Button>
                     </Link>
                   </div>
+                </div>
+
+                {plan === "FREE" && (
+                  <div style={{ fontSize: 12, color: "#6a777b", marginTop: -4, marginBottom: 12 }}>
+                    Reports are disabled on Free. Upgrade to access PDF reports.
+                  </div>
+                )}
+
+                {!verificationPackageAvailable && (
+                  <div style={{ fontSize: 12, color: "#6a777b", marginTop: -4, marginBottom: 12 }}>
+                    Verification package is not available yet.
+                  </div>
+                )}
+
+                <div
+                  className="mb-3 text-[0.78rem] font-semibold uppercase tracking-[0.18em] text-[#9b826b]"
+                  style={{ marginTop: 4 }}
+                >
+                  Case & Organization
+                </div>
+
+                <div style={{ display: "grid", gap: 10 }}>
+                  <Button
+                    variant="secondary"
+                    onClick={handleOpenAssignCase}
+                    disabled={actionBusy || ownedCases.length === 0}
+                    className="w-full rounded-[999px] border px-4 py-2.5 text-[0.86rem] font-semibold"
+                    style={landingSecondaryButtonStyle}
+                  >
+                    {caseId ? "Move to Case" : "Add to Case"}
+                  </Button>
+
+                  {caseId && (
+                    <Button
+                      variant="secondary"
+                      onClick={handleRemoveFromCase}
+                      disabled={actionBusy}
+                      className="w-full rounded-[999px] border px-4 py-2.5 text-[0.86rem] font-semibold"
+                      style={landingTertiaryButtonStyle}
+                    >
+                      Remove from Case
+                    </Button>
+                  )}
+                </div>
+
+                <div
+                  className="mb-3 mt-5 text-[0.78rem] font-semibold uppercase tracking-[0.18em] text-[#9b826b]"
+                >
+                  Preservation Actions
+                </div>
+
+                <div style={{ display: "grid", gap: 10 }}>
+                  <Button
+                    onClick={handleLock}
+                    disabled={
+                      actionBusy ||
+                      Boolean(lockedAt) ||
+                      !(status === "SIGNED" || status === "REPORTED")
+                    }
+                    className="w-full rounded-[999px] border px-4 py-2.5 text-[0.86rem] font-semibold"
+                    style={lockedAt ? landingSecondaryButtonStyle : landingDangerButtonStyle}
+                  >
+                    {lockedAt ? "Permanently Locked" : "Lock Evidence Permanently"}
+                  </Button>
+
+                  {archivedAt ? (
+                    <Button
+                      variant="secondary"
+                      onClick={handleUnarchive}
+                      disabled={actionBusy}
+                      className="w-full rounded-[999px] border px-4 py-2.5 text-[0.86rem] font-semibold"
+                      style={landingSecondaryButtonStyle}
+                    >
+                      Restore Evidence
+                    </Button>
+                  ) : (
+                    <Button
+                      variant="secondary"
+                      onClick={handleArchive}
+                      disabled={actionBusy}
+                      className="w-full rounded-[999px] border px-4 py-2.5 text-[0.86rem] font-semibold"
+                      style={landingSecondaryButtonStyle}
+                    >
+                      Archive Evidence
+                    </Button>
+                  )}
 
                   {!isDeleted && (
-                    <>
-                      <div>
-                        <div
-                          style={{
-                            marginBottom: 12,
-                            fontSize: 12,
-                            fontWeight: 700,
-                            letterSpacing: "0.16em",
-                            textTransform: "uppercase",
-                            color: "#8f735a",
-                          }}
-                        >
-                          Case & Organization
-                        </div>
-
-                        <div style={{ display: "grid", gap: 12 }}>
-                          <Button
-                            variant="secondary"
-                            onClick={handleOpenAssignCase}
-                            disabled={actionBusy || ownedCases.length === 0}
-                            className={compactButtonClass}
-                            style={landingSecondaryButtonStyle}
-                          >
-                            {caseId ? "Move to Case" : "Add to Case"}
-                          </Button>
-
-                          {caseId && (
-                            <Button
-                              variant="secondary"
-                              onClick={handleRemoveFromCase}
-                              disabled={actionBusy}
-                              className={compactButtonClass}
-                              style={landingSoftAccentButtonStyle}
-                            >
-                              Remove from Case
-                            </Button>
-                          )}
-                        </div>
-                      </div>
-
-                      <div>
-                        <div
-                          style={{
-                            marginBottom: 12,
-                            fontSize: 12,
-                            fontWeight: 700,
-                            letterSpacing: "0.16em",
-                            textTransform: "uppercase",
-                            color: "#8f735a",
-                          }}
-                        >
-                          Preservation Actions
-                        </div>
-
-                        <div style={{ display: "grid", gap: 12 }}>
-                          <Button
-                            onClick={handleLock}
-                            disabled={
-                              actionBusy ||
-                              Boolean(lockedAt) ||
-                              !(status === "SIGNED" || status === "REPORTED")
-                            }
-                            className={compactButtonClass}
-                            style={lockedAt ? landingSecondaryButtonStyle : landingBronzeButtonStyle}
-                          >
-                            {lockedAt
-                              ? "Permanently Locked"
-                              : "Lock Evidence Permanently"}
-                          </Button>
-
-                          {archivedAt ? (
-                            <Button
-                              variant="secondary"
-                              onClick={handleUnarchive}
-                              disabled={actionBusy}
-                              className={compactButtonClass}
-                              style={landingSecondaryButtonStyle}
-                            >
-                              Restore Evidence
-                            </Button>
-                          ) : (
-                            <Button
-                              variant="secondary"
-                              onClick={handleArchive}
-                              disabled={actionBusy}
-                              className={compactButtonClass}
-                              style={landingSecondaryButtonStyle}
-                            >
-                              Archive Evidence
-                            </Button>
-                          )}
-
-                          <Button
-                            onClick={handleDelete}
-                            disabled={actionBusy || !canDelete}
-                            className={compactButtonClass}
-                            style={canDelete ? landingDangerButtonStyle : landingSecondaryButtonStyle}
-                          >
-                            Delete Evidence
-                          </Button>
-                        </div>
-                      </div>
-                    </>
+                    <Button
+                      onClick={handleDelete}
+                      disabled={actionBusy || !canDelete}
+                      className="w-full rounded-[999px] border px-4 py-2.5 text-[0.86rem] font-semibold"
+                      style={canDelete ? landingDeleteButtonStyle : landingSecondaryButtonStyle}
+                    >
+                      Delete Evidence
+                    </Button>
                   )}
 
                   {isDeleted && (
-                    <div style={{ display: "grid", gap: 12 }}>
-                      <Button
-                        variant="secondary"
-                        onClick={handleRestoreDeleted}
-                        disabled={actionBusy}
-                        className={compactButtonClass}
-                        style={landingSecondaryButtonStyle}
-                      >
-                        Restore from Trash
-                      </Button>
-                    </div>
+                    <Button
+                      variant="secondary"
+                      onClick={handleRestoreDeleted}
+                      disabled={actionBusy}
+                      className="w-full rounded-[999px] border px-4 py-2.5 text-[0.86rem] font-semibold"
+                      style={landingSecondaryButtonStyle}
+                    >
+                      Restore from Trash
+                    </Button>
                   )}
+                </div>
 
-                  {plan === "FREE" && (
-                    <div style={{ fontSize: 12, color: "#6a777b" }}>
-                      Reports are disabled on Free. Upgrade to access PDF reports.
-                    </div>
-                  )}
-
-                  {!verificationPackageAvailable && (
-                    <div style={{ fontSize: 12, color: "#6a777b" }}>
-                      Verification package is not available yet.
-                    </div>
-                  )}
-
-                  {lockedAt && (
-                    <div style={{ fontSize: 12, color: "#6a777b" }}>
-                      ✓ This record is legally sealed and can no longer be edited.
-                    </div>
-                  )}
-
-                  {archivedAt ? (
-                    <div style={{ fontSize: 12, color: "#6a777b" }}>
-                      This record is archived. Restore it to return it to the active workspace.
-                    </div>
-                  ) : !isDeleted ? (
-                    <div style={{ fontSize: 12, color: "#6a777b" }}>
-                      Archive this record to remove it from active review while preserving it in storage.
-                    </div>
-                  ) : null}
-
-                  <div
-                    style={{
-                      padding: 14,
-                      borderRadius: 16,
-                      background:
-                        "linear-gradient(135deg, rgba(214,184,157,0.10), rgba(214,184,157,0.04))",
-                      border: "1px solid rgba(214,184,157,0.14)",
-                      color: "#8f735a",
-                    }}
-                  >
-                    <strong>Trash retention:</strong> When moved to trash, this
-                    record stays recoverable for 90 days before permanent deletion.
+                {lockedAt && (
+                  <div style={{ fontSize: 12, color: "#6a777b", paddingTop: 10 }}>
+                    ✓ This record is legally sealed and can no longer be edited.
                   </div>
+                )}
+
+                {!archivedAt && !isDeleted && (
+                  <div style={{ fontSize: 12, color: "#6a777b", paddingTop: 10 }}>
+                    Archive this record to remove it from active review while preserving it in storage.
+                  </div>
+                )}
+
+                {archivedAt && (
+                  <div style={{ fontSize: 12, color: "#6a777b", paddingTop: 10 }}>
+                    This record is archived. Restore it to return it to the active workspace.
+                  </div>
+                )}
+
+                <div
+                  style={{
+                    marginTop: 16,
+                    padding: 14,
+                    borderRadius: 16,
+                    background:
+                      "linear-gradient(135deg, rgba(214,184,157,0.10), rgba(214,184,157,0.04))",
+                    border: "1px solid rgba(214,184,157,0.14)",
+                    color: "#8f735a",
+                    lineHeight: 1.7,
+                  }}
+                >
+                  <strong>Trash retention:</strong> When moved to trash, this
+                  record stays recoverable for 90 days before permanent deletion.
                 </div>
               </div>
             </Card>
           </div>
-
-          {(sortedParts.length > 0 ||
-            originalPreviewUrl ||
-            originalDownloadUrl ||
-            originalMimeType ||
-            originalSizeBytes) && (
-            <Card
-              className="relative mt-6 overflow-hidden rounded-[30px] border bg-transparent p-0 shadow-none"
-              style={outerCardStyle}
-            >
-              <div className="absolute inset-0">
-                <img
-                  src="/images/panel-silver.webp.png"
-                  alt=""
-                  className="h-full w-full object-cover object-center"
-                />
-              </div>
-              <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.24)_0%,rgba(248,249,246,0.34)_42%,rgba(239,241,238,0.42)_100%)]" />
-              <div className="absolute inset-0 bg-[radial-gradient(circle_at_16%_12%,rgba(255,255,255,0.34),transparent_28%)] opacity-90" />
-
-              <div className="relative z-10 p-6 md:p-7">
-                <div className="text-[1.08rem] font-semibold tracking-[-0.02em] text-[#21353a]">
-                  {isMultipart ? "Original Evidence Materials" : "Original Evidence"}
-                </div>
-
-                {isMultipart ? (
-                  <>
-                    <div
-                      style={{
-                        marginTop: 16,
-                        marginBottom: 16,
-                        padding: 14,
-                        borderRadius: 16,
-                        ...softCardStyle,
-                        color: "#5d6d71",
-                      }}
-                    >
-                      This record contains <strong>{sortedParts.length}</strong>{" "}
-                      original evidence items. Each item below can be reviewed and
-                      downloaded separately.
-                    </div>
-
-                    <div style={{ display: "grid", gap: 16 }}>
-                      {sortedParts.map((part) => {
-                        const kind = getEvidenceKind(part.mimeType ?? null);
-                        const previewUrl = part.publicUrl ?? part.url ?? null;
-                        const downloadUrl = part.url ?? part.publicUrl ?? null;
-                        const displayName = getPartDisplayName(part);
-
-                        return (
-                          <div
-                            key={part.id}
-                            style={{
-                              padding: 18,
-                              borderRadius: 24,
-                              ...softCardStyle,
-                            }}
-                          >
-                            <div
-                              className="evidence-item-header"
-                              style={{
-                                display: "flex",
-                                justifyContent: "space-between",
-                                gap: 12,
-                                flexWrap: "wrap",
-                                alignItems: "center",
-                              }}
-                            >
-                              <div>
-                                <div style={{ fontWeight: 800, color: "#23373b" }}>
-                                  Item {part.partIndex + 1}
-                                  {part.isPrimary ? " (Primary)" : ""}
-                                </div>
-                                <div
-                                  style={{
-                                    fontSize: 13,
-                                    color: "#6a777b",
-                                    marginTop: 4,
-                                  }}
-                                >
-                                  {displayName}
-                                </div>
-                              </div>
-
-                              <div
-                                className="evidence-item-actions"
-                                style={{ display: "flex", gap: 10, flexWrap: "wrap" }}
-                              >
-                                <Button
-                                  variant="secondary"
-                                  onClick={() => handleOpenPart(part)}
-                                  disabled={!downloadUrl || isDeleted}
-                                  className={smallButtonClass}
-                                  style={landingSecondaryButtonStyle}
-                                >
-                                  Open
-                                </Button>
-                                <Button
-                                  variant="secondary"
-                                  onClick={() => handleDownloadPart(part)}
-                                  disabled={!downloadUrl || isDeleted}
-                                  className={smallButtonClass}
-                                  style={landingSoftAccentButtonStyle}
-                                >
-                                  Download
-                                </Button>
-                              </div>
-                            </div>
-
-                            <div
-                              style={{
-                                display: "grid",
-                                gap: 6,
-                                marginTop: 12,
-                                marginBottom: 16,
-                                color: "#6a777b",
-                                fontSize: 13,
-                              }}
-                            >
-                              <div>Type: {part.mimeType ?? "Unknown"}</div>
-                              <div>Kind: {kind}</div>
-                              <div>Size: {formatBytes(part.sizeBytes ?? null)}</div>
-                            </div>
-
-                            {previewUrl && kind === "image" && (
-                              <div style={{ ...previewShellStyle, maxWidth: 760, margin: "0 auto" }}>
-                                <img
-                                  src={previewUrl}
-                                  alt={`Evidence item ${part.partIndex + 1}`}
-                                  className="evidence-preview-image"
-                                  style={{
-                                    width: "100%",
-                                    maxHeight: 420,
-                                    objectFit: "contain",
-                                    borderRadius: 16,
-                                    border: "1px solid rgba(79,112,107,0.10)",
-                                    display: "block",
-                                  }}
-                                />
-                              </div>
-                            )}
-
-                            {previewUrl && kind === "video" && (
-                              <div style={{ ...previewShellStyle, maxWidth: 760, margin: "0 auto" }}>
-                                <video
-                                  src={previewUrl}
-                                  controls
-                                  preload="metadata"
-                                  className="evidence-preview-video"
-                                  style={{
-                                    width: "100%",
-                                    maxHeight: 420,
-                                    borderRadius: 16,
-                                    border: "1px solid rgba(79,112,107,0.10)",
-                                    background: "#eef2ef",
-                                  }}
-                                />
-                              </div>
-                            )}
-
-                            {previewUrl && kind === "audio" && (
-                              <div style={{ ...previewShellStyle, maxWidth: 760, margin: "0 auto" }}>
-                                <audio
-                                  src={previewUrl}
-                                  controls
-                                  preload="metadata"
-                                  style={{ width: "100%" }}
-                                />
-                              </div>
-                            )}
-
-                            {previewUrl && kind === "pdf" && (
-                              <div style={{ ...previewShellStyle, maxWidth: 760, margin: "0 auto" }}>
-                                <iframe
-                                  src={previewUrl}
-                                  title={`Evidence PDF item ${part.partIndex + 1}`}
-                                  style={{
-                                    width: "100%",
-                                    minHeight: 460,
-                                    borderRadius: 16,
-                                    border: "1px solid rgba(79,112,107,0.10)",
-                                    background: "#fff",
-                                  }}
-                                />
-                              </div>
-                            )}
-
-                            {!previewUrl && (
-                              <div
-                                style={{
-                                  padding: 12,
-                                  borderRadius: 14,
-                                  background: "rgba(255,255,255,0.42)",
-                                  border: "1px solid rgba(79,112,107,0.08)",
-                                  color: "#6a777b",
-                                }}
-                              >
-                                Preview is not available for this item right now.
-                              </div>
-                            )}
-
-                            {previewUrl && (kind === "text" || kind === "other") && (
-                              <div
-                                style={{
-                                  padding: 12,
-                                  borderRadius: 14,
-                                  background: "rgba(255,255,255,0.42)",
-                                  border: "1px solid rgba(79,112,107,0.08)",
-                                  color: "#6a777b",
-                                }}
-                              >
-                                Preview is not available inside the page for this
-                                file type. Use Open or Download.
-                              </div>
-                            )}
-                          </div>
-                        );
-                      })}
-                    </div>
-
-                    {partsLoadFailed && (
-                      <div
-                        style={{
-                          marginTop: 14,
-                          padding: 12,
-                          borderRadius: 14,
-                          background: "rgba(239,68,68,0.08)",
-                          border: "1px solid rgba(239,68,68,0.10)",
-                          color: "#b42318",
-                        }}
-                      >
-                        Failed to load evidence parts.
-                      </div>
-                    )}
-                  </>
-                ) : (
-                  <>
-                    <div
-                      style={{
-                        marginTop: 16,
-                        marginBottom: 16,
-                        padding: 14,
-                        borderRadius: 16,
-                        ...softCardStyle,
-                        color: "#5d6d71",
-                      }}
-                    >
-                      Original submitted evidence file. This file is preserved as
-                      part of the record.
-                    </div>
-
-                    <div
-                      style={{
-                        marginBottom: 14,
-                        display: "grid",
-                        gap: 6,
-                        color: "#6a777b",
-                        fontSize: 13,
-                      }}
-                    >
-                      {originalFileName && <div>Original file: {originalFileName}</div>}
-                      {originalMimeType && <div>Type: {originalMimeType}</div>}
-                      {originalSizeBytes && (
-                        <div>Size: {formatBytes(originalSizeBytes)}</div>
-                      )}
-                    </div>
-
-                    <div
-                      style={{
-                        display: "flex",
-                        flexWrap: "wrap",
-                        gap: 10,
-                        marginBottom: 16,
-                      }}
-                    >
-                      <Button
-                        variant="secondary"
-                        onClick={handleOpenOriginal}
-                        disabled={!originalDownloadUrl || isDeleted}
-                        className={compactButtonClass}
-                        style={landingSecondaryButtonStyle}
-                      >
-                        Open Original
-                      </Button>
-
-                      <Button
-                        variant="secondary"
-                        onClick={handleDownloadOriginal}
-                        disabled={!originalDownloadUrl || isDeleted}
-                        className={compactButtonClass}
-                        style={landingSoftAccentButtonStyle}
-                      >
-                        Download Original
-                      </Button>
-                    </div>
-
-                    {originalPreviewUrl && originalKind === "image" && (
-                      <div style={{ ...previewShellStyle, maxWidth: 760, margin: "0 auto" }}>
-                        <img
-                          src={originalPreviewUrl}
-                          alt="Evidence preview"
-                          className="evidence-preview-image"
-                          style={{
-                            width: "100%",
-                            maxHeight: 420,
-                            objectFit: "contain",
-                            borderRadius: 16,
-                            border: "1px solid rgba(79,112,107,0.10)",
-                            display: "block",
-                          }}
-                        />
-                      </div>
-                    )}
-
-                    {originalPreviewUrl && originalKind === "video" && (
-                      <div style={{ ...previewShellStyle, maxWidth: 760, margin: "0 auto" }}>
-                        <video
-                          src={originalPreviewUrl}
-                          controls
-                          preload="metadata"
-                          className="evidence-preview-video"
-                          style={{
-                            width: "100%",
-                            maxHeight: 420,
-                            borderRadius: 16,
-                            border: "1px solid rgba(79,112,107,0.10)",
-                            background: "#eef2ef",
-                          }}
-                        />
-                      </div>
-                    )}
-
-                    {originalPreviewUrl && originalKind === "audio" && (
-                      <div style={{ ...previewShellStyle, maxWidth: 760, margin: "0 auto" }}>
-                        <audio
-                          src={originalPreviewUrl}
-                          controls
-                          preload="metadata"
-                          style={{ width: "100%" }}
-                        />
-                      </div>
-                    )}
-
-                    {originalPreviewUrl && originalKind === "pdf" && (
-                      <div style={{ ...previewShellStyle, maxWidth: 760, margin: "0 auto" }}>
-                        <iframe
-                          src={originalPreviewUrl}
-                          title="Original PDF evidence"
-                          style={{
-                            width: "100%",
-                            minHeight: 460,
-                            borderRadius: 16,
-                            border: "1px solid rgba(79,112,107,0.10)",
-                            background: "#fff",
-                          }}
-                        />
-                      </div>
-                    )}
-
-                    {!originalPreviewUrl &&
-                      (originalKind === "text" || originalKind === "other") && (
-                        <div
-                          style={{
-                            marginBottom: 12,
-                            padding: 12,
-                            borderRadius: 14,
-                            background: "rgba(255,255,255,0.42)",
-                            border: "1px solid rgba(79,112,107,0.08)",
-                            color: "#6a777b",
-                          }}
-                        >
-                          <div style={{ marginBottom: 8 }}>
-                            Preview is not available for this file type inside the
-                            page.
-                          </div>
-                          <div>Use Open Original or Download Original.</div>
-                        </div>
-                      )}
-
-                    {!originalPreviewUrl && !originalDownloadUrl && (
-                      <div
-                        style={{
-                          padding: 12,
-                          borderRadius: 14,
-                          background: "rgba(255,255,255,0.42)",
-                          border: "1px solid rgba(79,112,107,0.08)",
-                          color: "#6a777b",
-                        }}
-                      >
-                        The original submitted file is currently unavailable for
-                        access.
-                      </div>
-                    )}
-                  </>
-                )}
-              </div>
-            </Card>
-          )}
         </div>
       </div>
 
@@ -2322,7 +2400,7 @@ const heroEditButtonStyle = useMemo(
               variant="secondary"
               onClick={() => setAssignCaseModalOpen(false)}
               disabled={actionBusy}
-              className="rounded-[18px] border px-5 py-3 text-[0.92rem] font-semibold"
+              className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
               style={landingSecondaryButtonStyle}
             >
               Cancel
@@ -2330,7 +2408,7 @@ const heroEditButtonStyle = useMemo(
             <Button
               onClick={handleConfirmAssignCase}
               disabled={actionBusy || !selectedCaseId}
-              className="rounded-[18px] border px-5 py-3 text-[0.92rem] font-semibold"
+              className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
               style={landingPrimaryButtonStyle}
             >
               {actionBusy ? "Saving..." : caseId ? "Move" : "Add"}
@@ -2375,7 +2453,7 @@ const heroEditButtonStyle = useMemo(
               variant="secondary"
               onClick={() => setLockModalOpen(false)}
               disabled={actionBusy}
-              className="rounded-[18px] border px-5 py-3 text-[0.92rem] font-semibold"
+              className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
               style={landingSecondaryButtonStyle}
             >
               Cancel
@@ -2383,8 +2461,8 @@ const heroEditButtonStyle = useMemo(
             <Button
               onClick={handleConfirmLock}
               disabled={actionBusy}
-              className="rounded-[18px] border px-5 py-3 text-[0.92rem] font-semibold"
-              style={landingBronzeButtonStyle}
+              className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
+              style={landingDangerButtonStyle}
             >
               {actionBusy ? "Locking..." : "Lock permanently"}
             </Button>
@@ -2397,7 +2475,7 @@ const heroEditButtonStyle = useMemo(
             <li style={{ marginBottom: 8 }}>• The evidence cannot be edited</li>
             <li>• It becomes legally sealed</li>
           </ul>
-          <p style={{ marginTop: 16, fontWeight: 700, color: "#f2d8bc" }}>
+          <p style={{ marginTop: 16, fontWeight: 700, color: "#fca5a5" }}>
             This action is irreversible.
           </p>
         </div>
@@ -2413,7 +2491,7 @@ const heroEditButtonStyle = useMemo(
               variant="secondary"
               onClick={() => setArchiveModalOpen(false)}
               disabled={actionBusy}
-              className="rounded-[18px] border px-5 py-3 text-[0.92rem] font-semibold"
+              className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
               style={landingSecondaryButtonStyle}
             >
               Cancel
@@ -2421,7 +2499,7 @@ const heroEditButtonStyle = useMemo(
             <Button
               onClick={handleConfirmArchive}
               disabled={actionBusy}
-              className="rounded-[18px] border px-5 py-3 text-[0.92rem] font-semibold"
+              className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
               style={landingPrimaryButtonStyle}
             >
               {actionBusy ? "Archiving..." : "Archive"}
@@ -2449,7 +2527,7 @@ const heroEditButtonStyle = useMemo(
               variant="secondary"
               onClick={() => setDeleteModalOpen(false)}
               disabled={actionBusy}
-              className="rounded-[18px] border px-5 py-3 text-[0.92rem] font-semibold"
+              className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
               style={landingSecondaryButtonStyle}
             >
               Cancel
@@ -2457,8 +2535,8 @@ const heroEditButtonStyle = useMemo(
             <Button
               onClick={handleConfirmDelete}
               disabled={actionBusy}
-              className="rounded-[18px] border px-5 py-3 text-[0.92rem] font-semibold"
-              style={landingDangerButtonStyle}
+              className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
+              style={landingDeleteButtonStyle}
             >
               {actionBusy ? "Deleting..." : "Delete Evidence"}
             </Button>
@@ -2507,6 +2585,14 @@ const heroEditButtonStyle = useMemo(
           </div>
         </div>
       </Modal>
+
+      <style jsx global>{`
+        @media (max-width: 1100px) {
+          .evidence-three-up {
+            grid-template-columns: 1fr !important;
+          }
+        }
+      `}</style>
     </div>
   );
 }
