@@ -13,7 +13,6 @@ import { useAuth } from "../providers";
 
 const BOTTOM_NAV = [
   { href: "/home", label: "Workspace", Icon: Icons.Dashboard },
-  { href: "/dashboard", label: "Dashboard", Icon: Icons.Dashboard },
   { href: "/capture", label: "Capture", Icon: Icons.Capture },
   { href: "/cases", label: "Evidence", Icon: Icons.Evidence },
   { href: "/teams", label: "Teams", Icon: Icons.Teams },
@@ -22,16 +21,18 @@ const BOTTOM_NAV = [
   { href: "/settings", label: "Settings", Icon: Icons.Settings },
 ];
 
-const MOBILE_PRIMARY_NAV = ["/home", "/dashboard", "/capture"];
+const MOBILE_PRIMARY_NAV = ["/home", "/capture", "/cases"];
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
-  const { setToken, authReady, hasSession } = useAuth();
+  const { setToken, authReady, hasSession, user } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
   const [moreOpen, setMoreOpen] = useState(false);
 
   const isAdminSurface =
     pathname === "/admin" || pathname?.startsWith("/admin/");
+
+  const isPlatformAdmin = user?.platformRole === "admin";
 
   useEffect(() => {
     if (!authReady) return;
@@ -67,7 +68,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   };
 
   const isActive = (href: string) =>
-    pathname === href || pathname?.startsWith(`${href}/`);
+    pathname === href || (href !== "/billing" && pathname?.startsWith(`${href}/`));
 
   const mobilePrimaryItems = useMemo(
     () => BOTTOM_NAV.filter((item) => MOBILE_PRIMARY_NAV.includes(item.href)),
@@ -127,7 +128,11 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         <div className="absolute inset-0 opacity-[0.03] [background:repeating-linear-gradient(0deg,rgba(255,255,255,0.02)_0px,rgba(255,255,255,0.02)_1px,transparent_1px,transparent_4px)]" />
 
         <div className="relative z-10 flex min-h-screen flex-col">
-          <AppHeader hasSession={hasSession} onLogout={handleLogout} />
+          <AppHeader
+            hasSession={hasSession}
+            onLogout={handleLogout}
+            isPlatformAdmin={isPlatformAdmin}
+          />
 
           <main className={`app-content ${isAdminSurface ? "app-content-admin" : ""}`}>
             {children}

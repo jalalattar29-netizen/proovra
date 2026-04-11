@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { LanguageSwitcher } from "./language-switcher";
@@ -26,14 +26,12 @@ const MARKETING_NAV: MarketingNavItem[] = [
 
 const APP_NAV: AppNavItem[] = [
   { href: "/home", label: "Workspace" },
-  { href: "/dashboard", label: "Dashboard" },
   { href: "/capture", label: "Capture" },
   { href: "/cases", label: "Cases" },
   { href: "/teams", label: "Teams" },
   { href: "/reports", label: "Reports" },
   { href: "/billing", label: "Billing" },
   { href: "/settings", label: "Settings" },
-  { href: "/admin", label: "Admin" },
 ];
 
 function VelvetLinkButton({
@@ -198,21 +196,28 @@ export function MarketingHeader() {
 export function AppHeader({
   hasSession,
   onLogout,
+  isPlatformAdmin = false,
 }: {
   hasSession: boolean;
   onLogout: () => void;
+  isPlatformAdmin?: boolean;
 }) {
   const pathname = usePathname();
 
+  const navItems = useMemo<AppNavItem[]>(() => {
+    if (!isPlatformAdmin) return APP_NAV;
+    return [...APP_NAV, { href: "/admin", label: "Admin" }];
+  }, [isPlatformAdmin]);
+
   const isActive = (href: string) =>
-    pathname === href || pathname?.startsWith(`${href}/`);
+    pathname === href || (href !== "/billing" && pathname?.startsWith(`${href}/`));
 
   return (
     <HeaderShell>
       <Brand href="/home" />
 
       <nav className="hidden items-center gap-4 lg:flex">
-        {APP_NAV.map((item) => (
+        {navItems.map((item) => (
           <Link
             key={item.href}
             href={item.href}
