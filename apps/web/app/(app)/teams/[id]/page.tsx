@@ -930,30 +930,22 @@ export default function TeamDetailPage() {
 
   .teams-detail-page-shell .team-main-grid {
     display: grid;
-    grid-template-columns: minmax(0, 1.45fr) minmax(320px, 0.78fr);
+    grid-template-columns: minmax(0, 1.18fr) minmax(0, 0.82fr);
     gap: 24px;
-    align-items: start;
+    align-items: stretch;
   }
 
   .teams-detail-page-shell .team-secondary-grid {
     display: grid;
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
     gap: 24px;
-    align-items: start;
+    align-items: stretch;
   }
 
   .teams-detail-page-shell .team-main-grid > .team-card,
   .teams-detail-page-shell .team-secondary-grid > .team-card,
   .teams-detail-page-shell .team-section-spacer > .team-card {
     height: 100%;
-  }
-
-  .teams-detail-page-shell .team-main-grid > .team-card {
-    min-height: 356px;
-  }
-
-  .teams-detail-page-shell .team-secondary-grid > .team-card {
-    min-height: 288px;
   }
 
   .teams-detail-page-shell .team-card {
@@ -967,12 +959,12 @@ export default function TeamDetailPage() {
     display: flex;
     flex-direction: column;
     gap: 20px;
-    padding: 30px !important;
+    padding: 28px !important;
   }
 
   .teams-detail-page-shell .team-card-header {
     margin-bottom: 0;
-    max-width: 760px;
+    max-width: 720px;
   }
 
   .teams-detail-page-shell .team-card-title {
@@ -980,15 +972,15 @@ export default function TeamDetailPage() {
     font-weight: 700;
     color: #21353a;
     letter-spacing: -0.03em;
-    font-size: 1.9rem;
+    font-size: 1.25rem;
     line-height: 1.08;
   }
 
   .teams-detail-page-shell .team-card-copy {
     color: #5d6d71;
-    line-height: 1.78;
+    line-height: 1.72;
     font-size: 0.98rem;
-    max-width: 62ch;
+    max-width: 58ch;
   }
 
   .teams-detail-page-shell .team-stack {
@@ -999,21 +991,21 @@ export default function TeamDetailPage() {
   .teams-detail-page-shell .team-overview-layout {
     display: grid;
     grid-template-columns: minmax(0, 1fr);
-    gap: 18px;
+    gap: 16px;
     align-items: start;
     height: 100%;
   }
 
   .teams-detail-page-shell .team-side-panel {
     display: grid;
-    gap: 14px;
+    gap: 12px;
     align-content: start;
   }
 
   .teams-detail-page-shell .team-side-panel > div:first-child {
     padding: 18px !important;
     border-radius: 22px !important;
-    min-height: 132px;
+    min-height: auto;
     display: flex;
     flex-direction: column;
     justify-content: center;
@@ -1021,16 +1013,12 @@ export default function TeamDetailPage() {
 
   .teams-detail-page-shell .team-side-panel-actions {
     display: grid;
-    gap: 12px;
+    gap: 10px;
     margin-top: 0;
   }
 
   .teams-detail-page-shell .team-side-panel-actions > * {
     width: 100%;
-  }
-
-  .teams-detail-page-shell .team-main-grid > .team-card:last-child .team-stack {
-    margin-top: 2px;
   }
 
   .teams-detail-page-shell .team-secondary-grid > .team-card .team-card-inner > :last-child {
@@ -1057,21 +1045,10 @@ export default function TeamDetailPage() {
     border-radius: 22px !important;
   }
 
-  @media (max-width: 1280px) {
-    .teams-detail-page-shell .team-main-grid {
-      grid-template-columns: minmax(0, 1.2fr) minmax(300px, 0.8fr);
-    }
-  }
-
   @media (max-width: 1140px) {
     .teams-detail-page-shell .team-main-grid,
     .teams-detail-page-shell .team-secondary-grid {
       grid-template-columns: 1fr;
-    }
-
-    .teams-detail-page-shell .team-main-grid > .team-card,
-    .teams-detail-page-shell .team-secondary-grid > .team-card {
-      min-height: unset;
     }
   }
 
@@ -1081,7 +1058,7 @@ export default function TeamDetailPage() {
     }
 
     .teams-detail-page-shell .team-card-title {
-      font-size: 1.55rem;
+      font-size: 1.18rem;
     }
 
     .teams-detail-page-shell .team-card-copy {
@@ -1096,7 +1073,7 @@ export default function TeamDetailPage() {
     }
 
     .teams-detail-page-shell .team-card-title {
-      font-size: 1.32rem;
+      font-size: 1.08rem;
       line-height: 1.1;
     }
 
@@ -1339,7 +1316,7 @@ className="rounded-[999px] border px-4 py-2.5 text-[0.88rem] font-semibold"
                       </div>
                     </div>
 
-<label style={{ display: "grid", gap: 8, maxWidth: "100%" }}>
+<label style={{ display: "grid", gap: 8, width: "100%" }}>
                         <span style={{ fontSize: 12, color: "#6a777b" }}>Team name</span>
                       <input
                         value={teamName}
@@ -1351,7 +1328,7 @@ className="rounded-[999px] border px-4 py-2.5 text-[0.88rem] font-semibold"
                   </div>
 
                   <div className="team-side-panel">
-                    <div style={{ ...noteCardStyle, padding: 14 }}>
+                    <div style={{ ...noteCardStyle, padding: 18 }}>
                       <div style={{ marginBottom: 6 }}>
                         <strong>Owner:</strong>{" "}
                         {team.ownerUserId === currentUserId ? "You" : "Team owner"}
@@ -1724,17 +1701,17 @@ className="rounded-[999px] border px-4 py-2.5 text-[0.88rem] font-semibold"
             <div className="absolute inset-0 bg-[radial-gradient(circle_at_16%_12%,rgba(255,255,255,0.34),transparent_28%)] opacity-90" />
 
 <div className="team-card-inner p-6 md:p-6">
-                <div
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  gap: 18,
-                  alignItems: "flex-start",
-                  flexWrap: "wrap",
-                  marginBottom: 18,
-                }}
-              >
-                <div>
+<div
+  style={{
+    display: "flex",
+    justifyContent: "space-between",
+    gap: 18,
+    alignItems: "center",
+    flexWrap: "wrap",
+    marginBottom: 18,
+  }}
+>
+                  <div>
                   <div className="team-card-title">Team cases</div>
                   <div className="team-card-copy">
                     Cases currently attached to this team, with clear actions to open or
