@@ -3501,30 +3501,3 @@ html[dir="rtl"] .legal-content a::after {
     inset 0 1px 0 rgba(255,255,255,0.12);
 }
 
-/* =========================================================
-   FIX TEAMS PAGE GRID BREAK (CRITICAL)
-   ========================================================= */
-
-.teams-detail-page-shell {
-  width: 100%;
-}
-
-.teams-detail-page-shell .app-content,
-.teams-detail-page-shell .app-section {
-  display: block !important;
-}
-
-/* منع flex من تخريب الكروت */
-.teams-detail-page-shell .container {
-  display: block;
-}
-
-/* تأكيد أن الكروت تاخد عرض كامل */
-.teams-detail-page-shell .team-main-grid,
-.teams-detail-page-shell .team-secondary-grid {
-  width: 100%;
-}
-
-.teams-detail-page-shell .container {
-  max-width: 1320px;
-}

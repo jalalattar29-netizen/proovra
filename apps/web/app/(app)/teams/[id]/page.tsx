@@ -869,13 +869,13 @@ export default function TeamDetailPage() {
     <div className="section app-section teams-detail-page-shell">
 <style jsx global>{`
   .teams-detail-page-shell .container {
-    max-width: 1360px !important;
+    max-width: 1320px !important;
   }
 
   .teams-detail-page-shell .team-field,
   .teams-detail-page-shell .team-select {
     width: 100%;
-    min-height: 54px;
+    min-height: 56px;
     padding: 0 16px;
     border-radius: 18px;
     border: 1px solid rgba(79, 112, 107, 0.14);
@@ -929,20 +929,20 @@ export default function TeamDetailPage() {
 
   .teams-detail-page-shell .team-section-spacer {
     display: grid;
-    gap: 28px;
+    gap: 26px;
   }
 
   .teams-detail-page-shell .team-main-grid {
     display: grid;
-    grid-template-columns: minmax(0, 1.34fr) minmax(360px, 0.9fr);
-    gap: 28px;
+    grid-template-columns: minmax(0, 1.18fr) minmax(360px, 0.82fr);
+    gap: 26px;
     align-items: stretch;
   }
 
   .teams-detail-page-shell .team-secondary-grid {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 28px;
+    gap: 26px;
     align-items: stretch;
   }
 
@@ -977,7 +977,7 @@ export default function TeamDetailPage() {
     font-weight: 700;
     color: #21353a;
     letter-spacing: -0.03em;
-    font-size: 1.65rem;
+    font-size: 1.6rem;
     line-height: 1.08;
   }
 
@@ -993,26 +993,33 @@ export default function TeamDetailPage() {
     gap: 14px;
   }
 
+  /* أهم تعديل */
   .teams-detail-page-shell .team-overview-layout {
     display: grid;
-    grid-template-columns: minmax(0, 1fr);
-    gap: 18px;
-    align-items: start;
+    grid-template-columns: minmax(0, 1.2fr) minmax(280px, 0.72fr);
+    gap: 20px;
+    align-items: stretch;
     height: 100%;
+  }
+
+  .teams-detail-page-shell .team-overview-main {
+    display: grid;
+    align-content: start;
+    gap: 18px;
+    min-width: 0;
   }
 
   .teams-detail-page-shell .team-side-panel {
     display: grid;
     gap: 14px;
     align-content: start;
+    min-width: 0;
   }
 
   .teams-detail-page-shell .team-side-panel > div:first-child {
     padding: 18px !important;
     border-radius: 22px !important;
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
+    min-height: 100%;
   }
 
   .teams-detail-page-shell .team-side-panel-actions {
@@ -1022,6 +1029,16 @@ export default function TeamDetailPage() {
 
   .teams-detail-page-shell .team-side-panel-actions > * {
     width: 100%;
+  }
+
+  .teams-detail-page-shell .team-cases-header {
+    display: flex;
+    justify-content: space-between;
+    gap: 18px;
+    align-items: flex-start;
+    flex-wrap: wrap;
+    width: 100%;
+    margin-bottom: 18px;
   }
 
   .teams-detail-page-shell .team-cases-actions {
@@ -1044,21 +1061,23 @@ export default function TeamDetailPage() {
     border-radius: 22px !important;
   }
 
-  .teams-detail-page-shell .team-main-grid > .team-card:last-child .team-card-inner {
-    justify-content: flex-start;
+  .teams-detail-page-shell .team-members-empty,
+  .teams-detail-page-shell .team-invites-empty,
+  .teams-detail-page-shell .team-cases-empty {
+    min-height: 92px;
+    display: flex;
+    align-items: flex-start;
+    color: #5d6d71;
+    padding-top: 6px;
   }
 
-  .teams-detail-page-shell .team-secondary-grid > .team-card .team-card-inner > :last-child {
-    flex: 1;
-  }
-
-  @media (max-width: 1200px) {
-    .teams-detail-page-shell .container {
-      max-width: 1240px !important;
+  @media (max-width: 1180px) {
+    .teams-detail-page-shell .team-main-grid {
+      grid-template-columns: minmax(0, 1.08fr) minmax(320px, 0.92fr);
     }
 
-    .teams-detail-page-shell .team-main-grid {
-      grid-template-columns: minmax(0, 1.18fr) minmax(320px, 0.88fr);
+    .teams-detail-page-shell .team-overview-layout {
+      grid-template-columns: 1fr;
     }
   }
 
@@ -1075,7 +1094,7 @@ export default function TeamDetailPage() {
     }
 
     .teams-detail-page-shell .team-card-title {
-      font-size: 1.35rem;
+      font-size: 1.34rem;
     }
 
     .teams-detail-page-shell .team-card-copy {
@@ -1090,8 +1109,8 @@ export default function TeamDetailPage() {
     }
 
     .teams-detail-page-shell .team-card-title {
-      font-size: 1.16rem;
-      line-height: 1.1;
+      font-size: 1.14rem;
+      line-height: 1.12;
     }
 
     .teams-detail-page-shell .team-cases-actions {
@@ -1323,68 +1342,68 @@ className="rounded-[999px] border px-4 py-2.5 text-[0.88rem] font-semibold"
               <div className="absolute inset-0 bg-[radial-gradient(circle_at_16%_12%,rgba(255,255,255,0.34),transparent_28%)] opacity-90" />
 
 <div className="team-card-inner p-6 md:p-6">
-<div className="team-overview-layout" style={{ height: "100%" }}>
-                    <div>
-                    <div className="team-card-header">
-                      <div className="team-card-title">Team overview</div>
-                      <div className="team-card-copy">
-                        Define the team identity, review ownership, and control the
-                        workspace structure from one place.
-                      </div>
-                    </div>
+<div className="team-overview-layout">
+  <div className="team-overview-main">
+    <div className="team-card-header">
+      <div className="team-card-title">Team overview</div>
+      <div className="team-card-copy">
+        Define the team identity, review ownership, and control the
+        workspace structure from one place.
+      </div>
+    </div>
 
-<label style={{ display: "grid", gap: 8, width: "100%", maxWidth: "100%" }}>
-                          <span style={{ fontSize: 12, color: "#6a777b" }}>Team name</span>
-                      <input
-                        value={teamName}
-                        onChange={(e) => setTeamName(e.target.value)}
-                        disabled={!canManageTeam || savingName}
-                        className="team-field"
-                      />
-                    </label>
-                  </div>
+    <label style={{ display: "grid", gap: 8, width: "100%", maxWidth: "100%" }}>
+      <span style={{ fontSize: 12, color: "#6a777b" }}>Team name</span>
+      <input
+        value={teamName}
+        onChange={(e) => setTeamName(e.target.value)}
+        disabled={!canManageTeam || savingName}
+        className="team-field"
+      />
+    </label>
+  </div>
 
-                  <div className="team-side-panel">
-                    <div style={{ ...noteCardStyle, padding: 18 }}>
-                      <div style={{ marginBottom: 6 }}>
-                        <strong>Owner:</strong>{" "}
-                        {team.ownerUserId === currentUserId ? "You" : "Team owner"}
-                      </div>
-                      <div style={{ marginBottom: 6 }}>
-                        <strong>Your access:</strong> {currentRole}
-                      </div>
-                      <div>
-                        <strong>Pending invites:</strong>{" "}
-                        {team.stats?.pendingInviteCount ?? invites.length}
-                      </div>
-                    </div>
+  <div className="team-side-panel">
+    <div style={{ ...noteCardStyle, padding: 18 }}>
+      <div style={{ marginBottom: 6 }}>
+        <strong>Owner:</strong>{" "}
+        {team.ownerUserId === currentUserId ? "You" : "Team owner"}
+      </div>
+      <div style={{ marginBottom: 6 }}>
+        <strong>Your access:</strong> {currentRole}
+      </div>
+      <div>
+        <strong>Pending invites:</strong>{" "}
+        {team.stats?.pendingInviteCount ?? invites.length}
+      </div>
+    </div>
 
-                    <div className="team-side-panel-actions">
-                      {canManageTeam && (
-                        <Button
-                          onClick={handleSaveTeamName}
-                          disabled={savingName || !teamName.trim()}
-                          className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
-                          style={primaryButtonStyle}
-                        >
-                          {savingName ? "Saving..." : "Save name"}
-                        </Button>
-                      )}
+    <div className="team-side-panel-actions">
+      {canManageTeam && (
+        <Button
+          onClick={handleSaveTeamName}
+          disabled={savingName || !teamName.trim()}
+          className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
+          style={primaryButtonStyle}
+        >
+          {savingName ? "Saving..." : "Save name"}
+        </Button>
+      )}
 
-                      {isOwner && (
-                        <Button
-                          variant="secondary"
-                          onClick={() => setDeleteConfirm(true)}
-                          disabled={deletingTeam}
-                          className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
-                          style={dangerButtonStyle}
-                        >
-                          Delete Team
-                        </Button>
-                      )}
-                    </div>
-                  </div>
-                </div>
+      {isOwner && (
+        <Button
+          variant="secondary"
+          onClick={() => setDeleteConfirm(true)}
+          disabled={deletingTeam}
+          className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
+          style={dangerButtonStyle}
+        >
+          Delete Team
+        </Button>
+      )}
+    </div>
+  </div>
+</div>
               </div>
             </Card>
 
@@ -1502,7 +1521,7 @@ className="rounded-[999px] border px-4 py-2.5 text-[0.88rem] font-semibold"
                 </div>
 
                 {!team.members || team.members.length === 0 ? (
-                  <div style={{ color: "#5d6d71" }}>No members found.</div>
+<div className="team-members-empty">No members found.</div>
                 ) : (
                   <div className="team-stack">
                     {team.members.map((member) => {
@@ -1721,18 +1740,8 @@ className="rounded-[999px] border px-4 py-2.5 text-[0.88rem] font-semibold"
             <div className="absolute inset-0 bg-[radial-gradient(circle_at_16%_12%,rgba(255,255,255,0.34),transparent_28%)] opacity-90" />
 
 <div className="team-card-inner p-6 md:p-6">
-<div
-  style={{
-    display: "flex",
-    justifyContent: "space-between",
-    gap: 18,
-    alignItems: "flex-start",
-    flexWrap: "wrap",
-    marginBottom: 18,
-    width: "100%",
-  }}
->
-                    <div>
+<div className="team-cases-header">
+                      <div>
                   <div className="team-card-title">Team cases</div>
                   <div className="team-card-copy">
                     Cases currently attached to this team, with clear actions to open or
