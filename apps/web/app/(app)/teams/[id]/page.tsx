@@ -934,11 +934,111 @@ export default function TeamDetailPage() {
           color: #23373b;
         }
 
-        @media (max-width: 1180px) {
+        .teams-detail-page-shell .team-card {
+          height: 100%;
+        }
+
+        .teams-detail-page-shell .team-card-inner {
+          position: relative;
+          z-index: 10;
+          height: 100%;
+          display: flex;
+          flex-direction: column;
+        }
+
+        .teams-detail-page-shell .team-card-header {
+          margin-bottom: 18px;
+        }
+
+        .teams-detail-page-shell .team-card-title {
+          font-weight: 700;
+          margin-bottom: 6px;
+          color: #21353a;
+          letter-spacing: -0.02em;
+          font-size: 20px;
+        }
+
+        .teams-detail-page-shell .team-card-copy {
+          color: #5d6d71;
+          line-height: 1.7;
+        }
+
+        .teams-detail-page-shell .team-stack {
+          display: grid;
+          gap: 10px;
+        }
+
+        .teams-detail-page-shell .team-main-grid {
+          display: grid;
+          grid-template-columns: minmax(0, 1.12fr) minmax(320px, 0.88fr);
+          gap: 18px;
+          align-items: stretch;
+        }
+
+        .teams-detail-page-shell .team-secondary-grid {
+          display: grid;
+          grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+          gap: 18px;
+          align-items: stretch;
+        }
+
+        .teams-detail-page-shell .team-overview-layout {
+          display: grid;
+          grid-template-columns: minmax(0, 1fr) minmax(240px, 280px);
+          gap: 18px;
+          align-items: start;
+          height: 100%;
+        }
+
+        .teams-detail-page-shell .team-side-panel {
+          display: flex;
+          flex-direction: column;
+          gap: 10px;
+          height: 100%;
+        }
+
+        .teams-detail-page-shell .team-side-panel-actions {
+          display: grid;
+          gap: 10px;
+          margin-top: auto;
+        }
+
+        .teams-detail-page-shell .team-cases-actions {
+          display: flex;
+          gap: 8px;
+          flex-wrap: wrap;
+          justify-content: flex-end;
+          align-items: center;
+        }
+
+        .teams-detail-page-shell .team-full-width {
+          width: 100%;
+        }
+
+        .teams-detail-page-shell .team-activity-card {
+          max-width: 100%;
+        }
+
+        @media (max-width: 1240px) {
+          .teams-detail-page-shell .team-overview-layout {
+            grid-template-columns: 1fr;
+          }
+        }
+
+        @media (max-width: 1100px) {
           .teams-detail-page-shell .team-main-grid,
-          .teams-detail-page-shell .team-secondary-grid,
-          .teams-detail-page-shell .team-bottom-grid {
-            grid-template-columns: 1fr !important;
+          .teams-detail-page-shell .team-secondary-grid {
+            grid-template-columns: 1fr;
+          }
+        }
+
+        @media (max-width: 720px) {
+          .teams-detail-page-shell .team-card-title {
+            font-size: 18px;
+          }
+
+          .teams-detail-page-shell .team-cases-actions {
+            justify-content: flex-start;
           }
         }
       `}</style>
@@ -1081,7 +1181,7 @@ export default function TeamDetailPage() {
         >
           {deleteConfirm && isOwner && (
             <Card
-              className="relative overflow-hidden rounded-[30px] border bg-transparent p-0 shadow-none"
+              className="team-card relative overflow-hidden rounded-[30px] border bg-transparent p-0 shadow-none"
               style={{
                 ...outerCardStyle,
                 border: "1px solid rgba(194,78,78,0.24)",
@@ -1096,7 +1196,7 @@ export default function TeamDetailPage() {
               </div>
               <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,243,243,0.90)_0%,rgba(248,239,235,0.86)_100%)]" />
 
-              <div className="relative z-10 p-6">
+              <div className="team-card-inner p-6">
                 <div
                   style={{
                     fontSize: 22,
@@ -1143,17 +1243,9 @@ export default function TeamDetailPage() {
             </Card>
           )}
 
-          <div
-            className="team-main-grid"
-            style={{
-              display: "grid",
-              gridTemplateColumns: "minmax(0, 1.1fr) minmax(0, 0.9fr)",
-              gap: 18,
-              alignItems: "start",
-            }}
-          >
+          <div className="team-main-grid">
             <Card
-              className="relative overflow-hidden rounded-[30px] border bg-transparent p-0 shadow-none"
+              className="team-card relative overflow-hidden rounded-[30px] border bg-transparent p-0 shadow-none"
               style={outerCardStyle}
             >
               <div className="absolute inset-0">
@@ -1166,31 +1258,15 @@ export default function TeamDetailPage() {
               <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.24)_0%,rgba(248,249,246,0.34)_42%,rgba(239,241,238,0.42)_100%)]" />
               <div className="absolute inset-0 bg-[radial-gradient(circle_at_16%_12%,rgba(255,255,255,0.34),transparent_28%)] opacity-90" />
 
-              <div className="relative z-10 p-6 md:p-7">
-                <div
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns: "minmax(0, 1fr) minmax(220px, 260px)",
-                    gap: 16,
-                    alignItems: "start",
-                  }}
-                >
+              <div className="team-card-inner p-6 md:p-7">
+                <div className="team-overview-layout">
                   <div>
-                    <div
-                      style={{
-                        fontWeight: 700,
-                        marginBottom: 6,
-                        color: "#21353a",
-                        letterSpacing: "-0.02em",
-                        fontSize: 20,
-                      }}
-                    >
-                      Team overview
-                    </div>
-
-                    <div style={{ color: "#5d6d71", lineHeight: 1.7, marginBottom: 16 }}>
-                      Define the team identity, review ownership, and control the workspace
-                      structure from one place.
+                    <div className="team-card-header">
+                      <div className="team-card-title">Team overview</div>
+                      <div className="team-card-copy">
+                        Define the team identity, review ownership, and control the
+                        workspace structure from one place.
+                      </div>
                     </div>
 
                     <label style={{ display: "grid", gap: 8 }}>
@@ -1204,7 +1280,7 @@ export default function TeamDetailPage() {
                     </label>
                   </div>
 
-                  <div style={{ display: "grid", gap: 10 }}>
+                  <div className="team-side-panel">
                     <div style={{ ...noteCardStyle, padding: 16 }}>
                       <div style={{ marginBottom: 6 }}>
                         <strong>Owner:</strong>{" "}
@@ -1219,28 +1295,30 @@ export default function TeamDetailPage() {
                       </div>
                     </div>
 
-                    {canManageTeam && (
-                      <Button
-                        onClick={handleSaveTeamName}
-                        disabled={savingName || !teamName.trim()}
-                        className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
-                        style={primaryButtonStyle}
-                      >
-                        {savingName ? "Saving..." : "Save name"}
-                      </Button>
-                    )}
+                    <div className="team-side-panel-actions">
+                      {canManageTeam && (
+                        <Button
+                          onClick={handleSaveTeamName}
+                          disabled={savingName || !teamName.trim()}
+                          className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
+                          style={primaryButtonStyle}
+                        >
+                          {savingName ? "Saving..." : "Save name"}
+                        </Button>
+                      )}
 
-                    {isOwner && (
-                      <Button
-                        variant="secondary"
-                        onClick={() => setDeleteConfirm(true)}
-                        disabled={deletingTeam}
-                        className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
-                        style={dangerButtonStyle}
-                      >
-                        Delete Team
-                      </Button>
-                    )}
+                      {isOwner && (
+                        <Button
+                          variant="secondary"
+                          onClick={() => setDeleteConfirm(true)}
+                          disabled={deletingTeam}
+                          className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
+                          style={dangerButtonStyle}
+                        >
+                          Delete Team
+                        </Button>
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -1248,7 +1326,7 @@ export default function TeamDetailPage() {
 
             {canManageTeam ? (
               <Card
-                className="relative overflow-hidden rounded-[30px] border bg-transparent p-0 shadow-none"
+                className="team-card relative overflow-hidden rounded-[30px] border bg-transparent p-0 shadow-none"
                 style={outerCardStyle}
               >
                 <div className="absolute inset-0">
@@ -1261,25 +1339,16 @@ export default function TeamDetailPage() {
                 <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.24)_0%,rgba(248,249,246,0.34)_42%,rgba(239,241,238,0.42)_100%)]" />
                 <div className="absolute inset-0 bg-[radial-gradient(circle_at_16%_12%,rgba(255,255,255,0.34),transparent_28%)] opacity-90" />
 
-                <div className="relative z-10 p-6 md:p-7">
-                  <div
-                    style={{
-                      fontWeight: 700,
-                      marginBottom: 6,
-                      color: "#21353a",
-                      letterSpacing: "-0.02em",
-                      fontSize: 20,
-                    }}
-                  >
-                    Invite member
+                <div className="team-card-inner p-6 md:p-7">
+                  <div className="team-card-header">
+                    <div className="team-card-title">Invite member</div>
+                    <div className="team-card-copy">
+                      Add a collaborator and assign the right level before they join the
+                      workspace.
+                    </div>
                   </div>
 
-                  <div style={{ color: "#5d6d71", lineHeight: 1.7, marginBottom: 16 }}>
-                    Add a collaborator and assign the right level before they join the
-                    workspace.
-                  </div>
-
-                  <div style={{ display: "grid", gap: 10 }}>
+                  <div className="team-stack">
                     <input
                       placeholder="Email address"
                       value={inviteEmail}
@@ -1314,7 +1383,7 @@ export default function TeamDetailPage() {
               </Card>
             ) : (
               <Card
-                className="relative overflow-hidden rounded-[30px] border bg-transparent p-0 shadow-none"
+                className="team-card relative overflow-hidden rounded-[30px] border bg-transparent p-0 shadow-none"
                 style={outerCardStyle}
               >
                 <div className="absolute inset-0">
@@ -1327,17 +1396,9 @@ export default function TeamDetailPage() {
                 <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.24)_0%,rgba(248,249,246,0.34)_42%,rgba(239,241,238,0.42)_100%)]" />
                 <div className="absolute inset-0 bg-[radial-gradient(circle_at_16%_12%,rgba(255,255,255,0.34),transparent_28%)] opacity-90" />
 
-                <div className="relative z-10 p-6 md:p-7">
-                  <div
-                    style={{
-                      fontWeight: 700,
-                      marginBottom: 6,
-                      color: "#21353a",
-                      letterSpacing: "-0.02em",
-                      fontSize: 20,
-                    }}
-                  >
-                    Access summary
+                <div className="team-card-inner p-6 md:p-7">
+                  <div className="team-card-header">
+                    <div className="team-card-title">Access summary</div>
                   </div>
 
                   <div style={{ ...noteCardStyle, padding: 14 }}>
@@ -1349,17 +1410,9 @@ export default function TeamDetailPage() {
             )}
           </div>
 
-          <div
-            className="team-secondary-grid"
-            style={{
-              display: "grid",
-              gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1fr)",
-              gap: 18,
-              alignItems: "start",
-            }}
-          >
+          <div className="team-secondary-grid">
             <Card
-              className="relative overflow-hidden rounded-[30px] border bg-transparent p-0 shadow-none"
+              className="team-card relative overflow-hidden rounded-[30px] border bg-transparent p-0 shadow-none"
               style={outerCardStyle}
             >
               <div className="absolute inset-0">
@@ -1372,28 +1425,19 @@ export default function TeamDetailPage() {
               <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.24)_0%,rgba(248,249,246,0.34)_42%,rgba(239,241,238,0.42)_100%)]" />
               <div className="absolute inset-0 bg-[radial-gradient(circle_at_16%_12%,rgba(255,255,255,0.34),transparent_28%)] opacity-90" />
 
-              <div className="relative z-10 p-6 md:p-7">
-                <div
-                  style={{
-                    fontWeight: 700,
-                    marginBottom: 6,
-                    color: "#21353a",
-                    letterSpacing: "-0.02em",
-                    fontSize: 20,
-                  }}
-                >
-                  Members
-                </div>
-
-                <div style={{ color: "#5d6d71", lineHeight: 1.7, marginBottom: 16 }}>
-                  A clear view of who belongs to the team, who owns it, and who can
-                  manage access.
+              <div className="team-card-inner p-6 md:p-7">
+                <div className="team-card-header">
+                  <div className="team-card-title">Members</div>
+                  <div className="team-card-copy">
+                    A clear view of who belongs to the team, who owns it, and who can
+                    manage access.
+                  </div>
                 </div>
 
                 {!team.members || team.members.length === 0 ? (
                   <div style={{ color: "#5d6d71" }}>No members found.</div>
                 ) : (
-                  <div style={{ display: "grid", gap: 10 }}>
+                  <div className="team-stack">
                     {team.members.map((member) => {
                       const name = displayMemberName(member);
                       const email = displayMemberEmail(member);
@@ -1492,7 +1536,7 @@ export default function TeamDetailPage() {
             </Card>
 
             <Card
-              className="relative overflow-hidden rounded-[30px] border bg-transparent p-0 shadow-none"
+              className="team-card relative overflow-hidden rounded-[30px] border bg-transparent p-0 shadow-none"
               style={outerCardStyle}
             >
               <div className="absolute inset-0">
@@ -1505,28 +1549,19 @@ export default function TeamDetailPage() {
               <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.24)_0%,rgba(248,249,246,0.34)_42%,rgba(239,241,238,0.42)_100%)]" />
               <div className="absolute inset-0 bg-[radial-gradient(circle_at_16%_12%,rgba(255,255,255,0.34),transparent_28%)] opacity-90" />
 
-              <div className="relative z-10 p-6 md:p-7">
-                <div
-                  style={{
-                    fontWeight: 700,
-                    marginBottom: 6,
-                    color: "#21353a",
-                    letterSpacing: "-0.02em",
-                    fontSize: 20,
-                  }}
-                >
-                  Pending invites
-                </div>
-
-                <div style={{ color: "#5d6d71", lineHeight: 1.7, marginBottom: 16 }}>
-                  All invitations waiting for acceptance, with quick actions to manage
-                  them.
+              <div className="team-card-inner p-6 md:p-7">
+                <div className="team-card-header">
+                  <div className="team-card-title">Pending invites</div>
+                  <div className="team-card-copy">
+                    All invitations waiting for acceptance, with quick actions to manage
+                    them.
+                  </div>
                 </div>
 
                 {invites.length === 0 ? (
                   <div style={{ color: "#5d6d71" }}>No pending invites.</div>
                 ) : (
-                  <div style={{ display: "grid", gap: 10 }}>
+                  <div className="team-stack">
                     {invites.map((invite) => (
                       <div key={invite.id} style={rowCardStyle}>
                         <div
@@ -1594,19 +1629,220 @@ export default function TeamDetailPage() {
             </Card>
           </div>
 
-          <div
-            className="team-bottom-grid"
-            style={{
-              display: "grid",
-              gridTemplateColumns: activities.length > 0
-                ? "minmax(0, 1.08fr) minmax(0, 0.92fr)"
-                : "1fr",
-              gap: 18,
-              alignItems: "start",
-            }}
+          <Card
+            className="team-card team-full-width relative overflow-hidden rounded-[30px] border bg-transparent p-0 shadow-none"
+            style={outerCardStyle}
           >
+            <div className="absolute inset-0">
+              <img
+                src="/images/panel-silver.webp.png"
+                alt=""
+                className="h-full w-full object-cover object-center"
+              />
+            </div>
+            <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.24)_0%,rgba(248,249,246,0.34)_42%,rgba(239,241,238,0.42)_100%)]" />
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_16%_12%,rgba(255,255,255,0.34),transparent_28%)] opacity-90" />
+
+            <div className="team-card-inner p-6 md:p-7">
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  gap: 16,
+                  alignItems: "flex-start",
+                  flexWrap: "wrap",
+                  marginBottom: 16,
+                }}
+              >
+                <div>
+                  <div className="team-card-title">Team cases</div>
+                  <div className="team-card-copy">
+                    Cases currently attached to this team, with clear actions to open or
+                    remove them.
+                  </div>
+                </div>
+
+                {canManageTeam && (
+                  <div className="team-cases-actions">
+                    <Button
+                      onClick={handleCreateTeamCase}
+                      className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
+                      style={primaryButtonStyle}
+                    >
+                      Create Team Case
+                    </Button>
+
+                    <Button
+                      variant="secondary"
+                      onClick={() => {
+                        const next = !showAddCase;
+                        setShowAddCase(next);
+                        if (next) {
+                          void loadAvailableCases();
+                        }
+                      }}
+                      className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
+                      style={secondaryButtonStyle}
+                    >
+                      {showAddCase ? "Close" : "Add Existing Case"}
+                    </Button>
+                  </div>
+                )}
+              </div>
+
+              {teamCases.length === 0 ? (
+                <div style={{ color: "#5d6d71" }}>
+                  No cases linked to this team yet.
+                </div>
+              ) : (
+                <div className="team-stack">
+                  {teamCases.map((item) => (
+                    <div key={item.id} style={rowCardStyle}>
+                      <div
+                        style={{
+                          display: "flex",
+                          justifyContent: "space-between",
+                          gap: 12,
+                          flexWrap: "wrap",
+                          alignItems: "center",
+                        }}
+                      >
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div
+                            style={{
+                              color: "#21353a",
+                              fontWeight: 700,
+                              fontSize: 16,
+                            }}
+                          >
+                            {item.name}
+                          </div>
+                          <div
+                            style={{
+                              color: "#6a777b",
+                              fontSize: 13,
+                              marginTop: 4,
+                              lineHeight: 1.6,
+                            }}
+                          >
+                            {item.createdAt
+                              ? new Date(item.createdAt).toLocaleString()
+                              : "Creation date not available"}
+                          </div>
+                        </div>
+
+                        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                          <Link
+                            href={`/cases/${item.id}`}
+                            style={{ textDecoration: "none" }}
+                          >
+                            <Button
+                              className="rounded-[999px] border px-4 py-2.5 text-[0.88rem] font-semibold"
+                              style={primaryButtonStyle}
+                            >
+                              Open
+                            </Button>
+                          </Link>
+
+                          {canManageTeam && (
+                            <Button
+                              variant="secondary"
+                              onClick={() => handleUnlinkTeamCase(item.id)}
+                              disabled={unlinkingCaseId === item.id}
+                              className="rounded-[999px] border px-4 py-2.5 text-[0.88rem] font-semibold"
+                              style={dangerButtonStyle}
+                            >
+                              {unlinkingCaseId === item.id
+                                ? "Removing..."
+                                : "Remove from Team"}
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {showAddCase && canManageTeam && (
+                <div
+                  style={{
+                    marginTop: 16,
+                    paddingTop: 16,
+                    borderTop: "1px solid rgba(79,112,107,0.10)",
+                  }}
+                >
+                  <div
+                    style={{
+                      color: "#5d6d71",
+                      marginBottom: 12,
+                      lineHeight: 1.7,
+                    }}
+                  >
+                    {loadingAvailableCases
+                      ? "Loading available cases..."
+                      : availableCases.length === 0
+                        ? "No available personal cases to link."
+                        : "Choose a personal case to attach to this team."}
+                  </div>
+
+                  {!loadingAvailableCases && availableCases.length > 0 && (
+                    <div className="team-stack">
+                      {availableCases.map((item) => (
+                        <div key={item.id} style={rowCardStyle}>
+                          <div
+                            style={{
+                              display: "flex",
+                              justifyContent: "space-between",
+                              gap: 12,
+                              flexWrap: "wrap",
+                              alignItems: "center",
+                            }}
+                          >
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <div
+                                style={{
+                                  color: "#21353a",
+                                  fontWeight: 700,
+                                  fontSize: 16,
+                                }}
+                              >
+                                {item.name}
+                              </div>
+                              <div
+                                style={{
+                                  color: "#6a777b",
+                                  fontSize: 13,
+                                  marginTop: 4,
+                                }}
+                              >
+                                {item.createdAt
+                                  ? new Date(item.createdAt).toLocaleString()
+                                  : ""}
+                              </div>
+                            </div>
+
+                            <Button
+                              onClick={() => handleAddExistingCase(item.id)}
+                              disabled={linkingCaseId === item.id}
+                              className="rounded-[999px] border px-4 py-2.5 text-[0.88rem] font-semibold"
+                              style={primaryButtonStyle}
+                            >
+                              {linkingCaseId === item.id ? "Linking..." : "Link"}
+                            </Button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </Card>
+
+          {activities.length > 0 && (
             <Card
-              className="relative overflow-hidden rounded-[30px] border bg-transparent p-0 shadow-none"
+              className="team-card team-activity-card team-full-width relative overflow-hidden rounded-[30px] border bg-transparent p-0 shadow-none"
               style={outerCardStyle}
             >
               <div className="absolute inset-0">
@@ -1619,290 +1855,57 @@ export default function TeamDetailPage() {
               <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.24)_0%,rgba(248,249,246,0.34)_42%,rgba(239,241,238,0.42)_100%)]" />
               <div className="absolute inset-0 bg-[radial-gradient(circle_at_16%_12%,rgba(255,255,255,0.34),transparent_28%)] opacity-90" />
 
-              <div className="relative z-10 p-6 md:p-7">
-                <div
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    gap: 16,
-                    alignItems: "flex-start",
-                    flexWrap: "wrap",
-                    marginBottom: 16,
-                  }}
-                >
-                  <div>
-                    <div
-                      style={{
-                        fontWeight: 700,
-                        marginBottom: 6,
-                        color: "#21353a",
-                        letterSpacing: "-0.02em",
-                        fontSize: 20,
-                      }}
-                    >
-                      Team cases
-                    </div>
-
-                    <div style={{ color: "#5d6d71", lineHeight: 1.7 }}>
-                      Cases currently attached to this team, with clear actions to open or
-                      remove them.
-                    </div>
-                  </div>
-
-                  {canManageTeam && (
-                    <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                      <Button
-                        onClick={handleCreateTeamCase}
-                        className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
-                        style={primaryButtonStyle}
-                      >
-                        Create Team Case
-                      </Button>
-
-                      <Button
-                        variant="secondary"
-                        onClick={() => {
-                          const next = !showAddCase;
-                          setShowAddCase(next);
-                          if (next) {
-                            void loadAvailableCases();
-                          }
-                        }}
-                        className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
-                        style={secondaryButtonStyle}
-                      >
-                        {showAddCase ? "Close" : "Add Existing Case"}
-                      </Button>
-                    </div>
-                  )}
-                </div>
-
-                {teamCases.length === 0 ? (
-                  <div style={{ color: "#5d6d71" }}>
-                    No cases linked to this team yet.
-                  </div>
-                ) : (
-                  <div style={{ display: "grid", gap: 10 }}>
-                    {teamCases.map((item) => (
-                      <div key={item.id} style={rowCardStyle}>
-                        <div
-                          style={{
-                            display: "flex",
-                            justifyContent: "space-between",
-                            gap: 12,
-                            flexWrap: "wrap",
-                            alignItems: "center",
-                          }}
-                        >
-                          <div style={{ flex: 1, minWidth: 0 }}>
-                            <div
-                              style={{
-                                color: "#21353a",
-                                fontWeight: 700,
-                                fontSize: 16,
-                              }}
-                            >
-                              {item.name}
-                            </div>
-                            <div
-                              style={{
-                                color: "#6a777b",
-                                fontSize: 13,
-                                marginTop: 4,
-                                lineHeight: 1.6,
-                              }}
-                            >
-                              {item.createdAt
-                                ? new Date(item.createdAt).toLocaleString()
-                                : "Creation date not available"}
-                            </div>
-                          </div>
-
-                          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                            <Link
-                              href={`/cases/${item.id}`}
-                              style={{ textDecoration: "none" }}
-                            >
-                              <Button
-                                className="rounded-[999px] border px-4 py-2.5 text-[0.88rem] font-semibold"
-                                style={primaryButtonStyle}
-                              >
-                                Open
-                              </Button>
-                            </Link>
-
-                            {canManageTeam && (
-                              <Button
-                                variant="secondary"
-                                onClick={() => handleUnlinkTeamCase(item.id)}
-                                disabled={unlinkingCaseId === item.id}
-                                className="rounded-[999px] border px-4 py-2.5 text-[0.88rem] font-semibold"
-                                style={dangerButtonStyle}
-                              >
-                                {unlinkingCaseId === item.id
-                                  ? "Removing..."
-                                  : "Remove from Team"}
-                              </Button>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                {showAddCase && canManageTeam && (
-                  <div
-                    style={{
-                      marginTop: 16,
-                      paddingTop: 16,
-                      borderTop: "1px solid rgba(79,112,107,0.10)",
-                    }}
-                  >
-                    <div
-                      style={{
-                        color: "#5d6d71",
-                        marginBottom: 12,
-                        lineHeight: 1.7,
-                      }}
-                    >
-                      {loadingAvailableCases
-                        ? "Loading available cases..."
-                        : availableCases.length === 0
-                          ? "No available personal cases to link."
-                          : "Choose a personal case to attach to this team."}
-                    </div>
-
-                    {!loadingAvailableCases && availableCases.length > 0 && (
-                      <div style={{ display: "grid", gap: 10 }}>
-                        {availableCases.map((item) => (
-                          <div key={item.id} style={rowCardStyle}>
-                            <div
-                              style={{
-                                display: "flex",
-                                justifyContent: "space-between",
-                                gap: 12,
-                                flexWrap: "wrap",
-                                alignItems: "center",
-                              }}
-                            >
-                              <div style={{ flex: 1, minWidth: 0 }}>
-                                <div
-                                  style={{
-                                    color: "#21353a",
-                                    fontWeight: 700,
-                                    fontSize: 16,
-                                  }}
-                                >
-                                  {item.name}
-                                </div>
-                                <div
-                                  style={{
-                                    color: "#6a777b",
-                                    fontSize: 13,
-                                    marginTop: 4,
-                                  }}
-                                >
-                                  {item.createdAt
-                                    ? new Date(item.createdAt).toLocaleString()
-                                    : ""}
-                                </div>
-                              </div>
-
-                              <Button
-                                onClick={() => handleAddExistingCase(item.id)}
-                                disabled={linkingCaseId === item.id}
-                                className="rounded-[999px] border px-4 py-2.5 text-[0.88rem] font-semibold"
-                                style={primaryButtonStyle}
-                              >
-                                {linkingCaseId === item.id ? "Linking..." : "Link"}
-                              </Button>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-            </Card>
-
-            {activities.length > 0 && (
-              <Card
-                className="relative overflow-hidden rounded-[30px] border bg-transparent p-0 shadow-none"
-                style={outerCardStyle}
-              >
-                <div className="absolute inset-0">
-                  <img
-                    src="/images/panel-silver.webp.png"
-                    alt=""
-                    className="h-full w-full object-cover object-center"
-                  />
-                </div>
-                <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.24)_0%,rgba(248,249,246,0.34)_42%,rgba(239,241,238,0.42)_100%)]" />
-                <div className="absolute inset-0 bg-[radial-gradient(circle_at_16%_12%,rgba(255,255,255,0.34),transparent_28%)] opacity-90" />
-
-                <div className="relative z-10 p-6 md:p-7">
-                  <div
-                    style={{
-                      fontWeight: 700,
-                      marginBottom: 6,
-                      color: "#21353a",
-                      letterSpacing: "-0.02em",
-                      fontSize: 20,
-                    }}
-                  >
-                    Recent activity
-                  </div>
-
-                  <div style={{ color: "#5d6d71", lineHeight: 1.7, marginBottom: 16 }}>
+              <div className="team-card-inner p-6 md:p-7">
+                <div className="team-card-header">
+                  <div className="team-card-title">Recent activity</div>
+                  <div className="team-card-copy">
                     Latest actions captured inside the team workspace.
                   </div>
+                </div>
 
-                  <div style={{ display: "grid", gap: 10 }}>
-                    {activities.slice(0, 10).map((activity) => (
+                <div className="team-stack">
+                  {activities.slice(0, 10).map((activity) => (
+                    <div
+                      key={activity.id}
+                      style={{
+                        ...rowCardStyle,
+                        padding: 14,
+                      }}
+                    >
+                      <div style={{ color: "#21353a", fontWeight: 700 }}>
+                        {activity.eventType.replace(/_/g, " ")}
+                      </div>
                       <div
-                        key={activity.id}
                         style={{
-                          ...rowCardStyle,
-                          padding: 14,
+                          color: "#6a777b",
+                          fontSize: 13,
+                          marginTop: 4,
+                          lineHeight: 1.6,
                         }}
                       >
-                        <div style={{ color: "#21353a", fontWeight: 700 }}>
-                          {activity.eventType.replace(/_/g, " ")}
-                        </div>
+                        {activity.actor?.displayName ||
+                          activity.actor?.email ||
+                          "System"}{" "}
+                        • {formatLocalDateTime(activity.createdAt)}
+                      </div>
+                      {activity.metadata && (
                         <div
                           style={{
-                            color: "#6a777b",
-                            fontSize: 13,
-                            marginTop: 4,
-                            lineHeight: 1.6,
+                            marginTop: 6,
+                            fontSize: 11,
+                            color: "#7a878b",
+                            lineHeight: 1.65,
                           }}
                         >
-                          {activity.actor?.displayName ||
-                            activity.actor?.email ||
-                            "System"}{" "}
-                          • {formatLocalDateTime(activity.createdAt)}
+                          {JSON.stringify(activity.metadata).substring(0, 90)}
                         </div>
-                        {activity.metadata && (
-                          <div
-                            style={{
-                              marginTop: 6,
-                              fontSize: 11,
-                              color: "#7a878b",
-                              lineHeight: 1.65,
-                            }}
-                          >
-                            {JSON.stringify(activity.metadata).substring(0, 90)}
-                          </div>
-                        )}
-                      </div>
-                    ))}
-                  </div>
+                      )}
+                    </div>
+                  ))}
                 </div>
-              </Card>
-            )}
-          </div>
+              </div>
+            </Card>
+          )}
         </div>
       </div>
     </div>
