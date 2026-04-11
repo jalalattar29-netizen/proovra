@@ -90,23 +90,23 @@ function extractUserFromResponse(res: unknown): UserMeResponse["user"] | null {
 
 function cardShellStyle() {
   return {
-    border: "1px solid rgba(183,157,132,0.18)",
+    border: "1px solid rgba(79,112,107,0.16)",
     boxShadow:
-      "0 22px 42px rgba(0, 0, 0, 0.16), inset 0 1px 0 rgba(255,255,255,0.03)",
+      "0 18px 38px rgba(0,0,0,0.08), inset 0 1px 0 rgba(255,255,255,0.48)",
   } as const;
 }
 
 function velvetButtonClass() {
-  return "proovra-velvet-primary rounded-[999px] border px-5 py-3 text-[0.94rem] font-semibold transition-all duration-200 hover:-translate-y-[1px] hover:brightness-[1.03]";
+  return "rounded-[999px] border px-5 py-3 text-[0.94rem] font-semibold transition-all duration-200 hover:-translate-y-[1px] hover:brightness-[1.03]";
 }
 
 function sectionHeader(icon: React.ReactNode, title: string) {
   return (
     <div className="mb-5 flex items-center gap-3">
-      <span className="flex h-10 w-10 items-center justify-center rounded-full border border-[rgba(183,157,132,0.18)] bg-[linear-gradient(180deg,rgba(183,157,132,0.08)_0%,rgba(255,255,255,0.03)_100%)] text-[#d6b89d] shadow-[0_10px_22px_rgba(0,0,0,0.10)]">
+      <span className="flex h-10 w-10 items-center justify-center rounded-full border border-[rgba(183,157,132,0.18)] bg-[linear-gradient(180deg,rgba(183,157,132,0.08)_0%,rgba(255,255,255,0.03)_100%)] text-[#8a6e57] shadow-[0_10px_22px_rgba(0,0,0,0.08)]">
         {icon}
       </span>
-      <div className="text-[1.08rem] font-semibold tracking-[-0.03em] text-[#d8e0dd]">
+      <div className="text-[1.08rem] font-semibold tracking-[-0.03em] text-[#21353a]">
         {title}
       </div>
     </div>
@@ -254,30 +254,33 @@ export default function SettingsPage() {
   return (
     <div className="section app-section settings-page-shell">
       <style jsx global>{`
-        .settings-page-shell .settings-velvet-card {
+        .settings-page-shell .settings-silver-card {
           position: relative;
           overflow: hidden;
         }
 
-        .settings-page-shell .settings-velvet-card__bg {
+        .settings-page-shell .settings-silver-card__bg {
           position: absolute;
           inset: 0;
-          background-image: url("/images/site-velvet-bg.webp.png");
+          background-image: url("/images/panel-silver.webp.png");
           background-size: cover;
           background-position: center;
-          transform: scale(1.12);
         }
 
-        .settings-page-shell .settings-velvet-card__overlay {
+        .settings-page-shell .settings-silver-card__overlay {
           position: absolute;
           inset: 0;
           background:
-            radial-gradient(circle at 18% 14%, rgba(158, 216, 207, 0.05), transparent 28%),
-            radial-gradient(circle at 86% 18%, rgba(214, 184, 157, 0.04), transparent 24%),
-            linear-gradient(180deg, rgba(8, 20, 24, 0.82) 0%, rgba(7, 18, 22, 0.88) 100%);
+            radial-gradient(circle at 16% 12%, rgba(255,255,255,0.34), transparent 28%),
+            linear-gradient(
+              180deg,
+              rgba(255,255,255,0.24) 0%,
+              rgba(248,249,246,0.34) 42%,
+              rgba(239,241,238,0.42) 100%
+            );
         }
 
-        .settings-page-shell .settings-velvet-card__content {
+        .settings-page-shell .settings-silver-card__content {
           position: relative;
           z-index: 1;
         }
@@ -288,35 +291,31 @@ export default function SettingsPage() {
         .settings-page-shell .input {
           background: linear-gradient(
             180deg,
-            rgba(20, 39, 42, 0.94) 0%,
-            rgba(13, 27, 30, 0.98) 100%
+            rgba(250,251,249,0.94) 0%,
+            rgba(241,244,241,0.98) 100%
           ) !important;
-          border: 1px solid rgba(232, 236, 233, 0.16) !important;
-          color: #d8e0dd !important;
+          border: 1px solid rgba(79,112,107,0.14) !important;
+          color: #23373b !important;
           border-radius: 18px !important;
           box-shadow:
-            inset 0 1px 0 rgba(255, 255, 255, 0.06),
-            inset 0 0 0 1px rgba(244, 245, 242, 0.02),
-            0 10px 22px rgba(0, 0, 0, 0.14),
-            0 0 0 1px rgba(236, 238, 234, 0.03) !important;
+            inset 0 1px 0 rgba(255,255,255,0.68),
+            0 10px 22px rgba(0,0,0,0.05) !important;
         }
 
         .settings-page-shell input::placeholder,
         .settings-page-shell textarea::placeholder {
-          color: rgba(194, 204, 201, 0.52) !important;
+          color: rgba(93,109,113,0.62) !important;
         }
 
         .settings-page-shell input:focus,
         .settings-page-shell textarea:focus,
         .settings-page-shell select:focus,
         .settings-page-shell .input:focus {
-          border-color: rgba(236, 238, 234, 0.24) !important;
+          border-color: rgba(79,112,107,0.22) !important;
           box-shadow:
-            inset 0 1px 0 rgba(255, 255, 255, 0.08),
-            inset 0 0 20px rgba(236, 238, 234, 0.05),
-            0 0 0 3px rgba(236, 238, 234, 0.08),
-            0 12px 24px rgba(0, 0, 0, 0.14),
-            0 0 18px rgba(236, 238, 234, 0.06) !important;
+            inset 0 1px 0 rgba(255,255,255,0.78),
+            0 0 0 3px rgba(79,112,107,0.08),
+            0 12px 24px rgba(0,0,0,0.06) !important;
           outline: none !important;
         }
 
@@ -325,33 +324,29 @@ export default function SettingsPage() {
         }
 
         .settings-page-shell .settings-primary-btn {
-          border-color: rgba(158, 216, 207, 0.14) !important;
+          border-color: rgba(79,112,107,0.22) !important;
           background: linear-gradient(
             180deg,
-            rgba(62, 98, 96, 0.26) 0%,
-            rgba(14, 30, 34, 0.38) 100%
+            rgba(58,92,95,0.96) 0%,
+            rgba(20,38,42,0.98) 100%
           ) !important;
-          color: #aebbb6 !important;
+          color: #eef3f1 !important;
           box-shadow:
-            inset 0 1px 0 rgba(255, 255, 255, 0.04),
-            0 14px 28px rgba(0, 0, 0, 0.08) !important;
-          backdrop-filter: blur(10px);
-          -webkit-backdrop-filter: blur(10px);
+            inset 0 1px 0 rgba(255,255,255,0.08),
+            0 16px 34px rgba(18,40,44,0.22) !important;
         }
 
         .settings-page-shell .settings-secondary-btn {
-          border-color: rgba(79, 112, 107, 0.18) !important;
-          background-image:
-            linear-gradient(180deg, rgba(8, 20, 24, 0.78) 0%, rgba(7, 18, 22, 0.88) 100%),
-            url("/images/site-velvet-bg.webp.png") !important;
-          background-size: cover !important;
-          background-position: center !important;
-          color: #aebbb6 !important;
+          border-color: rgba(79,112,107,0.12) !important;
+          background: linear-gradient(
+            180deg,
+            rgba(250,251,249,0.82) 0%,
+            rgba(241,244,241,0.96) 100%
+          ) !important;
+          color: #24373b !important;
           box-shadow:
-            inset 0 1px 0 rgba(255, 255, 255, 0.03),
-            0 14px 28px rgba(0, 0, 0, 0.10) !important;
-          backdrop-filter: blur(10px);
-          -webkit-backdrop-filter: blur(10px);
+            0 10px 20px rgba(0,0,0,0.05),
+            inset 0 1px 0 rgba(255,255,255,0.70) !important;
         }
 
         .settings-page-shell .settings-select {
@@ -362,8 +357,8 @@ export default function SettingsPage() {
           -webkit-appearance: none;
           -moz-appearance: none;
           background-image:
-            linear-gradient(180deg, rgba(20, 39, 42, 0.94) 0%, rgba(13, 27, 30, 0.98) 100%),
-            url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='18' height='18' viewBox='0 0 24 24' fill='none' stroke='%23d6b89d' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E") !important;
+            linear-gradient(180deg, rgba(250,251,249,0.94) 0%, rgba(241,244,241,0.98) 100%),
+            url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='18' height='18' viewBox='0 0 24 24' fill='none' stroke='%238a6e57' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E") !important;
           background-repeat: no-repeat, no-repeat !important;
           background-position: left top, right 16px center !important;
           background-size: auto, 16px !important;
@@ -371,8 +366,8 @@ export default function SettingsPage() {
         }
 
         .settings-page-shell .settings-select option {
-          background: #122126;
-          color: #d8e0dd;
+          background: #f7f8f5;
+          color: #23373b;
         }
 
         .settings-page-shell .settings-legal-links {
@@ -393,7 +388,7 @@ export default function SettingsPage() {
                 style={{
                   display: "inline-flex",
                   alignItems: "center",
-                  gap: 8,
+                  gap: "0.72rem",
                   borderRadius: 999,
                   border: "1px solid rgba(255,255,255,0.10)",
                   background: "rgba(255,255,255,0.04)",
@@ -410,12 +405,13 @@ export default function SettingsPage() {
               >
                 <span
                   style={{
-                    width: 4,
-                    height: 4,
+                    width: 6,
+                    height: 6,
                     borderRadius: 999,
                     background: "#b79d84",
-                    opacity: 0.8,
+                    opacity: 0.95,
                     display: "inline-block",
+                    flexShrink: 0,
                   }}
                 />
                 {t("settings")}
@@ -457,33 +453,49 @@ export default function SettingsPage() {
         </div>
       </div>
 
-      <div className="app-body app-body-full">
-        <section className="relative px-6 pb-14 md:px-8 md:pb-16">
+      <div
+        className="app-body app-body-full pt-8 md:pt-10"
+        style={{
+          position: "relative",
+          overflow: "hidden",
+          background:
+            "linear-gradient(180deg, rgba(239,241,238,0.96) 0%, rgba(234,237,234,0.98) 100%)",
+        }}
+      >
+        <div className="pointer-events-none absolute inset-0 z-0" aria-hidden="true">
+          <img
+            src="/images/landing-network-bg.png"
+            alt=""
+            className="absolute inset-0 h-full w-full object-cover object-top opacity-[0.12] saturate-[0.55] brightness-[1.02] contrast-[0.94]"
+          />
+          <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.08)_0%,rgba(255,255,255,0.03)_22%,rgba(255,255,255,0.03)_78%,rgba(255,255,255,0.08)_100%)]" />
+          <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(255,255,255,0.10)_0%,rgba(255,255,255,0.03)_12%,rgba(255,255,255,0.00)_24%,rgba(255,255,255,0.00)_76%,rgba(255,255,255,0.03)_88%,rgba(255,255,255,0.10)_100%)]" />
+        </div>
+
+        <section className="relative z-10 px-6 pb-14 md:px-8 md:pb-16">
           <div className="mx-auto grid max-w-7xl gap-5">
             <Card
-              className="settings-velvet-card rounded-[30px] border bg-transparent p-0 shadow-none"
+              className="settings-silver-card rounded-[30px] border bg-transparent p-0 shadow-none"
               style={cardShellStyle()}
             >
-              <div className="settings-velvet-card__bg" />
-              <div className="settings-velvet-card__overlay" />
+              <div className="settings-silver-card__bg" />
+              <div className="settings-silver-card__overlay" />
 
-              <div className="settings-velvet-card__content p-6 md:p-7">
+              <div className="settings-silver-card__content p-6 md:p-7">
                 {sectionHeader(<Icons.Dashboard />, "Profile")}
 
                 <div className="mb-5 flex items-center gap-4">
-                  <div className="flex h-16 w-16 items-center justify-center rounded-full border border-[rgba(183,157,132,0.18)] bg-[linear-gradient(180deg,rgba(183,157,132,0.12)_0%,rgba(255,255,255,0.03)_100%)] text-[1.35rem] font-bold text-[#d8e0dd] shadow-[0_10px_22px_rgba(0,0,0,0.12)]">
+                  <div className="flex h-16 w-16 items-center justify-center rounded-full border border-[rgba(183,157,132,0.18)] bg-[linear-gradient(180deg,rgba(214,184,157,0.12)_0%,rgba(255,255,255,0.56)_100%)] text-[1.35rem] font-bold text-[#23373b] shadow-[0_10px_22px_rgba(0,0,0,0.08)]">
                     {initials}
                   </div>
 
                   <div>
-                    <div className="text-[12px] text-[rgba(194,204,201,0.58)]">Account</div>
-                    <div className="text-[1.05rem] font-semibold tracking-[-0.02em] text-[#d8e0dd]">
+                    <div className="text-[12px] text-[#6a777b]">Account</div>
+                    <div className="text-[1.05rem] font-semibold tracking-[-0.02em] text-[#21353a]">
                       {user?.displayName || user?.email || "Guest User"}
                     </div>
                     {user?.email ? (
-                      <div className="text-[13px] text-[rgba(194,204,201,0.72)]">
-                        {user.email}
-                      </div>
+                      <div className="text-[13px] text-[#5d6d71]">{user.email}</div>
                     ) : null}
                   </div>
                 </div>
@@ -491,9 +503,7 @@ export default function SettingsPage() {
                 <div className="grid gap-4">
                   <div className="grid gap-4 md:grid-cols-2">
                     <div>
-                      <div className="mb-2 text-[13px] text-[rgba(194,204,201,0.72)]">
-                        First name
-                      </div>
+                      <div className="mb-2 text-[13px] text-[#5d6d71]">First name</div>
                       <Input
                         value={firstName}
                         onChange={setFirstName}
@@ -503,9 +513,7 @@ export default function SettingsPage() {
                     </div>
 
                     <div>
-                      <div className="mb-2 text-[13px] text-[rgba(194,204,201,0.72)]">
-                        Last name
-                      </div>
+                      <div className="mb-2 text-[13px] text-[#5d6d71]">Last name</div>
                       <Input
                         value={lastName}
                         onChange={setLastName}
@@ -516,9 +524,7 @@ export default function SettingsPage() {
                   </div>
 
                   <div>
-                    <div className="mb-2 text-[13px] text-[rgba(194,204,201,0.72)]">
-                      Display name
-                    </div>
+                    <div className="mb-2 text-[13px] text-[#5d6d71]">Display name</div>
                     <Input
                       value={displayName}
                       onChange={setDisplayName}
@@ -529,9 +535,7 @@ export default function SettingsPage() {
 
                   <div className="grid gap-4 md:grid-cols-2">
                     <div>
-                      <div className="mb-2 text-[13px] text-[rgba(194,204,201,0.72)]">
-                        Country
-                      </div>
+                      <div className="mb-2 text-[13px] text-[#5d6d71]">Country</div>
                       <Input
                         value={country}
                         onChange={setCountry}
@@ -541,9 +545,7 @@ export default function SettingsPage() {
                     </div>
 
                     <div>
-                      <div className="mb-2 text-[13px] text-[rgba(194,204,201,0.72)]">
-                        Timezone
-                      </div>
+                      <div className="mb-2 text-[13px] text-[#5d6d71]">Timezone</div>
                       <Input
                         value={timezone}
                         onChange={setTimezone}
@@ -554,7 +556,7 @@ export default function SettingsPage() {
                   </div>
 
                   <div>
-                    <div className="mb-2 text-[13px] text-[rgba(194,204,201,0.72)]">Bio</div>
+                    <div className="mb-2 text-[13px] text-[#5d6d71]">Bio</div>
                     <textarea
                       className="input"
                       value={bio}
@@ -589,36 +591,36 @@ export default function SettingsPage() {
 
             <div className="grid gap-5 lg:grid-cols-2">
               <Card
-                className="settings-velvet-card rounded-[30px] border bg-transparent p-0 shadow-none"
+                className="settings-silver-card rounded-[30px] border bg-transparent p-0 shadow-none"
                 style={cardShellStyle()}
               >
-                <div className="settings-velvet-card__bg" />
-                <div className="settings-velvet-card__overlay" />
+                <div className="settings-silver-card__bg" />
+                <div className="settings-silver-card__overlay" />
 
-                <div className="settings-velvet-card__content p-6 md:p-7">
+                <div className="settings-silver-card__content p-6 md:p-7">
                   {sectionHeader(<Icons.Security />, "Security")}
 
                   <div className="grid gap-4">
-                    <div className="flex items-center justify-between gap-4 border-b border-white/6 pb-3">
-                      <span className="text-[rgba(194,204,201,0.72)]">Login method</span>
-                      <span className="text-[#d8e0dd]">{user?.provider ?? "—"}</span>
+                    <div className="flex items-center justify-between gap-4 border-b border-[rgba(79,112,107,0.08)] pb-3">
+                      <span className="text-[#5d6d71]">Login method</span>
+                      <span className="text-[#21353a]">{user?.provider ?? "—"}</span>
                     </div>
 
-                    <div className="flex items-center justify-between gap-4 border-b border-white/6 pb-3">
-                      <span className="text-[rgba(194,204,201,0.72)]">Session</span>
-                      <span className="font-semibold text-[#bfe8df]">Active</span>
+                    <div className="flex items-center justify-between gap-4 border-b border-[rgba(79,112,107,0.08)] pb-3">
+                      <span className="text-[#5d6d71]">Session</span>
+                      <span className="font-semibold text-[#2d5b59]">Active</span>
                     </div>
 
                     <Link
                       href="/legal/security"
-                      className="app-bronze-link text-[0.95rem] text-[#dce7e4]"
+                      className="app-bronze-link text-[0.95rem] text-[#31464a]"
                     >
                       Security policy
                     </Link>
 
                     <a
                       href="mailto:security@proovra.com"
-                      className="app-bronze-link text-[0.95rem] text-[#dce7e4]"
+                      className="app-bronze-link text-[0.95rem] text-[#31464a]"
                     >
                       security@proovra.com
                     </a>
@@ -627,18 +629,18 @@ export default function SettingsPage() {
               </Card>
 
               <Card
-                className="settings-velvet-card rounded-[30px] border bg-transparent p-0 shadow-none"
+                className="settings-silver-card rounded-[30px] border bg-transparent p-0 shadow-none"
                 style={cardShellStyle()}
               >
-                <div className="settings-velvet-card__bg" />
-                <div className="settings-velvet-card__overlay" />
+                <div className="settings-silver-card__bg" />
+                <div className="settings-silver-card__overlay" />
 
-                <div className="settings-velvet-card__content p-6 md:p-7">
+                <div className="settings-silver-card__content p-6 md:p-7">
                   {sectionHeader(<Icons.Settings />, t("language"))}
 
                   <div className="grid gap-4">
                     <div className="flex flex-col gap-3">
-                      <span className="text-[rgba(194,204,201,0.72)]">UI language</span>
+                      <span className="text-[#5d6d71]">UI language</span>
                       <select
                         value={selectedLanguage}
                         onChange={(e) => setSelectedLanguage(e.target.value as Locale)}
@@ -666,7 +668,7 @@ export default function SettingsPage() {
                       </select>
                     </div>
 
-                    <p className="m-0 text-[13px] text-[rgba(194,204,201,0.58)]">
+                    <p className="m-0 text-[13px] text-[#6a777b]">
                       Language preference will be used for future UI updates.
                     </p>
                   </div>
@@ -674,19 +676,19 @@ export default function SettingsPage() {
               </Card>
 
               <Card
-                className="settings-velvet-card rounded-[30px] border bg-transparent p-0 shadow-none"
+                className="settings-silver-card rounded-[30px] border bg-transparent p-0 shadow-none"
                 style={cardShellStyle()}
               >
-                <div className="settings-velvet-card__bg" />
-                <div className="settings-velvet-card__overlay" />
+                <div className="settings-silver-card__bg" />
+                <div className="settings-silver-card__overlay" />
 
-                <div className="settings-velvet-card__content p-6 md:p-7">
+                <div className="settings-silver-card__content p-6 md:p-7">
                   {sectionHeader(<Icons.Billing />, "Subscription")}
 
                   <div className="grid gap-4">
-                    <div className="flex items-center justify-between gap-4 border-b border-white/6 pb-3">
-                      <span className="text-[rgba(194,204,201,0.72)]">Current plan</span>
-                      <span className="font-semibold text-[#d6b89d]">{plan}</span>
+                    <div className="flex items-center justify-between gap-4 border-b border-[rgba(79,112,107,0.08)] pb-3">
+                      <span className="text-[#5d6d71]">Current plan</span>
+                      <span className="font-semibold text-[#8a6e57]">{plan}</span>
                     </div>
 
                     <div>
@@ -704,13 +706,13 @@ export default function SettingsPage() {
               </Card>
 
               <Card
-                className="settings-velvet-card rounded-[30px] border bg-transparent p-0 shadow-none"
+                className="settings-silver-card rounded-[30px] border bg-transparent p-0 shadow-none"
                 style={cardShellStyle()}
               >
-                <div className="settings-velvet-card__bg" />
-                <div className="settings-velvet-card__overlay" />
+                <div className="settings-silver-card__bg" />
+                <div className="settings-silver-card__overlay" />
 
-                <div className="settings-velvet-card__content p-6 md:p-7">
+                <div className="settings-silver-card__content p-6 md:p-7">
                   {sectionHeader(<Icons.Security />, "Legal")}
 
                   <div className="grid gap-4">
@@ -719,7 +721,7 @@ export default function SettingsPage() {
                         <Link
                           key={link.href}
                           href={link.href}
-                          className="app-bronze-link text-[0.95rem] text-[#dce7e4]"
+                          className="app-bronze-link text-[0.95rem] text-[#31464a]"
                         >
                           {link.label}
                         </Link>
@@ -736,7 +738,7 @@ export default function SettingsPage() {
                       </Button>
 
                       {latestCookieConsent ? (
-                        <div className="text-[12px] text-[rgba(194,204,201,0.72)]">
+                        <div className="text-[12px] text-[#6a777b]">
                           Cookie consent v{latestCookieConsent.consentVersion} — saved on{" "}
                           {new Date(latestCookieConsent.createdAt).toLocaleString()}
                         </div>
@@ -745,10 +747,7 @@ export default function SettingsPage() {
                       {legalAcceptances.length > 0 ? (
                         <div className="mt-1 grid gap-2">
                           {legalAcceptances.slice(0, 4).map((item) => (
-                            <div
-                              key={item.id}
-                              className="text-[12px] text-[rgba(194,204,201,0.72)]"
-                            >
+                            <div key={item.id} className="text-[12px] text-[#6a777b]">
                               {item.policyKey} v{item.policyVersion} —{" "}
                               {new Date(item.acceptedAt).toLocaleString()}
                             </div>

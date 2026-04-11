@@ -1399,14 +1399,14 @@ export default function EvidenceDetailPage() {
       display: "grid",
       gap: 20,
       gridTemplateColumns: "minmax(0, 1.08fr) minmax(0, 0.92fr)",
-      alignItems: "start",
+      alignItems: "stretch",
     }}
   >
-    <Card
-      className="relative overflow-hidden rounded-[30px] border bg-transparent p-0 shadow-none"
-      style={outerCardStyle}
-    >
-      <div className="absolute inset-0">
+<Card
+  className="relative h-full overflow-hidden rounded-[30px] border bg-transparent p-0 shadow-none"
+  style={outerCardStyle}
+>
+        <div className="absolute inset-0">
         <img
           src="/images/panel-silver.webp.png"
           alt=""
@@ -1416,8 +1416,8 @@ export default function EvidenceDetailPage() {
       <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.24)_0%,rgba(248,249,246,0.34)_42%,rgba(239,241,238,0.42)_100%)]" />
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_16%_12%,rgba(255,255,255,0.34),transparent_28%)] opacity-90" />
 
-      <div className="relative z-10 p-6 md:p-7">
-        <div className="text-[1.08rem] font-semibold tracking-[-0.02em] text-[#21353a]">
+<div className="relative z-10 flex h-full flex-col p-6 md:p-7">
+          <div className="text-[1.08rem] font-semibold tracking-[-0.02em] text-[#21353a]">
           Record Summary
         </div>
 
@@ -1666,11 +1666,11 @@ export default function EvidenceDetailPage() {
       </div>
     </Card>
 
-    <Card
-      className="relative overflow-hidden rounded-[30px] border bg-transparent p-0 shadow-none"
-      style={outerCardStyle}
-    >
-      <div className="absolute inset-0">
+<Card
+  className="relative h-full overflow-hidden rounded-[30px] border bg-transparent p-0 shadow-none"
+  style={outerCardStyle}
+>
+        <div className="absolute inset-0">
         <img
           src="/images/panel-silver.webp.png"
           alt=""
@@ -1680,8 +1680,8 @@ export default function EvidenceDetailPage() {
       <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.24)_0%,rgba(248,249,246,0.34)_42%,rgba(239,241,238,0.42)_100%)]" />
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_16%_12%,rgba(255,255,255,0.34),transparent_28%)] opacity-90" />
 
-      <div className="relative z-10 p-6 md:p-7">
-        <div className="text-[1.08rem] font-semibold tracking-[-0.02em] text-[#21353a]">
+<div className="relative z-10 flex h-full flex-col p-6 md:p-7">
+          <div className="text-[1.08rem] font-semibold tracking-[-0.02em] text-[#21353a]">
           Record Actions
         </div>
 
@@ -1845,7 +1845,7 @@ export default function EvidenceDetailPage() {
 
         <div
           style={{
-            marginTop: 16,
+            marginTop: "auto",
             padding: 14,
             borderRadius: 16,
             background:

@@ -74,9 +74,25 @@ export default function LockedEvidencePage() {
   const outerCardStyle = useMemo(
     () =>
       ({
-        border: "1px solid rgba(183,157,132,0.18)",
+        border: "1px solid rgba(79,112,107,0.16)",
         boxShadow:
-          "0 22px 42px rgba(0,0,0,0.16), inset 0 1px 0 rgba(255,255,255,0.03)",
+          "0 18px 38px rgba(0,0,0,0.08), inset 0 1px 0 rgba(255,255,255,0.48)",
+      }) as const,
+    []
+  );
+
+  const heroButtonStyle = useMemo(
+    () =>
+      ({
+        borderColor: "rgba(79,112,107,0.22)",
+        color: "#eef3f1",
+        background:
+          "linear-gradient(180deg, rgba(58,92,95,0.96) 0%, rgba(20,38,42,0.98) 100%)",
+        boxShadow:
+          "inset 0 1px 0 rgba(255,255,255,0.08), 0 16px 34px rgba(18,40,44,0.22)",
+        textShadow: "0 1px 0 rgba(0,0,0,0.22)",
+        backdropFilter: "blur(6px)",
+        WebkitBackdropFilter: "blur(6px)",
       }) as const,
     []
   );
@@ -84,14 +100,31 @@ export default function LockedEvidencePage() {
   const primaryButtonStyle = useMemo(
     () =>
       ({
-        borderColor: "rgba(158,216,207,0.14)",
-        color: "#aebbb6",
+        borderColor: "rgba(79,112,107,0.22)",
+        color: "#eef3f1",
         background:
-          "linear-gradient(180deg, rgba(62,98,96,0.26) 0%, rgba(14,30,34,0.38) 100%)",
+          "linear-gradient(180deg, rgba(58,92,95,0.96) 0%, rgba(20,38,42,0.98) 100%)",
         boxShadow:
-          "inset 0 1px 0 rgba(255,255,255,0.04), 0 14px 28px rgba(0,0,0,0.08)",
-        backdropFilter: "blur(10px)",
-        WebkitBackdropFilter: "blur(10px)",
+          "inset 0 1px 0 rgba(255,255,255,0.08), 0 16px 34px rgba(18,40,44,0.22)",
+        textShadow: "0 1px 0 rgba(0,0,0,0.22)",
+        backdropFilter: "blur(6px)",
+        WebkitBackdropFilter: "blur(6px)",
+      }) as const,
+    []
+  );
+
+  const secondaryButtonStyle = useMemo(
+    () =>
+      ({
+        borderColor: "rgba(79,112,107,0.12)",
+        color: "#24373b",
+        background:
+          "linear-gradient(180deg, rgba(250,251,249,0.82) 0%, rgba(241,244,241,0.96) 100%)",
+        boxShadow:
+          "0 10px 20px rgba(0,0,0,0.05), inset 0 1px 0 rgba(255,255,255,0.70)",
+        textShadow: "0 1px 0 rgba(255,255,255,0.30)",
+        backdropFilter: "blur(6px)",
+        WebkitBackdropFilter: "blur(6px)",
       }) as const,
     []
   );
@@ -99,14 +132,14 @@ export default function LockedEvidencePage() {
   const rowCardStyle = useMemo(
     () =>
       ({
-        border: "1px solid rgba(158,216,207,0.14)",
+        border: "1px solid rgba(79,112,107,0.10)",
         background:
-          "linear-gradient(180deg, rgba(62,98,96,0.24) 0%, rgba(14,30,34,0.36) 100%)",
-        borderRadius: 22,
+          "linear-gradient(180deg, rgba(255,255,255,0.58) 0%, rgba(243,245,242,0.90) 100%)",
+        borderRadius: 24,
         boxShadow:
-          "inset 0 1px 0 rgba(255,255,255,0.04), 0 14px 28px rgba(0,0,0,0.08)",
-        backdropFilter: "blur(10px)",
-        WebkitBackdropFilter: "blur(10px)",
+          "inset 0 1px 0 rgba(255,255,255,0.42), 0 12px 26px rgba(0,0,0,0.06)",
+        backdropFilter: "blur(8px)",
+        WebkitBackdropFilter: "blur(8px)",
       }) as const,
     []
   );
@@ -121,7 +154,7 @@ export default function LockedEvidencePage() {
                 style={{
                   display: "inline-flex",
                   alignItems: "center",
-                  gap: 8,
+                  gap: "0.72rem",
                   borderRadius: 999,
                   border: "1px solid rgba(255,255,255,0.10)",
                   background: "rgba(255,255,255,0.04)",
@@ -136,12 +169,13 @@ export default function LockedEvidencePage() {
               >
                 <span
                   style={{
-                    width: 4,
-                    height: 4,
+                    width: 6,
+                    height: 6,
                     borderRadius: 999,
                     background: "#b79d84",
-                    opacity: 0.8,
+                    opacity: 0.95,
                     display: "inline-block",
+                    flexShrink: 0,
                   }}
                 />
                 Locked Evidence
@@ -156,7 +190,9 @@ export default function LockedEvidencePage() {
                 Review evidence that has been{" "}
                 <span className="text-[#cfd8d5]">irreversibly locked</span> and
                 removed from the active workspace while remaining fully{" "}
-                <span className="text-[#bbc7c3]">preserved for audit and review</span>.
+                <span className="text-[#bbc7c3]">
+                  preserved for audit and review
+                </span>.
               </p>
 
               <div className="mt-6 flex flex-wrap gap-2.5">
@@ -181,7 +217,7 @@ export default function LockedEvidencePage() {
               <Link href="/evidence" style={{ textDecoration: "none" }}>
                 <Button
                   className="rounded-[999px] border px-6 py-3 text-[0.95rem] font-semibold"
-                  style={primaryButtonStyle}
+                  style={heroButtonStyle}
                 >
                   Open Evidence
                 </Button>
@@ -191,8 +227,26 @@ export default function LockedEvidencePage() {
         </div>
       </div>
 
-      <div className="app-body app-body-full">
-        <section className="relative px-6 pb-14 md:px-8 md:pb-16">
+      <div
+        className="app-body app-body-full pt-8 md:pt-10"
+        style={{
+          position: "relative",
+          overflow: "hidden",
+          background:
+            "linear-gradient(180deg, rgba(239,241,238,0.96) 0%, rgba(234,237,234,0.98) 100%)",
+        }}
+      >
+        <div className="pointer-events-none absolute inset-0 z-0" aria-hidden="true">
+          <img
+            src="/images/landing-network-bg.png"
+            alt=""
+            className="absolute inset-0 h-full w-full object-cover object-top opacity-[0.12] saturate-[0.55] brightness-[1.02] contrast-[0.94]"
+          />
+          <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.08)_0%,rgba(255,255,255,0.03)_22%,rgba(255,255,255,0.03)_78%,rgba(255,255,255,0.08)_100%)]" />
+          <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(255,255,255,0.10)_0%,rgba(255,255,255,0.03)_12%,rgba(255,255,255,0.00)_24%,rgba(255,255,255,0.00)_76%,rgba(255,255,255,0.03)_88%,rgba(255,255,255,0.10)_100%)]" />
+        </div>
+
+        <section className="relative z-10 px-6 pb-14 md:px-8 md:pb-16">
           <div className="mx-auto max-w-7xl">
             <Card
               className="relative overflow-hidden rounded-[30px] border bg-transparent p-0 shadow-none"
@@ -200,17 +254,16 @@ export default function LockedEvidencePage() {
             >
               <div className="absolute inset-0">
                 <img
-                  src="/images/site-velvet-bg.webp.png"
+                  src="/images/panel-silver.webp.png"
                   alt=""
-                  className="h-full w-full object-cover object-center scale-[1.12]"
+                  className="h-full w-full object-cover object-center"
                 />
               </div>
-              <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(8,20,24,0.82)_0%,rgba(7,18,22,0.88)_100%)]" />
-              <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_14%,rgba(158,216,207,0.05),transparent_28%)]" />
-              <div className="absolute inset-0 bg-[radial-gradient(circle_at_86%_18%,rgba(214,184,157,0.04),transparent_24%)]" />
+              <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.24)_0%,rgba(248,249,246,0.34)_42%,rgba(239,241,238,0.42)_100%)]" />
+              <div className="absolute inset-0 bg-[radial-gradient(circle_at_16%_12%,rgba(255,255,255,0.34),transparent_28%)] opacity-90" />
 
               <div className="relative z-10 p-5 md:p-6">
-                <div className="mb-5 text-[1.08rem] font-semibold tracking-[-0.02em] text-[#d8e0dd]">
+                <div className="mb-5 text-[1.08rem] font-semibold tracking-[-0.02em] text-[#21353a]">
                   Locked Records
                 </div>
 
@@ -219,17 +272,17 @@ export default function LockedEvidencePage() {
                     marginBottom: 16,
                     padding: 14,
                     borderRadius: 18,
-                    border: "1px solid rgba(214,184,157,0.18)",
+                    border: "1px solid rgba(183,157,132,0.16)",
                     background:
-                      "linear-gradient(135deg, rgba(214,184,157,0.10), rgba(158,216,207,0.08))",
-                    color: "#dcc0a5",
+                      "linear-gradient(135deg, rgba(214,184,157,0.10), rgba(255,255,255,0.36))",
+                    color: "#7f6450",
                     fontSize: 14,
                     lineHeight: 1.7,
                   }}
                 >
-                  Items shown here are permanently sealed evidence records. They are excluded from
-                  the active evidence list to keep the workspace clean, while remaining fully
-                  preserved for review.
+                  Items shown here are permanently sealed evidence records. They
+                  are excluded from the active evidence list to keep the workspace
+                  clean, while remaining fully preserved for review.
                 </div>
 
                 {loading ? (
@@ -245,7 +298,7 @@ export default function LockedEvidencePage() {
                     </div>
                   </div>
                 ) : error ? (
-                  <div className="rounded-[20px] border border-[rgba(255,120,120,0.16)] bg-[rgba(120,20,20,0.12)] px-4 py-3 text-[0.92rem] text-[#ffd7d7]">
+                  <div className="rounded-[20px] border border-[rgba(255,120,120,0.16)] bg-[rgba(120,20,20,0.12)] px-4 py-3 text-[0.92rem] text-[#b42318]">
                     {error}
                   </div>
                 ) : items.length === 0 ? (
@@ -253,17 +306,19 @@ export default function LockedEvidencePage() {
                     <EmptyState
                       title="No locked evidence"
                       subtitle="You do not have any permanently locked evidence yet."
-                      action={() => (
-                        <Link href="/evidence">
-                          <Button
-                            className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
-                            style={primaryButtonStyle}
-                          >
-                            Open Evidence
-                          </Button>
-                        </Link>
-                      )}
+                      action={() => {}}
+                      actionLabel=""
                     />
+                    <div className="mt-4">
+                      <Link href="/evidence">
+                        <Button
+                          className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
+                          style={primaryButtonStyle}
+                        >
+                          Open Evidence
+                        </Button>
+                      </Link>
+                    </div>
                   </div>
                 ) : (
                   <div style={{ display: "grid", gap: 14 }}>
@@ -291,7 +346,7 @@ export default function LockedEvidencePage() {
                               style={{
                                 fontSize: 18,
                                 fontWeight: 700,
-                                color: "#d8e0dd",
+                                color: "#23373b",
                                 wordBreak: "break-word",
                                 letterSpacing: "-0.02em",
                               }}
@@ -303,7 +358,7 @@ export default function LockedEvidencePage() {
                               style={{
                                 marginTop: 6,
                                 fontSize: 13,
-                                color: "rgba(194,204,201,0.72)",
+                                color: "#6a777b",
                                 lineHeight: 1.6,
                               }}
                             >
@@ -323,10 +378,10 @@ export default function LockedEvidencePage() {
                               fontWeight: 800,
                               letterSpacing: "0.04em",
                               textTransform: "uppercase",
-                              border: "1px solid rgba(214,184,157,0.22)",
+                              border: "1px solid rgba(183,157,132,0.18)",
                               background:
-                                "linear-gradient(180deg, rgba(183,157,132,0.12) 0%, rgba(255,255,255,0.03) 100%)",
-                              color: "#dcc0a5",
+                                "linear-gradient(180deg, rgba(214,184,157,0.14) 0%, rgba(255,255,255,0.48) 100%)",
+                              color: "#8a6e57",
                             }}
                           >
                             Locked
@@ -338,20 +393,20 @@ export default function LockedEvidencePage() {
                             display: "grid",
                             gap: 6,
                             fontSize: 13,
-                            color: "rgba(194,204,201,0.82)",
+                            color: "#5d6d71",
                             lineHeight: 1.6,
                           }}
                         >
                           <div>
-                            <strong style={{ color: "#d8e0dd" }}>Locked At:</strong>{" "}
+                            <strong style={{ color: "#23373b" }}>Locked At:</strong>{" "}
                             {formatUtcDateTime(item.lockedAt)}
                           </div>
                           <div>
-                            <strong style={{ color: "#d8e0dd" }}>Items:</strong> {item.itemCount}
+                            <strong style={{ color: "#23373b" }}>Items:</strong> {item.itemCount}
                           </div>
                           <div>
-                            <strong style={{ color: "#d8e0dd" }}>Legal State:</strong> Permanently
-                            sealed
+                            <strong style={{ color: "#23373b" }}>Legal State:</strong>{" "}
+                            Permanently sealed
                           </div>
                         </div>
 
@@ -360,7 +415,7 @@ export default function LockedEvidencePage() {
                             <Button
                               variant="secondary"
                               className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
-                              style={primaryButtonStyle}
+                              style={secondaryButtonStyle}
                             >
                               Open Record
                             </Button>
