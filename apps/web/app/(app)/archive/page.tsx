@@ -44,7 +44,7 @@ export default function ArchivePage() {
 
     apiFetch("/v1/evidence?scope=archived")
       .then((data) => {
-        setItems(data.items ?? []);
+        setItems(Array.isArray(data?.items) ? data.items : []);
       })
       .catch((err) => {
         const errorMessage = err?.message || "Failed to load archived evidence";
@@ -59,39 +59,55 @@ export default function ArchivePage() {
   const outerCardStyle = useMemo(
     () =>
       ({
-        border: "1px solid rgba(183,157,132,0.18)",
+        border: "1px solid rgba(79,112,107,0.16)",
         boxShadow:
-          "0 22px 42px rgba(0,0,0,0.16), inset 0 1px 0 rgba(255,255,255,0.03)",
+          "0 18px 38px rgba(0,0,0,0.08), inset 0 1px 0 rgba(255,255,255,0.48)",
       }) as const,
     []
   );
 
-  const primaryButtonStyle = useMemo(
+  const heroButtonStyle = useMemo(
     () =>
       ({
-        borderColor: "rgba(158,216,207,0.14)",
-        color: "#aebbb6",
+        borderColor: "rgba(79,112,107,0.22)",
+        color: "#eef3f1",
         background:
-          "linear-gradient(180deg, rgba(62,98,96,0.26) 0%, rgba(14,30,34,0.38) 100%)",
+          "linear-gradient(180deg, rgba(58,92,95,0.96) 0%, rgba(20,38,42,0.98) 100%)",
         boxShadow:
-          "inset 0 1px 0 rgba(255,255,255,0.04), 0 14px 28px rgba(0,0,0,0.08)",
-        backdropFilter: "blur(10px)",
-        WebkitBackdropFilter: "blur(10px)",
+          "inset 0 1px 0 rgba(255,255,255,0.08), 0 16px 34px rgba(18,40,44,0.22)",
+        textShadow: "0 1px 0 rgba(0,0,0,0.22)",
+        backdropFilter: "blur(6px)",
+        WebkitBackdropFilter: "blur(6px)",
       }) as const,
     []
   );
 
-const rowCardStyle = useMemo(
+  const rowCardStyle = useMemo(
+    () =>
+      ({
+        border: "1px solid rgba(79,112,107,0.10)",
+        backgroundImage:
+          "linear-gradient(180deg, rgba(255,255,255,0.64) 0%, rgba(243,245,242,0.92) 100%), url('/images/panel-silver.webp.png')",
+        backgroundSize: "cover",
+        backgroundPosition: "center",
+        borderRadius: 24,
+        boxShadow:
+          "inset 0 1px 0 rgba(255,255,255,0.44), 0 12px 26px rgba(0,0,0,0.05)",
+        backdropFilter: "blur(8px)",
+        WebkitBackdropFilter: "blur(8px)",
+      }) as const,
+    []
+  );
+
+const archivedBadgeStyle = useMemo(
   () =>
     ({
-      border: "1px solid rgba(158,216,207,0.14)",
+      color: "#6f5a46",
       background:
-        "linear-gradient(180deg, rgba(62,98,96,0.26) 0%, rgba(14,30,34,0.38) 100%)",
-      borderRadius: 24,
+        "linear-gradient(180deg, rgba(214,184,157,0.22) 0%, rgba(255,255,255,0.60) 100%)",
+      border: "1px solid rgba(183,157,132,0.16)",
       boxShadow:
-        "inset 0 1px 0 rgba(255,255,255,0.04), 0 14px 28px rgba(0,0,0,0.08)",
-      backdropFilter: "blur(10px)",
-      WebkitBackdropFilter: "blur(10px)",
+        "inset 0 1px 0 rgba(255,255,255,0.56), 0 6px 14px rgba(92,69,50,0.04)",
     }) as const,
   []
 );
@@ -106,7 +122,7 @@ const rowCardStyle = useMemo(
                 style={{
                   display: "inline-flex",
                   alignItems: "center",
-                  gap: 8,
+                  gap: "0.72rem",
                   borderRadius: 999,
                   border: "1px solid rgba(255,255,255,0.10)",
                   background: "rgba(255,255,255,0.04)",
@@ -121,12 +137,13 @@ const rowCardStyle = useMemo(
               >
                 <span
                   style={{
-                    width: 4,
-                    height: 4,
+                    width: 6,
+                    height: 6,
                     borderRadius: 999,
                     background: "#b79d84",
-                    opacity: 0.8,
+                    opacity: 0.95,
                     display: "inline-block",
+                    flexShrink: 0,
                   }}
                 />
                 Archived Evidence
@@ -152,16 +169,45 @@ const rowCardStyle = useMemo(
               >
                 Review evidence moved out of the active workspace while keeping its{" "}
                 <span style={{ color: "#cfd8d5" }}>history</span>,{" "}
-                <span style={{ color: "#bbc7c3" }}>metadata</span>, and archived state{" "}
-                <span style={{ color: "#d9ccbf" }}>easy to inspect</span>.
+                <span style={{ color: "#bbc7c3" }}>metadata</span>, and archived
+                state <span style={{ color: "#d9ccbf" }}>easy to inspect</span>.
               </p>
+            </div>
+
+            <div className="flex shrink-0">
+              <Link href="/evidence">
+                <Button
+                  className="rounded-[999px] border px-6 py-3 text-[0.95rem] font-semibold"
+                  style={heroButtonStyle}
+                >
+                  Open Evidence
+                </Button>
+              </Link>
             </div>
           </div>
         </div>
       </div>
 
-      <div className="app-body app-body-full">
-        <div className="container" style={{ display: "grid", gap: 16, paddingBottom: 72 }}>
+      <div
+        className="app-body app-body-full pt-8 md:pt-10"
+        style={{
+          position: "relative",
+          overflow: "hidden",
+          background:
+            "linear-gradient(180deg, rgba(239,241,238,0.96) 0%, rgba(234,237,234,0.98) 100%)",
+        }}
+      >
+        <div className="pointer-events-none absolute inset-0 z-0" aria-hidden="true">
+          <img
+            src="/images/landing-network-bg.png"
+            alt=""
+            className="absolute inset-0 h-full w-full object-cover object-top opacity-[0.12] saturate-[0.55] brightness-[1.02] contrast-[0.94]"
+          />
+          <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.08)_0%,rgba(255,255,255,0.03)_22%,rgba(255,255,255,0.03)_78%,rgba(255,255,255,0.08)_100%)]" />
+          <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(255,255,255,0.10)_0%,rgba(255,255,255,0.03)_12%,rgba(255,255,255,0.00)_24%,rgba(255,255,255,0.00)_76%,rgba(255,255,255,0.03)_88%,rgba(255,255,255,0.10)_100%)]" />
+        </div>
+
+        <div className="container relative z-10" style={{ display: "grid", gap: 16, paddingBottom: 72 }}>
           {loading ? (
             <div style={{ display: "grid", gap: 12 }}>
               <div style={{ ...rowCardStyle, padding: 18 }}>
@@ -181,13 +227,13 @@ const rowCardStyle = useMemo(
             >
               <div className="absolute inset-0">
                 <img
-                  src="/images/site-velvet-bg.webp.png"
+                  src="/images/panel-silver.webp.png"
                   alt=""
-                  className="h-full w-full object-cover object-center scale-[1.12]"
+                  className="h-full w-full object-cover object-center"
                 />
               </div>
-              <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(70,20,20,0.24)_0%,rgba(20,10,10,0.58)_100%)]" />
-              <div className="relative z-10 p-6 text-[#ffd7d7]">{error}</div>
+              <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,245,245,0.84)_0%,rgba(248,232,232,0.92)_100%)]" />
+              <div className="relative z-10 p-6 text-[#b42318]">{error}</div>
             </Card>
           ) : items.length === 0 ? (
             <Card
@@ -196,14 +242,13 @@ const rowCardStyle = useMemo(
             >
               <div className="absolute inset-0">
                 <img
-                  src="/images/site-velvet-bg.webp.png"
+                  src="/images/panel-silver.webp.png"
                   alt=""
-                  className="h-full w-full object-cover object-center scale-[1.12]"
+                  className="h-full w-full object-cover object-center"
                 />
               </div>
-              <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(8,20,24,0.82)_0%,rgba(7,18,22,0.88)_100%)]" />
-              <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_14%,rgba(158,216,207,0.05),transparent_28%)]" />
-              <div className="absolute inset-0 bg-[radial-gradient(circle_at_86%_18%,rgba(214,184,157,0.04),transparent_24%)]" />
+              <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.24)_0%,rgba(248,249,246,0.34)_42%,rgba(239,241,238,0.42)_100%)]" />
+              <div className="absolute inset-0 bg-[radial-gradient(circle_at_16%_12%,rgba(255,255,255,0.34),transparent_28%)] opacity-90" />
 
               <div className="relative z-10 p-6 md:p-7">
                 <EmptyState
@@ -212,8 +257,8 @@ const rowCardStyle = useMemo(
                   action={() => (
                     <Link href="/home">
                       <Button
-                        className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
-                        style={primaryButtonStyle}
+                        className="rounded-[999px] border px-6 py-3 text-[0.92rem] font-semibold"
+                        style={heroButtonStyle}
                       >
                         {t("home")}
                       </Button>
@@ -231,14 +276,13 @@ const rowCardStyle = useMemo(
               >
                 <div className="absolute inset-0">
                   <img
-                    src="/images/site-velvet-bg.webp.png"
+                    src="/images/panel-silver.webp.png"
                     alt=""
-                    className="h-full w-full object-cover object-center scale-[1.12]"
+                    className="h-full w-full object-cover object-center"
                   />
                 </div>
-                <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(8,20,24,0.82)_0%,rgba(7,18,22,0.88)_100%)]" />
-                <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_14%,rgba(158,216,207,0.05),transparent_28%)]" />
-                <div className="absolute inset-0 bg-[radial-gradient(circle_at_86%_18%,rgba(214,184,157,0.04),transparent_24%)]" />
+                <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.24)_0%,rgba(248,249,246,0.34)_42%,rgba(239,241,238,0.42)_100%)]" />
+                <div className="absolute inset-0 bg-[radial-gradient(circle_at_16%_12%,rgba(255,255,255,0.34),transparent_28%)] opacity-90" />
 
                 <div className="relative z-10 p-2">
                   {isUuid(item.id) ? (
@@ -256,21 +300,14 @@ const rowCardStyle = useMemo(
                                 ).toLocaleString()}`
                               : item.displaySubtitle
                           }
-badge={
-  <span
-    className="inline-flex min-h-[28px] items-center justify-center rounded-full px-3 py-[5px] text-[10.5px] font-semibold uppercase tracking-[0.12em]"
-    style={{
-      color: "#c3ebe2",
-      background:
-        "linear-gradient(180deg, rgba(195,235,226,0.12) 0%, rgba(255,255,255,0.03) 100%)",
-      border: "1px solid rgba(195,235,226,0.22)",
-      boxShadow:
-        "inset 0 1px 0 rgba(255,255,255,0.16), 0 4px 10px rgba(60,110,102,0.10)",
-    }}
-  >
-    Archived
-  </span>
-}
+                          badge={
+                            <span
+                              className="inline-flex min-h-[28px] items-center justify-center rounded-full px-3 py-[5px] text-[10.5px] font-semibold uppercase tracking-[0.12em]"
+                              style={archivedBadgeStyle}
+                            >
+                              Archived
+                            </span>
+                          }
                         />
                       </div>
                     </Link>
@@ -279,21 +316,14 @@ badge={
                       <ListRow
                         title={item.title || "Digital Evidence Record"}
                         subtitle={item.displaySubtitle}
-badge={
-  <span
-    className="inline-flex min-h-[28px] items-center justify-center rounded-full px-3 py-[5px] text-[10.5px] font-semibold uppercase tracking-[0.12em]"
-    style={{
-      color: "#c3ebe2",
-      background:
-        "linear-gradient(180deg, rgba(195,235,226,0.12) 0%, rgba(255,255,255,0.03) 100%)",
-      border: "1px solid rgba(195,235,226,0.22)",
-      boxShadow:
-        "inset 0 1px 0 rgba(255,255,255,0.16), 0 4px 10px rgba(60,110,102,0.10)",
-    }}
-  >
-    Archived
-  </span>
-}
+                        badge={
+                          <span
+                            className="inline-flex min-h-[28px] items-center justify-center rounded-full px-3 py-[5px] text-[10.5px] font-semibold uppercase tracking-[0.12em]"
+                            style={archivedBadgeStyle}
+                          >
+                            Archived
+                          </span>
+                        }
                       />
                     </div>
                   )}

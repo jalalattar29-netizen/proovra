@@ -97,7 +97,7 @@ export default function LockedEvidencePage() {
     []
   );
 
-  const primaryButtonStyle = useMemo(
+  const rowActionButtonStyle = useMemo(
     () =>
       ({
         borderColor: "rgba(79,112,107,0.22)",
@@ -105,24 +105,8 @@ export default function LockedEvidencePage() {
         background:
           "linear-gradient(180deg, rgba(58,92,95,0.96) 0%, rgba(20,38,42,0.98) 100%)",
         boxShadow:
-          "inset 0 1px 0 rgba(255,255,255,0.08), 0 16px 34px rgba(18,40,44,0.22)",
-        textShadow: "0 1px 0 rgba(0,0,0,0.22)",
-        backdropFilter: "blur(6px)",
-        WebkitBackdropFilter: "blur(6px)",
-      }) as const,
-    []
-  );
-
-  const secondaryButtonStyle = useMemo(
-    () =>
-      ({
-        borderColor: "rgba(79,112,107,0.12)",
-        color: "#24373b",
-        background:
-          "linear-gradient(180deg, rgba(250,251,249,0.82) 0%, rgba(241,244,241,0.96) 100%)",
-        boxShadow:
-          "0 10px 20px rgba(0,0,0,0.05), inset 0 1px 0 rgba(255,255,255,0.70)",
-        textShadow: "0 1px 0 rgba(255,255,255,0.30)",
+          "inset 0 1px 0 rgba(255,255,255,0.08), 0 16px 34px rgba(18,40,44,0.16)",
+        textShadow: "0 1px 0 rgba(0,0,0,0.20)",
         backdropFilter: "blur(6px)",
         WebkitBackdropFilter: "blur(6px)",
       }) as const,
@@ -133,13 +117,38 @@ export default function LockedEvidencePage() {
     () =>
       ({
         border: "1px solid rgba(79,112,107,0.10)",
-        background:
-          "linear-gradient(180deg, rgba(255,255,255,0.58) 0%, rgba(243,245,242,0.90) 100%)",
+        backgroundImage:
+          "linear-gradient(180deg, rgba(255,255,255,0.64) 0%, rgba(243,245,242,0.92) 100%), url('/images/panel-silver.webp.png')",
+        backgroundSize: "cover",
+        backgroundPosition: "center",
         borderRadius: 24,
         boxShadow:
-          "inset 0 1px 0 rgba(255,255,255,0.42), 0 12px 26px rgba(0,0,0,0.06)",
+          "inset 0 1px 0 rgba(255,255,255,0.44), 0 12px 26px rgba(0,0,0,0.05)",
         backdropFilter: "blur(8px)",
         WebkitBackdropFilter: "blur(8px)",
+      }) as const,
+    []
+  );
+
+  const pillStyle = useMemo(
+    () =>
+      ({
+        display: "inline-flex",
+        alignItems: "center",
+        justifyContent: "center",
+        minHeight: 34,
+        padding: "8px 14px",
+        borderRadius: 999,
+        fontSize: 11.5,
+        fontWeight: 800,
+        letterSpacing: "0.08em",
+        textTransform: "uppercase",
+        border: "1px solid rgba(183,157,132,0.16)",
+        background:
+          "linear-gradient(180deg, rgba(244,238,232,0.84) 0%, rgba(255,255,255,0.70) 100%)",
+        color: "#8a6e57",
+        boxShadow:
+          "inset 0 1px 0 rgba(255,255,255,0.56), 0 6px 14px rgba(92,69,50,0.04)",
       }) as const,
     []
   );
@@ -192,7 +201,8 @@ export default function LockedEvidencePage() {
                 removed from the active workspace while remaining fully{" "}
                 <span className="text-[#bbc7c3]">
                   preserved for audit and review
-                </span>.
+                </span>
+                .
               </p>
 
               <div className="mt-6 flex flex-wrap gap-2.5">
@@ -272,10 +282,10 @@ export default function LockedEvidencePage() {
                     marginBottom: 16,
                     padding: 14,
                     borderRadius: 18,
-                    border: "1px solid rgba(183,157,132,0.16)",
+                    border: "1px solid rgba(183,157,132,0.14)",
                     background:
-                      "linear-gradient(135deg, rgba(214,184,157,0.10), rgba(255,255,255,0.36))",
-                    color: "#7f6450",
+                      "linear-gradient(135deg, rgba(247,243,238,0.88), rgba(255,255,255,0.52))",
+                    color: "#786252",
                     fontSize: 14,
                     lineHeight: 1.7,
                   }}
@@ -312,8 +322,8 @@ export default function LockedEvidencePage() {
                     <div className="mt-4">
                       <Link href="/evidence">
                         <Button
-                          className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
-                          style={primaryButtonStyle}
+                          className="rounded-[999px] border px-6 py-3 text-[0.92rem] font-semibold"
+                          style={heroButtonStyle}
                         >
                           Open Evidence
                         </Button>
@@ -358,7 +368,7 @@ export default function LockedEvidencePage() {
                               style={{
                                 marginTop: 6,
                                 fontSize: 13,
-                                color: "#6a777b",
+                                color: "#6d7a7d",
                                 lineHeight: 1.6,
                               }}
                             >
@@ -366,26 +376,7 @@ export default function LockedEvidencePage() {
                             </div>
                           </div>
 
-                          <div
-                            style={{
-                              display: "inline-flex",
-                              alignItems: "center",
-                              justifyContent: "center",
-                              minHeight: 32,
-                              padding: "7px 11px",
-                              borderRadius: 999,
-                              fontSize: 12,
-                              fontWeight: 800,
-                              letterSpacing: "0.04em",
-                              textTransform: "uppercase",
-                              border: "1px solid rgba(183,157,132,0.18)",
-                              background:
-                                "linear-gradient(180deg, rgba(214,184,157,0.14) 0%, rgba(255,255,255,0.48) 100%)",
-                              color: "#8a6e57",
-                            }}
-                          >
-                            Locked
-                          </div>
+                          <div style={pillStyle}>Locked</div>
                         </div>
 
                         <div
@@ -393,29 +384,30 @@ export default function LockedEvidencePage() {
                             display: "grid",
                             gap: 6,
                             fontSize: 13,
-                            color: "#5d6d71",
+                            color: "#5f6f73",
                             lineHeight: 1.6,
                           }}
                         >
                           <div>
-                            <strong style={{ color: "#23373b" }}>Locked At:</strong>{" "}
+                            <strong style={{ color: "#24373b" }}>Locked At:</strong>{" "}
                             {formatUtcDateTime(item.lockedAt)}
                           </div>
                           <div>
-                            <strong style={{ color: "#23373b" }}>Items:</strong> {item.itemCount}
+                            <strong style={{ color: "#24373b" }}>Items:</strong>{" "}
+                            {item.itemCount}
                           </div>
                           <div>
-                            <strong style={{ color: "#23373b" }}>Legal State:</strong>{" "}
+                            <strong style={{ color: "#24373b" }}>Legal State:</strong>{" "}
                             Permanently sealed
                           </div>
                         </div>
 
-                        <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                        <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
                           <Link href={`/evidence/${item.id}`}>
                             <Button
                               variant="secondary"
-                              className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
-                              style={secondaryButtonStyle}
+                              className="rounded-[999px] border px-6 py-3 text-[0.92rem] font-semibold min-w-[190px] justify-center"
+                              style={rowActionButtonStyle}
                             >
                               Open Record
                             </Button>

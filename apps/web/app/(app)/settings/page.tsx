@@ -375,8 +375,23 @@ export default function SettingsPage() {
           gap: 10px;
         }
 
-        .settings-page-shell .settings-legal-links a {
+        .settings-page-shell .settings-legal-link,
+        .settings-page-shell .settings-security-link {
           width: fit-content;
+          color: #496166 !important;
+          font-weight: 500;
+          text-decoration: none;
+          transition:
+            color 0.2s ease,
+            opacity 0.2s ease,
+            transform 0.2s ease;
+        }
+
+        .settings-page-shell .settings-legal-link:hover,
+        .settings-page-shell .settings-security-link:hover {
+          color: #21353a !important;
+          opacity: 1;
+          transform: translateY(-1px);
         }
       `}</style>
 
@@ -421,8 +436,7 @@ export default function SettingsPage() {
                 className="mt-5 max-w-[720px] text-[1.72rem] font-medium leading-[1.02] tracking-[-0.045em] text-[#d9e2df] md:text-[2.22rem] lg:text-[2.72rem]"
                 style={{ margin: "20px 0 0" }}
               >
-                Manage your{" "}
-                <span className="text-[#c3ebe2]">account preferences</span>.
+                Manage your <span className="text-[#c3ebe2]">account preferences</span>.
               </h1>
 
               <p className="mt-5 max-w-[700px] text-[0.95rem] font-normal leading-[1.8] tracking-[-0.006em] text-[#aab5b2] md:text-[0.99rem]">
@@ -581,7 +595,7 @@ export default function SettingsPage() {
                   <Button
                     variant="secondary"
                     onClick={handleSignOut}
-                    className={`${velvetButtonClass()} settings-secondary-btn`}
+                    className={`${velvetButtonClass()} settings-primary-btn`}
                   >
                     Sign out
                   </Button>
@@ -613,14 +627,14 @@ export default function SettingsPage() {
 
                     <Link
                       href="/legal/security"
-                      className="app-bronze-link text-[0.95rem] text-[#31464a]"
+                      className="settings-security-link text-[0.95rem]"
                     >
                       Security policy
                     </Link>
 
                     <a
                       href="mailto:security@proovra.com"
-                      className="app-bronze-link text-[0.95rem] text-[#31464a]"
+                      className="settings-security-link text-[0.95rem]"
                     >
                       security@proovra.com
                     </a>
@@ -695,7 +709,7 @@ export default function SettingsPage() {
                       <Link href="/billing">
                         <Button
                           variant="secondary"
-                          className={`${velvetButtonClass()} settings-secondary-btn`}
+                          className={`${velvetButtonClass()} settings-primary-btn`}
                         >
                           Go to Billing
                         </Button>
@@ -721,7 +735,7 @@ export default function SettingsPage() {
                         <Link
                           key={link.href}
                           href={link.href}
-                          className="app-bronze-link text-[0.95rem] text-[#31464a]"
+                          className="settings-legal-link text-[0.95rem]"
                         >
                           {link.label}
                         </Link>

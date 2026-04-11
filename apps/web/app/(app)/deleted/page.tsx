@@ -125,7 +125,23 @@ export default function DeletedEvidencePage() {
     []
   );
 
-  const primaryButtonStyle = useMemo(
+  const restoreButtonStyle = useMemo(
+    () =>
+      ({
+        borderColor: "rgba(183,157,132,0.18)",
+        color: "#fff7f1",
+        background:
+          "linear-gradient(180deg, rgba(142,102,72,0.95) 0%, rgba(102,68,45,0.98) 100%)",
+        boxShadow:
+          "inset 0 1px 0 rgba(255,255,255,0.06), 0 14px 28px rgba(90,58,36,0.14)",
+        textShadow: "0 1px 0 rgba(0,0,0,0.22)",
+        backdropFilter: "blur(6px)",
+        WebkitBackdropFilter: "blur(6px)",
+      }) as const,
+    []
+  );
+
+  const rowActionButtonStyle = useMemo(
     () =>
       ({
         borderColor: "rgba(79,112,107,0.22)",
@@ -133,40 +149,8 @@ export default function DeletedEvidencePage() {
         background:
           "linear-gradient(180deg, rgba(58,92,95,0.96) 0%, rgba(20,38,42,0.98) 100%)",
         boxShadow:
-          "inset 0 1px 0 rgba(255,255,255,0.08), 0 16px 34px rgba(18,40,44,0.22)",
-        textShadow: "0 1px 0 rgba(0,0,0,0.22)",
-        backdropFilter: "blur(6px)",
-        WebkitBackdropFilter: "blur(6px)",
-      }) as const,
-    []
-  );
-
-  const restoreButtonStyle = useMemo(
-    () =>
-      ({
-        borderColor: "rgba(183,157,132,0.20)",
-        color: "#fff7f1",
-        background:
-          "linear-gradient(180deg, rgba(142,102,72,0.96) 0%, rgba(102,68,45,0.98) 100%)",
-        boxShadow:
-          "inset 0 1px 0 rgba(255,255,255,0.06), 0 14px 28px rgba(90,58,36,0.18)",
-        textShadow: "0 1px 0 rgba(0,0,0,0.22)",
-        backdropFilter: "blur(6px)",
-        WebkitBackdropFilter: "blur(6px)",
-      }) as const,
-    []
-  );
-
-  const secondaryButtonStyle = useMemo(
-    () =>
-      ({
-        borderColor: "rgba(79,112,107,0.12)",
-        color: "#24373b",
-        background:
-          "linear-gradient(180deg, rgba(250,251,249,0.82) 0%, rgba(241,244,241,0.96) 100%)",
-        boxShadow:
-          "0 10px 20px rgba(0,0,0,0.05), inset 0 1px 0 rgba(255,255,255,0.70)",
-        textShadow: "0 1px 0 rgba(255,255,255,0.30)",
+          "inset 0 1px 0 rgba(255,255,255,0.08), 0 16px 34px rgba(18,40,44,0.16)",
+        textShadow: "0 1px 0 rgba(0,0,0,0.20)",
         backdropFilter: "blur(6px)",
         WebkitBackdropFilter: "blur(6px)",
       }) as const,
@@ -177,13 +161,38 @@ export default function DeletedEvidencePage() {
     () =>
       ({
         border: "1px solid rgba(79,112,107,0.10)",
-        background:
-          "linear-gradient(180deg, rgba(255,255,255,0.58) 0%, rgba(243,245,242,0.90) 100%)",
+        backgroundImage:
+          "linear-gradient(180deg, rgba(255,255,255,0.64) 0%, rgba(243,245,242,0.92) 100%), url('/images/panel-silver.webp.png')",
+        backgroundSize: "cover",
+        backgroundPosition: "center",
         borderRadius: 24,
         boxShadow:
-          "inset 0 1px 0 rgba(255,255,255,0.42), 0 12px 26px rgba(0,0,0,0.06)",
+          "inset 0 1px 0 rgba(255,255,255,0.44), 0 12px 26px rgba(0,0,0,0.05)",
         backdropFilter: "blur(8px)",
         WebkitBackdropFilter: "blur(8px)",
+      }) as const,
+    []
+  );
+
+  const trashPillStyle = useMemo(
+    () =>
+      ({
+        display: "inline-flex",
+        alignItems: "center",
+        justifyContent: "center",
+        minHeight: 34,
+        padding: "8px 14px",
+        borderRadius: 999,
+        fontSize: 11.5,
+        fontWeight: 800,
+        letterSpacing: "0.08em",
+        textTransform: "uppercase",
+        border: "1px solid rgba(194,78,78,0.14)",
+        background:
+          "linear-gradient(180deg, rgba(255,242,242,0.94) 0%, rgba(248,231,231,0.92) 100%)",
+        color: "#b54a4a",
+        boxShadow:
+          "inset 0 1px 0 rgba(255,255,255,0.62), 0 6px 14px rgba(160,90,90,0.05)",
       }) as const,
     []
   );
@@ -314,10 +323,10 @@ export default function DeletedEvidencePage() {
                     marginBottom: 16,
                     padding: 14,
                     borderRadius: 18,
-                    border: "1px solid rgba(194,78,78,0.14)",
+                    border: "1px solid rgba(194,78,78,0.12)",
                     background:
-                      "linear-gradient(135deg, rgba(255,243,243,0.90), rgba(248,239,235,0.86))",
-                    color: "#b42318",
+                      "linear-gradient(135deg, rgba(255,246,246,0.92), rgba(248,239,235,0.86))",
+                    color: "#9f4d4d",
                     fontSize: 14,
                     lineHeight: 1.65,
                   }}
@@ -353,8 +362,8 @@ export default function DeletedEvidencePage() {
                     <div className="mt-4">
                       <Link href="/evidence">
                         <Button
-                          className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
-                          style={primaryButtonStyle}
+                          className="rounded-[999px] border px-6 py-3 text-[0.92rem] font-semibold"
+                          style={heroButtonStyle}
                         >
                           Open Evidence
                         </Button>
@@ -398,7 +407,7 @@ export default function DeletedEvidencePage() {
                               style={{
                                 marginTop: 6,
                                 fontSize: 13,
-                                color: "#6a777b",
+                                color: "#6d7a7d",
                                 lineHeight: 1.6,
                               }}
                             >
@@ -406,26 +415,7 @@ export default function DeletedEvidencePage() {
                             </div>
                           </div>
 
-                          <div
-                            style={{
-                              display: "inline-flex",
-                              alignItems: "center",
-                              justifyContent: "center",
-                              minHeight: 32,
-                              padding: "7px 11px",
-                              borderRadius: 999,
-                              fontSize: 12,
-                              fontWeight: 800,
-                              letterSpacing: "0.04em",
-                              textTransform: "uppercase",
-                              border: "1px solid rgba(194,78,78,0.14)",
-                              background:
-                                "linear-gradient(180deg, rgba(255,240,240,0.96) 0%, rgba(248,228,228,0.92) 100%)",
-                              color: "#b42318",
-                            }}
-                          >
-                            In Trash
-                          </div>
+                          <div style={trashPillStyle}>In Trash</div>
                         </div>
 
                         <div
@@ -433,36 +423,38 @@ export default function DeletedEvidencePage() {
                             display: "grid",
                             gap: 6,
                             fontSize: 13,
-                            color: "#5d6d71",
+                            color: "#5f6f73",
                             lineHeight: 1.6,
                           }}
                         >
                           <div>
-                            <strong style={{ color: "#23373b" }}>Deleted At:</strong>{" "}
+                            <strong style={{ color: "#24373b" }}>Deleted At:</strong>{" "}
                             {formatUtcDateTime(item.deletedAt)}
                           </div>
                           <div>
-                            <strong style={{ color: "#23373b" }}>
+                            <strong style={{ color: "#24373b" }}>
                               Permanent Deletion Date:
                             </strong>{" "}
                             {formatUtcDateTime(item.deleteScheduledForUtc)}
                           </div>
                           <div>
-                            <strong style={{ color: "#23373b" }}>Items:</strong> {item.itemCount}
+                            <strong style={{ color: "#24373b" }}>Items:</strong>{" "}
+                            {item.itemCount}
                           </div>
                         </div>
 
                         <div
                           style={{
                             display: "flex",
-                            gap: 10,
+                            gap: 12,
                             flexWrap: "wrap",
+                            alignItems: "center",
                           }}
                         >
                           <Link href={`/evidence/${item.id}`}>
                             <Button
-                              className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
-                              style={secondaryButtonStyle}
+                              className="rounded-[999px] border px-6 py-3 text-[0.92rem] font-semibold min-w-[190px] justify-center"
+                              style={rowActionButtonStyle}
                             >
                               Open Record
                             </Button>
@@ -471,10 +463,12 @@ export default function DeletedEvidencePage() {
                           <Button
                             onClick={() => handleRestore(item.id)}
                             disabled={actionBusyId === item.id}
-                            className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
+                            className="rounded-[999px] border px-6 py-3 text-[0.92rem] font-semibold min-w-[190px] justify-center"
                             style={restoreButtonStyle}
                           >
-                            {actionBusyId === item.id ? "Restoring..." : "Restore from Trash"}
+                            {actionBusyId === item.id
+                              ? "Restoring..."
+                              : "Restore from Trash"}
                           </Button>
                         </div>
                       </div>

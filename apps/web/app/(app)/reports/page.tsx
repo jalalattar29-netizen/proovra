@@ -118,18 +118,31 @@ export default function ReportsPage() {
     []
   );
 
-  const reportReadyBadgeStyle = useMemo(
-    () =>
-      ({
-        color: "#2d5b59",
-        background:
-          "linear-gradient(180deg, rgba(191,232,223,0.24) 0%, rgba(255,255,255,0.55) 100%)",
-        border: "1px solid rgba(79,112,107,0.14)",
-        boxShadow:
-          "inset 0 1px 0 rgba(255,255,255,0.55), 0 6px 14px rgba(41,83,85,0.05)",
-      }) as const,
-    []
-  );
+const reportReadyBadgeStyle = useMemo(
+  () =>
+    ({
+      color: "#2d5b59",
+      background:
+        "linear-gradient(180deg, rgba(191,232,223,0.24) 0%, rgba(255,255,255,0.56) 100%)",
+      border: "1px solid rgba(79,112,107,0.14)",
+      boxShadow:
+        "inset 0 1px 0 rgba(255,255,255,0.56), 0 6px 14px rgba(41,83,85,0.05)",
+    }) as const,
+  []
+);
+
+const signedBadgeStyle = useMemo(
+  () =>
+    ({
+      color: "#6f5a46",
+      background:
+        "linear-gradient(180deg, rgba(214,184,157,0.22) 0%, rgba(255,255,255,0.60) 100%)",
+      border: "1px solid rgba(183,157,132,0.16)",
+      boxShadow:
+        "inset 0 1px 0 rgba(255,255,255,0.56), 0 6px 14px rgba(92,69,50,0.04)",
+    }) as const,
+  []
+);
 
   return (
     <div className="section app-section reports-page-shell">
@@ -319,20 +332,30 @@ export default function ReportsPage() {
                         <ListRow
                           title={item.title || "Digital Evidence Record"}
                           subtitle={item.displaySubtitle}
-                          badge={
-                            item.status === "SIGNED" ? (
-                              <Badge tone="signed">{t("statusSigned")}</Badge>
-                            ) : item.status === "REPORTED" ? (
-                              <span
-                                className="inline-flex min-h-[28px] items-center justify-center rounded-full px-3 py-[5px] text-[10.5px] font-semibold uppercase tracking-[0.12em]"
-                                style={reportReadyBadgeStyle}
-                              >
-                                Report Ready
-                              </span>
-                            ) : (
-                              <Badge tone="ready">{t("statusReady")}</Badge>
-                            )
-                          }
+badge={
+  item.status === "SIGNED" ? (
+    <span
+      className="inline-flex min-h-[28px] items-center justify-center rounded-full px-3 py-[5px] text-[10.5px] font-semibold uppercase tracking-[0.12em]"
+      style={signedBadgeStyle}
+    >
+      {t("statusSigned")}
+    </span>
+  ) : item.status === "REPORTED" ? (
+    <span
+      className="inline-flex min-h-[28px] items-center justify-center rounded-full px-3 py-[5px] text-[10.5px] font-semibold uppercase tracking-[0.12em]"
+      style={reportReadyBadgeStyle}
+    >
+      Report Ready
+    </span>
+  ) : (
+    <span
+      className="inline-flex min-h-[28px] items-center justify-center rounded-full px-3 py-[5px] text-[10.5px] font-semibold uppercase tracking-[0.12em]"
+      style={reportReadyBadgeStyle}
+    >
+      {t("statusReady")}
+    </span>
+  )
+}
                         />
                       </div>
                     </Link>
@@ -341,13 +364,23 @@ export default function ReportsPage() {
                       <ListRow
                         title={item.title || "Digital Evidence Record"}
                         subtitle={item.displaySubtitle}
-                        badge={
-                          item.status === "SIGNED" ? (
-                            <Badge tone="signed">{t("statusSigned")}</Badge>
-                          ) : (
-                            <Badge tone="ready">{t("statusReady")}</Badge>
-                          )
-                        }
+badge={
+  item.status === "SIGNED" ? (
+    <span
+      className="inline-flex min-h-[28px] items-center justify-center rounded-full px-3 py-[5px] text-[10.5px] font-semibold uppercase tracking-[0.12em]"
+      style={signedBadgeStyle}
+    >
+      {t("statusSigned")}
+    </span>
+  ) : (
+    <span
+      className="inline-flex min-h-[28px] items-center justify-center rounded-full px-3 py-[5px] text-[10.5px] font-semibold uppercase tracking-[0.12em]"
+      style={reportReadyBadgeStyle}
+    >
+      {item.status === "REPORTED" ? "Report Ready" : t("statusReady")}
+    </span>
+  )
+}
                       />
                     </div>
                   )}
