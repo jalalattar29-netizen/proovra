@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
-  
   Button,
   Card,
   ListRow,
@@ -31,6 +30,48 @@ type QuickActionItem = {
   toast: string;
   primary?: boolean;
 };
+
+function getDisplayStatusMeta(
+  rawStatus: string | null | undefined,
+  labels: {
+    signed: string;
+    processing: string;
+  }
+): {
+  label: string;
+  tone: "reportReady" | "signed" | "processing" | "ready";
+} {
+  const status = (rawStatus ?? "").trim().toUpperCase();
+
+  switch (status) {
+    case "REPORTED":
+      return {
+        label: "Report Ready",
+        tone: "reportReady",
+      };
+    case "SIGNED":
+      return {
+        label: labels.signed,
+        tone: "signed",
+      };
+    case "UPLOADING":
+    case "CREATED":
+      return {
+        label: labels.processing,
+        tone: "processing",
+      };
+    case "UPLOADED":
+      return {
+        label: "Uploaded",
+        tone: "ready",
+      };
+    default:
+      return {
+        label: status || "Unknown",
+        tone: "ready",
+      };
+  }
+}
 
 export default function HomePage() {
   const { t } = useLocale();
@@ -62,37 +103,37 @@ export default function HomePage() {
       .finally(() => setLoading(false));
   }, [addToast]);
 
-const velvetGreenButtonStyle = useMemo(
-  () =>
-    ({
-      borderColor: "rgba(58,92,95,0.55)",
-      color: "#e6f1ee",
-      background:
-        "linear-gradient(180deg, rgba(44,74,72,0.95) 0%, rgba(20,38,42,0.98) 100%)",
-      boxShadow:
-        "inset 0 1px 0 rgba(255,255,255,0.08), 0 16px 34px rgba(12,30,32,0.35)",
-      textShadow: "0 1px 0 rgba(0,0,0,0.35)",
-      backdropFilter: "blur(6px)",
-      WebkitBackdropFilter: "blur(6px)",
-    }) as const,
-  []
-);
+  const velvetGreenButtonStyle = useMemo(
+    () =>
+      ({
+        borderColor: "rgba(58,92,95,0.55)",
+        color: "#e6f1ee",
+        background:
+          "linear-gradient(180deg, rgba(44,74,72,0.95) 0%, rgba(20,38,42,0.98) 100%)",
+        boxShadow:
+          "inset 0 1px 0 rgba(255,255,255,0.08), 0 16px 34px rgba(12,30,32,0.35)",
+        textShadow: "0 1px 0 rgba(0,0,0,0.35)",
+        backdropFilter: "blur(6px)",
+        WebkitBackdropFilter: "blur(6px)",
+      }) as const,
+    []
+  );
 
-const actionButtonStyle = useMemo(
-  () =>
-    ({
-      borderColor: "rgba(79,112,107,0.12)",
-      color: "#24373b",
-      background:
-        "linear-gradient(180deg, rgba(250,251,249,0.82) 0%, rgba(241,244,241,0.96) 100%)",
-      boxShadow:
-        "0 10px 20px rgba(0,0,0,0.05), inset 0 1px 0 rgba(255,255,255,0.70)",
-      textShadow: "0 1px 0 rgba(255,255,255,0.30)",
-      backdropFilter: "blur(6px)",
-      WebkitBackdropFilter: "blur(6px)",
-    }) as const,
-  []
-);
+  const actionButtonStyle = useMemo(
+    () =>
+      ({
+        borderColor: "rgba(79,112,107,0.12)",
+        color: "#24373b",
+        background:
+          "linear-gradient(180deg, rgba(250,251,249,0.82) 0%, rgba(241,244,241,0.96) 100%)",
+        boxShadow:
+          "0 10px 20px rgba(0,0,0,0.05), inset 0 1px 0 rgba(255,255,255,0.70)",
+        textShadow: "0 1px 0 rgba(255,255,255,0.30)",
+        backdropFilter: "blur(6px)",
+        WebkitBackdropFilter: "blur(6px)",
+      }) as const,
+    []
+  );
 
   const evidenceCardStyle = useMemo(
     () =>
@@ -118,15 +159,17 @@ const actionButtonStyle = useMemo(
     []
   );
 
-    const homeReportReadyStyle = useMemo(
+  // Dark-row badge styles tuned for the dark green ListRow background
+  const homeReportReadyStyle = useMemo(
     () =>
       ({
-        color: "#2d5b59",
+        color: "#dcefeb",
         background:
-          "linear-gradient(180deg, rgba(191,232,223,0.24) 0%, rgba(255,255,255,0.55) 100%)",
-        border: "1px solid rgba(79,112,107,0.14)",
+          "linear-gradient(180deg, rgba(61,91,95,0.82) 0%, rgba(31,52,57,0.92) 100%)",
+        border: "1px solid rgba(157,207,197,0.18)",
         boxShadow:
-          "inset 0 1px 0 rgba(255,255,255,0.55), 0 6px 14px rgba(41,83,85,0.05)",
+          "inset 0 1px 0 rgba(255,255,255,0.08), 0 8px 18px rgba(10,26,30,0.18)",
+        textShadow: "0 1px 0 rgba(0,0,0,0.24)",
       }) as const,
     []
   );
@@ -134,12 +177,13 @@ const actionButtonStyle = useMemo(
   const homeSignedStyle = useMemo(
     () =>
       ({
-        color: "#2f625d",
+        color: "#e8f7f2",
         background:
-          "linear-gradient(180deg, rgba(213,237,230,0.88) 0%, rgba(255,255,255,0.66) 100%)",
-        border: "1px solid rgba(93,148,138,0.16)",
+          "linear-gradient(180deg, rgba(72,120,112,0.88) 0%, rgba(28,53,50,0.94) 100%)",
+        border: "1px solid rgba(144,214,195,0.22)",
         boxShadow:
-          "inset 0 1px 0 rgba(255,255,255,0.62), 0 6px 14px rgba(41,83,85,0.05)",
+          "inset 0 1px 0 rgba(255,255,255,0.09), 0 8px 18px rgba(12,34,31,0.20)",
+        textShadow: "0 1px 0 rgba(0,0,0,0.24)",
       }) as const,
     []
   );
@@ -147,12 +191,13 @@ const actionButtonStyle = useMemo(
   const homeProcessingStyle = useMemo(
     () =>
       ({
-        color: "#9a6a10",
+        color: "#fff2cf",
         background:
-          "linear-gradient(180deg, rgba(255,239,196,0.92) 0%, rgba(255,255,255,0.68) 100%)",
-        border: "1px solid rgba(214,170,74,0.18)",
+          "linear-gradient(180deg, rgba(147,105,34,0.90) 0%, rgba(76,52,17,0.95) 100%)",
+        border: "1px solid rgba(241,194,94,0.22)",
         boxShadow:
-          "inset 0 1px 0 rgba(255,255,255,0.62), 0 6px 14px rgba(120,88,24,0.06)",
+          "inset 0 1px 0 rgba(255,255,255,0.08), 0 8px 18px rgba(47,31,7,0.22)",
+        textShadow: "0 1px 0 rgba(0,0,0,0.24)",
       }) as const,
     []
   );
@@ -160,15 +205,25 @@ const actionButtonStyle = useMemo(
   const homeReadyStyle = useMemo(
     () =>
       ({
-        color: "#4a6064",
+        color: "#e3ecea",
         background:
-          "linear-gradient(180deg, rgba(240,243,241,0.92) 0%, rgba(255,255,255,0.68) 100%)",
-        border: "1px solid rgba(79,112,107,0.12)",
+          "linear-gradient(180deg, rgba(84,103,108,0.80) 0%, rgba(38,54,59,0.92) 100%)",
+        border: "1px solid rgba(189,199,202,0.16)",
         boxShadow:
-          "inset 0 1px 0 rgba(255,255,255,0.58), 0 6px 14px rgba(0,0,0,0.03)",
+          "inset 0 1px 0 rgba(255,255,255,0.07), 0 8px 18px rgba(10,18,22,0.18)",
+        textShadow: "0 1px 0 rgba(0,0,0,0.22)",
       }) as const,
     []
   );
+
+  const resolveHomeStatusStyle = (
+    tone: "reportReady" | "signed" | "processing" | "ready"
+  ) => {
+    if (tone === "reportReady") return homeReportReadyStyle;
+    if (tone === "signed") return homeSignedStyle;
+    if (tone === "processing") return homeProcessingStyle;
+    return homeReadyStyle;
+  };
 
   const quickActions: QuickActionItem[] = [
     {
@@ -255,7 +310,7 @@ const actionButtonStyle = useMemo(
       </section>
 
       <section
-className="relative overflow-hidden px-6 pt-8 pb-12 md:px-8 md:pt-10 md:pb-16"
+        className="relative overflow-hidden px-6 pb-12 pt-8 md:px-8 md:pb-16 md:pt-10"
         style={{
           background:
             "linear-gradient(180deg, rgba(239,241,238,0.96) 0%, rgba(234,237,234,0.98) 100%)",
@@ -334,6 +389,11 @@ className="relative overflow-hidden px-6 pt-8 pb-12 md:px-8 md:pt-10 md:pb-16"
                     </div>
                   ) : (
                     items.map((item) => {
+                      const statusMeta = getDisplayStatusMeta(item.status, {
+                        signed: t("statusSigned"),
+                        processing: t("statusProcessing"),
+                      });
+
                       const row = (
                         <div
                           className="rounded-[24px] p-1 transition-all duration-200 hover:-translate-y-[1px]"
@@ -342,37 +402,14 @@ className="relative overflow-hidden px-6 pt-8 pb-12 md:px-8 md:pt-10 md:pb-16"
                           <ListRow
                             title={item.title || "Digital Evidence Record"}
                             subtitle={item.displaySubtitle}
-badge={
-  item.status === "SIGNED" ? (
-    <span
-      className="inline-flex min-h-[28px] items-center justify-center rounded-full px-3 py-[5px] text-[10.5px] font-semibold uppercase tracking-[0.12em]"
-      style={homeSignedStyle}
-    >
-      {t("statusSigned")}
-    </span>
-  ) : item.status === "PROCESSING" ? (
-    <span
-      className="inline-flex min-h-[28px] items-center justify-center rounded-full px-3 py-[5px] text-[10.5px] font-semibold uppercase tracking-[0.12em]"
-      style={homeProcessingStyle}
-    >
-      {t("statusProcessing")}
-    </span>
-  ) : item.status === "REPORTED" ? (
-    <span
-      className="inline-flex min-h-[28px] items-center justify-center rounded-full px-3 py-[5px] text-[10.5px] font-semibold uppercase tracking-[0.12em]"
-      style={homeReportReadyStyle}
-    >
-      Report Ready
-    </span>
-  ) : (
-    <span
-      className="inline-flex min-h-[28px] items-center justify-center rounded-full px-3 py-[5px] text-[10.5px] font-semibold uppercase tracking-[0.12em]"
-      style={homeReadyStyle}
-    >
-      {t("statusReady")}
-    </span>
-  )
-}
+                            badge={
+                              <span
+                                className="inline-flex min-h-[32px] items-center justify-center rounded-full px-3.5 py-[6px] text-[10.5px] font-semibold uppercase tracking-[0.14em]"
+                                style={resolveHomeStatusStyle(statusMeta.tone)}
+                              >
+                                {statusMeta.label}
+                              </span>
+                            }
                           />
                         </div>
                       );

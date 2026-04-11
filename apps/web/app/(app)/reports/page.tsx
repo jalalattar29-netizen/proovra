@@ -24,6 +24,48 @@ type ReportItem = {
   displaySubtitle: string;
 };
 
+function getDisplayStatusMeta(
+  rawStatus: string | null | undefined,
+  labels: {
+    signed: string;
+    processing: string;
+  }
+): {
+  label: string;
+  tone: "reportReady" | "signed" | "processing" | "ready";
+} {
+  const status = (rawStatus ?? "").trim().toUpperCase();
+
+  switch (status) {
+    case "REPORTED":
+      return {
+        label: "Report Ready",
+        tone: "reportReady",
+      };
+    case "SIGNED":
+      return {
+        label: labels.signed,
+        tone: "signed",
+      };
+    case "UPLOADING":
+    case "CREATED":
+      return {
+        label: labels.processing,
+        tone: "processing",
+      };
+    case "UPLOADED":
+      return {
+        label: "Uploaded",
+        tone: "ready",
+      };
+    default:
+      return {
+        label: status || "Unknown",
+        tone: "ready",
+      };
+  }
+}
+
 export default function ReportsPage() {
   const { t } = useLocale();
   const { addToast } = useToast();
@@ -117,31 +159,71 @@ export default function ReportsPage() {
     []
   );
 
-const reportReadyBadgeStyle = useMemo(
-  () =>
-    ({
-      color: "#2d5b59",
-      background:
-        "linear-gradient(180deg, rgba(191,232,223,0.24) 0%, rgba(255,255,255,0.56) 100%)",
-      border: "1px solid rgba(79,112,107,0.14)",
-      boxShadow:
-        "inset 0 1px 0 rgba(255,255,255,0.56), 0 6px 14px rgba(41,83,85,0.05)",
-    }) as const,
-  []
-);
+  // Dark-row badge styles tuned for the dark green ListRow background
+  const reportReadyBadgeStyle = useMemo(
+    () =>
+      ({
+        color: "#dcefeb",
+        background:
+          "linear-gradient(180deg, rgba(61,91,95,0.82) 0%, rgba(31,52,57,0.92) 100%)",
+        border: "1px solid rgba(157,207,197,0.18)",
+        boxShadow:
+          "inset 0 1px 0 rgba(255,255,255,0.08), 0 8px 18px rgba(10,26,30,0.18)",
+        textShadow: "0 1px 0 rgba(0,0,0,0.24)",
+      }) as const,
+    []
+  );
 
-const signedBadgeStyle = useMemo(
-  () =>
-    ({
-      color: "#2f625d",
-      background:
-        "linear-gradient(180deg, rgba(213,237,230,0.88) 0%, rgba(255,255,255,0.66) 100%)",
-      border: "1px solid rgba(93,148,138,0.16)",
-      boxShadow:
-        "inset 0 1px 0 rgba(255,255,255,0.62), 0 6px 14px rgba(41,83,85,0.05)",
-    }) as const,
-  []
-);
+  const signedBadgeStyle = useMemo(
+    () =>
+      ({
+        color: "#e8f7f2",
+        background:
+          "linear-gradient(180deg, rgba(72,120,112,0.88) 0%, rgba(28,53,50,0.94) 100%)",
+        border: "1px solid rgba(144,214,195,0.22)",
+        boxShadow:
+          "inset 0 1px 0 rgba(255,255,255,0.09), 0 8px 18px rgba(12,34,31,0.20)",
+        textShadow: "0 1px 0 rgba(0,0,0,0.24)",
+      }) as const,
+    []
+  );
+
+  const processingBadgeStyle = useMemo(
+    () =>
+      ({
+        color: "#fff2cf",
+        background:
+          "linear-gradient(180deg, rgba(147,105,34,0.90) 0%, rgba(76,52,17,0.95) 100%)",
+        border: "1px solid rgba(241,194,94,0.22)",
+        boxShadow:
+          "inset 0 1px 0 rgba(255,255,255,0.08), 0 8px 18px rgba(47,31,7,0.22)",
+        textShadow: "0 1px 0 rgba(0,0,0,0.24)",
+      }) as const,
+    []
+  );
+
+  const readyBadgeStyle = useMemo(
+    () =>
+      ({
+        color: "#e3ecea",
+        background:
+          "linear-gradient(180deg, rgba(84,103,108,0.80) 0%, rgba(38,54,59,0.92) 100%)",
+        border: "1px solid rgba(189,199,202,0.16)",
+        boxShadow:
+          "inset 0 1px 0 rgba(255,255,255,0.07), 0 8px 18px rgba(10,18,22,0.18)",
+        textShadow: "0 1px 0 rgba(0,0,0,0.22)",
+      }) as const,
+    []
+  );
+
+  const resolveReportStatusStyle = (
+    tone: "reportReady" | "signed" | "processing" | "ready"
+  ) => {
+    if (tone === "reportReady") return reportReadyBadgeStyle;
+    if (tone === "signed") return signedBadgeStyle;
+    if (tone === "processing") return processingBadgeStyle;
+    return readyBadgeStyle;
+  };
 
   return (
     <div className="section app-section reports-page-shell">
@@ -305,87 +387,69 @@ const signedBadgeStyle = useMemo(
               </div>
             </Card>
           ) : (
-            withReports.map((item) => (
-              <Card
-                key={item.id}
-                className="relative overflow-hidden rounded-[30px] border bg-transparent p-0 shadow-none"
-                style={outerCardStyle}
-              >
-                <div className="absolute inset-0">
-                  <img
-                    src="/images/panel-silver.webp.png"
-                    alt=""
-                    className="h-full w-full object-cover object-center"
-                  />
-                </div>
-                <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.24)_0%,rgba(248,249,246,0.34)_42%,rgba(239,241,238,0.42)_100%)]" />
-                <div className="absolute inset-0 bg-[radial-gradient(circle_at_16%_12%,rgba(255,255,255,0.34),transparent_28%)] opacity-90" />
+            withReports.map((item) => {
+              const statusMeta = getDisplayStatusMeta(item.status, {
+                signed: t("statusSigned"),
+                processing: t("statusProcessing"),
+              });
 
-                <div className="relative z-10 p-2">
-                  {isUuid(item.id) ? (
-                    <Link
-                      href={`/evidence/${item.id}`}
-                      style={{ display: "block", textDecoration: "none" }}
-                    >
+              return (
+                <Card
+                  key={item.id}
+                  className="relative overflow-hidden rounded-[30px] border bg-transparent p-0 shadow-none"
+                  style={outerCardStyle}
+                >
+                  <div className="absolute inset-0">
+                    <img
+                      src="/images/panel-silver.webp.png"
+                      alt=""
+                      className="h-full w-full object-cover object-center"
+                    />
+                  </div>
+                  <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.24)_0%,rgba(248,249,246,0.34)_42%,rgba(239,241,238,0.42)_100%)]" />
+                  <div className="absolute inset-0 bg-[radial-gradient(circle_at_16%_12%,rgba(255,255,255,0.34),transparent_28%)] opacity-90" />
+
+                  <div className="relative z-10 p-2">
+                    {isUuid(item.id) ? (
+                      <Link
+                        href={`/evidence/${item.id}`}
+                        style={{ display: "block", textDecoration: "none" }}
+                      >
+                        <div style={{ ...rowCardStyle, padding: 6 }}>
+                          <ListRow
+                            title={item.title || "Digital Evidence Record"}
+                            subtitle={item.displaySubtitle}
+                            badge={
+                              <span
+                                className="inline-flex min-h-[32px] items-center justify-center rounded-full px-3.5 py-[6px] text-[10.5px] font-semibold uppercase tracking-[0.14em]"
+                                style={resolveReportStatusStyle(statusMeta.tone)}
+                              >
+                                {statusMeta.label}
+                              </span>
+                            }
+                          />
+                        </div>
+                      </Link>
+                    ) : (
                       <div style={{ ...rowCardStyle, padding: 6 }}>
                         <ListRow
                           title={item.title || "Digital Evidence Record"}
                           subtitle={item.displaySubtitle}
-badge={
-  item.status === "SIGNED" ? (
-    <span
-      className="inline-flex min-h-[28px] items-center justify-center rounded-full px-3 py-[5px] text-[10.5px] font-semibold uppercase tracking-[0.12em]"
-      style={signedBadgeStyle}
-    >
-      {t("statusSigned")}
-    </span>
-  ) : item.status === "REPORTED" ? (
-    <span
-      className="inline-flex min-h-[28px] items-center justify-center rounded-full px-3 py-[5px] text-[10.5px] font-semibold uppercase tracking-[0.12em]"
-      style={reportReadyBadgeStyle}
-    >
-      Report Ready
-    </span>
-  ) : (
-    <span
-      className="inline-flex min-h-[28px] items-center justify-center rounded-full px-3 py-[5px] text-[10.5px] font-semibold uppercase tracking-[0.12em]"
-      style={reportReadyBadgeStyle}
-    >
-      {t("statusReady")}
-    </span>
-  )
-}
+                          badge={
+                            <span
+                              className="inline-flex min-h-[32px] items-center justify-center rounded-full px-3.5 py-[6px] text-[10.5px] font-semibold uppercase tracking-[0.14em]"
+                              style={resolveReportStatusStyle(statusMeta.tone)}
+                            >
+                              {statusMeta.label}
+                            </span>
+                          }
                         />
                       </div>
-                    </Link>
-                  ) : (
-                    <div style={{ ...rowCardStyle, padding: 6 }}>
-                      <ListRow
-                        title={item.title || "Digital Evidence Record"}
-                        subtitle={item.displaySubtitle}
-badge={
-  item.status === "SIGNED" ? (
-    <span
-      className="inline-flex min-h-[28px] items-center justify-center rounded-full px-3 py-[5px] text-[10.5px] font-semibold uppercase tracking-[0.12em]"
-      style={signedBadgeStyle}
-    >
-      {t("statusSigned")}
-    </span>
-  ) : (
-    <span
-      className="inline-flex min-h-[28px] items-center justify-center rounded-full px-3 py-[5px] text-[10.5px] font-semibold uppercase tracking-[0.12em]"
-      style={reportReadyBadgeStyle}
-    >
-      {item.status === "REPORTED" ? "Report Ready" : t("statusReady")}
-    </span>
-  )
-}
-                      />
-                    </div>
-                  )}
-                </div>
-              </Card>
-            ))
+                    )}
+                  </div>
+                </Card>
+              );
+            })
           )}
         </div>
       </div>

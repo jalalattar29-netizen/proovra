@@ -540,7 +540,7 @@ export default function CasesPage() {
                       <Link href={`/cases/${caseItem.id}`} style={{ textDecoration: "none" }}>
                         <Button
                           className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
-                          style={secondaryButtonStyle}
+                  style={filter === "all" ? primaryButtonStyle : secondaryButtonStyle}
                         >
                           Open Case
                         </Button>

@@ -91,9 +91,9 @@ export default async function AppLegalPage({
             radial-gradient(circle at 16% 12%, rgba(255,255,255,0.34), transparent 28%),
             linear-gradient(
               180deg,
-              rgba(255,255,255,0.24) 0%,
-              rgba(248,249,246,0.34) 42%,
-              rgba(239,241,238,0.42) 100%
+              rgba(255,255,255,0.22) 0%,
+              rgba(248,249,246,0.32) 38%,
+              rgba(239,241,238,0.40) 100%
             );
         }
 
@@ -104,19 +104,23 @@ export default async function AppLegalPage({
         }
 
         .app-legal-page .app-legal-intro {
-          margin-bottom: 20px;
-          padding: 14px 16px;
+          margin-bottom: 22px;
+          padding: 16px 18px;
           border-radius: 18px;
-          border: 1px solid rgba(183,157,132,0.14);
-          background: linear-gradient(135deg, rgba(214,184,157,0.10), rgba(255,255,255,0.36));
-          color: #7f6450;
-          line-height: 1.75;
+          border: 1px solid rgba(183,157,132,0.16);
+          background:
+            linear-gradient(180deg, rgba(250,248,245,0.72) 0%, rgba(243,239,234,0.88) 100%);
+          box-shadow:
+            inset 0 1px 0 rgba(255,255,255,0.62),
+            0 10px 22px rgba(92,69,50,0.05);
+          color: #8a6e57;
+          line-height: 1.8;
           font-size: 14px;
         }
 
         .app-legal-page .legal-content {
-          color: #24373b;
-          line-height: 1.85;
+          color: #31484d;
+          line-height: 1.9;
           font-size: 15px;
         }
 
@@ -126,8 +130,9 @@ export default async function AppLegalPage({
         .app-legal-page .legal-content h4 {
           color: #21353a;
           letter-spacing: -0.02em;
-          margin-top: 1.6em;
+          margin-top: 1.7em;
           margin-bottom: 0.7em;
+          line-height: 1.2;
         }
 
         .app-legal-page .legal-content h1:first-child,
@@ -136,24 +141,47 @@ export default async function AppLegalPage({
           margin-top: 0;
         }
 
+        .app-legal-page .legal-content h1 {
+          font-size: 1.7rem;
+        }
+
+        .app-legal-page .legal-content h2 {
+          font-size: 1.28rem;
+          color: #284348;
+        }
+
+        .app-legal-page .legal-content h3,
+        .app-legal-page .legal-content h4 {
+          color: #8a6e57;
+          font-size: 1.02rem;
+          text-transform: uppercase;
+          letter-spacing: 0.06em;
+        }
+
         .app-legal-page .legal-content p,
         .app-legal-page .legal-content li {
-          color: #42565b;
+          color: #466065;
         }
 
         .app-legal-page .legal-content strong {
           color: #21353a;
+          font-weight: 700;
+        }
+
+        .app-legal-page .legal-content em {
+          color: #6e5a48;
         }
 
         .app-legal-page .legal-content a {
-          color: #2d5b59;
+          color: #2f625d;
           text-decoration: none;
-          border-bottom: 1px solid rgba(45,91,89,0.24);
+          border-bottom: 1px solid rgba(47,98,93,0.24);
+          transition: color 0.18s ease, border-color 0.18s ease;
         }
 
         .app-legal-page .legal-content a:hover {
           color: #214847;
-          border-bottom-color: rgba(33,72,71,0.36);
+          border-bottom-color: rgba(33,72,71,0.38);
         }
 
         .app-legal-page .legal-content ul,
@@ -161,19 +189,25 @@ export default async function AppLegalPage({
           padding-left: 1.35rem;
         }
 
+        .app-legal-page .legal-content li::marker {
+          color: #9b826b;
+        }
+
         .app-legal-page .legal-content blockquote {
-          margin: 1.25rem 0;
-          padding: 0.9rem 1rem;
+          margin: 1.3rem 0;
+          padding: 1rem 1.1rem;
           border-left: 4px solid rgba(183,157,132,0.34);
-          background: rgba(255,255,255,0.46);
-          border-radius: 14px;
-          color: #55696d;
+          background:
+            linear-gradient(180deg, rgba(255,255,255,0.52) 0%, rgba(248,244,240,0.72) 100%);
+          border-radius: 16px;
+          color: #5a6e72;
+          box-shadow: inset 0 1px 0 rgba(255,255,255,0.46);
         }
 
         .app-legal-page .legal-content hr {
           border: 0;
           border-top: 1px solid rgba(79,112,107,0.10);
-          margin: 1.6rem 0;
+          margin: 1.8rem 0;
         }
 
         .app-legal-page .legal-content table {
@@ -181,43 +215,56 @@ export default async function AppLegalPage({
           border-collapse: collapse;
           margin: 1rem 0 1.4rem;
           overflow: hidden;
-          border-radius: 16px;
-          background: rgba(255,255,255,0.44);
+          border-radius: 18px;
+          background:
+            linear-gradient(180deg, rgba(255,255,255,0.54) 0%, rgba(247,248,246,0.82) 100%);
+          box-shadow:
+            inset 0 1px 0 rgba(255,255,255,0.54),
+            0 10px 24px rgba(0,0,0,0.04);
         }
 
         .app-legal-page .legal-content th,
         .app-legal-page .legal-content td {
           border: 1px solid rgba(79,112,107,0.10);
-          padding: 0.8rem 0.9rem;
+          padding: 0.82rem 0.92rem;
           text-align: left;
           vertical-align: top;
         }
 
         .app-legal-page .legal-content th {
           color: #21353a;
-          background: rgba(255,255,255,0.52);
+          background:
+            linear-gradient(180deg, rgba(250,248,245,0.72) 0%, rgba(243,239,234,0.86) 100%);
+        }
+
+        .app-legal-page .legal-content td {
+          color: #42565b;
         }
 
         .app-legal-page .legal-content code {
-          background: rgba(255,255,255,0.6);
+          background: rgba(255,255,255,0.68);
           color: #214847;
-          padding: 0.12rem 0.34rem;
+          padding: 0.14rem 0.36rem;
           border-radius: 8px;
           font-size: 0.92em;
+          border: 1px solid rgba(79,112,107,0.08);
         }
 
         .app-legal-page .legal-content pre {
-          background: rgba(255,255,255,0.62);
+          background:
+            linear-gradient(180deg, rgba(255,255,255,0.62) 0%, rgba(244,246,244,0.88) 100%);
           color: #24373b;
           padding: 1rem;
           border-radius: 16px;
           overflow-x: auto;
           border: 1px solid rgba(79,112,107,0.10);
+          box-shadow: inset 0 1px 0 rgba(255,255,255,0.48);
         }
 
         .app-legal-page .legal-content pre code {
           background: transparent;
           padding: 0;
+          border: 0;
         }
 
         @media (max-width: 768px) {

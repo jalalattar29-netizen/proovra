@@ -7,7 +7,6 @@ import {
   Button,
   Card,
   ListRow,
-  Badge,
   useToast,
 } from "../../../../components/ui";
 import { Icons } from "../../../../components/icons";
@@ -89,6 +88,44 @@ function resolveEvidenceSubtitle(item: EvidenceItem): string {
   return `${count} item${count === 1 ? "" : "s"} • ${new Date(
     item.createdAt
   ).toLocaleString()}`;
+}
+
+function getDisplayStatusMeta(
+  rawStatus: string | null | undefined
+): {
+  label: string;
+  tone: "reportReady" | "signed" | "processing" | "ready";
+} {
+  const status = (rawStatus ?? "").trim().toUpperCase();
+
+  switch (status) {
+    case "REPORTED":
+      return {
+        label: "Report Ready",
+        tone: "reportReady",
+      };
+    case "SIGNED":
+      return {
+        label: "Signed",
+        tone: "signed",
+      };
+    case "UPLOADING":
+    case "CREATED":
+      return {
+        label: "Processing",
+        tone: "processing",
+      };
+    case "UPLOADED":
+      return {
+        label: "Uploaded",
+        tone: "ready",
+      };
+    default:
+      return {
+        label: status || "Unknown",
+        tone: "ready",
+      };
+  }
 }
 
 export default function CaseDetailPage() {
@@ -390,13 +427,53 @@ export default function CaseDetailPage() {
   } as const;
 
   const reportReadyBadgeStyle = {
-    color: "#2d5b59",
+    color: "#dcefeb",
     background:
-      "linear-gradient(180deg, rgba(191,232,223,0.24) 0%, rgba(255,255,255,0.55) 100%)",
-    border: "1px solid rgba(79,112,107,0.14)",
+      "linear-gradient(180deg, rgba(61,91,95,0.82) 0%, rgba(31,52,57,0.92) 100%)",
+    border: "1px solid rgba(157,207,197,0.18)",
     boxShadow:
-      "inset 0 1px 0 rgba(255,255,255,0.55), 0 6px 14px rgba(41,83,85,0.05)",
+      "inset 0 1px 0 rgba(255,255,255,0.08), 0 8px 18px rgba(10,26,30,0.18)",
+    textShadow: "0 1px 0 rgba(0,0,0,0.24)",
   } as const;
+
+  const signedBadgeStyle = {
+    color: "#e8f7f2",
+    background:
+      "linear-gradient(180deg, rgba(72,120,112,0.88) 0%, rgba(28,53,50,0.94) 100%)",
+    border: "1px solid rgba(144,214,195,0.22)",
+    boxShadow:
+      "inset 0 1px 0 rgba(255,255,255,0.09), 0 8px 18px rgba(12,34,31,0.20)",
+    textShadow: "0 1px 0 rgba(0,0,0,0.24)",
+  } as const;
+
+  const processingBadgeStyle = {
+    color: "#fff2cf",
+    background:
+      "linear-gradient(180deg, rgba(147,105,34,0.90) 0%, rgba(76,52,17,0.95) 100%)",
+    border: "1px solid rgba(241,194,94,0.22)",
+    boxShadow:
+      "inset 0 1px 0 rgba(255,255,255,0.08), 0 8px 18px rgba(47,31,7,0.22)",
+    textShadow: "0 1px 0 rgba(0,0,0,0.24)",
+  } as const;
+
+  const readyBadgeStyle = {
+    color: "#e3ecea",
+    background:
+      "linear-gradient(180deg, rgba(84,103,108,0.80) 0%, rgba(38,54,59,0.92) 100%)",
+    border: "1px solid rgba(189,199,202,0.16)",
+    boxShadow:
+      "inset 0 1px 0 rgba(255,255,255,0.07), 0 8px 18px rgba(10,18,22,0.18)",
+    textShadow: "0 1px 0 rgba(0,0,0,0.22)",
+  } as const;
+
+  const resolveCaseStatusStyle = (
+    tone: "reportReady" | "signed" | "processing" | "ready"
+  ) => {
+    if (tone === "reportReady") return reportReadyBadgeStyle;
+    if (tone === "signed") return signedBadgeStyle;
+    if (tone === "processing") return processingBadgeStyle;
+    return readyBadgeStyle;
+  };
 
   if (loading) {
     return (
@@ -438,7 +515,7 @@ export default function CaseDetailPage() {
               className="mt-5 max-w-[760px] text-[1.72rem] font-medium leading-[1.02] tracking-[-0.045em] text-[#d9e2df] md:text-[2.22rem] lg:text-[2.72rem]"
               style={{ margin: "20px 0 0" }}
             >
-              Loading <span style={{ color: "#c3ebe2" }}>case workspace</span>.
+              Loading <span style={{ color: "#c3ebe2" }}>case</span>.
             </h1>
           </div>
         </div>
@@ -583,13 +660,7 @@ export default function CaseDetailPage() {
                     }}
                   />
                 ) : (
-                  <>
-                    {caseData.name}{" "}
-                    <span style={{ color: "#c3ebe2" }}>
-                      {isOwner ? "management workspace" : "shared workspace"}
-                    </span>
-                    .
-                  </>
+                  <span style={{ color: "#c3ebe2" }}>{caseData.name}</span>
                 )}
               </h1>
 
@@ -1035,58 +1106,54 @@ export default function CaseDetailPage() {
                 </div>
               ) : (
                 <div style={{ display: "grid", gap: 10 }}>
-                  {evidence.map((item) => (
-                    <div
-                      key={item.id}
-                      style={{
-                        ...rowCardStyle,
-                        padding: 6,
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 10,
-                      }}
-                    >
-                      <Link
-                        href={`/evidence/${item.id}`}
-                        style={{ textDecoration: "none", color: "inherit", flex: 1 }}
-                      >
-                        <ListRow
-                          title={resolveEvidenceTitle(item)}
-                          subtitle={resolveEvidenceSubtitle(item)}
-                          badge={
-                            item.status === "SIGNED" ? (
-                              <Badge tone="signed">Signed</Badge>
-                            ) : item.status === "PROCESSING" ? (
-                              <Badge tone="processing">Processing</Badge>
-                            ) : item.status === "REPORTED" ? (
-                              <span
-                                className="inline-flex min-h-[28px] items-center justify-center rounded-full px-3 py-[5px] text-[10.5px] font-semibold uppercase tracking-[0.12em]"
-                                style={reportReadyBadgeStyle}
-                              >
-                                Report Ready
-                              </span>
-                            ) : (
-                              <Badge tone="ready">Ready</Badge>
-                            )
-                          }
-                        />
-                      </Link>
+                  {evidence.map((item) => {
+                    const statusMeta = getDisplayStatusMeta(item.status);
 
-                      {isOwner && (
-                        <div onClick={(e) => e.stopPropagation()}>
-                          <Button
-                            variant="secondary"
-                            onClick={() => handleRemoveEvidence(item.id)}
-                            disabled={operationLoading}
-                            className="rounded-[999px] border px-4 py-2.5 text-[0.88rem] font-semibold"
-                            style={dangerButtonStyle}
-                          >
-                            Remove
-                          </Button>
-                        </div>
-                      )}
-                    </div>
-                  ))}
+                    return (
+                      <div
+                        key={item.id}
+                        style={{
+                          ...rowCardStyle,
+                          padding: 6,
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 10,
+                        }}
+                      >
+                        <Link
+                          href={`/evidence/${item.id}`}
+                          style={{ textDecoration: "none", color: "inherit", flex: 1 }}
+                        >
+                          <ListRow
+                            title={resolveEvidenceTitle(item)}
+                            subtitle={resolveEvidenceSubtitle(item)}
+                            badge={
+                              <span
+                                className="inline-flex min-h-[32px] items-center justify-center rounded-full px-3.5 py-[6px] text-[10.5px] font-semibold uppercase tracking-[0.14em]"
+                                style={resolveCaseStatusStyle(statusMeta.tone)}
+                              >
+                                {statusMeta.label}
+                              </span>
+                            }
+                          />
+                        </Link>
+
+                        {isOwner && (
+                          <div onClick={(e) => e.stopPropagation()}>
+                            <Button
+                              variant="secondary"
+                              onClick={() => handleRemoveEvidence(item.id)}
+                              disabled={operationLoading}
+                              className="rounded-[999px] border px-4 py-2.5 text-[0.88rem] font-semibold"
+                              style={dangerButtonStyle}
+                            >
+                              Remove
+                            </Button>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </div>
