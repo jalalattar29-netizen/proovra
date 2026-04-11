@@ -596,22 +596,6 @@ export default function TeamDetailPage() {
     []
   );
 
-  const tertiaryButtonStyle = useMemo(
-    () =>
-      ({
-        borderColor: "rgba(183,157,132,0.16)",
-        color: "#7a624d",
-        background:
-          "linear-gradient(180deg, rgba(244,238,232,0.88) 0%, rgba(255,255,255,0.64) 100%)",
-        boxShadow:
-          "0 10px 20px rgba(92,69,50,0.05), inset 0 1px 0 rgba(255,255,255,0.72)",
-        textShadow: "0 1px 0 rgba(255,255,255,0.32)",
-        backdropFilter: "blur(6px)",
-        WebkitBackdropFilter: "blur(6px)",
-      }) as const,
-    []
-  );
-
   const dangerButtonStyle = useMemo(
     () =>
       ({
