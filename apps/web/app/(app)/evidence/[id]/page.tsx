@@ -330,7 +330,7 @@ export default function EvidenceDetailPage() {
   const [originalFileName, setOriginalFileName] = useState<string | null>(null);
 
   const [parts, setParts] = useState<EvidencePart[]>([]);
-  const [partsLoadFailed, setPartsLoadFailed] = useState(false);
+  const [, setPartsLoadFailed] = useState(false);
   const [verificationPackageAvailable, setVerificationPackageAvailable] = useState(false);
 
   const isMultipart = parts.length > 1;
