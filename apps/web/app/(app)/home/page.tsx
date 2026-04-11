@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
-  Badge,
+  
   Button,
   Card,
   ListRow,
@@ -114,6 +114,58 @@ const actionButtonStyle = useMemo(
         border: "1px solid rgba(79,112,107,0.16)",
         boxShadow:
           "0 18px 38px rgba(0,0,0,0.08), inset 0 1px 0 rgba(255,255,255,0.48)",
+      }) as const,
+    []
+  );
+
+    const homeReportReadyStyle = useMemo(
+    () =>
+      ({
+        color: "#2d5b59",
+        background:
+          "linear-gradient(180deg, rgba(191,232,223,0.24) 0%, rgba(255,255,255,0.55) 100%)",
+        border: "1px solid rgba(79,112,107,0.14)",
+        boxShadow:
+          "inset 0 1px 0 rgba(255,255,255,0.55), 0 6px 14px rgba(41,83,85,0.05)",
+      }) as const,
+    []
+  );
+
+  const homeSignedStyle = useMemo(
+    () =>
+      ({
+        color: "#2f625d",
+        background:
+          "linear-gradient(180deg, rgba(213,237,230,0.88) 0%, rgba(255,255,255,0.66) 100%)",
+        border: "1px solid rgba(93,148,138,0.16)",
+        boxShadow:
+          "inset 0 1px 0 rgba(255,255,255,0.62), 0 6px 14px rgba(41,83,85,0.05)",
+      }) as const,
+    []
+  );
+
+  const homeProcessingStyle = useMemo(
+    () =>
+      ({
+        color: "#9a6a10",
+        background:
+          "linear-gradient(180deg, rgba(255,239,196,0.92) 0%, rgba(255,255,255,0.68) 100%)",
+        border: "1px solid rgba(214,170,74,0.18)",
+        boxShadow:
+          "inset 0 1px 0 rgba(255,255,255,0.62), 0 6px 14px rgba(120,88,24,0.06)",
+      }) as const,
+    []
+  );
+
+  const homeReadyStyle = useMemo(
+    () =>
+      ({
+        color: "#4a6064",
+        background:
+          "linear-gradient(180deg, rgba(240,243,241,0.92) 0%, rgba(255,255,255,0.68) 100%)",
+        border: "1px solid rgba(79,112,107,0.12)",
+        boxShadow:
+          "inset 0 1px 0 rgba(255,255,255,0.58), 0 6px 14px rgba(0,0,0,0.03)",
       }) as const,
     []
   );
@@ -290,32 +342,37 @@ className="relative overflow-hidden px-6 pt-8 pb-12 md:px-8 md:pt-10 md:pb-16"
                           <ListRow
                             title={item.title || "Digital Evidence Record"}
                             subtitle={item.displaySubtitle}
-                            badge={
-                              item.status === "SIGNED" ? (
-                                <Badge tone="signed">{t("statusSigned")}</Badge>
-                              ) : item.status === "PROCESSING" ? (
-                                <Badge tone="processing">
-                                  {t("statusProcessing")}
-                                </Badge>
-                              ) : item.status === "REPORTED" ? (
-                                <span
-                                  className="inline-flex min-h-[28px] items-center justify-center rounded-full px-3 py-[5px] text-[10.5px] font-semibold uppercase tracking-[0.12em]"
-                                  style={{
-                                    color: "#c3ebe2",
-                                    background:
-                                      "linear-gradient(180deg, rgba(195,235,226,0.12) 0%, rgba(255,255,255,0.03) 100%)",
-                                    border:
-                                      "1px solid rgba(195,235,226,0.22)",
-                                    boxShadow:
-                                      "inset 0 1px 0 rgba(255,255,255,0.16), 0 4px 10px rgba(60,110,102,0.10)",
-                                  }}
-                                >
-                                  Report Ready
-                                </span>
-                              ) : (
-                                <Badge tone="ready">{t("statusReady")}</Badge>
-                              )
-                            }
+badge={
+  item.status === "SIGNED" ? (
+    <span
+      className="inline-flex min-h-[28px] items-center justify-center rounded-full px-3 py-[5px] text-[10.5px] font-semibold uppercase tracking-[0.12em]"
+      style={homeSignedStyle}
+    >
+      {t("statusSigned")}
+    </span>
+  ) : item.status === "PROCESSING" ? (
+    <span
+      className="inline-flex min-h-[28px] items-center justify-center rounded-full px-3 py-[5px] text-[10.5px] font-semibold uppercase tracking-[0.12em]"
+      style={homeProcessingStyle}
+    >
+      {t("statusProcessing")}
+    </span>
+  ) : item.status === "REPORTED" ? (
+    <span
+      className="inline-flex min-h-[28px] items-center justify-center rounded-full px-3 py-[5px] text-[10.5px] font-semibold uppercase tracking-[0.12em]"
+      style={homeReportReadyStyle}
+    >
+      Report Ready
+    </span>
+  ) : (
+    <span
+      className="inline-flex min-h-[28px] items-center justify-center rounded-full px-3 py-[5px] text-[10.5px] font-semibold uppercase tracking-[0.12em]"
+      style={homeReadyStyle}
+    >
+      {t("statusReady")}
+    </span>
+  )
+}
                           />
                         </div>
                       );

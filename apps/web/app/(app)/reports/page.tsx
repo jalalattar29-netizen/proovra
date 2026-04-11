@@ -133,12 +133,12 @@ const reportReadyBadgeStyle = useMemo(
 const signedBadgeStyle = useMemo(
   () =>
     ({
-      color: "#6f5a46",
+      color: "#2f625d",
       background:
-        "linear-gradient(180deg, rgba(214,184,157,0.22) 0%, rgba(255,255,255,0.60) 100%)",
-      border: "1px solid rgba(183,157,132,0.16)",
+        "linear-gradient(180deg, rgba(213,237,230,0.88) 0%, rgba(255,255,255,0.66) 100%)",
+      border: "1px solid rgba(93,148,138,0.16)",
       boxShadow:
-        "inset 0 1px 0 rgba(255,255,255,0.56), 0 6px 14px rgba(92,69,50,0.04)",
+        "inset 0 1px 0 rgba(255,255,255,0.62), 0 6px 14px rgba(41,83,85,0.05)",
     }) as const,
   []
 );

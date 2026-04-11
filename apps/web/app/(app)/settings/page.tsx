@@ -595,7 +595,7 @@ export default function SettingsPage() {
                   <Button
                     variant="secondary"
                     onClick={handleSignOut}
-                    className={`${velvetButtonClass()} settings-primary-btn`}
+                    className={`${velvetButtonClass()} settings-secondary-btn`}
                   >
                     Sign out
                   </Button>
@@ -744,9 +744,9 @@ export default function SettingsPage() {
 
                     <div className="mt-1 grid gap-3">
                       <Button
-                        variant="secondary"
+                        variant="primary"
                         onClick={() => openCookiePreferences()}
-                        className={`${velvetButtonClass()} settings-secondary-btn`}
+                        className={`${velvetButtonClass()} settings-primary-btn`}
                       >
                         Manage Cookie Preferences
                       </Button>

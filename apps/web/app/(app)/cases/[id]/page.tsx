@@ -166,7 +166,7 @@ export default function CaseDetailPage() {
   };
 
   useEffect(() => {
-    loadData();
+    void loadData();
   }, [caseId]);
 
   const handleRenameStart = () => {
@@ -325,52 +325,77 @@ export default function CaseDetailPage() {
   };
 
   const outerCardStyle = {
-    border: "1px solid rgba(183,157,132,0.18)",
+    border: "1px solid rgba(79,112,107,0.16)",
     boxShadow:
-      "0 22px 42px rgba(0,0,0,0.16), inset 0 1px 0 rgba(255,255,255,0.03)",
+      "0 18px 38px rgba(0,0,0,0.08), inset 0 1px 0 rgba(255,255,255,0.48)",
   } as const;
 
   const primaryButtonStyle = {
-    borderColor: "rgba(158,216,207,0.14)",
-    color: "#aebbb6",
+    borderColor: "rgba(79,112,107,0.22)",
+    color: "#eef3f1",
     background:
-      "linear-gradient(180deg, rgba(62,98,96,0.26) 0%, rgba(14,30,34,0.38) 100%)",
+      "linear-gradient(180deg, rgba(58,92,95,0.96) 0%, rgba(20,38,42,0.98) 100%)",
     boxShadow:
-      "inset 0 1px 0 rgba(255,255,255,0.04), 0 14px 28px rgba(0,0,0,0.08)",
-    backdropFilter: "blur(10px)",
-    WebkitBackdropFilter: "blur(10px)",
+      "inset 0 1px 0 rgba(255,255,255,0.08), 0 16px 34px rgba(18,40,44,0.22)",
+    textShadow: "0 1px 0 rgba(0,0,0,0.22)",
+    backdropFilter: "blur(6px)",
+    WebkitBackdropFilter: "blur(6px)",
   } as const;
 
   const secondaryButtonStyle = {
-    borderColor: "rgba(79,112,107,0.18)",
-    color: "#aebbb6",
-    backgroundImage:
-      "linear-gradient(180deg, rgba(8,20,24,0.78) 0%, rgba(7,18,22,0.88) 100%), url('/images/site-velvet-bg.webp.png')",
-    backgroundSize: "cover",
-    backgroundPosition: "center",
+    borderColor: "rgba(79,112,107,0.12)",
+    color: "#24373b",
+    background:
+      "linear-gradient(180deg, rgba(250,251,249,0.82) 0%, rgba(241,244,241,0.96) 100%)",
     boxShadow:
-      "inset 0 1px 0 rgba(255,255,255,0.03), 0 14px 28px rgba(0,0,0,0.10)",
-    backdropFilter: "blur(10px)",
-    WebkitBackdropFilter: "blur(10px)",
+      "0 10px 20px rgba(0,0,0,0.05), inset 0 1px 0 rgba(255,255,255,0.70)",
+    textShadow: "0 1px 0 rgba(255,255,255,0.30)",
+    backdropFilter: "blur(6px)",
+    WebkitBackdropFilter: "blur(6px)",
+  } as const;
+
+  const tertiaryButtonStyle = {
+    borderColor: "rgba(183,157,132,0.16)",
+    color: "#7a624d",
+    background:
+      "linear-gradient(180deg, rgba(244,238,232,0.88) 0%, rgba(255,255,255,0.64) 100%)",
+    boxShadow:
+      "0 10px 20px rgba(92,69,50,0.05), inset 0 1px 0 rgba(255,255,255,0.72)",
+    textShadow: "0 1px 0 rgba(255,255,255,0.32)",
+    backdropFilter: "blur(6px)",
+    WebkitBackdropFilter: "blur(6px)",
   } as const;
 
   const dangerButtonStyle = {
-    borderColor: "rgba(220,120,120,0.22)",
-    color: "#f3d9d9",
+    borderColor: "rgba(194,78,78,0.20)",
+    color: "#fff3f3",
     background:
-      "linear-gradient(180deg, rgba(130,43,43,0.82) 0%, rgba(92,24,24,0.92) 100%)",
+      "linear-gradient(180deg, rgba(164,84,84,0.94) 0%, rgba(130,62,62,0.98) 100%)",
     boxShadow:
-      "inset 0 1px 0 rgba(255,255,255,0.03), 0 12px 24px rgba(60,12,12,0.22)",
-    backdropFilter: "blur(10px)",
-    WebkitBackdropFilter: "blur(10px)",
+      "inset 0 1px 0 rgba(255,255,255,0.06), 0 14px 28px rgba(90,18,18,0.14)",
+    textShadow: "0 1px 0 rgba(0,0,0,0.22)",
+    backdropFilter: "blur(6px)",
+    WebkitBackdropFilter: "blur(6px)",
   } as const;
 
   const rowCardStyle = {
-    border: "1px solid rgba(158,216,207,0.10)",
+    border: "1px solid rgba(79,112,107,0.10)",
     background:
-      "linear-gradient(180deg, rgba(8,23,30,0.86) 0%, rgba(7,18,24,0.94) 100%)",
+      "linear-gradient(180deg, rgba(255,255,255,0.58) 0%, rgba(243,245,242,0.90) 100%)",
     borderRadius: 24,
-    boxShadow: "0 10px 24px rgba(0,0,0,0.18)",
+    boxShadow:
+      "inset 0 1px 0 rgba(255,255,255,0.42), 0 12px 26px rgba(0,0,0,0.06)",
+    backdropFilter: "blur(8px)",
+    WebkitBackdropFilter: "blur(8px)",
+  } as const;
+
+  const reportReadyBadgeStyle = {
+    color: "#2d5b59",
+    background:
+      "linear-gradient(180deg, rgba(191,232,223,0.24) 0%, rgba(255,255,255,0.55) 100%)",
+    border: "1px solid rgba(79,112,107,0.14)",
+    boxShadow:
+      "inset 0 1px 0 rgba(255,255,255,0.55), 0 6px 14px rgba(41,83,85,0.05)",
   } as const;
 
   if (loading) {
@@ -382,7 +407,7 @@ export default function CaseDetailPage() {
               style={{
                 display: "inline-flex",
                 alignItems: "center",
-                gap: 8,
+                gap: "0.72rem",
                 borderRadius: 999,
                 border: "1px solid rgba(255,255,255,0.10)",
                 background: "rgba(255,255,255,0.04)",
@@ -397,12 +422,13 @@ export default function CaseDetailPage() {
             >
               <span
                 style={{
-                  width: 4,
-                  height: 4,
+                  width: 6,
+                  height: 6,
                   borderRadius: 999,
                   background: "#b79d84",
-                  opacity: 0.8,
+                  opacity: 0.95,
                   display: "inline-block",
+                  flexShrink: 0,
                 }}
               />
               Case
@@ -429,7 +455,7 @@ export default function CaseDetailPage() {
               style={{
                 display: "inline-flex",
                 alignItems: "center",
-                gap: 8,
+                gap: "0.72rem",
                 borderRadius: 999,
                 border: "1px solid rgba(255,255,255,0.10)",
                 background: "rgba(255,255,255,0.04)",
@@ -444,12 +470,13 @@ export default function CaseDetailPage() {
             >
               <span
                 style={{
-                  width: 4,
-                  height: 4,
+                  width: 6,
+                  height: 6,
                   borderRadius: 999,
                   background: "#b79d84",
-                  opacity: 0.8,
+                  opacity: 0.95,
                   display: "inline-block",
+                  flexShrink: 0,
                 }}
               />
               Case
@@ -464,21 +491,30 @@ export default function CaseDetailPage() {
           </div>
         </div>
 
-        <div className="app-body app-body-full">
+        <div
+          className="app-body app-body-full pt-8 md:pt-10"
+          style={{
+            position: "relative",
+            overflow: "hidden",
+            background:
+              "linear-gradient(180deg, rgba(239,241,238,0.96) 0%, rgba(234,237,234,0.98) 100%)",
+          }}
+        >
           <div className="container">
             <Card
               className="relative overflow-hidden rounded-[30px] border bg-transparent p-0 shadow-none"
-              style={outerCardStyle}
+              style={{ ...outerCardStyle, border: "1px solid rgba(194,78,78,0.16)" }}
             >
               <div className="absolute inset-0">
                 <img
-                  src="/images/site-velvet-bg.webp.png"
+                  src="/images/panel-silver.webp.png"
                   alt=""
-                  className="h-full w-full object-cover object-center scale-[1.12]"
+                  className="h-full w-full object-cover object-center"
                 />
               </div>
-              <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(70,20,20,0.24)_0%,rgba(20,10,10,0.58)_100%)]" />
-              <div className="relative z-10 p-6 text-[#ffd7d7]">
+              <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,243,243,0.92)_0%,rgba(248,239,235,0.86)_100%)]" />
+
+              <div className="relative z-10 p-6 text-[#b42318]">
                 {error || "Case not found"}
               </div>
             </Card>
@@ -489,7 +525,7 @@ export default function CaseDetailPage() {
   }
 
   return (
-    <div className="section app-section case-detail-page-shell home-page-shell">
+    <div className="section app-section case-detail-page-shell">
       <div className="app-hero app-hero-full">
         <div className="container">
           <div className="page-title app-page-title" style={{ marginBottom: 0 }}>
@@ -498,7 +534,7 @@ export default function CaseDetailPage() {
                 style={{
                   display: "inline-flex",
                   alignItems: "center",
-                  gap: 8,
+                  gap: "0.72rem",
                   borderRadius: 999,
                   border: "1px solid rgba(255,255,255,0.10)",
                   background: "rgba(255,255,255,0.04)",
@@ -513,12 +549,13 @@ export default function CaseDetailPage() {
               >
                 <span
                   style={{
-                    width: 4,
-                    height: 4,
+                    width: 6,
+                    height: 6,
                     borderRadius: 999,
                     background: "#b79d84",
-                    opacity: 0.8,
+                    opacity: 0.95,
                     display: "inline-block",
+                    flexShrink: 0,
                   }}
                 />
                 Case
@@ -572,7 +609,14 @@ export default function CaseDetailPage() {
               </p>
             </div>
 
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
+            <div
+              style={{
+                display: "flex",
+                gap: 8,
+                flexWrap: "wrap",
+                justifyContent: "flex-end",
+              }}
+            >
               {renamingCase ? (
                 <>
                   <Button
@@ -582,7 +626,7 @@ export default function CaseDetailPage() {
                       setRenameValue(caseData.name);
                     }}
                     disabled={operationLoading}
-                    className="proovra-velvet-primary rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
+                    className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
                     style={secondaryButtonStyle}
                   >
                     Cancel
@@ -591,7 +635,7 @@ export default function CaseDetailPage() {
                   <Button
                     onClick={handleRenameSubmit}
                     disabled={!renameValue.trim() || operationLoading}
-                    className="proovra-velvet-primary rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
+                    className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
                     style={primaryButtonStyle}
                   >
                     Save
@@ -605,7 +649,7 @@ export default function CaseDetailPage() {
                         variant="secondary"
                         onClick={handleRenameStart}
                         disabled={operationLoading}
-                        className="proovra-velvet-primary rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
+                        className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
                         style={secondaryButtonStyle}
                       >
                         Rename
@@ -615,7 +659,7 @@ export default function CaseDetailPage() {
                         variant="secondary"
                         onClick={() => setDeleteConfirm(true)}
                         disabled={operationLoading}
-                        className="proovra-velvet-primary rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
+                        className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
                         style={dangerButtonStyle}
                       >
                         Delete
@@ -626,7 +670,7 @@ export default function CaseDetailPage() {
                   <Button
                     onClick={handleExport}
                     disabled={operationLoading}
-                    className="proovra-velvet-primary rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
+                    className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
                     style={primaryButtonStyle}
                   >
                     Export ZIP
@@ -638,28 +682,46 @@ export default function CaseDetailPage() {
         </div>
       </div>
 
-      <div className="app-body app-body-full">
-        <div className="container" style={{ display: "grid", gap: 18, paddingBottom: 72 }}>
+      <div
+        className="app-body app-body-full pt-8 md:pt-10"
+        style={{
+          position: "relative",
+          overflow: "hidden",
+          background:
+            "linear-gradient(180deg, rgba(239,241,238,0.96) 0%, rgba(234,237,234,0.98) 100%)",
+        }}
+      >
+        <div className="pointer-events-none absolute inset-0 z-0" aria-hidden="true">
+          <img
+            src="/images/landing-network-bg.png"
+            alt=""
+            className="absolute inset-0 h-full w-full object-cover object-top opacity-[0.12] saturate-[0.55] brightness-[1.02] contrast-[0.94]"
+          />
+          <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.08)_0%,rgba(255,255,255,0.03)_22%,rgba(255,255,255,0.03)_78%,rgba(255,255,255,0.08)_100%)]" />
+          <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(255,255,255,0.10)_0%,rgba(255,255,255,0.03)_12%,rgba(255,255,255,0.00)_24%,rgba(255,255,255,0.00)_76%,rgba(255,255,255,0.03)_88%,rgba(255,255,255,0.10)_100%)]" />
+        </div>
+
+        <div className="container relative z-10" style={{ display: "grid", gap: 18, paddingBottom: 72 }}>
           {deleteConfirm && isOwner && (
             <Card
               className="relative overflow-hidden rounded-[30px] border bg-transparent p-0 shadow-none"
-              style={{ ...outerCardStyle, border: "1px solid rgba(220,120,120,0.24)" }}
+              style={{ ...outerCardStyle, border: "1px solid rgba(194,78,78,0.16)" }}
             >
               <div className="absolute inset-0">
                 <img
-                  src="/images/site-velvet-bg.webp.png"
+                  src="/images/panel-silver.webp.png"
                   alt=""
-                  className="h-full w-full object-cover object-center scale-[1.12]"
+                  className="h-full w-full object-cover object-center"
                 />
               </div>
-              <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(70,20,20,0.24)_0%,rgba(20,10,10,0.58)_100%)]" />
+              <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,243,243,0.92)_0%,rgba(248,239,235,0.86)_100%)]" />
 
               <div className="relative z-10 p-6">
                 <div
                   style={{
                     fontSize: 22,
                     fontWeight: 700,
-                    color: "#ffe5e5",
+                    color: "#8f2d2d",
                     letterSpacing: "-0.03em",
                   }}
                 >
@@ -669,7 +731,7 @@ export default function CaseDetailPage() {
                 <p
                   style={{
                     marginTop: 10,
-                    color: "rgba(255,224,224,0.78)",
+                    color: "#a65353",
                     lineHeight: 1.75,
                   }}
                 >
@@ -681,7 +743,7 @@ export default function CaseDetailPage() {
                     variant="secondary"
                     onClick={() => setDeleteConfirm(false)}
                     disabled={operationLoading}
-                    className="proovra-velvet-primary rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
+                    className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
                     style={secondaryButtonStyle}
                   >
                     Cancel
@@ -690,7 +752,7 @@ export default function CaseDetailPage() {
                   <Button
                     onClick={handleDeleteCase}
                     disabled={operationLoading}
-                    className="proovra-velvet-primary rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
+                    className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
                     style={dangerButtonStyle}
                   >
                     Delete Case
@@ -706,21 +768,20 @@ export default function CaseDetailPage() {
           >
             <div className="absolute inset-0">
               <img
-                src="/images/site-velvet-bg.webp.png"
+                src="/images/panel-silver.webp.png"
                 alt=""
-                className="h-full w-full object-cover object-center scale-[1.12]"
+                className="h-full w-full object-cover object-center"
               />
             </div>
-            <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(8,20,24,0.82)_0%,rgba(7,18,22,0.88)_100%)]" />
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_14%,rgba(158,216,207,0.05),transparent_28%)]" />
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_86%_18%,rgba(214,184,157,0.04),transparent_24%)]" />
+            <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.24)_0%,rgba(248,249,246,0.34)_42%,rgba(239,241,238,0.42)_100%)]" />
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_16%_12%,rgba(255,255,255,0.34),transparent_28%)] opacity-90" />
 
             <div className="relative z-10 p-6 md:p-7">
               <div
                 style={{
                   fontWeight: 700,
                   marginBottom: 14,
-                  color: "#d8e0dd",
+                  color: "#21353a",
                   letterSpacing: "-0.02em",
                   fontSize: 20,
                 }}
@@ -729,7 +790,7 @@ export default function CaseDetailPage() {
               </div>
 
               {caseData.access.length === 0 ? (
-                <div style={{ color: "rgba(194,204,201,0.76)" }}>Not shared with anyone yet.</div>
+                <div style={{ color: "#5d6d71" }}>Not shared with anyone yet.</div>
               ) : (
                 <div style={{ display: "grid", gap: 10, marginBottom: isOwner ? 16 : 0 }}>
                   {caseData.access.map((access) => {
@@ -750,9 +811,9 @@ export default function CaseDetailPage() {
                         }}
                       >
                         <div>
-                          <div style={{ color: "#d8e0dd", fontWeight: 700 }}>{displayLabel}</div>
+                          <div style={{ color: "#23373b", fontWeight: 700 }}>{displayLabel}</div>
                           {access.user?.email && access.user.displayName && (
-                            <div style={{ color: "rgba(194,204,201,0.72)", fontSize: 13, marginTop: 4 }}>
+                            <div style={{ color: "#6a777b", fontSize: 13, marginTop: 4 }}>
                               {access.user.email}
                             </div>
                           )}
@@ -763,7 +824,7 @@ export default function CaseDetailPage() {
                             variant="secondary"
                             onClick={() => handleRevokeAccess(access.id)}
                             disabled={operationLoading}
-                            className="proovra-velvet-primary rounded-[999px] border px-4 py-2.5 text-[0.88rem] font-semibold"
+                            className="rounded-[999px] border px-4 py-2.5 text-[0.88rem] font-semibold"
                             style={dangerButtonStyle}
                           >
                             Remove
@@ -781,8 +842,8 @@ export default function CaseDetailPage() {
                     variant="secondary"
                     onClick={() => setShowSharePanel(!showSharePanel)}
                     disabled={operationLoading}
-                    className="proovra-velvet-primary rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
-                    style={secondaryButtonStyle}
+                    className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
+                    style={tertiaryButtonStyle}
                   >
                     {showSharePanel ? "Close" : "Share Case"}
                   </Button>
@@ -792,16 +853,18 @@ export default function CaseDetailPage() {
                       style={{
                         marginTop: 14,
                         padding: 16,
-                        borderRadius: 20,
-                        background:
-                          "linear-gradient(180deg, rgba(62,98,96,0.18) 0%, rgba(14,30,34,0.28) 100%)",
-                        border: "1px solid rgba(158,216,207,0.14)",
-                        boxShadow:
-                          "inset 0 1px 0 rgba(255,255,255,0.04), 0 14px 28px rgba(0,0,0,0.08)",
+                        ...rowCardStyle,
                       }}
                     >
                       <div style={{ display: "flex", gap: 16, flexWrap: "wrap", marginBottom: 14 }}>
-                        <label style={{ color: "#c7d1ce", display: "flex", alignItems: "center", gap: 8 }}>
+                        <label
+                          style={{
+                            color: "#42565b",
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 8,
+                          }}
+                        >
                           <input
                             type="radio"
                             value="team"
@@ -814,7 +877,14 @@ export default function CaseDetailPage() {
                           <span>Share with Team Member</span>
                         </label>
 
-                        <label style={{ color: "#c7d1ce", display: "flex", alignItems: "center", gap: 8 }}>
+                        <label
+                          style={{
+                            color: "#42565b",
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 8,
+                          }}
+                        >
                           <input
                             type="radio"
                             value="email"
@@ -844,18 +914,17 @@ export default function CaseDetailPage() {
                                   padding: "0 16px",
                                   borderRadius: 18,
                                   fontSize: 15,
-                                  background: "rgba(255,255,255,0.05)",
-                                  border: "1px solid rgba(183,157,132,0.16)",
-                                  color: "#d8e0dd",
+                                  background:
+                                    "linear-gradient(180deg, rgba(250,251,249,0.94) 0%, rgba(241,244,241,0.98) 100%)",
+                                  border: "1px solid rgba(79,112,107,0.14)",
+                                  color: "#23373b",
+                                  boxShadow:
+                                    "inset 0 1px 0 rgba(255,255,255,0.68), 0 10px 22px rgba(0,0,0,0.05)",
                                 }}
                               >
                                 <option value="">Select a team member...</option>
                                 {teamMembers.map((member) => (
-                                  <option
-                                    key={member.userId}
-                                    value={member.userId}
-                                    style={{ color: "#102126" }}
-                                  >
+                                  <option key={member.userId} value={member.userId}>
                                     {member.label}
                                   </option>
                                 ))}
@@ -864,14 +933,14 @@ export default function CaseDetailPage() {
                               <Button
                                 onClick={handleShareTeam}
                                 disabled={!selectedTeamMemberId || operationLoading}
-                                className="proovra-velvet-primary rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
+                                className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
                                 style={primaryButtonStyle}
                               >
                                 Share with Member
                               </Button>
                             </>
                           ) : (
-                            <div style={{ color: "rgba(194,204,201,0.76)" }}>
+                            <div style={{ color: "#5d6d71" }}>
                               This case is not associated with a team.
                             </div>
                           )
@@ -889,16 +958,19 @@ export default function CaseDetailPage() {
                                 padding: "0 16px",
                                 borderRadius: 18,
                                 fontSize: 15,
-                                background: "rgba(255,255,255,0.05)",
-                                border: "1px solid rgba(183,157,132,0.16)",
-                                color: "#d8e0dd",
+                                background:
+                                  "linear-gradient(180deg, rgba(250,251,249,0.94) 0%, rgba(241,244,241,0.98) 100%)",
+                                border: "1px solid rgba(79,112,107,0.14)",
+                                color: "#23373b",
+                                boxShadow:
+                                  "inset 0 1px 0 rgba(255,255,255,0.68), 0 10px 22px rgba(0,0,0,0.05)",
                               }}
                             />
 
                             <Button
                               onClick={handleShareEmail}
                               disabled={!shareEmail.trim() || operationLoading}
-                              className="proovra-velvet-primary rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
+                              className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
                               style={primaryButtonStyle}
                             >
                               Share by Email
@@ -919,21 +991,20 @@ export default function CaseDetailPage() {
           >
             <div className="absolute inset-0">
               <img
-                src="/images/site-velvet-bg.webp.png"
+                src="/images/panel-silver.webp.png"
                 alt=""
-                className="h-full w-full object-cover object-center scale-[1.12]"
+                className="h-full w-full object-cover object-center"
               />
             </div>
-            <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(8,20,24,0.82)_0%,rgba(7,18,22,0.88)_100%)]" />
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_14%,rgba(158,216,207,0.05),transparent_28%)]" />
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_86%_18%,rgba(214,184,157,0.04),transparent_24%)]" />
+            <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.24)_0%,rgba(248,249,246,0.34)_42%,rgba(239,241,238,0.42)_100%)]" />
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_16%_12%,rgba(255,255,255,0.34),transparent_28%)] opacity-90" />
 
             <div className="relative z-10 p-6 md:p-7">
               <div
                 style={{
                   fontWeight: 700,
                   marginBottom: 14,
-                  color: "#d8e0dd",
+                  color: "#21353a",
                   letterSpacing: "-0.02em",
                   fontSize: 20,
                 }}
@@ -950,14 +1021,15 @@ export default function CaseDetailPage() {
                       height: 70,
                       borderRadius: 20,
                       background:
-                        "linear-gradient(180deg, rgba(183,157,132,0.12) 0%, rgba(255,255,255,0.03) 100%)",
+                        "linear-gradient(180deg, rgba(214,184,157,0.12) 0%, rgba(255,255,255,0.56) 100%)",
                       border: "1px solid rgba(183,157,132,0.18)",
-                      color: "#d6b89d",
+                      color: "#8a6e57",
+                      boxShadow: "0 10px 22px rgba(0,0,0,0.08)",
                     }}
                   >
                     <Icons.Evidence />
                   </div>
-                  <div style={{ color: "rgba(194,204,201,0.76)" }}>
+                  <div style={{ color: "#5d6d71" }}>
                     No evidence in this case yet.
                   </div>
                 </div>
@@ -989,14 +1061,7 @@ export default function CaseDetailPage() {
                             ) : item.status === "REPORTED" ? (
                               <span
                                 className="inline-flex min-h-[28px] items-center justify-center rounded-full px-3 py-[5px] text-[10.5px] font-semibold uppercase tracking-[0.12em]"
-                                style={{
-                                  color: "#c3ebe2",
-                                  background:
-                                    "linear-gradient(180deg, rgba(195,235,226,0.12) 0%, rgba(255,255,255,0.03) 100%)",
-                                  border: "1px solid rgba(195,235,226,0.22)",
-                                  boxShadow:
-                                    "inset 0 1px 0 rgba(255,255,255,0.16), 0 4px 10px rgba(60,110,102,0.10)",
-                                }}
+                                style={reportReadyBadgeStyle}
                               >
                                 Report Ready
                               </span>
@@ -1013,7 +1078,7 @@ export default function CaseDetailPage() {
                             variant="secondary"
                             onClick={() => handleRemoveEvidence(item.id)}
                             disabled={operationLoading}
-                            className="proovra-velvet-primary rounded-[999px] border px-4 py-2.5 text-[0.88rem] font-semibold"
+                            className="rounded-[999px] border px-4 py-2.5 text-[0.88rem] font-semibold"
                             style={dangerButtonStyle}
                           >
                             Remove

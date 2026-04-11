@@ -95,39 +95,42 @@ function getDisplayStatusMeta(
     signed: string;
     processing: string;
   }
-): { label: string; className: string } {
+): {
+  label: string;
+  tone: "reportReady" | "signed" | "processing" | "ready";
+} {
   const status = (rawStatus ?? "").trim().toUpperCase();
 
   switch (status) {
     case "REPORTED":
       return {
         label: "Report Ready",
-        className: "evidence-pill evidence-pill-report-ready",
+        tone: "reportReady",
       };
     case "SIGNED":
       return {
         label: labels.signed,
-        className: "badge signed",
+        tone: "signed",
       };
     case "UPLOADED":
       return {
         label: "UPLOADED",
-        className: "badge ready",
+        tone: "ready",
       };
     case "UPLOADING":
       return {
         label: labels.processing,
-        className: "badge processing",
+        tone: "processing",
       };
     case "CREATED":
       return {
         label: "CREATED",
-        className: "badge processing",
+        tone: "processing",
       };
     default:
       return {
         label: status || "UNKNOWN",
-        className: "badge ready",
+        tone: "ready",
       };
   }
 }
@@ -1172,6 +1175,81 @@ export default function EvidenceDetailPage() {
       "inset 0 1px 0 rgba(255,255,255,0.55), 0 6px 14px rgba(41,83,85,0.05)",
   } as const;
 
+  const heroSignedStyle = {
+    border: "1px solid rgba(132, 211, 190, 0.22)",
+    background:
+      "linear-gradient(180deg, rgba(74, 124, 116, 0.34) 0%, rgba(19, 44, 41, 0.56) 100%)",
+    color: "#e4f6f0",
+    boxShadow:
+      "inset 0 1px 0 rgba(255,255,255,0.10), 0 8px 18px rgba(24,68,62,0.18)",
+    textShadow: "0 1px 0 rgba(0,0,0,0.20)",
+  } as const;
+
+  const silverSignedStyle = {
+    border: "1px solid rgba(93, 148, 138, 0.16)",
+    background:
+      "linear-gradient(180deg, rgba(213, 237, 230, 0.88) 0%, rgba(255,255,255,0.66) 100%)",
+    color: "#2f625d",
+    boxShadow:
+      "inset 0 1px 0 rgba(255,255,255,0.62), 0 6px 14px rgba(41,83,85,0.05)",
+  } as const;
+
+  const heroProcessingStyle = {
+    border: "1px solid rgba(245, 193, 94, 0.24)",
+    background:
+      "linear-gradient(180deg, rgba(168, 122, 32, 0.34) 0%, rgba(88, 60, 16, 0.56) 100%)",
+    color: "#fff3cf",
+    boxShadow:
+      "inset 0 1px 0 rgba(255,255,255,0.10), 0 8px 18px rgba(90,62,14,0.18)",
+    textShadow: "0 1px 0 rgba(0,0,0,0.20)",
+  } as const;
+
+  const silverProcessingStyle = {
+    border: "1px solid rgba(214, 170, 74, 0.18)",
+    background:
+      "linear-gradient(180deg, rgba(255, 239, 196, 0.92) 0%, rgba(255,255,255,0.68) 100%)",
+    color: "#9a6a10",
+    boxShadow:
+      "inset 0 1px 0 rgba(255,255,255,0.62), 0 6px 14px rgba(120,88,24,0.06)",
+  } as const;
+
+  const heroReadyStyle = {
+    border: "1px solid rgba(190, 198, 201, 0.18)",
+    background:
+      "linear-gradient(180deg, rgba(148, 163, 168, 0.20) 0%, rgba(255,255,255,0.05) 100%)",
+    color: "#edf2f1",
+    boxShadow:
+      "inset 0 1px 0 rgba(255,255,255,0.10), 0 8px 18px rgba(40,52,56,0.12)",
+    textShadow: "0 1px 0 rgba(0,0,0,0.18)",
+  } as const;
+
+  const silverReadyStyle = {
+    border: "1px solid rgba(79,112,107,0.12)",
+    background:
+      "linear-gradient(180deg, rgba(240,243,241,0.92) 0%, rgba(255,255,255,0.68) 100%)",
+    color: "#4a6064",
+    boxShadow:
+      "inset 0 1px 0 rgba(255,255,255,0.58), 0 6px 14px rgba(0,0,0,0.03)",
+  } as const;
+
+  const heroStatusStyle =
+    displayStatusMeta.tone === "reportReady"
+      ? heroReportReadyStyle
+      : displayStatusMeta.tone === "signed"
+        ? heroSignedStyle
+        : displayStatusMeta.tone === "processing"
+          ? heroProcessingStyle
+          : heroReadyStyle;
+
+  const silverStatusStyle =
+    displayStatusMeta.tone === "reportReady"
+      ? silverReportReadyStyle
+      : displayStatusMeta.tone === "signed"
+        ? silverSignedStyle
+        : displayStatusMeta.tone === "processing"
+          ? silverProcessingStyle
+          : silverReadyStyle;
+
   return (
     <div className="section app-section evidence-detail-page-shell">
       <div className="app-hero app-hero-full">
@@ -1214,15 +1292,12 @@ export default function EvidenceDetailPage() {
                 className="evidence-record-badges"
                 style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 16 }}
               >
-                {displayStatusMeta.label === "Report Ready" ? (
-                  <span className="evidence-pill evidence-pill-case" style={heroReportReadyStyle}>
-                    Report Ready
-                  </span>
-                ) : (
-                  <span className={displayStatusMeta.className}>
-                    {displayStatusMeta.label}
-                  </span>
-                )}
+<span
+  className="evidence-pill evidence-pill-case"
+  style={heroStatusStyle}
+>
+  {displayStatusMeta.label}
+</span>
 
                 {hasCase && (
                   <span className="evidence-pill evidence-pill-case">
@@ -1588,18 +1663,12 @@ export default function EvidenceDetailPage() {
               Current Status
             </div>
             <div style={{ marginTop: 10 }}>
-              {displayStatusMeta.label === "Report Ready" ? (
-                <span
-                  className="inline-flex items-center rounded-full px-3 py-1.5 text-[0.76rem] font-semibold"
-                  style={silverReportReadyStyle}
-                >
-                  Report Ready
-                </span>
-              ) : (
-                <span className={displayStatusMeta.className}>
-                  {displayStatusMeta.label}
-                </span>
-              )}
+<span
+  className="inline-flex items-center rounded-full px-3 py-1.5 text-[0.76rem] font-semibold"
+  style={silverStatusStyle}
+>
+  {displayStatusMeta.label}
+</span>
             </div>
           </div>
 

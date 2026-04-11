@@ -761,9 +761,9 @@ export default function CapturePage() {
   const outerCardStyle = useMemo(
     () =>
       ({
-        border: "1px solid rgba(183,157,132,0.18)",
+        border: "1px solid rgba(79,112,107,0.16)",
         boxShadow:
-          "0 22px 42px rgba(0,0,0,0.16), inset 0 1px 0 rgba(255,255,255,0.03)",
+          "0 18px 38px rgba(0,0,0,0.08), inset 0 1px 0 rgba(255,255,255,0.48)",
       }) as const,
     []
   );
@@ -771,14 +771,15 @@ export default function CapturePage() {
   const primaryButtonStyle = useMemo(
     () =>
       ({
-        borderColor: "rgba(158,216,207,0.14)",
-        color: "#aebbb6",
+        borderColor: "rgba(79,112,107,0.22)",
+        color: "#eef3f1",
         background:
-          "linear-gradient(180deg, rgba(62,98,96,0.26) 0%, rgba(14,30,34,0.38) 100%)",
+          "linear-gradient(180deg, rgba(58,92,95,0.96) 0%, rgba(20,38,42,0.98) 100%)",
         boxShadow:
-          "inset 0 1px 0 rgba(255,255,255,0.04), 0 14px 28px rgba(0,0,0,0.08)",
-        backdropFilter: "blur(10px)",
-        WebkitBackdropFilter: "blur(10px)",
+          "inset 0 1px 0 rgba(255,255,255,0.08), 0 16px 34px rgba(18,40,44,0.22)",
+        textShadow: "0 1px 0 rgba(0,0,0,0.22)",
+        backdropFilter: "blur(6px)",
+        WebkitBackdropFilter: "blur(6px)",
       }) as const,
     []
   );
@@ -786,16 +787,45 @@ export default function CapturePage() {
   const secondaryButtonStyle = useMemo(
     () =>
       ({
-        borderColor: "rgba(79,112,107,0.18)",
-        color: "#aebbb6",
-        backgroundImage:
-          "linear-gradient(180deg, rgba(8,20,24,0.78) 0%, rgba(7,18,22,0.88) 100%), url('/images/site-velvet-bg.webp.png')",
-        backgroundSize: "cover",
-        backgroundPosition: "center",
+        borderColor: "rgba(79,112,107,0.12)",
+        color: "#24373b",
+        background:
+          "linear-gradient(180deg, rgba(250,251,249,0.82) 0%, rgba(241,244,241,0.96) 100%)",
         boxShadow:
-          "inset 0 1px 0 rgba(255,255,255,0.03), 0 14px 28px rgba(0,0,0,0.10)",
-        backdropFilter: "blur(10px)",
-        WebkitBackdropFilter: "blur(10px)",
+          "0 10px 20px rgba(0,0,0,0.05), inset 0 1px 0 rgba(255,255,255,0.70)",
+        textShadow: "0 1px 0 rgba(255,255,255,0.30)",
+        backdropFilter: "blur(6px)",
+        WebkitBackdropFilter: "blur(6px)",
+      }) as const,
+    []
+  );
+
+  const tertiaryButtonStyle = useMemo(
+    () =>
+      ({
+        borderColor: "rgba(183,157,132,0.16)",
+        color: "#7a624d",
+        background:
+          "linear-gradient(180deg, rgba(244,238,232,0.88) 0%, rgba(255,255,255,0.64) 100%)",
+        boxShadow:
+          "0 10px 20px rgba(92,69,50,0.05), inset 0 1px 0 rgba(255,255,255,0.72)",
+        textShadow: "0 1px 0 rgba(255,255,255,0.32)",
+        backdropFilter: "blur(6px)",
+        WebkitBackdropFilter: "blur(6px)",
+      }) as const,
+    []
+  );
+
+  const softCardStyle = useMemo(
+    () =>
+      ({
+        border: "1px solid rgba(79,112,107,0.10)",
+        background:
+          "linear-gradient(180deg, rgba(255,255,255,0.58) 0%, rgba(243,245,242,0.90) 100%)",
+        boxShadow:
+          "inset 0 1px 0 rgba(255,255,255,0.42), 0 12px 26px rgba(0,0,0,0.06)",
+        backdropFilter: "blur(8px)",
+        WebkitBackdropFilter: "blur(8px)",
       }) as const,
     []
   );
@@ -828,7 +858,7 @@ export default function CapturePage() {
                 style={{
                   display: "inline-flex",
                   alignItems: "center",
-                  gap: 8,
+                  gap: "0.72rem",
                   borderRadius: 999,
                   border: "1px solid rgba(255,255,255,0.10)",
                   background: "rgba(255,255,255,0.04)",
@@ -845,12 +875,13 @@ export default function CapturePage() {
               >
                 <span
                   style={{
-                    width: 4,
-                    height: 4,
+                    width: 6,
+                    height: 6,
                     borderRadius: 999,
                     background: "#b79d84",
-                    opacity: 0.8,
+                    opacity: 0.95,
                     display: "inline-block",
+                    flexShrink: 0,
                   }}
                 />
                 {t("capture")}
@@ -937,22 +968,39 @@ export default function CapturePage() {
         </div>
       </div>
 
-      <div className="app-body app-body-full">
-        <div className="container">
+      <div
+        className="app-body app-body-full pt-8 md:pt-10"
+        style={{
+          position: "relative",
+          overflow: "hidden",
+          background:
+            "linear-gradient(180deg, rgba(239,241,238,0.96) 0%, rgba(234,237,234,0.98) 100%)",
+        }}
+      >
+        <div className="pointer-events-none absolute inset-0 z-0" aria-hidden="true">
+          <img
+            src="/images/landing-network-bg.png"
+            alt=""
+            className="absolute inset-0 h-full w-full object-cover object-top opacity-[0.12] saturate-[0.55] brightness-[1.02] contrast-[0.94]"
+          />
+          <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.08)_0%,rgba(255,255,255,0.03)_22%,rgba(255,255,255,0.03)_78%,rgba(255,255,255,0.08)_100%)]" />
+          <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(255,255,255,0.10)_0%,rgba(255,255,255,0.03)_12%,rgba(255,255,255,0.00)_24%,rgba(255,255,255,0.00)_76%,rgba(255,255,255,0.03)_88%,rgba(255,255,255,0.10)_100%)]" />
+        </div>
+
+        <div className="container relative z-10">
           <Card
             className="relative overflow-hidden rounded-[30px] border bg-transparent p-0 shadow-none"
             style={outerCardStyle}
           >
             <div className="absolute inset-0">
               <img
-                src="/images/site-velvet-bg.webp.png"
+                src="/images/panel-silver.webp.png"
                 alt=""
-                className="h-full w-full scale-[1.12] object-cover object-center"
+                className="h-full w-full object-cover object-center"
               />
             </div>
-            <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(8,20,24,0.82)_0%,rgba(7,18,22,0.88)_100%)]" />
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_14%,rgba(158,216,207,0.05),transparent_28%)]" />
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_86%_18%,rgba(214,184,157,0.04),transparent_24%)]" />
+            <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.24)_0%,rgba(248,249,246,0.34)_42%,rgba(239,241,238,0.42)_100%)]" />
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_16%_12%,rgba(255,255,255,0.34),transparent_28%)] opacity-90" />
 
             <div className="relative z-10 p-6 md:p-7">
               <div style={{ display: "grid", gap: 18, padding: 2 }}>
@@ -961,42 +1009,43 @@ export default function CapturePage() {
                     { label: t("photo"), value: "PHOTO" },
                     { label: t("video"), value: "VIDEO" },
                     { label: t("document"), value: "DOCUMENT" },
-                  ] as const).map((item) => (
-                    <button
-                      key={item.value}
-                      type="button"
-                      className="capture-type-pill"
-                      onClick={() => {
-                        setType(item.value);
-                        setError(null);
-                        setCameraError(null);
-                        closeCamera();
-                        if (fileInputRef.current) {
-                          fileInputRef.current.value = "";
-                        }
-                      }}
-                      style={{
-                        borderRadius: 999,
-                        padding: "10px 16px",
-                        fontWeight: 700,
-                        border:
-                          type === item.value
-                            ? "1px solid rgba(214,184,157,0.20)"
-                            : "1px solid rgba(255,255,255,0.08)",
-                        background:
-                          type === item.value
-                            ? "linear-gradient(180deg, rgba(183,157,132,0.12) 0%, rgba(255,255,255,0.03) 100%)"
-                            : "rgba(255,255,255,0.04)",
-                        color: type === item.value ? "#dcc0a5" : "#c7d1ce",
-                        boxShadow:
-                          type === item.value
-                            ? "0 10px 24px rgba(0,0,0,0.12)"
-                            : "none",
-                      }}
-                    >
-                      {item.label}
-                    </button>
-                  ))}
+                  ] as const).map((item) => {
+                    const active = type === item.value;
+
+                    return (
+                      <button
+                        key={item.value}
+                        type="button"
+                        className="capture-type-pill"
+                        onClick={() => {
+                          setType(item.value);
+                          setError(null);
+                          setCameraError(null);
+                          closeCamera();
+                          if (fileInputRef.current) {
+                            fileInputRef.current.value = "";
+                          }
+                        }}
+                        style={{
+                          borderRadius: 999,
+                          padding: "10px 16px",
+                          fontWeight: 700,
+                          border: active
+                            ? "1px solid rgba(79,112,107,0.18)"
+                            : "1px solid rgba(79,112,107,0.10)",
+                          background: active
+                            ? "linear-gradient(180deg, rgba(191,232,223,0.20) 0%, rgba(255,255,255,0.46) 100%)"
+                            : "linear-gradient(180deg, rgba(250,251,249,0.72) 0%, rgba(241,244,241,0.88) 100%)",
+                          color: active ? "#2d5b59" : "#5d6d71",
+                          boxShadow: active
+                            ? "inset 0 1px 0 rgba(255,255,255,0.58), 0 8px 18px rgba(0,0,0,0.05)"
+                            : "inset 0 1px 0 rgba(255,255,255,0.58)",
+                        }}
+                      >
+                        {item.label}
+                      </button>
+                    );
+                  })}
                 </div>
 
                 <input
@@ -1021,14 +1070,14 @@ export default function CapturePage() {
                 />
 
                 <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-<Button
-  variant="secondary"
-  onClick={openFilePicker}
-  disabled={busy || sessionCreating}
-  className="proovra-velvet-primary rounded-[999px] border px-5 py-3 text-[0.95rem] font-medium"
-  style={secondaryButtonStyle}
->
-                      {type === "PHOTO"
+                  <Button
+                    variant="secondary"
+                    onClick={openFilePicker}
+                    disabled={busy || sessionCreating}
+                    className="rounded-[999px] border px-5 py-3 text-[0.95rem] font-medium"
+                    style={secondaryButtonStyle}
+                  >
+                    {type === "PHOTO"
                       ? "Add Photos"
                       : type === "VIDEO"
                         ? "Add Videos"
@@ -1036,14 +1085,14 @@ export default function CapturePage() {
                   </Button>
 
                   {type !== "DOCUMENT" ? (
-<Button
-  variant="secondary"
-  onClick={() => openCamera(type === "PHOTO" ? "PHOTO" : "VIDEO")}
-  disabled={busy || sessionCreating}
-  className="proovra-velvet-primary rounded-[999px] border px-5 py-3 text-[0.95rem] font-medium"
-  style={secondaryButtonStyle}
->
-                        {type === "PHOTO" ? "Open Camera" : "Open Video Recorder"}
+                    <Button
+                      variant="secondary"
+                      onClick={() => openCamera(type === "PHOTO" ? "PHOTO" : "VIDEO")}
+                      disabled={busy || sessionCreating}
+                      className="rounded-[999px] border px-5 py-3 text-[0.95rem] font-medium"
+                      style={tertiaryButtonStyle}
+                    >
+                      {type === "PHOTO" ? "Open Camera" : "Open Video Recorder"}
                     </Button>
                   ) : null}
                 </div>
@@ -1060,16 +1109,16 @@ export default function CapturePage() {
                     borderRadius: 24,
                     border: "1px dashed rgba(183,157,132,0.18)",
                     background:
-                      "linear-gradient(180deg, rgba(255,255,255,0.035), rgba(255,255,255,0.02))",
+                      "linear-gradient(180deg, rgba(255,255,255,0.54), rgba(244,246,243,0.86))",
                     boxShadow:
-                      "inset 0 1px 0 rgba(255,255,255,0.03), 0 18px 38px rgba(0,0,0,0.10)",
+                      "inset 0 1px 0 rgba(255,255,255,0.58), 0 18px 38px rgba(0,0,0,0.05)",
                     padding: "34px 22px",
                   }}
                 >
                   <div
                     className="drop-hint"
                     style={{
-                      color: "#d8e0dd",
+                      color: "#23373b",
                       fontWeight: 600,
                       fontSize: 15,
                     }}
@@ -1089,7 +1138,7 @@ export default function CapturePage() {
                     display: "flex",
                     alignItems: "center",
                     gap: 10,
-                    color: "rgba(199,209,206,0.92)",
+                    color: "#42565b",
                     fontSize: 14,
                   }}
                 >
@@ -1108,9 +1157,9 @@ export default function CapturePage() {
                     style={{
                       padding: 12,
                       borderRadius: 14,
-                      background: "rgba(127,29,29,0.16)",
-                      border: "1px solid rgba(248,113,113,0.16)",
-                      color: "#ffd7d7",
+                      background: "rgba(255,243,243,0.90)",
+                      border: "1px solid rgba(194,78,78,0.14)",
+                      color: "#b42318",
                     }}
                   >
                     Location was not granted. The current session will continue without GPS metadata.
@@ -1123,13 +1172,7 @@ export default function CapturePage() {
                     style={{
                       padding: 18,
                       borderRadius: 24,
-                      background:
-                        "linear-gradient(180deg, rgba(62,98,96,0.18) 0%, rgba(14,30,34,0.28) 100%)",
-                      border: "1px solid rgba(158,216,207,0.14)",
-                      boxShadow:
-                        "inset 0 1px 0 rgba(255,255,255,0.04), 0 18px 40px rgba(0,0,0,0.16)",
-                      backdropFilter: "blur(10px)",
-                      WebkitBackdropFilter: "blur(10px)",
+                      ...softCardStyle,
                     }}
                   >
                     <div
@@ -1145,7 +1188,7 @@ export default function CapturePage() {
                       <div
                         className="capture-preview-title"
                         style={{
-                          color: "#d8e0dd",
+                          color: "#21353a",
                           fontWeight: 800,
                           fontSize: 16,
                         }}
@@ -1160,9 +1203,9 @@ export default function CapturePage() {
                           padding: "7px 12px",
                           borderRadius: 999,
                           background:
-                            "linear-gradient(180deg, rgba(183,157,132,0.12) 0%, rgba(255,255,255,0.03) 100%)",
-                          border: "1px solid rgba(214,184,157,0.20)",
-                          color: "#dcc0a5",
+                            "linear-gradient(180deg, rgba(214,184,157,0.12) 0%, rgba(255,255,255,0.56) 100%)",
+                          border: "1px solid rgba(183,157,132,0.18)",
+                          color: "#8a6e57",
                           fontSize: 12,
                           fontWeight: 800,
                         }}
@@ -1174,7 +1217,7 @@ export default function CapturePage() {
                     <div
                       style={{
                         display: "grid",
-                        gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))",
+                        gridTemplateColumns: "repeat(auto-fill, minmax(170px, 1fr))",
                         gap: 12,
                       }}
                     >
@@ -1185,16 +1228,17 @@ export default function CapturePage() {
                             borderRadius: 18,
                             overflow: "hidden",
                             background:
-                              "linear-gradient(180deg, rgba(9,22,27,0.88) 0%, rgba(8,18,23,0.94) 100%)",
-                            border: "1px solid rgba(158,216,207,0.12)",
-                            boxShadow: "0 14px 30px rgba(0,0,0,0.16)",
+                              "linear-gradient(180deg, rgba(255,255,255,0.66) 0%, rgba(243,245,242,0.94) 100%)",
+                            border: "1px solid rgba(79,112,107,0.10)",
+                            boxShadow:
+                              "inset 0 1px 0 rgba(255,255,255,0.62), 0 12px 24px rgba(0,0,0,0.05)",
                           }}
                         >
                           <div
                             style={{
                               position: "relative",
                               aspectRatio: "1 / 1",
-                              background: "rgba(3, 10, 24, 0.95)",
+                              background: "rgba(232,236,233,0.92)",
                               display: "flex",
                               alignItems: "center",
                               justifyContent: "center",
@@ -1209,9 +1253,10 @@ export default function CapturePage() {
                                 minWidth: 28,
                                 height: 28,
                                 borderRadius: 999,
-                                background: "rgba(2, 6, 23, 0.82)",
-                                border: "1px solid rgba(214,184,157,0.25)",
-                                color: "#f2e0cf",
+                                background:
+                                  "linear-gradient(180deg, rgba(58,92,95,0.92) 0%, rgba(20,38,42,0.96) 100%)",
+                                border: "1px solid rgba(79,112,107,0.20)",
+                                color: "#eef3f1",
                                 display: "grid",
                                 placeItems: "center",
                                 fontSize: 12,
@@ -1234,8 +1279,9 @@ export default function CapturePage() {
                                   width: 30,
                                   height: 30,
                                   borderRadius: 999,
-                                  border: "1px solid rgba(239, 68, 68, 0.35)",
-                                  background: "rgba(127, 29, 29, 0.78)",
+                                  border: "1px solid rgba(194,78,78,0.20)",
+                                  background:
+                                    "linear-gradient(180deg, rgba(164,84,84,0.94) 0%, rgba(130,62,62,0.98) 100%)",
                                   color: "#fff",
                                   cursor: "pointer",
                                   fontWeight: 800,
@@ -1272,9 +1318,10 @@ export default function CapturePage() {
                                 style={{
                                   padding: 16,
                                   textAlign: "center",
-                                  color: "#cbd5e1",
+                                  color: "#55696d",
                                   fontSize: 13,
                                   lineHeight: 1.5,
+                                  fontWeight: 600,
                                 }}
                               >
                                 Document
@@ -1285,7 +1332,7 @@ export default function CapturePage() {
                           <div style={{ padding: 12, display: "grid", gap: 8 }}>
                             <div
                               style={{
-                                color: "#d8e0dd",
+                                color: "#23373b",
                                 fontSize: 13,
                                 fontWeight: 700,
                                 whiteSpace: "nowrap",
@@ -1297,7 +1344,7 @@ export default function CapturePage() {
                               {item.file.name}
                             </div>
 
-                            <div style={{ fontSize: 12, color: "rgba(194,204,201,0.60)" }}>
+                            <div style={{ fontSize: 12, color: "#6a777b" }}>
                               {(item.file.size / 1024 / 1024).toFixed(2)} MB
                             </div>
 
@@ -1305,7 +1352,7 @@ export default function CapturePage() {
                               style={{
                                 height: 8,
                                 borderRadius: 999,
-                                background: "rgba(148, 163, 184, 0.14)",
+                                background: "rgba(79,112,107,0.10)",
                                 overflow: "hidden",
                               }}
                             >
@@ -1314,13 +1361,13 @@ export default function CapturePage() {
                                   width: `${item.uploadProgress}%`,
                                   height: "100%",
                                   background:
-                                    "linear-gradient(90deg, rgba(195,235,226,0.85), rgba(158,216,207,0.65))",
+                                    "linear-gradient(90deg, rgba(45,91,89,0.92), rgba(191,232,223,0.86))",
                                   transition: "width 0.2s ease",
                                 }}
                               />
                             </div>
 
-                            <div style={{ fontSize: 12, color: "#cbd5e1" }}>
+                            <div style={{ fontSize: 12, color: "#55696d" }}>
                               {item.uploading
                                 ? `Uploading ${item.uploadProgress}%`
                                 : item.uploadProgress === 100
@@ -1328,7 +1375,17 @@ export default function CapturePage() {
                                   : "Ready"}
                             </div>
 
-                            {item.error ? <div className="error-text">{item.error}</div> : null}
+                            {item.error ? (
+                              <div
+                                style={{
+                                  fontSize: 12,
+                                  color: "#b42318",
+                                  lineHeight: 1.5,
+                                }}
+                              >
+                                {item.error}
+                              </div>
+                            ) : null}
                           </div>
                         </div>
                       ))}
@@ -1342,9 +1399,10 @@ export default function CapturePage() {
                     style={{
                       padding: 12,
                       borderRadius: 14,
-                      background: "rgba(255,255,255,0.04)",
-                      border: "1px solid rgba(255,255,255,0.06)",
-                      color: "#c7d1ce",
+                      background:
+                        "linear-gradient(180deg, rgba(250,251,249,0.82) 0%, rgba(241,244,241,0.96) 100%)",
+                      border: "1px solid rgba(79,112,107,0.10)",
+                      color: "#42565b",
                     }}
                   >
                     {busy ? `Uploading… ${progress}%` : "Preparing session..."}
@@ -1357,9 +1415,10 @@ export default function CapturePage() {
                     style={{
                       padding: 12,
                       borderRadius: 14,
-                      background: "rgba(255,255,255,0.04)",
-                      border: "1px solid rgba(255,255,255,0.06)",
-                      color: "#c7d1ce",
+                      background:
+                        "linear-gradient(180deg, rgba(250,251,249,0.82) 0%, rgba(241,244,241,0.96) 100%)",
+                      border: "1px solid rgba(79,112,107,0.10)",
+                      color: "#42565b",
                     }}
                   >
                     {sessionInfo}
@@ -1372,9 +1431,9 @@ export default function CapturePage() {
                     style={{
                       padding: 12,
                       borderRadius: 14,
-                      background: "rgba(127,29,29,0.16)",
-                      border: "1px solid rgba(248,113,113,0.16)",
-                      color: "#ffd7d7",
+                      background: "rgba(255,243,243,0.90)",
+                      border: "1px solid rgba(194,78,78,0.14)",
+                      color: "#b42318",
                     }}
                   >
                     {error}
@@ -1382,23 +1441,23 @@ export default function CapturePage() {
                 ) : null}
 
                 <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-<Button
-  onClick={finalizeSession}
-  disabled={busy || sessionCreating || sessionItems.length === 0}
-  className="proovra-velvet-primary rounded-[999px] border px-5 py-3 text-[0.95rem] font-medium"
-  style={primaryButtonStyle}
->
-                      {busy ? "Capturing..." : "Finish & Sign"}
+                  <Button
+                    onClick={finalizeSession}
+                    disabled={busy || sessionCreating || sessionItems.length === 0}
+                    className="rounded-[999px] border px-5 py-3 text-[0.95rem] font-medium"
+                    style={primaryButtonStyle}
+                  >
+                    {busy ? "Capturing..." : "Finish & Sign"}
                   </Button>
 
-<Button
-  variant="secondary"
-  onClick={resetCaptureState}
-  disabled={busy || sessionItems.length === 0}
-  className="proovra-velvet-primary rounded-[999px] border px-5 py-3 text-[0.95rem] font-medium"
-  style={secondaryButtonStyle}
->
-                      Clear Session
+                  <Button
+                    variant="secondary"
+                    onClick={resetCaptureState}
+                    disabled={busy || sessionItems.length === 0}
+                    className="rounded-[999px] border px-5 py-3 text-[0.95rem] font-medium"
+                    style={secondaryButtonStyle}
+                  >
+                    Clear Session
                   </Button>
                 </div>
               </div>

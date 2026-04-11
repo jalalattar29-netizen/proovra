@@ -23,6 +23,44 @@ type TeamListItem = {
   createdAt?: string;
 };
 
+function formatLocalDateTime(value: string | null | undefined): string {
+  if (!value) return "Not available";
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "Not available";
+
+  return date.toLocaleString();
+}
+
+function roleTone(role?: string) {
+  const normalized = (role ?? "").toUpperCase();
+
+  if (normalized === "OWNER") {
+    return {
+      border: "1px solid rgba(183,157,132,0.20)",
+      background:
+        "linear-gradient(180deg, rgba(214,184,157,0.14) 0%, rgba(255,255,255,0.44) 100%)",
+      color: "#8a6e57",
+    } as const;
+  }
+
+  if (normalized === "ADMIN") {
+    return {
+      border: "1px solid rgba(79,112,107,0.18)",
+      background:
+        "linear-gradient(180deg, rgba(191,232,223,0.20) 0%, rgba(255,255,255,0.44) 100%)",
+      color: "#2d5b59",
+    } as const;
+  }
+
+  return {
+    border: "1px solid rgba(79,112,107,0.12)",
+    background:
+      "linear-gradient(180deg, rgba(250,251,249,0.82) 0%, rgba(241,244,241,0.96) 100%)",
+    color: "#4d6165",
+  } as const;
+}
+
 export default function TeamsPage() {
   const { addToast } = useToast();
   const [teams, setTeams] = useState<TeamListItem[]>([]);
@@ -112,12 +150,12 @@ export default function TeamsPage() {
     }
   };
 
-  const velvetCardStyle = useMemo(
+  const silverCardStyle = useMemo(
     () =>
       ({
-        border: "1px solid rgba(183,157,132,0.18)",
+        border: "1px solid rgba(79,112,107,0.16)",
         boxShadow:
-          "0 22px 42px rgba(0,0,0,0.16), inset 0 1px 0 rgba(255,255,255,0.03)",
+          "0 18px 38px rgba(0,0,0,0.08), inset 0 1px 0 rgba(255,255,255,0.48)",
       }) as const,
     []
   );
@@ -125,14 +163,15 @@ export default function TeamsPage() {
   const primaryButtonStyle = useMemo(
     () =>
       ({
-        borderColor: "rgba(158,216,207,0.14)",
-        color: "#aebbb6",
+        borderColor: "rgba(79,112,107,0.22)",
+        color: "#eef3f1",
         background:
-          "linear-gradient(180deg, rgba(62,98,96,0.26) 0%, rgba(14,30,34,0.38) 100%)",
+          "linear-gradient(180deg, rgba(58,92,95,0.96) 0%, rgba(20,38,42,0.98) 100%)",
         boxShadow:
-          "inset 0 1px 0 rgba(255,255,255,0.04), 0 14px 28px rgba(0,0,0,0.08)",
-        backdropFilter: "blur(10px)",
-        WebkitBackdropFilter: "blur(10px)",
+          "inset 0 1px 0 rgba(255,255,255,0.08), 0 16px 34px rgba(18,40,44,0.22)",
+        textShadow: "0 1px 0 rgba(0,0,0,0.22)",
+        backdropFilter: "blur(6px)",
+        WebkitBackdropFilter: "blur(6px)",
       }) as const,
     []
   );
@@ -140,16 +179,31 @@ export default function TeamsPage() {
   const secondaryButtonStyle = useMemo(
     () =>
       ({
-        borderColor: "rgba(79,112,107,0.18)",
-        color: "#aebbb6",
-        backgroundImage:
-          "linear-gradient(180deg, rgba(8,20,24,0.78) 0%, rgba(7,18,22,0.88) 100%), url('/images/site-velvet-bg.webp.png')",
-        backgroundSize: "cover",
-        backgroundPosition: "center",
+        borderColor: "rgba(79,112,107,0.12)",
+        color: "#24373b",
+        background:
+          "linear-gradient(180deg, rgba(250,251,249,0.82) 0%, rgba(241,244,241,0.96) 100%)",
         boxShadow:
-          "inset 0 1px 0 rgba(255,255,255,0.03), 0 14px 28px rgba(0,0,0,0.10)",
-        backdropFilter: "blur(10px)",
-        WebkitBackdropFilter: "blur(10px)",
+          "0 10px 20px rgba(0,0,0,0.05), inset 0 1px 0 rgba(255,255,255,0.70)",
+        textShadow: "0 1px 0 rgba(255,255,255,0.30)",
+        backdropFilter: "blur(6px)",
+        WebkitBackdropFilter: "blur(6px)",
+      }) as const,
+    []
+  );
+
+  const tertiaryButtonStyle = useMemo(
+    () =>
+      ({
+        borderColor: "rgba(183,157,132,0.16)",
+        color: "#7a624d",
+        background:
+          "linear-gradient(180deg, rgba(244,238,232,0.88) 0%, rgba(255,255,255,0.64) 100%)",
+        boxShadow:
+          "0 10px 20px rgba(92,69,50,0.05), inset 0 1px 0 rgba(255,255,255,0.72)",
+        textShadow: "0 1px 0 rgba(255,255,255,0.32)",
+        backdropFilter: "blur(6px)",
+        WebkitBackdropFilter: "blur(6px)",
       }) as const,
     []
   );
@@ -157,34 +211,52 @@ export default function TeamsPage() {
   const dangerButtonStyle = useMemo(
     () =>
       ({
-        borderColor: "rgba(220,120,120,0.22)",
-        color: "#f3d9d9",
+        borderColor: "rgba(194,78,78,0.20)",
+        color: "#fff3f3",
         background:
-          "linear-gradient(180deg, rgba(130,43,43,0.82) 0%, rgba(92,24,24,0.92) 100%)",
+          "linear-gradient(180deg, rgba(164,84,84,0.94) 0%, rgba(130,62,62,0.98) 100%)",
         boxShadow:
-          "inset 0 1px 0 rgba(255,255,255,0.03), 0 12px 24px rgba(60,12,12,0.22)",
-        backdropFilter: "blur(10px)",
-        WebkitBackdropFilter: "blur(10px)",
+          "inset 0 1px 0 rgba(255,255,255,0.06), 0 14px 28px rgba(90,18,18,0.14)",
+        textShadow: "0 1px 0 rgba(0,0,0,0.22)",
+        backdropFilter: "blur(6px)",
+        WebkitBackdropFilter: "blur(6px)",
       }) as const,
     []
   );
 
-  const innerRowStyle = useMemo(
+  const rowCardStyle = useMemo(
     () =>
       ({
-        border: "1px solid rgba(158,216,207,0.14)",
+        border: "1px solid rgba(79,112,107,0.10)",
         background:
-          "linear-gradient(180deg, rgba(62,98,96,0.24) 0%, rgba(14,30,34,0.36) 100%)",
+          "linear-gradient(180deg, rgba(255,255,255,0.58) 0%, rgba(243,245,242,0.90) 100%)",
+        borderRadius: 24,
         boxShadow:
-          "inset 0 1px 0 rgba(255,255,255,0.04), 0 14px 28px rgba(0,0,0,0.08)",
-        backdropFilter: "blur(10px)",
-        WebkitBackdropFilter: "blur(10px)",
+          "inset 0 1px 0 rgba(255,255,255,0.42), 0 12px 26px rgba(0,0,0,0.06)",
+        backdropFilter: "blur(8px)",
+        WebkitBackdropFilter: "blur(8px)",
       }) as const,
     []
   );
 
+  const noteCardStyle = useMemo(
+    () =>
+      ({
+        border: "1px solid rgba(183,157,132,0.14)",
+        background:
+          "linear-gradient(135deg, rgba(214,184,157,0.10), rgba(255,255,255,0.36))",
+        color: "#7f6450",
+        borderRadius: 18,
+        lineHeight: 1.75,
+      }) as const,
+    []
+  );
+
+  const totalMembers = teams.reduce((sum, item) => sum + (item.memberCount ?? 0), 0);
+  const totalCases = teams.reduce((sum, item) => sum + (item.caseCount ?? 0), 0);
+
   return (
-    <div className="section app-section">
+    <div className="section app-section teams-page-shell">
       <div className="app-hero app-hero-full">
         <div className="container">
           <div className="page-title app-page-title" style={{ marginBottom: 0 }}>
@@ -193,7 +265,7 @@ export default function TeamsPage() {
                 style={{
                   display: "inline-flex",
                   alignItems: "center",
-                  gap: 8,
+                  gap: "0.72rem",
                   borderRadius: 999,
                   border: "1px solid rgba(255,255,255,0.10)",
                   background: "rgba(255,255,255,0.04)",
@@ -210,12 +282,13 @@ export default function TeamsPage() {
               >
                 <span
                   style={{
-                    width: 4,
-                    height: 4,
+                    width: 6,
+                    height: 6,
                     borderRadius: 999,
                     background: "#b79d84",
-                    opacity: 0.8,
+                    opacity: 0.95,
                     display: "inline-block",
+                    flexShrink: 0,
                   }}
                 />
                 Teams
@@ -225,8 +298,7 @@ export default function TeamsPage() {
                 className="mt-5 max-w-[760px] text-[1.72rem] font-medium leading-[1.02] tracking-[-0.045em] text-[#d9e2df] md:text-[2.22rem] lg:text-[2.72rem]"
                 style={{ margin: "20px 0 0" }}
               >
-                Organize shared{" "}
-                <span style={{ color: "#c3ebe2" }}>team workspaces</span>{" "}
+                Organize shared <span style={{ color: "#c3ebe2" }}>team workspaces</span>{" "}
                 with clarity.
               </h1>
 
@@ -243,9 +315,25 @@ export default function TeamsPage() {
                 Manage <span style={{ color: "#cfd8d5" }}>members</span>,{" "}
                 <span style={{ color: "#bbc7c3" }}>invites</span>, shared{" "}
                 <span style={{ color: "#d2dcd8" }}>cases</span>, and role-based{" "}
-                <span style={{ color: "#d9ccbf" }}>access</span> from one premium
-                workspace.
+                <span style={{ color: "#d9ccbf" }}>access</span> from one polished workspace.
               </p>
+
+              <div className="mt-6 flex flex-wrap gap-2.5">
+                <div className="rounded-full border border-white/10 bg-white/[0.055] px-3.5 py-2 text-[0.78rem] font-normal text-[#c7d1ce] shadow-[0_8px_18px_rgba(0,0,0,0.08)] backdrop-blur-md">
+                  <span className="mr-2 text-[#91aca5]">✓</span>
+                  {teams.length} workspace{teams.length === 1 ? "" : "s"}
+                </div>
+
+                <div className="rounded-full border border-white/10 bg-white/[0.055] px-3.5 py-2 text-[0.78rem] font-normal text-[#c7d1ce] shadow-[0_8px_18px_rgba(0,0,0,0.08)] backdrop-blur-md">
+                  <span className="mr-2 text-[#91aca5]">✓</span>
+                  {totalMembers} total member{totalMembers === 1 ? "" : "s"}
+                </div>
+
+                <div className="rounded-full border border-[rgba(214,184,157,0.18)] bg-[linear-gradient(180deg,rgba(183,157,132,0.07)_0%,rgba(255,255,255,0.028)_100%)] px-3.5 py-2 text-[0.78rem] font-normal text-[#d9ccbf] shadow-[0_8px_18px_rgba(0,0,0,0.08)] backdrop-blur-md">
+                  <span className="mr-2 text-[#c2a07f]">✓</span>
+                  {totalCases} linked case{totalCases === 1 ? "" : "s"}
+                </div>
+              </div>
             </div>
 
             <Button
@@ -260,9 +348,27 @@ export default function TeamsPage() {
         </div>
       </div>
 
-      <div className="app-body app-body-full">
+      <div
+        className="app-body app-body-full pt-8 md:pt-10"
+        style={{
+          position: "relative",
+          overflow: "hidden",
+          background:
+            "linear-gradient(180deg, rgba(239,241,238,0.96) 0%, rgba(234,237,234,0.98) 100%)",
+        }}
+      >
+        <div className="pointer-events-none absolute inset-0 z-0" aria-hidden="true">
+          <img
+            src="/images/landing-network-bg.png"
+            alt=""
+            className="absolute inset-0 h-full w-full object-cover object-top opacity-[0.12] saturate-[0.55] brightness-[1.02] contrast-[0.94]"
+          />
+          <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.08)_0%,rgba(255,255,255,0.03)_22%,rgba(255,255,255,0.03)_78%,rgba(255,255,255,0.08)_100%)]" />
+          <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(255,255,255,0.10)_0%,rgba(255,255,255,0.03)_12%,rgba(255,255,255,0.00)_24%,rgba(255,255,255,0.00)_76%,rgba(255,255,255,0.03)_88%,rgba(255,255,255,0.10)_100%)]" />
+        </div>
+
         <div
-          className="container"
+          className="container relative z-10"
           style={{
             display: "grid",
             gap: 20,
@@ -271,57 +377,47 @@ export default function TeamsPage() {
         >
           {loading ? (
             <div style={{ display: "grid", gap: 14 }}>
-              <div
-                className="rounded-[28px] p-5"
-                style={{ ...innerRowStyle, minHeight: 108 }}
-              >
+              <div className="rounded-[28px] p-5" style={{ ...rowCardStyle, minHeight: 108 }}>
                 <Skeleton width="100%" height="26px" />
               </div>
-              <div
-                className="rounded-[28px] p-5"
-                style={{ ...innerRowStyle, minHeight: 108 }}
-              >
+              <div className="rounded-[28px] p-5" style={{ ...rowCardStyle, minHeight: 108 }}>
                 <Skeleton width="100%" height="26px" />
               </div>
-              <div
-                className="rounded-[28px] p-5"
-                style={{ ...innerRowStyle, minHeight: 108 }}
-              >
+              <div className="rounded-[28px] p-5" style={{ ...rowCardStyle, minHeight: 108 }}>
                 <Skeleton width="100%" height="26px" />
               </div>
             </div>
           ) : error ? (
             <Card
               className="relative overflow-hidden rounded-[30px] border bg-transparent p-0 shadow-none"
-              style={velvetCardStyle}
+              style={{ ...silverCardStyle, border: "1px solid rgba(194,78,78,0.22)" }}
             >
               <div className="absolute inset-0">
                 <img
-                  src="/images/site-velvet-bg.webp.png"
+                  src="/images/panel-silver.webp.png"
                   alt=""
-                  className="h-full w-full object-cover object-center scale-[1.12]"
+                  className="h-full w-full object-cover object-center"
                 />
               </div>
-              <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(90,20,20,0.22)_0%,rgba(20,10,10,0.52)_100%)]" />
-              <div className="relative z-10 px-5 py-4 text-[0.95rem] text-[#ffd7d7]">
+              <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,243,243,0.90)_0%,rgba(248,239,235,0.86)_100%)]" />
+              <div className="relative z-10 px-5 py-4 text-[0.95rem] text-[#b42318]">
                 {error}
               </div>
             </Card>
           ) : teams.length === 0 ? (
             <Card
               className="relative overflow-hidden rounded-[30px] border bg-transparent p-0 shadow-none"
-              style={velvetCardStyle}
+              style={silverCardStyle}
             >
               <div className="absolute inset-0">
                 <img
-                  src="/images/site-velvet-bg.webp.png"
+                  src="/images/panel-silver.webp.png"
                   alt=""
-                  className="h-full w-full object-cover object-center scale-[1.12]"
+                  className="h-full w-full object-cover object-center"
                 />
               </div>
-              <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(8,20,24,0.82)_0%,rgba(7,18,22,0.88)_100%)]" />
-              <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_14%,rgba(158,216,207,0.05),transparent_28%)]" />
-              <div className="absolute inset-0 bg-[radial-gradient(circle_at_86%_18%,rgba(214,184,157,0.04),transparent_24%)]" />
+              <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.24)_0%,rgba(248,249,246,0.34)_42%,rgba(239,241,238,0.42)_100%)]" />
+              <div className="absolute inset-0 bg-[radial-gradient(circle_at_16%_12%,rgba(255,255,255,0.34),transparent_28%)] opacity-90" />
 
               <div className="relative z-10 p-6 md:p-8">
                 <EmptyState
@@ -346,18 +442,17 @@ export default function TeamsPage() {
                 <Card
                   key={item.id}
                   className="relative overflow-hidden rounded-[30px] border bg-transparent p-0 shadow-none"
-                  style={velvetCardStyle}
+                  style={silverCardStyle}
                 >
                   <div className="absolute inset-0">
                     <img
-                      src="/images/site-velvet-bg.webp.png"
+                      src="/images/panel-silver.webp.png"
                       alt=""
-                      className="h-full w-full object-cover object-center scale-[1.12]"
+                      className="h-full w-full object-cover object-center"
                     />
                   </div>
-                  <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(8,20,24,0.82)_0%,rgba(7,18,22,0.88)_100%)]" />
-                  <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_14%,rgba(158,216,207,0.05),transparent_28%)]" />
-                  <div className="absolute inset-0 bg-[radial-gradient(circle_at_86%_18%,rgba(214,184,157,0.04),transparent_24%)]" />
+                  <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.24)_0%,rgba(248,249,246,0.34)_42%,rgba(239,241,238,0.42)_100%)]" />
+                  <div className="absolute inset-0 bg-[radial-gradient(circle_at_16%_12%,rgba(255,255,255,0.34),transparent_28%)] opacity-90" />
 
                   <div className="relative z-10 p-6 md:p-7">
                     <div
@@ -382,7 +477,7 @@ export default function TeamsPage() {
                             style={{
                               fontSize: 22,
                               fontWeight: 700,
-                              color: "#d8e0dd",
+                              color: "#21353a",
                               letterSpacing: "-0.03em",
                             }}
                           >
@@ -402,10 +497,7 @@ export default function TeamsPage() {
                                 fontWeight: 800,
                                 letterSpacing: "0.12em",
                                 textTransform: "uppercase",
-                                border: "1px solid rgba(214,184,157,0.20)",
-                                background:
-                                  "linear-gradient(180deg, rgba(183,157,132,0.12) 0%, rgba(255,255,255,0.03) 100%)",
-                                color: "#dcc0a5",
+                                ...roleTone(item.role),
                               }}
                             >
                               {item.role}
@@ -420,27 +512,26 @@ export default function TeamsPage() {
                             flexWrap: "wrap",
                             marginTop: 10,
                             fontSize: 13,
-                            color: "rgba(194,204,201,0.76)",
+                            color: "#6a777b",
                           }}
                         >
                           <span>{item.memberCount ?? 0} members</span>
-                          <span style={{ color: "#d6b89d" }}>
+                          <span style={{ color: "#8a6e57" }}>
                             {item.pendingInviteCount ?? 0} pending invites
                           </span>
                           <span>{item.caseCount ?? 0} cases</span>
                         </div>
 
-                        {item.createdAt ? (
-                          <div
-                            style={{
-                              marginTop: 10,
-                              fontSize: 12,
-                              color: "rgba(196,206,203,0.60)",
-                            }}
-                          >
-                            Created {new Date(item.createdAt).toLocaleString()}
-                          </div>
-                        ) : null}
+                        <div
+                          style={{
+                            marginTop: 12,
+                            padding: 12,
+                            maxWidth: 520,
+                            ...noteCardStyle,
+                          }}
+                        >
+                          Created {formatLocalDateTime(item.createdAt)}
+                        </div>
                       </div>
 
                       <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
@@ -471,18 +562,17 @@ export default function TeamsPage() {
 
               <Card
                 className="relative overflow-hidden rounded-[30px] border bg-transparent p-0 shadow-none"
-                style={velvetCardStyle}
+                style={silverCardStyle}
               >
                 <div className="absolute inset-0">
                   <img
-                    src="/images/site-velvet-bg.webp.png"
+                    src="/images/panel-silver.webp.png"
                     alt=""
-                    className="h-full w-full object-cover object-center scale-[1.12]"
+                    className="h-full w-full object-cover object-center"
                   />
                 </div>
-                <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(8,20,24,0.82)_0%,rgba(7,18,22,0.88)_100%)]" />
-                <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_14%,rgba(158,216,207,0.05),transparent_28%)]" />
-                <div className="absolute inset-0 bg-[radial-gradient(circle_at_86%_18%,rgba(214,184,157,0.04),transparent_24%)]" />
+                <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.24)_0%,rgba(248,249,246,0.34)_42%,rgba(239,241,238,0.42)_100%)]" />
+                <div className="absolute inset-0 bg-[radial-gradient(circle_at_16%_12%,rgba(255,255,255,0.34),transparent_28%)] opacity-90" />
 
                 <div className="relative z-10 p-7">
                   <div className="empty-state">
@@ -493,15 +583,15 @@ export default function TeamsPage() {
                         height: 70,
                         borderRadius: 20,
                         background:
-                          "linear-gradient(180deg, rgba(183,157,132,0.12) 0%, rgba(255,255,255,0.03) 100%)",
+                          "linear-gradient(180deg, rgba(214,184,157,0.12) 0%, rgba(255,255,255,0.56) 100%)",
                         border: "1px solid rgba(183,157,132,0.18)",
-                        color: "#d6b89d",
+                        color: "#8a6e57",
                       }}
                     >
                       <Icons.Teams />
                     </div>
 
-                    <div style={{ color: "rgba(194,204,201,0.76)" }}>
+                    <div style={{ color: "#5d6d71" }}>
                       Create another team when you need a separate collaborative workspace.
                     </div>
 

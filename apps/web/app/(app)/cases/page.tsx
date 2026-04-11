@@ -7,7 +7,7 @@ import {
   Card,
   useToast,
   EmptyState,
-  Skeleton
+  Skeleton,
 } from "../../../components/ui";
 import { apiFetch } from "../../../lib/api";
 import { captureException } from "../../../lib/sentry";
@@ -16,6 +16,10 @@ interface Case {
   id: string;
   name: string;
   teamId?: string | null;
+}
+
+function formatScope(caseItem: Case): "Team" | "Personal" {
+  return caseItem.teamId ? "Team" : "Personal";
 }
 
 export default function CasesPage() {
@@ -51,7 +55,7 @@ export default function CasesPage() {
   };
 
   useEffect(() => {
-    loadCases();
+    void loadCases();
   }, []);
 
   const handleCreate = async () => {
@@ -64,7 +68,7 @@ export default function CasesPage() {
     try {
       const created = await apiFetch("/v1/cases", {
         method: "POST",
-        body: JSON.stringify({ name: name.trim() })
+        body: JSON.stringify({ name: name.trim() }),
       });
 
       setCases((prev) => [created, ...prev]);
@@ -74,7 +78,7 @@ export default function CasesPage() {
         err instanceof Error ? err.message : "Failed to create case";
       captureException(err, {
         feature: "cases_create",
-        caseName: name.trim()
+        caseName: name.trim(),
       });
       addToast(errorMessage, "error");
     } finally {
@@ -99,7 +103,7 @@ export default function CasesPage() {
     try {
       await apiFetch(`/v1/cases/${targetId}`, {
         method: "PATCH",
-        body: JSON.stringify({ name: nextName })
+        body: JSON.stringify({ name: nextName }),
       });
 
       setCases((prev) =>
@@ -151,7 +155,7 @@ export default function CasesPage() {
 
   const filteredCases = cases.filter((c) => {
     if (filter === "personal") return !c.teamId;
-    if (filter === "team") return c.teamId;
+    if (filter === "team") return Boolean(c.teamId);
     return true;
   });
 
@@ -161,9 +165,9 @@ export default function CasesPage() {
   const outerCardStyle = useMemo(
     () =>
       ({
-        border: "1px solid rgba(183,157,132,0.18)",
+        border: "1px solid rgba(79,112,107,0.16)",
         boxShadow:
-          "0 22px 42px rgba(0,0,0,0.16), inset 0 1px 0 rgba(255,255,255,0.03)",
+          "0 18px 38px rgba(0,0,0,0.08), inset 0 1px 0 rgba(255,255,255,0.48)",
       }) as const,
     []
   );
@@ -171,14 +175,15 @@ export default function CasesPage() {
   const primaryButtonStyle = useMemo(
     () =>
       ({
-        borderColor: "rgba(158,216,207,0.14)",
-        color: "#aebbb6",
+        borderColor: "rgba(79,112,107,0.22)",
+        color: "#eef3f1",
         background:
-          "linear-gradient(180deg, rgba(62,98,96,0.26) 0%, rgba(14,30,34,0.38) 100%)",
+          "linear-gradient(180deg, rgba(58,92,95,0.96) 0%, rgba(20,38,42,0.98) 100%)",
         boxShadow:
-          "inset 0 1px 0 rgba(255,255,255,0.04), 0 14px 28px rgba(0,0,0,0.08)",
-        backdropFilter: "blur(10px)",
-        WebkitBackdropFilter: "blur(10px)",
+          "inset 0 1px 0 rgba(255,255,255,0.08), 0 16px 34px rgba(18,40,44,0.22)",
+        textShadow: "0 1px 0 rgba(0,0,0,0.22)",
+        backdropFilter: "blur(6px)",
+        WebkitBackdropFilter: "blur(6px)",
       }) as const,
     []
   );
@@ -186,16 +191,31 @@ export default function CasesPage() {
   const secondaryButtonStyle = useMemo(
     () =>
       ({
-        borderColor: "rgba(79,112,107,0.18)",
-        color: "#aebbb6",
-        backgroundImage:
-          "linear-gradient(180deg, rgba(8,20,24,0.78) 0%, rgba(7,18,22,0.88) 100%), url('/images/site-velvet-bg.webp.png')",
-        backgroundSize: "cover",
-        backgroundPosition: "center",
+        borderColor: "rgba(79,112,107,0.12)",
+        color: "#24373b",
+        background:
+          "linear-gradient(180deg, rgba(250,251,249,0.82) 0%, rgba(241,244,241,0.96) 100%)",
         boxShadow:
-          "inset 0 1px 0 rgba(255,255,255,0.03), 0 14px 28px rgba(0,0,0,0.10)",
-        backdropFilter: "blur(10px)",
-        WebkitBackdropFilter: "blur(10px)",
+          "0 10px 20px rgba(0,0,0,0.05), inset 0 1px 0 rgba(255,255,255,0.70)",
+        textShadow: "0 1px 0 rgba(255,255,255,0.30)",
+        backdropFilter: "blur(6px)",
+        WebkitBackdropFilter: "blur(6px)",
+      }) as const,
+    []
+  );
+
+  const tertiaryButtonStyle = useMemo(
+    () =>
+      ({
+        borderColor: "rgba(183,157,132,0.16)",
+        color: "#7a624d",
+        background:
+          "linear-gradient(180deg, rgba(244,238,232,0.88) 0%, rgba(255,255,255,0.64) 100%)",
+        boxShadow:
+          "0 10px 20px rgba(92,69,50,0.05), inset 0 1px 0 rgba(255,255,255,0.72)",
+        textShadow: "0 1px 0 rgba(255,255,255,0.32)",
+        backdropFilter: "blur(6px)",
+        WebkitBackdropFilter: "blur(6px)",
       }) as const,
     []
   );
@@ -203,14 +223,15 @@ export default function CasesPage() {
   const dangerButtonStyle = useMemo(
     () =>
       ({
-        borderColor: "rgba(220,120,120,0.22)",
-        color: "#f3d9d9",
+        borderColor: "rgba(194,78,78,0.20)",
+        color: "#fff3f3",
         background:
-          "linear-gradient(180deg, rgba(130,43,43,0.82) 0%, rgba(92,24,24,0.92) 100%)",
+          "linear-gradient(180deg, rgba(164,84,84,0.94) 0%, rgba(130,62,62,0.98) 100%)",
         boxShadow:
-          "inset 0 1px 0 rgba(255,255,255,0.03), 0 12px 24px rgba(60,12,12,0.22)",
-        backdropFilter: "blur(10px)",
-        WebkitBackdropFilter: "blur(10px)",
+          "inset 0 1px 0 rgba(255,255,255,0.06), 0 14px 28px rgba(90,18,18,0.14)",
+        textShadow: "0 1px 0 rgba(0,0,0,0.22)",
+        backdropFilter: "blur(6px)",
+        WebkitBackdropFilter: "blur(6px)",
       }) as const,
     []
   );
@@ -218,11 +239,27 @@ export default function CasesPage() {
   const rowCardStyle = useMemo(
     () =>
       ({
-        border: "1px solid rgba(158,216,207,0.10)",
+        border: "1px solid rgba(79,112,107,0.10)",
         background:
-          "linear-gradient(180deg, rgba(8,23,30,0.86) 0%, rgba(7,18,24,0.94) 100%)",
+          "linear-gradient(180deg, rgba(255,255,255,0.58) 0%, rgba(243,245,242,0.90) 100%)",
         borderRadius: 24,
-        boxShadow: "0 10px 24px rgba(0,0,0,0.18)",
+        boxShadow:
+          "inset 0 1px 0 rgba(255,255,255,0.42), 0 12px 26px rgba(0,0,0,0.06)",
+        backdropFilter: "blur(8px)",
+        WebkitBackdropFilter: "blur(8px)",
+      }) as const,
+    []
+  );
+
+  const noteCardStyle = useMemo(
+    () =>
+      ({
+        border: "1px solid rgba(183,157,132,0.14)",
+        background:
+          "linear-gradient(135deg, rgba(214,184,157,0.10), rgba(255,255,255,0.36))",
+        color: "#7f6450",
+        borderRadius: 18,
+        lineHeight: 1.75,
       }) as const,
     []
   );
@@ -237,7 +274,7 @@ export default function CasesPage() {
                 style={{
                   display: "inline-flex",
                   alignItems: "center",
-                  gap: 8,
+                  gap: "0.72rem",
                   borderRadius: 999,
                   border: "1px solid rgba(255,255,255,0.10)",
                   background: "rgba(255,255,255,0.04)",
@@ -252,12 +289,13 @@ export default function CasesPage() {
               >
                 <span
                   style={{
-                    width: 4,
-                    height: 4,
+                    width: 6,
+                    height: 6,
                     borderRadius: 999,
                     background: "#b79d84",
-                    opacity: 0.8,
+                    opacity: 0.95,
                     display: "inline-block",
+                    flexShrink: 0,
                   }}
                 />
                 Cases
@@ -290,7 +328,7 @@ export default function CasesPage() {
                 <Button
                   variant={filter === "all" ? "primary" : "secondary"}
                   onClick={() => setFilter("all")}
-                  className="proovra-velvet-primary rounded-[999px] border px-4 py-2 text-[0.82rem] font-semibold"
+                  className="rounded-[999px] border px-4 py-2 text-[0.82rem] font-semibold"
                   style={filter === "all" ? primaryButtonStyle : secondaryButtonStyle}
                 >
                   All ({cases.length})
@@ -298,7 +336,7 @@ export default function CasesPage() {
                 <Button
                   variant={filter === "personal" ? "primary" : "secondary"}
                   onClick={() => setFilter("personal")}
-                  className="proovra-velvet-primary rounded-[999px] border px-4 py-2 text-[0.82rem] font-semibold"
+                  className="rounded-[999px] border px-4 py-2 text-[0.82rem] font-semibold"
                   style={filter === "personal" ? primaryButtonStyle : secondaryButtonStyle}
                 >
                   Personal ({personalCases.length})
@@ -306,7 +344,7 @@ export default function CasesPage() {
                 <Button
                   variant={filter === "team" ? "primary" : "secondary"}
                   onClick={() => setFilter("team")}
-                  className="proovra-velvet-primary rounded-[999px] border px-4 py-2 text-[0.82rem] font-semibold"
+                  className="rounded-[999px] border px-4 py-2 text-[0.82rem] font-semibold"
                   style={filter === "team" ? primaryButtonStyle : secondaryButtonStyle}
                 >
                   Team ({teamCases.length})
@@ -317,7 +355,7 @@ export default function CasesPage() {
             <Button
               onClick={handleCreate}
               disabled={creating || busyId !== null}
-              className="proovra-velvet-primary rounded-[999px] border px-6 py-3 text-[0.95rem] font-semibold"
+              className="rounded-[999px] border px-6 py-3 text-[0.95rem] font-semibold"
               style={primaryButtonStyle}
             >
               {creating ? "Creating..." : "Create Case"}
@@ -326,8 +364,26 @@ export default function CasesPage() {
         </div>
       </div>
 
-      <div className="app-body app-body-full">
-        <div className="container" style={{ display: "grid", gap: 16, paddingBottom: 72 }}>
+      <div
+        className="app-body app-body-full pt-8 md:pt-10"
+        style={{
+          position: "relative",
+          overflow: "hidden",
+          background:
+            "linear-gradient(180deg, rgba(239,241,238,0.96) 0%, rgba(234,237,234,0.98) 100%)",
+        }}
+      >
+        <div className="pointer-events-none absolute inset-0 z-0" aria-hidden="true">
+          <img
+            src="/images/landing-network-bg.png"
+            alt=""
+            className="absolute inset-0 h-full w-full object-cover object-top opacity-[0.12] saturate-[0.55] brightness-[1.02] contrast-[0.94]"
+          />
+          <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.08)_0%,rgba(255,255,255,0.03)_22%,rgba(255,255,255,0.03)_78%,rgba(255,255,255,0.08)_100%)]" />
+          <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(255,255,255,0.10)_0%,rgba(255,255,255,0.03)_12%,rgba(255,255,255,0.00)_24%,rgba(255,255,255,0.00)_76%,rgba(255,255,255,0.03)_88%,rgba(255,255,255,0.10)_100%)]" />
+        </div>
+
+        <div className="container relative z-10" style={{ display: "grid", gap: 16, paddingBottom: 72 }}>
           {loading ? (
             <div style={{ display: "grid", gap: 12 }}>
               <div style={{ ...rowCardStyle, padding: 22 }}>
@@ -343,17 +399,17 @@ export default function CasesPage() {
           ) : error ? (
             <Card
               className="relative overflow-hidden rounded-[30px] border bg-transparent p-0 shadow-none"
-              style={{ ...outerCardStyle, border: "1px solid rgba(220,120,120,0.22)" }}
+              style={{ ...outerCardStyle, border: "1px solid rgba(194,78,78,0.22)" }}
             >
               <div className="absolute inset-0">
                 <img
-                  src="/images/site-velvet-bg.webp.png"
+                  src="/images/panel-silver.webp.png"
                   alt=""
-                  className="h-full w-full object-cover object-center scale-[1.12]"
+                  className="h-full w-full object-cover object-center"
                 />
               </div>
-              <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(70,20,20,0.24)_0%,rgba(20,10,10,0.58)_100%)]" />
-              <div className="relative z-10 p-6 text-[#ffd7d7]">{error}</div>
+              <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,243,243,0.90)_0%,rgba(248,239,235,0.86)_100%)]" />
+              <div className="relative z-10 p-6 text-[#b42318]">{error}</div>
             </Card>
           ) : filteredCases.length === 0 ? (
             <Card
@@ -362,14 +418,13 @@ export default function CasesPage() {
             >
               <div className="absolute inset-0">
                 <img
-                  src="/images/site-velvet-bg.webp.png"
+                  src="/images/panel-silver.webp.png"
                   alt=""
-                  className="h-full w-full object-cover object-center scale-[1.12]"
+                  className="h-full w-full object-cover object-center"
                 />
               </div>
-              <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(8,20,24,0.82)_0%,rgba(7,18,22,0.88)_100%)]" />
-              <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_14%,rgba(158,216,207,0.05),transparent_28%)]" />
-              <div className="absolute inset-0 bg-[radial-gradient(circle_at_86%_18%,rgba(214,184,157,0.04),transparent_24%)]" />
+              <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.24)_0%,rgba(248,249,246,0.34)_42%,rgba(239,241,238,0.42)_100%)]" />
+              <div className="absolute inset-0 bg-[radial-gradient(circle_at_16%_12%,rgba(255,255,255,0.34),transparent_28%)] opacity-90" />
 
               <div className="relative z-10 p-6 md:p-7">
                 <EmptyState
@@ -379,8 +434,16 @@ export default function CasesPage() {
                       ? "Create one to organize your evidence by investigation."
                       : `Try a different filter or create a new ${filter} case.`
                   }
-                  action={handleCreate}
-                  actionLabel={creating ? "Creating..." : "Create Case"}
+                  action={() => (
+                    <Button
+                      onClick={handleCreate}
+                      disabled={creating}
+                      className="rounded-[999px] border px-6 py-3 text-[0.95rem] font-semibold"
+                      style={primaryButtonStyle}
+                    >
+                      {creating ? "Creating..." : "Create Case"}
+                    </Button>
+                  )}
                 />
               </div>
             </Card>
@@ -393,14 +456,13 @@ export default function CasesPage() {
               >
                 <div className="absolute inset-0">
                   <img
-                    src="/images/site-velvet-bg.webp.png"
+                    src="/images/panel-silver.webp.png"
                     alt=""
-                    className="h-full w-full object-cover object-center scale-[1.12]"
+                    className="h-full w-full object-cover object-center"
                   />
                 </div>
-                <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(8,20,24,0.82)_0%,rgba(7,18,22,0.88)_100%)]" />
-                <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_14%,rgba(158,216,207,0.05),transparent_28%)]" />
-                <div className="absolute inset-0 bg-[radial-gradient(circle_at_86%_18%,rgba(214,184,157,0.04),transparent_24%)]" />
+                <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.24)_0%,rgba(248,249,246,0.34)_42%,rgba(239,241,238,0.42)_100%)]" />
+                <div className="absolute inset-0 bg-[radial-gradient(circle_at_16%_12%,rgba(255,255,255,0.34),transparent_28%)] opacity-90" />
 
                 <div className="relative z-10 p-6 md:p-7">
                   <div
@@ -412,24 +474,24 @@ export default function CasesPage() {
                       flexWrap: "wrap",
                     }}
                   >
-                    <Link
-                      href={`/cases/${caseItem.id}`}
-                      style={{ textDecoration: "none", color: "inherit", flex: 1 }}
-                    >
-                      <div
-                        style={{
-                          color: "#d8e0dd",
-                          fontWeight: 800,
-                          fontSize: 18,
-                          letterSpacing: "-0.02em",
-                          display: "flex",
-                          alignItems: "center",
-                          flexWrap: "wrap",
-                          gap: 8,
-                        }}
+                    <div style={{ flex: 1, minWidth: 260 }}>
+                      <Link
+                        href={`/cases/${caseItem.id}`}
+                        style={{ textDecoration: "none", color: "inherit" }}
                       >
-                        {caseItem.name}
-                        {caseItem.teamId && (
+                        <div
+                          style={{
+                            color: "#21353a",
+                            fontWeight: 800,
+                            fontSize: 20,
+                            letterSpacing: "-0.03em",
+                            display: "flex",
+                            alignItems: "center",
+                            flexWrap: "wrap",
+                            gap: 8,
+                          }}
+                        >
+                          {caseItem.name}
                           <span
                             style={{
                               display: "inline-flex",
@@ -442,25 +504,54 @@ export default function CasesPage() {
                               fontWeight: 800,
                               letterSpacing: "0.08em",
                               textTransform: "uppercase",
-                              border: "1px solid rgba(158,216,207,0.20)",
-                              background:
-                                "linear-gradient(180deg, rgba(158,216,207,0.12) 0%, rgba(255,255,255,0.03) 100%)",
-                              color: "#bfe8df",
+                              ...(caseItem.teamId
+                                ? {
+                                    border: "1px solid rgba(79,112,107,0.18)",
+                                    background:
+                                      "linear-gradient(180deg, rgba(191,232,223,0.20) 0%, rgba(255,255,255,0.44) 100%)",
+                                    color: "#2d5b59",
+                                  }
+                                : {
+                                    border: "1px solid rgba(183,157,132,0.16)",
+                                    background:
+                                      "linear-gradient(180deg, rgba(214,184,157,0.12) 0%, rgba(255,255,255,0.44) 100%)",
+                                    color: "#8a6e57",
+                                  }),
                             }}
                           >
-                            Team
+                            {formatScope(caseItem)}
                           </span>
-                        )}
+                        </div>
+                      </Link>
+
+                      <div
+                        style={{
+                          marginTop: 12,
+                          display: "inline-flex",
+                          padding: "10px 14px",
+                          ...noteCardStyle,
+                        }}
+                      >
+                        This case belongs to your {caseItem.teamId ? "team workspace" : "personal workspace"}.
                       </div>
-                    </Link>
+                    </div>
 
                     <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                      <Link href={`/cases/${caseItem.id}`} style={{ textDecoration: "none" }}>
+                        <Button
+                          className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
+                          style={secondaryButtonStyle}
+                        >
+                          Open Case
+                        </Button>
+                      </Link>
+
                       <Button
                         variant="secondary"
                         onClick={() => handleStartRename(caseItem)}
                         disabled={disableRowActions}
-                        className="proovra-velvet-primary rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
-                        style={secondaryButtonStyle}
+                        className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
+                        style={tertiaryButtonStyle}
                       >
                         Rename
                       </Button>
@@ -469,7 +560,7 @@ export default function CasesPage() {
                         variant="secondary"
                         onClick={() => handleStartDelete(caseItem.id)}
                         disabled={disableRowActions}
-                        className="proovra-velvet-primary rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
+                        className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
                         style={dangerButtonStyle}
                       >
                         Delete
@@ -507,18 +598,25 @@ export default function CasesPage() {
           >
             <div className="absolute inset-0">
               <img
-                src="/images/site-velvet-bg.webp.png"
+                src="/images/panel-silver.webp.png"
                 alt=""
-                className="h-full w-full object-cover object-center scale-[1.12]"
+                className="h-full w-full object-cover object-center"
               />
             </div>
-            <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(8,20,24,0.84)_0%,rgba(7,18,22,0.90)_100%)]" />
+            <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.24)_0%,rgba(248,249,246,0.34)_42%,rgba(239,241,238,0.42)_100%)]" />
 
             <div
               style={{ padding: 24, position: "relative", zIndex: 1 }}
               onClick={(e) => e.stopPropagation()}
             >
-              <h3 style={{ color: "#d8e0dd", fontSize: 22, fontWeight: 700, letterSpacing: "-0.03em" }}>
+              <h3
+                style={{
+                  color: "#21353a",
+                  fontSize: 22,
+                  fontWeight: 700,
+                  letterSpacing: "-0.03em",
+                }}
+              >
                 Rename Case
               </h3>
 
@@ -535,10 +633,13 @@ export default function CasesPage() {
                   padding: "0 16px",
                   borderRadius: 18,
                   fontSize: 15,
-                  background: "rgba(255,255,255,0.05)",
-                  border: "1px solid rgba(183,157,132,0.16)",
-                  color: "#d8e0dd",
+                  background:
+                    "linear-gradient(180deg, rgba(250,251,249,0.94) 0%, rgba(241,244,241,0.98) 100%)",
+                  border: "1px solid rgba(79,112,107,0.14)",
+                  color: "#23373b",
                   marginTop: 14,
+                  boxShadow:
+                    "inset 0 1px 0 rgba(255,255,255,0.68), 0 10px 22px rgba(0,0,0,0.05)",
                 }}
               />
 
@@ -551,7 +652,7 @@ export default function CasesPage() {
                       setRenameValue("");
                     }}
                     disabled={busyId !== null}
-                    className="proovra-velvet-primary w-full rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
+                    className="w-full rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
                     style={secondaryButtonStyle}
                   >
                     Cancel
@@ -562,7 +663,7 @@ export default function CasesPage() {
                   <Button
                     onClick={handleRename}
                     disabled={!renameValue.trim() || busyId !== null}
-                    className="proovra-velvet-primary w-full rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
+                    className="w-full rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
                     style={primaryButtonStyle}
                   >
                     Rename
@@ -593,26 +694,38 @@ export default function CasesPage() {
         >
           <Card
             className="relative overflow-hidden rounded-[30px] border bg-transparent p-0 shadow-none"
-            style={{ ...outerCardStyle, width: "100%", maxWidth: 520, border: "1px solid rgba(220,120,120,0.24)" }}
+            style={{
+              ...outerCardStyle,
+              width: "100%",
+              maxWidth: 520,
+              border: "1px solid rgba(194,78,78,0.24)",
+            }}
           >
             <div className="absolute inset-0">
               <img
-                src="/images/site-velvet-bg.webp.png"
+                src="/images/panel-silver.webp.png"
                 alt=""
-                className="h-full w-full object-cover object-center scale-[1.12]"
+                className="h-full w-full object-cover object-center"
               />
             </div>
-            <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(70,20,20,0.24)_0%,rgba(20,10,10,0.58)_100%)]" />
+            <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,243,243,0.90)_0%,rgba(248,239,235,0.86)_100%)]" />
 
             <div
               style={{ padding: 24, position: "relative", zIndex: 1 }}
               onClick={(e) => e.stopPropagation()}
             >
-              <h3 style={{ color: "#ffe5e5", fontSize: 22, fontWeight: 700, letterSpacing: "-0.03em" }}>
+              <h3
+                style={{
+                  color: "#7b1e1e",
+                  fontSize: 22,
+                  fontWeight: 700,
+                  letterSpacing: "-0.03em",
+                }}
+              >
                 Delete Case?
               </h3>
 
-              <p style={{ marginTop: 10, color: "rgba(255,224,224,0.78)", lineHeight: 1.75 }}>
+              <p style={{ marginTop: 10, color: "#8b4a4a", lineHeight: 1.75 }}>
                 The case will be deleted, but all evidence will remain in your dashboard.
               </p>
 
@@ -622,7 +735,7 @@ export default function CasesPage() {
                     variant="secondary"
                     onClick={() => setDeletingId(null)}
                     disabled={busyId !== null}
-                    className="proovra-velvet-primary w-full rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
+                    className="w-full rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
                     style={secondaryButtonStyle}
                   >
                     Cancel
@@ -633,7 +746,7 @@ export default function CasesPage() {
                   <Button
                     onClick={handleDelete}
                     disabled={busyId !== null}
-                    className="proovra-velvet-primary w-full rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
+                    className="w-full rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
                     style={dangerButtonStyle}
                   >
                     Delete
