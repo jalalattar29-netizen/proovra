@@ -82,18 +82,19 @@ export default async function AppLegalPage({
           background-image: url("/images/panel-silver.webp.png");
           background-size: cover;
           background-position: center;
+          background-repeat: no-repeat;
+          opacity: 1;
         }
 
         .app-legal-page .app-legal-card__overlay {
           position: absolute;
           inset: 0;
           background:
-            radial-gradient(circle at 16% 12%, rgba(255,255,255,0.34), transparent 28%),
             linear-gradient(
               180deg,
-              rgba(255,255,255,0.22) 0%,
-              rgba(248,249,246,0.32) 38%,
-              rgba(239,241,238,0.40) 100%
+              rgba(255,255,255,0.12) 0%,
+              rgba(255,255,255,0.08) 38%,
+              rgba(255,255,255,0.10) 100%
             );
         }
 

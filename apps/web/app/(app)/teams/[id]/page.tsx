@@ -828,7 +828,7 @@ export default function TeamDetailPage() {
         >
           <div className="container">
             <Card
-              className="relative overflow-hidden rounded-[30px] border bg-transparent p-0 shadow-none"
+              className="team-card relative overflow-hidden rounded-[30px] border bg-transparent p-0 shadow-none"
               style={outerCardStyle}
             >
               <div className="absolute inset-0">
@@ -841,21 +841,10 @@ export default function TeamDetailPage() {
               <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.24)_0%,rgba(248,249,246,0.34)_42%,rgba(239,241,238,0.42)_100%)]" />
               <div className="absolute inset-0 bg-[radial-gradient(circle_at_16%_12%,rgba(255,255,255,0.34),transparent_28%)] opacity-90" />
 
-              <div className="relative z-10 p-6">
-                <div
-                  style={{
-                    fontWeight: 700,
-                    marginBottom: 10,
-                    color: "#21353a",
-                    letterSpacing: "-0.02em",
-                    fontSize: 20,
-                  }}
-                >
-                  Unable to load team
-                </div>
-
-                <div style={{ color: "#5d6d71", lineHeight: 1.7 }}>
-                  {error || "Team not found."}
+              <div className="team-card-inner p-6">
+                <div className="team-card-header">
+                  <div className="team-card-title">Unable to load team</div>
+                  <div className="team-card-copy">{error || "Team not found."}</div>
                 </div>
 
                 <div style={{ marginTop: 16 }}>
@@ -934,6 +923,20 @@ export default function TeamDetailPage() {
           color: #23373b;
         }
 
+        .teams-detail-page-shell .team-main-grid {
+          display: grid;
+          grid-template-columns: minmax(0, 1.08fr) minmax(340px, 0.92fr);
+          gap: 22px;
+          align-items: stretch;
+        }
+
+        .teams-detail-page-shell .team-secondary-grid {
+          display: grid;
+          grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+          gap: 22px;
+          align-items: stretch;
+        }
+
         .teams-detail-page-shell .team-card {
           height: 100%;
         }
@@ -965,35 +968,20 @@ export default function TeamDetailPage() {
 
         .teams-detail-page-shell .team-stack {
           display: grid;
-          gap: 10px;
-        }
-
-        .teams-detail-page-shell .team-main-grid {
-          display: grid;
-          grid-template-columns: minmax(0, 1.12fr) minmax(320px, 0.88fr);
-          gap: 18px;
-          align-items: stretch;
-        }
-
-        .teams-detail-page-shell .team-secondary-grid {
-          display: grid;
-          grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-          gap: 18px;
-          align-items: stretch;
+          gap: 12px;
         }
 
         .teams-detail-page-shell .team-overview-layout {
           display: grid;
-          grid-template-columns: minmax(0, 1fr) minmax(240px, 280px);
-          gap: 18px;
+          grid-template-columns: minmax(0, 1fr) minmax(250px, 290px);
+          gap: 20px;
           align-items: start;
-          height: 100%;
         }
 
         .teams-detail-page-shell .team-side-panel {
           display: flex;
           flex-direction: column;
-          gap: 10px;
+          gap: 12px;
           height: 100%;
         }
 
@@ -1011,12 +999,9 @@ export default function TeamDetailPage() {
           align-items: center;
         }
 
-        .teams-detail-page-shell .team-full-width {
-          width: 100%;
-        }
-
-        .teams-detail-page-shell .team-activity-card {
-          max-width: 100%;
+        .teams-detail-page-shell .team-section-spacer {
+          display: grid;
+          gap: 22px;
         }
 
         @media (max-width: 1240px) {
@@ -1129,7 +1114,14 @@ export default function TeamDetailPage() {
               </div>
             </div>
 
-            <div style={{ display: "flex", gap: 10, flexWrap: "wrap", justifyContent: "flex-end" }}>
+            <div
+              style={{
+                display: "flex",
+                gap: 10,
+                flexWrap: "wrap",
+                justifyContent: "flex-end",
+              }}
+            >
               <Link href="/teams" style={{ textDecoration: "none" }}>
                 <Button
                   className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
@@ -1172,10 +1164,8 @@ export default function TeamDetailPage() {
         </div>
 
         <div
-          className="container relative z-10"
+          className="container relative z-10 team-section-spacer"
           style={{
-            display: "grid",
-            gap: 18,
             paddingBottom: 72,
           }}
         >
@@ -1197,27 +1187,29 @@ export default function TeamDetailPage() {
               <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,243,243,0.90)_0%,rgba(248,239,235,0.86)_100%)]" />
 
               <div className="team-card-inner p-6">
-                <div
-                  style={{
-                    fontSize: 22,
-                    fontWeight: 700,
-                    color: "#7b1e1e",
-                    letterSpacing: "-0.03em",
-                  }}
-                >
-                  Delete team?
-                </div>
+                <div className="team-card-header">
+                  <div
+                    style={{
+                      fontSize: 22,
+                      fontWeight: 700,
+                      color: "#7b1e1e",
+                      letterSpacing: "-0.03em",
+                    }}
+                  >
+                    Delete team?
+                  </div>
 
-                <p
-                  style={{
-                    marginTop: 10,
-                    color: "#8b4a4a",
-                    lineHeight: 1.75,
-                  }}
-                >
-                  This will permanently delete the team, its members list, and all pending
-                  invites.
-                </p>
+                  <div
+                    style={{
+                      marginTop: 10,
+                      color: "#8b4a4a",
+                      lineHeight: 1.75,
+                    }}
+                  >
+                    This will permanently delete the team, its members list, and all
+                    pending invites.
+                  </div>
+                </div>
 
                 <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 16 }}>
                   <Button
@@ -1630,7 +1622,7 @@ export default function TeamDetailPage() {
           </div>
 
           <Card
-            className="team-card team-full-width relative overflow-hidden rounded-[30px] border bg-transparent p-0 shadow-none"
+            className="team-card relative overflow-hidden rounded-[30px] border bg-transparent p-0 shadow-none"
             style={outerCardStyle}
           >
             <div className="absolute inset-0">
@@ -1648,10 +1640,10 @@ export default function TeamDetailPage() {
                 style={{
                   display: "flex",
                   justifyContent: "space-between",
-                  gap: 16,
+                  gap: 18,
                   alignItems: "flex-start",
                   flexWrap: "wrap",
-                  marginBottom: 16,
+                  marginBottom: 18,
                 }}
               >
                 <div>
@@ -1842,7 +1834,7 @@ export default function TeamDetailPage() {
 
           {activities.length > 0 && (
             <Card
-              className="team-card team-activity-card team-full-width relative overflow-hidden rounded-[30px] border bg-transparent p-0 shadow-none"
+              className="team-card relative overflow-hidden rounded-[30px] border bg-transparent p-0 shadow-none"
               style={outerCardStyle}
             >
               <div className="absolute inset-0">
