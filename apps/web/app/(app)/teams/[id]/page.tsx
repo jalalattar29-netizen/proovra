@@ -930,16 +930,16 @@ export default function TeamDetailPage() {
 
   .teams-detail-page-shell .team-main-grid {
     display: grid;
-    grid-template-columns: minmax(0, 1.28fr) minmax(340px, 0.82fr);
+    grid-template-columns: minmax(0, 1.45fr) minmax(320px, 0.78fr);
     gap: 24px;
-    align-items: stretch;
+    align-items: start;
   }
 
   .teams-detail-page-shell .team-secondary-grid {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(0, 0.92fr);
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
     gap: 24px;
-    align-items: stretch;
+    align-items: start;
   }
 
   .teams-detail-page-shell .team-main-grid > .team-card,
@@ -998,18 +998,16 @@ export default function TeamDetailPage() {
 
   .teams-detail-page-shell .team-overview-layout {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(270px, 320px);
-    gap: 22px;
-    align-items: stretch;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 18px;
+    align-items: start;
     height: 100%;
   }
 
   .teams-detail-page-shell .team-side-panel {
-    display: flex;
-    flex-direction: column;
+    display: grid;
     gap: 14px;
-    height: 100%;
-    justify-content: space-between;
+    align-content: start;
   }
 
   .teams-detail-page-shell .team-side-panel > div:first-child {
@@ -1024,7 +1022,7 @@ export default function TeamDetailPage() {
   .teams-detail-page-shell .team-side-panel-actions {
     display: grid;
     gap: 12px;
-    margin-top: auto;
+    margin-top: 0;
   }
 
   .teams-detail-page-shell .team-side-panel-actions > * {
@@ -1061,11 +1059,7 @@ export default function TeamDetailPage() {
 
   @media (max-width: 1280px) {
     .teams-detail-page-shell .team-main-grid {
-      grid-template-columns: minmax(0, 1.18fr) minmax(320px, 0.82fr);
-    }
-
-    .teams-detail-page-shell .team-overview-layout {
-      grid-template-columns: minmax(0, 1fr) minmax(240px, 280px);
+      grid-template-columns: minmax(0, 1.2fr) minmax(300px, 0.8fr);
     }
   }
 
@@ -1082,10 +1076,6 @@ export default function TeamDetailPage() {
   }
 
   @media (max-width: 860px) {
-    .teams-detail-page-shell .team-overview-layout {
-      grid-template-columns: 1fr;
-    }
-
     .teams-detail-page-shell .team-card-inner {
       padding: 24px !important;
     }
@@ -1349,7 +1339,7 @@ className="rounded-[999px] border px-4 py-2.5 text-[0.88rem] font-semibold"
                       </div>
                     </div>
 
-<label style={{ display: "grid", gap: 8, maxWidth: 360 }}>
+<label style={{ display: "grid", gap: 8, maxWidth: "100%" }}>
                         <span style={{ fontSize: 12, color: "#6a777b" }}>Team name</span>
                       <input
                         value={teamName}
