@@ -112,22 +112,6 @@ export default function ReportsPage() {
     []
   );
 
-  const heroButtonStyle = useMemo(
-    () =>
-      ({
-        borderColor: "rgba(79,112,107,0.22)",
-        color: "#eef3f1",
-        background:
-          "linear-gradient(180deg, rgba(58,92,95,0.96) 0%, rgba(20,38,42,0.98) 100%)",
-        boxShadow:
-          "inset 0 1px 0 rgba(255,255,255,0.08), 0 16px 34px rgba(18,40,44,0.22)",
-        textShadow: "0 1px 0 rgba(0,0,0,0.22)",
-        backdropFilter: "blur(6px)",
-        WebkitBackdropFilter: "blur(6px)",
-      }) as const,
-    []
-  );
-
   const primaryButtonStyle = useMemo(
     () =>
       ({
