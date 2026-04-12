@@ -257,9 +257,9 @@ export default function HomePage() {
   return (
     <div className="section app-section home-page-shell">
       <section className="relative mx-auto w-full max-w-[1180px] px-6 pb-12 pt-10 md:px-8 md:pb-14 md:pt-14">
-        <div className="flex flex-col gap-10 xl:flex-row xl:justify-between">
-          <div className="w-full max-w-[720px] xl:pl-0">
-            <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-4 py-1.5 text-[0.68rem] font-medium uppercase tracking-[0.28em] text-[#afbbb7] shadow-[0_10px_24px_rgba(0,0,0,0.08)] backdrop-blur-md">
+<div className="app-hero-responsive">
+<div className="app-hero-responsive__content w-full max-w-[720px] xl:pl-0">
+              <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-4 py-1.5 text-[0.68rem] font-medium uppercase tracking-[0.28em] text-[#afbbb7] shadow-[0_10px_24px_rgba(0,0,0,0.08)] backdrop-blur-md">
               <span className="h-[4px] w-[4px] rounded-full bg-[#b79d84] opacity-80" />
               Dashboard
             </div>
@@ -296,10 +296,10 @@ export default function HomePage() {
             </div>
           </div>
 
-          <div className="flex shrink-0 xl:mt-[42px] xl:justify-end">
-            <Link href="/capture">
+<div className="app-hero-responsive__actions flex shrink-0 xl:mt-[42px] xl:justify-end">
+              <Link href="/capture">
               <Button
-                className="min-w-[198px] rounded-[999px] border px-7 py-3 text-[0.95rem] font-semibold transition-all duration-200 hover:-translate-y-[1px] hover:brightness-[1.03]"
+className="app-responsive-btn min-w-[198px] rounded-[999px] border px-7 py-3 text-[0.95rem] font-semibold transition-all duration-200 hover:-translate-y-[1px] hover:brightness-[1.03]"
                 style={velvetGreenButtonStyle}
               >
                 Capture Evidence
@@ -395,11 +395,11 @@ export default function HomePage() {
                       });
 
                       const row = (
-                        <div
-                          className="rounded-[24px] p-1 transition-all duration-200 hover:-translate-y-[1px]"
-                          style={evidenceCardStyle}
-                        >
-                          <ListRow
+<div
+  className="app-evidence-row-shell rounded-[24px] p-1 transition-all duration-200 hover:-translate-y-[1px]"
+  style={evidenceCardStyle}
+>
+                            <ListRow
                             title={item.title || "Digital Evidence Record"}
                             subtitle={item.displaySubtitle}
                             badge={
@@ -457,7 +457,7 @@ export default function HomePage() {
                     <Link key={action.href} href={action.href}>
                       <Button
                         variant="secondary"
-                        className="flex w-full items-center justify-between rounded-[20px] border px-5 py-4 text-left text-[0.96rem] font-semibold transition-all duration-200 hover:-translate-y-[1px]"
+className="app-responsive-btn app-action-btn flex w-full items-center justify-between rounded-[20px] border px-5 py-4 text-left text-[0.96rem] font-semibold transition-all duration-200 hover:-translate-y-[1px]"
                         style={actionButtonStyle}
                         onClick={() => addToast(action.toast, "info")}
                       >

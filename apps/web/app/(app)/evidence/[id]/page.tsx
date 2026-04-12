@@ -1254,8 +1254,8 @@ export default function EvidenceDetailPage() {
     <div className="section app-section evidence-detail-page-shell">
       <div className="app-hero app-hero-full">
         <div className="container">
-          <div className="page-title app-page-title" style={{ marginBottom: 0 }}>
-            <div style={{ width: "100%", maxWidth: 960 }}>
+<div className="page-title app-page-title evidence-detail-hero" style={{ marginBottom: 0 }}>
+              <div style={{ width: "100%", maxWidth: 960 }}>
               <div
                 style={{
                   display: "inline-flex",
@@ -1288,11 +1288,8 @@ export default function EvidenceDetailPage() {
                 Evidence Record
               </div>
 
-              <div
-                className="evidence-record-badges"
-                style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 16 }}
-              >
-<span
+<div className="evidence-record-badges">
+  <span
   className="evidence-pill evidence-pill-case"
   style={heroStatusStyle}
 >
@@ -1311,15 +1308,8 @@ export default function EvidenceDetailPage() {
               </div>
 
               {!isEditingLabel ? (
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 12,
-                    flexWrap: "wrap",
-                  }}
-                >
-                  <h1
+<div className="evidence-title-row">
+                    <h1
                     className="max-w-[900px] text-[1.72rem] font-medium leading-[1.02] tracking-[-0.045em] text-[#d9e2df] md:text-[2.22rem] lg:text-[2.72rem]"
                     style={{ margin: 0 }}
                   >
@@ -1337,32 +1327,23 @@ export default function EvidenceDetailPage() {
                   </Button>
                 </div>
               ) : (
-                <div
-                  style={{
-                    display: "flex",
-                    gap: 10,
-                    flexWrap: "wrap",
-                    alignItems: "center",
-                  }}
-                >
-                  <input
+<div className="evidence-label-edit-row">
+                    <input
                     value={labelDraft}
                     onChange={(e) => setLabelDraft(e.target.value)}
                     maxLength={160}
                     disabled={labelBusy}
-                    style={{
-                      minWidth: 320,
-                      maxWidth: "100%",
-                      flex: "1 1 420px",
-                      padding: "12px 14px",
-                      borderRadius: 14,
-                      border: "1px solid rgba(214,184,157,0.18)",
-                      background: "rgba(255,255,255,0.05)",
-                      color: "#d8e0dd",
-                      fontSize: 16,
-                      fontWeight: 700,
-                      boxShadow: "0 12px 28px rgba(0,0,0,0.16)",
-                    }}
+className="evidence-label-input"
+style={{
+  padding: "12px 14px",
+  borderRadius: 14,
+  border: "1px solid rgba(214,184,157,0.18)",
+  background: "rgba(255,255,255,0.05)",
+  color: "#d8e0dd",
+  fontSize: 16,
+  fontWeight: 700,
+  boxShadow: "0 12px 28px rgba(0,0,0,0.16)",
+}}
                   />
 
                   <Button
@@ -1400,18 +1381,8 @@ export default function EvidenceDetailPage() {
                 {displaySubtitle || `${itemCount} item${itemCount === 1 ? "" : "s"}`}
               </p>
 
-              <div
-                className="evidence-hero-meta"
-                style={{
-                  display: "flex",
-                  gap: 14,
-                  flexWrap: "wrap",
-                  marginTop: 14,
-                  fontSize: 13,
-                  color: "rgba(194,204,201,0.72)",
-                }}
-              >
-                <span>Record ID: {shortId(evidenceId)}</span>
+<div className="evidence-hero-meta">
+                  <span>Record ID: {shortId(evidenceId)}</span>
                 <span>Type: {getEvidenceTypeLabel(evidenceType)}</span>
                 <span>{isMultipart ? `${sortedParts.length} items` : "Single file"}</span>
               </div>
@@ -1469,19 +1440,12 @@ export default function EvidenceDetailPage() {
         </div>
 
 <div className="container relative z-10" style={{ paddingBottom: 72 }}>
-  <div
-    style={{
-      display: "grid",
-      gap: 20,
-      gridTemplateColumns: "minmax(0, 1.08fr) minmax(0, 0.92fr)",
-      alignItems: "stretch",
-    }}
-  >
+<div className="evidence-detail-grid">
 <Card
-  className="relative h-full overflow-hidden rounded-[30px] border bg-transparent p-0 shadow-none"
+  className="evidence-detail-summary-card relative h-full overflow-hidden rounded-[30px] border bg-transparent p-0 shadow-none"
   style={outerCardStyle}
 >
-        <div className="absolute inset-0">
+          <div className="absolute inset-0">
         <img
           src="/images/panel-silver.webp.png"
           alt=""
@@ -1496,11 +1460,8 @@ export default function EvidenceDetailPage() {
           Record Summary
         </div>
 
-        <div
-          className="mt-5 grid gap-4 sm:grid-cols-2"
-          style={{ color: "#5d6d71" }}
-        >
-          <div>
+<div className="evidence-summary-grid mt-5" style={{ color: "#5d6d71" }}>
+            <div>
             <div className="text-[12px] uppercase tracking-[0.14em] text-[#9b826b]">
               User Label
             </div>
@@ -1736,10 +1697,10 @@ export default function EvidenceDetailPage() {
     </Card>
 
 <Card
-  className="relative h-full overflow-hidden rounded-[30px] border bg-transparent p-0 shadow-none"
+  className="evidence-detail-actions-card relative h-full overflow-hidden rounded-[30px] border bg-transparent p-0 shadow-none"
   style={outerCardStyle}
 >
-        <div className="absolute inset-0">
+          <div className="absolute inset-0">
         <img
           src="/images/panel-silver.webp.png"
           alt=""
@@ -1758,7 +1719,7 @@ export default function EvidenceDetailPage() {
           <Button
             onClick={handleDownloadReport}
             disabled={actionBusy || plan === "FREE" || isDeleted}
-            className="w-full rounded-[999px] border px-4 py-2.5 text-[0.86rem] font-semibold"
+className="app-responsive-btn w-full rounded-[999px] border px-4 py-2.5 text-[0.86rem] font-semibold"
             style={landingPrimaryButtonStyle}
           >
             {t("downloadReport")}
@@ -1768,7 +1729,7 @@ export default function EvidenceDetailPage() {
             variant="secondary"
             onClick={handleDownloadVerificationPackage}
             disabled={actionBusy || !verificationPackageAvailable || isDeleted}
-            className="w-full rounded-[999px] border px-4 py-2.5 text-[0.86rem] font-semibold"
+className="app-responsive-btn w-full rounded-[999px] border px-4 py-2.5 text-[0.86rem] font-semibold"
             style={landingSecondaryButtonStyle}
           >
             Download Verification Package
@@ -1778,7 +1739,7 @@ export default function EvidenceDetailPage() {
             <Button
               variant="secondary"
               disabled={isDeleted}
-              className="w-full rounded-[999px] border px-4 py-2.5 text-[0.86rem] font-semibold"
+className="app-responsive-btn w-full rounded-[999px] border px-4 py-2.5 text-[0.86rem] font-semibold"
               style={landingTertiaryButtonStyle}
             >
               {t("shareLink")}
@@ -1809,7 +1770,7 @@ export default function EvidenceDetailPage() {
             variant="secondary"
             onClick={handleOpenAssignCase}
             disabled={actionBusy || ownedCases.length === 0}
-            className="w-full rounded-[999px] border px-4 py-2.5 text-[0.86rem] font-semibold"
+className="app-responsive-btn w-full rounded-[999px] border px-4 py-2.5 text-[0.86rem] font-semibold"
             style={landingSecondaryButtonStyle}
           >
             {caseId ? "Move to Case" : "Add to Case"}
@@ -1820,7 +1781,7 @@ export default function EvidenceDetailPage() {
               variant="secondary"
               onClick={handleRemoveFromCase}
               disabled={actionBusy}
-              className="w-full rounded-[999px] border px-4 py-2.5 text-[0.86rem] font-semibold"
+className="app-responsive-btn w-full rounded-[999px] border px-4 py-2.5 text-[0.86rem] font-semibold"
               style={landingTertiaryButtonStyle}
             >
               Remove from Case
@@ -1842,7 +1803,7 @@ export default function EvidenceDetailPage() {
               Boolean(lockedAt) ||
               !(status === "SIGNED" || status === "REPORTED")
             }
-            className="w-full rounded-[999px] border px-4 py-2.5 text-[0.86rem] font-semibold"
+className="app-responsive-btn w-full rounded-[999px] border px-4 py-2.5 text-[0.86rem] font-semibold"
             style={lockedAt ? landingSecondaryButtonStyle : landingDangerButtonStyle}
           >
             {lockedAt ? "Permanently Locked" : "Lock Evidence Permanently"}
@@ -1853,7 +1814,7 @@ export default function EvidenceDetailPage() {
               variant="secondary"
               onClick={handleUnarchive}
               disabled={actionBusy}
-              className="w-full rounded-[999px] border px-4 py-2.5 text-[0.86rem] font-semibold"
+className="app-responsive-btn w-full rounded-[999px] border px-4 py-2.5 text-[0.86rem] font-semibold"
               style={landingSecondaryButtonStyle}
             >
               Restore Evidence
@@ -1863,7 +1824,7 @@ export default function EvidenceDetailPage() {
               variant="secondary"
               onClick={handleArchive}
               disabled={actionBusy}
-              className="w-full rounded-[999px] border px-4 py-2.5 text-[0.86rem] font-semibold"
+className="app-responsive-btn w-full rounded-[999px] border px-4 py-2.5 text-[0.86rem] font-semibold"
               style={landingSecondaryButtonStyle}
             >
               Archive Evidence
@@ -1874,7 +1835,7 @@ export default function EvidenceDetailPage() {
             <Button
               onClick={handleDelete}
               disabled={actionBusy || !canDelete}
-              className="w-full rounded-[999px] border px-4 py-2.5 text-[0.86rem] font-semibold"
+className="app-responsive-btn w-full rounded-[999px] border px-4 py-2.5 text-[0.86rem] font-semibold"
               style={canDelete ? landingDeleteButtonStyle : landingSecondaryButtonStyle}
             >
               Delete Evidence
@@ -1886,7 +1847,7 @@ export default function EvidenceDetailPage() {
               variant="secondary"
               onClick={handleRestoreDeleted}
               disabled={actionBusy}
-              className="w-full rounded-[999px] border px-4 py-2.5 text-[0.86rem] font-semibold"
+className="app-responsive-btn w-full rounded-[999px] border px-4 py-2.5 text-[0.86rem] font-semibold"
               style={landingSecondaryButtonStyle}
             >
               Restore from Trash
@@ -1936,25 +1897,24 @@ export default function EvidenceDetailPage() {
     originalDownloadUrl ||
     originalMimeType ||
     originalSizeBytes) && (
-    <Card
-      className="relative mt-6 overflow-hidden rounded-[30px] border bg-transparent p-0 shadow-none"
-      style={outerCardStyle}
-    >
-      <div className="absolute inset-0">
-        <img
-          src="/images/panel-silver.webp.png"
-          alt=""
-          className="h-full w-full object-cover object-center"
-        />
-      </div>
-      <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.24)_0%,rgba(248,249,246,0.34)_42%,rgba(239,241,238,0.42)_100%)]" />
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_16%_12%,rgba(255,255,255,0.34),transparent_28%)] opacity-90" />
+<Card
+  className="evidence-detail-original-card relative mt-6 overflow-hidden rounded-[30px] border bg-transparent p-0 shadow-none"
+  style={outerCardStyle}
+>
+  <div className="absolute inset-0">
+    <img
+      src="/images/panel-silver.webp.png"
+      alt=""
+      className="h-full w-full object-cover object-center"
+    />
+  </div>
+  <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.24)_0%,rgba(248,249,246,0.34)_42%,rgba(239,241,238,0.42)_100%)]" />
+  <div className="absolute inset-0 bg-[radial-gradient(circle_at_16%_12%,rgba(255,255,255,0.34),transparent_28%)] opacity-90" />
 
-      <div className="relative z-10 p-6 md:p-7">
-        <div className="text-[1.08rem] font-semibold tracking-[-0.02em] text-[#21353a]">
-          Original Evidence
-        </div>
-
+  <div className="relative z-10 p-6 md:p-7">
+    <div className="text-[1.08rem] font-semibold tracking-[-0.02em] text-[#21353a]">
+      Original Evidence
+    </div>
         {!isMultipart ? (
           <>
             <div
@@ -2124,12 +2084,12 @@ export default function EvidenceDetailPage() {
                       </div>
                     </div>
 
-                    <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-                      <Button
+<div className="app-card-top-row__actions">
+                        <Button
                         variant="secondary"
                         onClick={() => handleOpenPart(part)}
                         disabled={!downloadUrl || isDeleted}
-                        className="rounded-[999px] border px-4 py-2.5 text-[0.86rem] font-semibold"
+className="app-responsive-btn rounded-[999px] border px-4 py-2.5 text-[0.86rem] font-semibold"
                         style={landingSecondaryButtonStyle}
                       >
                         Open
@@ -2138,7 +2098,7 @@ export default function EvidenceDetailPage() {
                         variant="secondary"
                         onClick={() => handleDownloadPart(part)}
                         disabled={!downloadUrl || isDeleted}
-                        className="rounded-[999px] border px-4 py-2.5 text-[0.86rem] font-semibold"
+className="app-responsive-btn rounded-[999px] border px-4 py-2.5 text-[0.86rem] font-semibold"
                         style={landingTertiaryButtonStyle}
                       >
                         Download
@@ -2397,13 +2357,6 @@ export default function EvidenceDetailPage() {
         </div>
       </Modal>
 
-<style jsx global>{`
-  @media (max-width: 1100px) {
-    .evidence-detail-page-shell .container > div[style*="grid-template-columns: minmax(0, 1.08fr) minmax(0, 0.92fr)"] {
-      grid-template-columns: 1fr !important;
-    }
-  }
-`}</style>
     </div>
   );
 }

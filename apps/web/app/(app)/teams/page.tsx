@@ -383,13 +383,13 @@ export default function TeamsPage() {
               </div>
             </div>
 
-            <Button
-              onClick={handleCreate}
-              disabled={creating}
-              className="rounded-[999px] border px-6 py-3 text-[0.95rem] font-semibold transition-all duration-200 hover:-translate-y-[1px]"
-              style={primaryButtonStyle}
-            >
-              {creating ? "Creating..." : "Create Team"}
+<Button
+  onClick={handleCreate}
+  disabled={creating}
+  className="app-responsive-btn rounded-[999px] border px-6 py-3 text-[0.95rem] font-semibold transition-all duration-200 hover:-translate-y-[1px]"
+  style={primaryButtonStyle}
+>
+                {creating ? "Creating..." : "Create Team"}
             </Button>
           </div>
         </div>
@@ -502,17 +502,9 @@ export default function TeamsPage() {
                   <div className="absolute inset-0 bg-[radial-gradient(circle_at_16%_12%,rgba(255,255,255,0.34),transparent_28%)] opacity-90" />
 
                   <div className="relative z-10 p-6 md:p-7">
-                    <div
-                      style={{
-                        display: "flex",
-                        justifyContent: "space-between",
-                        gap: 16,
-                        alignItems: "center",
-                        flexWrap: "wrap",
-                      }}
-                    >
-                      <div style={{ flex: 1, minWidth: 260 }}>
-                        <div
+<div className="app-card-top-row">
+<div className="app-card-top-row__content">
+                          <div
                           style={{
                             display: "flex",
                             alignItems: "center",
@@ -581,10 +573,10 @@ export default function TeamsPage() {
                         </div>
                       </div>
 
-                      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                        <Link href={`/teams/${item.id}`} style={{ textDecoration: "none" }}>
+<div className="app-card-top-row__actions">
+                          <Link href={`/teams/${item.id}`} style={{ textDecoration: "none" }}>
                           <Button
-                            className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
+className="app-responsive-btn rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
                             style={primaryButtonStyle}
                           >
                             Open Team
@@ -597,7 +589,7 @@ export default function TeamsPage() {
                               variant="secondary"
                               onClick={() => handleStartRename(item)}
                               disabled={disableRowActions}
-                              className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
+className="app-responsive-btn rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
                               style={tertiaryButtonStyle}
                             >
                               Rename
@@ -606,7 +598,7 @@ export default function TeamsPage() {
                             <Button
                               onClick={() => handleDelete(item.id, item.name)}
                               disabled={disableRowActions}
-                              className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
+className="app-responsive-btn rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
                               style={dangerButtonStyle}
                             >
                               {deleting === item.id ? "Deleting..." : "Delete"}

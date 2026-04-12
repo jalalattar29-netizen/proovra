@@ -288,10 +288,10 @@ export default function ReportsPage() {
               </p>
             </div>
 
-            <div className="flex shrink-0">
-              <Link href="/evidence">
+<div className="app-hero-responsive__actions flex shrink-0">
+                <Link href="/evidence">
                 <Button
-                  className="rounded-[999px] border px-6 py-3 text-[0.95rem] font-semibold"
+className="app-responsive-btn rounded-[999px] border px-6 py-3 text-[0.95rem] font-semibold"
                   style={heroButtonStyle}
                 >
                   Open Evidence
@@ -415,8 +415,8 @@ export default function ReportsPage() {
                         href={`/evidence/${item.id}`}
                         style={{ display: "block", textDecoration: "none" }}
                       >
-                        <div style={{ ...rowCardStyle, padding: 6 }}>
-                          <ListRow
+<div className="app-evidence-row-shell" style={{ ...rowCardStyle, padding: 6 }}>
+                            <ListRow
                             title={item.title || "Digital Evidence Record"}
                             subtitle={item.displaySubtitle}
                             badge={
@@ -431,8 +431,8 @@ export default function ReportsPage() {
                         </div>
                       </Link>
                     ) : (
-                      <div style={{ ...rowCardStyle, padding: 6 }}>
-                        <ListRow
+<div className="app-evidence-row-shell" style={{ ...rowCardStyle, padding: 6 }}>
+                          <ListRow
                           title={item.title || "Digital Evidence Record"}
                           subtitle={item.displaySubtitle}
                           badge={

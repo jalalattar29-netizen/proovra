@@ -226,7 +226,7 @@ export default function LockedEvidencePage() {
             <div className="flex shrink-0">
               <Link href="/evidence" style={{ textDecoration: "none" }}>
                 <Button
-                  className="rounded-[999px] border px-6 py-3 text-[0.95rem] font-semibold"
+className="app-responsive-btn rounded-[999px] border px-6 py-3 text-[0.95rem] font-semibold"
                   style={heroButtonStyle}
                 >
                   Open Evidence
@@ -342,16 +342,8 @@ export default function LockedEvidencePage() {
                           gap: 14,
                         }}
                       >
-                        <div
-                          style={{
-                            display: "flex",
-                            justifyContent: "space-between",
-                            alignItems: "flex-start",
-                            gap: 12,
-                            flexWrap: "wrap",
-                          }}
-                        >
-                          <div style={{ minWidth: 0 }}>
+<div className="app-card-top-row app-card-top-row--start">
+                            <div style={{ minWidth: 0 }}>
                             <div
                               style={{
                                 fontSize: 18,
@@ -406,7 +398,7 @@ export default function LockedEvidencePage() {
                           <Link href={`/evidence/${item.id}`}>
                             <Button
                               variant="secondary"
-                              className="rounded-[999px] border px-6 py-3 text-[0.92rem] font-semibold min-w-[190px] justify-center"
+className="app-responsive-btn rounded-[999px] border px-6 py-3 text-[0.92rem] font-semibold min-w-[190px] justify-center"
                               style={rowActionButtonStyle}
                             >
                               Open Record

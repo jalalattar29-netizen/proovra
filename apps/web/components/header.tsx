@@ -287,33 +287,39 @@ export function MarketingHeader() {
         ) : null
       }
     >
-      <div className="min-w-0 flex-1">
-        <Brand href="/" />
-      </div>
+<div className="hidden lg:grid lg:w-full lg:grid-cols-[auto_1fr_auto] lg:items-center lg:gap-8">
+  <div className="min-w-0">
+    <Brand href="/" />
+  </div>
 
-      <nav className="hidden items-center gap-8 lg:flex">
-        {MARKETING_NAV.map((item) => (
-          <Link
-            key={item.href}
-            href={item.href}
-            className="hover-link-bronze text-[0.92rem] font-medium"
-          >
-            {item.label}
-          </Link>
-        ))}
-      </nav>
+  <nav className="flex items-center justify-center gap-8">
+    {MARKETING_NAV.map((item) => (
+      <Link
+        key={item.href}
+        href={item.href}
+        className="hover-link-bronze text-[0.92rem] font-medium"
+      >
+        {item.label}
+      </Link>
+    ))}
+  </nav>
 
-      <div className="hidden items-center gap-2.5 lg:flex">
-        <div className="lang-button flex items-center">
-          <LanguageSwitcher />
-        </div>
+  <div className="flex items-center justify-end gap-2.5">
+    <div className="lang-button flex items-center">
+      <LanguageSwitcher />
+    </div>
 
-        <VelvetLinkButton dark href={appLogin}>
-          Login
-        </VelvetLinkButton>
+    <VelvetLinkButton dark href={appLogin}>
+      Login
+    </VelvetLinkButton>
 
-        <VelvetLinkButton href={appRegister}>Register</VelvetLinkButton>
-      </div>
+    <VelvetLinkButton href={appRegister}>Register</VelvetLinkButton>
+  </div>
+</div>
+
+<div className="min-w-0 flex-1 lg:hidden">
+  <Brand href="/" />
+</div>
 
       <div className="flex shrink-0 items-center gap-2 lg:hidden">
         <div className="lang-button flex items-center">
@@ -384,37 +390,43 @@ export function AppHeader({
         ) : null
       }
     >
-      <div className="min-w-0 flex-1">
-        <Brand href="/home" />
-      </div>
+<div className="hidden lg:grid lg:w-full lg:grid-cols-[auto_1fr_auto] lg:items-center lg:gap-8">
+  <div className="min-w-0">
+    <Brand href="/home" />
+  </div>
 
-      <nav className="hidden items-center gap-4 lg:flex">
-        {navItems.map((item) => (
-          <Link
-            key={item.href}
-            href={item.href}
-            className={`text-[0.92rem] font-medium ${
-              isActive(item.href)
-                ? "text-[#d6b89d]"
-                : "hover-link-bronze text-[#dce1de]"
-            }`}
-          >
-            {item.label}
-          </Link>
-        ))}
-      </nav>
+  <nav className="flex items-center justify-center gap-4">
+    {navItems.map((item) => (
+      <Link
+        key={item.href}
+        href={item.href}
+        className={`text-[0.92rem] font-medium ${
+          isActive(item.href)
+            ? "text-[#d6b89d]"
+            : "hover-link-bronze text-[#dce1de]"
+        }`}
+      >
+        {item.label}
+      </Link>
+    ))}
+  </nav>
 
-      <div className="hidden items-center gap-2.5 lg:flex">
-        <div className="lang-button flex items-center">
-          <LanguageSwitcher />
-        </div>
+  <div className="flex items-center justify-end gap-2.5">
+    <div className="lang-button flex items-center">
+      <LanguageSwitcher />
+    </div>
 
-        {hasSession && (
-          <VelvetActionButton dark onClick={onLogout}>
-            Sign out
-          </VelvetActionButton>
-        )}
-      </div>
+    {hasSession && (
+      <VelvetActionButton dark onClick={onLogout}>
+        Sign out
+      </VelvetActionButton>
+    )}
+  </div>
+</div>
+
+<div className="min-w-0 flex-1 lg:hidden">
+  <Brand href="/home" />
+</div>
 
       <div className="flex shrink-0 items-center gap-2 lg:hidden">
         <div className="lang-button flex items-center">
