@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
+import { createPortal } from "react-dom";
 import {
   Button,
   Card,
@@ -145,6 +146,224 @@ function roleTone(role: string) {
       "linear-gradient(180deg, rgba(250,251,249,0.82) 0%, rgba(241,244,241,0.96) 100%)",
     color: "#4d6165",
   };
+}
+
+type TeamRoleValue = "OWNER" | "ADMIN" | "MEMBER" | "VIEWER";
+
+function TeamRoleDropdown({
+  value,
+  options,
+  onChange,
+  disabled,
+  minWidth = 160,
+}: {
+  value: TeamRoleValue;
+  options: readonly TeamRoleValue[];
+  onChange: (value: TeamRoleValue) => void;
+  disabled?: boolean;
+  minWidth?: number;
+}) {
+  const [open, setOpen] = useState(false);
+  const [mounted, setMounted] = useState(false);
+  const rootRef = useRef<HTMLDivElement | null>(null);
+  const buttonRef = useRef<HTMLButtonElement | null>(null);
+  const menuRef = useRef<HTMLDivElement | null>(null);
+
+  const [menuPos, setMenuPos] = useState<{
+    top: number;
+    left: number;
+    width: number;
+  }>({
+    top: 0,
+    left: 0,
+    width: minWidth,
+  });
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  const updateMenuPosition = () => {
+    const button = buttonRef.current;
+    if (!button) return;
+
+    const rect = button.getBoundingClientRect();
+    const width = Math.max(rect.width, minWidth);
+
+    setMenuPos({
+      top: rect.bottom + 8,
+      left: rect.left,
+      width,
+    });
+  };
+
+  useLayoutEffect(() => {
+    if (!open) return;
+    updateMenuPosition();
+  }, [open, minWidth]);
+
+  useEffect(() => {
+    if (!open) return;
+
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as Node | null;
+      if (!target) return;
+
+      const clickedInsideButton = buttonRef.current?.contains(target);
+      const clickedInsideMenu = menuRef.current?.contains(target);
+
+      if (clickedInsideButton || clickedInsideMenu) return;
+      setOpen(false);
+    };
+
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setOpen(false);
+      }
+    };
+
+    const handleReposition = () => {
+      updateMenuPosition();
+    };
+
+    window.addEventListener("mousedown", handleClickOutside);
+    window.addEventListener("resize", handleReposition);
+    window.addEventListener("scroll", handleReposition, true);
+    window.addEventListener("keydown", handleEscape);
+
+    return () => {
+      window.removeEventListener("mousedown", handleClickOutside);
+      window.removeEventListener("resize", handleReposition);
+      window.removeEventListener("scroll", handleReposition, true);
+      window.removeEventListener("keydown", handleEscape);
+    };
+  }, [open]);
+
+  const menu =
+    mounted && open && !disabled
+      ? createPortal(
+          <div
+            ref={menuRef}
+            role="listbox"
+            style={{
+              position: "fixed",
+              top: menuPos.top,
+              left: menuPos.left,
+              width: menuPos.width,
+              zIndex: 9999,
+              borderRadius: 18,
+              overflow: "hidden",
+              border: "1px solid rgba(79,112,107,0.14)",
+              background:
+                "linear-gradient(180deg, rgba(252,253,251,0.98) 0%, rgba(243,245,242,0.99) 100%)",
+              boxShadow:
+                "0 20px 44px rgba(0,0,0,0.14), inset 0 1px 0 rgba(255,255,255,0.72)",
+              backdropFilter: "blur(12px)",
+              WebkitBackdropFilter: "blur(12px)",
+              padding: 8,
+            }}
+          >
+            {options.map((option) => {
+              const active = option === value;
+
+              return (
+                <button
+                  key={option}
+                  type="button"
+                  onClick={() => {
+                    onChange(option);
+                    setOpen(false);
+                  }}
+                  style={{
+                    width: "100%",
+                    minHeight: 46,
+                    border: "none",
+                    background: active
+                      ? "linear-gradient(180deg, rgba(58,92,95,0.12) 0%, rgba(20,38,42,0.08) 100%)"
+                      : "transparent",
+                    color: "#23373b",
+                    borderRadius: 14,
+                    textAlign: "left",
+                    padding: "0 14px",
+                    fontSize: 14,
+                    cursor: "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    gap: 10,
+                  }}
+                >
+                  <span>{option}</span>
+
+                  {active ? (
+                    <span
+                      style={{
+                        color: "#3a5d61",
+                        fontWeight: 700,
+                        fontSize: 13,
+                        flexShrink: 0,
+                      }}
+                    >
+                      ✓
+                    </span>
+                  ) : null}
+                </button>
+              );
+            })}
+          </div>,
+          document.body
+        )
+      : null;
+
+  return (
+    <>
+      <div
+        ref={rootRef}
+        style={{
+          position: "relative",
+          minWidth,
+          width: "100%",
+        }}
+      >
+        <button
+          ref={buttonRef}
+          type="button"
+          disabled={disabled}
+          onClick={(e) => {
+            e.stopPropagation();
+            if (disabled) return;
+            setOpen((prev) => !prev);
+          }}
+          className="team-select"
+          style={{
+            minWidth,
+            minHeight: 44,
+            textAlign: "left",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: 12,
+            position: "relative",
+            width: "100%",
+          }}
+          aria-expanded={open}
+          aria-haspopup="listbox"
+        >
+          <span
+            style={{
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+            }}
+          >
+            {value}
+          </span>
+        </button>
+      </div>
+
+      {menu}
+    </>
+  );
 }
 
 export default function TeamDetailPage() {
@@ -1351,20 +1570,15 @@ export default function TeamDetailPage() {
                       className="team-field"
                     />
 
-                    <select
-                      value={inviteRole}
-                      onChange={(e) =>
-                        setInviteRole(e.target.value as (typeof INVITE_ROLE_OPTIONS)[number])
-                      }
-                      disabled={inviting}
-                      className="team-select"
-                    >
-                      {INVITE_ROLE_OPTIONS.map((role) => (
-                        <option key={role} value={role}>
-                          {role}
-                        </option>
-                      ))}
-                    </select>
+<TeamRoleDropdown
+  value={inviteRole}
+  options={INVITE_ROLE_OPTIONS}
+  onChange={(value) =>
+    setInviteRole(value as (typeof INVITE_ROLE_OPTIONS)[number])
+  }
+  disabled={inviting}
+  minWidth={180}
+/>
 
                     <Button
                       onClick={handleInvite}
@@ -1581,25 +1795,15 @@ export default function TeamDetailPage() {
                             >
                               {canManageTeam && !memberIsOwner ? (
                                 <>
-                                  <select
-                                    value={member.role}
-                                    onChange={(e) =>
-                                      handleRoleChange(
-                                        member,
-                                        e.target.value as (typeof MANAGEABLE_ROLE_OPTIONS)[number]
-                                      )
-                                    }
-                                    disabled={roleSavingKey === member.userId}
-                                    className="team-select"
-                                    style={{ minWidth: 150, minHeight: 44 }}
-                                  >
-                                    {MANAGEABLE_ROLE_OPTIONS.map((role) => (
-                                      <option key={role} value={role}>
-                                        {role}
-                                      </option>
-                                    ))}
-                                  </select>
-
+<TeamRoleDropdown
+  value={member.role as TeamRoleValue}
+  options={MANAGEABLE_ROLE_OPTIONS}
+  onChange={(value) =>
+    handleRoleChange(member, value as (typeof MANAGEABLE_ROLE_OPTIONS)[number])
+  }
+  disabled={roleSavingKey === member.userId}
+  minWidth={150}
+/>
                                   <Button
                                     variant="secondary"
                                     onClick={() => handleRemoveMember(member)}
