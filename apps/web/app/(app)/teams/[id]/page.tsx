@@ -511,9 +511,9 @@ export default function TeamDetailPage() {
   const outerCardStyle = useMemo(
     () =>
       ({
-        border: "1px solid rgba(183,157,132,0.18)",
+        border: "1px solid rgba(79,112,107,0.14)",
         boxShadow:
-          "0 22px 42px rgba(0,0,0,0.16), inset 0 1px 0 rgba(255,255,255,0.03)",
+          "0 18px 38px rgba(0,0,0,0.08), inset 0 1px 0 rgba(255,255,255,0.46)",
       }) as const,
     []
   );
@@ -568,15 +568,15 @@ export default function TeamDetailPage() {
   const rowCardStyle = useMemo(
     () =>
       ({
-        border: "1px solid rgba(158,216,207,0.14)",
+        border: "1px solid rgba(79,112,107,0.10)",
         background:
-          "linear-gradient(180deg, rgba(62,98,96,0.24) 0%, rgba(14,30,34,0.36) 100%)",
+          "linear-gradient(180deg, rgba(255,255,255,0.58) 0%, rgba(243,245,242,0.90) 100%)",
         borderRadius: 22,
         padding: 14,
         boxShadow:
-          "inset 0 1px 0 rgba(255,255,255,0.04), 0 14px 28px rgba(0,0,0,0.08)",
-        backdropFilter: "blur(10px)",
-        WebkitBackdropFilter: "blur(10px)",
+          "inset 0 1px 0 rgba(255,255,255,0.42), 0 12px 26px rgba(0,0,0,0.06)",
+        backdropFilter: "blur(8px)",
+        WebkitBackdropFilter: "blur(8px)",
       }) as const,
     []
   );
@@ -640,8 +640,26 @@ export default function TeamDetailPage() {
           </div>
         </div>
 
-        <div className="app-body app-body-full">
-          <div className="container" style={{ display: "grid", gap: 16 }}>
+        <div
+          className="app-body app-body-full"
+          style={{
+            position: "relative",
+            overflow: "hidden",
+            background:
+              "linear-gradient(180deg, rgba(239,241,238,0.96) 0%, rgba(234,237,234,0.98) 100%)",
+          }}
+        >
+          <div className="pointer-events-none absolute inset-0 z-0" aria-hidden="true">
+            <img
+              src="/images/landing-network-bg.png"
+              alt=""
+              className="absolute inset-0 h-full w-full object-cover object-top opacity-[0.12] saturate-[0.55] brightness-[1.02] contrast-[0.94]"
+            />
+            <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.08)_0%,rgba(255,255,255,0.03)_22%,rgba(255,255,255,0.03)_78%,rgba(255,255,255,0.08)_100%)]" />
+            <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(255,255,255,0.10)_0%,rgba(255,255,255,0.03)_12%,rgba(255,255,255,0.00)_24%,rgba(255,255,255,0.00)_76%,rgba(255,255,255,0.03)_88%,rgba(255,255,255,0.10)_100%)]" />
+          </div>
+
+          <div className="container relative z-10" style={{ display: "grid", gap: 16 }}>
             <Skeleton width="100%" height="120px" />
             <Skeleton width="100%" height="180px" />
             <Skeleton width="100%" height="180px" />
@@ -697,27 +715,46 @@ export default function TeamDetailPage() {
           </div>
         </div>
 
-        <div className="app-body app-body-full">
-          <div className="container">
+        <div
+          className="app-body app-body-full"
+          style={{
+            position: "relative",
+            overflow: "hidden",
+            background:
+              "linear-gradient(180deg, rgba(239,241,238,0.96) 0%, rgba(234,237,234,0.98) 100%)",
+          }}
+        >
+          <div className="pointer-events-none absolute inset-0 z-0" aria-hidden="true">
+            <img
+              src="/images/landing-network-bg.png"
+              alt=""
+              className="absolute inset-0 h-full w-full object-cover object-top opacity-[0.12] saturate-[0.55] brightness-[1.02] contrast-[0.94]"
+            />
+            <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.08)_0%,rgba(255,255,255,0.03)_22%,rgba(255,255,255,0.03)_78%,rgba(255,255,255,0.08)_100%)]" />
+            <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(255,255,255,0.10)_0%,rgba(255,255,255,0.03)_12%,rgba(255,255,255,0.00)_24%,rgba(255,255,255,0.00)_76%,rgba(255,255,255,0.03)_88%,rgba(255,255,255,0.10)_100%)]" />
+          </div>
+
+          <div className="container relative z-10">
             <Card
               className="relative overflow-hidden rounded-[30px] border bg-transparent p-0 shadow-none"
               style={outerCardStyle}
             >
               <div className="absolute inset-0">
                 <img
-                  src="/images/site-velvet-bg.webp.png"
+                  src="/images/panel-silver.webp.png"
                   alt=""
-                  className="h-full w-full object-cover object-center scale-[1.12]"
+                  className="h-full w-full object-cover object-center"
                 />
               </div>
-              <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(8,20,24,0.82)_0%,rgba(7,18,22,0.88)_100%)]" />
+              <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.24)_0%,rgba(248,249,246,0.34)_42%,rgba(239,241,238,0.42)_100%)]" />
+              <div className="absolute inset-0 bg-[radial-gradient(circle_at_16%_12%,rgba(255,255,255,0.34),transparent_28%)] opacity-90" />
 
               <div className="relative z-10 p-6">
                 <div
                   style={{
                     fontWeight: 700,
                     marginBottom: 10,
-                    color: "#d8e0dd",
+                    color: "#21353a",
                     letterSpacing: "-0.02em",
                     fontSize: 20,
                   }}
@@ -725,7 +762,7 @@ export default function TeamDetailPage() {
                   Unable to load team
                 </div>
 
-                <div style={{ color: "rgba(194,204,201,0.76)", lineHeight: 1.7 }}>
+                <div style={{ color: "#5d6d71", lineHeight: 1.7 }}>
                   {error || "Team not found."}
                 </div>
 
@@ -789,7 +826,7 @@ export default function TeamDetailPage() {
                 className="mt-5 max-w-[820px] text-[1.72rem] font-medium leading-[1.02] tracking-[-0.045em] text-[#d9e2df] md:text-[2.22rem] lg:text-[2.72rem]"
                 style={{ margin: "20px 0 0" }}
               >
-                {team.name ?? "Team"}{" "}
+                <span style={{ color: "#d9e2df" }}>{team.name ?? "Team"}</span>{" "}
                 <span style={{ color: "#c3ebe2" }}>access and collaboration</span>.
               </h1>
 
@@ -859,9 +896,27 @@ export default function TeamDetailPage() {
         </div>
       </div>
 
-      <div className="app-body app-body-full">
+      <div
+        className="app-body app-body-full"
+        style={{
+          position: "relative",
+          overflow: "hidden",
+          background:
+            "linear-gradient(180deg, rgba(239,241,238,0.96) 0%, rgba(234,237,234,0.98) 100%)",
+        }}
+      >
+        <div className="pointer-events-none absolute inset-0 z-0" aria-hidden="true">
+          <img
+            src="/images/landing-network-bg.png"
+            alt=""
+            className="absolute inset-0 h-full w-full object-cover object-top opacity-[0.12] saturate-[0.55] brightness-[1.02] contrast-[0.94]"
+          />
+          <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.08)_0%,rgba(255,255,255,0.03)_22%,rgba(255,255,255,0.03)_78%,rgba(255,255,255,0.08)_100%)]" />
+          <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(255,255,255,0.10)_0%,rgba(255,255,255,0.03)_12%,rgba(255,255,255,0.00)_24%,rgba(255,255,255,0.00)_76%,rgba(255,255,255,0.03)_88%,rgba(255,255,255,0.10)_100%)]" />
+        </div>
+
         <div
-          className="container"
+          className="container relative z-10"
           style={{
             display: "grid",
             gap: 18,
@@ -874,14 +929,13 @@ export default function TeamDetailPage() {
           >
             <div className="absolute inset-0">
               <img
-                src="/images/site-velvet-bg.webp.png"
+                src="/images/panel-silver.webp.png"
                 alt=""
-                className="h-full w-full object-cover object-center scale-[1.12]"
+                className="h-full w-full object-cover object-center"
               />
             </div>
-            <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(8,20,24,0.82)_0%,rgba(7,18,22,0.88)_100%)]" />
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_14%,rgba(158,216,207,0.05),transparent_28%)]" />
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_86%_18%,rgba(214,184,157,0.04),transparent_24%)]" />
+            <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.24)_0%,rgba(248,249,246,0.34)_42%,rgba(239,241,238,0.42)_100%)]" />
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_16%_12%,rgba(255,255,255,0.34),transparent_28%)] opacity-90" />
 
             <div className="relative z-10 p-6 md:p-7">
               <div
@@ -898,7 +952,7 @@ export default function TeamDetailPage() {
                     style={{
                       fontWeight: 700,
                       marginBottom: 14,
-                      color: "#d8e0dd",
+                      color: "#21353a",
                       letterSpacing: "-0.02em",
                       fontSize: 20,
                     }}
@@ -907,7 +961,7 @@ export default function TeamDetailPage() {
                   </div>
 
                   <label style={{ display: "grid", gap: 8 }}>
-                    <span style={{ fontSize: 12, color: "rgba(194,204,201,0.76)" }}>
+                    <span style={{ fontSize: 12, color: "#6a777b" }}>
                       Team name
                     </span>
                     <input
@@ -957,19 +1011,19 @@ export default function TeamDetailPage() {
             >
               <div className="absolute inset-0">
                 <img
-                  src="/images/site-velvet-bg.webp.png"
+                  src="/images/panel-silver.webp.png"
                   alt=""
-                  className="h-full w-full object-cover object-center scale-[1.12]"
+                  className="h-full w-full object-cover object-center"
                 />
               </div>
-              <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(70,20,20,0.24)_0%,rgba(20,10,10,0.58)_100%)]" />
+              <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,243,243,0.90)_0%,rgba(248,239,235,0.86)_100%)]" />
 
               <div className="relative z-10 p-6">
                 <div
                   style={{
                     fontSize: 22,
                     fontWeight: 700,
-                    color: "#ffe5e5",
+                    color: "#7b1e1e",
                     letterSpacing: "-0.03em",
                   }}
                 >
@@ -979,7 +1033,7 @@ export default function TeamDetailPage() {
                 <p
                   style={{
                     marginTop: 10,
-                    color: "rgba(255,224,224,0.78)",
+                    color: "#8b4a4a",
                     lineHeight: 1.75,
                   }}
                 >
@@ -1017,19 +1071,20 @@ export default function TeamDetailPage() {
             >
               <div className="absolute inset-0">
                 <img
-                  src="/images/site-velvet-bg.webp.png"
+                  src="/images/panel-silver.webp.png"
                   alt=""
-                  className="h-full w-full object-cover object-center scale-[1.12]"
+                  className="h-full w-full object-cover object-center"
                 />
               </div>
-              <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(8,20,24,0.82)_0%,rgba(7,18,22,0.88)_100%)]" />
+              <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.24)_0%,rgba(248,249,246,0.34)_42%,rgba(239,241,238,0.42)_100%)]" />
+              <div className="absolute inset-0 bg-[radial-gradient(circle_at_16%_12%,rgba(255,255,255,0.34),transparent_28%)] opacity-90" />
 
               <div className="relative z-10 p-6 md:p-7">
                 <div
                   style={{
                     fontWeight: 700,
                     marginBottom: 14,
-                    color: "#d8e0dd",
+                    color: "#21353a",
                     letterSpacing: "-0.02em",
                     fontSize: 20,
                   }}
@@ -1078,19 +1133,20 @@ export default function TeamDetailPage() {
           >
             <div className="absolute inset-0">
               <img
-                src="/images/site-velvet-bg.webp.png"
+                src="/images/panel-silver.webp.png"
                 alt=""
-                className="h-full w-full object-cover object-center scale-[1.12]"
+                className="h-full w-full object-cover object-center"
               />
             </div>
-            <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(8,20,24,0.82)_0%,rgba(7,18,22,0.88)_100%)]" />
+            <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.24)_0%,rgba(248,249,246,0.34)_42%,rgba(239,241,238,0.42)_100%)]" />
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_16%_12%,rgba(255,255,255,0.34),transparent_28%)] opacity-90" />
 
             <div className="relative z-10 p-6 md:p-7">
               <div
                 style={{
                   fontWeight: 700,
                   marginBottom: 14,
-                  color: "#d8e0dd",
+                  color: "#21353a",
                   letterSpacing: "-0.02em",
                   fontSize: 20,
                 }}
@@ -1099,7 +1155,7 @@ export default function TeamDetailPage() {
               </div>
 
               {!team.members || team.members.length === 0 ? (
-                <div style={{ color: "rgba(194,204,201,0.76)" }}>No members found.</div>
+                <div style={{ color: "#5d6d71" }}>No members found.</div>
               ) : (
                 <div style={{ display: "grid", gap: 10 }}>
                   {team.members.map((member) => {
@@ -1120,12 +1176,12 @@ export default function TeamDetailPage() {
                           }}
                         >
                           <div style={{ flex: 1, minWidth: 0 }}>
-                            <div style={{ color: "#d8e0dd", fontWeight: 700 }}>
+                            <div style={{ color: "#21353a", fontWeight: 700 }}>
                               {name} {isSelf ? "(You)" : ""}
                             </div>
                             <div
                               style={{
-                                color: "rgba(194,204,201,0.72)",
+                                color: "#6a777b",
                                 fontSize: 13,
                                 marginTop: 4,
                               }}
@@ -1181,10 +1237,10 @@ export default function TeamDetailPage() {
                                   fontWeight: 800,
                                   letterSpacing: "0.12em",
                                   textTransform: "uppercase",
-                                  border: "1px solid rgba(214,184,157,0.20)",
+                                  border: "1px solid rgba(183,157,132,0.20)",
                                   background:
-                                    "linear-gradient(180deg, rgba(183,157,132,0.12) 0%, rgba(255,255,255,0.03) 100%)",
-                                  color: "#dcc0a5",
+                                    "linear-gradient(180deg, rgba(214,184,157,0.14) 0%, rgba(255,255,255,0.44) 100%)",
+                                  color: "#8a6e57",
                                 }}
                               >
                                 {member.role}
@@ -1207,19 +1263,20 @@ export default function TeamDetailPage() {
             >
               <div className="absolute inset-0">
                 <img
-                  src="/images/site-velvet-bg.webp.png"
+                  src="/images/panel-silver.webp.png"
                   alt=""
-                  className="h-full w-full object-cover object-center scale-[1.12]"
+                  className="h-full w-full object-cover object-center"
                 />
               </div>
-              <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(8,20,24,0.82)_0%,rgba(7,18,22,0.88)_100%)]" />
+              <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.24)_0%,rgba(248,249,246,0.34)_42%,rgba(239,241,238,0.42)_100%)]" />
+              <div className="absolute inset-0 bg-[radial-gradient(circle_at_16%_12%,rgba(255,255,255,0.34),transparent_28%)] opacity-90" />
 
               <div className="relative z-10 p-6 md:p-7">
                 <div
                   style={{
                     fontWeight: 700,
                     marginBottom: 14,
-                    color: "#d8e0dd",
+                    color: "#21353a",
                     letterSpacing: "-0.02em",
                     fontSize: 20,
                   }}
@@ -1228,7 +1285,7 @@ export default function TeamDetailPage() {
                 </div>
 
                 {invites.length === 0 ? (
-                  <div style={{ color: "rgba(194,204,201,0.76)" }}>No pending invites.</div>
+                  <div style={{ color: "#5d6d71" }}>No pending invites.</div>
                 ) : (
                   <div style={{ display: "grid", gap: 10 }}>
                     {invites.map((invite) => (
@@ -1243,10 +1300,10 @@ export default function TeamDetailPage() {
                           }}
                         >
                           <div style={{ flex: 1, minWidth: 0 }}>
-                            <div style={{ color: "#d8e0dd", fontWeight: 700 }}>{invite.email}</div>
+                            <div style={{ color: "#21353a", fontWeight: 700 }}>{invite.email}</div>
                             <div
                               style={{
-                                color: "rgba(194,204,201,0.72)",
+                                color: "#6a777b",
                                 fontSize: 13,
                                 marginTop: 4,
                               }}
@@ -1295,19 +1352,20 @@ export default function TeamDetailPage() {
           >
             <div className="absolute inset-0">
               <img
-                src="/images/site-velvet-bg.webp.png"
+                src="/images/panel-silver.webp.png"
                 alt=""
-                className="h-full w-full object-cover object-center scale-[1.12]"
+                className="h-full w-full object-cover object-center"
               />
             </div>
-            <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(8,20,24,0.82)_0%,rgba(7,18,22,0.88)_100%)]" />
+            <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.24)_0%,rgba(248,249,246,0.34)_42%,rgba(239,241,238,0.42)_100%)]" />
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_16%_12%,rgba(255,255,255,0.34),transparent_28%)] opacity-90" />
 
             <div className="relative z-10 p-6 md:p-7">
               <div
                 style={{
                   fontWeight: 700,
                   marginBottom: 14,
-                  color: "#d8e0dd",
+                  color: "#21353a",
                   letterSpacing: "-0.02em",
                   fontSize: 20,
                 }}
@@ -1316,7 +1374,7 @@ export default function TeamDetailPage() {
               </div>
 
               {teamCases.length === 0 ? (
-                <div style={{ color: "rgba(194,204,201,0.76)" }}>
+                <div style={{ color: "#5d6d71" }}>
                   No cases linked to this team yet.
                 </div>
               ) : (
@@ -1338,10 +1396,10 @@ export default function TeamDetailPage() {
                           }}
                         >
                           <div style={{ flex: 1, minWidth: 0 }}>
-                            <div style={{ color: "#d8e0dd", fontWeight: 700 }}>{item.name}</div>
+                            <div style={{ color: "#21353a", fontWeight: 700 }}>{item.name}</div>
                             <div
                               style={{
-                                color: "rgba(194,204,201,0.72)",
+                                color: "#6a777b",
                                 fontSize: 13,
                                 marginTop: 4,
                               }}
@@ -1362,10 +1420,10 @@ export default function TeamDetailPage() {
                               fontWeight: 800,
                               letterSpacing: "0.12em",
                               textTransform: "uppercase",
-                              border: "1px solid rgba(158,216,207,0.20)",
+                              border: "1px solid rgba(79,112,107,0.16)",
                               background:
-                                "linear-gradient(180deg, rgba(158,216,207,0.12) 0%, rgba(255,255,255,0.03) 100%)",
-                              color: "#bfe8df",
+                                "linear-gradient(180deg, rgba(191,232,223,0.20) 0%, rgba(255,255,255,0.44) 100%)",
+                              color: "#2d5b59",
                             }}
                           >
                             Open
@@ -1420,7 +1478,7 @@ export default function TeamDetailPage() {
                     >
                       <div
                         style={{
-                          color: "rgba(194,204,201,0.76)",
+                          color: "#5d6d71",
                           marginBottom: 12,
                           lineHeight: 1.7,
                         }}
@@ -1446,12 +1504,12 @@ export default function TeamDetailPage() {
                                 }}
                               >
                                 <div style={{ flex: 1, minWidth: 0 }}>
-                                  <div style={{ color: "#d8e0dd", fontWeight: 700 }}>
+                                  <div style={{ color: "#21353a", fontWeight: 700 }}>
                                     {item.name}
                                   </div>
                                   <div
                                     style={{
-                                      color: "rgba(194,204,201,0.72)",
+                                      color: "#6a777b",
                                       fontSize: 13,
                                       marginTop: 4,
                                     }}
@@ -1489,19 +1547,20 @@ export default function TeamDetailPage() {
             >
               <div className="absolute inset-0">
                 <img
-                  src="/images/site-velvet-bg.webp.png"
+                  src="/images/panel-silver.webp.png"
                   alt=""
-                  className="h-full w-full object-cover object-center scale-[1.12]"
+                  className="h-full w-full object-cover object-center"
                 />
               </div>
-              <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(8,20,24,0.82)_0%,rgba(7,18,22,0.88)_100%)]" />
+              <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.24)_0%,rgba(248,249,246,0.34)_42%,rgba(239,241,238,0.42)_100%)]" />
+              <div className="absolute inset-0 bg-[radial-gradient(circle_at_16%_12%,rgba(255,255,255,0.34),transparent_28%)] opacity-90" />
 
               <div className="relative z-10 p-6 md:p-7">
                 <div
                   style={{
                     fontWeight: 700,
                     marginBottom: 14,
-                    color: "#d8e0dd",
+                    color: "#21353a",
                     letterSpacing: "-0.02em",
                     fontSize: 20,
                   }}
@@ -1518,12 +1577,12 @@ export default function TeamDetailPage() {
                         padding: 14,
                       }}
                     >
-                      <div style={{ color: "#d8e0dd", fontWeight: 700 }}>
+                      <div style={{ color: "#21353a", fontWeight: 700 }}>
                         {activity.eventType.replace(/_/g, " ")}
                       </div>
                       <div
                         style={{
-                          color: "rgba(194,204,201,0.72)",
+                          color: "#6a777b",
                           fontSize: 13,
                           marginTop: 4,
                         }}
@@ -1536,7 +1595,7 @@ export default function TeamDetailPage() {
                           style={{
                             marginTop: 6,
                             fontSize: 11,
-                            color: "rgba(194,204,201,0.62)",
+                            color: "#7a878b",
                             lineHeight: 1.65,
                           }}
                         >
