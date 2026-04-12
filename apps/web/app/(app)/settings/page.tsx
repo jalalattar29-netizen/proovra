@@ -287,6 +287,20 @@ export default function SettingsPage() {
           overflow: hidden;
         }
 
+        .settings-page-shell .settings-silver-card--language {
+  overflow: visible !important;
+  z-index: 20;
+}
+
+.settings-page-shell .settings-silver-card--language .settings-silver-card__content {
+  overflow: visible;
+}
+
+.settings-page-shell .settings-language-dropdown-wrap {
+  position: relative;
+  z-index: 30;
+}
+
         .settings-page-shell .settings-silver-card__bg {
           position: absolute;
           inset: 0;
@@ -670,11 +684,11 @@ export default function SettingsPage() {
                 </div>
               </Card>
 
-              <Card
-                className="settings-silver-card rounded-[30px] border bg-transparent p-0 shadow-none"
-                style={cardShellStyle()}
-              >
-                <div className="settings-silver-card__bg" />
+<Card
+  className="settings-silver-card settings-silver-card--language rounded-[30px] border bg-transparent p-0 shadow-none"
+  style={cardShellStyle()}
+>
+                  <div className="settings-silver-card__bg" />
                 <div className="settings-silver-card__overlay" />
 
                 <div className="settings-silver-card__content p-6 md:p-7">
@@ -683,8 +697,8 @@ export default function SettingsPage() {
                   <div className="grid gap-4">
                     <div className="flex flex-col gap-3">
                       <span className="text-[#5d6d71]">UI language</span>
-<div style={{ position: "relative" }}>
-  <button
+<div className="settings-language-dropdown-wrap" style={{ position: "relative" }}>
+    <button
     type="button"
 onClick={(e) => {
   e.stopPropagation();
@@ -722,7 +736,7 @@ onClick={(e) => {
         top: "calc(100% + 8px)",
         left: 0,
         right: 0,
-        zIndex: 40,
+        zIndex: 80,
         borderRadius: 20,
         overflow: "hidden",
         border: "1px solid rgba(79,112,107,0.12)",

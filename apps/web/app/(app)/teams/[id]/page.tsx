@@ -228,7 +228,7 @@ function TeamRoleDropdown({
             top: "calc(100% + 8px)",
             left: 0,
             right: 0,
-            zIndex: 60,
+            zIndex: 120,
             borderRadius: 18,
             overflow: "hidden",
             border: "1px solid rgba(79,112,107,0.12)",
@@ -1121,39 +1121,24 @@ export default function TeamDetailPage() {
           gap: 14px;
         }
 
-        .teams-detail-page-shell .team-top-grid {
-          display: grid;
-          grid-template-columns: minmax(0, 0.92fr) minmax(0, 1.08fr);
-          gap: 28px;
-          align-items: stretch;
-        }
-
+.teams-detail-page-shell .team-top-grid,
 .teams-detail-page-shell .team-secondary-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: minmax(0, 1fr);
   gap: 28px;
-  align-items: stretch;
-  grid-auto-rows: 1fr;
+  align-items: start;
 }
 
 .teams-detail-page-shell .team-secondary-grid > .team-card {
-  min-height: 300px;
-}
-
-.teams-detail-page-shell .team-hero-title-row {
-  display: flex;
-  align-items: center;
-  gap: 18px;
-  flex-wrap: wrap;
-  margin-top: 22px;
+  min-height: 0;
 }
 
 .teams-detail-page-shell .team-secondary-grid > .team-card .team-card-inner > :last-child {
-  flex: 1;
+  flex: initial;
 }
 
 .teams-detail-page-shell .team-secondary-grid .team-card-inner {
-  justify-content: space-between;
+  justify-content: flex-start;
 }
 
         .teams-detail-page-shell .team-hero-editbar {
@@ -1195,13 +1180,6 @@ export default function TeamDetailPage() {
 
         .teams-detail-page-shell .team-card .team-stack > div[style] {
           border-radius: 22px !important;
-        }
-
-        @media (max-width: 1180px) {
-          .teams-detail-page-shell .team-top-grid,
-          .teams-detail-page-shell .team-secondary-grid {
-            grid-template-columns: 1fr;
-          }
         }
 
         @media (max-width: 860px) {
@@ -1489,11 +1467,11 @@ export default function TeamDetailPage() {
 
           <div className="team-top-grid">
             {canManageTeam ? (
-              <Card
-                className="team-card relative overflow-hidden rounded-[30px] border bg-transparent p-0 shadow-none"
-                style={outerCardStyle}
-              >
-                <div className="absolute inset-0">
+<Card
+  className="team-card relative overflow-visible rounded-[30px] border bg-transparent p-0 shadow-none"
+  style={outerCardStyle}
+>
+                  <div className="absolute inset-0">
                   <img
                     src="/images/panel-silver.webp.png"
                     alt=""
@@ -1667,11 +1645,11 @@ export default function TeamDetailPage() {
           </div>
 
           <div className="team-secondary-grid">
-            <Card
-              className="team-card relative overflow-hidden rounded-[30px] border bg-transparent p-0 shadow-none"
-              style={outerCardStyle}
-            >
-              <div className="absolute inset-0">
+<Card
+  className="team-card relative overflow-visible rounded-[30px] border bg-transparent p-0 shadow-none"
+  style={outerCardStyle}
+>
+                <div className="absolute inset-0">
                 <img
                   src="/images/panel-silver.webp.png"
                   alt=""
