@@ -228,7 +228,7 @@ function TeamRoleDropdown({
             top: "calc(100% + 8px)",
             left: 0,
             right: 0,
-            zIndex: 120,
+            zIndex: 200,
             borderRadius: 18,
             overflow: "hidden",
             border: "1px solid rgba(79,112,107,0.12)",
@@ -1082,7 +1082,6 @@ export default function TeamDetailPage() {
 
         .teams-detail-page-shell .team-card {
           height: 100%;
-          isolation: isolate;
         }
 
         .teams-detail-page-shell .team-card-inner {
@@ -1124,21 +1123,17 @@ export default function TeamDetailPage() {
 .teams-detail-page-shell .team-top-grid,
 .teams-detail-page-shell .team-secondary-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1fr);
+  grid-template-columns: 1fr;
   gap: 28px;
-  align-items: start;
+  align-items: stretch;
 }
 
-.teams-detail-page-shell .team-secondary-grid > .team-card {
-  min-height: 0;
-}
-
-.teams-detail-page-shell .team-secondary-grid > .team-card .team-card-inner > :last-child {
-  flex: initial;
-}
-
-.teams-detail-page-shell .team-secondary-grid .team-card-inner {
-  justify-content: flex-start;
+.teams-detail-page-shell .team-hero-title-row {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  flex-wrap: wrap;
+  margin-top: 22px;
 }
 
         .teams-detail-page-shell .team-hero-editbar {
@@ -1179,7 +1174,7 @@ export default function TeamDetailPage() {
         }
 
         .teams-detail-page-shell .team-card .team-stack > div[style] {
-          border-radius: 22px !important;
+          border-radius: 24px !important;
         }
 
         @media (max-width: 860px) {
@@ -1469,9 +1464,9 @@ export default function TeamDetailPage() {
             {canManageTeam ? (
 <Card
   className="team-card relative overflow-visible rounded-[30px] border bg-transparent p-0 shadow-none"
-  style={outerCardStyle}
+  style={{ ...outerCardStyle, zIndex: 40 }}
 >
-                  <div className="absolute inset-0">
+                    <div className="absolute inset-0">
                   <img
                     src="/images/panel-silver.webp.png"
                     alt=""
@@ -1647,9 +1642,9 @@ export default function TeamDetailPage() {
           <div className="team-secondary-grid">
 <Card
   className="team-card relative overflow-visible rounded-[30px] border bg-transparent p-0 shadow-none"
-  style={outerCardStyle}
+  style={{ ...outerCardStyle, zIndex: 30 }}
 >
-                <div className="absolute inset-0">
+                  <div className="absolute inset-0">
                 <img
                   src="/images/panel-silver.webp.png"
                   alt=""
