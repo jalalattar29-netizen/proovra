@@ -1058,8 +1058,9 @@ const tertiaryButtonStyle = useMemo(
             0 14px 28px rgba(90,18,18,0.14);
         }
 
-        .capture-page-shell .capture-type-grid {
+.capture-page-shell .capture-type-grid {
   width: 100%;
+  max-width: 100%;
 }
 
 .capture-page-shell .capture-type-grid > * {
@@ -1067,14 +1068,33 @@ const tertiaryButtonStyle = useMemo(
   min-width: 0;
 }
 
-@media (max-width: 420px) {
-  .capture-page-shell .capture-type-grid > * {
-    padding-left: 10px !important;
-    padding-right: 10px !important;
-    font-size: 14px !important;
+.capture-page-shell .capture-type-pill {
+  font-size: 13px !important;
+  letter-spacing: 0 !important;
+}
+
+@media (max-width: 640px) {
+  .capture-page-shell .capture-type-grid {
+    gap: 8px !important;
+  }
+
+  .capture-page-shell .capture-type-pill {
+    min-height: 42px !important;
+    height: 42px !important;
+    padding-left: 8px !important;
+    padding-right: 8px !important;
+    font-size: 12px !important;
   }
 }
 
+@media (max-width: 380px) {
+  .capture-page-shell .capture-type-pill {
+    font-size: 11px !important;
+    padding-left: 6px !important;
+    padding-right: 6px !important;
+  }
+}
+  
         @media (max-width: 900px) {
           .capture-page-shell .capture-hero-side {
             width: 100%;
@@ -1279,6 +1299,7 @@ const tertiaryButtonStyle = useMemo(
     display: "grid",
     gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
     gap: 10,
+    alignItems: "stretch",
   }}
 >
   {([
@@ -1302,21 +1323,35 @@ const tertiaryButtonStyle = useMemo(
             fileInputRef.current.value = "";
           }
         }}
-style={{
-  borderRadius: 999,
-  padding: "10px 16px",
-  fontWeight: 700,
-  border: active
-    ? "1px solid rgba(46,74,78,0.34)"
-    : "1px solid rgba(79,112,107,0.10)",
-  background: active
-    ? "linear-gradient(180deg, rgba(67,96,101,0.96) 0%, rgba(33,54,58,0.98) 100%)"
-    : "linear-gradient(180deg, rgba(250,251,249,0.78) 0%, rgba(241,244,241,0.92) 100%)",
-  color: active ? "#f3f7f5" : "#5d6d71",
-  boxShadow: active
-    ? "inset 0 1px 0 rgba(255,255,255,0.10), 0 10px 22px rgba(20,38,42,0.18)"
-    : "inset 0 1px 0 rgba(255,255,255,0.58)",
-}}
+        style={{
+          width: "100%",
+          minWidth: 0,
+          minHeight: 46,
+          height: 46,
+          padding: "0 12px",
+          borderRadius: 999,
+          fontWeight: 700,
+          fontSize: 13,
+          lineHeight: 1,
+          whiteSpace: "nowrap",
+          overflow: "hidden",
+          textOverflow: "clip",
+          textAlign: "center",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          border: active
+            ? "1px solid rgba(46,74,78,0.34)"
+            : "1px solid rgba(79,112,107,0.10)",
+          background: active
+            ? "linear-gradient(180deg, rgba(67,96,101,0.96) 0%, rgba(33,54,58,0.98) 100%)"
+            : "linear-gradient(180deg, rgba(250,251,249,0.86) 0%, rgba(241,244,241,0.98) 100%)",
+          color: active ? "#f3f7f5" : "#5d6d71",
+          boxShadow: active
+            ? "inset 0 1px 0 rgba(255,255,255,0.10), 0 8px 18px rgba(20,38,42,0.16)"
+            : "inset 0 1px 0 rgba(255,255,255,0.58)",
+          transition: "all 180ms ease",
+        }}
       >
         {item.label}
       </button>

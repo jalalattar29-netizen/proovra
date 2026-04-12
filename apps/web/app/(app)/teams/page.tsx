@@ -305,65 +305,30 @@ export default function TeamsPage() {
   return (
     <div className="section app-section teams-page-shell">
       <style jsx global>{`
-        .teams-page-shell .teams-action-btn {
-          min-width: 132px;
-          width: auto;
-          flex: 0 0 auto;
-        }
-
-        .teams-page-shell .teams-open-btn {
-          min-width: 148px;
-        }
-
-        .teams-page-shell .teams-actions-row {
+        .teams-page-shell .teams-actions-column {
           display: flex;
-          align-items: center;
-          justify-content: flex-end;
+          flex-direction: column;
           gap: 10px;
-          flex-wrap: wrap;
-          width: auto;
-          min-width: 0;
+          width: 180px;
+          flex: 0 0 180px;
+          align-items: stretch;
         }
 
-        .teams-page-shell .teams-actions-row > * {
-          width: auto;
-          flex: 0 0 auto;
+        .teams-page-shell .teams-actions-column a,
+        .teams-page-shell .teams-actions-column a > * ,
+        .teams-page-shell .teams-actions-column > button {
+          width: 100%;
         }
 
-        .teams-page-shell .teams-actions-row a {
-          display: inline-flex;
-          width: auto;
-          flex: 0 0 auto;
-          text-decoration: none;
-        }
-
-        .teams-page-shell .teams-actions-row a > * {
-          width: auto;
+        .teams-page-shell .teams-actions-column .btn,
+        .teams-page-shell .teams-actions-column button {
+          justify-content: center;
         }
 
         @media (max-width: 900px) {
-          .teams-page-shell .teams-actions-row {
+          .teams-page-shell .teams-actions-column {
             width: 100%;
-            justify-content: flex-start;
-          }
-        }
-
-        @media (max-width: 720px) {
-          .teams-page-shell .teams-actions-row {
-            flex-direction: column;
-            align-items: stretch;
-            width: 100%;
-          }
-
-          .teams-page-shell .teams-actions-row > *,
-          .teams-page-shell .teams-actions-row a,
-          .teams-page-shell .teams-actions-row a > * {
-            width: 100%;
-          }
-
-          .teams-page-shell .teams-action-btn,
-          .teams-page-shell .teams-open-btn {
-            min-width: 0;
+            flex: 1 1 100%;
           }
         }
       `}</style>
@@ -566,7 +531,7 @@ export default function TeamsPage() {
                   <div className="absolute inset-0 bg-[radial-gradient(circle_at_16%_12%,rgba(255,255,255,0.34),transparent_28%)] opacity-90" />
 
                   <div className="relative z-10 p-6 md:p-7">
-                    <div className="app-card-top-row">
+                    <div className="app-card-top-row app-card-top-row--start">
                       <div className="app-card-top-row__content">
                         <div
                           style={{
@@ -639,10 +604,10 @@ export default function TeamsPage() {
                         </div>
                       </div>
 
-                      <div className="app-card-top-row__actions teams-actions-row">
+                      <div className="teams-actions-column">
                         <Link href={`/teams/${item.id}`} style={{ textDecoration: "none" }}>
                           <Button
-                            className="app-responsive-btn teams-action-btn teams-open-btn rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
+                            className="app-responsive-btn rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
                             style={primaryButtonStyle}
                           >
                             Open Team
@@ -655,7 +620,7 @@ export default function TeamsPage() {
                               variant="secondary"
                               onClick={() => handleStartRename(item)}
                               disabled={disableRowActions}
-                              className="app-responsive-btn teams-action-btn rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
+                              className="app-responsive-btn rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
                               style={tertiaryButtonStyle}
                             >
                               Rename
@@ -664,7 +629,7 @@ export default function TeamsPage() {
                             <Button
                               onClick={() => handleDelete(item.id, item.name)}
                               disabled={disableRowActions}
-                              className="app-responsive-btn teams-action-btn rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
+                              className="app-responsive-btn rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
                               style={dangerButtonStyle}
                             >
                               {deleting === item.id ? "Deleting..." : "Delete"}
