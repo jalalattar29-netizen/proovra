@@ -68,6 +68,9 @@ export default function TeamsPage() {
   const [error, setError] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [deleting, setDeleting] = useState<string | null>(null);
+  const [renamingId, setRenamingId] = useState<string | null>(null);
+  const [renameValue, setRenameValue] = useState("");
+  const [busyId, setBusyId] = useState<string | null>(null);
 
   const loadTeams = async () => {
     setLoading(true);
@@ -126,6 +129,45 @@ export default function TeamsPage() {
     }
   };
 
+  const handleStartRename = (team: TeamListItem) => {
+    setRenamingId(team.id);
+    setRenameValue(team.name);
+  };
+
+  const handleRename = async () => {
+    if (!renamingId || !renameValue.trim()) return;
+
+    const targetId = renamingId;
+    const nextName = renameValue.trim();
+
+    setBusyId(targetId);
+
+    try {
+      const updated = await apiFetch(`/v1/teams/${targetId}`, {
+        method: "PATCH",
+        body: JSON.stringify({ name: nextName }),
+      });
+
+      setTeams((prev) =>
+        prev.map((team) =>
+          team.id === targetId
+            ? { ...team, name: updated?.name ?? nextName }
+            : team
+        )
+      );
+
+      setRenamingId(null);
+      setRenameValue("");
+      addToast("Team renamed successfully", "success");
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to rename team";
+      captureException(err, { feature: "teams_page_rename", teamId: targetId });
+      addToast(message, "error");
+    } finally {
+      setBusyId(null);
+    }
+  };
+
   const handleDelete = async (teamId: string, teamName: string) => {
     if (
       !window.confirm(
@@ -136,6 +178,7 @@ export default function TeamsPage() {
     }
 
     setDeleting(teamId);
+    setBusyId(teamId);
 
     try {
       await apiFetch(`/v1/teams/${teamId}`, { method: "DELETE" });
@@ -147,6 +190,7 @@ export default function TeamsPage() {
       addToast(message, "error");
     } finally {
       setDeleting(null);
+      setBusyId(null);
     }
   };
 
@@ -186,6 +230,22 @@ export default function TeamsPage() {
         boxShadow:
           "0 10px 20px rgba(0,0,0,0.05), inset 0 1px 0 rgba(255,255,255,0.70)",
         textShadow: "0 1px 0 rgba(255,255,255,0.30)",
+        backdropFilter: "blur(6px)",
+        WebkitBackdropFilter: "blur(6px)",
+      }) as const,
+    []
+  );
+
+  const tertiaryButtonStyle = useMemo(
+    () =>
+      ({
+        borderColor: "rgba(183,157,132,0.16)",
+        color: "#7a624d",
+        background:
+          "linear-gradient(180deg, rgba(244,238,232,0.88) 0%, rgba(255,255,255,0.64) 100%)",
+        boxShadow:
+          "0 10px 20px rgba(92,69,50,0.05), inset 0 1px 0 rgba(255,255,255,0.72)",
+        textShadow: "0 1px 0 rgba(255,255,255,0.32)",
         backdropFilter: "blur(6px)",
         WebkitBackdropFilter: "blur(6px)",
       }) as const,
@@ -238,6 +298,9 @@ export default function TeamsPage() {
 
   const totalMembers = teams.reduce((sum, item) => sum + (item.memberCount ?? 0), 0);
   const totalCases = teams.reduce((sum, item) => sum + (item.caseCount ?? 0), 0);
+
+  const disableRowActions =
+    creating || busyId !== null || renamingId !== null || deleting !== null;
 
   return (
     <div className="section app-section teams-page-shell">
@@ -522,21 +585,33 @@ export default function TeamsPage() {
                         <Link href={`/teams/${item.id}`} style={{ textDecoration: "none" }}>
                           <Button
                             className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
-                            style={secondaryButtonStyle}
+                            style={primaryButtonStyle}
                           >
                             Open Team
                           </Button>
                         </Link>
 
                         {item.role === "OWNER" ? (
-                          <Button
-                            onClick={() => handleDelete(item.id, item.name)}
-                            disabled={deleting === item.id}
-                            className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
-                            style={dangerButtonStyle}
-                          >
-                            {deleting === item.id ? "Deleting..." : "Delete"}
-                          </Button>
+                          <>
+                            <Button
+                              variant="secondary"
+                              onClick={() => handleStartRename(item)}
+                              disabled={disableRowActions}
+                              className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
+                              style={tertiaryButtonStyle}
+                            >
+                              Rename
+                            </Button>
+
+                            <Button
+                              onClick={() => handleDelete(item.id, item.name)}
+                              disabled={disableRowActions}
+                              className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
+                              style={dangerButtonStyle}
+                            >
+                              {deleting === item.id ? "Deleting..." : "Delete"}
+                            </Button>
+                          </>
                         ) : null}
                       </div>
                     </div>
@@ -596,6 +671,107 @@ export default function TeamsPage() {
           )}
         </div>
       </div>
+
+      {renamingId && (
+        <div
+          onClick={() => {
+            if (busyId) return;
+            setRenamingId(null);
+            setRenameValue("");
+          }}
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 60,
+            background: "rgba(2,6,23,0.62)",
+            backdropFilter: "blur(10px)",
+            display: "grid",
+            placeItems: "center",
+            padding: 16,
+          }}
+        >
+          <Card
+            className="relative overflow-hidden rounded-[30px] border bg-transparent p-0 shadow-none"
+            style={{ ...silverCardStyle, width: "100%", maxWidth: 520 }}
+          >
+            <div className="absolute inset-0">
+              <img
+                src="/images/panel-silver.webp.png"
+                alt=""
+                className="h-full w-full object-cover object-center"
+              />
+            </div>
+            <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.24)_0%,rgba(248,249,246,0.34)_42%,rgba(239,241,238,0.42)_100%)]" />
+
+            <div
+              style={{ padding: 24, position: "relative", zIndex: 1 }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <h3
+                style={{
+                  color: "#21353a",
+                  fontSize: 22,
+                  fontWeight: 700,
+                  letterSpacing: "-0.03em",
+                }}
+              >
+                Rename Team
+              </h3>
+
+              <input
+                type="text"
+                value={renameValue}
+                onChange={(e) => setRenameValue(e.target.value)}
+                placeholder="Team name"
+                maxLength={120}
+                autoFocus
+                style={{
+                  width: "100%",
+                  minHeight: 52,
+                  padding: "0 16px",
+                  borderRadius: 18,
+                  fontSize: 15,
+                  background:
+                    "linear-gradient(180deg, rgba(250,251,249,0.94) 0%, rgba(241,244,241,0.98) 100%)",
+                  border: "1px solid rgba(79,112,107,0.14)",
+                  color: "#23373b",
+                  marginTop: 14,
+                  boxShadow:
+                    "inset 0 1px 0 rgba(255,255,255,0.68), 0 10px 22px rgba(0,0,0,0.05)",
+                }}
+              />
+
+              <div style={{ display: "flex", gap: 10, marginTop: 16 }}>
+                <div style={{ flex: 1 }}>
+                  <Button
+                    variant="secondary"
+                    onClick={() => {
+                      setRenamingId(null);
+                      setRenameValue("");
+                    }}
+                    disabled={busyId !== null}
+                    className="w-full rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
+                    style={secondaryButtonStyle}
+                  >
+                    Cancel
+                  </Button>
+                </div>
+
+                <div style={{ flex: 1 }}>
+                  <Button
+                    onClick={handleRename}
+                    disabled={!renameValue.trim() || busyId !== null}
+                    className="w-full rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
+                    style={primaryButtonStyle}
+                  >
+                    Rename
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </Card>
+        </div>
+      )}
     </div>
   );
 }

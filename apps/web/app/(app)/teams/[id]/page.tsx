@@ -106,8 +106,6 @@ type CasesListResponse = {
   items?: AvailableCaseItem[];
 };
 
-const ROLE_OPTIONS = ["ADMIN", "MEMBER", "VIEWER"] as const;
-
 function formatLocalDateTime(value: string | null | undefined): string {
   if (!value) return "Not available";
 
