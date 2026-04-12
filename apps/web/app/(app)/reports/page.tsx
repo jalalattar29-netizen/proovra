@@ -290,12 +290,6 @@ export default function ReportsPage() {
 
 <div className="app-hero-responsive__actions flex shrink-0">
                 <Link href="/evidence">
-                <Button
-className="app-responsive-btn rounded-[999px] border px-6 py-3 text-[0.95rem] font-semibold"
-                  style={heroButtonStyle}
-                >
-                  Open Evidence
-                </Button>
               </Link>
             </div>
           </div>

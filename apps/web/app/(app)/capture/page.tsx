@@ -770,53 +770,53 @@ export default function CapturePage() {
     []
   );
 
-  const primaryButtonStyle = useMemo(
-    () =>
-      ({
-        borderColor: "rgba(79,112,107,0.22)",
-        color: "#eef3f1",
-        background:
-          "linear-gradient(180deg, rgba(58,92,95,0.96) 0%, rgba(20,38,42,0.98) 100%)",
-        boxShadow:
-          "inset 0 1px 0 rgba(255,255,255,0.08), 0 16px 34px rgba(18,40,44,0.22)",
-        textShadow: "0 1px 0 rgba(0,0,0,0.22)",
-        backdropFilter: "blur(6px)",
-        WebkitBackdropFilter: "blur(6px)",
-      }) as const,
-    []
-  );
+const primaryButtonStyle = useMemo(
+  () =>
+    ({
+      borderColor: "rgba(78, 100, 112, 0.22)",
+      color: "#eef3f4",
+      background:
+        "linear-gradient(180deg, rgba(67,91,102,0.97) 0%, rgba(33,52,60,0.98) 100%)",
+      boxShadow:
+        "inset 0 1px 0 rgba(255,255,255,0.08), 0 16px 34px rgba(25,39,46,0.18)",
+      textShadow: "0 1px 0 rgba(0,0,0,0.18)",
+      backdropFilter: "blur(6px)",
+      WebkitBackdropFilter: "blur(6px)",
+    }) as const,
+  []
+);
 
-  const secondaryButtonStyle = useMemo(
-    () =>
-      ({
-        borderColor: "rgba(79,112,107,0.12)",
-        color: "#24373b",
-        background:
-          "linear-gradient(180deg, rgba(250,251,249,0.82) 0%, rgba(241,244,241,0.96) 100%)",
-        boxShadow:
-          "0 10px 20px rgba(0,0,0,0.05), inset 0 1px 0 rgba(255,255,255,0.70)",
-        textShadow: "0 1px 0 rgba(255,255,255,0.30)",
-        backdropFilter: "blur(6px)",
-        WebkitBackdropFilter: "blur(6px)",
-      }) as const,
-    []
-  );
+const secondaryButtonStyle = useMemo(
+  () =>
+    ({
+      borderColor: "rgba(130, 142, 148, 0.16)",
+      color: "#2f454b",
+      background:
+        "linear-gradient(180deg, rgba(255,255,255,0.92) 0%, rgba(242,245,246,0.98) 100%)",
+      boxShadow:
+        "0 10px 20px rgba(0,0,0,0.04), inset 0 1px 0 rgba(255,255,255,0.78)",
+      textShadow: "0 1px 0 rgba(255,255,255,0.32)",
+      backdropFilter: "blur(6px)",
+      WebkitBackdropFilter: "blur(6px)",
+    }) as const,
+  []
+);
 
-  const tertiaryButtonStyle = useMemo(
-    () =>
-      ({
-        borderColor: "rgba(183,157,132,0.16)",
-        color: "#7a624d",
-        background:
-          "linear-gradient(180deg, rgba(244,238,232,0.88) 0%, rgba(255,255,255,0.64) 100%)",
-        boxShadow:
-          "0 10px 20px rgba(92,69,50,0.05), inset 0 1px 0 rgba(255,255,255,0.72)",
-        textShadow: "0 1px 0 rgba(255,255,255,0.32)",
-        backdropFilter: "blur(6px)",
-        WebkitBackdropFilter: "blur(6px)",
-      }) as const,
-    []
-  );
+const tertiaryButtonStyle = useMemo(
+  () =>
+    ({
+      borderColor: "rgba(169, 154, 136, 0.18)",
+      color: "#705f50",
+      background:
+        "linear-gradient(180deg, rgba(248,245,241,0.92) 0%, rgba(241,236,231,0.96) 100%)",
+      boxShadow:
+        "0 10px 20px rgba(92,69,50,0.04), inset 0 1px 0 rgba(255,255,255,0.78)",
+      textShadow: "0 1px 0 rgba(255,255,255,0.30)",
+      backdropFilter: "blur(6px)",
+      WebkitBackdropFilter: "blur(6px)",
+    }) as const,
+  []
+);
 
   const softCardStyle = useMemo(
     () =>
@@ -1058,6 +1058,23 @@ export default function CapturePage() {
             0 14px 28px rgba(90,18,18,0.14);
         }
 
+        .capture-page-shell .capture-type-grid {
+  width: 100%;
+}
+
+.capture-page-shell .capture-type-grid > * {
+  width: 100%;
+  min-width: 0;
+}
+
+@media (max-width: 420px) {
+  .capture-page-shell .capture-type-grid > * {
+    padding-left: 10px !important;
+    padding-right: 10px !important;
+    font-size: 14px !important;
+  }
+}
+
         @media (max-width: 900px) {
           .capture-page-shell .capture-hero-side {
             width: 100%;
@@ -1256,49 +1273,56 @@ export default function CapturePage() {
 
             <div className="relative z-10 p-6 md:p-7">
               <div style={{ display: "grid", gap: 18, padding: 2 }}>
-                <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-                  {([
-                    { label: t("photo"), value: "PHOTO" },
-                    { label: t("video"), value: "VIDEO" },
-                    { label: t("document"), value: "DOCUMENT" },
-                  ] as const).map((item) => {
-                    const active = type === item.value;
+<div
+  className="capture-type-grid"
+  style={{
+    display: "grid",
+    gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+    gap: 10,
+  }}
+>
+  {([
+    { label: t("photo"), value: "PHOTO" },
+    { label: t("video"), value: "VIDEO" },
+    { label: t("document"), value: "DOCUMENT" },
+  ] as const).map((item) => {
+    const active = type === item.value;
 
-                    return (
-                      <button
-                        key={item.value}
-                        type="button"
-                        className="capture-type-pill"
-                        onClick={() => {
-                          setType(item.value);
-                          setError(null);
-                          setCameraError(null);
-                          closeCamera();
-                          if (fileInputRef.current) {
-                            fileInputRef.current.value = "";
-                          }
-                        }}
-                        style={{
-                          borderRadius: 999,
-                          padding: "10px 16px",
-                          fontWeight: 700,
-                          border: active
-                            ? "1px solid rgba(79,112,107,0.18)"
-                            : "1px solid rgba(79,112,107,0.10)",
-                          background: active
-                            ? "linear-gradient(180deg, rgba(191,232,223,0.20) 0%, rgba(255,255,255,0.46) 100%)"
-                            : "linear-gradient(180deg, rgba(250,251,249,0.72) 0%, rgba(241,244,241,0.88) 100%)",
-                          color: active ? "#2d5b59" : "#5d6d71",
-                          boxShadow: active
-                            ? "inset 0 1px 0 rgba(255,255,255,0.58), 0 8px 18px rgba(0,0,0,0.05)"
-                            : "inset 0 1px 0 rgba(255,255,255,0.58)",
-                        }}
-                      >
-                        {item.label}
-                      </button>
-                    );
-                  })}
-                </div>
+    return (
+      <button
+        key={item.value}
+        type="button"
+        className="capture-type-pill"
+        onClick={() => {
+          setType(item.value);
+          setError(null);
+          setCameraError(null);
+          closeCamera();
+          if (fileInputRef.current) {
+            fileInputRef.current.value = "";
+          }
+        }}
+style={{
+  borderRadius: 999,
+  padding: "10px 16px",
+  fontWeight: 700,
+  border: active
+    ? "1px solid rgba(46,74,78,0.34)"
+    : "1px solid rgba(79,112,107,0.10)",
+  background: active
+    ? "linear-gradient(180deg, rgba(67,96,101,0.96) 0%, rgba(33,54,58,0.98) 100%)"
+    : "linear-gradient(180deg, rgba(250,251,249,0.78) 0%, rgba(241,244,241,0.92) 100%)",
+  color: active ? "#f3f7f5" : "#5d6d71",
+  boxShadow: active
+    ? "inset 0 1px 0 rgba(255,255,255,0.10), 0 10px 22px rgba(20,38,42,0.18)"
+    : "inset 0 1px 0 rgba(255,255,255,0.58)",
+}}
+      >
+        {item.label}
+      </button>
+    );
+  })}
+</div>
 
                 <input
                   type="file"
