@@ -41,7 +41,7 @@ export default function CasesPage() {
 
     try {
       const data = await apiFetch("/v1/cases");
-      setCases(data.items ?? []);
+      setCases(Array.isArray(data?.items) ? data.items : []);
     } catch (err) {
       const errorMessage =
         err instanceof Error ? err.message : "Failed to load cases";
@@ -91,6 +91,12 @@ export default function CasesPage() {
     setRenameValue(caseItem.name);
   };
 
+  const handleCancelRename = () => {
+    if (busyId !== null) return;
+    setRenamingId(null);
+    setRenameValue("");
+  };
+
   const handleRename = async () => {
     if (!renamingId || !renameValue.trim()) return;
 
@@ -125,6 +131,11 @@ export default function CasesPage() {
 
   const handleStartDelete = (caseId: string) => {
     setDeletingId(caseId);
+  };
+
+  const handleCancelDelete = () => {
+    if (busyId !== null) return;
+    setDeletingId(null);
   };
 
   const handleDelete = async () => {
@@ -266,6 +277,163 @@ export default function CasesPage() {
 
   return (
     <div className="section app-section cases-page-shell">
+      <style jsx global>{`
+        .cases-page-shell .cases-hero-actions {
+          display: flex;
+          gap: 10px;
+          flex-wrap: wrap;
+          align-items: center;
+          justify-content: flex-end;
+        }
+
+        .cases-page-shell .cases-filter-row {
+          display: flex;
+          gap: 8px;
+          margin-top: 16px;
+          flex-wrap: wrap;
+        }
+
+        .cases-page-shell .cases-row {
+          display: flex;
+          justify-content: space-between;
+          gap: 16px;
+          align-items: center;
+          flex-wrap: wrap;
+        }
+
+        .cases-page-shell .cases-row-main {
+          flex: 1 1 320px;
+          min-width: 0;
+        }
+
+        .cases-page-shell .cases-row-actions {
+          display: flex;
+          gap: 8px;
+          flex-wrap: wrap;
+          align-items: center;
+          justify-content: flex-end;
+        }
+
+        .cases-page-shell .cases-note {
+          margin-top: 12px;
+          display: inline-flex;
+          padding: 10px 14px;
+        }
+
+        .cases-page-shell .cases-modal-overlay {
+          position: fixed;
+          inset: 0;
+          z-index: 60;
+          background: rgba(2,6,23,0.62);
+          backdrop-filter: blur(10px);
+          display: grid;
+          place-items: center;
+          padding: 16px;
+        }
+
+        .cases-page-shell .cases-modal-actions {
+          display: flex;
+          gap: 10px;
+          margin-top: 16px;
+        }
+
+        .cases-page-shell .cases-modal-actions > div {
+          flex: 1;
+        }
+
+        .cases-page-shell .cases-modal-input {
+          width: 100%;
+          min-height: 52px;
+          padding: 0 16px;
+          border-radius: 18px;
+          font-size: 15px;
+          background: linear-gradient(
+            180deg,
+            rgba(250,251,249,0.94) 0%,
+            rgba(241,244,241,0.98) 100%
+          );
+          border: 1px solid rgba(79,112,107,0.14);
+          color: #23373b;
+          margin-top: 14px;
+          box-shadow:
+            inset 0 1px 0 rgba(255,255,255,0.68),
+            0 10px 22px rgba(0,0,0,0.05);
+          outline: none;
+        }
+
+        .cases-page-shell .cases-modal-input:focus {
+          border-color: rgba(79,112,107,0.24);
+          box-shadow:
+            inset 0 1px 0 rgba(255,255,255,0.78),
+            0 0 0 3px rgba(79,112,107,0.08),
+            0 12px 24px rgba(0,0,0,0.06);
+        }
+
+        @media (max-width: 860px) {
+          .cases-page-shell .cases-row {
+            align-items: stretch;
+          }
+
+          .cases-page-shell .cases-row-actions {
+            justify-content: flex-start;
+          }
+        }
+
+        @media (max-width: 720px) {
+          .cases-page-shell .cases-hero-actions {
+            width: 100%;
+            justify-content: stretch;
+          }
+
+          .cases-page-shell .cases-hero-actions > * {
+            width: 100%;
+          }
+
+          .cases-page-shell .cases-filter-row > * {
+            flex: 1 1 100%;
+          }
+
+          .cases-page-shell .cases-row {
+            flex-direction: column;
+            align-items: stretch;
+          }
+
+          .cases-page-shell .cases-row-main,
+          .cases-page-shell .cases-row-actions {
+            width: 100%;
+          }
+
+          .cases-page-shell .cases-row-actions {
+            justify-content: stretch;
+          }
+
+          .cases-page-shell .cases-row-actions > * {
+            width: 100%;
+          }
+
+          .cases-page-shell .cases-row-actions a {
+            width: 100%;
+          }
+
+          .cases-page-shell .cases-row-actions a > * {
+            width: 100%;
+          }
+
+          .cases-page-shell .cases-note {
+            display: flex;
+            width: 100%;
+          }
+
+          .cases-page-shell .cases-modal-actions {
+            flex-direction: column;
+          }
+
+          .cases-page-shell .cases-modal-actions > div {
+            width: 100%;
+          }
+        }
+      `}</style>
+
       <div className="app-hero app-hero-full">
         <div className="container">
           <div className="page-title app-page-title" style={{ marginBottom: 0 }}>
@@ -324,7 +492,7 @@ export default function CasesPage() {
                 linked evidence organized, and move between case workflows more clearly.
               </p>
 
-              <div style={{ display: "flex", gap: 8, marginTop: 16, flexWrap: "wrap" }}>
+              <div className="cases-filter-row">
                 <Button
                   variant={filter === "all" ? "primary" : "secondary"}
                   onClick={() => setFilter("all")}
@@ -333,6 +501,7 @@ export default function CasesPage() {
                 >
                   All ({cases.length})
                 </Button>
+
                 <Button
                   variant={filter === "personal" ? "primary" : "secondary"}
                   onClick={() => setFilter("personal")}
@@ -341,6 +510,7 @@ export default function CasesPage() {
                 >
                   Personal ({personalCases.length})
                 </Button>
+
                 <Button
                   variant={filter === "team" ? "primary" : "secondary"}
                   onClick={() => setFilter("team")}
@@ -352,14 +522,16 @@ export default function CasesPage() {
               </div>
             </div>
 
-            <Button
-              onClick={handleCreate}
-              disabled={creating || busyId !== null}
-              className="rounded-[999px] border px-6 py-3 text-[0.95rem] font-semibold"
-              style={primaryButtonStyle}
-            >
-              {creating ? "Creating..." : "Create Case"}
-            </Button>
+            <div className="cases-hero-actions">
+              <Button
+                onClick={handleCreate}
+                disabled={creating || busyId !== null}
+                className="rounded-[999px] border px-6 py-3 text-[0.95rem] font-semibold"
+                style={primaryButtonStyle}
+              >
+                {creating ? "Creating..." : "Create Case"}
+              </Button>
+            </div>
           </div>
         </div>
       </div>
@@ -383,7 +555,10 @@ export default function CasesPage() {
           <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(255,255,255,0.10)_0%,rgba(255,255,255,0.03)_12%,rgba(255,255,255,0.00)_24%,rgba(255,255,255,0.00)_76%,rgba(255,255,255,0.03)_88%,rgba(255,255,255,0.10)_100%)]" />
         </div>
 
-        <div className="container relative z-10" style={{ display: "grid", gap: 16, paddingBottom: 72 }}>
+        <div
+          className="container relative z-10"
+          style={{ display: "grid", gap: 16, paddingBottom: 72 }}
+        >
           {loading ? (
             <div style={{ display: "grid", gap: 12 }}>
               <div style={{ ...rowCardStyle, padding: 22 }}>
@@ -434,17 +609,18 @@ export default function CasesPage() {
                       ? "Create one to organize your evidence by investigation."
                       : `Try a different filter or create a new ${filter} case.`
                   }
-                  action={() => (
-                    <Button
-                      onClick={handleCreate}
-                      disabled={creating}
-                      className="rounded-[999px] border px-6 py-3 text-[0.95rem] font-semibold"
-                      style={primaryButtonStyle}
-                    >
-                      {creating ? "Creating..." : "Create Case"}
-                    </Button>
-                  )}
                 />
+
+                <div style={{ marginTop: 18 }}>
+                  <Button
+                    onClick={handleCreate}
+                    disabled={creating}
+                    className="rounded-[999px] border px-6 py-3 text-[0.95rem] font-semibold"
+                    style={primaryButtonStyle}
+                  >
+                    {creating ? "Creating..." : "Create Case"}
+                  </Button>
+                </div>
               </div>
             </Card>
           ) : (
@@ -465,16 +641,8 @@ export default function CasesPage() {
                 <div className="absolute inset-0 bg-[radial-gradient(circle_at_16%_12%,rgba(255,255,255,0.34),transparent_28%)] opacity-90" />
 
                 <div className="relative z-10 p-6 md:p-7">
-                  <div
-                    style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      gap: 16,
-                      alignItems: "center",
-                      flexWrap: "wrap",
-                    }}
-                  >
-                    <div style={{ flex: 1, minWidth: 260 }}>
+                  <div className="cases-row">
+                    <div className="cases-row-main">
                       <Link
                         href={`/cases/${caseItem.id}`}
                         style={{ textDecoration: "none", color: "inherit" }}
@@ -489,6 +657,8 @@ export default function CasesPage() {
                             alignItems: "center",
                             flexWrap: "wrap",
                             gap: 8,
+                            wordBreak: "break-word",
+                            overflowWrap: "anywhere",
                           }}
                         >
                           {caseItem.name}
@@ -524,23 +694,17 @@ export default function CasesPage() {
                         </div>
                       </Link>
 
-                      <div
-                        style={{
-                          marginTop: 12,
-                          display: "inline-flex",
-                          padding: "10px 14px",
-                          ...noteCardStyle,
-                        }}
-                      >
-                        This case belongs to your {caseItem.teamId ? "team workspace" : "personal workspace"}.
+                      <div style={{ ...noteCardStyle }} className="cases-note">
+                        This case belongs to your{" "}
+                        {caseItem.teamId ? "team workspace" : "personal workspace"}.
                       </div>
                     </div>
 
-                    <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                    <div className="cases-row-actions">
                       <Link href={`/cases/${caseItem.id}`} style={{ textDecoration: "none" }}>
                         <Button
                           className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
-                  style={filter === "all" ? primaryButtonStyle : secondaryButtonStyle}
+                          style={primaryButtonStyle}
                         >
                           Open Case
                         </Button>
@@ -576,21 +740,8 @@ export default function CasesPage() {
 
       {renamingId && (
         <div
-          onClick={() => {
-            if (busyId) return;
-            setRenamingId(null);
-            setRenameValue("");
-          }}
-          style={{
-            position: "fixed",
-            inset: 0,
-            zIndex: 60,
-            background: "rgba(2,6,23,0.62)",
-            backdropFilter: "blur(10px)",
-            display: "grid",
-            placeItems: "center",
-            padding: 16,
-          }}
+          className="cases-modal-overlay"
+          onClick={handleCancelRename}
         >
           <Card
             className="relative overflow-hidden rounded-[30px] border bg-transparent p-0 shadow-none"
@@ -627,30 +778,14 @@ export default function CasesPage() {
                 placeholder="Case name"
                 maxLength={120}
                 autoFocus
-                style={{
-                  width: "100%",
-                  minHeight: 52,
-                  padding: "0 16px",
-                  borderRadius: 18,
-                  fontSize: 15,
-                  background:
-                    "linear-gradient(180deg, rgba(250,251,249,0.94) 0%, rgba(241,244,241,0.98) 100%)",
-                  border: "1px solid rgba(79,112,107,0.14)",
-                  color: "#23373b",
-                  marginTop: 14,
-                  boxShadow:
-                    "inset 0 1px 0 rgba(255,255,255,0.68), 0 10px 22px rgba(0,0,0,0.05)",
-                }}
+                className="cases-modal-input"
               />
 
-              <div style={{ display: "flex", gap: 10, marginTop: 16 }}>
-                <div style={{ flex: 1 }}>
+              <div className="cases-modal-actions">
+                <div>
                   <Button
                     variant="secondary"
-                    onClick={() => {
-                      setRenamingId(null);
-                      setRenameValue("");
-                    }}
+                    onClick={handleCancelRename}
                     disabled={busyId !== null}
                     className="w-full rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
                     style={secondaryButtonStyle}
@@ -659,7 +794,7 @@ export default function CasesPage() {
                   </Button>
                 </div>
 
-                <div style={{ flex: 1 }}>
+                <div>
                   <Button
                     onClick={handleRename}
                     disabled={!renameValue.trim() || busyId !== null}
@@ -677,20 +812,8 @@ export default function CasesPage() {
 
       {deletingId && (
         <div
-          onClick={() => {
-            if (busyId) return;
-            setDeletingId(null);
-          }}
-          style={{
-            position: "fixed",
-            inset: 0,
-            zIndex: 60,
-            background: "rgba(2,6,23,0.62)",
-            backdropFilter: "blur(10px)",
-            display: "grid",
-            placeItems: "center",
-            padding: 16,
-          }}
+          className="cases-modal-overlay"
+          onClick={handleCancelDelete}
         >
           <Card
             className="relative overflow-hidden rounded-[30px] border bg-transparent p-0 shadow-none"
@@ -729,11 +852,11 @@ export default function CasesPage() {
                 The case will be deleted, but all evidence will remain in your dashboard.
               </p>
 
-              <div style={{ display: "flex", gap: 10, marginTop: 16 }}>
-                <div style={{ flex: 1 }}>
+              <div className="cases-modal-actions">
+                <div>
                   <Button
                     variant="secondary"
-                    onClick={() => setDeletingId(null)}
+                    onClick={handleCancelDelete}
                     disabled={busyId !== null}
                     className="w-full rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
                     style={secondaryButtonStyle}
@@ -742,7 +865,7 @@ export default function CasesPage() {
                   </Button>
                 </div>
 
-                <div style={{ flex: 1 }}>
+                <div>
                   <Button
                     onClick={handleDelete}
                     disabled={busyId !== null}

@@ -9,12 +9,14 @@ import {
 export default async function AppLegalPage({
   params,
 }: {
-  params?: Promise<{ slug: string }>;
+  params: Promise<{ slug: string }>;
 }) {
-  const resolvedParams = (await params) ?? { slug: "" };
-  const slug = resolvedParams.slug;
+  const resolvedParams = await params;
+  const slug = resolvedParams?.slug ?? "";
 
-  if (!ALLOWED_LEGAL_SLUGS.has(slug)) return notFound();
+  if (!ALLOWED_LEGAL_SLUGS.has(slug)) {
+    notFound();
+  }
 
   let content = "";
   try {
@@ -66,44 +68,45 @@ export default async function AppLegalPage({
           z-index: 1;
         }
 
-.app-legal-page .app-legal-card {
-  position: relative;
-  overflow: hidden;
-  border-radius: 30px;
-  border: 1px solid rgba(79,112,107,0.16);
-  box-shadow:
-    0 18px 38px rgba(0,0,0,0.08),
-    inset 0 1px 0 rgba(255,255,255,0.48);
-}
+        .app-legal-page .app-legal-card {
+          position: relative;
+          overflow: hidden;
+          border-radius: 30px;
+          border: 1px solid rgba(79,112,107,0.16);
+          box-shadow:
+            0 18px 38px rgba(0,0,0,0.08),
+            inset 0 1px 0 rgba(255,255,255,0.48);
+        }
 
-.app-legal-page .app-legal-card::before,
-.app-legal-page .app-legal-card::after {
-  display: none;
-}
+        .app-legal-page .app-legal-card::before,
+        .app-legal-page .app-legal-card::after {
+          display: none;
+        }
 
-.app-legal-page .app-legal-card__bg {
-  position: absolute;
-  inset: 0;
-  background-image: url("/images/panel-silver.webp.png");
-  background-size: cover;
-  background-position: center;
-  background-repeat: no-repeat;
-  z-index: 0;
-}
+        .app-legal-page .app-legal-card__bg {
+          position: absolute;
+          inset: 0;
+          background-image: url("/images/panel-silver.webp.png");
+          background-size: cover;
+          background-position: center;
+          background-repeat: no-repeat;
+          z-index: 0;
+        }
 
-.app-legal-page .app-legal-card__overlay {
-  position: absolute;
-  inset: 0;
-  background: rgba(255,255,255,0.08);
-  z-index: 1;
-}
+        .app-legal-page .app-legal-card__overlay {
+          position: absolute;
+          inset: 0;
+          background:
+            linear-gradient(180deg, rgba(255,255,255,0.22) 0%, rgba(248,249,246,0.34) 42%, rgba(239,241,238,0.42) 100%);
+          z-index: 1;
+        }
 
-.app-legal-page .app-legal-card__content {
-  position: relative;
-  z-index: 2;
-  padding: 28px 30px;
-}
-    
+        .app-legal-page .app-legal-card__content {
+          position: relative;
+          z-index: 2;
+          padding: 28px 30px;
+        }
+
         .app-legal-page .app-legal-intro {
           margin-bottom: 22px;
           padding: 16px 18px;
@@ -123,6 +126,8 @@ export default async function AppLegalPage({
           color: #31484d;
           line-height: 1.9;
           font-size: 15px;
+          overflow-wrap: anywhere;
+          word-break: break-word;
         }
 
         .app-legal-page .legal-content h1,
@@ -134,6 +139,7 @@ export default async function AppLegalPage({
           margin-top: 1.7em;
           margin-bottom: 0.7em;
           line-height: 1.2;
+          overflow-wrap: anywhere;
         }
 
         .app-legal-page .legal-content h1:first-child,
@@ -222,6 +228,15 @@ export default async function AppLegalPage({
           box-shadow:
             inset 0 1px 0 rgba(255,255,255,0.54),
             0 10px 24px rgba(0,0,0,0.04);
+          display: block;
+          overflow-x: auto;
+          white-space: nowrap;
+        }
+
+        .app-legal-page .legal-content tbody,
+        .app-legal-page .legal-content thead,
+        .app-legal-page .legal-content tr {
+          white-space: nowrap;
         }
 
         .app-legal-page .legal-content th,
@@ -249,6 +264,7 @@ export default async function AppLegalPage({
           border-radius: 8px;
           font-size: 0.92em;
           border: 1px solid rgba(79,112,107,0.08);
+          overflow-wrap: anywhere;
         }
 
         .app-legal-page .legal-content pre {
@@ -271,6 +287,24 @@ export default async function AppLegalPage({
         @media (max-width: 768px) {
           .app-legal-page .app-legal-card__content {
             padding: 22px 18px;
+          }
+
+          .app-legal-page .legal-content {
+            font-size: 14px;
+            line-height: 1.8;
+          }
+
+          .app-legal-page .legal-content h1 {
+            font-size: 1.42rem;
+          }
+
+          .app-legal-page .legal-content h2 {
+            font-size: 1.16rem;
+          }
+
+          .app-legal-page .legal-content h3,
+          .app-legal-page .legal-content h4 {
+            font-size: 0.96rem;
           }
         }
       `}</style>

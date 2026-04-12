@@ -100,6 +100,7 @@ export default function AdminPage() {
           height: 100%;
           display: flex;
           flex-direction: column;
+          min-width: 0;
         }
 
         .admin-console-page .admin-card-title {
@@ -107,6 +108,8 @@ export default function AdminPage() {
           font-weight: 700;
           letter-spacing: -0.02em;
           color: #21353a;
+          overflow-wrap: anywhere;
+          word-break: break-word;
         }
 
         .admin-console-page .admin-card-copy {
@@ -114,6 +117,8 @@ export default function AdminPage() {
           color: #5d6d71;
           line-height: 1.7;
           font-size: 0.94rem;
+          overflow-wrap: anywhere;
+          word-break: break-word;
         }
 
         .admin-console-page .admin-card-eyebrow {
@@ -136,6 +141,7 @@ export default function AdminPage() {
             );
           color: #8a6e57;
           width: fit-content;
+          max-width: 100%;
         }
 
         .admin-console-page .admin-dot {
@@ -155,6 +161,7 @@ export default function AdminPage() {
           );
           border-radius: 22px;
           padding: 18px;
+          min-width: 0;
         }
 
         .admin-console-page .admin-hero-note-title {
@@ -172,6 +179,8 @@ export default function AdminPage() {
           font-weight: 800;
           letter-spacing: -0.05em;
           color: #8a6e57;
+          overflow-wrap: anywhere;
+          word-break: break-word;
         }
 
         .admin-console-page .admin-hero-note-copy {
@@ -179,6 +188,15 @@ export default function AdminPage() {
           font-size: 0.85rem;
           line-height: 1.65;
           color: #6f665d;
+          overflow-wrap: anywhere;
+          word-break: break-word;
+        }
+
+        .admin-console-page .admin-note-grid {
+          display: grid;
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+          gap: 12px;
+          margin-top: 18px;
         }
 
         .admin-console-page .admin-card-actions {
@@ -203,6 +221,33 @@ export default function AdminPage() {
         @media (max-width: 720px) {
           .admin-console-page .admin-card-inner {
             padding: 20px;
+          }
+
+          .admin-console-page .admin-nav-row {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 10px;
+          }
+
+          .admin-console-page .admin-nav-row a,
+          .admin-console-page .admin-nav-row a > * {
+            width: 100%;
+          }
+
+          .admin-console-page .admin-card-actions {
+            flex-direction: column;
+            align-items: stretch;
+          }
+
+          .admin-console-page .admin-card-actions a,
+          .admin-console-page .admin-card-actions a > * {
+            width: 100%;
+          }
+        }
+
+        @media (max-width: 640px) {
+          .admin-console-page .admin-note-grid {
+            grid-template-columns: 1fr;
           }
         }
       `}</style>
@@ -237,13 +282,9 @@ export default function AdminPage() {
               const active = pathname === item.href;
 
               return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className="admin-card-link"
-                >
+                <Link key={item.href} href={item.href} className="admin-card-link">
                   <Button
-                    className="rounded-[999px] border px-5 py-2.5 text-[0.88rem] font-semibold"
+                    className="app-responsive-btn rounded-[999px] border px-5 py-2.5 text-[0.88rem] font-semibold"
                     style={
                       active
                         ? dashboardStyles.primaryButton
@@ -276,14 +317,7 @@ export default function AdminPage() {
                   using the same visual language as the rest of the dashboard pages.
                 </div>
 
-                <div
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
-                    gap: 12,
-                    marginTop: 18,
-                  }}
-                >
+                <div className="admin-note-grid">
                   <div className="admin-hero-note">
                     <div className="admin-hero-note-title">Modules</div>
                     <div className="admin-hero-note-value">2</div>
@@ -423,7 +457,7 @@ export default function AdminPage() {
                   <div className="admin-card-actions">
                     <Link href={card.href} className="admin-card-link">
                       <Button
-                        className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
+                        className="app-responsive-btn rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
                         style={dashboardStyles.primaryButton}
                       >
                         Open
@@ -432,7 +466,7 @@ export default function AdminPage() {
 
                     <Link href={card.href} className="admin-card-link">
                       <Button
-                        className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
+                        className="app-responsive-btn rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
                         style={dashboardStyles.secondaryButton}
                       >
                         Review

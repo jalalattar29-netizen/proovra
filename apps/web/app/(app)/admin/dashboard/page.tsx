@@ -191,6 +191,7 @@ export default function AdminDashboardPage() {
 
   const topEvidenceTypes = useMemo(() => {
     if (!bundle) return [];
+
     return [
       { label: "Photos", value: bundle.summary.evidenceByType.photos, tone: "green" as const },
       { label: "Videos", value: bundle.summary.evidenceByType.videos, tone: "neutral" as const },
@@ -201,6 +202,7 @@ export default function AdminDashboardPage() {
 
   const subscriptionCards = useMemo(() => {
     if (!bundle) return [];
+
     return [
       { label: "Free", value: bundle.summary.subscriptionBreakdown.free, tone: "neutral" as const },
       { label: "Payg", value: bundle.summary.subscriptionBreakdown.payg, tone: "gold" as const },
@@ -222,6 +224,10 @@ export default function AdminDashboardPage() {
         fontWeight: 800,
         letterSpacing: "0.12em",
         textTransform: "uppercase",
+        maxWidth: "100%",
+        textAlign: "center",
+        overflowWrap: "anywhere",
+        wordBreak: "break-word",
       }) as const,
     []
   );
@@ -294,6 +300,7 @@ export default function AdminDashboardPage() {
           position: relative;
           z-index: 10;
           padding: 24px;
+          min-width: 0;
         }
 
         .admin-dashboard-page .admin-card-title {
@@ -301,6 +308,8 @@ export default function AdminDashboardPage() {
           font-weight: 700;
           letter-spacing: -0.02em;
           color: #21353a;
+          overflow-wrap: anywhere;
+          word-break: break-word;
         }
 
         .admin-dashboard-page .admin-card-copy {
@@ -308,6 +317,8 @@ export default function AdminDashboardPage() {
           color: #5d6d71;
           line-height: 1.7;
           font-size: 0.94rem;
+          overflow-wrap: anywhere;
+          word-break: break-word;
         }
 
         .admin-dashboard-page .admin-summary-card {
@@ -320,6 +331,8 @@ export default function AdminDashboardPage() {
           letter-spacing: 0.12em;
           text-transform: uppercase;
           color: #718186;
+          overflow-wrap: anywhere;
+          word-break: break-word;
         }
 
         .admin-dashboard-page .admin-summary-value {
@@ -329,6 +342,8 @@ export default function AdminDashboardPage() {
           font-weight: 800;
           letter-spacing: -0.05em;
           color: #21353a;
+          overflow-wrap: anywhere;
+          word-break: break-word;
         }
 
         .admin-dashboard-page .admin-summary-sub {
@@ -336,6 +351,8 @@ export default function AdminDashboardPage() {
           font-size: 0.84rem;
           color: #68787d;
           line-height: 1.65;
+          overflow-wrap: anywhere;
+          word-break: break-word;
         }
 
         .admin-dashboard-page .admin-stack {
@@ -357,6 +374,7 @@ export default function AdminDashboardPage() {
           box-shadow:
             inset 0 1px 0 rgba(255, 255, 255, 0.42),
             0 12px 26px rgba(0, 0, 0, 0.06);
+          min-width: 0;
         }
 
         .admin-dashboard-page .admin-soft-row-tight {
@@ -372,6 +390,7 @@ export default function AdminDashboardPage() {
           box-shadow:
             inset 0 1px 0 rgba(255, 255, 255, 0.42),
             0 12px 26px rgba(0, 0, 0, 0.06);
+          min-width: 0;
         }
 
         .admin-dashboard-page .admin-row-between {
@@ -379,6 +398,7 @@ export default function AdminDashboardPage() {
           justify-content: space-between;
           align-items: flex-start;
           gap: 12px;
+          min-width: 0;
         }
 
         .admin-dashboard-page .admin-item-title {
@@ -386,6 +406,8 @@ export default function AdminDashboardPage() {
           font-weight: 700;
           color: #21353a;
           line-height: 1.45;
+          overflow-wrap: anywhere;
+          word-break: break-word;
         }
 
         .admin-dashboard-page .admin-item-sub {
@@ -393,6 +415,8 @@ export default function AdminDashboardPage() {
           color: #6e7e83;
           line-height: 1.6;
           margin-top: 4px;
+          overflow-wrap: anywhere;
+          word-break: break-word;
         }
 
         .admin-dashboard-page .admin-item-value {
@@ -401,6 +425,7 @@ export default function AdminDashboardPage() {
           color: #2d5b59;
           letter-spacing: -0.04em;
           white-space: nowrap;
+          flex-shrink: 0;
         }
 
         .admin-dashboard-page .admin-mini-grid {
@@ -419,6 +444,7 @@ export default function AdminDashboardPage() {
           );
           border-radius: 18px;
           padding: 14px;
+          min-width: 0;
         }
 
         .admin-dashboard-page .admin-mini-label {
@@ -427,6 +453,8 @@ export default function AdminDashboardPage() {
           text-transform: uppercase;
           letter-spacing: 0.12em;
           color: #7b6a5d;
+          overflow-wrap: anywhere;
+          word-break: break-word;
         }
 
         .admin-dashboard-page .admin-mini-value {
@@ -435,6 +463,8 @@ export default function AdminDashboardPage() {
           font-weight: 800;
           letter-spacing: -0.04em;
           color: #8a6e57;
+          overflow-wrap: anywhere;
+          word-break: break-word;
         }
 
         @media (max-width: 1200px) {
@@ -452,6 +482,16 @@ export default function AdminDashboardPage() {
           .admin-dashboard-page .admin-card-inner {
             padding: 20px;
           }
+
+          .admin-dashboard-page .admin-row-between {
+            flex-wrap: wrap;
+          }
+        }
+
+        @media (max-width: 720px) {
+          .admin-dashboard-page .admin-item-value {
+            white-space: normal;
+          }
         }
 
         @media (max-width: 640px) {
@@ -463,18 +503,12 @@ export default function AdminDashboardPage() {
 
       {loading ? (
         <div className="admin-dashboard-page">
-          <Card
-            className="admin-card"
-            style={dashboardStyles.outerCard}
-          >
+          <Card className="admin-card" style={dashboardStyles.outerCard}>
             <div className="admin-card-inner">
               <Skeleton width="100%" height="220px" />
             </div>
           </Card>
-          <Card
-            className="admin-card"
-            style={dashboardStyles.outerCard}
-          >
+          <Card className="admin-card" style={dashboardStyles.outerCard}>
             <div className="admin-card-inner">
               <Skeleton width="100%" height="220px" />
             </div>
@@ -630,8 +664,8 @@ export default function AdminDashboardPage() {
                         <div style={{ minWidth: 0, flex: 1 }}>
                           <div className="admin-item-title">{country.name ?? "Unknown"}</div>
                           <div className="admin-item-sub">
-                            {country.countryCode ?? "—"} · {country.share?.toFixed(1) ?? "0.0"}%
-                            share
+                            {country.countryCode ?? "—"} ·{" "}
+                            {country.share?.toFixed(1) ?? "0.0"}% share
                           </div>
                         </div>
                         <div className="admin-item-value">{country.count}</div>
@@ -642,7 +676,10 @@ export default function AdminDashboardPage() {
 
                 <div className="admin-mini-grid">
                   {bundle.geography.cities.slice(0, 4).map((city, idx) => (
-                    <div key={`${city.normalized ?? city.name}-${idx}`} className="admin-mini-stat">
+                    <div
+                      key={`${city.normalized ?? city.name}-${idx}`}
+                      className="admin-mini-stat"
+                    >
                       <div className="admin-mini-label">{city.name ?? "Unknown city"}</div>
                       <div className="admin-mini-value">{city.count}</div>
                     </div>
@@ -696,6 +733,7 @@ export default function AdminDashboardPage() {
                             >
                               {event.severity ?? "info"}
                             </span>
+
                             {event.routeType ? (
                               <span
                                 style={{
@@ -709,7 +747,8 @@ export default function AdminDashboardPage() {
                           </div>
 
                           <div className="admin-item-sub" style={{ marginTop: 10 }}>
-                            {event.path ?? "No path"} · {event.city ?? event.country ?? "No location"}
+                            {event.path ?? "No path"} ·{" "}
+                            {event.city ?? event.country ?? "No location"}
                           </div>
                           <div className="admin-item-sub">
                             {formatTimestamp(event.createdAt)}
@@ -801,7 +840,9 @@ export default function AdminDashboardPage() {
                 <div className="admin-mini-grid">
                   <div className="admin-mini-stat">
                     <div className="admin-mini-label">Users With Evidence</div>
-                    <div className="admin-mini-value">{bundle.summary.usersWithEvidence}</div>
+                    <div className="admin-mini-value">
+                      {bundle.summary.usersWithEvidence}
+                    </div>
                   </div>
                   <div className="admin-mini-stat">
                     <div className="admin-mini-label">Guest Users</div>

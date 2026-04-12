@@ -155,7 +155,7 @@ function TeamRoleDropdown({
   options,
   onChange,
   disabled,
-  minWidth = 160,
+  minWidth = 0,
 }: {
   value: TeamRoleValue;
   options: readonly TeamRoleValue[];
@@ -321,7 +321,6 @@ function TeamRoleDropdown({
         ref={rootRef}
         style={{
           position: "relative",
-          minWidth,
           width: "100%",
         }}
       >
@@ -1202,7 +1201,6 @@ export default function TeamDetailPage() {
           grid-template-columns: repeat(2, minmax(0, 1fr));
           gap: 28px;
           align-items: stretch;
-          grid-auto-rows: 1fr;
         }
 
         .teams-detail-page-shell .team-top-grid > .team-card,
@@ -1258,6 +1256,27 @@ export default function TeamDetailPage() {
           align-items: center;
         }
 
+        .teams-detail-page-shell .team-row-flex {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          gap: 12px;
+          flex-wrap: wrap;
+        }
+
+        .teams-detail-page-shell .team-row-flex > :first-child {
+          flex: 1 1 260px;
+          min-width: 0;
+        }
+
+        .teams-detail-page-shell .team-row-flex > :last-child {
+          display: flex;
+          gap: 8px;
+          flex-wrap: wrap;
+          align-items: center;
+          justify-content: flex-end;
+        }
+
         .teams-detail-page-shell .team-card .rounded-\\[999px\\] {
           white-space: nowrap;
         }
@@ -1307,13 +1326,37 @@ export default function TeamDetailPage() {
             line-height: 1.1;
           }
 
-          .teams-detail-page-shell .team-cases-actions,
-          .teams-detail-page-shell .team-hero-actions {
-            justify-content: flex-start;
+          .teams-detail-page-shell .team-hero-actions,
+          .teams-detail-page-shell .team-cases-actions {
+            justify-content: stretch;
+            width: 100%;
+          }
+
+          .teams-detail-page-shell .team-hero-actions > *,
+          .teams-detail-page-shell .team-cases-actions > * {
+            width: 100%;
+          }
+
+          .teams-detail-page-shell .team-row-flex {
+            flex-direction: column;
+            align-items: stretch;
+          }
+
+          .teams-detail-page-shell .team-row-flex > :first-child,
+          .teams-detail-page-shell .team-row-flex > :last-child {
+            width: 100%;
+          }
+
+          .teams-detail-page-shell .team-row-flex > :last-child {
+            justify-content: stretch;
+          }
+
+          .teams-detail-page-shell .team-row-flex > :last-child > * {
+            width: 100%;
           }
         }
       `}</style>
-
+      
       <div className="app-hero app-hero-full">
         <div className="container">
           <div className="page-title app-page-title" style={{ marginBottom: 0 }}>
@@ -1362,7 +1405,7 @@ export default function TeamDetailPage() {
                     <Button
                       variant="secondary"
                       onClick={handleStartEditName}
-                      className="rounded-[999px] border px-4 py-2.5 text-[0.88rem] font-semibold"
+className="app-responsive-btn rounded-[999px] border px-4 py-2.5 text-[0.88rem] font-semibold"
                       style={secondaryButtonStyle}
                     >
                       Rename
@@ -1381,7 +1424,7 @@ export default function TeamDetailPage() {
                   <Button
                     onClick={handleSaveTeamName}
                     disabled={savingName || !teamName.trim()}
-                    className="rounded-[999px] border px-4 py-2.5 text-[0.88rem] font-semibold"
+className="app-responsive-btn rounded-[999px] border px-4 py-2.5 text-[0.88rem] font-semibold"
                     style={primaryButtonStyle}
                   >
                     {savingName ? "Saving..." : "Save"}
@@ -1391,7 +1434,7 @@ export default function TeamDetailPage() {
                     variant="secondary"
                     onClick={handleCancelEditName}
                     disabled={savingName}
-                    className="rounded-[999px] border px-4 py-2.5 text-[0.88rem] font-semibold"
+className="app-responsive-btn rounded-[999px] border px-4 py-2.5 text-[0.88rem] font-semibold"
                     style={secondaryButtonStyle}
                   >
                     Cancel
@@ -1541,7 +1584,7 @@ export default function TeamDetailPage() {
                     variant="secondary"
                     onClick={() => setDeleteConfirm(false)}
                     disabled={deletingTeam}
-                    className="rounded-[999px] border px-4 py-2.5 text-[0.88rem] font-semibold"
+className="app-responsive-btn rounded-[999px] border px-4 py-2.5 text-[0.88rem] font-semibold"
                     style={secondaryButtonStyle}
                   >
                     Cancel
@@ -1550,7 +1593,7 @@ export default function TeamDetailPage() {
                   <Button
                     onClick={handleDeleteTeam}
                     disabled={deletingTeam}
-                    className="rounded-[999px] border px-4 py-2.5 text-[0.88rem] font-semibold"
+className="app-responsive-btn rounded-[999px] border px-4 py-2.5 text-[0.88rem] font-semibold"
                     style={dangerButtonStyle}
                   >
                     {deletingTeam ? "Deleting..." : "Delete Team"}
@@ -1778,16 +1821,8 @@ export default function TeamDetailPage() {
 
                       return (
                         <div key={member.userId} style={rowCardStyle}>
-                          <div
-                            style={{
-                              display: "flex",
-                              justifyContent: "space-between",
-                              gap: 12,
-                              flexWrap: "wrap",
-                              alignItems: "center",
-                            }}
-                          >
-                            <div style={{ flex: 1, minWidth: 0 }}>
+<div className="team-row-flex">
+                              <div style={{ flex: 1, minWidth: 0 }}>
                               <div
                                 style={{
                                   color: "#21353a",
@@ -1832,7 +1867,7 @@ export default function TeamDetailPage() {
                                     variant="secondary"
                                     onClick={() => handleRemoveMember(member)}
                                     disabled={removingMemberId === member.userId}
-                                    className="rounded-[999px] border px-4 py-2.5 text-[0.88rem] font-semibold"
+className="app-responsive-btn rounded-[999px] border px-4 py-2.5 text-[0.88rem] font-semibold"
                                     style={dangerButtonStyle}
                                   >
                                     {removingMemberId === member.userId
@@ -1937,7 +1972,7 @@ export default function TeamDetailPage() {
                               <Button
                                 variant="secondary"
                                 onClick={() => copyInviteLink(invite)}
-                                className="rounded-[999px] border px-4 py-2.5 text-[0.88rem] font-semibold"
+className="app-responsive-btn rounded-[999px] border px-4 py-2.5 text-[0.88rem] font-semibold"
                                 style={secondaryButtonStyle}
                               >
                                 Copy link
@@ -1948,7 +1983,7 @@ export default function TeamDetailPage() {
                               variant="secondary"
                               onClick={() => handleDeleteInvite(invite.id)}
                               disabled={deletingInviteId === invite.id}
-                              className="rounded-[999px] border px-4 py-2.5 text-[0.88rem] font-semibold"
+className="app-responsive-btn rounded-[999px] border px-4 py-2.5 text-[0.88rem] font-semibold"
                               style={dangerButtonStyle}
                             >
                               {deletingInviteId === invite.id ? "Deleting..." : "Delete"}
@@ -2032,16 +2067,8 @@ export default function TeamDetailPage() {
                 <div className="team-stack">
                   {teamCases.map((item) => (
                     <div key={item.id} style={rowCardStyle}>
-                      <div
-                        style={{
-                          display: "flex",
-                          justifyContent: "space-between",
-                          gap: 12,
-                          flexWrap: "wrap",
-                          alignItems: "center",
-                        }}
-                      >
-                        <div style={{ flex: 1, minWidth: 0 }}>
+<div className="team-row-flex">
+                          <div style={{ flex: 1, minWidth: 0 }}>
                           <div
                             style={{
                               color: "#21353a",
@@ -2071,7 +2098,7 @@ export default function TeamDetailPage() {
                             style={{ textDecoration: "none" }}
                           >
                             <Button
-                              className="rounded-[999px] border px-4 py-2.5 text-[0.88rem] font-semibold"
+className="app-responsive-btn rounded-[999px] border px-4 py-2.5 text-[0.88rem] font-semibold"
                               style={primaryButtonStyle}
                             >
                               Open
@@ -2083,7 +2110,7 @@ export default function TeamDetailPage() {
                               variant="secondary"
                               onClick={() => handleUnlinkTeamCase(item.id)}
                               disabled={unlinkingCaseId === item.id}
-                              className="rounded-[999px] border px-4 py-2.5 text-[0.88rem] font-semibold"
+className="app-responsive-btn rounded-[999px] border px-4 py-2.5 text-[0.88rem] font-semibold"
                               style={dangerButtonStyle}
                             >
                               {unlinkingCaseId === item.id
@@ -2124,16 +2151,8 @@ export default function TeamDetailPage() {
                     <div className="team-stack">
                       {availableCases.map((item) => (
                         <div key={item.id} style={rowCardStyle}>
-                          <div
-                            style={{
-                              display: "flex",
-                              justifyContent: "space-between",
-                              gap: 12,
-                              flexWrap: "wrap",
-                              alignItems: "center",
-                            }}
-                          >
-                            <div style={{ flex: 1, minWidth: 0 }}>
+<div className="team-row-flex">
+                              <div style={{ flex: 1, minWidth: 0 }}>
                               <div
                                 style={{
                                   color: "#21353a",
@@ -2159,7 +2178,7 @@ export default function TeamDetailPage() {
                             <Button
                               onClick={() => handleAddExistingCase(item.id)}
                               disabled={linkingCaseId === item.id}
-                              className="rounded-[999px] border px-4 py-2.5 text-[0.88rem] font-semibold"
+className="app-responsive-btn rounded-[999px] border px-4 py-2.5 text-[0.88rem] font-semibold"
                               style={primaryButtonStyle}
                             >
                               {linkingCaseId === item.id ? "Linking..." : "Link"}

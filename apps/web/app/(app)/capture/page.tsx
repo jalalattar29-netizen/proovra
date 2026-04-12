@@ -425,6 +425,8 @@ export default function CapturePage() {
     setProgress(0);
     setError(null);
     setBusy(false);
+    setLocationPermissionDenied(false);
+    closeCamera();
   };
 
   const finalizeSession = async () => {
@@ -841,12 +843,269 @@ export default function CapturePage() {
           transform: translateY(-1px);
         }
 
+        .capture-page-shell .capture-hero-side {
+          display: flex;
+          gap: 8px;
+          flex-wrap: wrap;
+          justify-content: flex-end;
+          align-items: flex-start;
+        }
+
+        .capture-page-shell .capture-actions-row {
+          display: flex;
+          gap: 10px;
+          flex-wrap: wrap;
+        }
+
+        .capture-page-shell .capture-finish-row {
+          display: flex;
+          gap: 10px;
+          flex-wrap: wrap;
+        }
+
+        .capture-page-shell .capture-drop-zone {
+          cursor: pointer;
+          transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        .capture-page-shell .capture-drop-zone:hover {
+          transform: translateY(-1px);
+          box-shadow:
+            inset 0 1px 0 rgba(255,255,255,0.58),
+            0 20px 42px rgba(0,0,0,0.06);
+        }
+
         .capture-page-shell .camera-overlay-flash::after {
           content: "";
           position: absolute;
           inset: 0;
           background: rgba(255, 244, 214, 0.09);
           pointer-events: none;
+        }
+
+        .capture-page-shell .camera-overlay {
+          position: fixed;
+          inset: 0;
+          z-index: 90;
+          background: #081317;
+        }
+
+        .capture-page-shell .camera-preview {
+          position: absolute;
+          inset: 0;
+          width: 100%;
+          height: 100%;
+          object-fit: cover;
+          background: #081317;
+        }
+
+        .capture-page-shell .camera-topbar {
+          position: absolute;
+          top: 0;
+          left: 0;
+          right: 0;
+          z-index: 30;
+          display: flex;
+          align-items: flex-start;
+          justify-content: space-between;
+          gap: 12px;
+          padding: 18px 18px 0;
+        }
+
+        .capture-page-shell .camera-topbar-group {
+          display: flex;
+          gap: 10px;
+          align-items: center;
+        }
+
+        .capture-page-shell .camera-topbar-group-right {
+          justify-content: flex-end;
+        }
+
+        .capture-page-shell .camera-topbar-title-group {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 6px;
+          padding-top: 4px;
+          text-align: center;
+        }
+
+        .capture-page-shell .camera-title {
+          color: #eef3f1;
+          font-size: 1rem;
+          font-weight: 800;
+          letter-spacing: -0.02em;
+        }
+
+        .capture-page-shell .camera-subtitle {
+          color: rgba(226, 235, 232, 0.78);
+          font-size: 0.82rem;
+        }
+
+        .capture-page-shell .camera-recording-indicator {
+          display: inline-flex;
+          align-items: center;
+          gap: 8px;
+          padding: 7px 12px;
+          border-radius: 999px;
+          background: rgba(9, 21, 24, 0.76);
+          border: 1px solid rgba(255,255,255,0.10);
+          color: #fff1f1;
+          font-size: 0.78rem;
+          font-weight: 800;
+          backdrop-filter: blur(10px);
+        }
+
+        .capture-page-shell .camera-recording-dot {
+          width: 8px;
+          height: 8px;
+          border-radius: 999px;
+          background: #ff6464;
+          box-shadow: 0 0 0 6px rgba(255,100,100,0.16);
+          display: inline-block;
+        }
+
+        .capture-page-shell .camera-icon-btn {
+          min-height: 42px;
+          padding: 0 14px;
+          border-radius: 999px;
+          border: 1px solid rgba(255,255,255,0.12);
+          background: rgba(9, 21, 24, 0.72);
+          color: #eef3f1;
+          font-size: 0.85rem;
+          font-weight: 700;
+          backdrop-filter: blur(10px);
+          cursor: pointer;
+        }
+
+        .capture-page-shell .camera-icon-btn.active {
+          border-color: rgba(214,184,157,0.22);
+          color: #f2e0cf;
+        }
+
+        .capture-page-shell .camera-bottombar {
+          position: absolute;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          z-index: 30;
+          padding: 0 18px 20px;
+          display: grid;
+          gap: 14px;
+        }
+
+        .capture-page-shell .camera-bottombar-meta {
+          display: flex;
+          justify-content: center;
+        }
+
+        .capture-page-shell .camera-helper-text,
+        .capture-page-shell .camera-inline-error {
+          max-width: min(720px, 100%);
+          text-align: center;
+          padding: 11px 14px;
+          border-radius: 16px;
+          background: rgba(9, 21, 24, 0.72);
+          border: 1px solid rgba(255,255,255,0.10);
+          color: rgba(236,243,241,0.88);
+          font-size: 0.85rem;
+          line-height: 1.55;
+          backdrop-filter: blur(10px);
+        }
+
+        .capture-page-shell .camera-inline-error {
+          color: #ffd5d5;
+          border-color: rgba(255,109,109,0.18);
+        }
+
+        .capture-page-shell .camera-bottombar-actions {
+          display: flex;
+          justify-content: center;
+        }
+
+        .capture-page-shell .camera-capture-btn {
+          min-width: 220px;
+          min-height: 56px;
+          padding: 0 24px;
+          border-radius: 999px;
+          border: 1px solid rgba(79,112,107,0.22);
+          background: linear-gradient(
+            180deg,
+            rgba(58,92,95,0.96) 0%,
+            rgba(20,38,42,0.98) 100%
+          );
+          color: #eef3f1;
+          font-size: 0.96rem;
+          font-weight: 800;
+          box-shadow:
+            inset 0 1px 0 rgba(255,255,255,0.08),
+            0 16px 34px rgba(18,40,44,0.22);
+          text-shadow: 0 1px 0 rgba(0,0,0,0.22);
+          cursor: pointer;
+        }
+
+        .capture-page-shell .camera-capture-btn.danger {
+          border-color: rgba(194,78,78,0.20);
+          background: linear-gradient(
+            180deg,
+            rgba(164,84,84,0.94) 0%,
+            rgba(130,62,62,0.98) 100%
+          );
+          color: #fff3f3;
+          box-shadow:
+            inset 0 1px 0 rgba(255,255,255,0.06),
+            0 14px 28px rgba(90,18,18,0.14);
+        }
+
+        @media (max-width: 900px) {
+          .capture-page-shell .capture-hero-side {
+            width: 100%;
+            justify-content: flex-start;
+          }
+        }
+
+        @media (max-width: 720px) {
+          .capture-page-shell .capture-hero-side,
+          .capture-page-shell .capture-actions-row,
+          .capture-page-shell .capture-finish-row {
+            width: 100%;
+          }
+
+          .capture-page-shell .capture-actions-row > *,
+          .capture-page-shell .capture-finish-row > * {
+            width: 100%;
+          }
+
+          .capture-page-shell .camera-topbar {
+            padding: 14px 14px 0;
+            grid-template-columns: 1fr;
+          }
+
+          .capture-page-shell .camera-topbar {
+            display: grid;
+            gap: 10px;
+          }
+
+          .capture-page-shell .camera-topbar-group,
+          .capture-page-shell .camera-topbar-group-right,
+          .capture-page-shell .camera-topbar-title-group {
+            justify-content: center;
+          }
+
+          .capture-page-shell .camera-topbar-group,
+          .capture-page-shell .camera-topbar-group-right {
+            flex-wrap: wrap;
+          }
+
+          .capture-page-shell .camera-icon-btn {
+            min-width: 96px;
+          }
+
+          .capture-page-shell .camera-capture-btn {
+            width: 100%;
+            min-width: 0;
+          }
         }
       `}</style>
 
@@ -912,14 +1171,7 @@ export default function CapturePage() {
               </p>
             </div>
 
-            <div
-              style={{
-                display: "flex",
-                gap: 8,
-                flexWrap: "wrap",
-                justifyContent: "flex-end",
-              }}
-            >
+            <div className="capture-hero-side">
               <span
                 style={{
                   display: "inline-flex",
@@ -987,7 +1239,7 @@ export default function CapturePage() {
           <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(255,255,255,0.10)_0%,rgba(255,255,255,0.03)_12%,rgba(255,255,255,0.00)_24%,rgba(255,255,255,0.00)_76%,rgba(255,255,255,0.03)_88%,rgba(255,255,255,0.10)_100%)]" />
         </div>
 
-        <div className="container relative z-10">
+        <div className="container relative z-10" style={{ paddingBottom: 72 }}>
           <Card
             className="relative overflow-hidden rounded-[30px] border bg-transparent p-0 shadow-none"
             style={outerCardStyle}
@@ -1069,7 +1321,7 @@ export default function CapturePage() {
                   style={{ display: "none" }}
                 />
 
-                <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                <div className="capture-actions-row">
                   <Button
                     variant="secondary"
                     onClick={openFilePicker}
@@ -1098,7 +1350,7 @@ export default function CapturePage() {
                 </div>
 
                 <div
-                  className="drop-zone"
+                  className="capture-drop-zone"
                   onDragOver={(event) => event.preventDefault()}
                   onDrop={async (event) => {
                     event.preventDefault();
@@ -1140,6 +1392,7 @@ export default function CapturePage() {
                     gap: 10,
                     color: "#42565b",
                     fontSize: 14,
+                    flexWrap: "wrap",
                   }}
                 >
                   <input
@@ -1195,6 +1448,7 @@ export default function CapturePage() {
                       >
                         Session items
                       </div>
+
                       <div
                         style={{
                           display: "inline-flex",
@@ -1440,7 +1694,7 @@ export default function CapturePage() {
                   </div>
                 ) : null}
 
-                <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                <div className="capture-finish-row">
                   <Button
                     onClick={finalizeSession}
                     disabled={busy || sessionCreating || sessionItems.length === 0}
@@ -1492,6 +1746,7 @@ export default function CapturePage() {
               <div className="camera-title">
                 {cameraMode === "PHOTO" ? "Photo Camera" : "Video Recorder"}
               </div>
+
               {cameraMode === "VIDEO" && isRecording ? (
                 <div className="camera-recording-indicator">
                   <span className="camera-recording-dot" />

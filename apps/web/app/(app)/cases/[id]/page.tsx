@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { Button, Card, useToast } from "../../../../components/ui";
@@ -147,6 +147,7 @@ export default function CaseDetailPage() {
   const [operationLoading, setOperationLoading] = useState(false);
 
   const caseId = params?.id;
+  const teamMemberMenuRef = useRef<HTMLDivElement | null>(null);
 
   const isOwner = useMemo(() => {
     if (!caseData?.ownerUserId || !currentUserId) return false;
@@ -154,9 +155,34 @@ export default function CaseDetailPage() {
   }, [caseData?.ownerUserId, currentUserId]);
 
   const selectedTeamMember = useMemo(
-  () => teamMembers.find((member) => member.userId === selectedTeamMemberId) ?? null,
-  [teamMembers, selectedTeamMemberId]
-);
+    () => teamMembers.find((member) => member.userId === selectedTeamMemberId) ?? null,
+    [teamMembers, selectedTeamMemberId]
+  );
+
+  useEffect(() => {
+    if (!teamMemberMenuOpen) return;
+
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as Node | null;
+      if (!target) return;
+      if (teamMemberMenuRef.current?.contains(target)) return;
+      setTeamMemberMenuOpen(false);
+    };
+
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setTeamMemberMenuOpen(false);
+      }
+    };
+
+    window.addEventListener("mousedown", handleClickOutside);
+    window.addEventListener("keydown", handleEscape);
+
+    return () => {
+      window.removeEventListener("mousedown", handleClickOutside);
+      window.removeEventListener("keydown", handleEscape);
+    };
+  }, [teamMemberMenuOpen]);
 
   const loadData = async () => {
     if (!caseId) return;
@@ -186,7 +212,10 @@ export default function CaseDetailPage() {
 
           setTeamMembers(membersRes.items ?? []);
         } catch (teamErr) {
-          console.error("Failed to load team members:", teamErr);
+          captureException(teamErr, {
+            feature: "case_detail_team_members_load",
+            caseId,
+          });
           setTeamMembers([]);
         }
       } else {
@@ -211,6 +240,11 @@ export default function CaseDetailPage() {
     if (!caseData || !isOwner) return;
     setRenameValue(caseData.name);
     setRenamingCase(true);
+  };
+
+  const handleRenameCancel = () => {
+    setRenamingCase(false);
+    setRenameValue(caseData?.name ?? "");
   };
 
   const handleRenameSubmit = async () => {
@@ -248,7 +282,7 @@ export default function CaseDetailPage() {
     try {
       await apiFetch(`/v1/cases/${caseId}`, { method: "DELETE" });
       addToast("Case deleted successfully", "success");
-      setTimeout(() => router.push("/cases"), 400);
+      router.push("/cases");
     } catch (err) {
       const errorMessage =
         err instanceof Error ? err.message : "Failed to delete case";
@@ -295,6 +329,7 @@ export default function CaseDetailPage() {
       });
 
       setSelectedTeamMemberId("");
+      setTeamMemberMenuOpen(false);
       setShowSharePanel(false);
       await loadData();
       addToast("Case shared successfully", "success");
@@ -359,7 +394,7 @@ export default function CaseDetailPage() {
 
   const handleExport = () => {
     if (!caseId) return;
-    window.open(`/v1/cases/${caseId}/export`, "_blank");
+    window.open(`/v1/cases/${caseId}/export`, "_blank", "noopener,noreferrer");
   };
 
   const outerCardStyle = {
@@ -645,6 +680,174 @@ export default function CaseDetailPage() {
 
   return (
     <div className="section app-section case-detail-page-shell">
+      <style jsx global>{`
+        .case-detail-page-shell .case-hero-actions {
+          display: flex;
+          gap: 10px;
+          flex-wrap: wrap;
+          justify-content: flex-end;
+          align-items: center;
+        }
+
+        .case-detail-page-shell .case-hero-main {
+          margin-top: 20px;
+          display: flex;
+          align-items: center;
+          gap: 16px;
+          flex-wrap: wrap;
+        }
+
+        .case-detail-page-shell .case-rename-input {
+          background: rgba(255,255,255,0.05);
+          border: 1px solid rgba(214,184,157,0.16);
+          border-radius: 14px;
+          color: #d8e0dd;
+          padding: 10px 14px;
+          width: 100%;
+          max-width: 540px;
+          min-height: 52px;
+          font-size: 1.18rem;
+          font-weight: 600;
+          outline: none;
+        }
+
+        .case-detail-page-shell .case-access-row,
+        .case-detail-page-shell .case-evidence-row {
+          display: flex;
+          justify-content: space-between;
+          gap: 12px;
+          flex-wrap: wrap;
+          align-items: center;
+        }
+
+        .case-detail-page-shell .case-access-row > :first-child,
+        .case-detail-page-shell .case-evidence-row > :first-child {
+          flex: 1 1 260px;
+          min-width: 0;
+        }
+
+        .case-detail-page-shell .case-access-row > :last-child,
+        .case-detail-page-shell .case-evidence-row > :last-child {
+          display: flex;
+          gap: 8px;
+          flex-wrap: wrap;
+          align-items: center;
+          justify-content: flex-end;
+        }
+
+        .case-detail-page-shell .case-share-methods {
+          display: flex;
+          gap: 16px;
+          flex-wrap: wrap;
+          margin-bottom: 14px;
+        }
+
+        .case-detail-page-shell .case-modal-actions {
+          display: flex;
+          gap: 10px;
+          flex-wrap: wrap;
+          margin-top: 16px;
+        }
+
+        .case-detail-page-shell .case-modal-actions > * {
+          flex: 1 1 0;
+        }
+
+        @media (max-width: 860px) {
+          .case-detail-page-shell .case-evidence-surface {
+            min-height: auto !important;
+            align-items: flex-start !important;
+            padding: 14px !important;
+          }
+
+          .case-detail-page-shell .case-evidence-head {
+            align-items: flex-start !important;
+          }
+
+          .case-detail-page-shell .case-evidence-meta {
+            white-space: normal !important;
+            overflow: visible !important;
+            text-overflow: unset !important;
+            word-break: break-word;
+            overflow-wrap: anywhere;
+          }
+        }
+
+        @media (max-width: 720px) {
+          .case-detail-page-shell .case-hero-actions {
+            width: 100%;
+            justify-content: stretch;
+          }
+
+          .case-detail-page-shell .case-hero-actions > * {
+            width: 100%;
+          }
+
+          .case-detail-page-shell .case-hero-main {
+            align-items: stretch;
+          }
+
+          .case-detail-page-shell .case-rename-input {
+            max-width: 100%;
+          }
+
+          .case-detail-page-shell .case-access-row,
+          .case-detail-page-shell .case-evidence-row {
+            flex-direction: column;
+            align-items: stretch;
+          }
+
+          .case-detail-page-shell .case-access-row > :first-child,
+          .case-detail-page-shell .case-access-row > :last-child,
+          .case-detail-page-shell .case-evidence-row > :first-child,
+          .case-detail-page-shell .case-evidence-row > :last-child {
+            width: 100%;
+          }
+
+          .case-detail-page-shell .case-access-row > :last-child,
+          .case-detail-page-shell .case-evidence-row > :last-child {
+            justify-content: stretch;
+          }
+
+          .case-detail-page-shell .case-access-row > :last-child > *,
+          .case-detail-page-shell .case-evidence-row > :last-child > * {
+            width: 100%;
+          }
+
+          .case-detail-page-shell .case-share-methods {
+            flex-direction: column;
+            gap: 10px;
+          }
+
+          .case-detail-page-shell .case-modal-actions {
+            flex-direction: column;
+          }
+
+          .case-detail-page-shell .case-modal-actions > * {
+            width: 100%;
+          }
+
+          .case-detail-page-shell .case-evidence-surface {
+            flex-direction: column !important;
+            align-items: stretch !important;
+          }
+
+          .case-detail-page-shell .case-evidence-right {
+            width: 100%;
+            justify-content: space-between !important;
+          }
+
+          .case-detail-page-shell .case-evidence-title,
+          .case-detail-page-shell .case-evidence-meta {
+            white-space: normal !important;
+            overflow: visible !important;
+            text-overflow: unset !important;
+            word-break: break-word;
+            overflow-wrap: anywhere;
+          }
+        }
+      `}</style>
+
       <div className="app-hero app-hero-full">
         <div className="container">
           <div className="page-title app-page-title" style={{ marginBottom: 0 }}>
@@ -680,82 +883,60 @@ export default function CaseDetailPage() {
                 Case
               </div>
 
-<div
-  style={{
-    marginTop: 20,
-    display: "flex",
-    alignItems: "center",
-    gap: 16,
-    flexWrap: "wrap",
-  }}
->
-  {renamingCase ? (
-    <>
-      <input
-        type="text"
-        value={renameValue}
-        onChange={(e) => setRenameValue(e.target.value)}
-        maxLength={120}
-        autoFocus
-        style={{
-          background: "rgba(255,255,255,0.05)",
-          border: "1px solid rgba(214,184,157,0.16)",
-          borderRadius: 14,
-          color: "#d8e0dd",
-          padding: "10px 14px",
-          width: "100%",
-          maxWidth: 540,
-          minHeight: 52,
-          fontSize: "1.18rem",
-          fontWeight: 600,
-        }}
-      />
+              <div className="case-hero-main">
+                {renamingCase ? (
+                  <>
+                    <input
+                      type="text"
+                      value={renameValue}
+                      onChange={(e) => setRenameValue(e.target.value)}
+                      maxLength={120}
+                      autoFocus
+                      className="case-rename-input"
+                    />
 
-      <Button
-        onClick={handleRenameSubmit}
-        disabled={!renameValue.trim() || operationLoading}
-        className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
-        style={primaryButtonStyle}
-      >
-        Save
-      </Button>
+                    <Button
+                      onClick={handleRenameSubmit}
+                      disabled={!renameValue.trim() || operationLoading}
+                      className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
+                      style={primaryButtonStyle}
+                    >
+                      Save
+                    </Button>
 
-      <Button
-        variant="secondary"
-        onClick={() => {
-          setRenamingCase(false);
-          setRenameValue(caseData.name);
-        }}
-        disabled={operationLoading}
-        className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
-        style={secondaryButtonStyle}
-      >
-        Cancel
-      </Button>
-    </>
-  ) : (
-    <>
-      <h1
-        className="max-w-[820px] text-[1.72rem] font-medium leading-[1.02] tracking-[-0.045em] text-[#d9e2df] md:text-[2.22rem] lg:text-[2.72rem]"
-        style={{ margin: 0 }}
-      >
-        <span style={{ color: "#c3ebe2" }}>{caseData.name}</span>
-      </h1>
+                    <Button
+                      variant="secondary"
+                      onClick={handleRenameCancel}
+                      disabled={operationLoading}
+                      className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
+                      style={secondaryButtonStyle}
+                    >
+                      Cancel
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    <h1
+                      className="max-w-[820px] text-[1.72rem] font-medium leading-[1.02] tracking-[-0.045em] text-[#d9e2df] md:text-[2.22rem] lg:text-[2.72rem]"
+                      style={{ margin: 0 }}
+                    >
+                      <span style={{ color: "#c3ebe2" }}>{caseData.name}</span>
+                    </h1>
 
-      {isOwner && (
-        <Button
-          variant="secondary"
-          onClick={handleRenameStart}
-          disabled={operationLoading}
-          className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
-          style={secondaryButtonStyle}
-        >
-          Rename
-        </Button>
-      )}
-    </>
-  )}
-</div>
+                    {isOwner && (
+                      <Button
+                        variant="secondary"
+                        onClick={handleRenameStart}
+                        disabled={operationLoading}
+                        className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
+                        style={secondaryButtonStyle}
+                      >
+                        Rename
+                      </Button>
+                    )}
+                  </>
+                )}
+              </div>
 
               <p
                 style={{
@@ -773,51 +954,41 @@ export default function CaseDetailPage() {
               </p>
             </div>
 
-<div
-  style={{
-    display: "flex",
-    gap: 10,
-    flexWrap: "wrap",
-    justifyContent: "flex-end",
-    alignItems: "center",
-  }}
->
-  {!renamingCase && (
-    <>
-      <Link href="/cases" style={{ textDecoration: "none" }}>
-        <Button
-          variant="secondary"
-          disabled={operationLoading}
-          className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
-          style={secondaryButtonStyle}
-        >
-          Back to Cases
-        </Button>
-      </Link>
+            {!renamingCase && (
+              <div className="case-hero-actions">
+                <Link href="/cases" style={{ textDecoration: "none" }}>
+                  <Button
+                    variant="secondary"
+                    disabled={operationLoading}
+                    className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
+                    style={secondaryButtonStyle}
+                  >
+                    Back to Cases
+                  </Button>
+                </Link>
 
-      <Button
-        onClick={handleExport}
-        disabled={operationLoading}
-        className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
-        style={primaryButtonStyle}
-      >
-        Export ZIP
-      </Button>
+                <Button
+                  onClick={handleExport}
+                  disabled={operationLoading}
+                  className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
+                  style={primaryButtonStyle}
+                >
+                  Export ZIP
+                </Button>
 
-      {isOwner && (
-        <Button
-          variant="secondary"
-          onClick={() => setDeleteConfirm(true)}
-          disabled={operationLoading}
-          className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
-          style={dangerButtonStyle}
-        >
-          Delete
-        </Button>
-      )}
-    </>
-  )}
-</div>
+                {isOwner && (
+                  <Button
+                    variant="secondary"
+                    onClick={() => setDeleteConfirm(true)}
+                    disabled={operationLoading}
+                    className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
+                    style={dangerButtonStyle}
+                  >
+                    Delete
+                  </Button>
+                )}
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -841,7 +1012,10 @@ export default function CaseDetailPage() {
           <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(255,255,255,0.10)_0%,rgba(255,255,255,0.03)_12%,rgba(255,255,255,0.00)_24%,rgba(255,255,255,0.00)_76%,rgba(255,255,255,0.03)_88%,rgba(255,255,255,0.10)_100%)]" />
         </div>
 
-        <div className="container relative z-10" style={{ display: "grid", gap: 18, paddingBottom: 72 }}>
+        <div
+          className="container relative z-10"
+          style={{ display: "grid", gap: 18, paddingBottom: 72 }}
+        >
           {deleteConfirm && isOwner && (
             <Card
               className="relative overflow-hidden rounded-[30px] border bg-transparent p-0 shadow-none"
@@ -878,12 +1052,12 @@ export default function CaseDetailPage() {
                   The case will be deleted, but all evidence will remain in your dashboard.
                 </p>
 
-                <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 16 }}>
+                <div className="case-modal-actions">
                   <Button
                     variant="secondary"
                     onClick={() => setDeleteConfirm(false)}
                     disabled={operationLoading}
-                    className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
+                    className="w-full rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
                     style={secondaryButtonStyle}
                   >
                     Cancel
@@ -892,7 +1066,7 @@ export default function CaseDetailPage() {
                   <Button
                     onClick={handleDeleteCase}
                     disabled={operationLoading}
-                    className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
+                    className="w-full rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
                     style={dangerButtonStyle}
                   >
                     Delete Case
@@ -943,12 +1117,8 @@ export default function CaseDetailPage() {
                         style={{
                           ...rowCardStyle,
                           padding: 14,
-                          display: "flex",
-                          justifyContent: "space-between",
-                          gap: 12,
-                          flexWrap: "wrap",
-                          alignItems: "center",
                         }}
+                        className="case-access-row"
                       >
                         <div>
                           <div style={{ color: "#23373b", fontWeight: 700 }}>{displayLabel}</div>
@@ -980,15 +1150,15 @@ export default function CaseDetailPage() {
                 <>
                   <Button
                     variant="secondary"
-onClick={() => {
-  setShowSharePanel((prev) => {
-    const next = !prev;
-    if (!next) {
-      setTeamMemberMenuOpen(false);
-    }
-    return next;
-  });
-}}
+                    onClick={() => {
+                      setShowSharePanel((prev) => {
+                        const next = !prev;
+                        if (!next) {
+                          setTeamMemberMenuOpen(false);
+                        }
+                        return next;
+                      });
+                    }}
                     disabled={operationLoading}
                     className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
                     style={tertiaryButtonStyle}
@@ -1004,7 +1174,7 @@ onClick={() => {
                         ...rowCardStyle,
                       }}
                     >
-                      <div style={{ display: "flex", gap: 16, flexWrap: "wrap", marginBottom: 14 }}>
+                      <div className="case-share-methods">
                         <label
                           style={{
                             color: "#42565b",
@@ -1017,10 +1187,10 @@ onClick={() => {
                             type="radio"
                             value="team"
                             checked={shareMethod === "team"}
-onChange={(e) => {
-  setShareMethod(e.target.value as "team");
-  setTeamMemberMenuOpen(false);
-}}
+                            onChange={(e) => {
+                              setShareMethod(e.target.value as "team");
+                              setTeamMemberMenuOpen(false);
+                            }}
                             disabled={!caseData.teamId || operationLoading}
                           />
                           <span>Share with Team Member</span>
@@ -1038,10 +1208,10 @@ onChange={(e) => {
                             type="radio"
                             value="email"
                             checked={shareMethod === "email"}
-onChange={(e) => {
-  setShareMethod(e.target.value as "email");
-  setTeamMemberMenuOpen(false);
-}}
+                            onChange={(e) => {
+                              setShareMethod(e.target.value as "email");
+                              setTeamMemberMenuOpen(false);
+                            }}
                             disabled={operationLoading}
                           />
                           <span>Share by Email</span>
@@ -1052,172 +1222,172 @@ onChange={(e) => {
                         {shareMethod === "team" ? (
                           caseData.teamId ? (
                             <>
-<div style={{ position: "relative" }}>
-  <button
-    type="button"
-    onClick={() => {
-      if (operationLoading) return;
-      setTeamMemberMenuOpen((prev) => !prev);
-    }}
-    disabled={operationLoading}
-    style={{
-      width: "100%",
-      minHeight: 52,
-      padding: "0 48px 0 16px",
-      borderRadius: 18,
-      fontSize: 15,
-      textAlign: "left",
-      background:
-        "linear-gradient(180deg, rgba(250,251,249,0.96) 0%, rgba(241,244,241,0.99) 100%)",
-      border: teamMemberMenuOpen
-        ? "1px solid rgba(79,112,107,0.24)"
-        : "1px solid rgba(79,112,107,0.14)",
-      color: selectedTeamMember ? "#23373b" : "rgba(93,109,113,0.72)",
-      boxShadow: teamMemberMenuOpen
-        ? "inset 0 1px 0 rgba(255,255,255,0.78), 0 0 0 3px rgba(79,112,107,0.08), 0 12px 24px rgba(0,0,0,0.06)"
-        : "inset 0 1px 0 rgba(255,255,255,0.7), 0 10px 22px rgba(0,0,0,0.05)",
-      outline: "none",
-      cursor: operationLoading ? "not-allowed" : "pointer",
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "space-between",
-      gap: 12,
-      transition: "all 180ms ease",
-    }}
-  >
-    <span
-      style={{
-        overflow: "hidden",
-        textOverflow: "ellipsis",
-        whiteSpace: "nowrap",
-      }}
-    >
-      {selectedTeamMember?.label || "Select a team member..."}
-    </span>
+                              <div ref={teamMemberMenuRef} style={{ position: "relative" }}>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    if (operationLoading) return;
+                                    setTeamMemberMenuOpen((prev) => !prev);
+                                  }}
+                                  disabled={operationLoading}
+                                  style={{
+                                    width: "100%",
+                                    minHeight: 52,
+                                    padding: "0 48px 0 16px",
+                                    borderRadius: 18,
+                                    fontSize: 15,
+                                    textAlign: "left",
+                                    background:
+                                      "linear-gradient(180deg, rgba(250,251,249,0.96) 0%, rgba(241,244,241,0.99) 100%)",
+                                    border: teamMemberMenuOpen
+                                      ? "1px solid rgba(79,112,107,0.24)"
+                                      : "1px solid rgba(79,112,107,0.14)",
+                                    color: selectedTeamMember ? "#23373b" : "rgba(93,109,113,0.72)",
+                                    boxShadow: teamMemberMenuOpen
+                                      ? "inset 0 1px 0 rgba(255,255,255,0.78), 0 0 0 3px rgba(79,112,107,0.08), 0 12px 24px rgba(0,0,0,0.06)"
+                                      : "inset 0 1px 0 rgba(255,255,255,0.7), 0 10px 22px rgba(0,0,0,0.05)",
+                                    outline: "none",
+                                    cursor: operationLoading ? "not-allowed" : "pointer",
+                                    display: "flex",
+                                    alignItems: "center",
+                                    justifyContent: "space-between",
+                                    gap: 12,
+                                    transition: "all 180ms ease",
+                                  }}
+                                >
+                                  <span
+                                    style={{
+                                      overflow: "hidden",
+                                      textOverflow: "ellipsis",
+                                      whiteSpace: "nowrap",
+                                    }}
+                                  >
+                                    {selectedTeamMember?.label || "Select a team member..."}
+                                  </span>
 
-    <span
-      aria-hidden="true"
-      style={{
-        position: "absolute",
-        right: 16,
-        top: "50%",
-        transform: teamMemberMenuOpen
-          ? "translateY(-50%) rotate(180deg)"
-          : "translateY(-50%) rotate(0deg)",
-        color: "#8a6e57",
-        fontSize: 14,
-        transition: "transform 180ms ease",
-        pointerEvents: "none",
-      }}
-    >
-      ▾
-    </span>
-  </button>
+                                  <span
+                                    aria-hidden="true"
+                                    style={{
+                                      position: "absolute",
+                                      right: 16,
+                                      top: "50%",
+                                      transform: teamMemberMenuOpen
+                                        ? "translateY(-50%) rotate(180deg)"
+                                        : "translateY(-50%) rotate(0deg)",
+                                      color: "#8a6e57",
+                                      fontSize: 14,
+                                      transition: "transform 180ms ease",
+                                      pointerEvents: "none",
+                                    }}
+                                  >
+                                    ▾
+                                  </span>
+                                </button>
 
-  {teamMemberMenuOpen && (
-    <div
-      style={{
-        position: "absolute",
-        top: "calc(100% + 8px)",
-        left: 0,
-        right: 0,
-        zIndex: 50,
-        borderRadius: 20,
-        overflow: "hidden",
-        border: "1px solid rgba(79,112,107,0.12)",
-        background:
-          "linear-gradient(180deg, rgba(252,253,251,0.98) 0%, rgba(243,245,242,0.99) 100%)",
-        boxShadow:
-          "0 18px 38px rgba(0,0,0,0.10), inset 0 1px 0 rgba(255,255,255,0.7)",
-        backdropFilter: "blur(10px)",
-        WebkitBackdropFilter: "blur(10px)",
-        padding: 8,
-      }}
-    >
-      <button
-        type="button"
-        onClick={() => {
-setSelectedTeamMemberId("");
-setTeamMemberMenuOpen(false);
-setShowSharePanel(false);
-        }}
-        style={{
-          width: "100%",
-          minHeight: 46,
-          border: "none",
-          background:
-            selectedTeamMemberId === ""
-              ? "linear-gradient(180deg, rgba(58,92,95,0.10) 0%, rgba(20,38,42,0.08) 100%)"
-              : "transparent",
-          color: selectedTeamMemberId === "" ? "#23373b" : "#5d6d71",
-          borderRadius: 14,
-          textAlign: "left",
-          padding: "0 14px",
-          fontSize: 14,
-          cursor: "pointer",
-        }}
-      >
-        Select a team member...
-      </button>
+                                {teamMemberMenuOpen && (
+                                  <div
+                                    style={{
+                                      position: "absolute",
+                                      top: "calc(100% + 8px)",
+                                      left: 0,
+                                      right: 0,
+                                      zIndex: 50,
+                                      borderRadius: 20,
+                                      overflow: "hidden",
+                                      border: "1px solid rgba(79,112,107,0.12)",
+                                      background:
+                                        "linear-gradient(180deg, rgba(252,253,251,0.98) 0%, rgba(243,245,242,0.99) 100%)",
+                                      boxShadow:
+                                        "0 18px 38px rgba(0,0,0,0.10), inset 0 1px 0 rgba(255,255,255,0.7)",
+                                      backdropFilter: "blur(10px)",
+                                      WebkitBackdropFilter: "blur(10px)",
+                                      padding: 8,
+                                    }}
+                                  >
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setSelectedTeamMemberId("");
+                                        setTeamMemberMenuOpen(false);
+                                      }}
+                                      style={{
+                                        width: "100%",
+                                        minHeight: 46,
+                                        border: "none",
+                                        background:
+                                          selectedTeamMemberId === ""
+                                            ? "linear-gradient(180deg, rgba(58,92,95,0.10) 0%, rgba(20,38,42,0.08) 100%)"
+                                            : "transparent",
+                                        color: selectedTeamMemberId === "" ? "#23373b" : "#5d6d71",
+                                        borderRadius: 14,
+                                        textAlign: "left",
+                                        padding: "0 14px",
+                                        fontSize: 14,
+                                        cursor: "pointer",
+                                      }}
+                                    >
+                                      Select a team member...
+                                    </button>
 
-      {teamMembers.map((member) => {
-        const active = selectedTeamMemberId === member.userId;
+                                    {teamMembers.map((member) => {
+                                      const active = selectedTeamMemberId === member.userId;
 
-        return (
-          <button
-            key={member.userId}
-            type="button"
-            onClick={() => {
-              setSelectedTeamMemberId(member.userId);
-              setTeamMemberMenuOpen(false);
-            }}
-            style={{
-              width: "100%",
-              minHeight: 48,
-              border: "none",
-              background: active
-                ? "linear-gradient(180deg, rgba(58,92,95,0.12) 0%, rgba(20,38,42,0.08) 100%)"
-                : "transparent",
-              color: "#23373b",
-              borderRadius: 14,
-              textAlign: "left",
-              padding: "0 14px",
-              fontSize: 14,
-              cursor: "pointer",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              gap: 10,
-            }}
-          >
-            <span
-              style={{
-                overflow: "hidden",
-                textOverflow: "ellipsis",
-                whiteSpace: "nowrap",
-              }}
-            >
-              {member.label}
-            </span>
+                                      return (
+                                        <button
+                                          key={member.userId}
+                                          type="button"
+                                          onClick={() => {
+                                            setSelectedTeamMemberId(member.userId);
+                                            setTeamMemberMenuOpen(false);
+                                          }}
+                                          style={{
+                                            width: "100%",
+                                            minHeight: 48,
+                                            border: "none",
+                                            background: active
+                                              ? "linear-gradient(180deg, rgba(58,92,95,0.12) 0%, rgba(20,38,42,0.08) 100%)"
+                                              : "transparent",
+                                            color: "#23373b",
+                                            borderRadius: 14,
+                                            textAlign: "left",
+                                            padding: "0 14px",
+                                            fontSize: 14,
+                                            cursor: "pointer",
+                                            display: "flex",
+                                            alignItems: "center",
+                                            justifyContent: "space-between",
+                                            gap: 10,
+                                          }}
+                                        >
+                                          <span
+                                            style={{
+                                              overflow: "hidden",
+                                              textOverflow: "ellipsis",
+                                              whiteSpace: "nowrap",
+                                            }}
+                                          >
+                                            {member.label}
+                                          </span>
 
-            {active ? (
-              <span
-                style={{
-                  color: "#3a5d61",
-                  fontWeight: 700,
-                  fontSize: 13,
-                  flexShrink: 0,
-                }}
-              >
-                ✓
-              </span>
-            ) : null}
-          </button>
-        );
-      })}
-    </div>
-  )}
-</div>
+                                          {active ? (
+                                            <span
+                                              style={{
+                                                color: "#3a5d61",
+                                                fontWeight: 700,
+                                                fontSize: 13,
+                                                flexShrink: 0,
+                                              }}
+                                            >
+                                              ✓
+                                            </span>
+                                          ) : null}
+                                        </button>
+                                      );
+                                    })}
+                                  </div>
+                                )}
+                              </div>
+
                               <Button
                                 onClick={handleShareTeam}
                                 disabled={!selectedTeamMemberId || operationLoading}
@@ -1332,16 +1502,15 @@ setShowSharePanel(false);
                         style={{
                           ...rowCardStyle,
                           padding: 6,
-                          display: "flex",
-                          alignItems: "center",
-                          gap: 10,
                         }}
+                        className="case-evidence-row"
                       >
                         <Link
                           href={`/evidence/${item.id}`}
                           style={{ textDecoration: "none", color: "inherit", flex: 1 }}
                         >
                           <div
+                            className="case-evidence-surface"
                             style={{
                               ...caseEvidenceSurfaceStyle,
                               borderRadius: 20,
@@ -1354,6 +1523,7 @@ setShowSharePanel(false);
                             }}
                           >
                             <div
+                              className="case-evidence-head"
                               style={{
                                 minWidth: 0,
                                 display: "flex",
@@ -1366,6 +1536,7 @@ setShowSharePanel(false);
 
                               <div style={{ minWidth: 0, flex: 1 }}>
                                 <div
+                                  className="case-evidence-title"
                                   style={{
                                     ...caseEvidenceTitleStyle,
                                     whiteSpace: "nowrap",
@@ -1377,6 +1548,7 @@ setShowSharePanel(false);
                                 </div>
 
                                 <div
+                                  className="case-evidence-meta"
                                   style={{
                                     ...caseEvidenceSubtitleStyle,
                                     whiteSpace: "nowrap",
@@ -1390,6 +1562,7 @@ setShowSharePanel(false);
                             </div>
 
                             <div
+                              className="case-evidence-right"
                               style={{
                                 display: "flex",
                                 alignItems: "center",
@@ -1420,17 +1593,15 @@ setShowSharePanel(false);
                         </Link>
 
                         {isOwner && (
-                          <div onClick={(e) => e.stopPropagation()}>
-                            <Button
-                              variant="secondary"
-                              onClick={() => handleRemoveEvidence(item.id)}
-                              disabled={operationLoading}
-                              className="rounded-[999px] border px-4 py-2.5 text-[0.88rem] font-semibold"
-                              style={dangerButtonStyle}
-                            >
-                              Remove
-                            </Button>
-                          </div>
+                          <Button
+                            variant="secondary"
+                            onClick={() => handleRemoveEvidence(item.id)}
+                            disabled={operationLoading}
+                            className="rounded-[999px] border px-4 py-2.5 text-[0.88rem] font-semibold"
+                            style={dangerButtonStyle}
+                          >
+                            Remove
+                          </Button>
                         )}
                       </div>
                     );

@@ -397,7 +397,8 @@ export default function DeletedEvidencePage() {
                                 fontSize: 18,
                                 fontWeight: 800,
                                 color: "#23373b",
-                                wordBreak: "break-word",
+wordBreak: "break-word",
+overflowWrap: "anywhere",
                               }}
                             >
                               {item.title || "Digital Evidence Record"}
@@ -443,17 +444,13 @@ export default function DeletedEvidencePage() {
                           </div>
                         </div>
 
-                        <div
-                          style={{
-                            display: "flex",
-                            gap: 12,
-                            flexWrap: "wrap",
-                            alignItems: "center",
-                          }}
-                        >
-                          <Link href={`/evidence/${item.id}`}>
-                            <Button
-                              className="rounded-[999px] border px-6 py-3 text-[0.92rem] font-semibold min-w-[190px] justify-center"
+                        <div className="deleted-actions-row">
+<Link
+  href={`/evidence/${item.id}`}
+  className="deleted-actions-link"
+>
+                              <Button
+                              className="rounded-[999px] border px-6 py-3 text-[0.92rem] font-semibold justify-center"
                               style={rowActionButtonStyle}
                             >
                               Open Record
@@ -463,7 +460,7 @@ export default function DeletedEvidencePage() {
                           <Button
                             onClick={() => handleRestore(item.id)}
                             disabled={actionBusyId === item.id}
-                            className="rounded-[999px] border px-6 py-3 text-[0.92rem] font-semibold min-w-[190px] justify-center"
+                            className="rounded-[999px] border px-6 py-3 text-[0.92rem] font-semibold justify-center"
                             style={restoreButtonStyle}
                           >
                             {actionBusyId === item.id

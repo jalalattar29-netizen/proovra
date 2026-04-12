@@ -10,6 +10,14 @@ import { PlanType } from "../../pricing/types";
 
 type PayPalLink = { rel: string; href: string };
 
+type BillingStatusResponse = {
+  entitlement?: {
+    plan?: string | null;
+    credits?: number | null;
+    teamSeats?: number | null;
+  } | null;
+};
+
 export default function BillingPage() {
   const { addToast } = useToast();
   const currency = detectCurrency();
@@ -23,28 +31,45 @@ export default function BillingPage() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    let cancelled = false;
+
     setLoading(true);
     setError(null);
 
     apiFetch("/v1/billing/status")
-      .then((data) => {
+      .then((data: BillingStatusResponse) => {
+        if (cancelled) return;
+
         setPlan(data.entitlement?.plan ?? "FREE");
         setCredits(data.entitlement?.credits ?? 0);
         setTeamSeats(data.entitlement?.teamSeats ?? 0);
-        addToast("Billing information loaded", "success");
       })
-      .catch((err) => {
-        const errorMessage = err?.message || "Failed to load billing information";
+      .catch((err: unknown) => {
+        if (cancelled) return;
+
+        const errorMessage =
+          err instanceof Error ? err.message : "Failed to load billing information";
+
         setError(errorMessage);
         setPlan("FREE");
+        setCredits(0);
+        setTeamSeats(0);
         captureException(err, { feature: "billing_page_status" });
         addToast(errorMessage, "error");
       })
-      .finally(() => setLoading(false));
+      .finally(() => {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
   }, [addToast]);
 
   const startStripeCheckout = async (planType: PlanType) => {
-    setCheckoutBusy(planType);
+    setCheckoutBusy(`stripe:${planType}`);
     addToast("Starting Stripe checkout...", "info");
 
     try {
@@ -53,13 +78,15 @@ export default function BillingPage() {
         body: JSON.stringify({ plan: planType, currency }),
       });
 
-      const url = data.session?.url as string | undefined;
+      const url = data?.session?.url as string | undefined;
+
       if (url) {
         addToast("Redirecting to payment...", "success");
         window.location.href = url;
-      } else {
-        addToast("Failed to create checkout session", "error");
+        return;
       }
+
+      addToast("Failed to create checkout session", "error");
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : "Checkout failed";
       captureException(err, { feature: "stripe_checkout", plan: planType });
@@ -70,7 +97,7 @@ export default function BillingPage() {
   };
 
   const startPayPalCheckout = async (planType: PlanType) => {
-    setCheckoutBusy(planType);
+    setCheckoutBusy(`paypal:${planType}`);
     addToast("Starting PayPal checkout...", "info");
 
     try {
@@ -79,16 +106,17 @@ export default function BillingPage() {
         body: JSON.stringify({ plan: planType, currency }),
       });
 
-      const approve = (data.order?.links as PayPalLink[] | undefined)?.find(
-        (l) => l.rel === "approve"
+      const approve = (data?.order?.links as PayPalLink[] | undefined)?.find(
+        (link) => link.rel === "approve"
       );
 
       if (approve?.href) {
         addToast("Redirecting to PayPal...", "success");
         window.location.href = approve.href;
-      } else {
-        addToast("Failed to create PayPal order", "error");
+        return;
       }
+
+      addToast("Failed to create PayPal order", "error");
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : "Checkout failed";
       captureException(err, { feature: "paypal_checkout", plan: planType });
@@ -154,22 +182,22 @@ export default function BillingPage() {
     []
   );
 
-const velvetGreenButtonStyle = useMemo(
-  () =>
-    ({
-      borderColor: "rgba(58,92,95,0.55)",
-      color: "#e6f1ee",
-      background:
-        "linear-gradient(180deg, rgba(44,74,72,0.95) 0%, rgba(20,38,42,0.98) 100%)",
-      boxShadow:
-        "inset 0 1px 0 rgba(255,255,255,0.08), 0 16px 34px rgba(12,30,32,0.35)",
-      textShadow: "0 1px 0 rgba(0,0,0,0.35)",
-      backdropFilter: "blur(6px)",
-      WebkitBackdropFilter: "blur(6px)",
-    }) as const,
-  []
-);
-  
+  const velvetGreenButtonStyle = useMemo(
+    () =>
+      ({
+        borderColor: "rgba(58,92,95,0.55)",
+        color: "#e6f1ee",
+        background:
+          "linear-gradient(180deg, rgba(44,74,72,0.95) 0%, rgba(20,38,42,0.98) 100%)",
+        boxShadow:
+          "inset 0 1px 0 rgba(255,255,255,0.08), 0 16px 34px rgba(12,30,32,0.35)",
+        textShadow: "0 1px 0 rgba(0,0,0,0.35)",
+        backdropFilter: "blur(6px)",
+        WebkitBackdropFilter: "blur(6px)",
+      }) as const,
+    []
+  );
+
   const loadingCardStyle = useMemo(
     () =>
       ({
@@ -251,105 +279,159 @@ const velvetGreenButtonStyle = useMemo(
   };
 
   return (
-    <div className="section app-section">
+    <div className="section app-section billing-page-shell">
       <style jsx global>{`
         .billing-page-shell .btn:disabled {
           opacity: 0.58 !important;
           cursor: not-allowed;
           filter: saturate(0.86);
         }
+
+        .billing-page-shell .billing-hero-actions {
+          display: flex;
+          align-items: flex-start;
+          justify-content: flex-end;
+          padding-top: 10px;
+        }
+
+        .billing-page-shell .billing-plan-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+          gap: 12px;
+        }
+
+        .billing-page-shell .billing-bottom-action {
+          display: flex;
+          justify-content: center;
+          padding-top: 4px;
+        }
+
+        .billing-page-shell .billing-bottom-action a,
+        .billing-page-shell .billing-hero-actions a {
+          text-decoration: none;
+        }
+
+        @media (max-width: 900px) {
+          .billing-page-shell .billing-hero-actions {
+            width: 100%;
+            padding-top: 0;
+            justify-content: stretch;
+          }
+
+          .billing-page-shell .billing-hero-actions > * {
+            width: 100%;
+          }
+        }
+
+        @media (max-width: 720px) {
+          .billing-page-shell .billing-plan-grid {
+            grid-template-columns: 1fr;
+          }
+
+          .billing-page-shell .billing-plan-grid > * {
+            width: 100%;
+          }
+
+          .billing-page-shell .billing-bottom-action {
+            justify-content: stretch;
+          }
+
+          .billing-page-shell .billing-bottom-action > * {
+            width: 100%;
+          }
+        }
       `}</style>
 
       <div className="app-hero app-hero-full">
         <div className="container">
-<div className="page-title app-page-title" style={{ marginBottom: 0 }}>
-  <div style={{ maxWidth: 780 }}>
-    <div
-      style={{
-        display: "inline-flex",
-        alignItems: "center",
-        gap: 8,
-        borderRadius: 999,
-        border: "1px solid rgba(255,255,255,0.10)",
-        background: "rgba(255,255,255,0.04)",
-        padding: "8px 16px",
-        fontSize: "0.68rem",
-        fontWeight: 500,
-        textTransform: "uppercase",
-        letterSpacing: "0.28em",
-        color: "#afbbb7",
-        boxShadow: "0 10px 24px rgba(0,0,0,0.08)",
-        backdropFilter: "blur(10px)",
-        WebkitBackdropFilter: "blur(10px)",
-      }}
-    >
-      <span
-        style={{
-          width: 4,
-          height: 4,
-          borderRadius: 999,
-          background: "#b79d84",
-          opacity: 0.8,
-          display: "inline-block",
-        }}
-      />
-      Billing
-    </div>
+          <div className="page-title app-page-title" style={{ marginBottom: 0 }}>
+            <div style={{ maxWidth: 780 }}>
+              <div
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 8,
+                  borderRadius: 999,
+                  border: "1px solid rgba(255,255,255,0.10)",
+                  background: "rgba(255,255,255,0.04)",
+                  padding: "8px 16px",
+                  fontSize: "0.68rem",
+                  fontWeight: 500,
+                  textTransform: "uppercase",
+                  letterSpacing: "0.28em",
+                  color: "#afbbb7",
+                  boxShadow: "0 10px 24px rgba(0,0,0,0.08)",
+                  backdropFilter: "blur(10px)",
+                  WebkitBackdropFilter: "blur(10px)",
+                }}
+              >
+                <span
+                  style={{
+                    width: 4,
+                    height: 4,
+                    borderRadius: 999,
+                    background: "#b79d84",
+                    opacity: 0.8,
+                    display: "inline-block",
+                  }}
+                />
+                Billing
+              </div>
 
-    <h1
-      className="mt-5 max-w-[760px] text-[1.72rem] font-medium leading-[1.02] tracking-[-0.045em] text-[#d9e2df] md:text-[2.22rem] lg:text-[2.72rem]"
-      style={{ margin: "20px 0 0" }}
-    >
-      Manage your billing workspace{" "}
-      <span style={{ color: "#c3ebe2" }}>with more clarity</span>.
-    </h1>
+              <h1
+                className="mt-5 max-w-[760px] text-[1.72rem] font-medium leading-[1.02] tracking-[-0.045em] text-[#d9e2df] md:text-[2.22rem] lg:text-[2.72rem]"
+                style={{ margin: "20px 0 0" }}
+              >
+                Manage your billing workspace{" "}
+                <span style={{ color: "#c3ebe2" }}>with more clarity</span>.
+              </h1>
 
-    <p
-      className="page-subtitle pricing-subtitle"
-      style={{
-        marginTop: 20,
-        maxWidth: 720,
-        fontSize: "0.95rem",
-        lineHeight: 1.8,
-        letterSpacing: "-0.006em",
-        color: "#aab5b2",
-      }}
-    >
-      Review your{" "}
-      <span style={{ color: "#cfd8d5" }}>current subscription</span>,
-      switch between plans when needed, and manage{" "}
-      <span style={{ color: "#bbc7c3" }}>credits</span>,{" "}
-      <span style={{ color: "#d2dcd8" }}>team access</span>, and{" "}
-      <span style={{ color: "#d9ccbf" }}>payment upgrades</span> from one
-      place.
-    </p>
-  </div>
+              <p
+                className="page-subtitle pricing-subtitle"
+                style={{
+                  marginTop: 20,
+                  maxWidth: 720,
+                  fontSize: "0.95rem",
+                  lineHeight: 1.8,
+                  letterSpacing: "-0.006em",
+                  color: "#aab5b2",
+                }}
+              >
+                Review your{" "}
+                <span style={{ color: "#cfd8d5" }}>current subscription</span>,
+                switch between plans when needed, and manage{" "}
+                <span style={{ color: "#bbc7c3" }}>credits</span>,{" "}
+                <span style={{ color: "#d2dcd8" }}>team access</span>, and{" "}
+                <span style={{ color: "#d9ccbf" }}>payment upgrades</span> from one
+                place.
+              </p>
+            </div>
 
-  <div style={{ display: "flex", alignItems: "flex-start", paddingTop: 10 }}>
-    <Link href="/pricing">
-      <Button
-        className="min-w-[220px] rounded-[999px] border px-6 py-3 text-[0.92rem] font-semibold transition-all duration-200 hover:-translate-y-[1px] hover:brightness-[1.03]"
-        style={velvetGreenButtonStyle}
-      >
-        View full pricing
-      </Button>
-    </Link>
-  </div>
-</div>
+            <div className="billing-hero-actions">
+              <Link href="/pricing">
+                <Button
+                  className="app-responsive-btn min-w-[220px] rounded-[999px] border px-6 py-3 text-[0.92rem] font-semibold transition-all duration-200 hover:-translate-y-[1px] hover:brightness-[1.03]"
+                  style={velvetGreenButtonStyle}
+                >
+                  View full pricing
+                </Button>
+              </Link>
+            </div>
+          </div>
         </div>
       </div>
 
-<div
-  className="app-body app-body-full billing-page-shell"
-  style={{
-    position: "relative",
-    overflow: "hidden",
-    background:
-      "linear-gradient(180deg, rgba(239,241,238,0.96) 0%, rgba(234,237,234,0.98) 100%)",
-    paddingTop: 40,
-  }}
->
-          <div className="pointer-events-none absolute inset-0 z-0" aria-hidden="true">
+      <div
+        className="app-body app-body-full billing-page-shell"
+        style={{
+          position: "relative",
+          overflow: "hidden",
+          background:
+            "linear-gradient(180deg, rgba(239,241,238,0.96) 0%, rgba(234,237,234,0.98) 100%)",
+          paddingTop: 40,
+        }}
+      >
+        <div className="pointer-events-none absolute inset-0 z-0" aria-hidden="true">
           <img
             src="/images/landing-network-bg.png"
             alt=""
@@ -368,7 +450,7 @@ const velvetGreenButtonStyle = useMemo(
           }}
         >
           <Card
-className="relative overflow-hidden px-6 pt-8 pb-12 md:px-8 md:pt-10 md:pb-16"
+            className="relative overflow-hidden rounded-[30px] border bg-transparent p-0 shadow-none"
             style={outerCardStyle}
           >
             <div className="absolute inset-0">
@@ -486,63 +568,51 @@ className="relative overflow-hidden px-6 pt-8 pb-12 md:px-8 md:pt-10 md:pb-16"
                   </div>
                 </div>
               ) : (
-                <div
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-                    gap: 12,
-                  }}
-                >
+                <div className="billing-plan-grid">
                   <Button
-                    className="rounded-[999px] border px-5 py-3 text-[0.95rem] font-semibold transition-all duration-200 hover:-translate-y-[1px] hover:brightness-[1.03]"
+                    className="app-responsive-btn rounded-[999px] border px-5 py-3 text-[0.95rem] font-semibold transition-all duration-200 hover:-translate-y-[1px] hover:brightness-[1.03]"
                     style={bronzeSoftButtonStyle}
                     disabled={!!checkoutBusy || plan === "PAYG"}
                     onClick={() => startStripeCheckout("PAYG")}
                   >
-                    {checkoutBusy === "PAYG" ? "Processing..." : "Pay-Per-Evidence"}
+                    {checkoutBusy === "stripe:PAYG" ? "Processing..." : "Pay-Per-Evidence"}
                   </Button>
 
                   <Button
-                    className="rounded-[999px] border px-5 py-3 text-[0.95rem] font-semibold transition-all duration-200 hover:-translate-y-[1px] hover:brightness-[1.03]"
+                    className="app-responsive-btn rounded-[999px] border px-5 py-3 text-[0.95rem] font-semibold transition-all duration-200 hover:-translate-y-[1px] hover:brightness-[1.03]"
                     style={primarySoftButtonStyle}
                     disabled={!!checkoutBusy || plan === "PRO"}
                     onClick={() => startStripeCheckout("PRO")}
                   >
-                    {checkoutBusy === "PRO" ? "Processing..." : "Upgrade to Pro"}
+                    {checkoutBusy === "stripe:PRO" ? "Processing..." : "Upgrade to Pro"}
                   </Button>
 
                   <Button
-                    className="rounded-[999px] border px-5 py-3 text-[0.95rem] font-semibold transition-all duration-200 hover:-translate-y-[1px] hover:brightness-[1.03]"
+                    className="app-responsive-btn rounded-[999px] border px-5 py-3 text-[0.95rem] font-semibold transition-all duration-200 hover:-translate-y-[1px] hover:brightness-[1.03]"
                     style={primarySoftButtonStyle}
                     disabled={!!checkoutBusy || plan === "TEAM"}
                     onClick={() => startStripeCheckout("TEAM")}
                   >
-                    {checkoutBusy === "TEAM" ? "Processing..." : "Upgrade to Team"}
+                    {checkoutBusy === "stripe:TEAM" ? "Processing..." : "Upgrade to Team"}
                   </Button>
 
                   <Button
-                    className="rounded-[999px] border px-5 py-3 text-[0.95rem] font-semibold transition-all duration-200 hover:-translate-y-[1px] hover:brightness-[1.03]"
+                    className="app-responsive-btn rounded-[999px] border px-5 py-3 text-[0.95rem] font-semibold transition-all duration-200 hover:-translate-y-[1px] hover:brightness-[1.03]"
                     style={bronzeSoftButtonStyle}
                     disabled={!!checkoutBusy}
                     onClick={() => startPayPalCheckout("PAYG")}
                   >
-                    {checkoutBusy === "PAYG" ? "Processing..." : "PayPal"}
+                    {checkoutBusy === "paypal:PAYG" ? "Processing..." : "PayPal"}
                   </Button>
                 </div>
               )}
             </div>
           </Card>
 
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "center",
-              paddingTop: 4,
-            }}
-          >
+          <div className="billing-bottom-action">
             <Link href="/pricing">
               <Button
-                className="min-w-[300px] rounded-[999px] border px-7 py-3 text-[0.95rem] font-semibold transition-all duration-200 hover:-translate-y-[1px] hover:brightness-[1.03]"
+                className="app-responsive-btn min-w-[300px] rounded-[999px] border px-7 py-3 text-[0.95rem] font-semibold transition-all duration-200 hover:-translate-y-[1px] hover:brightness-[1.03]"
                 style={dashboardButtonStyle}
               >
                 View full pricing

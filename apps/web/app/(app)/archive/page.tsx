@@ -24,6 +24,10 @@ type ArchiveEvidenceItem = {
   displaySubtitle: string;
 };
 
+type ArchiveEvidenceResponse = {
+  items?: ArchiveEvidenceItem[];
+};
+
 export default function ArchivePage() {
   const { t } = useLocale();
   const { addToast } = useToast();
@@ -38,21 +42,36 @@ export default function ArchivePage() {
     );
 
   useEffect(() => {
+    let cancelled = false;
+
     setLoading(true);
     setError(null);
 
     apiFetch("/v1/evidence?scope=archived")
-      .then((data) => {
+      .then((data: ArchiveEvidenceResponse) => {
+        if (cancelled) return;
         setItems(Array.isArray(data?.items) ? data.items : []);
       })
-      .catch((err) => {
-        const errorMessage = err?.message || "Failed to load archived evidence";
+      .catch((err: unknown) => {
+        if (cancelled) return;
+
+        const errorMessage =
+          err instanceof Error ? err.message : "Failed to load archived evidence";
+
         setError(errorMessage);
         setItems([]);
         captureException(err, { feature: "archive_page_list" });
         addToast(errorMessage, "error");
       })
-      .finally(() => setLoading(false));
+      .finally(() => {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
   }, [addToast]);
 
   const outerCardStyle = useMemo(
@@ -81,39 +100,110 @@ export default function ArchivePage() {
     []
   );
 
-const rowCardStyle = useMemo(
-  () =>
-    ({
-      border: "1px solid rgba(79,112,107,0.18)",
-      backgroundImage:
-        "linear-gradient(180deg, rgba(8,20,24,0.82) 0%, rgba(7,18,22,0.90) 100%), url('/images/site-velvet-bg.webp.png')",
-      backgroundSize: "cover",
-      backgroundPosition: "center",
-      borderRadius: 24,
-      boxShadow:
-        "inset 0 1px 0 rgba(255,255,255,0.04), 0 14px 28px rgba(0,0,0,0.10)",
-      backdropFilter: "blur(10px)",
-      WebkitBackdropFilter: "blur(10px)",
-    }) as const,
-  []
-);
+  const rowCardStyle = useMemo(
+    () =>
+      ({
+        border: "1px solid rgba(79,112,107,0.18)",
+        backgroundImage:
+          "linear-gradient(180deg, rgba(8,20,24,0.82) 0%, rgba(7,18,22,0.90) 100%), url('/images/site-velvet-bg.webp.png')",
+        backgroundSize: "cover",
+        backgroundPosition: "center",
+        borderRadius: 24,
+        boxShadow:
+          "inset 0 1px 0 rgba(255,255,255,0.04), 0 14px 28px rgba(0,0,0,0.10)",
+        backdropFilter: "blur(10px)",
+        WebkitBackdropFilter: "blur(10px)",
+      }) as const,
+    []
+  );
 
-const archivedBadgeStyle = useMemo(
-  () =>
-    ({
-      color: "#8a6e57",
-      background:
-        "linear-gradient(180deg, rgba(255,255,255,0.96) 0%, rgba(247,244,240,0.92) 100%)",
-      border: "1px solid rgba(183,157,132,0.18)",
-      boxShadow:
-        "inset 0 1px 0 rgba(255,255,255,0.78), 0 6px 14px rgba(92,69,50,0.05)",
-    }) as const,
-  []
-);
+  const archivedBadgeStyle = useMemo(
+    () =>
+      ({
+        color: "#8a6e57",
+        background:
+          "linear-gradient(180deg, rgba(255,255,255,0.96) 0%, rgba(247,244,240,0.92) 100%)",
+        border: "1px solid rgba(183,157,132,0.18)",
+        boxShadow:
+          "inset 0 1px 0 rgba(255,255,255,0.78), 0 6px 14px rgba(92,69,50,0.05)",
+      }) as const,
+    []
+  );
 
   return (
-<div className="section app-section archive-page-shell">
-        <div className="app-hero app-hero-full">
+    <div className="section app-section archive-page-shell">
+      <style jsx global>{`
+        .archive-page-shell .archive-row-link {
+          display: block;
+          text-decoration: none;
+        }
+
+        .archive-page-shell .archive-row-surface {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 14px;
+          flex-wrap: wrap;
+          padding: 14px;
+        }
+
+        .archive-page-shell .archive-row-left {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          min-width: 0;
+          flex: 1 1 auto;
+        }
+
+        .archive-page-shell .archive-row-copy {
+          min-width: 0;
+          flex: 1 1 auto;
+        }
+
+        .archive-page-shell .archive-row-title {
+          color: #eef3f1;
+          font-size: 18px;
+          font-weight: 700;
+          letter-spacing: -0.02em;
+          overflow-wrap: anywhere;
+          word-break: break-word;
+        }
+
+        .archive-page-shell .archive-row-subtitle {
+          margin-top: 4px;
+          color: rgba(194,204,201,0.72);
+          font-size: 13px;
+          line-height: 1.6;
+          overflow-wrap: anywhere;
+          word-break: break-word;
+        }
+
+        .archive-page-shell .archive-row-right {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          flex-shrink: 0;
+        }
+
+        @media (max-width: 760px) {
+          .archive-page-shell .archive-row-surface {
+            align-items: flex-start;
+            padding: 14px;
+          }
+
+          .archive-page-shell .archive-row-left {
+            width: 100%;
+            align-items: flex-start;
+          }
+
+          .archive-page-shell .archive-row-right {
+            width: 100%;
+            justify-content: flex-start;
+          }
+        }
+      `}</style>
+
+      <div className="app-hero app-hero-full">
         <div className="container">
           <div className="page-title app-page-title" style={{ marginBottom: 0 }}>
             <div style={{ maxWidth: 780 }}>
@@ -174,9 +264,9 @@ const archivedBadgeStyle = useMemo(
             </div>
 
             <div className="flex shrink-0">
-              <Link href="/evidence">
+              <Link href="/evidence" style={{ textDecoration: "none" }}>
                 <Button
-                  className="rounded-[999px] border px-6 py-3 text-[0.95rem] font-semibold"
+                  className="app-responsive-btn rounded-[999px] border px-6 py-3 text-[0.95rem] font-semibold"
                   style={heroButtonStyle}
                 >
                   Open Evidence
@@ -206,7 +296,10 @@ const archivedBadgeStyle = useMemo(
           <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(255,255,255,0.10)_0%,rgba(255,255,255,0.03)_12%,rgba(255,255,255,0.00)_24%,rgba(255,255,255,0.00)_76%,rgba(255,255,255,0.03)_88%,rgba(255,255,255,0.10)_100%)]" />
         </div>
 
-        <div className="container relative z-10" style={{ display: "grid", gap: 16, paddingBottom: 72 }}>
+        <div
+          className="container relative z-10"
+          style={{ display: "grid", gap: 16, paddingBottom: 72 }}
+        >
           {loading ? (
             <div style={{ display: "grid", gap: 12 }}>
               <div style={{ ...rowCardStyle, padding: 18 }}>
@@ -254,9 +347,9 @@ const archivedBadgeStyle = useMemo(
                   title="No archived evidence"
                   subtitle="When you archive evidence, it will appear here."
                   action={() => (
-                    <Link href="/home">
+                    <Link href="/home" style={{ textDecoration: "none" }}>
                       <Button
-                        className="rounded-[999px] border px-6 py-3 text-[0.92rem] font-semibold"
+                        className="app-responsive-btn rounded-[999px] border px-6 py-3 text-[0.92rem] font-semibold"
                         style={heroButtonStyle}
                       >
                         {t("home")}
@@ -267,198 +360,123 @@ const archivedBadgeStyle = useMemo(
               </div>
             </Card>
           ) : (
-items.map((item) => (
-  <Card
-    key={item.id}
-    className="relative overflow-hidden rounded-[30px] border bg-transparent p-0 shadow-none"
-    style={outerCardStyle}
-  >
-    <div className="absolute inset-0">
-      <img
-        src="/images/panel-silver.webp.png"
-        alt=""
-        className="h-full w-full object-cover object-center"
-      />
-    </div>
-    <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.24)_0%,rgba(248,249,246,0.34)_42%,rgba(239,241,238,0.42)_100%)]" />
-    <div className="absolute inset-0 bg-[radial-gradient(circle_at_16%_12%,rgba(255,255,255,0.34),transparent_28%)] opacity-90" />
-
-    <div className="relative z-10 p-2">
-      {isUuid(item.id) ? (
-        <Link
-          href={`/evidence/${item.id}`}
-          style={{ display: "block", textDecoration: "none" }}
-        >
-          <div
-            style={{
-              ...rowCardStyle,
-              padding: 14,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              gap: 14,
-              flexWrap: "wrap",
-            }}
-          >
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 12,
-                minWidth: 0,
-                flex: 1,
-              }}
-            >
-              <div
-                style={{
-                  width: 42,
-                  height: 42,
-                  borderRadius: 14,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  background:
-                    "linear-gradient(180deg, rgba(18,45,48,0.96) 0%, rgba(10,28,31,0.98) 100%)",
-                  border: "1px solid rgba(79,112,107,0.18)",
-                  color: "#e6f1ee",
-                  fontSize: 13,
-                  fontWeight: 800,
-                  letterSpacing: "0.08em",
-                  boxShadow:
-                    "inset 0 1px 0 rgba(255,255,255,0.05), 0 10px 20px rgba(0,0,0,0.12)",
-                  flexShrink: 0,
-                }}
+            items.map((item) => (
+              <Card
+                key={item.id}
+                className="relative overflow-hidden rounded-[30px] border bg-transparent p-0 shadow-none"
+                style={outerCardStyle}
               >
-                EV
-              </div>
-
-              <div style={{ minWidth: 0, flex: 1 }}>
-                <div
-                  style={{
-                    color: "#eef3f1",
-                    fontSize: 18,
-                    fontWeight: 700,
-                    letterSpacing: "-0.02em",
-                    whiteSpace: "nowrap",
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
-                  }}
-                >
-                  {item.title || "Digital Evidence Record"}
+                <div className="absolute inset-0">
+                  <img
+                    src="/images/panel-silver.webp.png"
+                    alt=""
+                    className="h-full w-full object-cover object-center"
+                  />
                 </div>
+                <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.24)_0%,rgba(248,249,246,0.34)_42%,rgba(239,241,238,0.42)_100%)]" />
+                <div className="absolute inset-0 bg-[radial-gradient(circle_at_16%_12%,rgba(255,255,255,0.34),transparent_28%)] opacity-90" />
 
-                <div
-                  style={{
-                    marginTop: 4,
-                    color: "rgba(194,204,201,0.72)",
-                    fontSize: 13,
-                    lineHeight: 1.6,
-                    whiteSpace: "nowrap",
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
-                  }}
-                >
-                  {item.archivedAt
-                    ? `${item.displaySubtitle} • Archived ${new Date(item.archivedAt).toLocaleString()}`
-                    : item.displaySubtitle}
+                <div className="relative z-10 p-2">
+                  {isUuid(item.id) ? (
+                    <Link href={`/evidence/${item.id}`} className="archive-row-link">
+                      <div className="archive-row-surface" style={rowCardStyle}>
+                        <div className="archive-row-left">
+                          <div
+                            style={{
+                              width: 42,
+                              height: 42,
+                              borderRadius: 14,
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              background:
+                                "linear-gradient(180deg, rgba(18,45,48,0.96) 0%, rgba(10,28,31,0.98) 100%)",
+                              border: "1px solid rgba(79,112,107,0.18)",
+                              color: "#e6f1ee",
+                              fontSize: 13,
+                              fontWeight: 800,
+                              letterSpacing: "0.08em",
+                              boxShadow:
+                                "inset 0 1px 0 rgba(255,255,255,0.05), 0 10px 20px rgba(0,0,0,0.12)",
+                              flexShrink: 0,
+                            }}
+                          >
+                            EV
+                          </div>
+
+                          <div className="archive-row-copy">
+                            <div className="archive-row-title">
+                              {item.title || "Digital Evidence Record"}
+                            </div>
+
+                            <div className="archive-row-subtitle">
+                              {item.archivedAt
+                                ? `${item.displaySubtitle} • Archived ${new Date(
+                                    item.archivedAt
+                                  ).toLocaleString()}`
+                                : item.displaySubtitle}
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="archive-row-right">
+                          <span
+                            className="inline-flex min-h-[28px] items-center justify-center rounded-full px-3 py-[5px] text-[10.5px] font-semibold uppercase tracking-[0.12em]"
+                            style={archivedBadgeStyle}
+                          >
+                            Archived
+                          </span>
+                        </div>
+                      </div>
+                    </Link>
+                  ) : (
+                    <div className="archive-row-surface" style={rowCardStyle}>
+                      <div className="archive-row-left">
+                        <div
+                          style={{
+                            width: 42,
+                            height: 42,
+                            borderRadius: 14,
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            background:
+                              "linear-gradient(180deg, rgba(18,45,48,0.96) 0%, rgba(10,28,31,0.98) 100%)",
+                            border: "1px solid rgba(79,112,107,0.18)",
+                            color: "#e6f1ee",
+                            fontSize: 13,
+                            fontWeight: 800,
+                            letterSpacing: "0.08em",
+                            boxShadow:
+                              "inset 0 1px 0 rgba(255,255,255,0.05), 0 10px 20px rgba(0,0,0,0.12)",
+                            flexShrink: 0,
+                          }}
+                        >
+                          EV
+                        </div>
+
+                        <div className="archive-row-copy">
+                          <div className="archive-row-title">
+                            {item.title || "Digital Evidence Record"}
+                          </div>
+
+                          <div className="archive-row-subtitle">{item.displaySubtitle}</div>
+                        </div>
+                      </div>
+
+                      <div className="archive-row-right">
+                        <span
+                          className="inline-flex min-h-[28px] items-center justify-center rounded-full px-3 py-[5px] text-[10.5px] font-semibold uppercase tracking-[0.12em]"
+                          style={archivedBadgeStyle}
+                        >
+                          Archived
+                        </span>
+                      </div>
+                    </div>
+                  )}
                 </div>
-              </div>
-            </div>
-
-            <span
-              className="inline-flex min-h-[28px] items-center justify-center rounded-full px-3 py-[5px] text-[10.5px] font-semibold uppercase tracking-[0.12em]"
-              style={archivedBadgeStyle}
-            >
-              Archived
-            </span>
-          </div>
-        </Link>
-      ) : (
-        <div
-          style={{
-            ...rowCardStyle,
-            padding: 14,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            gap: 14,
-            flexWrap: "wrap",
-          }}
-        >
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 12,
-              minWidth: 0,
-              flex: 1,
-            }}
-          >
-            <div
-              style={{
-                width: 42,
-                height: 42,
-                borderRadius: 14,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                background:
-                  "linear-gradient(180deg, rgba(18,45,48,0.96) 0%, rgba(10,28,31,0.98) 100%)",
-                border: "1px solid rgba(79,112,107,0.18)",
-                color: "#e6f1ee",
-                fontSize: 13,
-                fontWeight: 800,
-                letterSpacing: "0.08em",
-                boxShadow:
-                  "inset 0 1px 0 rgba(255,255,255,0.05), 0 10px 20px rgba(0,0,0,0.12)",
-                flexShrink: 0,
-              }}
-            >
-              EV
-            </div>
-
-            <div style={{ minWidth: 0, flex: 1 }}>
-              <div
-                style={{
-                  color: "#eef3f1",
-                  fontSize: 18,
-                  fontWeight: 700,
-                  letterSpacing: "-0.02em",
-                  whiteSpace: "nowrap",
-                  overflow: "hidden",
-                  textOverflow: "ellipsis",
-                }}
-              >
-                {item.title || "Digital Evidence Record"}
-              </div>
-
-              <div
-                style={{
-                  marginTop: 4,
-                  color: "rgba(194,204,201,0.72)",
-                  fontSize: 13,
-                  lineHeight: 1.6,
-                  whiteSpace: "nowrap",
-                  overflow: "hidden",
-                  textOverflow: "ellipsis",
-                }}
-              >
-                {item.displaySubtitle}
-              </div>
-            </div>
-          </div>
-
-          <span
-            className="inline-flex min-h-[28px] items-center justify-center rounded-full px-3 py-[5px] text-[10.5px] font-semibold uppercase tracking-[0.12em]"
-            style={archivedBadgeStyle}
-          >
-            Archived
-          </span>
-        </div>
-      )}
-    </div>
-  </Card>
-))
+              </Card>
+            ))
           )}
         </div>
       </div>

@@ -3557,14 +3557,6 @@ html[dir="rtl"] .legal-content a::after {
   align-items: flex-start;
 }
 
-.app-responsive-btn {
-  max-width: 100%;
-  white-space: normal;
-  word-break: break-word;
-  text-align: center;
-  justify-content: center;
-}
-
 .app-action-btn {
   align-items: center;
 }
@@ -3790,12 +3782,6 @@ html[dir="rtl"] .legal-content a::after {
   }
 }
 
-@media (max-width: 640px) {
-  .app-responsive-btn {
-    width: 100%;
-    min-width: 0 !important;
-  }
-
   .app-card-top-row__actions {
     flex-direction: column;
     width: 100%;
@@ -3810,5 +3796,52 @@ html[dir="rtl"] .legal-content a::after {
     white-space: normal;
     line-height: 1.35;
     text-align: center;
+  }
+
+.deleted-actions-row {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+@media (max-width: 720px) {
+  .deleted-actions-row {
+    flex-direction: column;
+  }
+
+  .deleted-actions-row button {
+    width: 100%;
+  }
+}
+
+/* GLOBAL MOBILE FIXES */
+
+.app-responsive-btn {
+  max-width: 100%;
+  white-space: normal !important;
+  word-break: break-word;
+  text-align: center;
+  justify-content: center;
+}
+
+@media (max-width: 720px) {
+  .app-responsive-btn {
+    width: 100%;
+    min-width: 0 !important;
+  }
+}
+
+.deleted-actions-link {
+  display: inline-flex;
+}
+
+@media (max-width: 720px) {
+  .deleted-actions-link {
+    display: flex;
+    width: 100%;
+  }
+
+  .deleted-actions-link > * {
+    width: 100%;
   }
 }

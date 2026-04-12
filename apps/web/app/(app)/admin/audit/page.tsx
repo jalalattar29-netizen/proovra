@@ -104,8 +104,8 @@ function outcomeTone(outcome?: string | null) {
     border: "1px solid rgba(79,112,107,0.16)",
     background:
       "linear-gradient(180deg, rgba(191,232,223,0.18) 0%, rgba(255,255,255,0.44) 100%)",
-    color: "#2d5b59",
-  } as const;
+      color: "#2d5b59",
+    } as const;
 }
 
 export default function AdminAuditPage() {
@@ -201,6 +201,10 @@ export default function AdminAuditPage() {
         fontWeight: 800,
         letterSpacing: "0.12em",
         textTransform: "uppercase",
+        maxWidth: "100%",
+        textAlign: "center",
+        overflowWrap: "anywhere",
+        wordBreak: "break-word",
       }) as const,
     []
   );
@@ -217,16 +221,16 @@ export default function AdminAuditPage() {
         </>
       }
       action={
-        <div className="flex gap-3">
+        <div className="admin-audit-toolbar">
           <Button
-            className="rounded-[999px] border px-6 py-3 text-[0.95rem] font-semibold"
+            className="app-responsive-btn rounded-[999px] border px-6 py-3 text-[0.95rem] font-semibold"
             style={dashboardStyles.secondaryButton}
             onClick={() => void loadAudit()}
           >
             Refresh
           </Button>
           <Button
-            className="rounded-[999px] border px-6 py-3 text-[0.95rem] font-semibold"
+            className="app-responsive-btn rounded-[999px] border px-6 py-3 text-[0.95rem] font-semibold"
             style={dashboardStyles.primaryButton}
             onClick={() => void verifyChain()}
           >
@@ -239,6 +243,12 @@ export default function AdminAuditPage() {
         .admin-audit-page .audit-grid {
           display: grid;
           gap: 18px;
+        }
+
+        .admin-audit-toolbar {
+          display: flex;
+          gap: 12px;
+          flex-wrap: wrap;
         }
 
         .admin-audit-page .audit-summary-grid {
@@ -292,6 +302,7 @@ export default function AdminAuditPage() {
           position: relative;
           z-index: 10;
           padding: 24px;
+          min-width: 0;
         }
 
         .admin-audit-page .audit-section-title {
@@ -299,6 +310,8 @@ export default function AdminAuditPage() {
           font-weight: 700;
           letter-spacing: -0.02em;
           color: #21353a;
+          overflow-wrap: anywhere;
+          word-break: break-word;
         }
 
         .admin-audit-page .audit-section-copy {
@@ -306,6 +319,8 @@ export default function AdminAuditPage() {
           color: #5d6d71;
           line-height: 1.7;
           font-size: 0.94rem;
+          overflow-wrap: anywhere;
+          word-break: break-word;
         }
 
         .admin-audit-page .audit-summary-card {
@@ -318,6 +333,8 @@ export default function AdminAuditPage() {
           letter-spacing: 0.12em;
           text-transform: uppercase;
           color: #708085;
+          overflow-wrap: anywhere;
+          word-break: break-word;
         }
 
         .admin-audit-page .audit-summary-value {
@@ -327,6 +344,8 @@ export default function AdminAuditPage() {
           font-weight: 800;
           letter-spacing: -0.05em;
           color: #21353a;
+          overflow-wrap: anywhere;
+          word-break: break-word;
         }
 
         .admin-audit-page .audit-summary-note {
@@ -334,6 +353,8 @@ export default function AdminAuditPage() {
           font-size: 0.84rem;
           color: #6b7b7f;
           line-height: 1.6;
+          overflow-wrap: anywhere;
+          word-break: break-word;
         }
 
         .admin-audit-page .audit-status-panel {
@@ -355,6 +376,7 @@ export default function AdminAuditPage() {
           box-shadow:
             inset 0 1px 0 rgba(255, 255, 255, 0.42),
             0 12px 26px rgba(0, 0, 0, 0.06);
+          min-width: 0;
         }
 
         .admin-audit-page .audit-row-list {
@@ -376,6 +398,7 @@ export default function AdminAuditPage() {
           box-shadow:
             inset 0 1px 0 rgba(255, 255, 255, 0.42),
             0 12px 26px rgba(0, 0, 0, 0.06);
+          min-width: 0;
         }
 
         .admin-audit-page .audit-row-top {
@@ -384,6 +407,7 @@ export default function AdminAuditPage() {
           gap: 16px;
           align-items: flex-start;
           flex-wrap: wrap;
+          min-width: 0;
         }
 
         .admin-audit-page .audit-row-title {
@@ -391,12 +415,15 @@ export default function AdminAuditPage() {
           font-weight: 800;
           color: #21353a;
           letter-spacing: -0.02em;
+          overflow-wrap: anywhere;
+          word-break: break-word;
         }
 
         .admin-audit-page .audit-row-time {
           font-size: 0.8rem;
           color: #6e7e83;
           white-space: nowrap;
+          flex-shrink: 0;
         }
 
         .admin-audit-page .audit-pills {
@@ -417,6 +444,7 @@ export default function AdminAuditPage() {
           color: #67777c;
           line-height: 1.6;
           word-break: break-word;
+          overflow-wrap: anywhere;
         }
 
         .admin-audit-page .audit-preview-box {
@@ -429,6 +457,7 @@ export default function AdminAuditPage() {
             rgba(214, 184, 157, 0.1),
             rgba(255, 255, 255, 0.36)
           );
+          min-width: 0;
         }
 
         .admin-audit-page .audit-preview-text {
@@ -436,6 +465,7 @@ export default function AdminAuditPage() {
           color: #6d6257;
           line-height: 1.65;
           word-break: break-word;
+          overflow-wrap: anywhere;
         }
 
         .admin-audit-page .audit-pre {
@@ -446,6 +476,7 @@ export default function AdminAuditPage() {
           margin-bottom: 0;
           white-space: pre-wrap;
           word-break: break-word;
+          overflow-wrap: anywhere;
           font-family: ui-monospace, monospace;
           background: rgba(255, 255, 255, 0.55);
           border: 1px solid rgba(79, 112, 107, 0.08);
@@ -454,20 +485,40 @@ export default function AdminAuditPage() {
         }
 
         @media (max-width: 1180px) {
-          .admin-audit-page .audit-summary-grid,
+          .admin-audit-page .audit-summary-grid {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+          }
+
           .admin-audit-page .audit-top-grid {
-            grid-template-columns: 1fr 1fr;
+            grid-template-columns: 1fr;
           }
         }
 
         @media (max-width: 860px) {
-          .admin-audit-page .audit-summary-grid,
-          .admin-audit-page .audit-top-grid {
-            grid-template-columns: 1fr;
-          }
-
           .admin-audit-page .audit-card-inner {
             padding: 20px;
+          }
+        }
+
+        @media (max-width: 720px) {
+          .admin-audit-toolbar {
+            display: grid;
+            grid-template-columns: 1fr;
+            width: 100%;
+          }
+
+          .admin-audit-toolbar > * {
+            width: 100%;
+          }
+
+          .admin-audit-page .audit-row-time {
+            white-space: normal;
+          }
+        }
+
+        @media (max-width: 640px) {
+          .admin-audit-page .audit-summary-grid {
+            grid-template-columns: 1fr;
           }
         }
       `}</style>
@@ -586,6 +637,8 @@ export default function AdminAuditPage() {
                         fontSize: 16,
                         fontWeight: 800,
                         color: "#6b7b7f",
+                        overflowWrap: "anywhere",
+                        wordBreak: "break-word",
                       }}
                     >
                       Verification unavailable
@@ -596,6 +649,8 @@ export default function AdminAuditPage() {
                         color: "#728287",
                         marginTop: 6,
                         lineHeight: 1.65,
+                        overflowWrap: "anywhere",
+                        wordBreak: "break-word",
                       }}
                     >
                       Chain status could not be determined yet. Refresh or re-run
@@ -609,6 +664,8 @@ export default function AdminAuditPage() {
                         fontSize: 16,
                         fontWeight: 800,
                         color: "#2f6a55",
+                        overflowWrap: "anywhere",
+                        wordBreak: "break-word",
                       }}
                     >
                       Audit chain verified
@@ -619,6 +676,8 @@ export default function AdminAuditPage() {
                         color: "#6a7b7f",
                         marginTop: 6,
                         lineHeight: 1.65,
+                        overflowWrap: "anywhere",
+                        wordBreak: "break-word",
                       }}
                     >
                       {verify.partial ? "Tail verification" : "Full verification"}
@@ -634,6 +693,8 @@ export default function AdminAuditPage() {
                         fontSize: 16,
                         fontWeight: 800,
                         color: "#9a5757",
+                        overflowWrap: "anywhere",
+                        wordBreak: "break-word",
                       }}
                     >
                       Integrity issue detected
@@ -644,6 +705,8 @@ export default function AdminAuditPage() {
                         color: "#7f6e6e",
                         marginTop: 6,
                         lineHeight: 1.65,
+                        overflowWrap: "anywhere",
+                        wordBreak: "break-word",
                       }}
                     >
                       brokenAt: {verify.brokenAt}
@@ -683,7 +746,7 @@ export default function AdminAuditPage() {
                       marginTop: 12,
                     }}
                   >
-                    <div>
+                    <div style={{ minWidth: 0 }}>
                       <div style={{ fontSize: 12, color: "#738287" }}>Loaded rows</div>
                       <div
                         style={{
@@ -692,13 +755,15 @@ export default function AdminAuditPage() {
                           fontWeight: 800,
                           color: "#21353a",
                           letterSpacing: "-0.04em",
+                          overflowWrap: "anywhere",
+                          wordBreak: "break-word",
                         }}
                       >
                         {summary.total}
                       </div>
                     </div>
 
-                    <div>
+                    <div style={{ minWidth: 0 }}>
                       <div style={{ fontSize: 12, color: "#738287" }}>Public/system</div>
                       <div
                         style={{
@@ -707,6 +772,8 @@ export default function AdminAuditPage() {
                           fontWeight: 800,
                           color: "#8a6e57",
                           letterSpacing: "-0.04em",
+                          overflowWrap: "anywhere",
+                          wordBreak: "break-word",
                         }}
                       >
                         {summary.publicCount}
@@ -904,7 +971,7 @@ export default function AdminAuditPage() {
                           <div style={{ marginTop: 10 }}>
                             <Button
                               type="button"
-                              className="rounded-[999px] border px-4 py-2 text-[0.8rem] font-semibold"
+                              className="app-responsive-btn rounded-[999px] border px-4 py-2 text-[0.8rem] font-semibold"
                               style={dashboardStyles.secondaryButton}
                               onClick={() => toggleExpanded(entry.id)}
                             >

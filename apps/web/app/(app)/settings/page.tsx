@@ -301,6 +301,17 @@ export default function SettingsPage() {
   z-index: 30;
 }
 
+.settings-main-grid {
+  display: grid;
+  gap: 20px;
+}
+
+@media (min-width: 1024px) {
+  .settings-main-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
         .settings-page-shell .settings-silver-card__bg {
           position: absolute;
           inset: 0;
@@ -365,6 +376,11 @@ export default function SettingsPage() {
           min-height: 120px;
         }
 
+        .settings-page-shell input,
+.settings-page-shell textarea {
+  width: 100%;
+}
+
         .settings-page-shell .settings-primary-btn {
           border-color: rgba(79,112,107,0.22) !important;
           background: linear-gradient(
@@ -390,6 +406,17 @@ export default function SettingsPage() {
             0 10px 20px rgba(0,0,0,0.05),
             inset 0 1px 0 rgba(255,255,255,0.70) !important;
         }
+
+        .settings-cards-grid {
+  display: grid;
+  gap: 20px;
+}
+
+@media (min-width: 1100px) {
+  .settings-cards-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
 
         .settings-page-shell .settings-select {
           width: 100%;
@@ -513,7 +540,6 @@ export default function SettingsPage() {
         className="app-body app-body-full pt-8 md:pt-10"
         style={{
           position: "relative",
-          overflow: "hidden",
           background:
             "linear-gradient(180deg, rgba(239,241,238,0.96) 0%, rgba(234,237,234,0.98) 100%)",
         }}
@@ -529,8 +555,8 @@ export default function SettingsPage() {
         </div>
 
         <section className="relative z-10 px-6 pb-14 md:px-8 md:pb-16">
-          <div className="mx-auto grid max-w-7xl gap-5">
-            <Card
+<div className="settings-main-grid mx-auto max-w-7xl gap-5">
+              <Card
               className="settings-silver-card rounded-[30px] border bg-transparent p-0 shadow-none"
               style={cardShellStyle()}
             >
@@ -645,8 +671,8 @@ export default function SettingsPage() {
               </div>
             </Card>
 
-            <div className="grid gap-5 lg:grid-cols-2">
-              <Card
+<div className="settings-cards-grid gap-5">
+                <Card
                 className="settings-silver-card rounded-[30px] border bg-transparent p-0 shadow-none"
                 style={cardShellStyle()}
               >
@@ -716,15 +742,16 @@ onClick={(e) => {
     aria-expanded={languageMenuOpen}
     aria-haspopup="listbox"
   >
-    <span
-      style={{
-        overflow: "hidden",
-        textOverflow: "ellipsis",
-        whiteSpace: "nowrap",
-      }}
-    >
-      {getLocaleLabel(selectedLanguage)}
-    </span>
+<span
+  style={{
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap",
+    display: "block",
+  }}
+>
+  {getLocaleLabel(selectedLanguage)}
+</span>
   </button>
 
   {languageMenuOpen && (
@@ -738,7 +765,6 @@ onClick={(e) => {
         right: 0,
         zIndex: 80,
         borderRadius: 20,
-        overflow: "hidden",
         border: "1px solid rgba(79,112,107,0.12)",
         background:
           "linear-gradient(180deg, rgba(252,253,251,0.98) 0%, rgba(243,245,242,0.99) 100%)",
