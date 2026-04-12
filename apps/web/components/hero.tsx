@@ -18,7 +18,7 @@ function VelvetButton({
   return (
     <a
       href={href}
-      className={`group relative inline-flex h-[52px] items-center justify-center overflow-hidden rounded-[15px] border border-transparent px-7 text-[0.98rem] font-semibold ui-transition active:scale-[0.985] md:px-8 ${
+      className={`group relative inline-flex min-h-[52px] w-full items-center justify-center overflow-hidden rounded-[15px] border border-transparent px-5 text-center text-[0.95rem] font-semibold ui-transition active:scale-[0.985] sm:w-auto sm:px-7 md:px-8 ${
         bronze
           ? "hover-button-bronze"
           : dark
@@ -57,10 +57,10 @@ function VelvetButton({
       <span
         className={
           bronze
-            ? "relative z-10 inline-flex items-center text-[#b79d84]"
+            ? "relative z-10 inline-flex items-center justify-center text-[#b79d84]"
             : dark
-              ? "relative z-10 inline-flex items-center text-[#dce2df]"
-              : "relative z-10 inline-flex items-center text-[#f3f5f4]"
+              ? "relative z-10 inline-flex items-center justify-center text-[#dce2df]"
+              : "relative z-10 inline-flex items-center justify-center text-[#f3f5f4]"
         }
       >
         {children}
@@ -95,24 +95,26 @@ export function Hero({
   }, []);
 
   return (
-    <section className="relative w-full px-6 pb-5 pt-8 md:px-8 md:pb-7 md:pt-10">
-      <div className="mx-auto grid max-w-7xl items-center gap-8 lg:grid-cols-[0.95fr_1.05fr] lg:gap-10">
-        <div className="relative pt-1 lg:pt-4">
+    <section className="relative w-full px-4 pb-5 pt-6 sm:px-6 sm:pt-8 md:px-8 md:pb-7 md:pt-10">
+      <div className="mx-auto grid max-w-7xl items-center gap-10 lg:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)] lg:gap-10">
+        <div className="relative min-w-0 pt-1 lg:pt-4">
           <div className="pointer-events-none absolute -left-10 top-6 h-40 w-40 rounded-full bg-[#7eb5ae]/10 blur-3xl" />
           <div className="pointer-events-none absolute left-24 top-24 h-24 w-24 rounded-full bg-white/[0.05] blur-2xl" />
           <div className="pointer-events-none absolute left-0 top-20 h-56 w-56 rounded-full bg-[#8fd2c8]/[0.05] blur-[100px]" />
           <div className="pointer-events-none absolute -left-6 top-44 h-72 w-72 rounded-full bg-[#1d3a40]/20 blur-[120px]" />
 
           <div
-            className={`relative z-10 inline-flex w-fit items-center gap-[0.72rem] rounded-full border border-white/10 bg-white/[0.06] px-5 py-2 text-[0.86rem] font-bold uppercase tracking-[0.22em] text-[#dce3e0] shadow-[0_10px_24px_rgba(0,0,0,0.10)] backdrop-blur-md transition-all duration-700 ${
+            className={`relative z-10 inline-flex max-w-full items-center gap-[0.62rem] rounded-full border border-white/10 bg-white/[0.06] px-4 py-2 text-[0.72rem] font-bold uppercase tracking-[0.18em] text-[#dce3e0] shadow-[0_10px_24px_rgba(0,0,0,0.10)] backdrop-blur-md transition-all duration-700 sm:w-fit sm:px-5 sm:text-[0.8rem] md:text-[0.86rem] ${
               revealed ? "translate-y-0 opacity-100" : "translate-y-3 opacity-0"
             }`}
           >
             <span className="block h-[6px] w-[6px] shrink-0 rounded-full bg-[#b79d84] opacity-95" />
-            <span className="leading-none">Secure Digital Evidence Platform</span>
+            <span className="leading-none [overflow-wrap:anywhere]">
+              Secure Digital Evidence Platform
+            </span>
           </div>
 
-          <div className="relative z-10 mt-5 max-w-[640px]">
+          <div className="relative z-10 mt-5 max-w-[640px] min-w-0">
             <h1 className="tracking-[-0.045em] text-[#e9edea]">
               <div
                 className={`transition-all duration-700 ${
@@ -120,7 +122,7 @@ export function Hero({
                 }`}
                 style={{ transitionDelay: "160ms" }}
               >
-                <span className="block text-[2.2rem] font-bold leading-[0.95] md:text-[2.55rem] lg:text-[2.75rem]">
+                <span className="block text-[1.82rem] font-bold leading-[0.95] sm:text-[2rem] md:text-[2.55rem] lg:text-[2.75rem]">
                   Verifiable digital evidence
                 </span>
               </div>
@@ -131,21 +133,21 @@ export function Hero({
                 }`}
                 style={{ transitionDelay: "310ms" }}
               >
-                <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-                  <span className="text-[1.26rem] font-normal leading-[1.12] text-[#d6ddda] md:text-[1.4rem] lg:text-[1.55rem]">
+                <div className="flex flex-wrap items-baseline gap-x-3 gap-y-2">
+                  <span className="text-[1.08rem] font-normal leading-[1.12] text-[#d6ddda] sm:text-[1.16rem] md:text-[1.4rem] lg:text-[1.55rem]">
                     with{" "}
                     <span className="font-semibold text-[#bfe8df]">
                       cryptographic integrity
                     </span>
                   </span>
 
-                  <span className="text-[1.26rem] font-semibold leading-[1.12] text-[#edf1ef] md:text-[1.4rem] lg:text-[1.55rem]">
+                  <span className="text-[1.08rem] font-semibold leading-[1.12] text-[#edf1ef] sm:text-[1.16rem] md:text-[1.4rem] lg:text-[1.55rem]">
                     chain-of-custody records
                   </span>
                 </div>
 
                 <span
-                  className="mt-1.5 block text-[1.26rem] font-medium leading-[1.12] md:text-[1.4rem] lg:text-[1.55rem]"
+                  className="mt-2 block text-[1.08rem] font-medium leading-[1.12] sm:text-[1.16rem] md:text-[1.4rem] lg:text-[1.55rem]"
                   style={{ color: bronzeText }}
                 >
                   and independent verification
@@ -166,7 +168,7 @@ export function Hero({
           </div>
 
           <p
-            className={`relative z-10 mt-5 max-w-[660px] text-[1rem] font-normal leading-[1.86] tracking-[-0.012em] text-[#c7cfcc] transition-all duration-700 md:text-[1.04rem] ${
+            className={`relative z-10 mt-5 max-w-[660px] text-[0.97rem] font-normal leading-[1.78] tracking-[-0.012em] text-[#c7cfcc] transition-all duration-700 sm:text-[1rem] md:text-[1.04rem] ${
               revealed ? "translate-y-0 opacity-100" : "translate-y-4 opacity-0"
             }`}
             style={{ transitionDelay: "640ms" }}
@@ -192,7 +194,7 @@ export function Hero({
           </p>
 
           <div
-            className={`relative z-10 mt-5 flex max-w-none flex-wrap gap-2.5 transition-all duration-700 ${
+            className={`relative z-10 mt-5 flex max-w-[680px] flex-col gap-3 transition-all duration-700 sm:flex-row sm:flex-wrap ${
               revealed ? "translate-y-0 opacity-100" : "translate-y-4 opacity-0"
             }`}
             style={{ transitionDelay: "890ms" }}
@@ -217,7 +219,7 @@ export function Hero({
             }`}
             style={{ transitionDelay: "1080ms" }}
           >
-            <div className="inline-flex items-center gap-2 text-[0.86rem] font-medium text-[#cfd7d3]">
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[0.84rem] font-medium text-[#cfd7d3] sm:text-[0.86rem]">
               <span className="h-2 w-2 rounded-full bg-[#9ed8cf] shadow-[0_0_10px_rgba(158,216,207,0.45)]" />
               <span className="text-[#e2e8e5]">Free plan available</span>
               <span className="text-[#9fa9a5]">— no credit card required</span>
@@ -225,7 +227,7 @@ export function Hero({
           </div>
 
           <div
-            className={`relative z-10 mt-5 flex max-w-none flex-nowrap gap-2.5 transition-all duration-700 ${
+            className={`relative z-10 mt-5 flex max-w-[760px] flex-wrap gap-2.5 transition-all duration-700 ${
               revealed ? "translate-y-0 opacity-100" : "translate-y-4 opacity-0"
             }`}
             style={{ transitionDelay: "1180ms" }}
@@ -233,7 +235,7 @@ export function Hero({
             {badges.map((badge, index) => (
               <div
                 key={badge}
-                className={`rounded-full border border-white/10 bg-white/[0.055] px-3.5 py-2 text-[0.78rem] text-[#d7dfdb] shadow-[0_8px_18px_rgba(0,0,0,0.08)] backdrop-blur-md whitespace-nowrap ui-transition ${
+                className={`max-w-full rounded-full border border-white/10 bg-white/[0.055] px-3.5 py-2 text-[0.74rem] text-[#d7dfdb] shadow-[0_8px_18px_rgba(0,0,0,0.08)] backdrop-blur-md ui-transition sm:text-[0.78rem] ${
                   index === 2 ? "hover-chip-bronze" : "hover-chip"
                 }`}
                 style={
@@ -253,13 +255,13 @@ export function Hero({
                 >
                   ✓
                 </span>
-                {badge}
+                <span className="[overflow-wrap:anywhere]">{badge}</span>
               </div>
             ))}
           </div>
         </div>
 
-        <div className="relative flex justify-center lg:justify-end">
+        <div className="relative flex min-w-0 justify-center lg:justify-end">
           <div className="pointer-events-none absolute right-[14%] top-[8%] z-0 hidden h-72 w-72 rounded-full bg-[#6ca39e]/12 blur-3xl lg:block" />
           <div className="pointer-events-none absolute right-[10%] top-[26%] z-0 hidden h-48 w-48 rounded-full bg-white/[0.045] blur-3xl lg:block" />
           <div className="pointer-events-none absolute right-[26%] bottom-[8%] z-0 hidden h-44 w-44 rounded-full bg-[#214147]/30 blur-3xl lg:block" />
@@ -280,12 +282,12 @@ export function Hero({
           <div className="pointer-events-none absolute inset-x-0 bottom-[6%] z-0 mx-auto hidden h-16 w-[64%] rounded-full bg-black/25 blur-2xl lg:block" />
 
           <div
-            className={`relative z-20 transition-all duration-[1100ms] ${
+            className={`relative z-20 w-full max-w-[340px] transition-all duration-[1100ms] ${
               revealed ? "translate-y-0 opacity-100" : "translate-y-6 opacity-0"
-            } md:scale-[1.05] lg:-translate-x-8 lg:scale-[1.08] xl:-translate-x-12 xl:scale-[1.08]`}
+            } sm:max-w-[360px] md:max-w-[390px] lg:max-w-[360px] lg:-translate-x-6 xl:max-w-[390px] xl:-translate-x-10`}
             style={{ transitionDelay: "360ms" }}
           >
-            <div className="pointer-events-none absolute -inset-8 rounded-[40px] bg-[radial-gradient(circle_at_center,rgba(132,204,193,0.10)_0%,transparent_65%)] blur-2xl" />
+            <div className="pointer-events-none absolute -inset-6 rounded-[40px] bg-[radial-gradient(circle_at_center,rgba(132,204,193,0.10)_0%,transparent_65%)] blur-2xl sm:-inset-8" />
             <PhoneMockup />
           </div>
         </div>

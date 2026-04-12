@@ -52,7 +52,7 @@ function FooterColumn({ title, links }: FooterColumnProps) {
   if (links.length === 0) return null;
 
   return (
-    <div>
+    <div className="min-w-0">
       <p className="text-[0.76rem] font-semibold uppercase tracking-[0.24em] text-[#b9c8c4]">
         {title}
       </p>
@@ -65,7 +65,7 @@ function FooterColumn({ title, links }: FooterColumnProps) {
           <Link
             key={link.href}
             href={link.href}
-            className="hover-link-bronze w-fit text-[0.94rem]"
+            className="hover-link-bronze w-fit max-w-full text-[0.94rem] [overflow-wrap:anywhere]"
           >
             {link.label}
           </Link>
@@ -93,23 +93,23 @@ export function Footer() {
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_84%_24%,rgba(255,255,255,0.04),transparent_18%)]" />
       <div className="absolute inset-0 opacity-[0.045] [background:repeating-linear-gradient(0deg,rgba(255,255,255,0.022)_0px,rgba(255,255,255,0.022)_1px,transparent_1px,transparent_4px)]" />
 
-      <div className="relative z-10 mx-auto max-w-7xl px-6 py-14 md:px-8 md:py-16">
-        <div className="grid gap-12 lg:grid-cols-[1.05fr_1.4fr] lg:gap-16">
-          <div>
+      <div className="relative z-10 mx-auto max-w-7xl px-4 py-12 sm:px-6 sm:py-14 md:px-8 md:py-16">
+        <div className="grid gap-10 sm:gap-12 lg:grid-cols-[1.05fr_1.4fr] lg:gap-16">
+          <div className="min-w-0">
             <Link
               href="/"
-              className="inline-flex items-center text-[1.72rem] font-semibold tracking-[-0.04em] text-[#e7ecea]"
+              className="inline-flex max-w-full items-center text-[1.42rem] sm:text-[1.58rem] md:text-[1.72rem] font-semibold tracking-[-0.04em] text-[#e7ecea]"
               aria-label="PROOVRA home"
             >
-              PROO✓RA
+              <span className="truncate">PROO✓RA</span>
             </Link>
 
-            <p className="mt-5 max-w-[430px] text-[1rem] leading-8 text-[#c7d1ce]">
+            <p className="mt-5 max-w-[430px] text-[0.98rem] sm:text-[1rem] leading-7 sm:leading-8 text-[#c7d1ce] [overflow-wrap:anywhere]">
               Verifiable digital evidence for legal, compliance, and investigations.
             </p>
 
             <a
-              className="hover-link-bronze mt-5 inline-block text-[0.96rem] underline underline-offset-4"
+              className="hover-link-bronze mt-5 inline-block max-w-full text-[0.96rem] underline underline-offset-4 [overflow-wrap:anywhere]"
               href="mailto:support@proovra.com"
             >
               support@proovra.com
@@ -146,7 +146,7 @@ export function Footer() {
           </div>
         </div>
 
-        <div className="mt-12 h-px w-full bg-[linear-gradient(90deg,transparent,rgba(255,255,255,0.14),transparent)]" />
+        <div className="mt-10 sm:mt-12 h-px w-full bg-[linear-gradient(90deg,transparent,rgba(255,255,255,0.14),transparent)]" />
 
         <div className="mt-6 flex flex-col gap-2 text-[0.88rem] text-[#aebbb7] sm:flex-row sm:items-center sm:justify-between">
           <span>© {currentYear} PROO✓RA</span>

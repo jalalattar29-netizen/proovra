@@ -31,7 +31,7 @@ const features = [
 
 export function Features() {
   return (
-    <section className="w-full px-6 py-2 md:px-8 md:py-3">
+    <section className="w-full px-4 py-2 sm:px-6 md:px-8 md:py-3">
       <div className="mx-auto max-w-7xl">
         <div className="grid gap-4 md:grid-cols-3">
           {features.map((feature, index) => (
@@ -48,9 +48,10 @@ export function Features() {
               <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.28)_0%,rgba(255,255,255,0.14)_18%,rgba(255,255,255,0.06)_100%)]" />
               <div className="absolute inset-0 bg-[radial-gradient(circle_at_22%_16%,rgba(255,255,255,0.35),transparent_30%)] opacity-60" />
 
-              <div className="relative z-10 p-6 md:p-7">
+              <div className="relative z-10 p-5 sm:p-6 md:p-7">
                 <div
-className={`mb-5 flex h-14 w-14 items-center justify-center rounded-[16px] ${feature.iconBg} shadow-[0_10px_22px_rgba(0,0,0,0.14)]`}                >
+                  className={`mb-5 flex h-14 w-14 items-center justify-center rounded-[16px] ${feature.iconBg} shadow-[0_10px_22px_rgba(0,0,0,0.14)]`}
+                >
                   <feature.icon className="h-7 w-7 text-[#eef1ef]" />
                 </div>
 
@@ -58,7 +59,7 @@ className={`mb-5 flex h-14 w-14 items-center justify-center rounded-[16px] ${fea
                   {feature.title}
                 </h3>
 
-                <p className="mt-2.5 max-w-[330px] text-[0.95rem] leading-7 text-[#58656a]">
+                <p className="mt-2.5 max-w-none text-[0.95rem] leading-7 text-[#58656a]">
                   {feature.description}
                 </p>
               </div>

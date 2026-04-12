@@ -3,6 +3,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { Menu, X } from "lucide-react";
 import { LanguageSwitcher } from "./language-switcher";
 
 type MarketingNavItem = {
@@ -38,17 +39,23 @@ function VelvetLinkButton({
   children,
   href,
   dark = false,
+  className = "",
+  fullWidth = false,
 }: {
   children: React.ReactNode;
   href: string;
   dark?: boolean;
+  className?: string;
+  fullWidth?: boolean;
 }) {
   return (
     <Link
       href={href}
-      className={`group relative inline-flex h-10 items-center justify-center overflow-hidden rounded-[14px] border border-transparent px-5 text-[0.9rem] font-semibold ui-transition active:scale-[0.985] ${
+      className={`group relative inline-flex h-10 items-center justify-center overflow-hidden rounded-[14px] border border-transparent px-4 sm:px-5 text-[0.9rem] font-semibold ui-transition active:scale-[0.985] ${
+        fullWidth ? "w-full" : "w-auto"
+      } ${
         dark ? "hover-button-secondary" : "hover-button-primary"
-      }`}
+      } ${className}`.trim()}
     >
       <img
         src="/images/site-velvet-bg.webp.png"
@@ -75,18 +82,24 @@ function VelvetActionButton({
   children,
   dark = false,
   onClick,
+  className = "",
+  fullWidth = false,
 }: {
   children: React.ReactNode;
   dark?: boolean;
   onClick: () => void;
+  className?: string;
+  fullWidth?: boolean;
 }) {
   return (
     <button
       type="button"
       onClick={onClick}
-      className={`group relative inline-flex h-10 items-center justify-center overflow-hidden rounded-[14px] border border-transparent px-5 text-[0.9rem] font-semibold ui-transition active:scale-[0.985] ${
+      className={`group relative inline-flex h-10 items-center justify-center overflow-hidden rounded-[14px] border border-transparent px-4 sm:px-5 text-[0.9rem] font-semibold ui-transition active:scale-[0.985] ${
+        fullWidth ? "w-full" : "w-auto"
+      } ${
         dark ? "hover-button-secondary" : "hover-button-primary"
-      }`}
+      } ${className}`.trim()}
     >
       <img
         src="/images/site-velvet-bg.webp.png"
@@ -109,7 +122,13 @@ function VelvetActionButton({
   );
 }
 
-function HeaderShell({ children }: { children: React.ReactNode }) {
+function HeaderShell({
+  children,
+  mobilePanel,
+}: {
+  children: React.ReactNode;
+  mobilePanel?: React.ReactNode;
+}) {
   const [isScrolled, setIsScrolled] = useState(false);
 
   useEffect(() => {
@@ -126,15 +145,19 @@ function HeaderShell({ children }: { children: React.ReactNode }) {
   }, []);
 
   return (
-    <header className="sticky top-0 z-50 w-full px-6 pt-5 md:px-8 md:pt-6">
+    <header className="sticky top-0 z-50 w-full px-4 pt-4 sm:px-6 sm:pt-5 md:px-8 md:pt-6">
       <div
-        className={`mx-auto flex max-w-7xl items-center justify-between rounded-[22px] px-3 py-2 transition-all duration-300 ${
+        className={`mx-auto max-w-7xl rounded-[22px] px-3 py-2 transition-all duration-300 ${
           isScrolled
             ? "bg-[linear-gradient(180deg,rgba(8,18,22,0.30)_0%,rgba(8,18,22,0.18)_100%)] shadow-[0_10px_30px_rgba(0,0,0,0.16),inset_0_1px_0_rgba(255,255,255,0.03)] backdrop-blur-xl"
             : "bg-transparent shadow-none backdrop-blur-0"
         }`}
       >
-        {children}
+        <div className="flex min-w-0 items-center justify-between gap-3">
+          {children}
+        </div>
+
+        {mobilePanel ? <div className="mt-3 lg:hidden">{mobilePanel}</div> : null}
       </div>
     </header>
   );
@@ -142,29 +165,131 @@ function HeaderShell({ children }: { children: React.ReactNode }) {
 
 function Brand({ href }: { href: string }) {
   return (
-    <Link href={href} className="flex items-center gap-3">
-      <div className="flex items-center justify-center">
+    <Link href={href} className="flex min-w-0 items-center gap-2.5 sm:gap-3">
+      <div className="flex shrink-0 items-center justify-center">
         <img
           src="/brand/icon-512.png?v=2"
           alt="PROOVRA"
-          className="h-[72px] w-[72px] object-contain drop-shadow-[0_10px_28px_rgba(0,0,0,0.65)]"
+          className="h-11 w-11 object-contain drop-shadow-[0_10px_28px_rgba(0,0,0,0.65)] sm:h-14 sm:w-14 lg:h-[72px] lg:w-[72px]"
         />
       </div>
 
-      <span className="text-[1.6rem] font-semibold tracking-[-0.02em] text-[#dce1de]">
+      <span className="truncate text-[1.02rem] font-semibold tracking-[-0.02em] text-[#dce1de] sm:text-[1.16rem] lg:text-[1.6rem]">
         PROO✓RA
       </span>
     </Link>
   );
 }
 
+function MobileMenuButton({
+  open,
+  onClick,
+  label,
+}: {
+  open: boolean;
+  onClick: () => void;
+  label: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-expanded={open}
+      aria-label={label}
+      className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-[14px] border border-white/10 bg-white/[0.04] text-[#e6ebea] shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] ui-transition hover:border-[rgba(183,157,132,0.28)] hover:bg-white/[0.06]"
+    >
+      {open ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+    </button>
+  );
+}
+
+function MobilePanel({
+  navItems,
+  extraActions,
+  onNavigate,
+  activeHref,
+}: {
+  navItems: Array<{ href: string; label: string }>;
+  extraActions?: React.ReactNode;
+  onNavigate: () => void;
+  activeHref?: string;
+}) {
+  return (
+    <div className="overflow-hidden rounded-[20px] border border-white/10 bg-[linear-gradient(180deg,rgba(8,18,22,0.90)_0%,rgba(6,14,18,0.95)_100%)] shadow-[0_16px_36px_rgba(0,0,0,0.22)] backdrop-blur-xl">
+      <nav className="flex flex-col p-2.5" aria-label="Mobile navigation">
+        {navItems.map((item) => {
+          const active =
+            activeHref === item.href ||
+            (item.href !== "/billing" && activeHref?.startsWith(`${item.href}/`));
+
+          return (
+            <Link
+              key={item.href}
+              href={item.href}
+              onClick={onNavigate}
+              className={`flex min-h-[46px] items-center rounded-[14px] px-4 text-[0.95rem] font-medium ui-transition ${
+                active
+                  ? "bg-[linear-gradient(180deg,rgba(183,157,132,0.16)_0%,rgba(255,255,255,0.04)_100%)] text-[#f1decb]"
+                  : "text-[#dce1de] hover:bg-white/[0.05] hover:text-[#f0f4f2]"
+              }`}
+            >
+              {item.label}
+            </Link>
+          );
+        })}
+      </nav>
+
+      <div className="border-t border-white/10 p-3">{extraActions}</div>
+    </div>
+  );
+}
+
 export function MarketingHeader() {
   const appLogin = "/login";
   const appRegister = "/register";
+  const pathname = usePathname();
+  const [mobileOpen, setMobileOpen] = useState(false);
+
+  useEffect(() => {
+    setMobileOpen(false);
+  }, [pathname]);
 
   return (
-    <HeaderShell>
-      <Brand href="/" />
+    <HeaderShell
+      mobilePanel={
+        mobileOpen ? (
+          <MobilePanel
+            navItems={MARKETING_NAV}
+            activeHref={pathname ?? undefined}
+            onNavigate={() => setMobileOpen(false)}
+            extraActions={
+              <div className="flex flex-col gap-3">
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-[0.78rem] font-semibold uppercase tracking-[0.18em] text-[#b8c7c3]">
+                    Language
+                  </span>
+                  <div className="lang-button flex items-center">
+                    <LanguageSwitcher />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                  <VelvetLinkButton dark href={appLogin} fullWidth className="w-full">
+                    Login
+                  </VelvetLinkButton>
+                  <VelvetLinkButton href={appRegister} fullWidth className="w-full">
+                    Register
+                  </VelvetLinkButton>
+                </div>
+              </div>
+            }
+          />
+        ) : null
+      }
+    >
+      <div className="min-w-0 flex-1">
+        <Brand href="/" />
+      </div>
 
       <nav className="hidden items-center gap-8 lg:flex">
         {MARKETING_NAV.map((item) => (
@@ -178,15 +303,28 @@ export function MarketingHeader() {
         ))}
       </nav>
 
-      <div className="flex items-center gap-2.5">
-<div className="lang-button flex items-center">
-  <LanguageSwitcher />
-</div>
+      <div className="hidden items-center gap-2.5 lg:flex">
+        <div className="lang-button flex items-center">
+          <LanguageSwitcher />
+        </div>
+
         <VelvetLinkButton dark href={appLogin}>
           Login
         </VelvetLinkButton>
 
         <VelvetLinkButton href={appRegister}>Register</VelvetLinkButton>
+      </div>
+
+      <div className="flex shrink-0 items-center gap-2 lg:hidden">
+        <div className="lang-button flex items-center">
+          <LanguageSwitcher />
+        </div>
+
+        <MobileMenuButton
+          open={mobileOpen}
+          onClick={() => setMobileOpen((prev) => !prev)}
+          label="Toggle navigation menu"
+        />
       </div>
     </HeaderShell>
   );
@@ -202,18 +340,53 @@ export function AppHeader({
   isPlatformAdmin?: boolean;
 }) {
   const pathname = usePathname();
+  const [mobileOpen, setMobileOpen] = useState(false);
 
   const navItems = useMemo<AppNavItem[]>(() => {
     if (!isPlatformAdmin) return APP_NAV;
     return [...APP_NAV, { href: "/admin", label: "Admin" }];
   }, [isPlatformAdmin]);
 
+  useEffect(() => {
+    setMobileOpen(false);
+  }, [pathname]);
+
   const isActive = (href: string) =>
     pathname === href || (href !== "/billing" && pathname?.startsWith(`${href}/`));
 
   return (
-    <HeaderShell>
-      <Brand href="/home" />
+    <HeaderShell
+      mobilePanel={
+        mobileOpen ? (
+          <MobilePanel
+            navItems={navItems}
+            activeHref={pathname ?? undefined}
+            onNavigate={() => setMobileOpen(false)}
+            extraActions={
+              <div className="flex flex-col gap-3">
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-[0.78rem] font-semibold uppercase tracking-[0.18em] text-[#b8c7c3]">
+                    Language
+                  </span>
+                  <div className="lang-button flex items-center">
+                    <LanguageSwitcher />
+                  </div>
+                </div>
+
+                {hasSession ? (
+                  <VelvetActionButton dark onClick={onLogout} fullWidth className="w-full">
+                    Sign out
+                  </VelvetActionButton>
+                ) : null}
+              </div>
+            }
+          />
+        ) : null
+      }
+    >
+      <div className="min-w-0 flex-1">
+        <Brand href="/home" />
+      </div>
 
       <nav className="hidden items-center gap-4 lg:flex">
         {navItems.map((item) => (
@@ -231,15 +404,28 @@ export function AppHeader({
         ))}
       </nav>
 
-      <div className="flex items-center gap-2.5">
-<div className="lang-button flex items-center">
-  <LanguageSwitcher />
-</div>
+      <div className="hidden items-center gap-2.5 lg:flex">
+        <div className="lang-button flex items-center">
+          <LanguageSwitcher />
+        </div>
+
         {hasSession && (
           <VelvetActionButton dark onClick={onLogout}>
             Sign out
           </VelvetActionButton>
         )}
+      </div>
+
+      <div className="flex shrink-0 items-center gap-2 lg:hidden">
+        <div className="lang-button flex items-center">
+          <LanguageSwitcher />
+        </div>
+
+        <MobileMenuButton
+          open={mobileOpen}
+          onClick={() => setMobileOpen((prev) => !prev)}
+          label="Toggle app navigation menu"
+        />
       </div>
     </HeaderShell>
   );
