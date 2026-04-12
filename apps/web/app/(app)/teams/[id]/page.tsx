@@ -1199,9 +1199,26 @@ export default function TeamDetailPage() {
         .teams-detail-page-shell .team-top-grid,
         .teams-detail-page-shell .team-secondary-grid {
           display: grid;
-          grid-template-columns: 1fr;
+          grid-template-columns: repeat(2, minmax(0, 1fr));
           gap: 28px;
           align-items: stretch;
+          grid-auto-rows: 1fr;
+        }
+
+        .teams-detail-page-shell .team-top-grid > .team-card,
+        .teams-detail-page-shell .team-secondary-grid > .team-card {
+          min-height: 320px;
+        }
+
+        .teams-detail-page-shell .team-top-grid > .team-card .team-card-inner,
+        .teams-detail-page-shell .team-secondary-grid > .team-card .team-card-inner {
+          justify-content: space-between;
+        }
+
+        .teams-detail-page-shell .team-top-grid > .team-card .team-stack,
+        .teams-detail-page-shell .team-secondary-grid > .team-card .team-stack {
+          flex: 1;
+          align-content: start;
         }
 
         .teams-detail-page-shell .team-hero-title-row {
@@ -1251,6 +1268,13 @@ export default function TeamDetailPage() {
 
         .teams-detail-page-shell .team-card .team-stack > div[style] {
           border-radius: 24px !important;
+        }
+
+        @media (max-width: 1180px) {
+          .teams-detail-page-shell .team-top-grid,
+          .teams-detail-page-shell .team-secondary-grid {
+            grid-template-columns: 1fr;
+          }
         }
 
         @media (max-width: 860px) {
