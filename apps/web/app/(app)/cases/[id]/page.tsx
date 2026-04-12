@@ -142,6 +142,7 @@ export default function CaseDetailPage() {
   const [showSharePanel, setShowSharePanel] = useState(false);
   const [shareMethod, setShareMethod] = useState<"team" | "email">("team");
   const [selectedTeamMemberId, setSelectedTeamMemberId] = useState("");
+  const [teamMemberMenuOpen, setTeamMemberMenuOpen] = useState(false);
   const [shareEmail, setShareEmail] = useState("");
   const [operationLoading, setOperationLoading] = useState(false);
 
@@ -151,6 +152,11 @@ export default function CaseDetailPage() {
     if (!caseData?.ownerUserId || !currentUserId) return false;
     return caseData.ownerUserId === currentUserId;
   }, [caseData?.ownerUserId, currentUserId]);
+
+  const selectedTeamMember = useMemo(
+  () => teamMembers.find((member) => member.userId === selectedTeamMemberId) ?? null,
+  [teamMembers, selectedTeamMemberId]
+);
 
   const loadData = async () => {
     if (!caseId) return;
@@ -674,31 +680,82 @@ export default function CaseDetailPage() {
                 Case
               </div>
 
-              <h1
-                className="mt-5 max-w-[820px] text-[1.72rem] font-medium leading-[1.02] tracking-[-0.045em] text-[#d9e2df] md:text-[2.22rem] lg:text-[2.72rem]"
-                style={{ margin: "20px 0 0" }}
-              >
-                {renamingCase ? (
-                  <input
-                    type="text"
-                    value={renameValue}
-                    onChange={(e) => setRenameValue(e.target.value)}
-                    maxLength={120}
-                    autoFocus
-                    style={{
-                      background: "rgba(255,255,255,0.05)",
-                      border: "1px solid rgba(214,184,157,0.16)",
-                      borderRadius: 14,
-                      color: "#d8e0dd",
-                      padding: "10px 14px",
-                      width: "100%",
-                      maxWidth: 540,
-                    }}
-                  />
-                ) : (
-                  <span style={{ color: "#c3ebe2" }}>{caseData.name}</span>
-                )}
-              </h1>
+<div
+  style={{
+    marginTop: 20,
+    display: "flex",
+    alignItems: "center",
+    gap: 16,
+    flexWrap: "wrap",
+  }}
+>
+  {renamingCase ? (
+    <>
+      <input
+        type="text"
+        value={renameValue}
+        onChange={(e) => setRenameValue(e.target.value)}
+        maxLength={120}
+        autoFocus
+        style={{
+          background: "rgba(255,255,255,0.05)",
+          border: "1px solid rgba(214,184,157,0.16)",
+          borderRadius: 14,
+          color: "#d8e0dd",
+          padding: "10px 14px",
+          width: "100%",
+          maxWidth: 540,
+          minHeight: 52,
+          fontSize: "1.18rem",
+          fontWeight: 600,
+        }}
+      />
+
+      <Button
+        onClick={handleRenameSubmit}
+        disabled={!renameValue.trim() || operationLoading}
+        className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
+        style={primaryButtonStyle}
+      >
+        Save
+      </Button>
+
+      <Button
+        variant="secondary"
+        onClick={() => {
+          setRenamingCase(false);
+          setRenameValue(caseData.name);
+        }}
+        disabled={operationLoading}
+        className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
+        style={secondaryButtonStyle}
+      >
+        Cancel
+      </Button>
+    </>
+  ) : (
+    <>
+      <h1
+        className="max-w-[820px] text-[1.72rem] font-medium leading-[1.02] tracking-[-0.045em] text-[#d9e2df] md:text-[2.22rem] lg:text-[2.72rem]"
+        style={{ margin: 0 }}
+      >
+        <span style={{ color: "#c3ebe2" }}>{caseData.name}</span>
+      </h1>
+
+      {isOwner && (
+        <Button
+          variant="secondary"
+          onClick={handleRenameStart}
+          disabled={operationLoading}
+          className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
+          style={secondaryButtonStyle}
+        >
+          Rename
+        </Button>
+      )}
+    </>
+  )}
+</div>
 
               <p
                 style={{
@@ -716,75 +773,51 @@ export default function CaseDetailPage() {
               </p>
             </div>
 
-            <div
-              style={{
-                display: "flex",
-                gap: 8,
-                flexWrap: "wrap",
-                justifyContent: "flex-end",
-              }}
-            >
-              {renamingCase ? (
-                <>
-                  <Button
-                    variant="secondary"
-                    onClick={() => {
-                      setRenamingCase(false);
-                      setRenameValue(caseData.name);
-                    }}
-                    disabled={operationLoading}
-                    className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
-                    style={secondaryButtonStyle}
-                  >
-                    Cancel
-                  </Button>
+<div
+  style={{
+    display: "flex",
+    gap: 10,
+    flexWrap: "wrap",
+    justifyContent: "flex-end",
+    alignItems: "center",
+  }}
+>
+  {!renamingCase && (
+    <>
+      <Link href="/cases" style={{ textDecoration: "none" }}>
+        <Button
+          variant="secondary"
+          disabled={operationLoading}
+          className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
+          style={secondaryButtonStyle}
+        >
+          Back to Cases
+        </Button>
+      </Link>
 
-                  <Button
-                    onClick={handleRenameSubmit}
-                    disabled={!renameValue.trim() || operationLoading}
-                    className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
-                    style={primaryButtonStyle}
-                  >
-                    Save
-                  </Button>
-                </>
-              ) : (
-                <>
-                  {isOwner && (
-                    <>
-                      <Button
-                        variant="secondary"
-                        onClick={handleRenameStart}
-                        disabled={operationLoading}
-                        className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
-                        style={secondaryButtonStyle}
-                      >
-                        Rename
-                      </Button>
+      <Button
+        onClick={handleExport}
+        disabled={operationLoading}
+        className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
+        style={primaryButtonStyle}
+      >
+        Export ZIP
+      </Button>
 
-                      <Button
-                        variant="secondary"
-                        onClick={() => setDeleteConfirm(true)}
-                        disabled={operationLoading}
-                        className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
-                        style={dangerButtonStyle}
-                      >
-                        Delete
-                      </Button>
-                    </>
-                  )}
-
-                  <Button
-                    onClick={handleExport}
-                    disabled={operationLoading}
-                    className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
-                    style={primaryButtonStyle}
-                  >
-                    Export ZIP
-                  </Button>
-                </>
-              )}
-            </div>
+      {isOwner && (
+        <Button
+          variant="secondary"
+          onClick={() => setDeleteConfirm(true)}
+          disabled={operationLoading}
+          className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
+          style={dangerButtonStyle}
+        >
+          Delete
+        </Button>
+      )}
+    </>
+  )}
+</div>
           </div>
         </div>
       </div>
@@ -947,7 +980,15 @@ export default function CaseDetailPage() {
                 <>
                   <Button
                     variant="secondary"
-                    onClick={() => setShowSharePanel(!showSharePanel)}
+onClick={() => {
+  setShowSharePanel((prev) => {
+    const next = !prev;
+    if (!next) {
+      setTeamMemberMenuOpen(false);
+    }
+    return next;
+  });
+}}
                     disabled={operationLoading}
                     className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
                     style={tertiaryButtonStyle}
@@ -976,9 +1017,10 @@ export default function CaseDetailPage() {
                             type="radio"
                             value="team"
                             checked={shareMethod === "team"}
-                            onChange={(e) =>
-                              setShareMethod(e.target.value as "team")
-                            }
+onChange={(e) => {
+  setShareMethod(e.target.value as "team");
+  setTeamMemberMenuOpen(false);
+}}
                             disabled={!caseData.teamId || operationLoading}
                           />
                           <span>Share with Team Member</span>
@@ -996,9 +1038,10 @@ export default function CaseDetailPage() {
                             type="radio"
                             value="email"
                             checked={shareMethod === "email"}
-                            onChange={(e) =>
-                              setShareMethod(e.target.value as "email")
-                            }
+onChange={(e) => {
+  setShareMethod(e.target.value as "email");
+  setTeamMemberMenuOpen(false);
+}}
                             disabled={operationLoading}
                           />
                           <span>Share by Email</span>
@@ -1009,34 +1052,172 @@ export default function CaseDetailPage() {
                         {shareMethod === "team" ? (
                           caseData.teamId ? (
                             <>
-                              <select
-                                value={selectedTeamMemberId}
-                                onChange={(e) =>
-                                  setSelectedTeamMemberId(e.target.value)
-                                }
-                                disabled={operationLoading}
-                                style={{
-                                  width: "100%",
-                                  minHeight: 52,
-                                  padding: "0 16px",
-                                  borderRadius: 18,
-                                  fontSize: 15,
-                                  background:
-                                    "linear-gradient(180deg, rgba(250,251,249,0.94) 0%, rgba(241,244,241,0.98) 100%)",
-                                  border: "1px solid rgba(79,112,107,0.14)",
-                                  color: "#23373b",
-                                  boxShadow:
-                                    "inset 0 1px 0 rgba(255,255,255,0.68), 0 10px 22px rgba(0,0,0,0.05)",
-                                }}
-                              >
-                                <option value="">Select a team member...</option>
-                                {teamMembers.map((member) => (
-                                  <option key={member.userId} value={member.userId}>
-                                    {member.label}
-                                  </option>
-                                ))}
-                              </select>
+<div style={{ position: "relative" }}>
+  <button
+    type="button"
+    onClick={() => {
+      if (operationLoading) return;
+      setTeamMemberMenuOpen((prev) => !prev);
+    }}
+    disabled={operationLoading}
+    style={{
+      width: "100%",
+      minHeight: 52,
+      padding: "0 48px 0 16px",
+      borderRadius: 18,
+      fontSize: 15,
+      textAlign: "left",
+      background:
+        "linear-gradient(180deg, rgba(250,251,249,0.96) 0%, rgba(241,244,241,0.99) 100%)",
+      border: teamMemberMenuOpen
+        ? "1px solid rgba(79,112,107,0.24)"
+        : "1px solid rgba(79,112,107,0.14)",
+      color: selectedTeamMember ? "#23373b" : "rgba(93,109,113,0.72)",
+      boxShadow: teamMemberMenuOpen
+        ? "inset 0 1px 0 rgba(255,255,255,0.78), 0 0 0 3px rgba(79,112,107,0.08), 0 12px 24px rgba(0,0,0,0.06)"
+        : "inset 0 1px 0 rgba(255,255,255,0.7), 0 10px 22px rgba(0,0,0,0.05)",
+      outline: "none",
+      cursor: operationLoading ? "not-allowed" : "pointer",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "space-between",
+      gap: 12,
+      transition: "all 180ms ease",
+    }}
+  >
+    <span
+      style={{
+        overflow: "hidden",
+        textOverflow: "ellipsis",
+        whiteSpace: "nowrap",
+      }}
+    >
+      {selectedTeamMember?.label || "Select a team member..."}
+    </span>
 
+    <span
+      aria-hidden="true"
+      style={{
+        position: "absolute",
+        right: 16,
+        top: "50%",
+        transform: teamMemberMenuOpen
+          ? "translateY(-50%) rotate(180deg)"
+          : "translateY(-50%) rotate(0deg)",
+        color: "#8a6e57",
+        fontSize: 14,
+        transition: "transform 180ms ease",
+        pointerEvents: "none",
+      }}
+    >
+      ▾
+    </span>
+  </button>
+
+  {teamMemberMenuOpen && (
+    <div
+      style={{
+        position: "absolute",
+        top: "calc(100% + 8px)",
+        left: 0,
+        right: 0,
+        zIndex: 50,
+        borderRadius: 20,
+        overflow: "hidden",
+        border: "1px solid rgba(79,112,107,0.12)",
+        background:
+          "linear-gradient(180deg, rgba(252,253,251,0.98) 0%, rgba(243,245,242,0.99) 100%)",
+        boxShadow:
+          "0 18px 38px rgba(0,0,0,0.10), inset 0 1px 0 rgba(255,255,255,0.7)",
+        backdropFilter: "blur(10px)",
+        WebkitBackdropFilter: "blur(10px)",
+        padding: 8,
+      }}
+    >
+      <button
+        type="button"
+        onClick={() => {
+setSelectedTeamMemberId("");
+setTeamMemberMenuOpen(false);
+setShowSharePanel(false);
+        }}
+        style={{
+          width: "100%",
+          minHeight: 46,
+          border: "none",
+          background:
+            selectedTeamMemberId === ""
+              ? "linear-gradient(180deg, rgba(58,92,95,0.10) 0%, rgba(20,38,42,0.08) 100%)"
+              : "transparent",
+          color: selectedTeamMemberId === "" ? "#23373b" : "#5d6d71",
+          borderRadius: 14,
+          textAlign: "left",
+          padding: "0 14px",
+          fontSize: 14,
+          cursor: "pointer",
+        }}
+      >
+        Select a team member...
+      </button>
+
+      {teamMembers.map((member) => {
+        const active = selectedTeamMemberId === member.userId;
+
+        return (
+          <button
+            key={member.userId}
+            type="button"
+            onClick={() => {
+              setSelectedTeamMemberId(member.userId);
+              setTeamMemberMenuOpen(false);
+            }}
+            style={{
+              width: "100%",
+              minHeight: 48,
+              border: "none",
+              background: active
+                ? "linear-gradient(180deg, rgba(58,92,95,0.12) 0%, rgba(20,38,42,0.08) 100%)"
+                : "transparent",
+              color: "#23373b",
+              borderRadius: 14,
+              textAlign: "left",
+              padding: "0 14px",
+              fontSize: 14,
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: 10,
+            }}
+          >
+            <span
+              style={{
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
+              }}
+            >
+              {member.label}
+            </span>
+
+            {active ? (
+              <span
+                style={{
+                  color: "#3a5d61",
+                  fontWeight: 700,
+                  fontSize: 13,
+                  flexShrink: 0,
+                }}
+              >
+                ✓
+              </span>
+            ) : null}
+          </button>
+        );
+      })}
+    </div>
+  )}
+</div>
                               <Button
                                 onClick={handleShareTeam}
                                 disabled={!selectedTeamMemberId || operationLoading}

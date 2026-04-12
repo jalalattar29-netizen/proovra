@@ -179,10 +179,9 @@ export function MarketingHeader() {
       </nav>
 
       <div className="flex items-center gap-2.5">
-        <div className="lang-button">
-          <LanguageSwitcher />
-        </div>
-
+<div className="lang-button flex items-center">
+  <LanguageSwitcher />
+</div>
         <VelvetLinkButton dark href={appLogin}>
           Login
         </VelvetLinkButton>
@@ -233,10 +232,9 @@ export function AppHeader({
       </nav>
 
       <div className="flex items-center gap-2.5">
-        <div className="lang-button">
-          <LanguageSwitcher />
-        </div>
-
+<div className="lang-button flex items-center">
+  <LanguageSwitcher />
+</div>
         {hasSession && (
           <VelvetActionButton dark onClick={onLogout}>
             Sign out

@@ -113,11 +113,30 @@ function sectionHeader(icon: React.ReactNode, title: string) {
   );
 }
 
+function getLocaleLabel(lc: Locale): string {
+  return lc === "en"
+    ? "English"
+    : lc === "ar"
+      ? "العربية"
+      : lc === "de"
+        ? "Deutsch"
+        : lc === "fr"
+          ? "Français"
+          : lc === "es"
+            ? "Español"
+            : lc === "tr"
+              ? "Türkçe"
+              : lc === "ru"
+                ? "Русский"
+                : String(lc).toUpperCase();
+}
+
 export default function SettingsPage() {
   const { t, locale, setLocale } = useLocale();
   const { user, setToken, updateUser } = useAuth();
   const { addToast } = useToast();
   const router = useRouter();
+  const [languageMenuOpen, setLanguageMenuOpen] = useState(false);
 
   const [plan, setPlan] = useState("FREE");
 
@@ -160,6 +179,15 @@ export default function SettingsPage() {
     user?.bio,
     user?.id,
   ]);
+
+  useEffect(() => {
+  if (!languageMenuOpen) return;
+
+  const handleClick = () => setLanguageMenuOpen(false);
+
+  window.addEventListener("click", handleClick);
+  return () => window.removeEventListener("click", handleClick);
+}, [languageMenuOpen]);
 
   useEffect(() => {
     apiFetch("/v1/billing/status")
@@ -655,31 +683,109 @@ export default function SettingsPage() {
                   <div className="grid gap-4">
                     <div className="flex flex-col gap-3">
                       <span className="text-[#5d6d71]">UI language</span>
-                      <select
-                        value={selectedLanguage}
-                        onChange={(e) => setSelectedLanguage(e.target.value as Locale)}
-                        className="settings-select"
-                      >
-                        {supportedLocales.map((lc) => (
-                          <option key={lc} value={lc}>
-                            {lc === "en"
-                              ? "English"
-                              : lc === "ar"
-                                ? "العربية"
-                                : lc === "de"
-                                  ? "Deutsch"
-                                  : lc === "fr"
-                                    ? "Français"
-                                    : lc === "es"
-                                      ? "Español"
-                                      : lc === "tr"
-                                        ? "Türkçe"
-                                        : lc === "ru"
-                                          ? "Русский"
-                                          : String(lc).toUpperCase()}
-                          </option>
-                        ))}
-                      </select>
+<div style={{ position: "relative" }}>
+  <button
+    type="button"
+onClick={(e) => {
+  e.stopPropagation();
+  setLanguageMenuOpen((prev) => !prev);
+}}
+    className="settings-select"
+    style={{
+      textAlign: "left",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "space-between",
+      gap: 12,
+      position: "relative",
+    }}
+    aria-expanded={languageMenuOpen}
+    aria-haspopup="listbox"
+  >
+    <span
+      style={{
+        overflow: "hidden",
+        textOverflow: "ellipsis",
+        whiteSpace: "nowrap",
+      }}
+    >
+      {getLocaleLabel(selectedLanguage)}
+    </span>
+  </button>
+
+  {languageMenuOpen && (
+<div
+  role="listbox"
+  onClick={(e) => e.stopPropagation()}
+  style={{
+            position: "absolute",
+        top: "calc(100% + 8px)",
+        left: 0,
+        right: 0,
+        zIndex: 40,
+        borderRadius: 20,
+        overflow: "hidden",
+        border: "1px solid rgba(79,112,107,0.12)",
+        background:
+          "linear-gradient(180deg, rgba(252,253,251,0.98) 0%, rgba(243,245,242,0.99) 100%)",
+        boxShadow:
+          "0 18px 38px rgba(0,0,0,0.10), inset 0 1px 0 rgba(255,255,255,0.7)",
+        backdropFilter: "blur(10px)",
+        WebkitBackdropFilter: "blur(10px)",
+        padding: 8,
+      }}
+    >
+      {supportedLocales.map((lc) => {
+        const active = selectedLanguage === lc;
+
+        return (
+          <button
+            key={lc}
+            type="button"
+onClick={(e) => {
+  e.stopPropagation();
+  setSelectedLanguage(lc as Locale);
+  setLanguageMenuOpen(false);
+}}
+            style={{
+              width: "100%",
+              minHeight: 46,
+              border: "none",
+              background: active
+                ? "linear-gradient(180deg, rgba(58,92,95,0.10) 0%, rgba(20,38,42,0.08) 100%)"
+                : "transparent",
+              color: "#23373b",
+              borderRadius: 14,
+              textAlign: "left",
+              padding: "0 14px",
+              fontSize: 14,
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: 10,
+            }}
+          >
+            <span>{getLocaleLabel(lc as Locale)}</span>
+
+            {active ? (
+              <span
+                style={{
+                  color: "#3a5d61",
+                  fontWeight: 700,
+                  fontSize: 13,
+                  flexShrink: 0,
+                }}
+              >
+                ✓
+              </span>
+            ) : null}
+          </button>
+        );
+      })}
+    </div>
+  )}
+</div>
                     </div>
 
                     <p className="m-0 text-[13px] text-[#6a777b]">

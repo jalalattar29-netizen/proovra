@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import {
@@ -144,6 +144,157 @@ function roleTone(role: string) {
       "linear-gradient(180deg, rgba(250,251,249,0.82) 0%, rgba(241,244,241,0.96) 100%)",
     color: "#4d6165",
   };
+}
+
+type TeamRoleValue = "OWNER" | "ADMIN" | "MEMBER" | "VIEWER";
+
+function TeamRoleDropdown({
+  value,
+  options,
+  onChange,
+  disabled,
+  minWidth = 160,
+}: {
+  value: TeamRoleValue;
+  options: TeamRoleValue[];
+  onChange: (value: TeamRoleValue) => void;
+  disabled?: boolean;
+  minWidth?: number;
+}) {
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!open) return;
+
+    const handleClickOutside = (event: MouseEvent) => {
+      if (!rootRef.current) return;
+      if (!rootRef.current.contains(event.target as Node)) {
+        setOpen(false);
+      }
+    };
+
+    window.addEventListener("click", handleClickOutside);
+    return () => window.removeEventListener("click", handleClickOutside);
+  }, [open]);
+
+  return (
+    <div
+      ref={rootRef}
+      style={{
+        position: "relative",
+        minWidth,
+        width: "100%",
+      }}
+    >
+      <button
+        type="button"
+        disabled={disabled}
+        onClick={(e) => {
+          e.stopPropagation();
+          if (disabled) return;
+          setOpen((prev) => !prev);
+        }}
+        className="team-select"
+        style={{
+          minWidth,
+          minHeight: 44,
+          textAlign: "left",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 12,
+          position: "relative",
+          width: "100%",
+        }}
+        aria-expanded={open}
+        aria-haspopup="listbox"
+      >
+        <span
+          style={{
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap",
+          }}
+        >
+          {value}
+        </span>
+      </button>
+
+      {open && !disabled ? (
+        <div
+          role="listbox"
+          onClick={(e) => e.stopPropagation()}
+          style={{
+            position: "absolute",
+            top: "calc(100% + 8px)",
+            left: 0,
+            right: 0,
+            zIndex: 60,
+            borderRadius: 18,
+            overflow: "hidden",
+            border: "1px solid rgba(79,112,107,0.12)",
+            background:
+              "linear-gradient(180deg, rgba(252,253,251,0.98) 0%, rgba(243,245,242,0.99) 100%)",
+            boxShadow:
+              "0 18px 38px rgba(0,0,0,0.10), inset 0 1px 0 rgba(255,255,255,0.7)",
+            backdropFilter: "blur(10px)",
+            WebkitBackdropFilter: "blur(10px)",
+            padding: 8,
+          }}
+        >
+          {options.map((option) => {
+            const active = option === value;
+
+            return (
+              <button
+                key={option}
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onChange(option);
+                  setOpen(false);
+                }}
+                style={{
+                  width: "100%",
+                  minHeight: 44,
+                  border: "none",
+                  background: active
+                    ? "linear-gradient(180deg, rgba(58,92,95,0.10) 0%, rgba(20,38,42,0.08) 100%)"
+                    : "transparent",
+                  color: "#23373b",
+                  borderRadius: 14,
+                  textAlign: "left",
+                  padding: "0 14px",
+                  fontSize: 14,
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  gap: 10,
+                }}
+              >
+                <span>{option}</span>
+
+                {active ? (
+                  <span
+                    style={{
+                      color: "#3a5d61",
+                      fontWeight: 700,
+                      fontSize: 13,
+                      flexShrink: 0,
+                    }}
+                  >
+                    ✓
+                  </span>
+                ) : null}
+              </button>
+            );
+          })}
+        </div>
+      ) : null}
+    </div>
+  );
 }
 
 export default function TeamDetailPage() {
@@ -979,20 +1130,33 @@ export default function TeamDetailPage() {
           align-items: stretch;
         }
 
-        .teams-detail-page-shell .team-secondary-grid {
-          display: grid;
-          grid-template-columns: repeat(2, minmax(0, 1fr));
-          gap: 28px;
-          align-items: stretch;
-        }
+.teams-detail-page-shell .team-secondary-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 28px;
+  align-items: stretch;
+  grid-auto-rows: 1fr;
+}
 
-        .teams-detail-page-shell .team-hero-title-row {
-          display: flex;
-          align-items: center;
-          gap: 12px;
-          flex-wrap: wrap;
-          margin-top: 20px;
-        }
+.teams-detail-page-shell .team-secondary-grid > .team-card {
+  min-height: 300px;
+}
+
+.teams-detail-page-shell .team-hero-title-row {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  flex-wrap: wrap;
+  margin-top: 22px;
+}
+
+.teams-detail-page-shell .team-secondary-grid > .team-card .team-card-inner > :last-child {
+  flex: 1;
+}
+
+.teams-detail-page-shell .team-secondary-grid .team-card-inner {
+  justify-content: space-between;
+}
 
         .teams-detail-page-shell .team-hero-editbar {
           display: flex;
@@ -1130,7 +1294,7 @@ export default function TeamDetailPage() {
                       className="rounded-[999px] border px-4 py-2.5 text-[0.88rem] font-semibold"
                       style={secondaryButtonStyle}
                     >
-                      Edit name
+                      Rename
                     </Button>
                   )}
                 </div>
@@ -1215,15 +1379,6 @@ export default function TeamDetailPage() {
                   style={secondaryButtonStyle}
                 >
                   Back to Teams
-                </Button>
-              </Link>
-
-              <Link href="/cases" style={{ textDecoration: "none" }}>
-                <Button
-                  className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
-                  style={primaryButtonStyle}
-                >
-                  Open Cases
                 </Button>
               </Link>
 
@@ -1368,19 +1523,13 @@ export default function TeamDetailPage() {
                       className="team-field"
                     />
 
-                    <select
-                      value={inviteRole}
-                      onChange={(e) => setInviteRole(e.target.value)}
-                      disabled={inviting}
-                      className="team-select"
-                    >
-                      {["OWNER", "ADMIN", "MEMBER", "VIEWER"].map((role) => (
-                        <option key={role} value={role}>
-                          {role}
-                        </option>
-                      ))}
-                    </select>
-
+<TeamRoleDropdown
+  value={inviteRole as TeamRoleValue}
+  options={["ADMIN", "MEMBER", "VIEWER"]}
+  onChange={(value) => setInviteRole(value)}
+  disabled={inviting}
+  minWidth={180}
+/>
                     <Button
                       onClick={handleInvite}
                       disabled={inviting || !inviteEmail.trim()}
@@ -1596,22 +1745,13 @@ export default function TeamDetailPage() {
                             >
                               {canManageTeam && !memberIsOwner ? (
                                 <>
-                                  <select
-                                    value={member.role}
-                                    onChange={(e) =>
-                                      handleRoleChange(member, e.target.value)
-                                    }
-                                    disabled={roleSavingKey === member.userId}
-                                    className="team-select"
-                                    style={{ minWidth: 132, minHeight: 44 }}
-                                  >
-                                    {ROLE_OPTIONS.map((role) => (
-                                      <option key={role} value={role}>
-                                        {role}
-                                      </option>
-                                    ))}
-                                  </select>
-
+<TeamRoleDropdown
+  value={member.role as TeamRoleValue}
+  options={["ADMIN", "MEMBER", "VIEWER"]}
+  onChange={(value) => handleRoleChange(member, value)}
+  disabled={roleSavingKey === member.userId}
+  minWidth={150}
+/>
                                   <Button
                                     variant="secondary"
                                     onClick={() => handleRemoveMember(member)}
@@ -1667,20 +1807,19 @@ export default function TeamDetailPage() {
                   </div>
                 </div>
 
-                {invites.length === 0 ? (
-                  <div
-                    style={{
-                      color: "#5d6d71",
-                      paddingTop: 6,
-                      minHeight: 72,
-                      display: "flex",
-                      alignItems: "flex-start",
-                    }}
-                  >
-                    No pending invites.
-                  </div>
-                ) : (
-                  <div className="team-stack">
+{invites.length === 0 ? (
+  <div
+    style={{
+      color: "#5d6d71",
+      minHeight: 132,
+      display: "flex",
+      alignItems: "center",
+    }}
+  >
+    No pending invites.
+  </div>
+) : (
+                    <div className="team-stack">
                     {invites.map((invite) => (
                       <div key={invite.id} style={rowCardStyle}>
                         <div

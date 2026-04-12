@@ -106,19 +106,22 @@ export function LanguageSwitcher() {
       id="proovra-lang-menu"
       role="menu"
       aria-label="Language selector menu"
-      style={{
-        position: "fixed",
-        top: menuPos.top,
-        left: menuPos.left,
-        width: menuPos.width,
-        background: "rgba(11, 20, 32, 0.92)",
-        border: "1px solid rgba(101, 235, 255, 0.18)",
-        borderRadius: 12,
-        boxShadow: "0 18px 40px rgba(0,0,0,0.45)",
-        zIndex: 999999,
-        overflow: "hidden",
-        backdropFilter: "blur(10px)"
-      }}
+style={{
+  position: "fixed",
+  top: menuPos.top,
+  left: menuPos.left,
+  width: menuPos.width,
+  background:
+    "linear-gradient(180deg, rgba(10,22,27,0.96) 0%, rgba(7,16,20,0.98) 100%)",
+  border: "1px solid rgba(183,157,132,0.22)",
+  borderRadius: 18,
+  boxShadow:
+    "0 22px 44px rgba(0,0,0,0.34), inset 0 1px 0 rgba(255,255,255,0.05)",
+  zIndex: 999999,
+  overflow: "hidden",
+  backdropFilter: "blur(14px)",
+  WebkitBackdropFilter: "blur(14px)"
+}}
     >
       {languages.map((lang, idx) => {
         const active =
@@ -140,25 +143,50 @@ export function LanguageSwitcher() {
               }
               close();
             }}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 10,
-              width: "100%",
-              padding: "10px 12px",
-              border: "none",
-              background: active ? "rgba(101, 235, 255, 0.12)" : "transparent",
-              cursor: "pointer",
-              fontSize: 12,
-              color: active ? "rgba(227, 251, 255, 1)" : "rgba(226, 232, 240, 0.92)",
-              fontWeight: active ? 700 : 500,
-              borderBottom: idx !== languages.length - 1 ? "1px solid rgba(101, 235, 255, 0.10)" : "none",
-              justifyContent: "flex-start",
-              textAlign: "left"
-            }}
+style={{
+  display: "flex",
+  alignItems: "center",
+  gap: 12,
+  width: "100%",
+  minHeight: 48,
+  padding: "0 14px",
+  border: "none",
+  background: active
+    ? "linear-gradient(180deg, rgba(183,157,132,0.16) 0%, rgba(255,255,255,0.04) 100%)"
+    : "transparent",
+  cursor: "pointer",
+  fontSize: 13,
+  color: active ? "#f3e7d8" : "rgba(226,232,230,0.90)",
+  fontWeight: active ? 700 : 500,
+  borderBottom:
+    idx !== languages.length - 1
+      ? "1px solid rgba(183,157,132,0.10)"
+      : "none",
+  justifyContent: "flex-start",
+  textAlign: "left",
+  transition: "background 180ms ease, color 180ms ease"
+}}
           >
-            <span style={{ width: 44, opacity: active ? 1 : 0.9 }}>{lang.display}</span>
-            <span style={{ fontSize: 13, opacity: active ? 1 : 0.9 }}>{lang.label}</span>
+<span
+  style={{
+    width: 42,
+    color: active ? "#d6b89d" : "rgba(205,214,211,0.72)",
+    fontWeight: 700,
+    letterSpacing: "0.08em",
+    fontSize: 12,
+    flexShrink: 0
+  }}
+>
+  {lang.display}
+</span>
+<span
+  style={{
+    fontSize: 14,
+    color: active ? "#f3f5f2" : "rgba(226,232,230,0.90)"
+  }}
+>
+  {lang.label}
+</span>
           </button>
         );
       })}
@@ -174,24 +202,36 @@ return (
       aria-haspopup="menu"
       aria-expanded={open}
       title="Language selector"
-      style={{
-        display: "inline-flex",
-        alignItems: "center",
-        gap: 8,
-        padding: "8px 12px",
-        borderRadius: 10,
-        border: "1px solid rgba(255,255,255,0.16)",
-        background: "rgba(255,255,255,0.06)",
-        cursor: "pointer",
-        fontSize: 12,
-        fontWeight: 600,
-        color: "rgba(226,232,240,0.95)",
-        lineHeight: 1,
-        userSelect: "none"
-      }}
+style={{
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  minWidth: 44,
+  height: 40,
+  padding: "0 14px",
+  borderRadius: 14,
+  border: open
+    ? "1px solid rgba(183,157,132,0.34)"
+    : "1px solid rgba(255,255,255,0.10)",
+  background: open
+    ? "linear-gradient(180deg, rgba(183,157,132,0.14) 0%, rgba(255,255,255,0.03) 100%)"
+    : "linear-gradient(180deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.03) 100%)",
+  boxShadow: open
+    ? "0 12px 28px rgba(0,0,0,0.22), inset 0 1px 0 rgba(255,255,255,0.06)"
+    : "inset 0 1px 0 rgba(255,255,255,0.04)",
+  cursor: "pointer",
+  fontSize: 12,
+  fontWeight: 700,
+  color: open ? "#f1decb" : "#e6ebea",
+  lineHeight: 1,
+  userSelect: "none",
+  letterSpacing: "0.08em",
+  transition:
+    "border-color 180ms ease, background 180ms ease, box-shadow 180ms ease, color 180ms ease"
+}}
     >
       {/* بدون أيقونة — بس كود اللغة */}
-      <span style={{ letterSpacing: 0.6 }}>{displayCode}</span>
+<span style={{ letterSpacing: "0.08em" }}>{displayCode}</span>
     </button>
 
     {mounted && typeof document !== "undefined" ? createPortal(menu, document.body) : null}
