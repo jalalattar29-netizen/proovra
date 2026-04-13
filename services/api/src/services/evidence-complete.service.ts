@@ -565,6 +565,8 @@ export async function completeEvidence(params: {
                 sizeBytes: p.sizeBytes,
                 sha256: p.sha256,
                 mimeType: p.mimeType,
+                uploadedByUserId: params.ownerUserId,
+                uploadedAtUtc: now,
               },
             })
           )
@@ -676,10 +678,17 @@ export async function completeEvidence(params: {
         }
       }
 
+      const captureMethod = multipart
+        ? prismaPkg.CaptureMethod.MULTIPART_PACKAGE
+        : prismaPkg.CaptureMethod.UPLOADED_FILE;
+
       const ev = await tx.evidence.update({
         where: { id: evidence.id },
         data: {
           status: EvidenceStatus.SIGNED,
+          verificationStatus: prismaPkg.VerificationStatus.MATERIALS_AVAILABLE,
+          captureMethod,
+          uploadedByUserId: params.ownerUserId,
           uploadedAtUtc: now,
           signedAtUtc: now,
           sizeBytes: BigInt(sizeBytesNum),
@@ -728,6 +737,8 @@ export async function completeEvidence(params: {
           sizeBytes: sizeBytesNum,
           mimeType: primaryMimeType,
           fileSha256,
+          captureMethod,
+          uploadedByUserId: params.ownerUserId,
         } as prismaPkg.Prisma.InputJsonValue,
       });
 
@@ -737,6 +748,8 @@ export async function completeEvidence(params: {
         atUtc: now,
         payload: {
           phase: "signature_applied",
+          verificationStatus: prismaPkg.VerificationStatus.MATERIALS_AVAILABLE,
+          captureMethod,
           fingerprintHash,
           signingKeyId: signResult.keyId,
           signingKeyVersion: signResult.keyVersion,

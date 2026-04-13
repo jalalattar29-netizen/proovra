@@ -28,6 +28,8 @@ export const ACCESS_CUSTODY_EVENT_TYPES = new Set<prismaPkg.CustodyEventType>([
   prismaPkg.CustodyEventType.EVIDENCE_VIEWED,
   prismaPkg.CustodyEventType.EVIDENCE_DOWNLOADED,
   prismaPkg.CustodyEventType.REPORT_DOWNLOADED,
+  prismaPkg.CustodyEventType.VERIFICATION_PACKAGE_DOWNLOADED,
+  prismaPkg.CustodyEventType.TECHNICAL_VERIFICATION_CHECKED,
 ]);
 
 export function isAccessCustodyEventType(eventType: string): boolean {
@@ -169,12 +171,12 @@ export function evaluateCustodyChain(params: {
 
   const hasAnyHashes = records.some((r) => r.eventHash || r.prevEventHash);
 
-let previousSequence: number | null = null;
-let previousExpectedHash: string | null = null;
+  let previousSequence: number | null = null;
+  let previousExpectedHash: string | null = null;
 
-for (const record of records) {
-  if (previousSequence !== null && record.sequence !== previousSequence + 1) {
-          return {
+  for (const record of records) {
+    if (previousSequence !== null && record.sequence !== previousSequence + 1) {
+      return {
         valid: false,
         mode: hasAnyHashes ? ("hashed" as const) : ("legacy" as const),
         reason: "sequence_gap",

@@ -7,6 +7,70 @@ import { signPdfIfEnabled } from "./signPdf.js";
 type PDFDoc = InstanceType<typeof PDFDocument>;
 
 export type ReportEvidence = {
+  id: string;
+  title?: string | null;
+
+  type: string;
+  status: string;
+  verificationStatus?: string | null;
+
+  captureMethod?: string | null;
+  identityLevelSnapshot?: string | null;
+
+  submittedByEmail?: string | null;
+  submittedByAuthProvider?: string | null;
+  submittedByUserId?: string | null;
+  createdByUserId?: string | null;
+  uploadedByUserId?: string | null;
+  lastAccessedByUserId?: string | null;
+  lastAccessedAtUtc?: string | null;
+
+  workspaceNameSnapshot?: string | null;
+  organizationNameSnapshot?: string | null;
+  organizationVerifiedSnapshot?: boolean | null;
+
+  recordedIntegrityVerifiedAtUtc?: string | null;
+  lastVerifiedAtUtc?: string | null;
+  lastVerifiedSource?: string | null;
+
+  verificationPackageGeneratedAtUtc?: string | null;
+  verificationPackageVersion?: number | null;
+  latestReportVersion?: number | null;
+  reviewReadyAtUtc?: string | null;
+  reviewerSummaryVersion?: number | null;
+
+  capturedAtUtc: string | null;
+  uploadedAtUtc: string | null;
+  signedAtUtc: string | null;
+  reportGeneratedAtUtc: string | null;
+
+  mimeType: string | null;
+  sizeBytes: string | null;
+  durationSec: string | null;
+
+  storageBucket: string | null;
+  storageKey: string | null;
+  publicUrl: string | null;
+  storageRegion?: string | null;
+  storageImmutable?: boolean | null;
+  storageObjectLockMode?: string | null;
+  storageObjectLockRetainUntilUtc?: string | null;
+  storageObjectLockLegalHoldStatus?: string | null;
+
+  gps: {
+    lat: string | null;
+    lng: string | null;
+    accuracyMeters: string | null;
+  };
+
+  fileSha256: string | null;
+  fingerprintCanonicalJson: string | null;
+  fingerprintHash: string | null;
+  signatureBase64: string | null;
+  signingKeyId: string | null;
+  signingKeyVersion: number | null;
+  publicKeyPem: string | null;
+
   tsaProvider: string | null;
   tsaUrl: string | null;
   tsaSerialNumber: string | null;
@@ -26,35 +90,13 @@ export type ReportEvidence = {
   otsUpgradedAtUtc?: string | null;
   otsFailureReason?: string | null;
 
-  id: string;
-  status: string;
-  capturedAtUtc: string | null;
-  uploadedAtUtc: string | null;
-  signedAtUtc: string | null;
-  reportGeneratedAtUtc: string;
-  mimeType: string | null;
-  sizeBytes: string | null;
-  durationSec: string | null;
-  storageBucket: string;
-  storageKey: string;
-  publicUrl: string | null;
-  storageRegion?: string | null;
-  storageImmutable?: boolean | null;
-  storageObjectLockMode?: string | null;
-  storageObjectLockRetainUntilUtc?: string | null;
-  storageObjectLockLegalHoldStatus?: string | null;
-  gps: {
-    lat: string | null;
-    lng: string | null;
-    accuracyMeters: string | null;
-  };
-  fileSha256: string;
-  fingerprintCanonicalJson: string;
-  fingerprintHash: string;
-  signatureBase64: string;
-  signingKeyId: string;
-  signingKeyVersion: number;
-  publicKeyPem: string;
+  anchorMode?: string | null;
+  anchorProvider?: string | null;
+  anchorHash?: string | null;
+  anchorReceiptId?: string | null;
+  anchorTransactionId?: string | null;
+  anchorPublicUrl?: string | null;
+  anchorAnchoredAtUtc?: string | null;
 };
 
 export type ReportCustodyEvent = {
@@ -81,6 +123,10 @@ type HeaderContext = {
   status?: string;
 };
 
+type ClassifiedCustodyEvent = ReportCustodyEvent & {
+  category: "forensic" | "access";
+};
+
 function env(name: string): string | undefined {
   const v = process.env[name];
   const t = typeof v === "string" ? v.trim() : "";
@@ -90,6 +136,17 @@ function env(name: string): string | undefined {
 function safe(value: string | null | undefined, fallback = "N/A"): string {
   const t = typeof value === "string" ? value.trim() : "";
   return t ? t : fallback;
+}
+
+function safeBooleanLabel(
+  value: boolean | null | undefined,
+  trueLabel = "Yes",
+  falseLabel = "No",
+  unknownLabel = "N/A"
+): string {
+  if (value === true) return trueLabel;
+  if (value === false) return falseLabel;
+  return unknownLabel;
 }
 
 function summarizeText(value: string, maxLength: number): string {
@@ -121,8 +178,126 @@ function mmToPt(mm: number): number {
   return (mm * 72) / 25.4;
 }
 
+function normalizeEnumText(value: string | null | undefined): string {
+  return safe(value, "")
+    .toLowerCase()
+    .split("_")
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+}
+
+function mapEvidenceTypeLabel(type: string | null | undefined): string {
+  switch (safe(type, "").toUpperCase()) {
+    case "PHOTO":
+      return "Photo";
+    case "VIDEO":
+      return "Video";
+    case "AUDIO":
+      return "Audio";
+    case "DOCUMENT":
+      return "Document";
+    default:
+      return "Evidence";
+  }
+}
+
+function mapRecordStatusLabel(status: string | null | undefined): string {
+  switch (safe(status, "").toUpperCase()) {
+    case "CREATED":
+      return "Created";
+    case "UPLOADING":
+      return "Uploading";
+    case "UPLOADED":
+      return "Uploaded";
+    case "SIGNED":
+      return "Signed";
+    case "REPORTED":
+      return "Reported";
+    default:
+      return safe(status);
+  }
+}
+
+function mapVerificationStatusLabel(
+  status: string | null | undefined
+): string {
+  switch (safe(status, "").toUpperCase()) {
+    case "MATERIALS_AVAILABLE":
+      return "Technical materials available";
+    case "RECORDED_INTEGRITY_VERIFIED":
+      return "Recorded integrity state verified";
+    case "REVIEW_REQUIRED":
+      return "Review required";
+    case "FAILED":
+      return "Verification failed";
+    default:
+      return "Verification status not recorded";
+  }
+}
+
+function mapCaptureMethodLabel(value: string | null | undefined): string {
+  switch (safe(value, "").toUpperCase()) {
+    case "SECURE_CAMERA":
+      return "Captured with PROOVRA secure camera";
+    case "UPLOADED_FILE":
+      return "Uploaded existing file";
+    case "IMPORTED_DOCUMENT":
+      return "Imported document";
+    case "MULTIPART_PACKAGE":
+      return "Multipart package";
+    default:
+      return "Capture method not recorded";
+  }
+}
+
+function mapIdentityLevelLabel(value: string | null | undefined): string {
+  switch (safe(value, "").toUpperCase()) {
+    case "BASIC_ACCOUNT":
+      return "Basic account";
+    case "VERIFIED_EMAIL":
+      return "Verified email";
+    case "OAUTH_BACKED_IDENTITY":
+      return "OAuth-backed identity";
+    case "ORGANIZATION_ACCOUNT":
+      return "Organization account";
+    case "VERIFIED_ORGANIZATION":
+      return "Verified organization";
+    default:
+      return "Identity level not recorded";
+  }
+}
+
+function mapAuthProviderLabel(value: string | null | undefined): string {
+  switch (safe(value, "").toUpperCase()) {
+    case "GOOGLE":
+      return "Google";
+    case "APPLE":
+      return "Apple";
+    case "EMAIL":
+      return "Email";
+    case "GUEST":
+      return "Guest";
+    default:
+      return "Provider not recorded";
+  }
+}
+
+function mapVerificationSourceLabel(value: string | null | undefined): string {
+  switch (safe(value, "").toUpperCase()) {
+    case "REPORT_GENERATED":
+      return "Report generated";
+    case "PUBLIC_VERIFY_VIEWED":
+      return "Public verify viewed";
+    case "TECHNICAL_VERIFICATION_CHECKED":
+      return "Technical verification checked";
+    default:
+      return "Verification source not recorded";
+  }
+}
+
 function parseFingerprintSummary(
-  fingerprintCanonicalJson: string
+  fingerprintCanonicalJson: string | null | undefined
 ): ParsedFingerprintSummary {
   const fallback: ParsedFingerprintSummary = {
     multipart: false,
@@ -134,6 +309,8 @@ function parseFingerprintSummary(
     mimeTypes: [],
     partsCount: 0,
   };
+
+  if (!fingerprintCanonicalJson) return fallback;
 
   try {
     const parsed = JSON.parse(fingerprintCanonicalJson) as {
@@ -245,6 +422,31 @@ function evidenceStructureLabel(summary: ParsedFingerprintSummary): string {
   return "Multipart evidence package";
 }
 
+const ACCESS_EVENT_TYPES = new Set([
+  "VERIFY_VIEWED",
+  "EVIDENCE_VIEWED",
+  "EVIDENCE_DOWNLOADED",
+  "REPORT_DOWNLOADED",
+  "VERIFICATION_PACKAGE_DOWNLOADED",
+]);
+
+function classifyCustodyEvent(event: ReportCustodyEvent): ClassifiedCustodyEvent {
+  const eventType = safe(event.eventType, "").toUpperCase();
+  return {
+    ...event,
+    category: ACCESS_EVENT_TYPES.has(eventType) ? "access" : "forensic",
+  };
+}
+
+function splitCustodyEvents(events: ReportCustodyEvent[]) {
+  const classified = events.map(classifyCustodyEvent);
+  return {
+    all: classified,
+    forensic: classified.filter((ev) => ev.category === "forensic"),
+    access: classified.filter((ev) => ev.category === "access"),
+  };
+}
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -271,7 +473,7 @@ function tryReadAsset(filename: string): Buffer | null {
 
 const BRAND = {
   name: env("REPORT_BRAND_NAME") ?? "PROOVRA",
-  title: "Verifiable Evidence Report",
+  title: "Verification Report",
 
   ink: "#111827",
   muted: "#667085",
@@ -926,7 +1128,7 @@ function addFooters(
     doc.font("Helvetica").fontSize(8.6).fillColor(BRAND.muted);
 
     doc.text(
-      `${BRAND.name} • Evidence Report v${opts.reportVersion} • Generated (UTC): ${opts.generatedAtUtc}`,
+      `${BRAND.name} • Verification Report v${opts.reportVersion} • Generated (UTC): ${opts.generatedAtUtc}`,
       x,
       y,
       { width: w, align: "left" }
@@ -1018,7 +1220,7 @@ function estimateForensicIntegrityStatementHeight(
     "• A digital signature generated using the PROOVRA signing key",
     "• A trusted RFC 3161 timestamp token issued by the configured Time Stamping Authority, when available",
     "• OpenTimestamps anchoring evidence for the evidence digest, when available",
-    "• A chain of custody timeline documenting relevant system events",
+    "• A forensic chain of custody timeline documenting relevant integrity-related system events",
     "• Immutable storage controls using AWS S3 Object Lock, when enabled for the evidence object",
   ];
 
@@ -1031,7 +1233,7 @@ function estimateForensicIntegrityStatementHeight(
           "4. Verifying the digital signature using the provided public key",
           "5. Verifying the RFC 3161 timestamp token, when present",
           "6. Verifying the OpenTimestamps proof, when present",
-          "7. Reviewing the recorded chain of custody events",
+          "7. Reviewing the forensic chain of custody events",
           "8. Reviewing immutable storage protection details, when present",
         ]
       : [
@@ -1041,7 +1243,7 @@ function estimateForensicIntegrityStatementHeight(
           "4. Verifying the digital signature using the provided public key",
           "5. Verifying the RFC 3161 timestamp token, when present",
           "6. Verifying the OpenTimestamps proof, when present",
-          "7. Reviewing the recorded chain of custody events",
+          "7. Reviewing the forensic chain of custody events",
           "8. Reviewing immutable storage protection details, when present",
         ];
 
@@ -1131,7 +1333,7 @@ function renderForensicIntegrityStatement(
     "A digital signature generated using the PROOVRA signing key",
     "A trusted RFC 3161 timestamp token issued by the configured Time Stamping Authority, when available",
     "OpenTimestamps anchoring evidence, when available",
-    "A custody timeline documenting relevant system events",
+    "A forensic custody timeline documenting relevant integrity-related system events",
     "Immutable storage protection using AWS S3 Object Lock, when available",
   ];
 
@@ -1156,7 +1358,7 @@ function renderForensicIntegrityStatement(
           "Verifying the digital signature using the provided public key",
           "Verifying the RFC 3161 timestamp token, when present",
           "Verifying the OpenTimestamps proof, when present",
-          "Reviewing the recorded chain of custody events",
+          "Reviewing the forensic chain of custody events",
           "Reviewing immutable storage details, when present",
         ]
       : [
@@ -1166,7 +1368,7 @@ function renderForensicIntegrityStatement(
           "Verifying the digital signature using the provided public key",
           "Verifying the RFC 3161 timestamp token, when present",
           "Verifying the OpenTimestamps proof, when present",
-          "Reviewing the recorded chain of custody events",
+          "Reviewing the forensic chain of custody events",
           "Reviewing immutable storage details, when present",
         ];
 
@@ -1218,6 +1420,138 @@ function renderForensicIntegrityStatement(
   doc.restore();
 }
 
+function buildExecutiveRows(
+  evidence: ReportEvidence,
+  structureLabel: string
+): Array<[string, string]> {
+  return [
+    ["Evidence ID", safe(evidence.id)],
+    ["Evidence Type", mapEvidenceTypeLabel(evidence.type)],
+    ["Record Status", mapRecordStatusLabel(evidence.status)],
+    [
+      "Verification Status",
+      mapVerificationStatusLabel(evidence.verificationStatus),
+    ],
+    ["Capture Method", mapCaptureMethodLabel(evidence.captureMethod)],
+    ["Identity Level", mapIdentityLevelLabel(evidence.identityLevelSnapshot)],
+    ["Submitted By", safe(evidence.submittedByEmail)],
+    ["Auth Provider", mapAuthProviderLabel(evidence.submittedByAuthProvider)],
+    ["Workspace", safe(evidence.workspaceNameSnapshot)],
+    ["Organization", safe(evidence.organizationNameSnapshot)],
+    [
+      "Organization Verified",
+      safeBooleanLabel(evidence.organizationVerifiedSnapshot),
+    ],
+    ["Evidence Structure", structureLabel],
+    ["Captured (UTC)", safe(evidence.capturedAtUtc)],
+    ["Uploaded (UTC)", safe(evidence.uploadedAtUtc)],
+    ["Signed (UTC)", safe(evidence.signedAtUtc)],
+    [
+      "Integrity Verified At (UTC)",
+      safe(evidence.recordedIntegrityVerifiedAtUtc),
+    ],
+    ["Storage Protection", safe(evidence.storageObjectLockMode)],
+    [
+      "Retention Until (UTC)",
+      safe(evidence.storageObjectLockRetainUntilUtc),
+    ],
+  ];
+}
+
+function buildVerificationSummaryRows(
+  evidence: ReportEvidence,
+  custody: ReturnType<typeof splitCustodyEvents>,
+  structureLabel: string,
+  verifyUrl: string
+): Array<[string, string]> {
+  return [
+    ["Display Title", safe(evidence.title, "Digital Evidence Record")],
+    ["Evidence ID", safe(evidence.id)],
+    ["Evidence Type", mapEvidenceTypeLabel(evidence.type)],
+    ["Evidence Structure", structureLabel],
+    ["MIME Type", safe(evidence.mimeType)],
+    ["File Size", formatBytesHuman(evidence.sizeBytes)],
+    [
+      "Duration",
+      evidence.durationSec ? `${evidence.durationSec} sec` : "N/A",
+    ],
+    ["Latest Report Version", String(evidence.latestReportVersion ?? "N/A")],
+    [
+      "Verification Package Version",
+      String(evidence.verificationPackageVersion ?? "N/A"),
+    ],
+    [
+      "Reviewer Summary Version",
+      String(evidence.reviewerSummaryVersion ?? "N/A"),
+    ],
+    ["Report Generated At (UTC)", safe(evidence.reportGeneratedAtUtc)],
+    ["Last Verified At (UTC)", safe(evidence.lastVerifiedAtUtc)],
+    [
+      "Last Verified Source",
+      mapVerificationSourceLabel(evidence.lastVerifiedSource),
+    ],
+    ["Review Ready At (UTC)", safe(evidence.reviewReadyAtUtc)],
+    [
+      "Verification Package Generated At (UTC)",
+      safe(evidence.verificationPackageGeneratedAtUtc),
+    ],
+    ["Forensic Custody Events", String(custody.forensic.length)],
+    ["Access Activity Events", String(custody.access.length)],
+    ["Verification Link", summarizeText(verifyUrl, 84)],
+  ];
+}
+
+function buildReviewReadinessRows(
+  evidence: ReportEvidence,
+  custody: ReturnType<typeof splitCustodyEvents>
+): Array<[string, string]> {
+  return [
+    [
+      "Human Summary Ready",
+      evidence.reviewReadyAtUtc ? "Yes" : "Not recorded",
+    ],
+    [
+      "Verification Status",
+      mapVerificationStatusLabel(evidence.verificationStatus),
+    ],
+    [
+      "Timestamp Status",
+      safe(evidence.tsaStatus, "Timestamp unavailable"),
+    ],
+    ["OpenTimestamps Status", safe(evidence.otsStatus)],
+    [
+      "Immutable Storage",
+      safeBooleanLabel(
+        evidence.storageImmutable,
+        "Verified",
+        "Not fully verified",
+        "Not reported"
+      ),
+    ],
+    [
+      "Chain of Custody Present",
+      custody.forensic.length > 0 ? "Yes" : "No",
+    ],
+    [
+      "Public / Access Activity Present",
+      custody.access.length > 0 ? "Yes" : "No",
+    ],
+    [
+      "Technical Materials Available",
+      evidence.fileSha256 &&
+      evidence.fingerprintHash &&
+      evidence.signatureBase64 &&
+      evidence.signingKeyId
+        ? "Yes"
+        : "Incomplete",
+    ],
+    ["Submitted By", safe(evidence.submittedByEmail)],
+    ["Identity Level", mapIdentityLevelLabel(evidence.identityLevelSnapshot)],
+    ["Capture Method", mapCaptureMethodLabel(evidence.captureMethod)],
+    ["Organization", safe(evidence.organizationNameSnapshot)],
+  ];
+}
+
 export async function buildReportPdf(params: {
   evidence: ReportEvidence;
   custodyEvents: ReportCustodyEvent[];
@@ -1241,9 +1575,9 @@ export async function buildReportPdf(params: {
     : "";
 
   doc.info = {
-    Title: `${BRAND.name} — Verifiable Evidence Report`,
+    Title: `${BRAND.name} — Verification Report`,
     Subject:
-      "Evidence Summary > Chain of Custody > Technical Appendix > Verification",
+      "Executive Evidence Summary > Verification Summary > Review Readiness > Chain of Custody > Technical Appendix",
     Keywords: `PROOVRA_REPORT_VERSION=${params.version};PROOVRA_GENERATED_AT=${params.generatedAtUtc}${buildToken}`,
     Creator: BRAND.name,
     Producer: BRAND.name,
@@ -1254,7 +1588,6 @@ export async function buildReportPdf(params: {
   const chunks: Buffer[] = [];
   doc.on("data", (chunk: Buffer) => chunks.push(chunk));
 
-  const finalDisplayStatus = "REPORTED";
   const verifyUrl = buildVerifyUrl(params.evidence.id, params.verifyUrl);
   const technicalUrl = verifyUrl.includes("?")
     ? `${verifyUrl}&tab=technical`
@@ -1264,6 +1597,9 @@ export async function buildReportPdf(params: {
     params.evidence.fingerprintCanonicalJson
   );
   const structureLabel = evidenceStructureLabel(fingerprintSummary);
+  const custody = splitCustodyEvents(params.custodyEvents);
+
+  const finalDisplayStatus = mapRecordStatusLabel(params.evidence.status);
 
   const headerContext: HeaderContext = {
     evidenceId: params.evidence.id,
@@ -1274,219 +1610,55 @@ export async function buildReportPdf(params: {
   setHeaderContext(headerContext);
   drawHeader(doc, headerContext);
 
-  {
-    const x = doc.page.margins.left;
-    const w = doc.page.width - doc.page.margins.left - doc.page.margins.right;
+  const hasCoreCrypto =
+    Boolean(params.evidence.fileSha256) &&
+    Boolean(params.evidence.fingerprintHash) &&
+    Boolean(params.evidence.signatureBase64) &&
+    Boolean(params.evidence.signingKeyId);
 
-    const verified =
-      Boolean(params.evidence.fileSha256) &&
-      Boolean(params.evidence.fingerprintHash) &&
-      Boolean(params.evidence.signatureBase64);
+  const timestampTone = normalizeTimestampStatus(params.evidence.tsaStatus);
+  const otsTone = normalizeOtsStatus(params.evidence.otsStatus);
+  const storageTone = normalizeStorageProtectionStatus(
+    params.evidence.storageImmutable,
+    params.evidence.storageObjectLockMode,
+    params.evidence.storageObjectLockRetainUntilUtc
+  );
 
-    const verdict = verified
-      ? "Integrity Verified"
-      : "Integrity Review Required";
+  const integrityVerified =
+    safe(params.evidence.verificationStatus, "").toUpperCase() ===
+      "RECORDED_INTEGRITY_VERIFIED" || hasCoreCrypto;
 
-    const color = verified ? BRAND.success : BRAND.danger;
+  doc.save();
+  doc.fillColor(integrityVerified ? BRAND.success : BRAND.danger);
+  doc.font("Helvetica-Bold").fontSize(13.2);
+  doc.text(
+    integrityVerified
+      ? "Recorded Integrity Verified"
+      : "Recorded Integrity Review Required",
+    doc.page.margins.left,
+    doc.y
+  );
+  doc.restore();
+  doc.moveDown(0.2);
 
-    ensureSpace(doc, 190);
+  drawCallout(doc, {
+    title: "Executive conclusion",
+    body: integrityVerified
+      ? "This report indicates that recorded integrity materials are present and assembled for reviewer inspection. The report supports later verification of the recorded evidence state."
+      : "This report contains incomplete or review-required integrity information. Reviewer inspection is still possible, but conclusions should not be made without manual assessment.",
+    tone: integrityVerified ? "success" : "danger",
+  });
 
-    doc.save();
-    doc.fillColor(color).font("Helvetica-Bold").fontSize(13.2);
-    doc.text(verdict, x, doc.y, { width: w });
-    doc.restore();
-
-    doc.moveDown(0.22);
-
-    if (verified) {
-      safeParagraph(doc, "• File hash matches the recorded fingerprint state", {
-        fontSize: 9.8,
-        color: BRAND.ink,
-      });
-      safeParagraph(doc, "• Digital signature materials are present", {
-        fontSize: 9.8,
-        color: BRAND.ink,
-      });
-      safeParagraph(
-        doc,
-        `• ${structureLabel} detected (${Math.max(1, fingerprintSummary.itemCount)} item${Math.max(1, fingerprintSummary.itemCount) === 1 ? "" : "s"})`,
-        { fontSize: 9.8, color: BRAND.ink }
-      );
-
-      const tsaTone = normalizeTimestampStatus(params.evidence.tsaStatus);
-      if (tsaTone === "SUCCESS") {
-        safeParagraph(doc, "• Trusted RFC 3161 timestamp record available", {
-          fontSize: 9.8,
-          color: BRAND.ink,
-        });
-      } else if (tsaTone === "WARNING") {
-        safeParagraph(
-          doc,
-          "• RFC 3161 timestamp record is pending or unavailable",
-          {
-            fontSize: 9.8,
-            color: BRAND.ink,
-          }
-        );
-      } else if (tsaTone === "DANGER") {
-        safeParagraph(
-          doc,
-          "• RFC 3161 timestamp record reported a failure state",
-          {
-            fontSize: 9.8,
-            color: BRAND.ink,
-          }
-        );
-      }
-
-      const otsTone = normalizeOtsStatus(params.evidence.otsStatus);
-      if (otsTone === "SUCCESS") {
-        safeParagraph(doc, "• OpenTimestamps anchoring evidence is available", {
-          fontSize: 9.8,
-          color: BRAND.ink,
-        });
-      } else if (otsTone === "WARNING") {
-        safeParagraph(
-          doc,
-          "• OpenTimestamps proof exists and is still pending anchor completion",
-          {
-            fontSize: 9.8,
-            color: BRAND.ink,
-          }
-        );
-      } else if (otsTone === "DANGER") {
-        safeParagraph(
-          doc,
-          "• OpenTimestamps processing reported a failure state",
-          {
-            fontSize: 9.8,
-            color: BRAND.ink,
-          }
-        );
-      }
-
-      const storageTone = normalizeStorageProtectionStatus(
-        params.evidence.storageImmutable,
-        params.evidence.storageObjectLockMode,
-        params.evidence.storageObjectLockRetainUntilUtc
-      );
-
-      if (storageTone === "SUCCESS") {
-        safeParagraph(
-          doc,
-          "• Immutable storage protection verified (AWS S3 Object Lock / COMPLIANCE)",
-          { fontSize: 9.8, color: BRAND.ink }
-        );
-      } else if (storageTone === "WARNING") {
-        safeParagraph(
-          doc,
-          "• Storage protection is present but not fully verified as COMPLIANCE immutable storage",
-          { fontSize: 9.8, color: BRAND.ink }
-        );
-      } else if (storageTone === "DANGER") {
-        safeParagraph(
-          doc,
-          "• Storage protection information indicates a non-compliant state",
-          { fontSize: 9.8, color: BRAND.ink }
-        );
-      }
-    } else {
-      safeParagraph(doc, "• Evidence integrity could not be fully verified", {
-        fontSize: 9.8,
-        color: BRAND.ink,
-      });
-    }
-
-    doc.moveDown(0.18);
-
-    drawCallout(doc, {
-      title: "Scope of this conclusion",
-      body: verified
-        ? "This result supports integrity of the recorded evidence state at completion. It does not, by itself, prove authorship, truthfulness of content, or legal admissibility."
-        : "This report should be reviewed manually. Missing or incomplete integrity materials may limit technical verification.",
-      tone: verified ? "success" : "danger",
-    });
-
-    drawCallout(doc, {
-      title: "Important legal limitation",
-      body:
-        "PROOVRA verifies integrity of the recorded digital evidence state. It does not independently establish who created the content, whether the depicted event is true, or whether a court or authority must accept the material.",
-      tone: "warning",
-    });
-
-    hr(doc);
-    doc.moveDown(0.25);
-  }
+  drawCallout(doc, {
+    title: "Important legal limitation",
+    body:
+      "PROOVRA verifies the recorded integrity state of an evidence record. It does not independently prove factual truth, authorship, context, or guaranteed legal admissibility.",
+    tone: "warning",
+  });
 
   {
-    const evidenceSummaryRows: Array<[string, string]> = [
-      ["Evidence ID", safe(params.evidence.id)],
-      ["Status", finalDisplayStatus],
-      ["Display Label", "Verified / Reported"],
-      ["Captured (UTC)", safe(params.evidence.capturedAtUtc)],
-      ["Uploaded (UTC)", safe(params.evidence.uploadedAtUtc)],
-      ["Signed (UTC)", safe(params.evidence.signedAtUtc)],
-      ["Report Generated (UTC)", safe(params.evidence.reportGeneratedAtUtc)],
-      ["Evidence Structure", structureLabel],
-      ["Size", formatBytesHuman(params.evidence.sizeBytes)],
-      [
-        "Duration",
-        params.evidence.durationSec
-          ? `${params.evidence.durationSec} sec`
-          : "N/A",
-      ],
-      ["File SHA-256", shortHash(params.evidence.fileSha256)],
-      ["Fingerprint Hash", shortHash(params.evidence.fingerprintHash)],
-      ["Signing Key", safe(params.evidence.signingKeyId)],
-      ["Signing Key Version", String(params.evidence.signingKeyVersion)],
-      ["RFC 3161 Provider", safe(params.evidence.tsaProvider)],
-      ["RFC 3161 Time (UTC)", safe(params.evidence.tsaGenTimeUtc)],
-      ["RFC 3161 Status", safe(params.evidence.tsaStatus)],
-      ["OTS Status", safe(params.evidence.otsStatus)],
-      ["OTS Anchored (UTC)", safe(params.evidence.otsAnchoredAtUtc)],
-      ["Storage Region", safe(params.evidence.storageRegion)],
-      ["Object Lock Mode", safe(params.evidence.storageObjectLockMode)],
-      [
-        "Retention Until (UTC)",
-        safe(params.evidence.storageObjectLockRetainUntilUtc),
-      ],
-      [
-        "Legal Hold",
-        safe(params.evidence.storageObjectLockLegalHoldStatus, "OFF"),
-      ],
-      [
-        "Immutable Storage",
-        params.evidence.storageImmutable ? "Verified" : "Not Fully Verified",
-      ],
-    ];
-
-    if (fingerprintSummary.itemCount > 1) {
-      evidenceSummaryRows.push(
-        ["Total Items", String(fingerprintSummary.itemCount)],
-        ["Image Items", String(fingerprintSummary.imageCount)],
-        ["Video Items", String(fingerprintSummary.videoCount)],
-        ["Audio Items", String(fingerprintSummary.audioCount)],
-        ["Document Items", String(fingerprintSummary.documentCount)],
-        ["Fingerprint Parts", String(fingerprintSummary.partsCount)],
-        [
-          "Package MIME Types",
-          fingerprintSummary.mimeTypes.length > 0
-            ? summarizeText(fingerprintSummary.mimeTypes.join(", "), 80)
-            : "N/A",
-        ],
-        ["Primary MIME Type", safe(params.evidence.mimeType)]
-      );
-    } else {
-      evidenceSummaryRows.push(
-        ["Total Items", "1"],
-        ["MIME Type", safe(params.evidence.mimeType)]
-      );
-    }
-
-    const neededHeight = estimateEvidenceSummarySectionHeight(
-      doc,
-      evidenceSummaryRows
-    );
+    const rows = buildExecutiveRows(params.evidence, structureLabel);
+    const neededHeight = estimateEvidenceSummarySectionHeight(doc, rows);
     const availableHeight =
       doc.page.height - doc.page.margins.bottom - 10 - doc.y;
 
@@ -1496,11 +1668,11 @@ export async function buildReportPdf(params: {
 
     doc.save();
     doc.fillColor(BRAND.ink).font("Helvetica-Bold").fontSize(15);
-    doc.text("Evidence Overview", doc.page.margins.left, doc.y);
+    doc.text("Executive Evidence Summary", doc.page.margins.left, doc.y);
     doc.restore();
     doc.moveDown(0.14);
 
-    kvGrid(doc, evidenceSummaryRows);
+    kvGrid(doc, rows);
     doc.moveDown(0.12);
   }
 
@@ -1508,44 +1680,68 @@ export async function buildReportPdf(params: {
 
   section(
     doc,
-    "Quick Verification",
+    "Verification Summary",
     () => {
-      const x = doc.page.margins.left;
-      const w = doc.page.width - doc.page.margins.left - doc.page.margins.right;
-
       safeParagraph(
         doc,
-        "Use the verification page to review integrity details, custody events, technical validation materials, OpenTimestamps status, and immutable storage protection associated with this evidence record.",
-        { fontSize: 9.7, color: BRAND.muted, gap: 1.8 }
+        "This section provides the primary reviewer-facing summary of the evidence record, including verification status, identity linkage, capture method, report generation state, and review timestamps.",
+        { fontSize: 9.5, color: BRAND.muted }
       );
+      doc.moveDown(0.12);
+
+      kvGrid(
+        doc,
+        buildVerificationSummaryRows(
+          params.evidence,
+          custody,
+          structureLabel,
+          verifyUrl
+        )
+      );
+
       doc.moveDown(0.14);
 
-      ensureSpace(
-        doc,
-        doc.heightOfString("Verify link:", { width: w }) +
-          doc.heightOfString(verifyUrl, { width: w }) +
-          12
-      );
-
-      doc.fillColor(BRAND.ink).font("Helvetica-Bold").fontSize(9.8);
-      doc.text("Verify link:", x, doc.y, { width: w });
-      doc.moveDown(0.08);
-
-      doc.fillColor(BRAND.accent).font("Helvetica").fontSize(8.9);
-      doc.text(verifyUrl, x, doc.y, {
-        width: w,
-        link: verifyUrl,
-        underline: true,
+      drawCallout(doc, {
+        title: "What reviewers can inspect",
+        body:
+          "Reviewers can inspect the recorded integrity summary, chain of custody, timestamp records, OpenTimestamps status, immutable storage protection, report versioning, and technical materials.",
+        tone: "neutral",
       });
-      doc.moveDown(0.18);
+    },
+    { minSpace: 120 }
+  );
 
+  addPageWithHeader(doc);
+
+  section(
+    doc,
+    "Review Readiness",
+    () => {
       safeParagraph(
         doc,
-        "Technical verification supports detection of post-completion changes. It does not independently determine authorship, authenticity of real-world events, or legal effect.",
-        { fontSize: 9.2, color: BRAND.muted, gap: 1.8 }
+        "This section is structured for reviewer workflows. It focuses on the practical review state rather than low-level cryptographic details.",
+        { fontSize: 9.4, color: BRAND.muted }
       );
+      doc.moveDown(0.12);
+
+      kvGrid(doc, buildReviewReadinessRows(params.evidence, custody));
+      doc.moveDown(0.14);
+
+      drawCallout(doc, {
+        title: "Reviewer guidance",
+        body:
+          "Use the public verification page for the human summary and review trail first. Open the technical view only when deeper validation is required.",
+        tone: "neutral",
+      });
+
+      drawCallout(doc, {
+        title: "Who this report is for",
+        body:
+          "This report is designed for evidence-sensitive review workflows such as legal review, compliance review, investigations, insurance review, and verification-oriented journalism workflows.",
+        tone: "neutral",
+      });
     },
-    { minSpace: 64 }
+    { minSpace: 120 }
   );
 
   {
@@ -1555,79 +1751,105 @@ export async function buildReportPdf(params: {
         title: "Open verification page",
         qrBuffer: qrBuf,
         size: 102,
-        caption: "Scan to open the public verification page for this evidence record.",
+        caption:
+          "Scan to open the verification page for this evidence record.",
         urlText: summarizeText(verifyUrl, 90),
         urlLink: verifyUrl,
       });
     }
   }
 
-  ensurePageWithHeader(doc, 220);
+  addPageWithHeader(doc);
 
   section(
     doc,
-    "Immutable Storage Protection",
+    "Storage & Timestamping",
     () => {
-      const mode = safe(params.evidence.storageObjectLockMode);
-      const retainUntil = safe(params.evidence.storageObjectLockRetainUntilUtc);
-      const legalHold = safe(
-        params.evidence.storageObjectLockLegalHoldStatus,
-        "OFF"
-      );
-      const immutable =
-        params.evidence.storageImmutable === true &&
-        mode.toUpperCase() === "COMPLIANCE" &&
-        retainUntil !== "N/A";
-
       kvGrid(doc, [
-        ["Storage Provider", "AWS S3 Object Lock"],
-        ["Immutable Storage", immutable ? "Verified" : "Not Fully Verified"],
-        ["Object Lock Mode", mode],
-        ["Retention Until (UTC)", retainUntil],
-        ["Legal Hold", legalHold],
         ["Storage Region", safe(params.evidence.storageRegion)],
-      ]);
-
-      doc.moveDown(0.14);
-
-      drawCallout(doc, {
-        title: immutable
-          ? "Immutable storage verified"
-          : "Immutable storage requires review",
-        body: immutable
-          ? "This evidence object is recorded as protected by AWS S3 Object Lock in COMPLIANCE mode. This is designed to prevent deletion or overwrite until the listed retention date expires."
-          : "Immutable storage details are incomplete or not fully verified in this report. Review the verification page or backend metadata before relying on storage immutability conclusions.",
-        tone: immutable ? "success" : "warning",
-      });
-    },
-    { minSpace: 120 }
-  );
-
-  ensurePageWithHeader(doc, 190);
-
-  section(
-    doc,
-    "Trusted Timestamping",
-    () => {
-      kvGrid(doc, [
+        ["Object Lock Mode", safe(params.evidence.storageObjectLockMode)],
+        [
+          "Retention Until (UTC)",
+          safe(params.evidence.storageObjectLockRetainUntilUtc),
+        ],
+        [
+          "Legal Hold",
+          safe(params.evidence.storageObjectLockLegalHoldStatus, "OFF"),
+        ],
+        [
+          "Immutable Storage",
+          safeBooleanLabel(
+            params.evidence.storageImmutable,
+            "Verified",
+            "Not fully verified",
+            "Not reported"
+          ),
+        ],
         ["RFC 3161 Provider", safe(params.evidence.tsaProvider)],
         ["RFC 3161 URL", safe(params.evidence.tsaUrl)],
         ["RFC 3161 Serial", safe(params.evidence.tsaSerialNumber)],
         ["RFC 3161 Time (UTC)", safe(params.evidence.tsaGenTimeUtc)],
         ["RFC 3161 Hash Algorithm", safe(params.evidence.tsaHashAlgorithm)],
         ["RFC 3161 Status", safe(params.evidence.tsaStatus)],
-
         ["OTS Status", safe(params.evidence.otsStatus)],
         ["OTS Calendar", safe(params.evidence.otsCalendar)],
         ["OTS Anchored At (UTC)", safe(params.evidence.otsAnchoredAtUtc)],
         ["OTS Upgraded At (UTC)", safe(params.evidence.otsUpgradedAtUtc)],
         ["OTS Bitcoin TxID", shortHash(params.evidence.otsBitcoinTxid)],
-        ["OTS Hash", shortHash(params.evidence.otsHash)],
       ]);
 
       doc.moveDown(0.14);
 
-      const otsTone = normalizeOtsStatus(params.evidence.otsStatus);
+      drawCallout(doc, {
+        title:
+          storageTone === "SUCCESS"
+            ? "Immutable storage verified"
+            : storageTone === "WARNING"
+              ? "Storage protection recorded"
+              : storageTone === "DANGER"
+                ? "Storage protection requires review"
+                : "Storage protection not reported",
+        body:
+          storageTone === "SUCCESS"
+            ? "This report records immutable-style storage protection consistent with Object Lock COMPLIANCE mode and a retention-until timestamp."
+            : storageTone === "WARNING"
+              ? "Some storage protection indicators are recorded, but the report does not fully confirm COMPLIANCE immutable protection."
+              : storageTone === "DANGER"
+                ? "Storage metadata indicates a state that should be reviewed before relying on immutability conclusions."
+                : "No verifiable storage-protection information was included in the report payload.",
+        tone:
+          storageTone === "SUCCESS"
+            ? "success"
+            : storageTone === "DANGER"
+              ? "danger"
+              : "warning",
+      });
+
+      drawCallout(doc, {
+        title:
+          timestampTone === "SUCCESS"
+            ? "Trusted timestamp recorded"
+            : timestampTone === "WARNING"
+              ? "Timestamp pending or unavailable"
+              : timestampTone === "DANGER"
+                ? "Timestamp failure recorded"
+                : "Timestamp not reported",
+        body:
+          timestampTone === "SUCCESS"
+            ? "An RFC 3161 timestamp record is available and may support later review of when the recorded integrity state existed."
+            : timestampTone === "WARNING"
+              ? "The report does not confirm a final trusted timestamp result."
+              : timestampTone === "DANGER"
+                ? `Timestamp processing reported a failure state. ${safe(params.evidence.tsaFailureReason, "")}`.trim()
+                : "No trusted timestamp record was included.",
+        tone:
+          timestampTone === "SUCCESS"
+            ? "success"
+            : timestampTone === "DANGER"
+              ? "danger"
+              : "warning",
+      });
+
       drawCallout(doc, {
         title:
           otsTone === "SUCCESS"
@@ -1636,114 +1858,153 @@ export async function buildReportPdf(params: {
               ? "OpenTimestamps pending"
               : otsTone === "DANGER"
                 ? "OpenTimestamps failed"
-                : "OpenTimestamps unavailable",
+                : "OpenTimestamps not reported",
         body:
           otsTone === "SUCCESS"
-            ? "An OpenTimestamps proof has been generated and upgraded to an anchored state. This provides additional independent public anchoring evidence linked to the recorded evidence digest."
+            ? "An OpenTimestamps proof is recorded in an anchored state and may provide additional independent public anchoring evidence."
             : otsTone === "WARNING"
-              ? "An OpenTimestamps proof is present but has not yet been upgraded to a final anchored state."
+              ? "OpenTimestamps proof data is present but not yet in a final anchored state."
               : otsTone === "DANGER"
-                ? `OpenTimestamps reported a failure state. ${safe(params.evidence.otsFailureReason, "")}`.trim()
-                : "No OpenTimestamps proof is recorded for this evidence item.",
+                ? `OpenTimestamps processing reported a failure state. ${safe(params.evidence.otsFailureReason, "")}`.trim()
+                : "No OpenTimestamps record was included.",
         tone:
           otsTone === "SUCCESS"
             ? "success"
-            : otsTone === "WARNING"
-              ? "warning"
-              : otsTone === "DANGER"
-                ? "danger"
-                : "neutral",
+            : otsTone === "DANGER"
+              ? "danger"
+              : "warning",
       });
+    },
+    { minSpace: 140 }
+  );
+
+  addPageWithHeader(doc);
+
+  section(
+    doc,
+    "Chain of Custody Summary",
+    () => {
+      safeParagraph(
+        doc,
+        "Forensic events are listed separately from access activity. This separation reflects the distinction between integrity-relevant lifecycle events and later viewing or download activity.",
+        { fontSize: 8.9, color: BRAND.muted }
+      );
+      doc.moveDown(0.12);
+
+      if (custody.forensic.length === 0) {
+        drawCallout(doc, {
+          title: "No forensic custody events recorded",
+          body:
+            "No forensic custody events were provided for this report.",
+          tone: "warning",
+        });
+      } else {
+        const innerW =
+          doc.page.width - doc.page.margins.left - doc.page.margins.right;
+        const colWidths = [
+          Math.max(44, innerW * 0.08),
+          Math.max(118, innerW * 0.24),
+          Math.max(132, innerW * 0.22),
+          innerW -
+            (Math.max(44, innerW * 0.08) +
+              Math.max(118, innerW * 0.24) +
+              Math.max(132, innerW * 0.22)),
+        ];
+
+        const headers = ["Seq", "At (UTC)", "Event", "Summary"];
+        const rows = custody.forensic.map((ev) => [
+          String(ev.sequence),
+          safe(ev.atUtc),
+          safe(ev.eventType),
+          safe(ev.payloadSummary),
+        ]);
+
+        drawTable(doc, headers, rows, colWidths);
+      }
     },
     { minSpace: 120 }
   );
 
-  ensurePageWithHeader(doc, 180);
+  if (custody.access.length > 0) {
+    ensurePageWithHeader(doc, 180);
+
+    section(
+      doc,
+      "Access Activity",
+      () => {
+        const innerW =
+          doc.page.width - doc.page.margins.left - doc.page.margins.right;
+        const colWidths = [
+          Math.max(44, innerW * 0.08),
+          Math.max(118, innerW * 0.24),
+          Math.max(132, innerW * 0.22),
+          innerW -
+            (Math.max(44, innerW * 0.08) +
+              Math.max(118, innerW * 0.24) +
+              Math.max(132, innerW * 0.22)),
+        ];
+
+        const headers = ["Seq", "At (UTC)", "Event", "Summary"];
+        const rows = custody.access.map((ev) => [
+          String(ev.sequence),
+          safe(ev.atUtc),
+          safe(ev.eventType),
+          safe(ev.payloadSummary),
+        ]);
+
+        drawTable(doc, headers, rows, colWidths);
+      },
+      { minSpace: 100 }
+    );
+  }
+
+  addPageWithHeader(doc);
 
   section(
     doc,
-    "Access to Original Evidence",
+    "Technical Appendix — Identity, Fingerprint, Signature, and Anchoring",
     () => {
-      safeParagraph(
-        doc,
-        "The original evidence file is not publicly exposed through this report. Access to the underlying stored evidence remains controlled by the authorized account or workspace with the relevant permissions.",
-        { fontSize: 9.4, color: BRAND.ink, gap: 1.8 }
-      );
-      doc.moveDown(0.14);
-
-      if (fingerprintSummary.itemCount > 1) {
-        drawCallout(doc, {
-          title: "Multipart evidence package",
-          body: `This evidence record contains ${fingerprintSummary.itemCount} items grouped into a single signed evidence package. Integrity review should consider the complete package rather than an isolated item only.`,
-          tone: "neutral",
-        });
-      } else {
-        drawCallout(doc, {
-          title: "Single evidence item",
-          body: "This evidence record represents a single signed evidence item. Integrity review should evaluate the file hash, fingerprint hash, signature, timestamp records, OpenTimestamps proof status, custody chain, and immutable storage protection together.",
-          tone: "neutral",
-        });
-      }
-
-      safeParagraph(
-        doc,
-        "Use the verification page and technical appendix in this report to review the integrity materials associated with the evidence record.",
-        { fontSize: 8.9, color: BRAND.muted, gap: 1.8 }
-      );
-    },
-    { minSpace: 84 }
-  );
-
-  ensurePageWithHeader(doc, 220);
-
-  section(
-    doc,
-    "Chain of Custody",
-    () => {
-      safeParagraph(
-        doc,
-        "Events are presented in chain sequence order.",
-        { fontSize: 8.9, color: BRAND.muted, gap: 1.6 }
-      );
-      doc.moveDown(0.12);
-
-      const innerW =
-        doc.page.width - doc.page.margins.left - doc.page.margins.right;
-      const colWidths = [
-        Math.max(44, innerW * 0.08),
-        Math.max(118, innerW * 0.24),
-        Math.max(132, innerW * 0.22),
-        innerW -
-          (Math.max(44, innerW * 0.08) +
-            Math.max(118, innerW * 0.24) +
-            Math.max(132, innerW * 0.22)),
-      ];
-
-      const headers = ["Seq", "At (UTC)", "Event", "Summary"];
-      const rows = params.custodyEvents.map((ev) => [
-        String(ev.sequence),
-        safe(ev.atUtc),
-        safe(ev.eventType),
-        safe(ev.payloadSummary),
+      kvGrid(doc, [
+        ["Submitted By Email", safe(params.evidence.submittedByEmail)],
+        [
+          "Submitted By Provider",
+          mapAuthProviderLabel(params.evidence.submittedByAuthProvider),
+        ],
+        ["Submitted By User ID", safe(params.evidence.submittedByUserId)],
+        ["Created By User ID", safe(params.evidence.createdByUserId)],
+        ["Uploaded By User ID", safe(params.evidence.uploadedByUserId)],
+        [
+          "Last Accessed By User ID",
+          safe(params.evidence.lastAccessedByUserId),
+        ],
+        ["Last Accessed At (UTC)", safe(params.evidence.lastAccessedAtUtc)],
+        ["Capture Method", mapCaptureMethodLabel(params.evidence.captureMethod)],
+        [
+          "Identity Level",
+          mapIdentityLevelLabel(params.evidence.identityLevelSnapshot),
+        ],
+        ["Workspace", safe(params.evidence.workspaceNameSnapshot)],
+        ["Organization", safe(params.evidence.organizationNameSnapshot)],
+        [
+          "Organization Verified",
+          safeBooleanLabel(params.evidence.organizationVerifiedSnapshot),
+        ],
       ]);
 
-      drawTable(doc, headers, rows, colWidths);
-    },
-    { minSpace: 110 }
-  );
+      doc.moveDown(0.12);
 
-  ensurePageWithHeader(doc, 360);
-
-  section(
-    doc,
-    "Technical Appendix — Cryptographic Materials",
-    () => {
       monospaceStrip(doc, "File SHA-256", safe(params.evidence.fileSha256));
-      monospaceStrip(doc, "Fingerprint Hash", safe(params.evidence.fingerprintHash));
+      monospaceStrip(
+        doc,
+        "Fingerprint Hash",
+        safe(params.evidence.fingerprintHash)
+      );
       monospaceStrip(
         doc,
         "Signing Key ID / Version",
-        `${safe(params.evidence.signingKeyId)} / ${params.evidence.signingKeyVersion}`
+        `${safe(params.evidence.signingKeyId)} / ${String(
+          params.evidence.signingKeyVersion ?? "N/A"
+        )}`
       );
       monospaceStrip(
         doc,
@@ -1790,13 +2051,6 @@ export async function buildReportPdf(params: {
         ]);
 
         doc.moveDown(0.12);
-
-        safeParagraph(
-          doc,
-          "For multipart evidence, integrity is evaluated against the completed evidence package as represented in the canonical fingerprint. Review should therefore consider the complete set of evidence items, not an isolated part only.",
-          { fontSize: 9, color: BRAND.muted }
-        );
-        doc.moveDown(0.14);
       }
 
       ensureSpace(doc, 220);
@@ -1816,7 +2070,6 @@ export async function buildReportPdf(params: {
         ["Timestamp Status", safe(params.evidence.tsaStatus)],
       ]);
 
-      ensureSpace(doc, 70);
       monospaceStrip(
         doc,
         "Timestamp Message Imprint",
@@ -1833,124 +2086,72 @@ export async function buildReportPdf(params: {
         );
       }
 
-      {
-        const status = safe(params.evidence.tsaStatus).toUpperCase();
-        const tone = normalizeTimestampStatus(status);
-        const x = doc.page.margins.left;
-        const w = doc.page.width - doc.page.margins.left - doc.page.margins.right;
-
-        const color =
-          tone === "SUCCESS"
-            ? BRAND.success
-            : tone === "WARNING"
-              ? BRAND.warning
-              : tone === "DANGER"
-                ? BRAND.danger
-                : BRAND.muted;
-
-        ensureSpace(doc, 42);
+      if (params.evidence.otsStatus || params.evidence.otsHash) {
+        ensureSpace(doc, 180);
 
         doc.save();
-        doc.fillColor(BRAND.muted).font("Helvetica").fontSize(8.8);
-        doc.text("RFC 3161 Timestamp Status", x, doc.y, { width: w });
+        doc.fillColor(BRAND.ink).font("Helvetica-Bold").fontSize(10.6);
+        doc.text("OpenTimestamps", doc.page.margins.left, doc.y);
         doc.restore();
+        doc.moveDown(0.14);
 
-        doc.moveDown(0.06);
+        kvGrid(doc, [
+          ["OTS Status", safe(params.evidence.otsStatus)],
+          ["OTS Calendar", safe(params.evidence.otsCalendar)],
+          ["OTS Anchored At (UTC)", safe(params.evidence.otsAnchoredAtUtc)],
+          ["OTS Upgraded At (UTC)", safe(params.evidence.otsUpgradedAtUtc)],
+          ["OTS Bitcoin TxID", safe(params.evidence.otsBitcoinTxid)],
+          ["OTS Hash", safe(params.evidence.otsHash)],
+        ]);
+
+        if (params.evidence.otsProofBase64) {
+          monospaceStrip(
+            doc,
+            "OTS Proof (Base64) (excerpt)",
+            safe(params.evidence.otsProofBase64),
+            { maxChars: 220 }
+          );
+        }
+
+        if (params.evidence.otsFailureReason) {
+          monospaceStrip(
+            doc,
+            "OTS Failure / Detail",
+            summarizeText(safe(params.evidence.otsFailureReason), 160),
+            { maxChars: 160 }
+          );
+        }
+      }
+
+      if (
+        params.evidence.anchorProvider ||
+        params.evidence.anchorPublicUrl ||
+        params.evidence.anchorHash
+      ) {
+        ensureSpace(doc, 160);
 
         doc.save();
-        doc.fillColor(color).font("Helvetica-Bold").fontSize(10.6);
-        doc.text(status || "UNAVAILABLE", x, doc.y, { width: w });
+        doc.fillColor(BRAND.ink).font("Helvetica-Bold").fontSize(10.6);
+        doc.text("External Anchoring", doc.page.margins.left, doc.y);
         doc.restore();
+        doc.moveDown(0.14);
 
-        doc.moveDown(0.2);
-      }
-
-      if (params.evidence.tsaFailureReason) {
-        monospaceStrip(
-          doc,
-          "Timestamp Failure / Detail",
-          summarizeText(safe(params.evidence.tsaFailureReason), 160),
-          { maxChars: 160 }
-        );
-      }
-
-      ensureSpace(doc, 220);
-
-      doc.save();
-      doc.fillColor(BRAND.ink).font("Helvetica-Bold").fontSize(10.6);
-      doc.text("OpenTimestamps", doc.page.margins.left, doc.y);
-      doc.restore();
-      doc.moveDown(0.14);
-
-      kvGrid(doc, [
-        ["OTS Status", safe(params.evidence.otsStatus)],
-        ["OTS Calendar", safe(params.evidence.otsCalendar)],
-        ["OTS Anchored At (UTC)", safe(params.evidence.otsAnchoredAtUtc)],
-        ["OTS Upgraded At (UTC)", safe(params.evidence.otsUpgradedAtUtc)],
-        ["OTS Bitcoin TxID", safe(params.evidence.otsBitcoinTxid)],
-        ["OTS Hash", safe(params.evidence.otsHash)],
-      ]);
-
-      if (params.evidence.otsProofBase64) {
-        monospaceStrip(
-          doc,
-          "OTS Proof (Base64) (excerpt)",
-          safe(params.evidence.otsProofBase64),
-          { maxChars: 220 }
-        );
-      }
-
-      if (params.evidence.otsFailureReason) {
-        const otsDetailLabel =
-          safe(params.evidence.otsStatus).toUpperCase() === "PENDING"
-            ? "OTS Upgrade Detail"
-            : "OTS Failure / Detail";
+        kvGrid(doc, [
+          ["Anchor Mode", safe(params.evidence.anchorMode)],
+          ["Anchor Provider", safe(params.evidence.anchorProvider)],
+          ["Anchor Anchored At (UTC)", safe(params.evidence.anchorAnchoredAtUtc)],
+          ["Anchor Public URL", safe(params.evidence.anchorPublicUrl)],
+          ["Anchor Receipt ID", shortHash(params.evidence.anchorReceiptId)],
+          ["Anchor Transaction ID", shortHash(params.evidence.anchorTransactionId)],
+        ]);
 
         monospaceStrip(
           doc,
-          otsDetailLabel,
-          summarizeText(safe(params.evidence.otsFailureReason), 160),
-          { maxChars: 160 }
+          "Anchor Hash",
+          safe(params.evidence.anchorHash),
+          { maxChars: 180 }
         );
       }
-
-      {
-        const status = safe(params.evidence.otsStatus).toUpperCase();
-        const tone = normalizeOtsStatus(status);
-        const x = doc.page.margins.left;
-        const w = doc.page.width - doc.page.margins.left - doc.page.margins.right;
-
-        const color =
-          tone === "SUCCESS"
-            ? BRAND.success
-            : tone === "WARNING"
-              ? BRAND.warning
-              : tone === "DANGER"
-                ? BRAND.danger
-                : BRAND.muted;
-
-        ensureSpace(doc, 42);
-
-        doc.save();
-        doc.fillColor(BRAND.muted).font("Helvetica").fontSize(8.8);
-        doc.text("OpenTimestamps Status", x, doc.y, { width: w });
-        doc.restore();
-
-        doc.moveDown(0.06);
-
-        doc.save();
-        doc.fillColor(color).font("Helvetica-Bold").fontSize(10.6);
-        doc.text(status || "UNAVAILABLE", x, doc.y, { width: w });
-        doc.restore();
-
-        doc.moveDown(0.2);
-      }
-
-      safeParagraph(
-        doc,
-        "Full technical materials can be retrieved via the technical verification view. Technical validation is a forensic support mechanism and does not replace legal advice, procedural review, or expert examination where required.",
-        { fontSize: 8.9, color: BRAND.muted }
-      );
     },
     { minSpace: 120 }
   );
@@ -1963,7 +2164,7 @@ export async function buildReportPdf(params: {
         qrBuffer: qrBuf,
         size: 100,
         caption:
-          "Scan to open the technical verification view for this evidence item.",
+          "Scan to open the technical verification view for this evidence record.",
         urlText: summarizeText(technicalUrl, 90),
         urlLink: technicalUrl,
       });

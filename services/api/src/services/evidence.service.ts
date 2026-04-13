@@ -23,6 +23,34 @@ function normalizeUploadMimeType(input?: string | null): string {
   return raw;
 }
 
+function resolveIdentityLevel(params: {
+  provider: prismaPkg.AuthProvider;
+  emailVerifiedAt: Date | null;
+  currentWorkspaceVerified: boolean;
+  currentWorkspaceId: string | null;
+}): prismaPkg.IdentityLevel {
+  if (params.currentWorkspaceVerified) {
+    return prismaPkg.IdentityLevel.VERIFIED_ORGANIZATION;
+  }
+
+  if (params.currentWorkspaceId) {
+    return prismaPkg.IdentityLevel.ORGANIZATION_ACCOUNT;
+  }
+
+  if (
+    params.provider === prismaPkg.AuthProvider.GOOGLE ||
+    params.provider === prismaPkg.AuthProvider.APPLE
+  ) {
+    return prismaPkg.IdentityLevel.OAUTH_BACKED_IDENTITY;
+  }
+
+  if (params.emailVerifiedAt) {
+    return prismaPkg.IdentityLevel.VERIFIED_EMAIL;
+  }
+
+  return prismaPkg.IdentityLevel.BASIC_ACCOUNT;
+}
+
 const { EvidenceStatus } = prismaPkg;
 
 export async function createEvidence(params: {
@@ -36,11 +64,34 @@ export async function createEvidence(params: {
 }) {
   const owner = await prisma.user.findUnique({
     where: { id: params.ownerUserId },
-    select: { provider: true },
+    select: {
+      id: true,
+      email: true,
+      provider: true,
+      emailVerifiedAt: true,
+      currentWorkspaceId: true,
+    },
   });
 
+  if (!owner) {
+    throw new Error("OWNER_NOT_FOUND");
+  }
+
+  const currentWorkspace = owner.currentWorkspaceId
+    ? await prisma.team.findUnique({
+        where: { id: owner.currentWorkspaceId },
+        select: {
+          id: true,
+          name: true,
+          legalName: true,
+          verificationState: true,
+          evidenceWorkspaceLabel: true,
+        },
+      })
+    : null;
+
   const guestIdentity =
-    owner?.provider === prismaPkg.AuthProvider.GUEST
+    owner.provider === prismaPkg.AuthProvider.GUEST
       ? await ensureGuestIdentity(params.ownerUserId)
       : null;
 
@@ -79,13 +130,45 @@ export async function createEvidence(params: {
   const capturedAt = new Date();
   const normalizedMimeType = normalizeUploadMimeType(params.mimeType);
 
+  const organizationVerifiedSnapshot =
+    currentWorkspace?.verificationState ===
+    prismaPkg.OrganizationVerificationState.VERIFIED;
+
+  const identityLevelSnapshot = resolveIdentityLevel({
+    provider: owner.provider,
+    emailVerifiedAt: owner.emailVerifiedAt ?? null,
+    currentWorkspaceVerified: organizationVerifiedSnapshot,
+    currentWorkspaceId: owner.currentWorkspaceId ?? null,
+  });
+
+  const workspaceNameSnapshot =
+    currentWorkspace?.evidenceWorkspaceLabel?.trim() ||
+    currentWorkspace?.name?.trim() ||
+    null;
+
+  const organizationNameSnapshot =
+    currentWorkspace?.legalName?.trim() ||
+    currentWorkspace?.name?.trim() ||
+    null;
+
   const created = await prisma.$transaction(async (tx) => {
     const evidence = await tx.evidence.create({
       data: {
         ownerUserId: params.ownerUserId,
         type: params.type,
         status: EvidenceStatus.CREATED,
+        verificationStatus: prismaPkg.VerificationStatus.MATERIALS_AVAILABLE,
         mimeType: normalizedMimeType,
+        captureMethod: prismaPkg.CaptureMethod.UPLOADED_FILE,
+        identityLevelSnapshot,
+        submittedByEmail: owner.email ?? null,
+        submittedByAuthProvider: owner.provider,
+        submittedByUserId: params.ownerUserId,
+        createdByUserId: params.ownerUserId,
+        uploadedByUserId: params.ownerUserId,
+        workspaceNameSnapshot,
+        organizationNameSnapshot,
+        organizationVerifiedSnapshot,
         capturedAtUtc: capturedAt,
         deviceTimeIso: params.deviceTimeIso ?? null,
         lat: params.gps?.lat ?? null,
@@ -109,6 +192,8 @@ export async function createEvidence(params: {
         phase: "evidence_created",
         type: params.type,
         mimeType: normalizedMimeType,
+        captureMethod: prismaPkg.CaptureMethod.UPLOADED_FILE,
+        verificationStatus: prismaPkg.VerificationStatus.MATERIALS_AVAILABLE,
         deviceTimeIso: params.deviceTimeIso ?? null,
         gps: params.gps
           ? {
@@ -122,11 +207,29 @@ export async function createEvidence(params: {
 
     await appendCustodyEventTx(tx, {
       evidenceId: evidence.id,
+      eventType: prismaPkg.CustodyEventType.IDENTITY_SNAPSHOT_RECORDED,
+      atUtc: capturedAt,
+      payload: {
+        identityLevelSnapshot,
+        submittedByEmail: owner.email ?? null,
+        submittedByAuthProvider: owner.provider,
+        submittedByUserId: params.ownerUserId,
+        createdByUserId: params.ownerUserId,
+        uploadedByUserId: params.ownerUserId,
+        workspaceNameSnapshot,
+        organizationNameSnapshot,
+        organizationVerifiedSnapshot,
+      } as prismaPkg.Prisma.InputJsonValue,
+    });
+
+    await appendCustodyEventTx(tx, {
+      evidenceId: evidence.id,
       eventType: prismaPkg.CustodyEventType.UPLOAD_STARTED,
       atUtc: new Date(),
       payload: {
         phase: "upload_started",
         uploadKind: "single",
+        captureMethod: prismaPkg.CaptureMethod.UPLOADED_FILE,
         bucket,
         key,
         contentType: normalizedMimeType,

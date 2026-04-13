@@ -3,7 +3,6 @@ import { z } from "zod";
 import { requireAuth } from "../middleware/auth.js";
 import { getAuthUserId } from "../auth.js";
 import { requireLegalAcceptance } from "../middleware/require-legal-acceptance.js";
-import { createErrorResponse, ErrorCode } from "../errors.js";
 import { createEvidence } from "../services/evidence.service.js";
 import { completeEvidence } from "../services/evidence-complete.service.js";
 import * as prismaPkg from "@prisma/client";
@@ -55,6 +54,7 @@ const LockBody = z.object({
 const CreatePartBody = z.object({
   partIndex: z.number().int().min(0),
   mimeType: z.string().min(1).max(128).optional(),
+  originalFileName: z.string().trim().min(1).max(255).optional(),
   durationMs: z.number().int().positive().optional(),
   checksumSha256Base64: z.string().min(1).max(128).optional(),
   contentMd5Base64: z.string().min(1).max(128).optional(),
@@ -70,12 +70,24 @@ const RestoreDeletedEvidenceBody = z.object({
 
 type ParamsId = { id: string };
 
-const { EvidenceStatus, PlanType } = prismaPkg;
+const { EvidenceStatus, PlanType, VerificationSource, VerificationViewerType } =
+  prismaPkg;
+
+type PublicCustodyEventCategory = "forensic" | "access";
+
+type PublicVerifyTimelineEvent = {
+  sequence: number;
+  atUtc: string;
+  eventType: prismaPkg.CustodyEventType;
+  payloadSummary: string | null;
+  prevEventHash: string | null;
+  eventHash: string | null;
+  category: PublicCustodyEventCategory;
+};
 
 async function requireAuthAndLegal(req: FastifyRequest, reply: any) {
   await requireAuth(req, reply);
   if (reply.sent) return;
-
   await requireLegalAcceptance(req, reply);
 }
 
@@ -83,12 +95,35 @@ const SAFE_EVIDENCE_SELECT = {
   id: true,
   title: true,
   ownerUserId: true,
+  organizationId: true,
   type: true,
   status: true,
+  verificationStatus: true,
+  captureMethod: true,
+  identityLevelSnapshot: true,
+  submittedByEmail: true,
+  submittedByAuthProvider: true,
+  submittedByUserId: true,
+  createdByUserId: true,
+  uploadedByUserId: true,
+  lastAccessedByUserId: true,
+  lastAccessedAtUtc: true,
+  workspaceNameSnapshot: true,
+  organizationNameSnapshot: true,
+  organizationVerifiedSnapshot: true,
+  recordedIntegrityVerifiedAtUtc: true,
+  lastVerifiedAtUtc: true,
+  lastVerifiedSource: true,
+  verificationPackageGeneratedAtUtc: true,
+  verificationPackageVersion: true,
+  latestReportVersion: true,
+  reviewReadyAtUtc: true,
+  reviewerSummaryVersion: true,
   createdAt: true,
   uploadedAtUtc: true,
   signedAtUtc: true,
   capturedAtUtc: true,
+  reportGeneratedAtUtc: true,
   deviceTimeIso: true,
   lat: true,
   lng: true,
@@ -106,6 +141,7 @@ const SAFE_EVIDENCE_SELECT = {
   signatureBase64: true,
   signingKeyId: true,
   signingKeyVersion: true,
+  deletedByUserId: true,
   lockedAt: true,
   lockedByUserId: true,
   archivedAt: true,
@@ -145,12 +181,36 @@ type AnchorStatusSummary = {
 type SafeEvidence = {
   id: string;
   title: string;
+  ownerUserId?: string;
+  organizationId: string | null;
   type: prismaPkg.EvidenceType;
   status: prismaPkg.EvidenceStatus;
+  verificationStatus: prismaPkg.VerificationStatus | null;
+  captureMethod: prismaPkg.CaptureMethod | null;
+  identityLevelSnapshot: prismaPkg.IdentityLevel | null;
+  submittedByEmail: string | null;
+  submittedByAuthProvider: prismaPkg.AuthProvider | null;
+  submittedByUserId: string | null;
+  createdByUserId: string | null;
+  uploadedByUserId: string | null;
+  lastAccessedByUserId: string | null;
+  lastAccessedAtUtc: string | null;
+  workspaceNameSnapshot: string | null;
+  organizationNameSnapshot: string | null;
+  organizationVerifiedSnapshot: boolean | null;
+  recordedIntegrityVerifiedAtUtc: string | null;
+  lastVerifiedAtUtc: string | null;
+  lastVerifiedSource: prismaPkg.VerificationSource | null;
+  verificationPackageGeneratedAtUtc: string | null;
+  verificationPackageVersion: number | null;
+  latestReportVersion: number | null;
+  reviewReadyAtUtc: string | null;
+  reviewerSummaryVersion: number | null;
   createdAt: string;
   uploadedAtUtc: string | null;
   signedAtUtc: string | null;
   capturedAtUtc: string | null;
+  reportGeneratedAtUtc: string | null;
   deviceTimeIso: string | null;
   lat: number | null;
   lng: number | null;
@@ -168,6 +228,7 @@ type SafeEvidence = {
   signatureBase64: string | null;
   signingKeyId: string | null;
   signingKeyVersion: number | null;
+  deletedByUserId: string | null;
   lockedAt: string | null;
   lockedByUserId: string | null;
   archivedAt: string | null;
@@ -395,10 +456,10 @@ function resolveEvidenceTitle(title: string | null | undefined): string {
   return t || "Digital Evidence Record";
 }
 
-function statusLabel(status: prismaPkg.EvidenceStatus | string): string {
+function mapRecordStatusLabel(status: prismaPkg.EvidenceStatus | string): string {
   switch (String(status).toUpperCase()) {
     case "REPORTED":
-      return "Verified";
+      return "Reported";
     case "SIGNED":
       return "Signed";
     case "UPLOADED":
@@ -411,6 +472,74 @@ function statusLabel(status: prismaPkg.EvidenceStatus | string): string {
   }
 }
 
+function mapVerificationStatusLabel(
+  status: prismaPkg.VerificationStatus | string | null | undefined
+): string {
+  switch (String(status ?? "").toUpperCase()) {
+    case "RECORDED_INTEGRITY_VERIFIED":
+      return "Recorded integrity state verified";
+    case "MATERIALS_AVAILABLE":
+      return "Technical materials available";
+    case "REVIEW_REQUIRED":
+      return "Review required";
+    case "FAILED":
+      return "Verification failed";
+    default:
+      return "Verification status not recorded";
+  }
+}
+
+function mapAuthProviderLabel(
+  provider: prismaPkg.AuthProvider | string | null | undefined
+): string | null {
+  switch (String(provider ?? "").toUpperCase()) {
+    case "GOOGLE":
+      return "Google";
+    case "APPLE":
+      return "Apple";
+    case "EMAIL":
+      return "Email";
+    case "GUEST":
+      return "Guest";
+    default:
+      return null;
+  }
+}
+
+function mapIdentityLevelLabel(
+  level: prismaPkg.IdentityLevel | string | null | undefined
+): string {
+  switch (String(level ?? "").toUpperCase()) {
+    case "BASIC_ACCOUNT":
+      return "Basic account";
+    case "VERIFIED_EMAIL":
+      return "Verified email";
+    case "OAUTH_BACKED_IDENTITY":
+      return "OAuth-backed identity";
+    case "ORGANIZATION_ACCOUNT":
+      return "Organization account";
+    case "VERIFIED_ORGANIZATION":
+      return "Verified organization";
+    default:
+      return "Identity level not recorded";
+  }
+}
+
+function mapVerificationSourceLabel(
+  source: prismaPkg.VerificationSource | string | null | undefined
+): string {
+  switch (String(source ?? "").toUpperCase()) {
+    case "REPORT_GENERATED":
+      return "Report generated";
+    case "PUBLIC_VERIFY_VIEWED":
+      return "Public verify viewed";
+    case "TECHNICAL_VERIFICATION_CHECKED":
+      return "Technical verification checked";
+    default:
+      return "Verification source not recorded";
+  }
+}
+
 function formatDisplayDateUtc(value: Date | string): string {
   const d = value instanceof Date ? value : new Date(value);
   if (Number.isNaN(d.getTime())) return "";
@@ -418,7 +547,6 @@ function formatDisplayDateUtc(value: Date | string): string {
   const day = d.getUTCDate().toString().padStart(2, "0");
   const month = d.toLocaleString("en-GB", { month: "short", timeZone: "UTC" });
   const year = d.getUTCFullYear();
-
   const hours = d.getUTCHours().toString().padStart(2, "0");
   const minutes = d.getUTCMinutes().toString().padStart(2, "0");
   const seconds = d.getUTCSeconds().toString().padStart(2, "0");
@@ -430,9 +558,9 @@ function buildEvidenceSubtitle(params: {
   itemCount: number;
   status: prismaPkg.EvidenceStatus | string;
   createdAt: Date | string;
-}): string {
+}) {
   const count = Math.max(1, params.itemCount || 1);
-  return `${count} ${count === 1 ? "item" : "items"} • ${statusLabel(
+  return `${count} ${count === 1 ? "item" : "items"} • ${mapRecordStatusLabel(
     params.status
   )} • ${formatDisplayDateUtc(params.createdAt)}`;
 }
@@ -457,6 +585,139 @@ function normalizeAnchorMode(
   const raw = String(value ?? "ready").trim().toLowerCase();
   if (raw === "off" || raw === "active") return raw;
   return "ready";
+}
+
+function normalizeTimestampStatus(
+  status: string | null | undefined
+): string | null {
+  const text = typeof status === "string" ? status.trim().toUpperCase() : "";
+  return text || null;
+}
+
+function normalizeOtsStatus(status: string | null | undefined): string | null {
+  const text = typeof status === "string" ? status.trim().toUpperCase() : "";
+  return text || null;
+}
+
+function mapEvidenceTypeLabel(
+  type: prismaPkg.EvidenceType | string | null | undefined
+): string {
+  switch (String(type ?? "").toUpperCase()) {
+    case "PHOTO":
+      return "Photo";
+    case "VIDEO":
+      return "Video";
+    case "AUDIO":
+      return "Audio";
+    case "DOCUMENT":
+      return "Document";
+    default:
+      return "Evidence";
+  }
+}
+
+function mapCaptureMethodLabel(
+  captureMethod: prismaPkg.CaptureMethod | string | null | undefined
+): string {
+  switch (String(captureMethod ?? "").toUpperCase()) {
+    case "SECURE_CAMERA":
+      return "Captured with PROOVRA secure camera";
+    case "UPLOADED_FILE":
+      return "Uploaded existing file";
+    case "IMPORTED_DOCUMENT":
+      return "Imported document";
+    case "MULTIPART_PACKAGE":
+      return "Multipart package";
+    default:
+      return "Capture method not recorded";
+  }
+}
+
+function mapIntegrityHeadline(
+  overallIntegrity: boolean | null | undefined
+): string {
+  if (overallIntegrity === true) return "Recorded Integrity Verified";
+  if (overallIntegrity === false) return "Recorded Integrity Review Required";
+  return "Recorded Integrity Materials Available";
+}
+
+function mapIntegritySummaryText(params: {
+  overallIntegrity: boolean | null | undefined;
+  canonicalHashMatches: boolean;
+  signatureValid: boolean;
+  custodyChainValid: boolean;
+  timestampDigestMatches: boolean;
+  otsHashMatches: boolean;
+}) {
+  if (
+    params.overallIntegrity === true &&
+    params.canonicalHashMatches &&
+    params.signatureValid &&
+    params.custodyChainValid &&
+    params.timestampDigestMatches &&
+    params.otsHashMatches
+  ) {
+    return "Recorded integrity checks passed for the available fingerprint, signature, custody chain, timestamp linkage, and OpenTimestamps linkage.";
+  }
+
+  if (params.overallIntegrity === false) {
+    return "One or more recorded integrity checks did not pass. Manual review is recommended before relying on this evidence record.";
+  }
+
+  return "Recorded technical verification materials are available for review.";
+}
+
+function mapStorageStatusLabel(storage: StorageProtectionSummary): string {
+  if (!storage) return "Not reported";
+  if (
+    storage.immutable &&
+    String(storage.mode ?? "").toUpperCase() === "COMPLIANCE"
+  ) {
+    return "Immutable storage verified";
+  }
+  if (
+    storage.verified &&
+    String(storage.mode ?? "").toUpperCase() === "GOVERNANCE"
+  ) {
+    return "Governance retention active";
+  }
+  if (storage.verified) {
+    return "Storage protection reported";
+  }
+  return "Storage protection unverified";
+}
+
+function mapTimestampStatusLabel(status: string | null | undefined): string {
+  const normalized = normalizeTimestampStatus(status);
+  switch (normalized) {
+    case "STAMPED":
+    case "GRANTED":
+    case "SUCCEEDED":
+    case "VERIFIED":
+      return "Trusted timestamp recorded";
+    case "PENDING":
+      return "Timestamp pending";
+    case "FAILED":
+      return "Timestamp failed";
+    default:
+      return "Timestamp unavailable";
+  }
+}
+
+function mapOtsStatusLabel(status: string | null | undefined): string {
+  const normalized = normalizeOtsStatus(status);
+  switch (normalized) {
+    case "ANCHORED":
+      return "OpenTimestamps anchored";
+    case "PENDING":
+      return "OpenTimestamps pending";
+    case "FAILED":
+      return "OpenTimestamps failed";
+    case "DISABLED":
+      return "OpenTimestamps disabled";
+    default:
+      return "OpenTimestamps not reported";
+  }
 }
 
 function summarizePublicPayload(
@@ -491,7 +752,6 @@ function summarizePublicPayload(
           ? obj.itemCount
           : null;
       const sizeBytes = normalizePublicPayloadValue(obj.sizeBytes);
-
       return [
         getCompletedEvidenceLabel(itemCount),
         itemCount != null ? `Items: ${itemCount}` : null,
@@ -547,7 +807,6 @@ function summarizePublicPayload(
       const otsStatus = normalizePublicPayloadValue(obj.otsStatus);
       const calendar = normalizePublicPayloadValue(obj.otsCalendar);
       const bitcoinTxid = normalizePublicPayloadValue(obj.otsBitcoinTxid);
-
       return [
         "OpenTimestamps proof recorded",
         otsStatus ? `Status: ${otsStatus}` : null,
@@ -561,11 +820,15 @@ function summarizePublicPayload(
     case prismaPkg.CustodyEventType.OTS_FAILED: {
       const otsStatus = normalizePublicPayloadValue(obj.otsStatus);
       const reason = normalizePublicPayloadValue(obj.otsFailureReason);
-
+      const genericReason = normalizePublicPayloadValue(obj.failureReason);
       return [
         "OpenTimestamps failed",
         otsStatus ? `Status: ${otsStatus}` : null,
-        reason ? `Reason: ${reason}` : null,
+        reason
+          ? `Reason: ${reason}`
+          : genericReason
+            ? `Reason: ${genericReason}`
+            : null,
       ]
         .filter(Boolean)
         .join(" • ");
@@ -581,6 +844,69 @@ function summarizePublicPayload(
           : "Verification report generated.",
         anchorMode ? `Anchor Mode: ${anchorMode}` : null,
         anchorHash ? `Anchor: ${shortHash(anchorHash)}` : null,
+      ]
+        .filter(Boolean)
+        .join(" • ");
+    }
+
+    case prismaPkg.CustodyEventType.VERIFICATION_PACKAGE_GENERATED: {
+      const version = normalizePublicPayloadValue(obj.version);
+      const packageType = normalizePublicPayloadValue(obj.packageType);
+      return [
+        "Verification package generated",
+        version ? `Version: ${version}` : null,
+        packageType ? `Type: ${packageType}` : null,
+      ]
+        .filter(Boolean)
+        .join(" • ");
+    }
+
+    case prismaPkg.CustodyEventType.VERIFICATION_PACKAGE_DOWNLOADED: {
+      const version = normalizePublicPayloadValue(obj.version);
+      return version
+        ? `Verification package downloaded • Version: ${version}`
+        : "Verification package downloaded.";
+    }
+
+    case prismaPkg.CustodyEventType.TECHNICAL_VERIFICATION_CHECKED: {
+      const source = normalizePublicPayloadValue(obj.source);
+      const overallIntegrity = normalizePublicPayloadValue(obj.overallIntegrity);
+      return [
+        "Technical verification checked",
+        source ? `Source: ${source}` : null,
+        overallIntegrity ? `Overall integrity: ${overallIntegrity}` : null,
+      ]
+        .filter(Boolean)
+        .join(" • ");
+    }
+
+    case prismaPkg.CustodyEventType.REVIEW_READY: {
+      const reviewerSummaryVersion = normalizePublicPayloadValue(
+        obj.reviewerSummaryVersion
+      );
+      return [
+        "Evidence marked review ready",
+        reviewerSummaryVersion
+          ? `Reviewer summary version: ${reviewerSummaryVersion}`
+          : null,
+      ]
+        .filter(Boolean)
+        .join(" • ");
+    }
+
+    case prismaPkg.CustodyEventType.IDENTITY_SNAPSHOT_RECORDED: {
+      const identityLevel = normalizePublicPayloadValue(
+        obj.identityLevelSnapshot
+      );
+      const submittedByEmail = normalizePublicPayloadValue(obj.submittedByEmail);
+      const authProvider = normalizePublicPayloadValue(
+        obj.submittedByAuthProvider
+      );
+      return [
+        "Identity snapshot recorded",
+        identityLevel ? `Identity: ${identityLevel}` : null,
+        submittedByEmail ? `Email: ${submittedByEmail}` : null,
+        authProvider ? `Provider: ${authProvider}` : null,
       ]
         .filter(Boolean)
         .join(" • ");
@@ -647,7 +973,7 @@ function summarizePublicPayload(
           if (
             lowered.includes("bucket") ||
             lowered.includes("storagekey") ||
-            lowered.includes("key") ||
+            lowered === "key" ||
             lowered.includes("token") ||
             lowered.includes("secret") ||
             lowered.includes("password") ||
@@ -678,12 +1004,47 @@ function toSafeEvidence(e: SelectedEvidence): SafeEvidence {
   return {
     id: e.id,
     title: resolveEvidenceTitle(e.title),
+    organizationId: e.organizationId ?? null,
     type: e.type,
     status: e.status,
+    verificationStatus: e.verificationStatus ?? null,
+    captureMethod: e.captureMethod ?? null,
+    identityLevelSnapshot: e.identityLevelSnapshot ?? null,
+    submittedByEmail: e.submittedByEmail ?? null,
+    submittedByAuthProvider: e.submittedByAuthProvider ?? null,
+    submittedByUserId: e.submittedByUserId ?? null,
+    createdByUserId: e.createdByUserId ?? null,
+    uploadedByUserId: e.uploadedByUserId ?? null,
+    lastAccessedByUserId: e.lastAccessedByUserId ?? null,
+    lastAccessedAtUtc: e.lastAccessedAtUtc
+      ? e.lastAccessedAtUtc.toISOString()
+      : null,
+    workspaceNameSnapshot: e.workspaceNameSnapshot ?? null,
+    organizationNameSnapshot: e.organizationNameSnapshot ?? null,
+    organizationVerifiedSnapshot: e.organizationVerifiedSnapshot ?? null,
+    recordedIntegrityVerifiedAtUtc: e.recordedIntegrityVerifiedAtUtc
+      ? e.recordedIntegrityVerifiedAtUtc.toISOString()
+      : null,
+    lastVerifiedAtUtc: e.lastVerifiedAtUtc
+      ? e.lastVerifiedAtUtc.toISOString()
+      : null,
+    lastVerifiedSource: e.lastVerifiedSource ?? null,
+    verificationPackageGeneratedAtUtc: e.verificationPackageGeneratedAtUtc
+      ? e.verificationPackageGeneratedAtUtc.toISOString()
+      : null,
+    verificationPackageVersion: e.verificationPackageVersion ?? null,
+    latestReportVersion: e.latestReportVersion ?? null,
+    reviewReadyAtUtc: e.reviewReadyAtUtc
+      ? e.reviewReadyAtUtc.toISOString()
+      : null,
+    reviewerSummaryVersion: e.reviewerSummaryVersion ?? null,
     createdAt: e.createdAt.toISOString(),
     uploadedAtUtc: e.uploadedAtUtc ? e.uploadedAtUtc.toISOString() : null,
     signedAtUtc: e.signedAtUtc ? e.signedAtUtc.toISOString() : null,
     capturedAtUtc: e.capturedAtUtc ? e.capturedAtUtc.toISOString() : null,
+    reportGeneratedAtUtc: e.reportGeneratedAtUtc
+      ? e.reportGeneratedAtUtc.toISOString()
+      : null,
     deviceTimeIso: e.deviceTimeIso ?? null,
     lat: decimalToNumber(e.lat),
     lng: decimalToNumber(e.lng),
@@ -704,6 +1065,7 @@ function toSafeEvidence(e: SelectedEvidence): SafeEvidence {
     signatureBase64: e.signatureBase64 ?? null,
     signingKeyId: e.signingKeyId ?? null,
     signingKeyVersion: e.signingKeyVersion ?? null,
+    deletedByUserId: e.deletedByUserId ?? null,
     lockedAt: e.lockedAt ? e.lockedAt.toISOString() : null,
     lockedByUserId: e.lockedByUserId ?? null,
     archivedAt: e.archivedAt ? e.archivedAt.toISOString() : null,
@@ -992,6 +1354,213 @@ function toJsonSafe<T>(value: T): T {
   return JSON.parse(
     JSON.stringify(value, (_k, v) => (typeof v === "bigint" ? v.toString() : v))
   );
+}
+
+function buildPublicVerifyOverview(params: {
+  evidence: {
+    id: string;
+    title: string | null;
+    type?: prismaPkg.EvidenceType | null;
+    status: prismaPkg.EvidenceStatus;
+    verificationStatus: prismaPkg.VerificationStatus | null;
+    captureMethod: prismaPkg.CaptureMethod | null;
+    identityLevelSnapshot: prismaPkg.IdentityLevel | null;
+    submittedByEmail: string | null;
+    submittedByAuthProvider: prismaPkg.AuthProvider | null;
+    workspaceNameSnapshot: string | null;
+    organizationNameSnapshot: string | null;
+    organizationVerifiedSnapshot: boolean | null;
+    mimeType: string | null;
+    createdAt: Date;
+    capturedAtUtc: Date | null;
+    uploadedAtUtc: Date | null;
+    signedAtUtc: Date | null;
+    recordedIntegrityVerifiedAtUtc: Date | null;
+    lastVerifiedAtUtc: Date | null;
+    lastVerifiedSource: prismaPkg.VerificationSource | null;
+    reviewReadyAtUtc: Date | null;
+    verificationPackageGeneratedAtUtc: Date | null;
+    verificationPackageVersion: number | null;
+    latestReportVersion: number | null;
+    reviewerSummaryVersion: number | null;
+    reportGeneratedAtUtc: Date | null;
+  };
+  latestReport: { version: number; generatedAtUtc: Date } | null;
+  itemCount: number;
+  storageProtection: StorageProtectionSummary;
+  timestampStatus: string | null;
+  otsStatus: string | null;
+  overallIntegrity: boolean;
+  chainOfCustodyPresent: boolean;
+  anchor: AnchorStatusSummary;
+}) {
+  const reportGeneratedAtUtc = params.latestReport?.generatedAtUtc
+    ? params.latestReport.generatedAtUtc.toISOString()
+    : params.evidence.reportGeneratedAtUtc
+      ? params.evidence.reportGeneratedAtUtc.toISOString()
+      : null;
+
+  const reportVersion =
+    params.latestReport?.version ?? params.evidence.latestReportVersion ?? null;
+
+  return {
+    recordStatus: mapRecordStatusLabel(params.evidence.status),
+    recordLifecycleStatus: params.evidence.status,
+    verificationStatus: mapVerificationStatusLabel(
+      params.evidence.verificationStatus
+    ),
+    verificationStatusCode: params.evidence.verificationStatus,
+    integrityHeadline: mapIntegrityHeadline(params.overallIntegrity),
+    evidenceTitle: resolveEvidenceTitle(params.evidence.title),
+    evidenceId: params.evidence.id,
+    evidenceType: mapEvidenceTypeLabel(params.evidence.type),
+    evidenceStructure:
+      params.itemCount > 1 ? "Multipart evidence package" : "Single evidence item",
+    itemCount: params.itemCount,
+    captureMethod: mapCaptureMethodLabel(params.evidence.captureMethod),
+    captureMethodCode: params.evidence.captureMethod,
+    mimeType: params.evidence.mimeType ?? null,
+    submittedByEmail: params.evidence.submittedByEmail ?? null,
+    submittedByAuthProvider: mapAuthProviderLabel(
+      params.evidence.submittedByAuthProvider
+    ),
+    submittedByAuthProviderCode: params.evidence.submittedByAuthProvider ?? null,
+    identityLevel: mapIdentityLevelLabel(params.evidence.identityLevelSnapshot),
+    identityLevelCode: params.evidence.identityLevelSnapshot ?? null,
+    workspaceName: params.evidence.workspaceNameSnapshot ?? null,
+    organizationName: params.evidence.organizationNameSnapshot ?? null,
+    organizationVerified: params.evidence.organizationVerifiedSnapshot ?? null,
+    createdAt: params.evidence.createdAt.toISOString(),
+    capturedAtUtc: params.evidence.capturedAtUtc
+      ? params.evidence.capturedAtUtc.toISOString()
+      : null,
+    uploadedAtUtc: params.evidence.uploadedAtUtc
+      ? params.evidence.uploadedAtUtc.toISOString()
+      : null,
+    signedAtUtc: params.evidence.signedAtUtc
+      ? params.evidence.signedAtUtc.toISOString()
+      : null,
+    recordedIntegrityVerifiedAtUtc:
+      params.evidence.recordedIntegrityVerifiedAtUtc
+        ? params.evidence.recordedIntegrityVerifiedAtUtc.toISOString()
+        : null,
+    lastVerifiedAtUtc: params.evidence.lastVerifiedAtUtc
+      ? params.evidence.lastVerifiedAtUtc.toISOString()
+      : null,
+    lastVerifiedSource: mapVerificationSourceLabel(
+      params.evidence.lastVerifiedSource
+    ),
+    lastVerifiedSourceCode: params.evidence.lastVerifiedSource ?? null,
+    reviewReadyAtUtc: params.evidence.reviewReadyAtUtc
+      ? params.evidence.reviewReadyAtUtc.toISOString()
+      : null,
+    verificationPackageGeneratedAtUtc:
+      params.evidence.verificationPackageGeneratedAtUtc
+        ? params.evidence.verificationPackageGeneratedAtUtc.toISOString()
+        : null,
+    verificationPackageVersion:
+      params.evidence.verificationPackageVersion ?? null,
+    reviewerSummaryVersion: params.evidence.reviewerSummaryVersion ?? null,
+    reportVersion,
+    reportGeneratedAtUtc,
+    timestampStatus: mapTimestampStatusLabel(params.timestampStatus),
+    otsStatus: mapOtsStatusLabel(params.otsStatus),
+    storageProtection: mapStorageStatusLabel(params.storageProtection),
+    chainOfCustodyPresent: params.chainOfCustodyPresent,
+    externalPublicationPresent: params.anchor.published,
+    externalPublicationProvider: params.anchor.provider,
+    externalPublicationUrl: params.anchor.publicUrl,
+    externalPublicationAnchoredAtUtc: params.anchor.anchoredAtUtc,
+  };
+}
+
+function buildPublicVerifyHumanSummary(params: {
+  overview: ReturnType<typeof buildPublicVerifyOverview>;
+  canonicalHashMatches: boolean;
+  signatureValid: boolean;
+  custodyChainValid: boolean;
+  timestampDigestMatches: boolean;
+  otsHashMatches: boolean;
+  overallIntegrity: boolean;
+}) {
+  return {
+    integrityStatus: params.overview.integrityHeadline,
+    recordStatus: params.overview.recordStatus,
+    verificationStatus: params.overview.verificationStatus,
+    summary: mapIntegritySummaryText({
+      overallIntegrity: params.overallIntegrity,
+      canonicalHashMatches: params.canonicalHashMatches,
+      signatureValid: params.signatureValid,
+      custodyChainValid: params.custodyChainValid,
+      timestampDigestMatches: params.timestampDigestMatches,
+      otsHashMatches: params.otsHashMatches,
+    }),
+    whatIsVerified:
+      "This verification checks the recorded integrity state of the evidence record, including fingerprint consistency, signature validation, recorded custody chain continuity, timestamp linkage, and OpenTimestamps linkage where available.",
+    evidenceTitle: params.overview.evidenceTitle,
+    evidenceId: params.overview.evidenceId,
+    evidenceType: params.overview.evidenceType,
+    evidenceStructure: params.overview.evidenceStructure,
+    captureMethod: params.overview.captureMethod,
+    fileType: params.overview.mimeType,
+    submittedBy: params.overview.submittedByEmail,
+    authProvider: params.overview.submittedByAuthProvider,
+    identityLevel: params.overview.identityLevel,
+    organization: params.overview.organizationName,
+    workspace: params.overview.workspaceName,
+    organizationVerified: params.overview.organizationVerified,
+    createdAt: params.overview.createdAt,
+    capturedAtUtc: params.overview.capturedAtUtc,
+    uploadedAtUtc: params.overview.uploadedAtUtc,
+    signedAtUtc: params.overview.signedAtUtc,
+    recordedIntegrityVerifiedAtUtc:
+      params.overview.recordedIntegrityVerifiedAtUtc,
+    lastVerifiedAtUtc: params.overview.lastVerifiedAtUtc,
+    lastVerifiedSource: params.overview.lastVerifiedSource,
+    chainOfCustodyPresent: params.overview.chainOfCustodyPresent,
+    reportVersion: params.overview.reportVersion,
+    reportGeneratedAtUtc: params.overview.reportGeneratedAtUtc,
+    verificationPackageVersion: params.overview.verificationPackageVersion,
+    verificationPackageGeneratedAtUtc:
+      params.overview.verificationPackageGeneratedAtUtc,
+    reviewerSummaryVersion: params.overview.reviewerSummaryVersion,
+    timestampStatus: params.overview.timestampStatus,
+    otsStatus: params.overview.otsStatus,
+    storageProtection: params.overview.storageProtection,
+    externalPublicationPresent: params.overview.externalPublicationPresent,
+    externalPublicationProvider: params.overview.externalPublicationProvider,
+    externalPublicationUrl: params.overview.externalPublicationUrl,
+    externalPublicationAnchoredAtUtc:
+      params.overview.externalPublicationAnchoredAtUtc,
+  };
+}
+
+function buildPublicVerifyLimitations() {
+  return {
+    short:
+      "This page verifies the recorded integrity state of the evidence record. It does not independently prove factual truth, authorship, context, or legal admissibility.",
+    detailed:
+      "Technical verification supports detection of post-completion changes to the recorded evidence state. It does not by itself establish who created the content, whether the depicted events are true, or whether any court, insurer, regulator, or authority must accept the material.",
+  };
+}
+
+function mapPublicCustodyEvent(ev: {
+  sequence: number;
+  atUtc: Date;
+  eventType: prismaPkg.CustodyEventType;
+  payload: prismaPkg.Prisma.JsonValue | null;
+  prevEventHash: string | null;
+  eventHash: string | null;
+}): PublicVerifyTimelineEvent {
+  return {
+    sequence: ev.sequence,
+    atUtc: ev.atUtc.toISOString(),
+    eventType: ev.eventType,
+    payloadSummary: summarizePublicPayload(ev.eventType, ev.payload),
+    prevEventHash: shortHash(ev.prevEventHash, 10, 8),
+    eventHash: shortHash(ev.eventHash, 10, 8),
+    category: isAccessCustodyEventType(ev.eventType) ? "access" : "forensic",
+  };
 }
 
 export async function evidenceRoutes(app: FastifyInstance) {
@@ -1284,8 +1853,11 @@ export async function evidenceRoutes(app: FastifyInstance) {
               partIndex: body.partIndex,
               storageBucket: bucket,
               storageKey: key,
+              originalFileName: body.originalFileName?.trim() || null,
               mimeType: normalizedMimeType,
               durationMs: body.durationMs ?? null,
+              uploadedByUserId: ownerUserId,
+              uploadedAtUtc: new Date(),
             },
           });
 
@@ -1399,22 +1971,12 @@ export async function evidenceRoutes(app: FastifyInstance) {
             part.storageBucket,
             part.storageKey,
             {
-              storageRegion:
-                "storageRegion" in part
-                  ? (part.storageRegion as string | null)
-                  : null,
-              storageObjectLockMode:
-                "storageObjectLockMode" in part
-                  ? (part.storageObjectLockMode as string | null)
-                  : null,
+              storageRegion: part.storageRegion ?? null,
+              storageObjectLockMode: part.storageObjectLockMode ?? null,
               storageObjectLockRetainUntilUtc:
-                "storageObjectLockRetainUntilUtc" in part
-                  ? (part.storageObjectLockRetainUntilUtc as Date | null)
-                  : null,
+                part.storageObjectLockRetainUntilUtc ?? null,
               storageObjectLockLegalHoldStatus:
-                "storageObjectLockLegalHoldStatus" in part
-                  ? (part.storageObjectLockLegalHoldStatus as string | null)
-                  : null,
+                part.storageObjectLockLegalHoldStatus ?? null,
             }
           );
 
@@ -1757,8 +2319,8 @@ export async function evidenceRoutes(app: FastifyInstance) {
 
       await appendCustodyEvent({
         evidenceId: id,
-        eventType: prismaPkg.CustodyEventType.EVIDENCE_DELETE_RESTORED,
-        payload: { restoredByUserId: ownerUserId, restoreSource: "trash" },
+        eventType: prismaPkg.CustodyEventType.EVIDENCE_RESTORED,
+        payload: { restoredByUserId: ownerUserId, restoreSource: "archive" },
         ip: req.ip,
         userAgent: req.headers["user-agent"],
       }).catch(() => null);
@@ -1835,6 +2397,7 @@ export async function evidenceRoutes(app: FastifyInstance) {
         data: {
           deletedAt: now,
           deletedAtUtc: now,
+          deletedByUserId: ownerUserId,
           deleteScheduledForUtc,
         },
         select: SAFE_EVIDENCE_SELECT,
@@ -1919,6 +2482,7 @@ export async function evidenceRoutes(app: FastifyInstance) {
         data: {
           deletedAt: null,
           deletedAtUtc: null,
+          deletedByUserId: null,
           deleteScheduledForUtc: null,
         },
         select: SAFE_EVIDENCE_SELECT,
@@ -1988,11 +2552,17 @@ export async function evidenceRoutes(app: FastifyInstance) {
           ? { lockedAt: null }
           : {};
 
-    const mapEvidenceListItem = (item: {
+    const mapEvidenceListItem = async (item: {
       id: string;
       title: string | null;
       type: prismaPkg.EvidenceType;
       status: prismaPkg.EvidenceStatus;
+      verificationStatus: prismaPkg.VerificationStatus | null;
+      captureMethod: prismaPkg.CaptureMethod | null;
+      identityLevelSnapshot: prismaPkg.IdentityLevel | null;
+      submittedByEmail: string | null;
+      latestReportVersion: number | null;
+      reviewReadyAtUtc: Date | null;
       createdAt: Date;
       archivedAt: Date | null;
       deletedAt: Date | null;
@@ -2000,15 +2570,45 @@ export async function evidenceRoutes(app: FastifyInstance) {
       caseId: string | null;
       teamId: string | null;
       ownerUserId: string;
+      storageBucket: string | null;
+      storageKey: string | null;
+      storageRegion: string | null;
+      storageObjectLockMode: string | null;
+      storageObjectLockRetainUntilUtc: Date | null;
+      storageObjectLockLegalHoldStatus: string | null;
       _count: { parts: number };
     }) => {
       const itemCount = item._count.parts > 0 ? item._count.parts : 1;
+      const storage = await getStorageProtectionSummary(
+        item.storageBucket,
+        item.storageKey,
+        {
+          storageRegion: item.storageRegion,
+          storageObjectLockMode: item.storageObjectLockMode,
+          storageObjectLockRetainUntilUtc: item.storageObjectLockRetainUntilUtc,
+          storageObjectLockLegalHoldStatus: item.storageObjectLockLegalHoldStatus,
+        }
+      );
 
       return {
         id: item.id,
         title: resolveEvidenceTitle(item.title),
         type: item.type,
         status: item.status,
+        statusLabel: mapRecordStatusLabel(item.status),
+        verificationStatus: item.verificationStatus,
+        verificationStatusLabel: mapVerificationStatusLabel(
+          item.verificationStatus
+        ),
+        captureMethod: item.captureMethod,
+        captureMethodLabel: mapCaptureMethodLabel(item.captureMethod),
+        identityLevel: item.identityLevelSnapshot,
+        identityLevelLabel: mapIdentityLevelLabel(item.identityLevelSnapshot),
+        submittedByEmail: item.submittedByEmail,
+        latestReportVersion: item.latestReportVersion,
+        reviewReadyAtUtc: item.reviewReadyAtUtc
+          ? item.reviewReadyAtUtc.toISOString()
+          : null,
         createdAt: item.createdAt.toISOString(),
         archivedAt: item.archivedAt ? item.archivedAt.toISOString() : null,
         deletedAt: item.deletedAt ? item.deletedAt.toISOString() : null,
@@ -2019,6 +2619,7 @@ export async function evidenceRoutes(app: FastifyInstance) {
         teamId: item.teamId,
         ownerUserId: item.ownerUserId,
         itemCount,
+        storage,
         displaySubtitle: buildEvidenceSubtitle({
           itemCount,
           status: item.status,
@@ -2037,13 +2638,19 @@ export async function evidenceRoutes(app: FastifyInstance) {
           ...lockedFilter,
           caseId,
         },
-                orderBy: { createdAt: "desc" },
+        orderBy: { createdAt: "desc" },
         take: 50,
         select: {
           id: true,
           title: true,
           type: true,
           status: true,
+          verificationStatus: true,
+          captureMethod: true,
+          identityLevelSnapshot: true,
+          submittedByEmail: true,
+          latestReportVersion: true,
+          reviewReadyAtUtc: true,
           createdAt: true,
           archivedAt: true,
           deletedAt: true,
@@ -2051,6 +2658,12 @@ export async function evidenceRoutes(app: FastifyInstance) {
           caseId: true,
           teamId: true,
           ownerUserId: true,
+          storageBucket: true,
+          storageKey: true,
+          storageRegion: true,
+          storageObjectLockMode: true,
+          storageObjectLockRetainUntilUtc: true,
+          storageObjectLockLegalHoldStatus: true,
           _count: {
             select: { parts: true },
           },
@@ -2070,7 +2683,7 @@ export async function evidenceRoutes(app: FastifyInstance) {
 
       return reply.code(200).send({
         scope,
-        items: items.map(mapEvidenceListItem),
+        items: await Promise.all(items.map(mapEvidenceListItem)),
       });
     }
 
@@ -2114,13 +2727,19 @@ export async function evidenceRoutes(app: FastifyInstance) {
             : []),
         ],
       },
-            orderBy: { createdAt: "desc" },
+      orderBy: { createdAt: "desc" },
       take: 50,
       select: {
         id: true,
         title: true,
         type: true,
         status: true,
+        verificationStatus: true,
+        captureMethod: true,
+        identityLevelSnapshot: true,
+        submittedByEmail: true,
+        latestReportVersion: true,
+        reviewReadyAtUtc: true,
         createdAt: true,
         archivedAt: true,
         deletedAt: true,
@@ -2128,6 +2747,12 @@ export async function evidenceRoutes(app: FastifyInstance) {
         caseId: true,
         teamId: true,
         ownerUserId: true,
+        storageBucket: true,
+        storageKey: true,
+        storageRegion: true,
+        storageObjectLockMode: true,
+        storageObjectLockRetainUntilUtc: true,
+        storageObjectLockLegalHoldStatus: true,
         _count: {
           select: { parts: true },
         },
@@ -2146,7 +2771,7 @@ export async function evidenceRoutes(app: FastifyInstance) {
 
     return reply.code(200).send({
       scope,
-      items: items.map(mapEvidenceListItem),
+      items: await Promise.all(items.map(mapEvidenceListItem)),
     });
   });
 
@@ -2185,6 +2810,7 @@ export async function evidenceRoutes(app: FastifyInstance) {
           metadata: {
             itemCount,
             status: evidence.status,
+            verificationStatus: evidence.verificationStatus,
           },
         });
 
@@ -2273,6 +2899,7 @@ export async function evidenceRoutes(app: FastifyInstance) {
           resourceId: id,
           metadata: {
             status: refreshed.status,
+            verificationStatus: refreshed.verificationStatus,
             result: "completed",
           },
         });
@@ -2292,6 +2919,7 @@ export async function evidenceRoutes(app: FastifyInstance) {
 
         return reply.code(200).send({
           ...toJsonSafe(result),
+          evidence: toJsonSafe(toSafeEvidence(refreshed)),
           storage,
         });
       } catch (err) {
@@ -2389,6 +3017,13 @@ export async function evidenceRoutes(app: FastifyInstance) {
           storageObjectLockRetainUntilUtc: true,
           storageObjectLockLegalHoldStatus: true,
           generatedAtUtc: true,
+          verificationStatusSnapshot: true,
+          identityLevelSnapshot: true,
+          submittedByEmailSnapshot: true,
+          submittedByAuthProviderSnapshot: true,
+          captureMethodSnapshot: true,
+          reviewerSummaryVersion: true,
+          verificationPackageVersion: true,
         },
       });
 
@@ -2441,6 +3076,27 @@ export async function evidenceRoutes(app: FastifyInstance) {
         url,
         generatedAtUtc: latest.generatedAtUtc.toISOString(),
         storage,
+        snapshots: {
+          verificationStatus: latest.verificationStatusSnapshot ?? null,
+          verificationStatusLabel: mapVerificationStatusLabel(
+            latest.verificationStatusSnapshot
+          ),
+          identityLevel: latest.identityLevelSnapshot ?? null,
+          identityLevelLabel: mapIdentityLevelLabel(
+            latest.identityLevelSnapshot
+          ),
+          submittedByEmail: latest.submittedByEmailSnapshot ?? null,
+          submittedByAuthProvider: latest.submittedByAuthProviderSnapshot ?? null,
+          submittedByAuthProviderLabel: mapAuthProviderLabel(
+            latest.submittedByAuthProviderSnapshot
+          ),
+          captureMethod: latest.captureMethodSnapshot ?? null,
+          captureMethodLabel: mapCaptureMethodLabel(
+            latest.captureMethodSnapshot
+          ),
+          reviewerSummaryVersion: latest.reviewerSummaryVersion ?? null,
+          verificationPackageVersion: latest.verificationPackageVersion ?? null,
+        },
       });
     }
   );
@@ -2477,12 +3133,24 @@ export async function evidenceRoutes(app: FastifyInstance) {
         expiresInSeconds: 600,
       });
 
+      const accessedAt = new Date();
+
+      await prisma.evidence.update({
+        where: { id },
+        data: {
+          lastAccessedByUserId: ownerUserId,
+          lastAccessedAtUtc: accessedAt,
+        },
+      });
+
       await appendCustodyEvent({
         evidenceId: id,
         eventType: prismaPkg.CustodyEventType.EVIDENCE_VIEWED,
         payload: {
           mimeType: evidence.mimeType ?? null,
           accessMode: "authenticated_original_access",
+          accessedByUserId: ownerUserId,
+          accessedAtUtc: accessedAt.toISOString(),
         },
         ip: req.ip,
         userAgent: req.headers["user-agent"],
@@ -2522,6 +3190,8 @@ export async function evidenceRoutes(app: FastifyInstance) {
         url,
         mimeType: evidence.mimeType,
         sizeBytes: evidence.sizeBytes?.toString() ?? null,
+        lastAccessedByUserId: ownerUserId,
+        lastAccessedAtUtc: accessedAt.toISOString(),
         storage,
       });
     }
@@ -2548,11 +3218,33 @@ export async function evidenceRoutes(app: FastifyInstance) {
         return reply.code(statusCode).send({ message });
       }
 
-      const bucket = must("S3_BUCKET");
-      const key = `verification/${id}/package.zip`;
+      const latest = await prisma.verificationPackage.findFirst({
+        where: { evidenceId: id },
+        orderBy: { version: "desc" },
+        select: {
+          version: true,
+          storageBucket: true,
+          storageKey: true,
+          storageRegion: true,
+          storageObjectLockMode: true,
+          storageObjectLockRetainUntilUtc: true,
+          storageObjectLockLegalHoldStatus: true,
+          generatedAtUtc: true,
+          packageType: true,
+        },
+      });
+
+      if (!latest) {
+        return reply
+          .code(404)
+          .send({ message: "Verification package not found" });
+      }
 
       try {
-        const meta = await headObject({ bucket, key });
+        const meta = await headObject({
+          bucket: latest.storageBucket,
+          key: latest.storageKey,
+        });
         if (!meta.sizeBytes || meta.sizeBytes <= 0) {
           return reply
             .code(404)
@@ -2565,12 +3257,34 @@ export async function evidenceRoutes(app: FastifyInstance) {
       }
 
       const url = await presignGetObject({
-        bucket,
-        key,
+        bucket: latest.storageBucket,
+        key: latest.storageKey,
         expiresInSeconds: 600,
       });
 
-      const storage = await getStorageProtectionSummary(bucket, key);
+      const storage = await getStorageProtectionSummary(
+        latest.storageBucket,
+        latest.storageKey,
+        {
+          storageRegion: latest.storageRegion,
+          storageObjectLockMode: latest.storageObjectLockMode,
+          storageObjectLockRetainUntilUtc:
+            latest.storageObjectLockRetainUntilUtc,
+          storageObjectLockLegalHoldStatus:
+            latest.storageObjectLockLegalHoldStatus,
+        }
+      );
+
+      await appendCustodyEvent({
+        evidenceId: id,
+        eventType: prismaPkg.CustodyEventType.VERIFICATION_PACKAGE_DOWNLOADED,
+        payload: {
+          version: latest.version,
+          packageType: latest.packageType ?? null,
+        },
+        ip: req.ip,
+        userAgent: req.headers["user-agent"],
+      }).catch(() => null);
 
       auditEvidenceAction(req, {
         userId: ownerUserId,
@@ -2578,14 +3292,19 @@ export async function evidenceRoutes(app: FastifyInstance) {
         outcome: "success",
         resourceId: id,
         metadata: {
-          packageKey: key,
+          packageKey: latest.storageKey,
+          version: latest.version,
+          packageType: latest.packageType ?? null,
         },
       });
 
       return reply.code(200).send({
         evidenceId: id,
-        key,
+        version: latest.version,
+        packageType: latest.packageType ?? null,
+        key: latest.storageKey,
         url,
+        generatedAtUtc: latest.generatedAtUtc.toISOString(),
         storage,
       });
     }
@@ -2619,7 +3338,29 @@ export async function evidenceRoutes(app: FastifyInstance) {
       select: {
         id: true,
         title: true,
+        type: true,
         status: true,
+        verificationStatus: true,
+        captureMethod: true,
+        identityLevelSnapshot: true,
+        submittedByEmail: true,
+        submittedByAuthProvider: true,
+        submittedByUserId: true,
+        workspaceNameSnapshot: true,
+        organizationNameSnapshot: true,
+        organizationVerifiedSnapshot: true,
+        createdAt: true,
+        capturedAtUtc: true,
+        uploadedAtUtc: true,
+        signedAtUtc: true,
+        recordedIntegrityVerifiedAtUtc: true,
+        lastVerifiedAtUtc: true,
+        lastVerifiedSource: true,
+        verificationPackageGeneratedAtUtc: true,
+        verificationPackageVersion: true,
+        latestReportVersion: true,
+        reviewReadyAtUtc: true,
+        reviewerSummaryVersion: true,
         mimeType: true,
         reportGeneratedAtUtc: true,
         fingerprintCanonicalJson: true,
@@ -2628,7 +3369,6 @@ export async function evidenceRoutes(app: FastifyInstance) {
         signingKeyId: true,
         signingKeyVersion: true,
         fileSha256: true,
-
         tsaProvider: true,
         tsaUrl: true,
         tsaSerialNumber: true,
@@ -2637,7 +3377,6 @@ export async function evidenceRoutes(app: FastifyInstance) {
         tsaHashAlgorithm: true,
         tsaStatus: true,
         tsaFailureReason: true,
-
         otsProofBase64: true,
         otsHash: true,
         otsStatus: true,
@@ -2646,7 +3385,6 @@ export async function evidenceRoutes(app: FastifyInstance) {
         otsAnchoredAtUtc: true,
         otsUpgradedAtUtc: true,
         otsFailureReason: true,
-
         storageBucket: true,
         storageKey: true,
         storageRegion: true,
@@ -2716,6 +3454,8 @@ export async function evidenceRoutes(app: FastifyInstance) {
       },
     });
 
+    const itemCount = await getEvidenceItemCount(id);
+
     const recomputedFingerprintHash = sha256Hex(
       evidence.fingerprintCanonicalJson
     );
@@ -2740,8 +3480,9 @@ export async function evidenceRoutes(app: FastifyInstance) {
         : true;
 
     const otsHashMatches =
-      evidence.otsHash && evidence.fileSha256
-        ? evidence.otsHash.toLowerCase() === evidence.fileSha256.toLowerCase()
+      evidence.otsHash && evidence.fingerprintHash
+        ? evidence.otsHash.toLowerCase() ===
+          evidence.fingerprintHash.toLowerCase()
         : evidence.otsStatus
           ? false
           : true;
@@ -2771,17 +3512,65 @@ export async function evidenceRoutes(app: FastifyInstance) {
       }
     );
 
+    const anchor = await getAnchorStatus(id);
+
     const overallIntegrity =
       canonicalHashMatches &&
       signatureValid &&
       custodyChain.valid &&
-      timestampDigestMatches;
+      timestampDigestMatches &&
+      otsHashMatches;
+
+    const verifiedAt = new Date();
+    const effectiveVerificationStatus = overallIntegrity
+      ? prismaPkg.VerificationStatus.RECORDED_INTEGRITY_VERIFIED
+      : prismaPkg.VerificationStatus.REVIEW_REQUIRED;
+
+    await prisma.$transaction([
+      prisma.evidence.update({
+        where: { id },
+        data: {
+          lastVerifiedAtUtc: verifiedAt,
+          lastVerifiedSource: VerificationSource.PUBLIC_VERIFY_VIEWED,
+          verificationStatus: effectiveVerificationStatus,
+          recordedIntegrityVerifiedAtUtc: overallIntegrity
+            ? evidence.recordedIntegrityVerifiedAtUtc ?? verifiedAt
+            : evidence.recordedIntegrityVerifiedAtUtc,
+        },
+      }),
+      prisma.verificationView.create({
+        data: {
+          evidenceId: id,
+          viewerType: VerificationViewerType.PUBLIC,
+          viewerUserId: null,
+          accessMode: "public_verify",
+          ipAddress: req.ip,
+          userAgent: readUserAgent(req),
+        },
+      }),
+    ]);
 
     void appendCustodyEvent({
       evidenceId: id,
       eventType: prismaPkg.CustodyEventType.VERIFY_VIEWED,
       payload: {
         accessMode: "public_verify",
+      },
+      ip: req.ip,
+      userAgent: req.headers["user-agent"],
+    }).catch(() => null);
+
+    void appendCustodyEvent({
+      evidenceId: id,
+      eventType: prismaPkg.CustodyEventType.TECHNICAL_VERIFICATION_CHECKED,
+      payload: {
+        source: VerificationSource.PUBLIC_VERIFY_VIEWED,
+        canonicalHashMatches,
+        signatureValid,
+        custodyChainValid: custodyChain.valid,
+        timestampDigestMatches,
+        otsHashMatches,
+        overallIntegrity,
       },
       ip: req.ip,
       userAgent: req.headers["user-agent"],
@@ -2797,27 +3586,75 @@ export async function evidenceRoutes(app: FastifyInstance) {
       },
     });
 
-    const mapCustodyEvent = (ev: {
-      sequence: number;
-      atUtc: Date;
-      eventType: prismaPkg.CustodyEventType;
-      payload: prismaPkg.Prisma.JsonValue | null;
-      prevEventHash: string | null;
-      eventHash: string | null;
-    }) => ({
-      sequence: ev.sequence,
-      atUtc: ev.atUtc.toISOString(),
-      eventType: ev.eventType,
-      payloadSummary: summarizePublicPayload(ev.eventType, ev.payload),
-      prevEventHash: shortHash(ev.prevEventHash, 10, 8),
-      eventHash: shortHash(ev.eventHash, 10, 8),
-      category: isAccessCustodyEventType(ev.eventType) ? "access" : "forensic",
+    const mappedCustodyEvents = allCustodyEvents.map(mapPublicCustodyEvent);
+    const mappedForensicEvents = forensicCustodyEvents.map(mapPublicCustodyEvent);
+    const mappedAccessEvents = accessCustodyEvents.map(mapPublicCustodyEvent);
+
+    const effectiveRecordedIntegrityVerifiedAtUtc = overallIntegrity
+      ? evidence.recordedIntegrityVerifiedAtUtc ?? verifiedAt
+      : evidence.recordedIntegrityVerifiedAtUtc;
+
+    const overview = buildPublicVerifyOverview({
+      evidence: {
+        id: evidence.id,
+        title: evidence.title,
+        type: evidence.type,
+        status: evidence.status,
+        verificationStatus: effectiveVerificationStatus,
+        captureMethod: evidence.captureMethod ?? null,
+        identityLevelSnapshot: evidence.identityLevelSnapshot ?? null,
+        submittedByEmail: evidence.submittedByEmail ?? null,
+        submittedByAuthProvider: evidence.submittedByAuthProvider ?? null,
+        workspaceNameSnapshot: evidence.workspaceNameSnapshot ?? null,
+        organizationNameSnapshot: evidence.organizationNameSnapshot ?? null,
+        organizationVerifiedSnapshot:
+          evidence.organizationVerifiedSnapshot ?? null,
+        mimeType: evidence.mimeType,
+        createdAt: evidence.createdAt,
+        capturedAtUtc: evidence.capturedAtUtc,
+        uploadedAtUtc: evidence.uploadedAtUtc,
+        signedAtUtc: evidence.signedAtUtc,
+        recordedIntegrityVerifiedAtUtc:
+          effectiveRecordedIntegrityVerifiedAtUtc,
+        lastVerifiedAtUtc: verifiedAt,
+        lastVerifiedSource: VerificationSource.PUBLIC_VERIFY_VIEWED,
+        reviewReadyAtUtc: evidence.reviewReadyAtUtc,
+        verificationPackageGeneratedAtUtc:
+          evidence.verificationPackageGeneratedAtUtc,
+        verificationPackageVersion: evidence.verificationPackageVersion,
+        latestReportVersion: evidence.latestReportVersion,
+        reviewerSummaryVersion: evidence.reviewerSummaryVersion,
+        reportGeneratedAtUtc: evidence.reportGeneratedAtUtc,
+      },
+      latestReport,
+      itemCount,
+      storageProtection,
+      timestampStatus: evidence.tsaStatus,
+      otsStatus: evidence.otsStatus,
+      overallIntegrity,
+      chainOfCustodyPresent: forensicCustodyEvents.length > 0,
+      anchor,
     });
+
+    const humanSummary = buildPublicVerifyHumanSummary({
+      overview,
+      canonicalHashMatches,
+      signatureValid,
+      custodyChainValid: custodyChain.valid,
+      timestampDigestMatches,
+      otsHashMatches,
+      overallIntegrity,
+    });
+
+    const limitations = buildPublicVerifyLimitations();
 
     return reply.code(200).send({
       evidenceId: evidence.id,
       title: resolveEvidenceTitle(evidence.title),
       status: evidence.status,
+      verificationStatus: effectiveVerificationStatus,
+      captureMethod: evidence.captureMethod ?? null,
+      identityLevelSnapshot: evidence.identityLevelSnapshot ?? null,
       mimeType: evidence.mimeType,
 
       reportGeneratedAtUtc: latestReport?.generatedAtUtc
@@ -2825,7 +3662,8 @@ export async function evidenceRoutes(app: FastifyInstance) {
         : evidence.reportGeneratedAtUtc
           ? evidence.reportGeneratedAtUtc.toISOString()
           : null,
-      reportVersion: latestReport?.version ?? null,
+      reportVersion:
+        latestReport?.version ?? evidence.latestReportVersion ?? null,
 
       fileSha256: evidence.fileSha256,
       fingerprintHash: evidence.fingerprintHash,
@@ -2847,7 +3685,24 @@ export async function evidenceRoutes(app: FastifyInstance) {
         accessEventCount: accessCustodyEvents.length,
       },
 
+      identity: {
+        submittedByEmail: evidence.submittedByEmail ?? null,
+        submittedByAuthProvider: evidence.submittedByAuthProvider ?? null,
+        submittedByAuthProviderLabel: mapAuthProviderLabel(
+          evidence.submittedByAuthProvider
+        ),
+        submittedByUserId: evidence.submittedByUserId ?? null,
+        identityLevel: evidence.identityLevelSnapshot ?? null,
+        identityLevelLabel: mapIdentityLevelLabel(
+          evidence.identityLevelSnapshot
+        ),
+        workspaceName: evidence.workspaceNameSnapshot ?? null,
+        organizationName: evidence.organizationNameSnapshot ?? null,
+        organizationVerified: evidence.organizationVerifiedSnapshot ?? null,
+      },
+
       storage: storageProtection,
+      anchor,
 
       tsaStatus: evidence.tsaStatus,
       tsaProvider: evidence.tsaProvider,
@@ -2887,12 +3742,62 @@ export async function evidenceRoutes(app: FastifyInstance) {
           : null,
         failureReason: evidence.otsFailureReason ?? null,
         proofPresent: Boolean(evidence.otsProofBase64),
-        hashMatchesFileHash: otsHashMatches,
+        hashMatchesFingerprintHash: otsHashMatches,
       },
 
-      custodyEvents: allCustodyEvents.map(mapCustodyEvent),
-      forensicCustodyEvents: forensicCustodyEvents.map(mapCustodyEvent),
-      accessCustodyEvents: accessCustodyEvents.map(mapCustodyEvent),
+      custodyEvents: mappedCustodyEvents,
+      forensicCustodyEvents: mappedForensicEvents,
+      accessCustodyEvents: mappedAccessEvents,
+
+      overview,
+      humanSummary,
+      reviewTrail: {
+        forensicEventCount: mappedForensicEvents.length,
+        accessEventCount: mappedAccessEvents.length,
+        forensicCustodyEvents: mappedForensicEvents,
+        accessCustodyEvents: mappedAccessEvents,
+      },
+      technicalMaterials: {
+        fileSha256: evidence.fileSha256,
+        fingerprintHash: evidence.fingerprintHash,
+        signatureBase64: evidence.signatureBase64,
+        publicKeyPem: signingKey.publicKeyPem,
+        signingKeyId: evidence.signingKeyId,
+        signingKeyVersion: evidence.signingKeyVersion,
+        otsProofPresent: Boolean(evidence.otsProofBase64),
+      },
+      storageAndTimestamping: {
+        storage: storageProtection,
+        tsa: {
+          status: evidence.tsaStatus,
+          provider: evidence.tsaProvider,
+          url: evidence.tsaUrl,
+          serialNumber: evidence.tsaSerialNumber,
+          genTimeUtc: evidence.tsaGenTimeUtc
+            ? evidence.tsaGenTimeUtc.toISOString()
+            : null,
+          hashAlgorithm: evidence.tsaHashAlgorithm,
+          messageImprint: shortHash(evidence.tsaMessageImprint),
+          failureReason: evidence.tsaFailureReason,
+          digestMatchesFileHash: timestampDigestMatches,
+        },
+        ots: {
+          status: evidence.otsStatus ?? null,
+          hash: evidence.otsHash ?? null,
+          calendar: evidence.otsCalendar ?? null,
+          bitcoinTxid: evidence.otsBitcoinTxid ?? null,
+          anchoredAtUtc: evidence.otsAnchoredAtUtc
+            ? evidence.otsAnchoredAtUtc.toISOString()
+            : null,
+          upgradedAtUtc: evidence.otsUpgradedAtUtc
+            ? evidence.otsUpgradedAtUtc.toISOString()
+            : null,
+          failureReason: evidence.otsFailureReason ?? null,
+          proofPresent: Boolean(evidence.otsProofBase64),
+          hashMatchesFingerprintHash: otsHashMatches,
+        },
+      },
+      limitations,
     });
   });
 }

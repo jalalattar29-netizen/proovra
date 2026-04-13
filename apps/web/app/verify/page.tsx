@@ -53,20 +53,23 @@ function LockIcon() {
 
 const TRUST_ITEMS = [
   {
-    title: "Hash and fingerprint checks",
-    description: "Review file-level integrity markers and cryptographic fingerprints.",
+    title: "Fingerprint and signature review",
+    description:
+      "Inspect the recorded file hash, canonical fingerprint state, signature materials, and core integrity checks associated with the evidence record.",
     icon: <FingerprintIcon />,
     accent: "teal",
   },
   {
-    title: "Signature and custody timeline",
-    description: "Inspect signing status, custody events, and evidentiary flow.",
+    title: "Forensic trail and access activity",
+    description:
+      "Review the forensic custody sequence separately from access-related viewing or download activity for clearer external review.",
     icon: <TimelineIcon />,
     accent: "silver",
   },
   {
-    title: "Timestamp and storage indicators",
-    description: "See TSA, OpenTimestamps, and immutability-related storage signals.",
+    title: "Timestamp, storage, and publication context",
+    description:
+      "Review TSA status, OpenTimestamps status, immutable storage signals, and external publication or anchor context when recorded.",
     icon: <LockIcon />,
     accent: "bronze",
   },
@@ -142,19 +145,26 @@ export default function VerifyIntroPage() {
 
           <section className="mx-auto max-w-7xl px-6 pb-16 pt-10 md:px-8 md:pb-20 md:pt-14">
             <div className="max-w-[760px]">
-<div className="inline-flex items-center gap-[0.72rem] rounded-full border border-white/10 bg-white/[0.055] px-5 py-2 text-[0.74rem] font-medium uppercase tracking-[0.2em] text-[#dce3e0] shadow-[0_10px_24px_rgba(0,0,0,0.10)] backdrop-blur-md">
-  <span className="block h-[6px] w-[6px] shrink-0 rounded-full bg-[#b79d84] opacity-95" />
-  Verify
-</div>
-              <h1 className="mt-5 max-w-[680px] text-[1.72rem] font-medium leading-[1.01] tracking-[-0.04em] text-[#edf1ef] md:text-[2.28rem] lg:text-[2.9rem]">
-                Review digital evidence with a{" "}
-                <span className="text-[#bfe8df]">clearer trust trail</span>.
+              <div className="inline-flex items-center gap-[0.72rem] rounded-full border border-white/10 bg-white/[0.055] px-5 py-2 text-[0.74rem] font-medium uppercase tracking-[0.2em] text-[#dce3e0] shadow-[0_10px_24px_rgba(0,0,0,0.10)] backdrop-blur-md">
+                <span className="block h-[6px] w-[6px] shrink-0 rounded-full bg-[#b79d84] opacity-95" />
+                Verify
+              </div>
+
+              <h1 className="mt-5 max-w-[700px] text-[1.72rem] font-medium leading-[1.01] tracking-[-0.04em] text-[#edf1ef] md:text-[2.28rem] lg:text-[2.9rem]">
+                Review digital evidence through a{" "}
+                <span className="text-[#bfe8df]">
+                  human-readable integrity and verification record
+                </span>
+                .
               </h1>
 
-              <p className="mt-5 max-w-[700px] text-[0.96rem] leading-[1.8] tracking-[-0.006em] text-[#c7cfcc] md:text-[1rem]">
-                Open a PROOVRA verification token to inspect integrity materials,
-                signature state, custody history, timestamp evidence, and
-                preservation-related indicators in a clean review flow.
+              <p className="mt-5 max-w-[720px] text-[0.96rem] leading-[1.8] tracking-[-0.006em] text-[#c7cfcc] md:text-[1rem]">
+                Open a PROOVRA verification token or public verification ID to
+                inspect recorded integrity materials, verification status,
+                identity context, forensic custody history, access activity,
+                timestamp evidence, OpenTimestamps status, immutable
+                storage-protection indicators, and external publication context
+                when available.
               </p>
 
               <div className="mt-6 flex flex-wrap gap-2.5">
@@ -200,9 +210,7 @@ export default function VerifyIntroPage() {
             <SilverCardShell className="min-h-[560px]">
               <div className="flex h-full flex-col justify-between p-7 md:p-8">
                 <div className="grid gap-6">
-                  <div
-                    className="inline-flex w-fit items-center gap-2.5 rounded-full border border-[#23373b]/8 bg-[rgba(35,55,59,0.05)] px-4 py-2.5 text-[0.76rem] font-semibold uppercase tracking-[0.18em] text-[#566366]"
-                  >
+                  <div className="inline-flex w-fit items-center gap-2.5 rounded-full border border-[#23373b]/8 bg-[rgba(35,55,59,0.05)] px-4 py-2.5 text-[0.76rem] font-semibold uppercase tracking-[0.18em] text-[#566366]">
                     <span className="text-[#3f5e62]">
                       <ShieldIcon />
                     </span>
@@ -211,16 +219,35 @@ export default function VerifyIntroPage() {
 
                   <div className="grid gap-4">
                     <h2 className="m-0 max-w-[720px] text-[1.9rem] font-semibold leading-[1.02] tracking-[-0.04em] text-[#16282d] md:text-[2.45rem]">
-                      Review digital evidence with a{" "}
-                      <span className="text-[#3e6b68]">clearer trust trail</span>.
+                      Review digital evidence through a{" "}
+                      <span className="text-[#3e6b68]">
+                        clear forensic integrity record
+                      </span>
+                      .
                     </h2>
 
                     <p className="m-0 max-w-[760px] text-[1rem] leading-[1.82] text-[#5c6a6e]">
                       Enter a verification token to inspect{" "}
-                      <span className="text-[#3e6b68]">integrity materials</span>,{" "}
-                      <span className="text-[#23373b]">signature status</span>, custody history,{" "}
-                      <span className="text-[#b79d84]">timestamp evidence</span>, and
-                      storage-protection indicators associated with a PROOVRA evidence record.
+                      <span className="text-[#3e6b68]">
+                        file hashes, fingerprint integrity markers, signature
+                        state
+                      </span>
+                      , forensic custody history,{" "}
+                      <span className="text-[#23373b]">
+                        access activity, timestamp evidence
+                      </span>
+                      , OpenTimestamps status, immutable storage indicators,
+                      identity snapshots, and external publication details when
+                      they are recorded for the evidence.
+                    </p>
+
+                    <p className="m-0 max-w-[760px] text-[0.92rem] leading-[1.78] text-[#697679]">
+                      The verification view is designed to support technical and
+                      legal review of the recorded evidence state. It helps
+                      reviewers inspect preservation signals and verification
+                      materials, but does not independently establish authorship,
+                      factual truth, authenticity of real-world events, legal
+                      admissibility, or probative weight.
                     </p>
                   </div>
 
@@ -277,10 +304,10 @@ export default function VerifyIntroPage() {
 
                 <div className="mt-8 flex flex-wrap gap-2.5">
                   {[
-                    "Tamper-evident signals",
-                    "Verification timeline",
-                    "TSA / OTS visibility",
-                    "Storage protection context",
+                    "Fingerprint and signature checks",
+                    "Forensic trail and access separation",
+                    "TSA / OTS / anchor visibility",
+                    "Immutable storage context",
                   ].map((item, index) => (
                     <span
                       key={item}
@@ -320,8 +347,9 @@ export default function VerifyIntroPage() {
                     </h2>
 
                     <p className="m-0 text-[0.96rem] leading-[1.82] text-[#627277]">
-                      Use the token from a PROOVRA report, verification link, or shared evidence record to open
-                      the verification view.
+                      Paste the token from a PROOVRA report, public verification
+                      link, or shared verification record to open the structured
+                      review page.
                     </p>
                   </div>
 
@@ -330,7 +358,7 @@ export default function VerifyIntroPage() {
                       htmlFor="verification-token"
                       className="text-[0.82rem] font-semibold text-[#405357]"
                     >
-                      Verification token
+                      Verification token or public verification ID
                     </label>
 
                     <input
@@ -340,7 +368,11 @@ export default function VerifyIntroPage() {
                       onKeyDown={handleKeyDown}
                       placeholder="Paste token here"
                       autoComplete="off"
+                      autoCorrect="off"
+                      autoCapitalize="none"
+                      inputMode="text"
                       spellCheck={false}
+                      aria-describedby="verification-token-help"
                       style={{
                         width: "100%",
                         height: 58,
@@ -356,6 +388,16 @@ export default function VerifyIntroPage() {
                       }}
                     />
 
+                    <div
+                      id="verification-token-help"
+                      className="text-[0.82rem] leading-[1.65] text-[#667174]"
+                    >
+                      This opens a read-only verification view with integrity
+                      status, identity context, forensic custody events, access
+                      activity, timestamp evidence, storage protection, and
+                      technical materials when available.
+                    </div>
+
                     <Button
                       onClick={handleVerify}
                       disabled={!canSubmit}
@@ -367,9 +409,9 @@ export default function VerifyIntroPage() {
 
                   <div className="grid gap-3 pt-1">
                     {[
-                      "Review integrity signals without changing the original record.",
-                      "Inspect custody events, signing state, and timestamp-related data.",
-                      "Useful for external review, legal handoff, and independent checking.",
+                      "Review the recorded evidence state without changing the underlying evidence record.",
+                      "Inspect integrity results, forensic custody events, access activity, timestamp evidence, OpenTimestamps status, identity details, and storage-protection signals.",
+                      "Useful for external review, legal handoff, compliance review, insurance review, and independent technical checking.",
                     ].map((item, index) => (
                       <div
                         key={item}
@@ -391,6 +433,15 @@ export default function VerifyIntroPage() {
                         <span>{item}</span>
                       </div>
                     ))}
+                  </div>
+
+                  <div className="rounded-[18px] border border-[rgba(183,157,132,0.16)] bg-[linear-gradient(180deg,rgba(255,255,255,0.74)_0%,rgba(248,245,241,0.94)_100%)] p-4 text-[0.84rem] leading-[1.7] text-[#6a5b4f]">
+                    This portal verifies the integrity of the recorded evidence
+                    state only. It does not independently establish authorship,
+                    factual truth, authenticity of real-world events, legal
+                    admissibility, procedural validity, or evidentiary weight.
+                    Those questions remain subject to legal, judicial,
+                    administrative, or expert assessment.
                   </div>
 
                   <div className="mt-2 flex flex-wrap justify-between gap-3 border-t border-[#23373b]/8 pt-4 text-[0.8rem] text-[#6a777b]">

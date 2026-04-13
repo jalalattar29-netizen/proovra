@@ -14,75 +14,222 @@ import { useLocale } from "../../providers";
 import { apiFetch } from "../../../lib/api";
 import { captureException } from "../../../lib/sentry";
 
-type VerifyResponse = {
+type VerifyTimelineEvent = {
+  sequence?: number | null;
+  eventType?: string | null;
+  atUtc?: string | null;
+  payloadSummary?: string | null;
+  prevEventHash?: string | null;
+  eventHash?: string | null;
+  category?: "forensic" | "access" | null;
+};
+
+type VerifyOverview = {
+  recordStatus?: string | null;
+  recordLifecycleStatus?: string | null;
+  verificationStatus?: string | null;
+  verificationStatusCode?: string | null;
+  integrityHeadline?: string | null;
+  evidenceTitle?: string | null;
+  evidenceId?: string | null;
+  evidenceType?: string | null;
+  evidenceStructure?: string | null;
+  itemCount?: number | null;
+  captureMethod?: string | null;
+  captureMethodCode?: string | null;
+  mimeType?: string | null;
+  submittedByEmail?: string | null;
+  submittedByAuthProvider?: string | null;
+  submittedByAuthProviderCode?: string | null;
+  identityLevel?: string | null;
+  identityLevelCode?: string | null;
+  workspaceName?: string | null;
+  organizationName?: string | null;
+  organizationVerified?: boolean | null;
+  createdAt?: string | null;
+  capturedAtUtc?: string | null;
+  uploadedAtUtc?: string | null;
+  signedAtUtc?: string | null;
+  recordedIntegrityVerifiedAtUtc?: string | null;
+  lastVerifiedAtUtc?: string | null;
+  lastVerifiedSource?: string | null;
+  lastVerifiedSourceCode?: string | null;
+  reviewReadyAtUtc?: string | null;
+  verificationPackageGeneratedAtUtc?: string | null;
+  verificationPackageVersion?: number | null;
+  reviewerSummaryVersion?: number | null;
+  reportVersion?: number | null;
+  reportGeneratedAtUtc?: string | null;
+  timestampStatus?: string | null;
+  otsStatus?: string | null;
+  storageProtection?: string | null;
+  chainOfCustodyPresent?: boolean | null;
+  externalPublicationPresent?: boolean | null;
+  externalPublicationProvider?: string | null;
+  externalPublicationUrl?: string | null;
+  externalPublicationAnchoredAtUtc?: string | null;
+};
+
+type VerifyHumanSummary = {
+  integrityStatus?: string | null;
+  recordStatus?: string | null;
+  verificationStatus?: string | null;
+  summary?: string | null;
+  whatIsVerified?: string | null;
+  evidenceTitle?: string | null;
+  evidenceId?: string | null;
+  evidenceType?: string | null;
+  evidenceStructure?: string | null;
+  captureMethod?: string | null;
+  fileType?: string | null;
+  submittedBy?: string | null;
+  authProvider?: string | null;
+  identityLevel?: string | null;
+  organization?: string | null;
+  workspace?: string | null;
+  organizationVerified?: boolean | null;
+  createdAt?: string | null;
+  capturedAtUtc?: string | null;
+  uploadedAtUtc?: string | null;
+  signedAtUtc?: string | null;
+  recordedIntegrityVerifiedAtUtc?: string | null;
+  lastVerifiedAtUtc?: string | null;
+  lastVerifiedSource?: string | null;
+  chainOfCustodyPresent?: boolean | null;
+  reportVersion?: number | null;
+  reportGeneratedAtUtc?: string | null;
+  verificationPackageVersion?: number | null;
+  verificationPackageGeneratedAtUtc?: string | null;
+  reviewerSummaryVersion?: number | null;
+  timestampStatus?: string | null;
+  otsStatus?: string | null;
+  storageProtection?: string | null;
+  externalPublicationPresent?: boolean | null;
+  externalPublicationProvider?: string | null;
+  externalPublicationUrl?: string | null;
+  externalPublicationAnchoredAtUtc?: string | null;
+};
+
+type VerifyReviewTrail = {
+  forensicEventCount?: number | null;
+  accessEventCount?: number | null;
+  forensicCustodyEvents?: VerifyTimelineEvent[] | null;
+  accessCustodyEvents?: VerifyTimelineEvent[] | null;
+};
+
+type VerifyTechnicalMaterials = {
   fileSha256?: string | null;
   fingerprintHash?: string | null;
   signatureBase64?: string | null;
-  custodyEvents?: Array<{
-    eventType?: string | null;
-    atUtc?: string | null;
-    payloadSummary?: string | null;
-    prevEventHash?: string | null;
-    eventHash?: string | null;
-    category?: "forensic" | "access" | null;
-  }>;
-  forensicCustodyEvents?: Array<{
-    eventType?: string | null;
-    atUtc?: string | null;
-    payloadSummary?: string | null;
-    prevEventHash?: string | null;
-    eventHash?: string | null;
-    category?: "forensic" | "access" | null;
-  }>;
-  accessCustodyEvents?: Array<{
-    eventType?: string | null;
-    atUtc?: string | null;
-    payloadSummary?: string | null;
-    prevEventHash?: string | null;
-    eventHash?: string | null;
-    category?: "forensic" | "access" | null;
-  }>;
+  publicKeyPem?: string | null;
+  signingKeyId?: string | null;
+  signingKeyVersion?: number | null;
+  otsProofPresent?: boolean | null;
+};
+
+type VerifyStorageProtection = {
+  immutable?: boolean | null;
+  mode?: string | null;
+  retainUntil?: string | null;
+  legalHold?: string | null;
+  region?: string | null;
+  verified?: boolean | null;
+} | null;
+
+type VerifyTsa = {
   status?: string | null;
+  provider?: string | null;
+  url?: string | null;
+  serialNumber?: string | null;
+  genTimeUtc?: string | null;
+  hashAlgorithm?: string | null;
+  messageImprint?: string | null;
+  failureReason?: string | null;
+  digestMatchesFileHash?: boolean | null;
+} | null;
+
+type VerifyOts = {
+  status?: string | null;
+  hash?: string | null;
+  calendar?: string | null;
+  bitcoinTxid?: string | null;
+  anchoredAtUtc?: string | null;
+  upgradedAtUtc?: string | null;
+  failureReason?: string | null;
+  proofPresent?: boolean | null;
+  hashMatchesFingerprintHash?: boolean | null;
+  proofBase64?: string | null;
+} | null;
+
+type VerifyStorageAndTimestamping = {
+  storage?: VerifyStorageProtection;
+  tsa?: VerifyTsa;
+  ots?: VerifyOts;
+};
+
+type VerifyLimitations = {
+  short?: string | null;
+  detailed?: string | null;
+};
+
+type VerifyIdentity = {
+  submittedByEmail?: string | null;
+  submittedByAuthProvider?: string | null;
+  submittedByAuthProviderLabel?: string | null;
+  submittedByUserId?: string | null;
+  identityLevel?: string | null;
+  identityLevelLabel?: string | null;
+  workspaceName?: string | null;
+  organizationName?: string | null;
+  organizationVerified?: boolean | null;
+} | null;
+
+type VerifyAnchor = {
+  mode?: string | null;
+  provider?: string | null;
+  publicBaseUrl?: string | null;
+  configured?: boolean | null;
+  published?: boolean | null;
+  anchorHash?: string | null;
+  receiptId?: string | null;
+  transactionId?: string | null;
+  publicUrl?: string | null;
+  anchoredAtUtc?: string | null;
+} | null;
+
+type VerifyResponse = {
   evidenceId?: string | null;
   id?: string | null;
   title?: string | null;
+  status?: string | null;
+  verificationStatus?: string | null;
+  captureMethod?: string | null;
+  identityLevelSnapshot?: string | null;
+  mimeType?: string | null;
+
   reportGeneratedAtUtc?: string | null;
   generatedAtUtc?: string | null;
   verifiedAtUtc?: string | null;
   verificationCheckedAtUtc?: string | null;
-  mimeType?: string | null;
   reportVersion?: number | string | null;
+
+  fileSha256?: string | null;
+  fingerprintHash?: string | null;
+  signatureBase64?: string | null;
   signingKeyId?: string | null;
   signingKeyVersion?: number | null;
-  tsaStatus?: string | null;
-  timestampStatus?: string | null;
-  stampStatus?: string | null;
   publicKeyPem?: string | null;
+
+  tsaStatus?: string | null;
   tsaProvider?: string | null;
   tsaUrl?: string | null;
   tsaSerialNumber?: string | null;
   tsaGenTimeUtc?: string | null;
   tsaHashAlgorithm?: string | null;
   tsaFailureReason?: string | null;
-  tsa?: {
-    status?: string | null;
-    provider?: string | null;
-    genTimeUtc?: string | null;
-    url?: string | null;
-    serialNumber?: string | null;
-    hashAlgorithm?: string | null;
-    failureReason?: string | null;
-    digestMatchesFileHash?: boolean | null;
-  } | null;
-  timestamp?: {
-    status?: string | null;
-    provider?: string | null;
-    genTimeUtc?: string | null;
-    url?: string | null;
-    serialNumber?: string | null;
-    hashAlgorithm?: string | null;
-    failureReason?: string | null;
-  } | null;
+  tsa?: VerifyTsa;
+  timestamp?: VerifyTsa;
+
   otsStatus?: string | null;
   otsHash?: string | null;
   otsCalendar?: string | null;
@@ -91,16 +238,12 @@ type VerifyResponse = {
   otsUpgradedAtUtc?: string | null;
   otsFailureReason?: string | null;
   otsProofBase64?: string | null;
-  ots?: {
-    status?: string | null;
-    hash?: string | null;
-    calendar?: string | null;
-    bitcoinTxid?: string | null;
-    anchoredAtUtc?: string | null;
-    upgradedAtUtc?: string | null;
-    failureReason?: string | null;
-    proofBase64?: string | null;
-  } | null;
+  ots?: VerifyOts;
+
+  storage?: VerifyStorageProtection;
+  anchor?: VerifyAnchor;
+  identity?: VerifyIdentity;
+
   verification?: {
     canonicalHashMatches?: boolean;
     signatureValid?: boolean;
@@ -108,21 +251,26 @@ type VerifyResponse = {
     custodyChainMode?: string | null;
     custodyChainFailureReason?: string | null;
     timestampDigestMatches?: boolean;
+    otsHashMatches?: boolean;
     overallIntegrity?: boolean;
     forensicEventCount?: number;
     accessEventCount?: number;
   } | null;
-  storage?: {
-    immutable?: boolean;
-    mode?: string | null;
-    retainUntil?: string | null;
-    legalHold?: string | null;
-    region?: string | null;
-    verified?: boolean;
-  } | null;
+
+  custodyEvents?: VerifyTimelineEvent[] | null;
+  forensicCustodyEvents?: VerifyTimelineEvent[] | null;
+  accessCustodyEvents?: VerifyTimelineEvent[] | null;
+
+  overview?: VerifyOverview | null;
+  humanSummary?: VerifyHumanSummary | null;
+  reviewTrail?: VerifyReviewTrail | null;
+  technicalMaterials?: VerifyTechnicalMaterials | null;
+  storageAndTimestamping?: VerifyStorageAndTimestamping | null;
+  limitations?: VerifyLimitations | null;
 };
 
 type TimelineItem = {
+  sequence?: number | null;
   eventType: string;
   atUtc: string | null;
   payloadSummary: string | null;
@@ -155,6 +303,8 @@ type OtsDetails = {
   upgradedAtUtc: string | null;
   failureReason: string | null;
   proofBase64: string | null;
+  proofPresent: boolean | null;
+  hashMatchesFingerprintHash: boolean | null;
 };
 
 function formatDateTime(value?: string | null): string {
@@ -180,11 +330,12 @@ function normalizeEventLabel(value?: string | null): string {
 
 function extractTimestampStatus(data: VerifyResponse): string | null {
   const raw =
-    data.tsaStatus ??
-    data.timestampStatus ??
-    data.stampStatus ??
+    data.storageAndTimestamping?.tsa?.status ??
     data.tsa?.status ??
     data.timestamp?.status ??
+    data.tsaStatus ??
+    data.overview?.timestampStatus ??
+    data.humanSummary?.timestampStatus ??
     null;
 
   if (!raw || !String(raw).trim()) return null;
@@ -192,7 +343,14 @@ function extractTimestampStatus(data: VerifyResponse): string | null {
 }
 
 function extractOtsStatus(data: VerifyResponse): string | null {
-  const raw = data.ots?.status ?? data.otsStatus ?? null;
+  const raw =
+    data.storageAndTimestamping?.ots?.status ??
+    data.ots?.status ??
+    data.otsStatus ??
+    data.overview?.otsStatus ??
+    data.humanSummary?.otsStatus ??
+    null;
+
   if (!raw || !String(raw).trim()) return null;
   return String(raw).trim().toUpperCase();
 }
@@ -231,7 +389,8 @@ function statusTone(
     s === "SUCCEEDED" ||
     s === "SIGNED" ||
     s === "REPORTED" ||
-    s === "ANCHORED"
+    s === "ANCHORED" ||
+    s === "RECORDED_INTEGRITY_VERIFIED"
   ) {
     return {
       label: s || "VERIFIED",
@@ -241,9 +400,9 @@ function statusTone(
     };
   }
 
-  if (s === "PENDING") {
+  if (s === "PENDING" || s === "MATERIALS_AVAILABLE") {
     return {
-      label: "PENDING",
+      label: s || "AVAILABLE",
       bg: "#FFFAEB",
       color: "#B54708",
       border: "#FAD7A0",
@@ -272,7 +431,7 @@ function timestampTone(
 ): { label: string; tone: "success" | "warning" | "neutral" } {
   const s = (status ?? "").toUpperCase();
 
-  if (s === "STAMPED" || s === "GRANTED") {
+  if (s === "STAMPED" || s === "GRANTED" || s === "VERIFIED" || s === "SUCCEEDED") {
     return { label: s, tone: "success" };
   }
 
@@ -326,62 +485,59 @@ function firstNonEmpty(...values: Array<string | null | undefined>): string | nu
   return null;
 }
 
+function normalizeBool(value: unknown): boolean | null {
+  return typeof value === "boolean" ? value : null;
+}
+
 function buildTsaDetails(data: VerifyResponse) {
+  const tsa = data.storageAndTimestamping?.tsa ?? data.tsa ?? data.timestamp ?? null;
+
   return {
     status: extractTimestampStatus(data),
-    provider: firstNonEmpty(data.tsa?.provider, data.timestamp?.provider, data.tsaProvider),
-    genTimeUtc: firstNonEmpty(
-      data.tsa?.genTimeUtc,
-      data.timestamp?.genTimeUtc,
-      data.tsaGenTimeUtc
-    ),
-    url: firstNonEmpty(data.tsa?.url, data.timestamp?.url, data.tsaUrl),
-    serialNumber: firstNonEmpty(
-      data.tsa?.serialNumber,
-      data.timestamp?.serialNumber,
-      data.tsaSerialNumber
-    ),
-    hashAlgorithm: firstNonEmpty(
-      data.tsa?.hashAlgorithm,
-      data.timestamp?.hashAlgorithm,
-      data.tsaHashAlgorithm
-    ),
-    failureReason: firstNonEmpty(
-      data.tsa?.failureReason,
-      data.timestamp?.failureReason,
-      data.tsaFailureReason
-    ),
+    provider: firstNonEmpty(tsa?.provider, data.tsaProvider),
+    genTimeUtc: firstNonEmpty(tsa?.genTimeUtc, data.tsaGenTimeUtc),
+    url: firstNonEmpty(tsa?.url, data.tsaUrl),
+    serialNumber: firstNonEmpty(tsa?.serialNumber, data.tsaSerialNumber),
+    hashAlgorithm: firstNonEmpty(tsa?.hashAlgorithm, data.tsaHashAlgorithm),
+    failureReason: firstNonEmpty(tsa?.failureReason, data.tsaFailureReason),
     digestMatchesFileHash:
-      typeof data.tsa?.digestMatchesFileHash === "boolean"
-        ? data.tsa.digestMatchesFileHash
+      typeof tsa?.digestMatchesFileHash === "boolean"
+        ? tsa.digestMatchesFileHash
         : null,
   };
 }
 
 function buildOtsDetails(data: VerifyResponse): OtsDetails {
+  const ots = data.storageAndTimestamping?.ots ?? data.ots ?? null;
+
   return {
     status: extractOtsStatus(data),
-    hash: firstNonEmpty(data.ots?.hash, data.otsHash),
-    calendar: firstNonEmpty(data.ots?.calendar, data.otsCalendar),
-    bitcoinTxid: firstNonEmpty(data.ots?.bitcoinTxid, data.otsBitcoinTxid),
-    anchoredAtUtc: firstNonEmpty(data.ots?.anchoredAtUtc, data.otsAnchoredAtUtc),
-    upgradedAtUtc: firstNonEmpty(data.ots?.upgradedAtUtc, data.otsUpgradedAtUtc),
-    failureReason: firstNonEmpty(data.ots?.failureReason, data.otsFailureReason),
-    proofBase64: firstNonEmpty(data.ots?.proofBase64, data.otsProofBase64),
+    hash: firstNonEmpty(ots?.hash, data.otsHash),
+    calendar: firstNonEmpty(ots?.calendar, data.otsCalendar),
+    bitcoinTxid: firstNonEmpty(ots?.bitcoinTxid, data.otsBitcoinTxid),
+    anchoredAtUtc: firstNonEmpty(ots?.anchoredAtUtc, data.otsAnchoredAtUtc),
+    upgradedAtUtc: firstNonEmpty(ots?.upgradedAtUtc, data.otsUpgradedAtUtc),
+    failureReason: firstNonEmpty(ots?.failureReason, data.otsFailureReason),
+    proofBase64: firstNonEmpty(ots?.proofBase64, data.otsProofBase64),
+    proofPresent:
+      typeof ots?.proofPresent === "boolean"
+        ? ots.proofPresent
+        : data.technicalMaterials?.otsProofPresent === true
+          ? true
+          : firstNonEmpty(ots?.proofBase64, data.otsProofBase64)
+            ? true
+            : false,
+    hashMatchesFingerprintHash:
+      typeof ots?.hashMatchesFingerprintHash === "boolean"
+        ? ots.hashMatchesFingerprintHash
+        : typeof data.verification?.otsHashMatches === "boolean"
+          ? data.verification.otsHashMatches
+          : null,
   };
 }
 
 function buildStoragePresentation(
-  storage?:
-    | {
-        immutable?: boolean | null;
-        mode?: string | null;
-        retainUntil?: string | null;
-        legalHold?: string | null;
-        region?: string | null;
-        verified?: boolean | null;
-      }
-    | null
+  storage?: StorageProtection | null
 ): {
   badgeLabel: string;
   badgeTone: "success" | "warning" | "neutral" | "info";
@@ -428,7 +584,7 @@ function buildStoragePresentation(
     detailLabel: "Storage Protection",
     detailText:
       "Immutable storage metadata was not confirmed in the verification response.",
-    };
+  };
 }
 
 function buildOtsPresentation(ots: OtsDetails): {
@@ -781,15 +937,42 @@ export default function VerifyPage() {
   const [generatedAt, setGeneratedAt] = useState<string | null>(null);
   const [verifiedAt, setVerifiedAt] = useState<string | null>(null);
   const [reportVersion, setReportVersion] = useState<string | null>(null);
+  const [verificationPackageVersion, setVerificationPackageVersion] =
+    useState<string | null>(null);
+  const [reviewerSummaryVersion, setReviewerSummaryVersion] =
+    useState<string | null>(null);
+
   const [tsaStatus, setTsaStatus] = useState<string | null>(null);
   const [tsaProvider, setTsaProvider] = useState<string | null>(null);
   const [tsaGenTimeUtc, setTsaGenTimeUtc] = useState<string | null>(null);
   const [tsaSerialNumber, setTsaSerialNumber] = useState<string | null>(null);
   const [tsaHashAlgorithm, setTsaHashAlgorithm] = useState<string | null>(null);
   const [tsaFailureReason, setTsaFailureReason] = useState<string | null>(null);
+
   const [publicKeyPem, setPublicKeyPem] = useState<string | null>(null);
   const [verifyStatus, setVerifyStatus] = useState<string | null>(null);
+  const [verificationStatus, setVerificationStatus] = useState<string | null>(null);
   const [signingKeyId, setSigningKeyId] = useState<string | null>(null);
+  const [signingKeyVersion, setSigningKeyVersion] = useState<number | null>(null);
+
+  const [submittedByEmail, setSubmittedByEmail] = useState<string | null>(null);
+  const [authProvider, setAuthProvider] = useState<string | null>(null);
+  const [identityLevel, setIdentityLevel] = useState<string | null>(null);
+  const [workspaceName, setWorkspaceName] = useState<string | null>(null);
+  const [organizationName, setOrganizationName] = useState<string | null>(null);
+  const [organizationVerified, setOrganizationVerified] = useState<boolean | null>(
+    null
+  );
+
+  const [externalPublicationPresent, setExternalPublicationPresent] = useState<
+    boolean | null
+  >(null);
+  const [externalPublicationProvider, setExternalPublicationProvider] =
+    useState<string | null>(null);
+  const [externalPublicationUrl, setExternalPublicationUrl] =
+    useState<string | null>(null);
+  const [externalPublicationAnchoredAtUtc, setExternalPublicationAnchoredAtUtc] =
+    useState<string | null>(null);
 
   const [otsStatus, setOtsStatus] = useState<string | null>(null);
   const [otsHash, setOtsHash] = useState<string | null>(null);
@@ -806,9 +989,14 @@ export default function VerifyPage() {
   const [custodyChainMode, setCustodyChainMode] = useState<string | null>(null);
   const [custodyChainFailureReason, setCustodyChainFailureReason] = useState<string | null>(null);
   const [timestampDigestMatches, setTimestampDigestMatches] = useState<boolean | null>(null);
+  const [otsHashMatches, setOtsHashMatches] = useState<boolean | null>(null);
   const [overallIntegrity, setOverallIntegrity] = useState<boolean | null>(null);
 
   const [storageProtection, setStorageProtection] = useState<StorageProtection | null>(null);
+
+  const [overview, setOverview] = useState<VerifyOverview | null>(null);
+  const [humanSummary, setHumanSummary] = useState<VerifyHumanSummary | null>(null);
+  const [limitations, setLimitations] = useState<VerifyLimitations | null>(null);
 
   const pollingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const hasShownAnchoredToastRef = useRef(false);
@@ -825,7 +1013,11 @@ export default function VerifyPage() {
     const tsaDetails = buildTsaDetails(data);
     const otsDetails = buildOtsDetails(data);
 
+    const reviewTrailForensic = data.reviewTrail?.forensicCustodyEvents ?? null;
+    const reviewTrailAccess = data.reviewTrail?.accessCustodyEvents ?? null;
+
     const rawTimeline: TimelineItem[] = (data.custodyEvents ?? []).map((ev) => ({
+      sequence: ev.sequence ?? null,
       eventType: ev.eventType ?? "UNKNOWN_EVENT",
       atUtc: ev.atUtc ?? null,
       payloadSummary: ev.payloadSummary ?? null,
@@ -835,8 +1027,9 @@ export default function VerifyPage() {
     }));
 
     const forensicOnly: TimelineItem[] =
-      data.forensicCustodyEvents && data.forensicCustodyEvents.length > 0
-        ? data.forensicCustodyEvents.map((ev) => ({
+      reviewTrailForensic && reviewTrailForensic.length > 0
+        ? reviewTrailForensic.map((ev) => ({
+            sequence: ev.sequence ?? null,
             eventType: ev.eventType ?? "UNKNOWN_EVENT",
             atUtc: ev.atUtc ?? null,
             payloadSummary: ev.payloadSummary ?? null,
@@ -844,11 +1037,22 @@ export default function VerifyPage() {
             eventHash: ev.eventHash ?? null,
             category: ev.category ?? "forensic",
           }))
-        : rawTimeline.filter((item) => item.category !== "access");
+        : data.forensicCustodyEvents && data.forensicCustodyEvents.length > 0
+          ? data.forensicCustodyEvents.map((ev) => ({
+              sequence: ev.sequence ?? null,
+              eventType: ev.eventType ?? "UNKNOWN_EVENT",
+              atUtc: ev.atUtc ?? null,
+              payloadSummary: ev.payloadSummary ?? null,
+              prevEventHash: ev.prevEventHash ?? null,
+              eventHash: ev.eventHash ?? null,
+              category: ev.category ?? "forensic",
+            }))
+          : rawTimeline.filter((item) => item.category !== "access");
 
     const accessOnly: TimelineItem[] =
-      data.accessCustodyEvents && data.accessCustodyEvents.length > 0
-        ? data.accessCustodyEvents.map((ev) => ({
+      reviewTrailAccess && reviewTrailAccess.length > 0
+        ? reviewTrailAccess.map((ev) => ({
+            sequence: ev.sequence ?? null,
             eventType: ev.eventType ?? "UNKNOWN_EVENT",
             atUtc: ev.atUtc ?? null,
             payloadSummary: ev.payloadSummary ?? null,
@@ -856,42 +1060,199 @@ export default function VerifyPage() {
             eventHash: ev.eventHash ?? null,
             category: ev.category ?? "access",
           }))
-        : rawTimeline.filter((item) => item.category === "access");
+        : data.accessCustodyEvents && data.accessCustodyEvents.length > 0
+          ? data.accessCustodyEvents.map((ev) => ({
+              sequence: ev.sequence ?? null,
+              eventType: ev.eventType ?? "UNKNOWN_EVENT",
+              atUtc: ev.atUtc ?? null,
+              payloadSummary: ev.payloadSummary ?? null,
+              prevEventHash: ev.prevEventHash ?? null,
+              eventHash: ev.eventHash ?? null,
+              category: ev.category ?? "access",
+            }))
+          : rawTimeline.filter((item) => item.category === "access");
+
+    const effectiveOverview = data.overview ?? null;
+    const effectiveHumanSummary = data.humanSummary ?? null;
 
     const generatedAtFallback =
+      effectiveOverview?.reportGeneratedAtUtc ??
+      effectiveHumanSummary?.reportGeneratedAtUtc ??
       data.reportGeneratedAtUtc ??
       data.generatedAtUtc ??
       findEventTime(forensicOnly, ["REPORT_GENERATED"]) ??
       null;
 
     const verifiedAtFallback =
+      effectiveOverview?.lastVerifiedAtUtc ??
+      effectiveHumanSummary?.lastVerifiedAtUtc ??
       data.verifiedAtUtc ??
       data.verificationCheckedAtUtc ??
-      findEventTime(forensicOnly, ["SIGNATURE_APPLIED"]) ??
       null;
 
-    setHash(data.fileSha256 ?? null);
-    setFingerprintHash(data.fingerprintHash ?? null);
-    setSignature(data.signatureBase64 ?? null);
-    setVerifyStatus(data.status ?? "REPORTED");
-    setTitle(data.title ?? null);
-    setEvidenceId(data.evidenceId ?? data.id ?? params?.token ?? null);
-    setMimeType(data.mimeType ?? null);
+    const effectiveEvidenceId =
+      effectiveOverview?.evidenceId ??
+      effectiveHumanSummary?.evidenceId ??
+      data.evidenceId ??
+      data.id ??
+      params?.token ??
+      null;
+
+    const effectiveTitle =
+      effectiveOverview?.evidenceTitle ??
+      effectiveHumanSummary?.evidenceTitle ??
+      data.title ??
+      "Digital Evidence Record";
+
+    const effectiveMimeType =
+      effectiveOverview?.mimeType ??
+      effectiveHumanSummary?.fileType ??
+      data.mimeType ??
+      null;
+
+    const effectiveReportVersion =
+      effectiveOverview?.reportVersion ??
+      effectiveHumanSummary?.reportVersion ??
+      (data.reportVersion !== undefined && data.reportVersion !== null
+        ? Number(data.reportVersion)
+        : null);
+
+    const effectiveRecordStatus =
+      effectiveOverview?.recordStatus ??
+      effectiveHumanSummary?.recordStatus ??
+      data.status ??
+      "REPORTED";
+
+    const effectiveVerificationStatus =
+      effectiveOverview?.verificationStatus ?? data.verificationStatus ?? null;
+
+    const effectiveIdentity = data.identity ?? null;
+
+    setHash(data.technicalMaterials?.fileSha256 ?? data.fileSha256 ?? null);
+    setFingerprintHash(
+      data.technicalMaterials?.fingerprintHash ?? data.fingerprintHash ?? null
+    );
+    setSignature(
+      data.technicalMaterials?.signatureBase64 ?? data.signatureBase64 ?? null
+    );
+    setVerifyStatus(effectiveRecordStatus);
+    setVerificationStatus(effectiveVerificationStatus);
+    setTitle(effectiveTitle);
+    setEvidenceId(effectiveEvidenceId);
+    setMimeType(effectiveMimeType);
     setGeneratedAt(generatedAtFallback);
     setVerifiedAt(verifiedAtFallback);
     setReportVersion(
-      data.reportVersion !== undefined && data.reportVersion !== null
-        ? String(data.reportVersion)
+      effectiveReportVersion !== undefined &&
+        effectiveReportVersion !== null &&
+        Number.isFinite(Number(effectiveReportVersion))
+        ? String(effectiveReportVersion)
         : null
     );
+    setVerificationPackageVersion(
+      effectiveOverview?.verificationPackageVersion != null
+        ? String(effectiveOverview.verificationPackageVersion)
+        : effectiveHumanSummary?.verificationPackageVersion != null
+          ? String(effectiveHumanSummary.verificationPackageVersion)
+          : null
+    );
+    setReviewerSummaryVersion(
+      effectiveOverview?.reviewerSummaryVersion != null
+        ? String(effectiveOverview.reviewerSummaryVersion)
+        : effectiveHumanSummary?.reviewerSummaryVersion != null
+          ? String(effectiveHumanSummary.reviewerSummaryVersion)
+          : null
+    );
+
     setTsaStatus(tsaDetails.status);
     setTsaProvider(tsaDetails.provider);
     setTsaGenTimeUtc(tsaDetails.genTimeUtc);
     setTsaSerialNumber(tsaDetails.serialNumber);
     setTsaHashAlgorithm(tsaDetails.hashAlgorithm);
     setTsaFailureReason(tsaDetails.failureReason);
-    setPublicKeyPem(data.publicKeyPem ?? null);
-    setSigningKeyId(data.signingKeyId ?? null);
+
+    setPublicKeyPem(
+      data.technicalMaterials?.publicKeyPem ?? data.publicKeyPem ?? null
+    );
+    setSigningKeyId(
+      data.technicalMaterials?.signingKeyId ?? data.signingKeyId ?? null
+    );
+    setSigningKeyVersion(
+      data.technicalMaterials?.signingKeyVersion ??
+        data.signingKeyVersion ??
+        null
+    );
+
+    setSubmittedByEmail(
+      effectiveHumanSummary?.submittedBy ??
+        effectiveOverview?.submittedByEmail ??
+        effectiveIdentity?.submittedByEmail ??
+        null
+    );
+    setAuthProvider(
+      effectiveHumanSummary?.authProvider ??
+        effectiveOverview?.submittedByAuthProvider ??
+        effectiveIdentity?.submittedByAuthProviderLabel ??
+        effectiveIdentity?.submittedByAuthProvider ??
+        null
+    );
+    setIdentityLevel(
+      effectiveHumanSummary?.identityLevel ??
+        effectiveOverview?.identityLevel ??
+        effectiveIdentity?.identityLevelLabel ??
+        effectiveIdentity?.identityLevel ??
+        null
+    );
+    setWorkspaceName(
+      effectiveHumanSummary?.workspace ??
+        effectiveOverview?.workspaceName ??
+        effectiveIdentity?.workspaceName ??
+        null
+    );
+    setOrganizationName(
+      effectiveHumanSummary?.organization ??
+        effectiveOverview?.organizationName ??
+        effectiveIdentity?.organizationName ??
+        null
+    );
+    setOrganizationVerified(
+      typeof effectiveHumanSummary?.organizationVerified === "boolean"
+        ? effectiveHumanSummary.organizationVerified
+        : typeof effectiveOverview?.organizationVerified === "boolean"
+          ? effectiveOverview.organizationVerified
+          : typeof effectiveIdentity?.organizationVerified === "boolean"
+            ? effectiveIdentity.organizationVerified
+            : null
+    );
+
+    setExternalPublicationPresent(
+      typeof effectiveHumanSummary?.externalPublicationPresent === "boolean"
+        ? effectiveHumanSummary.externalPublicationPresent
+        : typeof effectiveOverview?.externalPublicationPresent === "boolean"
+          ? effectiveOverview.externalPublicationPresent
+          : typeof data.anchor?.published === "boolean"
+            ? data.anchor.published
+            : null
+    );
+    setExternalPublicationProvider(
+      effectiveHumanSummary?.externalPublicationProvider ??
+        effectiveOverview?.externalPublicationProvider ??
+        data.anchor?.provider ??
+        null
+    );
+    setExternalPublicationUrl(
+      effectiveHumanSummary?.externalPublicationUrl ??
+        effectiveOverview?.externalPublicationUrl ??
+        data.anchor?.publicUrl ??
+        null
+    );
+    setExternalPublicationAnchoredAtUtc(
+      effectiveHumanSummary?.externalPublicationAnchoredAtUtc ??
+        effectiveOverview?.externalPublicationAnchoredAtUtc ??
+        data.anchor?.anchoredAtUtc ??
+        null
+    );
+
     setForensicTimeline(forensicOnly);
     setAccessTimeline(accessOnly);
 
@@ -930,26 +1291,32 @@ export default function VerifyPage() {
           ? tsaDetails.digestMatchesFileHash
           : null
     );
+    setOtsHashMatches(
+      typeof data.verification?.otsHashMatches === "boolean"
+        ? data.verification.otsHashMatches
+        : otsDetails.hashMatchesFingerprintHash
+    );
     setOverallIntegrity(
       typeof data.verification?.overallIntegrity === "boolean"
         ? data.verification.overallIntegrity
         : null
     );
 
+    const storage =
+      data.storageAndTimestamping?.storage ?? data.storage ?? null;
+
     setStorageProtection({
-      immutable:
-        typeof data.storage?.immutable === "boolean"
-          ? data.storage.immutable
-          : null,
-      mode: data.storage?.mode ?? null,
-      retainUntil: data.storage?.retainUntil ?? null,
-      legalHold: data.storage?.legalHold ?? null,
-      region: data.storage?.region ?? null,
-      verified:
-        typeof data.storage?.verified === "boolean"
-          ? data.storage.verified
-          : null,
+      immutable: normalizeBool(storage?.immutable),
+      mode: storage?.mode ?? null,
+      retainUntil: storage?.retainUntil ?? null,
+      legalHold: storage?.legalHold ?? null,
+      region: storage?.region ?? null,
+      verified: normalizeBool(storage?.verified),
     });
+
+    setOverview(effectiveOverview);
+    setHumanSummary(effectiveHumanSummary);
+    setLimitations(data.limitations ?? null);
 
     return otsDetails;
   };
@@ -976,7 +1343,7 @@ export default function VerifyPage() {
         const data = await apiFetch(`/public/verify/${params.token}`);
         if (cancelled || !isMountedRef.current) return;
 
-        const otsDetails = applyVerifyResponse(data);
+        const otsDetails = applyVerifyResponse(data as VerifyResponse);
 
         if (!background) {
           setError(null);
@@ -1048,6 +1415,8 @@ export default function VerifyPage() {
         upgradedAtUtc: otsUpgradedAtUtc,
         failureReason: otsFailureReason,
         proofBase64: otsProofBase64,
+        proofPresent: otsProofBase64 ? true : null,
+        hashMatchesFingerprintHash: otsHashMatches,
       }),
     [
       otsStatus,
@@ -1058,6 +1427,7 @@ export default function VerifyPage() {
       otsUpgradedAtUtc,
       otsFailureReason,
       otsProofBase64,
+      otsHashMatches,
     ]
   );
 
@@ -1070,6 +1440,32 @@ export default function VerifyPage() {
     () => sanitizeOtsFailureTechnical(otsFailureReason),
     [otsFailureReason]
   );
+
+  const heroIntegrityHeadline = useMemo(() => {
+    return (
+      humanSummary?.integrityStatus ??
+      overview?.integrityHeadline ??
+      (overallIntegrity === true
+        ? "Recorded Integrity Verified"
+        : overallIntegrity === false
+          ? "Recorded Integrity Review Required"
+          : "Recorded Integrity Materials Available")
+    );
+  }, [humanSummary?.integrityStatus, overview?.integrityHeadline, overallIntegrity]);
+
+  const heroSummaryText = useMemo(() => {
+    return (
+      humanSummary?.summary ??
+      "This page shows whether the recorded fingerprint, signature, timestamp linkage, hashed custody chain, OpenTimestamps status, immutable storage protection, and external publication state pass technical verification checks. It does not by itself prove authorship, factual truth, or legal admissibility of the underlying content."
+    );
+  }, [humanSummary?.summary]);
+
+  const heroWhatIsVerifiedText = useMemo(() => {
+    return (
+      humanSummary?.whatIsVerified ??
+      "This page verifies the recorded integrity state of the evidence record. It does not independently prove factual truth, authorship, context, or legal admissibility."
+    );
+  }, [humanSummary?.whatIsVerified]);
 
   const verificationBadges = useMemo(() => {
     const items: Array<{
@@ -1163,6 +1559,22 @@ export default function VerifyPage() {
     });
 
     items.push({
+      label:
+        otsHashMatches === true
+          ? "OTS Hash Matches"
+          : otsHashMatches === false
+            ? "OTS Hash Mismatch"
+            : "OTS Hash Unavailable",
+      tone:
+        otsHashMatches === true
+          ? "success"
+          : otsHashMatches === false
+            ? "warning"
+            : "neutral",
+      show: true,
+    });
+
+    items.push({
       label: otsPresentation.badgeLabel,
       tone: otsPresentation.badgeTone,
       show: true,
@@ -1174,6 +1586,14 @@ export default function VerifyPage() {
       show: true,
     });
 
+    if (externalPublicationPresent === true) {
+      items.push({
+        label: "External Publication Recorded",
+        tone: "success",
+        show: true,
+      });
+    }
+
     return items.filter((item) => item.show);
   }, [
     overallIntegrity,
@@ -1182,8 +1602,10 @@ export default function VerifyPage() {
     custodyChainValid,
     custodyChainMode,
     timestampDigestMatches,
+    otsHashMatches,
     otsPresentation,
     storagePresentation,
+    externalPublicationPresent,
   ]);
 
   const summaryFields = useMemo(
@@ -1191,23 +1613,157 @@ export default function VerifyPage() {
       [
         {
           label: "Record Status",
-          value: statusTone(verifyStatus).label,
+          value: overview?.recordStatus ?? statusTone(verifyStatus).label,
+          show: true,
+        },
+        {
+          label: "Verification Status",
+          value: verificationStatus ?? "N/A",
+          show: Boolean(verificationStatus),
+        },
+        {
+          label: "Integrity Status",
+          value: heroIntegrityHeadline,
           show: true,
         },
         {
           label: "Evidence Title",
-          value: title ?? "Digital Evidence Record",
+          value:
+            humanSummary?.evidenceTitle ??
+            overview?.evidenceTitle ??
+            title ??
+            "Digital Evidence Record",
           show: true,
         },
         {
           label: "Evidence ID",
-          value: evidenceId ?? params?.token ?? "N/A",
+          value:
+            humanSummary?.evidenceId ??
+            overview?.evidenceId ??
+            evidenceId ??
+            params?.token ??
+            "N/A",
           show: true,
         },
         {
+          label: "Evidence Type",
+          value:
+            humanSummary?.evidenceType ??
+            overview?.evidenceType ??
+            "Evidence",
+          show: true,
+        },
+        {
+          label: "Evidence Structure",
+          value:
+            humanSummary?.evidenceStructure ??
+            overview?.evidenceStructure ??
+            "N/A",
+          show: Boolean(
+            humanSummary?.evidenceStructure ?? overview?.evidenceStructure
+          ),
+        },
+        {
+          label: "Capture Method",
+          value:
+            humanSummary?.captureMethod ??
+            overview?.captureMethod ??
+            "N/A",
+          show: Boolean(humanSummary?.captureMethod ?? overview?.captureMethod),
+        },
+        {
+          label: "Submitted By",
+          value: submittedByEmail ?? "N/A",
+          show: Boolean(submittedByEmail),
+        },
+        {
+          label: "Auth Provider",
+          value: authProvider ?? "N/A",
+          show: Boolean(authProvider),
+        },
+        {
+          label: "Identity Level",
+          value: identityLevel ?? "N/A",
+          show: Boolean(identityLevel),
+        },
+        {
+          label: "Workspace",
+          value: workspaceName ?? "N/A",
+          show: Boolean(workspaceName),
+        },
+        {
+          label: "Organization",
+          value: organizationName ?? "N/A",
+          show: Boolean(organizationName),
+        },
+        {
+          label: "Organization Verified",
+          value:
+            organizationVerified === true
+              ? "Yes"
+              : organizationVerified === false
+                ? "No"
+                : "N/A",
+          show: organizationVerified !== null,
+        },
+        {
           label: "Report Version",
-          value: reportVersion ?? "N/A",
-          show: Boolean(reportVersion),
+          value:
+            reportVersion ??
+            (overview?.reportVersion != null
+              ? String(overview.reportVersion)
+              : "N/A"),
+          show: Boolean(reportVersion || overview?.reportVersion != null),
+        },
+        {
+          label: "Verification Package Version",
+          value: verificationPackageVersion ?? "N/A",
+          show: Boolean(verificationPackageVersion),
+        },
+        {
+          label: "Reviewer Summary Version",
+          value: reviewerSummaryVersion ?? "N/A",
+          show: Boolean(reviewerSummaryVersion),
+        },
+        {
+          label: "Created At",
+          value:
+            humanSummary?.createdAt
+              ? formatDateTime(humanSummary.createdAt)
+              : overview?.createdAt
+                ? formatDateTime(overview.createdAt)
+                : "N/A",
+          show: Boolean(humanSummary?.createdAt ?? overview?.createdAt),
+        },
+        {
+          label: "Captured At",
+          value:
+            humanSummary?.capturedAtUtc
+              ? formatDateTime(humanSummary.capturedAtUtc)
+              : overview?.capturedAtUtc
+                ? formatDateTime(overview.capturedAtUtc)
+                : "N/A",
+          show: Boolean(humanSummary?.capturedAtUtc ?? overview?.capturedAtUtc),
+        },
+        {
+          label: "Uploaded At",
+          value:
+            humanSummary?.uploadedAtUtc
+              ? formatDateTime(humanSummary.uploadedAtUtc)
+              : overview?.uploadedAtUtc
+                ? formatDateTime(overview.uploadedAtUtc)
+                : "N/A",
+          show: Boolean(humanSummary?.uploadedAtUtc ?? overview?.uploadedAtUtc),
+        },
+        {
+          label: "Signed At",
+          value:
+            humanSummary?.signedAtUtc
+              ? formatDateTime(humanSummary.signedAtUtc)
+              : overview?.signedAtUtc
+                ? formatDateTime(overview.signedAtUtc)
+                : "N/A",
+          show: Boolean(humanSummary?.signedAtUtc ?? overview?.signedAtUtc),
         },
         {
           label: "Generated At",
@@ -1215,25 +1771,72 @@ export default function VerifyPage() {
           show: Boolean(generatedAt),
         },
         {
-          label: "Verification Checked At",
+          label: "Last Verified At",
           value: verifiedAt ? formatDateTime(verifiedAt) : "N/A",
           show: Boolean(verifiedAt),
         },
         {
           label: "File Type",
-          value: mimeType ?? "N/A",
-          show: Boolean(mimeType),
+          value:
+            humanSummary?.fileType ??
+            overview?.mimeType ??
+            mimeType ??
+            "N/A",
+          show: Boolean(humanSummary?.fileType ?? overview?.mimeType ?? mimeType),
+        },
+        {
+          label: "Timestamp Status",
+          value:
+            humanSummary?.timestampStatus ??
+            overview?.timestampStatus ??
+            tsaStatus ??
+            "N/A",
+          show: Boolean(
+            humanSummary?.timestampStatus ?? overview?.timestampStatus ?? tsaStatus
+          ),
+        },
+        {
+          label: "OTS Status",
+          value:
+            humanSummary?.otsStatus ??
+            overview?.otsStatus ??
+            otsStatus ??
+            "N/A",
+          show: Boolean(humanSummary?.otsStatus ?? overview?.otsStatus ?? otsStatus),
+        },
+        {
+          label: "Storage Protection",
+          value:
+            humanSummary?.storageProtection ??
+            overview?.storageProtection ??
+            storagePresentation.badgeLabel,
+          show: true,
         },
       ].filter((item) => item.show),
     [
+      overview,
+      humanSummary,
       verifyStatus,
+      verificationStatus,
+      heroIntegrityHeadline,
       title,
       evidenceId,
       params?.token,
+      submittedByEmail,
+      authProvider,
+      identityLevel,
+      workspaceName,
+      organizationName,
+      organizationVerified,
       reportVersion,
+      verificationPackageVersion,
+      reviewerSummaryVersion,
       generatedAt,
       verifiedAt,
       mimeType,
+      tsaStatus,
+      otsStatus,
+      storagePresentation.badgeLabel,
     ]
   );
 
@@ -1365,6 +1968,12 @@ export default function VerifyPage() {
           show: Boolean(signingKeyId),
         },
         {
+          label: "Signing Key Version",
+          content:
+            signingKeyVersion != null ? String(signingKeyVersion) : null,
+          show: signingKeyVersion != null,
+        },
+        {
           label: "OTS Calendar",
           content: otsCalendar ?? null,
           show: Boolean(otsCalendar),
@@ -1373,6 +1982,59 @@ export default function VerifyPage() {
           label: "OTS Anchored At",
           content: otsAnchoredAtUtc ? formatDateTime(otsAnchoredAtUtc) : null,
           show: Boolean(otsAnchoredAtUtc),
+        },
+        {
+          label: "OTS Upgraded At",
+          content: otsUpgradedAtUtc ? formatDateTime(otsUpgradedAtUtc) : null,
+          show: Boolean(otsUpgradedAtUtc),
+        },
+        {
+          label: "OTS Hash Check",
+          content: (
+            <Badge
+              label={
+                otsHashMatches === true
+                  ? "Hash Matches"
+                  : otsHashMatches === false
+                    ? "Hash Mismatch"
+                    : "Unavailable"
+              }
+              tone={
+                otsHashMatches === true
+                  ? "success"
+                  : otsHashMatches === false
+                    ? "warning"
+                    : "neutral"
+              }
+            />
+          ),
+          show: true,
+        },
+        {
+          label: "External Publication",
+          content: (
+            <Badge
+              label={
+                externalPublicationPresent === true
+                  ? "Published"
+                  : "Not Published"
+              }
+              tone={externalPublicationPresent === true ? "success" : "neutral"}
+            />
+          ),
+          show: externalPublicationPresent !== null,
+        },
+        {
+          label: "Anchor Provider",
+          content: externalPublicationProvider ?? null,
+          show: Boolean(externalPublicationProvider),
+        },
+        {
+          label: "Anchor Time",
+          content: externalPublicationAnchoredAtUtc
+            ? formatDateTime(externalPublicationAnchoredAtUtc)
+            : null,
+          show: Boolean(externalPublicationAnchoredAtUtc),
         },
       ].filter((item) => item.show),
     [
@@ -1384,6 +2046,8 @@ export default function VerifyPage() {
       otsStatus,
       otsCalendar,
       otsAnchoredAtUtc,
+      otsUpgradedAtUtc,
+      otsHashMatches,
       storagePresentation,
       tsaStatus,
       tsaProvider,
@@ -1391,12 +2055,16 @@ export default function VerifyPage() {
       tsaSerialNumber,
       tsaHashAlgorithm,
       signingKeyId,
+      signingKeyVersion,
+      externalPublicationPresent,
+      externalPublicationProvider,
+      externalPublicationAnchoredAtUtc,
     ]
   );
 
-const heroTitleSize = "clamp(1.65rem, 3vw, 2.6rem)";
-const heroTextSize = "clamp(0.92rem, 1.15vw, 1rem)";
-const cardTitleSize = "clamp(1.45rem, 2.2vw, 1.95rem)";
+  const heroTitleSize = "clamp(1.65rem, 3vw, 2.6rem)";
+  const heroTextSize = "clamp(0.92rem, 1.15vw, 1rem)";
+  const cardTitleSize = "clamp(1.45rem, 2.2vw, 1.95rem)";
 
   return (
     <div className="page">
@@ -1555,8 +2223,9 @@ const cardTitleSize = "clamp(1.45rem, 2.2vw, 1.95rem)";
                 }}
               >
                 Review recorded integrity status, cryptographic materials, immutable
-                storage protection, timestamp evidence, OpenTimestamps proofing, and
-                the custody timeline associated with this evidence record.
+                storage protection, timestamp evidence, OpenTimestamps proofing,
+                verification history, and custody timeline associated with this
+                evidence record.
               </p>
             </div>
 
@@ -1620,7 +2289,7 @@ const cardTitleSize = "clamp(1.45rem, 2.2vw, 1.95rem)";
             <Card>
               <EmptyState
                 title="Evidence Not Found"
-                subtitle="The evidence token is invalid or has expired."
+                subtitle="The evidence token is invalid, unavailable, or no verification materials were returned."
                 action={() => (
                   <Button onClick={() => (window.location.href = "/")}>
                     Back to Home
@@ -1704,11 +2373,7 @@ const cardTitleSize = "clamp(1.45rem, 2.2vw, 1.95rem)";
                             wordBreak: "break-word",
                           }}
                         >
-                          {overallIntegrity === true
-                            ? "Integrity Verified"
-                            : overallIntegrity === false
-                              ? "Integrity Review Required"
-                              : "Integrity Materials Available"}
+                          {heroIntegrityHeadline}
                         </div>
                         <div
                           style={{
@@ -1718,12 +2383,7 @@ const cardTitleSize = "clamp(1.45rem, 2.2vw, 1.95rem)";
                             maxWidth: 760,
                           }}
                         >
-                          This page shows whether the recorded fingerprint,
-                          signature, timestamp linkage, hashed custody chain,
-                          OpenTimestamps status, immutable storage protection, and
-                          anchor-ready or published state pass technical verification
-                          checks. It does not by itself prove authorship, factual truth,
-                          or legal admissibility of the underlying content.
+                          {heroSummaryText}
                         </div>
                       </div>
                     </div>
@@ -1755,6 +2415,37 @@ const cardTitleSize = "clamp(1.45rem, 2.2vw, 1.95rem)";
                     {verificationBadges.map((item) => (
                       <Badge key={item.label} label={item.label} tone={item.tone} />
                     ))}
+                  </div>
+
+                  <div
+                    style={{
+                      border: "1px solid #E4E7EC",
+                      background: "#FCFCFD",
+                      borderRadius: 16,
+                      padding: 16,
+                    }}
+                  >
+                    <div
+                      style={{
+                        fontSize: 12,
+                        color: "#667085",
+                        fontWeight: 800,
+                        marginBottom: 8,
+                      }}
+                    >
+                      What this verifies
+                    </div>
+                    <div
+                      style={{
+                        fontSize: 13,
+                        color: "#475467",
+                        lineHeight: 1.65,
+                        wordBreak: "break-word",
+                        overflowWrap: "anywhere",
+                      }}
+                    >
+                      {heroWhatIsVerifiedText}
+                    </div>
                   </div>
 
                   <div
@@ -1889,6 +2580,66 @@ const cardTitleSize = "clamp(1.45rem, 2.2vw, 1.95rem)";
                     )}
                   </div>
 
+                  {externalPublicationPresent === true ? (
+                    <div
+                      style={{
+                        border: "1px solid #D1FADF",
+                        background: "#F6FEF9",
+                        borderRadius: 16,
+                        padding: 16,
+                        display: "grid",
+                        gap: 8,
+                      }}
+                    >
+                      <div
+                        style={{
+                          fontSize: 12,
+                          color: "#067647",
+                          fontWeight: 800,
+                        }}
+                      >
+                        External Publication
+                      </div>
+                      <div
+                        style={{
+                          fontSize: 13,
+                          color: "#065F46",
+                          lineHeight: 1.6,
+                        }}
+                      >
+                        This evidence record includes external publication metadata.
+                        That means an external publication or anchor receipt has been
+                        recorded for this integrity state.
+                      </div>
+                      {externalPublicationProvider ? (
+                        <div style={{ fontSize: 12, color: "#065F46" }}>
+                          Provider: {externalPublicationProvider}
+                        </div>
+                      ) : null}
+                      {externalPublicationAnchoredAtUtc ? (
+                        <div style={{ fontSize: 12, color: "#065F46" }}>
+                          Anchored At: {formatDateTime(externalPublicationAnchoredAtUtc)}
+                        </div>
+                      ) : null}
+                      {externalPublicationUrl ? (
+                        <a
+                          href={externalPublicationUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          style={{
+                            fontSize: 12,
+                            color: "#175CD3",
+                            fontWeight: 700,
+                            textDecoration: "underline",
+                            wordBreak: "break-all",
+                          }}
+                        >
+                          Open publication record
+                        </a>
+                      ) : null}
+                    </div>
+                  ) : null}
+
                   {custodyChainFailureReason ? (
                     <div
                       style={{
@@ -1919,6 +2670,51 @@ const cardTitleSize = "clamp(1.45rem, 2.2vw, 1.95rem)";
                       >
                         Custody chain check reported: {custodyChainFailureReason}
                       </div>
+                    </div>
+                  ) : null}
+
+                  {limitations?.short || limitations?.detailed ? (
+                    <div
+                      style={{
+                        border: "1px solid #FEDF89",
+                        background: "#FFFAEB",
+                        borderRadius: 16,
+                        padding: 16,
+                        display: "grid",
+                        gap: 8,
+                      }}
+                    >
+                      <div
+                        style={{
+                          fontSize: 12,
+                          color: "#B54708",
+                          fontWeight: 800,
+                        }}
+                      >
+                        Important limitation
+                      </div>
+                      {limitations?.short ? (
+                        <div
+                          style={{
+                            fontSize: 13,
+                            color: "#7A2E0E",
+                            lineHeight: 1.6,
+                          }}
+                        >
+                          {limitations.short}
+                        </div>
+                      ) : null}
+                      {limitations?.detailed ? (
+                        <div
+                          style={{
+                            fontSize: 13,
+                            color: "#7A2E0E",
+                            lineHeight: 1.6,
+                          }}
+                        >
+                          {limitations.detailed}
+                        </div>
+                      ) : null}
                     </div>
                   ) : null}
                 </div>
@@ -1953,7 +2749,7 @@ const cardTitleSize = "clamp(1.45rem, 2.2vw, 1.95rem)";
                         color: "#667085",
                       }}
                     >
-                      Core identification and verification metadata for this record.
+                      Core identification, lifecycle, and verification metadata for this record.
                     </div>
                   </div>
                 </div>
@@ -2005,8 +2801,9 @@ const cardTitleSize = "clamp(1.45rem, 2.2vw, 1.95rem)";
                         maxWidth: 760,
                       }}
                     >
-                      Review cryptographic identifiers, timestamp evidence, and
-                      OpenTimestamps materials recorded for this evidence item.
+                      Review cryptographic identifiers, signing materials,
+                      timestamp evidence, and OpenTimestamps materials recorded
+                      for this evidence item.
                     </div>
                   </div>
                 </div>
@@ -2450,7 +3247,7 @@ const cardTitleSize = "clamp(1.45rem, 2.2vw, 1.95rem)";
                           color: "#667085",
                         }}
                       >
-                        Access-related viewing and download events are shown separately from the forensic custody chain.
+                        Access-related viewing, download, and technical verification events are shown separately from the forensic custody chain.
                       </div>
                     </div>
 
@@ -2612,31 +3409,40 @@ const cardTitleSize = "clamp(1.45rem, 2.2vw, 1.95rem)";
                         color: "#667085",
                       }}
                     >
-                      Copy the verification link for reference or sharing.
+                      Copy the verification link or open the external publication record when available.
                     </div>
                   </div>
                 </div>
 
                 <div
                   style={{
-                    display: "flex",
-                    justifyContent: "center",
-                    alignItems: "center",
+                    display: "grid",
+                    gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+                    gap: 12,
                     marginTop: 8,
                   }}
                 >
-                  <div style={{ width: "100%", maxWidth: 460 }}>
-                    <Button
-                      onClick={() => {
-                        const url = window.location.href;
-                        navigator.clipboard.writeText(url);
-                        addToast("Verification link copied", "success");
-                      }}
-                      variant="secondary"
+                  <Button
+                    onClick={() => {
+                      const url = window.location.href;
+                      navigator.clipboard.writeText(url);
+                      addToast("Verification link copied", "success");
+                    }}
+                    variant="secondary"
+                  >
+                    Copy Verification Link
+                  </Button>
+
+                  {externalPublicationUrl ? (
+                    <a
+                      href={externalPublicationUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      style={{ textDecoration: "none" }}
                     >
-                      Copy Verification Link
-                    </Button>
-                  </div>
+                      <Button variant="secondary">Open External Publication</Button>
+                    </a>
+                  ) : null}
                 </div>
               </Card>
             </div>
