@@ -19,7 +19,7 @@ function SilverCardShell({
 }) {
   return (
     <div
-      className={`landing-v2-card group relative overflow-hidden rounded-[24px] sm:rounded-[28px] border border-[#4f706b]/44 shadow-[0_18px_38px_rgba(0,0,0,0.07),inset_0_1px_0_rgba(255,255,255,0.48)] ${className}`}
+      className={`landing-v2-card group relative overflow-hidden rounded-[24px] border border-[#4f706b]/44 shadow-[0_18px_38px_rgba(0,0,0,0.07),inset_0_1px_0_rgba(255,255,255,0.48)] ${className}`}
     >
       <img
         src="/images/panel-silver.webp.png"
@@ -207,10 +207,12 @@ function HowItWorksStep({
 export function LandingBody({
   appLogin,
   appRegister,
+  demoUrl,
   sampleReportUrl,
 }: {
   appLogin: string;
   appRegister: string;
+  demoUrl: string;
   sampleReportUrl: string;
 }) {
   return (
@@ -236,32 +238,32 @@ export function LandingBody({
         <div id="how-it-works" className="container">
           <SectionHeading
             title="How PROOVRA works"
-            body="A practical workflow from original capture to later review."
+            body="A verification-first workflow from file intake to later review."
           />
 
           <div className="mt-8 sm:mt-10 grid gap-5 md:grid-cols-2 xl:grid-cols-4">
             <HowItWorksStep
               icon={<Icons.Capture />}
-              title="Capture"
-              body="Create an evidence record for photos, videos, audio, or documents and preserve the original submitted material."
+              title="Create record"
+              body="Upload an existing file or capture material into a structured evidence record instead of relying on ordinary files alone."
             />
 
             <HowItWorksStep
               icon={<Icons.Fingerprint />}
-              title="Fingerprint"
-              body="Record file hashes and signed fingerprint data so later review can detect integrity issues and mismatches."
+              title="Fingerprint & timestamp"
+              body="Record integrity materials, timestamps, and related metadata so later review can detect post-submission mismatches."
             />
 
             <HowItWorksStep
               icon={<Icons.Reports />}
-              title="Report"
-              body="Generate a structured PDF report with verification details, timestamps, custody events, and cryptographic references."
+              title="Generate report"
+              body="Produce a verification-ready PDF report with the review trail, timestamp state, custody history, and supporting references."
             />
 
             <HowItWorksStep
               icon={<Icons.Verify />}
-              title="Verify"
-              body="Open a dedicated verification page to review integrity status, custody history, storage protection, and proof materials."
+              title="Verify later"
+              body="Share a verification page where reviewers can inspect the integrity summary, trail, and technical materials in one place."
             />
           </div>
         </div>
@@ -269,39 +271,39 @@ export function LandingBody({
         <div className="container mt-[56px] sm:mt-[76px]">
           <SectionHeading
             title="What reviewers can actually inspect"
-            body="The verification workflow is not just a download link. It exposes the technical materials needed for later integrity review."
+            body="PROOVRA is not just a storage link. It exposes the evidence state and review materials needed for later scrutiny."
           />
 
           <div className="mt-8 sm:mt-10 grid gap-5 md:grid-cols-2 xl:grid-cols-3">
             <ProofLayerCard
               eyebrow="Integrity"
-              title="File hash and fingerprint materials"
-              body="Reviewers can inspect the recorded file SHA-256 hash, fingerprint hash, and related verification status checks."
-            />
-            <ProofLayerCard
-              eyebrow="Cryptography"
-              title="Digital signature references"
-              body="The system surfaces the signature material and signing-key metadata used to verify the evidence record."
-            />
-            <ProofLayerCard
-              eyebrow="Timeline"
-              title="Chain of custody history"
-              body="Forensic custody events and access-related events are recorded separately so later review stays clearer and more structured."
+              title="Recorded integrity summary"
+              body="Reviewers can inspect whether the recorded evidence state still matches, whether a mismatch was detected, and what was preserved at completion."
             />
             <ProofLayerCard
               eyebrow="Timestamping"
-              title="TSA and OpenTimestamps status"
-              body="Where available, reviewers can inspect timestamp details, OpenTimestamps state, calendar information, and proof progress."
+              title="Trusted timestamp visibility"
+              body="Where available, reviewers can inspect timestamp status, issuing authority details, and timing records attached to the evidence state."
+            />
+            <ProofLayerCard
+              eyebrow="Review Trail"
+              title="Chain of custody timeline"
+              body="Key record events and access-related events can be reviewed in a clearer timeline instead of relying on screenshots or recollection alone."
+            />
+            <ProofLayerCard
+              eyebrow="Verification"
+              title="Verification page and report"
+              body="A dedicated verification page and structured PDF report make external review easier across disputes, audits, investigations, and claims."
             />
             <ProofLayerCard
               eyebrow="Storage"
-              title="Immutable storage indicators"
-              body="Storage protection metadata such as Object Lock mode, retention windows, legal hold, and region can be surfaced in verification."
+              title="Preservation indicators"
+              body="Storage protection metadata such as object lock mode, retention context, and preservation state can be surfaced when available."
             />
             <ProofLayerCard
-              eyebrow="Output"
-              title="Verification page and report"
-              body="Share a dedicated verification page and an audit-ready PDF report for structured review across disputes, audits, and investigations."
+              eyebrow="Technical Materials"
+              title="Expert review details"
+              body="Forensic and technical reviewers can inspect hashes, signatures, timestamp references, and related materials without exposing the original file publicly."
             />
           </div>
         </div>
@@ -309,29 +311,29 @@ export function LandingBody({
         <div className="container mt-[56px] sm:mt-[76px]">
           <SectionHeading
             title="Why teams use PROOVRA instead of ordinary files or screenshots"
-            body="When evidence is challenged later, ordinary exports usually do not show enough provenance, integrity, or review history."
+            body="When evidence is challenged later, plain files usually do not carry enough review context, preservation detail, or defensible verification history."
           />
 
           <div className="mt-8 sm:mt-10 grid gap-5 md:grid-cols-2 xl:grid-cols-4">
             <TrustCard
               icon={<Icons.Fingerprint />}
-              title="Cryptographic integrity"
-              body="Evidence records are tied to cryptographic hashes and signed verification materials rather than relying on appearance alone."
+              title="Tamper detection after submission"
+              body="Evidence records are tied to recorded integrity materials so later review can detect post-submission changes more reliably."
             />
             <TrustCard
               icon={<Icons.Evidence />}
-              title="Structured chain of custody"
-              body="Capture, report generation, verification, restoration, archival, and related record events can be surfaced in a clear timeline."
+              title="Structured review trail"
+              body="Creation, preservation, reporting, verification, and related evidence actions can be reviewed in one clearer timeline."
             />
             <TrustCard
               icon={<Icons.Verify />}
-              title="Independent review workflow"
-              body="Reviewers can inspect a dedicated verification page instead of depending only on the person who originally collected the file."
+              title="Independent verification workflow"
+              body="Reviewers can inspect the record through a dedicated verification view instead of depending only on the person who collected the file."
             />
             <TrustCard
               icon={<Icons.Security />}
-              title="Storage protection visibility"
-              body="Immutable storage and retention metadata can be presented when available, helping teams understand preservation posture."
+              title="Preservation visibility"
+              body="Timestamp and storage-protection context can be surfaced alongside the record to support later scrutiny and internal review."
             />
           </div>
         </div>
@@ -339,38 +341,38 @@ export function LandingBody({
         <div className="container mt-[56px] sm:mt-[76px]">
           <SectionHeading
             title="Built for evidence-sensitive workflows"
-            body="Designed for people who need digital material to remain reviewable, traceable, and harder to dispute later."
+            body="Designed for professionals and teams that need digital material to remain reviewable, traceable, and harder to dispute later."
           />
 
           <div className="mt-8 sm:mt-10 grid gap-5 md:grid-cols-2 xl:grid-cols-5">
             <WhoItForCard
               icon={<Icons.Lawyers />}
               title="Legal teams"
-              body="Preserve media and documents with integrity records, report outputs, and a clearer verification trail for dispute workflows."
+              body="Strengthen evidentiary defensibility with clearer review trails, report outputs, and preservation context."
             />
 
             <WhoItForCard
               icon={<Icons.Compliance />}
               title="Compliance & internal reviews"
-              body="Document internal findings, regulated workflows, and audit evidence with better integrity visibility and retention context."
+              body="Maintain traceable records for internal findings, regulated processes, and audit evidence under closer scrutiny."
             />
 
             <WhoItForCard
               icon={<Icons.Enterprises />}
               title="Corporate incidents & claims"
-              body="Track supporting material for investigations, operational incidents, complaints, and case files across teams."
+              body="Track supporting material across incident reviews, complaints, operational events, and case documentation."
             />
 
             <WhoItForCard
               icon={<Icons.Journalists />}
               title="Journalism & investigations"
-              body="Preserve sensitive source material while keeping a verification workflow separate from public exposure of the original content."
+              body="Preserve source material with later-verifiable integrity while keeping access to the original content controlled."
             />
 
             <WhoItForCard
               icon={<Icons.Security />}
               title="Insurance & risk review"
-              body="Support claims and incident documentation with evidence records that remain easier to review later under scrutiny."
+              body="Reduce disputed or tampered claim submissions with evidence records that stay easier to review later."
               warm
             />
           </div>
@@ -385,19 +387,24 @@ export function LandingBody({
                 </div>
 
                 <h2 className="mt-3 text-[1.65rem] sm:text-[1.85rem] md:text-[2.2rem] font-semibold tracking-[-0.04em] text-[#23373b] [overflow-wrap:anywhere]">
-                  Share evidence with more confidence
+                  Review stronger evidence, not just a file
                 </h2>
 
                 <p className="mt-4 text-[0.98rem] sm:text-[1rem] leading-7 sm:leading-8 text-[#5d6a6d] [overflow-wrap:anywhere]">
-                  Instead of sending only a file, send an evidence record with a
-                  dedicated verification page, integrity materials, timestamp
-                  status, and a structured PDF report.
+                  Instead of sending only a raw file, share an evidence record
+                  with a dedicated verification page, integrity summary,
+                  timestamp status, review trail, and a structured report.
                 </p>
               </div>
 
               <div className="mt-6 flex w-full flex-col gap-3 md:mt-0 md:w-auto">
-                <CTAButton href={appLogin} label="Open dashboard" />
-                <CTAButton href="/verify" label="Go to verification portal" dark />
+                <CTAButton href={demoUrl} label="Request demo" />
+                <CTAButton
+                  href={sampleReportUrl}
+                  label="View sample report"
+                  dark
+                  external
+                />
               </div>
             </div>
           </SilverCardShell>
@@ -411,17 +418,23 @@ export function LandingBody({
             Important clarification
           </h2>
 
-          <p className="page-subtitle text-[0.98rem] sm:text-[1rem] [overflow-wrap:anywhere]" style={{ marginBottom: 18, color: "#5d6a6d" }}>
+          <p
+            className="page-subtitle text-[0.98rem] sm:text-[1rem] [overflow-wrap:anywhere]"
+            style={{ marginBottom: 18, color: "#5d6a6d" }}
+          >
             PROOVRA is a technical integrity and verification platform.
           </p>
 
           <SilverCardShell>
             <div className="p-6 sm:p-7">
-              <p style={{ margin: 0, color: "#49575b", lineHeight: "2rem" }} className="[overflow-wrap:anywhere]">
+              <p
+                style={{ margin: 0, color: "#49575b", lineHeight: "2rem" }}
+                className="[overflow-wrap:anywhere]"
+              >
                 PROOVRA is not a court, law-enforcement authority, or legal
-                service provider. Verification confirms recorded integrity,
-                signature, timestamp, custody, and preservation-related metadata
-                for a digital evidence record. It does not by itself establish
+                service provider. Verification confirms the recorded integrity
+                state, timestamp status, custody metadata, and preservation-related
+                details for an evidence record. It does not by itself establish
                 factual truth, authorship, identity, or legal admissibility in a
                 specific jurisdiction.
               </p>
@@ -432,22 +445,36 @@ export function LandingBody({
         <div className="container mt-[56px] sm:mt-[76px] text-center">
           <div className="mx-auto max-w-[900px] min-w-0">
             <h2 className="text-[1.7rem] sm:text-[1.9rem] md:text-[2.1rem] font-semibold tracking-[-0.04em] text-[#23373b] [overflow-wrap:anywhere]">
-              Start building stronger digital evidence records
+              Start with a clearer evidence workflow
             </h2>
 
-            <p className="page-subtitle text-[0.98rem] sm:text-[1rem] [overflow-wrap:anywhere]" style={{ color: "#5d6a6d", marginTop: 16 }}>
-              Capture originals, preserve integrity, and verify later with a
-              clearer review trail.
+            <p
+              className="page-subtitle text-[0.98rem] sm:text-[1rem] [overflow-wrap:anywhere]"
+              style={{ color: "#5d6a6d", marginTop: 16 }}
+            >
+              Upload files, preserve the recorded integrity state, and verify
+              later with a stronger review trail.
             </p>
 
             <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
-              <CTAButton href={appRegister} label="Start capturing evidence" />
+              <CTAButton href={appRegister} label="Upload evidence" />
+              <CTAButton href={demoUrl} label="Request demo" dark />
               <CTAButton
                 href={sampleReportUrl}
                 label="View sample report"
                 dark
                 external
               />
+            </div>
+
+            <div className="mt-5 text-[0.9rem] text-[#5d6a6d]">
+              Already have an account?{" "}
+              <Link
+                href={appLogin}
+                className="font-semibold text-[#35585d] underline underline-offset-4"
+              >
+                Open dashboard
+              </Link>
             </div>
           </div>
         </div>

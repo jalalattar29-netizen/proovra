@@ -45,6 +45,7 @@ export default function MarketingPricingPage() {
   const appBase = getAppBase();
   const appBilling = appBase ? `${appBase}/billing` : "/billing";
   const appRegister = appBase ? `${appBase}/register` : "/register";
+  const requestDemoUrl = "/request-demo";
 
   const price = (usd: number) => {
     if (!currency) return null;
@@ -67,11 +68,11 @@ export default function MarketingPricingPage() {
         priceLabel: price(0),
         pricePlaceholder: "$0",
         features: [
-          "3 evidence total (lifetime)",
-          "Cryptographic fingerprint and integrity record",
-          "Basic verification view",
-          "PDF reports not included",
-          "No shareable report package included",
+          "3 evidence records total",
+          "Basic integrity record",
+          "Basic verification access",
+          "No included PDF report workflow",
+          "Good for initial evaluation",
         ],
       },
       {
@@ -81,10 +82,10 @@ export default function MarketingPricingPage() {
         pricePlaceholder: "$5 / evidence",
         features: [
           "Everything in Free",
-          "Verifiable PDF report for the purchased evidence item",
-          "Shareable verification link for that evidence item",
-          "Audit-ready integrity fields",
-          "Designed for occasional high-value evidence workflows",
+          "Verification-ready PDF report for the purchased record",
+          "Shareable verification link for that record",
+          "Useful for occasional high-value evidence workflows",
+          "Good for disputes, claims, and one-off reviews",
         ],
         accent: "teal",
         highlighted: true,
@@ -95,11 +96,11 @@ export default function MarketingPricingPage() {
         priceLabel: currency ? `${price(19)} / month` : null,
         pricePlaceholder: "$19 / month",
         features: [
-          "Unlimited evidence capture",
-          "PDF reports included",
-          "Shareable verification links included",
-          "Faster workflows for frequent verification",
-          "Designed for individual professionals",
+          "Unlimited evidence records",
+          "Reports included",
+          "Verification links included",
+          "Designed for recurring professional use",
+          "Best for individual legal, risk, and review workflows",
         ],
         accent: "bronze",
       },
@@ -110,10 +111,10 @@ export default function MarketingPricingPage() {
         pricePlaceholder: "$79 / month",
         features: [
           "5 team members included",
-          "Shared ownership and access control",
+          "Shared access and ownership controls",
           "Team-ready evidence organization",
-          "PDF reports included",
-          "Shareable verification links included",
+          "Reports and verification links included",
+          "Best for internal reviews, investigations, and claims teams",
         ],
       },
     ],
@@ -140,39 +141,55 @@ export default function MarketingPricingPage() {
           <MarketingHeader />
 
           <section className="mx-auto max-w-7xl px-6 pb-16 pt-10 md:px-8 md:pb-20 md:pt-14">
-            <div className="max-w-[760px]">
-<div className="inline-flex items-center gap-[0.72rem] rounded-full border border-white/10 bg-white/[0.055] px-5 py-2 text-[0.74rem] font-medium uppercase tracking-[0.2em] text-[#dce3e0] shadow-[0_10px_24px_rgba(0,0,0,0.10)] backdrop-blur-md">
-  <span className="block h-[6px] w-[6px] shrink-0 rounded-full bg-[#b79d84] opacity-95" />
+            <div className="max-w-[820px]">
+              <div className="inline-flex items-center gap-[0.72rem] rounded-full border border-white/10 bg-white/[0.055] px-5 py-2 text-[0.74rem] font-medium uppercase tracking-[0.2em] text-[#dce3e0] shadow-[0_10px_24px_rgba(0,0,0,0.10)] backdrop-blur-md">
+                <span className="block h-[6px] w-[6px] shrink-0 rounded-full bg-[#b79d84] opacity-95" />
                 Pricing
               </div>
 
-              <h1 className="mt-5 max-w-[640px] text-[1.62rem] font-medium leading-[1.01] tracking-[-0.04em] text-[#edf1ef] md:text-[2.18rem] lg:text-[2.7rem]">
-                Pricing designed for{" "}
-                <span className="text-[#bfe8df]">real-world scrutiny</span>.
+              <h1 className="mt-5 max-w-[760px] text-[1.62rem] font-medium leading-[1.01] tracking-[-0.04em] text-[#edf1ef] md:text-[2.18rem] lg:text-[2.7rem]">
+                Pricing for
+                <span className="text-[#bfe8df]"> review-ready evidence workflows</span>
               </h1>
 
-              <p className="mt-5 max-w-[650px] text-[0.94rem] font-normal leading-[1.78] tracking-[-0.006em] text-[#c7cfcc] md:text-[0.98rem]">
-                <span className="text-[#e7ece9]">PROOVRA</span> is built for situations where{" "}
-                <span className="text-[#bfe8df]">integrity matters</span>. Choose a plan based on how
-                often you need <span className="text-[#e6ebe8]">verification outputs</span>,{" "}
-                <span className="text-[#d6b89d]">PDF reports</span>, and structured custody records.
+              <p className="mt-5 max-w-[760px] text-[0.94rem] font-normal leading-[1.78] tracking-[-0.006em] text-[#c7cfcc] md:text-[0.98rem]">
+                Choose a plan based on how often you need structured evidence records,
+                verification output, PDF reports, and team-ready review workflows.
               </p>
 
               <div className="mt-6 flex flex-wrap gap-2.5">
                 <div className="rounded-full border border-white/10 bg-white/[0.055] px-3.5 py-2 text-[0.78rem] font-normal text-[#d7dfdb] shadow-[0_8px_18px_rgba(0,0,0,0.08)] backdrop-blur-md">
                   <span className="mr-2 text-[#9dd2ca]">✓</span>
-                  Flexible for individuals and teams
+                  Built for individuals and teams
                 </div>
 
                 <div className="rounded-full border border-white/10 bg-white/[0.055] px-3.5 py-2 text-[0.78rem] font-normal text-[#d7dfdb] shadow-[0_8px_18px_rgba(0,0,0,0.08)] backdrop-blur-md">
                   <span className="mr-2 text-[#9dd2ca]">✓</span>
-                  Built for verification workflows
+                  Verification-first workflow
                 </div>
 
                 <div className="rounded-full border border-[rgba(214,184,157,0.24)] bg-[linear-gradient(180deg,rgba(183,157,132,0.08)_0%,rgba(255,255,255,0.03)_100%)] px-3.5 py-2 text-[0.78rem] font-normal text-[#e1d4c7] shadow-[0_8px_18px_rgba(0,0,0,0.08)] backdrop-blur-md">
                   <span className="mr-2 text-[#d6b89d]">✓</span>
-                  Audit-ready reporting options
+                  Reports and review trails included where needed
                 </div>
+              </div>
+
+              <div className="mt-6 flex flex-wrap gap-3">
+                <a
+                  href="/brand/sample-report.pdf"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex min-h-[48px] items-center justify-center rounded-full border border-[rgba(183,157,132,0.42)] bg-[linear-gradient(180deg,rgba(62,96,99,0.96)_0%,rgba(24,43,48,0.98)_100%)] px-6 py-3 text-sm font-semibold text-[#eef3f1] shadow-[0_16px_28px_rgba(20,48,52,0.18)] transition duration-300 hover:translate-y-[-1px]"
+                >
+                  View Sample Report
+                </a>
+
+                <a
+                  href={requestDemoUrl}
+                  className="inline-flex min-h-[48px] items-center justify-center rounded-full border border-[#4f706b]/44 bg-[linear-gradient(180deg,rgba(255,255,255,0.62)_0%,rgba(242,244,241,0.92)_100%)] px-6 py-3 text-sm font-semibold text-[#23373b] shadow-[0_12px_24px_rgba(0,0,0,0.06)] transition duration-300 hover:translate-y-[-1px]"
+                >
+                  Request Demo
+                </a>
               </div>
             </div>
           </section>
@@ -364,16 +381,31 @@ export default function MarketingPricingPage() {
             })}
           </div>
 
+          <div className="mt-6 flex flex-col gap-3 sm:flex-row">
+            <a
+              href={requestDemoUrl}
+              className="inline-flex min-h-[48px] items-center justify-center rounded-full border border-[#b39b86]/42 bg-[linear-gradient(180deg,rgba(62,96,99,0.96)_0%,rgba(24,43,48,0.98)_100%)] px-6 py-3 text-sm font-semibold text-[#eef3f1] shadow-[0_16px_28px_rgba(20,48,52,0.18)] transition duration-300 hover:translate-y-[-1px]"
+            >
+              Request Demo
+            </a>
+
+            <a
+              href="/legal/verification-methodology"
+              className="inline-flex min-h-[48px] items-center justify-center rounded-full border border-[#4f706b]/44 bg-[linear-gradient(180deg,rgba(255,255,255,0.62)_0%,rgba(242,244,241,0.92)_100%)] px-6 py-3 text-sm font-semibold text-[#23373b] shadow-[0_12px_24px_rgba(0,0,0,0.06)] transition duration-300 hover:translate-y-[-1px]"
+            >
+              View Verification Methodology
+            </a>
+          </div>
+
           <div className="mt-5 text-[0.82rem] leading-[1.7] text-[#667174]">
-            Prices shown in{" "}
-            <span className="font-medium text-[#31464a]">{currency ?? "..."}</span>. VAT may apply depending
+            Prices shown in <span className="font-medium text-[#31464a]">{currency ?? "..."}</span>. VAT may apply depending
             on your country.
           </div>
 
           <div className="mt-5 max-w-[980px] text-[0.82rem] leading-[1.7] text-[#667174]">
-            <span className="font-medium text-[#31464a]">PROOVRA</span> is a technical evidence-integrity platform.
-            It does not provide legal advice, and use of the platform does not guarantee admissibility in any
-            jurisdiction.
+            <span className="font-medium text-[#31464a]">PROOVRA</span> is a technical
+            evidence-integrity and verification platform. It does not provide legal advice,
+            and use of the platform does not guarantee admissibility in any jurisdiction.
           </div>
         </div>
       </SilverWatermarkSection>

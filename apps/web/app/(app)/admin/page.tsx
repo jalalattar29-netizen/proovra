@@ -9,6 +9,7 @@ const ADMIN_NAV = [
   { href: "/admin", label: "Console Home" },
   { href: "/admin/dashboard", label: "Platform Analytics" },
   { href: "/admin/audit", label: "Audit Integrity" },
+  { href: "/admin/demo-requests", label: "Demo Requests" },
 ];
 
 const CARDS = [
@@ -25,6 +26,13 @@ const CARDS = [
     body: "Tamper-evident administrative audit log, integrity verification, and privileged action review.",
     accent: "#8a6e57",
     eyebrow: "Integrity",
+  },
+  {
+    href: "/admin/demo-requests",
+    title: "Demo Requests",
+    body: "Review inbound demo requests, inspect source context, assess spam signals, and move qualified leads through the internal pipeline.",
+    accent: "#2f6965",
+    eyebrow: "Pipeline",
   },
 ];
 

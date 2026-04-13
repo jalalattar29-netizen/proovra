@@ -7,45 +7,49 @@ const LINK_BY_HREF = new Map<string, LegalLink>(
   LEGAL_LINKS.map((link) => [link.href, link])
 );
 
-function pickLinks(hrefs: string[]): LegalLink[] {
-  return hrefs
-    .map((href) => LINK_BY_HREF.get(href))
-    .filter((link): link is LegalLink => Boolean(link));
+type FooterLink = {
+  href: string;
+  label: string;
+};
+
+function legalLink(href: string, fallback: string): FooterLink {
+  const link = LINK_BY_HREF.get(href);
+  return {
+    href,
+    label: link?.label ?? fallback,
+  };
 }
 
-function linkLabel(href: string, fallback: string): string {
-  return LINK_BY_HREF.get(href)?.label ?? fallback;
-}
+const PRODUCT_LINKS: FooterLink[] = [
+  legalLink("/legal/verification-methodology", "Verification Methodology"),
+  legalLink("/legal/security", "Security"),
+  legalLink("/legal/evidence-handling", "Evidence Handling"),
+  legalLink("/legal/data-retention", "Data Retention"),
+  legalLink("/legal/subprocessors", "Subprocessors"),
+];
 
-const PRODUCT_LINKS = pickLinks([
-  "/legal/security",
-  "/legal/verification-methodology",
-  "/legal/evidence-handling",
-  "/legal/data-retention",
-  "/legal/subprocessors",
-]);
+const LEGAL_CORE_LINKS: FooterLink[] = [
+  legalLink("/legal/terms", "Terms of Service"),
+  legalLink("/legal/privacy", "Privacy Policy"),
+  legalLink("/legal/cookies", "Cookie Policy"),
+  legalLink("/legal/aup", "Acceptable Use Policy"),
+  legalLink("/legal/dpa", "Data Processing Addendum"),
+  legalLink("/legal/dmca", "DMCA"),
+];
 
-const LEGAL_CORE_LINKS = pickLinks([
-  "/legal/terms",
-  "/legal/privacy",
-  "/legal/cookies",
-  "/legal/aup",
-  "/legal/dpa",
-  "/legal/dmca",
-]);
-
-const COMPANY_SUPPORT_LINKS = pickLinks([
-  "/legal/support",
-  "/legal/transparency",
-  "/legal/impressum",
-  "/legal/abuse-reporting",
-  "/legal/incident-response",
-  "/legal/law-enforcement",
-]);
+const COMPANY_SUPPORT_LINKS: FooterLink[] = [
+  { href: "/about", label: "About" },
+  legalLink("/legal/support", "Support"),
+  legalLink("/legal/transparency", "Transparency"),
+  legalLink("/legal/impressum", "Impressum"),
+  legalLink("/legal/abuse-reporting", "Abuse Reporting"),
+  legalLink("/legal/incident-response", "Incident Response"),
+  legalLink("/legal/law-enforcement", "Law Enforcement"),
+];
 
 type FooterColumnProps = {
   title: string;
-  links: LegalLink[];
+  links: FooterLink[];
 };
 
 function FooterColumn({ title, links }: FooterColumnProps) {
@@ -77,9 +81,14 @@ function FooterColumn({ title, links }: FooterColumnProps) {
 
 export function Footer() {
   const currentYear = new Date().getFullYear();
+  const sampleReportUrl = "/brand/sample-report.pdf";
+  const requestDemoUrl = "/request-demo";
 
   return (
-    <footer className="relative -mt-2 overflow-hidden text-[#dce4e0]" role="contentinfo">
+    <footer
+      className="relative -mt-2 overflow-hidden text-[#dce4e0]"
+      role="contentinfo"
+    >
       <div className="absolute inset-0">
         <img
           src="/images/site-velvet-bg.webp.png"
@@ -98,14 +107,15 @@ export function Footer() {
           <div className="min-w-0">
             <Link
               href="/"
-              className="inline-flex max-w-full items-center text-[1.42rem] sm:text-[1.58rem] md:text-[1.72rem] font-semibold tracking-[-0.04em] text-[#e7ecea]"
+              className="inline-flex max-w-full items-center text-[1.42rem] font-semibold tracking-[-0.04em] text-[#e7ecea] sm:text-[1.58rem] md:text-[1.72rem]"
               aria-label="PROOVRA home"
             >
               <span className="truncate">PROO✓RA</span>
             </Link>
 
-            <p className="mt-5 max-w-[430px] text-[0.98rem] sm:text-[1rem] leading-7 sm:leading-8 text-[#c7d1ce] [overflow-wrap:anywhere]">
-              Verifiable digital evidence for legal, compliance, and investigations.
+            <p className="mt-5 max-w-[460px] text-[0.98rem] leading-7 text-[#c7d1ce] [overflow-wrap:anywhere] sm:text-[1rem] sm:leading-8">
+              Verification-first digital evidence records for legal,
+              compliance, investigations, claims, and review-sensitive workflows.
             </p>
 
             <a
@@ -117,24 +127,47 @@ export function Footer() {
 
             <div className="mt-7 flex flex-wrap gap-3">
               <Link
+                href={sampleReportUrl}
+                className="hover-chip rounded-full border border-white/10 bg-white/[0.05] px-4 py-2 text-[0.84rem] text-[#d7dfdc]"
+              >
+                View Sample Report
+              </Link>
+
+              <Link
+                href="/legal/verification-methodology"
+                className="hover-chip rounded-full border border-white/10 bg-white/[0.05] px-4 py-2 text-[0.84rem] text-[#d7dfdc]"
+              >
+                Verification Methodology
+              </Link>
+
+              <Link
+                href={requestDemoUrl}
+                className="hover-chip rounded-full border border-white/10 bg-white/[0.05] px-4 py-2 text-[0.84rem] text-[#d7dfdc]"
+              >
+                Request Demo
+              </Link>
+            </div>
+
+            <div className="mt-4 flex flex-wrap gap-3">
+              <Link
                 href="/legal/terms"
                 className="hover-chip rounded-full border border-white/10 bg-white/[0.05] px-4 py-2 text-[0.84rem] text-[#d7dfdc]"
               >
-                {linkLabel("/legal/terms", "Terms of Service")}
+                Terms of Service
               </Link>
 
               <Link
                 href="/legal/privacy"
                 className="hover-chip rounded-full border border-white/10 bg-white/[0.05] px-4 py-2 text-[0.84rem] text-[#d7dfdc]"
               >
-                {linkLabel("/legal/privacy", "Privacy Policy")}
+                Privacy Policy
               </Link>
 
               <Link
                 href="/legal/cookies"
                 className="hover-chip rounded-full border border-white/10 bg-white/[0.05] px-4 py-2 text-[0.84rem] text-[#d7dfdc]"
               >
-                {linkLabel("/legal/cookies", "Cookie Policy")}
+                Cookie Policy
               </Link>
             </div>
           </div>
@@ -146,7 +179,7 @@ export function Footer() {
           </div>
         </div>
 
-        <div className="mt-10 sm:mt-12 h-px w-full bg-[linear-gradient(90deg,transparent,rgba(255,255,255,0.14),transparent)]" />
+        <div className="mt-10 h-px w-full bg-[linear-gradient(90deg,transparent,rgba(255,255,255,0.14),transparent)] sm:mt-12" />
 
         <div className="mt-6 flex flex-col gap-2 text-[0.88rem] text-[#aebbb7] sm:flex-row sm:items-center sm:justify-between">
           <span>© {currentYear} PROO✓RA</span>

@@ -24,8 +24,9 @@ const notoArabic = Noto_Sans_Arabic({
 });
 
 export const metadata: Metadata = {
-  title: "PROOVRA",
-  description: "Capture truth. Prove it forever.",
+  title: "PROOVRA — Verifiable Digital Evidence",
+  description:
+    "Turn files into verifiable digital evidence with signed integrity records, trusted timestamps, and a review-ready verification workflow.",
   icons: {
     icon: [{ url: "/brand/favicon.png" }],
     apple: "/brand/apple-touch-icon.png",

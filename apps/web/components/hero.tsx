@@ -70,10 +70,10 @@ function VelvetButton({
 }
 
 const badges = [
-  "SHA-256 fingerprinting",
-  "Ed25519 signatures",
+  "Signed integrity records",
+  "Trusted timestamps",
   "Verification page + report",
-  "Chain of custody timeline",
+  "Review-ready evidence trail",
 ];
 
 const bronzeText = "#b79d84";
@@ -82,9 +82,11 @@ const bronzeBorder = "rgba(183,157,132,0.24)";
 
 export function Hero({
   appRegister,
+  demoUrl,
   sampleReportUrl,
 }: {
   appRegister: string;
+  demoUrl: string;
   sampleReportUrl: string;
 }) {
   const [revealed, setRevealed] = useState(false);
@@ -110,11 +112,11 @@ export function Hero({
           >
             <span className="block h-[6px] w-[6px] shrink-0 rounded-full bg-[#b79d84] opacity-95" />
             <span className="leading-none [overflow-wrap:anywhere]">
-              Secure Digital Evidence Platform
+              Evidence Verification Platform
             </span>
           </div>
 
-          <div className="relative z-10 mt-5 max-w-[640px] min-w-0">
+          <div className="relative z-10 mt-5 max-w-[680px] min-w-0">
             <h1 className="tracking-[-0.045em] text-[#e9edea]">
               <div
                 className={`transition-all duration-700 ${
@@ -122,8 +124,11 @@ export function Hero({
                 }`}
                 style={{ transitionDelay: "160ms" }}
               >
-                <span className="block text-[1.82rem] font-bold leading-[0.95] sm:text-[2rem] md:text-[2.55rem] lg:text-[2.75rem]">
-                  Verifiable digital evidence
+                <span className="block text-[1.82rem] font-bold leading-[0.95] sm:text-[2rem] md:text-[2.55rem] lg:text-[2.9rem]">
+                  Turn files into
+                </span>
+                <span className="mt-2 block text-[1.82rem] font-bold leading-[0.95] text-[#f1f4f2] sm:text-[2rem] md:text-[2.55rem] lg:text-[2.9rem]">
+                  verifiable digital evidence
                 </span>
               </div>
 
@@ -137,12 +142,12 @@ export function Hero({
                   <span className="text-[1.08rem] font-normal leading-[1.12] text-[#d6ddda] sm:text-[1.16rem] md:text-[1.4rem] lg:text-[1.55rem]">
                     with{" "}
                     <span className="font-semibold text-[#bfe8df]">
-                      cryptographic integrity
+                      signed integrity records
                     </span>
                   </span>
 
                   <span className="text-[1.08rem] font-semibold leading-[1.12] text-[#edf1ef] sm:text-[1.16rem] md:text-[1.4rem] lg:text-[1.55rem]">
-                    chain-of-custody records
+                    trusted timestamps
                   </span>
                 </div>
 
@@ -150,7 +155,7 @@ export function Hero({
                   className="mt-2 block text-[1.08rem] font-medium leading-[1.12] sm:text-[1.16rem] md:text-[1.4rem] lg:text-[1.55rem]"
                   style={{ color: bronzeText }}
                 >
-                  and independent verification
+                  and a defensible review trail
                 </span>
               </div>
             </h1>
@@ -168,48 +173,45 @@ export function Hero({
           </div>
 
           <p
-            className={`relative z-10 mt-5 max-w-[660px] text-[0.97rem] font-normal leading-[1.78] tracking-[-0.012em] text-[#c7cfcc] transition-all duration-700 sm:text-[1rem] md:text-[1.04rem] ${
+            className={`relative z-10 mt-5 max-w-[700px] text-[0.97rem] font-normal leading-[1.78] tracking-[-0.012em] text-[#c7cfcc] transition-all duration-700 sm:text-[1rem] md:text-[1.04rem] ${
               revealed ? "translate-y-0 opacity-100" : "translate-y-4 opacity-0"
             }`}
             style={{ transitionDelay: "640ms" }}
           >
             <span className="font-semibold text-[#e7ece9]">PROOVRA</span> helps
-            you capture{" "}
-            <span className="text-[#e2e8e5]">
-              photos, videos, audio, and documents
-            </span>
-            , preserve their integrity with{" "}
-            <span className="font-semibold text-[#bfe8df]">
-              cryptographic fingerprints and signatures
-            </span>
-            , generate{" "}
-            <span style={{ color: bronzeText }} className="font-semibold">
-              audit-ready reports
-            </span>
-            , and share a{" "}
+            teams and professionals turn uploaded or captured files into{" "}
             <span className="font-semibold text-[#e6ebe8]">
-              dedicated verification page
+              review-ready evidence records
             </span>{" "}
-            without exposing the original file publicly.
+            with{" "}
+            <span className="font-semibold text-[#bfe8df]">
+              integrity checks, timestamp history, verification output,
+            </span>{" "}
+            and a{" "}
+            <span style={{ color: bronzeText }} className="font-semibold">
+              structured report
+            </span>{" "}
+            that stays clearer under disputes, audits, investigations, and
+            claims review.
           </p>
 
           <div
-            className={`relative z-10 mt-5 flex max-w-[680px] flex-col gap-3 transition-all duration-700 sm:flex-row sm:flex-wrap ${
+            className={`relative z-10 mt-5 flex max-w-[760px] flex-col gap-3 transition-all duration-700 sm:flex-row sm:flex-wrap ${
               revealed ? "translate-y-0 opacity-100" : "translate-y-4 opacity-0"
             }`}
             style={{ transitionDelay: "890ms" }}
           >
-            <VelvetButton href={appRegister}>Start capturing evidence</VelvetButton>
-
-            <VelvetButton dark href="/verify">
-              Open verification portal
-            </VelvetButton>
+            <VelvetButton href={appRegister}>Upload evidence</VelvetButton>
 
             <VelvetButton bronze href={sampleReportUrl}>
               <>
                 View sample report
                 <ExternalLink className="ml-2 h-[15px] w-[15px] shrink-0 text-[#b79d84] stroke-[2.2]" />
               </>
+            </VelvetButton>
+
+            <VelvetButton dark href={demoUrl}>
+              Request demo
             </VelvetButton>
           </div>
 
@@ -221,8 +223,7 @@ export function Hero({
           >
             <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[0.84rem] font-medium text-[#cfd7d3] sm:text-[0.86rem]">
               <span className="h-2 w-2 rounded-full bg-[#9ed8cf] shadow-[0_0_10px_rgba(158,216,207,0.45)]" />
-              <span className="text-[#e2e8e5]">Free plan available</span>
-              <span className="text-[#9fa9a5]">— no credit card required</span>
+              <span className="text-[#e2e8e5]">Built for legal, compliance, claims, and investigations</span>
             </div>
           </div>
 

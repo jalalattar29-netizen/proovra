@@ -19,6 +19,34 @@ export type EmailService = {
     failedItems: number,
     batchUrl: string
   ) => Promise<unknown>;
+
+  sendDemoRequestNotification: (params: {
+    to: string;
+    requestId: string;
+    fullName: string;
+    workEmail: string;
+    organization?: string | null;
+    jobTitle?: string | null;
+    country?: string | null;
+    teamSize?: string | null;
+    useCase: string;
+    message?: string | null;
+    source?: string | null;
+    sourcePath?: string | null;
+    referrer?: string | null;
+    utmSource?: string | null;
+    utmMedium?: string | null;
+    utmCampaign?: string | null;
+    utmTerm?: string | null;
+    utmContent?: string | null;
+    spamScore?: number | null;
+    isSpam?: boolean | null;
+  }) => Promise<unknown>;
+
+  sendDemoRequestAutoReply: (params: {
+    to: string;
+    fullName: string;
+  }) => Promise<unknown>;
 };
 
 function env(name: string): string | undefined {
@@ -43,10 +71,6 @@ function supportEmail(): string {
   return env("SUPPORT_EMAIL") ?? "support@proovra.com";
 }
 
-/**
- * Example:
- * https://www.proovra.com/brand/logo-dark.png
- */
 function logoUrl(): string | undefined {
   const u = env("EMAIL_LOGO_URL");
   return u ? u : undefined;
@@ -242,6 +266,12 @@ export function getEmailService(): EmailService {
       async sendBatchComplete() {
         throw new Error("Email service not configured: RESEND_API_KEY missing");
       },
+      async sendDemoRequestNotification() {
+        throw new Error("Email service not configured: RESEND_API_KEY missing");
+      },
+      async sendDemoRequestAutoReply() {
+        throw new Error("Email service not configured: RESEND_API_KEY missing");
+      },
     };
     return singleton;
   }
@@ -366,6 +396,111 @@ export function getEmailService(): EmailService {
         from,
         to: email,
         subject: `Batch complete: ${batchName}`,
+        html,
+        text,
+      });
+    },
+
+    async sendDemoRequestNotification(params) {
+      const html = emailShell({
+        title: "New demo request",
+        preheader: `New demo request from ${params.fullName}.`,
+        bodyHtml: `
+          <div style="margin:0 0 10px 0;"><strong>Request ID:</strong> ${safeHtml(params.requestId)}</div>
+          <div style="margin:0 0 10px 0;"><strong>Name:</strong> ${safeHtml(params.fullName)}</div>
+          <div style="margin:0 0 10px 0;"><strong>Work email:</strong> ${safeHtml(params.workEmail)}</div>
+          <div style="margin:0 0 10px 0;"><strong>Organization:</strong> ${safeHtml(params.organization ?? "-")}</div>
+          <div style="margin:0 0 10px 0;"><strong>Job title:</strong> ${safeHtml(params.jobTitle ?? "-")}</div>
+          <div style="margin:0 0 10px 0;"><strong>Country:</strong> ${safeHtml(params.country ?? "-")}</div>
+          <div style="margin:0 0 10px 0;"><strong>Team size:</strong> ${safeHtml(params.teamSize ?? "-")}</div>
+          <div style="margin:0 0 10px 0;"><strong>Source:</strong> ${safeHtml(params.source ?? "-")}</div>
+          <div style="margin:0 0 10px 0;"><strong>Source path:</strong> ${safeHtml(params.sourcePath ?? "-")}</div>
+          <div style="margin:0 0 10px 0;"><strong>Referrer:</strong> ${safeHtml(params.referrer ?? "-")}</div>
+          <div style="margin:0 0 10px 0;"><strong>UTM source:</strong> ${safeHtml(params.utmSource ?? "-")}</div>
+          <div style="margin:0 0 10px 0;"><strong>UTM medium:</strong> ${safeHtml(params.utmMedium ?? "-")}</div>
+          <div style="margin:0 0 10px 0;"><strong>UTM campaign:</strong> ${safeHtml(params.utmCampaign ?? "-")}</div>
+          <div style="margin:0 0 10px 0;"><strong>UTM term:</strong> ${safeHtml(params.utmTerm ?? "-")}</div>
+          <div style="margin:0 0 10px 0;"><strong>UTM content:</strong> ${safeHtml(params.utmContent ?? "-")}</div>
+          <div style="margin:0 0 10px 0;"><strong>Spam score:</strong> ${safeHtml(String(params.spamScore ?? 0))}</div>
+          <div style="margin:0 0 10px 0;"><strong>Flagged as spam:</strong> ${safeHtml(params.isSpam ? "yes" : "no")}</div>
+
+          <div style="margin:14px 0 8px 0;"><strong>Use case</strong></div>
+          <div style="white-space:pre-wrap; color:#334155;">${safeHtml(params.useCase)}</div>
+
+          <div style="margin:14px 0 8px 0;"><strong>Message</strong></div>
+          <div style="white-space:pre-wrap; color:#334155;">${safeHtml(params.message ?? "-")}</div>
+        `.trim(),
+      });
+
+      const text = [
+        "New demo request",
+        `Request ID: ${params.requestId}`,
+        `Name: ${params.fullName}`,
+        `Work email: ${params.workEmail}`,
+        `Organization: ${params.organization ?? "-"}`,
+        `Job title: ${params.jobTitle ?? "-"}`,
+        `Country: ${params.country ?? "-"}`,
+        `Team size: ${params.teamSize ?? "-"}`,
+        `Source: ${params.source ?? "-"}`,
+        `Source path: ${params.sourcePath ?? "-"}`,
+        `Referrer: ${params.referrer ?? "-"}`,
+        `UTM source: ${params.utmSource ?? "-"}`,
+        `UTM medium: ${params.utmMedium ?? "-"}`,
+        `UTM campaign: ${params.utmCampaign ?? "-"}`,
+        `UTM term: ${params.utmTerm ?? "-"}`,
+        `UTM content: ${params.utmContent ?? "-"}`,
+        `Spam score: ${String(params.spamScore ?? 0)}`,
+        `Flagged as spam: ${params.isSpam ? "yes" : "no"}`,
+        "",
+        "Use case:",
+        params.useCase,
+        "",
+        "Message:",
+        params.message ?? "-",
+      ].join("\n");
+
+      return resend.emails.send({
+        from,
+        to: params.to,
+        subject: `New demo request — ${params.fullName}`,
+        html,
+        text,
+      });
+    },
+
+    async sendDemoRequestAutoReply(params) {
+      const html = emailShell({
+        title: "We received your demo request",
+        preheader: "Your PROOVRA demo request has been received.",
+        bodyHtml: `
+          <div style="margin:0 0 10px 0;">
+            Hello <strong>${safeHtml(params.fullName)}</strong>,
+          </div>
+          <div style="margin:0 0 10px 0;">
+            We received your request for a PROOVRA demo.
+          </div>
+          <div style="margin:0 0 10px 0;">
+            Our team will review your request and follow up using this email address if the request is relevant for a live walkthrough.
+          </div>
+        `.trim(),
+        ctaText: "Visit PROOVRA",
+        ctaUrl: webBaseUrl(),
+        secondaryText: `If you have additional context, contact us at ${supportEmail()}.`,
+      });
+
+      const text = [
+        `Hello ${params.fullName},`,
+        "",
+        "We received your request for a PROOVRA demo.",
+        "Our team will review your request and follow up if appropriate.",
+        "",
+        `Support: ${supportEmail()}`,
+      ].join("\n");
+
+      return resend.emails.send({
+        from,
+        to: params.to,
+        subject: `We received your demo request — ${brandName()}`,
         html,
         text,
       });

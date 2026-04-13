@@ -3,7 +3,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Menu, X } from "lucide-react";
+import { ChevronDown, Menu, X } from "lucide-react";
 import { LanguageSwitcher } from "./language-switcher";
 
 type MarketingNavItem = {
@@ -16,13 +16,20 @@ type AppNavItem = {
   label: string;
 };
 
+const USE_CASES_NAV: MarketingNavItem[] = [
+  { href: "/for-lawyers", label: "For Legal Teams" },
+  { href: "/for-insurance", label: "For Insurance" },
+  { href: "/for-investigations", label: "For Investigations" },
+  { href: "/for-journalism", label: "For Journalism" },
+  { href: "/for-compliance", label: "For Compliance" },
+];
+
 const MARKETING_NAV: MarketingNavItem[] = [
   { href: "/", label: "Home" },
   { href: "/#how-it-works", label: "How it works" },
   { href: "/verify", label: "Verify" },
   { href: "/pricing", label: "Pricing" },
-  { href: "/legal/security", label: "Security" },
-  { href: "/about", label: "About" },
+  { href: "/legal/verification-methodology", label: "Methodology" },
 ];
 
 const APP_NAV: AppNavItem[] = [
@@ -34,6 +41,16 @@ const APP_NAV: AppNavItem[] = [
   { href: "/billing", label: "Billing" },
   { href: "/settings", label: "Settings" },
 ];
+
+function isRouteActive(pathname: string | null, href: string): boolean {
+  if (!pathname) return false;
+  if (href === "/") return pathname === "/";
+  if (href.includes("#")) {
+    const [basePath] = href.split("#");
+    return pathname === basePath;
+  }
+  return pathname === href || (href !== "/billing" && pathname.startsWith(`${href}/`));
+}
 
 function VelvetLinkButton({
   children,
@@ -73,7 +90,9 @@ function VelvetLinkButton({
 
       <div className="absolute inset-0 rounded-[14px] border border-[rgba(183,157,132,0.55)] shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]" />
 
-      <span className="relative z-10 text-[#e6ebea]">{children}</span>
+      <span className="relative z-10 whitespace-nowrap text-[#e6ebea]">
+        {children}
+      </span>
     </Link>
   );
 }
@@ -117,7 +136,9 @@ function VelvetActionButton({
 
       <div className="absolute inset-0 rounded-[14px] border border-[rgba(183,157,132,0.55)] shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]" />
 
-      <span className="relative z-10 text-[#e6ebea]">{children}</span>
+      <span className="relative z-10 whitespace-nowrap text-[#e6ebea]">
+        {children}
+      </span>
     </button>
   );
 }
@@ -174,7 +195,7 @@ function Brand({ href }: { href: string }) {
         />
       </div>
 
-      <span className="truncate text-[1.02rem] font-semibold tracking-[-0.02em] text-[#dce1de] sm:text-[1.16rem] lg:text-[1.6rem]">
+      <span className="whitespace-nowrap text-[1.02rem] font-semibold tracking-[-0.02em] text-[#dce1de] sm:text-[1.16rem] lg:text-[1.42rem]">
         PROO✓RA
       </span>
     </Link>
@@ -203,13 +224,87 @@ function MobileMenuButton({
   );
 }
 
+function DesktopSolutionsMenu({
+  pathname,
+}: {
+  pathname: string | null;
+}) {
+  const [open, setOpen] = useState(false);
+
+  const isUseCaseActive = USE_CASES_NAV.some((item) =>
+    isRouteActive(pathname, item.href)
+  );
+
+  return (
+    <div
+      className="relative shrink-0 pb-1"
+      onMouseEnter={() => setOpen(true)}
+      onMouseLeave={() => setOpen(false)}
+    >
+      <button
+        type="button"
+        className={`inline-flex h-10 items-center gap-1.5 rounded-[12px] px-3 text-[0.92rem] font-medium transition-colors ${
+          isUseCaseActive
+            ? "text-[#d6b89d]"
+            : "text-[#dce1de] hover:text-[#d6b89d]"
+        }`}
+        aria-expanded={open}
+        aria-haspopup="true"
+      >
+        <span className="whitespace-nowrap">Solutions</span>
+        <ChevronDown
+          className={`h-4 w-4 transition-transform duration-200 ${
+            open ? "rotate-180" : ""
+          }`}
+        />
+      </button>
+
+      <div
+        className={`absolute left-1/2 top-full z-50 w-[300px] -translate-x-1/2 pt-1 transition-all duration-150 ${
+          open
+            ? "pointer-events-auto translate-y-0 opacity-100"
+            : "pointer-events-none -translate-y-1 opacity-0"
+        }`}
+      >
+        <div className="overflow-hidden rounded-[20px] border border-white/10 bg-[linear-gradient(180deg,rgba(8,18,22,0.96)_0%,rgba(6,14,18,0.98)_100%)] p-2 shadow-[0_20px_44px_rgba(0,0,0,0.28)] backdrop-blur-xl">
+          <div className="px-3 pb-2 pt-2 text-[0.72rem] font-semibold uppercase tracking-[0.18em] text-[#b8c7c3]">
+            Use cases
+          </div>
+
+          <div className="grid gap-1">
+            {USE_CASES_NAV.map((item) => {
+              const active = isRouteActive(pathname, item.href);
+
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className={`rounded-[14px] px-4 py-3 text-[0.92rem] font-medium transition-colors ${
+                    active
+                      ? "bg-[linear-gradient(180deg,rgba(183,157,132,0.16)_0%,rgba(255,255,255,0.04)_100%)] text-[#f1decb]"
+                      : "text-[#dce1de] hover:bg-white/[0.05] hover:text-[#d6b89d]"
+                  }`}
+                >
+                  {item.label}
+                </Link>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function MobilePanel({
   navItems,
+  useCaseItems,
   extraActions,
   onNavigate,
   activeHref,
 }: {
   navItems: Array<{ href: string; label: string }>;
+  useCaseItems?: Array<{ href: string; label: string }>;
   extraActions?: React.ReactNode;
   onNavigate: () => void;
   activeHref?: string;
@@ -218,9 +313,7 @@ function MobilePanel({
     <div className="overflow-hidden rounded-[20px] border border-white/10 bg-[linear-gradient(180deg,rgba(8,18,22,0.90)_0%,rgba(6,14,18,0.95)_100%)] shadow-[0_16px_36px_rgba(0,0,0,0.22)] backdrop-blur-xl">
       <nav className="flex flex-col p-2.5" aria-label="Mobile navigation">
         {navItems.map((item) => {
-          const active =
-            activeHref === item.href ||
-            (item.href !== "/billing" && activeHref?.startsWith(`${item.href}/`));
+          const active = isRouteActive(activeHref ?? null, item.href);
 
           return (
             <Link
@@ -237,6 +330,34 @@ function MobilePanel({
             </Link>
           );
         })}
+
+        {useCaseItems && useCaseItems.length > 0 ? (
+          <>
+            <div className="mx-2 my-2 h-px bg-white/10" />
+            <div className="px-4 pb-2 pt-1 text-[0.72rem] font-semibold uppercase tracking-[0.18em] text-[#b8c7c3]">
+              Solutions
+            </div>
+
+            {useCaseItems.map((item) => {
+              const active = isRouteActive(activeHref ?? null, item.href);
+
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  onClick={onNavigate}
+                  className={`flex min-h-[46px] items-center rounded-[14px] px-4 text-[0.95rem] font-medium ui-transition ${
+                    active
+                      ? "bg-[linear-gradient(180deg,rgba(183,157,132,0.16)_0%,rgba(255,255,255,0.04)_100%)] text-[#f1decb]"
+                      : "text-[#dce1de] hover:bg-white/[0.05] hover:text-[#d6b89d]"
+                  }`}
+                >
+                  {item.label}
+                </Link>
+              );
+            })}
+          </>
+        ) : null}
       </nav>
 
       <div className="border-t border-white/10 p-3">{extraActions}</div>
@@ -260,6 +381,7 @@ export function MarketingHeader() {
         mobileOpen ? (
           <MobilePanel
             navItems={MARKETING_NAV}
+            useCaseItems={USE_CASES_NAV}
             activeHref={pathname ?? undefined}
             onNavigate={() => setMobileOpen(false)}
             extraActions={
@@ -287,39 +409,67 @@ export function MarketingHeader() {
         ) : null
       }
     >
-<div className="hidden lg:grid lg:w-full lg:grid-cols-[auto_1fr_auto] lg:items-center lg:gap-8">
-  <div className="min-w-0">
-    <Brand href="/" />
-  </div>
+      <div className="hidden lg:grid lg:w-full lg:grid-cols-[minmax(220px,auto)_1fr_auto] lg:items-center lg:gap-6">
+        <div className="min-w-0">
+          <Brand href="/" />
+        </div>
 
-  <nav className="flex items-center justify-center gap-8">
-    {MARKETING_NAV.map((item) => (
-      <Link
-        key={item.href}
-        href={item.href}
-        className="hover-link-bronze text-[0.92rem] font-medium"
-      >
-        {item.label}
-      </Link>
-    ))}
-  </nav>
+        <nav className="flex items-center justify-center gap-5 xl:gap-6">
+          {MARKETING_NAV.slice(0, 4).map((item) => {
+            const active = isRouteActive(pathname, item.href);
 
-  <div className="flex items-center justify-end gap-2.5">
-    <div className="lang-button flex items-center">
-      <LanguageSwitcher />
-    </div>
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={`whitespace-nowrap text-[0.92rem] font-medium ${
+                  active
+                    ? "text-[#d6b89d]"
+                    : "text-[#dce1de] hover:text-[#d6b89d]"
+                }`}
+              >
+                {item.label}
+              </Link>
+            );
+          })}
 
-    <VelvetLinkButton dark href={appLogin}>
-      Login
-    </VelvetLinkButton>
+          <DesktopSolutionsMenu pathname={pathname} />
 
-    <VelvetLinkButton href={appRegister}>Register</VelvetLinkButton>
-  </div>
-</div>
+          {MARKETING_NAV.slice(4).map((item) => {
+            const active = isRouteActive(pathname, item.href);
 
-<div className="min-w-0 flex-1 lg:hidden">
-  <Brand href="/" />
-</div>
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={`whitespace-nowrap text-[0.92rem] font-medium ${
+                  active
+                    ? "text-[#d6b89d]"
+                    : "text-[#dce1de] hover:text-[#d6b89d]"
+                }`}
+              >
+                {item.label}
+              </Link>
+            );
+          })}
+        </nav>
+
+        <div className="flex items-center justify-end gap-2.5">
+          <div className="lang-button flex items-center">
+            <LanguageSwitcher />
+          </div>
+
+          <VelvetLinkButton dark href={appLogin}>
+            Login
+          </VelvetLinkButton>
+
+          <VelvetLinkButton href={appRegister}>Register</VelvetLinkButton>
+        </div>
+      </div>
+
+      <div className="min-w-0 flex-1 lg:hidden">
+        <Brand href="/" />
+      </div>
 
       <div className="flex shrink-0 items-center gap-2 lg:hidden">
         <div className="lang-button flex items-center">
@@ -357,8 +507,7 @@ export function AppHeader({
     setMobileOpen(false);
   }, [pathname]);
 
-  const isActive = (href: string) =>
-    pathname === href || (href !== "/billing" && pathname?.startsWith(`${href}/`));
+  const isActive = (href: string) => isRouteActive(pathname, href);
 
   return (
     <HeaderShell
@@ -390,43 +539,43 @@ export function AppHeader({
         ) : null
       }
     >
-<div className="hidden lg:grid lg:w-full lg:grid-cols-[auto_1fr_auto] lg:items-center lg:gap-8">
-  <div className="min-w-0">
-    <Brand href="/home" />
-  </div>
+      <div className="hidden lg:grid lg:w-full lg:grid-cols-[auto_1fr_auto] lg:items-center lg:gap-8">
+        <div className="min-w-0">
+          <Brand href="/home" />
+        </div>
 
-  <nav className="flex items-center justify-center gap-4">
-    {navItems.map((item) => (
-      <Link
-        key={item.href}
-        href={item.href}
-        className={`text-[0.92rem] font-medium ${
-          isActive(item.href)
-            ? "text-[#d6b89d]"
-            : "hover-link-bronze text-[#dce1de]"
-        }`}
-      >
-        {item.label}
-      </Link>
-    ))}
-  </nav>
+        <nav className="flex items-center justify-center gap-4">
+          {navItems.map((item) => (
+            <Link
+              key={item.href}
+              href={item.href}
+              className={`whitespace-nowrap text-[0.92rem] font-medium ${
+                isActive(item.href)
+                  ? "text-[#d6b89d]"
+                  : "hover-link-bronze text-[#dce1de]"
+              }`}
+            >
+              {item.label}
+            </Link>
+          ))}
+        </nav>
 
-  <div className="flex items-center justify-end gap-2.5">
-    <div className="lang-button flex items-center">
-      <LanguageSwitcher />
-    </div>
+        <div className="flex items-center justify-end gap-2.5">
+          <div className="lang-button flex items-center">
+            <LanguageSwitcher />
+          </div>
 
-    {hasSession && (
-      <VelvetActionButton dark onClick={onLogout}>
-        Sign out
-      </VelvetActionButton>
-    )}
-  </div>
-</div>
+          {hasSession && (
+            <VelvetActionButton dark onClick={onLogout}>
+              Sign out
+            </VelvetActionButton>
+          )}
+        </div>
+      </div>
 
-<div className="min-w-0 flex-1 lg:hidden">
-  <Brand href="/home" />
-</div>
+      <div className="min-w-0 flex-1 lg:hidden">
+        <Brand href="/home" />
+      </div>
 
       <div className="flex shrink-0 items-center gap-2 lg:hidden">
         <div className="lang-button flex items-center">

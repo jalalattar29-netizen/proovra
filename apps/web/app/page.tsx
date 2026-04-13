@@ -10,6 +10,7 @@ import { Footer } from "../components/Footer";
 export default function HomePage() {
   const appRegister = "/register";
   const appLogin = "/login";
+  const demoUrl = "/request-demo";
   const sampleReportUrl = "/brand/sample-report.pdf";
 
   return (
@@ -33,7 +34,11 @@ export default function HomePage() {
 
         <div className="relative z-10">
           <MarketingHeader />
-          <Hero appRegister={appRegister} sampleReportUrl={sampleReportUrl} />
+          <Hero
+            appRegister={appRegister}
+            demoUrl={demoUrl}
+            sampleReportUrl={sampleReportUrl}
+          />
           <Features />
           <TrustBadges />
         </div>
@@ -42,6 +47,7 @@ export default function HomePage() {
       <LandingBody
         appLogin={appLogin}
         appRegister={appRegister}
+        demoUrl={demoUrl}
         sampleReportUrl={sampleReportUrl}
       />
 

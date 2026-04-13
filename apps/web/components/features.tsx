@@ -5,25 +5,25 @@ import { Shield, CheckCircle, Lock } from "lucide-react";
 const features = [
   {
     icon: Shield,
-    title: "Capture the original file",
+    title: "Create a reviewable evidence record",
     description:
-      "Upload photos, videos, audio, and documents into a dedicated evidence record.",
+      "Upload files or capture material into a structured evidence record instead of relying on ordinary files or screenshots alone.",
     iconBg:
       "bg-[linear-gradient(180deg,rgba(58,92,102,0.98)_0%,rgba(35,58,67,0.98)_100%)]",
   },
   {
     icon: CheckCircle,
-    title: "Preserve integrity",
+    title: "Preserve the recorded integrity state",
     description:
-      "PROOVRA records hashes, signatures, timestamps, and custody events tied to the evidence record.",
+      "PROOVRA records integrity materials, timestamps, and custody events so later review can detect mismatches and post-submission changes.",
     iconBg:
       "bg-[linear-gradient(180deg,rgba(73,128,135,0.98)_0%,rgba(44,79,88,0.98)_100%)]",
   },
   {
     icon: Lock,
-    title: "Verify later",
+    title: "Verify later with more context",
     description:
-      "Share a verification page and report so reviewers can inspect integrity materials without relying on plain screenshots.",
+      "Share a verification page and report so reviewers can inspect the evidence trail, timestamp status, and preservation details in one place.",
     iconBg:
       "bg-[linear-gradient(180deg,rgba(177,164,149,0.98)_0%,rgba(142,126,111,0.98)_100%)]",
   },

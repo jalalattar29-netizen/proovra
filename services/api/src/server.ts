@@ -1,6 +1,8 @@
 import { randomUUID } from "node:crypto";
 import Fastify from "fastify";
 import type { FastifyBaseLogger } from "fastify";
+import { demoRequestsRoutes } from "./routes/demo-requests.routes.js";
+import { adminDemoRequestsRoutes } from "./routes/admin-demo-requests.routes.js";
 import cors from "@fastify/cors";
 import cookie from "@fastify/cookie";
 import { ZodError } from "zod";
@@ -376,6 +378,8 @@ export async function buildServer() {
   await app.register(teamManagementRoutes);
   await app.register(webhookRoutes);
   await app.register(analyticsRoutes);
+  await app.register(demoRequestsRoutes);
+  await app.register(adminDemoRequestsRoutes);
   await app.register(adminAuditRoutes);
 
   return app;

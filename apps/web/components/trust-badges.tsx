@@ -5,19 +5,19 @@ import { Fingerprint, Shield, FileCheck, Clock3 } from "lucide-react";
 const badges = [
   {
     icon: Fingerprint,
-    label: "SHA-256 fingerprinting",
+    label: "Signed integrity records",
   },
   {
     icon: Shield,
-    label: "Protected verification workflow",
+    label: "Trusted timestamp visibility",
   },
   {
     icon: FileCheck,
-    label: "Audit-ready PDF reports",
+    label: "Verification page + report",
   },
   {
     icon: Clock3,
-    label: "Chain-of-custody visibility",
+    label: "Review-ready evidence trail",
   },
 ];
 
