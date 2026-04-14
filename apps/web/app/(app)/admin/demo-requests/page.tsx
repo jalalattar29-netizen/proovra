@@ -479,7 +479,7 @@ export default function AdminDemoRequestsPage() {
 
   useEffect(() => {
     void loadList();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+
   }, [statusFilter, priorityFilter, spamFilter, leadTrackFilter, followUpStatusFilter]);
 
   const statPillBase = useMemo(
