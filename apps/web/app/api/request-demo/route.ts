@@ -9,9 +9,31 @@ function readApiBase() {
   return apiBase.replace(/\/+$/, "");
 }
 
+function jsonError(message: string, status: number) {
+  return NextResponse.json(
+    {
+      ok: false,
+      error: {
+        message,
+      },
+    },
+    { status }
+  );
+}
+
 export async function POST(req: Request) {
   try {
-    const body = await req.json();
+    let body: Record<string, unknown> | null = null;
+
+    try {
+      body = (await req.json()) as Record<string, unknown>;
+    } catch {
+      return jsonError("Invalid request payload.", 400);
+    }
+
+    if (!body || typeof body !== "object") {
+      return jsonError("Invalid request payload.", 400);
+    }
 
     const apiBase = readApiBase();
     const upstreamUrl = `${apiBase}/v1/demo-requests`;
@@ -31,13 +53,25 @@ export async function POST(req: Request) {
         "user-agent": userAgent,
         "x-forwarded-for": forwardedFor,
         "x-demo-source": "website",
-        "x-demo-source-path": "/request-demo",
+        "x-demo-source-path":
+          typeof body.sourcePath === "string" && body.sourcePath.trim()
+            ? body.sourcePath
+            : "/request-demo",
       },
       body: JSON.stringify({
         ...body,
-        referrer: body?.referrer ?? referer ?? null,
-        source: body?.source ?? "website",
-        sourcePath: body?.sourcePath ?? "/request-demo",
+        referrer:
+          typeof body.referrer === "string" && body.referrer.trim()
+            ? body.referrer
+            : referer || null,
+        source:
+          typeof body.source === "string" && body.source.trim()
+            ? body.source
+            : "website",
+        sourcePath:
+          typeof body.sourcePath === "string" && body.sourcePath.trim()
+            ? body.sourcePath
+            : "/request-demo",
       }),
       cache: "no-store",
     });
@@ -57,7 +91,9 @@ export async function POST(req: Request) {
           ? parsed
           : {
               ok: false,
-              error: "Failed to submit demo request.",
+              error: {
+                message: "Failed to submit demo request.",
+              },
             },
         { status: upstream.status }
       );
@@ -76,7 +112,9 @@ export async function POST(req: Request) {
     return NextResponse.json(
       {
         ok: false,
-        error: "Unable to submit demo request right now.",
+        error: {
+          message: "Unable to submit demo request right now.",
+        },
       },
       { status: 500 }
     );

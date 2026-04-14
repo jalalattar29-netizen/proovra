@@ -204,7 +204,12 @@ export async function buildServer() {
   await app.register(cors, {
     credentials: true,
     methods: ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    allowedHeaders: ["content-type", "authorization", "x-web-client"],
+allowedHeaders: [
+  "content-type",
+  "authorization",
+  "x-web-client",
+  "x-internal-key",
+],
     origin: (origin, cb) => {
       if (!origin) return cb(null, true);
 

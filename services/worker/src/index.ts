@@ -24,6 +24,24 @@ import { captureException, initSentry } from "./sentry.js";
 
 type JobData = { evidenceId?: string };
 
+function envString(name: string): string | undefined {
+  const value = process.env[name];
+  const trimmed = typeof value === "string" ? value.trim() : "";
+  return trimmed || undefined;
+}
+
+function envNumber(name: string, fallback: number): number {
+  const raw = process.env[name];
+  const parsed = Number(raw);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+function envBoolean(name: string, fallback: boolean): boolean {
+  const raw = envString(name);
+  if (!raw) return fallback;
+  return raw.toLowerCase() === "true";
+}
+
 function emitOperationalAlert(params: {
   requestId: string;
   reason: string;
@@ -53,7 +71,7 @@ function isExpectedOtsPendingError(
   jobKind: "report" | "ots-upgrade" | "evidence-purge",
   err: unknown
 ): boolean {
-    if (jobKind !== "ots-upgrade") return false;
+  if (jobKind !== "ots-upgrade") return false;
   return getErrorMessage(err).trim() === "NOT_ANCHORED_YET";
 }
 
@@ -61,7 +79,7 @@ function bindWorkerEvents(
   workerInstance: Worker,
   jobKind: "report" | "ots-upgrade" | "evidence-purge"
 ) {
-    workerInstance.on("completed", (job) => {
+  workerInstance.on("completed", (job) => {
     const requestId = randomUUID();
     const durationMs =
       job.finishedOn && job.processedOn
@@ -143,6 +161,177 @@ function bindWorkerEvents(
   });
 }
 
+const internalApiBase =
+  envString("INTERNAL_API_BASE_URL") ??
+  envString("API_BASE_URL") ??
+  "http://proovra-api:8080";
+
+const internalApiKey = envString("INTERNAL_API_KEY");
+const followUpEnabled = envBoolean("DEMO_FOLLOW_UP_ENABLED", true);
+const followUpIntervalMs = envNumber(
+  "DEMO_FOLLOW_UP_INTERVAL_MS",
+  60 * 60 * 1000
+);
+
+let followUpTimer: NodeJS.Timeout | null = null;
+let followUpRunning = false;
+
+async function runDemoFollowUps(trigger: "startup" | "interval") {
+  if (!followUpEnabled) return;
+
+  if (!internalApiKey) {
+    logger.warn(
+      {
+        requestId: randomUUID(),
+        trigger,
+      },
+      "followup.run.skipped_missing_internal_api_key"
+    );
+    return;
+  }
+
+  if (followUpRunning) {
+    logger.warn(
+      {
+        requestId: randomUUID(),
+        trigger,
+      },
+      "followup.run.skipped_already_running"
+    );
+    return;
+  }
+
+  followUpRunning = true;
+  const requestId = randomUUID();
+  const startedAt = Date.now();
+
+  try {
+    const url = `${internalApiBase.replace(/\/+$/, "")}/v1/admin/demo-requests/follow-up/run`;
+
+    logger.info(
+      {
+        requestId,
+        trigger,
+        url,
+      },
+      "followup.run.started"
+    );
+
+    const response = await fetch(url, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-internal-key": internalApiKey,
+      },
+      body: JSON.stringify({
+        limit: 25,
+      }),
+    });
+
+    const raw = await response.text();
+    let parsed: unknown = null;
+
+    try {
+      parsed = raw ? JSON.parse(raw) : null;
+    } catch {
+      parsed = raw || null;
+    }
+
+    if (!response.ok) {
+      throw new Error(
+        `Follow-up run failed with status ${response.status}${
+          parsed
+            ? `: ${typeof parsed === "string" ? parsed : JSON.stringify(parsed)}`
+            : ""
+        }`
+      );
+    }
+
+    logger.info(
+      {
+        requestId,
+        trigger,
+        durationMs: Date.now() - startedAt,
+        result: parsed,
+      },
+      "followup.run.completed"
+    );
+  } catch (err) {
+    logger.error(
+      {
+        requestId,
+        trigger,
+        durationMs: Date.now() - startedAt,
+        err,
+      },
+      "followup.run.failed"
+    );
+
+    captureException(err, {
+      requestId,
+      trigger,
+      internalApiBase,
+    });
+
+    emitOperationalAlert({
+      requestId,
+      reason: "demo_followup_run_failed",
+      err,
+      context: {
+        trigger,
+        internalApiBase,
+      },
+    });
+  } finally {
+    followUpRunning = false;
+  }
+}
+
+function startDemoFollowUpScheduler() {
+  if (!followUpEnabled) {
+    logger.info(
+      {
+        requestId: randomUUID(),
+      },
+      "followup.scheduler.disabled"
+    );
+    return;
+  }
+
+  if (!internalApiKey) {
+    logger.warn(
+      {
+        requestId: randomUUID(),
+        internalApiBase,
+      },
+      "followup.scheduler.started_without_internal_api_key"
+    );
+  }
+
+  followUpTimer = setInterval(() => {
+    void runDemoFollowUps("interval");
+  }, followUpIntervalMs);
+
+  logger.info(
+    {
+      requestId: randomUUID(),
+      intervalMs: followUpIntervalMs,
+      internalApiBase,
+      followUpEnabled,
+    },
+    "followup.scheduler.started"
+  );
+
+  void runDemoFollowUps("startup");
+}
+
+function stopDemoFollowUpScheduler() {
+  if (followUpTimer) {
+    clearInterval(followUpTimer);
+    followUpTimer = null;
+  }
+}
+
 initSentry();
 
 const reportWorker = new Worker(reportQueueName, processGenerateReport, {
@@ -177,6 +366,8 @@ async function shutdown(exitCode: number) {
 
   logger.info({ requestId: randomUUID(), exitCode }, "worker.shutdown_started");
 
+  stopDemoFollowUpScheduler();
+
   try {
     await reportWorker.pause(true);
   } catch (err) {
@@ -193,7 +384,7 @@ async function shutdown(exitCode: number) {
     captureException(err, { requestId });
   }
 
-    try {
+  try {
     await evidencePurgeWorker.pause(true);
   } catch (err) {
     const requestId = randomUUID();
@@ -217,7 +408,7 @@ async function shutdown(exitCode: number) {
     captureException(err, { requestId });
   }
 
-    try {
+  try {
     await evidencePurgeWorker.close();
   } catch (err) {
     const requestId = randomUUID();
@@ -258,6 +449,7 @@ async function shutdown(exitCode: number) {
 startHealthServer()
   .then((server) => {
     healthServer = server;
+    startDemoFollowUpScheduler();
   })
   .catch((err) => {
     const requestId = randomUUID();
@@ -313,6 +505,9 @@ logger.info(
   {
     requestId: randomUUID(),
     jobs: [generateReportJobName, purgeDeletedEvidenceJobName],
+    followUpEnabled,
+    followUpIntervalMs,
+    internalApiBase,
   },
   "worker.started"
 );

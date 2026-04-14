@@ -2,36 +2,61 @@
 
 Last Updated: 06.04.2026
 
-This document explains the technical model Proovra uses to preserve and verify digital evidence integrity.
+This page explains how PROOVRA helps preserve and later review the recorded integrity state of a digital evidence record.
 
-The platform is designed to generate cryptographic and audit-oriented artifacts that allow later technical verification that an evidence record has not been altered after completion, subject to the limitations described below.
+It is designed for readers who need to understand, at a practical level, what the platform records, what later reviewers can inspect, and what verification does and does not confirm.
 
-## 1. OVERVIEW
+## 1. WHAT THIS PAGE HELPS EXPLAIN
 
-At or around evidence completion, Proovra may generate and associate technical artifacts such as:
+This methodology page is meant to explain:
 
-- cryptographic file hashes
-- a canonical fingerprint record
+- what PROOVRA records at or around evidence completion
+- what later reviewers can inspect through the verification layer and report output
+- how technical tamper detection is supported
+- what verification is designed to confirm
+- what verification does **not** independently establish
+
+## 2. PRACTICAL OVERVIEW
+
+In a PROOVRA workflow, a file or evidence package may be transformed into a structured evidence record with associated review materials.
+
+Depending on the workflow and enabled features, this may include:
+
+- file hashes
+- a structured fingerprint record
 - a fingerprint hash
 - platform signature material
 - custody event records
 - verification reports
 - timestamp-related metadata where enabled
 - OpenTimestamps-related metadata where enabled
+- storage-protection or preservation metadata where available
 
-These artifacts are intended to support later tamper detection and technical review.
+These materials are intended to support later review of the recorded evidence state.
 
-## 2. FILE HASHING
+## 3. WHAT REVIEWERS CAN INSPECT LATER
 
-Proovra may compute a cryptographic hash of the evidence file.
+Depending on the workflow, later reviewers may be able to inspect:
+
+- whether the current file state still matches the recorded file hash
+- whether the recorded fingerprint state remains internally consistent
+- whether signature materials correspond to the expected platform verification material
+- whether custody records appear internally consistent
+- whether timestamp-related or anchoring-related records are present where enabled
+- whether storage-protection or preservation context was recorded
+- whether the evidence record has been packaged into a structured reviewer-facing report
+
+## 4. FILE HASHING
+
+PROOVRA may compute a cryptographic hash of the evidence file.
 
 A secure hash function is designed to be deterministic and highly sensitive to any change in the underlying file content. Even a small change to the file should produce a different output hash.
 
 The file hash therefore functions as a technical fingerprint of the file content.
 
-## 3. EVIDENCE FINGERPRINT
+## 5. STRUCTURED EVIDENCE FINGERPRINT
 
-In addition to the file hash, Proovra may generate a structured fingerprint record associated with the evidence item.
+In addition to the file hash, PROOVRA may generate a structured fingerprint record associated with the evidence item.
 
 Depending on the workflow, this may include:
 
@@ -44,18 +69,18 @@ Depending on the workflow, this may include:
 
 The fingerprint record may be serialized in a canonical form and hashed to produce a fingerprint hash.
 
-## 4. DIGITAL SIGNATURE
+## 6. DIGITAL SIGNATURE MATERIAL
 
 After generation of the fingerprint hash, the platform may apply a digital signature using platform-controlled signing material.
 
-This allows later verification that:
+This allows later review to check that:
 
-- the signature corresponds to the platform verification key material
+- the signature corresponds to the expected platform verification material
 - the signed fingerprint hash has not changed since signature generation
 
-## 5. CUSTODY EVENT RECORDS
+## 7. CUSTODY EVENT RECORDS
 
-Proovra maintains a custody timeline designed to record important system actions affecting an evidence record.
+PROOVRA maintains a custody timeline designed to record important system actions affecting an evidence record.
 
 Events may include:
 
@@ -67,32 +92,33 @@ Events may include:
 - verification-related actions
 - timestamp or anchoring-related events where applicable
 
-These records are intended to provide an auditable system activity history.
+These records are intended to provide an auditable system activity history and clearer downstream review context.
 
-## 6. REPORTS AND VERIFICATION OUTPUTS
+## 8. REPORTS AND VERIFICATION OUTPUTS
 
-Where supported, Proovra may generate reports or verification outputs containing selected integrity materials, including:
+Where supported, PROOVRA may generate reviewer-facing reports or verification outputs containing selected integrity materials, including:
 
 - file hash
 - fingerprint hash
 - signature material
 - custody event summaries
 - timestamp-related metadata
-- storage protection metadata where available
+- storage-protection metadata where available
 
-A reviewer may compare the report or verification output with the original file and recompute technical checks.
+A reviewer may compare the report or verification output with the original file and recompute technical checks where appropriate.
 
-## 7. WHAT THE SYSTEM IS DESIGNED TO VERIFY
+## 9. WHAT THE SYSTEM IS DESIGNED TO VERIFY
 
-The Proovra verification model is intended to help assess:
+The PROOVRA verification model is intended to help assess:
 
 - whether the file hash matches the recorded file hash
 - whether the fingerprint hash matches the recorded fingerprint data
 - whether the signature corresponds to the expected verification material
 - whether custody records appear internally consistent
 - whether selected timestamp or anchoring metadata is present where enabled
+- whether the recorded integrity state appears consistent with the stored verification materials
 
-## 8. WHAT THE SYSTEM DOES NOT VERIFY
+## 10. WHAT THE SYSTEM DOES NOT INDEPENDENTLY VERIFY
 
 The platform does **not** independently determine:
 
@@ -100,11 +126,12 @@ The platform does **not** independently determine:
 - whether the content is truthful
 - whether the surrounding context is accurate
 - whether the content was manipulated before capture or upload
-- whether a court or authority will admit the material as evidence
+- whether an authority, court, insurer, employer, or regulator will accept the record as evidence
+- whether the evidence has a particular legal or procedural weight in a specific jurisdiction
 
 Those questions may require additional investigative, forensic, contractual, and legal analysis.
 
-## 9. INDEPENDENT REVIEW
+## 11. INDEPENDENT REVIEW
 
 Technical review may include:
 
@@ -113,19 +140,22 @@ Technical review may include:
 - verifying signature material
 - reviewing custody event history
 - reviewing reports and verification outputs
+- reviewing timestamp-related materials where available
 
 Independent review may be possible using the technical materials made available by the platform, but successful review depends on the available artifacts and workflow.
 
-## 10. TIMESTAMPS AND ANCHORING
+## 12. TIMESTAMPS, ANCHORING, AND PRESERVATION CONTEXT
 
-Where enabled, Proovra may include timestamp-related or anchoring-related metadata, including Trusted Timestamp Authority data or OpenTimestamps-related data.
+Where enabled, PROOVRA may include timestamp-related or anchoring-related metadata, including Trusted Timestamp Authority data or OpenTimestamps-related data.
 
-Availability, format, and evidentiary weight of such metadata depend on the enabled feature set, service environment, and the successful completion of the relevant workflow.
+Where available, the platform may also surface storage-protection or preservation-related metadata relevant to later scrutiny.
 
-## 11. LIMITATIONS
+Availability, format, and practical value of such metadata depend on the enabled feature set, service environment, and successful completion of the relevant workflow.
 
-Cryptographic verification demonstrates technical consistency and tamper detection value. It does not, by itself, establish factual authenticity, authorship, legal validity, or admissibility.
+## 13. IMPORTANT LIMITATION
 
-## 12. FUTURE DEVELOPMENT
+Cryptographic verification demonstrates technical consistency and tamper-detection value. It does not, by itself, establish factual truth, authorship, identity, legal validity, or admissibility.
+
+## 14. FUTURE DEVELOPMENT
 
 As the platform evolves, verification methods may change or expand. Updated versions of this page may describe new mechanisms as they become operational.

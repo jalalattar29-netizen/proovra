@@ -328,17 +328,17 @@ export default function AdminPage() {
                 <div className="admin-note-grid">
                   <div className="admin-hero-note">
                     <div className="admin-hero-note-title">Modules</div>
-                    <div className="admin-hero-note-value">2</div>
+<div className="admin-hero-note-value">3</div>
                     <div className="admin-hero-note-copy">
-                      Platform analytics and audit integrity are available from here.
+Platform analytics, audit integrity, and demo request CRM are available from here.
                     </div>
                   </div>
 
                   <div className="admin-hero-note">
                     <div className="admin-hero-note-title">Admin Routes</div>
-                    <div className="admin-hero-note-value">3</div>
+<div className="admin-hero-note-value">4</div>
                     <div className="admin-hero-note-copy">
-                      Navigate quickly across console home, dashboard, and audit pages.
+Navigate quickly across console home, dashboard, audit, and demo request pages.
                     </div>
                   </div>
                 </div>

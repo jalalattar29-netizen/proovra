@@ -735,6 +735,19 @@ model DemoRequest {
 
   status           DemoRequestStatus   @default(NEW)
   priority         DemoRequestPriority @default(NORMAL)
+  leadQuality      DemoLeadQuality?   @map("lead_quality")
+  leadTrack        DemoLeadTrack?     @map("lead_track")
+  recommendedAction DemoRecommendedAction? @map("recommended_action")
+  routingTarget     DemoRoutingTarget?     @map("routing_target")
+  routingReason     String?                @map("routing_reason") @db.VarChar(255)
+  routedAt          DateTime?              @map("routed_at") @db.Timestamptz(6)
+  routedByUserId    String?                @map("routed_by_user_id") @db.Uuid
+  responseSlaHours Int?               @map("response_sla_hours")
+  qualificationScore Int?             @map("qualification_score")
+  qualificationReasons Json?          @map("qualification_reasons")
+  firstRespondedAt DateTime?          @map("first_responded_at") @db.Timestamptz(6)
+  contactedAt      DateTime?          @map("contacted_at") @db.Timestamptz(6)
+  contactedByUserId String?           @map("contacted_by_user_id") @db.Uuid
   spamScore        Int                 @default(0) @map("spam_score")
   spamReasons      Json?               @map("spam_reasons")
   isSpam           Boolean             @default(false) @map("is_spam")
@@ -742,6 +755,12 @@ model DemoRequest {
   emailSentAt      DateTime?           @map("email_sent_at") @db.Timestamptz(6)
   autoReplySentAt  DateTime?           @map("auto_reply_sent_at") @db.Timestamptz(6)
   webhookSentAt    DateTime?           @map("webhook_sent_at") @db.Timestamptz(6)
+  followUpStatus        DemoFollowUpStatus @default(ACTIVE) @map("follow_up_status")
+  followUpStep          Int                @default(0) @map("follow_up_step")
+  nextFollowUpAt        DateTime?          @map("next_follow_up_at") @db.Timestamptz(6)
+  lastFollowUpSentAt    DateTime?          @map("last_follow_up_sent_at") @db.Timestamptz(6)
+  lastFollowUpTemplateKey String?          @map("last_follow_up_template_key") @db.VarChar(64)
+  followUpStoppedAt     DateTime?          @map("follow_up_stopped_at") @db.Timestamptz(6)
 
   reviewedAt       DateTime?           @map("reviewed_at") @db.Timestamptz(6)
   reviewedByUserId String?             @map("reviewed_by_user_id") @db.Uuid
@@ -756,10 +775,18 @@ model DemoRequest {
   @@index([status, createdAt(sort: Desc)])
   @@index([priority, createdAt(sort: Desc)])
   @@index([workEmail])
+  @@index([leadQuality, createdAt(sort: Desc)])
+  @@index([leadTrack, createdAt(sort: Desc)])
+  @@index([recommendedAction, createdAt(sort: Desc)])
+  @@index([responseSlaHours])
+  @@index([contactedAt, createdAt(sort: Desc)])
   @@index([organization])
   @@index([source, createdAt(sort: Desc)])
   @@index([isSpam, createdAt(sort: Desc)])
   @@index([createdAt(sort: Desc)])
+  @@index([routingTarget, createdAt(sort: Desc)])
+  @@index([followUpStatus, nextFollowUpAt])
+  @@index([leadTrack, followUpStatus, createdAt(sort: Desc)])
   @@map("demo_requests")
 }
 
@@ -776,6 +803,39 @@ enum DemoRequestPriority {
   LOW
   NORMAL
   HIGH
+}
+
+enum DemoLeadQuality {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+enum DemoLeadTrack {
+  DISCOVERY
+  SALES
+  ENTERPRISE
+}
+
+enum DemoRecommendedAction {
+  reply_with_resources
+  offer_demo
+  route_enterprise
+}
+
+enum DemoRoutingTarget {
+  AUTO_RESOURCES
+  AUTO_BOOKING
+  MANUAL_SALES
+  ENTERPRISE_DESK
+}
+
+enum DemoFollowUpStatus {
+  ACTIVE
+  PAUSED
+  COMPLETED
+  REPLIED
+  STOPPED
 }
 
 enum EvidenceType {

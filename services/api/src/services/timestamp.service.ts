@@ -135,10 +135,8 @@ export async function createEvidenceTimestamp(params: {
       { timeout: timeoutMs() }
     );
 
-    const replyText = stdout.toLowerCase();
-    const granted =
-      replyText.includes("status: granted") ||
-      replyText.includes("status: grantedwithmods");
+const statusMatch = stdout.match(/Status:\s*(Granted|GrantedWithMods)/i);
+const granted = Boolean(statusMatch);
 
     if (!granted) {
       return {

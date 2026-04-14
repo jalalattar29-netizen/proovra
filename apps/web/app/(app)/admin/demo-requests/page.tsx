@@ -1,10 +1,53 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Card, Button, Input, Select, Skeleton, useToast } from "../../../../components/ui";
+import {
+  Card,
+  Button,
+  Input,
+  Select,
+  Skeleton,
+  useToast,
+} from "../../../../components/ui";
 import DashboardShell from "../../../../components/dashboard/DashboardShell";
 import { dashboardStyles } from "../../../../components/dashboard/styles";
 import { apiFetch } from "../../../../lib/api";
+
+type DemoStatus =
+  | "NEW"
+  | "REVIEWED"
+  | "CONTACTED"
+  | "QUALIFIED"
+  | "REJECTED"
+  | "ARCHIVED";
+
+type DemoPriority = "LOW" | "NORMAL" | "HIGH";
+type DemoLeadQuality = "LOW" | "MEDIUM" | "HIGH";
+type DemoLeadTrack = "DISCOVERY" | "SALES" | "ENTERPRISE";
+type DemoRecommendedAction =
+  | "reply_with_resources"
+  | "offer_demo"
+  | "route_enterprise";
+type DemoRoutingTarget =
+  | "AUTO_RESOURCES"
+  | "AUTO_BOOKING"
+  | "MANUAL_SALES"
+  | "ENTERPRISE_DESK";
+type DemoFollowUpStatus =
+  | "ACTIVE"
+  | "PAUSED"
+  | "COMPLETED"
+  | "REPLIED"
+  | "STOPPED";
+
+type Summary = {
+  NEW: number;
+  REVIEWED: number;
+  CONTACTED: number;
+  QUALIFIED: number;
+  REJECTED: number;
+  ARCHIVED: number;
+};
 
 type DemoRequestListItem = {
   id: string;
@@ -16,14 +59,31 @@ type DemoRequestListItem = {
   teamSize: string | null;
   source: string | null;
   sourcePath: string | null;
-  status: "NEW" | "REVIEWED" | "CONTACTED" | "QUALIFIED" | "REJECTED" | "ARCHIVED";
-  priority: "LOW" | "NORMAL" | "HIGH";
+
+  status: DemoStatus;
+  priority: DemoPriority;
+
+  leadQuality: DemoLeadQuality | null;
+  leadTrack: DemoLeadTrack | null;
+  recommendedAction: DemoRecommendedAction | null;
+
+  routingTarget: DemoRoutingTarget | null;
+  routingReason: string | null;
+
+  followUpStatus: DemoFollowUpStatus;
+  followUpStep: number;
+  nextFollowUpAt: string | null;
+  lastFollowUpSentAt: string | null;
+
   spamScore: number;
   isSpam: boolean;
+
   emailSentAt: string | null;
   autoReplySentAt: string | null;
+
   reviewedAt: string | null;
   reviewedByUserId: string | null;
+
   createdAt: string;
   updatedAt: string;
 };
@@ -38,6 +98,7 @@ type DemoRequestDetails = {
   teamSize: string | null;
   useCase: string;
   message: string | null;
+
   source: string | null;
   sourcePath: string | null;
   referrer: string | null;
@@ -46,30 +107,47 @@ type DemoRequestDetails = {
   utmCampaign: string | null;
   utmTerm: string | null;
   utmContent: string | null;
-  status: "NEW" | "REVIEWED" | "CONTACTED" | "QUALIFIED" | "REJECTED" | "ARCHIVED";
-  priority: "LOW" | "NORMAL" | "HIGH";
+
+  status: DemoStatus;
+  priority: DemoPriority;
+
+  leadQuality: DemoLeadQuality | null;
+  leadTrack: DemoLeadTrack | null;
+  recommendedAction: DemoRecommendedAction | null;
+
+  responseSlaHours: number | null;
+  qualificationScore: number | null;
+  qualificationReasons: unknown;
+
+  routingTarget: DemoRoutingTarget | null;
+  routingReason: string | null;
+  routedAt: string | null;
+  routedByUserId: string | null;
+
+  followUpStatus: DemoFollowUpStatus;
+  followUpStep: number;
+  nextFollowUpAt: string | null;
+  lastFollowUpSentAt: string | null;
+  lastFollowUpTemplateKey: string | null;
+  followUpStoppedAt: string | null;
+
   spamScore: number;
   spamReasons: unknown;
   isSpam: boolean;
+
   emailSentAt: string | null;
   autoReplySentAt: string | null;
   webhookSentAt: string | null;
+
   reviewedAt: string | null;
   reviewedByUserId: string | null;
   notes: string | null;
+
   ipAddress: string | null;
   userAgent: string | null;
+
   createdAt: string;
   updatedAt: string;
-};
-
-type Summary = {
-  NEW: number;
-  REVIEWED: number;
-  CONTACTED: number;
-  QUALIFIED: number;
-  REJECTED: number;
-  ARCHIVED: number;
 };
 
 function formatTimestamp(value?: string | null) {
@@ -87,7 +165,15 @@ function prettyJson(value: unknown) {
   }
 }
 
-function pillTone(kind: "green" | "gold" | "red" | "neutral") {
+function titleCaseToken(value?: string | null) {
+  if (!value) return "—";
+  return value
+    .replaceAll("_", " ")
+    .toLowerCase()
+    .replace(/\b\w/g, (m) => m.toUpperCase());
+}
+
+function pillTone(kind: "green" | "gold" | "red" | "neutral" | "blue") {
   if (kind === "green") {
     return {
       border: "1px solid rgba(79,112,107,0.16)",
@@ -115,6 +201,15 @@ function pillTone(kind: "green" | "gold" | "red" | "neutral") {
     } as const;
   }
 
+  if (kind === "blue") {
+    return {
+      border: "1px solid rgba(74,109,169,0.18)",
+      background:
+        "linear-gradient(180deg, rgba(123,162,226,0.14) 0%, rgba(255,255,255,0.44) 100%)",
+      color: "#47638b",
+    } as const;
+  }
+
   return {
     border: "1px solid rgba(79,112,107,0.10)",
     background:
@@ -123,7 +218,7 @@ function pillTone(kind: "green" | "gold" | "red" | "neutral") {
   } as const;
 }
 
-function statusTone(status: DemoRequestListItem["status"] | DemoRequestDetails["status"]) {
+function statusTone(status: DemoStatus) {
   switch (status) {
     case "QUALIFIED":
       return pillTone("green");
@@ -138,7 +233,7 @@ function statusTone(status: DemoRequestListItem["status"] | DemoRequestDetails["
   }
 }
 
-function priorityTone(priority: DemoRequestListItem["priority"] | DemoRequestDetails["priority"]) {
+function priorityTone(priority: DemoPriority) {
   switch (priority) {
     case "HIGH":
       return pillTone("red");
@@ -149,11 +244,37 @@ function priorityTone(priority: DemoRequestListItem["priority"] | DemoRequestDet
   }
 }
 
+function followUpTone(status: DemoFollowUpStatus) {
+  switch (status) {
+    case "ACTIVE":
+      return pillTone("green");
+    case "PAUSED":
+      return pillTone("gold");
+    case "COMPLETED":
+    case "REPLIED":
+      return pillTone("blue");
+    case "STOPPED":
+      return pillTone("red");
+    default:
+      return pillTone("neutral");
+  }
+}
+
+function routeTone(target?: DemoRoutingTarget | null) {
+  if (target === "ENTERPRISE_DESK") return pillTone("red");
+  if (target === "AUTO_BOOKING") return pillTone("green");
+  if (target === "MANUAL_SALES") return pillTone("gold");
+  return pillTone("neutral");
+}
+
 export default function AdminDemoRequestsPage() {
   const { addToast } = useToast();
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [sendingFollowUp, setSendingFollowUp] = useState(false);
+  const [routing, setRouting] = useState(false);
+  const [runningDue, setRunningDue] = useState(false);
 
   const [items, setItems] = useState<DemoRequestListItem[]>([]);
   const [summary, setSummary] = useState<Summary>({
@@ -171,11 +292,18 @@ export default function AdminDemoRequestsPage() {
   const [statusFilter, setStatusFilter] = useState("");
   const [priorityFilter, setPriorityFilter] = useState("");
   const [spamFilter, setSpamFilter] = useState("");
+  const [leadTrackFilter, setLeadTrackFilter] = useState("");
+  const [followUpStatusFilter, setFollowUpStatusFilter] = useState("");
   const [search, setSearch] = useState("");
 
   const [editStatus, setEditStatus] = useState("");
   const [editPriority, setEditPriority] = useState("");
+  const [editFollowUpStatus, setEditFollowUpStatus] = useState("");
   const [editNotes, setEditNotes] = useState("");
+  const [editNextFollowUpAt, setEditNextFollowUpAt] = useState("");
+
+  const [routeTarget, setRouteTarget] = useState("");
+  const [routeReason, setRouteReason] = useState("");
 
   async function loadList() {
     try {
@@ -186,9 +314,14 @@ export default function AdminDemoRequestsPage() {
       if (statusFilter) params.set("status", statusFilter);
       if (priorityFilter) params.set("priority", priorityFilter);
       if (spamFilter) params.set("isSpam", spamFilter);
+      if (leadTrackFilter) params.set("leadTrack", leadTrackFilter);
+      if (followUpStatusFilter) {
+        params.set("followUpStatus", followUpStatusFilter);
+      }
       if (search.trim()) params.set("search", search.trim());
 
       const data = await apiFetch(`/v1/admin/demo-requests?${params.toString()}`);
+
       setItems(Array.isArray(data?.items) ? data.items : []);
       setSummary(
         data?.summary ?? {
@@ -213,13 +346,20 @@ export default function AdminDemoRequestsPage() {
     try {
       const data = await apiFetch(`/v1/admin/demo-requests/${id}`);
       const next = (data?.item ?? null) as DemoRequestDetails | null;
+
       setDetails(next);
       setSelectedId(id);
 
       if (next) {
         setEditStatus(next.status);
         setEditPriority(next.priority);
+        setEditFollowUpStatus(next.followUpStatus);
         setEditNotes(next.notes ?? "");
+        setEditNextFollowUpAt(
+          next.nextFollowUpAt ? next.nextFollowUpAt.slice(0, 16) : ""
+        );
+        setRouteTarget(next.routingTarget ?? "");
+        setRouteReason(next.routingReason ?? "");
       }
     } catch (err) {
       const message =
@@ -239,7 +379,11 @@ export default function AdminDemoRequestsPage() {
         body: JSON.stringify({
           status: editStatus || undefined,
           priority: editPriority || undefined,
+          followUpStatus: editFollowUpStatus || undefined,
           notes: editNotes,
+          nextFollowUpAt: editNextFollowUpAt
+            ? new Date(editNextFollowUpAt).toISOString()
+            : null,
         }),
       });
 
@@ -254,9 +398,89 @@ export default function AdminDemoRequestsPage() {
     }
   }
 
+  async function saveRouting() {
+    if (!selectedId || !routeTarget) return;
+
+    try {
+      setRouting(true);
+
+      await apiFetch(`/v1/admin/demo-requests/${selectedId}/route`, {
+        method: "POST",
+        body: JSON.stringify({
+          routingTarget: routeTarget,
+          routingReason: routeReason.trim() || null,
+        }),
+      });
+
+      addToast("Routing updated.", "success");
+      await Promise.all([loadList(), loadDetails(selectedId)]);
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "Failed to update routing";
+      addToast(message, "error");
+    } finally {
+      setRouting(false);
+    }
+  }
+
+  async function sendFollowUp(step?: 1 | 2 | 3) {
+    if (!selectedId) return;
+
+    try {
+      setSendingFollowUp(true);
+
+      await apiFetch(`/v1/admin/demo-requests/${selectedId}/follow-up/send`, {
+        method: "POST",
+        body: JSON.stringify(step ? { step } : {}),
+      });
+
+      addToast(
+        step ? `Follow-up step ${step} sent.` : "Next follow-up sent.",
+        "success"
+      );
+
+      await Promise.all([loadList(), loadDetails(selectedId)]);
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "Failed to send follow-up";
+      addToast(message, "error");
+    } finally {
+      setSendingFollowUp(false);
+    }
+  }
+
+  async function runDueFollowUps() {
+    try {
+      setRunningDue(true);
+
+      const data = await apiFetch(`/v1/admin/demo-requests/follow-up/run`, {
+        method: "POST",
+        body: JSON.stringify({ limit: 25 }),
+      });
+
+      const result = data?.result;
+      addToast(
+        `Processed ${result?.processed ?? 0}, sent ${result?.sent ?? 0}, failed ${result?.failed ?? 0}.`,
+        result?.failed ? "error" : "success"
+      );
+
+      await loadList();
+      if (selectedId) {
+        await loadDetails(selectedId);
+      }
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "Failed to run due follow-ups";
+      addToast(message, "error");
+    } finally {
+      setRunningDue(false);
+    }
+  }
+
   useEffect(() => {
     void loadList();
-  }, [statusFilter, priorityFilter, spamFilter]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [statusFilter, priorityFilter, spamFilter, leadTrackFilter, followUpStatusFilter]);
 
   const statPillBase = useMemo(
     () =>
@@ -279,6 +503,10 @@ export default function AdminDemoRequestsPage() {
     []
   );
 
+  const activeFollowUps = items.filter((x) => x.followUpStatus === "ACTIVE").length;
+  const spamCount = items.filter((x) => x.isSpam).length;
+  const enterpriseCount = items.filter((x) => x.leadTrack === "ENTERPRISE").length;
+
   return (
     <DashboardShell
       eyebrow="Demo Requests"
@@ -286,8 +514,9 @@ export default function AdminDemoRequestsPage() {
       highlight="request review."
       description={
         <>
-          Review inbound demo requests, inspect source and spam context, and move
-          qualified leads through a clean internal admin workflow.
+          Review inbound demo requests, inspect source and spam context, route
+          qualified leads, and manage follow-up execution from one controlled
+          admin surface.
         </>
       }
       action={
@@ -299,19 +528,13 @@ export default function AdminDemoRequestsPage() {
           >
             Refresh
           </Button>
-
           <Button
             className="app-responsive-btn rounded-[999px] border px-6 py-3 text-[0.95rem] font-semibold"
             style={dashboardStyles.primaryButton}
-            onClick={() => {
-              setStatusFilter("");
-              setPriorityFilter("");
-              setSpamFilter("");
-              setSearch("");
-              void loadList();
-            }}
+            onClick={() => void runDueFollowUps()}
+            disabled={runningDue}
           >
-            Clear Filters
+            {runningDue ? "Running..." : "Run Due Follow-ups"}
           </Button>
         </div>
       }
@@ -349,13 +572,12 @@ export default function AdminDemoRequestsPage() {
         .admin-demo-requests-page .card-overlay {
           position: absolute;
           inset: 0;
-          background:
-            linear-gradient(
-              180deg,
-              rgba(255, 255, 255, 0.24) 0%,
-              rgba(248, 249, 246, 0.34) 42%,
-              rgba(239, 241, 238, 0.42) 100%
-            );
+          background: linear-gradient(
+            180deg,
+            rgba(255, 255, 255, 0.24) 0%,
+            rgba(248, 249, 246, 0.34) 42%,
+            rgba(239, 241, 238, 0.42) 100%
+          );
         }
 
         .admin-demo-requests-page .card-shine {
@@ -416,7 +638,7 @@ export default function AdminDemoRequestsPage() {
 
         .admin-demo-requests-page .filters-grid {
           display: grid;
-          grid-template-columns: repeat(4, minmax(0, 1fr));
+          grid-template-columns: repeat(3, minmax(0, 1fr));
           gap: 12px;
           margin-top: 18px;
         }
@@ -429,12 +651,11 @@ export default function AdminDemoRequestsPage() {
 
         .admin-demo-requests-page .request-row {
           border: 1px solid rgba(79, 112, 107, 0.10);
-          background:
-            linear-gradient(
-              180deg,
-              rgba(255, 255, 255, 0.58) 0%,
-              rgba(243, 245, 242, 0.90) 100%
-            );
+          background: linear-gradient(
+            180deg,
+            rgba(255, 255, 255, 0.58) 0%,
+            rgba(243, 245, 242, 0.90) 100%
+          );
           border-radius: 22px;
           padding: 16px;
           box-shadow:
@@ -487,12 +708,11 @@ export default function AdminDemoRequestsPage() {
 
         .admin-demo-requests-page .soft-box {
           border: 1px solid rgba(79,112,107,0.10);
-          background:
-            linear-gradient(
-              180deg,
-              rgba(255,255,255,0.58) 0%,
-              rgba(243,245,242,0.90) 100%
-            );
+          background: linear-gradient(
+            180deg,
+            rgba(255,255,255,0.58) 0%,
+            rgba(243,245,242,0.90) 100%
+          );
           border-radius: 20px;
           padding: 16px;
           box-shadow:
@@ -516,7 +736,8 @@ export default function AdminDemoRequestsPage() {
           word-break: break-word;
         }
 
-        .admin-demo-requests-page textarea {
+        .admin-demo-requests-page textarea,
+        .admin-demo-requests-page input[type="datetime-local"] {
           width: 100%;
         }
 
@@ -546,12 +767,36 @@ export default function AdminDemoRequestsPage() {
       <div className="admin-demo-requests-page">
         <div className="grid-4">
           {[
-            { label: "New", value: summary.NEW, accent: "#2d5b59", note: "Fresh inbound requests" },
-            { label: "Contacted", value: summary.CONTACTED, accent: "#8a6e57", note: "Requests already followed up" },
-            { label: "Qualified", value: summary.QUALIFIED, accent: "#4d6f60", note: "Strong-fit demo opportunities" },
-            { label: "Rejected / Archived", value: summary.REJECTED + summary.ARCHIVED, accent: "#9a5757", note: "Closed or discarded requests" },
+            {
+              label: "New",
+              value: summary.NEW,
+              accent: "#2d5b59",
+              note: "Fresh inbound requests",
+            },
+            {
+              label: "Active Follow-up",
+              value: activeFollowUps,
+              accent: "#8a6e57",
+              note: "Requests still in automated follow-up",
+            },
+            {
+              label: "Enterprise Track",
+              value: enterpriseCount,
+              accent: "#4d6f60",
+              note: "High-touch enterprise pipeline",
+            },
+            {
+              label: "Spam Flagged",
+              value: spamCount,
+              accent: "#9a5757",
+              note: "Requests currently marked as spam",
+            },
           ].map((item) => (
-            <Card key={item.label} className="card-shell" style={dashboardStyles.outerCard}>
+            <Card
+              key={item.label}
+              className="card-shell"
+              style={dashboardStyles.outerCard}
+            >
               <div className="absolute inset-0">
                 <img
                   src="/images/panel-silver.webp.png"
@@ -586,8 +831,8 @@ export default function AdminDemoRequestsPage() {
             <div className="card-inner">
               <div className="section-title">Inbound Requests</div>
               <div className="section-copy">
-                Filter and review inbound requests by status, priority, spam state,
-                and general search.
+                Filter and review inbound requests by status, priority, lead
+                track, follow-up state, spam state, and general search.
               </div>
 
               <div className="filters-grid">
@@ -615,6 +860,28 @@ export default function AdminDemoRequestsPage() {
                 />
 
                 <Select
+                  value={leadTrackFilter}
+                  onChange={setLeadTrackFilter}
+                  options={[
+                    { value: "DISCOVERY", label: "Discovery" },
+                    { value: "SALES", label: "Sales" },
+                    { value: "ENTERPRISE", label: "Enterprise" },
+                  ]}
+                />
+
+                <Select
+                  value={followUpStatusFilter}
+                  onChange={setFollowUpStatusFilter}
+                  options={[
+                    { value: "ACTIVE", label: "Follow-up Active" },
+                    { value: "PAUSED", label: "Follow-up Paused" },
+                    { value: "COMPLETED", label: "Follow-up Completed" },
+                    { value: "REPLIED", label: "Follow-up Replied" },
+                    { value: "STOPPED", label: "Follow-up Stopped" },
+                  ]}
+                />
+
+                <Select
                   value={spamFilter}
                   onChange={setSpamFilter}
                   options={[
@@ -626,17 +893,35 @@ export default function AdminDemoRequestsPage() {
                 <Input
                   value={search}
                   onChange={setSearch}
-                  placeholder="Search name, email, org, use case..."
+                  placeholder="Search name, email, org, path, use case..."
                 />
               </div>
 
-              <div style={{ marginTop: 12, display: "flex", gap: 12, flexWrap: "wrap" }}>
+              <div
+                style={{ marginTop: 12, display: "flex", gap: 12, flexWrap: "wrap" }}
+              >
                 <Button
                   className="app-responsive-btn rounded-[999px] border px-5 py-2.5 text-[0.88rem] font-semibold"
                   style={dashboardStyles.primaryButton}
                   onClick={() => void loadList()}
                 >
                   Search
+                </Button>
+
+                <Button
+                  className="app-responsive-btn rounded-[999px] border px-5 py-2.5 text-[0.88rem] font-semibold"
+                  style={dashboardStyles.secondaryButton}
+                  onClick={() => {
+                    setStatusFilter("");
+                    setPriorityFilter("");
+                    setSpamFilter("");
+                    setLeadTrackFilter("");
+                    setFollowUpStatusFilter("");
+                    setSearch("");
+                    void loadList();
+                  }}
+                >
+                  Clear Filters
                 </Button>
               </div>
 
@@ -647,7 +932,9 @@ export default function AdminDemoRequestsPage() {
                   <Skeleton width="100%" height="110px" />
                 </div>
               ) : items.length === 0 ? (
-                <div style={{ marginTop: 18, color: "#6f7f84" }}>No demo requests found.</div>
+                <div style={{ marginTop: 18, color: "#6f7f84" }}>
+                  No demo requests found.
+                </div>
               ) : (
                 <div className="request-list">
                   {items.map((item) => (
@@ -659,33 +946,68 @@ export default function AdminDemoRequestsPage() {
                       <div className="row-top">
                         <div style={{ minWidth: 0, flex: 1 }}>
                           <div className="row-title">{item.fullName}</div>
+
                           <div className="row-sub">
                             {item.workEmail} · {item.organization ?? "No organization"} ·{" "}
                             {item.country ?? "No country"}
                           </div>
+
                           <div className="row-sub">
-                            Team size: {item.teamSize ?? "—"} · Source: {item.source ?? "—"}
+                            Team size: {item.teamSize ?? "—"} · Source:{" "}
+                            {item.source ?? "—"} · Track:{" "}
+                            {titleCaseToken(item.leadTrack)}
                           </div>
 
                           <div className="pill-row">
                             <span style={{ ...statPillBase, ...statusTone(item.status) }}>
                               {item.status}
                             </span>
+
                             <span style={{ ...statPillBase, ...priorityTone(item.priority) }}>
                               {item.priority}
                             </span>
+
                             <span
                               style={{
                                 ...statPillBase,
                                 ...(item.isSpam ? pillTone("red") : pillTone("green")),
                               }}
                             >
-                              {item.isSpam ? `Spam ${item.spamScore}` : `Clean ${item.spamScore}`}
+                              {item.isSpam
+                                ? `Spam ${item.spamScore}`
+                                : `Clean ${item.spamScore}`}
                             </span>
+
+                            <span
+                              style={{
+                                ...statPillBase,
+                                ...followUpTone(item.followUpStatus),
+                              }}
+                            >
+                              {item.followUpStatus} · S{item.followUpStep}
+                            </span>
+
+                            {item.routingTarget ? (
+                              <span
+                                style={{
+                                  ...statPillBase,
+                                  ...routeTone(item.routingTarget),
+                                }}
+                              >
+                                {titleCaseToken(item.routingTarget)}
+                              </span>
+                            ) : null}
+                          </div>
+
+                          <div className="row-sub">
+                            Next follow-up: {formatTimestamp(item.nextFollowUpAt)} · Last sent:{" "}
+                            {formatTimestamp(item.lastFollowUpSentAt)}
                           </div>
                         </div>
 
-                        <div style={{ fontSize: 12, color: "#738287", whiteSpace: "nowrap" }}>
+                        <div
+                          style={{ fontSize: 12, color: "#738287", whiteSpace: "nowrap" }}
+                        >
                           {formatTimestamp(item.createdAt)}
                         </div>
                       </div>
@@ -709,8 +1031,8 @@ export default function AdminDemoRequestsPage() {
             <div className="card-inner">
               <div className="section-title">Request Details</div>
               <div className="section-copy">
-                Inspect request content, source tracking, spam signals, and update
-                internal review state.
+                Inspect request content, qualification, routing, follow-up state,
+                spam signals, and internal review controls.
               </div>
 
               {!details ? (
@@ -726,15 +1048,59 @@ export default function AdminDemoRequestsPage() {
                       <br />
                       {details.workEmail}
                       <br />
-                      {details.organization ?? "No organization"} · {details.jobTitle ?? "No title"}
+                      {details.organization ?? "No organization"} ·{" "}
+                      {details.jobTitle ?? "No title"} · {details.country ?? "No country"}
                     </div>
+                  </div>
+
+                  <div className="soft-box">
+                    <div className="meta-label">Qualification</div>
+                    <div className="meta-value">
+                      Lead quality: {titleCaseToken(details.leadQuality)}
+                      <br />
+                      Lead track: {titleCaseToken(details.leadTrack)}
+                      <br />
+                      Recommended action: {titleCaseToken(details.recommendedAction)}
+                      <br />
+                      Priority: {details.priority}
+                      <br />
+                      SLA:{" "}
+                      {details.responseSlaHours != null
+                        ? `${details.responseSlaHours}h`
+                        : "—"}
+                      <br />
+                      Qualification score:{" "}
+                      {details.qualificationScore != null
+                        ? details.qualificationScore
+                        : "—"}
+                    </div>
+
+                    <pre
+                      style={{
+                        marginTop: 12,
+                        marginBottom: 0,
+                        whiteSpace: "pre-wrap",
+                        wordBreak: "break-word",
+                        fontSize: 11,
+                        lineHeight: 1.5,
+                        color: "#55656a",
+                        background: "rgba(255,255,255,0.55)",
+                        border: "1px solid rgba(79,112,107,0.08)",
+                        borderRadius: 14,
+                        padding: 12,
+                      }}
+                    >
+                      {prettyJson(details.qualificationReasons)}
+                    </pre>
                   </div>
 
                   <div className="soft-box">
                     <div className="meta-label">Request</div>
                     <div className="meta-value">
                       <strong>Use case</strong>
-                      <div style={{ marginTop: 8, whiteSpace: "pre-wrap" }}>{details.useCase}</div>
+                      <div style={{ marginTop: 8, whiteSpace: "pre-wrap" }}>
+                        {details.useCase}
+                      </div>
 
                       <div style={{ marginTop: 14 }}>
                         <strong>Message</strong>
@@ -798,6 +1164,106 @@ export default function AdminDemoRequestsPage() {
                   </div>
 
                   <div className="soft-box">
+                    <div className="meta-label">Routing</div>
+
+                    <div className="meta-value">
+                      Current target: {titleCaseToken(details.routingTarget)}
+                      <br />
+                      Current reason: {details.routingReason ?? "—"}
+                      <br />
+                      Routed at: {formatTimestamp(details.routedAt)}
+                      <br />
+                      Routed by: {details.routedByUserId ?? "—"}
+                    </div>
+
+                    <div style={{ display: "grid", gap: 12, marginTop: 14 }}>
+                      <Select
+                        value={routeTarget}
+                        onChange={setRouteTarget}
+                        options={[
+                          { value: "AUTO_RESOURCES", label: "Auto Resources" },
+                          { value: "AUTO_BOOKING", label: "Auto Booking" },
+                          { value: "MANUAL_SALES", label: "Manual Sales" },
+                          { value: "ENTERPRISE_DESK", label: "Enterprise Desk" },
+                        ]}
+                      />
+
+                      <Input
+                        value={routeReason}
+                        onChange={setRouteReason}
+                        placeholder="Routing reason..."
+                      />
+
+                      <Button
+                        className="app-responsive-btn rounded-[999px] border px-6 py-3 text-[0.95rem] font-semibold"
+                        style={dashboardStyles.secondaryButton}
+                        onClick={() => void saveRouting()}
+                        disabled={routing || !routeTarget}
+                      >
+                        {routing ? "Saving route..." : "Save routing"}
+                      </Button>
+                    </div>
+                  </div>
+
+                  <div className="soft-box">
+                    <div className="meta-label">Follow-up</div>
+
+                    <div className="meta-value">
+                      Follow-up status: {details.followUpStatus}
+                      <br />
+                      Step: {details.followUpStep}
+                      <br />
+                      Next scheduled: {formatTimestamp(details.nextFollowUpAt)}
+                      <br />
+                      Last sent: {formatTimestamp(details.lastFollowUpSentAt)}
+                      <br />
+                      Template key: {details.lastFollowUpTemplateKey ?? "—"}
+                      <br />
+                      Stopped at: {formatTimestamp(details.followUpStoppedAt)}
+                    </div>
+
+                    <div style={{ display: "grid", gap: 12, marginTop: 14 }}>
+                      <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                        <Button
+                          className="app-responsive-btn rounded-[999px] border px-5 py-3 text-[0.9rem] font-semibold"
+                          style={dashboardStyles.secondaryButton}
+                          onClick={() => void sendFollowUp()}
+                          disabled={sendingFollowUp}
+                        >
+                          {sendingFollowUp ? "Sending..." : "Send Next"}
+                        </Button>
+
+                        <Button
+                          className="app-responsive-btn rounded-[999px] border px-5 py-3 text-[0.9rem] font-semibold"
+                          style={dashboardStyles.secondaryButton}
+                          onClick={() => void sendFollowUp(1)}
+                          disabled={sendingFollowUp}
+                        >
+                          Send Step 1
+                        </Button>
+
+                        <Button
+                          className="app-responsive-btn rounded-[999px] border px-5 py-3 text-[0.9rem] font-semibold"
+                          style={dashboardStyles.secondaryButton}
+                          onClick={() => void sendFollowUp(2)}
+                          disabled={sendingFollowUp}
+                        >
+                          Send Step 2
+                        </Button>
+
+                        <Button
+                          className="app-responsive-btn rounded-[999px] border px-5 py-3 text-[0.9rem] font-semibold"
+                          style={dashboardStyles.secondaryButton}
+                          onClick={() => void sendFollowUp(3)}
+                          disabled={sendingFollowUp}
+                        >
+                          Send Step 3
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="soft-box">
                     <div className="meta-label">Review Controls</div>
 
                     <div style={{ display: "grid", gap: 12, marginTop: 14 }}>
@@ -824,6 +1290,25 @@ export default function AdminDemoRequestsPage() {
                         ]}
                       />
 
+                      <Select
+                        value={editFollowUpStatus}
+                        onChange={setEditFollowUpStatus}
+                        options={[
+                          { value: "ACTIVE", label: "Active" },
+                          { value: "PAUSED", label: "Paused" },
+                          { value: "COMPLETED", label: "Completed" },
+                          { value: "REPLIED", label: "Replied" },
+                          { value: "STOPPED", label: "Stopped" },
+                        ]}
+                      />
+
+                      <input
+                        className="input"
+                        type="datetime-local"
+                        value={editNextFollowUpAt}
+                        onChange={(e) => setEditNextFollowUpAt(e.target.value)}
+                      />
+
                       <textarea
                         className="input min-h-[140px] resize-y"
                         value={editNotes}
@@ -847,6 +1332,7 @@ export default function AdminDemoRequestsPage() {
                           onClick={() => {
                             setEditStatus("CONTACTED");
                             setEditPriority(details.priority);
+                            setEditFollowUpStatus(details.followUpStatus);
                             setEditNotes(details.notes ?? "");
                           }}
                         >

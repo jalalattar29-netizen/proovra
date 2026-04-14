@@ -1,8 +1,15 @@
 import { createHash } from "node:crypto";
+import * as prismaPkg from "@prisma/client";
 import { z } from "zod";
 import { prisma } from "../db.js";
 import { AppError, ErrorCode } from "../errors.js";
 import { getEmailService } from "./email.service.js";
+import { scoreDemoLead } from "./demo-lead-scoring.service.js";
+import { getDemoRequestQuickLinks } from "./demo-request-links.service.js";
+import {
+  buildInitialDemoFollowUp,
+  buildInitialDemoRouting,
+} from "./demo-follow-up.service.js";
 
 const createDemoRequestSchema = z.object({
   fullName: z.string().trim().min(2).max(160),
@@ -76,12 +83,19 @@ function countUppercaseRatio(text: string): number {
   return upper / letters.length;
 }
 
+function firstNameFromFullName(fullName: string): string {
+  const trimmed = fullName.trim();
+  return trimmed.split(/\s+/)[0] ?? trimmed;
+}
+
 function inferPriority(input: {
   teamSize?: string | null;
   organization?: string | null;
   jobTitle?: string | null;
   useCase: string;
-}): "LOW" | "NORMAL" | "HIGH" {
+  leadTrack: prismaPkg.DemoLeadTrack;
+  leadQuality: prismaPkg.DemoLeadQuality;
+}): prismaPkg.DemoRequestPriority {
   const teamSize = (input.teamSize ?? "").toLowerCase();
   const org = (input.organization ?? "").toLowerCase();
   const job = (input.jobTitle ?? "").toLowerCase();
@@ -97,19 +111,26 @@ function inferPriority(input: {
     "insurance",
     "audit",
     "forensics",
+    "procurement",
+    "security review",
+    "retention",
   ];
 
   if (
+    input.leadTrack === prismaPkg.DemoLeadTrack.ENTERPRISE ||
+    input.leadQuality === prismaPkg.DemoLeadQuality.HIGH ||
     teamSize.includes("100") ||
     teamSize.includes("200") ||
     teamSize.includes("500") ||
     teamSize.includes("1000") ||
-    highSignals.some((s) => org.includes(s) || job.includes(s) || useCase.includes(s))
+    highSignals.some(
+      (s) => org.includes(s) || job.includes(s) || useCase.includes(s)
+    )
   ) {
-    return "HIGH";
+    return prismaPkg.DemoRequestPriority.HIGH;
   }
 
-  return "NORMAL";
+  return prismaPkg.DemoRequestPriority.NORMAL;
 }
 
 async function calculateSpamAssessment(
@@ -145,7 +166,9 @@ async function calculateSpamAssessment(
     reasons.push("disposable_email_domain");
   }
 
-  const combinedText = `${input.fullName} ${input.organization ?? ""} ${input.useCase} ${input.message ?? ""}`.trim();
+  const combinedText = `${input.fullName} ${input.organization ?? ""} ${
+    input.useCase
+  } ${input.message ?? ""}`.trim();
 
   if (containsUrl(combinedText)) {
     const links = countUrls(combinedText);
@@ -163,13 +186,22 @@ async function calculateSpamAssessment(
     reasons.push("excessive_uppercase");
   }
 
-  if (/bitcoin|casino|forex|seo|backlinks|viagra|gambling|loan/i.test(combinedText)) {
+  if (
+    /bitcoin|casino|forex|seo|backlinks|viagra|gambling|loan/i.test(
+      combinedText
+    )
+  ) {
     spamScore += 35;
     reasons.push("spam_keywords");
   }
 
-  const duplicateWindowHours = envNumber("DEMO_REQUEST_DUPLICATE_WINDOW_HOURS", 24);
-  const duplicateSince = new Date(Date.now() - duplicateWindowHours * 60 * 60 * 1000);
+  const duplicateWindowHours = envNumber(
+    "DEMO_REQUEST_DUPLICATE_WINDOW_HOURS",
+    24
+  );
+  const duplicateSince = new Date(
+    Date.now() - duplicateWindowHours * 60 * 60 * 1000
+  );
 
   const duplicateCount = await prisma.demoRequest.count({
     where: {
@@ -184,7 +216,10 @@ async function calculateSpamAssessment(
   }
 
   if (context.ipAddress) {
-    const rateLimitWindowMs = envNumber("DEMO_REQUEST_RATE_LIMIT_WINDOW_MS", 15 * 60 * 1000);
+    const rateLimitWindowMs = envNumber(
+      "DEMO_REQUEST_RATE_LIMIT_WINDOW_MS",
+      15 * 60 * 1000
+    );
     const recentSince = new Date(Date.now() - rateLimitWindowMs);
 
     const recentByIp = await prisma.demoRequest.count({
@@ -209,7 +244,9 @@ async function calculateSpamAssessment(
   return { spamScore, isSpam, spamReasons: reasons };
 }
 
-async function sendWebhookIfConfigured(payload: Record<string, unknown>): Promise<boolean> {
+async function sendWebhookIfConfigured(
+  payload: Record<string, unknown>
+): Promise<boolean> {
   const url = envString("DEMO_REQUEST_WEBHOOK_URL");
   if (!url) return false;
 
@@ -257,7 +294,42 @@ export async function createDemoRequest(
   }
 
   const spam = await calculateSpamAssessment(input, context);
-  const priority = inferPriority(input);
+
+  const scoredLead = scoreDemoLead({
+    workEmail: input.workEmail,
+    organization: input.organization,
+    jobTitle: input.jobTitle,
+    country: input.country,
+    teamSize: input.teamSize,
+    useCase: input.useCase,
+    message: input.message,
+    sourcePath: input.sourcePath,
+  });
+
+  const leadQuality = scoredLead.leadQuality as prismaPkg.DemoLeadQuality;
+  const leadTrack = scoredLead.leadTrack as prismaPkg.DemoLeadTrack;
+  const recommendedAction =
+    scoredLead.recommendedAction as prismaPkg.DemoRecommendedAction;
+
+  const priority = inferPriority({
+    teamSize: input.teamSize,
+    organization: input.organization,
+    jobTitle: input.jobTitle,
+    useCase: input.useCase,
+    leadTrack,
+    leadQuality,
+  });
+
+  const initialRouting = buildInitialDemoRouting({
+    leadTrack,
+    recommendedAction,
+    sourcePath: input.sourcePath,
+  });
+
+  const initialFollowUp = buildInitialDemoFollowUp({
+    isSpam: spam.isSpam,
+    recommendedAction,
+  });
 
   const created = await prisma.demoRequest.create({
     data: {
@@ -279,7 +351,26 @@ export async function createDemoRequest(
       utmTerm: normalizeText(input.utmTerm),
       utmContent: normalizeText(input.utmContent),
 
+      status: prismaPkg.DemoRequestStatus.NEW,
       priority,
+      leadQuality,
+      leadTrack,
+      recommendedAction,
+      responseSlaHours: scoredLead.responseSlaHours,
+      qualificationScore: scoredLead.score,
+      qualificationReasons: scoredLead.reasons,
+
+      routingTarget: initialRouting.routingTarget,
+      routingReason: initialRouting.routingReason,
+      routedAt: initialRouting.routedAt,
+
+      followUpStatus: initialFollowUp.followUpStatus,
+      followUpStep: initialFollowUp.followUpStep,
+      nextFollowUpAt: initialFollowUp.nextFollowUpAt,
+      lastFollowUpSentAt: null,
+      lastFollowUpTemplateKey: null,
+      followUpStoppedAt: null,
+
       spamScore: spam.spamScore,
       spamReasons: spam.spamReasons,
       isSpam: spam.isSpam,
@@ -290,6 +381,8 @@ export async function createDemoRequest(
   });
 
   const emailService = getEmailService();
+  const quickLinks = getDemoRequestQuickLinks(created.workEmail);
+
   const notificationEmail =
     envString("DEMO_REQUEST_NOTIFICATION_EMAIL") ??
     envString("SUPPORT_EMAIL") ??
@@ -319,16 +412,38 @@ export async function createDemoRequest(
       utmCampaign: created.utmCampaign,
       utmTerm: created.utmTerm,
       utmContent: created.utmContent,
+      priority: created.priority,
+      leadQuality: created.leadQuality,
+      leadTrack: created.leadTrack,
+      recommendedAction: created.recommendedAction,
+      responseSlaHours: created.responseSlaHours,
+      qualificationScore: created.qualificationScore,
+      qualificationReasons: Array.isArray(created.qualificationReasons)
+        ? (created.qualificationReasons as string[])
+        : [],
       spamScore: created.spamScore,
       isSpam: created.isSpam,
+      quickLinks,
     });
     emailSentAt = new Date();
 
-    const autoReplyEnabled = (envString("DEMO_REQUEST_AUTO_REPLY_ENABLED") ?? "true").toLowerCase() === "true";
+    const autoReplyEnabled = (
+      envString("DEMO_REQUEST_AUTO_REPLY_ENABLED") ?? "true"
+    ).toLowerCase() === "true";
+
     if (autoReplyEnabled && !created.isSpam) {
       await emailService.sendDemoRequestAutoReply({
         to: created.workEmail,
-        fullName: created.fullName,
+        fullName: firstNameFromFullName(created.fullName),
+        responseWindowText:
+          created.leadTrack === prismaPkg.DemoLeadTrack.ENTERPRISE
+            ? "within 4 business hours"
+            : "within 1 business day",
+        sampleReportUrl: quickLinks.sampleReportUrl,
+        verificationDemoUrl: quickLinks.verificationDemoUrl,
+        methodologyUrl: quickLinks.methodologyUrl,
+        pricingUrl: quickLinks.pricingUrl,
+        bookingUrl: quickLinks.bookingUrl,
       });
       autoReplySentAt = new Date();
     }
@@ -352,10 +467,25 @@ export async function createDemoRequest(
     utmCampaign: created.utmCampaign,
     utmTerm: created.utmTerm,
     utmContent: created.utmContent,
+    status: created.status,
     priority: created.priority,
+    leadQuality: created.leadQuality,
+    leadTrack: created.leadTrack,
+    recommendedAction: created.recommendedAction,
+    responseSlaHours: created.responseSlaHours,
+    qualificationScore: created.qualificationScore,
+    qualificationReasons: created.qualificationReasons,
     spamScore: created.spamScore,
     isSpam: created.isSpam,
     createdAt: created.createdAt.toISOString(),
+    routingTarget: created.routingTarget,
+    routingReason: created.routingReason,
+    routedAt: created.routedAt?.toISOString() ?? null,
+    followUpStatus: created.followUpStatus,
+    followUpStep: created.followUpStep,
+    nextFollowUpAt: created.nextFollowUpAt?.toISOString() ?? null,
+    lastFollowUpSentAt: created.lastFollowUpSentAt?.toISOString() ?? null,
+    lastFollowUpTemplateKey: created.lastFollowUpTemplateKey,
   };
 
   try {
@@ -381,8 +511,17 @@ export async function createDemoRequest(
       id: updated.id,
       status: updated.status,
       priority: updated.priority,
+      leadQuality: updated.leadQuality,
+      leadTrack: updated.leadTrack,
+      recommendedAction: updated.recommendedAction,
+      responseSlaHours: updated.responseSlaHours,
       isSpam: updated.isSpam,
       createdAt: updated.createdAt,
+      routingTarget: updated.routingTarget,
+      routingReason: updated.routingReason,
+      followUpStatus: updated.followUpStatus,
+      followUpStep: updated.followUpStep,
+      nextFollowUpAt: updated.nextFollowUpAt,
     },
   };
 }

@@ -1,10 +1,12 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { MarketingHeader } from "../../components/header";
 import { Footer } from "../../components/Footer";
 import { SilverWatermarkSection } from "../../components/SilverWatermarkSection";
-import { Button, Input, Select, useToast } from "../../components/ui";
+import { RequestDemoForm } from "../../components/request-demo-form";
+import { SALES_ASSETS } from "../../lib/sales-assets";
 
 function DemoCard({
   eyebrow,
@@ -40,177 +42,60 @@ function DemoCard({
   );
 }
 
-type FormState = {
-  fullName: string;
-  workEmail: string;
-  organization: string;
-  jobTitle: string;
-  country: string;
-  teamSize: string;
-  useCase: string;
-  message: string;
-  website: string;
-};
+function DemoFlowPreview() {
+  return (
+    <div className="mt-8 grid gap-4 md:grid-cols-3">
+      <div className="rounded-[22px] border border-white/10 bg-white/[0.05] p-5 shadow-[0_14px_28px_rgba(0,0,0,0.10)] backdrop-blur-sm">
+        <div className="text-sm font-semibold text-white">1. Capture</div>
+        <p className="mt-2 text-sm leading-[1.7] text-[#c7cfcc]">
+          Evidence becomes a structured, review-ready record instead of a loose
+          file with weak preservation context.
+        </p>
+      </div>
 
-type FormErrors = Partial<Record<keyof FormState, string>>;
+      <div className="rounded-[22px] border border-white/10 bg-white/[0.05] p-5 shadow-[0_14px_28px_rgba(0,0,0,0.10)] backdrop-blur-sm">
+        <div className="text-sm font-semibold text-white">2. Verify</div>
+        <p className="mt-2 text-sm leading-[1.7] text-[#c7cfcc]">
+          The verification layer exposes integrity state, timing context, and
+          review-facing evidence details more clearly.
+        </p>
+      </div>
 
-const TEAM_SIZE_OPTIONS = [
-  { value: "1-5", label: "1–5" },
-  { value: "6-20", label: "6–20" },
-  { value: "21-50", label: "21–50" },
-  { value: "51-200", label: "51–200" },
-  { value: "201-1000", label: "201–1000" },
-  { value: "1000+", label: "1000+" },
-];
-
-function validateForm(values: FormState): FormErrors {
-  const errors: FormErrors = {};
-
-  if (!values.fullName.trim()) {
-    errors.fullName = "Full name is required.";
-  } else if (values.fullName.trim().length < 2) {
-    errors.fullName = "Enter a valid full name.";
-  }
-
-  if (!values.workEmail.trim()) {
-    errors.workEmail = "Work email is required.";
-  } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(values.workEmail.trim())) {
-    errors.workEmail = "Enter a valid email address.";
-  }
-
-  if (!values.useCase.trim()) {
-    errors.useCase = "Use case is required.";
-  } else if (values.useCase.trim().length < 10) {
-    errors.useCase = "Please provide a bit more detail.";
-  }
-
-  if (values.message.trim().length > 5000) {
-    errors.message = "Message is too long.";
-  }
-
-  return errors;
+      <div className="rounded-[22px] border border-white/10 bg-white/[0.05] p-5 shadow-[0_14px_28px_rgba(0,0,0,0.10)] backdrop-blur-sm">
+        <div className="text-sm font-semibold text-white">3. Present</div>
+        <p className="mt-2 text-sm leading-[1.7] text-[#c7cfcc]">
+          Structured reports and reviewer-facing outputs support claims,
+          disputes, investigations, audits, and escalation workflows.
+        </p>
+      </div>
+    </div>
+  );
 }
 
 export default function RequestDemoPage() {
-  const { addToast } = useToast();
+  const searchParams = useSearchParams();
+  const isEnterpriseTrack = searchParams.get("track") === "enterprise";
 
-  const [form, setForm] = useState<FormState>({
-    fullName: "",
-    workEmail: "",
-    organization: "",
-    jobTitle: "",
-    country: "",
-    teamSize: "",
-    useCase: "",
-    message: "",
-    website: "",
-  });
+  const sourcePath = isEnterpriseTrack
+    ? "/request-demo?track=enterprise"
+    : "/request-demo";
 
-  const [errors, setErrors] = useState<FormErrors>({});
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isSubmitted, setIsSubmitted] = useState(false);
+  const eyebrow = isEnterpriseTrack ? "Enterprise Inquiry" : "Request Demo";
+  const title = isEnterpriseTrack
+    ? "Start an enterprise evidence workflow conversation"
+    : "See how PROOVRA fits into high-scrutiny evidence workflows";
 
-  const methodologyUrl = "/legal/verification-methodology";
-  const sampleReportUrl = "/brand/sample-report.pdf";
+  const description = isEnterpriseTrack
+    ? "Use this route when you need team workflows, shared review, enterprise rollout, retention alignment, procurement discussion, or policy-fit review. We route these requests with higher urgency and clearer commercial handling."
+    : "Request a walkthrough for legal, compliance, claims, investigations, journalism, or enterprise review-sensitive workflows. We show how capture, verification, and report output connect into one review-ready evidence system.";
 
-  const payload = useMemo(
-    () => ({
-      fullName: form.fullName.trim(),
-      workEmail: form.workEmail.trim(),
-      organization: form.organization.trim() || null,
-      jobTitle: form.jobTitle.trim() || null,
-      country: form.country.trim() || null,
-      teamSize: form.teamSize.trim() || null,
-      useCase: form.useCase.trim(),
-      message: form.message.trim() || null,
-      website: form.website.trim() || null,
-      source:
-        typeof window !== "undefined"
-          ? document.referrer
-            ? "website_referral"
-            : "website_direct"
-          : "website",
-      sourcePath: "/request-demo",
-      referrer:
-        typeof window !== "undefined" ? document.referrer || null : null,
-      utmSource:
-        typeof window !== "undefined"
-          ? new URLSearchParams(window.location.search).get("utm_source")
-          : null,
-      utmMedium:
-        typeof window !== "undefined"
-          ? new URLSearchParams(window.location.search).get("utm_medium")
-          : null,
-      utmCampaign:
-        typeof window !== "undefined"
-          ? new URLSearchParams(window.location.search).get("utm_campaign")
-          : null,
-      utmTerm:
-        typeof window !== "undefined"
-          ? new URLSearchParams(window.location.search).get("utm_term")
-          : null,
-      utmContent:
-        typeof window !== "undefined"
-          ? new URLSearchParams(window.location.search).get("utm_content")
-          : null,
-    }),
-    [form]
-  );
+  const formHeading = isEnterpriseTrack
+    ? "Submit an enterprise inquiry"
+    : "Request a demo";
 
-  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-
-    const nextErrors = validateForm(form);
-    setErrors(nextErrors);
-
-    if (Object.keys(nextErrors).length > 0) {
-      addToast("Please fix the highlighted fields.", "warning");
-      return;
-    }
-
-    setIsSubmitting(true);
-
-    try {
-      const response = await fetch("/api/request-demo", {
-        method: "POST",
-        headers: {
-          "content-type": "application/json",
-        },
-        body: JSON.stringify(payload),
-      });
-
-      const data = await response.json().catch(() => null);
-
-      if (!response.ok) {
-const errorMessage =
-  data?.error?.message ||
-  data?.error ||
-  data?.message ||
-  "Unable to submit your request right now.";
-          addToast(errorMessage, "error");
-        return;
-      }
-
-      setIsSubmitted(true);
-      setForm({
-        fullName: "",
-        workEmail: "",
-        organization: "",
-        jobTitle: "",
-        country: "",
-        teamSize: "",
-        useCase: "",
-        message: "",
-        website: "",
-      });
-      setErrors({});
-      addToast("Demo request submitted successfully.", "success");
-    } catch {
-      addToast("Network error while submitting the demo request.", "error");
-    } finally {
-      setIsSubmitting(false);
-    }
-  }
+  const formSubheading = isEnterpriseTrack
+    ? "Share your team, workflow, and rollout needs. We will route your inquiry for enterprise review."
+    : "Share your workflow and we will route your request for review.";
 
   return (
     <div className="page landing-page">
@@ -222,7 +107,6 @@ const errorMessage =
             className="h-full w-full object-cover object-center"
           />
         </div>
-
         <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(8,18,22,0.84)_0%,rgba(8,18,22,0.74)_38%,rgba(8,18,22,0.66)_100%)]" />
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_16%_16%,rgba(158,216,207,0.09),transparent_24%)]" />
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_82%_24%,rgba(214,184,157,0.06),transparent_18%)]" />
@@ -232,27 +116,39 @@ const errorMessage =
           <MarketingHeader />
 
           <section className="mx-auto max-w-7xl px-6 pb-16 pt-10 md:px-8 md:pb-20 md:pt-14">
-            <div className="max-w-[820px]">
+            <div className="max-w-[860px]">
               <div className="inline-flex items-center gap-[0.72rem] rounded-full border border-white/10 bg-white/[0.055] px-5 py-2 text-[0.74rem] font-medium uppercase tracking-[0.2em] text-[#dce3e0] shadow-[0_10px_24px_rgba(0,0,0,0.10)] backdrop-blur-md">
                 <span className="block h-[6px] w-[6px] shrink-0 rounded-full bg-[#b79d84] opacity-95" />
-                Request Demo
+                {eyebrow}
               </div>
 
-              <h1 className="mt-5 max-w-[760px] text-[1.62rem] font-medium leading-[1.01] tracking-[-0.04em] text-[#edf1ef] md:text-[2.18rem] lg:text-[2.7rem]">
-                See how PROOVRA fits into
-                <span className="text-[#bfe8df]"> high-scrutiny evidence workflows</span>
+              <h1 className="mt-5 max-w-[780px] text-[1.62rem] font-medium leading-[1.01] tracking-[-0.04em] text-[#edf1ef] md:text-[2.18rem] lg:text-[2.7rem]">
+                {title.includes("high-scrutiny") ? (
+                  <>
+                    See how PROOVRA fits into
+                    <span className="text-[#bfe8df]">
+                      {" "}
+                      high-scrutiny evidence workflows
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    Start an
+                    <span className="text-[#bfe8df]">
+                      {" "}
+                      enterprise evidence workflow conversation
+                    </span>
+                  </>
+                )}
               </h1>
 
-              <p className="mt-5 max-w-[760px] text-[0.94rem] font-normal leading-[1.78] tracking-[-0.006em] text-[#c7cfcc] md:text-[0.98rem]">
-                Request a walkthrough for legal, compliance, claims,
-                investigations, journalism, or review-sensitive operational
-                workflows. We will show how evidence records, verification
-                pages, and structured reports fit together.
+              <p className="mt-5 max-w-[780px] text-[0.94rem] font-normal leading-[1.78] tracking-[-0.006em] text-[#c7cfcc] md:text-[0.98rem]">
+                {description}
               </p>
 
               <div className="mt-6 flex flex-wrap gap-3">
                 <a
-                  href={sampleReportUrl}
+                  href={SALES_ASSETS.sampleReportUrl}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="inline-flex min-h-[48px] items-center justify-center rounded-full border border-[rgba(183,157,132,0.42)] bg-[linear-gradient(180deg,rgba(62,96,99,0.96)_0%,rgba(24,43,48,0.98)_100%)] px-6 py-3 text-sm font-semibold text-[#eef3f1] shadow-[0_16px_28px_rgba(20,48,52,0.18)] transition duration-300 hover:translate-y-[-1px]"
@@ -260,13 +156,29 @@ const errorMessage =
                   View Sample Report
                 </a>
 
-                <a
-                  href={methodologyUrl}
+                <Link
+                  href={SALES_ASSETS.verificationDemoUrl}
+                  className="inline-flex min-h-[48px] items-center justify-center rounded-full border border-[#4f706b]/44 bg-[linear-gradient(180deg,rgba(255,255,255,0.62)_0%,rgba(242,244,241,0.92)_100%)] px-6 py-3 text-sm font-semibold text-[#23373b] shadow-[0_12px_24px_rgba(0,0,0,0.06)] transition duration-300 hover:translate-y-[-1px]"
+                >
+                  Open Verification Demo
+                </Link>
+
+                <Link
+                  href={SALES_ASSETS.methodologyUrl}
                   className="inline-flex min-h-[48px] items-center justify-center rounded-full border border-[#4f706b]/44 bg-[linear-gradient(180deg,rgba(255,255,255,0.62)_0%,rgba(242,244,241,0.92)_100%)] px-6 py-3 text-sm font-semibold text-[#23373b] shadow-[0_12px_24px_rgba(0,0,0,0.06)] transition duration-300 hover:translate-y-[-1px]"
                 >
                   View Methodology
-                </a>
+                </Link>
+
+                <Link
+                  href={SALES_ASSETS.pricingUrl}
+                  className="inline-flex min-h-[48px] items-center justify-center rounded-full border border-[#4f706b]/44 bg-[linear-gradient(180deg,rgba(255,255,255,0.62)_0%,rgba(242,244,241,0.92)_100%)] px-6 py-3 text-sm font-semibold text-[#23373b] shadow-[0_12px_24px_rgba(0,0,0,0.06)] transition duration-300 hover:translate-y-[-1px]"
+                >
+                  View Pricing
+                </Link>
               </div>
+
+              <DemoFlowPreview />
             </div>
           </section>
         </div>
@@ -299,200 +211,59 @@ const errorMessage =
 
               <div className="relative z-10 px-6 py-7 md:px-10 md:py-10">
                 <h2 className="text-[1.42rem] font-semibold leading-[1.15] tracking-[-0.03em] text-[#1d3136]">
-                  Request a demo
+                  {formHeading}
                 </h2>
 
                 <p className="mt-3 max-w-[760px] text-[0.98rem] leading-[1.85] text-[#55666a]">
-                  Share your use case and we will route your request for review.
+                  {formSubheading}
                 </p>
 
-                {isSubmitted ? (
-                  <div className="mt-8 rounded-[22px] border border-[rgba(79,112,107,0.22)] bg-[rgba(255,255,255,0.45)] p-6 text-[#33464a] shadow-[0_12px_28px_rgba(0,0,0,0.05)]">
-                    <div className="text-[0.82rem] font-semibold uppercase tracking-[0.22em] text-[#8e7863]">
-                      Received
+                <div className="mt-6 rounded-[22px] border border-[rgba(79,112,107,0.18)] bg-[rgba(255,255,255,0.34)] p-5 shadow-[0_12px_28px_rgba(0,0,0,0.05)]">
+                  <div className="text-[0.78rem] font-semibold uppercase tracking-[0.2em] text-[#8e7863]">
+                    Before you submit
+                  </div>
+                  <div className="mt-4 grid gap-4 md:grid-cols-3">
+                    <div>
+                      <div className="text-[0.9rem] font-semibold text-[#23373b]">
+                        What we show
+                      </div>
+                      <p className="mt-2 text-[0.94rem] leading-[1.75] text-[#55666a]">
+                        How a file becomes a structured evidence record, what
+                        the verification layer exposes, and how report output
+                        supports later review.
+                      </p>
                     </div>
-                    <h3 className="mt-3 text-[1.1rem] font-semibold text-[#1d3136]">
-                      Your request has been submitted
-                    </h3>
-                    <p className="mt-3 text-[0.98rem] leading-[1.8] text-[#55666a]">
-                      Our team will review your request and follow up if your
-                      workflow is a good fit for a live demo.
-                    </p>
-                    <div className="mt-6">
-                      <Button
-                        onClick={() => setIsSubmitted(false)}
-                        className="rounded-[16px] px-5 py-3 text-[0.95rem] font-medium hover-button-secondary"
-                      >
-                        Submit another request
-                      </Button>
+                    <div>
+                      <div className="text-[0.9rem] font-semibold text-[#23373b]">
+                        Best for
+                      </div>
+                      <p className="mt-2 text-[0.94rem] leading-[1.75] text-[#55666a]">
+                        Legal, compliance, claims, internal investigations,
+                        journalism, and enterprise teams handling disputed or
+                        sensitive material.
+                      </p>
+                    </div>
+                    <div>
+                      <div className="text-[0.9rem] font-semibold text-[#23373b]">
+                        Important limitation
+                      </div>
+                      <p className="mt-2 text-[0.94rem] leading-[1.75] text-[#55666a]">
+                        PROOVRA verifies recorded integrity state and supporting
+                        review materials. It does not by itself establish truth,
+                        authorship, identity, or legal admissibility.
+                      </p>
                     </div>
                   </div>
-                ) : (
-                  <form onSubmit={handleSubmit} className="mt-8 grid gap-5">
-                    <div className="grid gap-5 md:grid-cols-2">
-                      <div>
-                        <label className="mb-2 block text-[0.88rem] font-semibold text-[#31464a]">
-                          Full name *
-                        </label>
-                        <Input
-                          value={form.fullName}
-                          onChange={(value) =>
-                            setForm((prev) => ({ ...prev, fullName: value }))
-                          }
-                          error={errors.fullName}
-                          placeholder="Jane Doe"
-                          className="min-h-[48px]"
-                        />
-                      </div>
+                </div>
 
-                      <div>
-                        <label className="mb-2 block text-[0.88rem] font-semibold text-[#31464a]">
-                          Work email *
-                        </label>
-                        <Input
-                          value={form.workEmail}
-                          onChange={(value) =>
-                            setForm((prev) => ({ ...prev, workEmail: value }))
-                          }
-                          error={errors.workEmail}
-                          placeholder="jane@company.com"
-                          type="email"
-                          className="min-h-[48px]"
-                        />
-                      </div>
-                    </div>
-
-                    <div className="grid gap-5 md:grid-cols-2">
-                      <div>
-                        <label className="mb-2 block text-[0.88rem] font-semibold text-[#31464a]">
-                          Organization
-                        </label>
-                        <Input
-                          value={form.organization}
-                          onChange={(value) =>
-                            setForm((prev) => ({ ...prev, organization: value }))
-                          }
-                          placeholder="Company name"
-                          className="min-h-[48px]"
-                        />
-                      </div>
-
-                      <div>
-                        <label className="mb-2 block text-[0.88rem] font-semibold text-[#31464a]">
-                          Job title
-                        </label>
-                        <Input
-                          value={form.jobTitle}
-                          onChange={(value) =>
-                            setForm((prev) => ({ ...prev, jobTitle: value }))
-                          }
-                          placeholder="Legal Counsel"
-                          className="min-h-[48px]"
-                        />
-                      </div>
-                    </div>
-
-                    <div className="grid gap-5 md:grid-cols-2">
-                      <div>
-                        <label className="mb-2 block text-[0.88rem] font-semibold text-[#31464a]">
-                          Country
-                        </label>
-                        <Input
-                          value={form.country}
-                          onChange={(value) =>
-                            setForm((prev) => ({ ...prev, country: value }))
-                          }
-                          placeholder="Germany"
-                          className="min-h-[48px]"
-                        />
-                      </div>
-
-                      <div>
-                        <label className="mb-2 block text-[0.88rem] font-semibold text-[#31464a]">
-                          Team size
-                        </label>
-                        <Select
-                          value={form.teamSize}
-                          onChange={(value) =>
-                            setForm((prev) => ({ ...prev, teamSize: value }))
-                          }
-                          options={TEAM_SIZE_OPTIONS}
-                          className="min-h-[48px]"
-                        />
-                      </div>
-                    </div>
-
-                    <div>
-                      <label className="mb-2 block text-[0.88rem] font-semibold text-[#31464a]">
-                        Primary use case *
-                      </label>
-                      <textarea
-                        value={form.useCase}
-                        onChange={(e) =>
-                          setForm((prev) => ({ ...prev, useCase: e.target.value }))
-                        }
-                        placeholder="Describe your review, compliance, legal, claims, or investigation workflow."
-                        className={`input min-h-[140px] w-full resize-y ${
-                          errors.useCase ? "input-has-error" : ""
-                        }`}
-                      />
-                      {errors.useCase ? (
-                        <div className="input-error">{errors.useCase}</div>
-                      ) : null}
-                    </div>
-
-                    <div>
-                      <label className="mb-2 block text-[0.88rem] font-semibold text-[#31464a]">
-                        Additional context
-                      </label>
-                      <textarea
-                        value={form.message}
-                        onChange={(e) =>
-                          setForm((prev) => ({ ...prev, message: e.target.value }))
-                        }
-                        placeholder="Anything else we should know before reviewing the request?"
-                        className={`input min-h-[120px] w-full resize-y ${
-                          errors.message ? "input-has-error" : ""
-                        }`}
-                      />
-                      {errors.message ? (
-                        <div className="input-error">{errors.message}</div>
-                      ) : null}
-                    </div>
-
-                    <div className="hidden" aria-hidden="true">
-                      <label htmlFor="website">Website</label>
-                      <input
-                        id="website"
-                        name="website"
-                        type="text"
-                        value={form.website}
-                        onChange={(e) =>
-                          setForm((prev) => ({ ...prev, website: e.target.value }))
-                        }
-                        autoComplete="off"
-                        tabIndex={-1}
-                      />
-                    </div>
-
-                    <div className="flex flex-col gap-3 sm:flex-row">
-                      <Button
-                        type="submit"
-                        disabled={isSubmitting}
-                        className="rounded-[16px] px-6 py-3 text-[0.95rem] font-medium hover-button-primary"
-                      >
-                        {isSubmitting ? "Submitting..." : "Submit demo request"}
-                      </Button>
-
-                      <a
-                        href="/pricing"
-                        className="inline-flex min-h-[48px] items-center justify-center rounded-[16px] border border-[#4f706b]/44 bg-[linear-gradient(180deg,rgba(255,255,255,0.62)_0%,rgba(242,244,241,0.92)_100%)] px-6 py-3 text-sm font-semibold text-[#23373b] shadow-[0_12px_24px_rgba(0,0,0,0.06)] transition duration-300 hover:translate-y-[-1px]"
-                      >
-                        View Pricing
-                      </a>
-                    </div>
-                  </form>
-                )}
+                <RequestDemoForm
+                  sourcePath={sourcePath}
+                  submitButtonLabel={
+                    isEnterpriseTrack
+                      ? "Submit enterprise inquiry"
+                      : "Submit demo request"
+                  }
+                />
               </div>
             </div>
 
@@ -505,12 +276,12 @@ const errorMessage =
               <DemoCard
                 eyebrow="Best for"
                 title="Review-sensitive teams"
-                body="This is most relevant for legal, compliance, internal investigations, insurance, claims, journalism, and incident-sensitive teams."
+                body="This is most relevant for legal, compliance, internal investigations, insurance, claims, journalism, and enterprise evidence handling."
               />
               <DemoCard
                 eyebrow="Important limitation"
                 title="Verification is not legal advice"
-                body="PROOVRA verifies the recorded integrity state and supporting review materials. It does not by itself establish truth, authorship, or legal admissibility."
+                body="PROOVRA verifies the recorded integrity state and supporting review materials. It does not by itself establish truth, authorship, identity, or legal admissibility."
               />
             </div>
           </div>

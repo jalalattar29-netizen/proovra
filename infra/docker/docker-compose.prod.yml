@@ -48,6 +48,9 @@ services:
       OTS_BIN: ots
       OTS_CALENDAR_URL: https://a.pool.opentimestamps.org
       OTS_TIMEOUT_MS: "30000"
+      INTERNAL_API_KEY: ${INTERNAL_API_KEY}
+      DEMO_REQUEST_AUTO_REPLY_ENABLED: ${DEMO_REQUEST_AUTO_REPLY_ENABLED}
+      DEMO_REQUEST_NOTIFICATION_EMAIL: ${DEMO_REQUEST_NOTIFICATION_EMAIL}
 
     ports:
       - "127.0.0.1:8080:8080"
@@ -64,6 +67,8 @@ services:
       dockerfile: services/worker/Dockerfile
       args:
         DATABASE_URL: ${DATABASE_URL}
+    env_file:
+      - /opt/proovra/app/.env
     depends_on:
       redis:
         condition: service_healthy
@@ -89,6 +94,10 @@ services:
       ANCHOR_PUBLISH_URL: ${ANCHOR_PUBLISH_URL}
       ANCHOR_API_KEY: ${ANCHOR_API_KEY}
       ANCHOR_PUBLIC_BASE_URL: ${ANCHOR_PUBLIC_BASE_URL}
+      INTERNAL_API_KEY: ${INTERNAL_API_KEY}
+      INTERNAL_API_BASE_URL: ${INTERNAL_API_BASE_URL}
+      DEMO_FOLLOW_UP_ENABLED: ${DEMO_FOLLOW_UP_ENABLED}
+      DEMO_FOLLOW_UP_INTERVAL_MS: ${DEMO_FOLLOW_UP_INTERVAL_MS}
     volumes:
       - /opt/proovra/app/services/worker/keys:/app/services/worker/keys:ro
       - /opt/proovra/app/services/worker/src/pdf/assets:/app/services/worker/src/pdf/assets:ro
