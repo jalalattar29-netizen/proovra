@@ -2,7 +2,9 @@
 
 Last Updated: 06.04.2026
 
-This Data Retention Policy describes how Proovra approaches retention of account data, uploaded materials, technical logs, and evidence-related integrity artifacts.
+This Data Retention Policy explains how PROOVRA approaches retention of account data, uploaded materials, technical logs, and evidence-related verification artifacts.
+
+It is intended to help customers and reviewers understand how retention supports service operation, security, compliance, and continuity of evidence-related verification functions.
 
 ## 1. OVERVIEW
 

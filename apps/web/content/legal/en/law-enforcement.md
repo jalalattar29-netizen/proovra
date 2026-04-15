@@ -2,7 +2,9 @@
 
 Last Updated: 06.04.2026
 
-This policy describes how Proovra responds to requests from law enforcement agencies, regulators, courts, and other governmental authorities.
+This policy describes how PROOVRA responds to requests from law enforcement agencies, regulators, courts, and other governmental authorities.
+
+It is intended to clarify the platform’s approach to legal process, user rights, and disclosure restraint.
 
 ## 1. GENERAL PRINCIPLES
 

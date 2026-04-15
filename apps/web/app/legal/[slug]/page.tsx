@@ -61,13 +61,13 @@ export default async function LegalPage({
                 {title}
               </h1>
 
-              <p className="mt-5 max-w-[650px] text-[0.94rem] font-normal leading-[1.78] tracking-[-0.006em] text-[#c7cfcc] md:text-[0.98rem]">
-                Legal information, policy details, and operational guidance for{" "}
-                <span className="text-[#e7ece9]">PROO✓RA</span>, structured for{" "}
-                <span className="text-[#bfe8df]">clarity</span>,{" "}
-                <span className="text-[#e6ebe8]">verification context</span>, and{" "}
-                <span className="text-[#d6b89d]">compliance reference</span>.
-              </p>
+<p className="mt-5 max-w-[650px] text-[0.94rem] font-normal leading-[1.78] tracking-[-0.006em] text-[#c7cfcc] md:text-[0.98rem]">
+  Governance, privacy, security, verification, and policy materials for{" "}
+  <span className="text-[#e7ece9]">PROO✓RA</span>, structured to support{" "}
+  <span className="text-[#bfe8df]">trust-sensitive evaluation</span>,{" "}
+  <span className="text-[#e6ebe8]">review readiness</span>, and{" "}
+  <span className="text-[#d6b89d]">clearer legal and operational understanding</span>.
+</p>
 
               <div className="mt-6 flex flex-wrap gap-2.5">
                 <div className="rounded-full border border-white/10 bg-white/[0.055] px-3.5 py-2 text-[0.78rem] font-normal text-[#d7dfdb] shadow-[0_8px_18px_rgba(0,0,0,0.08)] backdrop-blur-md">

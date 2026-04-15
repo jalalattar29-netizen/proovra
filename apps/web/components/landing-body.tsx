@@ -238,32 +238,31 @@ export function LandingBody({
         <div id="how-it-works" className="container">
           <SectionHeading
             title="How PROOVRA works"
-            body="A verification-first workflow from file intake to later review."
+            body="A verification-first workflow from file intake to later review, escalation, and scrutiny."
           />
 
           <div className="mt-8 sm:mt-10 grid gap-5 md:grid-cols-2 xl:grid-cols-4">
             <HowItWorksStep
               icon={<Icons.Capture />}
               title="Create record"
-              body="Upload an existing file or capture material into a structured evidence record instead of relying on ordinary files alone."
-            />
+body="Upload an existing file or capture material into a structured evidence record instead of relying on ordinary files, screenshots, or loose attachments alone."            />
 
             <HowItWorksStep
               icon={<Icons.Fingerprint />}
               title="Fingerprint & timestamp"
-              body="Record integrity materials, timestamps, and related metadata so later review can detect post-submission mismatches."
+body="Record integrity materials, timing context, and related metadata so later review can detect post-submission mismatch and inspect what was preserved at completion."
             />
 
             <HowItWorksStep
               icon={<Icons.Reports />}
               title="Generate report"
-              body="Produce a verification-ready PDF report with the review trail, timestamp state, custody history, and supporting references."
+body="Produce a reviewer-facing PDF report with the recorded integrity state, timing context, review trail, and supporting verification references."
             />
 
             <HowItWorksStep
               icon={<Icons.Verify />}
               title="Verify later"
-              body="Share a verification page where reviewers can inspect the integrity summary, trail, and technical materials in one place."
+body="Share a verification page where reviewers can inspect the recorded integrity state, review trail, preservation context, and technical materials in one place."
             />
           </div>
         </div>
@@ -271,14 +270,14 @@ export function LandingBody({
         <div className="container mt-[56px] sm:mt-[76px]">
           <SectionHeading
             title="What reviewers can actually inspect"
-            body="PROOVRA is not just a storage link. It exposes the evidence state and review materials needed for later scrutiny."
+body="PROOVRA does not stop at storage. It exposes the recorded evidence state and supporting review materials needed for later scrutiny."
           />
 
           <div className="mt-8 sm:mt-10 grid gap-5 md:grid-cols-2 xl:grid-cols-3">
             <ProofLayerCard
               eyebrow="Integrity"
               title="Recorded integrity summary"
-              body="Reviewers can inspect whether the recorded evidence state still matches, whether a mismatch was detected, and what was preserved at completion."
+body="Reviewers can inspect whether the current evidence state still matches the recorded completion state, whether mismatch handling is required, and what was preserved at completion."
             />
             <ProofLayerCard
               eyebrow="Timestamping"
@@ -288,22 +287,22 @@ export function LandingBody({
             <ProofLayerCard
               eyebrow="Review Trail"
               title="Chain of custody timeline"
-              body="Key record events and access-related events can be reviewed in a clearer timeline instead of relying on screenshots or recollection alone."
+body="Key evidence lifecycle events and access-related activity can be reviewed in a clearer sequence instead of relying on screenshots, memory, or scattered attachments alone."
             />
             <ProofLayerCard
               eyebrow="Verification"
               title="Verification page and report"
-              body="A dedicated verification page and structured PDF report make external review easier across disputes, audits, investigations, and claims."
+body="A reviewer-facing verification page and structured PDF report make external review easier across disputes, audits, investigations, claims, and internal escalation."
             />
             <ProofLayerCard
               eyebrow="Storage"
               title="Preservation indicators"
-              body="Storage protection metadata such as object lock mode, retention context, and preservation state can be surfaced when available."
+body="Storage protection metadata such as object lock mode, retention context, and preservation-related signals can be surfaced where available."
             />
             <ProofLayerCard
               eyebrow="Technical Materials"
               title="Expert review details"
-              body="Forensic and technical reviewers can inspect hashes, signatures, timestamp references, and related materials without exposing the original file publicly."
+body="Forensic and technical reviewers can inspect hashes, signatures, timestamp references, and related verification materials without exposing the original file publicly."
             />
           </div>
         </div>
@@ -311,29 +310,29 @@ export function LandingBody({
         <div className="container mt-[56px] sm:mt-[76px]">
           <SectionHeading
             title="Why teams use PROOVRA instead of ordinary files or screenshots"
-            body="When evidence is challenged later, plain files usually do not carry enough review context, preservation detail, or defensible verification history."
+body="When evidence is challenged later, plain files usually lack enough preservation context, review structure, or defensible verification history."
           />
 
           <div className="mt-8 sm:mt-10 grid gap-5 md:grid-cols-2 xl:grid-cols-4">
             <TrustCard
               icon={<Icons.Fingerprint />}
               title="Tamper detection after submission"
-              body="Evidence records are tied to recorded integrity materials so later review can detect post-submission changes more reliably."
+body="Evidence records are tied to recorded integrity materials so later review can detect post-submission changes more reliably than with ordinary loose files."
             />
             <TrustCard
               icon={<Icons.Evidence />}
               title="Structured review trail"
-              body="Creation, preservation, reporting, verification, and related evidence actions can be reviewed in one clearer timeline."
+body="Creation, preservation, reporting, verification, and related evidence actions can be reviewed in one clearer trail instead of across disconnected files and messages."
             />
             <TrustCard
               icon={<Icons.Verify />}
               title="Independent verification workflow"
-              body="Reviewers can inspect the record through a dedicated verification view instead of depending only on the person who collected the file."
+body="Reviewers can inspect the record through a dedicated verification view instead of depending only on the person who collected or sent the file."
             />
             <TrustCard
               icon={<Icons.Security />}
               title="Preservation visibility"
-              body="Timestamp and storage-protection context can be surfaced alongside the record to support later scrutiny and internal review."
+body="Timing and storage-protection context can be surfaced alongside the record to support later scrutiny, internal review, and external handoff."
             />
           </div>
         </div>
@@ -341,7 +340,7 @@ export function LandingBody({
         <div className="container mt-[56px] sm:mt-[76px]">
           <SectionHeading
             title="Built for evidence-sensitive workflows"
-            body="Designed for professionals and teams that need digital material to remain reviewable, traceable, and harder to dispute later."
+body="Designed for professionals and teams that need digital material to remain reviewable, traceable, and harder to dispute later."
           />
 
           <div className="mt-8 sm:mt-10 grid gap-5 md:grid-cols-2 xl:grid-cols-5">
@@ -391,9 +390,8 @@ export function LandingBody({
                 </h2>
 
                 <p className="mt-4 text-[0.98rem] sm:text-[1rem] leading-7 sm:leading-8 text-[#5d6a6d] [overflow-wrap:anywhere]">
-                  Instead of sending only a raw file, share an evidence record
-                  with a dedicated verification page, integrity summary,
-                  timestamp status, review trail, and a structured report.
+Instead of sending only a raw file, share an evidence record with a dedicated verification page, recorded integrity state, timing context, structured review trail, and a reviewer-facing report.
+
                 </p>
               </div>
 
@@ -431,12 +429,8 @@ export function LandingBody({
                 style={{ margin: 0, color: "#49575b", lineHeight: "2rem" }}
                 className="[overflow-wrap:anywhere]"
               >
-                PROOVRA is not a court, law-enforcement authority, or legal
-                service provider. Verification confirms the recorded integrity
-                state, timestamp status, custody metadata, and preservation-related
-                details for an evidence record. It does not by itself establish
-                factual truth, authorship, identity, or legal admissibility in a
-                specific jurisdiction.
+PROOVRA is not a court, law-enforcement authority, or legal service provider. Verification confirms the recorded integrity state, timing context, custody metadata, and preservation-related details for an evidence record. It does not by itself establish factual truth, authorship, identity, or legal admissibility in a specific jurisdiction.
+
               </p>
             </div>
           </SilverCardShell>
@@ -452,8 +446,7 @@ export function LandingBody({
               className="page-subtitle text-[0.98rem] sm:text-[1rem] [overflow-wrap:anywhere]"
               style={{ color: "#5d6a6d", marginTop: 16 }}
             >
-              Upload files, preserve the recorded integrity state, and verify
-              later with a stronger review trail.
+Upload files, preserve the recorded integrity state, and support later review with a stronger evidence workflow.
             </p>
 
             <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">

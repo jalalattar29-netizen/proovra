@@ -153,8 +153,9 @@ export default function MarketingPricingPage() {
               </h1>
 
               <p className="mt-5 max-w-[760px] text-[0.94rem] font-normal leading-[1.78] tracking-[-0.006em] text-[#c7cfcc] md:text-[0.98rem]">
-                Choose a plan based on how often you need structured evidence records,
-                verification output, PDF reports, and team-ready review workflows.
+                Choose a plan based on how often you need review-ready evidence
+                records, verification output, structured reports, and
+                team-facing review workflows.
               </p>
 
               <div className="mt-6 flex flex-wrap gap-2.5">
@@ -170,7 +171,7 @@ export default function MarketingPricingPage() {
 
                 <div className="rounded-full border border-[rgba(214,184,157,0.24)] bg-[linear-gradient(180deg,rgba(183,157,132,0.08)_0%,rgba(255,255,255,0.03)_100%)] px-3.5 py-2 text-[0.78rem] font-normal text-[#e1d4c7] shadow-[0_8px_18px_rgba(0,0,0,0.08)] backdrop-blur-md">
                   <span className="mr-2 text-[#d6b89d]">✓</span>
-                  Reports and review trails included where needed
+                  Reports and reviewer-facing outputs included where needed
                 </div>
               </div>
 
@@ -381,6 +382,12 @@ export default function MarketingPricingPage() {
             })}
           </div>
 
+          <div className="mt-6 max-w-[980px] text-[0.9rem] leading-[1.75] text-[#55666a]">
+            For procurement, team rollout, governance review, or higher-volume
+            workflows, use the enterprise path instead of self-serve plan
+            selection.
+          </div>
+
           <div className="mt-6 flex flex-col gap-3 sm:flex-row">
             <a
               href={requestDemoUrl}
@@ -395,6 +402,13 @@ export default function MarketingPricingPage() {
             >
               View Verification Methodology
             </a>
+
+            <a
+              href="/contact-sales"
+              className="inline-flex min-h-[48px] items-center justify-center rounded-full border border-[#4f706b]/44 bg-[linear-gradient(180deg,rgba(255,255,255,0.62)_0%,rgba(242,244,241,0.92)_100%)] px-6 py-3 text-sm font-semibold text-[#23373b] shadow-[0_12px_24px_rgba(0,0,0,0.06)] transition duration-300 hover:translate-y-[-1px]"
+            >
+              Contact Sales
+            </a>
           </div>
 
           <div className="mt-5 text-[0.82rem] leading-[1.7] text-[#667174]">
@@ -404,8 +418,8 @@ export default function MarketingPricingPage() {
 
           <div className="mt-5 max-w-[980px] text-[0.82rem] leading-[1.7] text-[#667174]">
             <span className="font-medium text-[#31464a]">PROOVRA</span> is a technical
-            evidence-integrity and verification platform. It does not provide legal advice,
-            and use of the platform does not guarantee admissibility in any jurisdiction.
+            integrity and verification platform. It does not provide legal advice,
+            and use of the platform does not by itself guarantee admissibility in any jurisdiction.
           </div>
         </div>
       </SilverWatermarkSection>

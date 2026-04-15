@@ -67,9 +67,9 @@ export default function ContactSalesPage() {
               </h1>
 
               <p className="mt-5 max-w-[780px] text-[0.94rem] font-normal leading-[1.78] tracking-[-0.006em] text-[#c7cfcc] md:text-[0.98rem]">
-                Use this route when you need shared access, team workflows,
-                internal review, retention policy alignment, procurement
-                discussion, or enterprise rollout planning.
+                Use this route when you need shared access, team review
+                workflows, retention-policy alignment, procurement discussion,
+                governance review, or enterprise rollout planning.
               </p>
 
               <div className="mt-5 rounded-[20px] border border-white/10 bg-white/[0.05] p-4 backdrop-blur-sm">
@@ -78,7 +78,8 @@ export default function ContactSalesPage() {
                 </div>
                 <p className="mt-2 text-[0.94rem] leading-[1.75] text-[#c7cfcc]">
                   Complete enterprise inquiries are typically reviewed{" "}
-                  {SALES_ASSETS.expectedEnterpriseResponseWindowText}.
+                  {SALES_ASSETS.expectedEnterpriseResponseWindowText}, depending
+                  on workflow clarity, urgency, and commercial fit.
                 </p>
               </div>
 
@@ -127,17 +128,17 @@ export default function ContactSalesPage() {
             <SalesCard
               eyebrow="Teams"
               title="Shared workflows and internal review"
-              body="Best for teams that need shared access, handoff clarity, reviewer visibility, and a cleaner evidence review process across departments."
+              body="Best for teams that need shared access, handoff clarity, reviewer visibility, and a cleaner evidence review process across departments or stakeholders."
             />
             <SalesCard
               eyebrow="Governance"
               title="Retention and control questions"
-              body="Use this track when retention rules, audit expectations, security review, or operational policy alignment matter before rollout."
+              body="Use this track when retention, security review, governance controls, or operational policy alignment matter before rollout."
             />
             <SalesCard
               eyebrow="Commercial"
               title="Procurement and rollout planning"
-              body="Use this track when the discussion is no longer just product discovery, but evaluation, pricing, rollout fit, and team adoption."
+              body="Use this track when the discussion is no longer just product discovery, but evaluation, pricing, rollout fit, procurement, and team adoption."
             />
           </div>
 
@@ -151,8 +152,8 @@ export default function ContactSalesPage() {
               </h2>
               <p className="mt-4 max-w-[900px] text-[0.98rem] leading-[1.85] text-[#55666a]">
                 Choose this route if you need answers around team review,
-                organization setup, evidence retention, procurement questions,
-                policy fit, or deployment planning.
+                organization setup, evidence retention, governance
+                requirements, procurement questions, or deployment planning.
               </p>
 
               <div className="mt-8 rounded-[22px] border border-[rgba(79,112,107,0.18)] bg-[rgba(255,255,255,0.34)] p-5 shadow-[0_12px_28px_rgba(0,0,0,0.05)]">

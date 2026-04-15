@@ -58,7 +58,7 @@ function DemoFlowPreview() {
         <div className="text-sm font-semibold text-white">2. Verify</div>
         <p className="mt-2 text-sm leading-[1.7] text-[#c7cfcc]">
           The verification layer exposes integrity state, timing context, and
-          review-facing evidence details more clearly.
+          reviewer-facing evidence details more clearly.
         </p>
       </div>
 
@@ -74,7 +74,7 @@ function DemoFlowPreview() {
 }
 
 function RequestDemoPageContent() {
-    const searchParams = useSearchParams();
+  const searchParams = useSearchParams();
   const isEnterpriseTrack = searchParams.get("track") === "enterprise";
 
   const sourcePath = isEnterpriseTrack
@@ -87,8 +87,8 @@ function RequestDemoPageContent() {
     : "See how PROOVRA fits into high-scrutiny evidence workflows";
 
   const description = isEnterpriseTrack
-    ? "Use this route when you need team workflows, shared review, enterprise rollout, retention alignment, procurement discussion, or policy-fit review. We route these requests with higher urgency and clearer commercial handling."
-    : "Request a walkthrough for legal, compliance, claims, investigations, journalism, or enterprise review-sensitive workflows. We show how capture, verification, and report output connect into one review-ready evidence system.";
+    ? "Use this route when you need team workflows, shared review, retention alignment, procurement discussion, governance review, or rollout planning. These requests are routed with higher urgency and clearer commercial handling."
+    : "Request a walkthrough for legal, compliance, claims, investigations, journalism, or enterprise review-sensitive workflows. We show how evidence intake, verification, and report output connect into one reviewer-facing evidence workflow.";
 
   const formHeading = isEnterpriseTrack
     ? "Submit an enterprise inquiry"
@@ -229,9 +229,10 @@ function RequestDemoPageContent() {
                         What we show
                       </div>
                       <p className="mt-2 text-[0.94rem] leading-[1.75] text-[#55666a]">
-                        How a file becomes a structured evidence record, what
-                        the verification layer exposes, and how report output
-                        supports later review.
+                        How a file becomes a review-ready evidence record, what
+                        the verification layer exposes for later scrutiny, and
+                        how report output supports legal, compliance, claims,
+                        and internal review workflows.
                       </p>
                     </div>
                     <div>
@@ -240,8 +241,8 @@ function RequestDemoPageContent() {
                       </div>
                       <p className="mt-2 text-[0.94rem] leading-[1.75] text-[#55666a]">
                         Legal, compliance, claims, internal investigations,
-                        journalism, and enterprise teams handling disputed or
-                        sensitive material.
+                        journalism, and enterprise teams handling
+                        review-sensitive or disputed digital material.
                       </p>
                     </div>
                     <div>
@@ -249,9 +250,10 @@ function RequestDemoPageContent() {
                         Important limitation
                       </div>
                       <p className="mt-2 text-[0.94rem] leading-[1.75] text-[#55666a]">
-                        PROOVRA verifies recorded integrity state and supporting
-                        review materials. It does not by itself establish truth,
-                        authorship, identity, or legal admissibility.
+                        PROOVRA verifies the recorded integrity state and
+                        supporting review materials. It does not by itself
+                        establish truth, authorship, identity, or legal
+                        admissibility.
                       </p>
                     </div>
                   </div>
@@ -272,7 +274,7 @@ function RequestDemoPageContent() {
               <DemoCard
                 eyebrow="What we show"
                 title="Real verification workflow"
-                body="We show how a file becomes a structured evidence record, what the verification page exposes, and how the report supports later review."
+                body="We show how a file becomes a structured evidence record, what the verification page exposes for later scrutiny, and how the report supports downstream review."
               />
               <DemoCard
                 eyebrow="Best for"

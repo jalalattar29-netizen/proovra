@@ -20,31 +20,30 @@ function legalLink(href: string, fallback: string): FooterLink {
   };
 }
 
-const PRODUCT_LINKS: FooterLink[] = [
+const TRUST_VERIFICATION_LINKS: FooterLink[] = [
   legalLink("/legal/verification-methodology", "Verification Methodology"),
-  legalLink("/legal/security", "Security"),
-  legalLink("/legal/evidence-handling", "Evidence Handling"),
-  legalLink("/legal/data-retention", "Data Retention"),
-  legalLink("/legal/subprocessors", "Subprocessors"),
+  legalLink("/legal/security", "Security & Responsible Disclosure"),
+  legalLink("/legal/evidence-handling", "Evidence Handling Policy"),
+  legalLink("/legal/data-retention", "Data Retention Policy"),
+  legalLink("/legal/incident-response", "Incident Response Policy"),
 ];
 
-const LEGAL_CORE_LINKS: FooterLink[] = [
+const LEGAL_PRIVACY_LINKS: FooterLink[] = [
   legalLink("/legal/terms", "Terms of Service"),
   legalLink("/legal/privacy", "Privacy Policy"),
   legalLink("/legal/cookies", "Cookie Policy"),
-  legalLink("/legal/aup", "Acceptable Use Policy"),
-  legalLink("/legal/dpa", "Data Processing Addendum"),
-  legalLink("/legal/dmca", "DMCA"),
+  legalLink("/legal/dpa", "Data Processing Agreement"),
+  legalLink("/legal/subprocessors", "Subprocessors"),
+  legalLink("/legal/privacy-matrix", "Privacy Matrix"),
 ];
 
-const COMPANY_SUPPORT_LINKS: FooterLink[] = [
-  { href: "/about", label: "About" },
-  legalLink("/legal/support", "Support"),
-  legalLink("/legal/transparency", "Transparency"),
-  legalLink("/legal/impressum", "Impressum"),
+const GOVERNANCE_SUPPORT_LINKS: FooterLink[] = [
+  legalLink("/legal/transparency", "Transparency Policy"),
   legalLink("/legal/abuse-reporting", "Abuse Reporting"),
-  legalLink("/legal/incident-response", "Incident Response"),
   legalLink("/legal/law-enforcement", "Law Enforcement"),
+  legalLink("/legal/support", "Support Policy"),
+  legalLink("/legal/impressum", "Impressum"),
+  legalLink("/legal/legal-changelog", "Legal Changelog"),
 ];
 
 type FooterColumnProps = {
@@ -83,6 +82,7 @@ export function Footer() {
   const currentYear = new Date().getFullYear();
   const sampleReportUrl = "/brand/sample-report.pdf";
   const requestDemoUrl = "/request-demo";
+  const verificationDemoUrl = "/verify/demo";
 
   return (
     <footer
@@ -114,8 +114,8 @@ export function Footer() {
             </Link>
 
             <p className="mt-5 max-w-[460px] text-[0.98rem] leading-7 text-[#c7d1ce] [overflow-wrap:anywhere] sm:text-[1rem] sm:leading-8">
-              Verification-first digital evidence records for legal,
-              compliance, investigations, claims, and review-sensitive workflows.
+              Verification-first digital evidence workflows for legal, compliance,
+              investigations, claims, and review-sensitive enterprise use.
             </p>
 
             <a
@@ -134,6 +134,13 @@ export function Footer() {
               </Link>
 
               <Link
+                href={verificationDemoUrl}
+                className="hover-chip rounded-full border border-white/10 bg-white/[0.05] px-4 py-2 text-[0.84rem] text-[#d7dfdc]"
+              >
+                Verification Demo
+              </Link>
+
+              <Link
                 href="/legal/verification-methodology"
                 className="hover-chip rounded-full border border-white/10 bg-white/[0.05] px-4 py-2 text-[0.84rem] text-[#d7dfdc]"
               >
@@ -147,35 +154,12 @@ export function Footer() {
                 Request Demo
               </Link>
             </div>
-
-            <div className="mt-4 flex flex-wrap gap-3">
-              <Link
-                href="/legal/terms"
-                className="hover-chip rounded-full border border-white/10 bg-white/[0.05] px-4 py-2 text-[0.84rem] text-[#d7dfdc]"
-              >
-                Terms of Service
-              </Link>
-
-              <Link
-                href="/legal/privacy"
-                className="hover-chip rounded-full border border-white/10 bg-white/[0.05] px-4 py-2 text-[0.84rem] text-[#d7dfdc]"
-              >
-                Privacy Policy
-              </Link>
-
-              <Link
-                href="/legal/cookies"
-                className="hover-chip rounded-full border border-white/10 bg-white/[0.05] px-4 py-2 text-[0.84rem] text-[#d7dfdc]"
-              >
-                Cookie Policy
-              </Link>
-            </div>
           </div>
 
           <div className="grid gap-10 sm:grid-cols-2 lg:grid-cols-3">
-            <FooterColumn title="Product" links={PRODUCT_LINKS} />
-            <FooterColumn title="Legal" links={LEGAL_CORE_LINKS} />
-            <FooterColumn title="Company & Support" links={COMPANY_SUPPORT_LINKS} />
+            <FooterColumn title="Trust & Verification" links={TRUST_VERIFICATION_LINKS} />
+            <FooterColumn title="Legal & Privacy" links={LEGAL_PRIVACY_LINKS} />
+            <FooterColumn title="Governance & Support" links={GOVERNANCE_SUPPORT_LINKS} />
           </div>
         </div>
 
@@ -183,7 +167,7 @@ export function Footer() {
 
         <div className="mt-6 flex flex-col gap-2 text-[0.88rem] text-[#aebbb7] sm:flex-row sm:items-center sm:justify-between">
           <span>© {currentYear} PROO✓RA</span>
-          <span>All rights reserved.</span>
+          <span>Verification-first digital evidence platform.</span>
         </div>
       </div>
     </footer>

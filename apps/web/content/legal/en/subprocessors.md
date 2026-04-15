@@ -2,9 +2,9 @@
 
 Last Updated: 06.04.2026
 
-This page identifies current third-party service providers that may process personal data or service data in connection with operation of Proovra.
+This page identifies current third-party service providers that may process personal data or service data in connection with operation of PROOVRA.
 
-The list may change over time as infrastructure, security, hosting, authentication, payment, storage, and communication services evolve.
+It is intended to improve visibility into the infrastructure and service-provider layer supporting a verification-first evidence workflow.
 
 ## 1. CURRENT SUBPROCESSORS
 

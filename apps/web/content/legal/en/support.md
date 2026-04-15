@@ -2,7 +2,9 @@
 
 Last Updated: 06.04.2026
 
-This Support Policy explains how to contact Proovra, the general scope of support, and basic response expectations.
+This Support Policy explains how to contact PROOVRA, the general scope of support, and baseline response expectations.
+
+It is intended to clarify what support can help with in a trust-sensitive evidence workflow, and what support does not provide.
 
 ## 1. CONTACT CHANNELS
 

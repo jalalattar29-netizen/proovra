@@ -35,8 +35,8 @@ export default function RequestDemoSuccessPage() {
 
               <p className="mt-5 max-w-[760px] text-[0.94rem] font-normal leading-[1.78] tracking-[-0.006em] text-[#c7cfcc] md:text-[0.98rem]">
                 While we review your request, you can already inspect the sample
-                report, verification demo, and methodology that power the
-                workflow.
+                report, verification demo, and methodology that explain how the
+                workflow is presented for later review.
               </p>
 
               <div className="mt-6 flex flex-wrap gap-3">

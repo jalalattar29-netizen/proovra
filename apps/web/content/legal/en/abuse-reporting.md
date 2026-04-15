@@ -2,7 +2,9 @@
 
 Last Updated: 06.04.2026
 
-This page explains how to report misuse of Proovra, unlawful content, or platform abuse.
+This page explains how to report misuse of PROOVRA, unlawful content, or platform abuse.
+
+It is intended to provide a clear reporting route for misuse involving evidence workflows, verification features, or unlawful platform activity.
 
 ## 1. OVERVIEW
 

@@ -89,13 +89,13 @@ export default function VerificationDemoPage() {
 
               <h1 className="mt-5 max-w-[860px] text-[1.62rem] font-medium leading-[1.01] tracking-[-0.04em] text-[#edf1ef] md:text-[2.18rem] lg:text-[2.7rem]">
                 See how a verification-first evidence workflow is presented for
-                <span className="text-[#bfe8df]"> later review</span>
+                <span className="text-[#bfe8df]"> later review and scrutiny</span>
               </h1>
 
               <p className="mt-5 max-w-[800px] text-[0.94rem] font-normal leading-[1.78] tracking-[-0.006em] text-[#c7cfcc] md:text-[0.98rem]">
                 This guided demo shows the same reviewer-facing structure serious
-                workflows need: recorded integrity state, timestamp-related
-                context, custody visibility, access activity, and structured
+                workflows need: recorded integrity state, timing context,
+                custody visibility, supporting review materials, and structured
                 report output.
               </p>
 
@@ -172,7 +172,8 @@ export default function VerificationDemoPage() {
                 <p className="mt-4 max-w-[900px] text-[0.98rem] leading-[1.85] text-[#55666a]">
                   This is not just a product teaser. It is meant to show how a
                   review-sensitive workflow is presented once evidence has been
-                  preserved, verified, and prepared for later scrutiny.
+                  preserved, structured for later review, and prepared for
+                  escalation or scrutiny.
                 </p>
               </div>
 
@@ -185,12 +186,12 @@ export default function VerificationDemoPage() {
                 <DemoStep
                   step="Step 2"
                   title="Inspect integrity and context"
-                  body="Reviewers can inspect recorded integrity state, timing-related context, and a clearer sequence of important lifecycle events."
+                  body="Reviewers can inspect the recorded integrity state, timing context, and a clearer sequence of important lifecycle events and review materials."
                 />
                 <DemoStep
                   step="Step 3"
                   title="Present with report output"
-                  body="The same workflow can be paired with a structured report so the record is easier to review, escalate, and discuss later."
+                  body="The same workflow is paired with a structured report so the record is easier to review, share, escalate, and discuss later."
                 />
               </div>
             </div>
@@ -215,8 +216,8 @@ export default function VerificationDemoPage() {
                 />
                 <DemoInfoCard
                   eyebrow="Timing"
-                  title="Timestamp visibility"
-                  body="The verification layer exposes timing-related context, timestamp status, and supporting evidence review details where available."
+                  title="Timing context and timestamp visibility"
+                  body="The verification layer exposes timing context, timestamp status, and supporting timestamp-related review details where available."
                 />
                 <DemoInfoCard
                   eyebrow="Custody"

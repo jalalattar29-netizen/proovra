@@ -2,9 +2,9 @@
 
 Last Updated: 06.04.2026
 
-Proovra is designed for trust-sensitive workflows involving digital evidence preservation, integrity verification, and controlled access.
+PROOVRA is designed for trust-sensitive workflows involving digital evidence preservation, integrity verification, and controlled review.
 
-This page describes our security approach and how researchers can responsibly report vulnerabilities.
+This page describes our security posture at a practical level, together with how researchers can responsibly report vulnerabilities affecting the platform.
 
 ## 1. SECURITY OBJECTIVES
 

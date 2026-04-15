@@ -2,7 +2,9 @@
 
 Last Updated: 06.04.2026
 
-This page describes how Proovra identifies, assesses, contains, investigates, and remediates security incidents affecting the Services.
+This page describes how PROOVRA identifies, assesses, contains, investigates, and remediates security incidents affecting the Services.
+
+It is intended to explain the platform’s operational incident-response posture in a way that supports customer trust, evidence integrity, and security review.
 
 ## 1. PURPOSE
 

@@ -223,7 +223,7 @@ export function Hero({
           >
             <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[0.84rem] font-medium text-[#cfd7d3] sm:text-[0.86rem]">
               <span className="h-2 w-2 rounded-full bg-[#9ed8cf] shadow-[0_0_10px_rgba(158,216,207,0.45)]" />
-              <span className="text-[#e2e8e5]">Built for legal, compliance, claims, and investigations</span>
+              <span className="text-[#e2e8e5]">Built for legal, compliance, claims, investigations, and enterprise review-sensitive workflows</span>
             </div>
           </div>
 

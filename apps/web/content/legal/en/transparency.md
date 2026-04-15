@@ -2,7 +2,7 @@
 
 Last Updated: 06.04.2026
 
-Proovra aims to provide reasonable transparency about legal demands, platform abuse handling, and integrity-related governance practices.
+PROOVRA aims to provide reasonable transparency around legal demands, abuse handling, and governance practices relevant to a trust-sensitive evidence platform.
 
 ## 1. OVERVIEW
 

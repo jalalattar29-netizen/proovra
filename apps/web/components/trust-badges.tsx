@@ -1,23 +1,23 @@
 "use client";
 
-import { Fingerprint, Shield, FileCheck, Clock3 } from "lucide-react";
+import { ShieldCheck, Clock3, FileCheck, Scale } from "lucide-react";
 
 const badges = [
   {
-    icon: Fingerprint,
-    label: "Signed integrity records",
+    icon: ShieldCheck,
+    label: "Recorded integrity state",
   },
   {
-    icon: Shield,
+    icon: Clock3,
     label: "Trusted timestamp visibility",
   },
   {
     icon: FileCheck,
-    label: "Verification page + report",
+    label: "Reviewer-facing verification",
   },
   {
-    icon: Clock3,
-    label: "Review-ready evidence trail",
+    icon: Scale,
+    label: "Structured review trail",
   },
 ];
 

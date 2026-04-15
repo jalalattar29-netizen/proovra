@@ -2,9 +2,9 @@
 
 Last Updated: 06.04.2026
 
-This document explains how Proovra captures, processes, preserves, organizes, and verifies digital materials submitted to the platform.
+This document explains how PROOVRA captures, processes, preserves, organizes, and verifies digital materials submitted to the platform.
 
-It is intended to help users, investigators, legal professionals, journalists, insurers, auditors, and other reviewers understand how Proovra handles evidence-related materials and technical verification outputs.
+It is intended to help users, legal professionals, investigators, journalists, insurers, auditors, and enterprise reviewers understand how the platform handles evidence-related materials and supporting review outputs.
 
 ## 1. PURPOSE
 
