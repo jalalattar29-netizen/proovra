@@ -96,8 +96,8 @@ model Evidence {
   guestIdentity                     GuestIdentity?      @relation(fields: [guestIdentityId], references: [id])
   parts                             EvidencePart[]
   reports                           Report[]
-  verificationPackages             VerificationPackage[]
-  verificationViews                VerificationView[]
+  verificationPackages              VerificationPackage[]
+  verificationViews                 VerificationView[]
   anchor                            EvidenceAnchor?
 
   @@index([deletedAt])
@@ -230,6 +230,7 @@ model Report {
   evidenceId                       String              @map("evidence_id") @db.Uuid
   version                          Int
   storageBucket                    String              @map("storage_bucket") @db.VarChar(255)
+  sizeBytes                        BigInt?             @map("size_bytes")
   storageKey                       String              @map("storage_key") @db.VarChar(512)
   storageRegion                    String?             @map("storage_region") @db.VarChar(64)
   storageObjectLockMode            String?             @map("storage_object_lock_mode") @db.VarChar(32)
@@ -265,6 +266,7 @@ model VerificationPackage {
   storageObjectLockMode            String?   @map("storage_object_lock_mode") @db.VarChar(32)
   storageObjectLockRetainUntilUtc  DateTime? @map("storage_object_lock_retain_until_utc") @db.Timestamptz(6)
   storageObjectLockLegalHoldStatus String?   @map("storage_object_lock_legal_hold_status") @db.VarChar(16)
+  sizeBytes                        BigInt?   @map("size_bytes")
   generatedAtUtc                   DateTime  @map("generated_at_utc") @db.Timestamptz(6)
   packageType                      String?   @map("package_type") @db.VarChar(64)
   createdAt                        DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
@@ -310,30 +312,30 @@ model SigningKey {
 }
 
 model User {
-  id                            String                        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  email                         String?                       @db.VarChar(320)
-  displayName                   String?                       @map("display_name") @db.VarChar(120)
+  id                            String                         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email                         String?                        @db.VarChar(320)
+  displayName                   String?                        @map("display_name") @db.VarChar(120)
   /// Platform-wide role (e.g. admin dashboard). Distinct from team roles.
-  platformRole                  String?                       @map("platform_role") @db.VarChar(32)
+  platformRole                  String?                        @map("platform_role") @db.VarChar(32)
   provider                      AuthProvider
-  providerUserId                String                        @map("provider_user_id") @db.VarChar(128)
-  createdAt                     DateTime                      @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt                     DateTime                      @updatedAt @map("updated_at") @db.Timestamptz(6)
-  avatarUrl                     String?                       @map("avatar_url") @db.VarChar(512)
-  bio                           String?                       @db.VarChar(280)
-  country                       String?                       @db.VarChar(120)
-  firstName                     String?                       @map("first_name") @db.VarChar(80)
-  lastName                      String?                       @map("last_name") @db.VarChar(80)
-  locale                        String?                       @db.VarChar(12)
-  passwordHash                  String?                       @map("password_hash")
-  timezone                      String?                       @db.VarChar(64)
-  emailVerifiedAt               DateTime?                     @map("email_verified_at") @db.Timestamptz(6)
+  providerUserId                String                         @map("provider_user_id") @db.VarChar(128)
+  createdAt                     DateTime                       @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                     DateTime                       @updatedAt @map("updated_at") @db.Timestamptz(6)
+  avatarUrl                     String?                        @map("avatar_url") @db.VarChar(512)
+  bio                           String?                        @db.VarChar(280)
+  country                       String?                        @db.VarChar(120)
+  firstName                     String?                        @map("first_name") @db.VarChar(80)
+  lastName                      String?                        @map("last_name") @db.VarChar(80)
+  locale                        String?                        @db.VarChar(12)
+  passwordHash                  String?                        @map("password_hash")
+  timezone                      String?                        @db.VarChar(64)
+  emailVerifiedAt               DateTime?                      @map("email_verified_at") @db.Timestamptz(6)
   organizationVerificationState OrganizationVerificationState? @map("organization_verification_state")
-  currentWorkspaceId            String?                       @map("current_workspace_id") @db.Uuid
+  currentWorkspaceId            String?                        @map("current_workspace_id") @db.Uuid
 
   caseAccess                    CaseAccess[]
   entitlements                  Entitlement[]
-  claimedGuestIdentities        GuestIdentity[]               @relation("GuestClaimedBy")
+  claimedGuestIdentities        GuestIdentity[]                @relation("GuestClaimedBy")
   guestIdentity                 GuestIdentity?
   passwordResetTokens           PasswordResetToken[]
   payments                      Payment[]
@@ -342,6 +344,9 @@ model User {
   teamActivities                TeamActivity[]
   cookieConsentRecords          CookieConsentRecord[]
   legalAcceptances              UserLegalAcceptance[]
+
+  ownedTeams                    Team[]                         @relation("TeamOwner")
+  billingOwnedTeams             Team[]                         @relation("TeamBillingOwner")
 
   @@unique([provider, providerUserId])
   @@index([email])
@@ -352,26 +357,44 @@ model User {
 }
 
 model Team {
-  id                   String                        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  name                 String                        @db.VarChar(120)
-  ownerUserId          String                        @map("owner_user_id")
-  createdAt            DateTime                      @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt            DateTime                      @updatedAt @map("updated_at") @db.Timestamptz(6)
-  legalName            String?                       @map("legal_name") @db.VarChar(180)
-  address              String?
-  logoUrl              String?                       @map("logo_url") @db.VarChar(512)
-  timezone             String?                       @db.VarChar(64)
-  legalEmail           String?                       @map("legal_email") @db.VarChar(320)
-  retentionPolicy      RetentionPolicy               @default(FOREVER) @map("retention_policy")
-  verificationState    OrganizationVerificationState? @map("verification_state")
-  verifiedAtUtc        DateTime?                     @map("verified_at_utc") @db.Timestamptz(6)
-  evidenceWorkspaceLabel String?                     @map("evidence_workspace_label") @db.VarChar(180)
+  id                     String                         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name                   String                         @db.VarChar(120)
+  ownerUserId            String                         @map("owner_user_id") @db.Uuid
+  billingOwnerUserId     String?                        @map("billing_owner_user_id") @db.Uuid
+  createdAt              DateTime                       @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt              DateTime                       @updatedAt @map("updated_at") @db.Timestamptz(6)
+  legalName              String?                        @map("legal_name") @db.VarChar(180)
+  address                String?
+  logoUrl                String?                        @map("logo_url") @db.VarChar(512)
+  timezone               String?                        @db.VarChar(64)
+  legalEmail             String?                        @map("legal_email") @db.VarChar(320)
+  retentionPolicy        RetentionPolicy                @default(FOREVER) @map("retention_policy")
+  verificationState      OrganizationVerificationState? @map("verification_state")
+  verifiedAtUtc          DateTime?                      @map("verified_at_utc") @db.Timestamptz(6)
+  evidenceWorkspaceLabel String?                        @map("evidence_workspace_label") @db.VarChar(180)
 
-  invites              TeamInvite[]
-  members              TeamMember[]
-  activities           TeamActivity[]
+  billingPlan            PlanType                       @default(FREE)
+  billingStatus          TeamBillingStatus              @default(INACTIVE)
+  includedSeats          Int                            @default(0)
+  overSeatLimit          Boolean                        @default(false)
+  billingActivatedAt     DateTime?                      @map("billing_activated_at") @db.Timestamptz(6)
+  billingCanceledAt      DateTime?                      @map("billing_canceled_at") @db.Timestamptz(6)
+  storageBytesOverride   BigInt?                        @map("storage_bytes_override")
+
+  owner                  User                           @relation("TeamOwner", fields: [ownerUserId], references: [id], onDelete: Cascade)
+  billingOwner           User?                          @relation("TeamBillingOwner", fields: [billingOwnerUserId], references: [id], onDelete: SetNull)
+
+  invites                TeamInvite[]
+  members                TeamMember[]
+  activities             TeamActivity[]
+  payments               Payment[]
+  subscriptions          Subscription[]
 
   @@index([ownerUserId])
+  @@index([billingOwnerUserId])
+  @@index([billingPlan])
+  @@index([billingStatus])
+  @@index([overSeatLimit])
   @@index([verificationState])
   @@index([verifiedAtUtc])
   @@map("teams")
@@ -480,10 +503,14 @@ model Subscription {
   currentPeriodEnd DateTime?          @map("current_period_end") @db.Timestamptz(6)
   createdAt        DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt        DateTime           @updatedAt @map("updated_at") @db.Timestamptz(6)
+  teamId           String?            @map("team_id") @db.Uuid
+
   user             User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  team             Team?              @relation(fields: [teamId], references: [id], onDelete: SetNull)
 
   @@unique([provider, providerSubId])
   @@index([userId])
+  @@index([teamId, status])
   @@map("subscriptions")
 }
 
@@ -496,10 +523,14 @@ model Payment {
   currency          String          @db.VarChar(8)
   status            PaymentStatus
   createdAt         DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  teamId            String?         @map("team_id") @db.Uuid
+
   user              User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  team              Team?           @relation(fields: [teamId], references: [id], onDelete: SetNull)
 
   @@unique([provider, providerPaymentId])
   @@index([userId])
+  @@index([teamId, createdAt])
   @@map("payments")
 }
 
@@ -714,63 +745,63 @@ model CookieConsentRecord {
 }
 
 model DemoRequest {
-  id               String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  fullName         String              @map("full_name") @db.VarChar(160)
-  workEmail        String              @map("work_email") @db.VarChar(320)
-  organization     String?             @db.VarChar(180)
-  jobTitle         String?             @map("job_title") @db.VarChar(120)
-  country          String?             @db.VarChar(120)
-  teamSize         String?             @map("team_size") @db.VarChar(64)
-  useCase          String              @map("use_case")
-  message          String?
+  id                        String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  fullName                  String                @map("full_name") @db.VarChar(160)
+  workEmail                 String                @map("work_email") @db.VarChar(320)
+  organization              String?               @db.VarChar(180)
+  jobTitle                  String?               @map("job_title") @db.VarChar(120)
+  country                   String?               @db.VarChar(120)
+  teamSize                  String?               @map("team_size") @db.VarChar(64)
+  useCase                   String                @map("use_case")
+  message                   String?
 
-  source           String?             @db.VarChar(120)
-  sourcePath       String?             @map("source_path") @db.VarChar(512)
-  referrer         String?             @db.VarChar(2048)
-  utmSource        String?             @map("utm_source") @db.VarChar(160)
-  utmMedium        String?             @map("utm_medium") @db.VarChar(160)
-  utmCampaign      String?             @map("utm_campaign") @db.VarChar(160)
-  utmTerm          String?             @map("utm_term") @db.VarChar(160)
-  utmContent       String?             @map("utm_content") @db.VarChar(160)
+  source                    String?               @db.VarChar(120)
+  sourcePath                String?               @map("source_path") @db.VarChar(512)
+  referrer                  String?               @db.VarChar(2048)
+  utmSource                 String?               @map("utm_source") @db.VarChar(160)
+  utmMedium                 String?               @map("utm_medium") @db.VarChar(160)
+  utmCampaign               String?               @map("utm_campaign") @db.VarChar(160)
+  utmTerm                   String?               @map("utm_term") @db.VarChar(160)
+  utmContent                String?               @map("utm_content") @db.VarChar(160)
 
-  status           DemoRequestStatus   @default(NEW)
-  priority         DemoRequestPriority @default(NORMAL)
-  leadQuality      DemoLeadQuality?   @map("lead_quality")
-  leadTrack        DemoLeadTrack?     @map("lead_track")
-  recommendedAction DemoRecommendedAction? @map("recommended_action")
-  routingTarget     DemoRoutingTarget?     @map("routing_target")
-  routingReason     String?                @map("routing_reason") @db.VarChar(255)
-  routedAt          DateTime?              @map("routed_at") @db.Timestamptz(6)
-  routedByUserId    String?                @map("routed_by_user_id") @db.Uuid
-  responseSlaHours Int?               @map("response_sla_hours")
-  qualificationScore Int?             @map("qualification_score")
-  qualificationReasons Json?          @map("qualification_reasons")
-  firstRespondedAt DateTime?          @map("first_responded_at") @db.Timestamptz(6)
-  contactedAt      DateTime?          @map("contacted_at") @db.Timestamptz(6)
-  contactedByUserId String?           @map("contacted_by_user_id") @db.Uuid
-  spamScore        Int                 @default(0) @map("spam_score")
-  spamReasons      Json?               @map("spam_reasons")
-  isSpam           Boolean             @default(false) @map("is_spam")
+  status                    DemoRequestStatus     @default(NEW)
+  priority                  DemoRequestPriority   @default(NORMAL)
+  leadQuality               DemoLeadQuality?      @map("lead_quality")
+  leadTrack                 DemoLeadTrack?        @map("lead_track")
+  recommendedAction         DemoRecommendedAction? @map("recommended_action")
+  routingTarget             DemoRoutingTarget?     @map("routing_target")
+  routingReason             String?                @map("routing_reason") @db.VarChar(255)
+  routedAt                  DateTime?              @map("routed_at") @db.Timestamptz(6)
+  routedByUserId            String?                @map("routed_by_user_id") @db.Uuid
+  responseSlaHours          Int?                   @map("response_sla_hours")
+  qualificationScore        Int?                   @map("qualification_score")
+  qualificationReasons      Json?                  @map("qualification_reasons")
+  firstRespondedAt          DateTime?              @map("first_responded_at") @db.Timestamptz(6)
+  contactedAt               DateTime?              @map("contacted_at") @db.Timestamptz(6)
+  contactedByUserId         String?                @map("contacted_by_user_id") @db.Uuid
+  spamScore                 Int                    @default(0) @map("spam_score")
+  spamReasons               Json?                  @map("spam_reasons")
+  isSpam                    Boolean                @default(false) @map("is_spam")
 
-  emailSentAt      DateTime?           @map("email_sent_at") @db.Timestamptz(6)
-  autoReplySentAt  DateTime?           @map("auto_reply_sent_at") @db.Timestamptz(6)
-  webhookSentAt    DateTime?           @map("webhook_sent_at") @db.Timestamptz(6)
-  followUpStatus        DemoFollowUpStatus @default(ACTIVE) @map("follow_up_status")
-  followUpStep          Int                @default(0) @map("follow_up_step")
-  nextFollowUpAt        DateTime?          @map("next_follow_up_at") @db.Timestamptz(6)
-  lastFollowUpSentAt    DateTime?          @map("last_follow_up_sent_at") @db.Timestamptz(6)
-  lastFollowUpTemplateKey String?          @map("last_follow_up_template_key") @db.VarChar(64)
-  followUpStoppedAt     DateTime?          @map("follow_up_stopped_at") @db.Timestamptz(6)
+  emailSentAt               DateTime?              @map("email_sent_at") @db.Timestamptz(6)
+  autoReplySentAt           DateTime?              @map("auto_reply_sent_at") @db.Timestamptz(6)
+  webhookSentAt             DateTime?              @map("webhook_sent_at") @db.Timestamptz(6)
+  followUpStatus            DemoFollowUpStatus     @default(ACTIVE) @map("follow_up_status")
+  followUpStep              Int                    @default(0) @map("follow_up_step")
+  nextFollowUpAt            DateTime?              @map("next_follow_up_at") @db.Timestamptz(6)
+  lastFollowUpSentAt        DateTime?              @map("last_follow_up_sent_at") @db.Timestamptz(6)
+  lastFollowUpTemplateKey   String?                @map("last_follow_up_template_key") @db.VarChar(64)
+  followUpStoppedAt         DateTime?              @map("follow_up_stopped_at") @db.Timestamptz(6)
 
-  reviewedAt       DateTime?           @map("reviewed_at") @db.Timestamptz(6)
-  reviewedByUserId String?             @map("reviewed_by_user_id") @db.Uuid
-  notes            String?
+  reviewedAt                DateTime?              @map("reviewed_at") @db.Timestamptz(6)
+  reviewedByUserId          String?                @map("reviewed_by_user_id") @db.Uuid
+  notes                     String?
 
-  ipAddress        String?             @map("ip_address") @db.VarChar(45)
-  userAgent        String?             @map("user_agent") @db.VarChar(512)
+  ipAddress                 String?                @map("ip_address") @db.VarChar(45)
+  userAgent                 String?                @map("user_agent") @db.VarChar(512)
 
-  createdAt        DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt        DateTime            @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdAt                 DateTime               @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                 DateTime               @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   @@index([status, createdAt(sort: Desc)])
   @@index([priority, createdAt(sort: Desc)])
@@ -885,6 +916,13 @@ enum VerificationViewerType {
   PUBLIC
   AUTHENTICATED
   INTERNAL_REVIEWER
+}
+
+enum TeamBillingStatus {
+  INACTIVE
+  ACTIVE
+  PAST_DUE
+  CANCELED
 }
 
 enum OrganizationVerificationState {

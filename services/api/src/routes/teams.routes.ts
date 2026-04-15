@@ -2,6 +2,12 @@ import type { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
 import { z } from "zod";
 import { randomUUID } from "node:crypto";
 import { Prisma } from "@prisma/client";
+import {
+  assertTeamSeatAvailable,
+  getWorkspaceUsage,
+} from "../services/workspace-usage.service.js";
+import { getTeamWorkspaceScope } from "../services/workspace-billing.service.js";
+import { refreshTeamSeatState } from "../services/billing.service.js";
 import * as prismaPkg from "@prisma/client";
 import { prisma } from "../db.js";
 import { requireAuth } from "../middleware/auth.js";
@@ -59,6 +65,15 @@ async function getActorMembership(teamId: string, userId: string) {
         teamId,
         userId,
       },
+    },
+  });
+}
+
+async function getTeamMemberByMemberId(teamId: string, memberId: string) {
+  return prisma.teamMember.findFirst({
+    where: {
+      id: memberId,
+      teamId,
     },
   });
 }
@@ -316,6 +331,13 @@ export async function teamsRoutes(app: FastifyInstance) {
         where: { teamId },
       });
 
+      const workspaceScope = await getTeamWorkspaceScope(teamId);
+      const workspaceUsage = await getWorkspaceUsage(workspaceScope);
+      const effectiveSeatLimit = Math.max(
+        team.includedSeats ?? 0,
+        workspaceScope.teamSeats ?? 0
+      );
+
       auditTeamAction(req, {
         userId,
         action: "teams.view",
@@ -334,18 +356,33 @@ export async function teamsRoutes(app: FastifyInstance) {
         id: team.id,
         name: team.name,
         ownerUserId: team.ownerUserId,
+        billingOwnerUserId: team.billingOwnerUserId,
         legalName: team.legalName,
         address: team.address,
         logoUrl: team.logoUrl,
         timezone: team.timezone,
         legalEmail: team.legalEmail,
         retentionPolicy: team.retentionPolicy,
+        billingPlan: team.billingPlan,
+        billingStatus: team.billingStatus,
+        includedSeats: team.includedSeats,
+        overSeatLimit: team.overSeatLimit,
         currentUserRole: actorMembership.role,
         canManageMembers: hasRole(actorMembership.role, prismaPkg.TeamRole.ADMIN),
         stats: {
           memberCount: team.members.length,
           pendingInviteCount,
           caseCount,
+          seatLimit: effectiveSeatLimit,
+          seatUsed: workspaceUsage.teamMemberCount,
+          seatAvailable: Math.max(0, effectiveSeatLimit - workspaceUsage.teamMemberCount),
+          storageUsedBytes: workspaceUsage.storageBytesUsed.toString(),
+          storageLimitBytes: workspaceUsage.storageBytesLimit.toString(),
+          storageRemainingBytes: workspaceUsage.storageBytesRemaining.toString(),
+          storageUsedLabel: workspaceUsage.storageLabel,
+          storageLimitLabel: workspaceUsage.storageLimitLabel,
+          storageRemainingLabel: workspaceUsage.storageRemainingLabel,
+          storageUsageRatio: workspaceUsage.storageUsageRatio,
         },
         members: team.members.map((member) => {
           const user = usersById.get(member.userId);
@@ -538,6 +575,57 @@ export async function teamsRoutes(app: FastifyInstance) {
         return reply.code(403).send({ message: "Only the team owner can delete this team" });
       }
 
+      const activeTeamSubscription = await prisma.subscription.findFirst({
+        where: {
+          teamId,
+          status: {
+            in: [
+              prismaPkg.SubscriptionStatus.ACTIVE,
+              prismaPkg.SubscriptionStatus.PAST_DUE,
+              prismaPkg.SubscriptionStatus.TRIALING,
+            ],
+          },
+        },
+        select: { id: true },
+      });
+
+      if (activeTeamSubscription) {
+        auditTeamAction(req, {
+          userId,
+          action: "teams.delete",
+          outcome: "blocked",
+          severity: "warning",
+          resourceId: teamId,
+          metadata: { reason: "active_subscription_exists" },
+        });
+
+        return reply.code(409).send({
+          message: "Cancel the active team subscription before deleting this team",
+        });
+      }
+
+      const linkedEvidenceCount = await prisma.evidence.count({
+        where: { teamId },
+      });
+
+      if (linkedEvidenceCount > 0) {
+        auditTeamAction(req, {
+          userId,
+          action: "teams.delete",
+          outcome: "blocked",
+          severity: "warning",
+          resourceId: teamId,
+          metadata: {
+            reason: "linked_evidence_exists",
+            linkedEvidenceCount,
+          },
+        });
+
+        return reply.code(409).send({
+          message: "Move or delete team evidence before deleting this team",
+        });
+      }
+
       await prisma.teamInvite.deleteMany({
         where: { teamId },
       });
@@ -593,6 +681,23 @@ export async function teamsRoutes(app: FastifyInstance) {
           metadata: { reason: "forbidden", email },
         });
         return reply.code(403).send({ message: "Forbidden" });
+      }
+
+      const scope = await getTeamWorkspaceScope(teamId);
+
+      if (scope.plan !== prismaPkg.PlanType.TEAM) {
+        auditTeamAction(req, {
+          userId,
+          action: "teams.invite_create",
+          outcome: "blocked",
+          severity: "warning",
+          resourceId: teamId,
+          metadata: { reason: "team_plan_required", email },
+        });
+
+        return reply.code(409).send({
+          message: "Active TEAM plan required before inviting members",
+        });
       }
 
       const existingPendingInvite = await prisma.teamInvite.findFirst({
@@ -681,6 +786,8 @@ export async function teamsRoutes(app: FastifyInstance) {
           });
         }
       }
+
+      await assertTeamSeatAvailable(scope);
 
       const token = randomUUID().replace(/-/g, "");
       const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
@@ -831,14 +938,7 @@ export async function teamsRoutes(app: FastifyInstance) {
         return reply.code(403).send({ message: "Forbidden" });
       }
 
-      const target = await prisma.teamMember.findUnique({
-        where: {
-          teamId_userId: {
-            teamId,
-            userId: memberId,
-          },
-        },
-      });
+      const target = await getTeamMemberByMemberId(teamId, memberId);
 
       if (!target) {
         auditTeamAction(req, {
@@ -865,16 +965,11 @@ export async function teamsRoutes(app: FastifyInstance) {
       }
 
       const updated = await prisma.teamMember.update({
-        where: {
-          teamId_userId: {
-            teamId,
-            userId: memberId,
-          },
-        },
+        where: { id: target.id },
         data: { role: body.role },
       });
 
-      await createActivity(teamId, "member_role_changed", "member", userId, memberId, {
+      await createActivity(teamId, "member_role_changed", "member", userId, target.userId, {
         role: body.role,
       });
 
@@ -883,7 +978,7 @@ export async function teamsRoutes(app: FastifyInstance) {
         action: "teams.member_update",
         outcome: "success",
         resourceId: teamId,
-        metadata: { memberId, role: body.role },
+        metadata: { memberId: target.id, userId: target.userId, role: body.role },
       });
 
       fireTeamAnalyticsEvent({
@@ -891,7 +986,7 @@ export async function teamsRoutes(app: FastifyInstance) {
         userId,
         req,
         entityId: teamId,
-        metadata: { memberId, role: body.role },
+        metadata: { memberId: target.id, userId: target.userId, role: body.role },
       });
 
       return reply.code(200).send({ member: updated });
@@ -920,14 +1015,7 @@ export async function teamsRoutes(app: FastifyInstance) {
         return reply.code(403).send({ message: "Forbidden" });
       }
 
-      const target = await prisma.teamMember.findUnique({
-        where: {
-          teamId_userId: {
-            teamId,
-            userId: memberId,
-          },
-        },
-      });
+      const target = await getTeamMemberByMemberId(teamId, memberId);
 
       if (!target) {
         auditTeamAction(req, {
@@ -954,22 +1042,19 @@ export async function teamsRoutes(app: FastifyInstance) {
       }
 
       await prisma.teamMember.delete({
-        where: {
-          teamId_userId: {
-            teamId,
-            userId: memberId,
-          },
-        },
+        where: { id: target.id },
       });
 
-      await createActivity(teamId, "member_removed", "member", userId, memberId);
+      await refreshTeamSeatState(teamId);
+
+      await createActivity(teamId, "member_removed", "member", userId, target.userId);
 
       auditTeamAction(req, {
         userId,
         action: "teams.member_delete",
         outcome: "success",
         resourceId: teamId,
-        metadata: { memberId },
+        metadata: { memberId: target.id, userId: target.userId },
       });
 
       fireTeamAnalyticsEvent({
@@ -977,7 +1062,7 @@ export async function teamsRoutes(app: FastifyInstance) {
         userId,
         req,
         entityId: teamId,
-        metadata: { memberId },
+        metadata: { memberId: target.id, userId: target.userId },
       });
 
       return reply.code(204).send();
@@ -1053,6 +1138,36 @@ export async function teamsRoutes(app: FastifyInstance) {
         });
       }
 
+      const existingMembership = await prisma.teamMember.findUnique({
+        where: {
+          teamId_userId: {
+            teamId: invite.teamId,
+            userId,
+          },
+        },
+      });
+
+      if (!existingMembership) {
+        const scope = await getTeamWorkspaceScope(invite.teamId);
+
+        if (scope.plan !== prismaPkg.PlanType.TEAM) {
+          auditTeamAction(req, {
+            userId,
+            action: "teams.invite_accept",
+            outcome: "blocked",
+            severity: "warning",
+            resourceId: invite.teamId,
+            metadata: { reason: "team_plan_required", inviteId: invite.id },
+          });
+
+          return reply.code(409).send({
+            message: "This team no longer has an active TEAM plan",
+          });
+        }
+
+        await assertTeamSeatAvailable(scope);
+      }
+
       await prisma.teamMember.upsert({
         where: {
           teamId_userId: {
@@ -1072,6 +1187,8 @@ export async function teamsRoutes(app: FastifyInstance) {
         where: { id: invite.id },
         data: { acceptedAt: new Date() },
       });
+
+      await refreshTeamSeatState(invite.teamId);
 
       await createActivity(invite.teamId, "invite_accepted", "member", userId, userId, {
         role: invite.role,

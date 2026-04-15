@@ -11,6 +11,7 @@ import {
 } from "../services/analytics-event.service.js";
 import { classifyRouteType } from "../lib/route-classification.js";
 import { appendPlatformAuditLog } from "../services/platform-audit-log.service.js";
+import { getPlanCapabilities } from "../services/plan-catalog.service.js";
 
 type AnalyticsTrackBody = {
   eventType?: string;
@@ -46,7 +47,14 @@ type AdminEventFilter =
   | "page_view"
   | "login_completed"
   | "evidence_created"
-  | "report_generated";
+  | "report_generated"
+  | "billing_payment_succeeded"
+  | "billing_payment_failed"
+  | "billing_subscription_created"
+  | "billing_subscription_canceled"
+  | "team_plan_activated"
+  | "workspace_storage_limit_reached"
+  | "team_seat_limit_reached";
 
 type RouteType = "public" | "app" | "admin" | "auth" | "api" | "unknown";
 
@@ -59,6 +67,52 @@ type AdminAnalyticsQuery = {
   path: string | null;
   countryCode: string | null;
   cityNormalized: string | null;
+};
+
+type SummaryTotals = {
+  totalUsers: number;
+  registeredUsers: number;
+  guestUsers: number;
+  activeUsers: number;
+  usersWithEvidence: number;
+  totalEvidence: number;
+  reportsGenerated: number;
+  subscriptionBreakdown: {
+    free: number;
+    payg: number;
+    pro: number;
+    team: number;
+  };
+  evidenceByType: {
+    photos: number;
+    videos: number;
+    documents: number;
+    other: number;
+  };
+  billing: {
+    activeSubscriptions: number;
+    trialingSubscriptions: number;
+    pastDueSubscriptions: number;
+    canceledSubscriptions: number;
+    successfulPayments: number;
+    failedPayments: number;
+    refundedPayments: number;
+    grossRevenueCents: number;
+  };
+  teams: {
+    total: number;
+    active: number;
+    pastDue: number;
+    canceled: number;
+    inactive: number;
+    overSeatLimit: number;
+  };
+  workspaceHealth: {
+    storageNearLimitTeams: number;
+    storageLimitReachedTeams: number;
+    seatNearLimitTeams: number;
+    seatLimitReachedTeams: number;
+  };
 };
 
 const ADMIN_PRE = { preHandler: requirePlatformAdmin };
@@ -137,6 +191,13 @@ function parseAdminEventFilter(raw: string | undefined): AdminEventFilter {
     "login_completed",
     "evidence_created",
     "report_generated",
+    "billing_payment_succeeded",
+    "billing_payment_failed",
+    "billing_subscription_created",
+    "billing_subscription_canceled",
+    "team_plan_activated",
+    "workspace_storage_limit_reached",
+    "team_seat_limit_reached",
   ];
 
   if (raw && allowed.includes(raw as AdminEventFilter)) {
@@ -221,6 +282,196 @@ async function countDistinctSessions(
   return rows.length;
 }
 
+function isTeamBillingActive(status: string | null | undefined): boolean {
+  return status === "ACTIVE" || status === "PAST_DUE";
+}
+
+async function computeTeamWorkspaceHealth() {
+  const teams = await prisma.team.findMany({
+    select: {
+      id: true,
+      billingPlan: true,
+      billingStatus: true,
+      includedSeats: true,
+      overSeatLimit: true,
+      storageBytesOverride: true,
+      _count: {
+        select: {
+          members: true,
+        },
+      },
+    },
+  });
+
+  if (teams.length === 0) {
+    return {
+      teams: {
+        total: 0,
+        active: 0,
+        pastDue: 0,
+        canceled: 0,
+        inactive: 0,
+        overSeatLimit: 0,
+      },
+      workspaceHealth: {
+        storageNearLimitTeams: 0,
+        storageLimitReachedTeams: 0,
+        seatNearLimitTeams: 0,
+        seatLimitReachedTeams: 0,
+      },
+    };
+  }
+
+  const teamIds = teams.map((team) => team.id);
+
+  const [evidenceAgg, reportAgg, verificationAgg] = await Promise.all([
+    prisma.evidence.groupBy({
+      by: ["teamId"],
+      where: {
+        teamId: { in: teamIds },
+        deletedAt: null,
+      },
+      _sum: {
+        sizeBytes: true,
+      },
+    }),
+    prisma.report.groupBy({
+      by: ["evidenceId"],
+      where: {
+        evidence: {
+          teamId: { in: teamIds },
+          deletedAt: null,
+        },
+      },
+      _sum: {
+        sizeBytes: true,
+      },
+    }),
+    prisma.verificationPackage.groupBy({
+      by: ["evidenceId"],
+      where: {
+        evidence: {
+          teamId: { in: teamIds },
+          deletedAt: null,
+        },
+      },
+      _sum: {
+        sizeBytes: true,
+      },
+    }),
+  ]);
+
+  const evidenceRows = await prisma.evidence.findMany({
+    where: {
+      teamId: { in: teamIds },
+      deletedAt: null,
+    },
+    select: {
+      id: true,
+      teamId: true,
+    },
+  });
+
+  const evidenceToTeamId = new Map<string, string>();
+  for (const row of evidenceRows) {
+    if (row.teamId) {
+      evidenceToTeamId.set(row.id, row.teamId);
+    }
+  }
+
+  const evidenceBytesByTeam = new Map<string, bigint>();
+  for (const row of evidenceAgg) {
+    const teamId = row.teamId;
+    if (!teamId) continue;
+    evidenceBytesByTeam.set(teamId, BigInt(row._sum.sizeBytes ?? 0));
+  }
+
+  const reportBytesByTeam = new Map<string, bigint>();
+  for (const row of reportAgg) {
+    const teamId = evidenceToTeamId.get(row.evidenceId);
+    if (!teamId) continue;
+    const current = reportBytesByTeam.get(teamId) ?? 0n;
+    reportBytesByTeam.set(teamId, current + BigInt(row._sum.sizeBytes ?? 0));
+  }
+
+  const verificationBytesByTeam = new Map<string, bigint>();
+  for (const row of verificationAgg) {
+    const teamId = evidenceToTeamId.get(row.evidenceId);
+    if (!teamId) continue;
+    const current = verificationBytesByTeam.get(teamId) ?? 0n;
+    verificationBytesByTeam.set(teamId, current + BigInt(row._sum.sizeBytes ?? 0));
+  }
+
+  let active = 0;
+  let pastDue = 0;
+  let canceled = 0;
+  let inactive = 0;
+  let overSeatLimit = 0;
+  let storageNearLimitTeams = 0;
+  let storageLimitReachedTeams = 0;
+  let seatNearLimitTeams = 0;
+  let seatLimitReachedTeams = 0;
+
+  for (const team of teams) {
+    if (team.billingStatus === "ACTIVE") active += 1;
+    else if (team.billingStatus === "PAST_DUE") pastDue += 1;
+    else if (team.billingStatus === "CANCELED") canceled += 1;
+    else inactive += 1;
+
+    if (team.overSeatLimit) overSeatLimit += 1;
+
+    const effectivePlan = isTeamBillingActive(team.billingStatus)
+      ? team.billingPlan
+      : "FREE";
+
+    const caps = getPlanCapabilities(effectivePlan);
+    const storageLimit =
+      team.storageBytesOverride && team.storageBytesOverride > 0n
+        ? team.storageBytesOverride
+        : caps.includedStorageBytes;
+
+    const usedStorage =
+      (evidenceBytesByTeam.get(team.id) ?? 0n) +
+      (reportBytesByTeam.get(team.id) ?? 0n) +
+      (verificationBytesByTeam.get(team.id) ?? 0n);
+
+    const storageRatio =
+      storageLimit > 0n ? Number(usedStorage) / Number(storageLimit) : 0;
+
+    if (storageLimit > 0n && usedStorage >= storageLimit) {
+      storageLimitReachedTeams += 1;
+    } else if (storageRatio >= 0.8) {
+      storageNearLimitTeams += 1;
+    }
+
+    const seatLimit = Math.max(caps.includedSeats, team.includedSeats ?? 0);
+    const memberCount = team._count.members;
+
+    if (seatLimit > 0 && memberCount >= seatLimit) {
+      seatLimitReachedTeams += 1;
+    } else if (seatLimit > 0 && memberCount / seatLimit >= 0.8) {
+      seatNearLimitTeams += 1;
+    }
+  }
+
+  return {
+    teams: {
+      total: teams.length,
+      active,
+      pastDue,
+      canceled,
+      inactive,
+      overSeatLimit,
+    },
+    workspaceHealth: {
+      storageNearLimitTeams,
+      storageLimitReachedTeams,
+      seatNearLimitTeams,
+      seatLimitReachedTeams,
+    },
+  };
+}
+
 /**
  * IMPORTANT:
  * Summary is intentionally GLOBAL and does NOT apply dashboard filters.
@@ -229,13 +480,18 @@ async function countDistinctSessions(
  * User metrics are split explicitly so guest identities do not inflate
  * the meaning of "real" registered users.
  */
-async function getSummary() {
+async function getSummary(): Promise<SummaryTotals> {
   const [
     registeredUsers,
     guestUsers,
     usersWithEvidenceRows,
     reportsGenerated,
     activeAnalyticsUserRows,
+    entitlements,
+    typeGroups,
+    subscriptionsGrouped,
+    paymentsGrouped,
+    teamHealth,
   ] = await Promise.all([
     prisma.user.count({
       where: {
@@ -270,6 +526,31 @@ async function getSummary() {
       },
       distinct: ["userId"],
     }),
+
+    prisma.entitlement.groupBy({
+      by: ["plan"],
+      where: { active: true },
+      _count: { plan: true },
+    }),
+
+    prisma.evidence.groupBy({
+      by: ["type"],
+      where: { deletedAt: null },
+      _count: { type: true },
+    }),
+
+    prisma.subscription.groupBy({
+      by: ["status"],
+      _count: { status: true },
+    }),
+
+    prisma.payment.groupBy({
+      by: ["status"],
+      _count: { status: true },
+      _sum: { amountCents: true },
+    }),
+
+    computeTeamWorkspaceHealth(),
   ]);
 
   const activeUserIds = activeAnalyticsUserRows
@@ -286,18 +567,6 @@ async function getSummary() {
       },
     });
   }
-
-  const entitlements = await prisma.entitlement.groupBy({
-    by: ["plan"],
-    where: { active: true },
-    _count: { plan: true },
-  });
-
-  const typeGroups = await prisma.evidence.groupBy({
-    by: ["type"],
-    where: { deletedAt: null },
-    _count: { type: true },
-  });
 
   const subscriptionBreakdown = {
     free: 0,
@@ -329,6 +598,37 @@ async function getSummary() {
     else evidenceByType.other += c;
   }
 
+  const billing = {
+    activeSubscriptions: 0,
+    trialingSubscriptions: 0,
+    pastDueSubscriptions: 0,
+    canceledSubscriptions: 0,
+    successfulPayments: 0,
+    failedPayments: 0,
+    refundedPayments: 0,
+    grossRevenueCents: 0,
+  };
+
+  for (const row of subscriptionsGrouped) {
+    if (row.status === "ACTIVE") billing.activeSubscriptions = row._count.status;
+    if (row.status === "TRIALING") billing.trialingSubscriptions = row._count.status;
+    if (row.status === "PAST_DUE") billing.pastDueSubscriptions = row._count.status;
+    if (row.status === "CANCELED") billing.canceledSubscriptions = row._count.status;
+  }
+
+  for (const row of paymentsGrouped) {
+    if (row.status === "SUCCEEDED") {
+      billing.successfulPayments = row._count.status;
+      billing.grossRevenueCents += row._sum.amountCents ?? 0;
+    }
+    if (row.status === "FAILED") {
+      billing.failedPayments = row._count.status;
+    }
+    if (row.status === "REFUNDED") {
+      billing.refundedPayments = row._count.status;
+    }
+  }
+
   const usersWithEvidence = usersWithEvidenceRows.length;
   const totalUsers = registeredUsers + guestUsers;
 
@@ -346,6 +646,9 @@ async function getSummary() {
     reportsGenerated,
     subscriptionBreakdown,
     evidenceByType,
+    billing,
+    teams: teamHealth.teams,
+    workspaceHealth: teamHealth.workspaceHealth,
   };
 }
 

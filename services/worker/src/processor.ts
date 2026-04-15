@@ -1,7 +1,12 @@
 import type { Job } from "bullmq";
 import type { Readable } from "node:stream";
 import * as prismaPkg from "@prisma/client";
+import { resolveEffectivePlanForEvidence } from "./workspace-billing.js";
 import type { Prisma } from "@prisma/client";
+import {
+  canPlanGenerateReports,
+  canPlanGenerateVerificationPackage,
+} from "@proovra/shared-billing";
 import { appendCustodyEventTx } from "./custody-events.js";
 import { appendWorkerAnalyticsEvent } from "./analytics-events.js";
 import { prisma } from "./db.js";
@@ -81,6 +86,7 @@ type PreparedReportArtifacts = {
   evidenceStorage: EvidenceStorageSnapshot;
   fingerprintCanonicalJson: string;
   identitySnapshot: IdentitySnapshot;
+  effectivePlan: prismaPkg.PlanType;
 };
 
 function envValue(name: string, fallback?: string): string {
@@ -687,6 +693,7 @@ function deriveIdentityLevel(params: {
   emailVerifiedAt: Date | null;
   organizationVerificationState: prismaPkg.OrganizationVerificationState | null;
   currentWorkspaceVerified: boolean;
+  hasWorkspaceTeam: boolean;
 }): prismaPkg.IdentityLevel {
   if (params.currentWorkspaceVerified) {
     return prismaPkg.IdentityLevel.VERIFIED_ORGANIZATION;
@@ -699,7 +706,7 @@ function deriveIdentityLevel(params: {
     return prismaPkg.IdentityLevel.VERIFIED_ORGANIZATION;
   }
 
-  if (params.currentWorkspaceVerified === false && params.provider) {
+  if (params.hasWorkspaceTeam) {
     return prismaPkg.IdentityLevel.ORGANIZATION_ACCOUNT;
   }
 
@@ -796,53 +803,59 @@ async function prepareReportArtifacts(
       evidence.storageObjectLockLegalHoldStatus ?? null,
   });
 
-  const [parts, ownerUser] = await Promise.all([
-    prisma.evidencePart.findMany({
-      where: { evidenceId: evidence.id },
-      orderBy: { partIndex: "asc" },
-    }),
-    prisma.user.findUnique({
-      where: { id: evidence.ownerUserId },
-      select: {
-        id: true,
-        email: true,
-        provider: true,
-        emailVerifiedAt: true,
-        organizationVerificationState: true,
-        currentWorkspaceId: true,
-      },
-    }),
-  ]);
+const [parts, ownerUser] = await Promise.all([
+  prisma.evidencePart.findMany({
+    where: { evidenceId: evidence.id },
+    orderBy: { partIndex: "asc" },
+  }),
+  prisma.user.findUnique({
+    where: { id: evidence.ownerUserId },
+    select: {
+      id: true,
+      email: true,
+      provider: true,
+      emailVerifiedAt: true,
+      organizationVerificationState: true,
+      currentWorkspaceId: true,
+    },
+  }),
+]);
 
   if (!ownerUser) {
     throw createWorkerError("OWNER_USER_NOT_FOUND", false);
   }
 
-  let workspaceTeam:
-    | {
-        id: string;
-        name: string;
-        legalName: string | null;
-        evidenceWorkspaceLabel: string | null;
-        verificationState: prismaPkg.OrganizationVerificationState | null;
-      }
-    | null = null;
+const effectivePlan = await resolveEffectivePlanForEvidence({
+  ownerUserId: evidence.ownerUserId,
+  teamId: evidence.teamId ?? null,
+});
 
-  const teamIdCandidate =
-    evidence.teamId ?? ownerUser.currentWorkspaceId ?? null;
-
-  if (teamIdCandidate) {
-    workspaceTeam = await prisma.team.findUnique({
-      where: { id: teamIdCandidate },
-      select: {
-        id: true,
-        name: true,
-        legalName: true,
-        evidenceWorkspaceLabel: true,
-        verificationState: true,
-      },
-    });
+  if (!canPlanGenerateReports(effectivePlan)) {
+    throw createWorkerError("REPORT_NOT_INCLUDED_IN_PLAN", false);
   }
+
+let workspaceTeam:
+  | {
+      id: string;
+      name: string;
+      legalName: string | null;
+      evidenceWorkspaceLabel: string | null;
+      verificationState: prismaPkg.OrganizationVerificationState | null;
+    }
+  | null = null;
+
+if (evidence.teamId) {
+  workspaceTeam = await prisma.team.findUnique({
+    where: { id: evidence.teamId },
+    select: {
+      id: true,
+      name: true,
+      legalName: true,
+      evidenceWorkspaceLabel: true,
+      verificationState: true,
+    },
+  });
+}
 
   if (parts.length === 0 && (!evidence.storageBucket || !evidence.storageKey)) {
     throw createWorkerError("EVIDENCE_STORAGE_NOT_SET", false);
@@ -1023,13 +1036,14 @@ async function prepareReportArtifacts(
     workspaceTeam?.verificationState ===
     prismaPkg.OrganizationVerificationState.VERIFIED;
 
-  const identityLevel = deriveIdentityLevel({
-    provider: ownerUser.provider,
-    emailVerifiedAt: ownerUser.emailVerifiedAt ?? null,
-    organizationVerificationState:
-      ownerUser.organizationVerificationState ?? null,
-    currentWorkspaceVerified: workspaceVerified,
-  });
+const identityLevel = deriveIdentityLevel({
+  provider: ownerUser.provider,
+  emailVerifiedAt: ownerUser.emailVerifiedAt ?? null,
+  organizationVerificationState:
+    ownerUser.organizationVerificationState ?? null,
+  currentWorkspaceVerified: workspaceVerified,
+  hasWorkspaceTeam: Boolean(evidence.teamId),
+});
 
   const identitySnapshot: IdentitySnapshot = {
     verificationStatus:
@@ -1142,6 +1156,9 @@ async function prepareReportArtifacts(
     },
   ];
 
+  const verificationPackageIncluded =
+    canPlanGenerateVerificationPackage(effectivePlan);
+
   const reportEvidencePayload = {
     id: evidence.id,
     status: evidence.status,
@@ -1162,8 +1179,12 @@ async function prepareReportArtifacts(
     recordedIntegrityVerifiedAtUtc: now.toISOString(),
     lastVerifiedAtUtc: now.toISOString(),
     lastVerifiedSource: prismaPkg.VerificationSource.REPORT_GENERATED,
-    verificationPackageGeneratedAtUtc: now.toISOString(),
-    verificationPackageVersion: provisionalVersion,
+    verificationPackageGeneratedAtUtc: verificationPackageIncluded
+      ? now.toISOString()
+      : null,
+    verificationPackageVersion: verificationPackageIncluded
+      ? provisionalVersion
+      : null,
     latestReportVersion: provisionalVersion,
     reviewReadyAtUtc: now.toISOString(),
     reviewerSummaryVersion: provisionalVersion,
@@ -1237,7 +1258,11 @@ async function prepareReportArtifacts(
 
   let verificationZip: Buffer | null = null;
 
-  if (verificationEvidenceFiles.length > 0) {
+if (
+  verificationEvidenceFiles.length > 0 &&
+  verificationPackageIncluded
+)
+  {
     try {
       verificationZip = await createVerificationPackage({
         evidenceFiles: verificationEvidenceFiles,
@@ -1271,6 +1296,20 @@ async function prepareReportArtifacts(
     }
   }
 
+if (
+  verificationEvidenceFiles.length > 0 &&
+  !verificationPackageIncluded
+)
+  {
+    logger.info(
+      {
+        evidenceId,
+        plan: effectivePlan,
+      },
+      "Verification package skipped because it is not included in the current plan"
+    );
+  }
+
   return {
     reportPdf,
     verificationZip,
@@ -1282,6 +1321,7 @@ async function prepareReportArtifacts(
     evidenceStorage,
     fingerprintCanonicalJson,
     identitySnapshot,
+    effectivePlan,
   };
 }
 
@@ -1494,6 +1534,7 @@ export async function processGenerateReport(job: Job<GenerateReportJobData>) {
                 ? String(reportHead.objectLockLegalHoldStatus)
                 : null,
             generatedAtUtc: prepared.now,
+            sizeBytes: BigInt(prepared.reportPdf.length),
             verificationStatusSnapshot:
               prepared.identitySnapshot.verificationStatus,
             identityLevelSnapshot:
@@ -1731,6 +1772,7 @@ export async function processGenerateReport(job: Job<GenerateReportJobData>) {
                   ? String(verificationHead.objectLockLegalHoldStatus)
                   : null,
               generatedAtUtc: prepared.now,
+sizeBytes: BigInt((prepared.verificationZip as Buffer).length),
               packageType: "full_evidence_package",
             },
           });
@@ -1792,6 +1834,7 @@ export async function processGenerateReport(job: Job<GenerateReportJobData>) {
           source: "worker",
           forceRegenerate,
           regenerateReason,
+          effectivePlan: prepared.effectivePlan,
         },
       }).catch(() => null);
 
@@ -1808,6 +1851,7 @@ export async function processGenerateReport(job: Job<GenerateReportJobData>) {
         metadata: {
           evidenceId: prepared.evidenceId,
           reportVersion: finalized.reportVersion,
+          effectivePlan: prepared.effectivePlan,
         },
       }).catch(() => null);
     }
@@ -1853,6 +1897,7 @@ export async function processGenerateReport(job: Job<GenerateReportJobData>) {
         }),
         forceRegenerate,
         regenerateReason,
+        effectivePlan: prepared.effectivePlan,
       },
       finalized.skipped
         ? "GenerateReportJob skipped because report already exists"

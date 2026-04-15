@@ -44,5 +44,3 @@ export function resolveInitialLocale(): { locale: Locale; mode: LocaleMode } {
   // Default to auto mode with device language
   return { locale: getDeviceLocale(), mode: "auto" };
 }
-
-

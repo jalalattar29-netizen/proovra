@@ -2,11 +2,15 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
-import Link from "next/link";
 import { Button, Card, Modal, useToast } from "../../../../components/ui";
 import { useLocale } from "../../../providers";
 import { apiFetch } from "../../../../lib/api";
 import { captureException } from "../../../../lib/sentry";
+import type {
+  BillingOverviewResponse,
+  PersonalWorkspaceSummary,
+  TeamWorkspaceSummary,
+} from "../../../../components/billing/types";
 
 function formatBytes(sizeBytes: string | number | null | undefined): string {
   const n =
@@ -178,22 +182,47 @@ type OriginalResponse = {
   sizeBytes?: string | null;
 };
 
+type EvidenceRecord = {
+  id?: string;
+  title?: string;
+  displayTitle?: string;
+  displaySubtitle?: string;
+  itemCount?: number;
+  status?: string;
+  createdAt?: string | null;
+  type?: string;
+  lockedAt?: string | null;
+  archivedAt?: string | null;
+  deletedAt?: string | null;
+  deleteScheduledForUtc?: string | null;
+  caseId?: string | null;
+  teamId?: string | null;
+  organizationId?: string | null;
+  workspaceType?: "PERSONAL" | "TEAM" | null;
+  workspaceName?: string | null;
+  reportGeneratedAtUtc?: string | null;
+  verificationPackageGeneratedAtUtc?: string | null;
+};
+
 type EvidenceResponse = {
-  evidence?: {
-    id?: string;
-    title?: string;
-    displayTitle?: string;
-    displaySubtitle?: string;
-    itemCount?: number;
-    status?: string;
-    createdAt?: string | null;
-    type?: string;
-    lockedAt?: string | null;
-    archivedAt?: string | null;
-    deletedAt?: string | null;
-    deleteScheduledForUtc?: string | null;
-    caseId?: string | null;
-  };
+  evidence?: EvidenceRecord;
+};
+
+type WorkspaceCapabilitySnapshot = {
+  workspaceType: "PERSONAL" | "TEAM";
+  workspaceName: string;
+  plan: string;
+  reportsIncluded: boolean;
+  verificationPackageIncluded: boolean;
+  publicVerifyIncluded: boolean;
+  storageUsedLabel?: string | null;
+  storageLimitLabel?: string | null;
+  storageRemainingLabel?: string | null;
+  billingStatus?: string | null;
+  seatsIncluded?: number | null;
+  seatsUsed?: number | null;
+  seatsRemaining?: number | null;
+  overSeatLimit?: boolean | null;
 };
 
 function getPartDisplayName(part: EvidencePart): string {
@@ -225,9 +254,7 @@ function getPartDisplayName(part: EvidencePart): string {
   return `item-${part.partIndex + 1}${ext}`;
 }
 
-function resolveDisplayTitle(
-  evidence: EvidenceResponse["evidence"] | undefined
-): string {
+function resolveDisplayTitle(evidence: EvidenceRecord | undefined): string {
   return (
     evidence?.displayTitle?.trim() ||
     evidence?.title?.trim() ||
@@ -235,9 +262,7 @@ function resolveDisplayTitle(
   );
 }
 
-function resolveDisplaySubtitle(
-  evidence: EvidenceResponse["evidence"] | undefined
-): string {
+function resolveDisplaySubtitle(evidence: EvidenceRecord | undefined): string {
   return evidence?.displaySubtitle?.trim() || "";
 }
 
@@ -290,6 +315,74 @@ async function tryDownloadFile(url: string, filename: string) {
   }
 }
 
+function getVerificationUrl(evidenceId: string): string {
+  const appBase =
+    process.env.NEXT_PUBLIC_APP_BASE?.trim() ||
+    process.env.NEXT_PUBLIC_WEB_BASE?.trim() ||
+    "https://app.proovra.com";
+
+  return `${appBase.replace(/\/+$/, "")}/verify/${evidenceId}`;
+}
+
+function deriveWorkspaceCapabilities(params: {
+  evidence?: EvidenceRecord;
+  personal: PersonalWorkspaceSummary | null;
+  teams: TeamWorkspaceSummary[];
+  ownedCases: CaseOption[];
+}): WorkspaceCapabilitySnapshot {
+  const explicitTeamId = params.evidence?.teamId ?? null;
+  const inferredTeamIdFromCase =
+    !explicitTeamId && params.evidence?.caseId
+      ? params.ownedCases.find((item) => item.id === params.evidence?.caseId)?.teamId ?? null
+      : null;
+
+  const effectiveTeamId = explicitTeamId || inferredTeamIdFromCase || null;
+
+  if (effectiveTeamId) {
+    const team = params.teams.find((item) => item.id === effectiveTeamId);
+    if (team) {
+      return {
+        workspaceType: "TEAM",
+        workspaceName:
+          params.evidence?.workspaceName?.trim() || team.name || "Team Workspace",
+        plan: team.plan ?? "FREE",
+        reportsIncluded: Boolean(team.features?.reportsIncluded),
+        verificationPackageIncluded: Boolean(
+          team.features?.verificationPackageIncluded
+        ),
+        publicVerifyIncluded: Boolean(team.features?.publicVerifyIncluded),
+        storageUsedLabel: team.storage?.usedLabel ?? null,
+        storageLimitLabel: team.storage?.limitLabel ?? null,
+        storageRemainingLabel: team.storage?.remainingLabel ?? null,
+        billingStatus: team.billingStatus ?? null,
+        seatsIncluded: team.seats?.included ?? null,
+        seatsUsed: team.seats?.used ?? null,
+        seatsRemaining: team.seats?.remaining ?? null,
+        overSeatLimit: team.overSeatLimit ?? null,
+      };
+    }
+  }
+
+  return {
+    workspaceType: "PERSONAL",
+    workspaceName: params.evidence?.workspaceName?.trim() || "Personal Workspace",
+    plan: params.personal?.plan ?? "FREE",
+    reportsIncluded: Boolean(params.personal?.features?.reportsIncluded),
+    verificationPackageIncluded: Boolean(
+      params.personal?.features?.verificationPackageIncluded
+    ),
+    publicVerifyIncluded: Boolean(params.personal?.features?.publicVerifyIncluded),
+    storageUsedLabel: params.personal?.storage?.usedLabel ?? null,
+    storageLimitLabel: params.personal?.storage?.limitLabel ?? null,
+    storageRemainingLabel: params.personal?.storage?.remainingLabel ?? null,
+    billingStatus: params.personal?.subscription?.status ?? null,
+    seatsIncluded: null,
+    seatsUsed: null,
+    seatsRemaining: null,
+    overSeatLimit: null,
+  };
+}
+
 export default function EvidenceDetailPage() {
   const { t } = useLocale();
   const params = useParams<{ id: string }>();
@@ -297,15 +390,18 @@ export default function EvidenceDetailPage() {
   const evidenceId = params?.id ?? "unknown";
 
   const [status, setStatus] = useState("CREATED");
-  const [, setReportUrl] = useState<string | null>(null);
   const [createdAt, setCreatedAt] = useState<string | null>(null);
   const [lockedAt, setLockedAt] = useState<string | null>(null);
   const [archivedAt, setArchivedAt] = useState<string | null>(null);
   const [deletedAt, setDeletedAt] = useState<string | null>(null);
   const [deleteScheduledForUtc, setDeleteScheduledForUtc] = useState<string | null>(null);
-  const [plan, setPlan] = useState<string>("FREE");
   const [caseId, setCaseId] = useState<string | null>(null);
+  const [teamId, setTeamId] = useState<string | null>(null);
+  const [workspaceNameFromEvidence, setWorkspaceNameFromEvidence] = useState<string | null>(null);
   const [evidenceType, setEvidenceType] = useState<string | null>(null);
+  const [reportGeneratedAtUtc, setReportGeneratedAtUtc] = useState<string | null>(null);
+  const [verificationPackageGeneratedAtUtc, setVerificationPackageGeneratedAtUtc] =
+    useState<string | null>(null);
 
   const [label, setLabel] = useState<string>("Digital Evidence Record");
   const [displaySubtitle, setDisplaySubtitle] = useState<string>("");
@@ -315,16 +411,24 @@ export default function EvidenceDetailPage() {
   const [labelBusy, setLabelBusy] = useState(false);
 
   const [loading, setLoading] = useState(true);
-  const [, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const [actionBusy, setActionBusy] = useState(false);
 
   const [lockModalOpen, setLockModalOpen] = useState(false);
   const [archiveModalOpen, setArchiveModalOpen] = useState(false);
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [shareModalOpen, setShareModalOpen] = useState(false);
+  const [shareActionBusy, setShareActionBusy] = useState(false);
 
   const [assignCaseModalOpen, setAssignCaseModalOpen] = useState(false);
   const [selectedCaseId, setSelectedCaseId] = useState("");
   const [ownedCases, setOwnedCases] = useState<CaseOption[]>([]);
+
+  const [personalWorkspace, setPersonalWorkspace] =
+    useState<PersonalWorkspaceSummary | null>(null);
+  const [teamWorkspaces, setTeamWorkspaces] = useState<TeamWorkspaceSummary[]>([]);
+  const [billingOverview, setBillingOverview] =
+    useState<BillingOverviewResponse | null>(null);
 
   const [originalPreviewUrl, setOriginalPreviewUrl] = useState<string | null>(null);
   const [originalDownloadUrl, setOriginalDownloadUrl] = useState<string | null>(null);
@@ -333,7 +437,6 @@ export default function EvidenceDetailPage() {
   const [originalFileName, setOriginalFileName] = useState<string | null>(null);
 
   const [parts, setParts] = useState<EvidencePart[]>([]);
-  const [, setPartsLoadFailed] = useState(false);
   const [verificationPackageAvailable, setVerificationPackageAvailable] = useState(false);
 
   const isMultipart = parts.length > 1;
@@ -390,6 +493,37 @@ export default function EvidenceDetailPage() {
     [status, t]
   );
 
+  const workspaceSnapshot = useMemo(
+    () =>
+      deriveWorkspaceCapabilities({
+        evidence: {
+          teamId,
+          caseId,
+          workspaceName: workspaceNameFromEvidence,
+        },
+        personal: personalWorkspace,
+        teams: teamWorkspaces,
+        ownedCases,
+      }),
+    [teamId, caseId, workspaceNameFromEvidence, personalWorkspace, teamWorkspaces, ownedCases]
+  );
+
+  const canAccessReports = workspaceSnapshot.reportsIncluded;
+  const canAccessVerificationPackage = workspaceSnapshot.verificationPackageIncluded;
+  const canUsePublicVerification = workspaceSnapshot.publicVerifyIncluded;
+  const activePlan = workspaceSnapshot.plan;
+  const activeWorkspaceName = workspaceSnapshot.workspaceName;
+  const activeWorkspaceType = workspaceSnapshot.workspaceType;
+
+  const evidenceRecordStateAllowsLock =
+    status === "SIGNED" || status === "REPORTED";
+
+  const canLockEvidence =
+    !isDeleted && !isLocked && evidenceRecordStateAllowsLock;
+
+  const canShareEvidence =
+    !isDeleted && (canUsePublicVerification || canAccessReports || canAccessVerificationPackage);
+
   useEffect(() => {
     if (!params?.id) return;
 
@@ -410,7 +544,7 @@ export default function EvidenceDetailPage() {
           verificationPackageRes,
         ] = await Promise.allSettled([
           apiFetch(`/v1/evidence/${params.id}`),
-          apiFetch("/v1/billing/status"),
+          apiFetch("/v1/billing/overview"),
           apiFetch(`/v1/evidence/${params.id}/report/latest`),
           apiFetch(`/v1/evidence/${params.id}/original`),
           apiFetch("/v1/cases"),
@@ -430,7 +564,13 @@ export default function EvidenceDetailPage() {
           setDeletedAt(ev.deletedAt ?? null);
           setDeleteScheduledForUtc(ev.deleteScheduledForUtc ?? null);
           setCaseId(ev.caseId ?? null);
+          setTeamId(ev.teamId ?? null);
+          setWorkspaceNameFromEvidence(ev.workspaceName ?? null);
           setEvidenceType(ev.type ?? null);
+          setReportGeneratedAtUtc(ev.reportGeneratedAtUtc ?? null);
+          setVerificationPackageGeneratedAtUtc(
+            ev.verificationPackageGeneratedAtUtc ?? null
+          );
           setLabel(resolveDisplayTitle(ev));
           setLabelDraft(resolveDisplayTitle(ev));
           setDisplaySubtitle(resolveDisplaySubtitle(ev));
@@ -440,15 +580,22 @@ export default function EvidenceDetailPage() {
         }
 
         if (billingRes.status === "fulfilled") {
-          setPlan(billingRes.value?.entitlement?.plan ?? "FREE");
+          const overview = (billingRes.value ?? null) as BillingOverviewResponse | null;
+          setBillingOverview(overview);
+          setPersonalWorkspace(overview?.workspaces?.personal ?? null);
+          setTeamWorkspaces(
+            Array.isArray(overview?.workspaces?.teams) ? overview.workspaces.teams : []
+          );
         } else {
-          setPlan("FREE");
+          setBillingOverview(null);
+          setPersonalWorkspace(null);
+          setTeamWorkspaces([]);
         }
 
         if (reportRes.status === "fulfilled") {
-          setReportUrl(reportRes.value?.url ?? null);
-        } else {
-          setReportUrl(null);
+          if (reportRes.value?.url) {
+            setReportGeneratedAtUtc((current) => current);
+          }
         }
 
         if (casesRes.status === "fulfilled") {
@@ -465,10 +612,8 @@ export default function EvidenceDetailPage() {
           const items = Array.isArray(data?.parts) ? data.parts : [];
           items.sort((a, b) => a.partIndex - b.partIndex);
           setParts(items);
-          setPartsLoadFailed(false);
         } else {
           setParts([]);
-          setPartsLoadFailed(true);
         }
 
         if (verificationPackageRes.status === "fulfilled") {
@@ -503,7 +648,7 @@ export default function EvidenceDetailPage() {
       }
     };
 
-    load();
+    void load();
 
     return () => {
       cancelled = true;
@@ -514,14 +659,21 @@ export default function EvidenceDetailPage() {
     if (!params?.id) return;
 
     try {
-      const [evidenceData, reportData, originalData, partsData, verificationData] =
-        await Promise.allSettled([
-          apiFetch(`/v1/evidence/${params.id}`),
-          apiFetch(`/v1/evidence/${params.id}/report/latest`),
-          apiFetch(`/v1/evidence/${params.id}/original`),
-          apiFetch(`/v1/evidence/${params.id}/parts`),
-          apiFetch(`/v1/evidence/${params.id}/verification-package`),
-        ]);
+      const [
+        evidenceData,
+        billingData,
+        reportData,
+        originalData,
+        partsData,
+        verificationData,
+      ] = await Promise.allSettled([
+        apiFetch(`/v1/evidence/${params.id}`),
+        apiFetch("/v1/billing/overview"),
+        apiFetch(`/v1/evidence/${params.id}/report/latest`),
+        apiFetch(`/v1/evidence/${params.id}/original`),
+        apiFetch(`/v1/evidence/${params.id}/parts`),
+        apiFetch(`/v1/evidence/${params.id}/verification-package`),
+      ]);
 
       if (evidenceData.status === "fulfilled") {
         const data = evidenceData.value as EvidenceResponse;
@@ -533,17 +685,32 @@ export default function EvidenceDetailPage() {
         setDeletedAt(ev.deletedAt ?? null);
         setDeleteScheduledForUtc(ev.deleteScheduledForUtc ?? null);
         setCaseId(ev.caseId ?? null);
+        setTeamId(ev.teamId ?? null);
+        setWorkspaceNameFromEvidence(ev.workspaceName ?? null);
         setEvidenceType(ev.type ?? null);
+        setReportGeneratedAtUtc(ev.reportGeneratedAtUtc ?? null);
+        setVerificationPackageGeneratedAtUtc(
+          ev.verificationPackageGeneratedAtUtc ?? null
+        );
         setLabel(resolveDisplayTitle(ev));
         setLabelDraft(resolveDisplayTitle(ev));
         setDisplaySubtitle(resolveDisplaySubtitle(ev));
         setItemCount(typeof ev.itemCount === "number" && ev.itemCount > 0 ? ev.itemCount : 1);
       }
 
+      if (billingData.status === "fulfilled") {
+        const overview = (billingData.value ?? null) as BillingOverviewResponse | null;
+        setBillingOverview(overview);
+        setPersonalWorkspace(overview?.workspaces?.personal ?? null);
+        setTeamWorkspaces(
+          Array.isArray(overview?.workspaces?.teams) ? overview.workspaces.teams : []
+        );
+      }
+
       if (reportData.status === "fulfilled") {
-        setReportUrl(reportData.value?.url ?? null);
-      } else {
-        setReportUrl(null);
+        if (reportData.value?.url) {
+          setReportGeneratedAtUtc((current) => current);
+        }
       }
 
       if (originalData.status === "fulfilled") {
@@ -566,10 +733,8 @@ export default function EvidenceDetailPage() {
         const items = Array.isArray(data?.parts) ? data.parts : [];
         items.sort((a, b) => a.partIndex - b.partIndex);
         setParts(items);
-        setPartsLoadFailed(false);
       } else {
         setParts([]);
-        setPartsLoadFailed(true);
       }
 
       if (verificationData.status === "fulfilled") {
@@ -636,6 +801,34 @@ export default function EvidenceDetailPage() {
   const handleLock = () => setLockModalOpen(true);
   const handleArchive = () => setArchiveModalOpen(true);
   const handleDelete = () => setDeleteModalOpen(true);
+
+  const handleOpenShareModal = () => {
+    if (!canShareEvidence) return;
+    setShareModalOpen(true);
+  };
+
+  const handleCopyVerificationLink = async () => {
+    if (!params?.id) return;
+    if (!canUsePublicVerification) {
+      addToast("Public verification is not enabled for this workspace", "info");
+      return;
+    }
+
+    try {
+      setShareActionBusy(true);
+      const verificationUrl = getVerificationUrl(params.id);
+      await navigator.clipboard.writeText(verificationUrl);
+      addToast("Verification link copied", "success");
+    } catch (err) {
+      captureException(err, {
+        feature: "web_evidence_copy_verification_link",
+        evidenceId: params.id,
+      });
+      addToast("Failed to copy verification link", "error");
+    } finally {
+      setShareActionBusy(false);
+    }
+  };
 
   const handleConfirmLock = async () => {
     if (!params?.id) return;
@@ -778,11 +971,18 @@ export default function EvidenceDetailPage() {
   const handleDownloadReport = async () => {
     if (!params?.id) return;
 
+    if (!canAccessReports) {
+      addToast(
+        `${activeWorkspaceName} does not include PDF reports on the current plan`,
+        "info"
+      );
+      return;
+    }
+
     try {
       addToast("Preparing report...", "info");
       const data = await apiFetch(`/v1/evidence/${params.id}/report/latest`);
       const nextUrl = data?.url ?? null;
-      setReportUrl(nextUrl);
 
       if (!nextUrl) {
         addToast("Report not available", "info");
@@ -802,6 +1002,14 @@ export default function EvidenceDetailPage() {
 
   const handleDownloadVerificationPackage = async () => {
     if (!params?.id) return;
+
+    if (!canAccessVerificationPackage) {
+      addToast(
+        `${activeWorkspaceName} does not include verification packages on the current plan`,
+        "info"
+      );
+      return;
+    }
 
     try {
       addToast("Preparing verification package...", "info");
@@ -1250,12 +1458,36 @@ export default function EvidenceDetailPage() {
           ? silverProcessingStyle
           : silverReadyStyle;
 
+  const canAssignToCase = ownedCases.length > 0 && !isDeleted;
+  const workspaceBillingSummary =
+    activeWorkspaceType === "TEAM"
+      ? `${activeWorkspaceName} · ${activePlan}${
+          workspaceSnapshot.billingStatus ? ` · ${workspaceSnapshot.billingStatus}` : ""
+        }`
+      : `${activeWorkspaceName} · ${activePlan}`;
+
+  const reportCapabilityHint = canAccessReports
+    ? reportGeneratedAtUtc
+      ? `PDF reports are enabled for this workspace. Latest report generated at ${formatUtcDateTime(
+          reportGeneratedAtUtc
+        )}.`
+      : "PDF reports are enabled for this workspace."
+    : `${activeWorkspaceName} does not include PDF reports on the current plan.`;
+
+  const packageCapabilityHint = canAccessVerificationPackage
+    ? verificationPackageGeneratedAtUtc
+      ? `Verification packages are enabled. Latest package generated at ${formatUtcDateTime(
+          verificationPackageGeneratedAtUtc
+        )}.`
+      : "Verification packages are enabled for this workspace."
+    : `${activeWorkspaceName} does not include verification packages on the current plan.`;
+
   return (
     <div className="section app-section evidence-detail-page-shell">
       <div className="app-hero app-hero-full">
         <div className="container">
-<div className="page-title app-page-title evidence-detail-hero" style={{ marginBottom: 0 }}>
-              <div style={{ width: "100%", maxWidth: 960 }}>
+          <div className="page-title app-page-title evidence-detail-hero" style={{ marginBottom: 0 }}>
+            <div style={{ width: "100%", maxWidth: 960 }}>
               <div
                 style={{
                   display: "inline-flex",
@@ -1288,19 +1520,15 @@ export default function EvidenceDetailPage() {
                 Evidence Record
               </div>
 
-<div className="evidence-record-badges">
-  <span
-  className="evidence-pill evidence-pill-case"
-  style={heroStatusStyle}
->
-  {displayStatusMeta.label}
-</span>
+              <div className="evidence-record-badges">
+                <span className="evidence-pill evidence-pill-case" style={heroStatusStyle}>
+                  {displayStatusMeta.label}
+                </span>
 
-                {hasCase && (
-                  <span className="evidence-pill evidence-pill-case">
-                    Case Attached
-                  </span>
-                )}
+                {hasCase && <span className="evidence-pill evidence-pill-case">Case Attached</span>}
+                <span className="evidence-pill evidence-pill-case">
+                  {activeWorkspaceType === "TEAM" ? "Team Workspace" : "Personal Workspace"}
+                </span>
 
                 {isLocked && <span className="evidence-pill evidence-pill-locked">Locked</span>}
                 {isArchived && <span className="evidence-pill evidence-pill-archived">Archived</span>}
@@ -1308,8 +1536,8 @@ export default function EvidenceDetailPage() {
               </div>
 
               {!isEditingLabel ? (
-<div className="evidence-title-row">
-                    <h1
+                <div className="evidence-title-row">
+                  <h1
                     className="max-w-[900px] text-[1.72rem] font-medium leading-[1.02] tracking-[-0.045em] text-[#d9e2df] md:text-[2.22rem] lg:text-[2.72rem]"
                     style={{ margin: 0 }}
                   >
@@ -1327,23 +1555,23 @@ export default function EvidenceDetailPage() {
                   </Button>
                 </div>
               ) : (
-<div className="evidence-label-edit-row">
-                    <input
+                <div className="evidence-label-edit-row">
+                  <input
                     value={labelDraft}
                     onChange={(e) => setLabelDraft(e.target.value)}
                     maxLength={160}
                     disabled={labelBusy}
-className="evidence-label-input"
-style={{
-  padding: "12px 14px",
-  borderRadius: 14,
-  border: "1px solid rgba(214,184,157,0.18)",
-  background: "rgba(255,255,255,0.05)",
-  color: "#d8e0dd",
-  fontSize: 16,
-  fontWeight: 700,
-  boxShadow: "0 12px 28px rgba(0,0,0,0.16)",
-}}
+                    className="evidence-label-input"
+                    style={{
+                      padding: "12px 14px",
+                      borderRadius: 14,
+                      border: "1px solid rgba(214,184,157,0.18)",
+                      background: "rgba(255,255,255,0.05)",
+                      color: "#d8e0dd",
+                      fontSize: 16,
+                      fontWeight: 700,
+                      boxShadow: "0 12px 28px rgba(0,0,0,0.16)",
+                    }}
                   />
 
                   <Button
@@ -1381,10 +1609,11 @@ style={{
                 {displaySubtitle || `${itemCount} item${itemCount === 1 ? "" : "s"}`}
               </p>
 
-<div className="evidence-hero-meta">
-                  <span>Record ID: {shortId(evidenceId)}</span>
+              <div className="evidence-hero-meta">
+                <span>Record ID: {shortId(evidenceId)}</span>
                 <span>Type: {getEvidenceTypeLabel(evidenceType)}</span>
                 <span>{isMultipart ? `${sortedParts.length} items` : "Single file"}</span>
+                <span>{workspaceBillingSummary}</span>
               </div>
 
               {isDeleted && (
@@ -1439,734 +1668,913 @@ style={{
           <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(255,255,255,0.10)_0%,rgba(255,255,255,0.03)_12%,rgba(255,255,255,0.00)_24%,rgba(255,255,255,0.00)_76%,rgba(255,255,255,0.03)_88%,rgba(255,255,255,0.10)_100%)]" />
         </div>
 
-<div className="container relative z-10" style={{ paddingBottom: 72 }}>
-<div className="evidence-detail-grid">
-<Card
-  className="evidence-detail-summary-card relative h-full overflow-hidden rounded-[30px] border bg-transparent p-0 shadow-none"
-  style={outerCardStyle}
->
-          <div className="absolute inset-0">
-        <img
-          src="/images/panel-silver.webp.png"
-          alt=""
-          className="h-full w-full object-cover object-center"
-        />
-      </div>
-      <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.24)_0%,rgba(248,249,246,0.34)_42%,rgba(239,241,238,0.42)_100%)]" />
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_16%_12%,rgba(255,255,255,0.34),transparent_28%)] opacity-90" />
-
-<div className="relative z-10 flex h-full flex-col p-6 md:p-7">
-          <div className="text-[1.08rem] font-semibold tracking-[-0.02em] text-[#21353a]">
-          Record Summary
-        </div>
-
-<div className="evidence-summary-grid mt-5" style={{ color: "#5d6d71" }}>
-            <div>
-            <div className="text-[12px] uppercase tracking-[0.14em] text-[#9b826b]">
-              User Label
+        <div className="container relative z-10" style={{ paddingBottom: 72 }}>
+          {error ? (
+            <div
+              className="mb-6 rounded-[20px] border px-4 py-4 text-[0.95rem]"
+              style={{
+                border: "1px solid rgba(194,78,78,0.18)",
+                background: "rgba(164,84,84,0.10)",
+                color: "#9f3535",
+              }}
+            >
+              {error}
             </div>
-            <div className="mt-2 text-[0.96rem] leading-[1.75] text-[#23373b]">
-              {label}
-            </div>
-          </div>
+          ) : null}
 
-          <div>
-            <div className="text-[12px] uppercase tracking-[0.14em] text-[#9b826b]">
-              Original Submitted File
-            </div>
-            <div className="mt-2 text-[0.96rem] leading-[1.75] text-[#23373b]">
-              {originalFileName || "Original filename not available"}
-            </div>
-          </div>
+          <div className="evidence-detail-grid">
+            <Card
+              className="evidence-detail-summary-card relative h-full overflow-hidden rounded-[30px] border bg-transparent p-0 shadow-none"
+              style={outerCardStyle}
+            >
+              <div className="absolute inset-0">
+                <img
+                  src="/images/panel-silver.webp.png"
+                  alt=""
+                  className="h-full w-full object-cover object-center"
+                />
+              </div>
+              <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.24)_0%,rgba(248,249,246,0.34)_42%,rgba(239,241,238,0.42)_100%)]" />
+              <div className="absolute inset-0 bg-[radial-gradient(circle_at_16%_12%,rgba(255,255,255,0.34),transparent_28%)] opacity-90" />
 
-          <div>
-            <div className="text-[12px] uppercase tracking-[0.14em] text-[#9b826b]">
-              Record ID
-            </div>
-            <div className="mt-2 break-all text-[0.96rem] leading-[1.75] text-[#23373b]">
-              {evidenceId}
-            </div>
-          </div>
+              <div className="relative z-10 flex h-full flex-col p-6 md:p-7">
+                <div className="text-[1.08rem] font-semibold tracking-[-0.02em] text-[#21353a]">
+                  Record Summary
+                </div>
 
-          <div>
-            <div className="text-[12px] uppercase tracking-[0.14em] text-[#9b826b]">
-              Evidence Type
-            </div>
-            <div className="mt-2 text-[0.96rem] leading-[1.75] text-[#23373b]">
-              {getEvidenceTypeLabel(evidenceType)}
-            </div>
-          </div>
+                <div className="evidence-summary-grid mt-5" style={{ color: "#5d6d71" }}>
+                  <div>
+                    <div className="text-[12px] uppercase tracking-[0.14em] text-[#9b826b]">
+                      User Label
+                    </div>
+                    <div className="mt-2 text-[0.96rem] leading-[1.75] text-[#23373b]">
+                      {label}
+                    </div>
+                  </div>
 
-          <div>
-            <div className="text-[12px] uppercase tracking-[0.14em] text-[#9b826b]">
-              Structure
-            </div>
-            <div className="mt-2 text-[0.96rem] leading-[1.75] text-[#23373b]">
-              {isMultipart
-                ? `Multipart record (${sortedParts.length} items)`
-                : "Single-file record"}
-            </div>
-          </div>
+                  <div>
+                    <div className="text-[12px] uppercase tracking-[0.14em] text-[#9b826b]">
+                      Original Submitted File
+                    </div>
+                    <div className="mt-2 text-[0.96rem] leading-[1.75] text-[#23373b]">
+                      {originalFileName || "Original filename not available"}
+                    </div>
+                  </div>
 
-          <div>
-            <div className="text-[12px] uppercase tracking-[0.14em] text-[#9b826b]">
-              Evidence Composition
-            </div>
-            <div className="mt-2 flex flex-wrap gap-2">
-              {partTypeSummary.imageCount > 0 && (
-                <span
-                  className="inline-flex items-center rounded-full px-3 py-1.5 text-[0.76rem] font-semibold"
-                  style={silverReportReadyStyle}
-                >
-                  {partTypeSummary.imageCount} image
-                  {partTypeSummary.imageCount > 1 ? "s" : ""}
-                </span>
-              )}
+                  <div>
+                    <div className="text-[12px] uppercase tracking-[0.14em] text-[#9b826b]">
+                      Record ID
+                    </div>
+                    <div className="mt-2 break-all text-[0.96rem] leading-[1.75] text-[#23373b]">
+                      {evidenceId}
+                    </div>
+                  </div>
 
-              {partTypeSummary.videoCount > 0 && (
-                <span
-                  className="inline-flex items-center rounded-full px-3 py-1.5 text-[0.76rem] font-semibold"
-                  style={{
-                    border: "1px solid rgba(79,112,107,0.12)",
-                    background:
-                      "linear-gradient(180deg, rgba(240,243,241,0.92) 0%, rgba(255,255,255,0.68) 100%)",
-                    color: "#31484d",
-                    boxShadow:
-                      "inset 0 1px 0 rgba(255,255,255,0.56), 0 6px 14px rgba(0,0,0,0.03)",
-                  }}
-                >
-                  {partTypeSummary.videoCount} video
-                  {partTypeSummary.videoCount > 1 ? "s" : ""}
-                </span>
-              )}
+                  <div>
+                    <div className="text-[12px] uppercase tracking-[0.14em] text-[#9b826b]">
+                      Evidence Type
+                    </div>
+                    <div className="mt-2 text-[0.96rem] leading-[1.75] text-[#23373b]">
+                      {getEvidenceTypeLabel(evidenceType)}
+                    </div>
+                  </div>
 
-              {partTypeSummary.audioCount > 0 && (
-                <span
-                  className="inline-flex items-center rounded-full px-3 py-1.5 text-[0.76rem] font-semibold"
-                  style={{
-                    border: "1px solid rgba(183,157,132,0.16)",
-                    background:
-                      "linear-gradient(180deg, rgba(244,238,232,0.88) 0%, rgba(255,255,255,0.64) 100%)",
-                    color: "#7a624d",
-                    boxShadow:
-                      "inset 0 1px 0 rgba(255,255,255,0.58), 0 6px 14px rgba(92,69,50,0.04)",
-                  }}
-                >
-                  {partTypeSummary.audioCount} audio
-                </span>
-              )}
+                  <div>
+                    <div className="text-[12px] uppercase tracking-[0.14em] text-[#9b826b]">
+                      Workspace Context
+                    </div>
+                    <div className="mt-2 text-[0.96rem] leading-[1.75] text-[#23373b]">
+                      {activeWorkspaceType === "TEAM" ? "Team workspace" : "Personal workspace"}
+                      {" · "}
+                      {activeWorkspaceName}
+                    </div>
+                  </div>
 
-              {partTypeSummary.pdfCount > 0 && (
-                <span
-                  className="inline-flex items-center rounded-full px-3 py-1.5 text-[0.76rem] font-semibold"
-                  style={{
-                    border: "1px solid rgba(183,157,132,0.16)",
-                    background:
-                      "linear-gradient(180deg, rgba(248,243,238,0.9) 0%, rgba(255,255,255,0.66) 100%)",
-                    color: "#8a6e57",
-                    boxShadow:
-                      "inset 0 1px 0 rgba(255,255,255,0.58), 0 6px 14px rgba(92,69,50,0.04)",
-                  }}
-                >
-                  {partTypeSummary.pdfCount} document
-                  {partTypeSummary.pdfCount > 1 ? "s" : ""}
-                </span>
-              )}
+                  <div>
+                    <div className="text-[12px] uppercase tracking-[0.14em] text-[#9b826b]">
+                      Active Plan
+                    </div>
+                    <div className="mt-2 text-[0.96rem] leading-[1.75] text-[#23373b]">
+                      {activePlan}
+                      {workspaceSnapshot.billingStatus
+                        ? ` · ${workspaceSnapshot.billingStatus}`
+                        : ""}
+                    </div>
+                  </div>
 
-              {partTypeSummary.otherCount > 0 && (
-                <span
-                  className="inline-flex items-center rounded-full px-3 py-1.5 text-[0.76rem] font-semibold"
-                  style={{
-                    border: "1px solid rgba(79,112,107,0.12)",
-                    background:
-                      "linear-gradient(180deg, rgba(240,243,241,0.92) 0%, rgba(255,255,255,0.68) 100%)",
-                    color: "#5f6d71",
-                    boxShadow:
-                      "inset 0 1px 0 rgba(255,255,255,0.56), 0 6px 14px rgba(0,0,0,0.03)",
-                  }}
-                >
-                  {partTypeSummary.otherCount} other
-                </span>
-              )}
+                  <div>
+                    <div className="text-[12px] uppercase tracking-[0.14em] text-[#9b826b]">
+                      Structure
+                    </div>
+                    <div className="mt-2 text-[0.96rem] leading-[1.75] text-[#23373b]">
+                      {isMultipart
+                        ? `Multipart record (${sortedParts.length} items)`
+                        : "Single-file record"}
+                    </div>
+                  </div>
 
-              {partTypeSummary.imageCount === 0 &&
-                partTypeSummary.videoCount === 0 &&
-                partTypeSummary.audioCount === 0 &&
-                partTypeSummary.pdfCount === 0 &&
-                partTypeSummary.otherCount === 0 && (
-                  <div className="text-[0.92rem] leading-[1.7] text-[#5d6d71]">
-                    Not available
+                  <div>
+                    <div className="text-[12px] uppercase tracking-[0.14em] text-[#9b826b]">
+                      Evidence Composition
+                    </div>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {partTypeSummary.imageCount > 0 && (
+                        <span
+                          className="inline-flex items-center rounded-full px-3 py-1.5 text-[0.76rem] font-semibold"
+                          style={silverReportReadyStyle}
+                        >
+                          {partTypeSummary.imageCount} image
+                          {partTypeSummary.imageCount > 1 ? "s" : ""}
+                        </span>
+                      )}
+
+                      {partTypeSummary.videoCount > 0 && (
+                        <span
+                          className="inline-flex items-center rounded-full px-3 py-1.5 text-[0.76rem] font-semibold"
+                          style={{
+                            border: "1px solid rgba(79,112,107,0.12)",
+                            background:
+                              "linear-gradient(180deg, rgba(240,243,241,0.92) 0%, rgba(255,255,255,0.68) 100%)",
+                            color: "#31484d",
+                            boxShadow:
+                              "inset 0 1px 0 rgba(255,255,255,0.56), 0 6px 14px rgba(0,0,0,0.03)",
+                          }}
+                        >
+                          {partTypeSummary.videoCount} video
+                          {partTypeSummary.videoCount > 1 ? "s" : ""}
+                        </span>
+                      )}
+
+                      {partTypeSummary.audioCount > 0 && (
+                        <span
+                          className="inline-flex items-center rounded-full px-3 py-1.5 text-[0.76rem] font-semibold"
+                          style={{
+                            border: "1px solid rgba(183,157,132,0.16)",
+                            background:
+                              "linear-gradient(180deg, rgba(244,238,232,0.88) 0%, rgba(255,255,255,0.64) 100%)",
+                            color: "#7a624d",
+                            boxShadow:
+                              "inset 0 1px 0 rgba(255,255,255,0.58), 0 6px 14px rgba(92,69,50,0.04)",
+                          }}
+                        >
+                          {partTypeSummary.audioCount} audio
+                        </span>
+                      )}
+
+                      {partTypeSummary.pdfCount > 0 && (
+                        <span
+                          className="inline-flex items-center rounded-full px-3 py-1.5 text-[0.76rem] font-semibold"
+                          style={{
+                            border: "1px solid rgba(183,157,132,0.16)",
+                            background:
+                              "linear-gradient(180deg, rgba(248,243,238,0.9) 0%, rgba(255,255,255,0.66) 100%)",
+                            color: "#8a6e57",
+                            boxShadow:
+                              "inset 0 1px 0 rgba(255,255,255,0.58), 0 6px 14px rgba(92,69,50,0.04)",
+                          }}
+                        >
+                          {partTypeSummary.pdfCount} document
+                          {partTypeSummary.pdfCount > 1 ? "s" : ""}
+                        </span>
+                      )}
+
+                      {partTypeSummary.otherCount > 0 && (
+                        <span
+                          className="inline-flex items-center rounded-full px-3 py-1.5 text-[0.76rem] font-semibold"
+                          style={{
+                            border: "1px solid rgba(79,112,107,0.12)",
+                            background:
+                              "linear-gradient(180deg, rgba(240,243,241,0.92) 0%, rgba(255,255,255,0.68) 100%)",
+                            color: "#5f6d71",
+                            boxShadow:
+                              "inset 0 1px 0 rgba(255,255,255,0.56), 0 6px 14px rgba(0,0,0,0.03)",
+                          }}
+                        >
+                          {partTypeSummary.otherCount} other
+                        </span>
+                      )}
+
+                      {partTypeSummary.imageCount === 0 &&
+                        partTypeSummary.videoCount === 0 &&
+                        partTypeSummary.audioCount === 0 &&
+                        partTypeSummary.pdfCount === 0 &&
+                        partTypeSummary.otherCount === 0 && (
+                          <div className="text-[0.92rem] leading-[1.7] text-[#5d6d71]">
+                            Not available
+                          </div>
+                        )}
+                    </div>
+                  </div>
+
+                  <div>
+                    <div className="text-[12px] uppercase tracking-[0.14em] text-[#9b826b]">
+                      Case Assignment
+                    </div>
+                    <div className="mt-2 text-[0.96rem] leading-[1.75] text-[#23373b]">
+                      {caseId ? "Attached to case" : "Not assigned to any case"}
+                    </div>
+                  </div>
+
+                  <div>
+                    <div className="text-[12px] uppercase tracking-[0.14em] text-[#9b826b]">
+                      Storage Window
+                    </div>
+                    <div className="mt-2 text-[0.96rem] leading-[1.75] text-[#23373b]">
+                      {workspaceSnapshot.storageUsedLabel ?? "—"} used
+                      {" · "}
+                      {workspaceSnapshot.storageRemainingLabel ?? "—"} remaining
+                    </div>
+                  </div>
+
+                  {activeWorkspaceType === "TEAM" ? (
+                    <div>
+                      <div className="text-[12px] uppercase tracking-[0.14em] text-[#9b826b]">
+                        Team Seats
+                      </div>
+                      <div className="mt-2 text-[0.96rem] leading-[1.75] text-[#23373b]">
+                        {workspaceSnapshot.seatsUsed ?? 0} / {workspaceSnapshot.seatsIncluded ?? 0}
+                        {typeof workspaceSnapshot.seatsRemaining === "number"
+                          ? ` · ${workspaceSnapshot.seatsRemaining} remaining`
+                          : ""}
+                      </div>
+                    </div>
+                  ) : null}
+
+                  <div>
+                    <div className="text-[12px] uppercase tracking-[0.14em] text-[#9b826b]">
+                      Current Status
+                    </div>
+                    <div style={{ marginTop: 10 }}>
+                      <span
+                        className="inline-flex items-center rounded-full px-3 py-1.5 text-[0.76rem] font-semibold"
+                        style={silverStatusStyle}
+                      >
+                        {displayStatusMeta.label}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div>
+                    <div className="text-[12px] uppercase tracking-[0.14em] text-[#9b826b]">
+                      Recorded At
+                    </div>
+                    <div className="mt-2 text-[0.96rem] leading-[1.75] text-[#23373b]">
+                      {formatUtcDateTime(createdAt)}
+                    </div>
+                  </div>
+
+                  <div>
+                    <div className="text-[12px] uppercase tracking-[0.14em] text-[#9b826b]">
+                      Locked At
+                    </div>
+                    <div className="mt-2 text-[0.96rem] leading-[1.75] text-[#23373b]">
+                      {formatUtcDateTime(lockedAt)}
+                    </div>
+                  </div>
+
+                  <div>
+                    <div className="text-[12px] uppercase tracking-[0.14em] text-[#9b826b]">
+                      Archived At
+                    </div>
+                    <div className="mt-2 text-[0.96rem] leading-[1.75] text-[#23373b]">
+                      {formatUtcDateTime(archivedAt)}
+                    </div>
+                  </div>
+
+                  <div>
+                    <div className="text-[12px] uppercase tracking-[0.14em] text-[#9b826b]">
+                      Deleted At
+                    </div>
+                    <div className="mt-2 text-[0.96rem] leading-[1.75] text-[#23373b]">
+                      {formatUtcDateTime(deletedAt)}
+                    </div>
+                  </div>
+
+                  <div>
+                    <div className="text-[12px] uppercase tracking-[0.14em] text-[#9b826b]">
+                      Permanent Deletion Date
+                    </div>
+                    <div className="mt-2 text-[0.96rem] leading-[1.75] text-[#23373b]">
+                      {formatUtcDateTime(deleteScheduledForUtc)}
+                    </div>
+                  </div>
+
+                  <div className="sm:col-span-2">
+                    <div className="text-[12px] uppercase tracking-[0.14em] text-[#9b826b]">
+                      Feature Entitlements
+                    </div>
+                    <div className="mt-2 text-[0.96rem] leading-[1.8] text-[#23373b]">
+                      Reports: <strong>{canAccessReports ? "Included" : "Not included"}</strong>
+                      {" · "}
+                      Verification package:{" "}
+                      <strong>
+                        {canAccessVerificationPackage ? "Included" : "Not included"}
+                      </strong>
+                      {" · "}
+                      Public verification:{" "}
+                      <strong>{canUsePublicVerification ? "Included" : "Not included"}</strong>
+                    </div>
+                  </div>
+
+                  <div className="sm:col-span-2">
+                    <div className="text-[12px] uppercase tracking-[0.14em] text-[#9b826b]">
+                      Legal State
+                    </div>
+                    <div className="mt-2 text-[0.96rem] leading-[1.8] text-[#23373b]">
+                      {isDeleted
+                        ? "This record is currently in secure trash. It remains recoverable until the scheduled deletion date."
+                        : isLocked
+                          ? "This record has been permanently sealed. Its evidentiary state can no longer be modified."
+                          : isArchived
+                            ? "This record has been archived from the active workspace while remaining preserved in storage."
+                            : "This record is active and available for review."}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </Card>
+
+            <Card
+              className="evidence-detail-actions-card relative h-full overflow-hidden rounded-[30px] border bg-transparent p-0 shadow-none"
+              style={outerCardStyle}
+            >
+              <div className="absolute inset-0">
+                <img
+                  src="/images/panel-silver.webp.png"
+                  alt=""
+                  className="h-full w-full object-cover object-center"
+                />
+              </div>
+              <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.24)_0%,rgba(248,249,246,0.34)_42%,rgba(239,241,238,0.42)_100%)]" />
+              <div className="absolute inset-0 bg-[radial-gradient(circle_at_16%_12%,rgba(255,255,255,0.34),transparent_28%)] opacity-90" />
+
+              <div className="relative z-10 flex h-full flex-col p-6 md:p-7">
+                <div className="text-[1.08rem] font-semibold tracking-[-0.02em] text-[#21353a]">
+                  Record Actions
+                </div>
+
+                <div style={{ display: "grid", gap: 10, marginTop: 18 }}>
+                  <Button
+                    onClick={handleDownloadReport}
+                    disabled={actionBusy || !canAccessReports || isDeleted}
+                    className="app-responsive-btn w-full rounded-[999px] border px-4 py-2.5 text-[0.86rem] font-semibold"
+                    style={landingPrimaryButtonStyle}
+                  >
+                    {t("downloadReport")}
+                  </Button>
+
+                  <Button
+                    variant="secondary"
+                    onClick={handleDownloadVerificationPackage}
+                    disabled={
+                      actionBusy ||
+                      !canAccessVerificationPackage ||
+                      !verificationPackageAvailable ||
+                      isDeleted
+                    }
+                    className="app-responsive-btn w-full rounded-[999px] border px-4 py-2.5 text-[0.86rem] font-semibold"
+                    style={landingSecondaryButtonStyle}
+                  >
+                    Download Verification Package
+                  </Button>
+
+                  <Button
+                    variant="secondary"
+                    onClick={handleOpenShareModal}
+                    disabled={!canShareEvidence}
+                    className="app-responsive-btn w-full rounded-[999px] border px-4 py-2.5 text-[0.86rem] font-semibold"
+                    style={landingTertiaryButtonStyle}
+                  >
+                    Share Evidence
+                  </Button>
+                </div>
+
+                <div style={{ fontSize: 12, color: "#6a777b", marginTop: 10, lineHeight: 1.7 }}>
+                  {reportCapabilityHint}
+                </div>
+
+                <div style={{ fontSize: 12, color: "#6a777b", marginTop: 8, lineHeight: 1.7 }}>
+                  {packageCapabilityHint}
+                </div>
+
+                {!canUsePublicVerification && (
+                  <div style={{ fontSize: 12, color: "#6a777b", marginTop: 8, lineHeight: 1.7 }}>
+                    Public verification is not currently enabled for this workspace.
                   </div>
                 )}
-            </div>
+
+                <div
+                  className="mt-5 mb-3 text-[0.78rem] font-semibold uppercase tracking-[0.18em] text-[#9b826b]"
+                >
+                  Case & Organization
+                </div>
+
+                <div style={{ display: "grid", gap: 10 }}>
+                  <Button
+                    variant="secondary"
+                    onClick={handleOpenAssignCase}
+                    disabled={actionBusy || !canAssignToCase}
+                    className="app-responsive-btn w-full rounded-[999px] border px-4 py-2.5 text-[0.86rem] font-semibold"
+                    style={landingSecondaryButtonStyle}
+                  >
+                    {caseId ? "Move to Case" : "Add to Case"}
+                  </Button>
+
+                  {caseId && (
+                    <Button
+                      variant="secondary"
+                      onClick={handleRemoveFromCase}
+                      disabled={actionBusy || isDeleted}
+                      className="app-responsive-btn w-full rounded-[999px] border px-4 py-2.5 text-[0.86rem] font-semibold"
+                      style={landingTertiaryButtonStyle}
+                    >
+                      Remove from Case
+                    </Button>
+                  )}
+                </div>
+
+                <div
+                  className="mt-5 mb-3 text-[0.78rem] font-semibold uppercase tracking-[0.18em] text-[#9b826b]"
+                >
+                  Preservation Actions
+                </div>
+
+                <div style={{ display: "grid", gap: 10 }}>
+                  <Button
+                    onClick={handleLock}
+                    disabled={actionBusy || !canLockEvidence}
+                    className="app-responsive-btn w-full rounded-[999px] border px-4 py-2.5 text-[0.86rem] font-semibold"
+                    style={isLocked ? landingSecondaryButtonStyle : landingDangerButtonStyle}
+                  >
+                    {isLocked ? "Permanently Locked" : "Lock Evidence Permanently"}
+                  </Button>
+
+                  {isArchived ? (
+                    <Button
+                      variant="secondary"
+                      onClick={handleUnarchive}
+                      disabled={actionBusy || isDeleted}
+                      className="app-responsive-btn w-full rounded-[999px] border px-4 py-2.5 text-[0.86rem] font-semibold"
+                      style={landingSecondaryButtonStyle}
+                    >
+                      Restore Evidence
+                    </Button>
+                  ) : (
+                    <Button
+                      variant="secondary"
+                      onClick={handleArchive}
+                      disabled={actionBusy || isDeleted}
+                      className="app-responsive-btn w-full rounded-[999px] border px-4 py-2.5 text-[0.86rem] font-semibold"
+                      style={landingSecondaryButtonStyle}
+                    >
+                      Archive Evidence
+                    </Button>
+                  )}
+
+                  {!isDeleted && (
+                    <Button
+                      onClick={handleDelete}
+                      disabled={actionBusy || !canDelete}
+                      className="app-responsive-btn w-full rounded-[999px] border px-4 py-2.5 text-[0.86rem] font-semibold"
+                      style={canDelete ? landingDeleteButtonStyle : landingSecondaryButtonStyle}
+                    >
+                      Delete Evidence
+                    </Button>
+                  )}
+
+                  {isDeleted && (
+                    <Button
+                      variant="secondary"
+                      onClick={handleRestoreDeleted}
+                      disabled={actionBusy}
+                      className="app-responsive-btn w-full rounded-[999px] border px-4 py-2.5 text-[0.86rem] font-semibold"
+                      style={landingSecondaryButtonStyle}
+                    >
+                      Restore from Trash
+                    </Button>
+                  )}
+                </div>
+
+                {isLocked && (
+                  <div style={{ fontSize: 12, color: "#6a777b", paddingTop: 10 }}>
+                    ✓ This record is legally sealed and can no longer be edited.
+                  </div>
+                )}
+
+                {!isLocked && !evidenceRecordStateAllowsLock && (
+                  <div style={{ fontSize: 12, color: "#6a777b", paddingTop: 10, lineHeight: 1.7 }}>
+                    Evidence can be permanently locked after upload finalization and signature.
+                  </div>
+                )}
+
+                {!isArchived && !isDeleted && (
+                  <div style={{ fontSize: 12, color: "#6a777b", paddingTop: 10 }}>
+                    Archive this record to remove it from active review while preserving it in storage.
+                  </div>
+                )}
+
+                {isArchived && (
+                  <div style={{ fontSize: 12, color: "#6a777b", paddingTop: 10 }}>
+                    This record is archived. Restore it to return it to the active workspace.
+                  </div>
+                )}
+
+                {activeWorkspaceType === "TEAM" && workspaceSnapshot.overSeatLimit ? (
+                  <div
+                    style={{
+                      marginTop: 12,
+                      padding: 12,
+                      borderRadius: 14,
+                      border: "1px solid rgba(194,78,78,0.16)",
+                      background: "rgba(164,84,84,0.06)",
+                      color: "#8d4040",
+                      fontSize: 12,
+                      lineHeight: 1.7,
+                    }}
+                  >
+                    This team workspace is currently over its included seat limit.
+                  </div>
+                ) : null}
+
+                <div
+                  style={{
+                    marginTop: "auto",
+                    padding: 14,
+                    borderRadius: 16,
+                    background:
+                      "linear-gradient(135deg, rgba(214,184,157,0.10), rgba(214,184,157,0.04))",
+                    border: "1px solid rgba(214,184,157,0.14)",
+                    color: "#8f735a",
+                    lineHeight: 1.7,
+                  }}
+                >
+                  <strong>Trash retention:</strong> When moved to trash, this
+                  record stays recoverable for 90 days before permanent deletion.
+                </div>
+              </div>
+            </Card>
           </div>
 
-          <div>
-            <div className="text-[12px] uppercase tracking-[0.14em] text-[#9b826b]">
-              Case Assignment
-            </div>
-            <div className="mt-2 text-[0.96rem] leading-[1.75] text-[#23373b]">
-              {caseId ? "Attached to case" : "Not assigned to any case"}
-            </div>
-          </div>
+          {(sortedParts.length > 0 ||
+            originalPreviewUrl ||
+            originalDownloadUrl ||
+            originalMimeType ||
+            originalSizeBytes) && (
+            <Card
+              className="evidence-detail-original-card relative mt-6 overflow-hidden rounded-[30px] border bg-transparent p-0 shadow-none"
+              style={outerCardStyle}
+            >
+              <div className="absolute inset-0">
+                <img
+                  src="/images/panel-silver.webp.png"
+                  alt=""
+                  className="h-full w-full object-cover object-center"
+                />
+              </div>
+              <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.24)_0%,rgba(248,249,246,0.34)_42%,rgba(239,241,238,0.42)_100%)]" />
+              <div className="absolute inset-0 bg-[radial-gradient(circle_at_16%_12%,rgba(255,255,255,0.34),transparent_28%)] opacity-90" />
 
-          <div>
-            <div className="text-[12px] uppercase tracking-[0.14em] text-[#9b826b]">
-              Subscription Plan
-            </div>
-            <div className="mt-2 text-[0.96rem] leading-[1.75] text-[#23373b]">
-              {plan}
-            </div>
-          </div>
+              <div className="relative z-10 p-6 md:p-7">
+                <div className="text-[1.08rem] font-semibold tracking-[-0.02em] text-[#21353a]">
+                  Original Evidence
+                </div>
+                {!isMultipart ? (
+                  <>
+                    <div
+                      style={{
+                        marginTop: 16,
+                        marginBottom: 16,
+                        padding: 14,
+                        borderRadius: 16,
+                        ...softCardStyle,
+                        color: "#5d6d71",
+                      }}
+                    >
+                      Original submitted evidence file. This file is preserved as part of the record.
+                    </div>
 
-          <div>
-            <div className="text-[12px] uppercase tracking-[0.14em] text-[#9b826b]">
-              Current Status
-            </div>
-            <div style={{ marginTop: 10 }}>
-<span
-  className="inline-flex items-center rounded-full px-3 py-1.5 text-[0.76rem] font-semibold"
-  style={silverStatusStyle}
->
-  {displayStatusMeta.label}
-</span>
-            </div>
-          </div>
+                    <div
+                      style={{
+                        marginBottom: 14,
+                        display: "grid",
+                        gap: 6,
+                        color: "#6a777b",
+                        fontSize: 13,
+                      }}
+                    >
+                      {originalFileName && <div>Original file: {originalFileName}</div>}
+                      {originalMimeType && <div>Type: {originalMimeType}</div>}
+                      {originalSizeBytes && <div>Size: {formatBytes(originalSizeBytes)}</div>}
+                    </div>
 
-          <div>
-            <div className="text-[12px] uppercase tracking-[0.14em] text-[#9b826b]">
-              Recorded At
-            </div>
-            <div className="mt-2 text-[0.96rem] leading-[1.75] text-[#23373b]">
-              {formatUtcDateTime(createdAt)}
-            </div>
-          </div>
+                    <div
+                      style={{
+                        display: "flex",
+                        flexWrap: "wrap",
+                        gap: 10,
+                        marginBottom: 16,
+                      }}
+                    >
+                      <Button
+                        variant="secondary"
+                        onClick={handleOpenOriginal}
+                        disabled={!originalDownloadUrl || isDeleted}
+                        className="rounded-[999px] border px-4 py-2.5 text-[0.86rem] font-semibold"
+                        style={landingSecondaryButtonStyle}
+                      >
+                        Open Original
+                      </Button>
 
-          <div>
-            <div className="text-[12px] uppercase tracking-[0.14em] text-[#9b826b]">
-              Locked At
-            </div>
-            <div className="mt-2 text-[0.96rem] leading-[1.75] text-[#23373b]">
-              {formatUtcDateTime(lockedAt)}
-            </div>
-          </div>
+                      <Button
+                        variant="secondary"
+                        onClick={handleDownloadOriginal}
+                        disabled={!originalDownloadUrl || isDeleted}
+                        className="rounded-[999px] border px-4 py-2.5 text-[0.86rem] font-semibold"
+                        style={landingTertiaryButtonStyle}
+                      >
+                        Download Original
+                      </Button>
+                    </div>
 
-          <div>
-            <div className="text-[12px] uppercase tracking-[0.14em] text-[#9b826b]">
-              Archived At
-            </div>
-            <div className="mt-2 text-[0.96rem] leading-[1.75] text-[#23373b]">
-              {formatUtcDateTime(archivedAt)}
-            </div>
-          </div>
+                    {originalPreviewUrl && originalKind === "image" && (
+                      <div style={{ marginBottom: 12 }}>
+                        <img
+                          src={originalPreviewUrl}
+                          alt="Evidence preview"
+                          className="evidence-preview-image"
+                          style={{
+                            width: "100%",
+                            maxWidth: 520,
+                            margin: "0 auto",
+                            display: "block",
+                            borderRadius: 18,
+                            border: "1px solid rgba(79,112,107,0.10)",
+                            boxShadow: "0 14px 28px rgba(0,0,0,0.08)",
+                          }}
+                        />
+                      </div>
+                    )}
 
-          <div>
-            <div className="text-[12px] uppercase tracking-[0.14em] text-[#9b826b]">
-              Deleted At
-            </div>
-            <div className="mt-2 text-[0.96rem] leading-[1.75] text-[#23373b]">
-              {formatUtcDateTime(deletedAt)}
-            </div>
-          </div>
+                    {originalPreviewUrl && originalKind === "video" && (
+                      <div style={{ marginBottom: 12 }}>
+                        <video
+                          src={originalPreviewUrl}
+                          controls
+                          preload="metadata"
+                          className="evidence-preview-video"
+                          style={{
+                            width: "100%",
+                            maxWidth: 520,
+                            margin: "0 auto",
+                            display: "block",
+                            borderRadius: 18,
+                            border: "1px solid rgba(79,112,107,0.10)",
+                            boxShadow: "0 14px 28px rgba(0,0,0,0.08)",
+                          }}
+                        />
+                      </div>
+                    )}
 
-          <div>
-            <div className="text-[12px] uppercase tracking-[0.14em] text-[#9b826b]">
-              Permanent Deletion Date
-            </div>
-            <div className="mt-2 text-[0.96rem] leading-[1.75] text-[#23373b]">
-              {formatUtcDateTime(deleteScheduledForUtc)}
-            </div>
-          </div>
+                    {originalPreviewUrl && originalKind === "audio" && (
+                      <div
+                        style={{
+                          marginBottom: 12,
+                          padding: 14,
+                          borderRadius: 14,
+                          background: "rgba(255,255,255,0.42)",
+                          border: "1px solid rgba(79,112,107,0.08)",
+                        }}
+                      >
+                        <audio
+                          src={originalPreviewUrl}
+                          controls
+                          preload="metadata"
+                          style={{ width: "100%" }}
+                        />
+                      </div>
+                    )}
 
-          <div className="sm:col-span-2">
-            <div className="text-[12px] uppercase tracking-[0.14em] text-[#9b826b]">
-              Legal State
-            </div>
-            <div className="mt-2 text-[0.96rem] leading-[1.8] text-[#23373b]">
-              {isDeleted
-                ? "This record is currently in secure trash. It remains recoverable until the scheduled deletion date."
-                : isLocked
-                  ? "This record has been permanently sealed. Its evidentiary state can no longer be modified."
-                  : isArchived
-                    ? "This record has been archived from the active workspace while remaining preserved in storage."
-                    : "This record is active and available for review."}
-            </div>
-          </div>
+                    {originalPreviewUrl && originalKind === "pdf" && (
+                      <div style={{ marginBottom: 12 }}>
+                        <iframe
+                          src={originalPreviewUrl}
+                          title="Original PDF evidence"
+                          style={{
+                            width: "100%",
+                            minHeight: 560,
+                            borderRadius: 18,
+                            border: "1px solid rgba(79,112,107,0.10)",
+                            background: "#fff",
+                            boxShadow: "0 14px 28px rgba(0,0,0,0.08)",
+                          }}
+                        />
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <div style={{ display: "grid", gap: 16, marginTop: 16 }}>
+                    {sortedParts.map((part) => {
+                      const kind = getEvidenceKind(part.mimeType ?? null);
+                      const previewUrl = part.publicUrl ?? part.url ?? null;
+                      const downloadUrl = part.url ?? part.publicUrl ?? null;
+                      const displayName = getPartDisplayName(part);
+
+                      return (
+                        <div
+                          key={part.id}
+                          style={{
+                            padding: 16,
+                            borderRadius: 20,
+                            ...softCardStyle,
+                          }}
+                        >
+                          <div
+                            style={{
+                              display: "flex",
+                              justifyContent: "space-between",
+                              gap: 12,
+                              flexWrap: "wrap",
+                              alignItems: "center",
+                            }}
+                          >
+                            <div>
+                              <div style={{ fontWeight: 800, color: "#23373b" }}>
+                                Item {part.partIndex + 1}
+                                {part.isPrimary ? " (Primary)" : ""}
+                              </div>
+                              <div style={{ fontSize: 13, color: "#6a777b", marginTop: 4 }}>
+                                {displayName}
+                              </div>
+                            </div>
+
+                            <div className="app-card-top-row__actions">
+                              <Button
+                                variant="secondary"
+                                onClick={() => handleOpenPart(part)}
+                                disabled={!downloadUrl || isDeleted}
+                                className="app-responsive-btn rounded-[999px] border px-4 py-2.5 text-[0.86rem] font-semibold"
+                                style={landingSecondaryButtonStyle}
+                              >
+                                Open
+                              </Button>
+                              <Button
+                                variant="secondary"
+                                onClick={() => handleDownloadPart(part)}
+                                disabled={!downloadUrl || isDeleted}
+                                className="app-responsive-btn rounded-[999px] border px-4 py-2.5 text-[0.86rem] font-semibold"
+                                style={landingTertiaryButtonStyle}
+                              >
+                                Download
+                              </Button>
+                            </div>
+                          </div>
+
+                          <div
+                            style={{
+                              display: "grid",
+                              gap: 6,
+                              marginTop: 12,
+                              marginBottom: 14,
+                              color: "#6a777b",
+                              fontSize: 13,
+                            }}
+                          >
+                            <div>Type: {part.mimeType ?? "Unknown"}</div>
+                            <div>Kind: {kind}</div>
+                            <div>Size: {formatBytes(part.sizeBytes ?? null)}</div>
+                          </div>
+
+                          {previewUrl && kind === "image" && (
+                            <img
+                              src={previewUrl}
+                              alt={`Evidence item ${part.partIndex + 1}`}
+                              style={{
+                                width: "100%",
+                                maxWidth: 420,
+                                margin: "0 auto",
+                                display: "block",
+                                borderRadius: 16,
+                                border: "1px solid rgba(79,112,107,0.10)",
+                                boxShadow: "0 12px 24px rgba(0,0,0,0.06)",
+                              }}
+                            />
+                          )}
+
+                          {previewUrl && kind === "video" && (
+                            <video
+                              src={previewUrl}
+                              controls
+                              preload="metadata"
+                              style={{
+                                width: "100%",
+                                maxWidth: 420,
+                                margin: "0 auto",
+                                display: "block",
+                                borderRadius: 16,
+                                border: "1px solid rgba(79,112,107,0.10)",
+                                boxShadow: "0 12px 24px rgba(0,0,0,0.06)",
+                              }}
+                            />
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </Card>
+          )}
         </div>
       </div>
-    </Card>
 
-<Card
-  className="evidence-detail-actions-card relative h-full overflow-hidden rounded-[30px] border bg-transparent p-0 shadow-none"
-  style={outerCardStyle}
->
-          <div className="absolute inset-0">
-        <img
-          src="/images/panel-silver.webp.png"
-          alt=""
-          className="h-full w-full object-cover object-center"
-        />
-      </div>
-      <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.24)_0%,rgba(248,249,246,0.34)_42%,rgba(239,241,238,0.42)_100%)]" />
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_16%_12%,rgba(255,255,255,0.34),transparent_28%)] opacity-90" />
+      <Modal
+        isOpen={shareModalOpen}
+        onClose={() => setShareModalOpen(false)}
+        title="Share Evidence"
+        actions={
+          <div style={{ display: "flex", gap: 10 }}>
+            <Button
+              variant="secondary"
+              onClick={() => setShareModalOpen(false)}
+              disabled={shareActionBusy}
+              className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
+              style={landingSecondaryButtonStyle}
+            >
+              Close
+            </Button>
+          </div>
+        }
+      >
+        <div style={{ display: "grid", gap: 12 }}>
+          <div style={{ fontSize: 14, color: "#cbd5e1", lineHeight: 1.7 }}>
+            Share this evidence with a lawyer, insurer, investigator, or reviewer.
+            Send the PDF report for a fixed record, and include the verification link
+            for independent online review where enabled by the workspace.
+          </div>
 
-<div className="relative z-10 flex h-full flex-col p-6 md:p-7">
-          <div className="text-[1.08rem] font-semibold tracking-[-0.02em] text-[#21353a]">
-          Record Actions
-        </div>
-
-        <div style={{ display: "grid", gap: 10, marginTop: 18 }}>
           <Button
-            onClick={handleDownloadReport}
-            disabled={actionBusy || plan === "FREE" || isDeleted}
-className="app-responsive-btn w-full rounded-[999px] border px-4 py-2.5 text-[0.86rem] font-semibold"
+            onClick={handleCopyVerificationLink}
+            disabled={shareActionBusy || !canUsePublicVerification || isDeleted}
+            className="w-full rounded-[999px] border px-4 py-2.5 text-[0.86rem] font-semibold"
             style={landingPrimaryButtonStyle}
           >
-            {t("downloadReport")}
+            {shareActionBusy ? "Copying..." : "Copy Verification Link"}
+          </Button>
+
+          <Button
+            variant="secondary"
+            onClick={handleDownloadReport}
+            disabled={actionBusy || !canAccessReports || isDeleted}
+            className="w-full rounded-[999px] border px-4 py-2.5 text-[0.86rem] font-semibold"
+            style={landingSecondaryButtonStyle}
+          >
+            Download PDF Report
           </Button>
 
           <Button
             variant="secondary"
             onClick={handleDownloadVerificationPackage}
-            disabled={actionBusy || !verificationPackageAvailable || isDeleted}
-className="app-responsive-btn w-full rounded-[999px] border px-4 py-2.5 text-[0.86rem] font-semibold"
-            style={landingSecondaryButtonStyle}
+            disabled={
+              actionBusy ||
+              !canAccessVerificationPackage ||
+              !verificationPackageAvailable ||
+              isDeleted
+            }
+            className="w-full rounded-[999px] border px-4 py-2.5 text-[0.86rem] font-semibold"
+            style={landingTertiaryButtonStyle}
           >
             Download Verification Package
           </Button>
 
-          <Link href={`/share/${evidenceId}`}>
-            <Button
-              variant="secondary"
-              disabled={isDeleted}
-className="app-responsive-btn w-full rounded-[999px] border px-4 py-2.5 text-[0.86rem] font-semibold"
-              style={landingTertiaryButtonStyle}
-            >
-              {t("shareLink")}
-            </Button>
-          </Link>
-        </div>
-
-        {plan === "FREE" && (
-          <div style={{ fontSize: 12, color: "#6a777b", marginTop: 10 }}>
-            Reports are disabled on Free. Upgrade to access PDF reports.
-          </div>
-        )}
-
-        {!verificationPackageAvailable && (
-          <div style={{ fontSize: 12, color: "#6a777b", marginTop: 10 }}>
-            Verification package is not available yet.
-          </div>
-        )}
-
-        <div
-          className="mt-5 mb-3 text-[0.78rem] font-semibold uppercase tracking-[0.18em] text-[#9b826b]"
-        >
-          Case & Organization
-        </div>
-
-        <div style={{ display: "grid", gap: 10 }}>
-          <Button
-            variant="secondary"
-            onClick={handleOpenAssignCase}
-            disabled={actionBusy || ownedCases.length === 0}
-className="app-responsive-btn w-full rounded-[999px] border px-4 py-2.5 text-[0.86rem] font-semibold"
-            style={landingSecondaryButtonStyle}
-          >
-            {caseId ? "Move to Case" : "Add to Case"}
-          </Button>
-
-          {caseId && (
-            <Button
-              variant="secondary"
-              onClick={handleRemoveFromCase}
-              disabled={actionBusy}
-className="app-responsive-btn w-full rounded-[999px] border px-4 py-2.5 text-[0.86rem] font-semibold"
-              style={landingTertiaryButtonStyle}
-            >
-              Remove from Case
-            </Button>
-          )}
-        </div>
-
-        <div
-          className="mt-5 mb-3 text-[0.78rem] font-semibold uppercase tracking-[0.18em] text-[#9b826b]"
-        >
-          Preservation Actions
-        </div>
-
-        <div style={{ display: "grid", gap: 10 }}>
-          <Button
-            onClick={handleLock}
-            disabled={
-              actionBusy ||
-              Boolean(lockedAt) ||
-              !(status === "SIGNED" || status === "REPORTED")
-            }
-className="app-responsive-btn w-full rounded-[999px] border px-4 py-2.5 text-[0.86rem] font-semibold"
-            style={lockedAt ? landingSecondaryButtonStyle : landingDangerButtonStyle}
-          >
-            {lockedAt ? "Permanently Locked" : "Lock Evidence Permanently"}
-          </Button>
-
-          {archivedAt ? (
-            <Button
-              variant="secondary"
-              onClick={handleUnarchive}
-              disabled={actionBusy}
-className="app-responsive-btn w-full rounded-[999px] border px-4 py-2.5 text-[0.86rem] font-semibold"
-              style={landingSecondaryButtonStyle}
-            >
-              Restore Evidence
-            </Button>
-          ) : (
-            <Button
-              variant="secondary"
-              onClick={handleArchive}
-              disabled={actionBusy}
-className="app-responsive-btn w-full rounded-[999px] border px-4 py-2.5 text-[0.86rem] font-semibold"
-              style={landingSecondaryButtonStyle}
-            >
-              Archive Evidence
-            </Button>
-          )}
-
-          {!isDeleted && (
-            <Button
-              onClick={handleDelete}
-              disabled={actionBusy || !canDelete}
-className="app-responsive-btn w-full rounded-[999px] border px-4 py-2.5 text-[0.86rem] font-semibold"
-              style={canDelete ? landingDeleteButtonStyle : landingSecondaryButtonStyle}
-            >
-              Delete Evidence
-            </Button>
-          )}
-
-          {isDeleted && (
-            <Button
-              variant="secondary"
-              onClick={handleRestoreDeleted}
-              disabled={actionBusy}
-className="app-responsive-btn w-full rounded-[999px] border px-4 py-2.5 text-[0.86rem] font-semibold"
-              style={landingSecondaryButtonStyle}
-            >
-              Restore from Trash
-            </Button>
-          )}
-        </div>
-
-        {lockedAt && (
-          <div style={{ fontSize: 12, color: "#6a777b", paddingTop: 10 }}>
-            ✓ This record is legally sealed and can no longer be edited.
-          </div>
-        )}
-
-        {!archivedAt && !isDeleted && (
-          <div style={{ fontSize: 12, color: "#6a777b", paddingTop: 10 }}>
-            Archive this record to remove it from active review while preserving it in storage.
-          </div>
-        )}
-
-        {archivedAt && (
-          <div style={{ fontSize: 12, color: "#6a777b", paddingTop: 10 }}>
-            This record is archived. Restore it to return it to the active workspace.
-          </div>
-        )}
-
-        <div
-          style={{
-            marginTop: "auto",
-            padding: 14,
-            borderRadius: 16,
-            background:
-              "linear-gradient(135deg, rgba(214,184,157,0.10), rgba(214,184,157,0.04))",
-            border: "1px solid rgba(214,184,157,0.14)",
-            color: "#8f735a",
-            lineHeight: 1.7,
-          }}
-        >
-          <strong>Trash retention:</strong> When moved to trash, this
-          record stays recoverable for 90 days before permanent deletion.
-        </div>
-      </div>
-    </Card>
-  </div>
-
-  {(sortedParts.length > 0 ||
-    originalPreviewUrl ||
-    originalDownloadUrl ||
-    originalMimeType ||
-    originalSizeBytes) && (
-<Card
-  className="evidence-detail-original-card relative mt-6 overflow-hidden rounded-[30px] border bg-transparent p-0 shadow-none"
-  style={outerCardStyle}
->
-  <div className="absolute inset-0">
-    <img
-      src="/images/panel-silver.webp.png"
-      alt=""
-      className="h-full w-full object-cover object-center"
-    />
-  </div>
-  <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.24)_0%,rgba(248,249,246,0.34)_42%,rgba(239,241,238,0.42)_100%)]" />
-  <div className="absolute inset-0 bg-[radial-gradient(circle_at_16%_12%,rgba(255,255,255,0.34),transparent_28%)] opacity-90" />
-
-  <div className="relative z-10 p-6 md:p-7">
-    <div className="text-[1.08rem] font-semibold tracking-[-0.02em] text-[#21353a]">
-      Original Evidence
-    </div>
-        {!isMultipart ? (
-          <>
-            <div
-              style={{
-                marginTop: 16,
-                marginBottom: 16,
-                padding: 14,
-                borderRadius: 16,
-                ...softCardStyle,
-                color: "#5d6d71",
-              }}
-            >
-              Original submitted evidence file. This file is preserved as part of the record.
+          {!canUsePublicVerification && (
+            <div style={{ fontSize: 12, color: "#94a3b8", lineHeight: 1.7 }}>
+              Public verification is not available on the current workspace configuration.
             </div>
+          )}
 
-            <div
-              style={{
-                marginBottom: 14,
-                display: "grid",
-                gap: 6,
-                color: "#6a777b",
-                fontSize: 13,
-              }}
-            >
-              {originalFileName && <div>Original file: {originalFileName}</div>}
-              {originalMimeType && <div>Type: {originalMimeType}</div>}
-              {originalSizeBytes && <div>Size: {formatBytes(originalSizeBytes)}</div>}
+          {!canAccessReports && (
+            <div style={{ fontSize: 12, color: "#94a3b8", lineHeight: 1.7 }}>
+              PDF reports are not included for {activeWorkspaceName} on the current plan.
             </div>
+          )}
 
-            <div
-              style={{
-                display: "flex",
-                flexWrap: "wrap",
-                gap: 10,
-                marginBottom: 16,
-              }}
-            >
-              <Button
-                variant="secondary"
-                onClick={handleOpenOriginal}
-                disabled={!originalDownloadUrl || isDeleted}
-                className="rounded-[999px] border px-4 py-2.5 text-[0.86rem] font-semibold"
-                style={landingSecondaryButtonStyle}
-              >
-                Open Original
-              </Button>
-
-              <Button
-                variant="secondary"
-                onClick={handleDownloadOriginal}
-                disabled={!originalDownloadUrl || isDeleted}
-                className="rounded-[999px] border px-4 py-2.5 text-[0.86rem] font-semibold"
-                style={landingTertiaryButtonStyle}
-              >
-                Download Original
-              </Button>
+          {!canAccessVerificationPackage && (
+            <div style={{ fontSize: 12, color: "#94a3b8", lineHeight: 1.7 }}>
+              Verification packages are not included for {activeWorkspaceName} on the current plan.
             </div>
+          )}
 
-            {originalPreviewUrl && originalKind === "image" && (
-              <div style={{ marginBottom: 12 }}>
-                <img
-                  src={originalPreviewUrl}
-                  alt="Evidence preview"
-                  className="evidence-preview-image"
-                  style={{
-                    width: "100%",
-                    maxWidth: 520,
-                    margin: "0 auto",
-                    display: "block",
-                    borderRadius: 18,
-                    border: "1px solid rgba(79,112,107,0.10)",
-                    boxShadow: "0 14px 28px rgba(0,0,0,0.08)",
-                  }}
-                />
-              </div>
-            )}
-
-            {originalPreviewUrl && originalKind === "video" && (
-              <div style={{ marginBottom: 12 }}>
-                <video
-                  src={originalPreviewUrl}
-                  controls
-                  preload="metadata"
-                  className="evidence-preview-video"
-                  style={{
-                    width: "100%",
-                    maxWidth: 520,
-                    margin: "0 auto",
-                    display: "block",
-                    borderRadius: 18,
-                    border: "1px solid rgba(79,112,107,0.10)",
-                    boxShadow: "0 14px 28px rgba(0,0,0,0.08)",
-                  }}
-                />
-              </div>
-            )}
-
-            {originalPreviewUrl && originalKind === "audio" && (
-              <div
-                style={{
-                  marginBottom: 12,
-                  padding: 14,
-                  borderRadius: 14,
-                  background: "rgba(255,255,255,0.42)",
-                  border: "1px solid rgba(79,112,107,0.08)",
-                }}
-              >
-                <audio
-                  src={originalPreviewUrl}
-                  controls
-                  preload="metadata"
-                  style={{ width: "100%" }}
-                />
-              </div>
-            )}
-
-            {originalPreviewUrl && originalKind === "pdf" && (
-              <div style={{ marginBottom: 12 }}>
-                <iframe
-                  src={originalPreviewUrl}
-                  title="Original PDF evidence"
-                  style={{
-                    width: "100%",
-                    minHeight: 560,
-                    borderRadius: 18,
-                    border: "1px solid rgba(79,112,107,0.10)",
-                    background: "#fff",
-                    boxShadow: "0 14px 28px rgba(0,0,0,0.08)",
-                  }}
-                />
-              </div>
-            )}
-          </>
-        ) : (
-          <div style={{ display: "grid", gap: 16, marginTop: 16 }}>
-            {sortedParts.map((part) => {
-              const kind = getEvidenceKind(part.mimeType ?? null);
-              const previewUrl = part.publicUrl ?? part.url ?? null;
-              const downloadUrl = part.url ?? part.publicUrl ?? null;
-              const displayName = getPartDisplayName(part);
-
-              return (
-                <div
-                  key={part.id}
-                  style={{
-                    padding: 16,
-                    borderRadius: 20,
-                    ...softCardStyle,
-                  }}
-                >
-                  <div
-                    style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      gap: 12,
-                      flexWrap: "wrap",
-                      alignItems: "center",
-                    }}
-                  >
-                    <div>
-                      <div style={{ fontWeight: 800, color: "#23373b" }}>
-                        Item {part.partIndex + 1}
-                        {part.isPrimary ? " (Primary)" : ""}
-                      </div>
-                      <div style={{ fontSize: 13, color: "#6a777b", marginTop: 4 }}>
-                        {displayName}
-                      </div>
-                    </div>
-
-<div className="app-card-top-row__actions">
-                        <Button
-                        variant="secondary"
-                        onClick={() => handleOpenPart(part)}
-                        disabled={!downloadUrl || isDeleted}
-className="app-responsive-btn rounded-[999px] border px-4 py-2.5 text-[0.86rem] font-semibold"
-                        style={landingSecondaryButtonStyle}
-                      >
-                        Open
-                      </Button>
-                      <Button
-                        variant="secondary"
-                        onClick={() => handleDownloadPart(part)}
-                        disabled={!downloadUrl || isDeleted}
-className="app-responsive-btn rounded-[999px] border px-4 py-2.5 text-[0.86rem] font-semibold"
-                        style={landingTertiaryButtonStyle}
-                      >
-                        Download
-                      </Button>
-                    </div>
-                  </div>
-
-                  <div
-                    style={{
-                      display: "grid",
-                      gap: 6,
-                      marginTop: 12,
-                      marginBottom: 14,
-                      color: "#6a777b",
-                      fontSize: 13,
-                    }}
-                  >
-                    <div>Type: {part.mimeType ?? "Unknown"}</div>
-                    <div>Kind: {kind}</div>
-                    <div>Size: {formatBytes(part.sizeBytes ?? null)}</div>
-                  </div>
-
-                  {previewUrl && kind === "image" && (
-                    <img
-                      src={previewUrl}
-                      alt={`Evidence item ${part.partIndex + 1}`}
-                      style={{
-                        width: "100%",
-                        maxWidth: 420,
-                        margin: "0 auto",
-                        display: "block",
-                        borderRadius: 16,
-                        border: "1px solid rgba(79,112,107,0.10)",
-                        boxShadow: "0 12px 24px rgba(0,0,0,0.06)",
-                      }}
-                    />
-                  )}
-
-                  {previewUrl && kind === "video" && (
-                    <video
-                      src={previewUrl}
-                      controls
-                      preload="metadata"
-                      style={{
-                        width: "100%",
-                        maxWidth: 420,
-                        margin: "0 auto",
-                        display: "block",
-                        borderRadius: 16,
-                        border: "1px solid rgba(79,112,107,0.10)",
-                        boxShadow: "0 12px 24px rgba(0,0,0,0.06)",
-                      }}
-                    />
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
-    </Card>
-  )}
-</div>
-</div>
+          {canAccessVerificationPackage && !verificationPackageAvailable && (
+            <div style={{ fontSize: 12, color: "#94a3b8", lineHeight: 1.7 }}>
+              Verification package is not available yet for this record.
+            </div>
+          )}
+        </div>
+      </Modal>
 
       <Modal
         isOpen={assignCaseModalOpen}
-                onClose={() => setAssignCaseModalOpen(false)}
+        onClose={() => setAssignCaseModalOpen(false)}
         title={caseId ? "Move evidence to case" : "Add evidence to case"}
         actions={
           <div style={{ display: "flex", gap: 10 }}>
@@ -2247,7 +2655,8 @@ className="app-responsive-btn rounded-[999px] border px-4 py-2.5 text-[0.86rem] 
           <p style={{ marginBottom: 16 }}>Once locked:</p>
           <ul style={{ marginLeft: 20, marginBottom: 16, color: "#cbd5e1" }}>
             <li style={{ marginBottom: 8 }}>• The evidence cannot be edited</li>
-            <li>• It becomes legally sealed</li>
+            <li style={{ marginBottom: 8 }}>• It becomes legally sealed</li>
+            <li>• The preserved record remains shareable and reviewable</li>
           </ul>
           <p style={{ marginTop: 16, fontWeight: 700, color: "#fca5a5" }}>
             This action is irreversible.
@@ -2356,7 +2765,6 @@ className="app-responsive-btn rounded-[999px] border px-4 py-2.5 text-[0.86rem] 
           </div>
         </div>
       </Modal>
-
     </div>
   );
 }

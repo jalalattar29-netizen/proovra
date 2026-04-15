@@ -1,5 +1,10 @@
 import { prisma } from "../db.js";
 import { getPublicBaseUrl, presignPutObject } from "../storage.js";
+import {
+  assertWorkspaceAllowsEvidenceCreation,
+  resolveWorkspaceScopeForUser,
+  assertWorkspaceAllowsStorageGrowth,
+} from "./billing-enforcement.service.js";
 import * as prismaPkg from "@prisma/client";
 import { ensureGuestIdentity } from "./auth.service.js";
 import { appendCustodyEventTx } from "./custody-events.service.js";
@@ -55,6 +60,7 @@ const { EvidenceStatus } = prismaPkg;
 
 export async function createEvidence(params: {
   ownerUserId: string;
+  teamId?: string | null;
   type: prismaPkg.EvidenceType;
   mimeType?: string;
   deviceTimeIso?: string;
@@ -77,9 +83,32 @@ export async function createEvidence(params: {
     throw new Error("OWNER_NOT_FOUND");
   }
 
-  const currentWorkspace = owner.currentWorkspaceId
+  const effectiveTeamId = params.teamId ?? owner.currentWorkspaceId ?? null;
+
+  if (effectiveTeamId) {
+    const membership = await prisma.teamMember.findUnique({
+      where: {
+        teamId_userId: {
+          teamId: effectiveTeamId,
+          userId: params.ownerUserId,
+        },
+      },
+      select: { teamId: true },
+    });
+
+    if (!membership) {
+      const err: Error & { statusCode?: number; code?: string } = new Error(
+        "Forbidden team workspace"
+      );
+      err.statusCode = 403;
+      err.code = "TEAM_WORKSPACE_FORBIDDEN";
+      throw err;
+    }
+  }
+
+  const workspaceTeam = effectiveTeamId
     ? await prisma.team.findUnique({
-        where: { id: owner.currentWorkspaceId },
+        where: { id: effectiveTeamId },
         select: {
           id: true,
           name: true,
@@ -90,40 +119,21 @@ export async function createEvidence(params: {
       })
     : null;
 
+  const scope = await resolveWorkspaceScopeForUser({
+    ownerUserId: params.ownerUserId,
+    teamId: effectiveTeamId,
+  });
+
+  await assertWorkspaceAllowsEvidenceCreation(scope);
+  await assertWorkspaceAllowsStorageGrowth({
+    scope,
+    incomingBytes: 0n,
+  });
+
   const guestIdentity =
     owner.provider === prismaPkg.AuthProvider.GUEST
       ? await ensureGuestIdentity(params.ownerUserId)
       : null;
-
-  const entitlement = await prisma.entitlement.findFirst({
-    where: { userId: params.ownerUserId, active: true },
-  });
-
-  if (
-    entitlement?.plan === prismaPkg.PlanType.PAYG &&
-    (entitlement.credits ?? 0) <= 0
-  ) {
-    throw new Error("PAYG_CREDITS_REQUIRED");
-  }
-
-  if (entitlement?.plan === prismaPkg.PlanType.FREE) {
-    const limit = Number.parseInt(process.env.FREE_EVIDENCE_LIMIT ?? "3", 10);
-
-    const monthStart = new Date();
-    monthStart.setUTCDate(1);
-    monthStart.setUTCHours(0, 0, 0, 0);
-
-    const count = await prisma.evidence.count({
-      where: {
-        ownerUserId: params.ownerUserId,
-        createdAt: { gte: monthStart },
-      },
-    });
-
-    if (count >= limit) {
-      throw new Error("FREE_LIMIT_REACHED");
-    }
-  }
 
   const bucket = must("S3_BUCKET");
   const publicBase = getPublicBaseUrl();
@@ -131,30 +141,31 @@ export async function createEvidence(params: {
   const normalizedMimeType = normalizeUploadMimeType(params.mimeType);
 
   const organizationVerifiedSnapshot =
-    currentWorkspace?.verificationState ===
+    workspaceTeam?.verificationState ===
     prismaPkg.OrganizationVerificationState.VERIFIED;
 
   const identityLevelSnapshot = resolveIdentityLevel({
     provider: owner.provider,
     emailVerifiedAt: owner.emailVerifiedAt ?? null,
     currentWorkspaceVerified: organizationVerifiedSnapshot,
-    currentWorkspaceId: owner.currentWorkspaceId ?? null,
+    currentWorkspaceId: effectiveTeamId,
   });
 
   const workspaceNameSnapshot =
-    currentWorkspace?.evidenceWorkspaceLabel?.trim() ||
-    currentWorkspace?.name?.trim() ||
+    workspaceTeam?.evidenceWorkspaceLabel?.trim() ||
+    workspaceTeam?.name?.trim() ||
     null;
 
   const organizationNameSnapshot =
-    currentWorkspace?.legalName?.trim() ||
-    currentWorkspace?.name?.trim() ||
+    workspaceTeam?.legalName?.trim() ||
+    workspaceTeam?.name?.trim() ||
     null;
 
   const created = await prisma.$transaction(async (tx) => {
     const evidence = await tx.evidence.create({
       data: {
         ownerUserId: params.ownerUserId,
+        teamId: scope.teamId,
         type: params.type,
         status: EvidenceStatus.CREATED,
         verificationStatus: prismaPkg.VerificationStatus.MATERIALS_AVAILABLE,

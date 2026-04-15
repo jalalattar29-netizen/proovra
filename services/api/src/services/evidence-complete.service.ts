@@ -1,6 +1,12 @@
 import { prisma } from "../db.js";
 import { canonicalJson, sha256Hex } from "../crypto.js";
+import { canPlanGenerateReports } from "@proovra/shared-billing";
 import { getEvidenceSigner } from "../signing/signer.js";
+import {
+  assertWorkspaceAllowsStorageGrowth,
+  consumeWorkspaceCompletionCredits,
+  resolveWorkspaceScopeForUser,
+} from "./billing-enforcement.service.js";
 import {
   applyDefaultObjectRetention,
   getObjectStream,
@@ -388,14 +394,14 @@ export async function completeEvidence(params: {
         throw err;
       }
 
+      const scope = await resolveWorkspaceScopeForUser({
+        ownerUserId: evidence.ownerUserId,
+        teamId: evidence.teamId ?? null,
+      });
+
       const evidenceBucket = clean(evidence.storageBucket);
       const evidenceKey = clean(evidence.storageKey);
       const evidenceMime = normalizeObservedMimeType(evidence.mimeType);
-
-      const entitlement = await tx.entitlement.findFirst({
-        where: { userId: params.ownerUserId, active: true },
-      });
-      const plan = entitlement?.plan ?? prismaPkg.PlanType.FREE;
 
       if (evidence.status === EvidenceStatus.REPORTED) {
         return {
@@ -415,7 +421,6 @@ export async function completeEvidence(params: {
 
       if (evidence.status === EvidenceStatus.SIGNED) {
         const retentionTargets: RetentionTarget[] = [];
-
         if (evidenceBucket && evidenceKey) {
           retentionTargets.push({
             bucket: evidenceBucket,
@@ -433,7 +438,7 @@ export async function completeEvidence(params: {
             signingKeyId: evidence.signingKeyId,
             signingKeyVersion: evidence.signingKeyVersion,
           },
-          shouldEnqueueReport: plan !== prismaPkg.PlanType.FREE,
+          shouldEnqueueReport: canPlanGenerateReports(scope.plan),
           retentionTargets,
         };
       }
@@ -447,19 +452,6 @@ export async function completeEvidence(params: {
         const err: HttpError = Object.assign(
           new Error("Cannot complete evidence without an uploaded file"),
           { statusCode: 400 }
-        );
-        throw err;
-      }
-
-      if (
-        plan === prismaPkg.PlanType.PAYG &&
-        (entitlement?.credits ?? 0) <= 0
-      ) {
-        const err: HttpError = Object.assign(
-          new Error("PAYG_CREDITS_REQUIRED"),
-          {
-            statusCode: 402,
-          }
         );
         throw err;
       }
@@ -533,9 +525,7 @@ export async function completeEvidence(params: {
         if (updatedParts.length === 0) {
           const err: HttpError = Object.assign(
             new Error("NO_VALID_PARTS_FOUND"),
-            {
-              statusCode: 400,
-            }
+            { statusCode: 400 }
           );
           throw err;
         }
@@ -652,31 +642,24 @@ export async function completeEvidence(params: {
         fingerprintHash = sha256Hex(canonical);
       }
 
+      const existingStoredBytes =
+        typeof evidence.sizeBytes === "bigint" ? evidence.sizeBytes : 0n;
+      const nextStoredBytes = BigInt(sizeBytesNum);
+      const incomingGrowth =
+        nextStoredBytes > existingStoredBytes
+          ? nextStoredBytes - existingStoredBytes
+          : 0n;
+
+      await assertWorkspaceAllowsStorageGrowth({
+        scope,
+        incomingBytes: incomingGrowth,
+      });
+
       const signResult = await signer.signFingerprintHex(fingerprintHash);
 
       const tsaResult = await createEvidenceTimestamp({
         digestHex: fileSha256,
       });
-
-      if (plan === prismaPkg.PlanType.PAYG) {
-        const decremented = await tx.entitlement.updateMany({
-          where: {
-            userId: params.ownerUserId,
-            active: true,
-            plan: prismaPkg.PlanType.PAYG,
-            credits: { gt: 0 },
-          },
-          data: { credits: { decrement: 1 } },
-        });
-
-        if (decremented.count !== 1) {
-          const err: HttpError = Object.assign(
-            new Error("PAYG_CREDITS_REQUIRED"),
-            { statusCode: 402 }
-          );
-          throw err;
-        }
-      }
 
       const captureMethod = multipart
         ? prismaPkg.CaptureMethod.MULTIPART_PACKAGE
@@ -787,6 +770,8 @@ export async function completeEvidence(params: {
         });
       }
 
+      await consumeWorkspaceCompletionCredits(scope);
+
       return {
         result: {
           id: ev.id,
@@ -797,7 +782,7 @@ export async function completeEvidence(params: {
           signingKeyId: ev.signingKeyId,
           signingKeyVersion: ev.signingKeyVersion,
         },
-        shouldEnqueueReport: plan !== prismaPkg.PlanType.FREE,
+        shouldEnqueueReport: canPlanGenerateReports(scope.plan),
         retentionTargets,
       };
     },

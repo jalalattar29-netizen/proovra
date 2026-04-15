@@ -27,6 +27,30 @@ type AdminSummary = {
     documents: number;
     other: number;
   };
+  billing: {
+    activeSubscriptions: number;
+    trialingSubscriptions: number;
+    pastDueSubscriptions: number;
+    canceledSubscriptions: number;
+    successfulPayments: number;
+    failedPayments: number;
+    refundedPayments: number;
+    grossRevenueCents: number;
+  };
+  teams: {
+    total: number;
+    active: number;
+    pastDue: number;
+    canceled: number;
+    inactive: number;
+    overSeatLimit: number;
+  };
+  workspaceHealth: {
+    storageNearLimitTeams: number;
+    storageLimitReachedTeams: number;
+    seatNearLimitTeams: number;
+    seatLimitReachedTeams: number;
+  };
 };
 
 type GeoItem = {
@@ -53,11 +77,14 @@ type TopPage = {
 type RecentEvent = {
   eventType: string;
   label?: string;
+  eventClass?: string | null;
   routeType?: string | null;
   severity?: string | null;
   path: string | null;
   country: string | null;
+  countryCode?: string | null;
   city: string | null;
+  cityNormalized?: string | null;
   createdAt: string;
   sessionId?: string | null;
   userId?: string | null;
@@ -67,6 +94,7 @@ type TrendPoint = {
   date: string;
   pageViews: number;
   sessions: number;
+  eventType?: string | null;
 };
 
 type FunnelStep = {
@@ -90,6 +118,14 @@ function formatTimestamp(value: string) {
   const d = new Date(value);
   if (Number.isNaN(d.getTime())) return value;
   return d.toLocaleString();
+}
+
+function formatMoneyCents(cents: number) {
+  return new Intl.NumberFormat(undefined, {
+    style: "currency",
+    currency: "EUR",
+    maximumFractionDigits: 0,
+  }).format((cents || 0) / 100);
 }
 
 function pillTone(kind: "green" | "gold" | "red" | "neutral") {
@@ -211,6 +247,74 @@ export default function AdminDashboardPage() {
     ];
   }, [bundle]);
 
+  const billingCards = useMemo(() => {
+    if (!bundle) return [];
+
+    return [
+      {
+        label: "Active Subscriptions",
+        value: bundle.summary.billing.activeSubscriptions,
+        sub: `${bundle.summary.billing.trialingSubscriptions} trialing · ${bundle.summary.billing.pastDueSubscriptions} past due`,
+        accent: "#2d5b59",
+      },
+      {
+        label: "Gross Revenue",
+        value: formatMoneyCents(bundle.summary.billing.grossRevenueCents),
+        sub: `${bundle.summary.billing.successfulPayments} successful payments`,
+        accent: "#8a6e57",
+      },
+      {
+        label: "Payment Failures",
+        value: bundle.summary.billing.failedPayments,
+        sub: `${bundle.summary.billing.refundedPayments} refunded payments`,
+        accent: "#965757",
+      },
+      {
+        label: "Team Workspaces",
+        value: bundle.summary.teams.total,
+        sub: `${bundle.summary.teams.active} active · ${bundle.summary.teams.pastDue} past due`,
+        accent: "#4c6d70",
+      },
+    ];
+  }, [bundle]);
+
+  const healthCards = useMemo(() => {
+    if (!bundle) return [];
+
+    return [
+      {
+        label: "Storage Near Limit",
+        value: bundle.summary.workspaceHealth.storageNearLimitTeams,
+        tone: "gold" as const,
+      },
+      {
+        label: "Storage Limit Reached",
+        value: bundle.summary.workspaceHealth.storageLimitReachedTeams,
+        tone: "red" as const,
+      },
+      {
+        label: "Seat Pressure",
+        value: bundle.summary.workspaceHealth.seatNearLimitTeams,
+        tone: "gold" as const,
+      },
+      {
+        label: "Seat Limit Reached",
+        value: bundle.summary.workspaceHealth.seatLimitReachedTeams,
+        tone: "red" as const,
+      },
+      {
+        label: "Over Seat Limit",
+        value: bundle.summary.teams.overSeatLimit,
+        tone: "red" as const,
+      },
+      {
+        label: "Canceled Teams",
+        value: bundle.summary.teams.canceled,
+        tone: "neutral" as const,
+      },
+    ];
+  }, [bundle]);
+
   const statPillBase = useMemo(
     () =>
       ({
@@ -240,7 +344,8 @@ export default function AdminDashboardPage() {
       description={
         <>
           Review global product activity, funnel performance, geography, top routes,
-          and recent platform events from one admin dashboard.
+          billing health, workspace pressure, and recent platform events from one
+          admin dashboard.
         </>
       }
     >
@@ -253,6 +358,12 @@ export default function AdminDashboardPage() {
         .admin-dashboard-page .admin-grid-4 {
           display: grid;
           grid-template-columns: repeat(4, minmax(0, 1fr));
+          gap: 18px;
+        }
+
+        .admin-dashboard-page .admin-grid-3 {
+          display: grid;
+          grid-template-columns: repeat(3, minmax(0, 1fr));
           gap: 18px;
         }
 
@@ -471,6 +582,10 @@ export default function AdminDashboardPage() {
           .admin-dashboard-page .admin-grid-4 {
             grid-template-columns: repeat(2, minmax(0, 1fr));
           }
+
+          .admin-dashboard-page .admin-grid-3 {
+            grid-template-columns: 1fr;
+          }
         }
 
         @media (max-width: 900px) {
@@ -556,6 +671,63 @@ export default function AdminDashboardPage() {
                     {item.value}
                   </div>
                   <div className="admin-summary-sub">{item.sub}</div>
+                </div>
+              </Card>
+            ))}
+          </div>
+
+          <div className="admin-grid-4">
+            {billingCards.map((item) => (
+              <Card
+                key={item.label}
+                className="admin-card admin-summary-card"
+                style={dashboardStyles.outerCard}
+              >
+                <div className="absolute inset-0">
+                  <img
+                    src="/images/panel-silver.webp.png"
+                    alt=""
+                    className="h-full w-full object-cover object-center"
+                  />
+                </div>
+                <div className="admin-card-overlay" />
+                <div className="admin-card-shine" />
+                <div className="admin-card-inner">
+                  <div className="admin-summary-label">{item.label}</div>
+                  <div className="admin-summary-value" style={{ color: item.accent }}>
+                    {item.value}
+                  </div>
+                  <div className="admin-summary-sub">{item.sub}</div>
+                </div>
+              </Card>
+            ))}
+          </div>
+
+          <div className="admin-grid-3">
+            {healthCards.map((item) => (
+              <Card key={item.label} className="admin-card" style={dashboardStyles.outerCard}>
+                <div className="absolute inset-0">
+                  <img
+                    src="/images/panel-silver.webp.png"
+                    alt=""
+                    className="h-full w-full object-cover object-center"
+                  />
+                </div>
+                <div className="admin-card-overlay" />
+                <div className="admin-card-shine" />
+                <div className="admin-card-inner">
+                  <div className="admin-item-title">{item.label}</div>
+                  <div
+                    style={{
+                      ...statPillBase,
+                      ...pillTone(item.tone),
+                      marginTop: 14,
+                      minHeight: 38,
+                      padding: "8px 16px",
+                    }}
+                  >
+                    {item.value}
+                  </div>
                 </div>
               </Card>
             ))}
@@ -701,8 +873,8 @@ export default function AdminDashboardPage() {
               <div className="admin-card-inner">
                 <div className="admin-card-title">Recent Platform Activity</div>
                 <div className="admin-card-copy">
-                  Latest captured product events with route, place, timestamp, and severity
-                  context.
+                  Latest captured product events with route, place, timestamp, severity,
+                  and event class context.
                 </div>
 
                 <div className="admin-stack">
@@ -742,6 +914,17 @@ export default function AdminDashboardPage() {
                                 }}
                               >
                                 {event.routeType}
+                              </span>
+                            ) : null}
+
+                            {event.eventClass ? (
+                              <span
+                                style={{
+                                  ...statPillBase,
+                                  ...pillTone("gold"),
+                                }}
+                              >
+                                {event.eventClass}
                               </span>
                             ) : null}
                           </div>
@@ -797,6 +980,21 @@ export default function AdminDashboardPage() {
                       </div>
                     </div>
                   ))}
+                </div>
+
+                <div className="admin-mini-grid">
+                  <div className="admin-mini-stat">
+                    <div className="admin-mini-label">Active Subs</div>
+                    <div className="admin-mini-value">
+                      {bundle.summary.billing.activeSubscriptions}
+                    </div>
+                  </div>
+                  <div className="admin-mini-stat">
+                    <div className="admin-mini-label">Canceled Subs</div>
+                    <div className="admin-mini-value">
+                      {bundle.summary.billing.canceledSubscriptions}
+                    </div>
+                  </div>
                 </div>
               </div>
             </Card>

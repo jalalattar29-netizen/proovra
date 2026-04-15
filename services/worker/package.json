@@ -18,6 +18,7 @@
   "type": "module",
   "dependencies": {
     "@proovra/shared": "workspace:*",
+    "@proovra/shared-billing": "workspace:*",
     "@aws-sdk/client-s3": "^3.980.0",
     "@aws-sdk/s3-request-presigner": "^3.980.0",
     "@prisma/adapter-pg": "^7.3.0",

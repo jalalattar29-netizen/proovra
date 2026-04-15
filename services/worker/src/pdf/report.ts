@@ -157,13 +157,16 @@ function summarizeText(value: string, maxLength: number): string {
 function formatBytesHuman(bytesStr: string | null): string {
   const n = bytesStr ? Number(bytesStr) : Number.NaN;
   if (!Number.isFinite(n) || n <= 0) return "N/A";
+
   const units = ["B", "KB", "MB", "GB", "TB"] as const;
   let idx = 0;
   let v = n;
+
   while (v >= 1024 && idx < units.length - 1) {
     v /= 1024;
     idx++;
   }
+
   return `${v.toFixed(idx === 0 ? 0 : 2)} ${units[idx]}`;
 }
 
@@ -172,6 +175,40 @@ function shortHash(h: string | null | undefined, head = 10, tail = 8): string {
   if (!t) return "N/A";
   if (t.length <= head + tail + 3) return t;
   return `${t.slice(0, head)}…${t.slice(-tail)}`;
+}
+
+function redactIdentifier(
+  value: string | null | undefined,
+  visible = 6
+): string {
+  const t = safe(value, "");
+  if (!t) return "Not included in external report";
+  if (t.length <= visible * 2 + 3) return t;
+  return `${t.slice(0, visible)}…${t.slice(-visible)}`;
+}
+
+function buildPublicEvidenceReference(
+  evidenceId: string | null | undefined
+): string {
+  const t = safe(evidenceId, "");
+  if (!t) return "Not recorded";
+  if (t.length <= 16) return t;
+  return `${t.slice(0, 8)}…${t.slice(-8)}`;
+}
+
+function buildPublicSigningKeyReference(
+  keyId: string | null | undefined,
+  version: number | null | undefined
+): string {
+  const id = safe(keyId, "");
+  if (!id) return "Not recorded";
+
+  const publicRef = id
+    .replace(/^dw_/, "")
+    .replace(/_kms$/i, "")
+    .replace(/_/g, "-");
+
+  return version ? `${publicRef} / v${version}` : publicRef;
 }
 
 function mmToPt(mm: number): number {
@@ -187,18 +224,51 @@ function normalizeEnumText(value: string | null | undefined): string {
     .join(" ");
 }
 
-function mapEvidenceTypeLabel(type: string | null | undefined): string {
-  switch (safe(type, "").toUpperCase()) {
+function mapPublicEvidenceTypeLabel(
+  evidence: ReportEvidence,
+  summary: ParsedFingerprintSummary
+): string {
+  if (summary.itemCount > 1) {
+    const hasImage = summary.imageCount > 0;
+    const hasVideo = summary.videoCount > 0;
+    const hasAudio = summary.audioCount > 0;
+    const hasDocument = summary.documentCount > 0;
+
+    const categories = [
+      hasImage ? "Image" : null,
+      hasVideo ? "Video" : null,
+      hasAudio ? "Audio" : null,
+      hasDocument ? "Document" : null,
+    ].filter(Boolean) as string[];
+
+    if (categories.length > 1) return "Mixed Media Evidence Package";
+    if (categories.length === 1) return `${categories[0]} Evidence Package`;
+    return "Multipart Evidence Package";
+  }
+
+  switch (safe(evidence.type, "").toUpperCase()) {
     case "PHOTO":
-      return "Photo";
+      return "Photo Evidence";
     case "VIDEO":
-      return "Video";
+      return "Video Evidence";
     case "AUDIO":
-      return "Audio";
+      return "Audio Evidence";
     case "DOCUMENT":
-      return "Document";
+      return "Document Evidence";
     default:
-      return "Evidence";
+      if (safe(evidence.mimeType, "").startsWith("image/")) {
+        return "Photo Evidence";
+      }
+      if (safe(evidence.mimeType, "").startsWith("video/")) {
+        return "Video Evidence";
+      }
+      if (safe(evidence.mimeType, "").startsWith("audio/")) {
+        return "Audio Evidence";
+      }
+      if (safe(evidence.mimeType, "").includes("pdf")) {
+        return "Document Evidence";
+      }
+      return "Digital Evidence Record";
   }
 }
 
@@ -288,12 +358,148 @@ function mapVerificationSourceLabel(value: string | null | undefined): string {
     case "REPORT_GENERATED":
       return "Report generated";
     case "PUBLIC_VERIFY_VIEWED":
-      return "Public verify viewed";
+      return "Public verification page viewed";
     case "TECHNICAL_VERIFICATION_CHECKED":
       return "Technical verification checked";
     default:
       return "Verification source not recorded";
   }
+}
+
+function mapCustodyEventLabel(eventType: string | null | undefined): string {
+  switch (safe(eventType, "").toUpperCase()) {
+    case "EVIDENCE_CREATED":
+      return "Evidence created";
+    case "IDENTITY_SNAPSHOT_RECORDED":
+      return "Identity snapshot recorded";
+    case "UPLOAD_STARTED":
+      return "Upload started";
+    case "UPLOAD_COMPLETED":
+      return "Upload completed";
+    case "SIGNATURE_APPLIED":
+      return "Digital signature applied";
+    case "TIMESTAMP_APPLIED":
+      return "Trusted timestamp applied";
+    case "REPORT_GENERATED":
+      return "Report generated";
+    case "REVIEW_READY":
+      return "Review-ready state recorded";
+    case "VERIFICATION_PACKAGE_GENERATED":
+      return "Verification package generated";
+    case "OTS_APPLIED":
+      return "OpenTimestamps update";
+    case "TECHNICAL_VERIFICATION_CHECKED":
+      return "Technical verification checked";
+    case "VERIFY_VIEWED":
+      return "Verification page viewed";
+    case "EVIDENCE_VIEWED":
+      return "Evidence viewed";
+    case "REPORT_DOWNLOADED":
+      return "Report downloaded";
+    case "VERIFICATION_PACKAGE_DOWNLOADED":
+      return "Verification package downloaded";
+    default:
+      return normalizeEnumText(eventType);
+  }
+}
+
+function mapTimestampStatusPublicLabel(
+  status: string | null | undefined
+): string {
+  switch (safe(status, "").toUpperCase()) {
+    case "STAMPED":
+    case "GRANTED":
+    case "VERIFIED":
+    case "SUCCEEDED":
+      return "Trusted timestamp recorded";
+    case "PENDING":
+    case "UNAVAILABLE":
+      return "Timestamp pending";
+    case "FAILED":
+      return "Timestamp failed";
+    default:
+      return "Timestamp not recorded";
+  }
+}
+
+function mapOtsStatusPublicLabel(status: string | null | undefined): string {
+  switch (safe(status, "").toUpperCase()) {
+    case "ANCHORED":
+      return "Public anchoring recorded";
+    case "PENDING":
+      return "Anchoring pending";
+    case "FAILED":
+      return "Anchoring failed";
+    default:
+      return "Anchoring not recorded";
+  }
+}
+
+function mapObjectLockModePublicLabel(mode: string | null | undefined): string {
+  switch (safe(mode, "").toUpperCase()) {
+    case "COMPLIANCE":
+      return "Compliance retention lock";
+    case "GOVERNANCE":
+      return "Governance retention lock";
+    default:
+      return "Not recorded";
+  }
+}
+
+function mapAnchorModePublicLabel(mode: string | null | undefined): string {
+  switch (safe(mode, "").toUpperCase()) {
+    case "PUBLIC":
+      return "Public anchoring";
+    case "PRIVATE":
+      return "Private anchoring";
+    case "HASH_ONLY":
+      return "Digest anchoring";
+    default:
+      return "Not recorded";
+  }
+}
+
+function buildOrganizationDisplay(evidence: ReportEvidence): string {
+  const org = safe(evidence.organizationNameSnapshot, "");
+  const workspace = safe(evidence.workspaceNameSnapshot, "");
+
+  if (org) {
+    return evidence.organizationVerifiedSnapshot ? `${org} (verified)` : org;
+  }
+
+  if (workspace) return workspace;
+  return "Not recorded";
+}
+
+function buildOrganizationStatus(evidence: ReportEvidence): string {
+  const hasOrg = safe(evidence.organizationNameSnapshot, "") !== "";
+  const hasWorkspace = safe(evidence.workspaceNameSnapshot, "") !== "";
+
+  if (evidence.organizationVerifiedSnapshot === true) {
+    return "Verified organization";
+  }
+  if (hasOrg) return "Organization recorded";
+  if (hasWorkspace) return "Workspace recorded";
+  return "Not recorded";
+}
+
+function buildFingerprintNarrative(summary: ParsedFingerprintSummary): string {
+  const mimeText =
+    summary.mimeTypes.length > 0 ? summary.mimeTypes.join(", ") : "not recorded";
+
+  if (summary.itemCount <= 1) {
+    return `Single-item evidence record. MIME types recorded: ${mimeText}.`;
+  }
+
+  return `Multipart evidence package with ${summary.itemCount} items (${summary.imageCount} image, ${summary.videoCount} video, ${summary.audioCount} audio, ${summary.documentCount} document). MIME types recorded: ${mimeText}. Full canonical fingerprint should be reviewed in the technical verification package.`;
+}
+
+function buildVerificationLinkLabel(
+  kind: "public" | "technical" = "public"
+): string {
+  return kind === "technical"
+    ? "Open technical verification view"
+    : "Open public verification page";
 }
 
 function parseFingerprintSummary(
@@ -401,6 +607,7 @@ function normalizeStorageProtectionStatus(
   retainUntil: string | null | undefined
 ): "SUCCESS" | "WARNING" | "DANGER" | "NEUTRAL" {
   const normalizedMode = safe(mode, "").toUpperCase();
+
   if (
     immutable &&
     normalizedMode === "COMPLIANCE" &&
@@ -497,6 +704,7 @@ function hr(doc: PDFDoc, y?: number): void {
   const x = doc.page.margins.left;
   const w = doc.page.width - doc.page.margins.left - doc.page.margins.right;
   const yy = typeof y === "number" ? y : doc.y;
+
   doc.save();
   doc.lineWidth(0.9).strokeColor(BRAND.line);
   doc.moveTo(x, yy).lineTo(x + w, yy).stroke();
@@ -682,6 +890,7 @@ function drawHeader(
 
   const logo = tryReadAsset("logo.png");
   let brandX = left;
+
   if (logo) {
     try {
       const h = mmToPt(14);
@@ -710,7 +919,12 @@ function drawHeader(
 
   const metaW = w - 168;
   doc.fillColor(BRAND.muted).font("Helvetica").fontSize(10);
-  doc.text(`Evidence ID: ${opts.evidenceId}`, left, doc.y, { width: metaW });
+  doc.text(
+    `Evidence Reference: ${buildPublicEvidenceReference(opts.evidenceId)}`,
+    left,
+    doc.y,
+    { width: metaW }
+  );
   doc.moveDown(0.18);
   doc.text(`Generated (UTC): ${opts.generatedAtUtc}`, left, doc.y, {
     width: metaW,
@@ -932,6 +1146,7 @@ function drawTable(
   const calcRowHeight = (cells: string[]): number => {
     doc.font("Helvetica").fontSize(8.9);
     let maxH = 0;
+
     for (let i = 0; i < cells.length; i++) {
       const cw = colWidths[i];
       const h = doc.heightOfString(cells[i], {
@@ -941,6 +1156,7 @@ function drawTable(
       });
       maxH = Math.max(maxH, h);
     }
+
     return Math.max(headerH, maxH + rowPadY * 2);
   };
 
@@ -1186,7 +1402,11 @@ function estimateEvidenceSummarySectionHeight(
 
 function estimateForensicIntegrityStatementHeight(
   doc: PDFDoc,
-  opts: { verifyUrl: string; structureLabel: string }
+  opts: {
+    verifyUrl: string;
+    structureLabel: string;
+    externalMode?: boolean;
+  }
 ): number {
   const w = doc.page.width - doc.page.margins.left - doc.page.margins.right;
 
@@ -1273,11 +1493,19 @@ function estimateForensicIntegrityStatementHeight(
   );
   const legalBlock = legalTitle + legalBody + 24;
 
+  const externalMode = opts.externalMode !== false;
+  const linkLabelText = externalMode
+    ? "Public verification page:"
+    : "Verification link:";
+  const linkBodyText = externalMode
+    ? "Open public verification page"
+    : opts.verifyUrl;
+
   doc.font("Helvetica-Bold").fontSize(9.2);
-  const linkLabel = doc.heightOfString("Verification link:", { width: w });
+  const linkLabel = doc.heightOfString(linkLabelText, { width: w });
 
   doc.font("Helvetica").fontSize(8.8);
-  const link = doc.heightOfString(opts.verifyUrl, {
+  const link = doc.heightOfString(linkBodyText, {
     width: w,
     lineGap: 1.5,
   });
@@ -1299,7 +1527,11 @@ function estimateForensicIntegrityStatementHeight(
 
 function renderForensicIntegrityStatement(
   doc: PDFDoc,
-  opts: { verifyUrl: string; structureLabel: string }
+  opts: {
+    verifyUrl: string;
+    structureLabel: string;
+    externalMode?: boolean;
+  }
 ): void {
   const x = doc.page.margins.left;
   const w = doc.page.width - doc.page.margins.left - doc.page.margins.right;
@@ -1395,8 +1627,16 @@ function renderForensicIntegrityStatement(
     tone: "warning",
   });
 
-  const labelHeight = doc.heightOfString("Verification link:", { width: w });
-  const linkHeight = doc.heightOfString(opts.verifyUrl, {
+  const externalMode = opts.externalMode !== false;
+  const linkLabelText = externalMode
+    ? "Public verification page:"
+    : "Verification link:";
+  const linkBodyText = externalMode
+    ? "Open public verification page"
+    : opts.verifyUrl;
+
+  const labelHeight = doc.heightOfString(linkLabelText, { width: w });
+  const linkHeight = doc.heightOfString(linkBodyText, {
     width: w,
     lineGap: 1.5,
   });
@@ -1405,13 +1645,13 @@ function renderForensicIntegrityStatement(
 
   doc.save();
   doc.fillColor(BRAND.accent).font("Helvetica-Bold").fontSize(9.2);
-  doc.text("Verification link:", x, doc.y, { width: w });
+  doc.text(linkLabelText, x, doc.y, { width: w });
   doc.restore();
   doc.moveDown(0.08);
 
   doc.save();
   doc.fillColor(BRAND.accent).font("Helvetica").fontSize(8.8);
-  doc.text(opts.verifyUrl, x, doc.y, {
+  doc.text(linkBodyText, x, doc.y, {
     width: w,
     link: opts.verifyUrl,
     underline: true,
@@ -1422,11 +1662,15 @@ function renderForensicIntegrityStatement(
 
 function buildExecutiveRows(
   evidence: ReportEvidence,
-  structureLabel: string
+  structureLabel: string,
+  fingerprintSummary: ParsedFingerprintSummary
 ): Array<[string, string]> {
   return [
-    ["Evidence ID", safe(evidence.id)],
-    ["Evidence Type", mapEvidenceTypeLabel(evidence.type)],
+    ["Evidence Reference", buildPublicEvidenceReference(evidence.id)],
+    [
+      "Evidence Type",
+      mapPublicEvidenceTypeLabel(evidence, fingerprintSummary),
+    ],
     ["Record Status", mapRecordStatusLabel(evidence.status)],
     [
       "Verification Status",
@@ -1436,12 +1680,8 @@ function buildExecutiveRows(
     ["Identity Level", mapIdentityLevelLabel(evidence.identityLevelSnapshot)],
     ["Submitted By", safe(evidence.submittedByEmail)],
     ["Auth Provider", mapAuthProviderLabel(evidence.submittedByAuthProvider)],
-    ["Workspace", safe(evidence.workspaceNameSnapshot)],
-    ["Organization", safe(evidence.organizationNameSnapshot)],
-    [
-      "Organization Verified",
-      safeBooleanLabel(evidence.organizationVerifiedSnapshot),
-    ],
+    ["Organization / Workspace", buildOrganizationDisplay(evidence)],
+    ["Organization Status", buildOrganizationStatus(evidence)],
     ["Evidence Structure", structureLabel],
     ["Captured (UTC)", safe(evidence.capturedAtUtc)],
     ["Uploaded (UTC)", safe(evidence.uploadedAtUtc)],
@@ -1450,11 +1690,11 @@ function buildExecutiveRows(
       "Integrity Verified At (UTC)",
       safe(evidence.recordedIntegrityVerifiedAtUtc),
     ],
-    ["Storage Protection", safe(evidence.storageObjectLockMode)],
     [
-      "Retention Until (UTC)",
-      safe(evidence.storageObjectLockRetainUntilUtc),
+      "Storage Protection",
+      mapObjectLockModePublicLabel(evidence.storageObjectLockMode),
     ],
+    ["Retention Until (UTC)", safe(evidence.storageObjectLockRetainUntilUtc)],
   ];
 }
 
@@ -1462,12 +1702,16 @@ function buildVerificationSummaryRows(
   evidence: ReportEvidence,
   custody: ReturnType<typeof splitCustodyEvents>,
   structureLabel: string,
-  verifyUrl: string
+  fingerprintSummary: ParsedFingerprintSummary,
+  externalMode: boolean
 ): Array<[string, string]> {
-  return [
+  const rows: Array<[string, string]> = [
     ["Display Title", safe(evidence.title, "Digital Evidence Record")],
-    ["Evidence ID", safe(evidence.id)],
-    ["Evidence Type", mapEvidenceTypeLabel(evidence.type)],
+    ["Evidence Reference", buildPublicEvidenceReference(evidence.id)],
+    [
+      "Evidence Type",
+      mapPublicEvidenceTypeLabel(evidence, fingerprintSummary),
+    ],
     ["Evidence Structure", structureLabel],
     ["MIME Type", safe(evidence.mimeType)],
     ["File Size", formatBytesHuman(evidence.sizeBytes)],
@@ -1476,10 +1720,6 @@ function buildVerificationSummaryRows(
       evidence.durationSec ? `${evidence.durationSec} sec` : "N/A",
     ],
     ["Latest Report Version", String(evidence.latestReportVersion ?? "N/A")],
-    [
-      "Verification Package Version",
-      String(evidence.verificationPackageVersion ?? "N/A"),
-    ],
     [
       "Reviewer Summary Version",
       String(evidence.reviewerSummaryVersion ?? "N/A"),
@@ -1491,14 +1731,23 @@ function buildVerificationSummaryRows(
       mapVerificationSourceLabel(evidence.lastVerifiedSource),
     ],
     ["Review Ready At (UTC)", safe(evidence.reviewReadyAtUtc)],
-    [
-      "Verification Package Generated At (UTC)",
-      safe(evidence.verificationPackageGeneratedAtUtc),
-    ],
     ["Forensic Custody Events", String(custody.forensic.length)],
     ["Access Activity Events", String(custody.access.length)],
-    ["Verification Link", summarizeText(verifyUrl, 84)],
+    ["Public Verification Page", "See QR / verification link section"],
   ];
+
+  if (!externalMode) {
+    rows.splice(8, 0, [
+      "Verification Package Version",
+      String(evidence.verificationPackageVersion ?? "N/A"),
+    ]);
+    rows.splice(12, 0, [
+      "Verification Package Generated At (UTC)",
+      safe(evidence.verificationPackageGeneratedAtUtc),
+    ]);
+  }
+
+  return rows;
 }
 
 function buildReviewReadinessRows(
@@ -1516,9 +1765,9 @@ function buildReviewReadinessRows(
     ],
     [
       "Timestamp Status",
-      safe(evidence.tsaStatus, "Timestamp unavailable"),
+      mapTimestampStatusPublicLabel(evidence.tsaStatus),
     ],
-    ["OpenTimestamps Status", safe(evidence.otsStatus)],
+    ["Public Anchoring Status", mapOtsStatusPublicLabel(evidence.otsStatus)],
     [
       "Immutable Storage",
       safeBooleanLabel(
@@ -1548,7 +1797,7 @@ function buildReviewReadinessRows(
     ["Submitted By", safe(evidence.submittedByEmail)],
     ["Identity Level", mapIdentityLevelLabel(evidence.identityLevelSnapshot)],
     ["Capture Method", mapCaptureMethodLabel(evidence.captureMethod)],
-    ["Organization", safe(evidence.organizationNameSnapshot)],
+    ["Organization / Workspace", buildOrganizationDisplay(evidence)],
   ];
 }
 
@@ -1560,6 +1809,7 @@ export async function buildReportPdf(params: {
   buildInfo?: string | null;
   verifyUrl?: string | null;
   downloadUrl?: string | null;
+  externalMode?: boolean;
 }): Promise<Buffer> {
   const doc = new PDFDocument({
     autoFirstPage: true,
@@ -1628,6 +1878,13 @@ export async function buildReportPdf(params: {
     safe(params.evidence.verificationStatus, "").toUpperCase() ===
       "RECORDED_INTEGRITY_VERIFIED" || hasCoreCrypto;
 
+  const externalMode = params.externalMode !== false;
+
+  const includeTechnicalQr =
+    !externalMode &&
+    (Boolean(params.downloadUrl) ||
+      env("REPORT_INCLUDE_TECHNICAL_QR") === "true");
+
   doc.save();
   doc.fillColor(integrityVerified ? BRAND.success : BRAND.danger);
   doc.font("Helvetica-Bold").fontSize(13.2);
@@ -1657,7 +1914,11 @@ export async function buildReportPdf(params: {
   });
 
   {
-    const rows = buildExecutiveRows(params.evidence, structureLabel);
+    const rows = buildExecutiveRows(
+      params.evidence,
+      structureLabel,
+      fingerprintSummary
+    );
     const neededHeight = estimateEvidenceSummarySectionHeight(doc, rows);
     const availableHeight =
       doc.page.height - doc.page.margins.bottom - 10 - doc.y;
@@ -1695,11 +1956,19 @@ export async function buildReportPdf(params: {
           params.evidence,
           custody,
           structureLabel,
-          verifyUrl
+          fingerprintSummary,
+          externalMode
         )
       );
 
       doc.moveDown(0.14);
+
+      drawCallout(doc, {
+        title: "Public verification page",
+        body:
+          "Use the QR code or the public verification link section to open the reviewer-facing verification record.",
+        tone: "neutral",
+      });
 
       drawCallout(doc, {
         title: "What reviewers can inspect",
@@ -1752,8 +2021,8 @@ export async function buildReportPdf(params: {
         qrBuffer: qrBuf,
         size: 102,
         caption:
-          "Scan to open the verification page for this evidence record.",
-        urlText: summarizeText(verifyUrl, 90),
+          "Scan to open the public reviewer-facing verification page for this evidence record.",
+        urlText: buildVerificationLinkLabel("public"),
         urlLink: verifyUrl,
       });
     }
@@ -1767,7 +2036,10 @@ export async function buildReportPdf(params: {
     () => {
       kvGrid(doc, [
         ["Storage Region", safe(params.evidence.storageRegion)],
-        ["Object Lock Mode", safe(params.evidence.storageObjectLockMode)],
+        [
+          "Storage Protection Mode",
+          mapObjectLockModePublicLabel(params.evidence.storageObjectLockMode),
+        ],
         [
           "Retention Until (UTC)",
           safe(params.evidence.storageObjectLockRetainUntilUtc),
@@ -1790,8 +2062,14 @@ export async function buildReportPdf(params: {
         ["RFC 3161 Serial", safe(params.evidence.tsaSerialNumber)],
         ["RFC 3161 Time (UTC)", safe(params.evidence.tsaGenTimeUtc)],
         ["RFC 3161 Hash Algorithm", safe(params.evidence.tsaHashAlgorithm)],
-        ["RFC 3161 Status", safe(params.evidence.tsaStatus)],
-        ["OTS Status", safe(params.evidence.otsStatus)],
+        [
+          "RFC 3161 Status",
+          mapTimestampStatusPublicLabel(params.evidence.tsaStatus),
+        ],
+        [
+          "Public Anchoring Status",
+          mapOtsStatusPublicLabel(params.evidence.otsStatus),
+        ],
         ["OTS Calendar", safe(params.evidence.otsCalendar)],
         ["OTS Anchored At (UTC)", safe(params.evidence.otsAnchoredAtUtc)],
         ["OTS Upgraded At (UTC)", safe(params.evidence.otsUpgradedAtUtc)],
@@ -1840,7 +2118,10 @@ export async function buildReportPdf(params: {
             : timestampTone === "WARNING"
               ? "The report does not confirm a final trusted timestamp result."
               : timestampTone === "DANGER"
-                ? `Timestamp processing reported a failure state. ${safe(params.evidence.tsaFailureReason, "")}`.trim()
+                ? `Timestamp processing reported a failure state. ${safe(
+                    params.evidence.tsaFailureReason,
+                    ""
+                  )}`.trim()
                 : "No trusted timestamp record was included.",
         tone:
           timestampTone === "SUCCESS"
@@ -1865,7 +2146,10 @@ export async function buildReportPdf(params: {
             : otsTone === "WARNING"
               ? "OpenTimestamps proof data is present but not yet in a final anchored state."
               : otsTone === "DANGER"
-                ? `OpenTimestamps processing reported a failure state. ${safe(params.evidence.otsFailureReason, "")}`.trim()
+                ? `OpenTimestamps processing reported a failure state. ${safe(
+                    params.evidence.otsFailureReason,
+                    ""
+                  )}`.trim()
                 : "No OpenTimestamps record was included.",
         tone:
           otsTone === "SUCCESS"
@@ -1891,11 +2175,17 @@ export async function buildReportPdf(params: {
       );
       doc.moveDown(0.12);
 
+      drawCallout(doc, {
+        title: "Sequence note",
+        body:
+          "Original event sequence numbers are preserved from the full evidence timeline. Access-related events are shown separately, so numbering may appear non-consecutive within this section.",
+        tone: "neutral",
+      });
+
       if (custody.forensic.length === 0) {
         drawCallout(doc, {
           title: "No forensic custody events recorded",
-          body:
-            "No forensic custody events were provided for this report.",
+          body: "No forensic custody events were provided for this report.",
           tone: "warning",
         });
       } else {
@@ -1915,7 +2205,7 @@ export async function buildReportPdf(params: {
         const rows = custody.forensic.map((ev) => [
           String(ev.sequence),
           safe(ev.atUtc),
-          safe(ev.eventType),
+          mapCustodyEventLabel(ev.eventType),
           safe(ev.payloadSummary),
         ]);
 
@@ -1948,7 +2238,7 @@ export async function buildReportPdf(params: {
         const rows = custody.access.map((ev) => [
           String(ev.sequence),
           safe(ev.atUtc),
-          safe(ev.eventType),
+          mapCustodyEventLabel(ev.eventType),
           safe(ev.payloadSummary),
         ]);
 
@@ -1962,7 +2252,9 @@ export async function buildReportPdf(params: {
 
   section(
     doc,
-    "Technical Appendix — Identity, Fingerprint, Signature, and Anchoring",
+    externalMode
+      ? "Technical Appendix — Reviewer-Facing Technical Summary"
+      : "Technical Appendix — Identity, Fingerprint, Signature, and Anchoring",
     () => {
       kvGrid(doc, [
         ["Submitted By Email", safe(params.evidence.submittedByEmail)],
@@ -1970,12 +2262,21 @@ export async function buildReportPdf(params: {
           "Submitted By Provider",
           mapAuthProviderLabel(params.evidence.submittedByAuthProvider),
         ],
-        ["Submitted By User ID", safe(params.evidence.submittedByUserId)],
-        ["Created By User ID", safe(params.evidence.createdByUserId)],
-        ["Uploaded By User ID", safe(params.evidence.uploadedByUserId)],
         [
-          "Last Accessed By User ID",
-          safe(params.evidence.lastAccessedByUserId),
+          "Submitted By User Ref",
+          redactIdentifier(params.evidence.submittedByUserId),
+        ],
+        [
+          "Created By User Ref",
+          redactIdentifier(params.evidence.createdByUserId),
+        ],
+        [
+          "Uploaded By User Ref",
+          redactIdentifier(params.evidence.uploadedByUserId),
+        ],
+        [
+          "Last Accessed By User Ref",
+          redactIdentifier(params.evidence.lastAccessedByUserId),
         ],
         ["Last Accessed At (UTC)", safe(params.evidence.lastAccessedAtUtc)],
         ["Capture Method", mapCaptureMethodLabel(params.evidence.captureMethod)],
@@ -1983,15 +2284,26 @@ export async function buildReportPdf(params: {
           "Identity Level",
           mapIdentityLevelLabel(params.evidence.identityLevelSnapshot),
         ],
-        ["Workspace", safe(params.evidence.workspaceNameSnapshot)],
-        ["Organization", safe(params.evidence.organizationNameSnapshot)],
-        [
-          "Organization Verified",
-          safeBooleanLabel(params.evidence.organizationVerifiedSnapshot),
-        ],
+        ["Organization / Workspace", buildOrganizationDisplay(params.evidence)],
+        ["Organization Status", buildOrganizationStatus(params.evidence)],
       ]);
 
       doc.moveDown(0.12);
+
+      drawCallout(doc, {
+        title: "Fingerprint structure summary",
+        body: buildFingerprintNarrative(fingerprintSummary),
+        tone: "neutral",
+      });
+
+      if (externalMode) {
+        drawCallout(doc, {
+          title: "External report note",
+          body:
+            "This external report includes reviewer-facing technical summaries only. Deep technical materials should be reviewed through the technical verification workflow or verification package when required.",
+          tone: "neutral",
+        });
+      }
 
       monospaceStrip(doc, "File SHA-256", safe(params.evidence.fileSha256));
       monospaceStrip(
@@ -1999,31 +2311,36 @@ export async function buildReportPdf(params: {
         "Fingerprint Hash",
         safe(params.evidence.fingerprintHash)
       );
-      monospaceStrip(
-        doc,
-        "Signing Key ID / Version",
-        `${safe(params.evidence.signingKeyId)} / ${String(
-          params.evidence.signingKeyVersion ?? "N/A"
-        )}`
-      );
-      monospaceStrip(
-        doc,
-        "Signature (Base64) (excerpt)",
-        safe(params.evidence.signatureBase64),
-        { maxChars: 260 }
-      );
-      monospaceStrip(
-        doc,
-        "Public Key (PEM) (excerpt)",
-        safe(params.evidence.publicKeyPem),
-        { maxChars: 260 }
-      );
-      monospaceStrip(
-        doc,
-        "Fingerprint Canonical JSON (excerpt)",
-        safe(params.evidence.fingerprintCanonicalJson),
-        { maxChars: 320 }
-      );
+
+      if (!externalMode) {
+        monospaceStrip(
+          doc,
+          "Signing Key Reference",
+          buildPublicSigningKeyReference(
+            params.evidence.signingKeyId,
+            params.evidence.signingKeyVersion
+          )
+        );
+        monospaceStrip(
+          doc,
+          "Signature (Base64) (excerpt)",
+          safe(params.evidence.signatureBase64),
+          { maxChars: 260 }
+        );
+        monospaceStrip(
+          doc,
+          "Public Key (PEM) (excerpt)",
+          safe(params.evidence.publicKeyPem),
+          { maxChars: 260 }
+        );
+      } else {
+        drawCallout(doc, {
+          title: "Technical signature materials",
+          body:
+            "Detailed signature materials and public-key verification artifacts are available through the technical verification workflow and verification package, where enabled.",
+          tone: "neutral",
+        });
+      }
 
       if (fingerprintSummary.itemCount > 1) {
         ensureSpace(doc, 180);
@@ -2067,17 +2384,22 @@ export async function buildReportPdf(params: {
         ["Serial Number", safe(params.evidence.tsaSerialNumber)],
         ["Generation Time (UTC)", safe(params.evidence.tsaGenTimeUtc)],
         ["Hash Algorithm", safe(params.evidence.tsaHashAlgorithm)],
-        ["Timestamp Status", safe(params.evidence.tsaStatus)],
+        [
+          "Timestamp Status",
+          mapTimestampStatusPublicLabel(params.evidence.tsaStatus),
+        ],
       ]);
 
-      monospaceStrip(
-        doc,
-        "Timestamp Message Imprint",
-        safe(params.evidence.tsaMessageImprint),
-        { maxChars: 140 }
-      );
+      if (!externalMode) {
+        monospaceStrip(
+          doc,
+          "Timestamp Message Imprint",
+          safe(params.evidence.tsaMessageImprint),
+          { maxChars: 140 }
+        );
+      }
 
-      if (params.evidence.tsaTokenBase64) {
+      if (!externalMode && params.evidence.tsaTokenBase64) {
         monospaceStrip(
           doc,
           "Timestamp Token (Base64) (excerpt)",
@@ -2096,15 +2418,20 @@ export async function buildReportPdf(params: {
         doc.moveDown(0.14);
 
         kvGrid(doc, [
-          ["OTS Status", safe(params.evidence.otsStatus)],
+          ["OTS Status", mapOtsStatusPublicLabel(params.evidence.otsStatus)],
           ["OTS Calendar", safe(params.evidence.otsCalendar)],
           ["OTS Anchored At (UTC)", safe(params.evidence.otsAnchoredAtUtc)],
           ["OTS Upgraded At (UTC)", safe(params.evidence.otsUpgradedAtUtc)],
-          ["OTS Bitcoin TxID", safe(params.evidence.otsBitcoinTxid)],
-          ["OTS Hash", safe(params.evidence.otsHash)],
+          ["OTS Bitcoin TxID", shortHash(params.evidence.otsBitcoinTxid)],
         ]);
 
-        if (params.evidence.otsProofBase64) {
+        if (!externalMode && params.evidence.otsHash) {
+          monospaceStrip(doc, "OTS Hash", safe(params.evidence.otsHash), {
+            maxChars: 180,
+          });
+        }
+
+        if (!externalMode && params.evidence.otsProofBase64) {
           monospaceStrip(
             doc,
             "OTS Proof (Base64) (excerpt)",
@@ -2114,12 +2441,21 @@ export async function buildReportPdf(params: {
         }
 
         if (params.evidence.otsFailureReason) {
-          monospaceStrip(
-            doc,
-            "OTS Failure / Detail",
-            summarizeText(safe(params.evidence.otsFailureReason), 160),
-            { maxChars: 160 }
-          );
+          if (!externalMode) {
+            monospaceStrip(
+              doc,
+              "OTS Failure / Detail",
+              summarizeText(safe(params.evidence.otsFailureReason), 160),
+              { maxChars: 160 }
+            );
+          } else {
+            drawCallout(doc, {
+              title: "Anchoring detail",
+              body:
+                "Additional anchoring failure details are available through the technical verification workflow.",
+              tone: "warning",
+            });
+          }
         }
       }
 
@@ -2137,26 +2473,28 @@ export async function buildReportPdf(params: {
         doc.moveDown(0.14);
 
         kvGrid(doc, [
-          ["Anchor Mode", safe(params.evidence.anchorMode)],
+          ["Anchor Mode", mapAnchorModePublicLabel(params.evidence.anchorMode)],
           ["Anchor Provider", safe(params.evidence.anchorProvider)],
           ["Anchor Anchored At (UTC)", safe(params.evidence.anchorAnchoredAtUtc)],
-          ["Anchor Public URL", safe(params.evidence.anchorPublicUrl)],
+          [
+            "Anchor Public URL",
+            summarizeText(safe(params.evidence.anchorPublicUrl), 84),
+          ],
           ["Anchor Receipt ID", shortHash(params.evidence.anchorReceiptId)],
           ["Anchor Transaction ID", shortHash(params.evidence.anchorTransactionId)],
         ]);
 
-        monospaceStrip(
-          doc,
-          "Anchor Hash",
-          safe(params.evidence.anchorHash),
-          { maxChars: 180 }
-        );
+        if (!externalMode) {
+          monospaceStrip(doc, "Anchor Hash", safe(params.evidence.anchorHash), {
+            maxChars: 180,
+          });
+        }
       }
     },
     { minSpace: 120 }
   );
 
-  {
+  if (includeTechnicalQr) {
     const qrBuf = await tryGenerateQrPngBuffer(technicalUrl);
     if (qrBuf) {
       drawQrBlock(doc, {
@@ -2165,7 +2503,7 @@ export async function buildReportPdf(params: {
         size: 100,
         caption:
           "Scan to open the technical verification view for this evidence record.",
-        urlText: summarizeText(technicalUrl, 90),
+        urlText: buildVerificationLinkLabel("technical"),
         urlLink: technicalUrl,
       });
     }
@@ -2174,6 +2512,7 @@ export async function buildReportPdf(params: {
   const forensicBlockHeight = estimateForensicIntegrityStatementHeight(doc, {
     verifyUrl,
     structureLabel,
+    externalMode,
   });
 
   ensurePageWithHeader(doc, forensicBlockHeight + 40);
@@ -2185,6 +2524,7 @@ export async function buildReportPdf(params: {
       renderForensicIntegrityStatement(doc, {
         verifyUrl,
         structureLabel,
+        externalMode,
       });
     },
     { minSpace: 140 }
