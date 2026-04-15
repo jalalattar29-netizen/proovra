@@ -1,5 +1,6 @@
 "use client";
 
+import { Suspense } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { MarketingHeader } from "../../components/header";
@@ -72,8 +73,8 @@ function DemoFlowPreview() {
   );
 }
 
-export default function RequestDemoPage() {
-  const searchParams = useSearchParams();
+function RequestDemoPageContent() {
+    const searchParams = useSearchParams();
   const isEnterpriseTrack = searchParams.get("track") === "enterprise";
 
   const sourcePath = isEnterpriseTrack
@@ -290,5 +291,13 @@ export default function RequestDemoPage() {
 
       <Footer />
     </div>
+  );
+}
+
+export default function RequestDemoPage() {
+  return (
+    <Suspense fallback={<div />}>
+      <RequestDemoPageContent />
+    </Suspense>
   );
 }
