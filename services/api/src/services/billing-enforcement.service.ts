@@ -21,7 +21,9 @@ export async function resolveWorkspaceScopeForUser(params: {
   return getPersonalWorkspaceScope(params.ownerUserId);
 }
 
-export async function assertWorkspaceAllowsEvidenceCreation(scope: WorkspaceScope) {
+export async function assertWorkspaceAllowsEvidenceCreation(
+  scope: WorkspaceScope
+) {
   const caps = getPlanCapabilities(scope.plan);
 
   if (scope.workspaceType === "TEAM" && scope.plan !== prismaPkg.PlanType.TEAM) {
@@ -62,6 +64,7 @@ export async function assertWorkspaceAllowsStorageGrowth(params: {
 
 export async function assertWorkspaceAllowsReport(scope: WorkspaceScope) {
   const caps = getPlanCapabilities(scope.plan);
+
   if (!caps.reportsIncluded) {
     const err: Error & { statusCode?: number; code?: string } = new Error(
       "Report generation is not included in the current plan"
@@ -72,8 +75,11 @@ export async function assertWorkspaceAllowsReport(scope: WorkspaceScope) {
   }
 }
 
-export async function assertWorkspaceAllowsVerificationPackage(scope: WorkspaceScope) {
+export async function assertWorkspaceAllowsVerificationPackage(
+  scope: WorkspaceScope
+) {
   const caps = getPlanCapabilities(scope.plan);
+
   if (!caps.verificationPackageIncluded) {
     const err: Error & { statusCode?: number; code?: string } = new Error(
       "Verification package is not included in the current plan"
@@ -82,6 +88,39 @@ export async function assertWorkspaceAllowsVerificationPackage(scope: WorkspaceS
     err.code = "VERIFICATION_PACKAGE_NOT_INCLUDED";
     throw err;
   }
+}
+
+export async function assertWorkspaceAllowsReportStorage(params: {
+  scope: WorkspaceScope;
+  incomingBytes?: bigint | number | null;
+}) {
+  await assertWorkspaceAllowsReport(params.scope);
+  return assertWorkspaceStorageAvailable({
+    scope: params.scope,
+    incomingBytes: params.incomingBytes ?? 0n,
+  });
+}
+
+export async function assertWorkspaceAllowsVerificationPackageStorage(params: {
+  scope: WorkspaceScope;
+  incomingBytes?: bigint | number | null;
+}) {
+  await assertWorkspaceAllowsVerificationPackage(params.scope);
+  return assertWorkspaceStorageAvailable({
+    scope: params.scope,
+    incomingBytes: params.incomingBytes ?? 0n,
+  });
+}
+
+export async function getWorkspaceAvailableStorageBytes(
+  scope: WorkspaceScope
+): Promise<bigint> {
+  const usage = await assertWorkspaceStorageAvailable({
+    scope,
+    incomingBytes: 0n,
+  });
+
+  return usage.storageBytesRemaining;
 }
 
 export async function consumeWorkspaceCompletionCredits(

@@ -1,7 +1,11 @@
 import type { Job } from "bullmq";
 import type { Readable } from "node:stream";
 import * as prismaPkg from "@prisma/client";
-import { resolveEffectivePlanForEvidence } from "./workspace-billing.js";
+import {
+  assertWorkspaceAllowsReportArtifact,
+  assertWorkspaceAllowsVerificationPackageArtifact,
+  resolveEffectivePlanForEvidence,
+} from "./workspace-billing.js";
 import type { Prisma } from "@prisma/client";
 import {
   canPlanGenerateReports,
@@ -1412,6 +1416,12 @@ export async function processGenerateReport(job: Job<GenerateReportJobData>) {
       refreshReason: regenerateReason,
     });
 
+        await assertWorkspaceAllowsReportArtifact({
+      ownerUserId: evidence.ownerUserId,
+      teamId: evidence.teamId ?? null,
+      incomingBytes: BigInt(prepared.reportPdf.length),
+    });
+
     const finalized = await prisma.$transaction(
       async (tx) => {
         await tx.$executeRaw`
@@ -1724,6 +1734,12 @@ export async function processGenerateReport(job: Job<GenerateReportJobData>) {
 
     if (!finalized.skipped && prepared.verificationZip) {
       try {
+                await assertWorkspaceAllowsVerificationPackageArtifact({
+          ownerUserId: evidence.ownerUserId,
+          teamId: evidence.teamId ?? null,
+          incomingBytes: BigInt(prepared.verificationZip.length),
+        });
+        
         await putObjectBuffer({
           bucket: env.S3_BUCKET,
           key: prepared.verificationKey,

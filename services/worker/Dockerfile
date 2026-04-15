@@ -5,15 +5,11 @@ RUN corepack enable
 
 FROM base AS deps
 ENV NODE_ENV=development
-
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
-
 COPY services/api/package.json services/api/package.json
 COPY services/worker/package.json services/worker/package.json
-
 COPY packages/shared/package.json packages/shared/package.json
 COPY packages/shared-billing/package.json packages/shared-billing/package.json
-
 RUN pnpm install --frozen-lockfile --prod=false --node-linker=hoisted
 
 FROM deps AS build
@@ -30,10 +26,15 @@ COPY services/worker/scripts services/worker/scripts
 COPY services/worker/src/pdf/assets services/worker/src/pdf/assets
 COPY services/worker/tsconfig.build.json services/worker/tsconfig.build.json
 
-COPY packages/shared packages/shared
-COPY packages/shared-billing packages/shared-billing
+COPY packages/shared/src packages/shared/src
+COPY packages/shared/package.json packages/shared/package.json
+COPY packages/shared/tsconfig.json packages/shared/tsconfig.json
+COPY packages/shared/tsconfig.build.json packages/shared/tsconfig.build.json
 
-RUN pnpm --filter @proovra/shared build
+COPY packages/shared-billing/src packages/shared-billing/src
+COPY packages/shared-billing/package.json packages/shared-billing/package.json
+COPY packages/shared-billing/tsconfig.json packages/shared-billing/tsconfig.json
+
 RUN pnpm --filter @proovra/shared-billing build
 RUN pnpm --filter proovra-api prisma:generate
 RUN pnpm --filter proovra-worker build
@@ -64,6 +65,7 @@ RUN addgroup -S app && adduser -S app -G app
 
 COPY --from=deps /app/node_modules /app/node_modules
 COPY --from=build /app/node_modules/.prisma /app/node_modules/.prisma
+COPY --from=build /app/packages/shared-billing/dist /app/packages/shared-billing/dist
 COPY --from=build /app/services/worker/dist ./dist
 COPY --from=build /app/services/worker/package.json ./package.json
 
