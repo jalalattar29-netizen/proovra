@@ -4,7 +4,7 @@ RUN corepack enable
 
 FROM base AS deps
 ENV NODE_ENV=development
-COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.json ./
 COPY services/api/package.json services/api/package.json
 COPY services/worker/package.json services/worker/package.json
 COPY packages/shared/package.json packages/shared/package.json
@@ -15,6 +15,8 @@ FROM deps AS build
 ARG DATABASE_URL
 ENV DATABASE_URL=$DATABASE_URL
 RUN test -n "$DATABASE_URL"
+
+COPY tsconfig.json ./tsconfig.json
 
 COPY services/api/src services/api/src
 COPY services/api/keys services/api/keys
