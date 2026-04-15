@@ -5,9 +5,15 @@ RUN corepack enable
 
 FROM base AS deps
 ENV NODE_ENV=development
+
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+
 COPY services/api/package.json services/api/package.json
 COPY services/worker/package.json services/worker/package.json
+
+COPY packages/shared/package.json packages/shared/package.json
+COPY packages/shared-billing/package.json packages/shared-billing/package.json
+
 RUN pnpm install --frozen-lockfile --prod=false --node-linker=hoisted
 
 FROM deps AS build
@@ -17,12 +23,18 @@ RUN test -n "$DATABASE_URL"
 
 COPY services/api/prisma services/api/prisma
 COPY services/api/prisma.config.ts services/api/prisma.config.ts
+
 COPY services/worker/src services/worker/src
 COPY services/worker/tsconfig.json services/worker/tsconfig.json
 COPY services/worker/scripts services/worker/scripts
 COPY services/worker/src/pdf/assets services/worker/src/pdf/assets
 COPY services/worker/tsconfig.build.json services/worker/tsconfig.build.json
 
+COPY packages/shared packages/shared
+COPY packages/shared-billing packages/shared-billing
+
+RUN pnpm --filter @proovra/shared build
+RUN pnpm --filter @proovra/shared-billing build
 RUN pnpm --filter proovra-api prisma:generate
 RUN pnpm --filter proovra-worker build
 
