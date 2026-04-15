@@ -427,7 +427,7 @@ export default function EvidenceDetailPage() {
   const [personalWorkspace, setPersonalWorkspace] =
     useState<PersonalWorkspaceSummary | null>(null);
   const [teamWorkspaces, setTeamWorkspaces] = useState<TeamWorkspaceSummary[]>([]);
-  const [billingOverview, setBillingOverview] =
+  const [ , setBillingOverview] =
     useState<BillingOverviewResponse | null>(null);
 
   const [originalPreviewUrl, setOriginalPreviewUrl] = useState<string | null>(null);
