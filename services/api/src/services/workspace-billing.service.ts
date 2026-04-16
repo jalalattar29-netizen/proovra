@@ -101,6 +101,15 @@ export async function getTeamWorkspaceScope(
     throw err;
   }
 
+  /**
+   * Team workspace billing rules:
+   *
+   * - ACTIVE / PAST_DUE TEAM => effective TEAM
+   * - Anything else => effective FREE
+   *
+   * This keeps the team workspace readable and manageable inside billing/settings
+   * without pretending it has active TEAM entitlements.
+   */
   const effectivePlan =
     team.billingStatus === prismaPkg.TeamBillingStatus.ACTIVE ||
     team.billingStatus === prismaPkg.TeamBillingStatus.PAST_DUE
@@ -149,8 +158,10 @@ export function getWorkspaceCapabilities(scope: WorkspaceScope) {
   const baseIncludedStorageBytes = caps.includedStorageBytes;
   const storageFromPlanAndAddons =
     baseIncludedStorageBytes + scope.activeStorageAddonBytes;
+
   const effectiveStorageBytesLimit =
-    scope.storageBytesOverride && scope.storageBytesOverride > storageFromPlanAndAddons
+    scope.storageBytesOverride &&
+    scope.storageBytesOverride > storageFromPlanAndAddons
       ? scope.storageBytesOverride
       : storageFromPlanAndAddons;
 
