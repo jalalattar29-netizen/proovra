@@ -30,33 +30,6 @@ function readInitialPlan(value: string | null): CheckoutPlan | null {
   return null;
 }
 
-function readStorageAddons(
-  data: BillingOverviewResponse
-): WorkspaceStorageAddonSummary[] {
-  const raw = (data as BillingOverviewResponse & {
-    storageAddons?:
-      | WorkspaceStorageAddonSummary[]
-      | {
-          all?: WorkspaceStorageAddonSummary[];
-          personal?: WorkspaceStorageAddonSummary[];
-          teams?: WorkspaceStorageAddonSummary[];
-        }
-      | null;
-  }).storageAddons;
-
-  if (Array.isArray(raw)) {
-    return raw;
-  }
-
-  if (raw && Array.isArray(raw.all)) {
-    return raw.all;
-  }
-
-  const personal = raw?.personal ?? [];
-  const teams = raw?.teams ?? [];
-  return [...personal, ...teams];
-}
-
 export default function BillingPage() {
   const { addToast } = useToast();
   const searchParams = useSearchParams();
@@ -71,6 +44,7 @@ export default function BillingPage() {
   const [selectedTeamId, setSelectedTeamId] = useState<string>("");
 
   const [cancelBusyTeamId, setCancelBusyTeamId] = useState<string | null>(null);
+  const [cancelBusyAddonId, setCancelBusyAddonId] = useState<string | null>(null);
 
   const initialTargetType = useMemo(
     () => readInitialWorkspace(searchParams.get("workspace")),
@@ -97,7 +71,17 @@ export default function BillingPage() {
         ? data.workspaces.teams
         : [];
       const nextPayments = Array.isArray(data?.payments) ? data.payments : [];
-      const nextStorageAddons = readStorageAddons(data);
+      const nextStorageAddons = Array.isArray(data?.storageAddons?.all)
+        ? data.storageAddons.all
+        : Array.isArray(
+              (data as BillingOverviewResponse & {
+                storageAddons?: WorkspaceStorageAddonSummary[];
+              }).storageAddons
+            )
+          ? (((data as BillingOverviewResponse & {
+              storageAddons?: WorkspaceStorageAddonSummary[];
+            }).storageAddons) ?? [])
+          : [];
 
       setPersonal(nextPersonal);
       setTeams(nextTeams);
@@ -162,6 +146,34 @@ export default function BillingPage() {
         addToast(message, "error");
       } finally {
         setCancelBusyTeamId(null);
+      }
+    },
+    [addToast, loadOverview]
+  );
+
+  const handleCancelStorageAddon = useCallback(
+    async (addonId: string) => {
+      try {
+        setCancelBusyAddonId(addonId);
+        addToast("Cancelling recurring storage add-on...", "info");
+
+        await apiFetch("/v1/billing/storage-addons/cancel", {
+          method: "POST",
+          body: JSON.stringify({ addonId }),
+        });
+
+        addToast("Storage add-on cancelled", "success");
+        await loadOverview();
+      } catch (err) {
+        captureException(err, {
+          feature: "billing_cancel_storage_addon",
+          addonId,
+        });
+        const message =
+          err instanceof Error ? err.message : "Failed to cancel storage add-on";
+        addToast(message, "error");
+      } finally {
+        setCancelBusyAddonId(null);
       }
     },
     [addToast, loadOverview]
@@ -265,8 +277,8 @@ export default function BillingPage() {
                 }}
               >
                 Review storage, seats, subscriptions, add-ons, and payment
-                history in one place. Start checkout for one-time credits or
-                recurring plans without leaving the workspace context.
+                history in one place. Start checkout for one-time credits,
+                recurring plans, or extra storage without leaving the workspace context.
               </p>
             </div>
 
@@ -387,7 +399,18 @@ export default function BillingPage() {
                 </div>
               )}
 
-              <StorageAddonsPanel items={storageAddons} />
+              <StorageAddonsPanel
+                items={storageAddons}
+                cancelBusyId={cancelBusyAddonId}
+                onCancelRecurring={handleCancelStorageAddon}
+                onBuyMore={() => {
+                  try {
+                    window.scrollTo({ top: 0, behavior: "smooth" });
+                  } catch {
+                    window.scrollTo(0, 0);
+                  }
+                }}
+              />
 
               <BillingHistoryCard items={payments} />
             </>

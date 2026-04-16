@@ -1,6 +1,6 @@
 "use client";
 
-import { Card } from "../ui";
+import { Button, Card } from "../ui";
 import type { WorkspaceStorageAddonSummary } from "./types";
 
 function formatAddonStatus(status?: string | null) {
@@ -93,11 +93,19 @@ function formatDateLabel(value?: string | null): string {
   return date.toLocaleString();
 }
 
+type StorageAddonsPanelProps = {
+  items: WorkspaceStorageAddonSummary[];
+  cancelBusyId?: string | null;
+  onCancelRecurring?: ((addonId: string) => void | Promise<void>) | null;
+  onBuyMore?: (() => void) | null;
+};
+
 export function StorageAddonsPanel({
   items,
-}: {
-  items: WorkspaceStorageAddonSummary[];
-}) {
+  cancelBusyId = null,
+  onCancelRecurring = null,
+  onBuyMore = null,
+}: StorageAddonsPanelProps) {
   return (
     <Card
       className="relative overflow-hidden rounded-[30px] border bg-transparent p-0 shadow-none"
@@ -108,23 +116,49 @@ export function StorageAddonsPanel({
       }}
     >
       <div className="relative z-10 p-6 md:p-7">
-        <div className="mb-2 text-[1.1rem] font-semibold tracking-[-0.02em] text-[#21353a]">
-          Storage Add-ons
-        </div>
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <div className="mb-2 text-[1.1rem] font-semibold tracking-[-0.02em] text-[#21353a]">
+              Storage Add-ons
+            </div>
 
-        <div className="mb-5 text-[0.9rem] leading-[1.7] text-[#5d6d71]">
-          Review active, pending, and billing-related extra storage attached to
-          personal or team workspaces.
+            <div className="text-[0.9rem] leading-[1.7] text-[#5d6d71]">
+              Review active, pending, canceled, and billing-related extra storage
+              attached to personal or team workspaces.
+            </div>
+          </div>
+
+          {onBuyMore ? (
+            <Button
+              onClick={() => onBuyMore()}
+              className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
+              style={{
+                borderColor: "rgba(79,112,107,0.18)",
+                color: "#eef3f1",
+                background:
+                  "linear-gradient(180deg, rgba(62,96,99,0.96) 0%, rgba(24,43,48,0.98) 100%)",
+              }}
+            >
+              Buy more storage
+            </Button>
+          ) : null}
         </div>
 
         {items.length === 0 ? (
-          <div className="text-[0.94rem] leading-[1.7] text-[#5d6d71]">
+          <div className="mt-5 text-[0.94rem] leading-[1.7] text-[#5d6d71]">
             No storage add-ons recorded yet.
           </div>
         ) : (
-          <div className="grid gap-3">
+          <div className="mt-5 grid gap-3">
             {items.map((item) => {
               const tone = toneForAddonStatus(item.status);
+              const isRecurring = String(item.billingCycle ?? "").toUpperCase() === "MONTHLY";
+              const canCancelRecurring =
+                isRecurring &&
+                (String(item.status ?? "").toUpperCase() === "ACTIVE" ||
+                  String(item.status ?? "").toUpperCase() === "PAST_DUE");
+
+              const busy = cancelBusyId === item.id;
 
               return (
                 <div
@@ -137,13 +171,28 @@ export function StorageAddonsPanel({
                   }}
                 >
                   <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div>
-                      <div className="text-[0.96rem] font-semibold text-[#21353a]">
-                        {item.addonKey}
+                    <div style={{ minWidth: 0, flex: 1 }}>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <div className="text-[0.96rem] font-semibold text-[#21353a]">
+                          {item.addonKey}
+                        </div>
+
+                        <div
+                          className="rounded-full px-3 py-1.5 text-[0.76rem] font-semibold"
+                          style={{
+                            color: tone.color,
+                            background: tone.background,
+                            border: tone.border,
+                          }}
+                        >
+                          {formatAddonStatus(item.status)}
+                        </div>
                       </div>
 
-                      <div className="mt-1 text-[0.85rem] leading-[1.7] text-[#5d6d71]">
-                        {item.teamId ? "Team workspace add-on" : "Personal workspace add-on"}
+                      <div className="mt-2 text-[0.85rem] leading-[1.7] text-[#5d6d71]">
+                        {item.teamId
+                          ? `Team workspace add-on${item.teamName ? ` · ${item.teamName}` : ""}`
+                          : "Personal workspace add-on"}
                         {" · "}
                         {item.billingCycle ?? "—"}
                         {" · "}
@@ -157,18 +206,30 @@ export function StorageAddonsPanel({
                       <div className="mt-1 text-[0.82rem] text-[#7a878a]">
                         Current period end: {formatDateLabel(item.currentPeriodEnd)}
                       </div>
+
+                      <div className="mt-1 text-[0.82rem] text-[#7a878a]">
+                        Activated: {formatDateLabel(item.activatedAtUtc)}
+                      </div>
                     </div>
 
-                    <div
-                      className="rounded-full px-3 py-1.5 text-[0.76rem] font-semibold"
-                      style={{
-                        color: tone.color,
-                        background: tone.background,
-                        border: tone.border,
-                      }}
-                    >
-                      {formatAddonStatus(item.status)}
-                    </div>
+                    {canCancelRecurring && onCancelRecurring ? (
+                      <div className="flex shrink-0 items-start">
+                        <Button
+                          variant="secondary"
+                          onClick={() => onCancelRecurring(item.id)}
+                          disabled={busy}
+                          className="rounded-[999px] border px-4 py-2.5 text-[0.86rem] font-semibold"
+                          style={{
+                            borderColor: "rgba(194,78,78,0.20)",
+                            color: "#fff3f3",
+                            background:
+                              "linear-gradient(180deg, rgba(164,84,84,0.94) 0%, rgba(130,62,62,0.98) 100%)",
+                          }}
+                        >
+                          {busy ? "Cancelling..." : "Cancel recurring add-on"}
+                        </Button>
+                      </div>
+                    ) : null}
                   </div>
                 </div>
               );

@@ -361,10 +361,7 @@ export async function billingRoutes(app: FastifyInstance) {
     { preHandler: requireAuthAndLegal },
     async (req, reply) => {
       const userId = getAuthUserId(req);
-      const [overview, storageAddons] = await Promise.all([
-        readBillingOverview(userId),
-        readActiveStorageAddons(userId),
-      ]);
+      const overview = await readBillingOverview(userId);
 
       auditBillingAction(req, {
         userId,
@@ -372,10 +369,7 @@ export async function billingRoutes(app: FastifyInstance) {
         outcome: "success",
       });
 
-      return reply.code(200).send({
-        ...overview,
-        storageAddons,
-      });
+      return reply.code(200).send(overview);
     }
   );
 
@@ -384,10 +378,7 @@ export async function billingRoutes(app: FastifyInstance) {
     { preHandler: requireAuthAndLegal },
     async (req, reply) => {
       const userId = getAuthUserId(req);
-      const [overview, storageAddons] = await Promise.all([
-        readBillingOverview(userId),
-        readActiveStorageAddons(userId),
-      ]);
+      const overview = await readBillingOverview(userId);
 
       auditBillingAction(req, {
         userId,
@@ -404,11 +395,12 @@ export async function billingRoutes(app: FastifyInstance) {
         workspaces: overview.workspaces,
         payments: overview.payments,
         paymentMethods: overview.paymentMethods,
-        storageAddons,
+        storageAddons: overview.storageAddons,
+        summary: overview.summary,
       });
     }
   );
-
+  
   app.get(
     "/v1/billing/payments",
     { preHandler: requireAuthAndLegal },
