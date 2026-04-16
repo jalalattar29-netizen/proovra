@@ -3,9 +3,9 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
-  convertUsd,
   detectCurrency,
   formatMoney,
+  normalizeCurrency,
   type SupportedCurrency,
 } from "../../lib/currency";
 import { Button, Card, useToast } from "../../components/ui";
@@ -57,11 +57,6 @@ type StorageAddonItem = {
   workspaceType: "PERSONAL" | "TEAM";
 };
 
-function normalizeMoneyLabel(value: string | null | undefined) {
-  const text = typeof value === "string" ? value.trim() : "";
-  return text || "—";
-}
-
 function formatBytesCompact(value: number | null | undefined): string {
   const n = typeof value === "number" ? value : Number.NaN;
   if (!Number.isFinite(n) || n <= 0) return "0 B";
@@ -79,19 +74,17 @@ function formatBytesCompact(value: number | null | undefined): string {
   return `${size.toFixed(fixed)} ${units[index]}`;
 }
 
-function formatAddonMoney(
-  item: StorageAddonItem,
+function formatCatalogMoney(
+  amountCents: number | null | undefined,
   currency: SupportedCurrency | null
-): string {
-  if (!currency) {
-    return `${item.currency} ${(item.priceCents / 100).toFixed(2)}`;
-  }
+): string | null {
+  if (!currency || amountCents == null) return null;
+  return formatMoney(amountCents / 100, currency);
+}
 
-  if (item.currency.toUpperCase() === "USD") {
-    return formatMoney(convertUsd(item.priceCents / 100, currency), currency);
-  }
-
-  return `${item.currency} ${(item.priceCents / 100).toFixed(2)}`;
+function formatAddonMoney(item: StorageAddonItem): string {
+  const effectiveCurrency = normalizeCurrency(item.currency);
+  return formatMoney(item.priceCents / 100, effectiveCurrency);
 }
 
 export default function MarketingPricingPage() {
@@ -99,31 +92,35 @@ export default function MarketingPricingPage() {
   const { hasSession } = useAuth();
 
   const [hoveredPlan, setHoveredPlan] = useState<string | null>(null);
-  const [currency, setCurrency] = useState<SupportedCurrency | null>(null);
+  const [preferredCurrency, setPreferredCurrency] =
+    useState<SupportedCurrency>("USD");
   const [catalog, setCatalog] = useState<PricingCatalogResponse | null>(null);
 
   useEffect(() => {
-    setCurrency(detectCurrency() as SupportedCurrency);
+    try {
+      setPreferredCurrency(detectCurrency());
+    } catch {
+      setPreferredCurrency("USD");
+    }
   }, []);
 
   useEffect(() => {
     apiFetch(
-      "/v1/billing/pricing",
+      `/v1/billing/pricing?currency=${preferredCurrency}`,
       { method: "GET" },
       { auth: false, retryAuthOnce: false }
     )
       .then((data) => setCatalog((data ?? null) as PricingCatalogResponse | null))
       .catch(() => setCatalog(null));
-  }, []);
+  }, [preferredCurrency]);
+
+  const displayCurrency = useMemo<SupportedCurrency>(() => {
+    return normalizeCurrency(catalog?.currency ?? preferredCurrency);
+  }, [catalog?.currency, preferredCurrency]);
 
   const appBase = getAppBase();
   const appBilling = appBase ? `${appBase}/billing` : "/billing";
   const appRegister = appBase ? `${appBase}/register` : "/register";
-
-  const formatCatalogPrice = (monthlyPriceCents?: number | null) => {
-    if (!currency || monthlyPriceCents == null) return null;
-    return formatMoney(convertUsd(monthlyPriceCents / 100, currency), currency);
-  };
 
   const buildCtaHref = (key: PlanKey) => {
     if (!hasSession) return appRegister;
@@ -169,9 +166,7 @@ export default function MarketingPricingPage() {
       {
         key: "FREE",
         title: "FREE",
-        priceLabel: currency
-          ? formatMoney(convertUsd(0, currency), currency)
-          : null,
+        priceLabel: formatCatalogMoney(0, displayCurrency),
         billingModel: "free",
         bestFor: "Occasional personal use",
         features: [
@@ -193,10 +188,10 @@ export default function MarketingPricingPage() {
         key: "PAYG",
         title: "PAY-PER-EVIDENCE",
         priceLabel:
-          currency && catalog?.payg?.monthlyPriceCents != null
+          catalog?.payg?.monthlyPriceCents != null
             ? `${formatMoney(
-                convertUsd((catalog.payg.monthlyPriceCents ?? 500) / 100, currency),
-                currency
+                (catalog.payg.monthlyPriceCents ?? 0) / 100,
+                displayCurrency
               )} / evidence`
             : null,
         billingModel: "one_time",
@@ -218,9 +213,13 @@ export default function MarketingPricingPage() {
       {
         key: "PRO",
         title: "PRO",
-        priceLabel: currency
-          ? `${normalizeMoneyLabel(formatCatalogPrice(catalog?.pro?.monthlyPriceCents))} / month`
-          : null,
+        priceLabel:
+          catalog?.pro?.monthlyPriceCents != null
+            ? `${formatMoney(
+                (catalog.pro.monthlyPriceCents ?? 0) / 100,
+                displayCurrency
+              )} / month`
+            : null,
         billingModel: "monthly",
         bestFor: "Recurring individual professional use",
         features: [
@@ -239,9 +238,13 @@ export default function MarketingPricingPage() {
       {
         key: "TEAM",
         title: "TEAM",
-        priceLabel: currency
-          ? `${normalizeMoneyLabel(formatCatalogPrice(catalog?.team?.monthlyPriceCents))} / month`
-          : null,
+        priceLabel:
+          catalog?.team?.monthlyPriceCents != null
+            ? `${formatMoney(
+                (catalog.team.monthlyPriceCents ?? 0) / 100,
+                displayCurrency
+              )} / month`
+            : null,
         billingModel: "monthly",
         bestFor: "Firms, teams, investigations, and organizations",
         features: [
@@ -256,7 +259,7 @@ export default function MarketingPricingPage() {
         ctaHref: buildCtaHref("TEAM"),
       },
     ],
-    [currency, catalog, hasSession, appBilling, appRegister]
+    [displayCurrency, catalog, hasSession, appBilling, appRegister]
   );
 
   return (
@@ -475,7 +478,8 @@ export default function MarketingPricingPage() {
                   </div>
                   <div className="mt-3 grid gap-3">
                     {storageAddonSummary.personal.length === 0 ? (
-                      <div className="rounded-[18px] border px-4 py-4 text-[0.86rem] text-[#5d6d71]"
+                      <div
+                        className="rounded-[18px] border px-4 py-4 text-[0.86rem] text-[#5d6d71]"
                         style={{
                           border: "1px solid rgba(79,112,107,0.10)",
                           background:
@@ -502,7 +506,7 @@ export default function MarketingPricingPage() {
                             {formatBytesCompact(item.storageBytes)} extra storage
                           </div>
                           <div className="mt-1 text-[0.86rem] text-[#5d6d71]">
-                            {formatAddonMoney(item, currency)}
+                            {formatAddonMoney(item)}
                           </div>
                         </div>
                       ))
@@ -516,7 +520,8 @@ export default function MarketingPricingPage() {
                   </div>
                   <div className="mt-3 grid gap-3">
                     {storageAddonSummary.team.length === 0 ? (
-                      <div className="rounded-[18px] border px-4 py-4 text-[0.86rem] text-[#5d6d71]"
+                      <div
+                        className="rounded-[18px] border px-4 py-4 text-[0.86rem] text-[#5d6d71]"
                         style={{
                           border: "1px solid rgba(79,112,107,0.10)",
                           background:
@@ -543,7 +548,7 @@ export default function MarketingPricingPage() {
                             {formatBytesCompact(item.storageBytes)} extra storage
                           </div>
                           <div className="mt-1 text-[0.86rem] text-[#5d6d71]">
-                            {formatAddonMoney(item, currency)}
+                            {formatAddonMoney(item)}
                           </div>
                         </div>
                       ))
@@ -568,7 +573,7 @@ export default function MarketingPricingPage() {
           <div className="mt-5 text-[0.82rem] leading-[1.7] text-[#667174]">
             Prices shown in{" "}
             <span className="font-medium text-[#31464a]">
-              {currency ?? "..."}
+              {displayCurrency}
             </span>
             . VAT may apply depending on your country.
           </div>

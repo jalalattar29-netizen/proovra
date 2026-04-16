@@ -24,6 +24,7 @@ export type PricingStorageAddonCatalogItem = {
 };
 
 export type PricingCatalogResponse = {
+  currency: "USD" | "EUR";
   free: PricingCatalogPlan;
   payg: PricingCatalogPlan;
   pro: PricingCatalogPlan;

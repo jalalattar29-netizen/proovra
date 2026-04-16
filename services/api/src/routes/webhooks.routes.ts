@@ -72,10 +72,7 @@ function parseStripeSubscriptionStatus(
   if (normalized === "trialing") return prismaPkg.SubscriptionStatus.TRIALING;
   if (normalized === "past_due") return prismaPkg.SubscriptionStatus.PAST_DUE;
   if (normalized === "unpaid") return prismaPkg.SubscriptionStatus.PAST_DUE;
-  if (
-    normalized === "canceled" ||
-    normalized === "incomplete_expired"
-  ) {
+  if (normalized === "canceled" || normalized === "incomplete_expired") {
     return prismaPkg.SubscriptionStatus.CANCELED;
   }
 
@@ -138,10 +135,7 @@ function toWorkspaceStorageAddonStatusFromStripe(
     return prismaPkg.WorkspaceStorageAddonStatus.PAST_DUE;
   }
 
-  if (
-    normalized === "canceled" ||
-    normalized === "incomplete_expired"
-  ) {
+  if (normalized === "canceled" || normalized === "incomplete_expired") {
     return prismaPkg.WorkspaceStorageAddonStatus.CANCELED;
   }
 
@@ -240,6 +234,12 @@ function tryParseAddonContextFromCustomId(raw: unknown): {
   };
 }
 
+function parseAmountCents(value: unknown): number | null {
+  if (typeof value !== "string") return null;
+  const parsed = Number.parseInt(value, 10);
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : null;
+}
+
 async function syncPlanForSubscription(params: {
   userId: string;
   plan: prismaPkg.PlanType;
@@ -318,6 +318,8 @@ export async function webhooksRoutes(app: FastifyInstance) {
           teamId?: string;
           storageAddonKey?: string;
           billingCycle?: string;
+          currency?: string;
+          amountCents?: string;
         };
       };
 
@@ -337,7 +339,7 @@ export async function webhooksRoutes(app: FastifyInstance) {
           provider: prismaPkg.PaymentProvider.STRIPE,
           providerPaymentId: session.id,
           amountCents: session.amount_total ?? 0,
-          currency: (session.currency ?? "usd").toUpperCase(),
+          currency: (session.currency ?? session.metadata?.currency ?? "usd").toUpperCase(),
           status: prismaPkg.PaymentStatus.SUCCEEDED,
           teamId: null,
         });
@@ -351,39 +353,50 @@ export async function webhooksRoutes(app: FastifyInstance) {
             : prismaPkg.StorageAddonBillingCycle.ONE_TIME
         );
 
+        const effectiveCurrency = (
+          session.currency ??
+          session.metadata?.currency ??
+          "usd"
+        ).toUpperCase();
+
+        const effectiveAmountCents =
+          session.amount_total ??
+          parseAmountCents(session.metadata?.amountCents) ??
+          0;
+
         await recordPayment({
           userId,
           provider: prismaPkg.PaymentProvider.STRIPE,
           providerPaymentId: session.id,
-          amountCents: session.amount_total ?? 0,
-          currency: (session.currency ?? "usd").toUpperCase(),
+          amountCents: effectiveAmountCents,
+          currency: effectiveCurrency,
           status: prismaPkg.PaymentStatus.SUCCEEDED,
           teamId,
         });
 
-if (
-  !session.subscription &&
-  storageAddonBillingCycle === prismaPkg.StorageAddonBillingCycle.ONE_TIME
-) {
-  await upsertWorkspaceStorageAddon({
-    ownerUserId: userId,
-    teamId,
-    addonKey: storageAddonKey,
-    billingCycle: prismaPkg.StorageAddonBillingCycle.ONE_TIME,
-    status: prismaPkg.WorkspaceStorageAddonStatus.ACTIVE,
-    paymentProvider: prismaPkg.PaymentProvider.STRIPE,
-    externalPaymentId: session.id,
-    amountCents: session.amount_total ?? 0,
-    currency: (session.currency ?? "usd").toUpperCase(),
-    metadata: {
-      source: "stripe.checkout.session.completed",
-      mode: session.mode ?? null,
-      subscriptionId: session.subscription ?? null,
-    },
-  });
-}
-      }
+        if (
+          !session.subscription &&
+          storageAddonBillingCycle === prismaPkg.StorageAddonBillingCycle.ONE_TIME
+        ) {
+          await upsertWorkspaceStorageAddon({
+            ownerUserId: userId,
+            teamId,
+            addonKey: storageAddonKey,
+            billingCycle: prismaPkg.StorageAddonBillingCycle.ONE_TIME,
+            status: prismaPkg.WorkspaceStorageAddonStatus.ACTIVE,
+            paymentProvider: prismaPkg.PaymentProvider.STRIPE,
+            externalPaymentId: session.id,
+            amountCents: effectiveAmountCents,
+            currency: effectiveCurrency,
+            metadata: {
+              source: "stripe.checkout.session.completed",
+              mode: session.mode ?? null,
+              subscriptionId: session.subscription ?? null,
+            },
+          });
         }
+      }
+    }
 
     if (
       event.type === "customer.subscription.created" ||
@@ -400,6 +413,8 @@ if (
           teamId?: string;
           storageAddonKey?: string;
           billingCycle?: string;
+          currency?: string;
+          amountCents?: string;
         };
       };
 
@@ -426,24 +441,30 @@ if (
       }
 
       if (userId && storageAddonKey) {
-await upsertWorkspaceStorageAddon({
-  ownerUserId: userId,
-  teamId,
-  addonKey: storageAddonKey,
-  billingCycle: prismaPkg.StorageAddonBillingCycle.MONTHLY,
-  status: toWorkspaceStorageAddonStatusFromStripe(subscription.status),
-  paymentProvider: prismaPkg.PaymentProvider.STRIPE,
-  externalSubscriptionId: subscription.id,
-  currency: null,
-  amountCents: null,
-  currentPeriodEnd: subscription.current_period_end
-    ? new Date(subscription.current_period_end * 1000)
-    : null,
-  metadata: {
-    source: event.type,
-    stripeStatus: subscription.status ?? null,
-  },
-});
+        await upsertWorkspaceStorageAddon({
+          ownerUserId: userId,
+          teamId,
+          addonKey: storageAddonKey,
+          billingCycle: parseStorageAddonBillingCycle(
+            subscription.metadata?.billingCycle,
+            prismaPkg.StorageAddonBillingCycle.MONTHLY
+          ),
+          status: toWorkspaceStorageAddonStatusFromStripe(subscription.status),
+          paymentProvider: prismaPkg.PaymentProvider.STRIPE,
+          externalSubscriptionId: subscription.id,
+          currency:
+            typeof subscription.metadata?.currency === "string"
+              ? subscription.metadata.currency.toUpperCase()
+              : null,
+          amountCents: parseAmountCents(subscription.metadata?.amountCents),
+          currentPeriodEnd: subscription.current_period_end
+            ? new Date(subscription.current_period_end * 1000)
+            : null,
+          metadata: {
+            source: event.type,
+            stripeStatus: subscription.status ?? null,
+          },
+        });
       }
     }
 
@@ -518,7 +539,9 @@ await upsertWorkspaceStorageAddon({
       event.event_type === "CHECKOUT.ORDER.COMPLETED"
     ) {
       const unit = event.resource.purchase_units?.[0];
-      const parsed = parsePayPalCustomId(unit?.custom_id ?? event.resource.custom_id);
+      const parsed = parsePayPalCustomId(
+        unit?.custom_id ?? event.resource.custom_id
+      );
       const addonContext = tryParseAddonContextFromCustomId(
         unit?.custom_id ?? event.resource.custom_id
       );
@@ -538,34 +561,34 @@ await upsertWorkspaceStorageAddon({
         });
       }
 
-if (addonContext.userId && addonContext.storageAddonKey) {
-  await recordPayment({
-    userId: addonContext.userId,
-    provider: prismaPkg.PaymentProvider.PAYPAL,
-    providerPaymentId: event.resource.id ?? "",
-    amountCents: Math.round(Number(unit?.amount?.value ?? 0) * 100),
-    currency: (unit?.amount?.currency_code ?? "USD").toUpperCase(),
-    status: prismaPkg.PaymentStatus.SUCCEEDED,
-    teamId: addonContext.teamId ?? null,
-  });
+      if (addonContext.userId && addonContext.storageAddonKey) {
+        await recordPayment({
+          userId: addonContext.userId,
+          provider: prismaPkg.PaymentProvider.PAYPAL,
+          providerPaymentId: event.resource.id ?? "",
+          amountCents: Math.round(Number(unit?.amount?.value ?? 0) * 100),
+          currency: (unit?.amount?.currency_code ?? "USD").toUpperCase(),
+          status: prismaPkg.PaymentStatus.SUCCEEDED,
+          teamId: addonContext.teamId ?? null,
+        });
 
-  await upsertWorkspaceStorageAddon({
-    ownerUserId: addonContext.userId,
-    teamId: addonContext.teamId ?? null,
-    addonKey: addonContext.storageAddonKey,
-    billingCycle:
-      addonContext.billingCycle ??
-      prismaPkg.StorageAddonBillingCycle.ONE_TIME,
-    status: prismaPkg.WorkspaceStorageAddonStatus.ACTIVE,
-    paymentProvider: prismaPkg.PaymentProvider.PAYPAL,
-    externalPaymentId: event.resource.id ?? "",
-    amountCents: Math.round(Number(unit?.amount?.value ?? 0) * 100),
-    currency: (unit?.amount?.currency_code ?? "USD").toUpperCase(),
-    metadata: {
-      source: event.event_type,
-    },
-  });
-}
+        await upsertWorkspaceStorageAddon({
+          ownerUserId: addonContext.userId,
+          teamId: addonContext.teamId ?? null,
+          addonKey: addonContext.storageAddonKey,
+          billingCycle:
+            addonContext.billingCycle ??
+            prismaPkg.StorageAddonBillingCycle.ONE_TIME,
+          status: prismaPkg.WorkspaceStorageAddonStatus.ACTIVE,
+          paymentProvider: prismaPkg.PaymentProvider.PAYPAL,
+          externalPaymentId: event.resource.id ?? "",
+          amountCents: Math.round(Number(unit?.amount?.value ?? 0) * 100),
+          currency: (unit?.amount?.currency_code ?? "USD").toUpperCase(),
+          metadata: {
+            source: event.event_type,
+          },
+        });
+      }
 
       return reply.code(200).send({ received: true });
     }
@@ -586,7 +609,11 @@ if (addonContext.userId && addonContext.storageAddonKey) {
       let parsed = parsePayPalCustomId(event.resource.custom_id);
       let addonContext = tryParseAddonContextFromCustomId(event.resource.custom_id);
 
-      if ((!parsed.userId || !parsed.plan) || !addonContext.storageAddonKey) {
+      const needsPlanRefresh = !parsed.userId || !parsed.plan;
+      const needsAddonRefresh =
+        !addonContext.userId || !addonContext.storageAddonKey;
+
+      if (needsPlanRefresh || needsAddonRefresh) {
         try {
           const liveSubscription = await getPayPalSubscription(subscriptionId);
           parsed = parsePayPalCustomId(
@@ -594,7 +621,9 @@ if (addonContext.userId && addonContext.storageAddonKey) {
               ? liveSubscription.custom_id
               : undefined
           );
-          addonContext = tryParseAddonContextFromCustomId(liveSubscription.custom_id);
+          addonContext = tryParseAddonContextFromCustomId(
+            liveSubscription.custom_id
+          );
         } catch {
           // keep parsed as-is
         }
@@ -617,22 +646,24 @@ if (addonContext.userId && addonContext.storageAddonKey) {
       }
 
       if (addonContext.userId && addonContext.storageAddonKey) {
-await upsertWorkspaceStorageAddon({
-  ownerUserId: addonContext.userId,
-  teamId: addonContext.teamId ?? null,
-  addonKey: addonContext.storageAddonKey,
-  billingCycle: prismaPkg.StorageAddonBillingCycle.MONTHLY,
-  status: toWorkspaceStorageAddonStatusFromPayPal(event.resource.status),
-  paymentProvider: prismaPkg.PaymentProvider.PAYPAL,
-  externalSubscriptionId: subscriptionId,
-  currentPeriodEnd: event.resource.billing_info?.next_billing_time
-    ? new Date(event.resource.billing_info.next_billing_time)
-    : null,
-  metadata: {
-    source: event.event_type,
-    paypalStatus: event.resource.status ?? null,
-  },
-});
+        await upsertWorkspaceStorageAddon({
+          ownerUserId: addonContext.userId,
+          teamId: addonContext.teamId ?? null,
+          addonKey: addonContext.storageAddonKey,
+          billingCycle:
+            addonContext.billingCycle ??
+            prismaPkg.StorageAddonBillingCycle.MONTHLY,
+          status: toWorkspaceStorageAddonStatusFromPayPal(event.resource.status),
+          paymentProvider: prismaPkg.PaymentProvider.PAYPAL,
+          externalSubscriptionId: subscriptionId,
+          currentPeriodEnd: event.resource.billing_info?.next_billing_time
+            ? new Date(event.resource.billing_info.next_billing_time)
+            : null,
+          metadata: {
+            source: event.event_type,
+            paypalStatus: event.resource.status ?? null,
+          },
+        });
       }
 
       return reply.code(200).send({ received: true });

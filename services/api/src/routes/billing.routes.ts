@@ -24,12 +24,15 @@ import {
 import { prisma } from "../db.js";
 import { appendPlatformAuditLog } from "../services/platform-audit-log.service.js";
 import { writeAnalyticsEvent } from "../services/analytics-event.service.js";
-import { getPricingCatalogResponse } from "../services/plan-catalog.service.js";
 import { readBillingOverview } from "../services/billing-overview.service.js";
 import {
   getPersonalWorkspaceScope,
   getTeamWorkspaceScope,
 } from "../services/workspace-billing.service.js";
+import {
+  buildPricingCatalogResponse,
+  resolveCheckoutCurrency,
+} from "../services/billing-pricing.service.js";
 
 const PlanTypeSchema = prismaPkg.PlanType
   ? z.nativeEnum(prismaPkg.PlanType)
@@ -50,16 +53,18 @@ const StorageAddonBillingCycleSchema = prismaPkg.StorageAddonBillingCycle
   ? z.nativeEnum(prismaPkg.StorageAddonBillingCycle)
   : z.enum(["ONE_TIME", "MONTHLY"]);
 
+const CurrencySchema = z.enum(["USD", "EUR"]);
+
 const CheckoutBody = z.object({
   plan: PlanTypeSchema,
-  currency: z.string().min(3).max(3).optional(),
+  currency: CurrencySchema.optional(),
   teamId: z.string().uuid().optional(),
 });
 
 const StorageAddonCheckoutBody = z.object({
   addonKey: StorageAddonKeySchema,
   billingCycle: StorageAddonBillingCycleSchema,
-  currency: z.string().min(3).max(3).optional(),
+  currency: CurrencySchema.optional(),
   teamId: z.string().uuid().optional(),
 });
 
@@ -259,7 +264,7 @@ async function assertStorageAddonAllowed(params: {
     const err: Error & { statusCode?: number } = new Error(
       "This storage add-on is not valid for personal workspaces"
     );
-        err.statusCode = 400;
+    err.statusCode = 400;
     throw err;
   }
 
@@ -312,18 +317,13 @@ async function assertStorageAddonAllowed(params: {
 }
 
 export async function billingRoutes(app: FastifyInstance) {
-  app.get("/v1/billing/pricing", async (_req, reply) => {
-    return reply.code(200).send({
-      ...getPricingCatalogResponse(),
-      storageAddons: listStorageAddonDefinitions().map((item) => ({
-        key: item.key,
-        workspaceType: item.workspaceType,
-        label: item.label,
-        storageBytes: item.storageBytes.toString(),
-        priceCents: item.priceCents,
-        currency: item.currency,
-      })),
+  app.get("/v1/billing/pricing", async (req, reply) => {
+    const query = (req.query ?? {}) as { currency?: string };
+    const currency = resolveCheckoutCurrency({
+      requestedCurrency: query.currency ?? null,
     });
+
+    return reply.code(200).send(buildPricingCatalogResponse({ currency }));
   });
 
   app.get(
@@ -333,24 +333,25 @@ export async function billingRoutes(app: FastifyInstance) {
       const userId = getAuthUserId(req);
       const activeAddons = await readActiveStorageAddons(userId);
 
+      const query = (req.query ?? {}) as { currency?: string };
+      const currency = resolveCheckoutCurrency({
+        requestedCurrency: query.currency ?? null,
+      });
+
       auditBillingAction(req, {
         userId,
         action: "billing.storage_addons_view",
         outcome: "success",
         metadata: {
           activeCount: activeAddons.length,
+          currency,
         },
       });
 
+      const pricingCatalog = buildPricingCatalogResponse({ currency });
+
       return reply.code(200).send({
-        catalog: listStorageAddonDefinitions().map((item) => ({
-          key: item.key,
-          workspaceType: item.workspaceType,
-          label: item.label,
-          storageBytes: item.storageBytes.toString(),
-          priceCents: item.priceCents,
-          currency: item.currency,
-        })),
+        catalog: pricingCatalog.storageAddons,
         active: activeAddons,
       });
     }
@@ -400,7 +401,7 @@ export async function billingRoutes(app: FastifyInstance) {
       });
     }
   );
-  
+
   app.get(
     "/v1/billing/payments",
     { preHandler: requireAuthAndLegal },
@@ -439,17 +440,17 @@ export async function billingRoutes(app: FastifyInstance) {
           orderBy: { createdAt: "desc" },
           take: 20,
         }),
-prisma.workspaceStorageAddon.findMany({
-  where: {
-    ownerUserId: userId,
-    status: {
-      in: [
-        prismaPkg.WorkspaceStorageAddonStatus.ACTIVE,
-        prismaPkg.WorkspaceStorageAddonStatus.PAST_DUE,
-      ],
-    },
-  },
-            orderBy: { createdAt: "desc" },
+        prisma.workspaceStorageAddon.findMany({
+          where: {
+            ownerUserId: userId,
+            status: {
+              in: [
+                prismaPkg.WorkspaceStorageAddonStatus.ACTIVE,
+                prismaPkg.WorkspaceStorageAddonStatus.PAST_DUE,
+              ],
+            },
+          },
+          orderBy: { createdAt: "desc" },
           take: 50,
         }),
       ]);
@@ -742,6 +743,7 @@ prisma.workspaceStorageAddon.findMany({
           mode: result.mode,
           amountCents: result.amountCents,
           teamId: body.teamId ?? null,
+          currency: result.currency,
         },
       });
 
@@ -760,7 +762,7 @@ prisma.workspaceStorageAddon.findMany({
       const body = StorageAddonCheckoutBody.parse(req.body ?? {});
       const userId = getAuthUserId(req);
 
-      const { definition, scope } = await assertStorageAddonAllowed({
+      const { scope } = await assertStorageAddonAllowed({
         userId,
         addonKey: body.addonKey,
         billingCycle: body.billingCycle,
@@ -785,7 +787,8 @@ prisma.workspaceStorageAddon.findMany({
           addonKey: body.addonKey,
           billingCycle: body.billingCycle,
           teamId: body.teamId ?? null,
-          amountCents: definition.priceCents,
+          amountCents: result.amountCents,
+          currency: result.currency,
           workspacePlan: scope.plan,
         },
       });
@@ -800,7 +803,8 @@ prisma.workspaceStorageAddon.findMany({
           addonKey: body.addonKey,
           billingCycle: body.billingCycle,
           teamId: body.teamId ?? null,
-          amountCents: definition.priceCents,
+          amountCents: result.amountCents,
+          currency: result.currency,
           workspacePlan: scope.plan,
         },
       });
@@ -866,6 +870,7 @@ prisma.workspaceStorageAddon.findMany({
           mode: result.mode,
           plan: body.plan,
           amountCents: result.amountCents,
+          currency: result.currency,
           teamId: body.teamId ?? null,
         },
       });
@@ -893,7 +898,7 @@ prisma.workspaceStorageAddon.findMany({
       const body = StorageAddonCheckoutBody.parse(req.body ?? {});
       const userId = getAuthUserId(req);
 
-      const { definition, scope } = await assertStorageAddonAllowed({
+      const { scope } = await assertStorageAddonAllowed({
         userId,
         addonKey: body.addonKey,
         billingCycle: body.billingCycle,
@@ -904,8 +909,7 @@ prisma.workspaceStorageAddon.findMany({
         userId,
         addonKey: body.addonKey,
         billingCycle: body.billingCycle,
-        currency: body.currency ?? definition.currency,
-        amount: (definition.priceCents / 100).toFixed(2),
+        currency: body.currency,
         teamId: body.teamId ?? null,
         workspacePlan: scope.plan,
       });
@@ -924,7 +928,8 @@ prisma.workspaceStorageAddon.findMany({
           addonKey: body.addonKey,
           billingCycle: body.billingCycle,
           teamId: body.teamId ?? null,
-          amountCents: definition.priceCents,
+          amountCents: result.amountCents,
+          currency: result.currency,
           workspacePlan: scope.plan,
           mode: result.mode,
         },
@@ -940,7 +945,8 @@ prisma.workspaceStorageAddon.findMany({
           addonKey: body.addonKey,
           billingCycle: body.billingCycle,
           teamId: body.teamId ?? null,
-          amountCents: definition.priceCents,
+          amountCents: result.amountCents,
+          currency: result.currency,
           workspacePlan: scope.plan,
           mode: result.mode,
         },
@@ -966,7 +972,9 @@ prisma.workspaceStorageAddon.findMany({
     "/v1/billing/credits",
     { preHandler: requireAuthAndLegal },
     async (req, reply) => {
-      const body = z.object({ credits: z.number().int().positive() }).parse(req.body);
+      const body = z
+        .object({ credits: z.number().int().positive() })
+        .parse(req.body);
       const userId = getAuthUserId(req);
 
       await addCredits(userId, body.credits);
@@ -1011,7 +1019,9 @@ prisma.workspaceStorageAddon.findMany({
 
       if (body.plan === prismaPkg.PlanType.TEAM) {
         if (!body.teamId) {
-          return reply.code(400).send({ message: "teamId is required for TEAM plan" });
+          return reply
+            .code(400)
+            .send({ message: "teamId is required for TEAM plan" });
         }
 
         await assertOwnedTeamForCheckout(userId, body.teamId);

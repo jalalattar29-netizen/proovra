@@ -30,9 +30,11 @@ function cleanUrl(value: string | undefined): string | null {
 
 function getWebBaseUrl() {
   return (
+    cleanUrl(process.env.APP_BASE_URL) ??
+    cleanUrl(process.env.WEB_BASE_URL) ??
+    cleanUrl(process.env.NEXT_PUBLIC_APP_BASE) ??
     cleanUrl(process.env.NEXT_PUBLIC_WEB_BASE) ??
-    cleanUrl(process.env.REPORT_APP_BASE_URL) ??
-    "https://www.proovra.com"
+    "https://app.proovra.com"
   );
 }
 
@@ -89,6 +91,34 @@ export async function getPayPalAccessToken(): Promise<string> {
   return data.access_token;
 }
 
+type PayPalPlanDetails = {
+  id?: string;
+  status?: string;
+  product_id?: string;
+  name?: string;
+};
+
+function extractPayPalDebugId(res: Response) {
+  return res.headers.get("paypal-debug-id") ?? null;
+}
+
+async function readPayPalError(res: Response, prefix: string): Promise<never> {
+  const text = await res.text();
+  const debugId = extractPayPalDebugId(res);
+
+  let message = text;
+  try {
+    const parsed = JSON.parse(text) as { message?: string; name?: string };
+    message = parsed.message || parsed.name || text;
+  } catch {
+    // keep raw text
+  }
+
+  throw new Error(
+    `${prefix}: ${message}${debugId ? ` (paypal-debug-id: ${debugId})` : ""}`
+  );
+}
+
 export async function paypalRequest(
   path: string,
   body: Record<string, unknown>,
@@ -106,8 +136,7 @@ export async function paypalRequest(
   });
 
   if (!res.ok) {
-    const text = await res.text();
-    throw new Error(`PayPal error: ${text}`);
+    await readPayPalError(res, "PayPal error");
   }
 
   return (await res.json()) as Record<string, unknown>;
@@ -125,11 +154,27 @@ export async function paypalGet(path: string) {
   });
 
   if (!res.ok) {
-    const text = await res.text();
-    throw new Error(`PayPal GET error: ${text}`);
+    await readPayPalError(res, "PayPal GET error");
   }
 
   return (await res.json()) as Record<string, unknown>;
+}
+
+export async function getPayPalPlan(planId: string) {
+  return (await paypalGet(`/v1/billing/plans/${planId}`)) as PayPalPlanDetails;
+}
+
+async function assertPayPalPlanIsActive(planId: string) {
+  const plan = await getPayPalPlan(planId);
+  const status = String(plan.status ?? "").trim().toUpperCase();
+
+  if (status !== "ACTIVE") {
+    throw new Error(
+      `PayPal plan ${planId} is not ACTIVE. Current status: ${status || "UNKNOWN"}`
+    );
+  }
+
+  return plan;
 }
 
 export async function getPayPalSubscription(subscriptionId: string) {
@@ -191,6 +236,8 @@ export async function createPayPalSubscription(params: {
     currency: params.currency,
   });
 
+  await assertPayPalPlanIsActive(planId);
+
   return paypalRequest("/v1/billing/subscriptions", {
     plan_id: planId,
     custom_id: buildPayPalCustomId({
@@ -201,7 +248,6 @@ export async function createPayPalSubscription(params: {
     application_context: {
       brand_name: "PROOVRA",
       user_action: "SUBSCRIBE_NOW",
-      shipping_preference: "NO_SHIPPING",
       return_url: params.returnUrl,
       cancel_url: params.cancelUrl,
     },
@@ -264,6 +310,8 @@ export async function createPayPalStorageAddonCheckout(params: {
     currency: params.currency,
   });
 
+  await assertPayPalPlanIsActive(planId);
+
   const subscription = await paypalRequest("/v1/billing/subscriptions", {
     plan_id: planId,
     custom_id: buildStorageAddonCustomId({
@@ -276,7 +324,6 @@ export async function createPayPalStorageAddonCheckout(params: {
     application_context: {
       brand_name: "PROOVRA",
       user_action: "SUBSCRIBE_NOW",
-      shipping_preference: "NO_SHIPPING",
       return_url: returnUrl,
       cancel_url: cancelUrl,
     },

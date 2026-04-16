@@ -9,59 +9,43 @@ function usdToEurRate(): number {
   return Number.isFinite(n) && n > 0 ? n : DEFAULT_USD_TO_EUR;
 }
 
-function looksEuropeanLocale(locale: string): boolean {
-  const EU_LIKE = new Set([
+function isEuroCountryFromLocale(locale: string): boolean {
+  const EURO_COUNTRIES = new Set([
     "AT",
     "BE",
-    "BG",
-    "HR",
     "CY",
-    "CZ",
-    "DK",
+    "DE",
     "EE",
+    "ES",
     "FI",
     "FR",
-    "DE",
     "GR",
-    "HU",
+    "HR",
     "IE",
     "IT",
-    "LV",
     "LT",
     "LU",
+    "LV",
     "MT",
     "NL",
-    "PL",
     "PT",
-    "RO",
-    "SK",
     "SI",
-    "ES",
-    "SE",
-    "IS",
-    "LI",
-    "NO",
-    "CH",
-    "UK",
-    "GB",
+    "SK",
   ]);
 
   const m = locale.match(/-([A-Za-z]{2})$/);
   const cc = (m?.[1] ?? "").toUpperCase();
-  return cc ? EU_LIKE.has(cc) : false;
+  return cc ? EURO_COUNTRIES.has(cc) : false;
 }
 
 export function isEuropeClient(): boolean {
   if (typeof window === "undefined") return false;
 
-  const tz = Intl.DateTimeFormat().resolvedOptions().timeZone ?? "";
-  if (tz.startsWith("Europe/")) return true;
-
   const langs = navigator.languages?.length
     ? navigator.languages
     : [navigator.language];
 
-  return langs.some((l) => looksEuropeanLocale(l));
+  return langs.some((l) => isEuroCountryFromLocale(l));
 }
 
 export function detectCurrency(): SupportedCurrency {
