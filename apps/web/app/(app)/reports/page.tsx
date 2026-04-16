@@ -98,8 +98,10 @@ export default function ReportsPage() {
       .finally(() => setLoading(false));
   }, [addToast]);
 
-  const withReports = items.filter(
-    (item) => item.status === "REPORTED" || item.status === "SIGNED"
+  const withReports = useMemo(
+    () =>
+      items.filter((item) => item.status === "REPORTED" || item.status === "SIGNED"),
+    [items]
   );
 
   const outerCardStyle = useMemo(
@@ -143,7 +145,6 @@ export default function ReportsPage() {
     []
   );
 
-  // Dark-row badge styles tuned for the dark green ListRow background
   const reportReadyBadgeStyle = useMemo(
     () =>
       ({
@@ -271,11 +272,6 @@ export default function ReportsPage() {
                 scan.
               </p>
             </div>
-
-<div className="app-hero-responsive__actions flex shrink-0">
-                <Link href="/evidence">
-              </Link>
-            </div>
           </div>
         </div>
       </div>
@@ -349,8 +345,6 @@ export default function ReportsPage() {
                 <EmptyState
                   title="No reports yet"
                   subtitle="Capture evidence and complete signing to generate verifiable reports."
-                  action={() => {}}
-                  actionLabel=""
                 />
                 <div className="mt-4">
                   <Link href="/capture">
@@ -393,8 +387,8 @@ export default function ReportsPage() {
                         href={`/evidence/${item.id}`}
                         style={{ display: "block", textDecoration: "none" }}
                       >
-<div className="app-evidence-row-shell" style={{ ...rowCardStyle, padding: 6 }}>
-                            <ListRow
+                        <div className="app-evidence-row-shell" style={{ ...rowCardStyle, padding: 6 }}>
+                          <ListRow
                             title={item.title || "Digital Evidence Record"}
                             subtitle={item.displaySubtitle}
                             badge={
@@ -409,8 +403,8 @@ export default function ReportsPage() {
                         </div>
                       </Link>
                     ) : (
-<div className="app-evidence-row-shell" style={{ ...rowCardStyle, padding: 6 }}>
-                          <ListRow
+                      <div className="app-evidence-row-shell" style={{ ...rowCardStyle, padding: 6 }}>
+                        <ListRow
                           title={item.title || "Digital Evidence Record"}
                           subtitle={item.displaySubtitle}
                           badge={

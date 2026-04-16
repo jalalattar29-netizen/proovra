@@ -36,6 +36,9 @@ ${assets.verificationDemoUrl}
 Verification methodology:
 ${assets.methodologyUrl}
 
+Pricing:
+${assets.pricingUrl}
+
 If this looks relevant, I’d be happy to walk you through a short demo this week.
 
 Best regards,
@@ -69,6 +72,9 @@ ${assets.verificationDemoUrl}
 
 Methodology:
 ${assets.methodologyUrl}
+
+Pricing:
+${assets.pricingUrl}
 
 If useful, I can propose a short 20-minute walkthrough this week.
 
@@ -105,6 +111,9 @@ ${assets.verificationDemoUrl}
 Methodology:
 ${assets.methodologyUrl}
 
+Pricing:
+${assets.pricingUrl}
+
 If you’d like, I can suggest a short call window and tailor the walkthrough to your workflow.
 
 Best regards,
@@ -129,6 +138,9 @@ ${assets.verificationDemoUrl}
 
 Methodology:
 ${assets.methodologyUrl}
+
+Pricing:
+${assets.pricingUrl}
 
 Happy to arrange a short walkthrough if helpful.
 

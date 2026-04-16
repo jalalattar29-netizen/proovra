@@ -3,7 +3,6 @@ export type SupportedCurrency = "USD" | "EUR";
 
 const DEFAULT_USD_TO_EUR = 0.92;
 
-// تقدر تضبطه من Vercel env: NEXT_PUBLIC_USD_TO_EUR="0.93"
 function usdToEurRate(): number {
   const raw = (process.env.NEXT_PUBLIC_USD_TO_EUR ?? "").trim();
   const n = Number(raw);
@@ -11,13 +10,42 @@ function usdToEurRate(): number {
 }
 
 function looksEuropeanLocale(locale: string): boolean {
-  // EU/EEA + Switzerland + UK (اختياري)
   const EU_LIKE = new Set([
-    "AT","BE","BG","HR","CY","CZ","DK","EE","FI","FR","DE","GR","HU","IE","IT","LV","LT","LU","MT","NL","PL","PT","RO","SK","SI","ES","SE",
-    "IS","LI","NO","CH","UK","GB"
+    "AT",
+    "BE",
+    "BG",
+    "HR",
+    "CY",
+    "CZ",
+    "DK",
+    "EE",
+    "FI",
+    "FR",
+    "DE",
+    "GR",
+    "HU",
+    "IE",
+    "IT",
+    "LV",
+    "LT",
+    "LU",
+    "MT",
+    "NL",
+    "PL",
+    "PT",
+    "RO",
+    "SK",
+    "SI",
+    "ES",
+    "SE",
+    "IS",
+    "LI",
+    "NO",
+    "CH",
+    "UK",
+    "GB",
   ]);
 
-  // locale مثل: "de-DE" أو "fr" أو "en-GB"
   const m = locale.match(/-([A-Za-z]{2})$/);
   const cc = (m?.[1] ?? "").toUpperCase();
   return cc ? EU_LIKE.has(cc) : false;
@@ -26,12 +54,13 @@ function looksEuropeanLocale(locale: string): boolean {
 export function isEuropeClient(): boolean {
   if (typeof window === "undefined") return false;
 
-  // 1) timezone
   const tz = Intl.DateTimeFormat().resolvedOptions().timeZone ?? "";
   if (tz.startsWith("Europe/")) return true;
 
-  // 2) locale region
-  const langs = navigator.languages?.length ? navigator.languages : [navigator.language];
+  const langs = navigator.languages?.length
+    ? navigator.languages
+    : [navigator.language];
+
   return langs.some((l) => looksEuropeanLocale(l));
 }
 
@@ -39,17 +68,39 @@ export function detectCurrency(): SupportedCurrency {
   return isEuropeClient() ? "EUR" : "USD";
 }
 
-export function convertUsd(amountUsd: number, currency: SupportedCurrency): number {
+export function convertUsd(
+  amountUsd: number,
+  currency: SupportedCurrency
+): number {
+  if (!Number.isFinite(amountUsd)) return 0;
   if (currency === "EUR") return amountUsd * usdToEurRate();
   return amountUsd;
 }
 
-export function formatMoney(amount: number, currency: SupportedCurrency): string {
+export function normalizeCurrency(
+  value: string | null | undefined
+): SupportedCurrency {
+  return String(value ?? "").trim().toUpperCase() === "EUR" ? "EUR" : "USD";
+}
+
+export function formatMoney(
+  amount: number,
+  currency: SupportedCurrency
+): string {
+  const safeAmount = Number.isFinite(amount) ? amount : 0;
+
   return new Intl.NumberFormat(undefined, {
     style: "currency",
     currency,
-    // شهرياً عادة بدون كسور، لكن خليها 0-2 حسب القيمة
-    minimumFractionDigits: amount % 1 === 0 ? 0 : 2,
-    maximumFractionDigits: amount % 1 === 0 ? 0 : 2,
-  }).format(amount);
+    minimumFractionDigits: safeAmount % 1 === 0 ? 0 : 2,
+    maximumFractionDigits: safeAmount % 1 === 0 ? 0 : 2,
+  }).format(safeAmount);
+}
+
+export function formatMinorUnits(
+  amountCents: number | null | undefined,
+  currency: SupportedCurrency
+): string {
+  const cents = Number.isFinite(amountCents ?? NaN) ? Number(amountCents) : 0;
+  return formatMoney(cents / 100, currency);
 }

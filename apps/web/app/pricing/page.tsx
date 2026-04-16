@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import {
   convertUsd,
   detectCurrency,
@@ -20,8 +21,14 @@ import { PricingCheckoutGuide } from "../../components/pricing/PricingCheckoutGu
 function getAppBase() {
   if (typeof window === "undefined") return "";
   const { hostname } = window.location;
-  if (hostname === "localhost" || hostname === "127.0.0.1") return window.location.origin;
-  return process.env.NEXT_PUBLIC_APP_BASE ?? process.env.NEXT_PUBLIC_WEB_BASE ?? "";
+  if (hostname === "localhost" || hostname === "127.0.0.1") {
+    return window.location.origin;
+  }
+  return (
+    process.env.NEXT_PUBLIC_APP_BASE ??
+    process.env.NEXT_PUBLIC_WEB_BASE ??
+    ""
+  );
 }
 
 type PlanKey = "FREE" | "PAYG" | "PRO" | "TEAM";
@@ -41,9 +48,56 @@ type Plan = {
   ctaHref: string;
 };
 
+type StorageAddonItem = {
+  key: string;
+  label: string;
+  storageBytes: number;
+  priceCents: number;
+  currency: string;
+  workspaceType: "PERSONAL" | "TEAM";
+};
+
+function normalizeMoneyLabel(value: string | null | undefined) {
+  const text = typeof value === "string" ? value.trim() : "";
+  return text || "—";
+}
+
+function formatBytesCompact(value: number | null | undefined): string {
+  const n = typeof value === "number" ? value : Number.NaN;
+  if (!Number.isFinite(n) || n <= 0) return "0 B";
+
+  const units = ["B", "KB", "MB", "GB", "TB"] as const;
+  let size = n;
+  let index = 0;
+
+  while (size >= 1024 && index < units.length - 1) {
+    size /= 1024;
+    index += 1;
+  }
+
+  const fixed = index === 0 ? 0 : size >= 100 ? 0 : size >= 10 ? 1 : 2;
+  return `${size.toFixed(fixed)} ${units[index]}`;
+}
+
+function formatAddonMoney(
+  item: StorageAddonItem,
+  currency: SupportedCurrency | null
+): string {
+  if (!currency) {
+    return `${item.currency} ${(item.priceCents / 100).toFixed(2)}`;
+  }
+
+  if (item.currency.toUpperCase() === "USD") {
+    return formatMoney(convertUsd(item.priceCents / 100, currency), currency);
+  }
+
+  return `${item.currency} ${(item.priceCents / 100).toFixed(2)}`;
+}
+
 export default function MarketingPricingPage() {
   const { addToast } = useToast();
   const { hasSession } = useAuth();
+
   const [hoveredPlan, setHoveredPlan] = useState<string | null>(null);
   const [currency, setCurrency] = useState<SupportedCurrency | null>(null);
   const [catalog, setCatalog] = useState<PricingCatalogResponse | null>(null);
@@ -53,7 +107,11 @@ export default function MarketingPricingPage() {
   }, []);
 
   useEffect(() => {
-    apiFetch("/v1/billing/pricing", { method: "GET" }, { auth: false, retryAuthOnce: false })
+    apiFetch(
+      "/v1/billing/pricing",
+      { method: "GET" },
+      { auth: false, retryAuthOnce: false }
+    )
       .then((data) => setCatalog((data ?? null) as PricingCatalogResponse | null))
       .catch(() => setCatalog(null));
   }, []);
@@ -69,8 +127,15 @@ export default function MarketingPricingPage() {
 
   const buildCtaHref = (key: PlanKey) => {
     if (!hasSession) return appRegister;
-    if (key === "TEAM") return `${appBilling}?workspace=team&plan=TEAM`;
-    if (key === "FREE") return `${appBilling}?workspace=personal`;
+
+    if (key === "TEAM") {
+      return `${appBilling}?workspace=team&plan=TEAM`;
+    }
+
+    if (key === "FREE") {
+      return `${appBilling}?workspace=personal`;
+    }
+
     return `${appBilling}?workspace=personal&plan=${key}`;
   };
 
@@ -82,24 +147,44 @@ export default function MarketingPricingPage() {
 
     if (key === "FREE") return "Open billing console";
     if (key === "TEAM") return "Open team checkout";
+    if (key === "PAYG") return "Open PAYG checkout";
+    if (key === "PRO") return "Open PRO checkout";
     return `Choose ${key}`;
   };
+
+  const storageAddonSummary = useMemo(() => {
+    if (!Array.isArray(catalog?.storageAddons) || catalog.storageAddons.length === 0) {
+      return null;
+    }
+
+    const all = catalog.storageAddons as StorageAddonItem[];
+    return {
+      personal: all.filter((item) => item.workspaceType === "PERSONAL"),
+      team: all.filter((item) => item.workspaceType === "TEAM"),
+    };
+  }, [catalog]);
 
   const plans: Plan[] = useMemo(
     () => [
       {
         key: "FREE",
         title: "FREE",
-        priceLabel: currency ? formatMoney(convertUsd(0, currency), currency) : null,
+        priceLabel: currency
+          ? formatMoney(convertUsd(0, currency), currency)
+          : null,
         billingModel: "free",
         bestFor: "Occasional personal use",
         features: [
           `${catalog?.free?.maxEvidenceRecords ?? 3} evidence records total`,
           `Storage included: ${catalog?.free?.storageLabel ?? "250 MB"}`,
-          "Basic integrity record",
+          "Basic recorded integrity materials",
           "Public verification access",
         ],
-        exclusions: ["PDF reports not included", "Verification package not included"],
+        exclusions: [
+          "PDF reports not included",
+          "Verification package not included",
+          "No paid storage add-ons until base plan upgrade",
+        ],
         note: "Good for initial evaluation and low-volume personal usage.",
         ctaLabel: buildCtaLabel("FREE"),
         ctaHref: buildCtaHref("FREE"),
@@ -121,8 +206,10 @@ export default function MarketingPricingPage() {
           "PDF report included",
           "Verification package included",
           "Shareable verification link",
+          "Supports selected personal storage add-ons",
         ],
-        note: "One-time purchase flow. Best when you do not need a recurring subscription.",
+        note:
+          "Best when you do not need a recurring subscription but still want professional evidence outputs.",
         accent: "teal",
         highlighted: true,
         ctaLabel: buildCtaLabel("PAYG"),
@@ -132,7 +219,7 @@ export default function MarketingPricingPage() {
         key: "PRO",
         title: "PRO",
         priceLabel: currency
-          ? `${formatCatalogPrice(catalog?.pro?.monthlyPriceCents)} / month`
+          ? `${normalizeMoneyLabel(formatCatalogPrice(catalog?.pro?.monthlyPriceCents))} / month`
           : null,
         billingModel: "monthly",
         bestFor: "Recurring individual professional use",
@@ -141,8 +228,10 @@ export default function MarketingPricingPage() {
           "Unlimited evidence records",
           "PDF reports included",
           "Verification packages included",
+          "Supports recurring personal storage add-ons",
         ],
-        note: "For professionals who need recurring access and higher ongoing volume.",
+        note:
+          "For professionals who need recurring access and higher ongoing volume.",
         accent: "bronze",
         ctaLabel: buildCtaLabel("PRO"),
         ctaHref: buildCtaHref("PRO"),
@@ -151,7 +240,7 @@ export default function MarketingPricingPage() {
         key: "TEAM",
         title: "TEAM",
         priceLabel: currency
-          ? `${formatCatalogPrice(catalog?.team?.monthlyPriceCents)} / month`
+          ? `${normalizeMoneyLabel(formatCatalogPrice(catalog?.team?.monthlyPriceCents))} / month`
           : null,
         billingModel: "monthly",
         bestFor: "Firms, teams, investigations, and organizations",
@@ -160,6 +249,7 @@ export default function MarketingPricingPage() {
           `Storage included: ${catalog?.team?.storageLabel ?? "500 GB"}`,
           "Shared workspace and member management",
           "Reports and verification packages included",
+          "Supports recurring team storage add-ons",
         ],
         note: "Requires an owned team workspace before checkout.",
         ctaLabel: buildCtaLabel("TEAM"),
@@ -193,14 +283,18 @@ export default function MarketingPricingPage() {
 
               <h1 className="mt-5 max-w-[860px] text-[1.62rem] font-medium leading-[1.01] tracking-[-0.04em] text-[#edf1ef] md:text-[2.18rem] lg:text-[2.7rem]">
                 Choose the evidence workflow that fits your
-                <span className="text-[#bfe8df]"> review and case volume needs</span>
+                <span className="text-[#bfe8df]">
+                  {" "}
+                  review and case volume needs
+                </span>
               </h1>
 
               <p className="mt-5 max-w-[820px] text-[0.94rem] font-normal leading-[1.78] tracking-[-0.006em] text-[#c7cfcc] md:text-[0.98rem]">
-                All plans include secure evidence storage. Report access, verification
-                packages, recurring subscriptions, and team capacity depend on the
-                selected plan. Billing continues inside the workspace console where
-                the correct personal or team context is enforced.
+                All plans include secure evidence storage. Report access,
+                verification packages, recurring subscriptions, storage add-ons,
+                and team capacity depend on the selected plan. Billing continues
+                inside the workspace console where the correct personal or team
+                context is enforced.
               </p>
             </div>
           </section>
@@ -257,7 +351,11 @@ export default function MarketingPricingPage() {
                         <p
                           className="text-[0.72rem] font-medium uppercase tracking-[0.18em]"
                           style={{
-                            color: isHighlighted ? "#2f6965" : isBronze ? "#9b826b" : "#405357",
+                            color: isHighlighted
+                              ? "#2f6965"
+                              : isBronze
+                                ? "#9b826b"
+                                : "#405357",
                           }}
                         >
                           {plan.title}
@@ -330,9 +428,11 @@ export default function MarketingPricingPage() {
                       ) : null}
 
                       <div className="mt-auto">
-                        <a
+                        <Link
                           href={plan.ctaHref}
-                          onClick={() => addToast(`Opening ${plan.title} flow...`, "info")}
+                          onClick={() =>
+                            addToast(`Opening ${plan.title} flow...`, "info")
+                          }
                           className="block"
                         >
                           <Button
@@ -341,7 +441,7 @@ export default function MarketingPricingPage() {
                           >
                             {plan.ctaLabel} ›
                           </Button>
-                        </a>
+                        </Link>
                       </div>
                     </div>
                   </Card>
@@ -349,6 +449,110 @@ export default function MarketingPricingPage() {
               );
             })}
           </div>
+
+          {storageAddonSummary ? (
+            <div
+              className="mt-8 rounded-[28px] border px-6 py-6"
+              style={{
+                border: "1px solid rgba(79,112,107,0.12)",
+                background:
+                  "linear-gradient(180deg, rgba(255,255,255,0.62) 0%, rgba(243,245,242,0.92) 100%)",
+              }}
+            >
+              <div className="text-[1rem] font-semibold tracking-[-0.02em] text-[#21353a]">
+                Extra Storage Add-ons
+              </div>
+
+              <div className="mt-2 text-[0.9rem] leading-[1.75] text-[#5d6d71]">
+                Add-ons are purchased inside the billing console and depend on
+                workspace type and base plan eligibility.
+              </div>
+
+              <div className="mt-5 grid gap-5 md:grid-cols-2">
+                <div>
+                  <div className="text-[0.78rem] font-semibold uppercase tracking-[0.14em] text-[#8a7562]">
+                    Personal workspace add-ons
+                  </div>
+                  <div className="mt-3 grid gap-3">
+                    {storageAddonSummary.personal.length === 0 ? (
+                      <div className="rounded-[18px] border px-4 py-4 text-[0.86rem] text-[#5d6d71]"
+                        style={{
+                          border: "1px solid rgba(79,112,107,0.10)",
+                          background:
+                            "linear-gradient(180deg, rgba(255,255,255,0.58) 0%, rgba(243,245,242,0.90) 100%)",
+                        }}
+                      >
+                        No personal storage add-ons published.
+                      </div>
+                    ) : (
+                      storageAddonSummary.personal.map((item) => (
+                        <div
+                          key={item.key}
+                          className="rounded-[18px] border px-4 py-4"
+                          style={{
+                            border: "1px solid rgba(79,112,107,0.10)",
+                            background:
+                              "linear-gradient(180deg, rgba(255,255,255,0.58) 0%, rgba(243,245,242,0.90) 100%)",
+                          }}
+                        >
+                          <div className="text-[0.94rem] font-semibold text-[#21353a]">
+                            {item.label}
+                          </div>
+                          <div className="mt-1 text-[0.86rem] text-[#5d6d71]">
+                            {formatBytesCompact(item.storageBytes)} extra storage
+                          </div>
+                          <div className="mt-1 text-[0.86rem] text-[#5d6d71]">
+                            {formatAddonMoney(item, currency)}
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+
+                <div>
+                  <div className="text-[0.78rem] font-semibold uppercase tracking-[0.14em] text-[#8a7562]">
+                    Team workspace add-ons
+                  </div>
+                  <div className="mt-3 grid gap-3">
+                    {storageAddonSummary.team.length === 0 ? (
+                      <div className="rounded-[18px] border px-4 py-4 text-[0.86rem] text-[#5d6d71]"
+                        style={{
+                          border: "1px solid rgba(79,112,107,0.10)",
+                          background:
+                            "linear-gradient(180deg, rgba(255,255,255,0.58) 0%, rgba(243,245,242,0.90) 100%)",
+                        }}
+                      >
+                        No team storage add-ons published.
+                      </div>
+                    ) : (
+                      storageAddonSummary.team.map((item) => (
+                        <div
+                          key={item.key}
+                          className="rounded-[18px] border px-4 py-4"
+                          style={{
+                            border: "1px solid rgba(79,112,107,0.10)",
+                            background:
+                              "linear-gradient(180deg, rgba(255,255,255,0.58) 0%, rgba(243,245,242,0.90) 100%)",
+                          }}
+                        >
+                          <div className="text-[0.94rem] font-semibold text-[#21353a]">
+                            {item.label}
+                          </div>
+                          <div className="mt-1 text-[0.86rem] text-[#5d6d71]">
+                            {formatBytesCompact(item.storageBytes)} extra storage
+                          </div>
+                          <div className="mt-1 text-[0.86rem] text-[#5d6d71]">
+                            {formatAddonMoney(item, currency)}
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          ) : null}
 
           <div className="mt-8 grid gap-6">
             <PricingComparisonTable
@@ -362,8 +566,11 @@ export default function MarketingPricingPage() {
           </div>
 
           <div className="mt-5 text-[0.82rem] leading-[1.7] text-[#667174]">
-            Prices shown in <span className="font-medium text-[#31464a]">{currency ?? "..."}</span>.
-            VAT may apply depending on your country.
+            Prices shown in{" "}
+            <span className="font-medium text-[#31464a]">
+              {currency ?? "..."}
+            </span>
+            . VAT may apply depending on your country.
           </div>
         </div>
       </SilverWatermarkSection>

@@ -82,6 +82,13 @@ type Team = {
   canManageMembers?: boolean;
   stats?: TeamStats;
   members?: TeamMember[];
+  billingPlan?: string | null;
+  billingStatus?: string | null;
+  billingOwnerUserId?: string | null;
+  includedSeats?: number | null;
+  overSeatLimit?: boolean | null;
+  billingActivatedAt?: string | null;
+  billingCanceledAt?: string | null;
 };
 
 type MeResponse = {
@@ -137,6 +144,44 @@ function roleTone(role: string) {
       background:
         "linear-gradient(180deg, rgba(191,232,223,0.20) 0%, rgba(255,255,255,0.44) 100%)",
       color: "#2d5b59",
+    };
+  }
+
+  return {
+    border: "1px solid rgba(79,112,107,0.12)",
+    background:
+      "linear-gradient(180deg, rgba(250,251,249,0.82) 0%, rgba(241,244,241,0.96) 100%)",
+    color: "#4d6165",
+  };
+}
+
+function billingTone(status?: string | null) {
+  const normalized = String(status ?? "").trim().toUpperCase();
+
+  if (normalized === "ACTIVE") {
+    return {
+      border: "1px solid rgba(79,112,107,0.18)",
+      background:
+        "linear-gradient(180deg, rgba(191,232,223,0.20) 0%, rgba(255,255,255,0.44) 100%)",
+      color: "#2d5b59",
+    };
+  }
+
+  if (normalized === "PAST_DUE") {
+    return {
+      border: "1px solid rgba(183,157,132,0.20)",
+      background:
+        "linear-gradient(180deg, rgba(214,184,157,0.14) 0%, rgba(255,255,255,0.44) 100%)",
+      color: "#8a6e57",
+    };
+  }
+
+  if (normalized === "CANCELED") {
+    return {
+      border: "1px solid rgba(194,78,78,0.20)",
+      background:
+        "linear-gradient(180deg, rgba(194,78,78,0.10) 0%, rgba(255,255,255,0.44) 100%)",
+      color: "#8b3e3e",
     };
   }
 
@@ -459,6 +504,29 @@ export default function TeamDetailPage() {
   const isOwner = currentRole === "OWNER";
   const canManageTeam =
     team?.canManageMembers ?? (currentRole === "OWNER" || currentRole === "ADMIN");
+
+  const billingConsoleHref = useMemo(() => {
+    if (!teamId) return "/billing?workspace=team&plan=TEAM";
+    return `/billing?workspace=team&plan=TEAM&team=${encodeURIComponent(teamId)}`;
+  }, [teamId]);
+
+  const effectiveBillingPlan = useMemo(() => {
+    const normalized = String(team?.billingPlan ?? "").trim().toUpperCase();
+    return normalized || "FREE";
+  }, [team?.billingPlan]);
+
+  const effectiveBillingStatus = useMemo(() => {
+    const normalized = String(team?.billingStatus ?? "").trim().toUpperCase();
+    if (!normalized) {
+      return effectiveBillingPlan === "TEAM" ? "ACTIVE" : "INACTIVE";
+    }
+    return normalized;
+  }, [team?.billingStatus, effectiveBillingPlan]);
+
+  const teamSeatsUsed = team?.stats?.memberCount ?? team?.members?.length ?? 0;
+  const teamSeatsIncluded = team?.includedSeats ?? 0;
+  const teamSeatsRemaining =
+    teamSeatsIncluded > 0 ? Math.max(0, teamSeatsIncluded - teamSeatsUsed) : 0;
 
   const displayMemberName = (member: TeamMember) =>
     member.user?.displayName || member.label || member.user?.email || member.userId;
@@ -970,7 +1038,7 @@ export default function TeamDetailPage() {
                 color: "#aab5b2",
               }}
             >
-              Preparing members, invites, and linked team cases.
+              Preparing members, invites, linked team cases, and billing context.
             </p>
           </div>
         </div>
@@ -1069,7 +1137,7 @@ export default function TeamDetailPage() {
                   <div className="team-card-copy">{error || "Team not found."}</div>
                 </div>
 
-                <div style={{ marginTop: 16 }}>
+                <div style={{ marginTop: 16, display: "flex", gap: 10, flexWrap: "wrap" }}>
                   <Link href="/teams" style={{ textDecoration: "none" }}>
                     <Button
                       className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
@@ -1078,6 +1146,17 @@ export default function TeamDetailPage() {
                       Back to Teams
                     </Button>
                   </Link>
+
+                  {teamId ? (
+                    <Link href={billingConsoleHref} style={{ textDecoration: "none" }}>
+                      <Button
+                        className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
+                        style={secondaryButtonStyle}
+                      >
+                        Open Team Billing
+                      </Button>
+                    </Link>
+                  ) : null}
                 </div>
               </div>
             </Card>
@@ -1356,7 +1435,7 @@ export default function TeamDetailPage() {
           }
         }
       `}</style>
-      
+
       <div className="app-hero app-hero-full">
         <div className="container">
           <div className="page-title app-page-title" style={{ marginBottom: 0 }}>
@@ -1405,7 +1484,7 @@ export default function TeamDetailPage() {
                     <Button
                       variant="secondary"
                       onClick={handleStartEditName}
-className="app-responsive-btn rounded-[999px] border px-4 py-2.5 text-[0.88rem] font-semibold"
+                      className="app-responsive-btn rounded-[999px] border px-4 py-2.5 text-[0.88rem] font-semibold"
                       style={secondaryButtonStyle}
                     >
                       Rename
@@ -1424,7 +1503,7 @@ className="app-responsive-btn rounded-[999px] border px-4 py-2.5 text-[0.88rem] 
                   <Button
                     onClick={handleSaveTeamName}
                     disabled={savingName || !teamName.trim()}
-className="app-responsive-btn rounded-[999px] border px-4 py-2.5 text-[0.88rem] font-semibold"
+                    className="app-responsive-btn rounded-[999px] border px-4 py-2.5 text-[0.88rem] font-semibold"
                     style={primaryButtonStyle}
                   >
                     {savingName ? "Saving..." : "Save"}
@@ -1434,7 +1513,7 @@ className="app-responsive-btn rounded-[999px] border px-4 py-2.5 text-[0.88rem] 
                     variant="secondary"
                     onClick={handleCancelEditName}
                     disabled={savingName}
-className="app-responsive-btn rounded-[999px] border px-4 py-2.5 text-[0.88rem] font-semibold"
+                    className="app-responsive-btn rounded-[999px] border px-4 py-2.5 text-[0.88rem] font-semibold"
                     style={secondaryButtonStyle}
                   >
                     Cancel
@@ -1454,9 +1533,10 @@ className="app-responsive-btn rounded-[999px] border px-4 py-2.5 text-[0.88rem] 
               >
                 Manage <span style={{ color: "#cfd8d5" }}>ownership</span>,{" "}
                 <span style={{ color: "#bbc7c3" }}>members</span>,{" "}
-                <span style={{ color: "#d2dcd8" }}>pending invites</span>, and linked{" "}
-                <span style={{ color: "#d9ccbf" }}>team cases</span> from one controlled
-                workspace.
+                <span style={{ color: "#d2dcd8" }}>pending invites</span>, linked{" "}
+                <span style={{ color: "#d9ccbf" }}>team cases</span>, and open the{" "}
+                <span style={{ color: "#c3ebe2" }}>team billing workflow</span>{" "}
+                from the same workspace.
               </p>
 
               <div className="mt-6 flex flex-wrap gap-2.5">
@@ -1483,6 +1563,11 @@ className="app-responsive-btn rounded-[999px] border px-4 py-2.5 text-[0.88rem] 
                   <span className="mr-2 text-[#c2a07f]">✓</span>
                   Current role: {currentRole}
                 </div>
+
+                <div className="rounded-full border border-[rgba(158,216,207,0.18)] bg-[linear-gradient(180deg,rgba(158,216,207,0.10)_0%,rgba(255,255,255,0.028)_100%)] px-3.5 py-2 text-[0.78rem] font-normal text-[#c3ebe2] shadow-[0_8px_18px_rgba(0,0,0,0.08)] backdrop-blur-md">
+                  <span className="mr-2 text-[#9ad1c6]">✓</span>
+                  Billing: {effectiveBillingPlan} · {effectiveBillingStatus}
+                </div>
               </div>
             </div>
 
@@ -1495,6 +1580,17 @@ className="app-responsive-btn rounded-[999px] border px-4 py-2.5 text-[0.88rem] 
                   Back to Teams
                 </Button>
               </Link>
+
+              {canManageTeam ? (
+                <Link href={billingConsoleHref} style={{ textDecoration: "none" }}>
+                  <Button
+                    className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
+                    style={primaryButtonStyle}
+                  >
+                    Open Team Billing
+                  </Button>
+                </Link>
+              ) : null}
 
               {isOwner && (
                 <Button
@@ -1584,7 +1680,7 @@ className="app-responsive-btn rounded-[999px] border px-4 py-2.5 text-[0.88rem] 
                     variant="secondary"
                     onClick={() => setDeleteConfirm(false)}
                     disabled={deletingTeam}
-className="app-responsive-btn rounded-[999px] border px-4 py-2.5 text-[0.88rem] font-semibold"
+                    className="app-responsive-btn rounded-[999px] border px-4 py-2.5 text-[0.88rem] font-semibold"
                     style={secondaryButtonStyle}
                   >
                     Cancel
@@ -1593,7 +1689,7 @@ className="app-responsive-btn rounded-[999px] border px-4 py-2.5 text-[0.88rem] 
                   <Button
                     onClick={handleDeleteTeam}
                     disabled={deletingTeam}
-className="app-responsive-btn rounded-[999px] border px-4 py-2.5 text-[0.88rem] font-semibold"
+                    className="app-responsive-btn rounded-[999px] border px-4 py-2.5 text-[0.88rem] font-semibold"
                     style={dangerButtonStyle}
                   >
                     {deletingTeam ? "Deleting..." : "Delete Team"}
@@ -1637,15 +1733,15 @@ className="app-responsive-btn rounded-[999px] border px-4 py-2.5 text-[0.88rem] 
                       className="team-field"
                     />
 
-<TeamRoleDropdown
-  value={inviteRole}
-  options={INVITE_ROLE_OPTIONS}
-  onChange={(value) =>
-    setInviteRole(value as (typeof INVITE_ROLE_OPTIONS)[number])
-  }
-  disabled={inviting}
-  minWidth={180}
-/>
+                    <TeamRoleDropdown
+                      value={inviteRole}
+                      options={INVITE_ROLE_OPTIONS}
+                      onChange={(value) =>
+                        setInviteRole(value as (typeof INVITE_ROLE_OPTIONS)[number])
+                      }
+                      disabled={inviting}
+                      minWidth={180}
+                    />
 
                     <Button
                       onClick={handleInvite}
@@ -1677,7 +1773,7 @@ className="app-responsive-btn rounded-[999px] border px-4 py-2.5 text-[0.88rem] 
                   <div className="team-card-header">
                     <div className="team-card-title">Access summary</div>
                     <div className="team-card-copy">
-                      Your current access and workspace permissions.
+                      Your current access, workspace permissions, and billing entry point.
                     </div>
                   </div>
 
@@ -1702,8 +1798,21 @@ className="app-responsive-btn rounded-[999px] border px-4 py-2.5 text-[0.88rem] 
                         <strong style={{ color: "#7f6450" }}>Pending invites:</strong>{" "}
                         {team.stats?.pendingInviteCount ?? invites.length}
                       </div>
+                      <div>
+                        <strong style={{ color: "#7f6450" }}>Billing:</strong>{" "}
+                        {effectiveBillingPlan} · {effectiveBillingStatus}
+                      </div>
                     </div>
                   </div>
+
+                  <Link href={billingConsoleHref} style={{ textDecoration: "none" }}>
+                    <Button
+                      className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
+                      style={secondaryButtonStyle}
+                    >
+                      Open Team Billing
+                    </Button>
+                  </Link>
                 </div>
               </Card>
             )}
@@ -1724,9 +1833,9 @@ className="app-responsive-btn rounded-[999px] border px-4 py-2.5 text-[0.88rem] 
 
               <div className="team-card-inner p-6 md:p-6">
                 <div className="team-card-header">
-                  <div className="team-card-title">Workspace summary</div>
+                  <div className="team-card-title">Workspace & billing summary</div>
                   <div className="team-card-copy">
-                    Core team status, role visibility, and workspace ownership at a glance.
+                    Core team status, billing state, seat capacity, and ownership at a glance.
                   </div>
                 </div>
 
@@ -1752,6 +1861,19 @@ className="app-responsive-btn rounded-[999px] border px-4 py-2.5 text-[0.88rem] 
                         <strong style={{ color: "#7f6450" }}>Linked cases:</strong>{" "}
                         {team.stats?.caseCount ?? teamCases.length}
                       </div>
+                      <div>
+                        <strong style={{ color: "#7f6450" }}>Billing plan:</strong>{" "}
+                        {effectiveBillingPlan}
+                      </div>
+                      <div>
+                        <strong style={{ color: "#7f6450" }}>Billing status:</strong>{" "}
+                        {effectiveBillingStatus}
+                      </div>
+                      <div>
+                        <strong style={{ color: "#7f6450" }}>Seats:</strong>{" "}
+                        {teamSeatsUsed} / {teamSeatsIncluded > 0 ? teamSeatsIncluded : "—"}
+                        {teamSeatsIncluded > 0 ? ` · ${teamSeatsRemaining} remaining` : ""}
+                      </div>
                     </div>
                   </div>
 
@@ -1767,6 +1889,16 @@ className="app-responsive-btn rounded-[999px] border px-4 py-2.5 text-[0.88rem] 
                       <span style={{ ...statPillBase, ...roleTone(currentRole) }}>
                         {currentRole}
                       </span>
+
+                      <span
+                        style={{
+                          ...statPillBase,
+                          ...billingTone(effectiveBillingStatus),
+                        }}
+                      >
+                        {effectiveBillingStatus}
+                      </span>
+
                       <span
                         style={{
                           ...statPillBase,
@@ -1778,6 +1910,51 @@ className="app-responsive-btn rounded-[999px] border px-4 py-2.5 text-[0.88rem] 
                       >
                         {team.stats?.memberCount ?? team.members?.length ?? 0} members
                       </span>
+
+                      {team?.overSeatLimit ? (
+                        <span
+                          style={{
+                            ...statPillBase,
+                            border: "1px solid rgba(194,78,78,0.20)",
+                            background:
+                              "linear-gradient(180deg, rgba(194,78,78,0.10) 0%, rgba(255,255,255,0.44) 100%)",
+                            color: "#8b3e3e",
+                          }}
+                        >
+                          Over seat limit
+                        </span>
+                      ) : null}
+                    </div>
+                  </div>
+
+                  <div style={rowCardStyle}>
+                    <div
+                      style={{
+                        display: "grid",
+                        gap: 8,
+                        color: "#5d6d71",
+                        lineHeight: 1.7,
+                      }}
+                    >
+                      <div>
+                        Team billing is managed through the Billing console using this
+                        exact workspace context.
+                      </div>
+                      <div>
+                        Use billing to start a TEAM subscription, review seat pressure,
+                        or manage recurring workspace billing.
+                      </div>
+                    </div>
+
+                    <div style={{ marginTop: 14 }}>
+                      <Link href={billingConsoleHref} style={{ textDecoration: "none" }}>
+                        <Button
+                          className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
+                          style={primaryButtonStyle}
+                        >
+                          Open Team Billing
+                        </Button>
+                      </Link>
                     </div>
                   </div>
                 </div>
@@ -1821,8 +1998,8 @@ className="app-responsive-btn rounded-[999px] border px-4 py-2.5 text-[0.88rem] 
 
                       return (
                         <div key={member.userId} style={rowCardStyle}>
-<div className="team-row-flex">
-                              <div style={{ flex: 1, minWidth: 0 }}>
+                          <div className="team-row-flex">
+                            <div style={{ flex: 1, minWidth: 0 }}>
                               <div
                                 style={{
                                   color: "#21353a",
@@ -1854,20 +2031,23 @@ className="app-responsive-btn rounded-[999px] border px-4 py-2.5 text-[0.88rem] 
                             >
                               {canManageTeam && !memberIsOwner ? (
                                 <>
-<TeamRoleDropdown
-  value={member.role as TeamRoleValue}
-  options={MANAGEABLE_ROLE_OPTIONS}
-  onChange={(value) =>
-    handleRoleChange(member, value as (typeof MANAGEABLE_ROLE_OPTIONS)[number])
-  }
-  disabled={roleSavingKey === member.userId}
-  minWidth={150}
-/>
+                                  <TeamRoleDropdown
+                                    value={member.role as TeamRoleValue}
+                                    options={MANAGEABLE_ROLE_OPTIONS}
+                                    onChange={(value) =>
+                                      handleRoleChange(
+                                        member,
+                                        value as (typeof MANAGEABLE_ROLE_OPTIONS)[number]
+                                      )
+                                    }
+                                    disabled={roleSavingKey === member.userId}
+                                    minWidth={150}
+                                  />
                                   <Button
                                     variant="secondary"
                                     onClick={() => handleRemoveMember(member)}
                                     disabled={removingMemberId === member.userId}
-className="app-responsive-btn rounded-[999px] border px-4 py-2.5 text-[0.88rem] font-semibold"
+                                    className="app-responsive-btn rounded-[999px] border px-4 py-2.5 text-[0.88rem] font-semibold"
                                     style={dangerButtonStyle}
                                   >
                                     {removingMemberId === member.userId
@@ -1972,7 +2152,7 @@ className="app-responsive-btn rounded-[999px] border px-4 py-2.5 text-[0.88rem] 
                               <Button
                                 variant="secondary"
                                 onClick={() => copyInviteLink(invite)}
-className="app-responsive-btn rounded-[999px] border px-4 py-2.5 text-[0.88rem] font-semibold"
+                                className="app-responsive-btn rounded-[999px] border px-4 py-2.5 text-[0.88rem] font-semibold"
                                 style={secondaryButtonStyle}
                               >
                                 Copy link
@@ -1983,7 +2163,7 @@ className="app-responsive-btn rounded-[999px] border px-4 py-2.5 text-[0.88rem] 
                               variant="secondary"
                               onClick={() => handleDeleteInvite(invite.id)}
                               disabled={deletingInviteId === invite.id}
-className="app-responsive-btn rounded-[999px] border px-4 py-2.5 text-[0.88rem] font-semibold"
+                              className="app-responsive-btn rounded-[999px] border px-4 py-2.5 text-[0.88rem] font-semibold"
                               style={dangerButtonStyle}
                             >
                               {deletingInviteId === invite.id ? "Deleting..." : "Delete"}
@@ -2067,8 +2247,8 @@ className="app-responsive-btn rounded-[999px] border px-4 py-2.5 text-[0.88rem] 
                 <div className="team-stack">
                   {teamCases.map((item) => (
                     <div key={item.id} style={rowCardStyle}>
-<div className="team-row-flex">
-                          <div style={{ flex: 1, minWidth: 0 }}>
+                      <div className="team-row-flex">
+                        <div style={{ flex: 1, minWidth: 0 }}>
                           <div
                             style={{
                               color: "#21353a",
@@ -2098,7 +2278,7 @@ className="app-responsive-btn rounded-[999px] border px-4 py-2.5 text-[0.88rem] 
                             style={{ textDecoration: "none" }}
                           >
                             <Button
-className="app-responsive-btn rounded-[999px] border px-4 py-2.5 text-[0.88rem] font-semibold"
+                              className="app-responsive-btn rounded-[999px] border px-4 py-2.5 text-[0.88rem] font-semibold"
                               style={primaryButtonStyle}
                             >
                               Open
@@ -2110,7 +2290,7 @@ className="app-responsive-btn rounded-[999px] border px-4 py-2.5 text-[0.88rem] 
                               variant="secondary"
                               onClick={() => handleUnlinkTeamCase(item.id)}
                               disabled={unlinkingCaseId === item.id}
-className="app-responsive-btn rounded-[999px] border px-4 py-2.5 text-[0.88rem] font-semibold"
+                              className="app-responsive-btn rounded-[999px] border px-4 py-2.5 text-[0.88rem] font-semibold"
                               style={dangerButtonStyle}
                             >
                               {unlinkingCaseId === item.id
@@ -2151,8 +2331,8 @@ className="app-responsive-btn rounded-[999px] border px-4 py-2.5 text-[0.88rem] 
                     <div className="team-stack">
                       {availableCases.map((item) => (
                         <div key={item.id} style={rowCardStyle}>
-<div className="team-row-flex">
-                              <div style={{ flex: 1, minWidth: 0 }}>
+                          <div className="team-row-flex">
+                            <div style={{ flex: 1, minWidth: 0 }}>
                               <div
                                 style={{
                                   color: "#21353a",
@@ -2178,7 +2358,7 @@ className="app-responsive-btn rounded-[999px] border px-4 py-2.5 text-[0.88rem] 
                             <Button
                               onClick={() => handleAddExistingCase(item.id)}
                               disabled={linkingCaseId === item.id}
-className="app-responsive-btn rounded-[999px] border px-4 py-2.5 text-[0.88rem] font-semibold"
+                              className="app-responsive-btn rounded-[999px] border px-4 py-2.5 text-[0.88rem] font-semibold"
                               style={primaryButtonStyle}
                             >
                               {linkingCaseId === item.id ? "Linking..." : "Link"}

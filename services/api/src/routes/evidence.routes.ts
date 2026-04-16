@@ -22,6 +22,7 @@ import {
 import { appendPlatformAuditLog } from "../services/platform-audit-log.service.js";
 import { ed25519VerifyHexSignature, sha256Hex } from "../crypto.js";
 import { writeAnalyticsEvent } from "../services/analytics-event.service.js";
+import { readBillingOverview } from "../services/billing-overview.service.js";
 
 const EvidenceTypeSchema = prismaPkg.EvidenceType
   ? z.nativeEnum(prismaPkg.EvidenceType)
@@ -1563,6 +1564,53 @@ function mapPublicCustodyEvent(ev: {
   };
 }
 
+async function buildStorageLimitPayload(params: {
+  ownerUserId: string;
+  evidenceId?: string | null;
+  teamId?: string | null;
+  req?: FastifyRequest;
+  reason?: string | null;
+  incomingBytes?: string | null;
+}) {
+  const overview = await readBillingOverview(params.ownerUserId);
+
+  const workspace =
+    params.teamId != null
+      ? overview.workspaces.teams.find((team) => team.id === params.teamId) ?? null
+      : overview.workspaces.personal;
+
+  const upgradeSuggestion =
+    workspace && workspace.workspaceType === "PERSONAL"
+      ? workspace.plan === prismaPkg.PlanType.PAYG
+        ? "Upgrading to PRO may be more cost-effective if you need recurring storage."
+        : workspace.plan === prismaPkg.PlanType.PRO
+          ? "If you need much larger storage, upgrading to TEAM may be more cost-effective."
+          : "Upgrade your base plan to unlock more storage options."
+      : workspace && workspace.workspaceType === "TEAM"
+        ? "If your team keeps growing, a larger recurring storage add-on may be more cost-effective."
+        : null;
+
+  return {
+    code: "STORAGE_LIMIT_REACHED",
+    message: "Storage limit reached",
+    billingWall: {
+      type: "storage_limit_reached",
+      reason: params.reason ?? "workspace_storage_exhausted",
+      evidenceId: params.evidenceId ?? null,
+      workspace,
+      summary: overview.summary,
+      storageAddons: overview.storageAddons,
+      suggestedActions: [
+        "add_storage",
+        "upgrade_plan",
+        "review_archived_evidence",
+      ],
+      upgradeSuggestion,
+      incomingBytes: params.incomingBytes ?? null,
+    },
+  };
+}
+
 export async function evidenceRoutes(app: FastifyInstance) {
   app.post("/v1/evidence", { preHandler: requireAuthAndLegal }, async (req, reply) => {
     const body = CreateEvidenceBody.parse(req.body);
@@ -1643,6 +1691,30 @@ export async function evidenceRoutes(app: FastifyInstance) {
 
       return reply.code(201).send(result);
     } catch (err) {
+      if (
+        err instanceof Error &&
+        "code" in err &&
+        (err as Error & { code?: string }).code === "STORAGE_LIMIT_REACHED"
+      ) {
+        const payload = await buildStorageLimitPayload({
+          ownerUserId,
+          req,
+          reason: "create_evidence_blocked",
+        });
+
+        auditEvidenceAction(req, {
+          userId: ownerUserId,
+          action: "evidence.create",
+          outcome: "blocked",
+          severity: "warning",
+          metadata: {
+            reason: "STORAGE_LIMIT_REACHED",
+          },
+        });
+
+        return reply.code(409).send(payload);
+      }
+
       if (err instanceof Error && err.message === "PAYG_CREDITS_REQUIRED") {
         auditEvidenceAction(req, {
           userId: ownerUserId,
@@ -2966,6 +3038,49 @@ export async function evidenceRoutes(app: FastifyInstance) {
             metadata: { reason: "uploaded_object_not_found" },
           });
           return reply.code(404).send({ message: "Uploaded object not found" });
+        }
+
+                if (
+          err instanceof Error &&
+          "code" in err &&
+          (err as Error & { code?: string }).code === "STORAGE_LIMIT_REACHED"
+        ) {
+          const lockedEvidence = await prisma.evidence.findUnique({
+            where: { id },
+            select: {
+              teamId: true,
+            },
+          });
+
+          const details =
+            "details" in err
+              ? ((err as Error & { details?: Record<string, unknown> }).details ?? {})
+              : {};
+
+          const payload = await buildStorageLimitPayload({
+            ownerUserId,
+            evidenceId: id,
+            teamId: lockedEvidence?.teamId ?? null,
+            req,
+            reason: "complete_evidence_blocked",
+            incomingBytes:
+              typeof details?.incomingBytes === "string"
+                ? details.incomingBytes
+                : null,
+          });
+
+          auditEvidenceAction(req, {
+            userId: ownerUserId,
+            action: "evidence.complete",
+            outcome: "blocked",
+            severity: "warning",
+            resourceId: id,
+            metadata: {
+              reason: "STORAGE_LIMIT_REACHED",
+            },
+          });
+
+          return reply.code(409).send(payload);
         }
 
         auditEvidenceAction(req, {

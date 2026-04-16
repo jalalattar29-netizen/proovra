@@ -78,12 +78,31 @@ export function BillingPlanCard({
     []
   );
 
+  const showStripe = Boolean(onStripe);
+  const showPayPal = Boolean(onPayPal);
+
   return (
     <div style={outerCardStyle}>
-      <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          gap: 12,
+          flexWrap: "wrap",
+        }}
+      >
         <div>
-          <div style={{ fontWeight: 700, color: "#21353a", fontSize: 16 }}>{title}</div>
-          <div style={{ marginTop: 6, fontSize: 13, color: "#5d6d71", lineHeight: 1.7 }}>
+          <div style={{ fontWeight: 700, color: "#21353a", fontSize: 16 }}>
+            {title}
+          </div>
+          <div
+            style={{
+              marginTop: 6,
+              fontSize: 13,
+              color: "#5d6d71",
+              lineHeight: 1.7,
+            }}
+          >
             {subtitle}
           </div>
         </div>
@@ -114,28 +133,41 @@ export function BillingPlanCard({
 
       {children ? <div style={{ marginTop: 14 }}>{children}</div> : null}
 
-      <div style={{ display: "flex", flexWrap: "wrap", gap: 12, marginTop: 16 }}>
-        <Button
-          className="app-responsive-btn rounded-[999px] border px-5 py-3 text-[0.95rem] font-semibold"
-          style={stripeButtonStyle}
-          disabled={disabled || stripeBusy || !onStripe}
-          onClick={() => onStripe?.()}
-        >
-          {stripeBusy ? "Processing..." : stripeLabel}
-        </Button>
+      {(showStripe || showPayPal) && (
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 12, marginTop: 16 }}>
+          {showStripe ? (
+            <Button
+              className="app-responsive-btn rounded-[999px] border px-5 py-3 text-[0.95rem] font-semibold"
+              style={stripeButtonStyle}
+              disabled={disabled || stripeBusy || !onStripe}
+              onClick={() => onStripe?.()}
+            >
+              {stripeBusy ? "Processing..." : stripeLabel}
+            </Button>
+          ) : null}
 
-        <Button
-          className="app-responsive-btn rounded-[999px] border px-5 py-3 text-[0.95rem] font-semibold"
-          style={paypalButtonStyle}
-          disabled={disabled || paypalBusy || !onPayPal}
-          onClick={() => onPayPal?.()}
-        >
-          {paypalBusy ? "Processing..." : paypalLabel}
-        </Button>
-      </div>
+          {showPayPal ? (
+            <Button
+              className="app-responsive-btn rounded-[999px] border px-5 py-3 text-[0.95rem] font-semibold"
+              style={paypalButtonStyle}
+              disabled={disabled || paypalBusy || !onPayPal}
+              onClick={() => onPayPal?.()}
+            >
+              {paypalBusy ? "Processing..." : paypalLabel}
+            </Button>
+          ) : null}
+        </div>
+      )}
 
       {note ? (
-        <div style={{ marginTop: 12, fontSize: 12, color: "#6a777b", lineHeight: 1.7 }}>
+        <div
+          style={{
+            marginTop: 12,
+            fontSize: 12,
+            color: "#6a777b",
+            lineHeight: 1.7,
+          }}
+        >
           {note}
         </div>
       ) : null}

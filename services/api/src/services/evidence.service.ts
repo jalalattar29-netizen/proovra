@@ -166,6 +166,7 @@ export async function createEvidence(params: {
       data: {
         ownerUserId: params.ownerUserId,
         teamId: scope.teamId,
+        organizationId: scope.teamId,
         type: params.type,
         status: EvidenceStatus.CREATED,
         verificationStatus: prismaPkg.VerificationStatus.MATERIALS_AVAILABLE,

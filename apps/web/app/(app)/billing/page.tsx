@@ -10,6 +10,7 @@ import { PersonalWorkspaceCard } from "../../../components/billing/PersonalWorks
 import { TeamWorkspaceCard } from "../../../components/billing/TeamWorkspaceCard";
 import { CheckoutPanel } from "../../../components/billing/CheckoutPanel";
 import { BillingHistoryCard } from "../../../components/billing/BillingHistoryCard";
+import { StorageAddonsPanel } from "../../../components/billing/StorageAddonsPanel";
 import type {
   BillingOverviewResponse,
   PersonalWorkspaceSummary,
@@ -17,6 +18,7 @@ import type {
   BillingPaymentSummary,
   CheckoutPlan,
   CheckoutTargetType,
+  WorkspaceStorageAddonSummary,
 } from "../../../components/billing/types";
 
 function readInitialWorkspace(value: string | null): CheckoutTargetType {
@@ -26,6 +28,33 @@ function readInitialWorkspace(value: string | null): CheckoutTargetType {
 function readInitialPlan(value: string | null): CheckoutPlan | null {
   if (value === "PAYG" || value === "PRO" || value === "TEAM") return value;
   return null;
+}
+
+function readStorageAddons(
+  data: BillingOverviewResponse
+): WorkspaceStorageAddonSummary[] {
+  const raw = (data as BillingOverviewResponse & {
+    storageAddons?:
+      | WorkspaceStorageAddonSummary[]
+      | {
+          all?: WorkspaceStorageAddonSummary[];
+          personal?: WorkspaceStorageAddonSummary[];
+          teams?: WorkspaceStorageAddonSummary[];
+        }
+      | null;
+  }).storageAddons;
+
+  if (Array.isArray(raw)) {
+    return raw;
+  }
+
+  if (raw && Array.isArray(raw.all)) {
+    return raw.all;
+  }
+
+  const personal = raw?.personal ?? [];
+  const teams = raw?.teams ?? [];
+  return [...personal, ...teams];
 }
 
 export default function BillingPage() {
@@ -38,6 +67,7 @@ export default function BillingPage() {
   const [personal, setPersonal] = useState<PersonalWorkspaceSummary | null>(null);
   const [teams, setTeams] = useState<TeamWorkspaceSummary[]>([]);
   const [payments, setPayments] = useState<BillingPaymentSummary[]>([]);
+  const [storageAddons, setStorageAddons] = useState<WorkspaceStorageAddonSummary[]>([]);
   const [selectedTeamId, setSelectedTeamId] = useState<string>("");
 
   const [cancelBusyTeamId, setCancelBusyTeamId] = useState<string | null>(null);
@@ -67,17 +97,16 @@ export default function BillingPage() {
         ? data.workspaces.teams
         : [];
       const nextPayments = Array.isArray(data?.payments) ? data.payments : [];
+      const nextStorageAddons = readStorageAddons(data);
 
       setPersonal(nextPersonal);
       setTeams(nextTeams);
       setPayments(nextPayments);
+      setStorageAddons(nextStorageAddons);
 
       setSelectedTeamId((current) => {
         const queryTeamId = searchParams.get("team");
-        if (
-          queryTeamId &&
-          nextTeams.some((team) => team.id === queryTeamId)
-        ) {
+        if (queryTeamId && nextTeams.some((team) => team.id === queryTeamId)) {
           return queryTeamId;
         }
 
@@ -151,6 +180,34 @@ export default function BillingPage() {
     []
   );
 
+  const summaryCards = useMemo(() => {
+    const personalPlan = personal?.plan ?? "FREE";
+    const totalTeams = teams.length;
+    const totalPayments = payments.length;
+    const activeAddons = storageAddons.filter((item) =>
+      ["ACTIVE", "PENDING", "PAST_DUE"].includes(String(item.status ?? "").toUpperCase())
+    ).length;
+
+    return [
+      {
+        label: "Personal plan",
+        value: personalPlan,
+      },
+      {
+        label: "Team workspaces",
+        value: String(totalTeams),
+      },
+      {
+        label: "Payments",
+        value: String(totalPayments),
+      },
+      {
+        label: "Storage add-ons",
+        value: String(activeAddons),
+      },
+    ];
+  }, [personal, teams, payments, storageAddons]);
+
   return (
     <div className="section app-section billing-page-shell">
       <div className="app-hero app-hero-full">
@@ -191,7 +248,11 @@ export default function BillingPage() {
                 style={{ margin: "20px 0 0" }}
               >
                 Manage personal and team billing
-                <span style={{ color: "#c3ebe2" }}> from one workspace console</span>.
+                <span style={{ color: "#c3ebe2" }}>
+                  {" "}
+                  from one workspace console
+                </span>
+                .
               </h1>
 
               <p
@@ -203,8 +264,9 @@ export default function BillingPage() {
                   maxWidth: 760,
                 }}
               >
-                Review storage, seats, subscriptions, and payment history in one place.
-                Start checkout for one-time credits or recurring plans without leaving the workspace context.
+                Review storage, seats, subscriptions, add-ons, and payment
+                history in one place. Start checkout for one-time credits or
+                recurring plans without leaving the workspace context.
               </p>
             </div>
 
@@ -259,6 +321,33 @@ export default function BillingPage() {
             </div>
           ) : (
             <>
+              <div
+                style={{
+                  display: "grid",
+                  gap: 12,
+                  gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+                }}
+              >
+                {summaryCards.map((item) => (
+                  <div
+                    key={item.label}
+                    className="rounded-[20px] border px-4 py-4"
+                    style={{
+                      border: "1px solid rgba(79,112,107,0.12)",
+                      background:
+                        "linear-gradient(180deg, rgba(255,255,255,0.66) 0%, rgba(243,245,242,0.94) 100%)",
+                    }}
+                  >
+                    <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#9b826b]">
+                      {item.label}
+                    </div>
+                    <div className="mt-2 text-[1rem] font-semibold text-[#21353a]">
+                      {item.value}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
               <CheckoutPanel
                 key={`${initialTargetType}-${initialPlan}-${selectedTeamId || "no-team-selected"}`}
                 personal={personal}
@@ -293,9 +382,12 @@ export default function BillingPage() {
                     color: "#5d6d71",
                   }}
                 >
-                  No team workspaces found yet. Create a team workspace before starting a TEAM checkout flow.
+                  No team workspaces found yet. Create a team workspace before
+                  starting a TEAM checkout flow.
                 </div>
               )}
+
+              <StorageAddonsPanel items={storageAddons} />
 
               <BillingHistoryCard items={payments} />
             </>

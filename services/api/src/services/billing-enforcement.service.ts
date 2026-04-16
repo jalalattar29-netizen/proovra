@@ -7,7 +7,10 @@ import {
   getTeamWorkspaceScope,
   type WorkspaceScope,
 } from "./workspace-billing.service.js";
-import { assertWorkspaceStorageAvailable } from "./workspace-usage.service.js";
+import {
+  assertWorkspaceStorageAvailable,
+  getWorkspaceUsage,
+} from "./workspace-usage.service.js";
 
 type EntitlementWriter = Pick<prismaPkg.Prisma.TransactionClient, "entitlement">;
 
@@ -115,11 +118,7 @@ export async function assertWorkspaceAllowsVerificationPackageStorage(params: {
 export async function getWorkspaceAvailableStorageBytes(
   scope: WorkspaceScope
 ): Promise<bigint> {
-  const usage = await assertWorkspaceStorageAvailable({
-    scope,
-    incomingBytes: 0n,
-  });
-
+  const usage = await getWorkspaceUsage(scope);
   return usage.storageBytesRemaining;
 }
 
@@ -162,9 +161,11 @@ export async function consumeWorkspaceCompletionCredits(
 
 export async function getWorkspaceBillingSummary(scope: WorkspaceScope) {
   const caps = getPlanCapabilities(scope.plan);
+  const usage = await getWorkspaceUsage(scope);
 
   return {
     scope,
     capabilities: caps,
+    usage,
   };
 }

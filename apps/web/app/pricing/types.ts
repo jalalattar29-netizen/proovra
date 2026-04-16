@@ -14,9 +14,19 @@ export type PricingCatalogPlan = {
   workspaceType?: "PERSONAL" | "TEAM" | "BOTH";
 };
 
+export type PricingStorageAddonCatalogItem = {
+  key: string;
+  label: string;
+  storageBytes: number;
+  priceCents: number;
+  currency: string;
+  workspaceType: "PERSONAL" | "TEAM";
+};
+
 export type PricingCatalogResponse = {
   free: PricingCatalogPlan;
   payg: PricingCatalogPlan;
   pro: PricingCatalogPlan;
   team: PricingCatalogPlan;
+  storageAddons?: PricingStorageAddonCatalogItem[];
 };

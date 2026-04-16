@@ -10,6 +10,7 @@ export type WorkerWorkspaceScope = {
   credits: number;
   teamSeats: number;
   storageBytesOverride: bigint | null;
+  activeStorageAddonBytes: bigint;
 };
 
 export type WorkerWorkspaceUsage = {
@@ -34,6 +35,29 @@ function toBigIntOrZero(value: unknown): bigint {
   return 0n;
 }
 
+async function getActiveStorageAddonBytes(params: {
+  ownerUserId: string;
+  teamId?: string | null;
+}) {
+  const aggregate = await prisma.workspaceStorageAddon.aggregate({
+    where: {
+      ownerUserId: params.ownerUserId,
+      teamId: params.teamId ?? null,
+      status: {
+        in: [
+          prismaPkg.WorkspaceStorageAddonStatus.ACTIVE,
+          prismaPkg.WorkspaceStorageAddonStatus.PAST_DUE,
+        ],
+      },
+    },
+    _sum: {
+      extraStorageBytes: true,
+    },
+  });
+
+  return toBigIntOrZero(aggregate._sum.extraStorageBytes);
+}
+
 export async function getPersonalWorkspaceScope(
   ownerUserId: string
 ): Promise<WorkerWorkspaceScope> {
@@ -52,6 +76,11 @@ export async function getPersonalWorkspaceScope(
     },
   });
 
+  const activeStorageAddonBytes = await getActiveStorageAddonBytes({
+    ownerUserId,
+    teamId: null,
+  });
+
   return {
     workspaceType: "PERSONAL",
     ownerUserId,
@@ -60,6 +89,7 @@ export async function getPersonalWorkspaceScope(
     credits: entitlement?.credits ?? 0,
     teamSeats: entitlement?.teamSeats ?? 0,
     storageBytesOverride: null,
+    activeStorageAddonBytes,
   };
 }
 
@@ -88,6 +118,11 @@ export async function getTeamWorkspaceScope(
       ? team.billingPlan
       : prismaPkg.PlanType.FREE;
 
+  const activeStorageAddonBytes = await getActiveStorageAddonBytes({
+    ownerUserId: team.ownerUserId,
+    teamId: team.id,
+  });
+
   return {
     workspaceType: "TEAM",
     ownerUserId: team.ownerUserId,
@@ -96,6 +131,7 @@ export async function getTeamWorkspaceScope(
     credits: 0,
     teamSeats: Math.max(0, team.includedSeats ?? 0),
     storageBytesOverride: team.storageBytesOverride ?? null,
+    activeStorageAddonBytes,
   };
 }
 
@@ -202,11 +238,17 @@ export async function getWorkspaceUsage(
   const storageBytesUsed =
     evidenceStorageBytes + reportStorageBytes + verificationPackageStorageBytes;
 
-  const storageBytesLimit =
-    scope.storageBytesOverride && scope.storageBytesOverride > 0n
-      ? scope.storageBytesOverride
-      : caps.includedStorageBytes;
+const baseStorageBytesLimit = caps.includedStorageBytes;
+const storageFromPlanAndAddons =
+  baseStorageBytesLimit + scope.activeStorageAddonBytes;
 
+const storageBytesLimit =
+  scope.storageBytesOverride && scope.storageBytesOverride > 0n
+    ? (scope.storageBytesOverride > storageFromPlanAndAddons
+        ? scope.storageBytesOverride
+        : storageFromPlanAndAddons)
+    : storageFromPlanAndAddons;
+    
   const storageBytesRemaining =
     storageBytesLimit > storageBytesUsed ? storageBytesLimit - storageBytesUsed : 0n;
 
@@ -265,6 +307,7 @@ export async function assertWorkspaceStorageAvailable(params: {
       reportStorageBytes: usage.reportStorageBytes.toString(),
       verificationPackageStorageBytes:
         usage.verificationPackageStorageBytes.toString(),
+      activeStorageAddonBytes: params.scope.activeStorageAddonBytes.toString(),
     };
 
     throw err;

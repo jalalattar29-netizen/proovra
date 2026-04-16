@@ -38,6 +38,15 @@ export function PricingComparisonTable({ free, payg, pro, team }: Props) {
       ],
     },
     {
+      label: "Storage add-ons",
+      values: [
+        "Not available",
+        "Selected personal add-ons",
+        "Recurring personal add-ons",
+        "Recurring team add-ons",
+      ],
+    },
+    {
       label: "PDF reports",
       values: ["Not included", "Included", "Included", "Included"],
     },
@@ -51,12 +60,7 @@ export function PricingComparisonTable({ free, payg, pro, team }: Props) {
     },
     {
       label: "Workspace type",
-      values: [
-        "Personal",
-        "Personal",
-        "Personal",
-        "Team workspace",
-      ],
+      values: ["Personal", "Personal", "Personal", "Team workspace"],
     },
     {
       label: "Included seats",
@@ -87,8 +91,8 @@ export function PricingComparisonTable({ free, payg, pro, team }: Props) {
       </div>
 
       <div className="mb-4 text-[0.9rem] leading-[1.7] text-[#5d6d71]">
-        Use this table to compare evidence limits, storage, reports, subscriptions,
-        and team capacity before moving into checkout.
+        Use this table to compare evidence limits, storage, reports,
+        subscriptions, add-ons, and team capacity before moving into checkout.
       </div>
 
       <div style={{ overflowX: "auto" }}>

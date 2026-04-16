@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { Button, Card, useToast } from "../../components/ui";
 import { apiFetch } from "../../lib/api";
 import { captureException } from "../../lib/sentry";
@@ -20,6 +20,10 @@ type Props = {
   initialPlan?: CheckoutPlan;
   onCheckoutCompleted?: () => Promise<void> | void;
 };
+
+function hasOwnedTeams(teams: TeamWorkspaceSummary[]) {
+  return teams.length > 0;
+}
 
 export function CheckoutPanel({
   personal,
@@ -72,7 +76,7 @@ export function CheckoutPanel({
 
   const planDescription = useMemo(() => {
     if (selectedPlan === "PAYG") {
-      return "One-time checkout for usage-based evidence completion.";
+      return "One-time checkout for usage-based evidence completion on your personal workspace.";
     }
     if (selectedPlan === "PRO") {
       return "Recurring monthly subscription for personal professional usage.";
@@ -87,12 +91,15 @@ export function CheckoutPanel({
         : "Choose a team workspace you own before continuing.";
     }
 
-    return `Checkout will apply to your personal workspace${personal?.plan ? ` (current plan: ${personal.plan})` : ""}.`;
+    return `Checkout will apply to your personal workspace${
+      personal?.plan ? ` (current plan: ${personal.plan})` : ""
+    }.`;
   }, [targetType, selectedTeam, personal]);
 
   const canContinue = useMemo(() => {
     if (busy) return false;
     if (targetType === "TEAM" && !selectedTeamId) return false;
+    if (targetType === "TEAM" && !hasOwnedTeams(teams)) return false;
     if (!availablePlans.includes(selectedPlan)) return false;
     if (!availableProviders.includes(selectedProvider)) return false;
     return true;
@@ -104,6 +111,7 @@ export function CheckoutPanel({
     selectedProvider,
     availablePlans,
     availableProviders,
+    teams,
   ]);
 
   const handleTargetTypeChange = (next: CheckoutTargetType) => {
@@ -227,8 +235,8 @@ export function CheckoutPanel({
         </div>
 
         <div className="text-[0.92rem] leading-[1.7] text-[#5d6d71]">
-          Choose workspace target, plan, then payment method. The same billing rules
-          are enforced here and on the backend.
+          Choose workspace target, plan, then payment method. The same billing
+          rules are enforced here and on the backend.
         </div>
 
         <div className="mt-5 grid gap-5">
@@ -375,14 +383,14 @@ export function CheckoutPanel({
   );
 }
 
-const activePillStyle: React.CSSProperties = {
+const activePillStyle: CSSProperties = {
   borderColor: "rgba(79,112,107,0.18)",
   color: "#eef3f1",
   background:
     "linear-gradient(180deg, rgba(62,96,99,0.96) 0%, rgba(24,43,48,0.98) 100%)",
 };
 
-const inactivePillStyle: React.CSSProperties = {
+const inactivePillStyle: CSSProperties = {
   borderColor: "rgba(79,112,107,0.14)",
   color: "#23373b",
   background:

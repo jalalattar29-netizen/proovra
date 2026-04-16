@@ -23,6 +23,49 @@ function apiBase() {
   return process.env.PAYPAL_API_BASE?.trim() || "https://api-m.paypal.com";
 }
 
+function cleanUrl(value: string | undefined): string | null {
+  const v = value?.trim();
+  return v ? v.replace(/\/+$/, "") : null;
+}
+
+function getWebBaseUrl() {
+  return (
+    cleanUrl(process.env.NEXT_PUBLIC_WEB_BASE) ??
+    cleanUrl(process.env.REPORT_APP_BASE_URL) ??
+    "https://www.proovra.com"
+  );
+}
+
+function buildReturnUrl(path: string) {
+  return `${getWebBaseUrl()}${path}`;
+}
+
+function buildStorageAddonCustomId(params: {
+  userId: string;
+  addonKey: prismaPkg.StorageAddonKey;
+  billingCycle: prismaPkg.StorageAddonBillingCycle;
+  teamId?: string | null;
+  workspacePlan: prismaPkg.PlanType;
+}) {
+  return JSON.stringify({
+    userId: params.userId,
+    teamId: params.teamId ?? null,
+    storageAddonKey: params.addonKey,
+    billingCycle: params.billingCycle,
+    workspacePlan: params.workspacePlan,
+  });
+}
+
+function resolvePayPalStorageAddonPlanId(params: {
+  addonKey: prismaPkg.StorageAddonKey;
+  currency: string;
+}) {
+  const currency = normalizePayPalCurrency(params.currency).toUpperCase();
+
+  const envKey = `PAYPAL_PLAN_STORAGE_${params.addonKey}_${currency}`;
+  return must(envKey);
+}
+
 export async function getPayPalAccessToken(): Promise<string> {
   const clientId = must("PAYPAL_CLIENT_ID");
   const secret = must("PAYPAL_SECRET");
@@ -163,6 +206,89 @@ export async function createPayPalSubscription(params: {
       cancel_url: params.cancelUrl,
     },
   });
+}
+
+export async function createPayPalStorageAddonCheckout(params: {
+  userId: string;
+  addonKey: prismaPkg.StorageAddonKey;
+  billingCycle: prismaPkg.StorageAddonBillingCycle;
+  currency: string;
+  amount: string;
+  teamId?: string | null;
+  workspacePlan: prismaPkg.PlanType;
+}) {
+  const returnUrl = buildReturnUrl("/billing?checkout=success&kind=storage-addon");
+  const cancelUrl = buildReturnUrl("/billing?checkout=cancel&kind=storage-addon");
+
+  if (params.billingCycle === prismaPkg.StorageAddonBillingCycle.ONE_TIME) {
+    const normalizedCurrency = normalizePayPalCurrency(params.currency);
+
+    const order = await paypalRequest("/v2/checkout/orders", {
+      intent: "CAPTURE",
+      purchase_units: [
+        {
+          custom_id: buildStorageAddonCustomId({
+            userId: params.userId,
+            addonKey: params.addonKey,
+            billingCycle: params.billingCycle,
+            teamId: params.teamId ?? null,
+            workspacePlan: params.workspacePlan,
+          }),
+          description: `PROOVRA Storage Add-on ${params.addonKey}`,
+          amount: {
+            currency_code: normalizedCurrency,
+            value: params.amount,
+          },
+        },
+      ],
+      application_context: {
+        brand_name: "PROOVRA",
+        shipping_preference: "NO_SHIPPING",
+        user_action: "PAY_NOW",
+        return_url: returnUrl,
+        cancel_url: cancelUrl,
+      },
+    });
+
+    return {
+      provider: "PAYPAL" as const,
+      mode: "order" as const,
+      order,
+      currency: normalizedCurrency,
+      amountCents: Math.round(Number(params.amount) * 100),
+    };
+  }
+
+  const planId = resolvePayPalStorageAddonPlanId({
+    addonKey: params.addonKey,
+    currency: params.currency,
+  });
+
+  const subscription = await paypalRequest("/v1/billing/subscriptions", {
+    plan_id: planId,
+    custom_id: buildStorageAddonCustomId({
+      userId: params.userId,
+      addonKey: params.addonKey,
+      billingCycle: params.billingCycle,
+      teamId: params.teamId ?? null,
+      workspacePlan: params.workspacePlan,
+    }),
+    application_context: {
+      brand_name: "PROOVRA",
+      user_action: "SUBSCRIBE_NOW",
+      shipping_preference: "NO_SHIPPING",
+      return_url: returnUrl,
+      cancel_url: cancelUrl,
+    },
+  });
+
+  return {
+    provider: "PAYPAL" as const,
+    mode: "subscription" as const,
+    subscription,
+    currency: normalizePayPalCurrency(params.currency),
+    amountCents: Math.round(Number(params.amount) * 100),
+  };
 }
 
 export async function cancelPayPalSubscription(

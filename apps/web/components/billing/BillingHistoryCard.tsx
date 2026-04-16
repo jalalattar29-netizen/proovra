@@ -25,6 +25,7 @@ function formatDate(value: string) {
 
 function toneForStatus(status: string) {
   const normalized = status.trim().toUpperCase();
+
   if (normalized === "SUCCEEDED") {
     return {
       color: "#2b6a55",
@@ -32,6 +33,7 @@ function toneForStatus(status: string) {
       border: "1px solid rgba(127,189,180,0.20)",
     };
   }
+
   if (normalized === "FAILED") {
     return {
       color: "#8b3e3e",
@@ -39,6 +41,7 @@ function toneForStatus(status: string) {
       border: "1px solid rgba(194,78,78,0.16)",
     };
   }
+
   if (normalized === "REFUNDED") {
     return {
       color: "#7a624d",
@@ -46,6 +49,7 @@ function toneForStatus(status: string) {
       border: "1px solid rgba(183,157,132,0.18)",
     };
   }
+
   return {
     color: "#415257",
     background: "rgba(79,112,107,0.08)",
@@ -100,6 +104,9 @@ export function BillingHistoryCard({ items }: Props) {
                         Created: {formatDate(item.createdAt)}
                         {" · "}
                         {item.teamId ? "Team payment" : "Personal payment"}
+                      </div>
+                      <div className="mt-1 break-all text-[0.80rem] text-[#7a878a]">
+                        Provider payment ID: {item.providerPaymentId}
                       </div>
                     </div>
 

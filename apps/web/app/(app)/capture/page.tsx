@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button, Card, useToast } from "../../../components/ui";
 import { useLocale } from "../../providers";
-import { apiFetch } from "../../../lib/api";
+import { ApiError, apiFetch } from "../../../lib/api";
 import { captureException } from "../../../lib/sentry";
 
 type EvidenceType = "PHOTO" | "VIDEO" | "DOCUMENT";
@@ -19,6 +19,23 @@ type SessionItem = {
   uploadProgress: number;
   uploading: boolean;
   error?: string | null;
+};
+
+type BillingWallLike = {
+  type?: string;
+  reason?: string | null;
+  workspace?: {
+    workspaceType?: string;
+    plan?: string | null;
+    storage?: {
+      usedLabel?: string;
+      limitLabel?: string;
+      remainingLabel?: string;
+    } | null;
+  } | null;
+  storageAddons?: unknown;
+  suggestedActions?: string[];
+  incomingBytes?: string | null;
 };
 
 function arrayBufferToBase64(buffer: ArrayBuffer): string {
@@ -141,6 +158,33 @@ async function computeIntegrityFromBlob(blob: Blob): Promise<{
     checksumSha256Base64: arrayBufferToBase64(sha256Digest),
     contentMd5Base64: arrayBufferToBase64(md5Digest),
   };
+}
+
+function buildStorageLimitMessage(error: unknown): string | null {
+  if (error instanceof ApiError) {
+    if (
+      error.code === "STORAGE_LIMIT_REACHED" ||
+      (typeof error.message === "string" &&
+        error.message.toLowerCase().includes("storage limit"))
+    ) {
+      const wall = error.details as BillingWallLike | undefined;
+      const workspace = wall?.workspace;
+      const storage = workspace?.storage;
+
+      if (storage?.usedLabel && storage?.limitLabel) {
+        return `Storage limit reached. Current usage: ${storage.usedLabel} / ${storage.limitLabel}.`;
+      }
+
+      return "Storage limit reached for this workspace. Please add storage or upgrade your plan.";
+    }
+  }
+
+  const generic = error as { code?: string; message?: string; details?: unknown };
+  if (generic?.code === "STORAGE_LIMIT_REACHED") {
+    return "Storage limit reached for this workspace. Please add storage or upgrade your plan.";
+  }
+
+  return null;
 }
 
 export default function CapturePage() {
@@ -368,6 +412,13 @@ export default function CapturePage() {
       setSessionInfo(null);
       addToast("Evidence session created", "success");
       return created.id as string;
+    } catch (err) {
+      const storageMessage = buildStorageLimitMessage(err);
+      if (storageMessage) {
+        setError(storageMessage);
+        addToast(storageMessage, "error");
+      }
+      throw err;
     } finally {
       setSessionCreating(false);
     }
@@ -402,7 +453,10 @@ export default function CapturePage() {
       );
     } catch (err) {
       captureException(err, { feature: "web_capture_add_to_session", type });
-      const message = err instanceof Error ? err.message : "Failed to add items to session";
+      const storageMessage = buildStorageLimitMessage(err);
+      const message =
+        storageMessage ||
+        (err instanceof Error ? err.message : "Failed to add items to session");
       setError(message);
       addToast(message, "error");
     }
@@ -539,7 +593,11 @@ export default function CapturePage() {
         itemCount: items.length,
       });
 
-      const baseMsg = err instanceof Error ? err.message : "Capture failed";
+      const storageMessage = buildStorageLimitMessage(err);
+      const baseMsg =
+        storageMessage ||
+        (err instanceof Error ? err.message : "Capture failed");
+
       const reqId = (err as { requestId?: string }).requestId;
       const msg =
         reqId && typeof baseMsg === "string" && !baseMsg.includes("requestId:")
@@ -548,9 +606,15 @@ export default function CapturePage() {
 
       setError(msg);
       addToast(msg, "error");
+
+      if (storageMessage) {
+        setSessionInfo("Storage limit reached");
+      }
     } finally {
       setBusy(false);
-      setSessionInfo(null);
+      if (!error) {
+        setSessionInfo(null);
+      }
     }
   };
 
@@ -770,53 +834,53 @@ export default function CapturePage() {
     []
   );
 
-const primaryButtonStyle = useMemo(
-  () =>
-    ({
-      borderColor: "rgba(78, 100, 112, 0.22)",
-      color: "#eef3f4",
-      background:
-        "linear-gradient(180deg, rgba(67,91,102,0.97) 0%, rgba(33,52,60,0.98) 100%)",
-      boxShadow:
-        "inset 0 1px 0 rgba(255,255,255,0.08), 0 16px 34px rgba(25,39,46,0.18)",
-      textShadow: "0 1px 0 rgba(0,0,0,0.18)",
-      backdropFilter: "blur(6px)",
-      WebkitBackdropFilter: "blur(6px)",
-    }) as const,
-  []
-);
+  const primaryButtonStyle = useMemo(
+    () =>
+      ({
+        borderColor: "rgba(78, 100, 112, 0.22)",
+        color: "#eef3f4",
+        background:
+          "linear-gradient(180deg, rgba(67,91,102,0.97) 0%, rgba(33,52,60,0.98) 100%)",
+        boxShadow:
+          "inset 0 1px 0 rgba(255,255,255,0.08), 0 16px 34px rgba(25,39,46,0.18)",
+        textShadow: "0 1px 0 rgba(0,0,0,0.18)",
+        backdropFilter: "blur(6px)",
+        WebkitBackdropFilter: "blur(6px)",
+      }) as const,
+    []
+  );
 
-const secondaryButtonStyle = useMemo(
-  () =>
-    ({
-      borderColor: "rgba(130, 142, 148, 0.16)",
-      color: "#2f454b",
-      background:
-        "linear-gradient(180deg, rgba(255,255,255,0.92) 0%, rgba(242,245,246,0.98) 100%)",
-      boxShadow:
-        "0 10px 20px rgba(0,0,0,0.04), inset 0 1px 0 rgba(255,255,255,0.78)",
-      textShadow: "0 1px 0 rgba(255,255,255,0.32)",
-      backdropFilter: "blur(6px)",
-      WebkitBackdropFilter: "blur(6px)",
-    }) as const,
-  []
-);
+  const secondaryButtonStyle = useMemo(
+    () =>
+      ({
+        borderColor: "rgba(130, 142, 148, 0.16)",
+        color: "#2f454b",
+        background:
+          "linear-gradient(180deg, rgba(255,255,255,0.92) 0%, rgba(242,245,246,0.98) 100%)",
+        boxShadow:
+          "0 10px 20px rgba(0,0,0,0.04), inset 0 1px 0 rgba(255,255,255,0.78)",
+        textShadow: "0 1px 0 rgba(255,255,255,0.32)",
+        backdropFilter: "blur(6px)",
+        WebkitBackdropFilter: "blur(6px)",
+      }) as const,
+    []
+  );
 
-const tertiaryButtonStyle = useMemo(
-  () =>
-    ({
-      borderColor: "rgba(169, 154, 136, 0.18)",
-      color: "#705f50",
-      background:
-        "linear-gradient(180deg, rgba(248,245,241,0.92) 0%, rgba(241,236,231,0.96) 100%)",
-      boxShadow:
-        "0 10px 20px rgba(92,69,50,0.04), inset 0 1px 0 rgba(255,255,255,0.78)",
-      textShadow: "0 1px 0 rgba(255,255,255,0.30)",
-      backdropFilter: "blur(6px)",
-      WebkitBackdropFilter: "blur(6px)",
-    }) as const,
-  []
-);
+  const tertiaryButtonStyle = useMemo(
+    () =>
+      ({
+        borderColor: "rgba(169, 154, 136, 0.18)",
+        color: "#705f50",
+        background:
+          "linear-gradient(180deg, rgba(248,245,241,0.92) 0%, rgba(241,236,231,0.96) 100%)",
+        boxShadow:
+          "0 10px 20px rgba(92,69,50,0.04), inset 0 1px 0 rgba(255,255,255,0.78)",
+        textShadow: "0 1px 0 rgba(255,255,255,0.30)",
+        backdropFilter: "blur(6px)",
+        WebkitBackdropFilter: "blur(6px)",
+      }) as const,
+    []
+  );
 
   const softCardStyle = useMemo(
     () =>
@@ -834,6 +898,7 @@ const tertiaryButtonStyle = useMemo(
 
   return (
     <div className="section app-section capture-page-shell">
+      {/* نفس الستايل تبعك بدون تغيير منطقي */}
       <style jsx global>{`
         .capture-page-shell .capture-type-pill {
           transition: all 0.2s ease;
@@ -1058,43 +1123,43 @@ const tertiaryButtonStyle = useMemo(
             0 14px 28px rgba(90,18,18,0.14);
         }
 
-.capture-page-shell .capture-type-grid {
-  width: 100%;
-  max-width: 100%;
-}
+        .capture-page-shell .capture-type-grid {
+          width: 100%;
+          max-width: 100%;
+        }
 
-.capture-page-shell .capture-type-grid > * {
-  width: 100%;
-  min-width: 0;
-}
+        .capture-page-shell .capture-type-grid > * {
+          width: 100%;
+          min-width: 0;
+        }
 
-.capture-page-shell .capture-type-pill {
-  font-size: 13px !important;
-  letter-spacing: 0 !important;
-}
+        .capture-page-shell .capture-type-pill {
+          font-size: 13px !important;
+          letter-spacing: 0 !important;
+        }
 
-@media (max-width: 640px) {
-  .capture-page-shell .capture-type-grid {
-    gap: 8px !important;
-  }
+        @media (max-width: 640px) {
+          .capture-page-shell .capture-type-grid {
+            gap: 8px !important;
+          }
 
-  .capture-page-shell .capture-type-pill {
-    min-height: 42px !important;
-    height: 42px !important;
-    padding-left: 8px !important;
-    padding-right: 8px !important;
-    font-size: 12px !important;
-  }
-}
+          .capture-page-shell .capture-type-pill {
+            min-height: 42px !important;
+            height: 42px !important;
+            padding-left: 8px !important;
+            padding-right: 8px !important;
+            font-size: 12px !important;
+          }
+        }
 
-@media (max-width: 380px) {
-  .capture-page-shell .capture-type-pill {
-    font-size: 11px !important;
-    padding-left: 6px !important;
-    padding-right: 6px !important;
-  }
-}
-  
+        @media (max-width: 380px) {
+          .capture-page-shell .capture-type-pill {
+            font-size: 11px !important;
+            padding-left: 6px !important;
+            padding-right: 6px !important;
+          }
+        }
+
         @media (max-width: 900px) {
           .capture-page-shell .capture-hero-side {
             width: 100%;
@@ -1293,71 +1358,71 @@ const tertiaryButtonStyle = useMemo(
 
             <div className="relative z-10 p-6 md:p-7">
               <div style={{ display: "grid", gap: 18, padding: 2 }}>
-<div
-  className="capture-type-grid"
-  style={{
-    display: "grid",
-    gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
-    gap: 10,
-    alignItems: "stretch",
-  }}
->
-  {([
-    { label: t("photo"), value: "PHOTO" },
-    { label: t("video"), value: "VIDEO" },
-    { label: t("document"), value: "DOCUMENT" },
-  ] as const).map((item) => {
-    const active = type === item.value;
+                <div
+                  className="capture-type-grid"
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+                    gap: 10,
+                    alignItems: "stretch",
+                  }}
+                >
+                  {([
+                    { label: t("photo"), value: "PHOTO" },
+                    { label: t("video"), value: "VIDEO" },
+                    { label: t("document"), value: "DOCUMENT" },
+                  ] as const).map((item) => {
+                    const active = type === item.value;
 
-    return (
-      <button
-        key={item.value}
-        type="button"
-        className="capture-type-pill"
-        onClick={() => {
-          setType(item.value);
-          setError(null);
-          setCameraError(null);
-          closeCamera();
-          if (fileInputRef.current) {
-            fileInputRef.current.value = "";
-          }
-        }}
-        style={{
-          width: "100%",
-          minWidth: 0,
-          minHeight: 46,
-          height: 46,
-          padding: "0 12px",
-          borderRadius: 999,
-          fontWeight: 700,
-          fontSize: 13,
-          lineHeight: 1,
-          whiteSpace: "nowrap",
-          overflow: "hidden",
-          textOverflow: "clip",
-          textAlign: "center",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          border: active
-            ? "1px solid rgba(46,74,78,0.34)"
-            : "1px solid rgba(79,112,107,0.10)",
-          background: active
-            ? "linear-gradient(180deg, rgba(67,96,101,0.96) 0%, rgba(33,54,58,0.98) 100%)"
-            : "linear-gradient(180deg, rgba(250,251,249,0.86) 0%, rgba(241,244,241,0.98) 100%)",
-          color: active ? "#f3f7f5" : "#5d6d71",
-          boxShadow: active
-            ? "inset 0 1px 0 rgba(255,255,255,0.10), 0 8px 18px rgba(20,38,42,0.16)"
-            : "inset 0 1px 0 rgba(255,255,255,0.58)",
-          transition: "all 180ms ease",
-        }}
-      >
-        {item.label}
-      </button>
-    );
-  })}
-</div>
+                    return (
+                      <button
+                        key={item.value}
+                        type="button"
+                        className="capture-type-pill"
+                        onClick={() => {
+                          setType(item.value);
+                          setError(null);
+                          setCameraError(null);
+                          closeCamera();
+                          if (fileInputRef.current) {
+                            fileInputRef.current.value = "";
+                          }
+                        }}
+                        style={{
+                          width: "100%",
+                          minWidth: 0,
+                          minHeight: 46,
+                          height: 46,
+                          padding: "0 12px",
+                          borderRadius: 999,
+                          fontWeight: 700,
+                          fontSize: 13,
+                          lineHeight: 1,
+                          whiteSpace: "nowrap",
+                          overflow: "hidden",
+                          textOverflow: "clip",
+                          textAlign: "center",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          border: active
+                            ? "1px solid rgba(46,74,78,0.34)"
+                            : "1px solid rgba(79,112,107,0.10)",
+                          background: active
+                            ? "linear-gradient(180deg, rgba(67,96,101,0.96) 0%, rgba(33,54,58,0.98) 100%)"
+                            : "linear-gradient(180deg, rgba(250,251,249,0.86) 0%, rgba(241,244,241,0.98) 100%)",
+                          color: active ? "#f3f7f5" : "#5d6d71",
+                          boxShadow: active
+                            ? "inset 0 1px 0 rgba(255,255,255,0.10), 0 8px 18px rgba(20,38,42,0.16)"
+                            : "inset 0 1px 0 rgba(255,255,255,0.58)",
+                          transition: "all 180ms ease",
+                        }}
+                      >
+                        {item.label}
+                      </button>
+                    );
+                  })}
+                </div>
 
                 <input
                   type="file"
@@ -1406,6 +1471,15 @@ const tertiaryButtonStyle = useMemo(
                       {type === "PHOTO" ? "Open Camera" : "Open Video Recorder"}
                     </Button>
                   ) : null}
+
+                  <Button
+                    variant="secondary"
+                    onClick={() => router.push("/billing")}
+                    className="rounded-[999px] border px-5 py-3 text-[0.95rem] font-medium"
+                    style={tertiaryButtonStyle}
+                  >
+                    Open Billing
+                  </Button>
                 </div>
 
                 <div

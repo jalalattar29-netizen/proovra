@@ -344,6 +344,7 @@ model User {
   teamActivities                TeamActivity[]
   cookieConsentRecords          CookieConsentRecord[]
   legalAcceptances              UserLegalAcceptance[]
+  storageAddons                  WorkspaceStorageAddon[]
 
   ownedTeams                    Team[]                         @relation("TeamOwner")
   billingOwnedTeams             Team[]                         @relation("TeamBillingOwner")
@@ -389,6 +390,7 @@ model Team {
   activities             TeamActivity[]
   payments               Payment[]
   subscriptions          Subscription[]
+  storageAddons          WorkspaceStorageAddon[]
 
   @@index([ownerUserId])
   @@index([billingOwnerUserId])
@@ -398,6 +400,41 @@ model Team {
   @@index([verificationState])
   @@index([verifiedAtUtc])
   @@map("teams")
+}
+
+model WorkspaceStorageAddon {
+  id                     String                     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  ownerUserId            String                     @map("owner_user_id") @db.Uuid
+  teamId                 String?                    @map("team_id") @db.Uuid
+  addonKey               StorageAddonKey           @map("addon_key")
+  extraStorageBytes      BigInt                    @map("extra_storage_bytes")
+  billingCycle           StorageAddonBillingCycle  @map("billing_cycle")
+  status                 WorkspaceStorageAddonStatus @default(ACTIVE)
+  paymentProvider        PaymentProvider?          @map("payment_provider")
+  externalSubscriptionId String?                   @unique @map("external_subscription_id") @db.VarChar(191)
+  externalPaymentId      String?                   @unique @map("external_payment_id") @db.VarChar(191)
+  currency               String?                   @db.VarChar(8)
+  amountCents            Int?                      @map("amount_cents")
+  activatedAtUtc         DateTime?                 @map("activated_at_utc") @db.Timestamptz(6)
+  currentPeriodEnd       DateTime?                 @map("current_period_end") @db.Timestamptz(6)
+  expiresAtUtc           DateTime?                 @map("expires_at_utc") @db.Timestamptz(6)
+  canceledAtUtc          DateTime?                 @map("canceled_at_utc") @db.Timestamptz(6)
+  metadata               Json?
+  createdAt              DateTime                  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt              DateTime                  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  owner                  User                      @relation(fields: [ownerUserId], references: [id], onDelete: Cascade)
+  team                   Team?                     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+
+  @@index([ownerUserId, status])
+  @@index([teamId, status])
+  @@index([addonKey, status])
+  @@index([billingCycle, status])
+  @@index([activatedAtUtc])
+  @@index([currentPeriodEnd])
+  @@index([expiresAtUtc])
+  @@index([canceledAtUtc])
+  @@map("workspace_storage_addons")
 }
 
 model TeamMember {
@@ -1038,5 +1075,28 @@ enum AuditAction {
 enum WebhookStatus {
   PENDING
   DELIVERED
+  FAILED
+}
+
+enum StorageAddonKey {
+  PERSONAL_10_GB
+  PERSONAL_50_GB
+  PERSONAL_200_GB
+  TEAM_100_GB
+  TEAM_500_GB
+  TEAM_1_TB
+}
+
+enum StorageAddonBillingCycle {
+  ONE_TIME
+  MONTHLY
+}
+
+enum WorkspaceStorageAddonStatus {
+  PENDING
+  ACTIVE
+  PAST_DUE
+  CANCELED
+  EXPIRED
   FAILED
 }

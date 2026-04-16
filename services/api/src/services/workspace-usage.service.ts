@@ -1,9 +1,72 @@
+import * as prismaPkg from "@prisma/client";
 import { prisma } from "../db.js";
 import type { WorkspaceScope } from "./workspace-billing.service.js";
 import {
   formatBytesHuman,
   getPlanCapabilities,
 } from "./plan-catalog.service.js";
+
+const GB = 1024n * 1024n * 1024n;
+
+type StorageAddonOffer = {
+  key: prismaPkg.StorageAddonKey;
+  label: string;
+  storageBytes: bigint;
+  priceCents: number;
+  currency: string;
+  workspaceType: "PERSONAL" | "TEAM";
+};
+
+const STORAGE_ADDON_OFFERS: readonly StorageAddonOffer[] = [
+  {
+    key: prismaPkg.StorageAddonKey.PERSONAL_10_GB,
+    label: "+10 GB",
+    storageBytes: 10n * GB,
+    priceCents: 299,
+    currency: "EUR",
+    workspaceType: "PERSONAL",
+  },
+  {
+    key: prismaPkg.StorageAddonKey.PERSONAL_50_GB,
+    label: "+50 GB",
+    storageBytes: 50n * GB,
+    priceCents: 799,
+    currency: "EUR",
+    workspaceType: "PERSONAL",
+  },
+  {
+    key: prismaPkg.StorageAddonKey.PERSONAL_200_GB,
+    label: "+200 GB",
+    storageBytes: 200n * GB,
+    priceCents: 1999,
+    currency: "EUR",
+    workspaceType: "PERSONAL",
+  },
+  {
+    key: prismaPkg.StorageAddonKey.TEAM_100_GB,
+    label: "+100 GB",
+    storageBytes: 100n * GB,
+    priceCents: 999,
+    currency: "EUR",
+    workspaceType: "TEAM",
+  },
+  {
+    key: prismaPkg.StorageAddonKey.TEAM_500_GB,
+    label: "+500 GB",
+    storageBytes: 500n * GB,
+    priceCents: 3499,
+    currency: "EUR",
+    workspaceType: "TEAM",
+  },
+  {
+    key: prismaPkg.StorageAddonKey.TEAM_1_TB,
+    label: "+1 TB",
+    storageBytes: 1024n * GB,
+    priceCents: 5999,
+    currency: "EUR",
+    workspaceType: "TEAM",
+  },
+] as const;
 
 function toBigIntOrZero(value: unknown): bigint {
   if (typeof value === "bigint") return value;
@@ -23,6 +86,51 @@ function ratioToPercent(value: number): number {
   return Number((clampRatio(value) * 100).toFixed(1));
 }
 
+function maxBigInt(a: bigint, b: bigint): bigint {
+  return a > b ? a : b;
+}
+
+function getAvailableStorageAddonOffers(scope: WorkspaceScope) {
+  if (scope.workspaceType === "TEAM") {
+    return STORAGE_ADDON_OFFERS.filter((offer) => offer.workspaceType === "TEAM");
+  }
+
+  if (scope.plan === prismaPkg.PlanType.PAYG) {
+    return STORAGE_ADDON_OFFERS.filter(
+      (offer) =>
+        offer.key === prismaPkg.StorageAddonKey.PERSONAL_10_GB ||
+        offer.key === prismaPkg.StorageAddonKey.PERSONAL_50_GB
+    );
+  }
+
+  if (scope.plan === prismaPkg.PlanType.PRO) {
+    return STORAGE_ADDON_OFFERS.filter(
+      (offer) => offer.workspaceType === "PERSONAL"
+    );
+  }
+
+  return [];
+}
+
+function getSuggestedUpgradePlan(scope: WorkspaceScope): prismaPkg.PlanType | null {
+  if (scope.workspaceType === "TEAM") {
+    return null;
+  }
+
+  if (
+    scope.plan === prismaPkg.PlanType.FREE ||
+    scope.plan === prismaPkg.PlanType.PAYG
+  ) {
+    return prismaPkg.PlanType.PRO;
+  }
+
+  if (scope.plan === prismaPkg.PlanType.PRO) {
+    return prismaPkg.PlanType.TEAM;
+  }
+
+  return null;
+}
+
 export type WorkspaceUsage = {
   storageBytesUsed: bigint;
   evidenceStorageBytes: bigint;
@@ -30,21 +138,40 @@ export type WorkspaceUsage = {
   verificationPackageStorageBytes: bigint;
   evidenceCount: number;
   teamMemberCount: number;
+
+  baseStorageBytesLimit: bigint;
+  extraStorageAddonBytes: bigint;
+  storageBytesOverride: bigint | null;
   storageBytesLimit: bigint;
   storageBytesRemaining: bigint;
+
   storageUsageRatio: number;
   storageUsagePercent: number;
   isNearStorageLimit: boolean;
   isStorageLimitReached: boolean;
+
   storageLabel: string;
   storageLimitLabel: string;
   storageRemainingLabel: string;
+  baseStorageLimitLabel: string;
+  extraStorageAddonLabel: string;
+
   seatLimit: number;
   seatRemaining: number;
   seatUsageRatio: number;
   seatUsagePercent: number;
   isNearSeatLimit: boolean;
   isSeatLimitReached: boolean;
+
+  suggestedUpgradePlan: prismaPkg.PlanType | null;
+  availableStorageAddons: Array<{
+    key: prismaPkg.StorageAddonKey;
+    label: string;
+    storageBytes: string;
+    storageLabel: string;
+    priceCents: number;
+    currency: string;
+  }>;
 };
 
 export async function getWorkspaceUsage(
@@ -131,10 +258,17 @@ export async function getWorkspaceUsage(
   const storageBytesUsed =
     evidenceStorageBytes + reportStorageBytes + verificationPackageStorageBytes;
 
+  const baseStorageBytesLimit = caps.includedStorageBytes;
+  const extraStorageAddonBytes = scope.activeStorageAddonBytes ?? 0n;
+  const storageBytesOverride = scope.storageBytesOverride ?? null;
+
+  const storageFromPlanAndAddons =
+    baseStorageBytesLimit + extraStorageAddonBytes;
+
   const storageBytesLimit =
-    scope.storageBytesOverride && scope.storageBytesOverride > 0n
-      ? scope.storageBytesOverride
-      : caps.includedStorageBytes;
+    storageBytesOverride && storageBytesOverride > 0n
+      ? maxBigInt(storageBytesOverride, storageFromPlanAndAddons)
+      : storageFromPlanAndAddons;
 
   const storageBytesRemaining =
     storageBytesLimit > storageBytesUsed ? storageBytesLimit - storageBytesUsed : 0n;
@@ -146,7 +280,8 @@ export async function getWorkspaceUsage(
 
   const storageUsageRatio = clampRatio(rawStorageRatio);
   const storageUsagePercent = ratioToPercent(rawStorageRatio);
-  const isStorageLimitReached = storageBytesLimit > 0n && storageBytesUsed >= storageBytesLimit;
+  const isStorageLimitReached =
+    storageBytesLimit > 0n && storageBytesUsed >= storageBytesLimit;
   const isNearStorageLimit = !isStorageLimitReached && storageUsageRatio >= 0.8;
 
   const seatLimit = scope.teamId
@@ -156,13 +291,24 @@ export async function getWorkspaceUsage(
   const seatRemaining =
     seatLimit > teamMemberCount ? seatLimit - teamMemberCount : 0;
 
-  const rawSeatRatio =
-    seatLimit > 0 ? teamMemberCount / seatLimit : 0;
+  const rawSeatRatio = seatLimit > 0 ? teamMemberCount / seatLimit : 0;
 
   const seatUsageRatio = clampRatio(rawSeatRatio);
   const seatUsagePercent = ratioToPercent(rawSeatRatio);
   const isSeatLimitReached = seatLimit > 0 && teamMemberCount >= seatLimit;
-  const isNearSeatLimit = seatLimit > 0 && !isSeatLimitReached && seatUsageRatio >= 0.8;
+  const isNearSeatLimit =
+    seatLimit > 0 && !isSeatLimitReached && seatUsageRatio >= 0.8;
+
+  const availableStorageAddons = getAvailableStorageAddonOffers(scope).map(
+    (offer) => ({
+      key: offer.key,
+      label: offer.label,
+      storageBytes: offer.storageBytes.toString(),
+      storageLabel: formatBytesHuman(offer.storageBytes),
+      priceCents: offer.priceCents,
+      currency: offer.currency,
+    })
+  );
 
   return {
     storageBytesUsed,
@@ -171,21 +317,33 @@ export async function getWorkspaceUsage(
     verificationPackageStorageBytes,
     evidenceCount,
     teamMemberCount,
+
+    baseStorageBytesLimit,
+    extraStorageAddonBytes,
+    storageBytesOverride,
     storageBytesLimit,
     storageBytesRemaining,
+
     storageUsageRatio,
     storageUsagePercent,
     isNearStorageLimit,
     isStorageLimitReached,
+
     storageLabel: formatBytesHuman(storageBytesUsed),
     storageLimitLabel: formatBytesHuman(storageBytesLimit),
     storageRemainingLabel: formatBytesHuman(storageBytesRemaining),
+    baseStorageLimitLabel: formatBytesHuman(baseStorageBytesLimit),
+    extraStorageAddonLabel: formatBytesHuman(extraStorageAddonBytes),
+
     seatLimit,
     seatRemaining,
     seatUsageRatio,
     seatUsagePercent,
     isNearSeatLimit,
     isSeatLimitReached,
+
+    suggestedUpgradePlan: getSuggestedUpgradePlan(scope),
+    availableStorageAddons,
   };
 }
 
@@ -222,11 +380,21 @@ export async function assertWorkspaceStorageAvailable(params: {
       plan: params.scope.plan,
       storageBytesUsed: usage.storageBytesUsed.toString(),
       storageBytesLimit: usage.storageBytesLimit.toString(),
+      baseStorageBytesLimit: usage.baseStorageBytesLimit.toString(),
+      extraStorageAddonBytes: usage.extraStorageAddonBytes.toString(),
+      storageBytesOverride: usage.storageBytesOverride?.toString() ?? null,
       incomingBytes: incoming.toString(),
       storageLabel: usage.storageLabel,
       storageLimitLabel: usage.storageLimitLabel,
       storageUsagePercent: usage.storageUsagePercent,
       nextStorageUsagePercent: ratioToPercent(nextRatio),
+      suggestedUpgradePlan: usage.suggestedUpgradePlan,
+      availableStorageAddons: usage.availableStorageAddons,
+      actions: {
+        canAddStorage: usage.availableStorageAddons.length > 0,
+        canUpgradePlan: usage.suggestedUpgradePlan !== null,
+        canReviewArchivedEvidence: true,
+      },
     };
     throw err;
   }

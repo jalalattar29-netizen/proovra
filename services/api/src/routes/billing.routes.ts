@@ -2,6 +2,7 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { z } from "zod";
 import * as prismaPkg from "@prisma/client";
 import { requireAuth } from "../middleware/auth.js";
+import { cancelPayPalSubscription } from "../services/paypal.service.js";
 import { requireLegalAcceptance } from "../middleware/require-legal-acceptance.js";
 import { getAuthUserId } from "../auth.js";
 import {
@@ -9,22 +10,45 @@ import {
   setPersonalPlan,
   activateTeamPlan,
   cancelTeamPlan,
+  cancelWorkspaceStorageAddon,
+  getStorageAddonDefinition,
+  listStorageAddonDefinitions,
 } from "../services/billing.service.js";
 import { stripeRequestRaw } from "../services/stripe.service.js";
-import { cancelPayPalSubscription } from "../services/paypal.service.js";
+import {
+  createStripeCheckoutSession,
+  createPayPalCheckout,
+  createStripeStorageAddonCheckoutSession,
+  createPayPalStorageAddonCheckout,
+} from "../services/billing-checkout.service.js";
 import { prisma } from "../db.js";
 import { appendPlatformAuditLog } from "../services/platform-audit-log.service.js";
 import { writeAnalyticsEvent } from "../services/analytics-event.service.js";
 import { getPricingCatalogResponse } from "../services/plan-catalog.service.js";
 import { readBillingOverview } from "../services/billing-overview.service.js";
 import {
-  createStripeCheckoutSession,
-  createPayPalCheckout,
-} from "../services/billing-checkout.service.js";
+  getPersonalWorkspaceScope,
+  getTeamWorkspaceScope,
+} from "../services/workspace-billing.service.js";
 
 const PlanTypeSchema = prismaPkg.PlanType
   ? z.nativeEnum(prismaPkg.PlanType)
   : z.enum(["FREE", "PAYG", "PRO", "TEAM"]);
+
+const StorageAddonKeySchema = prismaPkg.StorageAddonKey
+  ? z.nativeEnum(prismaPkg.StorageAddonKey)
+  : z.enum([
+      "PERSONAL_10_GB",
+      "PERSONAL_50_GB",
+      "PERSONAL_200_GB",
+      "TEAM_100_GB",
+      "TEAM_500_GB",
+      "TEAM_1_TB",
+    ]);
+
+const StorageAddonBillingCycleSchema = prismaPkg.StorageAddonBillingCycle
+  ? z.nativeEnum(prismaPkg.StorageAddonBillingCycle)
+  : z.enum(["ONE_TIME", "MONTHLY"]);
 
 const CheckoutBody = z.object({
   plan: PlanTypeSchema,
@@ -32,8 +56,19 @@ const CheckoutBody = z.object({
   teamId: z.string().uuid().optional(),
 });
 
+const StorageAddonCheckoutBody = z.object({
+  addonKey: StorageAddonKeySchema,
+  billingCycle: StorageAddonBillingCycleSchema,
+  currency: z.string().min(3).max(3).optional(),
+  teamId: z.string().uuid().optional(),
+});
+
 const CancelSubscriptionBody = z.object({
   teamId: z.string().uuid().optional(),
+});
+
+const CancelStorageAddonBody = z.object({
+  addonId: z.string().uuid(),
 });
 
 async function requireAuthAndLegal(req: FastifyRequest, reply: FastifyReply) {
@@ -160,17 +195,176 @@ function assertPurchasablePlan(plan: prismaPkg.PlanType) {
   }
 }
 
+async function readActiveStorageAddons(userId: string) {
+  return prisma.workspaceStorageAddon.findMany({
+    where: {
+      ownerUserId: userId,
+      status: {
+        in: [
+          prismaPkg.WorkspaceStorageAddonStatus.ACTIVE,
+          prismaPkg.WorkspaceStorageAddonStatus.PAST_DUE,
+        ],
+      },
+    },
+    orderBy: [{ teamId: "asc" }, { createdAt: "desc" }],
+  });
+}
+
+async function assertStorageAddonAllowed(params: {
+  userId: string;
+  addonKey: prismaPkg.StorageAddonKey;
+  billingCycle: prismaPkg.StorageAddonBillingCycle;
+  teamId?: string | null;
+}) {
+  const definition = getStorageAddonDefinition(params.addonKey);
+
+  if (params.teamId) {
+    await assertOwnedTeamForCheckout(params.userId, params.teamId);
+
+    const scope = await getTeamWorkspaceScope(params.teamId);
+
+    if (definition.workspaceType !== "TEAM") {
+      const err: Error & { statusCode?: number } = new Error(
+        "This storage add-on is not valid for team workspaces"
+      );
+      err.statusCode = 400;
+      throw err;
+    }
+
+    if (scope.plan !== prismaPkg.PlanType.TEAM) {
+      const err: Error & { statusCode?: number } = new Error(
+        "Team storage add-ons require an active TEAM plan"
+      );
+      err.statusCode = 409;
+      throw err;
+    }
+
+    if (params.billingCycle !== prismaPkg.StorageAddonBillingCycle.MONTHLY) {
+      const err: Error & { statusCode?: number } = new Error(
+        "Team storage add-ons are only available as monthly recurring add-ons"
+      );
+      err.statusCode = 400;
+      throw err;
+    }
+
+    return {
+      scope,
+      definition,
+    };
+  }
+
+  const scope = await getPersonalWorkspaceScope(params.userId);
+
+  if (definition.workspaceType !== "PERSONAL") {
+    const err: Error & { statusCode?: number } = new Error(
+      "This storage add-on is not valid for personal workspaces"
+    );
+        err.statusCode = 400;
+    throw err;
+  }
+
+  if (scope.plan === prismaPkg.PlanType.FREE) {
+    const err: Error & { statusCode?: number } = new Error(
+      "Please upgrade your base plan before purchasing extra storage"
+    );
+    err.statusCode = 409;
+    throw err;
+  }
+
+  if (scope.plan === prismaPkg.PlanType.PAYG) {
+    if (
+      params.addonKey !== prismaPkg.StorageAddonKey.PERSONAL_10_GB &&
+      params.addonKey !== prismaPkg.StorageAddonKey.PERSONAL_50_GB
+    ) {
+      const err: Error & { statusCode?: number } = new Error(
+        "PAYG supports only +10 GB and +50 GB storage add-ons"
+      );
+      err.statusCode = 400;
+      throw err;
+    }
+
+    return {
+      scope,
+      definition,
+    };
+  }
+
+  if (scope.plan === prismaPkg.PlanType.PRO) {
+    if (params.billingCycle !== prismaPkg.StorageAddonBillingCycle.MONTHLY) {
+      const err: Error & { statusCode?: number } = new Error(
+        "PRO storage add-ons are only available as monthly recurring add-ons"
+      );
+      err.statusCode = 400;
+      throw err;
+    }
+
+    return {
+      scope,
+      definition,
+    };
+  }
+
+  const err: Error & { statusCode?: number } = new Error(
+    "Unsupported workspace plan for storage add-ons"
+  );
+  err.statusCode = 400;
+  throw err;
+}
+
 export async function billingRoutes(app: FastifyInstance) {
   app.get("/v1/billing/pricing", async (_req, reply) => {
-    return reply.code(200).send(getPricingCatalogResponse());
+    return reply.code(200).send({
+      ...getPricingCatalogResponse(),
+      storageAddons: listStorageAddonDefinitions().map((item) => ({
+        key: item.key,
+        workspaceType: item.workspaceType,
+        label: item.label,
+        storageBytes: item.storageBytes.toString(),
+        priceCents: item.priceCents,
+        currency: item.currency,
+      })),
+    });
   });
+
+  app.get(
+    "/v1/billing/storage-addons",
+    { preHandler: requireAuthAndLegal },
+    async (req, reply) => {
+      const userId = getAuthUserId(req);
+      const activeAddons = await readActiveStorageAddons(userId);
+
+      auditBillingAction(req, {
+        userId,
+        action: "billing.storage_addons_view",
+        outcome: "success",
+        metadata: {
+          activeCount: activeAddons.length,
+        },
+      });
+
+      return reply.code(200).send({
+        catalog: listStorageAddonDefinitions().map((item) => ({
+          key: item.key,
+          workspaceType: item.workspaceType,
+          label: item.label,
+          storageBytes: item.storageBytes.toString(),
+          priceCents: item.priceCents,
+          currency: item.currency,
+        })),
+        active: activeAddons,
+      });
+    }
+  );
 
   app.get(
     "/v1/billing/overview",
     { preHandler: requireAuthAndLegal },
     async (req, reply) => {
       const userId = getAuthUserId(req);
-      const overview = await readBillingOverview(userId);
+      const [overview, storageAddons] = await Promise.all([
+        readBillingOverview(userId),
+        readActiveStorageAddons(userId),
+      ]);
 
       auditBillingAction(req, {
         userId,
@@ -178,7 +372,10 @@ export async function billingRoutes(app: FastifyInstance) {
         outcome: "success",
       });
 
-      return reply.code(200).send(overview);
+      return reply.code(200).send({
+        ...overview,
+        storageAddons,
+      });
     }
   );
 
@@ -187,7 +384,10 @@ export async function billingRoutes(app: FastifyInstance) {
     { preHandler: requireAuthAndLegal },
     async (req, reply) => {
       const userId = getAuthUserId(req);
-      const overview = await readBillingOverview(userId);
+      const [overview, storageAddons] = await Promise.all([
+        readBillingOverview(userId),
+        readActiveStorageAddons(userId),
+      ]);
 
       auditBillingAction(req, {
         userId,
@@ -204,6 +404,7 @@ export async function billingRoutes(app: FastifyInstance) {
         workspaces: overview.workspaces,
         payments: overview.payments,
         paymentMethods: overview.paymentMethods,
+        storageAddons,
       });
     }
   );
@@ -236,16 +437,30 @@ export async function billingRoutes(app: FastifyInstance) {
     async (req, reply) => {
       const userId = getAuthUserId(req);
 
-      const personal = await prisma.subscription.findFirst({
-        where: { userId, teamId: null },
-        orderBy: { createdAt: "desc" },
-      });
-
-      const teamSubscriptions = await prisma.subscription.findMany({
-        where: { userId, teamId: { not: null } },
-        orderBy: { createdAt: "desc" },
-        take: 20,
-      });
+      const [personal, teamSubscriptions, storageAddons] = await Promise.all([
+        prisma.subscription.findFirst({
+          where: { userId, teamId: null },
+          orderBy: { createdAt: "desc" },
+        }),
+        prisma.subscription.findMany({
+          where: { userId, teamId: { not: null } },
+          orderBy: { createdAt: "desc" },
+          take: 20,
+        }),
+prisma.workspaceStorageAddon.findMany({
+  where: {
+    ownerUserId: userId,
+    status: {
+      in: [
+        prismaPkg.WorkspaceStorageAddonStatus.ACTIVE,
+        prismaPkg.WorkspaceStorageAddonStatus.PAST_DUE,
+      ],
+    },
+  },
+            orderBy: { createdAt: "desc" },
+          take: 50,
+        }),
+      ]);
 
       auditBillingAction(req, {
         userId,
@@ -254,12 +469,14 @@ export async function billingRoutes(app: FastifyInstance) {
         metadata: {
           foundPersonal: Boolean(personal),
           teamCount: teamSubscriptions.length,
+          storageAddonCount: storageAddons.length,
         },
       });
 
       return reply.code(200).send({
         personal,
         teams: teamSubscriptions,
+        storageAddons,
       });
     }
   );
@@ -379,6 +596,91 @@ export async function billingRoutes(app: FastifyInstance) {
   );
 
   app.post(
+    "/v1/billing/storage-addons/cancel",
+    { preHandler: requireAuthAndLegal },
+    async (req, reply) => {
+      const userId = getAuthUserId(req);
+      const body = CancelStorageAddonBody.parse(req.body ?? {});
+
+      const addon = await prisma.workspaceStorageAddon.findUnique({
+        where: { id: body.addonId },
+      });
+
+      if (!addon || addon.ownerUserId !== userId) {
+        auditBillingAction(req, {
+          userId,
+          action: "billing.storage_addon_cancel",
+          outcome: "failure",
+          severity: "warning",
+          metadata: {
+            addonId: body.addonId,
+            reason: "not_found_or_not_owned",
+          },
+        });
+
+        return reply.code(404).send({ message: "Storage addon not found" });
+      }
+
+      if (addon.billingCycle !== prismaPkg.StorageAddonBillingCycle.MONTHLY) {
+        return reply.code(400).send({
+          message: "Only recurring storage add-ons can be canceled",
+        });
+      }
+
+      if (!addon.externalSubscriptionId || !addon.paymentProvider) {
+        return reply.code(400).send({
+          message: "This storage add-on has no linked provider subscription",
+        });
+      }
+
+      if (addon.paymentProvider === prismaPkg.PaymentProvider.STRIPE) {
+        await stripeRequestRaw(
+          `/subscriptions/${addon.externalSubscriptionId}`,
+          "DELETE"
+        );
+      } else if (addon.paymentProvider === prismaPkg.PaymentProvider.PAYPAL) {
+        await cancelPayPalSubscription(
+          addon.externalSubscriptionId,
+          "Canceled by customer"
+        );
+      } else {
+        return reply.code(400).send({ message: "Unsupported provider" });
+      }
+
+      const updated = await cancelWorkspaceStorageAddon({
+        addonId: addon.id,
+        ownerUserId: userId,
+      });
+
+      auditBillingAction(req, {
+        userId,
+        action: "billing.storage_addon_cancel",
+        outcome: "success",
+        resourceId: updated.id,
+        metadata: {
+          addonKey: updated.addonKey,
+          teamId: updated.teamId ?? null,
+          provider: updated.paymentProvider ?? null,
+        },
+      });
+
+      fireBillingAnalyticsEvent({
+        eventType: "billing_storage_addon_canceled",
+        userId,
+        req,
+        entityId: updated.id,
+        metadata: {
+          addonKey: updated.addonKey,
+          teamId: updated.teamId ?? null,
+          provider: updated.paymentProvider ?? null,
+        },
+      });
+
+      return reply.code(200).send({ addon: updated });
+    }
+  );
+
+  app.post(
     "/v1/billing/restore",
     { preHandler: requireAuthAndLegal },
     async (req, reply) => {
@@ -460,6 +762,66 @@ export async function billingRoutes(app: FastifyInstance) {
   );
 
   app.post(
+    "/v1/billing/storage-addons/checkout/stripe",
+    { preHandler: requireAuthAndLegal },
+    async (req, reply) => {
+      const body = StorageAddonCheckoutBody.parse(req.body ?? {});
+      const userId = getAuthUserId(req);
+
+      const { definition, scope } = await assertStorageAddonAllowed({
+        userId,
+        addonKey: body.addonKey,
+        billingCycle: body.billingCycle,
+        teamId: body.teamId ?? null,
+      });
+
+      const result = await createStripeStorageAddonCheckoutSession({
+        userId,
+        addonKey: body.addonKey,
+        billingCycle: body.billingCycle,
+        currency: body.currency,
+        teamId: body.teamId ?? null,
+        workspacePlan: scope.plan,
+      });
+
+      auditBillingAction(req, {
+        userId,
+        action: "billing.storage_addon_checkout_stripe_created",
+        outcome: "success",
+        resourceId: String(result.session?.id ?? ""),
+        metadata: {
+          addonKey: body.addonKey,
+          billingCycle: body.billingCycle,
+          teamId: body.teamId ?? null,
+          amountCents: definition.priceCents,
+          workspacePlan: scope.plan,
+        },
+      });
+
+      fireBillingAnalyticsEvent({
+        eventType: "billing_storage_addon_checkout_started",
+        userId,
+        req,
+        entityId: String(result.session?.id ?? ""),
+        metadata: {
+          provider: "STRIPE",
+          addonKey: body.addonKey,
+          billingCycle: body.billingCycle,
+          teamId: body.teamId ?? null,
+          amountCents: definition.priceCents,
+          workspacePlan: scope.plan,
+        },
+      });
+
+      return reply.code(200).send({
+        provider: "STRIPE",
+        mode: result.mode,
+        session: result.session,
+      });
+    }
+  );
+
+  app.post(
     "/v1/billing/checkout/paypal",
     { preHandler: requireAuthAndLegal },
     async (req, reply) => {
@@ -513,6 +875,82 @@ export async function billingRoutes(app: FastifyInstance) {
           plan: body.plan,
           amountCents: result.amountCents,
           teamId: body.teamId ?? null,
+        },
+      });
+
+      if (result.mode === "order") {
+        return reply.code(200).send({
+          provider: "PAYPAL",
+          mode: "order",
+          order: result.order,
+        });
+      }
+
+      return reply.code(200).send({
+        provider: "PAYPAL",
+        mode: "subscription",
+        subscription: result.subscription,
+      });
+    }
+  );
+
+  app.post(
+    "/v1/billing/storage-addons/checkout/paypal",
+    { preHandler: requireAuthAndLegal },
+    async (req, reply) => {
+      const body = StorageAddonCheckoutBody.parse(req.body ?? {});
+      const userId = getAuthUserId(req);
+
+      const { definition, scope } = await assertStorageAddonAllowed({
+        userId,
+        addonKey: body.addonKey,
+        billingCycle: body.billingCycle,
+        teamId: body.teamId ?? null,
+      });
+
+      const result = await createPayPalStorageAddonCheckout({
+        userId,
+        addonKey: body.addonKey,
+        billingCycle: body.billingCycle,
+        currency: body.currency ?? definition.currency,
+        amount: (definition.priceCents / 100).toFixed(2),
+        teamId: body.teamId ?? null,
+        workspacePlan: scope.plan,
+      });
+
+      const resourceId =
+        result.mode === "order"
+          ? String(result.order?.id ?? "")
+          : String(result.subscription?.id ?? "");
+
+      auditBillingAction(req, {
+        userId,
+        action: "billing.storage_addon_checkout_paypal_created",
+        outcome: "success",
+        resourceId,
+        metadata: {
+          addonKey: body.addonKey,
+          billingCycle: body.billingCycle,
+          teamId: body.teamId ?? null,
+          amountCents: definition.priceCents,
+          workspacePlan: scope.plan,
+          mode: result.mode,
+        },
+      });
+
+      fireBillingAnalyticsEvent({
+        eventType: "billing_storage_addon_checkout_started",
+        userId,
+        req,
+        entityId: resourceId,
+        metadata: {
+          provider: "PAYPAL",
+          addonKey: body.addonKey,
+          billingCycle: body.billingCycle,
+          teamId: body.teamId ?? null,
+          amountCents: definition.priceCents,
+          workspacePlan: scope.plan,
+          mode: result.mode,
         },
       });
 

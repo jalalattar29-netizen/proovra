@@ -3,6 +3,68 @@ import * as prismaPkg from "@prisma/client";
 import { getPlanCapabilities } from "./plan-catalog.service.js";
 import { writeAnalyticsEvent } from "./analytics-event.service.js";
 
+const GB = 1024n * 1024n * 1024n;
+
+type StorageAddonDefinition = {
+  key: prismaPkg.StorageAddonKey;
+  workspaceType: "PERSONAL" | "TEAM";
+  storageBytes: bigint;
+  priceCents: number;
+  currency: string;
+  label: string;
+};
+
+const STORAGE_ADDON_DEFINITIONS: readonly StorageAddonDefinition[] = [
+  {
+    key: prismaPkg.StorageAddonKey.PERSONAL_10_GB,
+    workspaceType: "PERSONAL",
+    storageBytes: 10n * GB,
+    priceCents: 299,
+    currency: "EUR",
+    label: "+10 GB",
+  },
+  {
+    key: prismaPkg.StorageAddonKey.PERSONAL_50_GB,
+    workspaceType: "PERSONAL",
+    storageBytes: 50n * GB,
+    priceCents: 799,
+    currency: "EUR",
+    label: "+50 GB",
+  },
+  {
+    key: prismaPkg.StorageAddonKey.PERSONAL_200_GB,
+    workspaceType: "PERSONAL",
+    storageBytes: 200n * GB,
+    priceCents: 1999,
+    currency: "EUR",
+    label: "+200 GB",
+  },
+  {
+    key: prismaPkg.StorageAddonKey.TEAM_100_GB,
+    workspaceType: "TEAM",
+    storageBytes: 100n * GB,
+    priceCents: 999,
+    currency: "EUR",
+    label: "+100 GB",
+  },
+  {
+    key: prismaPkg.StorageAddonKey.TEAM_500_GB,
+    workspaceType: "TEAM",
+    storageBytes: 500n * GB,
+    priceCents: 3499,
+    currency: "EUR",
+    label: "+500 GB",
+  },
+  {
+    key: prismaPkg.StorageAddonKey.TEAM_1_TB,
+    workspaceType: "TEAM",
+    storageBytes: 1024n * GB,
+    priceCents: 5999,
+    currency: "EUR",
+    label: "+1 TB",
+  },
+] as const;
+
 async function trackBillingEvent(params: {
   eventType: string;
   userId: string;
@@ -35,6 +97,30 @@ async function trackBillingEvent(params: {
   } catch {
     // analytics must never block billing flows
   }
+}
+
+function toNullableJsonInput(
+  value: Record<string, unknown> | null | undefined
+): prismaPkg.Prisma.NullableJsonNullValueInput | prismaPkg.Prisma.InputJsonValue {
+  if (value == null) {
+    return prismaPkg.Prisma.JsonNull;
+  }
+
+  return value as prismaPkg.Prisma.InputJsonValue;
+}
+
+export function getStorageAddonDefinition(
+  key: prismaPkg.StorageAddonKey
+): StorageAddonDefinition {
+  const found = STORAGE_ADDON_DEFINITIONS.find((item) => item.key === key);
+  if (!found) {
+    throw new Error(`Unknown storage addon key: ${String(key)}`);
+  }
+  return found;
+}
+
+export function listStorageAddonDefinitions() {
+  return [...STORAGE_ADDON_DEFINITIONS];
 }
 
 export async function ensureEntitlement(userId: string) {
@@ -441,6 +527,157 @@ export async function upsertSubscription(params: {
   });
 
   return subscription;
+}
+
+export async function upsertWorkspaceStorageAddon(params: {
+  ownerUserId: string;
+  teamId?: string | null;
+  addonKey: prismaPkg.StorageAddonKey;
+  billingCycle: prismaPkg.StorageAddonBillingCycle;
+  status: prismaPkg.WorkspaceStorageAddonStatus;
+  paymentProvider?: prismaPkg.PaymentProvider | null;
+  externalSubscriptionId?: string | null;
+  externalPaymentId?: string | null;
+  currency?: string | null;
+  amountCents?: number | null;
+  currentPeriodEnd?: Date | null;
+  expiresAtUtc?: Date | null;
+  metadata?: Record<string, unknown> | null;
+}) {
+  const definition = getStorageAddonDefinition(params.addonKey);
+
+  const existingBySubscription =
+    params.externalSubscriptionId
+      ? await prisma.workspaceStorageAddon.findUnique({
+          where: {
+            externalSubscriptionId: params.externalSubscriptionId,
+          },
+        })
+      : null;
+
+  const existingByPayment =
+    !existingBySubscription && params.externalPaymentId
+      ? await prisma.workspaceStorageAddon.findUnique({
+          where: {
+            externalPaymentId: params.externalPaymentId,
+          },
+        })
+      : null;
+
+  const existing = existingBySubscription ?? existingByPayment;
+
+  const data = {
+    ownerUserId: params.ownerUserId,
+    teamId: params.teamId ?? null,
+    addonKey: params.addonKey,
+    extraStorageBytes: definition.storageBytes,
+    billingCycle: params.billingCycle,
+    status: params.status,
+    paymentProvider: params.paymentProvider ?? null,
+    externalSubscriptionId: params.externalSubscriptionId ?? null,
+    externalPaymentId: params.externalPaymentId ?? null,
+    currency: (params.currency ?? definition.currency).toUpperCase(),
+    amountCents: params.amountCents ?? definition.priceCents,
+    activatedAtUtc:
+      params.status === prismaPkg.WorkspaceStorageAddonStatus.ACTIVE
+        ? existing?.activatedAtUtc ?? new Date()
+        : existing?.activatedAtUtc ?? null,
+    currentPeriodEnd: params.currentPeriodEnd ?? null,
+    expiresAtUtc: params.expiresAtUtc ?? null,
+    canceledAtUtc:
+      params.status === prismaPkg.WorkspaceStorageAddonStatus.CANCELED
+        ? new Date()
+        : null,
+metadata: toNullableJsonInput(params.metadata),
+  };
+
+  const addon = existing
+    ? await prisma.workspaceStorageAddon.update({
+        where: { id: existing.id },
+        data,
+      })
+    : await prisma.workspaceStorageAddon.create({
+        data,
+      });
+
+  await trackBillingEvent({
+    eventType:
+      params.status === prismaPkg.WorkspaceStorageAddonStatus.ACTIVE
+        ? existing
+          ? "billing_storage_addon_updated"
+          : "billing_storage_addon_activated"
+        : params.status === prismaPkg.WorkspaceStorageAddonStatus.PAST_DUE
+          ? "billing_storage_addon_past_due"
+          : params.status === prismaPkg.WorkspaceStorageAddonStatus.PENDING
+            ? "billing_storage_addon_pending"
+            : params.status === prismaPkg.WorkspaceStorageAddonStatus.CANCELED
+              ? "billing_storage_addon_canceled"
+              : params.status === prismaPkg.WorkspaceStorageAddonStatus.EXPIRED
+                ? "billing_storage_addon_expired"
+                : "billing_storage_addon_failed",
+                    userId: params.ownerUserId,
+    teamId: params.teamId ?? null,
+    provider: params.paymentProvider ?? null,
+    metadata: {
+      addonId: addon.id,
+      addonKey: addon.addonKey,
+      billingCycle: addon.billingCycle,
+      extraStorageBytes: addon.extraStorageBytes.toString(),
+      externalSubscriptionId: addon.externalSubscriptionId,
+      externalPaymentId: addon.externalPaymentId,
+      status: addon.status,
+      currentPeriodEnd: addon.currentPeriodEnd?.toISOString() ?? null,
+      expiresAtUtc: addon.expiresAtUtc?.toISOString() ?? null,
+    },
+  });
+
+  return addon;
+}
+
+export async function cancelWorkspaceStorageAddon(params: {
+  addonId: string;
+  ownerUserId: string;
+}) {
+  const addon = await prisma.workspaceStorageAddon.findUnique({
+    where: { id: params.addonId },
+  });
+
+  if (!addon) {
+    const err: Error & { statusCode?: number } = new Error("Storage addon not found");
+    err.statusCode = 404;
+    throw err;
+  }
+
+  if (addon.ownerUserId !== params.ownerUserId) {
+    const err: Error & { statusCode?: number } = new Error(
+      "You are not allowed to manage this storage addon"
+    );
+    err.statusCode = 403;
+    throw err;
+  }
+
+  const updated = await prisma.workspaceStorageAddon.update({
+    where: { id: addon.id },
+    data: {
+      status: prismaPkg.WorkspaceStorageAddonStatus.CANCELED,
+      canceledAtUtc: new Date(),
+    },
+  });
+
+  await trackBillingEvent({
+    eventType: "billing_storage_addon_canceled",
+    userId: updated.ownerUserId,
+    teamId: updated.teamId ?? null,
+    provider: updated.paymentProvider ?? null,
+    metadata: {
+      addonId: updated.id,
+      addonKey: updated.addonKey,
+      externalSubscriptionId: updated.externalSubscriptionId,
+      billingCycle: updated.billingCycle,
+    },
+  });
+
+  return updated;
 }
 
 export async function syncTeamBillingSnapshot(params: {

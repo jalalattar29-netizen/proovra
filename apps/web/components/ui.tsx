@@ -98,7 +98,11 @@ function ToastItem({
   return (
     <div className={`toast-item toast-${toast.type}`}>
       <span className="toast-message">{toast.message}</span>
-      <button onClick={onClose} className="toast-close" aria-label="Close notification">
+      <button
+        onClick={onClose}
+        className="toast-close"
+        aria-label="Close notification"
+      >
         ×
       </button>
     </div>

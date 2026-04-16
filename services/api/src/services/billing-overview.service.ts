@@ -1,11 +1,89 @@
+import * as prismaPkg from "@prisma/client";
 import { prisma } from "../db.js";
-import { ensureEntitlement } from "./billing.service.js";
+import {
+  ensureEntitlement,
+  getStorageAddonDefinition,
+} from "./billing.service.js";
 import { getPlanCapabilities } from "./plan-catalog.service.js";
 import {
   getPersonalWorkspaceScope,
   getTeamWorkspaceScope,
 } from "./workspace-billing.service.js";
 import { getWorkspaceUsage } from "./workspace-usage.service.js";
+
+function addonStatusSortValue(status: prismaPkg.WorkspaceStorageAddonStatus) {
+  switch (status) {
+    case prismaPkg.WorkspaceStorageAddonStatus.ACTIVE:
+      return 0;
+    case prismaPkg.WorkspaceStorageAddonStatus.PAST_DUE:
+      return 1;
+    case prismaPkg.WorkspaceStorageAddonStatus.PENDING:
+      return 2;
+    case prismaPkg.WorkspaceStorageAddonStatus.CANCELED:
+      return 3;
+    case prismaPkg.WorkspaceStorageAddonStatus.EXPIRED:
+      return 4;
+    case prismaPkg.WorkspaceStorageAddonStatus.FAILED:
+      return 5;
+    default:
+      return 9;
+  }
+}
+
+function toStorageAddonSummary(
+  addon: {
+    id: string;
+    ownerUserId: string;
+    teamId: string | null;
+    addonKey: prismaPkg.StorageAddonKey;
+    extraStorageBytes: bigint;
+    billingCycle: prismaPkg.StorageAddonBillingCycle;
+    status: prismaPkg.WorkspaceStorageAddonStatus;
+    paymentProvider: prismaPkg.PaymentProvider | null;
+    externalSubscriptionId: string | null;
+    externalPaymentId: string | null;
+    currency: string | null;
+    amountCents: number | null;
+    activatedAtUtc: Date | null;
+    currentPeriodEnd: Date | null;
+    expiresAtUtc: Date | null;
+    canceledAtUtc: Date | null;
+    createdAt: Date;
+    updatedAt: Date;
+  },
+  teamName?: string | null
+) {
+  const definition = getStorageAddonDefinition(addon.addonKey);
+  return {
+    id: addon.id,
+    ownerUserId: addon.ownerUserId,
+    teamId: addon.teamId ?? null,
+    teamName: teamName ?? null,
+    addonKey: addon.addonKey,
+    extraStorageBytes: addon.extraStorageBytes.toString(),
+    billingCycle: addon.billingCycle,
+    status: addon.status,
+    paymentProvider: addon.paymentProvider ?? null,
+    externalSubscriptionId: addon.externalSubscriptionId ?? null,
+    externalPaymentId: addon.externalPaymentId ?? null,
+    currency: addon.currency ?? definition.currency,
+    amountCents: addon.amountCents ?? definition.priceCents,
+    activatedAtUtc: addon.activatedAtUtc
+      ? addon.activatedAtUtc.toISOString()
+      : null,
+    currentPeriodEnd: addon.currentPeriodEnd
+      ? addon.currentPeriodEnd.toISOString()
+      : null,
+    expiresAtUtc: addon.expiresAtUtc
+      ? addon.expiresAtUtc.toISOString()
+      : null,
+    canceledAtUtc: addon.canceledAtUtc
+      ? addon.canceledAtUtc.toISOString()
+      : null,
+    createdAt: addon.createdAt.toISOString(),
+    updatedAt: addon.updatedAt.toISOString(),
+  };
+}
 
 export async function readBillingOverview(userId: string) {
   const entitlement = await ensureEntitlement(userId);
@@ -14,33 +92,37 @@ export async function readBillingOverview(userId: string) {
   const personalUsage = await getWorkspaceUsage(personalScope);
   const personalCaps = getPlanCapabilities(personalScope.plan);
 
-  const ownedTeams = await prisma.team.findMany({
-    where: { ownerUserId: userId },
-    select: {
-      id: true,
-      name: true,
-      ownerUserId: true,
-      billingPlan: true,
-      billingStatus: true,
-      includedSeats: true,
-      overSeatLimit: true,
-      billingActivatedAt: true,
-      billingCanceledAt: true,
-      billingOwnerUserId: true,
-    },
-    orderBy: { createdAt: "desc" },
-  });
-
-  const teams = await Promise.all(
-    ownedTeams.map(async (team) => {
-      const scope = await getTeamWorkspaceScope(team.id);
-      const usage = await getWorkspaceUsage(scope);
-      const effectiveCaps = getPlanCapabilities(scope.plan);
-
-      const activeSubscription = await prisma.subscription.findFirst({
+  const [ownedTeams, allStorageAddons, recentPayments, personalSubscription] =
+    await Promise.all([
+      prisma.team.findMany({
+        where: { ownerUserId: userId },
+        select: {
+          id: true,
+          name: true,
+          ownerUserId: true,
+          billingPlan: true,
+          billingStatus: true,
+          includedSeats: true,
+          overSeatLimit: true,
+          billingActivatedAt: true,
+          billingCanceledAt: true,
+          billingOwnerUserId: true,
+        },
+        orderBy: { createdAt: "desc" },
+      }),
+      prisma.workspaceStorageAddon.findMany({
+        where: { ownerUserId: userId },
+        orderBy: [{ createdAt: "desc" }],
+      }),
+      prisma.payment.findMany({
+        where: { userId },
+        orderBy: { createdAt: "desc" },
+        take: 20,
+      }),
+      prisma.subscription.findFirst({
         where: {
           userId,
-          teamId: team.id,
+          teamId: null,
         },
         orderBy: { createdAt: "desc" },
         select: {
@@ -52,7 +134,58 @@ export async function readBillingOverview(userId: string) {
           currentPeriodEnd: true,
           createdAt: true,
         },
-      });
+      }),
+    ]);
+
+  const activePersonalStorageAddons = allStorageAddons.filter(
+    (addon) =>
+      addon.teamId === null &&
+      (addon.status === prismaPkg.WorkspaceStorageAddonStatus.ACTIVE ||
+        addon.status === prismaPkg.WorkspaceStorageAddonStatus.PAST_DUE)
+  );
+
+  const teams = await Promise.all(
+    ownedTeams.map(async (team) => {
+      const scope = await getTeamWorkspaceScope(team.id);
+      const usage = await getWorkspaceUsage(scope);
+      const effectiveCaps = getPlanCapabilities(scope.plan);
+
+      const [activeSubscription, teamStorageAddons] = await Promise.all([
+        prisma.subscription.findFirst({
+          where: {
+            userId,
+            teamId: team.id,
+          },
+          orderBy: { createdAt: "desc" },
+          select: {
+            id: true,
+            provider: true,
+            providerSubId: true,
+            status: true,
+            plan: true,
+            currentPeriodEnd: true,
+            createdAt: true,
+          },
+        }),
+        prisma.workspaceStorageAddon.findMany({
+          where: {
+            ownerUserId: userId,
+            teamId: team.id,
+          },
+          orderBy: [{ createdAt: "desc" }],
+        }),
+      ]);
+
+      const activeTeamStorageAddons = teamStorageAddons.filter(
+        (addon) =>
+          addon.status === prismaPkg.WorkspaceStorageAddonStatus.ACTIVE ||
+          addon.status === prismaPkg.WorkspaceStorageAddonStatus.PAST_DUE
+      );
+
+      const activeTeamStorageAddonBytes = activeTeamStorageAddons.reduce(
+        (sum, addon) => sum + addon.extraStorageBytes,
+        0n
+      );
 
       const includedSeats = Math.max(team.includedSeats ?? 0, scope.teamSeats || 0);
 
@@ -84,6 +217,8 @@ export async function readBillingOverview(userId: string) {
           usagePercent: usage.storageUsagePercent,
           nearLimit: usage.isNearStorageLimit,
           limitReached: usage.isStorageLimitReached,
+          basePlanLimitBytes: effectiveCaps.includedStorageBytes.toString(),
+          activeAddonBytes: activeTeamStorageAddonBytes.toString(),
         },
         seats: {
           used: usage.teamMemberCount,
@@ -106,34 +241,19 @@ export async function readBillingOverview(userId: string) {
           members: usage.teamMemberCount,
         },
         subscription: activeSubscription,
+        storageAddons: teamStorageAddons
+          .slice()
+          .sort((a, b) => addonStatusSortValue(a.status) - addonStatusSortValue(b.status))
+          .map((addon) => toStorageAddonSummary(addon, team.name)),
+        activeStorageAddonSummary: {
+          count: activeTeamStorageAddons.length,
+          totalExtraStorageBytes: activeTeamStorageAddonBytes.toString(),
+        },
         billingActivatedAt: team.billingActivatedAt,
         billingCanceledAt: team.billingCanceledAt,
       };
     })
   );
-
-  const personalSubscription = await prisma.subscription.findFirst({
-    where: {
-      userId,
-      teamId: null,
-    },
-    orderBy: { createdAt: "desc" },
-    select: {
-      id: true,
-      provider: true,
-      providerSubId: true,
-      status: true,
-      plan: true,
-      currentPeriodEnd: true,
-      createdAt: true,
-    },
-  });
-
-  const recentPayments = await prisma.payment.findMany({
-    where: { userId },
-    orderBy: { createdAt: "desc" },
-    take: 20,
-  });
 
   const paymentSummary = recentPayments.reduce(
     (acc, payment) => {
@@ -168,9 +288,25 @@ export async function readBillingOverview(userId: string) {
   ).length;
 
   const overSeatLimitCount = teams.filter((team) => team.overSeatLimit).length;
+
   const nearStorageLimitCount = teams.filter(
-    (team) => team.workspaceHealth.storageNearLimit || team.workspaceHealth.storageLimitReached
+    (team) =>
+      team.workspaceHealth.storageNearLimit ||
+      team.workspaceHealth.storageLimitReached
   ).length;
+
+  const personalActiveAddonBytes = activePersonalStorageAddons.reduce(
+    (sum, addon) => sum + addon.extraStorageBytes,
+    0n
+  );
+
+  const totalActiveAddonBytes = allStorageAddons
+    .filter(
+      (addon) =>
+        addon.status === prismaPkg.WorkspaceStorageAddonStatus.ACTIVE ||
+        addon.status === prismaPkg.WorkspaceStorageAddonStatus.PAST_DUE
+    )
+    .reduce((sum, addon) => sum + addon.extraStorageBytes, 0n);
 
   return {
     entitlement,
@@ -181,6 +317,12 @@ export async function readBillingOverview(userId: string) {
       activeTeamPlans: activeTeamCount,
       overSeatLimitTeams: overSeatLimitCount,
       nearStorageLimitTeams: nearStorageLimitCount,
+      activeStorageAddons: allStorageAddons.filter(
+        (addon) =>
+          addon.status === prismaPkg.WorkspaceStorageAddonStatus.ACTIVE ||
+          addon.status === prismaPkg.WorkspaceStorageAddonStatus.PAST_DUE
+      ).length,
+      activeStorageAddonBytes: totalActiveAddonBytes.toString(),
       payments: paymentSummary,
     },
     workspaces: {
@@ -206,6 +348,8 @@ export async function readBillingOverview(userId: string) {
           usagePercent: personalUsage.storageUsagePercent,
           nearLimit: personalUsage.isNearStorageLimit,
           limitReached: personalUsage.isStorageLimitReached,
+          basePlanLimitBytes: personalCaps.includedStorageBytes.toString(),
+          activeAddonBytes: personalActiveAddonBytes.toString(),
         },
         workspaceHealth: {
           storageNearLimit: personalUsage.isNearStorageLimit,
@@ -215,14 +359,49 @@ export async function readBillingOverview(userId: string) {
           evidence: personalUsage.evidenceCount,
         },
         subscription: personalSubscription,
+        storageAddons: allStorageAddons
+          .filter((addon) => addon.teamId === null)
+          .slice()
+          .sort((a, b) => addonStatusSortValue(a.status) - addonStatusSortValue(b.status))
+          .map((addon) => toStorageAddonSummary(addon, null)),
+        activeStorageAddonSummary: {
+          count: activePersonalStorageAddons.length,
+          totalExtraStorageBytes: personalActiveAddonBytes.toString(),
+        },
       },
       teams,
+    },
+    storageAddons: {
+      all: allStorageAddons
+        .slice()
+        .sort((a, b) => addonStatusSortValue(a.status) - addonStatusSortValue(b.status))
+        .map((addon) => {
+          const teamName =
+            addon.teamId != null
+              ? ownedTeams.find((team) => team.id === addon.teamId)?.name ?? null
+              : null;
+          return toStorageAddonSummary(addon, teamName);
+        }),
+      active: allStorageAddons
+        .filter(
+          (addon) =>
+            addon.status === prismaPkg.WorkspaceStorageAddonStatus.ACTIVE ||
+            addon.status === prismaPkg.WorkspaceStorageAddonStatus.PAST_DUE
+        )
+        .map((addon) => {
+          const teamName =
+            addon.teamId != null
+              ? ownedTeams.find((team) => team.id === addon.teamId)?.name ?? null
+              : null;
+          return toStorageAddonSummary(addon, teamName);
+        }),
     },
     payments: recentPayments,
     paymentMethods: {
       PAYG: ["STRIPE", "PAYPAL"],
       PRO: ["STRIPE", "PAYPAL"],
       TEAM: ["STRIPE", "PAYPAL"],
+      STORAGE_ADDONS: ["STRIPE", "PAYPAL"],
     },
   };
 }

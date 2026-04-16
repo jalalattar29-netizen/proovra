@@ -36,7 +36,9 @@ type GenericApiError = Error & {
 };
 
 function asObject(value: unknown): Record<string, unknown> | null {
-  return value && typeof value === "object" ? (value as Record<string, unknown>) : null;
+  return value && typeof value === "object"
+    ? (value as Record<string, unknown>)
+    : null;
 }
 
 type ApiFetchOpts = {
@@ -100,7 +102,11 @@ async function fetchWithAuthRetry(
   return second;
 }
 
-export async function apiFetch(path: string, init: RequestInit = {}, opts?: ApiFetchOpts) {
+export async function apiFetch(
+  path: string,
+  init: RequestInit = {},
+  opts?: ApiFetchOpts
+) {
   const normalizedPath = path.startsWith("/") ? path : `/${path}`;
   const url = `${API_BASE}${normalizedPath}`;
 
@@ -142,14 +148,20 @@ export async function apiFetch(path: string, init: RequestInit = {}, opts?: ApiF
     const errObj = obj ? asObject(obj["error"]) : null;
 
     const hasStandardShape =
-      !!errObj && typeof errObj["code"] === "string" && typeof errObj["message"] === "string";
+      !!errObj &&
+      typeof errObj["code"] === "string" &&
+      typeof errObj["message"] === "string";
 
     if (hasStandardShape) {
       const requestIdFromBody =
-        typeof errObj["requestId"] === "string" ? (errObj["requestId"] as string) : undefined;
+        typeof errObj["requestId"] === "string"
+          ? (errObj["requestId"] as string)
+          : undefined;
 
       const timestampFromBody =
-        typeof errObj["timestamp"] === "string" ? (errObj["timestamp"] as string) : undefined;
+        typeof errObj["timestamp"] === "string"
+          ? (errObj["timestamp"] as string)
+          : undefined;
 
       const detailsFromBodyRaw = errObj["details"];
       const detailsFromBody =
@@ -171,20 +183,43 @@ export async function apiFetch(path: string, init: RequestInit = {}, opts?: ApiF
     }
 
     const messageFromBody =
-      obj && typeof obj["message"] === "string" ? (obj["message"] as string) : "";
-    const message = messageFromBody || (raw && raw.trim()) || `HTTP ${res.status}: API error`;
+      obj && typeof obj["message"] === "string"
+        ? (obj["message"] as string)
+        : "";
+
+    const codeFromBody =
+      obj && typeof obj["code"] === "string" ? (obj["code"] as string) : "";
+
+    const detailsFromBody =
+      obj && typeof obj["details"] === "object" && obj["details"] !== null
+        ? (obj["details"] as Record<string, unknown>)
+        : undefined;
+
+    const billingWall =
+      obj && typeof obj["billingWall"] === "object" && obj["billingWall"] !== null
+        ? (obj["billingWall"] as Record<string, unknown>)
+        : undefined;
+
+    const message =
+      messageFromBody || (raw && raw.trim()) || `HTTP ${res.status}: API error`;
 
     const requestIdFromBody =
-      obj && typeof obj["requestId"] === "string" ? (obj["requestId"] as string) : undefined;
+      obj && typeof obj["requestId"] === "string"
+        ? (obj["requestId"] as string)
+        : undefined;
 
     const requestId = requestIdFromBody ?? headerReqId;
 
     const error: GenericApiError = new Error(
       requestId ? `${message} (requestId: ${requestId})` : message
     );
-    error.code = res.status === 401 ? "UNAUTHORIZED" : "API_ERROR";
+
+    error.code =
+      codeFromBody ||
+      (res.status === 401 ? "UNAUTHORIZED" : "API_ERROR");
     error.statusCode = res.status;
     error.requestId = requestId;
+    error.details = detailsFromBody ?? billingWall;
 
     throw error;
   }
