@@ -201,7 +201,7 @@ export default function MarketingPricingPage() {
           "PDF report included",
           "Verification package included",
           "Shareable verification link",
-          "Supports selected personal storage add-ons",
+          "Supports selected personal one-time storage add-ons",
         ],
         note:
           "Best when you do not need a recurring subscription but still want professional evidence outputs.",
@@ -227,10 +227,10 @@ export default function MarketingPricingPage() {
           "Unlimited evidence records",
           "PDF reports included",
           "Verification packages included",
-          "Supports recurring personal storage add-ons",
+          "Supports one-time personal storage top-ups",
         ],
         note:
-          "For professionals who need recurring access and higher ongoing volume.",
+          "For professionals who need recurring access and higher ongoing volume. Extra storage is purchased separately as a one-time top-up.",
         accent: "bronze",
         ctaLabel: buildCtaLabel("PRO"),
         ctaHref: buildCtaHref("PRO"),
@@ -252,9 +252,10 @@ export default function MarketingPricingPage() {
           `Storage included: ${catalog?.team?.storageLabel ?? "500 GB"}`,
           "Shared workspace and member management",
           "Reports and verification packages included",
-          "Supports recurring team storage add-ons",
+          "Supports one-time team storage top-ups",
         ],
-        note: "Requires an owned team workspace before checkout.",
+        note:
+          "Requires an owned team workspace before checkout. Extra team storage is purchased separately as a one-time top-up.",
         ctaLabel: buildCtaLabel("TEAM"),
         ctaHref: buildCtaHref("TEAM"),
       },
@@ -294,10 +295,10 @@ export default function MarketingPricingPage() {
 
               <p className="mt-5 max-w-[820px] text-[0.94rem] font-normal leading-[1.78] tracking-[-0.006em] text-[#c7cfcc] md:text-[0.98rem]">
                 All plans include secure evidence storage. Report access,
-                verification packages, recurring subscriptions, storage add-ons,
-                and team capacity depend on the selected plan. Billing continues
-                inside the workspace console where the correct personal or team
-                context is enforced.
+                verification packages, recurring subscriptions, one-time storage
+                top-ups, and team capacity depend on the selected plan. Billing
+                continues inside the workspace console where the correct personal
+                or team context is enforced.
               </p>
             </div>
           </section>
@@ -467,8 +468,9 @@ export default function MarketingPricingPage() {
               </div>
 
               <div className="mt-2 text-[0.9rem] leading-[1.75] text-[#5d6d71]">
-                Add-ons are purchased inside the billing console and depend on
-                workspace type and base plan eligibility.
+                Add-ons are purchased inside the billing console as one-time
+                storage top-ups and depend on workspace type and base plan
+                eligibility.
               </div>
 
               <div className="mt-5 grid gap-5 md:grid-cols-2">
@@ -507,6 +509,9 @@ export default function MarketingPricingPage() {
                           </div>
                           <div className="mt-1 text-[0.86rem] text-[#5d6d71]">
                             {formatAddonMoney(item)}
+                          </div>
+                          <div className="mt-1 text-[0.80rem] text-[#7a878a]">
+                            One-time purchase
                           </div>
                         </div>
                       ))
@@ -549,6 +554,9 @@ export default function MarketingPricingPage() {
                           </div>
                           <div className="mt-1 text-[0.86rem] text-[#5d6d71]">
                             {formatAddonMoney(item)}
+                          </div>
+                          <div className="mt-1 text-[0.80rem] text-[#7a878a]">
+                            One-time purchase
                           </div>
                         </div>
                       ))

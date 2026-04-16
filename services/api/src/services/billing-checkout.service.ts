@@ -37,19 +37,25 @@ export async function createPayPalStorageAddonCheckout(params: {
   teamId?: string | null;
   workspacePlan: prismaPkg.PlanType;
 }) {
+  if (params.billingCycle !== prismaPkg.StorageAddonBillingCycle.ONE_TIME) {
+    throw new Error("Storage add-ons are available only as one-time purchases");
+  }
+
   const currency = getStorageAddonCurrency({
     requestedCurrency: params.currency,
   });
+
   const amountCents = getStorageAddonPriceCents({
     addonKey: params.addonKey,
     currency,
   });
+
   const amount = (amountCents / 100).toFixed(2);
 
   return createPayPalStorageAddonCheckoutApi({
     userId: params.userId,
     addonKey: params.addonKey,
-    billingCycle: params.billingCycle,
+    billingCycle: prismaPkg.StorageAddonBillingCycle.ONE_TIME,
     currency,
     amount,
     teamId: params.teamId ?? null,
@@ -142,18 +148,21 @@ export async function createStripeStorageAddonCheckoutSession(params: {
   teamId?: string | null;
   workspacePlan: prismaPkg.PlanType;
 }) {
+  if (params.billingCycle !== prismaPkg.StorageAddonBillingCycle.ONE_TIME) {
+    throw new Error("Storage add-ons are available only as one-time purchases");
+  }
+
   const definition = getStorageAddonDefinition(params.addonKey);
   const currency = getStorageAddonCurrency({
     requestedCurrency: params.currency ?? definition.currency,
   });
+
   const amountCents = getStorageAddonPriceCents({
     addonKey: params.addonKey,
     currency,
   });
-  const mode =
-    params.billingCycle === prismaPkg.StorageAddonBillingCycle.ONE_TIME
-      ? "payment"
-      : "subscription";
+
+  const mode = "payment";
   const appBase = normalizedBaseUrl();
 
   const searchParams = new URLSearchParams();
@@ -169,7 +178,10 @@ export async function createStripeStorageAddonCheckoutSession(params: {
   searchParams.append("payment_method_types[]", "card");
   searchParams.append("metadata[userId]", params.userId);
   searchParams.append("metadata[storageAddonKey]", params.addonKey);
-  searchParams.append("metadata[billingCycle]", params.billingCycle);
+  searchParams.append(
+    "metadata[billingCycle]",
+    prismaPkg.StorageAddonBillingCycle.ONE_TIME
+  );
   searchParams.append("metadata[workspacePlan]", params.workspacePlan);
   searchParams.append("metadata[currency]", currency);
   searchParams.append("metadata[amountCents]", String(amountCents));
@@ -180,7 +192,7 @@ export async function createStripeStorageAddonCheckoutSession(params: {
 
   const priceId = getStripeStorageAddonPriceId({
     addonKey: params.addonKey,
-    billingCycle: params.billingCycle,
+    billingCycle: prismaPkg.StorageAddonBillingCycle.ONE_TIME,
     currency,
   });
 
@@ -198,38 +210,6 @@ export async function createStripeStorageAddonCheckoutSession(params: {
       String(amountCents)
     );
     searchParams.append("line_items[0][quantity]", "1");
-
-    if (mode === "subscription") {
-      searchParams.append(
-        "line_items[0][price_data][recurring][interval]",
-        "month"
-      );
-    }
-  }
-
-  if (mode === "subscription") {
-    searchParams.append("subscription_data[metadata][userId]", params.userId);
-    searchParams.append(
-      "subscription_data[metadata][storageAddonKey]",
-      params.addonKey
-    );
-    searchParams.append(
-      "subscription_data[metadata][billingCycle]",
-      params.billingCycle
-    );
-    searchParams.append(
-      "subscription_data[metadata][workspacePlan]",
-      params.workspacePlan
-    );
-    searchParams.append("subscription_data[metadata][currency]", currency);
-    searchParams.append(
-      "subscription_data[metadata][amountCents]",
-      String(amountCents)
-    );
-
-    if (params.teamId) {
-      searchParams.append("subscription_data[metadata][teamId]", params.teamId);
-    }
   }
 
   const session = await stripeRequest("/checkout/sessions", searchParams);

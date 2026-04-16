@@ -61,6 +61,38 @@ function toneForBillingStatus(status?: string | null) {
   };
 }
 
+function formatBytesCompact(value?: string | number | null): string {
+  const n =
+    typeof value === "number"
+      ? value
+      : typeof value === "string"
+        ? Number(value)
+        : Number.NaN;
+
+  if (!Number.isFinite(n) || n <= 0) return "0 B";
+
+  const units = ["B", "KB", "MB", "GB", "TB"] as const;
+  let size = n;
+  let index = 0;
+
+  while (size >= 1024 && index < units.length - 1) {
+    size /= 1024;
+    index += 1;
+  }
+
+  const fixed = index === 0 ? 0 : size >= 100 ? 0 : size >= 10 ? 1 : 2;
+  return `${size.toFixed(fixed)} ${units[index]}`;
+}
+
+function formatDateLabel(value?: string | null): string {
+  const text = String(value ?? "").trim();
+  if (!text) return "—";
+
+  const date = new Date(text);
+  if (Number.isNaN(date.getTime())) return text;
+  return date.toLocaleString();
+}
+
 export function TeamWorkspaceCard({
   workspace,
   onSelectForCheckout,
@@ -216,7 +248,7 @@ export function TeamWorkspaceCard({
               Status: {workspace.subscription?.status ?? "None"}
             </div>
             <div className="mt-1 text-[0.82rem] text-[#7a878a]">
-              Next period: {workspace.subscription?.currentPeriodEnd ?? "—"}
+              Next period: {formatDateLabel(workspace.subscription?.currentPeriodEnd ?? null)}
             </div>
           </div>
 
@@ -275,7 +307,7 @@ export function TeamWorkspaceCard({
               {addonCount}
             </div>
             <div className="mt-1 text-[0.82rem] text-[#7a878a]">
-              Extra bytes: {extraStorageBytes ?? "0"}
+              Extra bytes: {formatBytesCompact(extraStorageBytes)}
             </div>
           </div>
 
@@ -307,8 +339,9 @@ export function TeamWorkspaceCard({
           }}
         >
           This workspace is used for <strong>TEAM</strong> billing flows. Select
-          it in checkout to start or manage a recurring team subscription with
-          the correct ownership context.
+          it below to start or manage a recurring team subscription with the
+          correct ownership context. Extra storage for teams is purchased
+          separately as a <strong>one-time top-up</strong> from the billing page.
         </div>
 
         <div className="mt-5 flex flex-wrap gap-3">

@@ -1,4 +1,3 @@
-// D:\digital-witness\services\api\src\services\paypal.service.ts
 import * as prismaPkg from "@prisma/client";
 import {
   normalizePayPalCurrency,
@@ -56,16 +55,6 @@ function buildStorageAddonCustomId(params: {
     billingCycle: params.billingCycle,
     workspacePlan: params.workspacePlan,
   });
-}
-
-function resolvePayPalStorageAddonPlanId(params: {
-  addonKey: prismaPkg.StorageAddonKey;
-  currency: string;
-}) {
-  const currency = normalizePayPalCurrency(params.currency).toUpperCase();
-
-  const envKey = `PAYPAL_PLAN_STORAGE_${params.addonKey}_${currency}`;
-  return must(envKey);
 }
 
 export async function getPayPalAccessToken(): Promise<string> {
@@ -263,67 +252,36 @@ export async function createPayPalStorageAddonCheckout(params: {
   teamId?: string | null;
   workspacePlan: prismaPkg.PlanType;
 }) {
-  const returnUrl = buildReturnUrl("/billing?checkout=success&kind=storage-addon");
-  const cancelUrl = buildReturnUrl("/billing?checkout=cancel&kind=storage-addon");
-
-  if (params.billingCycle === prismaPkg.StorageAddonBillingCycle.ONE_TIME) {
-    const normalizedCurrency = normalizePayPalCurrency(params.currency);
-
-    const order = await paypalRequest("/v2/checkout/orders", {
-      intent: "CAPTURE",
-      purchase_units: [
-        {
-          custom_id: buildStorageAddonCustomId({
-            userId: params.userId,
-            addonKey: params.addonKey,
-            billingCycle: params.billingCycle,
-            teamId: params.teamId ?? null,
-            workspacePlan: params.workspacePlan,
-          }),
-          description: `PROOVRA Storage Add-on ${params.addonKey}`,
-          amount: {
-            currency_code: normalizedCurrency,
-            value: params.amount,
-          },
-        },
-      ],
-      application_context: {
-        brand_name: "PROOVRA",
-        shipping_preference: "NO_SHIPPING",
-        user_action: "PAY_NOW",
-        return_url: returnUrl,
-        cancel_url: cancelUrl,
-      },
-    });
-
-    return {
-      provider: "PAYPAL" as const,
-      mode: "order" as const,
-      order,
-      currency: normalizedCurrency,
-      amountCents: Math.round(Number(params.amount) * 100),
-    };
+  if (params.billingCycle !== prismaPkg.StorageAddonBillingCycle.ONE_TIME) {
+    throw new Error("Storage add-ons are available only as one-time purchases");
   }
 
-  const planId = resolvePayPalStorageAddonPlanId({
-    addonKey: params.addonKey,
-    currency: params.currency,
-  });
+  const returnUrl = buildReturnUrl("/billing?checkout=success&kind=storage-addon");
+  const cancelUrl = buildReturnUrl("/billing?checkout=cancel&kind=storage-addon");
+  const normalizedCurrency = normalizePayPalCurrency(params.currency);
 
-  await assertPayPalPlanIsActive(planId);
-
-  const subscription = await paypalRequest("/v1/billing/subscriptions", {
-    plan_id: planId,
-    custom_id: buildStorageAddonCustomId({
-      userId: params.userId,
-      addonKey: params.addonKey,
-      billingCycle: params.billingCycle,
-      teamId: params.teamId ?? null,
-      workspacePlan: params.workspacePlan,
-    }),
+  const order = await paypalRequest("/v2/checkout/orders", {
+    intent: "CAPTURE",
+    purchase_units: [
+      {
+        custom_id: buildStorageAddonCustomId({
+          userId: params.userId,
+          addonKey: params.addonKey,
+          billingCycle: prismaPkg.StorageAddonBillingCycle.ONE_TIME,
+          teamId: params.teamId ?? null,
+          workspacePlan: params.workspacePlan,
+        }),
+        description: `PROOVRA Storage Add-on ${params.addonKey}`,
+        amount: {
+          currency_code: normalizedCurrency,
+          value: params.amount,
+        },
+      },
+    ],
     application_context: {
       brand_name: "PROOVRA",
-      user_action: "SUBSCRIBE_NOW",
+      shipping_preference: "NO_SHIPPING",
+      user_action: "PAY_NOW",
       return_url: returnUrl,
       cancel_url: cancelUrl,
     },
@@ -331,9 +289,9 @@ export async function createPayPalStorageAddonCheckout(params: {
 
   return {
     provider: "PAYPAL" as const,
-    mode: "subscription" as const,
-    subscription,
-    currency: normalizePayPalCurrency(params.currency),
+    mode: "order" as const,
+    order,
+    currency: normalizedCurrency,
     amountCents: Math.round(Number(params.amount) * 100),
   };
 }

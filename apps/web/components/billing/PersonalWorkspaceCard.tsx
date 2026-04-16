@@ -23,6 +23,29 @@ function formatSubscriptionStatus(status?: string | null) {
   return normalized;
 }
 
+function formatBytesCompact(value?: string | number | null): string {
+  const n =
+    typeof value === "number"
+      ? value
+      : typeof value === "string"
+        ? Number(value)
+        : Number.NaN;
+
+  if (!Number.isFinite(n) || n <= 0) return "0 B";
+
+  const units = ["B", "KB", "MB", "GB", "TB"] as const;
+  let size = n;
+  let index = 0;
+
+  while (size >= 1024 && index < units.length - 1) {
+    size /= 1024;
+    index += 1;
+  }
+
+  const fixed = index === 0 ? 0 : size >= 100 ? 0 : size >= 10 ? 1 : 2;
+  return `${size.toFixed(fixed)} ${units[index]}`;
+}
+
 export function PersonalWorkspaceCard({ workspace }: Props) {
   const addonCount = workspace?.activeStorageAddonSummary?.count ?? 0;
   const extraStorageBytes =
@@ -94,7 +117,9 @@ export function PersonalWorkspaceCard({ workspace }: Props) {
 
             <div>
               Extra add-on bytes:{" "}
-              <strong style={{ color: "#1f3438" }}>{extraStorageBytes}</strong>
+              <strong style={{ color: "#1f3438" }}>
+                {formatBytesCompact(extraStorageBytes)}
+              </strong>
             </div>
 
             <div>
@@ -124,8 +149,9 @@ export function PersonalWorkspaceCard({ workspace }: Props) {
         >
           Use the checkout console above for <strong>PAYG</strong> one-time
           purchases or a recurring <strong>PRO</strong> subscription tied to
-          your personal workspace. Supported storage add-ons should be managed
-          from the billing console using the correct workspace context.
+          your personal workspace. Extra storage is now purchased as a
+          <strong> one-time top-up</strong> from the billing page and does not
+          create a second monthly storage subscription.
         </div>
 
         <div className="mt-5 grid gap-3 md:grid-cols-3">

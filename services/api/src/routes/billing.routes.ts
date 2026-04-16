@@ -12,7 +12,6 @@ import {
   cancelTeamPlan,
   cancelWorkspaceStorageAddon,
   getStorageAddonDefinition,
-  listStorageAddonDefinitions,
 } from "../services/billing.service.js";
 import { stripeRequestRaw } from "../services/stripe.service.js";
 import {
@@ -49,10 +48,6 @@ const StorageAddonKeySchema = prismaPkg.StorageAddonKey
       "TEAM_1_TB",
     ]);
 
-const StorageAddonBillingCycleSchema = prismaPkg.StorageAddonBillingCycle
-  ? z.nativeEnum(prismaPkg.StorageAddonBillingCycle)
-  : z.enum(["ONE_TIME", "MONTHLY"]);
-
 const CurrencySchema = z.enum(["USD", "EUR"]);
 
 const CheckoutBody = z.object({
@@ -63,7 +58,7 @@ const CheckoutBody = z.object({
 
 const StorageAddonCheckoutBody = z.object({
   addonKey: StorageAddonKeySchema,
-  billingCycle: StorageAddonBillingCycleSchema,
+  billingCycle: z.literal(prismaPkg.StorageAddonBillingCycle.ONE_TIME),
   currency: CurrencySchema.optional(),
   teamId: z.string().uuid().optional(),
 });
@@ -244,14 +239,6 @@ async function assertStorageAddonAllowed(params: {
       throw err;
     }
 
-    if (params.billingCycle !== prismaPkg.StorageAddonBillingCycle.MONTHLY) {
-      const err: Error & { statusCode?: number } = new Error(
-        "Team storage add-ons are only available as monthly recurring add-ons"
-      );
-      err.statusCode = 400;
-      throw err;
-    }
-
     return {
       scope,
       definition,
@@ -295,14 +282,6 @@ async function assertStorageAddonAllowed(params: {
   }
 
   if (scope.plan === prismaPkg.PlanType.PRO) {
-    if (params.billingCycle !== prismaPkg.StorageAddonBillingCycle.MONTHLY) {
-      const err: Error & { statusCode?: number } = new Error(
-        "PRO storage add-ons are only available as monthly recurring add-ons"
-      );
-      err.statusCode = 400;
-      throw err;
-    }
-
     return {
       scope,
       definition,
@@ -616,7 +595,7 @@ export async function billingRoutes(app: FastifyInstance) {
 
       if (addon.billingCycle !== prismaPkg.StorageAddonBillingCycle.MONTHLY) {
         return reply.code(400).send({
-          message: "Only recurring storage add-ons can be canceled",
+          message: "Only legacy recurring storage add-ons can be canceled",
         });
       }
 
@@ -760,6 +739,12 @@ export async function billingRoutes(app: FastifyInstance) {
     { preHandler: requireAuthAndLegal },
     async (req, reply) => {
       const body = StorageAddonCheckoutBody.parse(req.body ?? {});
+      if (body.billingCycle !== prismaPkg.StorageAddonBillingCycle.ONE_TIME) {
+        return reply.code(400).send({
+          message: "Storage add-ons are available only as one-time purchases",
+        });
+      }
+
       const userId = getAuthUserId(req);
 
       const { scope } = await assertStorageAddonAllowed({
@@ -842,9 +827,9 @@ export async function billingRoutes(app: FastifyInstance) {
       });
 
       const resourceId =
-        result.mode === "order"
-          ? String(result.order?.id ?? "")
-          : String(result.subscription?.id ?? "");
+        "subscription" in result
+          ? String((result.subscription as { id?: string } | undefined)?.id ?? "")
+          : String((result.order as { id?: string } | undefined)?.id ?? "");
 
       auditBillingAction(req, {
         userId,
@@ -896,6 +881,12 @@ export async function billingRoutes(app: FastifyInstance) {
     { preHandler: requireAuthAndLegal },
     async (req, reply) => {
       const body = StorageAddonCheckoutBody.parse(req.body ?? {});
+      if (body.billingCycle !== prismaPkg.StorageAddonBillingCycle.ONE_TIME) {
+        return reply.code(400).send({
+          message: "Storage add-ons are available only as one-time purchases",
+        });
+      }
+
       const userId = getAuthUserId(req);
 
       const { scope } = await assertStorageAddonAllowed({
@@ -915,9 +906,9 @@ export async function billingRoutes(app: FastifyInstance) {
       });
 
       const resourceId =
-        result.mode === "order"
-          ? String(result.order?.id ?? "")
-          : String(result.subscription?.id ?? "");
+        "subscription" in result
+          ? String((result.subscription as { id?: string } | undefined)?.id ?? "")
+          : String((result.order as { id?: string } | undefined)?.id ?? "");
 
       auditBillingAction(req, {
         userId,
@@ -952,20 +943,20 @@ export async function billingRoutes(app: FastifyInstance) {
         },
       });
 
-      if (result.mode === "order") {
+      if ("subscription" in result) {
         return reply.code(200).send({
           provider: "PAYPAL",
-          mode: "order",
-          order: result.order,
+          mode: "subscription",
+          subscription: result.subscription,
         });
       }
 
       return reply.code(200).send({
         provider: "PAYPAL",
-        mode: "subscription",
-        subscription: result.subscription,
+        mode: "order",
+        order: result.order,
       });
-    }
+        }
   );
 
   app.post(

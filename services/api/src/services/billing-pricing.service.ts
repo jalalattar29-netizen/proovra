@@ -100,12 +100,11 @@ export function getStripeStorageAddonPriceId(params: {
   billingCycle: prismaPkg.StorageAddonBillingCycle;
   currency: BillingCurrency;
 }): string | null {
-  const suffix =
-    params.billingCycle === prismaPkg.StorageAddonBillingCycle.ONE_TIME
-      ? "ONE_TIME"
-      : "MONTHLY";
+  if (params.billingCycle !== prismaPkg.StorageAddonBillingCycle.ONE_TIME) {
+    return null;
+  }
 
-  const envKey = `STRIPE_STORAGE_${params.addonKey}_${suffix}_${params.currency}_PRICE_ID`;
+  const envKey = `STRIPE_STORAGE_${params.addonKey}_ONE_TIME_${params.currency}_PRICE_ID`;
   return process.env[envKey]?.trim() || null;
 }
 
@@ -181,6 +180,7 @@ export function buildPricingCatalogResponse(params: {
         currency,
       }),
       currency,
+      billingCycle: "ONE_TIME" as const,
     })),
   };
 }

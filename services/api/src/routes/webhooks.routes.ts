@@ -52,7 +52,7 @@ function parseStorageAddonKey(
 
 function parseStorageAddonBillingCycle(
   value: unknown,
-  fallback: prismaPkg.StorageAddonBillingCycle = prismaPkg.StorageAddonBillingCycle.MONTHLY
+  fallback: prismaPkg.StorageAddonBillingCycle = prismaPkg.StorageAddonBillingCycle.ONE_TIME
 ): prismaPkg.StorageAddonBillingCycle {
   if (value === prismaPkg.StorageAddonBillingCycle.ONE_TIME) {
     return prismaPkg.StorageAddonBillingCycle.ONE_TIME;
@@ -339,7 +339,11 @@ export async function webhooksRoutes(app: FastifyInstance) {
           provider: prismaPkg.PaymentProvider.STRIPE,
           providerPaymentId: session.id,
           amountCents: session.amount_total ?? 0,
-          currency: (session.currency ?? session.metadata?.currency ?? "usd").toUpperCase(),
+          currency: (
+            session.currency ??
+            session.metadata?.currency ??
+            "usd"
+          ).toUpperCase(),
           status: prismaPkg.PaymentStatus.SUCCEEDED,
           teamId: null,
         });
@@ -440,15 +444,20 @@ export async function webhooksRoutes(app: FastifyInstance) {
         });
       }
 
-      if (userId && storageAddonKey) {
+      // legacy recurring storage add-ons only
+      if (
+        userId &&
+        storageAddonKey &&
+        parseStorageAddonBillingCycle(
+          subscription.metadata?.billingCycle,
+          prismaPkg.StorageAddonBillingCycle.MONTHLY
+        ) === prismaPkg.StorageAddonBillingCycle.MONTHLY
+      ) {
         await upsertWorkspaceStorageAddon({
           ownerUserId: userId,
           teamId,
           addonKey: storageAddonKey,
-          billingCycle: parseStorageAddonBillingCycle(
-            subscription.metadata?.billingCycle,
-            prismaPkg.StorageAddonBillingCycle.MONTHLY
-          ),
+          billingCycle: prismaPkg.StorageAddonBillingCycle.MONTHLY,
           status: toWorkspaceStorageAddonStatusFromStripe(subscription.status),
           paymentProvider: prismaPkg.PaymentProvider.STRIPE,
           externalSubscriptionId: subscription.id,
@@ -479,6 +488,7 @@ export async function webhooksRoutes(app: FastifyInstance) {
           plan?: string;
           teamId?: string;
           storageAddonKey?: string;
+          billingCycle?: string;
         };
       };
 
@@ -488,8 +498,12 @@ export async function webhooksRoutes(app: FastifyInstance) {
       const storageAddonKey = parseStorageAddonKey(
         invoice.metadata?.storageAddonKey
       );
+      const storageAddonBillingCycle = parseStorageAddonBillingCycle(
+        invoice.metadata?.billingCycle,
+        prismaPkg.StorageAddonBillingCycle.MONTHLY
+      );
 
-      if (userId && (plan || storageAddonKey)) {
+      if (userId && (plan || (storageAddonKey && storageAddonBillingCycle === prismaPkg.StorageAddonBillingCycle.MONTHLY))) {
         const status =
           invoice.status === "paid"
             ? prismaPkg.PaymentStatus.SUCCEEDED
@@ -645,14 +659,18 @@ export async function webhooksRoutes(app: FastifyInstance) {
         });
       }
 
-      if (addonContext.userId && addonContext.storageAddonKey) {
+      // legacy recurring storage add-ons only
+      if (
+        addonContext.userId &&
+        addonContext.storageAddonKey &&
+        (addonContext.billingCycle ?? prismaPkg.StorageAddonBillingCycle.MONTHLY) ===
+          prismaPkg.StorageAddonBillingCycle.MONTHLY
+      ) {
         await upsertWorkspaceStorageAddon({
           ownerUserId: addonContext.userId,
           teamId: addonContext.teamId ?? null,
           addonKey: addonContext.storageAddonKey,
-          billingCycle:
-            addonContext.billingCycle ??
-            prismaPkg.StorageAddonBillingCycle.MONTHLY,
+          billingCycle: prismaPkg.StorageAddonBillingCycle.MONTHLY,
           status: toWorkspaceStorageAddonStatusFromPayPal(event.resource.status),
           paymentProvider: prismaPkg.PaymentProvider.PAYPAL,
           externalSubscriptionId: subscriptionId,

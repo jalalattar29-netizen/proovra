@@ -6,9 +6,9 @@ export function PricingCheckoutGuide() {
     "Pay-Per-Evidence uses a one-time checkout flow and is intended for usage-based purchases.",
     "Pro and Team use recurring monthly subscriptions after provider approval.",
     "Team checkout only works for a team workspace you own.",
-    "Storage add-ons are purchased inside Billing and depend on workspace type and eligibility.",
+    "Storage add-ons are purchased inside Billing as one-time storage top-ups and do not create a second monthly storage subscription.",
     "Stripe and PayPal start differently, but both follow the same plan and workspace rules.",
-    "Provider approval may temporarily leave a subscription or add-on in a pending state before it becomes active.",
+    "Provider approval may temporarily leave a subscription in a pending state before it becomes active.",
     "Final billing state is reflected back in Billing after the provider confirms the checkout.",
   ];
 
@@ -27,7 +27,8 @@ export function PricingCheckoutGuide() {
 
       <div className="mb-4 text-[0.9rem] leading-[1.7] text-[#5d6d71]">
         The pricing page helps you choose. The Billing console is where you confirm
-        workspace target, provider, live subscription status, and storage add-ons.
+        workspace target, provider, live subscription status, and one-time storage
+        add-ons.
       </div>
 
       <div className="grid gap-3">
