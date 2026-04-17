@@ -97,14 +97,6 @@ function getPlanToneStyles(tone: PlanCard["tone"]) {
       dot: "#7fbdb4",
       halo:
         "radial-gradient(circle at top right, rgba(141,214,197,0.14), transparent 36%)",
-      cta: {
-        borderColor: "rgba(79,112,107,0.22)",
-        color: "#eef3f1",
-        background:
-          "linear-gradient(180deg, rgba(58,92,95,0.96) 0%, rgba(20,38,42,0.98) 100%)",
-        boxShadow:
-          "inset 0 1px 0 rgba(255,255,255,0.08), 0 16px 34px rgba(18,40,44,0.22)",
-      },
     } as const;
   }
 
@@ -116,14 +108,6 @@ function getPlanToneStyles(tone: PlanCard["tone"]) {
       dot: "#c9a98b",
       halo:
         "radial-gradient(circle at top right, rgba(214,184,157,0.14), transparent 38%)",
-      cta: {
-        borderColor: "rgba(183,157,132,0.18)",
-        color: "#7a624d",
-        background:
-          "linear-gradient(180deg, rgba(244,238,232,0.88) 0%, rgba(255,255,255,0.68) 100%)",
-        boxShadow:
-          "0 10px 20px rgba(92,69,50,0.05), inset 0 1px 0 rgba(255,255,255,0.72)",
-      },
     } as const;
   }
 
@@ -135,14 +119,6 @@ function getPlanToneStyles(tone: PlanCard["tone"]) {
       dot: "#7ea9a2",
       halo:
         "radial-gradient(circle at top right, rgba(126,169,162,0.10), transparent 38%)",
-      cta: {
-        borderColor: "rgba(79,112,107,0.22)",
-        color: "#eef3f1",
-        background:
-          "linear-gradient(180deg, rgba(62,96,99,0.96) 0%, rgba(24,43,48,0.98) 100%)",
-        boxShadow:
-          "inset 0 1px 0 rgba(255,255,255,0.08), 0 16px 34px rgba(18,40,44,0.22)",
-      },
     } as const;
   }
 
@@ -153,16 +129,17 @@ function getPlanToneStyles(tone: PlanCard["tone"]) {
     dot: "#7ea9a2",
     halo:
       "radial-gradient(circle at top right, rgba(255,255,255,0.12), transparent 36%)",
-    cta: {
-      borderColor: "rgba(79,112,107,0.18)",
-      color: "#eef3f1",
-      background:
-        "linear-gradient(180deg, rgba(84,99,118,0.88) 0%, rgba(63,73,89,0.96) 100%)",
-      boxShadow:
-        "inset 0 1px 0 rgba(255,255,255,0.06), 0 14px 28px rgba(25,31,42,0.14)",
-    },
   } as const;
 }
+
+const sharedCardButtonStyle: React.CSSProperties = {
+  borderColor: "rgba(79,112,107,0.22)",
+  color: "#eef3f1",
+  background:
+    "linear-gradient(180deg, rgba(58,92,95,0.96) 0%, rgba(20,38,42,0.98) 100%)",
+  boxShadow:
+    "inset 0 1px 0 rgba(255,255,255,0.08), 0 16px 34px rgba(18,40,44,0.22)",
+};
 
 export default function MarketingPricingPage() {
   const { addToast } = useToast();
@@ -436,12 +413,12 @@ export default function MarketingPricingPage() {
                     variant="secondary"
                     className="rounded-[999px] border px-6 py-3 text-[0.94rem] font-semibold"
                     style={{
-                      borderColor: "rgba(183,157,132,0.18)",
-                      color: "#f1e9e1",
+                      borderColor: "rgba(79,112,107,0.18)",
+                      color: "#23373b",
                       background:
-                        "linear-gradient(180deg, rgba(130,106,87,0.30) 0%, rgba(77,58,44,0.38) 100%)",
+                        "linear-gradient(180deg, rgba(255,255,255,0.92) 0%, rgba(242,244,241,0.84) 100%)",
                       boxShadow:
-                        "inset 0 1px 0 rgba(255,255,255,0.05), 0 14px 28px rgba(37,25,18,0.18)",
+                        "0 10px 22px rgba(0,0,0,0.06), inset 0 1px 0 rgba(255,255,255,0.78)",
                     }}
                   >
                     Request demo
@@ -458,67 +435,6 @@ export default function MarketingPricingPage() {
         style={{ paddingTop: 48, paddingBottom: 64 }}
       >
         <div className="container relative z-10 mx-auto max-w-7xl px-6 md:px-8">
-          <div
-            className="mb-8 rounded-[32px] border px-6 py-6 md:px-7 md:py-7"
-            style={{
-              border: "1px solid rgba(183,157,132,0.16)",
-              background:
-                "linear-gradient(180deg, rgba(247,242,237,0.92) 0%, rgba(255,255,255,0.74) 100%)",
-              boxShadow:
-                "0 18px 36px rgba(0,0,0,0.05), inset 0 1px 0 rgba(255,255,255,0.62)",
-            }}
-          >
-            <div className="grid gap-5 lg:grid-cols-[1.2fr_0.8fr] lg:items-center">
-              <div>
-                <div className="text-[0.8rem] font-semibold uppercase tracking-[0.16em] text-[#9b826b]">
-                  Enterprise workflows
-                </div>
-                <div className="mt-2 max-w-[720px] text-[1.32rem] font-semibold tracking-[-0.03em] text-[#22363b] md:text-[1.58rem]">
-                  Enterprise is the route for larger organizations, not just a
-                  bigger Team card.
-                </div>
-                <div className="mt-3 max-w-[780px] text-[0.94rem] leading-[1.82] text-[#5d6d71]">
-                  {enterprise.summary}
-                </div>
-              </div>
-
-              <div className="grid gap-3">
-                <div
-                  className="rounded-[20px] border px-4 py-4"
-                  style={{
-                    border: "1px solid rgba(79,112,107,0.10)",
-                    background:
-                      "linear-gradient(180deg, rgba(255,255,255,0.54) 0%, rgba(243,245,242,0.88) 100%)",
-                  }}
-                >
-                  <div className="text-[0.78rem] font-semibold uppercase tracking-[0.14em] text-[#8a7562]">
-                    Typical fit
-                  </div>
-                  <div className="mt-2 text-[0.9rem] leading-[1.8] text-[#4f6266]">
-                    Procurement, governance review, retention alignment, shared
-                    review rollout, and higher-volume operational use.
-                  </div>
-                </div>
-
-                <div
-                  className="rounded-[20px] border px-4 py-4"
-                  style={{
-                    border: "1px solid rgba(79,112,107,0.10)",
-                    background:
-                      "linear-gradient(180deg, rgba(255,255,255,0.54) 0%, rgba(243,245,242,0.88) 100%)",
-                  }}
-                >
-                  <div className="text-[0.78rem] font-semibold uppercase tracking-[0.14em] text-[#8a7562]">
-                    Review window
-                  </div>
-                  <div className="mt-2 text-[0.9rem] leading-[1.8] text-[#4f6266]">
-                    {enterprise.supportWindow}
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
           <div className="mb-4">
             <div className="text-[0.8rem] font-semibold uppercase tracking-[0.16em] text-[#8a7562]">
               Self-serve plans
@@ -707,18 +623,18 @@ export default function MarketingPricingPage() {
                         </div>
                       ) : null}
 
-                      <div className="mt-5">
+                      <div className="mt-5 flex items-center">
                         <Link
                           href={plan.ctaHref}
                           onClick={() =>
                             addToast(`Opening ${plan.title} flow...`, "info")
                           }
-                          className="block"
+                          className="inline-flex"
                         >
                           <Button
                             variant="secondary"
-                            className="w-full rounded-[999px] border px-5 py-3 text-[0.95rem] font-semibold"
-                            style={tone.cta}
+                            className="min-h-[44px] rounded-[999px] border px-5 py-2.5 text-[0.9rem] font-semibold"
+                            style={sharedCardButtonStyle}
                           >
                             {plan.ctaLabel}
                           </Button>
