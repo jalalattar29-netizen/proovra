@@ -216,6 +216,14 @@ async function assertStorageAddonAllowed(params: {
   billingCycle: prismaPkg.StorageAddonBillingCycle;
   teamId?: string | null;
 }) {
+  if (params.billingCycle !== prismaPkg.StorageAddonBillingCycle.ONE_TIME) {
+    const err: Error & { statusCode?: number } = new Error(
+      "Storage add-ons are available only as one-time purchases"
+    );
+    err.statusCode = 400;
+    throw err;
+  }
+
   const definition = getStorageAddonDefinition(params.addonKey);
 
   if (params.teamId) {
@@ -499,10 +507,22 @@ export async function billingRoutes(app: FastifyInstance) {
           "DELETE"
         );
       } else if (subscription.provider === prismaPkg.PaymentProvider.PAYPAL) {
-        await cancelPayPalSubscription(
-          subscription.providerSubId,
-          "Canceled by customer"
-        );
+        try {
+          await cancelPayPalSubscription(
+            subscription.providerSubId,
+            "Canceled by customer"
+          );
+        } catch (err) {
+          req.log.warn(
+            {
+              err,
+              providerSubId: subscription.providerSubId,
+              subscriptionStatus: subscription.status,
+              teamId: body.teamId ?? null,
+            },
+            "paypal.subscription_cancel.failed_remote_fallbacking_to_local_cancel"
+          );
+        }
       } else {
         auditBillingAction(req, {
           userId,
@@ -522,6 +542,24 @@ export async function billingRoutes(app: FastifyInstance) {
       const updated = await prisma.subscription.update({
         where: { id: subscription.id },
         data: { status: prismaPkg.SubscriptionStatus.CANCELED },
+      });
+
+      await prisma.workspaceStorageAddon.updateMany({
+        where: {
+          ownerUserId: userId,
+          externalSubscriptionId: subscription.providerSubId,
+          status: {
+            in: [
+              prismaPkg.WorkspaceStorageAddonStatus.PENDING,
+              prismaPkg.WorkspaceStorageAddonStatus.ACTIVE,
+              prismaPkg.WorkspaceStorageAddonStatus.PAST_DUE,
+            ],
+          },
+        },
+        data: {
+          status: prismaPkg.WorkspaceStorageAddonStatus.CANCELED,
+          canceledAtUtc: new Date(),
+        },
       });
 
       if (body.teamId) {
@@ -567,6 +605,11 @@ export async function billingRoutes(app: FastifyInstance) {
     }
   );
 
+  /**
+   * Legacy-only endpoint.
+   * New storage add-ons are one-time purchases and never create recurring subscriptions.
+   * This route exists only to clean up historical monthly storage add-ons if they still exist.
+   */
   app.post(
     "/v1/billing/storage-addons/cancel",
     { preHandler: requireAuthAndLegal },
@@ -611,10 +654,22 @@ export async function billingRoutes(app: FastifyInstance) {
           "DELETE"
         );
       } else if (addon.paymentProvider === prismaPkg.PaymentProvider.PAYPAL) {
-        await cancelPayPalSubscription(
-          addon.externalSubscriptionId,
-          "Canceled by customer"
-        );
+        try {
+          await cancelPayPalSubscription(
+            addon.externalSubscriptionId,
+            "Canceled by customer"
+          );
+        } catch (err) {
+          req.log.warn(
+            {
+              err,
+              addonId: addon.id,
+              externalSubscriptionId: addon.externalSubscriptionId,
+              teamId: addon.teamId ?? null,
+            },
+            "paypal.storage_addon_cancel.failed_remote_fallbacking_to_local_cancel"
+          );
+        }
       } else {
         return reply.code(400).send({ message: "Unsupported provider" });
       }
@@ -956,7 +1011,7 @@ export async function billingRoutes(app: FastifyInstance) {
         mode: "order",
         order: result.order,
       });
-        }
+    }
   );
 
   app.post(
@@ -1001,10 +1056,7 @@ export async function billingRoutes(app: FastifyInstance) {
 
       const userId = getAuthUserId(req);
 
-      if (
-        process.env.ALLOW_DIRECT_PLAN_CHANGE !== "true" &&
-        process.env.NODE_ENV === "production"
-      ) {
+      if (process.env.NODE_ENV === "production") {
         return reply.code(403).send({ message: "Direct plan change is disabled" });
       }
 

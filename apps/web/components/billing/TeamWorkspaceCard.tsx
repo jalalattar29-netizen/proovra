@@ -14,7 +14,7 @@ function yesNo(value?: boolean | null) {
   return value ? "Included" : "Not included";
 }
 
-function hasSubscriptionLike(status?: string | null) {
+function hasCancelableSubscription(status?: string | null) {
   const normalized = String(status ?? "").trim().toUpperCase();
   return (
     normalized === "ACTIVE" ||
@@ -23,42 +23,69 @@ function hasSubscriptionLike(status?: string | null) {
   );
 }
 
-function toneForBillingStatus(status?: string | null) {
+function formatSubscriptionStatusLabel(status?: string | null) {
   const normalized = String(status ?? "").trim().toUpperCase();
 
-  if (normalized === "ACTIVE") {
+  if (normalized === "ACTIVE") return "Active";
+  if (normalized === "PAST_DUE") return "Past due";
+  if (normalized === "TRIALING") return "Pending approval";
+  if (normalized === "CANCELED") return "Canceled";
+  return normalized || "None";
+}
+
+function getDisplayBillingTone(params: {
+  billingStatus?: string | null;
+  subscriptionStatus?: string | null;
+}) {
+  const billingNormalized = String(params.billingStatus ?? "")
+    .trim()
+    .toUpperCase();
+  const subscriptionNormalized = String(params.subscriptionStatus ?? "")
+    .trim()
+    .toUpperCase();
+
+  if (subscriptionNormalized === "TRIALING") {
+    return {
+      color: "#8a6a2b",
+      background: "rgba(201,169,139,0.18)",
+      border: "1px solid rgba(201,169,139,0.22)",
+      label: "Pending approval",
+    } as const;
+  }
+
+  if (billingNormalized === "ACTIVE") {
     return {
       color: "#2b6a55",
       background: "rgba(127,189,180,0.16)",
       border: "1px solid rgba(127,189,180,0.20)",
       label: "Active",
-    };
+    } as const;
   }
 
-  if (normalized === "PAST_DUE") {
+  if (billingNormalized === "PAST_DUE") {
     return {
       color: "#8a6a2b",
       background: "rgba(201,169,139,0.18)",
       border: "1px solid rgba(201,169,139,0.22)",
       label: "Past due",
-    };
+    } as const;
   }
 
-  if (normalized === "CANCELED") {
+  if (billingNormalized === "CANCELED") {
     return {
       color: "#8b3e3e",
       background: "rgba(194,78,78,0.10)",
       border: "1px solid rgba(194,78,78,0.16)",
       label: "Canceled",
-    };
+    } as const;
   }
 
   return {
     color: "#415257",
     background: "rgba(79,112,107,0.08)",
     border: "1px solid rgba(79,112,107,0.12)",
-    label: normalized || "Inactive",
-  };
+    label: billingNormalized || "Inactive",
+  } as const;
 }
 
 function formatBytesCompact(value?: string | number | null): string {
@@ -99,8 +126,15 @@ export function TeamWorkspaceCard({
   onCancelSubscription,
   busy,
 }: Props) {
-  const hasActiveSubscription = hasSubscriptionLike(workspace.subscription?.status);
-  const billingTone = toneForBillingStatus(workspace.billingStatus);
+  const canCancelSubscription = hasCancelableSubscription(
+    workspace.subscription?.status
+  );
+
+  const billingTone = getDisplayBillingTone({
+    billingStatus: workspace.billingStatus,
+    subscriptionStatus: workspace.subscription?.status,
+  });
+
   const addonCount = workspace.activeStorageAddonSummary?.count ?? 0;
   const extraStorageBytes =
     workspace.activeStorageAddonSummary?.totalExtraStorageBytes ?? null;
@@ -245,10 +279,11 @@ export function TeamWorkspaceCard({
               {workspace.subscription?.provider ?? "None"}
             </div>
             <div className="mt-1 text-[0.85rem] text-[#5d6d71]">
-              Status: {workspace.subscription?.status ?? "None"}
+              Status: {formatSubscriptionStatusLabel(workspace.subscription?.status)}
             </div>
             <div className="mt-1 text-[0.82rem] text-[#7a878a]">
-              Next period: {formatDateLabel(workspace.subscription?.currentPeriodEnd ?? null)}
+              Next period:{" "}
+              {formatDateLabel(workspace.subscription?.currentPeriodEnd ?? null)}
             </div>
           </div>
 
@@ -358,7 +393,7 @@ export function TeamWorkspaceCard({
             Select for Team Checkout
           </Button>
 
-          {hasActiveSubscription ? (
+          {canCancelSubscription ? (
             <Button
               variant="secondary"
               className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"

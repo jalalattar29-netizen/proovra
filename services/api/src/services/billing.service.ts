@@ -101,7 +101,9 @@ async function trackBillingEvent(params: {
 
 function toNullableJsonInput(
   value: Record<string, unknown> | null | undefined
-): prismaPkg.Prisma.NullableJsonNullValueInput | prismaPkg.Prisma.InputJsonValue {
+):
+  | prismaPkg.Prisma.NullableJsonNullValueInput
+  | prismaPkg.Prisma.InputJsonValue {
   if (value == null) {
     return prismaPkg.Prisma.JsonNull;
   }
@@ -544,16 +546,24 @@ export async function upsertWorkspaceStorageAddon(params: {
   expiresAtUtc?: Date | null;
   metadata?: Record<string, unknown> | null;
 }) {
+  if (params.billingCycle !== prismaPkg.StorageAddonBillingCycle.ONE_TIME) {
+    const err: Error & { statusCode?: number; code?: string } = new Error(
+      "Only one-time storage add-ons are supported"
+    );
+    err.statusCode = 400;
+    err.code = "UNSUPPORTED_STORAGE_ADDON_BILLING_CYCLE";
+    throw err;
+  }
+
   const definition = getStorageAddonDefinition(params.addonKey);
 
-  const existingBySubscription =
-    params.externalSubscriptionId
-      ? await prisma.workspaceStorageAddon.findUnique({
-          where: {
-            externalSubscriptionId: params.externalSubscriptionId,
-          },
-        })
-      : null;
+  const existingBySubscription = params.externalSubscriptionId
+    ? await prisma.workspaceStorageAddon.findUnique({
+        where: {
+          externalSubscriptionId: params.externalSubscriptionId,
+        },
+      })
+    : null;
 
   const existingByPayment =
     !existingBySubscription && params.externalPaymentId
@@ -571,7 +581,7 @@ export async function upsertWorkspaceStorageAddon(params: {
     teamId: params.teamId ?? null,
     addonKey: params.addonKey,
     extraStorageBytes: definition.storageBytes,
-    billingCycle: params.billingCycle,
+    billingCycle: prismaPkg.StorageAddonBillingCycle.ONE_TIME,
     status: params.status,
     paymentProvider: params.paymentProvider ?? null,
     externalSubscriptionId: params.externalSubscriptionId ?? null,
@@ -582,13 +592,13 @@ export async function upsertWorkspaceStorageAddon(params: {
       params.status === prismaPkg.WorkspaceStorageAddonStatus.ACTIVE
         ? existing?.activatedAtUtc ?? new Date()
         : existing?.activatedAtUtc ?? null,
-    currentPeriodEnd: params.currentPeriodEnd ?? null,
+    currentPeriodEnd: null,
     expiresAtUtc: params.expiresAtUtc ?? null,
     canceledAtUtc:
       params.status === prismaPkg.WorkspaceStorageAddonStatus.CANCELED
         ? new Date()
         : null,
-metadata: toNullableJsonInput(params.metadata),
+    metadata: toNullableJsonInput(params.metadata),
   };
 
   const addon = existing
@@ -615,7 +625,7 @@ metadata: toNullableJsonInput(params.metadata),
               : params.status === prismaPkg.WorkspaceStorageAddonStatus.EXPIRED
                 ? "billing_storage_addon_expired"
                 : "billing_storage_addon_failed",
-                    userId: params.ownerUserId,
+    userId: params.ownerUserId,
     teamId: params.teamId ?? null,
     provider: params.paymentProvider ?? null,
     metadata: {
@@ -643,7 +653,9 @@ export async function cancelWorkspaceStorageAddon(params: {
   });
 
   if (!addon) {
-    const err: Error & { statusCode?: number } = new Error("Storage addon not found");
+    const err: Error & { statusCode?: number } = new Error(
+      "Storage addon not found"
+    );
     err.statusCode = 404;
     throw err;
   }

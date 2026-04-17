@@ -1,5 +1,6 @@
 import type { FastifyInstance, FastifyRequest } from "fastify";
 import * as prismaPkg from "@prisma/client";
+import { prisma } from "../db.js";
 import {
   addCredits,
   ensureEntitlement,
@@ -51,16 +52,12 @@ function parseStorageAddonKey(
 }
 
 function parseStorageAddonBillingCycle(
-  value: unknown,
-  fallback: prismaPkg.StorageAddonBillingCycle = prismaPkg.StorageAddonBillingCycle.ONE_TIME
-): prismaPkg.StorageAddonBillingCycle {
+  value: unknown
+): prismaPkg.StorageAddonBillingCycle | null {
   if (value === prismaPkg.StorageAddonBillingCycle.ONE_TIME) {
     return prismaPkg.StorageAddonBillingCycle.ONE_TIME;
   }
-  if (value === prismaPkg.StorageAddonBillingCycle.MONTHLY) {
-    return prismaPkg.StorageAddonBillingCycle.MONTHLY;
-  }
-  return fallback;
+  return null;
 }
 
 function parseStripeSubscriptionStatus(
@@ -85,7 +82,9 @@ function parsePayPalSubscriptionStatus(
   const normalized = (status ?? "").trim().toUpperCase();
 
   if (normalized === "ACTIVE") return prismaPkg.SubscriptionStatus.ACTIVE;
-  if (normalized === "APPROVAL_PENDING") return prismaPkg.SubscriptionStatus.TRIALING;
+  if (normalized === "APPROVAL_PENDING") {
+    return prismaPkg.SubscriptionStatus.TRIALING;
+  }
   if (normalized === "APPROVED") return prismaPkg.SubscriptionStatus.TRIALING;
   if (normalized === "CREATED") return prismaPkg.SubscriptionStatus.TRIALING;
   if (normalized === "SUSPENDED") return prismaPkg.SubscriptionStatus.PAST_DUE;
@@ -96,85 +95,6 @@ function parsePayPalSubscriptionStatus(
   }
 
   return prismaPkg.SubscriptionStatus.CANCELED;
-}
-
-function toTeamBillingStatus(
-  status: prismaPkg.SubscriptionStatus
-): prismaPkg.TeamBillingStatus {
-  if (status === prismaPkg.SubscriptionStatus.ACTIVE) {
-    return prismaPkg.TeamBillingStatus.ACTIVE;
-  }
-  if (status === prismaPkg.SubscriptionStatus.PAST_DUE) {
-    return prismaPkg.TeamBillingStatus.PAST_DUE;
-  }
-  return prismaPkg.TeamBillingStatus.CANCELED;
-}
-
-function toWorkspaceStorageAddonStatusFromStripe(
-  status?: string
-): prismaPkg.WorkspaceStorageAddonStatus {
-  const normalized = (status ?? "").trim().toLowerCase();
-
-  if (normalized === "active") {
-    return prismaPkg.WorkspaceStorageAddonStatus.ACTIVE;
-  }
-
-  if (normalized === "trialing") {
-    return prismaPkg.WorkspaceStorageAddonStatus.PENDING;
-  }
-
-  if (normalized === "past_due") {
-    return prismaPkg.WorkspaceStorageAddonStatus.PAST_DUE;
-  }
-
-  if (normalized === "incomplete") {
-    return prismaPkg.WorkspaceStorageAddonStatus.PENDING;
-  }
-
-  if (normalized === "unpaid") {
-    return prismaPkg.WorkspaceStorageAddonStatus.PAST_DUE;
-  }
-
-  if (normalized === "canceled" || normalized === "incomplete_expired") {
-    return prismaPkg.WorkspaceStorageAddonStatus.CANCELED;
-  }
-
-  return prismaPkg.WorkspaceStorageAddonStatus.FAILED;
-}
-
-function toWorkspaceStorageAddonStatusFromPayPal(
-  status?: string
-): prismaPkg.WorkspaceStorageAddonStatus {
-  const normalized = (status ?? "").trim().toUpperCase();
-
-  if (normalized === "ACTIVE") {
-    return prismaPkg.WorkspaceStorageAddonStatus.ACTIVE;
-  }
-
-  if (
-    normalized === "APPROVAL_PENDING" ||
-    normalized === "APPROVED" ||
-    normalized === "CREATED"
-  ) {
-    return prismaPkg.WorkspaceStorageAddonStatus.PENDING;
-  }
-
-  if (normalized === "SUSPENDED") {
-    return prismaPkg.WorkspaceStorageAddonStatus.PAST_DUE;
-  }
-
-  if (normalized === "EXPIRED") {
-    return prismaPkg.WorkspaceStorageAddonStatus.EXPIRED;
-  }
-
-  if (
-    normalized === "CANCELLED" ||
-    normalized === "CANCELLED_BY_SYSTEM"
-  ) {
-    return prismaPkg.WorkspaceStorageAddonStatus.CANCELED;
-  }
-
-  return prismaPkg.WorkspaceStorageAddonStatus.FAILED;
 }
 
 function tryParseAddonContextFromCustomId(raw: unknown): {
@@ -203,9 +123,7 @@ function tryParseAddonContextFromCustomId(raw: unknown): {
       billingCycle:
         parsed.billingCycle === prismaPkg.StorageAddonBillingCycle.ONE_TIME
           ? prismaPkg.StorageAddonBillingCycle.ONE_TIME
-          : parsed.billingCycle === prismaPkg.StorageAddonBillingCycle.MONTHLY
-            ? prismaPkg.StorageAddonBillingCycle.MONTHLY
-            : null,
+          : null,
     };
   } catch {
     // continue
@@ -228,9 +146,7 @@ function tryParseAddonContextFromCustomId(raw: unknown): {
     billingCycle:
       out.billingCycle === prismaPkg.StorageAddonBillingCycle.ONE_TIME
         ? prismaPkg.StorageAddonBillingCycle.ONE_TIME
-        : out.billingCycle === prismaPkg.StorageAddonBillingCycle.MONTHLY
-          ? prismaPkg.StorageAddonBillingCycle.MONTHLY
-          : null,
+        : null,
   };
 }
 
@@ -238,6 +154,101 @@ function parseAmountCents(value: unknown): number | null {
   if (typeof value !== "string") return null;
   const parsed = Number.parseInt(value, 10);
   return Number.isFinite(parsed) && parsed >= 0 ? parsed : null;
+}
+
+async function assertWebhookStorageAddonAllowed(params: {
+  userId: string;
+  addonKey: prismaPkg.StorageAddonKey;
+  teamId?: string | null;
+}) {
+  if (params.teamId) {
+    const team = await prisma.team.findUnique({
+      where: { id: params.teamId },
+      select: {
+        id: true,
+        ownerUserId: true,
+        billingPlan: true,
+        billingStatus: true,
+      },
+    });
+
+    if (!team) {
+      const err: Error & { statusCode?: number } = new Error("Team not found");
+      err.statusCode = 404;
+      throw err;
+    }
+
+    if (team.ownerUserId !== params.userId) {
+      const err: Error & { statusCode?: number } = new Error(
+        "Storage add-on team ownership mismatch"
+      );
+      err.statusCode = 403;
+      throw err;
+    }
+
+    const isTeamAddon =
+      params.addonKey === prismaPkg.StorageAddonKey.TEAM_100_GB ||
+      params.addonKey === prismaPkg.StorageAddonKey.TEAM_500_GB ||
+      params.addonKey === prismaPkg.StorageAddonKey.TEAM_1_TB;
+
+    if (!isTeamAddon) {
+      const err: Error & { statusCode?: number } = new Error(
+        "Personal storage add-on cannot be attached to a team workspace"
+      );
+      err.statusCode = 400;
+      throw err;
+    }
+
+    const effectiveTeamActive =
+      team.billingPlan === prismaPkg.PlanType.TEAM &&
+      (team.billingStatus === prismaPkg.TeamBillingStatus.ACTIVE ||
+        team.billingStatus === prismaPkg.TeamBillingStatus.PAST_DUE);
+
+    if (!effectiveTeamActive) {
+      const err: Error & { statusCode?: number } = new Error(
+        "Team storage add-ons require an active TEAM workspace"
+      );
+      err.statusCode = 409;
+      throw err;
+    }
+
+    return;
+  }
+
+  const entitlement = await ensureEntitlement(params.userId);
+
+  const isPersonalAddon =
+    params.addonKey === prismaPkg.StorageAddonKey.PERSONAL_10_GB ||
+    params.addonKey === prismaPkg.StorageAddonKey.PERSONAL_50_GB ||
+    params.addonKey === prismaPkg.StorageAddonKey.PERSONAL_200_GB;
+
+  if (!isPersonalAddon) {
+    const err: Error & { statusCode?: number } = new Error(
+      "Team storage add-on cannot be attached to a personal workspace"
+    );
+    err.statusCode = 400;
+    throw err;
+  }
+
+  if (entitlement.plan === prismaPkg.PlanType.FREE) {
+    const err: Error & { statusCode?: number } = new Error(
+      "FREE plan cannot receive storage add-ons"
+    );
+    err.statusCode = 409;
+    throw err;
+  }
+
+  if (
+    entitlement.plan === prismaPkg.PlanType.PAYG &&
+    params.addonKey !== prismaPkg.StorageAddonKey.PERSONAL_10_GB &&
+    params.addonKey !== prismaPkg.StorageAddonKey.PERSONAL_50_GB
+  ) {
+    const err: Error & { statusCode?: number } = new Error(
+      "PAYG supports only PERSONAL_10_GB and PERSONAL_50_GB"
+    );
+    err.statusCode = 400;
+    throw err;
+  }
 }
 
 async function syncPlanForSubscription(params: {
@@ -267,13 +278,43 @@ async function syncPlanForSubscription(params: {
         teamId: params.teamId,
         ownerUserId: params.userId,
       });
-    } else {
+      return;
+    }
+
+    if (params.status === prismaPkg.SubscriptionStatus.ACTIVE) {
       await activateTeamPlan({
         teamId: params.teamId,
         ownerUserId: params.userId,
         plan: prismaPkg.PlanType.TEAM,
-        status: toTeamBillingStatus(params.status),
+        status: prismaPkg.TeamBillingStatus.ACTIVE,
       });
+      return;
+    }
+
+    if (params.status === prismaPkg.SubscriptionStatus.PAST_DUE) {
+      const existingTeam = await prisma.team.findUnique({
+        where: { id: params.teamId },
+        select: {
+          billingPlan: true,
+          billingStatus: true,
+        },
+      });
+
+      const alreadyActivated =
+        existingTeam?.billingPlan === prismaPkg.PlanType.TEAM &&
+        (existingTeam.billingStatus === prismaPkg.TeamBillingStatus.ACTIVE ||
+          existingTeam.billingStatus === prismaPkg.TeamBillingStatus.PAST_DUE);
+
+      if (alreadyActivated) {
+        await activateTeamPlan({
+          teamId: params.teamId,
+          ownerUserId: params.userId,
+          plan: prismaPkg.PlanType.TEAM,
+          status: prismaPkg.TeamBillingStatus.PAST_DUE,
+        });
+      }
+
+      return;
     }
 
     return;
@@ -281,7 +322,14 @@ async function syncPlanForSubscription(params: {
 
   if (params.status === prismaPkg.SubscriptionStatus.CANCELED) {
     await setPersonalPlan(params.userId, prismaPkg.PlanType.FREE);
-  } else {
+    return;
+  }
+
+  if (params.status === prismaPkg.SubscriptionStatus.TRIALING) {
+    return;
+  }
+
+  if (params.status === prismaPkg.SubscriptionStatus.ACTIVE) {
     await setPersonalPlan(params.userId, params.plan);
   }
 }
@@ -350,54 +398,72 @@ export async function webhooksRoutes(app: FastifyInstance) {
       }
 
       if (userId && storageAddonKey) {
-        const storageAddonBillingCycle = parseStorageAddonBillingCycle(
-          session.metadata?.billingCycle,
-          session.subscription
-            ? prismaPkg.StorageAddonBillingCycle.MONTHLY
-            : prismaPkg.StorageAddonBillingCycle.ONE_TIME
-        );
-
-        const effectiveCurrency = (
-          session.currency ??
-          session.metadata?.currency ??
-          "usd"
-        ).toUpperCase();
-
-        const effectiveAmountCents =
-          session.amount_total ??
-          parseAmountCents(session.metadata?.amountCents) ??
-          0;
-
-        await recordPayment({
-          userId,
-          provider: prismaPkg.PaymentProvider.STRIPE,
-          providerPaymentId: session.id,
-          amountCents: effectiveAmountCents,
-          currency: effectiveCurrency,
-          status: prismaPkg.PaymentStatus.SUCCEEDED,
-          teamId,
-        });
-
-        if (
-          !session.subscription &&
-          storageAddonBillingCycle === prismaPkg.StorageAddonBillingCycle.ONE_TIME
-        ) {
-          await upsertWorkspaceStorageAddon({
-            ownerUserId: userId,
-            teamId,
+        try {
+          await assertWebhookStorageAddonAllowed({
+            userId,
             addonKey: storageAddonKey,
-            billingCycle: prismaPkg.StorageAddonBillingCycle.ONE_TIME,
-            status: prismaPkg.WorkspaceStorageAddonStatus.ACTIVE,
-            paymentProvider: prismaPkg.PaymentProvider.STRIPE,
-            externalPaymentId: session.id,
+            teamId,
+          });
+
+          const storageAddonBillingCycle = parseStorageAddonBillingCycle(
+            session.metadata?.billingCycle
+          );
+
+          const effectiveCurrency = (
+            session.currency ??
+            session.metadata?.currency ??
+            "usd"
+          ).toUpperCase();
+
+          const effectiveAmountCents =
+            session.amount_total ??
+            parseAmountCents(session.metadata?.amountCents) ??
+            0;
+
+          await recordPayment({
+            userId,
+            provider: prismaPkg.PaymentProvider.STRIPE,
+            providerPaymentId: session.id,
             amountCents: effectiveAmountCents,
             currency: effectiveCurrency,
-            metadata: {
-              source: "stripe.checkout.session.completed",
-              mode: session.mode ?? null,
-              subscriptionId: session.subscription ?? null,
-            },
+            status: prismaPkg.PaymentStatus.SUCCEEDED,
+            teamId,
           });
+
+          if (
+            !session.subscription &&
+            storageAddonBillingCycle ===
+              prismaPkg.StorageAddonBillingCycle.ONE_TIME
+          ) {
+            await upsertWorkspaceStorageAddon({
+              ownerUserId: userId,
+              teamId,
+              addonKey: storageAddonKey,
+              billingCycle: prismaPkg.StorageAddonBillingCycle.ONE_TIME,
+              status: prismaPkg.WorkspaceStorageAddonStatus.ACTIVE,
+              paymentProvider: prismaPkg.PaymentProvider.STRIPE,
+              externalPaymentId: session.id,
+              amountCents: effectiveAmountCents,
+              currency: effectiveCurrency,
+              metadata: {
+                source: "stripe.checkout.session.completed",
+                mode: session.mode ?? null,
+                subscriptionId: session.subscription ?? null,
+              },
+            });
+          }
+        } catch (err) {
+          req.log.warn(
+            {
+              err,
+              provider: "STRIPE",
+              sessionId: session.id,
+              userId,
+              teamId,
+              storageAddonKey,
+            },
+            "stripe.storage_addon_checkout_ignored"
+          );
         }
       }
     }
@@ -444,40 +510,28 @@ export async function webhooksRoutes(app: FastifyInstance) {
         });
       }
 
-      // legacy recurring storage add-ons only
-      if (
-        userId &&
-        storageAddonKey &&
-        parseStorageAddonBillingCycle(
-          subscription.metadata?.billingCycle,
-          prismaPkg.StorageAddonBillingCycle.MONTHLY
-        ) === prismaPkg.StorageAddonBillingCycle.MONTHLY
-      ) {
-        await upsertWorkspaceStorageAddon({
-          ownerUserId: userId,
-          teamId,
-          addonKey: storageAddonKey,
-          billingCycle: prismaPkg.StorageAddonBillingCycle.MONTHLY,
-          status: toWorkspaceStorageAddonStatusFromStripe(subscription.status),
-          paymentProvider: prismaPkg.PaymentProvider.STRIPE,
-          externalSubscriptionId: subscription.id,
-          currency:
-            typeof subscription.metadata?.currency === "string"
-              ? subscription.metadata.currency.toUpperCase()
-              : null,
-          amountCents: parseAmountCents(subscription.metadata?.amountCents),
-          currentPeriodEnd: subscription.current_period_end
-            ? new Date(subscription.current_period_end * 1000)
-            : null,
-          metadata: {
-            source: event.type,
-            stripeStatus: subscription.status ?? null,
+      const parsedCycle = parseStorageAddonBillingCycle(
+        subscription.metadata?.billingCycle
+      );
+      if (storageAddonKey && parsedCycle !== null) {
+        req.log.warn(
+          {
+            provider: "STRIPE",
+            subscriptionId: subscription.id,
+            userId,
+            teamId,
+            storageAddonKey,
+            parsedCycle,
           },
-        });
+          "unsupported.storage_addon_subscription_event_ignored"
+        );
       }
     }
 
-    if (event.type === "invoice.paid" || event.type === "invoice.payment_failed") {
+    if (
+      event.type === "invoice.paid" ||
+      event.type === "invoice.payment_failed"
+    ) {
       const invoice = event.data.object as {
         id: string;
         status?: string;
@@ -498,12 +552,25 @@ export async function webhooksRoutes(app: FastifyInstance) {
       const storageAddonKey = parseStorageAddonKey(
         invoice.metadata?.storageAddonKey
       );
-      const storageAddonBillingCycle = parseStorageAddonBillingCycle(
-        invoice.metadata?.billingCycle,
-        prismaPkg.StorageAddonBillingCycle.MONTHLY
+      const parsedCycle = parseStorageAddonBillingCycle(
+        invoice.metadata?.billingCycle
       );
 
-      if (userId && (plan || (storageAddonKey && storageAddonBillingCycle === prismaPkg.StorageAddonBillingCycle.MONTHLY))) {
+      if (storageAddonKey && parsedCycle !== null) {
+        req.log.warn(
+          {
+            provider: "STRIPE",
+            invoiceId: invoice.id,
+            userId,
+            teamId,
+            storageAddonKey,
+            parsedCycle,
+          },
+          "unsupported.storage_addon_invoice_event_ignored"
+        );
+      }
+
+      if (userId && plan) {
         const status =
           invoice.status === "paid"
             ? prismaPkg.PaymentStatus.SUCCEEDED
@@ -548,11 +615,8 @@ export async function webhooksRoutes(app: FastifyInstance) {
       };
     };
 
-    if (
-      event.event_type === "PAYMENT.CAPTURE.COMPLETED" ||
-      event.event_type === "CHECKOUT.ORDER.COMPLETED"
-    ) {
-      const unit = event.resource.purchase_units?.[0];
+if (event.event_type === "PAYMENT.CAPTURE.COMPLETED") {
+        const unit = event.resource.purchase_units?.[0];
       const parsed = parsePayPalCustomId(
         unit?.custom_id ?? event.resource.custom_id
       );
@@ -576,32 +640,50 @@ export async function webhooksRoutes(app: FastifyInstance) {
       }
 
       if (addonContext.userId && addonContext.storageAddonKey) {
-        await recordPayment({
-          userId: addonContext.userId,
-          provider: prismaPkg.PaymentProvider.PAYPAL,
-          providerPaymentId: event.resource.id ?? "",
-          amountCents: Math.round(Number(unit?.amount?.value ?? 0) * 100),
-          currency: (unit?.amount?.currency_code ?? "USD").toUpperCase(),
-          status: prismaPkg.PaymentStatus.SUCCEEDED,
-          teamId: addonContext.teamId ?? null,
-        });
+        try {
+          await assertWebhookStorageAddonAllowed({
+            userId: addonContext.userId,
+            addonKey: addonContext.storageAddonKey,
+            teamId: addonContext.teamId ?? null,
+          });
 
-        await upsertWorkspaceStorageAddon({
-          ownerUserId: addonContext.userId,
-          teamId: addonContext.teamId ?? null,
-          addonKey: addonContext.storageAddonKey,
-          billingCycle:
-            addonContext.billingCycle ??
-            prismaPkg.StorageAddonBillingCycle.ONE_TIME,
-          status: prismaPkg.WorkspaceStorageAddonStatus.ACTIVE,
-          paymentProvider: prismaPkg.PaymentProvider.PAYPAL,
-          externalPaymentId: event.resource.id ?? "",
-          amountCents: Math.round(Number(unit?.amount?.value ?? 0) * 100),
-          currency: (unit?.amount?.currency_code ?? "USD").toUpperCase(),
-          metadata: {
-            source: event.event_type,
-          },
-        });
+          await recordPayment({
+            userId: addonContext.userId,
+            provider: prismaPkg.PaymentProvider.PAYPAL,
+            providerPaymentId: event.resource.id ?? "",
+            amountCents: Math.round(Number(unit?.amount?.value ?? 0) * 100),
+            currency: (unit?.amount?.currency_code ?? "USD").toUpperCase(),
+            status: prismaPkg.PaymentStatus.SUCCEEDED,
+            teamId: addonContext.teamId ?? null,
+          });
+
+          await upsertWorkspaceStorageAddon({
+            ownerUserId: addonContext.userId,
+            teamId: addonContext.teamId ?? null,
+            addonKey: addonContext.storageAddonKey,
+            billingCycle: prismaPkg.StorageAddonBillingCycle.ONE_TIME,
+            status: prismaPkg.WorkspaceStorageAddonStatus.ACTIVE,
+            paymentProvider: prismaPkg.PaymentProvider.PAYPAL,
+            externalPaymentId: event.resource.id ?? "",
+            amountCents: Math.round(Number(unit?.amount?.value ?? 0) * 100),
+            currency: (unit?.amount?.currency_code ?? "USD").toUpperCase(),
+            metadata: {
+              source: event.event_type,
+            },
+          });
+        } catch (err) {
+          req.log.warn(
+            {
+              err,
+              provider: "PAYPAL",
+              resourceId: event.resource.id ?? "",
+              userId: addonContext.userId,
+              teamId: addonContext.teamId ?? null,
+              storageAddonKey: addonContext.storageAddonKey,
+            },
+            "paypal.storage_addon_checkout_ignored"
+          );
+        }
       }
 
       return reply.code(200).send({ received: true });
@@ -621,7 +703,9 @@ export async function webhooksRoutes(app: FastifyInstance) {
       }
 
       let parsed = parsePayPalCustomId(event.resource.custom_id);
-      let addonContext = tryParseAddonContextFromCustomId(event.resource.custom_id);
+      let addonContext = tryParseAddonContextFromCustomId(
+        event.resource.custom_id
+      );
 
       const needsPlanRefresh = !parsed.userId || !parsed.plan;
       const needsAddonRefresh =
@@ -659,29 +743,18 @@ export async function webhooksRoutes(app: FastifyInstance) {
         });
       }
 
-      // legacy recurring storage add-ons only
-      if (
-        addonContext.userId &&
-        addonContext.storageAddonKey &&
-        (addonContext.billingCycle ?? prismaPkg.StorageAddonBillingCycle.MONTHLY) ===
-          prismaPkg.StorageAddonBillingCycle.MONTHLY
-      ) {
-        await upsertWorkspaceStorageAddon({
-          ownerUserId: addonContext.userId,
-          teamId: addonContext.teamId ?? null,
-          addonKey: addonContext.storageAddonKey,
-          billingCycle: prismaPkg.StorageAddonBillingCycle.MONTHLY,
-          status: toWorkspaceStorageAddonStatusFromPayPal(event.resource.status),
-          paymentProvider: prismaPkg.PaymentProvider.PAYPAL,
-          externalSubscriptionId: subscriptionId,
-          currentPeriodEnd: event.resource.billing_info?.next_billing_time
-            ? new Date(event.resource.billing_info.next_billing_time)
-            : null,
-          metadata: {
-            source: event.event_type,
-            paypalStatus: event.resource.status ?? null,
+      if (addonContext.userId && addonContext.storageAddonKey) {
+        req.log.warn(
+          {
+            provider: "PAYPAL",
+            subscriptionId,
+            userId: addonContext.userId,
+            teamId: addonContext.teamId ?? null,
+            storageAddonKey: addonContext.storageAddonKey,
+            billingCycle: addonContext.billingCycle ?? null,
           },
-        });
+          "unsupported.storage_addon_subscription_event_ignored"
+        );
       }
 
       return reply.code(200).send({ received: true });
