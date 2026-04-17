@@ -150,6 +150,13 @@ export async function readBillingOverview(userId: string) {
       const usage = await getWorkspaceUsage(scope);
       const effectiveCaps = getPlanCapabilities(scope.plan);
 
+      const displayPlanForSeats =
+        team.billingPlan === prismaPkg.PlanType.TEAM
+          ? prismaPkg.PlanType.TEAM
+          : scope.plan;
+
+      const displaySeatCaps = getPlanCapabilities(displayPlanForSeats);
+
       const [activeSubscription, teamStorageAddons] = await Promise.all([
         prisma.subscription.findFirst({
           where: {
@@ -187,7 +194,11 @@ export async function readBillingOverview(userId: string) {
         0n
       );
 
-      const includedSeats = Math.max(team.includedSeats ?? 0, scope.teamSeats || 0);
+      const includedSeats = Math.max(
+        team.includedSeats ?? 0,
+        scope.teamSeats || 0,
+        displaySeatCaps.includedSeats ?? 0
+      );
 
       return {
         id: team.id,
@@ -224,16 +235,27 @@ export async function readBillingOverview(userId: string) {
           used: usage.teamMemberCount,
           included: includedSeats,
           remaining: Math.max(0, includedSeats - usage.teamMemberCount),
-          usageRatio: usage.seatUsageRatio,
-          usagePercent: usage.seatUsagePercent,
-          nearLimit: usage.isNearSeatLimit,
-          limitReached: usage.isSeatLimitReached,
+          usageRatio:
+            includedSeats > 0 ? usage.teamMemberCount / includedSeats : 0,
+          usagePercent:
+            includedSeats > 0
+              ? Math.min(
+                  100,
+                  Math.round((usage.teamMemberCount / includedSeats) * 100)
+                )
+              : 0,
+          nearLimit:
+            includedSeats > 0 &&
+            usage.teamMemberCount >= Math.max(1, Math.floor(includedSeats * 0.8)),
+          limitReached: includedSeats > 0 && usage.teamMemberCount >= includedSeats,
         },
         workspaceHealth: {
           storageNearLimit: usage.isNearStorageLimit,
           storageLimitReached: usage.isStorageLimitReached,
-          seatNearLimit: usage.isNearSeatLimit,
-          seatLimitReached: usage.isSeatLimitReached,
+          seatNearLimit:
+            includedSeats > 0 &&
+            usage.teamMemberCount >= Math.max(1, Math.floor(includedSeats * 0.8)),
+          seatLimitReached: includedSeats > 0 && usage.teamMemberCount >= includedSeats,
           overSeatLimit: Boolean(team.overSeatLimit),
         },
         counts: {

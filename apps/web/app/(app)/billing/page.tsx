@@ -30,6 +30,10 @@ function readInitialPlan(value: string | null): CheckoutPlan | null {
   return null;
 }
 
+function isCanceledTeamWorkspace(workspace: TeamWorkspaceSummary): boolean {
+  return String(workspace.billingStatus ?? "").trim().toUpperCase() === "CANCELED";
+}
+
 export default function BillingPage() {
   const { addToast } = useToast();
   const searchParams = useSearchParams();
@@ -90,15 +94,17 @@ export default function BillingPage() {
 
       setSelectedTeamId((current) => {
         const queryTeamId = searchParams.get("team");
-        if (queryTeamId && nextTeams.some((team) => team.id === queryTeamId)) {
+        const visibleTeams = nextTeams.filter((team) => !isCanceledTeamWorkspace(team));
+
+        if (queryTeamId && visibleTeams.some((team) => team.id === queryTeamId)) {
           return queryTeamId;
         }
 
-        if (!nextTeams.length) return "";
-        if (current && nextTeams.some((team) => team.id === current)) {
+        if (!visibleTeams.length) return "";
+        if (current && visibleTeams.some((team) => team.id === current)) {
           return current;
         }
-        return nextTeams[0]?.id ?? "";
+        return visibleTeams[0]?.id ?? "";
       });
     } catch (err) {
       const message =
@@ -133,6 +139,12 @@ export default function BillingPage() {
           method: "POST",
           body: JSON.stringify({ teamId }),
         });
+
+        setTeams((prev) =>
+          prev.filter((team) => team.id !== teamId)
+        );
+
+        setSelectedTeamId((current) => (current === teamId ? "" : current));
 
         addToast("Team subscription cancelled", "success");
         await loadOverview();
@@ -192,9 +204,14 @@ export default function BillingPage() {
     []
   );
 
+  const visibleTeams = useMemo(
+    () => teams.filter((team) => !isCanceledTeamWorkspace(team)),
+    [teams]
+  );
+
   const summaryCards = useMemo(() => {
     const personalPlan = personal?.plan ?? "FREE";
-    const totalTeams = teams.length;
+    const totalTeams = visibleTeams.length;
     const totalPayments = payments.length;
     const activeAddons = storageAddons.filter((item) =>
       ["ACTIVE", "PENDING", "PAST_DUE"].includes(String(item.status ?? "").toUpperCase())
@@ -218,7 +235,7 @@ export default function BillingPage() {
         value: String(activeAddons),
       },
     ];
-  }, [personal, teams, payments, storageAddons]);
+  }, [personal, visibleTeams, payments, storageAddons]);
 
   return (
     <div className="section app-section billing-page-shell">
@@ -363,7 +380,7 @@ export default function BillingPage() {
               <CheckoutPanel
                 key={`${initialTargetType}-${initialPlan}-${selectedTeamId || "no-team-selected"}`}
                 personal={personal}
-                teams={teams}
+                teams={visibleTeams}
                 initialSelectedTeamId={selectedTeamId}
                 initialTargetType={initialTargetType}
                 initialPlan={initialPlan}
@@ -372,9 +389,9 @@ export default function BillingPage() {
 
               <PersonalWorkspaceCard workspace={personal} />
 
-              {teams.length > 0 ? (
+              {visibleTeams.length > 0 ? (
                 <div style={{ display: "grid", gap: 20 }}>
-                  {teams.map((team) => (
+                  {visibleTeams.map((team) => (
                     <TeamWorkspaceCard
                       key={team.id}
                       workspace={team}

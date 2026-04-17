@@ -1715,18 +1715,23 @@ export async function evidenceRoutes(app: FastifyInstance) {
         return reply.code(409).send(payload);
       }
 
-      if (err instanceof Error && err.message === "PAYG_CREDITS_REQUIRED") {
-        auditEvidenceAction(req, {
-          userId: ownerUserId,
-          action: "evidence.create",
-          outcome: "blocked",
-          severity: "warning",
-          metadata: { reason: "PAYG_CREDITS_REQUIRED" },
-        });
-        return reply
-          .code(402)
-          .send({ message: "Pay-per-evidence credits required" });
-      }
+if (
+  err instanceof Error &&
+  "code" in err &&
+  (err as Error & { code?: string }).code === "INSUFFICIENT_CREDITS"
+) {
+  auditEvidenceAction(req, {
+    userId: ownerUserId,
+    action: "evidence.create",
+    outcome: "blocked",
+    severity: "warning",
+    metadata: { reason: "INSUFFICIENT_CREDITS" },
+  });
+  return reply.code(402).send({
+    code: "INSUFFICIENT_CREDITS",
+    message: "Insufficient credits",
+  });
+}
 
       if (err instanceof Error && err.message === "FREE_LIMIT_REACHED") {
         auditEvidenceAction(req, {
@@ -2995,19 +3000,24 @@ export async function evidenceRoutes(app: FastifyInstance) {
           storage,
         });
       } catch (err) {
-        if (err instanceof Error && err.message === "PAYG_CREDITS_REQUIRED") {
-          auditEvidenceAction(req, {
-            userId: ownerUserId,
-            action: "evidence.complete",
-            outcome: "blocked",
-            severity: "warning",
-            resourceId: id,
-            metadata: { reason: "PAYG_CREDITS_REQUIRED" },
-          });
-          return reply
-            .code(402)
-            .send({ message: "Pay-per-evidence credits required" });
-        }
+if (
+  err instanceof Error &&
+  "code" in err &&
+  (err as Error & { code?: string }).code === "INSUFFICIENT_CREDITS"
+) {
+  auditEvidenceAction(req, {
+    userId: ownerUserId,
+    action: "evidence.complete",
+    outcome: "blocked",
+    severity: "warning",
+    resourceId: id,
+    metadata: { reason: "INSUFFICIENT_CREDITS" },
+  });
+  return reply.code(402).send({
+    code: "INSUFFICIENT_CREDITS",
+    message: "Insufficient credits",
+  });
+}
 
         if (
           err instanceof Error &&

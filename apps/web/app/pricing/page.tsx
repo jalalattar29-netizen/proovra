@@ -33,17 +33,18 @@ function getAppBase() {
 
 type PlanKey = "FREE" | "PAYG" | "PRO" | "TEAM";
 
-type Plan = {
+type PlanCard = {
   key: PlanKey;
+  eyebrow: string;
   title: string;
   priceLabel: string | null;
   billingModel: "free" | "one_time" | "monthly";
   bestFor: string;
+  summary: string;
   features: string[];
-  exclusions?: string[];
-  note?: string | null;
-  accent?: "bronze" | "teal";
-  highlighted?: boolean;
+  limitations?: string[];
+  helper?: string | null;
+  tone: "neutral" | "teal" | "bronze" | "team";
   ctaLabel: string;
   ctaHref: string;
 };
@@ -85,6 +86,82 @@ function formatCatalogMoney(
 function formatAddonMoney(item: StorageAddonItem): string {
   const effectiveCurrency = normalizeCurrency(item.currency);
   return formatMoney(item.priceCents / 100, effectiveCurrency);
+}
+
+function getPlanToneStyles(tone: PlanCard["tone"]) {
+  if (tone === "teal") {
+    return {
+      border: "1px solid rgba(158,216,207,0.22)",
+      eyebrow: "#2f6965",
+      title: "#18383d",
+      dot: "#7fbdb4",
+      halo:
+        "radial-gradient(circle at top right, rgba(141,214,197,0.14), transparent 36%)",
+      cta: {
+        borderColor: "rgba(79,112,107,0.22)",
+        color: "#eef3f1",
+        background:
+          "linear-gradient(180deg, rgba(58,92,95,0.96) 0%, rgba(20,38,42,0.98) 100%)",
+        boxShadow:
+          "inset 0 1px 0 rgba(255,255,255,0.08), 0 16px 34px rgba(18,40,44,0.22)",
+      },
+    } as const;
+  }
+
+  if (tone === "bronze") {
+    return {
+      border: "1px solid rgba(183,157,132,0.18)",
+      eyebrow: "#9b826b",
+      title: "#23373b",
+      dot: "#c9a98b",
+      halo:
+        "radial-gradient(circle at top right, rgba(214,184,157,0.14), transparent 38%)",
+      cta: {
+        borderColor: "rgba(183,157,132,0.18)",
+        color: "#7a624d",
+        background:
+          "linear-gradient(180deg, rgba(244,238,232,0.88) 0%, rgba(255,255,255,0.68) 100%)",
+        boxShadow:
+          "0 10px 20px rgba(92,69,50,0.05), inset 0 1px 0 rgba(255,255,255,0.72)",
+      },
+    } as const;
+  }
+
+  if (tone === "team") {
+    return {
+      border: "1px solid rgba(79,112,107,0.16)",
+      eyebrow: "#50676a",
+      title: "#23373b",
+      dot: "#7ea9a2",
+      halo:
+        "radial-gradient(circle at top right, rgba(126,169,162,0.10), transparent 38%)",
+      cta: {
+        borderColor: "rgba(79,112,107,0.22)",
+        color: "#eef3f1",
+        background:
+          "linear-gradient(180deg, rgba(62,96,99,0.96) 0%, rgba(24,43,48,0.98) 100%)",
+        boxShadow:
+          "inset 0 1px 0 rgba(255,255,255,0.08), 0 16px 34px rgba(18,40,44,0.22)",
+      },
+    } as const;
+  }
+
+  return {
+    border: "1px solid rgba(255,255,255,0.42)",
+    eyebrow: "#405357",
+    title: "#21353a",
+    dot: "#7ea9a2",
+    halo:
+      "radial-gradient(circle at top right, rgba(255,255,255,0.12), transparent 36%)",
+    cta: {
+      borderColor: "rgba(79,112,107,0.18)",
+      color: "#eef3f1",
+      background:
+        "linear-gradient(180deg, rgba(84,99,118,0.88) 0%, rgba(63,73,89,0.96) 100%)",
+      boxShadow:
+        "inset 0 1px 0 rgba(255,255,255,0.06), 0 14px 28px rgba(25,31,42,0.14)",
+    },
+  } as const;
 }
 
 export default function MarketingPricingPage() {
@@ -161,32 +238,38 @@ export default function MarketingPricingPage() {
     };
   }, [catalog]);
 
-  const plans: Plan[] = useMemo(
+  const plans: PlanCard[] = useMemo(
     () => [
       {
         key: "FREE",
-        title: "FREE",
+        eyebrow: "Personal entry",
+        title: "Free",
         priceLabel: formatCatalogMoney(0, displayCurrency),
         billingModel: "free",
-        bestFor: "Occasional personal use",
+        bestFor: "Initial evaluation and low-volume personal use",
+        summary:
+          "Start with a lightweight personal workflow and public verification access before moving into professional outputs.",
         features: [
           `${catalog?.free?.maxEvidenceRecords ?? 3} evidence records total`,
           `Storage included: ${catalog?.free?.storageLabel ?? "250 MB"}`,
           "Basic recorded integrity materials",
           "Public verification access",
         ],
-        exclusions: [
+        limitations: [
           "PDF reports not included",
           "Verification package not included",
           "No paid storage add-ons until base plan upgrade",
         ],
-        note: "Good for initial evaluation and low-volume personal usage.",
+        helper:
+          "Best when you want to test the workflow before stepping into paid evidence outputs.",
+        tone: "neutral",
         ctaLabel: buildCtaLabel("FREE"),
         ctaHref: buildCtaHref("FREE"),
       },
       {
         key: "PAYG",
-        title: "PAY-PER-EVIDENCE",
+        eyebrow: "Usage-based professional output",
+        title: "Pay-Per-Evidence",
         priceLabel:
           catalog?.payg?.monthlyPriceCents != null
             ? `${formatMoney(
@@ -196,6 +279,8 @@ export default function MarketingPricingPage() {
             : null,
         billingModel: "one_time",
         bestFor: "Occasional professional use",
+        summary:
+          "Use this when you want reviewer-facing outputs without committing to a recurring subscription.",
         features: [
           `Storage included: ${catalog?.payg?.storageLabel ?? "5 GB"}`,
           "PDF report included",
@@ -203,16 +288,16 @@ export default function MarketingPricingPage() {
           "Shareable verification link",
           "Supports selected personal one-time storage add-ons",
         ],
-        note:
-          "Best when you do not need a recurring subscription but still want professional evidence outputs.",
-        accent: "teal",
-        highlighted: true,
+        helper:
+          "Good for lawyers, investigators, or reviewers who need professional evidence output case by case.",
+        tone: "teal",
         ctaLabel: buildCtaLabel("PAYG"),
         ctaHref: buildCtaHref("PAYG"),
       },
       {
         key: "PRO",
-        title: "PRO",
+        eyebrow: "Recurring individual workflow",
+        title: "Pro",
         priceLabel:
           catalog?.pro?.monthlyPriceCents != null
             ? `${formatMoney(
@@ -221,7 +306,9 @@ export default function MarketingPricingPage() {
               )} / month`
             : null,
         billingModel: "monthly",
-        bestFor: "Recurring individual professional use",
+        bestFor: "Recurring professional use",
+        summary:
+          "For professionals who need ongoing evidence operations, recurring access, and stronger output coverage.",
         features: [
           `Storage included: ${catalog?.pro?.storageLabel ?? "100 GB"}`,
           "Unlimited evidence records",
@@ -229,15 +316,16 @@ export default function MarketingPricingPage() {
           "Verification packages included",
           "Supports one-time personal storage top-ups",
         ],
-        note:
-          "For professionals who need recurring access and higher ongoing volume. Extra storage is purchased separately as a one-time top-up.",
-        accent: "bronze",
+        helper:
+          "Best for solo legal, compliance, consulting, investigative, or claims workflows with recurring volume.",
+        tone: "bronze",
         ctaLabel: buildCtaLabel("PRO"),
         ctaHref: buildCtaHref("PRO"),
       },
       {
         key: "TEAM",
-        title: "TEAM",
+        eyebrow: "Shared operational workspace",
+        title: "Team",
         priceLabel:
           catalog?.team?.monthlyPriceCents != null
             ? `${formatMoney(
@@ -247,21 +335,47 @@ export default function MarketingPricingPage() {
             : null,
         billingModel: "monthly",
         bestFor: "Firms, teams, investigations, and organizations",
+        summary:
+          "Built for shared review, member access, and team-based evidence operations inside one workspace.",
         features: [
-          `${catalog?.team?.seats ?? 5} seats included`,
+          `Includes up to ${catalog?.team?.seats ?? 5} seats in the standard team subscription`,
           `Storage included: ${catalog?.team?.storageLabel ?? "500 GB"}`,
           "Shared workspace and member management",
           "Reports and verification packages included",
           "Supports one-time team storage top-ups",
         ],
-        note:
-          "Requires an owned team workspace before checkout. Extra team storage is purchased separately as a one-time top-up.",
+        helper:
+          "For larger procurement, governance review, rollout planning, or higher-volume operational needs, use Enterprise instead of the standard Team checkout.",
+        tone: "team",
         ctaLabel: buildCtaLabel("TEAM"),
         ctaHref: buildCtaHref("TEAM"),
       },
     ],
     [displayCurrency, catalog, hasSession, appBilling, appRegister]
   );
+
+  const enterprise = catalog?.enterprise ?? {
+    displayName: "Enterprise",
+    pricingModel: "CUSTOM" as const,
+    ctaLabel: "Contact Sales",
+    ctaHref: "/contact-sales",
+    summary:
+      "Custom commercial terms for larger organizations that need procurement handling, governance review, rollout planning, or higher-volume evidence operations.",
+    capabilities: [
+      "Custom seat volume and onboarding scope",
+      "Custom storage envelope and rollout planning",
+      "Shared review and multi-stakeholder workflow alignment",
+      "Commercial discussion for legal, compliance, claims, or enterprise review teams",
+    ],
+    operationalFit: [
+      "Procurement and security review",
+      "Retention and governance alignment",
+      "Departmental or organization-wide rollout",
+      "Higher-volume evidence operations",
+    ],
+    supportWindow:
+      "Enterprise inquiries are typically reviewed within 4 business hours, depending on workflow clarity and commercial fit.",
+  };
 
   return (
     <div className="page landing-page">
@@ -279,27 +393,61 @@ export default function MarketingPricingPage() {
           <MarketingHeader />
 
           <section className="mx-auto max-w-7xl px-6 pb-16 pt-10 md:px-8 md:pb-20 md:pt-14">
-            <div className="max-w-[880px]">
+            <div className="max-w-[980px]">
               <div className="inline-flex items-center gap-[0.72rem] rounded-full border border-white/10 bg-white/[0.055] px-5 py-2 text-[0.74rem] font-medium uppercase tracking-[0.2em] text-[#dce3e0]">
                 <span className="block h-[6px] w-[6px] shrink-0 rounded-full bg-[#b79d84] opacity-95" />
                 Pricing
               </div>
 
-              <h1 className="mt-5 max-w-[860px] text-[1.62rem] font-medium leading-[1.01] tracking-[-0.04em] text-[#edf1ef] md:text-[2.18rem] lg:text-[2.7rem]">
+              <h1 className="mt-5 max-w-[920px] text-[1.72rem] font-medium leading-[1.01] tracking-[-0.045em] text-[#edf1ef] md:text-[2.26rem] lg:text-[2.94rem]">
                 Choose the evidence workflow that fits your
                 <span className="text-[#bfe8df]">
                   {" "}
-                  review and case volume needs
+                  review volume, operational shape, and organizational scope
                 </span>
               </h1>
 
-              <p className="mt-5 max-w-[820px] text-[0.94rem] font-normal leading-[1.78] tracking-[-0.006em] text-[#c7cfcc] md:text-[0.98rem]">
-                All plans include secure evidence storage. Report access,
-                verification packages, recurring subscriptions, one-time storage
-                top-ups, and team capacity depend on the selected plan. Billing
-                continues inside the workspace console where the correct personal
-                or team context is enforced.
+              <p className="mt-5 max-w-[860px] text-[0.95rem] font-normal leading-[1.82] tracking-[-0.006em] text-[#c7cfcc] md:text-[1rem]">
+                Use self-serve plans for individual and standard team workflows.
+                Use the enterprise path when you need procurement discussion,
+                retention alignment, governance review, rollout planning, shared
+                review structure, or larger-volume evidence operations.
               </p>
+
+              <div className="mt-7 flex flex-wrap gap-3">
+                <Link href="/contact-sales">
+                  <Button
+                    className="rounded-[999px] border px-6 py-3 text-[0.94rem] font-semibold"
+                    style={{
+                      borderColor: "rgba(79,112,107,0.22)",
+                      color: "#eef3f1",
+                      background:
+                        "linear-gradient(180deg, rgba(58,92,95,0.96) 0%, rgba(20,38,42,0.98) 100%)",
+                      boxShadow:
+                        "inset 0 1px 0 rgba(255,255,255,0.08), 0 16px 34px rgba(18,40,44,0.22)",
+                    }}
+                  >
+                    Contact Sales
+                  </Button>
+                </Link>
+
+                <Link href="/contact-sales">
+                  <Button
+                    variant="secondary"
+                    className="rounded-[999px] border px-6 py-3 text-[0.94rem] font-semibold"
+                    style={{
+                      borderColor: "rgba(183,157,132,0.18)",
+                      color: "#f1e9e1",
+                      background:
+                        "linear-gradient(180deg, rgba(130,106,87,0.30) 0%, rgba(77,58,44,0.38) 100%)",
+                      boxShadow:
+                        "inset 0 1px 0 rgba(255,255,255,0.05), 0 14px 28px rgba(37,25,18,0.18)",
+                    }}
+                  >
+                    Request demo
+                  </Button>
+                </Link>
+              </div>
             </div>
           </section>
         </div>
@@ -307,39 +455,109 @@ export default function MarketingPricingPage() {
 
       <SilverWatermarkSection
         className="section section-body relative overflow-hidden"
-        style={{ paddingTop: 48, paddingBottom: 56 }}
+        style={{ paddingTop: 48, paddingBottom: 64 }}
       >
         <div className="container relative z-10 mx-auto max-w-7xl px-6 md:px-8">
+          <div
+            className="mb-8 rounded-[32px] border px-6 py-6 md:px-7 md:py-7"
+            style={{
+              border: "1px solid rgba(183,157,132,0.16)",
+              background:
+                "linear-gradient(180deg, rgba(247,242,237,0.92) 0%, rgba(255,255,255,0.74) 100%)",
+              boxShadow:
+                "0 18px 36px rgba(0,0,0,0.05), inset 0 1px 0 rgba(255,255,255,0.62)",
+            }}
+          >
+            <div className="grid gap-5 lg:grid-cols-[1.2fr_0.8fr] lg:items-center">
+              <div>
+                <div className="text-[0.8rem] font-semibold uppercase tracking-[0.16em] text-[#9b826b]">
+                  Enterprise workflows
+                </div>
+                <div className="mt-2 max-w-[720px] text-[1.32rem] font-semibold tracking-[-0.03em] text-[#22363b] md:text-[1.58rem]">
+                  Enterprise is the route for larger organizations, not just a
+                  bigger Team card.
+                </div>
+                <div className="mt-3 max-w-[780px] text-[0.94rem] leading-[1.82] text-[#5d6d71]">
+                  {enterprise.summary}
+                </div>
+              </div>
+
+              <div className="grid gap-3">
+                <div
+                  className="rounded-[20px] border px-4 py-4"
+                  style={{
+                    border: "1px solid rgba(79,112,107,0.10)",
+                    background:
+                      "linear-gradient(180deg, rgba(255,255,255,0.54) 0%, rgba(243,245,242,0.88) 100%)",
+                  }}
+                >
+                  <div className="text-[0.78rem] font-semibold uppercase tracking-[0.14em] text-[#8a7562]">
+                    Typical fit
+                  </div>
+                  <div className="mt-2 text-[0.9rem] leading-[1.8] text-[#4f6266]">
+                    Procurement, governance review, retention alignment, shared
+                    review rollout, and higher-volume operational use.
+                  </div>
+                </div>
+
+                <div
+                  className="rounded-[20px] border px-4 py-4"
+                  style={{
+                    border: "1px solid rgba(79,112,107,0.10)",
+                    background:
+                      "linear-gradient(180deg, rgba(255,255,255,0.54) 0%, rgba(243,245,242,0.88) 100%)",
+                  }}
+                >
+                  <div className="text-[0.78rem] font-semibold uppercase tracking-[0.14em] text-[#8a7562]">
+                    Review window
+                  </div>
+                  <div className="mt-2 text-[0.9rem] leading-[1.8] text-[#4f6266]">
+                    {enterprise.supportWindow}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="mb-4">
+            <div className="text-[0.8rem] font-semibold uppercase tracking-[0.16em] text-[#8a7562]">
+              Self-serve plans
+            </div>
+            <div className="mt-2 max-w-[860px] text-[0.92rem] leading-[1.78] text-[#5d6d71]">
+              Choose one of these plans when you can complete selection directly
+              through standard billing without a sales-led procurement or rollout
+              process.
+            </div>
+          </div>
+
           <div
             className="pricing-grid"
             style={{
               display: "grid",
-              gridTemplateColumns: "repeat(auto-fit, minmax(270px, 1fr))",
+              gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
               gap: 18,
             }}
           >
             {plans.map((plan) => {
               const isHovered = hoveredPlan === plan.key;
-              const isHighlighted = !!plan.highlighted;
-              const isBronze = plan.accent === "bronze";
+              const tone = getPlanToneStyles(plan.tone);
 
               return (
                 <div
                   key={plan.key}
                   onMouseEnter={() => setHoveredPlan(plan.key)}
                   onMouseLeave={() => setHoveredPlan(null)}
-                  style={{ transform: isHovered ? "translateY(-4px)" : "none" }}
+                  style={{
+                    transform: isHovered ? "translateY(-4px)" : "none",
+                    transition: "transform 180ms ease",
+                  }}
                 >
                   <Card
-                    className="pricing-card relative h-full overflow-hidden rounded-[28px] border bg-transparent p-0 shadow-none"
+                    className="pricing-card relative h-full overflow-hidden rounded-[30px] border bg-transparent p-0 shadow-none"
                     style={{
-                      border: isHighlighted
-                        ? "1px solid rgba(158,216,207,0.22)"
-                        : isBronze
-                          ? "1px solid rgba(183,157,132,0.18)"
-                          : "1px solid rgba(255,255,255,0.42)",
+                      border: tone.border,
                       boxShadow:
-                        "0 16px 32px rgba(0, 0, 0, 0.07), inset 0 1px 0 rgba(255,255,255,0.45)",
+                        "0 18px 38px rgba(0, 0, 0, 0.07), inset 0 1px 0 rgba(255,255,255,0.48)",
                     }}
                   >
                     <div className="absolute inset-0">
@@ -350,88 +568,146 @@ export default function MarketingPricingPage() {
                       />
                     </div>
 
+                    <div
+                      className="absolute inset-0"
+                      style={{
+                        background:
+                          "linear-gradient(180deg, rgba(255,255,255,0.20) 0%, rgba(248,249,246,0.28) 42%, rgba(239,241,238,0.36) 100%)",
+                      }}
+                    />
+                    <div
+                      className="absolute inset-0"
+                      style={{ background: tone.halo }}
+                    />
+
                     <div className="relative z-10 flex h-full flex-col p-6 md:p-7">
                       <div>
-                        <p
-                          className="text-[0.72rem] font-medium uppercase tracking-[0.18em]"
+                        <div
+                          className="inline-flex items-center rounded-full px-3 py-1.5 text-[0.72rem] font-semibold uppercase tracking-[0.16em]"
                           style={{
-                            color: isHighlighted
-                              ? "#2f6965"
-                              : isBronze
-                                ? "#9b826b"
-                                : "#405357",
+                            color: tone.eyebrow,
+                            border: "1px solid rgba(79,112,107,0.10)",
+                            background: "rgba(255,255,255,0.44)",
                           }}
                         >
-                          {plan.title}
-                        </p>
+                          {plan.eyebrow}
+                        </div>
 
-                        <p
-                          className="mt-4 text-[1.36rem] font-medium leading-[1.02] tracking-[-0.03em] md:text-[1.48rem]"
-                          style={{
-                            color: isHighlighted ? "#18383d" : "#21353a",
-                          }}
-                        >
-                          {plan.priceLabel ?? "—"}
-                        </p>
+                        <div className="mt-4 flex flex-wrap items-end justify-between gap-3">
+                          <div>
+                            <p
+                              className="text-[1.42rem] font-semibold leading-[1.02] tracking-[-0.03em] md:text-[1.62rem]"
+                              style={{ color: tone.title, margin: 0 }}
+                            >
+                              {plan.title}
+                            </p>
 
-                        <p className="mt-3 text-[0.9rem] leading-[1.7] text-[#516367]">
+                            <p
+                              className="mt-3 text-[1.42rem] font-medium leading-[1.02] tracking-[-0.03em] md:text-[1.56rem]"
+                              style={{ color: tone.title }}
+                            >
+                              {plan.priceLabel ?? "—"}
+                            </p>
+                          </div>
+
+                          <div
+                            className="rounded-full px-3 py-1.5 text-[0.72rem] font-semibold uppercase tracking-[0.16em]"
+                            style={{
+                              color: "#7a6a58",
+                              border: "1px solid rgba(183,157,132,0.14)",
+                              background:
+                                "linear-gradient(180deg, rgba(247,242,237,0.80) 0%, rgba(255,255,255,0.65) 100%)",
+                            }}
+                          >
+                            {plan.billingModel === "free"
+                              ? "Free plan"
+                              : plan.billingModel === "one_time"
+                                ? "One-time checkout"
+                                : "Recurring monthly"}
+                          </div>
+                        </div>
+
+                        <p className="mt-4 text-[0.98rem] font-semibold tracking-[-0.02em] text-[#23373b]">
                           {plan.bestFor}
                         </p>
 
-                        <p className="mt-2 text-[0.78rem] font-semibold uppercase tracking-[0.14em] text-[#8a7562]">
-                          {plan.billingModel === "free"
-                            ? "Free plan"
-                            : plan.billingModel === "one_time"
-                              ? "One-time checkout"
-                              : "Recurring monthly subscription"}
+                        <p className="mt-2 text-[0.91rem] leading-[1.82] text-[#55686c]">
+                          {plan.summary}
                         </p>
                       </div>
 
-                      <ul
+                      <div
+                        className="mt-5 rounded-[20px] border px-4 py-4"
                         style={{
-                          margin: "18px 0 14px",
-                          paddingLeft: 0,
-                          listStyle: "none",
-                          color: "#475569",
-                          lineHeight: 1.75,
+                          border: "1px solid rgba(79,112,107,0.10)",
+                          background:
+                            "linear-gradient(180deg, rgba(255,255,255,0.54) 0%, rgba(243,245,242,0.88) 100%)",
                         }}
-                        className="flex flex-col gap-3"
                       >
-                        {plan.features.map((feature, index) => (
-                          <li
-                            key={`${plan.key}-${index}`}
-                            className="flex items-start gap-3 text-[0.94rem] leading-[1.68] text-[#415257]"
-                          >
-                            <span
-                              className="mt-[0.40rem] inline-block h-[8px] w-[8px] shrink-0 rounded-full"
-                              style={{
-                                background: isHighlighted
-                                  ? "#7fbdb4"
-                                  : isBronze
-                                    ? "#c9a98b"
-                                    : "#7ea9a2",
-                              }}
-                            />
-                            <span>{feature}</span>
-                          </li>
-                        ))}
-                      </ul>
+                        <div className="text-[0.78rem] font-semibold uppercase tracking-[0.14em] text-[#8a7562]">
+                          Included
+                        </div>
 
-                      {plan.exclusions?.length ? (
-                        <div className="mb-3 rounded-[16px] border border-[rgba(194,78,78,0.10)] bg-[rgba(194,78,78,0.04)] px-4 py-3 text-[0.84rem] leading-[1.7] text-[#7a5b5b]">
-                          {plan.exclusions.map((item, index) => (
+                        <ul
+                          style={{
+                            margin: "12px 0 0",
+                            paddingLeft: 0,
+                            listStyle: "none",
+                          }}
+                          className="flex flex-col gap-3"
+                        >
+                          {plan.features.map((feature, index) => (
+                            <li
+                              key={`${plan.key}-${index}`}
+                              className="flex items-start gap-3 text-[0.93rem] leading-[1.76] text-[#415257]"
+                            >
+                              <span
+                                className="inline-block shrink-0 rounded-full"
+                                style={{
+                                  marginTop: 8,
+                                  width: 9,
+                                  height: 9,
+                                  background: tone.dot,
+                                  flexShrink: 0,
+                                }}
+                              />
+                              <span>{feature}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+
+                      {plan.limitations?.length ? (
+                        <div
+                          className="mt-4 rounded-[20px] border px-4 py-4 text-[0.86rem] leading-[1.72] text-[#7a5b5b]"
+                          style={{
+                            border: "1px solid rgba(194,78,78,0.10)",
+                            background: "rgba(194,78,78,0.04)",
+                          }}
+                        >
+                          <div className="mb-2 text-[0.74rem] font-semibold uppercase tracking-[0.14em] text-[#9c6a6a]">
+                            Not included
+                          </div>
+                          {plan.limitations.map((item, index) => (
                             <div key={index}>{item}</div>
                           ))}
                         </div>
                       ) : null}
 
-                      {plan.note ? (
-                        <div className="mb-4 rounded-[16px] border border-[rgba(79,112,107,0.10)] bg-[rgba(255,255,255,0.45)] px-4 py-3 text-[0.84rem] leading-[1.7] text-[#5a6c70]">
-                          {plan.note}
+                      {plan.helper ? (
+                        <div
+                          className="mt-4 rounded-[20px] border px-4 py-4 text-[0.86rem] leading-[1.76] text-[#5a6c70]"
+                          style={{
+                            border: "1px solid rgba(79,112,107,0.10)",
+                            background:
+                              "linear-gradient(180deg, rgba(255,255,255,0.48) 0%, rgba(243,245,242,0.88) 100%)",
+                          }}
+                        >
+                          {plan.helper}
                         </div>
                       ) : null}
 
-                      <div className="mt-auto">
+                      <div className="mt-5">
                         <Link
                           href={plan.ctaHref}
                           onClick={() =>
@@ -441,9 +717,10 @@ export default function MarketingPricingPage() {
                         >
                           <Button
                             variant="secondary"
-                            className="w-full rounded-[16px] border px-5 py-3 text-[0.95rem] font-medium"
+                            className="w-full rounded-[999px] border px-5 py-3 text-[0.95rem] font-semibold"
+                            style={tone.cta}
                           >
-                            {plan.ctaLabel} ›
+                            {plan.ctaLabel}
                           </Button>
                         </Link>
                       </div>
@@ -454,40 +731,275 @@ export default function MarketingPricingPage() {
             })}
           </div>
 
-          {storageAddonSummary ? (
-            <div
-              className="mt-8 rounded-[28px] border px-6 py-6"
+          <div className="mt-8">
+            <div className="mb-4">
+              <div className="text-[0.8rem] font-semibold uppercase tracking-[0.16em] text-[#8a7562]">
+                Sales-led enterprise path
+              </div>
+              <div className="mt-2 max-w-[860px] text-[0.92rem] leading-[1.78] text-[#5d6d71]">
+                Use this route when the workflow is bigger than standard self-serve
+                checkout and needs procurement, governance, rollout, retention, or
+                larger-volume planning.
+              </div>
+            </div>
+
+            <Card
+              className="relative overflow-hidden rounded-[30px] border bg-transparent p-0 shadow-none"
               style={{
-                border: "1px solid rgba(79,112,107,0.12)",
-                background:
-                  "linear-gradient(180deg, rgba(255,255,255,0.62) 0%, rgba(243,245,242,0.92) 100%)",
+                border: "1px solid rgba(183,157,132,0.22)",
+                boxShadow:
+                  "0 18px 38px rgba(0, 0, 0, 0.07), inset 0 1px 0 rgba(255,255,255,0.48)",
               }}
             >
-              <div className="text-[1rem] font-semibold tracking-[-0.02em] text-[#21353a]">
-                Extra Storage Add-ons
+              <div className="absolute inset-0">
+                <img
+                  src="/images/panel-silver.webp.png"
+                  alt=""
+                  className="h-full w-full object-cover object-center"
+                />
               </div>
+              <div
+                className="absolute inset-0"
+                style={{
+                  background:
+                    "linear-gradient(180deg, rgba(255,255,255,0.20) 0%, rgba(248,249,246,0.28) 42%, rgba(239,241,238,0.36) 100%)",
+                }}
+              />
+              <div
+                className="absolute inset-0"
+                style={{
+                  background:
+                    "radial-gradient(circle at top right, rgba(214,184,157,0.16), transparent 36%)",
+                }}
+              />
 
-              <div className="mt-2 text-[0.9rem] leading-[1.75] text-[#5d6d71]">
-                Add-ons are purchased inside the billing console as one-time
-                storage top-ups and depend on workspace type and base plan
-                eligibility.
-              </div>
+              <div className="relative z-10 p-6 md:p-7 lg:p-8">
+                <div className="grid gap-6 lg:grid-cols-[1.15fr_0.85fr]">
+                  <div>
+                    <div
+                      className="inline-flex items-center rounded-full px-3 py-1.5 text-[0.72rem] font-semibold uppercase tracking-[0.16em]"
+                      style={{
+                        color: "#9b826b",
+                        border: "1px solid rgba(183,157,132,0.16)",
+                        background:
+                          "linear-gradient(180deg, rgba(247,242,237,0.78) 0%, rgba(255,255,255,0.64) 100%)",
+                      }}
+                    >
+                      Enterprise path
+                    </div>
 
-              <div className="mt-5 grid gap-5 md:grid-cols-2">
-                <div>
-                  <div className="text-[0.78rem] font-semibold uppercase tracking-[0.14em] text-[#8a7562]">
-                    Personal workspace add-ons
-                  </div>
-                  <div className="mt-3 grid gap-3">
-                    {storageAddonSummary.personal.length === 0 ? (
+                    <div className="mt-4 flex flex-wrap items-end justify-between gap-3">
+                      <div>
+                        <p
+                          className="text-[1.5rem] font-semibold leading-[1.02] tracking-[-0.03em] md:text-[1.86rem]"
+                          style={{ color: "#23373b", margin: 0 }}
+                        >
+                          {enterprise.displayName}
+                        </p>
+
+                        <p
+                          className="mt-3 text-[1.42rem] font-medium leading-[1.02] tracking-[-0.03em] md:text-[1.56rem]"
+                          style={{ color: "#23373b" }}
+                        >
+                          Custom
+                        </p>
+                      </div>
+
                       <div
-                        className="rounded-[18px] border px-4 py-4 text-[0.86rem] text-[#5d6d71]"
+                        className="rounded-full px-3 py-1.5 text-[0.72rem] font-semibold uppercase tracking-[0.16em]"
+                        style={{
+                          color: "#7a6a58",
+                          border: "1px solid rgba(183,157,132,0.14)",
+                          background:
+                            "linear-gradient(180deg, rgba(247,242,237,0.80) 0%, rgba(255,255,255,0.65) 100%)",
+                        }}
+                      >
+                        Sales-led discussion
+                      </div>
+                    </div>
+
+                    <p className="mt-4 text-[1rem] font-semibold tracking-[-0.02em] text-[#23373b]">
+                      Procurement, governance, and larger organizational fit
+                    </p>
+
+                    <p className="mt-2 max-w-[760px] text-[0.92rem] leading-[1.82] text-[#55686c]">
+                      {enterprise.summary}
+                    </p>
+
+                    <div className="mt-5 grid gap-4 md:grid-cols-2">
+                      <div
+                        className="rounded-[20px] border px-4 py-4"
                         style={{
                           border: "1px solid rgba(79,112,107,0.10)",
                           background:
-                            "linear-gradient(180deg, rgba(255,255,255,0.58) 0%, rgba(243,245,242,0.90) 100%)",
+                            "linear-gradient(180deg, rgba(255,255,255,0.54) 0%, rgba(243,245,242,0.88) 100%)",
                         }}
                       >
+                        <div className="text-[0.78rem] font-semibold uppercase tracking-[0.14em] text-[#8a7562]">
+                          Typical enterprise needs
+                        </div>
+
+                        <ul
+                          style={{
+                            margin: "12px 0 0",
+                            paddingLeft: 0,
+                            listStyle: "none",
+                          }}
+                          className="flex flex-col gap-3"
+                        >
+                          {enterprise.capabilities.map((feature, index) => (
+                            <li
+                              key={index}
+                              className="flex items-start gap-3 text-[0.93rem] leading-[1.76] text-[#415257]"
+                            >
+                              <span
+                                className="inline-block shrink-0 rounded-full"
+                                style={{
+                                  marginTop: 8,
+                                  width: 9,
+                                  height: 9,
+                                  background: "#c9a98b",
+                                  flexShrink: 0,
+                                }}
+                              />
+                              <span>{feature}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+
+                      <div className="grid gap-4">
+                        <div
+                          className="rounded-[20px] border px-4 py-4 text-[0.86rem] leading-[1.76] text-[#5a6c70]"
+                          style={{
+                            border: "1px solid rgba(79,112,107,0.10)",
+                            background:
+                              "linear-gradient(180deg, rgba(255,255,255,0.48) 0%, rgba(243,245,242,0.88) 100%)",
+                          }}
+                        >
+                          <div className="mb-2 text-[0.74rem] font-semibold uppercase tracking-[0.14em] text-[#8a7562]">
+                            Operational fit
+                          </div>
+                          {enterprise.operationalFit.join(" · ")}
+                        </div>
+
+                        <div
+                          className="rounded-[20px] border px-4 py-4 text-[0.86rem] leading-[1.76] text-[#5a6c70]"
+                          style={{
+                            border: "1px solid rgba(183,157,132,0.14)",
+                            background:
+                              "linear-gradient(180deg, rgba(247,242,237,0.84) 0%, rgba(255,255,255,0.66) 100%)",
+                          }}
+                        >
+                          {enterprise.supportWindow}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div
+                    className="rounded-[24px] border px-5 py-5 md:px-6 md:py-6"
+                    style={{
+                      border: "1px solid rgba(183,157,132,0.16)",
+                      background:
+                        "linear-gradient(180deg, rgba(247,242,237,0.90) 0%, rgba(255,255,255,0.74) 100%)",
+                      boxShadow:
+                        "inset 0 1px 0 rgba(255,255,255,0.62), 0 12px 24px rgba(92,69,50,0.05)",
+                    }}
+                  >
+                    <div className="text-[0.78rem] font-semibold uppercase tracking-[0.14em] text-[#8a7562]">
+                      When to use this route
+                    </div>
+
+                    <div className="mt-3 text-[1rem] font-semibold tracking-[-0.02em] text-[#23373b]">
+                      Not just more seats. A different commercial path.
+                    </div>
+
+                    <div className="mt-3 text-[0.9rem] leading-[1.82] text-[#5d6d71]">
+                      Choose Enterprise when the decision includes procurement,
+                      internal approvals, department rollout, retention-policy
+                      alignment, or a broader review workflow than standard
+                      checkout.
+                    </div>
+
+                    <div className="mt-5 flex flex-col gap-3">
+                      <Link href={enterprise.ctaHref} className="block">
+                        <Button
+                          className="w-full rounded-[999px] border px-5 py-3 text-[0.95rem] font-semibold"
+                          style={{
+                            borderColor: "rgba(79,112,107,0.22)",
+                            color: "#eef3f1",
+                            background:
+                              "linear-gradient(180deg, rgba(58,92,95,0.96) 0%, rgba(20,38,42,0.98) 100%)",
+                            boxShadow:
+                              "inset 0 1px 0 rgba(255,255,255,0.08), 0 16px 34px rgba(18,40,44,0.22)",
+                          }}
+                        >
+                          {enterprise.ctaLabel}
+                        </Button>
+                      </Link>
+
+                      <Link href="/contact-sales" className="block">
+                        <Button
+                          variant="secondary"
+                          className="w-full rounded-[999px] border px-5 py-3 text-[0.95rem] font-semibold"
+                          style={{
+                            borderColor: "rgba(183,157,132,0.18)",
+                            color: "#7a624d",
+                            background:
+                              "linear-gradient(180deg, rgba(244,238,232,0.88) 0%, rgba(255,255,255,0.68) 100%)",
+                            boxShadow:
+                              "0 10px 20px rgba(92,69,50,0.05), inset 0 1px 0 rgba(255,255,255,0.72)",
+                          }}
+                        >
+                          Request demo
+                        </Button>
+                      </Link>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </Card>
+          </div>
+
+          {storageAddonSummary ? (
+            <div
+              className="mt-8 rounded-[30px] border px-6 py-6 md:px-7 md:py-7"
+              style={{
+                border: "1px solid rgba(79,112,107,0.14)",
+                background:
+                  "linear-gradient(180deg, rgba(255,255,255,0.72) 0%, rgba(243,245,242,0.96) 100%)",
+                boxShadow:
+                  "0 18px 36px rgba(0,0,0,0.06), inset 0 1px 0 rgba(255,255,255,0.55)",
+              }}
+            >
+              <div className="text-[1.18rem] font-semibold tracking-[-0.025em] text-[#21353a]">
+                Extra storage add-ons
+              </div>
+
+              <div className="mt-2 max-w-[920px] text-[0.94rem] leading-[1.8] text-[#5d6d71]">
+                Storage top-ups are purchased inside the Billing console as
+                one-time expansions. Eligibility depends on workspace type and
+                base plan. For larger commercial storage planning, use Contact
+                Sales.
+              </div>
+
+              <div className="mt-6 grid gap-5 xl:grid-cols-2">
+                <div
+                  className="rounded-[24px] border px-5 py-5"
+                  style={{
+                    border: "1px solid rgba(79,112,107,0.10)",
+                    background:
+                      "linear-gradient(180deg, rgba(255,255,255,0.54) 0%, rgba(243,245,242,0.88) 100%)",
+                  }}
+                >
+                  <div className="text-[0.8rem] font-semibold uppercase tracking-[0.16em] text-[#8a7562]">
+                    Personal workspace top-ups
+                  </div>
+
+                  <div className="mt-4 grid gap-3">
+                    {storageAddonSummary.personal.length === 0 ? (
+                      <div className="text-[0.88rem] leading-[1.8] text-[#5d6d71]">
                         No personal storage add-ons published.
                       </div>
                     ) : (
@@ -498,19 +1010,24 @@ export default function MarketingPricingPage() {
                           style={{
                             border: "1px solid rgba(79,112,107,0.10)",
                             background:
-                              "linear-gradient(180deg, rgba(255,255,255,0.58) 0%, rgba(243,245,242,0.90) 100%)",
+                              "linear-gradient(180deg, rgba(255,255,255,0.50) 0%, rgba(243,245,242,0.86) 100%)",
                           }}
                         >
-                          <div className="text-[0.94rem] font-semibold text-[#21353a]">
-                            {item.label}
+                          <div className="flex flex-wrap items-center justify-between gap-3">
+                            <div>
+                              <div className="text-[0.96rem] font-semibold text-[#21353a]">
+                                {item.label}
+                              </div>
+                              <div className="mt-1 text-[0.86rem] text-[#5d6d71]">
+                                {formatBytesCompact(item.storageBytes)} extra
+                                storage
+                              </div>
+                            </div>
+                            <div className="text-[0.94rem] font-semibold text-[#23373b]">
+                              {formatAddonMoney(item)}
+                            </div>
                           </div>
-                          <div className="mt-1 text-[0.86rem] text-[#5d6d71]">
-                            {formatBytesCompact(item.storageBytes)} extra storage
-                          </div>
-                          <div className="mt-1 text-[0.86rem] text-[#5d6d71]">
-                            {formatAddonMoney(item)}
-                          </div>
-                          <div className="mt-1 text-[0.80rem] text-[#7a878a]">
+                          <div className="mt-2 text-[0.8rem] text-[#7a878a]">
                             One-time purchase
                           </div>
                         </div>
@@ -519,20 +1036,21 @@ export default function MarketingPricingPage() {
                   </div>
                 </div>
 
-                <div>
-                  <div className="text-[0.78rem] font-semibold uppercase tracking-[0.14em] text-[#8a7562]">
-                    Team workspace add-ons
+                <div
+                  className="rounded-[24px] border px-5 py-5"
+                  style={{
+                    border: "1px solid rgba(79,112,107,0.10)",
+                    background:
+                      "linear-gradient(180deg, rgba(255,255,255,0.54) 0%, rgba(243,245,242,0.88) 100%)",
+                  }}
+                >
+                  <div className="text-[0.8rem] font-semibold uppercase tracking-[0.16em] text-[#8a7562]">
+                    Team workspace top-ups
                   </div>
-                  <div className="mt-3 grid gap-3">
+
+                  <div className="mt-4 grid gap-3">
                     {storageAddonSummary.team.length === 0 ? (
-                      <div
-                        className="rounded-[18px] border px-4 py-4 text-[0.86rem] text-[#5d6d71]"
-                        style={{
-                          border: "1px solid rgba(79,112,107,0.10)",
-                          background:
-                            "linear-gradient(180deg, rgba(255,255,255,0.58) 0%, rgba(243,245,242,0.90) 100%)",
-                        }}
-                      >
+                      <div className="text-[0.88rem] leading-[1.8] text-[#5d6d71]">
                         No team storage add-ons published.
                       </div>
                     ) : (
@@ -543,19 +1061,24 @@ export default function MarketingPricingPage() {
                           style={{
                             border: "1px solid rgba(79,112,107,0.10)",
                             background:
-                              "linear-gradient(180deg, rgba(255,255,255,0.58) 0%, rgba(243,245,242,0.90) 100%)",
+                              "linear-gradient(180deg, rgba(255,255,255,0.50) 0%, rgba(243,245,242,0.86) 100%)",
                           }}
                         >
-                          <div className="text-[0.94rem] font-semibold text-[#21353a]">
-                            {item.label}
+                          <div className="flex flex-wrap items-center justify-between gap-3">
+                            <div>
+                              <div className="text-[0.96rem] font-semibold text-[#21353a]">
+                                {item.label}
+                              </div>
+                              <div className="mt-1 text-[0.86rem] text-[#5d6d71]">
+                                {formatBytesCompact(item.storageBytes)} extra
+                                storage
+                              </div>
+                            </div>
+                            <div className="text-[0.94rem] font-semibold text-[#23373b]">
+                              {formatAddonMoney(item)}
+                            </div>
                           </div>
-                          <div className="mt-1 text-[0.86rem] text-[#5d6d71]">
-                            {formatBytesCompact(item.storageBytes)} extra storage
-                          </div>
-                          <div className="mt-1 text-[0.86rem] text-[#5d6d71]">
-                            {formatAddonMoney(item)}
-                          </div>
-                          <div className="mt-1 text-[0.80rem] text-[#7a878a]">
+                          <div className="mt-2 text-[0.8rem] text-[#7a878a]">
                             One-time purchase
                           </div>
                         </div>
@@ -573,12 +1096,13 @@ export default function MarketingPricingPage() {
               payg={catalog?.payg ?? null}
               pro={catalog?.pro ?? null}
               team={catalog?.team ?? null}
+              enterprise={catalog?.enterprise ?? null}
             />
 
             <PricingCheckoutGuide />
           </div>
 
-          <div className="mt-5 text-[0.82rem] leading-[1.7] text-[#667174]">
+          <div className="mt-6 text-[0.83rem] leading-[1.7] text-[#667174]">
             Prices shown in{" "}
             <span className="font-medium text-[#31464a]">
               {displayCurrency}
@@ -586,6 +1110,14 @@ export default function MarketingPricingPage() {
             . VAT may apply depending on your country.
           </div>
         </div>
+
+        <style jsx>{`
+          @media (max-width: 1023px) {
+            .pricing-grid {
+              grid-template-columns: 1fr !important;
+            }
+          }
+        `}</style>
       </SilverWatermarkSection>
 
       <Footer />

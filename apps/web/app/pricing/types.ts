@@ -23,11 +23,23 @@ export type PricingStorageAddonCatalogItem = {
   workspaceType: "PERSONAL" | "TEAM";
 };
 
+export type PricingEnterpriseCatalog = {
+  displayName: string;
+  pricingModel: "CUSTOM";
+  ctaLabel: string;
+  ctaHref: string;
+  summary: string;
+  capabilities: string[];
+  operationalFit: string[];
+  supportWindow: string;
+};
+
 export type PricingCatalogResponse = {
   currency: "USD" | "EUR";
   free: PricingCatalogPlan;
   payg: PricingCatalogPlan;
   pro: PricingCatalogPlan;
   team: PricingCatalogPlan;
+  enterprise?: PricingEnterpriseCatalog;
   storageAddons?: PricingStorageAddonCatalogItem[];
 };

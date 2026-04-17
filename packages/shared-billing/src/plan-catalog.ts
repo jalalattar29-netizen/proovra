@@ -22,6 +22,17 @@ export type PlanCapabilities = {
   teamWorkspaceRequired: boolean;
 };
 
+export type EnterprisePricingCatalog = {
+  displayName: string;
+  pricingModel: "CUSTOM";
+  ctaLabel: string;
+  ctaHref: string;
+  summary: string;
+  capabilities: string[];
+  operationalFit: string[];
+  supportWindow: string;
+};
+
 const MB = 1024n * 1024n;
 const GB = 1024n * 1024n * 1024n;
 const TB = 1024n * 1024n * 1024n * 1024n;
@@ -130,6 +141,29 @@ export function formatBytesHuman(bytes: bigint): string {
 }
 
 export function getPricingCatalogResponse() {
+  const enterprise: EnterprisePricingCatalog = {
+    displayName: "Enterprise",
+    pricingModel: "CUSTOM",
+    ctaLabel: "Contact Sales",
+    ctaHref: "/contact-sales",
+    summary:
+      "Custom commercial terms for larger organizations that need procurement handling, governance review, rollout planning, or higher-volume evidence operations.",
+    capabilities: [
+      "Custom seat volume and onboarding scope",
+      "Custom storage envelope and rollout planning",
+      "Shared review and multi-stakeholder workflow alignment",
+      "Commercial discussion for legal, compliance, claims, or enterprise review teams",
+    ],
+    operationalFit: [
+      "Procurement and security review",
+      "Retention and governance alignment",
+      "Departmental or organization-wide rollout",
+      "Higher-volume evidence operations",
+    ],
+    supportWindow:
+      "Enterprise inquiries are typically reviewed within 4 business hours, depending on workflow clarity and commercial fit.",
+  };
+
   return {
     free: {
       plan: "FREE" as const,
@@ -186,5 +220,6 @@ export function getPricingCatalogResponse() {
       seats: PLAN_CAPABILITIES.TEAM.includedSeats,
       workspaceType: PLAN_CAPABILITIES.TEAM.workspaceType,
     },
+    enterprise,
   };
 }

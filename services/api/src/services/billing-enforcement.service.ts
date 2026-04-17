@@ -38,23 +38,46 @@ export async function assertWorkspaceAllowsEvidenceCreation(
     throw err;
   }
 
-  if (scope.workspaceType === "PERSONAL" && caps.maxEvidenceRecords !== null) {
-    const evidenceCount = await prisma.evidence.count({
-      where: {
-        ownerUserId: scope.ownerUserId,
-        teamId: null,
-        deletedAt: null,
-      },
-    });
+  if (scope.workspaceType !== "PERSONAL") {
+    return;
+  }
 
-    if (evidenceCount >= caps.maxEvidenceRecords) {
+  const evidenceCount = await prisma.evidence.count({
+    where: {
+      ownerUserId: scope.ownerUserId,
+      teamId: null,
+      deletedAt: null,
+    },
+  });
+
+  const freeIncluded = caps.maxEvidenceRecords;
+  const creditsRequired = caps.paygCreditsRequiredPerCompletion ?? 0;
+  const availableCredits = scope.credits ?? 0;
+
+  if (freeIncluded !== null && evidenceCount < freeIncluded) {
+    return;
+  }
+
+  if (creditsRequired > 0) {
+    if (availableCredits < creditsRequired) {
       const err: Error & { statusCode?: number; code?: string } = new Error(
-        "Free evidence limit reached"
+        "Insufficient credits"
       );
-      err.statusCode = 409;
-      err.code = "FREE_LIMIT_REACHED";
+      err.statusCode = 402;
+      err.code = "INSUFFICIENT_CREDITS";
       throw err;
     }
+
+    return;
+  }
+
+  if (freeIncluded !== null && evidenceCount >= freeIncluded) {
+    const err: Error & { statusCode?: number; code?: string } = new Error(
+      "Free evidence limit reached"
+    );
+    err.statusCode = 409;
+    err.code = "FREE_LIMIT_REACHED";
+    throw err;
   }
 }
 
