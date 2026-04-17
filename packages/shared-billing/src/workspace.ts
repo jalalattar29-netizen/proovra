@@ -22,26 +22,35 @@ export function getEffectiveSeatLimit(scope: BillingWorkspaceScope): number {
     return 0;
   }
 
-  return Math.max(caps.includedSeats, scope.teamSeats || 0);
+  /**
+   * Effective team-member cap:
+   * - driven first by plan business cap (maxMembersPerTeam)
+   * - then by legacy includedSeats
+   * - then by any explicit runtime/team seat value
+   */
+  return Math.max(
+    0,
+    caps.maxMembersPerTeam || 0,
+    caps.includedSeats || 0,
+    scope.teamSeats || 0
+  );
 }
 
 /**
- * Important billing rule:
+ * Workspace compatibility rules
  *
- * A TEAM workspace may legitimately exist while its billing plan is FREE,
- * INACTIVE, or CANCELED. In that state, the workspace is still valid and
- * should remain readable in billing/settings/admin flows.
+ * PERSONAL workspace:
+ * - must use a plan that allows personal workspaces
  *
- * What must be blocked is not the existence of the team workspace itself,
- * but specific paid/team-only actions elsewhere (for example creating team
- * evidence while the team is not on an active TEAM plan).
+ * TEAM workspace:
+ * - may exist on FREE as a readable/non-entitled state
+ * - may exist on PRO because PRO now supports teams
+ * - may exist on TEAM
+ * - must reject PAYG because PAYG is still personal-only
  *
- * Therefore:
- * - PERSONAL workspace must still reject plans that do not support personal use
- * - TEAM workspace should allow:
- *   - TEAM
- *   - FREE
- * - TEAM workspace should still reject personal-only paid plans such as PAYG/PRO
+ * Important:
+ * This function validates whether the workspace/plan combination is structurally valid.
+ * It does NOT decide whether a paid action is allowed.
  */
 export function assertWorkspacePlanCompatible(scope: BillingWorkspaceScope) {
   const caps = getPlanCapabilities(scope.plan);
@@ -56,8 +65,13 @@ export function assertWorkspacePlanCompatible(scope: BillingWorkspaceScope) {
   }
 
   if (scope.workspaceType === "TEAM") {
-    // TEAM workspace is allowed to exist on FREE as a non-active billing state.
-    if (scope.plan === "FREE" || scope.plan === "TEAM") {
+    /**
+     * TEAM workspace is valid when:
+     * - FREE: non-entitled but readable/manageable state
+     * - PRO: personal subscription that now supports team workspaces
+     * - TEAM: dedicated team plan
+     */
+    if (scope.plan === "FREE" || scope.plan === "PRO" || scope.plan === "TEAM") {
       return;
     }
 

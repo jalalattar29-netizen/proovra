@@ -32,6 +32,7 @@ import {
   buildPricingCatalogResponse,
   resolveCheckoutCurrency,
 } from "../services/billing-pricing.service.js";
+import { getPlanCapabilities } from "../services/plan-catalog.service.js";
 
 const PlanTypeSchema = prismaPkg.PlanType
   ? z.nativeEnum(prismaPkg.PlanType)
@@ -168,6 +169,10 @@ function assertCheckoutTarget(params: {
   plan: prismaPkg.PlanType;
   teamId?: string;
 }) {
+  /**
+   * TEAM checkout is still the only subscription checkout that targets a specific team.
+   * PRO remains a personal/base plan, while team creation limits are enforced elsewhere.
+   */
   if (params.plan === prismaPkg.PlanType.TEAM && !params.teamId) {
     const err: Error & { statusCode?: number } = new Error(
       "teamId is required for TEAM checkout"
@@ -230,6 +235,7 @@ async function assertStorageAddonAllowed(params: {
     await assertOwnedTeamForCheckout(params.userId, params.teamId);
 
     const scope = await getTeamWorkspaceScope(params.teamId);
+    const caps = getPlanCapabilities(scope.plan);
 
     if (definition.workspaceType !== "TEAM") {
       const err: Error & { statusCode?: number } = new Error(
@@ -239,11 +245,22 @@ async function assertStorageAddonAllowed(params: {
       throw err;
     }
 
-    if (scope.plan !== prismaPkg.PlanType.TEAM) {
-      const err: Error & { statusCode?: number } = new Error(
-        "Team storage add-ons require an active TEAM plan"
+    /**
+     * Important:
+     * Team workspaces are no longer assumed to be valid only on the TEAM paid plan.
+     * A team workspace may also be valid when the owner's/base plan supports teams
+     * (for example PRO in the new ruleset).
+     *
+     * So the correct guard here is:
+     * - the effective workspace plan must support team workspaces
+     * - not specifically `scope.plan === TEAM`
+     */
+    if (!caps.allowsTeamWorkspace) {
+      const err: Error & { statusCode?: number; code?: string } = new Error(
+        "This workspace does not currently support team storage add-ons"
       );
       err.statusCode = 409;
+      err.code = "TEAM_WORKSPACE_PLAN_REQUIRED";
       throw err;
     }
 

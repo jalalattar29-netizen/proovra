@@ -102,24 +102,38 @@ export async function getTeamWorkspaceScope(
   }
 
   /**
-   * Team workspace billing rules:
+   * Effective team workspace plan rules:
    *
-   * - ACTIVE / PAST_DUE TEAM => effective TEAM
-   * - Anything else => effective FREE
+   * 1) If this specific team has ACTIVE / PAST_DUE TEAM billing, use TEAM.
+   * 2) Otherwise inherit the owner's active entitlement plan when that plan
+   *    supports team workspaces (for example PRO, and later TEAM if enabled
+   *    at owner/account level).
+   * 3) Otherwise fall back to FREE.
    *
-   * This keeps the team workspace readable and manageable inside billing/settings
-   * without pretending it has active TEAM entitlements.
+   * This allows:
+   * - PRO owners to operate team workspaces
+   * - TEAM-billed workspaces to remain TEAM
+   * - FREE / PAYG owners to see non-entitled teams as FREE
    */
+  const ownerEntitlement = await ensureEntitlement(team.ownerUserId);
+
+  const ownerPlanCaps = getPlanCapabilities(ownerEntitlement.plan);
+  const ownerPlanSupportsTeams = ownerPlanCaps.allowsTeamWorkspace;
+
   const effectivePlan =
     team.billingStatus === prismaPkg.TeamBillingStatus.ACTIVE ||
     team.billingStatus === prismaPkg.TeamBillingStatus.PAST_DUE
       ? team.billingPlan
-      : prismaPkg.PlanType.FREE;
+      : ownerPlanSupportsTeams
+        ? ownerEntitlement.plan
+        : prismaPkg.PlanType.FREE;
 
   const activeStorageAddonBytes = await getActiveWorkspaceStorageAddonBytes({
     ownerUserId: team.ownerUserId,
     teamId: team.id,
   });
+
+  const effectiveCaps = getPlanCapabilities(effectivePlan);
 
   const scope: WorkspaceScope = {
     workspaceType: "TEAM",
@@ -127,7 +141,12 @@ export async function getTeamWorkspaceScope(
     teamId: team.id,
     plan: effectivePlan,
     credits: 0,
-    teamSeats: Math.max(0, team.includedSeats ?? 0),
+    teamSeats: Math.max(
+      0,
+      team.includedSeats ?? 0,
+      effectiveCaps.maxMembersPerTeam ?? 0,
+      effectiveCaps.includedSeats ?? 0
+    ),
     storageBytesOverride: team.storageBytesOverride ?? null,
     activeStorageAddonBytes,
   };

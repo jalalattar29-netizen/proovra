@@ -12,6 +12,8 @@ export type PricingCatalogPlan = {
   maxEvidenceRecords?: number | null;
   monthlyPriceCents?: number | null;
   workspaceType?: "PERSONAL" | "TEAM" | "BOTH";
+  maxOwnedTeams?: number;
+  maxMembersPerTeam?: number;
 };
 
 export type PricingStorageAddonCatalogItem = {

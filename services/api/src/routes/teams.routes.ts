@@ -6,8 +6,12 @@ import {
   assertTeamSeatAvailable,
   getWorkspaceUsage,
 } from "../services/workspace-usage.service.js";
-import { getTeamWorkspaceScope } from "../services/workspace-billing.service.js";
+import {
+  getPersonalWorkspaceScope,
+  getTeamWorkspaceScope,
+} from "../services/workspace-billing.service.js";
 import { refreshTeamSeatState } from "../services/billing.service.js";
+import { getPlanCapabilities } from "../services/plan-catalog.service.js";
 import * as prismaPkg from "@prisma/client";
 import { prisma } from "../db.js";
 import { requireAuth } from "../middleware/auth.js";
@@ -168,40 +172,137 @@ function fireTeamAnalyticsEvent(params: {
   }).catch(() => null);
 }
 
+async function assertUserCanCreateAnotherTeam(ownerUserId: string) {
+  const personalScope = await getPersonalWorkspaceScope(ownerUserId);
+  const caps = getPlanCapabilities(personalScope.plan);
+  const maxOwnedTeams = Math.max(0, caps.maxOwnedTeams ?? 0);
+
+  if (maxOwnedTeams <= 0) {
+    const err: Error & {
+      statusCode?: number;
+      code?: string;
+      details?: Record<string, unknown>;
+    } = new Error("Your current plan does not allow team creation");
+    err.statusCode = 409;
+    err.code = "TEAM_CREATION_NOT_ALLOWED";
+    err.details = {
+      plan: personalScope.plan,
+      maxOwnedTeams,
+    };
+    throw err;
+  }
+
+  const ownedTeamCount = await prisma.team.count({
+    where: { ownerUserId },
+  });
+
+  if (ownedTeamCount >= maxOwnedTeams) {
+    const err: Error & {
+      statusCode?: number;
+      code?: string;
+      details?: Record<string, unknown>;
+    } = new Error("Team limit reached for current plan");
+    err.statusCode = 409;
+    err.code = "TEAM_WORKSPACE_LIMIT_REACHED";
+    err.details = {
+      plan: personalScope.plan,
+      maxOwnedTeams,
+      ownedTeamCount,
+    };
+    throw err;
+  }
+
+  return {
+    plan: personalScope.plan,
+    maxOwnedTeams,
+    ownedTeamCount,
+  };
+}
+
 export async function teamsRoutes(app: FastifyInstance) {
   app.post("/v1/teams", { preHandler: requireAuthAndLegal }, async (req, reply) => {
     const body = CreateTeamBody.parse(req.body);
     const ownerUserId = getAuthUserId(req);
 
-    const team = await prisma.team.create({
-      data: {
-        name: body.name.trim(),
-        ownerUserId,
-        members: {
-          create: {
-            userId: ownerUserId,
-            role: prismaPkg.TeamRole.OWNER,
+    try {
+      const ownershipState = await assertUserCanCreateAnotherTeam(ownerUserId);
+
+      const team = await prisma.team.create({
+        data: {
+          name: body.name.trim(),
+          ownerUserId,
+          members: {
+            create: {
+              userId: ownerUserId,
+              role: prismaPkg.TeamRole.OWNER,
+            },
           },
         },
-      },
-    });
+      });
 
-    auditTeamAction(req, {
-      userId: ownerUserId,
-      action: "teams.create",
-      outcome: "success",
-      resourceId: team.id,
-      metadata: { name: team.name },
-    });
+      auditTeamAction(req, {
+        userId: ownerUserId,
+        action: "teams.create",
+        outcome: "success",
+        resourceId: team.id,
+        metadata: {
+          name: team.name,
+          plan: ownershipState.plan,
+          ownedTeamCountBeforeCreate: ownershipState.ownedTeamCount,
+          maxOwnedTeams: ownershipState.maxOwnedTeams,
+        },
+      });
 
-    fireTeamAnalyticsEvent({
-      eventType: "team_created",
-      userId: ownerUserId,
-      req,
-      entityId: team.id,
-    });
+      fireTeamAnalyticsEvent({
+        eventType: "team_created",
+        userId: ownerUserId,
+        req,
+        entityId: team.id,
+        metadata: {
+          plan: ownershipState.plan,
+        },
+      });
 
-    return reply.code(201).send(team);
+      return reply.code(201).send(team);
+    } catch (err) {
+      const statusCode =
+        typeof (err as { statusCode?: number })?.statusCode === "number"
+          ? (err as { statusCode?: number }).statusCode!
+          : 500;
+
+      if (statusCode !== 500) {
+        auditTeamAction(req, {
+          userId: ownerUserId,
+          action: "teams.create",
+          outcome: "blocked",
+          severity: "warning",
+          metadata: {
+            name: body.name.trim(),
+            reason:
+              (err as { code?: string })?.code ?? "team_creation_not_allowed",
+          },
+        });
+
+        return reply.code(statusCode).send({
+          message: (err as Error).message || "Unable to create team",
+          code: (err as { code?: string })?.code,
+          details: (err as { details?: Record<string, unknown> })?.details,
+        });
+      }
+
+      auditTeamAction(req, {
+        userId: ownerUserId,
+        action: "teams.create",
+        outcome: "failure",
+        severity: "critical",
+        metadata: {
+          name: body.name.trim(),
+          reason: "unexpected_error",
+        },
+      });
+
+      throw err;
+    }
   });
 
   app.get("/v1/teams", { preHandler: requireAuthAndLegal }, async (req, reply) => {
@@ -333,10 +434,7 @@ export async function teamsRoutes(app: FastifyInstance) {
 
       const workspaceScope = await getTeamWorkspaceScope(teamId);
       const workspaceUsage = await getWorkspaceUsage(workspaceScope);
-      const effectiveSeatLimit = Math.max(
-        team.includedSeats ?? 0,
-        workspaceScope.teamSeats ?? 0
-      );
+      const effectiveSeatLimit = workspaceUsage.seatLimit;
 
       auditTeamAction(req, {
         userId,
@@ -683,20 +781,28 @@ export async function teamsRoutes(app: FastifyInstance) {
         return reply.code(403).send({ message: "Forbidden" });
       }
 
+      /**
+       * Important rule:
+       * Invitation creation must NOT be blocked because the team is full.
+       * Only actual member addition / invite acceptance should enforce the 5-member cap.
+       *
+       * We still require the workspace to support teams at all.
+       */
       const scope = await getTeamWorkspaceScope(teamId);
+      const scopeCaps = getPlanCapabilities(scope.plan);
 
-      if (scope.plan !== prismaPkg.PlanType.TEAM) {
+      if (!scopeCaps.allowsTeamWorkspace) {
         auditTeamAction(req, {
           userId,
           action: "teams.invite_create",
           outcome: "blocked",
           severity: "warning",
           resourceId: teamId,
-          metadata: { reason: "team_plan_required", email },
+          metadata: { reason: "team_plan_required", email, plan: scope.plan },
         });
 
         return reply.code(409).send({
-          message: "Active TEAM plan required before inviting members",
+          message: "This team does not currently support member invitations",
         });
       }
 
@@ -787,8 +893,6 @@ export async function teamsRoutes(app: FastifyInstance) {
         }
       }
 
-      await assertTeamSeatAvailable(scope);
-
       const token = randomUUID().replace(/-/g, "");
       const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
 
@@ -834,6 +938,7 @@ export async function teamsRoutes(app: FastifyInstance) {
           email,
           role: invite.role,
           emailSent,
+          plan: scope.plan,
         },
       });
 
@@ -842,7 +947,7 @@ export async function teamsRoutes(app: FastifyInstance) {
         userId,
         req,
         entityId: teamId,
-        metadata: { email, role: invite.role },
+        metadata: { email, role: invite.role, plan: scope.plan },
       });
 
       return reply.code(201).send({
@@ -1148,20 +1253,30 @@ export async function teamsRoutes(app: FastifyInstance) {
       });
 
       if (!existingMembership) {
+        /**
+         * Important rule:
+         * Acceptance is where the member cap is enforced.
+         * Invite creation itself must not be blocked for a full team.
+         */
         const scope = await getTeamWorkspaceScope(invite.teamId);
+        const scopeCaps = getPlanCapabilities(scope.plan);
 
-        if (scope.plan !== prismaPkg.PlanType.TEAM) {
+        if (!scopeCaps.allowsTeamWorkspace) {
           auditTeamAction(req, {
             userId,
             action: "teams.invite_accept",
             outcome: "blocked",
             severity: "warning",
             resourceId: invite.teamId,
-            metadata: { reason: "team_plan_required", inviteId: invite.id },
+            metadata: {
+              reason: "team_plan_required",
+              inviteId: invite.id,
+              plan: scope.plan,
+            },
           });
 
           return reply.code(409).send({
-            message: "This team no longer has an active TEAM plan",
+            message: "This team no longer supports member access",
           });
         }
 

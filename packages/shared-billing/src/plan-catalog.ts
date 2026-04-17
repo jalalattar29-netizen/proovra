@@ -20,6 +20,22 @@ export type PlanCapabilities = {
   allowsPersonalWorkspace: boolean;
   allowsTeamWorkspace: boolean;
   teamWorkspaceRequired: boolean;
+
+  /**
+   * Business limits:
+   * - FREE / PAYG => no owned teams
+   * - PRO => up to 2 owned teams
+   * - TEAM => up to 5 owned teams
+   */
+  maxOwnedTeams: number;
+
+  /**
+   * Hard cap for actual members inside one team.
+   * This is NOT an invite cap.
+   * Invites may exist above the limit, but accepting / adding a member
+   * must fail once this cap is reached.
+   */
+  maxMembersPerTeam: number;
 };
 
 export type EnterprisePricingCatalog = {
@@ -53,7 +69,10 @@ export const PLAN_CAPABILITIES: Record<PlanType, PlanCapabilities> = {
     allowsPersonalWorkspace: true,
     allowsTeamWorkspace: false,
     teamWorkspaceRequired: false,
+    maxOwnedTeams: 0,
+    maxMembersPerTeam: 0,
   },
+
   PAYG: {
     plan: "PAYG",
     displayName: "Pay-as-you-go",
@@ -69,7 +88,10 @@ export const PLAN_CAPABILITIES: Record<PlanType, PlanCapabilities> = {
     allowsPersonalWorkspace: true,
     allowsTeamWorkspace: false,
     teamWorkspaceRequired: false,
+    maxOwnedTeams: 0,
+    maxMembersPerTeam: 0,
   },
+
   PRO: {
     plan: "PRO",
     displayName: "Pro",
@@ -83,9 +105,12 @@ export const PLAN_CAPABILITIES: Record<PlanType, PlanCapabilities> = {
     maxEvidenceRecords: null,
     paygCreditsRequiredPerCompletion: 0,
     allowsPersonalWorkspace: true,
-    allowsTeamWorkspace: false,
+    allowsTeamWorkspace: true,
     teamWorkspaceRequired: false,
+    maxOwnedTeams: 2,
+    maxMembersPerTeam: 5,
   },
+
   TEAM: {
     plan: "TEAM",
     displayName: "Team",
@@ -101,6 +126,8 @@ export const PLAN_CAPABILITIES: Record<PlanType, PlanCapabilities> = {
     allowsPersonalWorkspace: false,
     allowsTeamWorkspace: true,
     teamWorkspaceRequired: true,
+    maxOwnedTeams: 5,
+    maxMembersPerTeam: 5,
   },
 };
 
@@ -178,7 +205,10 @@ export function getPricingCatalogResponse() {
       maxEvidenceRecords: PLAN_CAPABILITIES.FREE.maxEvidenceRecords,
       seats: PLAN_CAPABILITIES.FREE.includedSeats,
       workspaceType: PLAN_CAPABILITIES.FREE.workspaceType,
+      maxOwnedTeams: PLAN_CAPABILITIES.FREE.maxOwnedTeams,
+      maxMembersPerTeam: PLAN_CAPABILITIES.FREE.maxMembersPerTeam,
     },
+
     payg: {
       plan: "PAYG" as const,
       displayName: PLAN_CAPABILITIES.PAYG.displayName,
@@ -193,7 +223,10 @@ export function getPricingCatalogResponse() {
         PLAN_CAPABILITIES.PAYG.paygCreditsRequiredPerCompletion,
       seats: PLAN_CAPABILITIES.PAYG.includedSeats,
       workspaceType: PLAN_CAPABILITIES.PAYG.workspaceType,
+      maxOwnedTeams: PLAN_CAPABILITIES.PAYG.maxOwnedTeams,
+      maxMembersPerTeam: PLAN_CAPABILITIES.PAYG.maxMembersPerTeam,
     },
+
     pro: {
       plan: "PRO" as const,
       displayName: PLAN_CAPABILITIES.PRO.displayName,
@@ -206,7 +239,10 @@ export function getPricingCatalogResponse() {
       publicVerifyIncluded: PLAN_CAPABILITIES.PRO.publicVerifyIncluded,
       seats: PLAN_CAPABILITIES.PRO.includedSeats,
       workspaceType: PLAN_CAPABILITIES.PRO.workspaceType,
+      maxOwnedTeams: PLAN_CAPABILITIES.PRO.maxOwnedTeams,
+      maxMembersPerTeam: PLAN_CAPABILITIES.PRO.maxMembersPerTeam,
     },
+
     team: {
       plan: "TEAM" as const,
       displayName: PLAN_CAPABILITIES.TEAM.displayName,
@@ -219,7 +255,10 @@ export function getPricingCatalogResponse() {
       publicVerifyIncluded: PLAN_CAPABILITIES.TEAM.publicVerifyIncluded,
       seats: PLAN_CAPABILITIES.TEAM.includedSeats,
       workspaceType: PLAN_CAPABILITIES.TEAM.workspaceType,
+      maxOwnedTeams: PLAN_CAPABILITIES.TEAM.maxOwnedTeams,
+      maxMembersPerTeam: PLAN_CAPABILITIES.TEAM.maxMembersPerTeam,
     },
+
     enterprise,
   };
 }

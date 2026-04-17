@@ -112,7 +112,9 @@ function getAvailableStorageAddonOffers(scope: WorkspaceScope) {
   return [];
 }
 
-function getSuggestedUpgradePlan(scope: WorkspaceScope): prismaPkg.PlanType | null {
+function getSuggestedUpgradePlan(
+  scope: WorkspaceScope
+): prismaPkg.PlanType | null {
   if (scope.workspaceType === "TEAM") {
     return null;
   }
@@ -129,6 +131,20 @@ function getSuggestedUpgradePlan(scope: WorkspaceScope): prismaPkg.PlanType | nu
   }
 
   return null;
+}
+
+function getTeamMemberLimit(scope: WorkspaceScope): number {
+  if (!scope.teamId) {
+    return 0;
+  }
+
+  const caps = getPlanCapabilities(scope.plan);
+  return Math.max(
+    0,
+    caps.maxMembersPerTeam || 0,
+    caps.includedSeats || 0,
+    scope.teamSeats || 0
+  );
 }
 
 export type WorkspaceUsage = {
@@ -271,7 +287,9 @@ export async function getWorkspaceUsage(
       : storageFromPlanAndAddons;
 
   const storageBytesRemaining =
-    storageBytesLimit > storageBytesUsed ? storageBytesLimit - storageBytesUsed : 0n;
+    storageBytesLimit > storageBytesUsed
+      ? storageBytesLimit - storageBytesUsed
+      : 0n;
 
   const rawStorageRatio =
     storageBytesLimit > 0n
@@ -284,9 +302,12 @@ export async function getWorkspaceUsage(
     storageBytesLimit > 0n && storageBytesUsed >= storageBytesLimit;
   const isNearStorageLimit = !isStorageLimitReached && storageUsageRatio >= 0.8;
 
-  const seatLimit = scope.teamId
-    ? Math.max(caps.includedSeats, scope.teamSeats || 0)
-    : 0;
+  /**
+   * Important business rule:
+   * We limit actual members in a team, not invitations.
+   * The effective member limit comes from plan capabilities, not invite count.
+   */
+  const seatLimit = getTeamMemberLimit(scope);
 
   const seatRemaining =
     seatLimit > teamMemberCount ? seatLimit - teamMemberCount : 0;
@@ -406,8 +427,7 @@ export async function assertTeamSeatAvailable(scope: WorkspaceScope) {
   if (!scope.teamId) return;
 
   const usage = await getWorkspaceUsage(scope);
-  const caps = getPlanCapabilities(scope.plan);
-  const seatLimit = Math.max(caps.includedSeats, scope.teamSeats || 0);
+  const seatLimit = getTeamMemberLimit(scope);
 
   if (seatLimit <= 0) {
     const err: Error & {
@@ -430,7 +450,7 @@ export async function assertTeamSeatAvailable(scope: WorkspaceScope) {
       statusCode?: number;
       code?: string;
       details?: Record<string, unknown>;
-    } = new Error("Team seat limit reached");
+    } = new Error("Team member limit reached");
     err.statusCode = 409;
     err.code = "TEAM_SEAT_LIMIT_REACHED";
     err.details = {
@@ -439,6 +459,7 @@ export async function assertTeamSeatAvailable(scope: WorkspaceScope) {
       teamMemberCount: usage.teamMemberCount,
       seatLimit,
       seatUsagePercent: usage.seatUsagePercent,
+      maxMembersPerTeam: seatLimit,
     };
     throw err;
   }

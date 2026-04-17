@@ -9,16 +9,24 @@ type Props = {
   free: {
     maxEvidenceRecords?: number | null;
     storageLabel?: string | null;
+    maxOwnedTeams?: number | null;
+    maxMembersPerTeam?: number | null;
   } | null;
   payg: {
     storageLabel?: string | null;
+    maxOwnedTeams?: number | null;
+    maxMembersPerTeam?: number | null;
   } | null;
   pro: {
     storageLabel?: string | null;
+    maxOwnedTeams?: number | null;
+    maxMembersPerTeam?: number | null;
   } | null;
   team: {
     storageLabel?: string | null;
     seats?: number | null;
+    maxOwnedTeams?: number | null;
+    maxMembersPerTeam?: number | null;
   } | null;
   enterprise?: EnterpriseColumn | null;
 };
@@ -37,7 +45,7 @@ export function PricingComparisonTable({
         `${free?.maxEvidenceRecords ?? 3} total`,
         "Pay only when you complete evidence",
         "Unlimited",
-        "Unlimited across team workspace",
+        "Unlimited across team workspaces",
         "Custom operational volume",
       ],
     },
@@ -74,18 +82,44 @@ export function PricingComparisonTable({
       values: ["Included", "Included", "Included", "Included", "Included"],
     },
     {
-      label: "Workspace type",
+      label: "Workspace support",
       values: [
-        "Personal",
-        "Personal",
-        "Personal",
-        "Team workspace",
+        "Personal only",
+        "Personal only",
+        "Personal + team support",
+        "Team-first workspace support",
         "Organization-fit deployment",
       ],
     },
     {
-      label: "Included seats",
-      values: ["—", "—", "—", `${team?.seats ?? 5} included`, "Custom seat volume"],
+      label: "Owned teams allowed",
+      values: [
+        `${free?.maxOwnedTeams ?? 0}`,
+        `${payg?.maxOwnedTeams ?? 0}`,
+        `${pro?.maxOwnedTeams ?? 2}`,
+        `${team?.maxOwnedTeams ?? 5}`,
+        "Custom",
+      ],
+    },
+    {
+      label: "Members per team",
+      values: [
+        `${free?.maxMembersPerTeam ?? 0}`,
+        `${payg?.maxMembersPerTeam ?? 0}`,
+        `${pro?.maxMembersPerTeam ?? 5}`,
+        `${team?.maxMembersPerTeam ?? 5}`,
+        "Custom",
+      ],
+    },
+    {
+      label: "Team member rule",
+      values: [
+        "No teams",
+        "No teams",
+        "Invites can exist, membership capped at 5",
+        "Invites can exist, membership capped at 5",
+        "Custom rollout policy",
+      ],
     },
     {
       label: "Commercial path",
@@ -102,8 +136,8 @@ export function PricingComparisonTable({
       values: [
         "Evaluation and low volume",
         "Usage-based professional output",
-        "Recurring individual volume",
-        "Shared operational team usage",
+        "Recurring use with small-team support",
+        "Shared operational multi-team usage",
         "Procurement, governance, or larger rollout",
       ],
     },
@@ -134,9 +168,9 @@ export function PricingComparisonTable({
       </div>
 
       <div className="mb-5 max-w-[920px] text-[0.94rem] leading-[1.8] text-[#5d6d71]">
-        Compare evidence volume, storage, collaboration fit, review outputs, and
-        commercial path before choosing a self-serve checkout or an enterprise
-        discussion.
+        Compare evidence volume, storage, collaboration fit, team limits, review
+        outputs, and commercial path before choosing a self-serve checkout or an
+        enterprise discussion.
       </div>
 
       <div
@@ -152,7 +186,7 @@ export function PricingComparisonTable({
             width: "100%",
             borderCollapse: "separate",
             borderSpacing: 0,
-            minWidth: 1120,
+            minWidth: 1180,
           }}
         >
           <thead>
@@ -233,12 +267,12 @@ export function PricingComparisonTable({
           Enterprise clarification
         </div>
         <div className="mt-2 text-[0.97rem] font-semibold tracking-[-0.02em] text-[#23373b]">
-          {enterprise?.displayName || "Enterprise"} is not just “more seats”.
+          {enterprise?.displayName || "Enterprise"} is not just “more teams”.
         </div>
         <div className="mt-2 max-w-[980px] text-[0.9rem] leading-[1.8] text-[#5d6d71]">
           It is the route for larger organizations that need procurement review,
           governance discussion, retention alignment, shared review rollout, or
-          higher-volume operational fit.
+          higher-volume operational fit beyond the standard self-serve limits.
         </div>
       </div>
     </div>

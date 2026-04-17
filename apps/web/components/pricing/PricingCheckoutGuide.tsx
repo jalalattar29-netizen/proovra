@@ -15,7 +15,15 @@ export function PricingCheckoutGuide() {
     },
     {
       title: "Workspace context matters",
-      text: "Personal plans apply to personal workspaces. Team checkout only works for a team workspace you own.",
+      text: "Free and PAYG are personal-only. PRO supports personal use plus limited team creation. TEAM is for larger multi-team operational usage.",
+    },
+    {
+      title: "Team limits",
+      text: "PRO supports up to 2 owned teams. TEAM supports up to 5 owned teams. Each individual team is capped at 5 actual members.",
+    },
+    {
+      title: "Invites vs actual membership",
+      text: "Invitations are not blocked just because a team is currently full. The hard limit is enforced when a user is actually added or accepts an invite.",
     },
     {
       title: "Storage top-ups",
