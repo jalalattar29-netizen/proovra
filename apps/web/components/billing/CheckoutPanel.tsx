@@ -37,6 +37,11 @@ function normalizeCheckoutCurrency(
   return "USD";
 }
 
+function normalizePlanLabel(value?: string | null): string {
+  const normalized = String(value ?? "").trim().toUpperCase();
+  return normalized || "FREE";
+}
+
 export function CheckoutPanel({
   personal,
   teams,
@@ -68,9 +73,11 @@ export function CheckoutPanel({
       if (!selectedTeamId && teams[0]?.id) {
         setSelectedTeamId(teams[0].id);
       }
+
       if (selectedPlan !== "TEAM") {
         setSelectedPlan("TEAM");
       }
+
       return;
     }
 
@@ -86,8 +93,17 @@ export function CheckoutPanel({
 
   const availablePlans = useMemo(() => {
     if (targetType === "TEAM") {
+      /**
+       * Important:
+       * TEAM target here means "buy or activate a TEAM subscription
+       * for this specific workspace".
+       *
+       * It does NOT mean that team workspaces only exist on TEAM.
+       * A team workspace may already operate under the owner's PRO entitlement.
+       */
       return ["TEAM"] as CheckoutPlan[];
     }
+
     return ["PAYG", "PRO"] as CheckoutPlan[];
   }, [targetType]);
 
@@ -95,27 +111,61 @@ export function CheckoutPanel({
     return ["STRIPE", "PAYPAL"] as CheckoutProvider[];
   }, []);
 
+  const personalPlanLabel = normalizePlanLabel(personal?.plan);
+
+  const selectedTeamPlanLabel = normalizePlanLabel(selectedTeam?.plan);
+  const selectedTeamEffectivePlanLabel = normalizePlanLabel(
+    selectedTeam?.effectivePlan
+  );
+  const selectedTeamStatusLabel = normalizePlanLabel(selectedTeam?.billingStatus);
+
   const planDescription = useMemo(() => {
     if (selectedPlan === "PAYG") {
       return "One-time checkout for usage-based evidence completion on your personal workspace.";
     }
+
     if (selectedPlan === "PRO") {
-      return "Recurring monthly subscription for personal professional usage.";
+      return "Recurring monthly subscription for your personal workspace. PRO also allows team workspaces and raises your owned team limit to 2.";
     }
-    return "Recurring monthly subscription for a team workspace you own.";
+
+    return "Recurring monthly TEAM subscription for the selected team workspace. TEAM raises the owned team limit to 5 while each single team still has a hard 5-member cap.";
   }, [selectedPlan]);
 
   const targetDescription = useMemo(() => {
     if (targetType === "TEAM") {
-      return selectedTeam
-        ? `Checkout will apply to team workspace: ${selectedTeam.name}.`
-        : "Choose a team workspace you own before continuing.";
+      if (!selectedTeam) {
+        return "Choose a team workspace you own before continuing.";
+      }
+
+      const effectivePlan =
+        normalizePlanLabel(selectedTeam.effectivePlan) ||
+        normalizePlanLabel(selectedTeam.plan);
+
+      return `Checkout will apply to team workspace: ${selectedTeam.name}. Current workspace plan view: ${normalizePlanLabel(
+        selectedTeam.plan
+      )}. Effective team capability view: ${effectivePlan}.`;
     }
 
-    return `Checkout will apply to your personal workspace${
-      personal?.plan ? ` (current plan: ${personal.plan})` : ""
-    }.`;
-  }, [targetType, selectedTeam, personal]);
+    return `Checkout will apply to your personal workspace (current plan: ${personalPlanLabel}).`;
+  }, [targetType, selectedTeam, personalPlanLabel]);
+
+  const rulesSummary = useMemo(() => {
+    if (targetType === "TEAM") {
+      return [
+        "A team workspace may already be valid under PRO.",
+        "This checkout is specifically for activating or upgrading that workspace to TEAM billing.",
+        "Each single team still has a hard limit of 5 actual members.",
+        "Invitations themselves are not the limit; actual member addition is.",
+      ];
+    }
+
+    return [
+      "PAYG and PRO apply to your personal workspace.",
+      "PRO supports team ownership and allows up to 2 owned teams.",
+      "TEAM is the higher tier for owners who need up to 5 owned teams.",
+      "Each single team still has a hard limit of 5 actual members.",
+    ];
+  }, [targetType]);
 
   const canContinue = useMemo(() => {
     if (busy) return false;
@@ -213,7 +263,9 @@ export function CheckoutPanel({
 
       if (data?.mode === "subscription") {
         const approve = (
-          data?.subscription?.links as Array<{ rel: string; href: string }> | undefined
+          data?.subscription?.links as
+            | Array<{ rel: string; href: string }>
+            | undefined
         )?.find((item) => item.rel === "approve");
 
         if (!approve?.href) {
@@ -312,12 +364,29 @@ export function CheckoutPanel({
                   }}
                 >
                   <option value="">Select team workspace...</option>
-                  {teams.map((team) => (
-                    <option key={team.id} value={team.id}>
-                      {team.name}
-                    </option>
-                  ))}
+                  {teams.map((team) => {
+                    const effectivePlan = normalizePlanLabel(team.effectivePlan);
+                    const billingStatus = normalizePlanLabel(team.billingStatus);
+
+                    return (
+                      <option key={team.id} value={team.id}>
+                        {team.name} · effective {effectivePlan} · {billingStatus}
+                      </option>
+                    );
+                  })}
                 </select>
+
+                {selectedTeam ? (
+                  <div className="mt-3 rounded-[18px] border px-4 py-4 text-[0.86rem] leading-[1.75] text-[#5d6d71]">
+                    Selected team: <strong>{selectedTeam.name}</strong>
+                    <br />
+                    Workspace plan: <strong>{selectedTeamPlanLabel}</strong>
+                    <br />
+                    Effective plan: <strong>{selectedTeamEffectivePlanLabel}</strong>
+                    <br />
+                    Billing status: <strong>{selectedTeamStatusLabel}</strong>
+                  </div>
+                ) : null}
               </div>
             ) : null}
           </div>
@@ -377,6 +446,7 @@ export function CheckoutPanel({
             <div className="text-[0.9rem] font-semibold text-[#21353a]">
               Checkout summary
             </div>
+
             <div className="mt-2 text-[0.9rem] leading-[1.75] text-[#5d6d71]">
               Target: {targetType === "TEAM" ? "Team workspace" : "Personal workspace"}
               <br />
@@ -389,6 +459,17 @@ export function CheckoutPanel({
 
             <div className="mt-3 text-[0.86rem] leading-[1.75] text-[#5d6d71]">
               {targetDescription}
+            </div>
+
+            <div className="mt-4 grid gap-2">
+              {rulesSummary.map((item, index) => (
+                <div
+                  key={index}
+                  className="text-[0.84rem] leading-[1.7] text-[#5d6d71]"
+                >
+                  • {item}
+                </div>
+              ))}
             </div>
           </div>
 

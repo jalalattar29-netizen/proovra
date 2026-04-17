@@ -30,8 +30,9 @@ function readInitialPlan(value: string | null): CheckoutPlan | null {
   return null;
 }
 
-function isCanceledTeamWorkspace(workspace: TeamWorkspaceSummary): boolean {
-  return String(workspace.billingStatus ?? "").trim().toUpperCase() === "CANCELED";
+function normalizePlanLabel(value?: string | null, fallback = "FREE"): string {
+  const normalized = String(value ?? "").trim().toUpperCase();
+  return normalized || fallback;
 }
 
 export default function BillingPage() {
@@ -94,17 +95,17 @@ export default function BillingPage() {
 
       setSelectedTeamId((current) => {
         const queryTeamId = searchParams.get("team");
-        const visibleTeams = nextTeams.filter((team) => !isCanceledTeamWorkspace(team));
 
-        if (queryTeamId && visibleTeams.some((team) => team.id === queryTeamId)) {
+        if (queryTeamId && nextTeams.some((team) => team.id === queryTeamId)) {
           return queryTeamId;
         }
 
-        if (!visibleTeams.length) return "";
-        if (current && visibleTeams.some((team) => team.id === current)) {
+        if (!nextTeams.length) return "";
+        if (current && nextTeams.some((team) => team.id === current)) {
           return current;
         }
-        return visibleTeams[0]?.id ?? "";
+
+        return nextTeams[0]?.id ?? "";
       });
     } catch (err) {
       const message =
@@ -139,12 +140,6 @@ export default function BillingPage() {
           method: "POST",
           body: JSON.stringify({ teamId }),
         });
-
-        setTeams((prev) =>
-          prev.filter((team) => team.id !== teamId)
-        );
-
-        setSelectedTeamId((current) => (current === teamId ? "" : current));
 
         addToast("Team subscription cancelled", "success");
         await loadOverview();
@@ -204,14 +199,11 @@ export default function BillingPage() {
     []
   );
 
-  const visibleTeams = useMemo(
-    () => teams.filter((team) => !isCanceledTeamWorkspace(team)),
-    [teams]
-  );
+  const allTeams = useMemo(() => teams, [teams]);
 
   const summaryCards = useMemo(() => {
-    const personalPlan = personal?.plan ?? "FREE";
-    const totalTeams = visibleTeams.length;
+    const personalPlan = normalizePlanLabel(personal?.plan, "FREE");
+    const totalTeams = allTeams.length;
     const totalPayments = payments.length;
     const activeAddons = storageAddons.filter((item) =>
       ["ACTIVE", "PENDING", "PAST_DUE"].includes(String(item.status ?? "").toUpperCase())
@@ -235,7 +227,7 @@ export default function BillingPage() {
         value: String(activeAddons),
       },
     ];
-  }, [personal, visibleTeams, payments, storageAddons]);
+  }, [personal, allTeams, payments, storageAddons]);
 
   return (
     <div className="section app-section billing-page-shell">
@@ -293,9 +285,10 @@ export default function BillingPage() {
                   maxWidth: 760,
                 }}
               >
-                Review storage, seats, subscriptions, add-ons, and payment
-                history in one place. Start checkout for one-time credits,
-                recurring plans, or extra storage without leaving the workspace context.
+                Review storage, members, subscriptions, add-ons, and payment
+                history in one place. Team workspaces remain visible here even when
+                their dedicated TEAM subscription is canceled or inactive, so the
+                operator can still review and reactivate them from the same console.
               </p>
             </div>
 
@@ -380,7 +373,7 @@ export default function BillingPage() {
               <CheckoutPanel
                 key={`${initialTargetType}-${initialPlan}-${selectedTeamId || "no-team-selected"}`}
                 personal={personal}
-                teams={visibleTeams}
+                teams={allTeams}
                 initialSelectedTeamId={selectedTeamId}
                 initialTargetType={initialTargetType}
                 initialPlan={initialPlan}
@@ -389,9 +382,9 @@ export default function BillingPage() {
 
               <PersonalWorkspaceCard workspace={personal} />
 
-              {visibleTeams.length > 0 ? (
+              {allTeams.length > 0 ? (
                 <div style={{ display: "grid", gap: 20 }}>
-                  {visibleTeams.map((team) => (
+                  {allTeams.map((team) => (
                     <TeamWorkspaceCard
                       key={team.id}
                       workspace={team}
@@ -411,8 +404,9 @@ export default function BillingPage() {
                     color: "#5d6d71",
                   }}
                 >
-                  No team workspaces found yet. Create a team workspace before
-                  starting a TEAM checkout flow.
+                  No team workspaces found yet. Create a team workspace first if you
+                  want to operate shared evidence workflows or later activate a dedicated
+                  TEAM subscription for one of them.
                 </div>
               )}
 

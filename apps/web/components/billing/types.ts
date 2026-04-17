@@ -87,6 +87,13 @@ export type WorkspaceFeatureFlags = {
   reportsIncluded?: boolean;
   verificationPackageIncluded?: boolean;
   publicVerifyIncluded?: boolean;
+  allowsPersonalWorkspace?: boolean;
+  allowsTeamWorkspace?: boolean;
+};
+
+export type WorkspaceCapabilityLimits = {
+  maxOwnedTeams?: number | null;
+  maxMembersPerTeam?: number | null;
 };
 
 export type PersonalWorkspaceSummary = {
@@ -97,6 +104,7 @@ export type PersonalWorkspaceSummary = {
   storage?: WorkspaceStorageInfo | null;
   workspaceHealth?: WorkspaceHealthSummary | null;
   features?: WorkspaceFeatureFlags | null;
+  limits?: WorkspaceCapabilityLimits | null;
   subscription?: BillingSubscriptionSummary | null;
   storageAddons?: WorkspaceStorageAddonSummary[];
   activeStorageAddonSummary?: {
@@ -127,6 +135,7 @@ export type TeamWorkspaceSummary = {
     members?: number;
   } | null;
   features?: WorkspaceFeatureFlags | null;
+  limits?: WorkspaceCapabilityLimits | null;
   subscription?: BillingSubscriptionSummary | null;
   storageAddons?: WorkspaceStorageAddonSummary[];
   activeStorageAddonSummary?: {
@@ -142,6 +151,8 @@ export type BillingOverviewResponse = {
     plan?: string | null;
     credits?: number | null;
     teamSeats?: number | null;
+    maxOwnedTeams?: number | null;
+    maxMembersPerTeam?: number | null;
   } | null;
   summary?: {
     personalPlan?: string | null;

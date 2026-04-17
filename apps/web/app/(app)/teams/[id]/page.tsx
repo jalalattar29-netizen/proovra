@@ -83,9 +83,11 @@ type Team = {
   stats?: TeamStats;
   members?: TeamMember[];
   billingPlan?: string | null;
+  effectivePlan?: string | null;
   billingStatus?: string | null;
   billingOwnerUserId?: string | null;
   includedSeats?: number | null;
+  maxMembersPerTeam?: number | null;
   overSeatLimit?: boolean | null;
   billingActivatedAt?: string | null;
   billingCanceledAt?: string | null;
@@ -124,6 +126,11 @@ function formatLocalDateTime(value: string | null | undefined): string {
   if (Number.isNaN(date.getTime())) return "Not available";
 
   return date.toLocaleString();
+}
+
+function normalizePlanLabel(value?: string | null, fallback = "FREE"): string {
+  const normalized = String(value ?? "").trim().toUpperCase();
+  return normalized || fallback;
 }
 
 function roleTone(role: string) {
@@ -510,23 +517,27 @@ export default function TeamDetailPage() {
     return `/billing?workspace=team&plan=TEAM&team=${encodeURIComponent(teamId)}`;
   }, [teamId]);
 
-  const effectiveBillingPlan = useMemo(() => {
-    const normalized = String(team?.billingPlan ?? "").trim().toUpperCase();
-    return normalized || "FREE";
+  const displayBillingPlan = useMemo(() => {
+    return normalizePlanLabel(team?.billingPlan, "FREE");
   }, [team?.billingPlan]);
+
+  const effectivePlan = useMemo(() => {
+    return normalizePlanLabel(team?.effectivePlan ?? team?.billingPlan, "FREE");
+  }, [team?.effectivePlan, team?.billingPlan]);
 
   const effectiveBillingStatus = useMemo(() => {
     const normalized = String(team?.billingStatus ?? "").trim().toUpperCase();
-    if (!normalized) {
-      return effectiveBillingPlan === "TEAM" ? "ACTIVE" : "INACTIVE";
-    }
-    return normalized;
-  }, [team?.billingStatus, effectiveBillingPlan]);
+    if (normalized) return normalized;
+    return effectivePlan === "TEAM" ? "ACTIVE" : "INACTIVE";
+  }, [team?.billingStatus, effectivePlan]);
 
-  const teamSeatsUsed = team?.stats?.memberCount ?? team?.members?.length ?? 0;
-  const teamSeatsIncluded = team?.includedSeats ?? 0;
-  const teamSeatsRemaining =
-    teamSeatsIncluded > 0 ? Math.max(0, teamSeatsIncluded - teamSeatsUsed) : 0;
+  const teamMembersUsed = team?.stats?.memberCount ?? team?.members?.length ?? 0;
+  const teamMembersIncluded =
+    team?.maxMembersPerTeam ?? team?.includedSeats ?? 5;
+  const teamMembersRemaining =
+    teamMembersIncluded > 0
+      ? Math.max(0, teamMembersIncluded - teamMembersUsed)
+      : 0;
 
   const displayMemberName = (member: TeamMember) =>
     member.user?.displayName || member.label || member.user?.email || member.userId;
@@ -1566,7 +1577,8 @@ export default function TeamDetailPage() {
 
                 <div className="rounded-full border border-[rgba(158,216,207,0.18)] bg-[linear-gradient(180deg,rgba(158,216,207,0.10)_0%,rgba(255,255,255,0.028)_100%)] px-3.5 py-2 text-[0.78rem] font-normal text-[#c3ebe2] shadow-[0_8px_18px_rgba(0,0,0,0.08)] backdrop-blur-md">
                   <span className="mr-2 text-[#9ad1c6]">✓</span>
-                  Billing: {effectiveBillingPlan} · {effectiveBillingStatus}
+                  Plan view: {displayBillingPlan} · Effective: {effectivePlan} · Status:{" "}
+                  {effectiveBillingStatus}
                 </div>
               </div>
             </div>
@@ -1719,8 +1731,9 @@ export default function TeamDetailPage() {
                   <div className="team-card-header">
                     <div className="team-card-title">Invite member</div>
                     <div className="team-card-copy">
-                      Add a collaborator and assign the right level before they join the
-                      workspace.
+                      Create an invitation before the user joins the workspace. Pending
+                      invites do not count as active members. The actual member cap is{" "}
+                      <strong>{teamMembersIncluded}</strong> per team.
                     </div>
                   </div>
 
@@ -1799,8 +1812,16 @@ export default function TeamDetailPage() {
                         {team.stats?.pendingInviteCount ?? invites.length}
                       </div>
                       <div>
-                        <strong style={{ color: "#7f6450" }}>Billing:</strong>{" "}
-                        {effectiveBillingPlan} · {effectiveBillingStatus}
+                        <strong style={{ color: "#7f6450" }}>Plan view:</strong>{" "}
+                        {displayBillingPlan}
+                      </div>
+                      <div>
+                        <strong style={{ color: "#7f6450" }}>Effective plan:</strong>{" "}
+                        {effectivePlan}
+                      </div>
+                      <div>
+                        <strong style={{ color: "#7f6450" }}>Status:</strong>{" "}
+                        {effectiveBillingStatus}
                       </div>
                     </div>
                   </div>
@@ -1835,7 +1856,8 @@ export default function TeamDetailPage() {
                 <div className="team-card-header">
                   <div className="team-card-title">Workspace & billing summary</div>
                   <div className="team-card-copy">
-                    Core team status, billing state, seat capacity, and ownership at a glance.
+                    Core team status, plan view, effective capability, member capacity,
+                    and ownership at a glance.
                   </div>
                 </div>
 
@@ -1862,17 +1884,21 @@ export default function TeamDetailPage() {
                         {team.stats?.caseCount ?? teamCases.length}
                       </div>
                       <div>
-                        <strong style={{ color: "#7f6450" }}>Billing plan:</strong>{" "}
-                        {effectiveBillingPlan}
+                        <strong style={{ color: "#7f6450" }}>Plan view:</strong>{" "}
+                        {displayBillingPlan}
+                      </div>
+                      <div>
+                        <strong style={{ color: "#7f6450" }}>Effective plan:</strong>{" "}
+                        {effectivePlan}
                       </div>
                       <div>
                         <strong style={{ color: "#7f6450" }}>Billing status:</strong>{" "}
                         {effectiveBillingStatus}
                       </div>
                       <div>
-                        <strong style={{ color: "#7f6450" }}>Seats:</strong>{" "}
-                        {teamSeatsUsed} / {teamSeatsIncluded > 0 ? teamSeatsIncluded : "—"}
-                        {teamSeatsIncluded > 0 ? ` · ${teamSeatsRemaining} remaining` : ""}
+                        <strong style={{ color: "#7f6450" }}>Members:</strong>{" "}
+                        {teamMembersUsed} / {teamMembersIncluded}
+                        {` · ${teamMembersRemaining} remaining`}
                       </div>
                     </div>
                   </div>
@@ -1921,7 +1947,7 @@ export default function TeamDetailPage() {
                             color: "#8b3e3e",
                           }}
                         >
-                          Over seat limit
+                          Over member limit
                         </span>
                       ) : null}
                     </div>
@@ -1937,12 +1963,17 @@ export default function TeamDetailPage() {
                       }}
                     >
                       <div>
-                        Team billing is managed through the Billing console using this
-                        exact workspace context.
+                        This workspace may remain valid even when it is not on a dedicated
+                        TEAM subscription.
                       </div>
                       <div>
-                        Use billing to start a TEAM subscription, review seat pressure,
-                        or manage recurring workspace billing.
+                        Use billing when you specifically want to start, reactivate, or
+                        manage a dedicated <strong>TEAM</strong> subscription for this
+                        workspace.
+                      </div>
+                      <div>
+                        Pending invites are not the same thing as active member count.
+                        The actual member cap is enforced on joined members.
                       </div>
                     </div>
 
@@ -2094,7 +2125,8 @@ export default function TeamDetailPage() {
                   <div className="team-card-title">Pending invites</div>
                   <div className="team-card-copy">
                     All invitations waiting for acceptance, with quick actions to manage
-                    them.
+                    them. Pending invites are informational and are shown separately from
+                    active member count.
                   </div>
                 </div>
 

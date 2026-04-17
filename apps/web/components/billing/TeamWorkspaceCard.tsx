@@ -23,6 +23,11 @@ function hasCancelableSubscription(status?: string | null) {
   );
 }
 
+function normalizeLabel(value?: string | null, fallback = "None") {
+  const normalized = String(value ?? "").trim().toUpperCase();
+  return normalized || fallback;
+}
+
 function formatSubscriptionStatusLabel(status?: string | null) {
   const normalized = String(status ?? "").trim().toUpperCase();
 
@@ -139,6 +144,20 @@ export function TeamWorkspaceCard({
   const extraStorageBytes =
     workspace.activeStorageAddonSummary?.totalExtraStorageBytes ?? null;
 
+  const displayPlan = normalizeLabel(workspace.plan, "FREE");
+  const effectivePlan = normalizeLabel(workspace.effectivePlan, displayPlan);
+  const billingStatus = normalizeLabel(workspace.billingStatus, "INACTIVE");
+  const seatLimit = workspace.seats?.included ?? 0;
+  const seatUsed = workspace.seats?.used ?? 0;
+  const seatRemaining = workspace.seats?.remaining ?? 0;
+
+  const planExplanation =
+    effectivePlan === "TEAM"
+      ? "This workspace currently has TEAM-level capability."
+      : effectivePlan === "PRO"
+        ? "This workspace is currently operating under the owner's PRO entitlement."
+        : "This workspace is currently outside active paid team capability.";
+
   return (
     <Card
       className="relative overflow-hidden rounded-[30px] border bg-transparent p-0 shadow-none"
@@ -154,13 +173,13 @@ export function TeamWorkspaceCard({
             <div className="text-[1.05rem] font-semibold tracking-[-0.02em] text-[#21353a]">
               {workspace.name}
             </div>
+
             <div className="mt-2 text-[0.92rem] leading-[1.7] text-[#5d6d71]">
-              Plan: <strong>{workspace.plan ?? "FREE"}</strong>
-              {workspace.effectivePlan && workspace.effectivePlan !== workspace.plan ? (
-                <>
-                  {" · "}Effective: <strong>{workspace.effectivePlan}</strong>
-                </>
-              ) : null}
+              Workspace plan view: <strong>{displayPlan}</strong>
+              <br />
+              Effective capability view: <strong>{effectivePlan}</strong>
+              <br />
+              Billing status: <strong>{billingStatus}</strong>
             </div>
           </div>
 
@@ -186,7 +205,7 @@ export function TeamWorkspaceCard({
                   color: "#9f3535",
                 }}
               >
-                Over seat limit
+                Over member limit
               </div>
             ) : null}
 
@@ -216,6 +235,22 @@ export function TeamWorkspaceCard({
               </div>
             ) : null}
           </div>
+        </div>
+
+        <div
+          className="mt-4 rounded-[18px] border px-4 py-4 text-[0.88rem] leading-[1.75]"
+          style={{
+            border: "1px solid rgba(79,112,107,0.10)",
+            background:
+              "linear-gradient(180deg, rgba(255,255,255,0.48) 0%, rgba(243,245,242,0.88) 100%)",
+            color: "#5d6d71",
+          }}
+        >
+          {planExplanation}
+          <br />
+          PRO can support owned team workspaces. TEAM is the higher subscription
+          tier for owners who need a larger owned-team limit. Each single team
+          still has a hard cap of <strong>5 actual members</strong>.
         </div>
 
         <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
@@ -251,16 +286,16 @@ export function TeamWorkspaceCard({
             }}
           >
             <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#9b826b]">
-              Seats
+              Members
             </div>
             <div className="mt-2 text-[0.94rem] font-semibold text-[#21353a]">
-              {workspace.seats?.used ?? 0} / {workspace.seats?.included ?? 0}
+              {seatUsed} / {seatLimit}
             </div>
             <div className="mt-1 text-[0.85rem] text-[#5d6d71]">
-              Remaining: {workspace.seats?.remaining ?? 0}
+              Remaining: {seatRemaining}
             </div>
             <div className="mt-1 text-[0.82rem] text-[#7a878a]">
-              Usage: {workspace.seats?.usagePercent ?? 0}%
+              Hard cap enforced on actual membership, not invites
             </div>
           </div>
 
@@ -373,10 +408,10 @@ export function TeamWorkspaceCard({
             color: "#5d6d71",
           }}
         >
-          This workspace is used for <strong>TEAM</strong> billing flows. Select
-          it below to start or manage a recurring team subscription with the
-          correct ownership context. Extra storage for teams is purchased
-          separately as a <strong>one-time top-up</strong> from the billing page.
+          Select this workspace below only when you want to start or manage a
+          dedicated <strong>TEAM</strong> subscription for it. A team workspace
+          may also remain valid because the owner currently has <strong>PRO</strong>.
+          Invites do not define the cap. Actual member count does.
         </div>
 
         <div className="mt-5 flex flex-wrap gap-3">
@@ -390,7 +425,7 @@ export function TeamWorkspaceCard({
             }}
             onClick={() => onSelectForCheckout(workspace.id)}
           >
-            Select for Team Checkout
+            Select for TEAM checkout
           </Button>
 
           {canCancelSubscription ? (
