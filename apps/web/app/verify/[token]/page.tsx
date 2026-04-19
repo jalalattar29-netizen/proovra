@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { useParams } from "next/navigation";
 import {
   Button,
@@ -197,6 +197,77 @@ type VerifyAnchor = {
   anchoredAtUtc?: string | null;
 } | null;
 
+type VerifyEvidenceAssetKind =
+  | "image"
+  | "video"
+  | "audio"
+  | "pdf"
+  | "text"
+  | "other";
+
+type VerifyEvidenceAsset = {
+  id: string;
+  index: number;
+  label: string;
+  originalFileName?: string | null;
+  mimeType?: string | null;
+  kind: VerifyEvidenceAssetKind;
+  sizeBytes?: string | null;
+  durationMs?: number | null;
+  sha256?: string | null;
+  isPrimary: boolean;
+  previewable: boolean;
+  downloadable: boolean;
+  viewUrl?: string | null;
+  displaySizeLabel?: string | null;
+  previewRole?:
+    | "primary_preview"
+    | "secondary_preview"
+    | "download_only"
+    | "metadata_only";
+  originalPreservationNote?: string | null;
+  reviewerRepresentationLabel?: string | null;
+  reviewerRepresentationNote?: string | null;
+  verificationMaterialsNote?: string | null;
+  previewDataUrl?: string | null;
+  previewTextExcerpt?: string | null;
+  previewCaption?: string | null;
+};
+
+type VerifyEvidenceContentSummary = {
+  structure?: "single" | "multipart";
+  itemCount?: number;
+  primaryKind?: VerifyEvidenceAssetKind | null;
+  totalSizeDisplay?: string | null;
+  imageCount?: number;
+  videoCount?: number;
+  audioCount?: number;
+  pdfCount?: number;
+  textCount?: number;
+  otherCount?: number;
+} | null;
+
+type VerifyPreviewPolicy = {
+  contentVisible?: boolean;
+  previewEnabled?: boolean;
+  downloadableFromVerify?: boolean;
+  rationale?: string | null;
+  privacyNotice?: string | null;
+} | null;
+
+type VerifyContentAccessPolicy = {
+  mode?: "metadata_only" | "preview_only" | "full_access";
+  allowContentView?: boolean;
+  allowDownload?: boolean;
+} | null;
+
+type VerifyContentExposureDecision = {
+  mode?: "metadata_only" | "preview_only" | "full_access";
+  allowContentView?: boolean;
+  allowDownload?: boolean;
+  rationale?: string | null;
+} | null;
+
 type VerifyResponse = {
   evidenceId?: string | null;
   id?: string | null;
@@ -267,6 +338,15 @@ type VerifyResponse = {
   technicalMaterials?: VerifyTechnicalMaterials | null;
   storageAndTimestamping?: VerifyStorageAndTimestamping | null;
   limitations?: VerifyLimitations | null;
+  contentAccessPolicy?: VerifyContentAccessPolicy;
+  contentExposureDecision?: VerifyContentExposureDecision;
+  evidenceContent?: {
+    summary?: VerifyEvidenceContentSummary;
+    items?: VerifyEvidenceAsset[] | null;
+    primaryItem?: VerifyEvidenceAsset | null;
+    defaultPreviewItemId?: string | null;
+    previewPolicy?: VerifyPreviewPolicy;
+  } | null;
 };
 
 type TimelineItem = {
@@ -918,6 +998,350 @@ function sanitizeOtsFailureTechnical(raw?: string | null): string | null {
   return text.replace(/\s+/g, " ").trim();
 }
 
+function formatDuration(durationMs?: number | null): string | null {
+  if (!durationMs || durationMs <= 0) return null;
+
+  const totalSeconds = Math.floor(durationMs / 1000);
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+
+  if (hours > 0) {
+    return `${hours}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(
+      2,
+      "0"
+    )}`;
+  }
+
+  return `${minutes}:${String(seconds).padStart(2, "0")}`;
+}
+
+function evidenceKindLabel(kind?: VerifyEvidenceAssetKind | null): string {
+  switch (kind) {
+    case "image":
+      return "Image";
+    case "video":
+      return "Video";
+    case "audio":
+      return "Audio";
+    case "pdf":
+      return "PDF";
+    case "text":
+      return "Text";
+    case "other":
+      return "Other";
+    default:
+      return "Evidence";
+  }
+}
+
+function previewRoleLabel(
+  role?: VerifyEvidenceAsset["previewRole"]
+): string | null {
+  switch (role) {
+    case "primary_preview":
+      return "Primary reviewer preview";
+    case "secondary_preview":
+      return "Supporting reviewer preview";
+    case "download_only":
+      return "Download-only access";
+    case "metadata_only":
+      return "Metadata-only access";
+    default:
+      return null;
+  }
+}
+
+function renderVerifyEvidenceMedia(
+  item: VerifyEvidenceAsset | null
+): JSX.Element {
+  const wrapperStyle: CSSProperties = {
+    overflow: "hidden",
+    borderRadius: 22,
+    border: "1px solid #D0D5DD",
+    background:
+      item?.kind === "image" || item?.kind === "pdf"
+        ? "#FFFFFF"
+        : "linear-gradient(180deg, #101828 0%, #0F172A 100%)",
+    minHeight: 340,
+  };
+
+  if (!item || !item.viewUrl) {
+    if (item?.previewDataUrl) {
+      return (
+        <div style={wrapperStyle}>
+          <img
+            src={item.previewDataUrl}
+            alt={item.previewCaption ?? item.label}
+            style={{
+              display: "block",
+              width: "100%",
+              maxHeight: 560,
+              objectFit: "contain",
+              background: "#F8FAFC",
+            }}
+          />
+        </div>
+      );
+    }
+
+    if (item?.previewTextExcerpt) {
+      return (
+        <div
+          style={{
+            ...wrapperStyle,
+            background: "#F8FAFC",
+            padding: 28,
+            display: "grid",
+            gap: 14,
+          }}
+        >
+          <div style={{ fontSize: 14, color: "#475467", lineHeight: 1.8 }}>
+            {item.previewTextExcerpt}
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <div
+        style={{
+          ...wrapperStyle,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          padding: 32,
+          background: "#F8FAFC",
+        }}
+      >
+        <div style={{ maxWidth: 560, textAlign: "center" }}>
+          <div
+            style={{
+              fontSize: 18,
+              fontWeight: 800,
+              color: "#101828",
+              marginBottom: 10,
+            }}
+          >
+            Evidence content is not directly exposed here
+          </div>
+          <div style={{ fontSize: 14, color: "#667085", lineHeight: 1.7 }}>
+            This verification flow can still validate the recorded integrity state,
+            chain of custody, timestamps, and publication details even when direct
+            evidence viewing is intentionally restricted.
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (item.kind === "image") {
+    return (
+      <div style={wrapperStyle}>
+        <img
+          src={item.viewUrl}
+          alt={item.label}
+          style={{
+            display: "block",
+            width: "100%",
+            maxHeight: 560,
+            objectFit: "contain",
+            background: "#F8FAFC",
+          }}
+        />
+      </div>
+    );
+  }
+
+  if (item.kind === "video") {
+    return (
+      <div style={{ display: "grid", gap: 12 }}>
+        {item.previewDataUrl ? (
+          <div style={wrapperStyle}>
+            <img
+              src={item.previewDataUrl}
+              alt={item.previewCaption ?? `${item.label} poster`}
+              style={{
+                display: "block",
+                width: "100%",
+                maxHeight: 420,
+                objectFit: "contain",
+                background: "#F8FAFC",
+              }}
+            />
+          </div>
+        ) : null}
+        <div style={wrapperStyle}>
+          <video
+            src={item.viewUrl}
+            controls
+            preload="metadata"
+            style={{ display: "block", width: "100%", maxHeight: 560 }}
+          />
+        </div>
+      </div>
+    );
+  }
+
+  if (item.kind === "audio") {
+    return (
+      <div style={{ display: "grid", gap: 12 }}>
+        {item.previewDataUrl ? (
+          <div
+            style={{
+              overflow: "hidden",
+              borderRadius: 22,
+              border: "1px solid #D0D5DD",
+              background: "#FFFFFF",
+            }}
+          >
+            <img
+              src={item.previewDataUrl}
+              alt={item.previewCaption ?? `${item.label} waveform`}
+              style={{
+                display: "block",
+                width: "100%",
+                maxHeight: 260,
+                objectFit: "contain",
+                background: "#F8FAFC",
+              }}
+            />
+          </div>
+        ) : null}
+        <div
+          style={{
+            ...wrapperStyle,
+            padding: 28,
+            display: "flex",
+            flexDirection: "column",
+            justifyContent: "center",
+            gap: 18,
+          }}
+        >
+          <div style={{ color: "#EAECF0", fontSize: 14, lineHeight: 1.7 }}>
+            Listen to the preserved audio item through controlled verification
+            access. Original evidence remains separately preserved with the recorded
+            integrity state.
+          </div>
+          <audio src={item.viewUrl} controls preload="metadata" style={{ width: "100%" }} />
+        </div>
+      </div>
+    );
+  }
+
+  if (item.kind === "pdf") {
+    return (
+      <div style={{ display: "grid", gap: 12 }}>
+        {item.previewDataUrl ? (
+          <div style={wrapperStyle}>
+            <img
+              src={item.previewDataUrl}
+              alt={item.previewCaption ?? `${item.label} first page`}
+              style={{
+                display: "block",
+                width: "100%",
+                maxHeight: 480,
+                objectFit: "contain",
+                background: "#F8FAFC",
+              }}
+            />
+          </div>
+        ) : null}
+        <div style={wrapperStyle}>
+          <iframe
+            src={item.viewUrl}
+            title={item.label}
+            style={{ width: "100%", height: 720, border: 0 }}
+          />
+        </div>
+      </div>
+    );
+  }
+
+  if (item.kind === "text") {
+    return (
+      <div
+        style={{
+          ...wrapperStyle,
+          padding: 28,
+          background: "#F8FAFC",
+          color: "#475467",
+          display: "grid",
+          gap: 14,
+        }}
+      >
+        <div style={{ fontSize: 14, lineHeight: 1.7 }}>
+          Text-based evidence is best opened in a dedicated tab so reviewers can
+          inspect the original preserved file directly.
+        </div>
+        <a
+          href={item.viewUrl}
+          target="_blank"
+          rel="noreferrer"
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: "10px 14px",
+            borderRadius: 12,
+            border: "1px solid #D0D5DD",
+            background: "#FFFFFF",
+            color: "#344054",
+            fontSize: 13,
+            fontWeight: 700,
+            textDecoration: "none",
+            width: "fit-content",
+          }}
+        >
+          Open text evidence
+        </a>
+      </div>
+    );
+  }
+
+  return (
+    <div
+      style={{
+        ...wrapperStyle,
+        padding: 28,
+        background: "#F8FAFC",
+        display: "grid",
+        gap: 12,
+        alignContent: "center",
+      }}
+    >
+      <div style={{ fontSize: 16, fontWeight: 800, color: "#101828" }}>
+        Preview is not available inline for this file type
+      </div>
+      <div style={{ fontSize: 14, color: "#667085", lineHeight: 1.7 }}>
+        The verification record still exposes the preserved file reference and
+        integrity materials for controlled review.
+      </div>
+      <a
+        href={item.viewUrl}
+        target="_blank"
+        rel="noreferrer"
+        style={{
+          display: "inline-flex",
+          alignItems: "center",
+          justifyContent: "center",
+          padding: "10px 14px",
+          borderRadius: 12,
+          border: "1px solid #D0D5DD",
+          background: "#FFFFFF",
+          color: "#344054",
+          fontSize: 13,
+          fontWeight: 700,
+          textDecoration: "none",
+          width: "fit-content",
+        }}
+      >
+        Open preserved file
+      </a>
+    </div>
+  );
+}
+
 export default function VerifyPage() {
   useLocale();
   const params = useParams<{ token: string }>();
@@ -997,6 +1421,18 @@ export default function VerifyPage() {
   const [overview, setOverview] = useState<VerifyOverview | null>(null);
   const [humanSummary, setHumanSummary] = useState<VerifyHumanSummary | null>(null);
   const [limitations, setLimitations] = useState<VerifyLimitations | null>(null);
+  const [evidenceContentSummary, setEvidenceContentSummary] =
+    useState<VerifyEvidenceContentSummary>(null);
+  const [evidenceItems, setEvidenceItems] = useState<VerifyEvidenceAsset[]>([]);
+  const [primaryContentItem, setPrimaryContentItem] =
+    useState<VerifyEvidenceAsset | null>(null);
+  const [defaultPreviewItemId, setDefaultPreviewItemId] = useState<string | null>(null);
+  const [selectedEvidenceItemId, setSelectedEvidenceItemId] = useState<string | null>(null);
+  const [previewPolicy, setPreviewPolicy] = useState<VerifyPreviewPolicy>(null);
+  const [contentAccessPolicy, setContentAccessPolicy] =
+    useState<VerifyContentAccessPolicy>(null);
+  const [contentExposureDecision, setContentExposureDecision] =
+    useState<VerifyContentExposureDecision>(null);
 
   const pollingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const hasShownAnchoredToastRef = useRef(false);
@@ -1317,6 +1753,19 @@ export default function VerifyPage() {
     setOverview(effectiveOverview);
     setHumanSummary(effectiveHumanSummary);
     setLimitations(data.limitations ?? null);
+    setEvidenceContentSummary(data.evidenceContent?.summary ?? null);
+    setEvidenceItems(data.evidenceContent?.items ?? []);
+    setPrimaryContentItem(data.evidenceContent?.primaryItem ?? null);
+    setDefaultPreviewItemId(data.evidenceContent?.defaultPreviewItemId ?? null);
+    setSelectedEvidenceItemId(
+      data.evidenceContent?.defaultPreviewItemId ??
+        data.evidenceContent?.primaryItem?.id ??
+        data.evidenceContent?.items?.[0]?.id ??
+        null
+    );
+    setPreviewPolicy(data.evidenceContent?.previewPolicy ?? null);
+    setContentAccessPolicy(data.contentAccessPolicy ?? null);
+    setContentExposureDecision(data.contentExposureDecision ?? null);
 
     return otsDetails;
   };
@@ -1440,6 +1889,111 @@ export default function VerifyPage() {
     () => sanitizeOtsFailureTechnical(otsFailureReason),
     [otsFailureReason]
   );
+
+  const selectedEvidenceItem = useMemo(
+    () =>
+      evidenceItems.find((item) => item.id === selectedEvidenceItemId) ??
+      evidenceItems.find((item) => item.id === defaultPreviewItemId) ??
+      primaryContentItem ??
+      evidenceItems[0] ??
+      null,
+    [defaultPreviewItemId, evidenceItems, primaryContentItem, selectedEvidenceItemId]
+  );
+
+  const evidenceSectionDescription = useMemo(() => {
+    const parts = [
+      evidenceContentSummary?.structure === "multipart"
+        ? "Multipart evidence package"
+        : evidenceItems.length > 0
+          ? "Single evidence item"
+          : null,
+      evidenceContentSummary?.totalSizeDisplay ?? null,
+      overview?.itemCount != null
+        ? `${overview.itemCount} item${overview.itemCount === 1 ? "" : "s"}`
+        : evidenceItems.length > 0
+          ? `${evidenceItems.length} item${evidenceItems.length === 1 ? "" : "s"}`
+          : null,
+    ].filter(Boolean);
+
+    return parts.join(" • ");
+  }, [evidenceContentSummary?.structure, evidenceContentSummary?.totalSizeDisplay, evidenceItems.length, overview?.itemCount]);
+
+  const mismatchMessages = useMemo(() => {
+    const items: string[] = [];
+
+    if (canonicalHashMatches === false) {
+      items.push(
+        "The canonical fingerprint check did not match the recorded evidence state."
+      );
+    }
+
+    if (signatureValid === false) {
+      items.push(
+        "The digital signature check failed for the recorded verification materials."
+      );
+    }
+
+    if (custodyChainValid === false) {
+      items.push(
+        custodyChainFailureReason
+          ? `The custody chain reported a mismatch: ${custodyChainFailureReason}`
+          : "The custody chain reported an integrity mismatch."
+      );
+    }
+
+    if (timestampDigestMatches === false) {
+      items.push(
+        "The trusted timestamp digest did not match the recorded file hash."
+      );
+    }
+
+    if (otsHashMatches === false) {
+      items.push(
+        "The OpenTimestamps hash did not match the recorded fingerprint hash."
+      );
+    }
+
+    return items;
+  }, [
+    canonicalHashMatches,
+    custodyChainFailureReason,
+    custodyChainValid,
+    otsHashMatches,
+    signatureValid,
+    timestampDigestMatches,
+  ]);
+
+  const whatChangedSinceCompletion = useMemo(() => {
+    const changes: string[] = [];
+
+    if (reportVersion) {
+      changes.push(`Report artifact version: ${reportVersion}.`);
+    }
+
+    if (verificationPackageVersion) {
+      changes.push(`Verification package version: ${verificationPackageVersion}.`);
+    }
+
+    if (reviewerSummaryVersion) {
+      changes.push(`Reviewer summary version: ${reviewerSummaryVersion}.`);
+    }
+
+    if (generatedAt) {
+      changes.push(`Latest report generated at ${formatDateTime(generatedAt)}.`);
+    }
+
+    if (verifiedAt) {
+      changes.push(`Latest verification recorded at ${formatDateTime(verifiedAt)}.`);
+    }
+
+    return changes;
+  }, [
+    generatedAt,
+    reportVersion,
+    reviewerSummaryVersion,
+    verificationPackageVersion,
+    verifiedAt,
+  ]);
 
   const heroIntegrityHeadline = useMemo(() => {
     return (
@@ -2719,6 +3273,741 @@ export default function VerifyPage() {
                   ) : null}
                 </div>
               </Card>
+
+              {evidenceItems.length > 0 ? (
+                <Card>
+                  <div style={{ display: "grid", gap: 18 }}>
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "flex-start",
+                        justifyContent: "space-between",
+                        gap: 16,
+                        flexWrap: "wrap",
+                      }}
+                    >
+                      <div style={{ minWidth: 0, flex: "1 1 620px" }}>
+                        <div
+                          style={{
+                            fontSize: 12,
+                            color: "#667085",
+                            fontWeight: 800,
+                            letterSpacing: "0.08em",
+                            textTransform: "uppercase",
+                            marginBottom: 8,
+                          }}
+                        >
+                          Evidence Content Review
+                        </div>
+                        <div
+                          style={{
+                            fontSize: cardTitleSize,
+                            fontWeight: 800,
+                            color: "#101828",
+                            lineHeight: 1.12,
+                            marginBottom: 8,
+                          }}
+                        >
+                          {selectedEvidenceItem
+                            ? `${evidenceKindLabel(selectedEvidenceItem.kind)} review surface`
+                            : "Evidence review surface"}
+                        </div>
+                        <div
+                          style={{
+                            fontSize: 14,
+                            color: "#667085",
+                            lineHeight: 1.7,
+                            maxWidth: 860,
+                          }}
+                        >
+                          {previewPolicy?.rationale ??
+                            "Review the preserved evidence item here while keeping integrity, custody, and timestamp materials in the same verification record."}
+                        </div>
+                      </div>
+
+                      <div
+                        style={{
+                          display: "flex",
+                          flexWrap: "wrap",
+                          gap: 10,
+                          justifyContent: "flex-end",
+                        }}
+                      >
+                        {evidenceSectionDescription ? (
+                          <div
+                            style={{
+                              padding: "10px 14px",
+                              borderRadius: 14,
+                              border: "1px solid #D0D5DD",
+                              background: "#FFFFFF",
+                              color: "#344054",
+                              fontSize: 13,
+                              fontWeight: 700,
+                            }}
+                          >
+                            {evidenceSectionDescription}
+                          </div>
+                        ) : null}
+                        {contentAccessPolicy?.mode ? (
+                          <div
+                            style={{
+                              padding: "10px 14px",
+                              borderRadius: 14,
+                              border: "1px solid #D0D5DD",
+                              background:
+                                contentAccessPolicy.mode === "full_access"
+                                  ? "#ECFDF3"
+                                  : contentAccessPolicy.mode === "preview_only"
+                                    ? "#F5F8FF"
+                                    : "#FFF7ED",
+                              color:
+                                contentAccessPolicy.mode === "full_access"
+                                  ? "#027A48"
+                                  : contentAccessPolicy.mode === "preview_only"
+                                    ? "#175CD3"
+                                    : "#B54708",
+                              fontSize: 13,
+                              fontWeight: 800,
+                            }}
+                          >
+                            {contentAccessPolicy.mode === "full_access"
+                              ? "Direct evidence access"
+                              : contentAccessPolicy.mode === "preview_only"
+                                ? "Controlled preview access"
+                                : "Metadata-only verification"}
+                          </div>
+                        ) : null}
+                      </div>
+                    </div>
+
+                    <div
+                      style={{
+                        border: "1px solid #E4E7EC",
+                        background: "#FCFCFD",
+                        borderRadius: 18,
+                        padding: 16,
+                        display: "grid",
+                        gap: 10,
+                      }}
+                    >
+                      <div
+                        style={{
+                          fontSize: 12,
+                          color: "#667085",
+                          fontWeight: 800,
+                        }}
+                      >
+                        Reviewer access note
+                      </div>
+                      <div style={{ fontSize: 13, color: "#475467", lineHeight: 1.7 }}>
+                        {contentExposureDecision?.rationale ??
+                          previewPolicy?.privacyNotice ??
+                          "Displayed content may be a reviewer-facing exposure of the preserved evidence item. Original evidence remains separately preserved and integrity-checked."}
+                      </div>
+                      <div style={{ fontSize: 13, color: "#475467", lineHeight: 1.7 }}>
+                        {previewPolicy?.privacyNotice ??
+                          "Any preview shown here should be interpreted together with the integrity, custody, and timestamp sections below."}
+                      </div>
+                    </div>
+
+                    <div
+                      style={{
+                        display: "grid",
+                        gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
+                        gap: 14,
+                      }}
+                    >
+                      <div
+                        style={{
+                          border: "1px solid #E4E7EC",
+                          background: "#FFFFFF",
+                          borderRadius: 18,
+                          padding: 18,
+                          display: "grid",
+                          gap: 8,
+                        }}
+                      >
+                        <div style={{ fontSize: 12, color: "#667085", fontWeight: 800 }}>
+                          What changed since completion
+                        </div>
+                        {whatChangedSinceCompletion.length > 0 ? (
+                          whatChangedSinceCompletion.map((entry) => (
+                            <div
+                              key={entry}
+                              style={{ fontSize: 13, color: "#475467", lineHeight: 1.7 }}
+                            >
+                              {entry}
+                            </div>
+                          ))
+                        ) : (
+                          <div style={{ fontSize: 13, color: "#475467", lineHeight: 1.7 }}>
+                            No later report, package, or reviewer-summary changes were
+                            exposed in this verification response.
+                          </div>
+                        )}
+                      </div>
+
+                      <div
+                        style={{
+                          border:
+                            mismatchMessages.length > 0
+                              ? "1px solid #FECACA"
+                              : "1px solid #D1FADF",
+                          background:
+                            mismatchMessages.length > 0 ? "#FEF2F2" : "#F6FEF9",
+                          borderRadius: 18,
+                          padding: 18,
+                          display: "grid",
+                          gap: 8,
+                        }}
+                      >
+                        <div
+                          style={{
+                            fontSize: 12,
+                            color: mismatchMessages.length > 0 ? "#991B1B" : "#067647",
+                            fontWeight: 800,
+                          }}
+                        >
+                          Mismatch detection
+                        </div>
+                        {mismatchMessages.length > 0 ? (
+                          mismatchMessages.map((entry) => (
+                            <div
+                              key={entry}
+                              style={{ fontSize: 13, color: "#7F1D1D", lineHeight: 1.7 }}
+                            >
+                              {entry}
+                            </div>
+                          ))
+                        ) : (
+                          <div style={{ fontSize: 13, color: "#065F46", lineHeight: 1.7 }}>
+                            No explicit digest, signature, custody, timestamp, or OTS
+                            mismatches were detected in the current verification result.
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {evidenceItems.length > 1 ? (
+                      <div
+                        style={{
+                          display: "flex",
+                          flexWrap: "wrap",
+                          gap: 10,
+                        }}
+                      >
+                        {evidenceItems.map((item) => {
+                          const active = selectedEvidenceItem?.id === item.id;
+                          return (
+                            <button
+                              key={item.id}
+                              onClick={() => setSelectedEvidenceItemId(item.id)}
+                              style={{
+                                padding: "12px 14px",
+                                borderRadius: 16,
+                                border: active
+                                  ? "1px solid #175CD3"
+                                  : "1px solid #D0D5DD",
+                                background: active ? "#EFF8FF" : "#FFFFFF",
+                                color: active ? "#1849A9" : "#344054",
+                                fontSize: 13,
+                                fontWeight: 700,
+                                cursor: "pointer",
+                                textAlign: "left",
+                                minWidth: 220,
+                              }}
+                            >
+                              <div style={{ marginBottom: 4 }}>{item.label}</div>
+                              <div
+                                style={{
+                                  fontSize: 12,
+                                  fontWeight: 600,
+                                  color: active ? "#175CD3" : "#667085",
+                                }}
+                              >
+                                {evidenceKindLabel(item.kind)}
+                                {item.isPrimary ? " • Primary item" : ""}
+                              </div>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    ) : null}
+
+                    <div
+                      style={{
+                        display: "grid",
+                        gridTemplateColumns:
+                          "repeat(auto-fit, minmax(min(100%, 320px), 1fr))",
+                        gap: 18,
+                      }}
+                    >
+                      <div style={{ display: "grid", gap: 14 }}>
+                        {renderVerifyEvidenceMedia(selectedEvidenceItem)}
+
+                        <div
+                          style={{
+                            border: "1px solid #E4E7EC",
+                            borderRadius: 16,
+                            background: "#FCFCFD",
+                            padding: 16,
+                            display: "grid",
+                            gap: 8,
+                          }}
+                        >
+                          <div
+                            style={{
+                              fontSize: 12,
+                              color: "#667085",
+                              fontWeight: 800,
+                            }}
+                          >
+                            Representation note
+                          </div>
+                          <div style={{ fontSize: 13, color: "#475467", lineHeight: 1.7 }}>
+                            This panel is intended for reviewer understanding of the
+                            preserved evidence item. The original file remains
+                            separately preserved and the technical sections below
+                            describe the recorded integrity, custody, timestamping,
+                            and publication state tied to that item.
+                          </div>
+                        </div>
+                      </div>
+
+                      <div style={{ display: "grid", gap: 14 }}>
+                        <div
+                          style={{
+                            border: "1px solid #E4E7EC",
+                            borderRadius: 18,
+                            background: "#FFFFFF",
+                            padding: 18,
+                            display: "grid",
+                            gap: 12,
+                          }}
+                        >
+                          <div
+                            style={{
+                              fontSize: 12,
+                              color: "#667085",
+                              fontWeight: 800,
+                              letterSpacing: "0.08em",
+                              textTransform: "uppercase",
+                            }}
+                          >
+                            Selected Evidence Item
+                          </div>
+                          <div
+                            style={{
+                              fontSize: 20,
+                              color: "#101828",
+                              fontWeight: 800,
+                              lineHeight: 1.2,
+                            }}
+                          >
+                            {selectedEvidenceItem?.label ?? "No item selected"}
+                          </div>
+                          <div style={{ display: "grid", gap: 10, fontSize: 13, color: "#475467" }}>
+                            <div>
+                              <strong>Kind:</strong>{" "}
+                              {evidenceKindLabel(selectedEvidenceItem?.kind)}
+                            </div>
+                            {selectedEvidenceItem?.mimeType ? (
+                              <div>
+                                <strong>MIME Type:</strong>{" "}
+                                {selectedEvidenceItem.mimeType}
+                              </div>
+                            ) : null}
+                            {selectedEvidenceItem?.displaySizeLabel ? (
+                              <div>
+                                <strong>Size:</strong>{" "}
+                                {selectedEvidenceItem.displaySizeLabel}
+                              </div>
+                            ) : null}
+                            {formatDuration(selectedEvidenceItem?.durationMs) ? (
+                              <div>
+                                <strong>Duration:</strong>{" "}
+                                {formatDuration(selectedEvidenceItem?.durationMs)}
+                              </div>
+                            ) : null}
+                            {previewRoleLabel(selectedEvidenceItem?.previewRole) ? (
+                              <div>
+                                <strong>Access role:</strong>{" "}
+                                {previewRoleLabel(selectedEvidenceItem?.previewRole)}
+                              </div>
+                            ) : null}
+                            {selectedEvidenceItem?.sha256 ? (
+                              <div style={{ wordBreak: "break-all" }}>
+                                <strong>SHA-256:</strong>{" "}
+                                {shortText(selectedEvidenceItem.sha256, 18, 14)}
+                              </div>
+                            ) : null}
+                            {selectedEvidenceItem?.originalPreservationNote ? (
+                              <div style={{ lineHeight: 1.7 }}>
+                                <strong>Original:</strong>{" "}
+                                {selectedEvidenceItem.originalPreservationNote}
+                              </div>
+                            ) : null}
+                            {selectedEvidenceItem?.reviewerRepresentationLabel ? (
+                              <div>
+                                <strong>Reviewer surface:</strong>{" "}
+                                {selectedEvidenceItem.reviewerRepresentationLabel}
+                              </div>
+                            ) : null}
+                          </div>
+
+                          <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
+                            {selectedEvidenceItem?.viewUrl ? (
+                              <a
+                                href={selectedEvidenceItem.viewUrl}
+                                target="_blank"
+                                rel="noreferrer"
+                                style={{
+                                  display: "inline-flex",
+                                  alignItems: "center",
+                                  justifyContent: "center",
+                                  padding: "10px 14px",
+                                  borderRadius: 12,
+                                  border: "1px solid #175CD3",
+                                  background: "#EFF8FF",
+                                  color: "#175CD3",
+                                  fontSize: 13,
+                                  fontWeight: 800,
+                                  textDecoration: "none",
+                                }}
+                              >
+                                Open preserved evidence
+                              </a>
+                            ) : null}
+                            {selectedEvidenceItem?.viewUrl &&
+                            selectedEvidenceItem.downloadable ? (
+                              <a
+                                href={selectedEvidenceItem.viewUrl}
+                                download={selectedEvidenceItem.originalFileName ?? true}
+                                style={{
+                                  display: "inline-flex",
+                                  alignItems: "center",
+                                  justifyContent: "center",
+                                  padding: "10px 14px",
+                                  borderRadius: 12,
+                                  border: "1px solid #D0D5DD",
+                                  background: "#FFFFFF",
+                                  color: "#344054",
+                                  fontSize: 13,
+                                  fontWeight: 700,
+                                  textDecoration: "none",
+                                }}
+                              >
+                                Download evidence
+                              </a>
+                            ) : null}
+                          </div>
+                        </div>
+
+                        {selectedEvidenceItem?.reviewerRepresentationNote ? (
+                          <div
+                            style={{
+                              border: "1px solid #FEDF89",
+                              background: "#FFFAEB",
+                              borderRadius: 18,
+                              padding: 18,
+                              display: "grid",
+                              gap: 8,
+                            }}
+                          >
+                            <div style={{ fontSize: 12, color: "#B54708", fontWeight: 800 }}>
+                              Reviewer representation note
+                            </div>
+                            <div style={{ fontSize: 13, color: "#7A2E0E", lineHeight: 1.7 }}>
+                              {selectedEvidenceItem.reviewerRepresentationNote}
+                            </div>
+                          </div>
+                        ) : null}
+
+                        {selectedEvidenceItem?.verificationMaterialsNote ? (
+                          <div
+                            style={{
+                              border: "1px solid #D1E9FF",
+                              background: "#F5F8FF",
+                              borderRadius: 18,
+                              padding: 18,
+                              display: "grid",
+                              gap: 8,
+                            }}
+                          >
+                            <div style={{ fontSize: 12, color: "#175CD3", fontWeight: 800 }}>
+                              Verification materials note
+                            </div>
+                            <div style={{ fontSize: 13, color: "#1849A9", lineHeight: 1.7 }}>
+                              {selectedEvidenceItem.verificationMaterialsNote}
+                            </div>
+                          </div>
+                        ) : null}
+
+                        {primaryContentItem && selectedEvidenceItem?.id !== primaryContentItem.id ? (
+                          <div
+                            style={{
+                              border: "1px solid #D1E9FF",
+                              background: "#F5F8FF",
+                              borderRadius: 18,
+                              padding: 18,
+                              display: "grid",
+                              gap: 8,
+                            }}
+                          >
+                            <div style={{ fontSize: 12, color: "#175CD3", fontWeight: 800 }}>
+                              Primary evidence item
+                            </div>
+                            <div style={{ fontSize: 14, color: "#1849A9", fontWeight: 700 }}>
+                              {primaryContentItem.label}
+                            </div>
+                            <button
+                              onClick={() => setSelectedEvidenceItemId(primaryContentItem.id)}
+                              style={{
+                                width: "fit-content",
+                                padding: "10px 14px",
+                                borderRadius: 12,
+                                border: "1px solid #B2DDFF",
+                                background: "#FFFFFF",
+                                color: "#175CD3",
+                                fontSize: 13,
+                                fontWeight: 700,
+                                cursor: "pointer",
+                              }}
+                            >
+                              Jump to primary item
+                            </button>
+                          </div>
+                        ) : null}
+                      </div>
+                    </div>
+
+                    <div
+                      style={{
+                        border: "1px solid #E4E7EC",
+                        borderRadius: 18,
+                        background: "#FCFCFD",
+                        padding: 18,
+                        display: "grid",
+                        gap: 14,
+                      }}
+                    >
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "flex-start",
+                          justifyContent: "space-between",
+                          gap: 12,
+                          flexWrap: "wrap",
+                        }}
+                      >
+                        <div>
+                          <div
+                            style={{
+                              fontSize: 12,
+                              color: "#667085",
+                              fontWeight: 800,
+                              letterSpacing: "0.08em",
+                              textTransform: "uppercase",
+                              marginBottom: 6,
+                            }}
+                          >
+                            Evidence Inventory
+                          </div>
+                          <div
+                            style={{
+                              fontSize: 18,
+                              fontWeight: 800,
+                              color: "#101828",
+                            }}
+                          >
+                            Review every recorded item in this evidence package
+                          </div>
+                        </div>
+                        {evidenceContentSummary?.primaryKind ? (
+                          <div
+                            style={{
+                              padding: "10px 14px",
+                              borderRadius: 14,
+                              border: "1px solid #D0D5DD",
+                              background: "#FFFFFF",
+                              color: "#344054",
+                              fontSize: 13,
+                              fontWeight: 700,
+                            }}
+                          >
+                            Primary type:{" "}
+                            {evidenceKindLabel(evidenceContentSummary.primaryKind)}
+                          </div>
+                        ) : null}
+                      </div>
+
+                      <div style={{ fontSize: 13, color: "#475467", lineHeight: 1.7 }}>
+                        {verificationPackageVersion
+                          ? `Verification package version ${verificationPackageVersion} is associated with this evidence record. Use it together with this verification page when deeper technical review, legal handoff, or external sharing is required.`
+                          : "No verification package version was exposed in this response. Reviewers can still use this page together with the generated report artifact."}
+                      </div>
+
+                      <div
+                        style={{
+                          display: "grid",
+                          gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
+                          gap: 12,
+                        }}
+                      >
+                        {evidenceItems.map((item) => {
+                          const active = selectedEvidenceItem?.id === item.id;
+                          const roleLabel = previewRoleLabel(item.previewRole);
+                          const itemDuration = formatDuration(item.durationMs);
+
+                          return (
+                            <div
+                              key={`inventory-${item.id}`}
+                              style={{
+                                border: active
+                                  ? "1px solid #175CD3"
+                                  : "1px solid #D0D5DD",
+                                background: active ? "#F5F8FF" : "#FFFFFF",
+                                borderRadius: 18,
+                                padding: 16,
+                                display: "grid",
+                                gap: 10,
+                              }}
+                            >
+                              <div
+                                style={{
+                                  display: "flex",
+                                  alignItems: "flex-start",
+                                  justifyContent: "space-between",
+                                  gap: 10,
+                                }}
+                              >
+                                <div style={{ minWidth: 0 }}>
+                                  <div
+                                    style={{
+                                      fontSize: 15,
+                                      fontWeight: 800,
+                                      color: "#101828",
+                                      lineHeight: 1.35,
+                                      wordBreak: "break-word",
+                                    }}
+                                  >
+                                    {item.label}
+                                  </div>
+                                  <div
+                                    style={{
+                                      marginTop: 4,
+                                      fontSize: 12,
+                                      color: "#667085",
+                                      fontWeight: 700,
+                                    }}
+                                  >
+                                    {evidenceKindLabel(item.kind)}
+                                    {item.isPrimary ? " • Primary item" : ""}
+                                  </div>
+                                </div>
+
+                                {active ? (
+                                  <div
+                                    style={{
+                                      padding: "6px 10px",
+                                      borderRadius: 999,
+                                      background: "#D1E9FF",
+                                      color: "#175CD3",
+                                      fontSize: 11,
+                                      fontWeight: 800,
+                                      whiteSpace: "nowrap",
+                                    }}
+                                  >
+                                    Selected
+                                  </div>
+                                ) : null}
+                              </div>
+
+                              <div
+                                style={{
+                                  display: "grid",
+                                  gap: 6,
+                                  fontSize: 13,
+                                  color: "#475467",
+                                }}
+                              >
+                                {item.mimeType ? (
+                                  <div>
+                                    <strong>MIME:</strong> {item.mimeType}
+                                  </div>
+                                ) : null}
+                                {item.displaySizeLabel ? (
+                                  <div>
+                                    <strong>Size:</strong> {item.displaySizeLabel}
+                                  </div>
+                                ) : null}
+                                {itemDuration ? (
+                                  <div>
+                                    <strong>Duration:</strong> {itemDuration}
+                                  </div>
+                                ) : null}
+                                {roleLabel ? (
+                                  <div>
+                                    <strong>Access:</strong> {roleLabel}
+                                  </div>
+                                ) : null}
+                                {item.sha256 ? (
+                                  <div style={{ wordBreak: "break-all" }}>
+                                    <strong>SHA-256:</strong>{" "}
+                                    {shortText(item.sha256, 14, 12)}
+                                  </div>
+                                ) : null}
+                              </div>
+
+                              <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                                <button
+                                  onClick={() => setSelectedEvidenceItemId(item.id)}
+                                  style={{
+                                    padding: "10px 12px",
+                                    borderRadius: 12,
+                                    border: active
+                                      ? "1px solid #175CD3"
+                                      : "1px solid #D0D5DD",
+                                    background: active ? "#EFF8FF" : "#FFFFFF",
+                                    color: active ? "#175CD3" : "#344054",
+                                    fontSize: 13,
+                                    fontWeight: 700,
+                                    cursor: "pointer",
+                                  }}
+                                >
+                                  {active ? "Viewing item" : "View item"}
+                                </button>
+                                {item.viewUrl ? (
+                                  <a
+                                    href={item.viewUrl}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    style={{
+                                      display: "inline-flex",
+                                      alignItems: "center",
+                                      justifyContent: "center",
+                                      padding: "10px 12px",
+                                      borderRadius: 12,
+                                      border: "1px solid #D0D5DD",
+                                      background: "#FFFFFF",
+                                      color: "#344054",
+                                      fontSize: 13,
+                                      fontWeight: 700,
+                                      textDecoration: "none",
+                                    }}
+                                  >
+                                    Open
+                                  </a>
+                                ) : null}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                </Card>
+              ) : null}
 
               <Card>
                 <div
