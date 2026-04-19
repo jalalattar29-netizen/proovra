@@ -212,6 +212,32 @@ export type ReportEvidence = {
   otsFailureReason?: string | null;
 
   anchor?: ReportAnchorSummary | null;
+  certifications?: {
+    custodian?: {
+      declarationType?: string | null;
+      status?: string | null;
+      version?: number | null;
+      requestedAtUtc?: string | null;
+      attestedAtUtc?: string | null;
+      attestorName?: string | null;
+      attestorTitle?: string | null;
+      attestorOrganization?: string | null;
+      certificationHash?: string | null;
+      revokedAtUtc?: string | null;
+    } | null;
+    qualifiedPerson?: {
+      declarationType?: string | null;
+      status?: string | null;
+      version?: number | null;
+      requestedAtUtc?: string | null;
+      attestedAtUtc?: string | null;
+      attestorName?: string | null;
+      attestorTitle?: string | null;
+      attestorOrganization?: string | null;
+      certificationHash?: string | null;
+      revokedAtUtc?: string | null;
+    } | null;
+  } | null;
 
   anchorMode?: string | null;
   anchorProvider?: string | null;
@@ -406,6 +432,37 @@ function mapVerificationStatusLabel(
   }
 }
 
+function mapCertificationStatusLabel(value: string | null | undefined): string {
+  switch (safe(value, "").toUpperCase()) {
+    case "ATTESTED":
+      return "Attested";
+    case "REQUESTED":
+      return "Requested";
+    case "DRAFT":
+      return "Draft";
+    case "REVOKED":
+      return "Revoked";
+    default:
+      return safe(value, "Not recorded");
+  }
+}
+
+function certificationTone(
+  value: string | null | undefined
+): "success" | "warning" | "danger" | "neutral" {
+  switch (safe(value, "").toUpperCase()) {
+    case "ATTESTED":
+      return "success";
+    case "REQUESTED":
+    case "DRAFT":
+      return "warning";
+    case "REVOKED":
+      return "danger";
+    default:
+      return "neutral";
+  }
+}
+
 function mapCaptureMethodLabel(value: string | null | undefined): string {
   switch (safe(value, "").toUpperCase()) {
     case "SECURE_CAMERA":
@@ -486,6 +543,14 @@ function mapCustodyEventLabel(eventType: string | null | undefined): string {
       return "Review-ready state recorded";
     case "VERIFICATION_PACKAGE_GENERATED":
       return "Verification package generated";
+    case "CERTIFICATION_REQUESTED":
+      return "Certification requested";
+    case "CERTIFICATION_ATTESTED":
+      return "Certification attested";
+    case "CERTIFICATION_REVOKED":
+      return "Certification revoked";
+    case "EVIDENCE_PURGED":
+      return "Evidence purged";
     case "OTS_APPLIED":
       return "OpenTimestamps update";
     case "TECHNICAL_VERIFICATION_CHECKED":
@@ -915,42 +980,6 @@ function resolveAnchorSummary(
     publicUrl: evidence.anchorPublicUrl ?? null,
     anchoredAtUtc: evidence.anchorAnchoredAtUtc ?? null,
   };
-}
-
-function buildWhatChangedSinceCompletionNarrative(
-  evidence: ReportEvidence
-): string {
-  const changes: string[] = [];
-
-  if (evidence.latestReportVersion != null) {
-    changes.push(`Report version ${evidence.latestReportVersion} recorded`);
-  }
-
-  if (evidence.reportGeneratedAtUtc) {
-    changes.push(`latest report generated at ${evidence.reportGeneratedAtUtc}`);
-  }
-
-  if (evidence.reviewerSummaryVersion != null) {
-    changes.push(`reviewer summary version ${evidence.reviewerSummaryVersion}`);
-  }
-
-  if (evidence.reviewReadyAtUtc) {
-    changes.push(`review-ready state recorded at ${evidence.reviewReadyAtUtc}`);
-  }
-
-  if (evidence.verificationPackageVersion != null) {
-    changes.push(
-      `verification package version ${evidence.verificationPackageVersion}`
-    );
-  }
-
-  if (evidence.lastAccessedAtUtc) {
-    changes.push(`last recorded access at ${evidence.lastAccessedAtUtc}`);
-  }
-
-  return changes.length > 0
-    ? `${changes.join(" • ")}.`
-    : "No later report, reviewer-summary, verification-package, or access-state changes were included in this report payload.";
 }
 
 function buildMismatchNarrative(params: {
@@ -1475,69 +1504,6 @@ function drawInfoCards(
   });
 
   doc.y = rowY + rowMaxHeight + 6;
-}
-
-function drawWorkflowCards(doc: PDFDoc, title: string, steps: string[]): void {
-  if (steps.length === 0) return;
-
-  const x = doc.page.margins.left;
-  const w = doc.page.width - doc.page.margins.left - doc.page.margins.right;
-  const gap = 8;
-
-  doc.save();
-  doc.fillColor(BRAND.ink).font("Helvetica-Bold").fontSize(10.6);
-  doc.text(title, x, doc.y, { width: w });
-  doc.restore();
-  doc.moveDown(0.12);
-
-  for (let index = 0; index < steps.length; index += 1) {
-    const step = steps[index] ?? "";
-    const badgeW = 22;
-    const textW = w - badgeW - 14;
-
-    doc.font("Helvetica").fontSize(9.3);
-    const stepHeight = Math.max(
-      28,
-      doc.heightOfString(step, { width: textW, lineGap: 1.5 }) + 14
-    );
-    ensureSpace(doc, stepHeight + gap);
-
-    const y = doc.y;
-
-    doc.save();
-    doc.roundedRect(x, y, w, stepHeight, 10).fill("#FFFFFF");
-    doc
-      .lineWidth(0.8)
-      .strokeColor(BRAND.line)
-      .roundedRect(x, y, w, stepHeight, 10)
-      .stroke();
-    doc.restore();
-
-    doc.save();
-    doc.circle(x + 16, y + 16, 11).fill(BRAND.accent);
-    doc.restore();
-
-    doc.save();
-    doc
-      .fillColor("#FFFFFF")
-      .font("Helvetica-Bold")
-      .fontSize(9.5)
-      .text(String(index + 1), x + 13, y + 10, {
-        width: 10,
-        align: "center",
-      });
-    doc.restore();
-
-    doc.save();
-    doc.fillColor(BRAND.ink).font("Helvetica").fontSize(9.3);
-    doc.text(step, x + 34, y + 8, {
-      width: w - 46,
-      lineGap: 1.5,
-    });
-    doc.restore();
-
-    doc.y = y + stepHeight + gap;
-  }
 }
 
 function drawHeader(
@@ -2637,9 +2603,71 @@ function drawPreviewPlaceholder(
   }
 }
 
+function renderEvidenceThumbnail(
+  doc: PDFDoc,
+  item: ReportEvidenceAsset,
+  x: number,
+  y: number,
+  width: number,
+  height: number
+): void {
+  const previewBuffer = tryDecodeDataUrlToBuffer(item.previewDataUrl);
+
+  doc.save();
+  doc.roundedRect(x, y, width, height, 9).fill("#F8FAFC");
+  doc.restore();
+
+  if (previewBuffer) {
+    try {
+      doc.image(previewBuffer, x, y, {
+        fit: [width, height],
+        align: "center",
+        valign: "center",
+      });
+    } catch {
+      // Fall back to placeholder below.
+    }
+  } else {
+    let placeholderTitle = mapEvidenceAssetKindLabel(item.kind);
+    let placeholderSubtitle = safe(item.mimeType, "Preview unavailable");
+
+    if (item.kind === "video") {
+      placeholderTitle = "Video";
+      placeholderSubtitle = "Preview in verification workspace";
+    } else if (item.kind === "audio") {
+      placeholderTitle = "Audio";
+      placeholderSubtitle = "Playback in verification workspace";
+    } else if (item.kind === "pdf") {
+      placeholderTitle = "Document";
+      placeholderSubtitle = "First-page preview unavailable";
+    } else if (item.kind === "text") {
+      placeholderTitle = "Text";
+      placeholderSubtitle = item.previewTextExcerpt
+        ? summarizeText(item.previewTextExcerpt, 54)
+        : "Text excerpt unavailable";
+    }
+
+    drawPreviewPlaceholder(
+      doc,
+      x,
+      y,
+      width,
+      height,
+      placeholderTitle,
+      placeholderSubtitle
+    );
+  }
+
+  doc.save();
+  doc.lineWidth(0.8).strokeColor(BRAND.line);
+  doc.roundedRect(x, y, width, height, 9).stroke();
+  doc.restore();
+}
+
 function renderEmbeddedEvidencePreview(
   doc: PDFDoc,
   item: ReportEvidenceAsset,
+  x: number,
   width: number,
   height: number
 ): boolean {
@@ -2647,7 +2675,6 @@ function renderEmbeddedEvidencePreview(
   if (!previewBuffer) return false;
 
   try {
-    const x = doc.page.margins.left;
     const y = doc.y;
 
     ensureSpace(doc, height + 18);
@@ -2674,33 +2701,168 @@ function renderEmbeddedEvidencePreview(
   }
 }
 
+function drawEvidenceGallery(
+  doc: PDFDoc,
+  items: ReportEvidenceAsset[]
+): void {
+  if (items.length === 0) return;
+
+  const x = doc.page.margins.left;
+  const totalW = doc.page.width - doc.page.margins.left - doc.page.margins.right;
+  const gap = 12;
+  const columns = 3;
+  const cardW = (totalW - gap * (columns - 1)) / columns;
+  const thumbH = 96;
+  const cardPad = 10;
+  const cardMetaGap = 8;
+
+  const estimateCardHeight = (item: ReportEvidenceAsset): number => {
+    doc.font("Helvetica-Bold").fontSize(9.4);
+    const titleH = doc.heightOfString(
+      `${item.index + 1}. ${safe(item.label)}`,
+      { width: cardW - cardPad * 2, lineGap: 1.2 }
+    );
+
+    doc.font("Helvetica").fontSize(7.9);
+    const metaText = [
+      mapEvidenceAssetKindLabel(item.kind),
+      safe(item.mimeType, ""),
+      safe(item.displaySizeLabel, ""),
+      item.sha256 ? `SHA ${shortHash(item.sha256, 8, 6)}` : "",
+    ]
+      .filter(Boolean)
+      .join(" • ");
+    const metaH = doc.heightOfString(metaText, {
+      width: cardW - cardPad * 2,
+      lineGap: 1.2,
+    });
+
+    return cardPad + titleH + 6 + thumbH + cardMetaGap + metaH + cardPad;
+  };
+
+  let cursorX = x;
+  let rowY = doc.y;
+  let rowMaxHeight = 0;
+
+  items.forEach((item, index) => {
+    if (index > 0 && index % columns === 0) {
+      cursorX = x;
+      rowY += rowMaxHeight + gap;
+      rowMaxHeight = 0;
+    }
+
+    const cardH = Math.max(158, estimateCardHeight(item));
+    const beforeEnsureY = doc.y;
+    ensurePageWithHeader(doc, rowY - doc.y + cardH + 6);
+
+    if (doc.y !== beforeEnsureY) {
+      cursorX = x;
+      rowY = doc.y;
+      rowMaxHeight = 0;
+    }
+
+    rowMaxHeight = Math.max(rowMaxHeight, cardH);
+
+    doc.save();
+    doc.roundedRect(cursorX, rowY, cardW, cardH, 12).fill("#FFFFFF");
+    doc
+      .lineWidth(0.85)
+      .strokeColor(BRAND.line)
+      .roundedRect(cursorX, rowY, cardW, cardH, 12)
+      .stroke();
+    doc.restore();
+
+    doc.save();
+    doc.fillColor(BRAND.ink).font("Helvetica-Bold").fontSize(9.4);
+    doc.text(
+      `${item.index + 1}. ${safe(item.label)}`,
+      cursorX + cardPad,
+      rowY + cardPad,
+      {
+        width: cardW - cardPad * 2,
+        lineGap: 1.2,
+      }
+    );
+    doc.restore();
+
+    const titleEndY = doc.y;
+    const thumbY = titleEndY + 6;
+    renderEvidenceThumbnail(
+      doc,
+      item,
+      cursorX + cardPad,
+      thumbY,
+      cardW - cardPad * 2,
+      thumbH
+    );
+
+    const metaText = [
+      mapEvidenceAssetKindLabel(item.kind),
+      safe(item.mimeType, ""),
+      safe(item.displaySizeLabel, ""),
+      item.sha256 ? `SHA ${shortHash(item.sha256, 8, 6)}` : "",
+    ]
+      .filter(Boolean)
+      .join(" • ");
+
+    doc.save();
+    doc.fillColor(BRAND.muted).font("Helvetica").fontSize(7.9);
+    doc.text(
+      metaText,
+      cursorX + cardPad,
+      thumbY + thumbH + cardMetaGap,
+      {
+        width: cardW - cardPad * 2,
+        lineGap: 1.2,
+      }
+    );
+    doc.restore();
+
+    cursorX += cardW + gap;
+    doc.y = rowY;
+  });
+
+  doc.y = rowY + rowMaxHeight + 8;
+}
+
 function drawEvidencePreviewCard(
   doc: PDFDoc,
   item: ReportEvidenceAsset,
-  options?: { large?: boolean }
+  options?: { large?: boolean; compact?: boolean }
 ): void {
   const pageW =
     doc.page.width - doc.page.margins.left - doc.page.margins.right;
-  const width = pageW;
-  const previewH = options?.large ? 240 : 160;
+  const compact = options?.compact === true;
+  const width = compact
+    ? Math.min(pageW, 210)
+    : options?.large
+      ? Math.min(pageW, 280)
+      : Math.min(pageW, 250);
+  const previewH = compact ? 128 : options?.large ? 210 : 180;
+  const x = doc.page.margins.left + (pageW - width) / 2;
 
-  ensureSpace(doc, previewH + 80);
+  ensureSpace(doc, previewH + (compact ? 42 : 92));
 
   doc.save();
   doc.fillColor(BRAND.ink).font("Helvetica-Bold").fontSize(10.8);
   doc.text(
     item.isPrimary ? `Primary Evidence Preview — ${safe(item.label)}` : safe(item.label),
-    doc.page.margins.left,
+    x,
     doc.y,
     { width }
   );
   doc.restore();
   doc.moveDown(0.12);
 
-  const renderedEmbedded = renderEmbeddedEvidencePreview(doc, item, width, previewH);
+  const renderedEmbedded = renderEmbeddedEvidencePreview(
+    doc,
+    item,
+    x,
+    width,
+    previewH
+  );
 
   if (!renderedEmbedded) {
-    const x = doc.page.margins.left;
     const y = doc.y;
 
     let placeholderTitle = "Evidence preview not embedded";
@@ -2746,11 +2908,32 @@ placeholderSubtitle =
     doc.y = y + previewH + 6;
   }
 
+  if (compact) {
+    doc.save();
+    doc.fillColor(BRAND.muted).font("Helvetica").fontSize(8.6);
+    doc.text(
+      [
+        mapEvidenceAssetKindLabel(item.kind),
+        safe(item.mimeType, ""),
+        safe(item.displaySizeLabel, ""),
+        item.sha256 ? `SHA-256 ${shortHash(item.sha256)}` : "",
+      ]
+        .filter(Boolean)
+        .join(" • "),
+      x,
+      doc.y,
+      { width, align: "center", lineGap: 1.5 }
+    );
+    doc.restore();
+    doc.moveDown(0.2);
+    return;
+  }
+
   doc.save();
   doc.fillColor(BRAND.muted).font("Helvetica").fontSize(8.7);
   doc.text(
     "Reviewer representation note: any embedded preview in this report is provided to support human review of the preserved evidence item. The original evidence file remains separately preserved and should be evaluated together with the integrity, custody, timestamping, and publication materials recorded in this report.",
-    doc.page.margins.left,
+    x,
     doc.y,
     {
       width,
@@ -2830,7 +3013,7 @@ export async function buildReportPdf(params: {
   doc.info = {
     Title: `${BRAND.name} — Verification Report`,
     Subject:
-      "Executive Evidence Summary > Evidence Content > Verification Summary > Review Readiness > Chain of Custody > Technical Appendix > Legal Limitations",
+      "Executive Conclusion > Evidence Content > Integrity Proof > Storage and Timestamping > Forensic Custody > Access Activity > Technical Appendix > Legal Limitations",
     Keywords: `PROOVRA_REPORT_VERSION=${params.version};PROOVRA_GENERATED_AT=${params.generatedAtUtc}${buildToken}`,
     Creator: BRAND.name,
     Producer: BRAND.name,
@@ -2993,80 +3176,22 @@ export async function buildReportPdf(params: {
     },
   ]);
 
-  drawCallout(doc, {
-    title: "What this report contains",
-    body:
-      "This report combines evidence-centered review material, a structured inventory of recorded evidence items, integrity verification outcomes, custody chronology, timestamping and anchoring status, and reviewer-facing legal limitations in one artifact.",
-    tone: "neutral",
-  });
-
-  drawCallout(doc, {
-    title: "What reviewers should look at first",
-    body:
-      "Start with the primary evidence item and evidence package summary, then review the recorded integrity outcome, then review the forensic chain of custody, and only then move into the technical appendix or external verification workflow when deeper validation is needed.",
-    tone: "neutral",
-  });
-
-  drawCallout(doc, {
-    title: "What changed since completion",
-    body: buildWhatChangedSinceCompletionNarrative(params.evidence),
-    tone: "neutral",
-  });
-
   const mismatchSummary = buildMismatchNarrative({
     evidence: params.evidence,
     integrityVerified,
     custody,
   });
 
+  drawCallout(doc, {
+    title: "Review sequence",
+    body:
+      `Start with the primary evidence item${
+        primaryContentItem ? ` (${safe(primaryContentItem.label)})` : ""
+      }, then review the package structure, then assess the recorded integrity outcome, and only then move into forensic custody, timestamps, and the technical appendix when deeper validation is needed.`,
+    tone: "neutral",
+  });
+
   drawCallout(doc, mismatchSummary);
-
-  drawWorkflowCards(doc, "Recommended review sequence", [
-    `Review the primary evidence item${
-      primaryContentItem ? `: ${safe(primaryContentItem.label)}.` : "."
-    }`,
-    "Confirm whether the evidence package is single-item or multipart and whether any supporting items affect interpretation.",
-    "Review the recorded integrity outcome, storage protection, timestamping, and publication indicators together rather than in isolation.",
-    "Use the forensic custody timeline to understand sequence and integrity-relevant record events before relying on later access history.",
-  ]);
-
-  if (primaryContentItem && previewPolicy.previewEnabled) {
-    drawCallout(doc, {
-      title: "Primary evidence quick view",
-      body:
-        "The next embedded panel provides a reviewer-facing representation of the primary preserved evidence item. It supports human review, but it should be interpreted together with the integrity, custody, timestamping, and legal limitation sections of this report.",
-      tone: "neutral",
-    });
-    drawEvidencePreviewCard(doc, primaryContentItem);
-  }
-
-  {
-    const rows = buildExecutiveRows(
-      params.evidence,
-      structureLabel,
-      contentSummary,
-      display,
-      externalMode
-    );
-    const neededHeight = estimateEvidenceSummarySectionHeight(doc, rows);
-    const availableHeight =
-      doc.page.height - doc.page.margins.bottom - 10 - doc.y;
-
-    if (availableHeight < neededHeight) {
-      addPageWithHeader(doc);
-    }
-
-    doc.save();
-    doc.fillColor(BRAND.ink).font("Helvetica-Bold").fontSize(15);
-    doc.text("Executive Evidence Summary", doc.page.margins.left, doc.y);
-    doc.restore();
-    doc.moveDown(0.14);
-
-    kvGrid(doc, rows);
-    doc.moveDown(0.12);
-  }
-
-  addPageWithHeader(doc);
 
   section(
     doc,
@@ -3089,49 +3214,12 @@ export async function buildReportPdf(params: {
       );
       doc.moveDown(0.12);
 
-      drawInfoCards(doc, [
-        {
-          label: "Primary Content Type",
-          value: mapEvidenceAssetKindLabel(contentSummary.primaryKind),
-          tone: "neutral",
-        },
-        {
-          label: "Composition",
-          value:
-            safe(params.evidence.contentCompositionSummary) ||
-            `${contentSummary.itemCount} recorded item${
-              contentSummary.itemCount === 1 ? "" : "s"
-            }`,
-          tone: "neutral",
-        },
-        {
-          label: "Previewable Items",
-          value: String(contentSummary.previewableItemCount),
-          tone: contentSummary.previewableItemCount > 0 ? "success" : "warning",
-        },
-        {
-          label: "Total Content Size",
-          value: safe(contentSummary.totalSizeDisplay),
-          tone: "neutral",
-        },
-      ]);
-
       drawCallout(doc, {
-        title: "Content review note",
-        body: reviewGuidance.contentReviewNote,
-        tone: "neutral",
-      });
-
-      drawCallout(doc, {
-        title: "Preview / exposure policy",
-        body: `${previewPolicy.rationale} ${previewPolicy.privacyNotice}`,
-        tone: "warning",
-      });
-
-      drawCallout(doc, {
-        title: "Primary evidence item",
+        title: "Reviewer content note",
         body: primaryContentItem
           ? [
+              reviewGuidance.contentReviewNote,
+              `${previewPolicy.rationale} ${previewPolicy.privacyNotice}`,
               `Label: ${safe(primaryContentItem.label)}`,
               `Kind: ${mapEvidenceAssetKindLabel(primaryContentItem.kind)}`,
               primaryContentItem.mimeType ? `MIME: ${primaryContentItem.mimeType}` : null,
@@ -3145,7 +3233,7 @@ export async function buildReportPdf(params: {
             ]
               .filter(Boolean)
               .join(" • ")
-          : "No primary evidence item was explicitly identified in the report payload.",
+          : `${reviewGuidance.contentReviewNote} No primary evidence item was explicitly identified in the report payload.`,
         tone: "neutral",
       });
 
@@ -3156,56 +3244,35 @@ export async function buildReportPdf(params: {
             "This report should be reviewed as an evidence package rather than as a single loose file. The primary item gives the fastest understanding of the record, but supporting items may materially affect interpretation, chronology, or context.",
           tone: "warning",
         });
+
+        drawCallout(doc, {
+          title: "Evidence package gallery",
+          body:
+            "Recorded evidence items are indexed below as a compact review gallery so multipart packages can be reviewed quickly without dedicating a full page to every image, video, or document.",
+          tone: "neutral",
+        });
+
+        drawEvidenceGallery(doc, contentItems);
       }
 
       if (primaryContentItem) {
         if (previewPolicy.previewEnabled) {
-          drawEvidencePreviewCard(doc, primaryContentItem, { large: true });
+          if (contentItems.length > 1) {
+            drawCallout(doc, {
+              title: "Primary evidence spotlight",
+              body:
+                "The primary evidence item is indexed here as the lead review item, but multipart packages are intentionally summarized through the compact gallery instead of dedicating a full-page viewer to each item. Deeper visual inspection should be performed in the controlled verification workspace.",
+              tone: "neutral",
+            });
+            drawEvidencePreviewCard(doc, primaryContentItem, { compact: true });
+          } else {
+            drawEvidencePreviewCard(doc, primaryContentItem, { large: true });
+          }
         } else {
           drawCallout(doc, {
             title: "Preview disabled by report policy",
             body:
               "The report policy for this artifact does not allow embedded evidence preview. Reviewers should use the structured inventory and verification workflow instead.",
-            tone: "warning",
-          });
-        }
-      }
-
-      const secondaryPreviewItems = contentItems.filter(
-        (item) => !item.isPrimary && item.previewable
-      );
-
-      if (secondaryPreviewItems.length > 0) {
-        doc.moveDown(0.1);
-        drawCallout(doc, {
-          title: "Additional evidence items",
-          body:
-            "Additional previewable or supporting items are listed below as part of the same evidence package.",
-          tone: "neutral",
-        });
-
-        if (previewPolicy.previewEnabled) {
-          const renderedSecondaryItems = secondaryPreviewItems.slice(0, 4);
-          for (const item of renderedSecondaryItems) {
-            drawEvidencePreviewCard(doc, item);
-          }
-
-          if (secondaryPreviewItems.length > renderedSecondaryItems.length) {
-            drawCallout(doc, {
-              title: "Additional items not embedded in full",
-              body: `${secondaryPreviewItems.length - renderedSecondaryItems.length} more supporting evidence item${
-                secondaryPreviewItems.length - renderedSecondaryItems.length === 1
-                  ? ""
-                  : "s"
-              } are included in the structured inventory below. They remain part of the same evidence package even when not all reviewer previews are embedded in this report artifact.`,
-              tone: "neutral",
-            });
-          }
-        } else {
-          drawCallout(doc, {
-            title: "Additional previews disabled by report policy",
-            body:
-              "Additional item previews are intentionally suppressed for this report artifact. The structured inventory remains available below.",
             tone: "warning",
           });
         }
@@ -3218,7 +3285,7 @@ export async function buildReportPdf(params: {
             "The report payload did not include explicit item-level inventory rows. Reviewers should rely on the canonical fingerprint, MIME type, and evidence structure fields.",
           tone: "warning",
         });
-      } else {
+      } else if (contentItems.length === 1) {
         const innerW =
           doc.page.width - doc.page.margins.left - doc.page.margins.right;
         const colWidths = [
@@ -3237,12 +3304,17 @@ export async function buildReportPdf(params: {
           buildEvidenceItemsTableRows(contentItems),
           colWidths
         );
+      } else {
+        drawCallout(doc, {
+          title: "Item-level inventory note",
+          body:
+            "Detailed item-by-item technical rows are intentionally omitted from the main report when a multipart gallery is already present. Use the verification workspace or technical package if a reviewer needs full item-level inspection beyond this compact dossier.",
+          tone: "neutral",
+        });
       }
     },
     { minSpace: 150 }
   );
-
-  addPageWithHeader(doc);
 
   section(
     doc,
@@ -3336,99 +3408,82 @@ export async function buildReportPdf(params: {
     { minSpace: 130 }
   );
 
-  addPageWithHeader(doc);
+  section(doc, "Certification & Attestation", () => {
+    safeParagraph(
+      doc,
+      "This section records whether a certificated or attested statement was captured and attached as part of the evidence verification record.",
+      { fontSize: 9.5, color: BRAND.muted }
+    );
+    doc.moveDown(0.12);
 
-  section(
-    doc,
-    "Verification Summary",
-    () => {
-      safeParagraph(
-        doc,
-        "This section provides the primary reviewer-facing summary of the evidence record, including verification status, identity linkage, capture method, report generation state, and review timestamps.",
-        { fontSize: 9.5, color: BRAND.muted }
-      );
-      doc.moveDown(0.12);
+    const custodian = params.evidence.certifications?.custodian ?? null;
+    const qualifiedPerson = params.evidence.certifications?.qualifiedPerson ?? null;
 
-      kvGrid(
-        doc,
-        buildVerificationSummaryRows(
-          params.evidence,
-          custody,
-          structureLabel,
-          contentSummary,
-          externalMode
-        )
-      );
-
-      doc.moveDown(0.14);
-
+    if (!custodian && !qualifiedPerson) {
       drawCallout(doc, {
-        title: "What is technically established",
+        title: "No actual certification attached",
         body:
-          "This report presents the recorded integrity outcome, file and fingerprint digests, signature materials, timestamping records, public anchoring status, immutable storage indicators, and structured custody events.",
-        tone: "success",
-      });
-
-      drawCallout(doc, {
-        title: "Public verification page",
-        body:
-          "Use the QR code or the public verification link section to open the reviewer-facing verification record.",
-        tone: "neutral",
-      });
-
-      drawCallout(doc, {
-        title: "Verification package reference",
-        body:
-          params.evidence.verificationPackageVersion != null
-            ? `Verification package version ${params.evidence.verificationPackageVersion} is associated with this evidence record. Use the package together with this report and the public verification page when deeper technical review, legal handoff, or external expert review is required.`
-            : "No verification package version was included in the current report payload. The public verification page and technical appendix remain the primary review surfaces available from this artifact.",
-        tone: "neutral",
-      });
-    },
-    { minSpace: 120 }
-  );
-
-  addPageWithHeader(doc);
-
-  section(
-    doc,
-    "Review Readiness",
-    () => {
-      safeParagraph(
-        doc,
-        "This section is structured for reviewer workflows. It focuses on the practical review state rather than low-level cryptographic details.",
-        { fontSize: 9.4, color: BRAND.muted }
-      );
-      doc.moveDown(0.12);
-
-      kvGrid(doc, buildReviewReadinessRows(params.evidence, custody, externalMode));
-      doc.moveDown(0.14);
-
-      drawCallout(doc, {
-        title: "Reviewer workflow",
-        body: reviewGuidance.reviewerWorkflow.join(" "),
-        tone: "neutral",
-      });
-
-      drawCallout(doc, {
-        title: "Integrity assessment note",
-        body: reviewGuidance.integrityAssessmentNote,
-        tone: integrityVerified ? "success" : "warning",
-      });
-
-      drawCallout(doc, {
-        title: "Legal assessment note",
-        body: reviewGuidance.legalAssessmentNote,
+          "No actual stored attestation record was attached to this evidence report. This means a certification workflow was not completed as part of the preserved record.",
         tone: "warning",
       });
+      return;
+    }
+
+    if (custodian) {
+      kvGrid(doc, [
+        ["Custodian Status", mapCertificationStatusLabel(custodian.status)],
+        ["Custodian Version", String(custodian.version)],
+        ["Custodian Requested At", safe(custodian.requestedAtUtc)],
+        ["Custodian Attested At", safe(custodian.attestedAtUtc)],
+        ["Custodian Attestor Name", safe(custodian.attestorName)],
+        ["Custodian Attestor Title", safe(custodian.attestorTitle)],
+        ["Custodian Organization", safe(custodian.attestorOrganization)],
+        ["Custodian Certification Hash", shortHash(custodian.certificationHash)],
+        ["Custodian Revoked At", safe(custodian.revokedAtUtc)],
+      ]);
 
       drawCallout(doc, {
-        title: "Multipart review note",
-        body: reviewGuidance.multipartReviewNote,
-        tone: "neutral",
+        title: "Custodian certification state",
+        body:
+          custodian.status === "ATTESTED"
+            ? "A custodian attestation record is attached and corresponds to the preserved evidence state."
+            : custodian.status === "REVOKED"
+              ? "A custodian certification record was revoked. Review the record carefully and use the attached state information to understand the revocation context."
+              : "A custodian certification workflow exists but is not yet fully attested.",
+        tone: certificationTone(custodian.status),
       });
-    },
-    { minSpace: 120 }
+    }
+
+    if (qualifiedPerson) {
+      if (custodian) {
+        doc.moveDown(0.12);
+      }
+
+      kvGrid(doc, [
+        ["Qualified Person Status", mapCertificationStatusLabel(qualifiedPerson.status)],
+        ["Qualified Person Version", String(qualifiedPerson.version)],
+        ["Qualified Person Requested At", safe(qualifiedPerson.requestedAtUtc)],
+        ["Qualified Person Attested At", safe(qualifiedPerson.attestedAtUtc)],
+        ["Qualified Person Attestor Name", safe(qualifiedPerson.attestorName)],
+        ["Qualified Person Attestor Title", safe(qualifiedPerson.attestorTitle)],
+        ["Qualified Person Organization", safe(qualifiedPerson.attestorOrganization)],
+        ["Qualified Person Certification Hash", shortHash(qualifiedPerson.certificationHash)],
+        ["Qualified Person Revoked At", safe(qualifiedPerson.revokedAtUtc)],
+      ]);
+
+      drawCallout(doc, {
+        title: "Qualified-person certification state",
+        body:
+          qualifiedPerson.status === "ATTESTED"
+            ? "A qualified-person certification record is attached and corresponds to the preserved evidence state."
+            : qualifiedPerson.status === "REVOKED"
+              ? "A qualified-person certification record was revoked. Review the record carefully and use the attached state information to understand the revocation context."
+              : "A qualified-person certification workflow exists but is not yet fully attested.",
+        tone: certificationTone(qualifiedPerson.status),
+      });
+    }
+  },
+  { minSpace: 130 }
   );
 
   {
@@ -3445,8 +3500,6 @@ export async function buildReportPdf(params: {
       });
     }
   }
-
-  addPageWithHeader(doc);
 
   section(
     doc,
@@ -3593,8 +3646,6 @@ export async function buildReportPdf(params: {
     { minSpace: 150 }
   );
 
-  addPageWithHeader(doc);
-
   section(
     doc,
     "Custody & Lifecycle Summary",
@@ -3615,8 +3666,9 @@ export async function buildReportPdf(params: {
 
       if (custody.forensic.length === 0) {
         drawCallout(doc, {
-          title: "No forensic custody events recorded",
-          body: "No forensic custody events were provided for this report.",
+          title: "No forensic custody events returned",
+          body:
+            "This report did not receive internal forensic custody-event entries for this evidence record. That means no system-recorded forensic chain was available in this output; it should not be treated as proof that no handling occurred outside the recorded workflow.",
           tone: "warning",
         });
       } else {
@@ -3678,8 +3730,6 @@ export async function buildReportPdf(params: {
       { minSpace: 100 }
     );
   }
-
-  addPageWithHeader(doc);
 
   section(
     doc,
@@ -3776,29 +3826,6 @@ export async function buildReportPdf(params: {
             "Detailed signature materials and public-key verification artifacts remain available through the technical verification workflow and verification package, where enabled. They are not reproduced in full in this reviewer-facing report.",
           tone: "neutral",
         });
-      }
-
-      if (contentSummary.itemCount > 1) {
-        ensureSpace(doc, 180);
-
-        doc.save();
-        doc.fillColor(BRAND.ink).font("Helvetica-Bold").fontSize(10.6);
-        doc.text("Multipart Evidence Summary", doc.page.margins.left, doc.y);
-        doc.restore();
-        doc.moveDown(0.14);
-
-        kvGrid(doc, [
-          ["Structure", structureLabel],
-          ["Total Items", String(contentSummary.itemCount)],
-          ["Images", String(contentSummary.imageCount)],
-          ["Videos", String(contentSummary.videoCount)],
-          ["Audio", String(contentSummary.audioCount)],
-          ["PDF", String(contentSummary.pdfCount)],
-          ["Text", String(contentSummary.textCount)],
-          ["Other", String(contentSummary.otherCount)],
-        ]);
-
-        doc.moveDown(0.12);
       }
 
       ensureSpace(doc, 220);
@@ -3935,8 +3962,6 @@ export async function buildReportPdf(params: {
       });
     }
   }
-
-  addPageWithHeader(doc);
 
   section(
     doc,

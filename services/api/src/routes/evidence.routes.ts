@@ -23,7 +23,9 @@ import { getAuthUserId } from "../auth.js";
 import { requireLegalAcceptance } from "../middleware/require-legal-acceptance.js";
 import { createEvidence } from "../services/evidence.service.js";
 import { completeEvidence } from "../services/evidence-complete.service.js";
+import type { Prisma } from "@prisma/client";
 import * as prismaPkg from "@prisma/client";
+import { CertificationType as PrismaCertificationType } from "@prisma/client";
 import { prisma } from "../db.js";
 import {
   presignGetObject,
@@ -37,6 +39,12 @@ import {
   evaluateCustodyChain,
   isAccessCustodyEventType,
 } from "../services/custody-events.service.js";
+import {
+  attestEvidenceCertification,
+  listEvidenceCertifications,
+  requestEvidenceCertification,
+  revokeEvidenceCertification,
+} from "../services/evidence-certification.service.js";
 import { appendPlatformAuditLog } from "../services/platform-audit-log.service.js";
 import { ed25519VerifyHexSignature, sha256Hex } from "../crypto.js";
 import { writeAnalyticsEvent } from "../services/analytics-event.service.js";
@@ -85,6 +93,26 @@ const UpdateEvidenceLabelBody = z.object({
 
 const RestoreDeletedEvidenceBody = z.object({
   restore: z.boolean().optional().default(true),
+});
+
+const RequestEvidenceCertificationBody = z.object({
+  declarationType: z.nativeEnum(PrismaCertificationType),
+});
+
+const AttestEvidenceCertificationBody = z.object({
+  declarationType: z.nativeEnum(PrismaCertificationType),
+  attestorName: z.string().trim().min(1).max(160),
+  attestorTitle: z.string().trim().min(1).max(160),
+  attestorEmail: z.string().trim().email().max(320),
+  attestorOrganization: z.string().trim().min(1).max(180).optional().nullable(),
+  statementMarkdown: z.string().trim().min(1),
+  statementSnapshot: z.unknown().optional().nullable(),
+  signatureText: z.string().trim().min(1).max(512),
+});
+
+const RevokeEvidenceCertificationBody = z.object({
+  declarationType: z.nativeEnum(PrismaCertificationType),
+  reason: z.string().trim().min(1).max(500),
 });
 
 type ParamsId = { id: string };
@@ -4142,6 +4170,215 @@ const originalFileName = basenameFromStorageKey(
     }
   );
 
+  app.get(
+    "/v1/evidence/:id/certifications",
+    { preHandler: requireAuth },
+    async (req: FastifyRequest, reply) => {
+      const ownerUserId = getAuthUserId(req);
+      const id = z.string().uuid().parse((req.params as ParamsId).id);
+
+      (req as FastifyRequest & { evidenceId?: string }).evidenceId = id;
+      req.log = req.log.child({ evidenceId: id });
+
+      try {
+        await getEvidenceWithReadAccess(ownerUserId, id);
+        const certifications = await listEvidenceCertifications(id);
+
+        auditEvidenceAction(req, {
+          userId: ownerUserId,
+          action: "evidence.certifications_listed",
+          outcome: "success",
+          resourceId: id,
+          metadata: { certificationCount: certifications.length },
+        });
+
+        return reply.code(200).send({ evidenceId: id, certifications });
+      } catch (err) {
+        const statusCode =
+          err instanceof Error && "statusCode" in err
+            ? (err as Error & { statusCode?: number }).statusCode ?? 500
+            : 500;
+        const message = err instanceof Error ? err.message : "Unexpected error";
+        return reply.code(statusCode).send({ message });
+      }
+    }
+  );
+
+  app.post(
+    "/v1/evidence/:id/certifications/request",
+    { preHandler: requireAuth },
+    async (req: FastifyRequest, reply) => {
+      const ownerUserId = getAuthUserId(req);
+      const id = z.string().uuid().parse((req.params as ParamsId).id);
+      const body = RequestEvidenceCertificationBody.parse(req.body);
+
+      (req as FastifyRequest & { evidenceId?: string }).evidenceId = id;
+      req.log = req.log.child({ evidenceId: id });
+
+      try {
+        await getEvidenceWithOwnerAccess(ownerUserId, id);
+
+        const certification = await requestEvidenceCertification({
+          evidenceId: id,
+          declarationType: body.declarationType,
+          requestedByUserId: ownerUserId,
+        });
+
+        void appendCustodyEvent({
+          evidenceId: id,
+          eventType: prismaPkg.CustodyEventType.CERTIFICATION_REQUESTED,
+          payload: {
+            declarationType: body.declarationType,
+            requestedByUserId: ownerUserId,
+            version: certification.version,
+          } as Prisma.InputJsonValue,
+          ip: req.ip,
+          userAgent: req.headers["user-agent"],
+        }).catch(() => null);
+
+        auditEvidenceAction(req, {
+          userId: ownerUserId,
+          action: "evidence.certification_requested",
+          outcome: "success",
+          resourceId: id,
+          metadata: {
+            declarationType: body.declarationType,
+            version: certification.version,
+          },
+        });
+
+        return reply.code(200).send({ evidenceId: id, certification });
+      } catch (err) {
+        const statusCode =
+          err instanceof Error && "statusCode" in err
+            ? (err as Error & { statusCode?: number }).statusCode ?? 500
+            : 500;
+        const message = err instanceof Error ? err.message : "Unexpected error";
+        return reply.code(statusCode).send({ message });
+      }
+    }
+  );
+
+  app.post(
+    "/v1/evidence/:id/certifications/attest",
+    { preHandler: requireAuth },
+    async (req: FastifyRequest, reply) => {
+      const ownerUserId = getAuthUserId(req);
+      const id = z.string().uuid().parse((req.params as ParamsId).id);
+      const body = AttestEvidenceCertificationBody.parse(req.body);
+
+      (req as FastifyRequest & { evidenceId?: string }).evidenceId = id;
+      req.log = req.log.child({ evidenceId: id });
+
+      try {
+        await getEvidenceWithOwnerAccess(ownerUserId, id);
+
+        const certification = await attestEvidenceCertification({
+          evidenceId: id,
+          declarationType: body.declarationType,
+          attestedByUserId: ownerUserId,
+          attestorName: body.attestorName,
+          attestorTitle: body.attestorTitle,
+          attestorEmail: body.attestorEmail,
+          attestorOrganization: body.attestorOrganization ?? null,
+          statementMarkdown: body.statementMarkdown,
+          statementSnapshot: body.statementSnapshot ?? null,
+          signatureText: body.signatureText,
+        });
+
+        void appendCustodyEvent({
+          evidenceId: id,
+          eventType: prismaPkg.CustodyEventType.CERTIFICATION_ATTESTED,
+          payload: {
+            declarationType: body.declarationType,
+            attestedByUserId: ownerUserId,
+            version: certification.version,
+            certificationHash: certification.certificationHash,
+          } as Prisma.InputJsonValue,
+          ip: req.ip,
+          userAgent: req.headers["user-agent"],
+        }).catch(() => null);
+
+        auditEvidenceAction(req, {
+          userId: ownerUserId,
+          action: "evidence.certification_attested",
+          outcome: "success",
+          resourceId: id,
+          metadata: {
+            declarationType: body.declarationType,
+            version: certification.version,
+          },
+        });
+
+        return reply.code(200).send({ evidenceId: id, certification });
+      } catch (err) {
+        const statusCode =
+          err instanceof Error && "statusCode" in err
+            ? (err as Error & { statusCode?: number }).statusCode ?? 500
+            : 500;
+        const message = err instanceof Error ? err.message : "Unexpected error";
+        return reply.code(statusCode).send({ message });
+      }
+    }
+  );
+
+  app.post(
+    "/v1/evidence/:id/certifications/revoke",
+    { preHandler: requireAuth },
+    async (req: FastifyRequest, reply) => {
+      const ownerUserId = getAuthUserId(req);
+      const id = z.string().uuid().parse((req.params as ParamsId).id);
+      const body = RevokeEvidenceCertificationBody.parse(req.body);
+
+      (req as FastifyRequest & { evidenceId?: string }).evidenceId = id;
+      req.log = req.log.child({ evidenceId: id });
+
+      try {
+        await getEvidenceWithOwnerAccess(ownerUserId, id);
+
+        const certification = await revokeEvidenceCertification({
+          evidenceId: id,
+          declarationType: body.declarationType,
+          revokedByUserId: ownerUserId,
+          reason: body.reason,
+        });
+
+        void appendCustodyEvent({
+          evidenceId: id,
+          eventType: prismaPkg.CustodyEventType.CERTIFICATION_REVOKED,
+          payload: {
+            declarationType: body.declarationType,
+            revokedByUserId: ownerUserId,
+            version: certification.version,
+            revokeReason: certification.revokeReason,
+          } as Prisma.InputJsonValue,
+          ip: req.ip,
+          userAgent: req.headers["user-agent"],
+        }).catch(() => null);
+
+        auditEvidenceAction(req, {
+          userId: ownerUserId,
+          action: "evidence.certification_revoked",
+          outcome: "success",
+          resourceId: id,
+          metadata: {
+            declarationType: body.declarationType,
+            version: certification.version,
+          },
+        });
+
+        return reply.code(200).send({ evidenceId: id, certification });
+      } catch (err) {
+        const statusCode =
+          err instanceof Error && "statusCode" in err
+            ? (err as Error & { statusCode?: number }).statusCode ?? 500
+            : 500;
+        const message = err instanceof Error ? err.message : "Unexpected error";
+        return reply.code(statusCode).send({ message });
+      }
+    }
+  );
+
   app.get("/public/verify/:id", async (req: FastifyRequest, reply) => {
     const limit = getVerifyLimit();
     const rate = await enforceRateLimit({
@@ -4226,6 +4463,106 @@ const originalFileName = basenameFromStorageKey(
         storageObjectLockLegalHoldStatus: true,
       },
     });
+
+    const [latestCustodianCertification, latestQualifiedPersonCertification] =
+      await Promise.all([
+        prisma.evidenceCertification.findFirst({
+          where: {
+            evidenceId: id,
+            declarationType: PrismaCertificationType.CUSTODIAN,
+          },
+          orderBy: [{ version: "desc" }, { updatedAt: "desc" }],
+          select: {
+            declarationType: true,
+            status: true,
+            version: true,
+            requestedAtUtc: true,
+            requestedByUserId: true,
+            attestedAtUtc: true,
+            attestedByUserId: true,
+            attestorName: true,
+            attestorTitle: true,
+            attestorEmail: true,
+            attestorOrganization: true,
+            statementMarkdown: true,
+            statementSnapshot: true,
+            signatureText: true,
+            certificationHash: true,
+            revokedAtUtc: true,
+            revokedByUserId: true,
+            revokeReason: true,
+          },
+        }),
+        prisma.evidenceCertification.findFirst({
+          where: {
+            evidenceId: id,
+            declarationType: PrismaCertificationType.QUALIFIED_PERSON,
+          },
+          orderBy: [{ version: "desc" }, { updatedAt: "desc" }],
+          select: {
+            declarationType: true,
+            status: true,
+            version: true,
+            requestedAtUtc: true,
+            requestedByUserId: true,
+            attestedAtUtc: true,
+            attestedByUserId: true,
+            attestorName: true,
+            attestorTitle: true,
+            attestorEmail: true,
+            attestorOrganization: true,
+            statementMarkdown: true,
+            statementSnapshot: true,
+            signatureText: true,
+            certificationHash: true,
+            revokedAtUtc: true,
+            revokedByUserId: true,
+            revokeReason: true,
+          },
+        }),
+      ]);
+
+    const publicCertifications = {
+      custodian: latestCustodianCertification
+        ? {
+            declarationType: latestCustodianCertification.declarationType,
+            status: latestCustodianCertification.status,
+            version: latestCustodianCertification.version,
+            requestedAtUtc:
+              latestCustodianCertification.requestedAtUtc?.toISOString() ?? null,
+            attestedAtUtc:
+              latestCustodianCertification.attestedAtUtc?.toISOString() ?? null,
+            attestorName: latestCustodianCertification.attestorName,
+            attestorTitle: latestCustodianCertification.attestorTitle,
+            attestorOrganization:
+              latestCustodianCertification.attestorOrganization,
+            certificationHash: latestCustodianCertification.certificationHash,
+            revokedAtUtc:
+              latestCustodianCertification.revokedAtUtc?.toISOString() ?? null,
+            revokeReason: latestCustodianCertification.revokeReason,
+          }
+        : null,
+      qualifiedPerson: latestQualifiedPersonCertification
+        ? {
+            declarationType: latestQualifiedPersonCertification.declarationType,
+            status: latestQualifiedPersonCertification.status,
+            version: latestQualifiedPersonCertification.version,
+            requestedAtUtc:
+              latestQualifiedPersonCertification.requestedAtUtc?.toISOString() ?? null,
+            attestedAtUtc:
+              latestQualifiedPersonCertification.attestedAtUtc?.toISOString() ?? null,
+            attestorName: latestQualifiedPersonCertification.attestorName,
+            attestorTitle: latestQualifiedPersonCertification.attestorTitle,
+            attestorOrganization:
+              latestQualifiedPersonCertification.attestorOrganization,
+            certificationHash:
+              latestQualifiedPersonCertification.certificationHash,
+            revokedAtUtc:
+              latestQualifiedPersonCertification.revokedAtUtc?.toISOString() ?? null,
+            revokeReason: latestQualifiedPersonCertification.revokeReason,
+          }
+        : null,
+    };
 
     if (!evidence) {
       return reply.code(404).send({ message: "Evidence not found" });
@@ -4638,6 +4975,7 @@ return reply.code(200).send({
           ? "Public verification access allows controlled preview without unrestricted download."
           : "Public verification access allows reviewer-facing preview and download according to the configured policy.",
   },
+  certifications: publicCertifications,
   display,
   overview,
   humanSummary,

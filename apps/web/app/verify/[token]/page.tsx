@@ -315,6 +315,19 @@ type VerifyResponse = {
   anchor?: VerifyAnchor;
   identity?: VerifyIdentity;
 
+  integrityProof?: {
+    canonicalHashMatches?: boolean;
+    signatureValid?: boolean;
+    custodyChainValid?: boolean;
+    custodyChainMode?: string | null;
+    custodyChainFailureReason?: string | null;
+    timestampDigestMatches?: boolean;
+    otsHashMatches?: boolean;
+    overallIntegrity?: boolean;
+    forensicEventCount?: number;
+    accessEventCount?: number;
+  } | null;
+
   verification?: {
     canonicalHashMatches?: boolean;
     signatureValid?: boolean;
@@ -386,6 +399,8 @@ type OtsDetails = {
   proofPresent: boolean | null;
   hashMatchesFingerprintHash: boolean | null;
 };
+
+type TechnicalTabId = "record" | "integrity" | "custody" | "access";
 
 function formatDateTime(value?: string | null): string {
   if (!value) return "N/A";
@@ -589,6 +604,7 @@ function buildTsaDetails(data: VerifyResponse) {
 
 function buildOtsDetails(data: VerifyResponse): OtsDetails {
   const ots = data.storageAndTimestamping?.ots ?? data.ots ?? null;
+  const integrity = data.integrityProof ?? data.verification ?? null;
 
   return {
     status: extractOtsStatus(data),
@@ -610,8 +626,8 @@ function buildOtsDetails(data: VerifyResponse): OtsDetails {
     hashMatchesFingerprintHash:
       typeof ots?.hashMatchesFingerprintHash === "boolean"
         ? ots.hashMatchesFingerprintHash
-        : typeof data.verification?.otsHashMatches === "boolean"
-          ? data.verification.otsHashMatches
+        : typeof integrity?.otsHashMatches === "boolean"
+          ? integrity.otsHashMatches
           : null,
   };
 }
@@ -943,6 +959,275 @@ function MaterialField({
       >
         {shown}
       </div>
+    </div>
+  );
+}
+
+function TechnicalTabButton({
+  label,
+  active,
+  onClick,
+}: {
+  label: string;
+  active: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      style={{
+        padding: "10px 14px",
+        borderRadius: 999,
+        border: active ? "1px solid #175CD3" : "1px solid #D0D5DD",
+        background: active ? "#EFF8FF" : "#FFFFFF",
+        color: active ? "#175CD3" : "#344054",
+        fontSize: 13,
+        fontWeight: 700,
+        cursor: "pointer",
+        whiteSpace: "nowrap",
+      }}
+    >
+      {label}
+    </button>
+  );
+}
+
+function TimelinePanel({
+  title,
+  subtitle,
+  countTone,
+  events,
+  emptyTitle,
+  emptyBody,
+  accent,
+}: {
+  title: string;
+  subtitle: string;
+  countTone: "info" | "neutral";
+  events: TimelineItem[];
+  emptyTitle: string;
+  emptyBody: string;
+  accent: {
+    dot: string;
+    dotBorder: string;
+    line: string;
+  };
+}) {
+  return (
+    <div style={{ display: "grid", gap: 18 }}>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 12,
+          flexWrap: "wrap",
+        }}
+      >
+        <div>
+          <h3
+            style={{
+              margin: 0,
+              fontSize: 18,
+              fontWeight: 800,
+              color: "#101828",
+            }}
+          >
+            {title}
+          </h3>
+          <div
+            style={{
+              marginTop: 6,
+              fontSize: 13,
+              color: "#667085",
+              lineHeight: 1.65,
+              maxWidth: 760,
+            }}
+          >
+            {subtitle}
+          </div>
+        </div>
+
+        <Badge
+          label={`${events.length} Event${events.length === 1 ? "" : "s"}`}
+          tone={countTone}
+        />
+      </div>
+
+      {events.length === 0 ? (
+        <div
+          style={{
+            border: "1px solid #E4E7EC",
+            background: "#FCFCFD",
+            borderRadius: 16,
+            padding: 18,
+            display: "grid",
+            gap: 8,
+          }}
+        >
+          <div style={{ fontSize: 13, fontWeight: 800, color: "#344054" }}>
+            {emptyTitle}
+          </div>
+          <div style={{ fontSize: 13, color: "#667085", lineHeight: 1.7 }}>
+            {emptyBody}
+          </div>
+        </div>
+      ) : (
+        <div
+          style={{
+            position: "relative",
+            display: "grid",
+            gap: 14,
+          }}
+        >
+          {events.map((event, idx) => {
+            const isLast = idx === events.length - 1;
+
+            return (
+              <div
+                key={`${event.eventType}-${event.atUtc}-${idx}`}
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "28px minmax(0, 1fr)",
+                  gap: 14,
+                  alignItems: "start",
+                }}
+              >
+                <div
+                  style={{
+                    position: "relative",
+                    display: "flex",
+                    justifyContent: "center",
+                    minHeight: 80,
+                  }}
+                >
+                  <div
+                    style={{
+                      width: 14,
+                      height: 14,
+                      borderRadius: 999,
+                      background: accent.dot,
+                      border: `3px solid ${accent.dotBorder}`,
+                      marginTop: 6,
+                      zIndex: 1,
+                    }}
+                  />
+                  {!isLast ? (
+                    <div
+                      style={{
+                        position: "absolute",
+                        top: 22,
+                        bottom: -18,
+                        width: 2,
+                        background: accent.line,
+                      }}
+                    />
+                  ) : null}
+                </div>
+
+                <div
+                  style={{
+                    border: "1px solid #EAECF0",
+                    background: "#FFFFFF",
+                    borderRadius: 16,
+                    padding: 16,
+                    boxShadow: "0 1px 2px rgba(16,24,40,0.04)",
+                  }}
+                >
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "flex-start",
+                      justifyContent: "space-between",
+                      gap: 12,
+                      flexWrap: "wrap",
+                      marginBottom: 10,
+                    }}
+                  >
+                    <div
+                      style={{
+                        fontSize: 15,
+                        fontWeight: 800,
+                        color: "#101828",
+                        minWidth: 0,
+                        flex: "1 1 260px",
+                      }}
+                    >
+                      {normalizeEventLabel(event.eventType)}
+                    </div>
+
+                    <div
+                      style={{
+                        fontSize: 12,
+                        color: "#475467",
+                        fontWeight: 700,
+                        padding: "6px 10px",
+                        borderRadius: 999,
+                        background: "#F2F4F7",
+                        border: "1px solid #EAECF0",
+                        whiteSpace: "nowrap",
+                        flexShrink: 0,
+                      }}
+                    >
+                      {formatDateTime(event.atUtc)}
+                    </div>
+                  </div>
+
+                  <div
+                    style={{
+                      fontSize: 13,
+                      lineHeight: 1.7,
+                      color: "#667085",
+                      wordBreak: "break-word",
+                      overflowWrap: "anywhere",
+                      whiteSpace: "pre-wrap",
+                      maxWidth: "100%",
+                    }}
+                  >
+                    {event.payloadSummary?.trim()
+                      ? event.payloadSummary
+                      : "No additional event summary provided."}
+                  </div>
+
+                  {(event.prevEventHash || event.eventHash) ? (
+                    <div
+                      style={{
+                        marginTop: 12,
+                        display: "grid",
+                        gap: 8,
+                      }}
+                    >
+                      {event.prevEventHash ? (
+                        <div
+                          style={{
+                            fontSize: 12,
+                            color: "#98A2B3",
+                            wordBreak: "break-all",
+                          }}
+                        >
+                          Prev Hash: {event.prevEventHash}
+                        </div>
+                      ) : null}
+                      {event.eventHash ? (
+                        <div
+                          style={{
+                            fontSize: 12,
+                            color: "#98A2B3",
+                            wordBreak: "break-all",
+                          }}
+                        >
+                          Event Hash: {event.eventHash}
+                        </div>
+                      ) : null}
+                    </div>
+                  ) : null}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
@@ -1433,6 +1718,8 @@ export default function VerifyPage() {
     useState<VerifyContentAccessPolicy>(null);
   const [contentExposureDecision, setContentExposureDecision] =
     useState<VerifyContentExposureDecision>(null);
+  const [activeTechnicalTab, setActiveTechnicalTab] =
+    useState<TechnicalTabId>("record");
 
   const pollingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const hasShownAnchoredToastRef = useRef(false);
@@ -1700,41 +1987,42 @@ export default function VerifyPage() {
     setOtsUpgradedAtUtc(otsDetails.upgradedAtUtc);
     setOtsFailureReason(otsDetails.failureReason);
     setOtsProofBase64(otsDetails.proofBase64);
+    const integrity = data.integrityProof ?? data.verification ?? null;
 
     setCanonicalHashMatches(
-      typeof data.verification?.canonicalHashMatches === "boolean"
-        ? data.verification.canonicalHashMatches
+      typeof integrity?.canonicalHashMatches === "boolean"
+        ? integrity.canonicalHashMatches
         : null
     );
     setSignatureValid(
-      typeof data.verification?.signatureValid === "boolean"
-        ? data.verification.signatureValid
+      typeof integrity?.signatureValid === "boolean"
+        ? integrity.signatureValid
         : null
     );
     setCustodyChainValid(
-      typeof data.verification?.custodyChainValid === "boolean"
-        ? data.verification.custodyChainValid
+      typeof integrity?.custodyChainValid === "boolean"
+        ? integrity.custodyChainValid
         : null
     );
-    setCustodyChainMode(data.verification?.custodyChainMode ?? null);
+    setCustodyChainMode(integrity?.custodyChainMode ?? null);
     setCustodyChainFailureReason(
-      data.verification?.custodyChainFailureReason ?? null
+      integrity?.custodyChainFailureReason ?? null
     );
     setTimestampDigestMatches(
-      typeof data.verification?.timestampDigestMatches === "boolean"
-        ? data.verification.timestampDigestMatches
+      typeof integrity?.timestampDigestMatches === "boolean"
+        ? integrity.timestampDigestMatches
         : typeof tsaDetails.digestMatchesFileHash === "boolean"
           ? tsaDetails.digestMatchesFileHash
           : null
     );
     setOtsHashMatches(
-      typeof data.verification?.otsHashMatches === "boolean"
-        ? data.verification.otsHashMatches
+      typeof integrity?.otsHashMatches === "boolean"
+        ? integrity.otsHashMatches
         : otsDetails.hashMatchesFingerprintHash
     );
     setOverallIntegrity(
-      typeof data.verification?.overallIntegrity === "boolean"
-        ? data.verification.overallIntegrity
+      typeof integrity?.overallIntegrity === "boolean"
+        ? integrity.overallIntegrity
         : null
     );
 
@@ -2161,6 +2449,53 @@ export default function VerifyPage() {
     storagePresentation,
     externalPublicationPresent,
   ]);
+
+  const executiveBadges = useMemo(
+    () =>
+      verificationBadges.filter((item) =>
+        [
+          "Overall Integrity",
+          "Fingerprint",
+          "Signature",
+          "Custody Trail",
+          "OTS",
+          "Immutable Storage",
+        ].some((prefix) => item.label.startsWith(prefix))
+      ),
+    [verificationBadges]
+  );
+
+  const legalOutcomeNarrative = useMemo(() => {
+    if (overallIntegrity === true) {
+      return "The recorded integrity state passed the available cryptographic and timestamp-linked verification checks returned in this record. This supports reliance on the recorded system state, while authorship, factual truth, context, and admissibility still require separate legal or expert assessment.";
+    }
+
+    if (overallIntegrity === false) {
+      return "At least one returned integrity signal requires caution or further review before this record should be relied upon as a complete integrity verification result.";
+    }
+
+    return "The verification response exposes integrity materials, but the system did not return a final overall integrity conclusion for every technical layer.";
+  }, [overallIntegrity]);
+
+  const forensicCustodyNarrative = useMemo(() => {
+    if (forensicTimeline.length > 0) {
+      return `The record contains ${forensicTimeline.length} forensic custody event${
+        forensicTimeline.length === 1 ? "" : "s"
+      } describing integrity-relevant system activity. These events are displayed separately from later access activity.`;
+    }
+
+    return "No forensic custody events were returned in this verification record. This means this response does not provide an internal custody-event chain for the evidence record; it should not be read as proof that no handling occurred outside the recorded system workflow.";
+  }, [forensicTimeline.length]);
+
+  const accessActivityNarrative = useMemo(() => {
+    if (accessTimeline.length > 0) {
+      return `The record contains ${accessTimeline.length} access-related event${
+        accessTimeline.length === 1 ? "" : "s"
+      } such as viewing, verification, or download activity. These events are informational and are not the same thing as forensic custody events.`;
+    }
+
+    return "No access-activity entries were returned in this response. The absence of access entries does not alter the recorded integrity outcome.";
+  }, [accessTimeline.length]);
 
   const summaryFields = useMemo(
     () =>
@@ -2616,6 +2951,66 @@ export default function VerifyPage() {
     ]
   );
 
+  const recordTabFields = useMemo(
+    () =>
+      summaryFields.filter((field) =>
+        [
+          "Record Status",
+          "Verification Status",
+          "Integrity Status",
+          "Evidence Title",
+          "Evidence ID",
+          "Evidence Type",
+          "Evidence Structure",
+          "Capture Method",
+          "Submitted By",
+          "Auth Provider",
+          "Identity Level",
+          "Organization",
+          "Organization Verified",
+          "Report Version",
+          "Verification Package Version",
+          "Reviewer Summary Version",
+          "Created At",
+          "Captured At",
+          "Uploaded At",
+          "Signed At",
+          "Generated At",
+          "Last Verified At",
+          "File Type",
+        ].includes(field.label)
+      ),
+    [summaryFields]
+  );
+
+  const integrityStatusCards = useMemo(
+    () =>
+      technicalCards.filter((card) =>
+        [
+          "Signature Status",
+          "Fingerprint Status",
+          "Custody Chain",
+          "OpenTimestamps",
+          "Storage Protection",
+          "Timestamp Status",
+          "Timestamp Provider",
+          "Timestamp Time",
+          "Timestamp Serial",
+          "Hash Algorithm",
+          "Signing Key",
+          "Signing Key Version",
+          "OTS Calendar",
+          "OTS Anchored At",
+          "OTS Upgraded At",
+          "OTS Hash Check",
+          "External Publication",
+          "Anchor Provider",
+          "Anchor Time",
+        ].includes(card.label)
+      ),
+    [technicalCards]
+  );
+
   const heroTitleSize = "clamp(1.65rem, 3vw, 2.6rem)";
   const heroTextSize = "clamp(0.92rem, 1.15vw, 1rem)";
   const cardTitleSize = "clamp(1.45rem, 2.2vw, 1.95rem)";
@@ -2966,172 +3361,121 @@ export default function VerifyPage() {
                       gap: 10,
                     }}
                   >
-                    {verificationBadges.map((item) => (
+                    {executiveBadges.map((item) => (
                       <Badge key={item.label} label={item.label} tone={item.tone} />
                     ))}
                   </div>
 
                   <div
                     style={{
-                      border: "1px solid #E4E7EC",
-                      background: "#FCFCFD",
-                      borderRadius: 16,
-                      padding: 16,
+                      display: "grid",
+                      gridTemplateColumns:
+                        "repeat(auto-fit, minmax(min(100%, 260px), 1fr))",
+                      gap: 14,
                     }}
                   >
                     <div
                       style={{
-                        fontSize: 12,
-                        color: "#667085",
-                        fontWeight: 800,
-                        marginBottom: 8,
+                        border: "1px solid #E4E7EC",
+                        background: "#FCFCFD",
+                        borderRadius: 16,
+                        padding: 16,
+                        display: "grid",
+                        gap: 8,
                       }}
                     >
-                      What this verifies
-                    </div>
-                    <div
-                      style={{
-                        fontSize: 13,
-                        color: "#475467",
-                        lineHeight: 1.65,
-                        wordBreak: "break-word",
-                        overflowWrap: "anywhere",
-                      }}
-                    >
-                      {heroWhatIsVerifiedText}
-                    </div>
-                  </div>
-
-                  <div
-                    style={{
-                      border: "1px solid #E4E7EC",
-                      background: "#FCFCFD",
-                      borderRadius: 16,
-                      padding: 16,
-                    }}
-                  >
-                    <div
-                      style={{
-                        fontSize: 12,
-                        color: "#667085",
-                        fontWeight: 800,
-                        marginBottom: 8,
-                      }}
-                    >
-                      {otsPresentation.detailLabel}
-                    </div>
-                    <div
-                      style={{
-                        fontSize: 13,
-                        color: "#475467",
-                        lineHeight: 1.65,
-                        wordBreak: "break-word",
-                        overflowWrap: "anywhere",
-                      }}
-                    >
-                      {otsPresentation.detailText}
-                    </div>
-
-                    {(otsCalendar ||
-                      otsHash ||
-                      otsBitcoinTxid ||
-                      otsAnchoredAtUtc ||
-                      otsUpgradedAtUtc) && (
                       <div
                         style={{
-                          marginTop: 10,
-                          display: "grid",
-                          gap: 6,
                           fontSize: 12,
                           color: "#667085",
+                          fontWeight: 800,
                         }}
                       >
-                        {otsCalendar ? <div>Calendar: {otsCalendar}</div> : null}
-                        {otsHash ? (
-                          <div style={{ wordBreak: "break-all" }}>OTS Hash: {otsHash}</div>
-                        ) : null}
-                        {otsBitcoinTxid ? (
-                          <div style={{ wordBreak: "break-all" }}>
-                            Bitcoin TxID: {otsBitcoinTxid}
-                          </div>
-                        ) : null}
-                        {otsAnchoredAtUtc ? (
-                          <div>Anchored At: {formatDateTime(otsAnchoredAtUtc)}</div>
-                        ) : null}
-                        {otsUpgradedAtUtc ? (
-                          <div>Upgraded At: {formatDateTime(otsUpgradedAtUtc)}</div>
-                        ) : null}
+                        Legal review outcome
                       </div>
-                    )}
-                  </div>
-
-                  <div
-                    style={{
-                      border: "1px solid #E4E7EC",
-                      background: "#FCFCFD",
-                      borderRadius: 16,
-                      padding: 16,
-                    }}
-                  >
-                    <div
-                      style={{
-                        fontSize: 12,
-                        color: "#667085",
-                        fontWeight: 800,
-                        marginBottom: 8,
-                      }}
-                    >
-                      {storagePresentation.detailLabel}
-                    </div>
-                    <div
-                      style={{
-                        fontSize: 13,
-                        color: "#475467",
-                        lineHeight: 1.65,
-                        wordBreak: "break-word",
-                        overflowWrap: "anywhere",
-                      }}
-                    >
-                      {storagePresentation.detailText}
-                    </div>
-
-                    {(storageProtection?.mode ||
-                      storageProtection?.retainUntil ||
-                      storageProtection?.legalHold ||
-                      storageProtection?.region ||
-                      storageProtection?.verified !== null) && (
                       <div
                         style={{
-                          marginTop: 10,
-                          display: "grid",
-                          gap: 6,
-                          fontSize: 12,
-                          color: "#667085",
+                          fontSize: 13,
+                          color: "#475467",
+                          lineHeight: 1.65,
+                          wordBreak: "break-word",
+                          overflowWrap: "anywhere",
                         }}
                       >
-                        {storageProtection?.mode ? (
-                          <div>Object Lock Mode: {storageProtection.mode}</div>
-                        ) : null}
-                        {storageProtection?.retainUntil ? (
-                          <div>
-                            Retention Until:{" "}
-                            {formatDateTime(storageProtection.retainUntil)}
-                          </div>
-                        ) : null}
-                        {storageProtection?.legalHold ? (
-                          <div>Legal Hold: {storageProtection.legalHold}</div>
-                        ) : null}
-                        {storageProtection?.region ? (
-                          <div>Storage Region: {storageProtection.region}</div>
-                        ) : null}
-                        {typeof storageProtection?.verified === "boolean" ? (
-                          <div>
-                            Protection Metadata Verified:{" "}
-                            {storageProtection.verified ? "Yes" : "No"}
-                          </div>
-                        ) : null}
+                        {legalOutcomeNarrative}
                       </div>
-                    )}
+                    </div>
+
+                    <div
+                      style={{
+                        border: "1px solid #E4E7EC",
+                        background: "#FCFCFD",
+                        borderRadius: 16,
+                        padding: 16,
+                        display: "grid",
+                        gap: 8,
+                      }}
+                    >
+                      <div
+                        style={{
+                          fontSize: 12,
+                          color: "#667085",
+                          fontWeight: 800,
+                        }}
+                      >
+                        Forensic custody posture
+                      </div>
+                      <div
+                        style={{
+                          fontSize: 13,
+                          color: "#475467",
+                          lineHeight: 1.65,
+                          wordBreak: "break-word",
+                          overflowWrap: "anywhere",
+                        }}
+                      >
+                        {forensicCustodyNarrative}
+                      </div>
+                      <div style={{ fontSize: 12, color: "#98A2B3", lineHeight: 1.6 }}>
+                        {accessActivityNarrative}
+                      </div>
+                    </div>
+
+                    <div
+                      style={{
+                        border: "1px solid #E4E7EC",
+                        background: "#FCFCFD",
+                        borderRadius: 16,
+                        padding: 16,
+                        display: "grid",
+                        gap: 8,
+                      }}
+                    >
+                      <div
+                        style={{
+                          fontSize: 12,
+                          color: "#667085",
+                          fontWeight: 800,
+                        }}
+                      >
+                        Scope of this page
+                      </div>
+                      <div
+                        style={{
+                          fontSize: 13,
+                          color: "#475467",
+                          lineHeight: 1.65,
+                          wordBreak: "break-word",
+                          overflowWrap: "anywhere",
+                        }}
+                      >
+                        {heroWhatIsVerifiedText}
+                      </div>
+                      <div style={{ fontSize: 12, color: "#98A2B3", lineHeight: 1.6 }}>
+                        Technical details, timestamping, anchoring, and access history
+                        remain available below in the technical review layer.
+                      </div>
+                    </div>
                   </div>
 
                   {externalPublicationPresent === true ? (
@@ -4010,512 +4354,14 @@ export default function VerifyPage() {
               ) : null}
 
               <Card>
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                    gap: 12,
-                    flexWrap: "wrap",
-                    marginBottom: 16,
-                  }}
-                >
-                  <div>
-                    <h3
-                      style={{
-                        margin: 0,
-                        fontSize: 18,
-                        fontWeight: 800,
-                        color: "#101828",
-                      }}
-                    >
-                      Verification Summary
-                    </h3>
-                    <div
-                      style={{
-                        marginTop: 6,
-                        fontSize: 13,
-                        color: "#667085",
-                      }}
-                    >
-                      Core identification, lifecycle, and verification metadata for this record.
-                    </div>
-                  </div>
-                </div>
-
-                <div
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-                    gap: 14,
-                  }}
-                >
-                  {summaryFields.map((field) => (
-                    <SummaryField
-                      key={field.label}
-                      label={field.label}
-                      value={field.value}
-                    />
-                  ))}
-                </div>
-              </Card>
-
-              <Card>
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                    gap: 12,
-                    flexWrap: "wrap",
-                    marginBottom: 16,
-                  }}
-                >
-                  <div>
-                    <h3
-                      style={{
-                        margin: 0,
-                        fontSize: 18,
-                        fontWeight: 800,
-                        color: "#101828",
-                      }}
-                    >
-                      Integrity Materials
-                    </h3>
-                    <div
-                      style={{
-                        marginTop: 6,
-                        fontSize: 13,
-                        color: "#667085",
-                        maxWidth: 760,
-                      }}
-                    >
-                      Review cryptographic identifiers, signing materials,
-                      timestamp evidence, and OpenTimestamps materials recorded
-                      for this evidence item.
-                    </div>
-                  </div>
-                </div>
-
-                <div style={{ display: "grid", gap: 14 }}>
-                  {hash ? (
-                    <MaterialField
-                      label="File SHA-256"
-                      subtitle="Primary content hash recorded for the evidence file."
-                      value={hash}
-                      addToast={addToast}
-                      copyMessage="File hash copied"
-                    />
-                  ) : null}
-
-                  {fingerprintHash ? (
-                    <MaterialField
-                      label="Fingerprint Hash"
-                      subtitle="Hash derived from the canonical fingerprint record."
-                      value={fingerprintHash}
-                      addToast={addToast}
-                      copyMessage="Fingerprint hash copied"
-                    />
-                  ) : null}
-
-                  {signature ? (
-                    <MaterialField
-                      label="Digital Signature"
-                      subtitle="Recorded signature material associated with this evidence."
-                      value={signature}
-                      addToast={addToast}
-                      copyMessage="Digital signature copied"
-                    />
-                  ) : null}
-
-                  {publicKeyPem ? (
-                    <MaterialField
-                      label="Public Key"
-                      subtitle="Public key material available for advanced technical review."
-                      value={publicKeyPem}
-                      addToast={addToast}
-                      copyMessage="Public key copied"
-                    />
-                  ) : null}
-
-                  {otsProofBase64 ? (
-                    <MaterialField
-                      label="OpenTimestamps Proof"
-                      subtitle="Recorded OTS proof material for the evidence digest."
-                      value={otsProofBase64}
-                      addToast={addToast}
-                      copyMessage="OTS proof copied"
-                    />
-                  ) : null}
-
-                  {technicalCards.length > 0 ? (
-                    <div
-                      style={{
-                        display: "grid",
-                        gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-                        gap: 14,
-                      }}
-                    >
-                      {technicalCards.map((card) => (
-                        <div
-                          key={card.label}
-                          style={{
-                            border: "1px solid #E4E7EC",
-                            background: "#FCFCFD",
-                            borderRadius: 16,
-                            padding: 16,
-                            minWidth: 0,
-                            overflow: "hidden",
-                          }}
-                        >
-                          <div
-                            style={{
-                              fontSize: 12,
-                              color: "#667085",
-                              fontWeight: 700,
-                              marginBottom: 10,
-                            }}
-                          >
-                            {card.label}
-                          </div>
-
-                          <div
-                            style={{
-                              fontSize: 14,
-                              color: "#101828",
-                              fontWeight: 700,
-                              lineHeight: 1.5,
-                              wordBreak: "break-word",
-                              overflowWrap: "anywhere",
-                              minWidth: 0,
-                            }}
-                          >
-                            {card.content}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  ) : null}
-
-                  {tsaFailureReason ? (
-                    <div
-                      style={{
-                        border: "1px solid #FECACA",
-                        background: "#FEF2F2",
-                        borderRadius: 16,
-                        padding: 16,
-                      }}
-                    >
-                      <div
-                        style={{
-                          fontSize: 12,
-                          color: "#991B1B",
-                          fontWeight: 800,
-                          marginBottom: 8,
-                        }}
-                      >
-                        Timestamp Failure Reason
-                      </div>
-                      <div
-                        style={{
-                          fontSize: 13,
-                          color: "#7F1D1D",
-                          lineHeight: 1.6,
-                          wordBreak: "break-word",
-                          overflowWrap: "anywhere",
-                        }}
-                      >
-                        {tsaFailureReason}
-                      </div>
-                    </div>
-                  ) : null}
-
-                  {otsFailureDisplayMessage ? (
-                    <div
-                      style={{
-                        border: "1px solid #FECACA",
-                        background: "#FEF2F2",
-                        borderRadius: 16,
-                        padding: 16,
-                        display: "grid",
-                        gap: 10,
-                      }}
-                    >
-                      <div
-                        style={{
-                          fontSize: 12,
-                          color: "#991B1B",
-                          fontWeight: 800,
-                          marginBottom: 2,
-                        }}
-                      >
-                        OpenTimestamps Status Note
-                      </div>
-
-                      <div
-                        style={{
-                          fontSize: 13,
-                          color: "#7F1D1D",
-                          lineHeight: 1.65,
-                          wordBreak: "break-word",
-                          overflowWrap: "anywhere",
-                        }}
-                      >
-                        {otsFailureDisplayMessage}
-                      </div>
-
-                      {otsFailureTechnicalMessage ? (
-                        <details
-                          style={{
-                            marginTop: 2,
-                          }}
-                        >
-                          <summary
-                            style={{
-                              cursor: "pointer",
-                              fontSize: 12,
-                              fontWeight: 700,
-                              color: "#B42318",
-                              userSelect: "none",
-                            }}
-                          >
-                            Show technical details
-                          </summary>
-
-                          <div
-                            style={{
-                              marginTop: 10,
-                              padding: 12,
-                              borderRadius: 12,
-                              border: "1px solid #FECACA",
-                              background: "#FFF7F7",
-                              fontSize: 12,
-                              color: "#7F1D1D",
-                              lineHeight: 1.65,
-                              wordBreak: "break-all",
-                              fontFamily:
-                                'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
-                            }}
-                          >
-                            {otsFailureTechnicalMessage}
-                          </div>
-                        </details>
-                      ) : null}
-                    </div>
-                  ) : null}
-                </div>
-              </Card>
-
-              <Card>
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                    gap: 12,
-                    flexWrap: "wrap",
-                    marginBottom: 18,
-                  }}
-                >
-                  <div>
-                    <h3
-                      style={{
-                        margin: 0,
-                        fontSize: 18,
-                        fontWeight: 800,
-                        color: "#101828",
-                      }}
-                    >
-                      Chain of Custody Timeline
-                    </h3>
-                    <div
-                      style={{
-                        marginTop: 6,
-                        fontSize: 13,
-                        color: "#667085",
-                      }}
-                    >
-                      Recorded forensic integrity events associated with this evidence item.
-                    </div>
-                  </div>
-
-                  <Badge
-                    label={`${forensicTimeline.length} Event${forensicTimeline.length === 1 ? "" : "s"}`}
-                    tone="info"
-                  />
-                </div>
-
-                {forensicTimeline.length === 0 ? (
-                  <div style={{ fontSize: 13, color: "#667085" }}>
-                    No forensic custody events recorded.
-                  </div>
-                ) : (
-                  <div
-                    style={{
-                      position: "relative",
-                      display: "grid",
-                      gap: 14,
-                    }}
-                  >
-                    {forensicTimeline.map((event, idx) => {
-                      const isLast = idx === forensicTimeline.length - 1;
-
-                      return (
-                        <div
-                          key={`${event.eventType}-${event.atUtc}-${idx}`}
-                          style={{
-                            display: "grid",
-                            gridTemplateColumns: "28px minmax(0, 1fr)",
-                            gap: 14,
-                            alignItems: "start",
-                          }}
-                        >
-                          <div
-                            style={{
-                              position: "relative",
-                              display: "flex",
-                              justifyContent: "center",
-                              minHeight: 80,
-                            }}
-                          >
-                            <div
-                              style={{
-                                width: 14,
-                                height: 14,
-                                borderRadius: 999,
-                                background: "#175CD3",
-                                border: "3px solid #D1E9FF",
-                                marginTop: 6,
-                                zIndex: 1,
-                              }}
-                            />
-                            {!isLast ? (
-                              <div
-                                style={{
-                                  position: "absolute",
-                                  top: 22,
-                                  bottom: -18,
-                                  width: 2,
-                                  background: "#D0D5DD",
-                                }}
-                              />
-                            ) : null}
-                          </div>
-
-                          <div
-                            style={{
-                              border: "1px solid #EAECF0",
-                              background: "#FFFFFF",
-                              borderRadius: 16,
-                              padding: 16,
-                              boxShadow: "0 1px 2px rgba(16,24,40,0.04)",
-                            }}
-                          >
-                            <div
-                              style={{
-                                display: "flex",
-                                alignItems: "flex-start",
-                                justifyContent: "space-between",
-                                gap: 12,
-                                flexWrap: "wrap",
-                                marginBottom: 10,
-                              }}
-                            >
-                              <div
-                                style={{
-                                  fontSize: 15,
-                                  fontWeight: 800,
-                                  color: "#101828",
-                                  minWidth: 0,
-                                  flex: "1 1 260px",
-                                }}
-                              >
-                                {normalizeEventLabel(event.eventType)}
-                              </div>
-
-                              <div
-                                style={{
-                                  fontSize: 12,
-                                  color: "#475467",
-                                  fontWeight: 700,
-                                  padding: "6px 10px",
-                                  borderRadius: 999,
-                                  background: "#F2F4F7",
-                                  border: "1px solid #EAECF0",
-                                  whiteSpace: "nowrap",
-                                  flexShrink: 0,
-                                }}
-                              >
-                                {formatDateTime(event.atUtc)}
-                              </div>
-                            </div>
-
-                            <div
-                              style={{
-                                fontSize: 13,
-                                lineHeight: 1.7,
-                                color: "#667085",
-                                wordBreak: "break-word",
-                                overflowWrap: "anywhere",
-                                whiteSpace: "pre-wrap",
-                                maxWidth: "100%",
-                              }}
-                            >
-                              {event.payloadSummary?.trim()
-                                ? event.payloadSummary
-                                : "No additional event summary provided."}
-                            </div>
-
-                            {(event.prevEventHash || event.eventHash) ? (
-                              <div
-                                style={{
-                                  marginTop: 12,
-                                  display: "grid",
-                                  gap: 8,
-                                }}
-                              >
-                                {event.prevEventHash ? (
-                                  <div
-                                    style={{
-                                      fontSize: 12,
-                                      color: "#98A2B3",
-                                      wordBreak: "break-all",
-                                    }}
-                                  >
-                                    Prev Hash: {event.prevEventHash}
-                                  </div>
-                                ) : null}
-                                {event.eventHash ? (
-                                  <div
-                                    style={{
-                                      fontSize: 12,
-                                      color: "#98A2B3",
-                                      wordBreak: "break-all",
-                                    }}
-                                  >
-                                    Event Hash: {event.eventHash}
-                                  </div>
-                                ) : null}
-                              </div>
-                            ) : null}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </Card>
-
-              {accessTimeline.length > 0 ? (
-                <Card>
+                <div style={{ display: "grid", gap: 18 }}>
                   <div
                     style={{
                       display: "flex",
-                      alignItems: "center",
+                      alignItems: "flex-start",
                       justifyContent: "space-between",
                       gap: 12,
                       flexWrap: "wrap",
-                      marginBottom: 18,
                     }}
                   >
                     <div>
@@ -4527,147 +4373,346 @@ export default function VerifyPage() {
                           color: "#101828",
                         }}
                       >
-                        Access Activity
+                        Technical Review Materials
                       </h3>
                       <div
                         style={{
                           marginTop: 6,
                           fontSize: 13,
                           color: "#667085",
+                          lineHeight: 1.65,
+                          maxWidth: 760,
                         }}
                       >
-                        Access-related viewing, download, and technical verification events are shown separately from the forensic custody chain.
+                        This technical layer keeps record metadata, cryptographic
+                        materials, forensic custody, and access activity separate so
+                        reviewers can distinguish legal posture from raw verification
+                        materials.
                       </div>
                     </div>
+                  </div>
 
-                    <Badge
-                      label={`${accessTimeline.length} Event${accessTimeline.length === 1 ? "" : "s"}`}
-                      tone="neutral"
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
+                    <TechnicalTabButton
+                      label="Record"
+                      active={activeTechnicalTab === "record"}
+                      onClick={() => setActiveTechnicalTab("record")}
+                    />
+                    <TechnicalTabButton
+                      label="Integrity"
+                      active={activeTechnicalTab === "integrity"}
+                      onClick={() => setActiveTechnicalTab("integrity")}
+                    />
+                    <TechnicalTabButton
+                      label="Forensic Custody"
+                      active={activeTechnicalTab === "custody"}
+                      onClick={() => setActiveTechnicalTab("custody")}
+                    />
+                    <TechnicalTabButton
+                      label="Access Activity"
+                      active={activeTechnicalTab === "access"}
+                      onClick={() => setActiveTechnicalTab("access")}
                     />
                   </div>
 
-                  <div
-                    style={{
-                      position: "relative",
-                      display: "grid",
-                      gap: 14,
-                    }}
-                  >
-                    {accessTimeline.map((event, idx) => {
-                      const isLast = idx === accessTimeline.length - 1;
+                  {activeTechnicalTab === "record" ? (
+                    <div style={{ display: "grid", gap: 16 }}>
+                      <div
+                        style={{
+                          border: "1px solid #E4E7EC",
+                          background: "#FCFCFD",
+                          borderRadius: 16,
+                          padding: 16,
+                          fontSize: 13,
+                          color: "#475467",
+                          lineHeight: 1.7,
+                        }}
+                      >
+                        Core record identity, lifecycle milestones, and versioning
+                        metadata are shown here. This metadata identifies the
+                        preserved record but is separate from the cryptographic proof
+                        and from any custody-event chronology.
+                      </div>
 
-                      return (
+                      <div
+                        style={{
+                          display: "grid",
+                          gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+                          gap: 14,
+                        }}
+                      >
+                        {recordTabFields.map((field) => (
+                          <SummaryField
+                            key={field.label}
+                            label={field.label}
+                            value={field.value}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  ) : null}
+
+                  {activeTechnicalTab === "integrity" ? (
+                    <div style={{ display: "grid", gap: 14 }}>
+                      <div
+                        style={{
+                          border: "1px solid #E4E7EC",
+                          background: "#FCFCFD",
+                          borderRadius: 16,
+                          padding: 16,
+                          display: "grid",
+                          gap: 8,
+                        }}
+                      >
+                        <div style={{ fontSize: 13, fontWeight: 800, color: "#344054" }}>
+                          Integrity scope
+                        </div>
+                        <div style={{ fontSize: 13, color: "#667085", lineHeight: 1.7 }}>
+                          These materials support review of the recorded file hash,
+                          canonical fingerprint, signature, timestamp linkage,
+                          OpenTimestamps proofing, immutable storage indicators, and
+                          publication state. They do not independently resolve
+                          authorship, narrative context, or admissibility.
+                        </div>
+                      </div>
+
+                      {hash ? (
+                        <MaterialField
+                          label="File SHA-256"
+                          subtitle="Primary content hash recorded for the evidence file."
+                          value={hash}
+                          addToast={addToast}
+                          copyMessage="File hash copied"
+                        />
+                      ) : null}
+
+                      {fingerprintHash ? (
+                        <MaterialField
+                          label="Fingerprint Hash"
+                          subtitle="Hash derived from the canonical fingerprint record."
+                          value={fingerprintHash}
+                          addToast={addToast}
+                          copyMessage="Fingerprint hash copied"
+                        />
+                      ) : null}
+
+                      {signature ? (
+                        <MaterialField
+                          label="Digital Signature"
+                          subtitle="Recorded signature material associated with this evidence."
+                          value={signature}
+                          addToast={addToast}
+                          copyMessage="Digital signature copied"
+                        />
+                      ) : null}
+
+                      {publicKeyPem ? (
+                        <MaterialField
+                          label="Public Key"
+                          subtitle="Public key material available for advanced technical review."
+                          value={publicKeyPem}
+                          addToast={addToast}
+                          copyMessage="Public key copied"
+                        />
+                      ) : null}
+
+                      {otsProofBase64 ? (
+                        <MaterialField
+                          label="OpenTimestamps Proof"
+                          subtitle="Recorded OTS proof material for the evidence digest."
+                          value={otsProofBase64}
+                          addToast={addToast}
+                          copyMessage="OTS proof copied"
+                        />
+                      ) : null}
+
+                      {integrityStatusCards.length > 0 ? (
                         <div
-                          key={`${event.eventType}-${event.atUtc}-${idx}`}
                           style={{
                             display: "grid",
-                            gridTemplateColumns: "28px minmax(0, 1fr)",
+                            gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
                             gap: 14,
-                            alignItems: "start",
+                          }}
+                        >
+                          {integrityStatusCards.map((card) => (
+                            <div
+                              key={card.label}
+                              style={{
+                                border: "1px solid #E4E7EC",
+                                background: "#FCFCFD",
+                                borderRadius: 16,
+                                padding: 16,
+                                minWidth: 0,
+                                overflow: "hidden",
+                              }}
+                            >
+                              <div
+                                style={{
+                                  fontSize: 12,
+                                  color: "#667085",
+                                  fontWeight: 700,
+                                  marginBottom: 10,
+                                }}
+                              >
+                                {card.label}
+                              </div>
+
+                              <div
+                                style={{
+                                  fontSize: 14,
+                                  color: "#101828",
+                                  fontWeight: 700,
+                                  lineHeight: 1.5,
+                                  wordBreak: "break-word",
+                                  overflowWrap: "anywhere",
+                                  minWidth: 0,
+                                }}
+                              >
+                                {card.content}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      ) : null}
+
+                      {tsaFailureReason ? (
+                        <div
+                          style={{
+                            border: "1px solid #FECACA",
+                            background: "#FEF2F2",
+                            borderRadius: 16,
+                            padding: 16,
                           }}
                         >
                           <div
                             style={{
-                              position: "relative",
-                              display: "flex",
-                              justifyContent: "center",
-                              minHeight: 80,
+                              fontSize: 12,
+                              color: "#991B1B",
+                              fontWeight: 800,
+                              marginBottom: 8,
                             }}
                           >
-                            <div
-                              style={{
-                                width: 14,
-                                height: 14,
-                                borderRadius: 999,
-                                background: "#98A2B3",
-                                border: "3px solid #EAECF0",
-                                marginTop: 6,
-                                zIndex: 1,
-                              }}
-                            />
-                            {!isLast ? (
-                              <div
-                                style={{
-                                  position: "absolute",
-                                  top: 22,
-                                  bottom: -18,
-                                  width: 2,
-                                  background: "#EAECF0",
-                                }}
-                              />
-                            ) : null}
+                            Timestamp Failure Reason
+                          </div>
+                          <div
+                            style={{
+                              fontSize: 13,
+                              color: "#7F1D1D",
+                              lineHeight: 1.6,
+                              wordBreak: "break-word",
+                              overflowWrap: "anywhere",
+                            }}
+                          >
+                            {tsaFailureReason}
+                          </div>
+                        </div>
+                      ) : null}
+
+                      {otsFailureDisplayMessage ? (
+                        <div
+                          style={{
+                            border: "1px solid #FECACA",
+                            background: "#FEF2F2",
+                            borderRadius: 16,
+                            padding: 16,
+                            display: "grid",
+                            gap: 10,
+                          }}
+                        >
+                          <div
+                            style={{
+                              fontSize: 12,
+                              color: "#991B1B",
+                              fontWeight: 800,
+                              marginBottom: 2,
+                            }}
+                          >
+                            OpenTimestamps Status Note
                           </div>
 
                           <div
                             style={{
-                              border: "1px solid #EAECF0",
-                              background: "#FFFFFF",
-                              borderRadius: 16,
-                              padding: 16,
-                              boxShadow: "0 1px 2px rgba(16,24,40,0.04)",
+                              fontSize: 13,
+                              color: "#7F1D1D",
+                              lineHeight: 1.65,
+                              wordBreak: "break-word",
+                              overflowWrap: "anywhere",
                             }}
                           >
-                            <div
-                              style={{
-                                display: "flex",
-                                alignItems: "flex-start",
-                                justifyContent: "space-between",
-                                gap: 12,
-                                flexWrap: "wrap",
-                                marginBottom: 10,
-                              }}
-                            >
-                              <div
-                                style={{
-                                  fontSize: 15,
-                                  fontWeight: 800,
-                                  color: "#101828",
-                                  minWidth: 0,
-                                  flex: "1 1 260px",
-                                }}
-                              >
-                                {normalizeEventLabel(event.eventType)}
-                              </div>
-
-                              <div
-                                style={{
-                                  fontSize: 12,
-                                  color: "#475467",
-                                  fontWeight: 700,
-                                  padding: "6px 10px",
-                                  borderRadius: 999,
-                                  background: "#F2F4F7",
-                                  border: "1px solid #EAECF0",
-                                  whiteSpace: "nowrap",
-                                  flexShrink: 0,
-                                }}
-                              >
-                                {formatDateTime(event.atUtc)}
-                              </div>
-                            </div>
-
-                            <div
-                              style={{
-                                fontSize: 13,
-                                lineHeight: 1.7,
-                                color: "#667085",
-                                wordBreak: "break-word",
-                                overflowWrap: "anywhere",
-                                whiteSpace: "pre-wrap",
-                                maxWidth: "100%",
-                              }}
-                            >
-                              {event.payloadSummary?.trim()
-                                ? event.payloadSummary
-                                : "No additional event summary provided."}
-                            </div>
+                            {otsFailureDisplayMessage}
                           </div>
+
+                          {otsFailureTechnicalMessage ? (
+                            <details style={{ marginTop: 2 }}>
+                              <summary
+                                style={{
+                                  cursor: "pointer",
+                                  fontSize: 12,
+                                  fontWeight: 700,
+                                  color: "#B42318",
+                                  userSelect: "none",
+                                }}
+                              >
+                                Show technical details
+                              </summary>
+
+                              <div
+                                style={{
+                                  marginTop: 10,
+                                  padding: 12,
+                                  borderRadius: 12,
+                                  border: "1px solid #FECACA",
+                                  background: "#FFF7F7",
+                                  fontSize: 12,
+                                  color: "#7F1D1D",
+                                  lineHeight: 1.65,
+                                  wordBreak: "break-all",
+                                  fontFamily:
+                                    'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
+                                }}
+                              >
+                                {otsFailureTechnicalMessage}
+                              </div>
+                            </details>
+                          ) : null}
                         </div>
-                      );
-                    })}
-                  </div>
-                </Card>
-              ) : null}
+                      ) : null}
+                    </div>
+                  ) : null}
+
+                  {activeTechnicalTab === "custody" ? (
+                    <TimelinePanel
+                      title="Forensic Custody"
+                      subtitle="Forensic custody events describe integrity-relevant lifecycle activity recorded by the system. They are separated from later access or viewing events so the legal chain narrative does not get mixed with routine access history."
+                      countTone="info"
+                      events={forensicTimeline}
+                      emptyTitle="No forensic custody events were returned"
+                      emptyBody="This verification response does not include an internal forensic custody-event chain for this record. That means no system-recorded forensic custody entries were available here; it should not be interpreted as proof that no handling occurred outside the recorded workflow."
+                      accent={{
+                        dot: "#175CD3",
+                        dotBorder: "#D1E9FF",
+                        line: "#D0D5DD",
+                      }}
+                    />
+                  ) : null}
+
+                  {activeTechnicalTab === "access" ? (
+                    <TimelinePanel
+                      title="Access Activity"
+                      subtitle="Access events show later viewing, download, and verification interactions. They are informational and should not be conflated with forensic custody events."
+                      countTone="neutral"
+                      events={accessTimeline}
+                      emptyTitle="No access activity was returned"
+                      emptyBody="No access-activity entries were included in this response. Their absence does not change the recorded integrity result and should not be read as a forensic custody conclusion."
+                      accent={{
+                        dot: "#98A2B3",
+                        dotBorder: "#EAECF0",
+                        line: "#EAECF0",
+                      }}
+                    />
+                  ) : null}
+                </div>
+              </Card>
 
               <Card>
                 <div

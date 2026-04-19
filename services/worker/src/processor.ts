@@ -1,6 +1,15 @@
 import type { Job } from "bullmq";
 import type { Readable } from "node:stream";
 import * as prismaPkg from "@prisma/client";
+import type {
+  Prisma,
+  CertificationType,
+  CertificationStatus,
+} from "@prisma/client";
+import {
+  CertificationType as PrismaCertificationType,
+  CertificationStatus as PrismaCertificationStatus,
+} from "@prisma/client";
 import {
   extractPreviewForAsset,
   type ExtractedPreview,
@@ -10,7 +19,6 @@ import {
   assertWorkspaceAllowsVerificationPackageArtifact,
   resolveEffectivePlanForEvidence,
 } from "./workspace-billing.js";
-import type { Prisma } from "@prisma/client";
 import {
   canPlanGenerateReports,
   canPlanGenerateVerificationPackage,
@@ -76,6 +84,17 @@ type WorkerError = Error & {
 type VerificationEvidenceFile = {
   name: string;
   buffer: Buffer;
+  sha256?: string | null;
+  mimeType?: string | null;
+  sizeBytes?: number | null;
+  originalFileName?: string | null;
+  partIndex?: number | null;
+  storageBucket?: string | null;
+  storageKey?: string | null;
+  storageRegion?: string | null;
+  storageObjectLockMode?: string | null;
+  storageObjectLockRetainUntilUtc?: string | null;
+  storageObjectLockLegalHoldStatus?: string | null;
 };
 
 type LoadedEvidenceArtifact = {
@@ -109,6 +128,27 @@ type IdentitySnapshot = {
   organizationNameSnapshot: string | null;
   organizationVerifiedSnapshot: boolean | null;
   reviewerSummaryVersion: number;
+};
+
+type ReportCertificationSnapshot = {
+  declarationType: "CUSTODIAN" | "QUALIFIED_PERSON";
+  status: "DRAFT" | "REQUESTED" | "ATTESTED" | "REVOKED";
+  version: number;
+  requestedAtUtc: string | null;
+  requestedByUserId: string | null;
+  attestedAtUtc: string | null;
+  attestedByUserId: string | null;
+  attestorName: string | null;
+  attestorTitle: string | null;
+  attestorEmail: string | null;
+  attestorOrganization: string | null;
+  statementMarkdown: string | null;
+  statementSnapshot: unknown;
+  signatureText: string | null;
+  certificationHash: string | null;
+  revokedAtUtc: string | null;
+  revokedByUserId: string | null;
+  revokeReason: string | null;
 };
 
 type ReportEvidenceAsset = {
@@ -201,7 +241,59 @@ type PreparedReportArtifacts = {
   anchorSummary: ReportAnchorSummary | null;
 
   reportEvidencePayload: Parameters<typeof buildReportPdf>[0]["evidence"];
+  certifications: {
+    custodian: ReportCertificationSnapshot | null;
+    qualifiedPerson: ReportCertificationSnapshot | null;
+  };
 };
+
+function toReportCertificationSnapshot(
+  item:
+    | {
+        declarationType: CertificationType;
+        status: CertificationStatus;
+        version: number;
+        requestedAtUtc: Date | null;
+        requestedByUserId: string | null;
+        attestedAtUtc: Date | null;
+        attestedByUserId: string | null;
+        attestorName: string | null;
+        attestorTitle: string | null;
+        attestorEmail: string | null;
+        attestorOrganization: string | null;
+        statementMarkdown: string | null;
+        statementSnapshot: unknown;
+        signatureText: string | null;
+        certificationHash: string | null;
+        revokedAtUtc: Date | null;
+        revokedByUserId: string | null;
+        revokeReason: string | null;
+      }
+    | null
+): ReportCertificationSnapshot | null {
+  if (!item) return null;
+
+  return {
+    declarationType: item.declarationType,
+    status: item.status,
+    version: item.version,
+    requestedAtUtc: item.requestedAtUtc?.toISOString() ?? null,
+    requestedByUserId: item.requestedByUserId ?? null,
+    attestedAtUtc: item.attestedAtUtc?.toISOString() ?? null,
+    attestedByUserId: item.attestedByUserId ?? null,
+    attestorName: item.attestorName ?? null,
+    attestorTitle: item.attestorTitle ?? null,
+    attestorEmail: item.attestorEmail ?? null,
+    attestorOrganization: item.attestorOrganization ?? null,
+    statementMarkdown: item.statementMarkdown ?? null,
+    statementSnapshot: item.statementSnapshot,
+    signatureText: item.signatureText ?? null,
+    certificationHash: item.certificationHash ?? null,
+    revokedAtUtc: item.revokedAtUtc?.toISOString() ?? null,
+    revokedByUserId: item.revokedByUserId ?? null,
+    revokeReason: item.revokeReason ?? null,
+  };
+}
 
 function envValue(name: string, fallback?: string): string {
   const raw = process.env[name];
@@ -1306,6 +1398,73 @@ async function prepareReportArtifacts(
 ): Promise<PreparedReportArtifacts> {
   const evidence = await prisma.evidence.findFirst({
     where: { id: evidenceId, deletedAt: null },
+    select: {
+      id: true,
+      ownerUserId: true,
+      teamId: true,
+      title: true,
+      type: true,
+      status: true,
+      verificationStatus: true,
+      captureMethod: true,
+      submittedByEmail: true,
+      submittedByAuthProvider: true,
+      submittedByUserId: true,
+      createdByUserId: true,
+      uploadedByUserId: true,
+      lastAccessedByUserId: true,
+      lastAccessedAtUtc: true,
+      workspaceNameSnapshot: true,
+      organizationNameSnapshot: true,
+      organizationVerifiedSnapshot: true,
+      recordedIntegrityVerifiedAtUtc: true,
+      lastVerifiedAtUtc: true,
+      lastVerifiedSource: true,
+      verificationPackageGeneratedAtUtc: true,
+      verificationPackageVersion: true,
+      latestReportVersion: true,
+      createdAt: true,
+      uploadedAtUtc: true,
+      signedAtUtc: true,
+      capturedAtUtc: true,
+      reportGeneratedAtUtc: true,
+      deviceTimeIso: true,
+      lat: true,
+      lng: true,
+      accuracyMeters: true,
+      mimeType: true,
+      storageBucket: true,
+      storageKey: true,
+      storageRegion: true,
+      storageObjectLockMode: true,
+      storageObjectLockRetainUntilUtc: true,
+      storageObjectLockLegalHoldStatus: true,
+      sizeBytes: true,
+      durationSec: true,
+      fileSha256: true,
+      fingerprintCanonicalJson: true,
+      fingerprintHash: true,
+      signatureBase64: true,
+      signingKeyId: true,
+      signingKeyVersion: true,
+      tsaProvider: true,
+      tsaUrl: true,
+      tsaSerialNumber: true,
+      tsaGenTimeUtc: true,
+      tsaTokenBase64: true,
+      tsaMessageImprint: true,
+      tsaHashAlgorithm: true,
+      tsaStatus: true,
+      tsaFailureReason: true,
+      otsProofBase64: true,
+      otsHash: true,
+      otsStatus: true,
+      otsCalendar: true,
+      otsBitcoinTxid: true,
+      otsAnchoredAtUtc: true,
+      otsUpgradedAtUtc: true,
+      otsFailureReason: true,
+    },
   });
 
   if (!evidence) throw createWorkerError("EVIDENCE_NOT_FOUND", false);
@@ -1358,7 +1517,13 @@ async function prepareReportArtifacts(
       evidence.storageObjectLockLegalHoldStatus ?? null,
   });
 
-  const [parts, ownerUser, anchorSummary] = await Promise.all([
+  const [
+    parts,
+    ownerUser,
+    anchorSummary,
+    latestCustodianCertification,
+    latestQualifiedPersonCertification,
+  ] = await Promise.all([
     prisma.evidencePart.findMany({
       where: { evidenceId: evidence.id },
       orderBy: { partIndex: "asc" },
@@ -1372,6 +1537,10 @@ async function prepareReportArtifacts(
         durationMs: true,
         storageBucket: true,
         storageKey: true,
+        storageRegion: true,
+        storageObjectLockMode: true,
+        storageObjectLockRetainUntilUtc: true,
+        storageObjectLockLegalHoldStatus: true,
         uploadedByUserId: true,
       },
     }),
@@ -1387,11 +1556,70 @@ async function prepareReportArtifacts(
       },
     }),
     resolveAnchorStatusForReport(evidence.id),
+    prisma.evidenceCertification.findFirst({
+      where: {
+        evidenceId: evidence.id,
+        declarationType: PrismaCertificationType.CUSTODIAN,
+      },
+      orderBy: [{ version: "desc" }, { updatedAt: "desc" }],
+      select: {
+        declarationType: true,
+        status: true,
+        version: true,
+        requestedAtUtc: true,
+        requestedByUserId: true,
+        attestedAtUtc: true,
+        attestedByUserId: true,
+        attestorName: true,
+        attestorTitle: true,
+        attestorEmail: true,
+        attestorOrganization: true,
+        statementMarkdown: true,
+        statementSnapshot: true,
+        signatureText: true,
+        certificationHash: true,
+        revokedAtUtc: true,
+        revokedByUserId: true,
+        revokeReason: true,
+      },
+    }),
+    prisma.evidenceCertification.findFirst({
+      where: {
+        evidenceId: evidence.id,
+        declarationType: PrismaCertificationType.QUALIFIED_PERSON,
+      },
+      orderBy: [{ version: "desc" }, { updatedAt: "desc" }],
+      select: {
+        declarationType: true,
+        status: true,
+        version: true,
+        requestedAtUtc: true,
+        requestedByUserId: true,
+        attestedAtUtc: true,
+        attestedByUserId: true,
+        attestorName: true,
+        attestorTitle: true,
+        attestorEmail: true,
+        attestorOrganization: true,
+        statementMarkdown: true,
+        statementSnapshot: true,
+        signatureText: true,
+        certificationHash: true,
+        revokedAtUtc: true,
+        revokedByUserId: true,
+        revokeReason: true,
+      },
+    }),
   ]);
 
   if (!ownerUser) {
     throw createWorkerError("OWNER_USER_NOT_FOUND", false);
   }
+
+  const certifications = {
+    custodian: toReportCertificationSnapshot(latestCustodianCertification),
+    qualifiedPerson: toReportCertificationSnapshot(latestQualifiedPersonCertification),
+  };
 
   const effectivePlan = await resolveEffectivePlanForEvidence({
     ownerUserId: evidence.ownerUserId,
@@ -1467,6 +1695,19 @@ const loadedArtifacts: LoadedEvidenceArtifact[] = [];
             )}`
           ),
         buffer: partBuffer,
+        sha256: partSha,
+        mimeType: part.mimeType ?? null,
+        sizeBytes: Number(part.sizeBytes ?? BigInt(partBuffer.length)),
+        originalFileName: part.originalFileName ?? null,
+        partIndex: part.partIndex,
+        storageBucket: part.storageBucket,
+        storageKey: part.storageKey,
+        storageRegion: part.storageRegion ?? null,
+        storageObjectLockMode: part.storageObjectLockMode ?? null,
+        storageObjectLockRetainUntilUtc:
+          part.storageObjectLockRetainUntilUtc?.toISOString() ?? null,
+        storageObjectLockLegalHoldStatus:
+          part.storageObjectLockLegalHoldStatus ?? null,
       });
             loadedArtifacts.push({
         id: part.id,
@@ -1514,14 +1755,41 @@ const loadedArtifacts: LoadedEvidenceArtifact[] = [];
       body as unknown as Readable
     );
 
+    const singleSha256 = createHash("sha256")
+      .update(singleEvidenceBuffer)
+      .digest("hex");
+
+    if (singleSha256 !== evidence.fileSha256) {
+      throw createWorkerError("EVIDENCE_FILE_SHA256_MISMATCH", false);
+    }
+
+    fileSha256 = singleSha256;
+
     verificationEvidenceFiles.push({
       name: basenameFromStorageKey(
         evidence.storageKey,
         `evidence-file.${extensionFromMimeType(evidence.mimeType)}`
       ),
       buffer: singleEvidenceBuffer,
+      sha256: singleSha256,
+      mimeType: evidence.mimeType ?? null,
+      sizeBytes: Number(evidence.sizeBytes ?? BigInt(singleEvidenceBuffer.length)),
+      originalFileName: basenameFromStorageKey(
+        evidence.storageKey!,
+        `evidence-file.${extensionFromMimeType(evidence.mimeType)}`
+      ),
+      partIndex: null,
+      storageBucket: evidence.storageBucket,
+      storageKey: evidence.storageKey,
+      storageRegion: evidenceStorage.storageRegion,
+      storageObjectLockMode: evidenceStorage.storageObjectLockMode,
+      storageObjectLockRetainUntilUtc:
+        evidenceStorage.storageObjectLockRetainUntilUtc,
+      storageObjectLockLegalHoldStatus:
+        evidenceStorage.storageObjectLockLegalHoldStatus,
     });
-        loadedArtifacts.push({
+
+    loadedArtifacts.push({
       id: evidence.id,
       partIndex: 0,
       label: getEvidencePartDisplayLabel({
@@ -1537,14 +1805,6 @@ const loadedArtifacts: LoadedEvidenceArtifact[] = [];
       kind: detectEvidenceAssetKind(evidence.mimeType),
       buffer: singleEvidenceBuffer,
     });
-
-    fileSha256 = createHash("sha256")
-      .update(singleEvidenceBuffer)
-      .digest("hex");
-
-    if (fileSha256 !== evidence.fileSha256) {
-      throw createWorkerError("EVIDENCE_FILE_SHA256_MISMATCH", false);
-    }
 
     storageBucket = evidence.storageBucket ?? storageBucket;
     storageKey = evidence.storageKey ?? storageKey;
@@ -1943,6 +2203,7 @@ const loadedArtifacts: LoadedEvidenceArtifact[] = [];
       otsResult?.failureReason ?? evidence.otsFailureReason ?? null,
 
     anchor: anchorSummary,
+    certifications,
   } as Parameters<typeof buildReportPdf>[0]["evidence"];
 
   const reportPdf = await buildReportPdf({
@@ -1961,6 +2222,8 @@ const loadedArtifacts: LoadedEvidenceArtifact[] = [];
     try {
       verificationZip = await createVerificationPackage({
         evidenceFiles: verificationEvidenceFiles,
+        reportPdf,
+        reportFileName: `proovra-verification-report-v${provisionalVersion}.pdf`,
         fingerprint: fingerprintCanonicalJson,
         signature: signatureBase64,
         timestampToken: evidence.tsaTokenBase64 ?? null,
@@ -1974,6 +2237,29 @@ const loadedArtifacts: LoadedEvidenceArtifact[] = [];
         anchorMode,
         anchorProvider,
         anchorPublicBaseUrl,
+        certifications,
+        metadata: {
+          title: display.displayTitle,
+          evidenceType: evidence.type,
+          evidenceStatus: evidence.status,
+          verificationStatus: identitySnapshot.verificationStatus,
+          captureMethod: identitySnapshot.captureMethod,
+          identityLevelSnapshot: identitySnapshot.identityLevelSnapshot,
+          submittedByEmail: identitySnapshot.submittedByEmail,
+          submittedByAuthProvider: identitySnapshot.submittedByAuthProvider,
+          createdAtUtc: evidence.createdAt.toISOString(),
+          capturedAtUtc: evidence.capturedAtUtc?.toISOString() ?? null,
+          uploadedAtUtc: evidence.uploadedAtUtc?.toISOString() ?? null,
+          signedAtUtc: evidence.signedAtUtc?.toISOString() ?? null,
+          reportGeneratedAtUtc: now.toISOString(),
+          storageRegion: evidenceStorage.storageRegion,
+          storageObjectLockMode: evidenceStorage.storageObjectLockMode,
+          storageObjectLockRetainUntilUtc:
+            evidenceStorage.storageObjectLockRetainUntilUtc,
+          storageObjectLockLegalHoldStatus:
+            evidenceStorage.storageObjectLockLegalHoldStatus,
+          storageImmutable: evidenceStorage.storageImmutable,
+        },
       });
     } catch (verificationError) {
       captureException(verificationError, {
@@ -2026,6 +2312,7 @@ const loadedArtifacts: LoadedEvidenceArtifact[] = [];
     limitations: contentArtifacts.limitations,
     anchorSummary,
     reportEvidencePayload,
+    certifications,
   };
 }
 
@@ -3014,6 +3301,10 @@ if (latestRetentionUntilUtc && isRetentionStillActive(latestRetentionUntilUtc)) 
       });
 
       await tx.evidenceAnchor.deleteMany({
+        where: { evidenceId: evidence.id },
+      });
+
+      await tx.evidenceCertification.deleteMany({
         where: { evidenceId: evidence.id },
       });
 

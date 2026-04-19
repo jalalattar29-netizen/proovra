@@ -96,6 +96,7 @@ model Evidence {
   guestIdentity                     GuestIdentity?      @relation(fields: [guestIdentityId], references: [id])
   parts                             EvidencePart[]
   reports                           Report[]
+  certifications                    EvidenceCertification[]
   verificationPackages              VerificationPackage[]
   verificationViews                 VerificationView[]
   anchor                            EvidenceAnchor?
@@ -290,6 +291,40 @@ model Report {
   @@index([recordedIntegrityVerifiedAtUtcSnapshot])
   @@index([lastVerifiedAtUtcSnapshot])
   @@map("reports")
+}
+
+model EvidenceCertification {
+  id                  String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  evidenceId          String                @map("evidence_id") @db.Uuid
+  declarationType     CertificationType     @map("declaration_type")
+  status              CertificationStatus   @default(DRAFT)
+  version             Int                   @default(1)
+  requestedByUserId   String?               @map("requested_by_user_id") @db.Uuid
+  requestedAtUtc      DateTime?             @map("requested_at_utc") @db.Timestamptz(6)
+  attestedByUserId    String?               @map("attested_by_user_id") @db.Uuid
+  attestedAtUtc       DateTime?             @map("attested_at_utc") @db.Timestamptz(6)
+  attestorName        String?               @map("attestor_name") @db.VarChar(160)
+  attestorTitle       String?               @map("attestor_title") @db.VarChar(160)
+  attestorEmail       String?               @map("attestor_email") @db.VarChar(320)
+  attestorOrganization String?              @map("attestor_organization") @db.VarChar(180)
+  statementMarkdown   String?               @map("statement_markdown")
+  statementSnapshot   Json?                 @map("statement_snapshot")
+  signatureText       String?               @map("signature_text") @db.VarChar(512)
+  certificationHash   String?               @map("certification_hash") @db.VarChar(64)
+  revokedAtUtc        DateTime?             @map("revoked_at_utc") @db.Timestamptz(6)
+  revokedByUserId     String?               @map("revoked_by_user_id") @db.Uuid
+  revokeReason        String?               @map("revoke_reason") @db.VarChar(500)
+  createdAt           DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime              @updatedAt @map("updated_at") @db.Timestamptz(6)
+  evidence            Evidence              @relation(fields: [evidenceId], references: [id], onDelete: Cascade)
+
+  @@unique([evidenceId, declarationType, version])
+  @@index([evidenceId, declarationType, status, updatedAt(sort: Desc)])
+  @@index([requestedByUserId])
+  @@index([attestedByUserId])
+  @@index([attestedAtUtc])
+  @@index([revokedAtUtc])
+  @@map("evidence_certifications")
 }
 
 model VerificationPackage {
@@ -996,6 +1031,18 @@ enum VerificationSource {
   TECHNICAL_VERIFICATION_CHECKED
 }
 
+enum CertificationType {
+  CUSTODIAN
+  QUALIFIED_PERSON
+}
+
+enum CertificationStatus {
+  DRAFT
+  REQUESTED
+  ATTESTED
+  REVOKED
+}
+
 enum VerificationViewerType {
   PUBLIC
   AUTHENTICATED
@@ -1027,6 +1074,9 @@ enum CustodyEventType {
   VERIFICATION_PACKAGE_DOWNLOADED
   TECHNICAL_VERIFICATION_CHECKED
   REVIEW_READY
+  CERTIFICATION_REQUESTED
+  CERTIFICATION_ATTESTED
+  CERTIFICATION_REVOKED
   IDENTITY_SNAPSHOT_RECORDED
   ANCHOR_PUBLISHED
   ANCHOR_FAILED
