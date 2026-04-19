@@ -6,7 +6,10 @@
     "declaration": true,
     "declarationMap": false,
     "sourceMap": false,
-    "noEmit": false
+    "noEmit": false,
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "target": "ES2022"
   },
   "include": ["src/**/*.ts"]
 }
