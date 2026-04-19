@@ -1,4 +1,22 @@
 import type { FastifyInstance, FastifyRequest } from "fastify";
+import {
+  type EvidenceAssetKind as PublicEvidenceAssetKind,
+  type EvidenceContentSummary as PublicEvidenceContentSummary,
+  type EvidencePreviewPolicy as PublicPreviewPolicy,
+  type EvidenceContentAccessPolicy as PublicVerifyContentAccessPolicy,
+  resolveEvidenceTitle,
+  detectEvidenceAssetKind,
+  isPreviewableEvidenceKind,
+  extensionFromMimeType,
+  basenameFromStorageKey,
+  getEvidencePartDisplayLabel,
+  formatBytesForDisplay,
+  buildContentCompositionSummary,
+  buildPrimaryContentLabel,
+  buildEvidenceDisplayDescriptor,
+  resolveEvidenceContentAccessPolicy,
+  buildEvidencePreviewPolicy,
+} from "@proovra/shared-evidence-presentation";
 import { z } from "zod";
 import { requireAuth } from "../middleware/auth.js";
 import { getAuthUserId } from "../auth.js";
@@ -86,10 +104,125 @@ type PublicVerifyTimelineEvent = {
   category: PublicCustodyEventCategory;
 };
 
+type PublicEvidenceAsset = {
+  id: string;
+  index: number;
+  label: string;
+  originalFileName: string | null;
+  mimeType: string | null;
+  kind: PublicEvidenceAssetKind;
+  sizeBytes: string | null;
+  durationMs: number | null;
+  sha256: string | null;
+  isPrimary: boolean;
+  previewable: boolean;
+  downloadable: boolean;
+  viewUrl: string | null;
+  displaySizeLabel: string | null;
+  previewRole:
+    | "primary_preview"
+    | "secondary_preview"
+    | "download_only"
+    | "metadata_only";
+  originalPreservationNote: string;
+  reviewerRepresentationLabel: string;
+  reviewerRepresentationNote: string;
+  verificationMaterialsNote: string;
+  previewDataUrl?: string | null;
+  previewTextExcerpt?: string | null;
+  previewCaption?: string | null;
+};
+
+type PublicVerifyIntegrityProof = {
+  overallIntegrity: boolean;
+  canonicalHashMatches: boolean;
+  signatureValid: boolean;
+  custodyChainValid: boolean;
+  custodyChainMode: string | null;
+  custodyChainFailureReason: string | null;
+  timestampDigestMatches: boolean;
+  otsHashMatches: boolean;
+};
+
+type PublicVerifyVersioning = {
+  latestReportVersion: number | null;
+  latestReportGeneratedAtUtc: string | null;
+  verificationPackageVersion: number | null;
+  verificationPackageGeneratedAtUtc: string | null;
+  reviewerSummaryVersion: number | null;
+};
+
+type PublicCustodyLifecycle = {
+  forensicEventCount: number;
+  accessEventCount: number;
+  forensicEvents: PublicVerifyTimelineEvent[];
+  accessEvents: PublicVerifyTimelineEvent[];
+  chronologyNote: string;
+};
+
 async function requireAuthAndLegal(req: FastifyRequest, reply: any) {
   await requireAuth(req, reply);
   if (reply.sent) return;
   await requireLegalAcceptance(req, reply);
+}
+
+function buildOriginalPreservationNote(params: {
+  label: string;
+  kind: PublicEvidenceAssetKind;
+}): string {
+  return `Original preserved ${params.kind} evidence item: ${params.label}.`;
+}
+
+function buildReviewerRepresentationLabel(params: {
+  kind: PublicEvidenceAssetKind;
+  isPrimary: boolean;
+}): string {
+  const prefix = params.isPrimary ? "Primary" : "Supporting";
+  switch (params.kind) {
+    case "image":
+      return `${prefix} image review surface`;
+    case "video":
+      return `${prefix} video review surface`;
+    case "audio":
+      return `${prefix} audio review surface`;
+    case "pdf":
+      return `${prefix} document review surface`;
+    case "text":
+      return `${prefix} text review surface`;
+    default:
+      return `${prefix} evidence review surface`;
+  }
+}
+
+function buildReviewerRepresentationNote(params: {
+  kind: PublicEvidenceAssetKind;
+  label: string;
+  canExposeContent: boolean;
+}): string {
+  if (!params.canExposeContent) {
+    return `Direct reviewer preview is restricted for preserved evidence item ${params.label}. Use the verification materials and access policy shown here to understand what remains exposed.`;
+  }
+
+  switch (params.kind) {
+    case "image":
+      return `Reviewer preview generated from the preserved image evidence item ${params.label}. Original image remains separately preserved.`;
+    case "video":
+      return `Reviewer playback access is exposed for preserved video evidence item ${params.label}. Original video remains separately preserved.`;
+    case "audio":
+      return `Reviewer playback access is exposed for preserved audio evidence item ${params.label}. Original audio remains separately preserved.`;
+    case "pdf":
+      return `Reviewer document access is exposed for preserved PDF evidence item ${params.label}. Original file remains separately preserved.`;
+    case "text":
+      return `Reviewer text access is exposed for preserved text evidence item ${params.label}. Original file remains separately preserved.`;
+    default:
+      return `Reviewer-facing access is exposed for preserved evidence item ${params.label}. Original file remains separately preserved.`;
+  }
+}
+
+function buildVerificationMaterialsNote(params: {
+  kind: PublicEvidenceAssetKind;
+}): string {
+  return `Verification materials for this ${params.kind} item include the recorded digest, custody linkage, timestamping state, and published anchoring indicators associated with the evidence record.`;
 }
 
 const SAFE_EVIDENCE_SELECT = {
@@ -452,11 +585,6 @@ function normalizePublicPayloadValue(value: unknown): string | null {
   return null;
 }
 
-function resolveEvidenceTitle(title: string | null | undefined): string {
-  const t = typeof title === "string" ? title.trim() : "";
-  return t || "Digital Evidence Record";
-}
-
 function mapRecordStatusLabel(status: prismaPkg.EvidenceStatus | string): string {
   switch (String(status).toUpperCase()) {
     case "REPORTED":
@@ -721,6 +849,31 @@ function mapOtsStatusLabel(status: string | null | undefined): string {
   }
 }
 
+function resolvePublicVerifyContentAccessPolicy(params?: {
+  evidenceStatus?: prismaPkg.EvidenceStatus | null;
+  lockedAt?: Date | null;
+  archivedAt?: Date | null;
+  latestReportVersion?: number | null;
+}): PublicVerifyContentAccessPolicy {
+  const configured = resolveEvidenceContentAccessPolicy(
+    process.env.PUBLIC_VERIFY_CONTENT_MODE ?? "preview_only"
+  );
+
+  if (!params) return configured;
+
+  // Conservative rule: if there is no completed report snapshot yet, do not
+  // widen access beyond metadata-only unless explicitly configured elsewhere.
+  if (!params.latestReportVersion) {
+    return {
+      mode: "metadata_only",
+      allowContentView: false,
+      allowDownload: false,
+    };
+  }
+
+  return configured;
+}
+
 function summarizePublicPayload(
   eventType: prismaPkg.CustodyEventType,
   payload: prismaPkg.Prisma.JsonValue | null
@@ -806,10 +959,16 @@ function summarizePublicPayload(
 
     case prismaPkg.CustodyEventType.OTS_APPLIED: {
       const otsStatus = normalizePublicPayloadValue(obj.otsStatus);
-      const calendar = normalizePublicPayloadValue(obj.otsCalendar);
-      const bitcoinTxid = normalizePublicPayloadValue(obj.otsBitcoinTxid);
+      const calendar =
+        normalizePublicPayloadValue(obj.calendar) ??
+        normalizePublicPayloadValue(obj.otsCalendar);
+
+      const bitcoinTxid =
+        normalizePublicPayloadValue(obj.bitcoinTxid) ??
+        normalizePublicPayloadValue(obj.otsBitcoinTxid);
+
       return [
-        "OpenTimestamps proof recorded",
+                "OpenTimestamps proof recorded",
         otsStatus ? `Status: ${otsStatus}` : null,
         calendar ? `Calendar: ${calendar}` : null,
         bitcoinTxid ? `Bitcoin Tx: ${shortHash(bitcoinTxid)}` : null,
@@ -820,10 +979,13 @@ function summarizePublicPayload(
 
     case prismaPkg.CustodyEventType.OTS_FAILED: {
       const otsStatus = normalizePublicPayloadValue(obj.otsStatus);
-      const reason = normalizePublicPayloadValue(obj.otsFailureReason);
+      const reason =
+        normalizePublicPayloadValue(obj.otsFailureReason) ??
+        normalizePublicPayloadValue(obj.failureReason);
       const genericReason = normalizePublicPayloadValue(obj.failureReason);
+
       return [
-        "OpenTimestamps failed",
+                "OpenTimestamps failed",
         otsStatus ? `Status: ${otsStatus}` : null,
         reason
           ? `Reason: ${reason}`
@@ -926,6 +1088,7 @@ function summarizePublicPayload(
         .filter(Boolean)
         .join(" • ");
     }
+    
 
     case prismaPkg.CustodyEventType.ANCHOR_FAILED: {
       const provider = normalizePublicPayloadValue(obj.provider);
@@ -960,6 +1123,12 @@ function summarizePublicPayload(
 
     case prismaPkg.CustodyEventType.EVIDENCE_RESTORED:
       return "Evidence record restored.";
+
+    case prismaPkg.CustodyEventType.EVIDENCE_DELETE_RESTORED:
+      return "Evidence deletion was reversed and the record was restored.";
+
+    case prismaPkg.CustodyEventType.EVIDENCE_DELETE_SCHEDULED:
+      return "Evidence record scheduled for deletion.";
 
     case prismaPkg.CustodyEventType.EVIDENCE_DELETED:
       return "Evidence record deleted.";
@@ -1005,6 +1174,7 @@ function toSafeEvidence(e: SelectedEvidence): SafeEvidence {
   return {
     id: e.id,
     title: resolveEvidenceTitle(e.title),
+    ownerUserId: e.ownerUserId,
     organizationId: e.organizationId ?? null,
     type: e.type,
     status: e.status,
@@ -1357,6 +1527,269 @@ function toJsonSafe<T>(value: T): T {
   );
 }
 
+
+
+async function buildPublicEvidenceContent(params: {
+  accessPolicy: PublicVerifyContentAccessPolicy;
+  previews?: Map<
+    string,
+    {
+      previewDataUrl?: string | null;
+      previewTextExcerpt?: string | null;
+      previewCaption?: string | null;
+    }
+  >;
+  evidence: {
+    id: string;
+    mimeType: string | null;
+    sizeBytes: bigint | number | null;
+    storageBucket: string | null;
+    storageKey: string | null;
+    fileSha256: string | null;
+  };
+  parts: Array<{
+    id: string;
+    partIndex: number;
+    originalFileName: string | null;
+    mimeType: string | null;
+    sizeBytes: bigint | number | null;
+    sha256: string | null;
+    durationMs: number | null;
+    storageBucket: string;
+    storageKey: string;
+  }>;
+}): Promise<{
+  summary: PublicEvidenceContentSummary;
+  items: PublicEvidenceAsset[];
+  primaryItem: PublicEvidenceAsset | null;
+  previewPolicy: PublicPreviewPolicy;
+}> {
+  const multipart = params.parts.length > 0;
+  const accessPolicy = params.accessPolicy;
+  const canExposeContent = accessPolicy.allowContentView;
+  const canDownload = accessPolicy.allowDownload;
+
+  const singleKind = detectEvidenceAssetKind(params.evidence.mimeType);
+  const singlePreviewable =
+    canExposeContent && isPreviewableEvidenceKind(singleKind);
+  const singleCanExposeDirectUrl = singlePreviewable || canDownload;
+
+  const items: PublicEvidenceAsset[] = multipart
+    ? await Promise.all(
+        params.parts.map(async (part) => {
+          const kind = detectEvidenceAssetKind(part.mimeType);
+          const sizeBytes = bigintToString(part.sizeBytes);
+          const isPrimary =
+            params.evidence.storageBucket === part.storageBucket &&
+            params.evidence.storageKey === part.storageKey;
+
+          const canPreviewThisItem =
+            canExposeContent && isPreviewableEvidenceKind(kind);
+
+          const canExposeDirectUrl =
+            (canPreviewThisItem || canDownload) &&
+            Boolean(part.storageBucket) &&
+            Boolean(part.storageKey);
+
+          const viewUrl = canExposeDirectUrl
+            ? await presignGetObject({
+                bucket: part.storageBucket,
+                key: part.storageKey,
+                expiresInSeconds: 600,
+              })
+            : null;
+          const label = getEvidencePartDisplayLabel({
+            partIndex: part.partIndex,
+            mimeType: part.mimeType,
+            originalFileName: part.originalFileName,
+            storageKey: part.storageKey,
+          });
+          const preview = params.previews?.get(part.id);
+
+          return {
+            id: part.id,
+            index: part.partIndex,
+            label,
+            originalFileName: part.originalFileName ?? null,
+            mimeType: part.mimeType ?? null,
+            kind,
+            sizeBytes,
+            durationMs: part.durationMs ?? null,
+            sha256: part.sha256 ?? null,
+            isPrimary,
+            previewable: canPreviewThisItem,
+            downloadable: canDownload,
+            viewUrl,
+            displaySizeLabel: formatBytesForDisplay(sizeBytes),
+            previewRole: canPreviewThisItem
+              ? isPrimary
+                ? "primary_preview"
+                : "secondary_preview"
+              : canDownload
+                ? "download_only"
+                : "metadata_only",
+            originalPreservationNote: buildOriginalPreservationNote({ label, kind }),
+            reviewerRepresentationLabel: buildReviewerRepresentationLabel({
+              kind,
+              isPrimary,
+            }),
+            reviewerRepresentationNote: buildReviewerRepresentationNote({
+              kind,
+              label,
+              canExposeContent: canPreviewThisItem,
+            }),
+            verificationMaterialsNote: buildVerificationMaterialsNote({ kind }),
+            previewDataUrl:
+              canExposeContent ? preview?.previewDataUrl ?? null : null,
+            previewTextExcerpt:
+              canExposeContent ? preview?.previewTextExcerpt ?? null : null,
+            previewCaption:
+              canExposeContent ? preview?.previewCaption ?? null : null,
+          };
+        })
+      )
+    : params.evidence.storageBucket && params.evidence.storageKey
+      ? [
+          (() => {
+            const label = getEvidencePartDisplayLabel({
+              partIndex: 0,
+              mimeType: params.evidence.mimeType,
+              storageKey: params.evidence.storageKey,
+            });
+            return {
+            id: params.evidence.id,
+            index: 0,
+            label,
+            originalFileName: basenameFromStorageKey(
+              params.evidence.storageKey,
+              `evidence-file.${extensionFromMimeType(params.evidence.mimeType)}`
+            ),
+            mimeType: params.evidence.mimeType ?? null,
+            kind: singleKind,
+            sizeBytes: bigintToString(params.evidence.sizeBytes),
+            durationMs: null,
+            sha256: params.evidence.fileSha256 ?? null,
+            isPrimary: true,
+            previewable: singlePreviewable,
+            downloadable: canDownload,
+            viewUrl: singleCanExposeDirectUrl
+              ? await presignGetObject({
+                  bucket: params.evidence.storageBucket,
+                  key: params.evidence.storageKey,
+                  expiresInSeconds: 600,
+                })
+              : null,
+            displaySizeLabel: formatBytesForDisplay(params.evidence.sizeBytes),
+            previewRole: singlePreviewable
+              ? "primary_preview"
+              : canDownload
+                ? "download_only"
+                : "metadata_only",
+            originalPreservationNote: buildOriginalPreservationNote({
+              label,
+              kind: singleKind,
+            }),
+            reviewerRepresentationLabel: buildReviewerRepresentationLabel({
+              kind: singleKind,
+              isPrimary: true,
+            }),
+            reviewerRepresentationNote: buildReviewerRepresentationNote({
+              kind: singleKind,
+              label,
+              canExposeContent: singlePreviewable,
+            }),
+            verificationMaterialsNote: buildVerificationMaterialsNote({
+              kind: singleKind,
+            }),
+            previewDataUrl:
+              canExposeContent
+                ? params.previews?.get(params.evidence.id)?.previewDataUrl ?? null
+                : null,
+            previewTextExcerpt:
+              canExposeContent
+                ? params.previews?.get(params.evidence.id)?.previewTextExcerpt ?? null
+                : null,
+            previewCaption:
+              canExposeContent
+                ? params.previews?.get(params.evidence.id)?.previewCaption ?? null
+                : null,
+          };
+          })(),
+        ]
+      : [];
+
+  if (items.length > 1 && !items.some((item) => item.isPrimary)) {
+    items[0] = {
+      ...items[0],
+      isPrimary: true,
+      previewRole:
+        items[0]?.previewRole === "metadata_only"
+          ? "metadata_only"
+          : "primary_preview",
+    };
+  }
+
+  const primaryItem =
+    items.find((item) => item.isPrimary) ?? (items.length > 0 ? items[0] : null);
+
+  const summary = items.reduce<PublicEvidenceContentSummary>(
+    (acc, item) => {
+      acc.itemCount += 1;
+      if (item.previewable) acc.previewableItemCount += 1;
+      if (item.downloadable) acc.downloadableItemCount += 1;
+
+      if (item.kind === "image") acc.imageCount += 1;
+      else if (item.kind === "video") acc.videoCount += 1;
+      else if (item.kind === "audio") acc.audioCount += 1;
+      else if (item.kind === "pdf") acc.pdfCount += 1;
+      else if (item.kind === "text") acc.textCount += 1;
+      else acc.otherCount += 1;
+
+      return acc;
+    },
+    {
+      structure: multipart ? "multipart" : "single",
+      itemCount: 0,
+      previewableItemCount: 0,
+      downloadableItemCount: 0,
+      imageCount: 0,
+      videoCount: 0,
+      audioCount: 0,
+      pdfCount: 0,
+      textCount: 0,
+      otherCount: 0,
+      primaryKind: primaryItem?.kind ?? null,
+      primaryMimeType: primaryItem?.mimeType ?? null,
+      totalSizeBytes: null,
+      totalSizeDisplay: null,
+    }
+  );
+
+  const totalSizeBigInt = items.reduce<bigint>((acc, item) => {
+    const value = item.sizeBytes ? BigInt(item.sizeBytes) : 0n;
+    return acc + value;
+  }, 0n);
+
+  summary.totalSizeBytes = totalSizeBigInt > 0n ? totalSizeBigInt.toString() : null;
+  summary.totalSizeDisplay = formatBytesForDisplay(summary.totalSizeBytes);
+  summary.primaryKind = primaryItem?.kind ?? null;
+  summary.primaryMimeType = primaryItem?.mimeType ?? null;
+
+  const previewPolicy: PublicPreviewPolicy = buildEvidencePreviewPolicy({
+    itemCount: summary.itemCount,
+    previewableItemCount: summary.previewableItemCount,
+    downloadableItemCount: summary.downloadableItemCount,
+    accessPolicy,
+  });
+
+  return {
+    summary,
+    items,
+    primaryItem,
+    previewPolicy,
+  };
+}
+
 function buildPublicVerifyOverview(params: {
   evidence: {
     id: string;
@@ -1394,8 +1827,9 @@ function buildPublicVerifyOverview(params: {
   overallIntegrity: boolean;
   chainOfCustodyPresent: boolean;
   anchor: AnchorStatusSummary;
+  contentSummary: PublicEvidenceContentSummary | null;
 }) {
-  const reportGeneratedAtUtc = params.latestReport?.generatedAtUtc
+    const reportGeneratedAtUtc = params.latestReport?.generatedAtUtc
     ? params.latestReport.generatedAtUtc.toISOString()
     : params.evidence.reportGeneratedAtUtc
       ? params.evidence.reportGeneratedAtUtc.toISOString()
@@ -1413,6 +1847,18 @@ function buildPublicVerifyOverview(params: {
     verificationStatusCode: params.evidence.verificationStatus,
     integrityHeadline: mapIntegrityHeadline(params.overallIntegrity),
     evidenceTitle: resolveEvidenceTitle(params.evidence.title),
+    contentStructure: params.contentSummary?.structure ?? null,
+    contentCompositionSummary: buildContentCompositionSummary(
+  params.contentSummary
+),
+primaryContentLabel: buildPrimaryContentLabel(
+  params.contentSummary?.primaryKind ?? null
+),
+    previewableItemCount: params.contentSummary?.previewableItemCount ?? null,
+    downloadableItemCount: params.contentSummary?.downloadableItemCount ?? null,
+    primaryContentKind: params.contentSummary?.primaryKind ?? null,
+    totalContentSizeBytes: params.contentSummary?.totalSizeBytes ?? null,
+    totalContentSizeDisplay: params.contentSummary?.totalSizeDisplay ?? null,
     evidenceId: params.evidence.id,
     evidenceType: mapEvidenceTypeLabel(params.evidence.type),
     evidenceStructure:
@@ -1488,6 +1934,10 @@ function buildPublicVerifyHumanSummary(params: {
     integrityStatus: params.overview.integrityHeadline,
     recordStatus: params.overview.recordStatus,
     verificationStatus: params.overview.verificationStatus,
+    contentStructure: params.overview.contentStructure ?? null,
+    previewableItemCount: params.overview.previewableItemCount ?? null,
+    downloadableItemCount: params.overview.downloadableItemCount ?? null,
+    totalContentSizeDisplay: params.overview.totalContentSizeDisplay ?? null,
     summary: mapIntegritySummaryText({
       overallIntegrity: params.overallIntegrity,
       canonicalHashMatches: params.canonicalHashMatches,
@@ -1545,6 +1995,57 @@ function buildPublicVerifyLimitations() {
   };
 }
 
+function buildPublicReviewGuidance(params: {
+  itemCount: number;
+  previewableItemCount: number;
+  overallIntegrity: boolean;
+}) {
+  return {
+    reviewerWorkflow: [
+      "First review the evidence content and item structure.",
+      "Then review the recorded integrity outcome and custody chronology.",
+      "Finally evaluate relevance, context, authorship, and admissibility separately.",
+    ],
+contentReviewNote:
+  params.previewableItemCount > 0
+    ? "The evidence content may be available for reviewer-facing inspection on this page, subject to the configured public verification access policy."
+    : "The evidence content is not directly exposed here, but its recorded integrity state and supporting technical materials remain reviewable.",
+        legalAssessmentNote:
+      "Use the evidence content together with the technical verification record; neither should be treated as a substitute for the other.",
+    integrityAssessmentNote: params.overallIntegrity
+      ? "The recorded technical integrity checks passed for the available materials."
+      : "One or more recorded technical integrity checks require manual review before relying on this record.",
+    multipartReviewNote:
+      params.itemCount > 1
+        ? "This record contains multiple items and should be reviewed as a package, including the role of the primary item."
+        : "This record contains a single primary evidence item.",
+  };
+}
+
+function buildTechnicalMaterials(params: {
+  evidence: {
+    fileSha256: string | null;
+    fingerprintHash: string | null;
+    signatureBase64: string | null;
+    signingKeyId: string | null;
+    signingKeyVersion: number | null;
+    tsaMessageImprint: string | null;
+    otsProofBase64: string | null;
+  };
+  publicKeyPem: string;
+}) {
+  return {
+    fileSha256: params.evidence.fileSha256,
+    fingerprintHash: params.evidence.fingerprintHash,
+    signatureBase64: params.evidence.signatureBase64,
+    publicKeyPem: params.publicKeyPem,
+    signingKeyId: params.evidence.signingKeyId,
+    signingKeyVersion: params.evidence.signingKeyVersion,
+    tsaMessageImprint: shortHash(params.evidence.tsaMessageImprint),
+    otsProofPresent: Boolean(params.evidence.otsProofBase64),
+  };
+}
+
 function mapPublicCustodyEvent(ev: {
   sequence: number;
   atUtc: Date;
@@ -1561,6 +2062,20 @@ function mapPublicCustodyEvent(ev: {
     prevEventHash: shortHash(ev.prevEventHash, 10, 8),
     eventHash: shortHash(ev.eventHash, 10, 8),
     category: isAccessCustodyEventType(ev.eventType) ? "access" : "forensic",
+  };
+}
+
+function buildPublicCustodyLifecycle(params: {
+  forensicEvents: PublicVerifyTimelineEvent[];
+  accessEvents: PublicVerifyTimelineEvent[];
+}): PublicCustodyLifecycle {
+  return {
+    forensicEventCount: params.forensicEvents.length,
+    accessEventCount: params.accessEvents.length,
+    forensicEvents: params.forensicEvents,
+    accessEvents: params.accessEvents,
+    chronologyNote:
+      "Forensic events describe integrity-relevant lifecycle actions. Access events describe later viewing, download, or verification access activity.",
   };
 }
 
@@ -2038,6 +2553,8 @@ if (
 
       const enrichedParts = await Promise.all(
         parts.map(async (part) => {
+          const sizeBytes = bigintToString(part.sizeBytes);
+          const kind = detectEvidenceAssetKind(part.mimeType);
           const url = await presignGetObject({
             bucket: part.storageBucket,
             key: part.storageKey,
@@ -2060,6 +2577,15 @@ if (
           return {
             ...toJsonSafe(part),
             url,
+            kind,
+            previewable: isPreviewableEvidenceKind(kind),
+label: getEvidencePartDisplayLabel({
+  partIndex: part.partIndex,
+  mimeType: part.mimeType,
+  originalFileName: part.originalFileName ?? null,
+  storageKey: part.storageKey,
+}),
+            displaySizeLabel: formatBytesForDisplay(sizeBytes),
             isPrimary:
               evidence.storageBucket === part.storageBucket &&
               evidence.storageKey === part.storageKey,
@@ -2245,6 +2771,7 @@ if (
               updated.storageObjectLockLegalHoldStatus,
           }
         );
+        
 
         return reply.code(200).send({
           evidence: {
@@ -2253,10 +2780,12 @@ if (
           },
         });
       }
+      
 
       return reply.code(400).send({ message: "Unlock is not allowed" });
     }
   );
+  
 
   app.post(
     "/v1/evidence/:id/archive",
@@ -2394,13 +2923,16 @@ if (
         select: SAFE_EVIDENCE_SELECT,
       });
 
-      await appendCustodyEvent({
-        evidenceId: id,
-        eventType: prismaPkg.CustodyEventType.EVIDENCE_RESTORED,
-        payload: { restoredByUserId: ownerUserId, restoreSource: "archive" },
-        ip: req.ip,
-        userAgent: req.headers["user-agent"],
-      }).catch(() => null);
+await appendCustodyEvent({
+  evidenceId: id,
+  eventType: prismaPkg.CustodyEventType.EVIDENCE_RESTORED,
+  payload: {
+    restoredByUserId: ownerUserId,
+    restoreSource: "archive",
+  },
+  ip: req.ip,
+  userAgent: req.headers["user-agent"],
+}).catch(() => null);
 
       auditEvidenceAction(req, {
         userId: ownerUserId,
@@ -2633,6 +3165,7 @@ if (
       id: string;
       title: string | null;
       type: prismaPkg.EvidenceType;
+      mimeType: string | null;
       status: prismaPkg.EvidenceStatus;
       verificationStatus: prismaPkg.VerificationStatus | null;
       captureMethod: prismaPkg.CaptureMethod | null;
@@ -2671,6 +3204,11 @@ if (
         id: item.id,
         title: resolveEvidenceTitle(item.title),
         type: item.type,
+        mimeType: item.mimeType ?? null,
+        primaryKind: detectEvidenceAssetKind(item.mimeType ?? null),
+        previewable: isPreviewableEvidenceKind(
+          detectEvidenceAssetKind(item.mimeType ?? null)
+        ),
         status: item.status,
         statusLabel: mapRecordStatusLabel(item.status),
         verificationStatus: item.verificationStatus,
@@ -2721,6 +3259,7 @@ if (
           id: true,
           title: true,
           type: true,
+          mimeType: true,
           status: true,
           verificationStatus: true,
           captureMethod: true,
@@ -2810,6 +3349,7 @@ if (
         id: true,
         title: true,
         type: true,
+        mimeType: true,
         status: true,
         verificationStatus: true,
         captureMethod: true,
@@ -2891,21 +3431,83 @@ if (
           },
         });
 
+                const parts = await prisma.evidencePart.findMany({
+          where: { evidenceId: id },
+          orderBy: { partIndex: "asc" },
+          select: {
+            id: true,
+            partIndex: true,
+            originalFileName: true,
+            mimeType: true,
+            sizeBytes: true,
+            sha256: true,
+            durationMs: true,
+            storageBucket: true,
+            storageKey: true,
+          },
+        });
+
+        const authenticatedContentAccessPolicy: PublicVerifyContentAccessPolicy =
+          {
+            mode: "full_access",
+            allowContentView: true,
+            allowDownload: true,
+          };
+
+        const content = await buildPublicEvidenceContent({
+          accessPolicy: authenticatedContentAccessPolicy,
+          evidence: {
+            id: evidence.id,
+            mimeType: evidence.mimeType,
+            sizeBytes: evidence.sizeBytes,
+            storageBucket: evidence.storageBucket,
+            storageKey: evidence.storageKey,
+            fileSha256: evidence.fileSha256,
+          },
+          parts,
+        });
+
+        const defaultPreviewItem =
+          content.items.find((item) => item.previewable && item.viewUrl) ??
+          content.items.find((item) => item.viewUrl) ??
+          content.primaryItem ??
+          null;
+
+        const display = buildEvidenceDisplayDescriptor({
+          title: evidence.title,
+          summary: content.summary,
+          itemCount,
+        });
+
         return reply.code(200).send({
           evidence: toJsonSafe({
             ...toSafeEvidence(evidence),
             itemCount,
-            displayTitle: resolveEvidenceTitle(evidence.title),
+            display,
+            displayTitle: display.displayTitle,
             displaySubtitle: buildEvidenceSubtitle({
               itemCount,
               status: evidence.status,
               createdAt: evidence.createdAt,
             }),
+            displayDescription: display.displayDescription,
             storage,
             anchor,
+            contentAccessPolicy: authenticatedContentAccessPolicy,
+            contentCompositionSummary: buildContentCompositionSummary(
+              content.summary
+            ),
+            primaryContentLabel: buildPrimaryContentLabel(
+              content.summary.primaryKind
+            ),
+            defaultPreviewItemId: defaultPreviewItem?.id ?? null,
+            contentSummary: content.summary,
+            contentItems: content.items,
+            primaryContentItem: content.primaryItem,
+            previewPolicy: content.previewPolicy,
           }),
         });
-      } catch (err) {
+                  } catch (err) {
         const statusCode =
           err instanceof Error && "statusCode" in err
             ? (err as Error & { statusCode?: number }).statusCode ?? 500
@@ -2993,12 +3595,82 @@ if (
               refreshed.storageObjectLockLegalHoldStatus,
           }
         );
+        
+        const itemCount = await getEvidenceItemCount(id);
 
-        return reply.code(200).send({
-          ...toJsonSafe(result),
-          evidence: toJsonSafe(toSafeEvidence(refreshed)),
-          storage,
-        });
+const parts = await prisma.evidencePart.findMany({
+  where: { evidenceId: id },
+  orderBy: { partIndex: "asc" },
+  select: {
+    id: true,
+    partIndex: true,
+    originalFileName: true,
+    mimeType: true,
+    sizeBytes: true,
+    sha256: true,
+    durationMs: true,
+    storageBucket: true,
+    storageKey: true,
+  },
+});
+
+const authenticatedContentAccessPolicy: PublicVerifyContentAccessPolicy = {
+  mode: "full_access",
+  allowContentView: true,
+  allowDownload: true,
+};
+
+const content = await buildPublicEvidenceContent({
+  accessPolicy: authenticatedContentAccessPolicy,
+  evidence: {
+    id: refreshed.id,
+    mimeType: refreshed.mimeType,
+    sizeBytes: refreshed.sizeBytes,
+    storageBucket: refreshed.storageBucket,
+    storageKey: refreshed.storageKey,
+    fileSha256: refreshed.fileSha256,
+  },
+  parts,
+});
+
+const defaultPreviewItem =
+  content.items.find((item) => item.previewable && item.viewUrl) ??
+  content.items.find((item) => item.viewUrl) ??
+  content.primaryItem ??
+  null;
+
+const display = buildEvidenceDisplayDescriptor({
+  title: refreshed.title,
+  summary: content.summary,
+  itemCount,
+});
+
+return reply.code(200).send({
+  ...toJsonSafe(result),
+  evidence: toJsonSafe({
+    ...toSafeEvidence(refreshed),
+    itemCount,
+    display,
+    displayTitle: display.displayTitle,
+    displaySubtitle: buildEvidenceSubtitle({
+      itemCount,
+      status: refreshed.status,
+      createdAt: refreshed.createdAt,
+    }),
+    displayDescription: display.displayDescription,
+    storage,
+    contentAccessPolicy: authenticatedContentAccessPolicy,
+    contentCompositionSummary: buildContentCompositionSummary(content.summary),
+    primaryContentLabel: buildPrimaryContentLabel(
+      content.summary.primaryKind
+    ),
+    defaultPreviewItemId: defaultPreviewItem?.id ?? null,
+    contentSummary: content.summary,
+    contentItems: content.items,
+    primaryContentItem: content.primaryItem,
+    previewPolicy: content.previewPolicy,
+  }),
+});
       } catch (err) {
 if (
   err instanceof Error &&
@@ -3138,6 +3810,17 @@ if (
           storageBucket: true,
           storageKey: true,
           storageRegion: true,
+          displayTitleSnapshot: true,
+displayDescriptionSnapshot: true,
+contentStructureSnapshot: true,
+itemCountSnapshot: true,
+primaryContentKindSnapshot: true,
+contentSummarySnapshot: true,
+primaryContentLabelSnapshot: true,
+contentAccessPolicySnapshot: true,
+previewPolicySnapshot: true,
+reviewGuidanceSnapshot: true,
+limitationsSnapshot: true,
           storageObjectLockMode: true,
           storageObjectLockRetainUntilUtc: true,
           storageObjectLockLegalHoldStatus: true,
@@ -3200,7 +3883,20 @@ if (
         key: latest.storageKey,
         url,
         generatedAtUtc: latest.generatedAtUtc.toISOString(),
-        storage,
+        reviewerSnapshot: {
+          displayTitle: latest.displayTitleSnapshot ?? null,
+          displayDescription: latest.displayDescriptionSnapshot ?? null,
+          contentStructure: latest.contentStructureSnapshot ?? null,
+          itemCount: latest.itemCountSnapshot ?? null,
+          primaryContentKind: latest.primaryContentKindSnapshot ?? null,
+          primaryContentLabel: latest.primaryContentLabelSnapshot ?? null,
+contentSummary: toJsonSafe(latest.contentSummarySnapshot ?? null),
+contentAccessPolicy: toJsonSafe(latest.contentAccessPolicySnapshot ?? null),
+previewPolicy: toJsonSafe(latest.previewPolicySnapshot ?? null),
+reviewGuidance: toJsonSafe(latest.reviewGuidanceSnapshot ?? null),
+legalLimitations: toJsonSafe(latest.limitationsSnapshot ?? null),
+        },
+                storage,
         snapshots: {
           verificationStatus: latest.verificationStatusSnapshot ?? null,
           verificationStatusLabel: mapVerificationStatusLabel(
@@ -3304,8 +4000,12 @@ if (
         }
       );
 
-      const originalFileName =
-        evidence.storageKey?.split("/").pop()?.trim() || null;
+const originalFileName = basenameFromStorageKey(
+  evidence.storageKey,
+  `evidence-file.${extensionFromMimeType(evidence.mimeType)}`
+);
+
+      const originalKind = detectEvidenceAssetKind(evidence.mimeType);
 
       return reply.code(200).send({
         evidenceId: id,
@@ -3314,7 +4014,12 @@ if (
         originalFileName,
         url,
         mimeType: evidence.mimeType,
+        kind: originalKind,
+        previewable: isPreviewableEvidenceKind(originalKind),
         sizeBytes: evidence.sizeBytes?.toString() ?? null,
+        displaySizeLabel: formatBytesForDisplay(
+          evidence.sizeBytes?.toString() ?? null
+        ),
         lastAccessedByUserId: ownerUserId,
         lastAccessedAtUtc: accessedAt.toISOString(),
         storage,
@@ -3487,6 +4192,7 @@ if (
         reviewReadyAtUtc: true,
         reviewerSummaryVersion: true,
         mimeType: true,
+        sizeBytes: true,
         reportGeneratedAtUtc: true,
         fingerprintCanonicalJson: true,
         fingerprintHash: true,
@@ -3576,10 +4282,84 @@ if (
       select: {
         version: true,
         generatedAtUtc: true,
+        contentItemsSnapshot: true,
+        embeddedPreviewsSnapshot: true,
       },
     });
 
     const itemCount = await getEvidenceItemCount(id);
+
+        const parts = await prisma.evidencePart.findMany({
+      where: { evidenceId: id },
+      orderBy: { partIndex: "asc" },
+      select: {
+        id: true,
+        partIndex: true,
+        originalFileName: true,
+        mimeType: true,
+        sizeBytes: true,
+        sha256: true,
+        durationMs: true,
+        storageBucket: true,
+        storageKey: true,
+      },
+    });
+
+const reportPreviewMap = new Map<
+  string,
+  {
+    previewDataUrl?: string | null;
+    previewTextExcerpt?: string | null;
+    previewCaption?: string | null;
+  }
+>();
+
+if (Array.isArray(latestReport?.embeddedPreviewsSnapshot)) {
+  for (const item of latestReport.embeddedPreviewsSnapshot) {
+    if (
+      item &&
+      typeof item === "object" &&
+      "id" in item &&
+      typeof item.id === "string"
+    ) {
+      reportPreviewMap.set(item.id, {
+        previewDataUrl:
+          "previewDataUrl" in item && typeof item.previewDataUrl === "string"
+            ? item.previewDataUrl
+            : null,
+        previewTextExcerpt:
+          "previewTextExcerpt" in item &&
+          typeof item.previewTextExcerpt === "string"
+            ? item.previewTextExcerpt
+            : null,
+        previewCaption:
+          "previewCaption" in item && typeof item.previewCaption === "string"
+            ? item.previewCaption
+            : null,
+      });
+    }
+  }
+}
+
+const publicVerifyAccessPolicy = resolvePublicVerifyContentAccessPolicy({
+  evidenceStatus: evidence.status,
+  lockedAt: null,
+  archivedAt: null,
+  latestReportVersion: evidence.latestReportVersion ?? null,
+});
+const content = await buildPublicEvidenceContent({
+  accessPolicy: publicVerifyAccessPolicy,
+  previews: reportPreviewMap,
+  evidence: {
+    id: evidence.id,
+    mimeType: evidence.mimeType,
+    sizeBytes: evidence.sizeBytes,
+    storageBucket: evidence.storageBucket,
+    storageKey: evidence.storageKey,
+    fileSha256: evidence.fileSha256,
+  },
+  parts,
+});
 
     const recomputedFingerprintHash = sha256Hex(
       evidence.fingerprintCanonicalJson
@@ -3651,35 +4431,48 @@ if (
       ? prismaPkg.VerificationStatus.RECORDED_INTEGRITY_VERIFIED
       : prismaPkg.VerificationStatus.REVIEW_REQUIRED;
 
-    await prisma.$transaction([
-      prisma.evidence.update({
-        where: { id },
-        data: {
-          lastVerifiedAtUtc: verifiedAt,
-          lastVerifiedSource: VerificationSource.PUBLIC_VERIFY_VIEWED,
-          verificationStatus: effectiveVerificationStatus,
-          recordedIntegrityVerifiedAtUtc: overallIntegrity
-            ? evidence.recordedIntegrityVerifiedAtUtc ?? verifiedAt
-            : evidence.recordedIntegrityVerifiedAtUtc,
-        },
-      }),
-      prisma.verificationView.create({
-        data: {
-          evidenceId: id,
-          viewerType: VerificationViewerType.PUBLIC,
-          viewerUserId: null,
-          accessMode: "public_verify",
-          ipAddress: req.ip,
-          userAgent: readUserAgent(req),
-        },
-      }),
-    ]);
+await prisma.$transaction([
+  prisma.evidence.update({
+    where: { id },
+    data: {
+      lastVerifiedAtUtc: verifiedAt,
+      lastVerifiedSource: VerificationSource.PUBLIC_VERIFY_VIEWED,
+      verificationStatus: effectiveVerificationStatus,
+      ...(overallIntegrity
+        ? {
+            recordedIntegrityVerifiedAtUtc:
+              evidence.recordedIntegrityVerifiedAtUtc ?? verifiedAt,
+          }
+        : {}),
+    },
+  }),
+  prisma.verificationView.create({
+    data: {
+      evidenceId: id,
+      viewerType: VerificationViewerType.PUBLIC,
+      viewerUserId: null,
+      accessMode: "public_verify",
+      ipAddress: req.ip,
+      userAgent: readUserAgent(req),
+    },
+  }),
+]);
 
     void appendCustodyEvent({
       evidenceId: id,
-      eventType: prismaPkg.CustodyEventType.VERIFY_VIEWED,
+      eventType: prismaPkg.CustodyEventType.TECHNICAL_VERIFICATION_CHECKED,
       payload: {
-        accessMode: "public_verify",
+        source: "public_verify",
+        overallIntegrity,
+        canonicalHashMatches,
+        signatureValid,
+        custodyChainValid: custodyChain.valid,
+        custodyChainMode: custodyChain.mode,
+        custodyChainFailureReason: custodyChain.reason,
+        timestampDigestMatches,
+        otsHashMatches,
+        verificationStatus: effectiveVerificationStatus,
+        accessPolicyMode: publicVerifyAccessPolicy.mode,
       },
       ip: req.ip,
       userAgent: req.headers["user-agent"],
@@ -3687,15 +4480,9 @@ if (
 
     void appendCustodyEvent({
       evidenceId: id,
-      eventType: prismaPkg.CustodyEventType.TECHNICAL_VERIFICATION_CHECKED,
+      eventType: prismaPkg.CustodyEventType.VERIFY_VIEWED,
       payload: {
-        source: VerificationSource.PUBLIC_VERIFY_VIEWED,
-        canonicalHashMatches,
-        signatureValid,
-        custodyChainValid: custodyChain.valid,
-        timestampDigestMatches,
-        otsHashMatches,
-        overallIntegrity,
+        accessMode: "public_verify",
       },
       ip: req.ip,
       userAgent: req.headers["user-agent"],
@@ -3711,13 +4498,13 @@ if (
       },
     });
 
-    const mappedCustodyEvents = allCustodyEvents.map(mapPublicCustodyEvent);
     const mappedForensicEvents = forensicCustodyEvents.map(mapPublicCustodyEvent);
     const mappedAccessEvents = accessCustodyEvents.map(mapPublicCustodyEvent);
 
-    const effectiveRecordedIntegrityVerifiedAtUtc = overallIntegrity
-      ? evidence.recordedIntegrityVerifiedAtUtc ?? verifiedAt
-      : evidence.recordedIntegrityVerifiedAtUtc;
+const effectiveRecordedIntegrityVerifiedAtUtc =
+  overallIntegrity
+    ? (evidence.recordedIntegrityVerifiedAtUtc ?? verifiedAt)
+    : evidence.recordedIntegrityVerifiedAtUtc;
 
     const overview = buildPublicVerifyOverview({
       evidence: {
@@ -3759,6 +4546,7 @@ if (
       overallIntegrity,
       chainOfCustodyPresent: forensicCustodyEvents.length > 0,
       anchor,
+      contentSummary: content.summary,
     });
 
     const humanSummary = buildPublicVerifyHumanSummary({
@@ -3773,156 +4561,131 @@ if (
 
     const limitations = buildPublicVerifyLimitations();
 
-    return reply.code(200).send({
-      evidenceId: evidence.id,
-      title: resolveEvidenceTitle(evidence.title),
-      status: evidence.status,
-      verificationStatus: effectiveVerificationStatus,
-      captureMethod: evidence.captureMethod ?? null,
-      identityLevelSnapshot: evidence.identityLevelSnapshot ?? null,
-      mimeType: evidence.mimeType,
+    const reviewGuidance = buildPublicReviewGuidance({
+      itemCount: content.summary.itemCount,
+      previewableItemCount: content.summary.previewableItemCount,
+      overallIntegrity,
+    });
 
-      reportGeneratedAtUtc: latestReport?.generatedAtUtc
-        ? latestReport.generatedAtUtc.toISOString()
-        : evidence.reportGeneratedAtUtc
-          ? evidence.reportGeneratedAtUtc.toISOString()
-          : null,
-      reportVersion:
-        latestReport?.version ?? evidence.latestReportVersion ?? null,
+    const integrityProof: PublicVerifyIntegrityProof = {
+  overallIntegrity,
+  canonicalHashMatches,
+  signatureValid,
+  custodyChainValid: custodyChain.valid,
+  custodyChainMode: custodyChain.mode,
+  custodyChainFailureReason: custodyChain.reason,
+  timestampDigestMatches,
+  otsHashMatches,
+};
 
-      fileSha256: evidence.fileSha256,
-      fingerprintHash: evidence.fingerprintHash,
-      signatureBase64: evidence.signatureBase64,
-      signingKeyId: evidence.signingKeyId,
-      signingKeyVersion: evidence.signingKeyVersion,
-      publicKeyPem: signingKey.publicKeyPem,
+const custodyLifecycle = buildPublicCustodyLifecycle({
+  forensicEvents: mappedForensicEvents,
+  accessEvents: mappedAccessEvents,
+});
 
-      verification: {
-        canonicalHashMatches,
-        signatureValid,
-        custodyChainValid: custodyChain.valid,
-        custodyChainMode: custodyChain.mode,
-        custodyChainFailureReason: custodyChain.reason,
-        timestampDigestMatches,
-        otsHashMatches,
-        overallIntegrity,
-        forensicEventCount: forensicCustodyEvents.length,
-        accessEventCount: accessCustodyEvents.length,
-      },
+const technicalMaterials = buildTechnicalMaterials({
+  evidence: {
+    fileSha256: evidence.fileSha256,
+    fingerprintHash: evidence.fingerprintHash,
+    signatureBase64: evidence.signatureBase64,
+    signingKeyId: evidence.signingKeyId,
+    signingKeyVersion: evidence.signingKeyVersion,
+    tsaMessageImprint: evidence.tsaMessageImprint,
+    otsProofBase64: evidence.otsProofBase64,
+  },
+  publicKeyPem: signingKey.publicKeyPem,
+});
 
-      identity: {
-        submittedByEmail: evidence.submittedByEmail ?? null,
-        submittedByAuthProvider: evidence.submittedByAuthProvider ?? null,
-        submittedByAuthProviderLabel: mapAuthProviderLabel(
-          evidence.submittedByAuthProvider
-        ),
-        submittedByUserId: evidence.submittedByUserId ?? null,
-        identityLevel: evidence.identityLevelSnapshot ?? null,
-        identityLevelLabel: mapIdentityLevelLabel(
-          evidence.identityLevelSnapshot
-        ),
-        workspaceName: evidence.workspaceNameSnapshot ?? null,
-        organizationName: evidence.organizationNameSnapshot ?? null,
-        organizationVerified: evidence.organizationVerifiedSnapshot ?? null,
-      },
+const versioning: PublicVerifyVersioning = {
+  latestReportVersion:
+    latestReport?.version ?? evidence.latestReportVersion ?? null,
+  latestReportGeneratedAtUtc: latestReport?.generatedAtUtc
+    ? latestReport.generatedAtUtc.toISOString()
+    : evidence.reportGeneratedAtUtc
+      ? evidence.reportGeneratedAtUtc.toISOString()
+      : null,
+  verificationPackageVersion: evidence.verificationPackageVersion ?? null,
+  verificationPackageGeneratedAtUtc:
+    evidence.verificationPackageGeneratedAtUtc
+      ? evidence.verificationPackageGeneratedAtUtc.toISOString()
+      : null,
+  reviewerSummaryVersion: evidence.reviewerSummaryVersion ?? null,
+};
+const defaultPreviewItem =
+  content.items.find((item) => item.previewable && item.viewUrl) ??
+  content.items.find((item) => item.viewUrl) ??
+  content.primaryItem ??
+  null;
+const display = buildEvidenceDisplayDescriptor({
+  title: evidence.title,
+  summary: content.summary,
+  itemCount,
+});
 
-      storage: storageProtection,
-      anchor,
-
-      tsaStatus: evidence.tsaStatus,
-      tsaProvider: evidence.tsaProvider,
-      tsaUrl: evidence.tsaUrl,
-      tsaSerialNumber: evidence.tsaSerialNumber,
-      tsaGenTimeUtc: evidence.tsaGenTimeUtc
+return reply.code(200).send({
+  evidenceId: evidence.id,
+  contentAccessPolicy: publicVerifyAccessPolicy,
+    contentExposureDecision: {
+    mode: publicVerifyAccessPolicy.mode,
+    allowContentView: publicVerifyAccessPolicy.allowContentView,
+    allowDownload: publicVerifyAccessPolicy.allowDownload,
+    rationale:
+      publicVerifyAccessPolicy.mode === "metadata_only"
+        ? "Public verification access is restricted to integrity and metadata review."
+        : publicVerifyAccessPolicy.mode === "preview_only"
+          ? "Public verification access allows controlled preview without unrestricted download."
+          : "Public verification access allows reviewer-facing preview and download according to the configured policy.",
+  },
+  display,
+  overview,
+  humanSummary,
+  evidenceContent: {
+    summary: content.summary,
+    items: content.items,
+    primaryItem: content.primaryItem,
+defaultPreviewItemId: defaultPreviewItem?.id ?? null,
+      previewPolicy: content.previewPolicy,
+  },
+  integrityProof,
+  custodyLifecycle,
+  legalAssessment: {
+    limitations,
+    reviewGuidance,
+  },
+  storageAndTimestamping: {
+    storage: storageProtection,
+    tsa: {
+      status: evidence.tsaStatus,
+      provider: evidence.tsaProvider,
+      url: evidence.tsaUrl,
+      serialNumber: evidence.tsaSerialNumber,
+      genTimeUtc: evidence.tsaGenTimeUtc
         ? evidence.tsaGenTimeUtc.toISOString()
         : null,
-      tsaMessageImprint: shortHash(evidence.tsaMessageImprint),
-      tsaHashAlgorithm: evidence.tsaHashAlgorithm,
-      tsaFailureReason: evidence.tsaFailureReason,
-
-      tsa: {
-        status: evidence.tsaStatus,
-        provider: evidence.tsaProvider,
-        url: evidence.tsaUrl,
-        serialNumber: evidence.tsaSerialNumber,
-        genTimeUtc: evidence.tsaGenTimeUtc
-          ? evidence.tsaGenTimeUtc.toISOString()
-          : null,
-        hashAlgorithm: evidence.tsaHashAlgorithm,
-        messageImprint: shortHash(evidence.tsaMessageImprint),
-        failureReason: evidence.tsaFailureReason,
-        digestMatchesFileHash: timestampDigestMatches,
-      },
-
-      ots: {
-        status: evidence.otsStatus ?? null,
-        hash: evidence.otsHash ?? null,
-        calendar: evidence.otsCalendar ?? null,
-        bitcoinTxid: evidence.otsBitcoinTxid ?? null,
-        anchoredAtUtc: evidence.otsAnchoredAtUtc
-          ? evidence.otsAnchoredAtUtc.toISOString()
-          : null,
-        upgradedAtUtc: evidence.otsUpgradedAtUtc
-          ? evidence.otsUpgradedAtUtc.toISOString()
-          : null,
-        failureReason: evidence.otsFailureReason ?? null,
-        proofPresent: Boolean(evidence.otsProofBase64),
-        hashMatchesFingerprintHash: otsHashMatches,
-      },
-
-      custodyEvents: mappedCustodyEvents,
-      forensicCustodyEvents: mappedForensicEvents,
-      accessCustodyEvents: mappedAccessEvents,
-
-      overview,
-      humanSummary,
-      reviewTrail: {
-        forensicEventCount: mappedForensicEvents.length,
-        accessEventCount: mappedAccessEvents.length,
-        forensicCustodyEvents: mappedForensicEvents,
-        accessCustodyEvents: mappedAccessEvents,
-      },
-      technicalMaterials: {
-        fileSha256: evidence.fileSha256,
-        fingerprintHash: evidence.fingerprintHash,
-        signatureBase64: evidence.signatureBase64,
-        publicKeyPem: signingKey.publicKeyPem,
-        signingKeyId: evidence.signingKeyId,
-        signingKeyVersion: evidence.signingKeyVersion,
-        otsProofPresent: Boolean(evidence.otsProofBase64),
-      },
-      storageAndTimestamping: {
-        storage: storageProtection,
-        tsa: {
-          status: evidence.tsaStatus,
-          provider: evidence.tsaProvider,
-          url: evidence.tsaUrl,
-          serialNumber: evidence.tsaSerialNumber,
-          genTimeUtc: evidence.tsaGenTimeUtc
-            ? evidence.tsaGenTimeUtc.toISOString()
-            : null,
-          hashAlgorithm: evidence.tsaHashAlgorithm,
-          messageImprint: shortHash(evidence.tsaMessageImprint),
-          failureReason: evidence.tsaFailureReason,
-          digestMatchesFileHash: timestampDigestMatches,
-        },
-        ots: {
-          status: evidence.otsStatus ?? null,
-          hash: evidence.otsHash ?? null,
-          calendar: evidence.otsCalendar ?? null,
-          bitcoinTxid: evidence.otsBitcoinTxid ?? null,
-          anchoredAtUtc: evidence.otsAnchoredAtUtc
-            ? evidence.otsAnchoredAtUtc.toISOString()
-            : null,
-          upgradedAtUtc: evidence.otsUpgradedAtUtc
-            ? evidence.otsUpgradedAtUtc.toISOString()
-            : null,
-          failureReason: evidence.otsFailureReason ?? null,
-          proofPresent: Boolean(evidence.otsProofBase64),
-          hashMatchesFingerprintHash: otsHashMatches,
-        },
-      },
-      limitations,
-    });
+      hashAlgorithm: evidence.tsaHashAlgorithm,
+      messageImprint: shortHash(evidence.tsaMessageImprint),
+      failureReason: evidence.tsaFailureReason,
+      digestMatchesFileHash: timestampDigestMatches,
+    },
+    ots: {
+      status: evidence.otsStatus ?? null,
+      hash: evidence.otsHash ?? null,
+      calendar: evidence.otsCalendar ?? null,
+      bitcoinTxid: evidence.otsBitcoinTxid ?? null,
+      anchoredAtUtc: evidence.otsAnchoredAtUtc
+        ? evidence.otsAnchoredAtUtc.toISOString()
+        : null,
+      upgradedAtUtc: evidence.otsUpgradedAtUtc
+        ? evidence.otsUpgradedAtUtc.toISOString()
+        : null,
+      failureReason: evidence.otsFailureReason ?? null,
+      proofPresent: Boolean(evidence.otsProofBase64),
+      hashMatchesFingerprintHash: otsHashMatches,
+    },
+    anchor,
+  },
+  technicalMaterials,
+  versioning,
+});
   });
 }

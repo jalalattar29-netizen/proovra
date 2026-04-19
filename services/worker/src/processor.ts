@@ -2,6 +2,10 @@ import type { Job } from "bullmq";
 import type { Readable } from "node:stream";
 import * as prismaPkg from "@prisma/client";
 import {
+  extractPreviewForAsset,
+  type ExtractedPreview,
+} from "./preview/extract.js";
+import {
   assertWorkspaceAllowsReportArtifact,
   assertWorkspaceAllowsVerificationPackageArtifact,
   resolveEffectivePlanForEvidence,
@@ -11,6 +15,24 @@ import {
   canPlanGenerateReports,
   canPlanGenerateVerificationPackage,
 } from "@proovra/shared-billing";
+import {
+  type EvidenceAssetKind as ReportEvidenceAssetKind,
+  type EvidenceContentSummary as ReportEvidenceContentSummary,
+  type EvidenceDisplayDescriptor as ReportEvidenceDisplayDescriptor,
+  type EvidencePreviewPolicy as ReportPreviewPolicy,
+  type EvidenceContentAccessPolicy,
+  resolveEvidenceTitle,
+  detectEvidenceAssetKind,
+  isPreviewableEvidenceKind,
+  extensionFromMimeType,
+  basenameFromStorageKey,
+  getEvidencePartDisplayLabel,
+  formatBytesForDisplay,
+  buildContentCompositionSummary,
+  buildPrimaryContentLabel,
+  buildEvidenceDisplayDescriptor,
+  buildEvidencePreviewPolicy,
+} from "@proovra/shared-evidence-presentation";
 import { appendCustodyEventTx } from "./custody-events.js";
 import { appendWorkerAnalyticsEvent } from "./analytics-events.js";
 import { prisma } from "./db.js";
@@ -56,6 +78,16 @@ type VerificationEvidenceFile = {
   buffer: Buffer;
 };
 
+type LoadedEvidenceArtifact = {
+  id: string;
+  partIndex: number;
+  label: string;
+  originalFileName: string | null;
+  mimeType: string | null;
+  kind: ReportEvidenceAssetKind;
+  buffer: Buffer;
+};
+
 type EvidenceStorageSnapshot = {
   storageRegion: string | null;
   storageObjectLockMode: string | null;
@@ -79,6 +111,69 @@ type IdentitySnapshot = {
   reviewerSummaryVersion: number;
 };
 
+type ReportEvidenceAsset = {
+  id: string;
+  index: number;
+  label: string;
+  originalFileName: string | null;
+  mimeType: string | null;
+  kind: ReportEvidenceAssetKind;
+  sizeBytes: string | null;
+  durationMs: number | null;
+  sha256: string | null;
+  isPrimary: boolean;
+  previewable: boolean;
+  downloadable: boolean;
+  viewUrl: string | null;
+  displaySizeLabel: string | null;
+  previewRole:
+    | "primary_preview"
+    | "secondary_preview"
+    | "download_only"
+    | "metadata_only";
+  embedPreference:
+    | "image"
+    | "pdf_first_page"
+    | "audio_placeholder"
+    | "video_placeholder"
+    | "text_excerpt"
+    | "metadata_only";
+  artifactRole: "primary_evidence" | "supporting_evidence" | "attachment";
+  originalPreservationNote: string;
+  reviewerRepresentationLabel: string;
+  reviewerRepresentationNote: string;
+  verificationMaterialsNote: string;
+  previewDataUrl: string | null;
+  previewTextExcerpt: string | null;
+  previewCaption: string | null;
+};
+
+type ReportReviewGuidance = {
+  reviewerWorkflow: string[];
+  contentReviewNote: string;
+  legalAssessmentNote: string;
+  integrityAssessmentNote: string;
+  multipartReviewNote: string;
+};
+
+type ReportLegalLimitations = {
+  short: string;
+  detailed: string;
+};
+
+type ReportAnchorSummary = {
+  mode: "off" | "ready" | "active";
+  provider: string | null;
+  publicBaseUrl: string | null;
+  configured: boolean;
+  published: boolean;
+  anchorHash: string | null;
+  receiptId: string | null;
+  transactionId: string | null;
+  publicUrl: string | null;
+  anchoredAtUtc: string | null;
+};
+
 type PreparedReportArtifacts = {
   reportPdf: Buffer;
   verificationZip: Buffer | null;
@@ -91,6 +186,21 @@ type PreparedReportArtifacts = {
   fingerprintCanonicalJson: string;
   identitySnapshot: IdentitySnapshot;
   effectivePlan: prismaPkg.PlanType;
+
+  display: ReportEvidenceDisplayDescriptor;
+  reviewGuidance: ReportReviewGuidance;
+  contentAccessPolicy: EvidenceContentAccessPolicy;
+  contentSummary: ReportEvidenceContentSummary;
+  contentItems: ReportEvidenceAsset[];
+  primaryContentItem: ReportEvidenceAsset | null;
+  previewPolicy: ReportPreviewPolicy;
+  contentCompositionSummary: string | null;
+  primaryContentLabel: string | null;
+  defaultPreviewItemId: string | null;
+  limitations: ReportLegalLimitations;
+  anchorSummary: ReportAnchorSummary | null;
+
+  reportEvidencePayload: Parameters<typeof buildReportPdf>[0]["evidence"];
 };
 
 function envValue(name: string, fallback?: string): string {
@@ -116,10 +226,10 @@ function buildVerifyUrl(evidenceId: string): string {
 }
 
 function buildEvidenceDetailUrl(evidenceId: string): string {
-  const base = envValue(
-    "REPORT_APP_BASE_URL",
-    "https://app.proovra.com"
-  ).replace(/\/+$/, "");
+  const base = envValue("REPORT_APP_BASE_URL", "https://app.proovra.com").replace(
+    /\/+$/,
+    ""
+  );
   return `${base}/evidence/${encodeURIComponent(evidenceId)}`;
 }
 
@@ -146,10 +256,7 @@ function normalizePayloadPrimitive(value: unknown): string | null {
   return null;
 }
 
-function summarizePayloadForReport(
-  eventType: string,
-  payload: unknown
-): string {
+function summarizePayloadForReport(eventType: string, payload: unknown): string {
   const event = String(eventType || "").toUpperCase();
 
   if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
@@ -204,8 +311,7 @@ function summarizePayloadForReport(
         typeof obj.itemCount === "number" && Number.isFinite(obj.itemCount)
           ? obj.itemCount
           : null;
-      const itemCount =
-        itemCountValue !== null ? String(itemCountValue) : null;
+      const itemCount = itemCountValue !== null ? String(itemCountValue) : null;
       const sizeBytes = normalizePayloadPrimitive(obj.sizeBytes);
       const hash = shortHash(normalizePayloadPrimitive(obj.fileSha256));
 
@@ -302,11 +408,25 @@ function summarizePayloadForReport(
     case "REPORT_GENERATED": {
       const reportVersion = normalizePayloadPrimitive(obj.reportVersion);
       const refreshReason = normalizePayloadPrimitive(obj.refreshReason);
+      const verificationStatusSnapshot = normalizePayloadPrimitive(
+        obj.verificationStatusSnapshot
+      );
+      const captureMethodSnapshot = normalizePayloadPrimitive(
+        obj.captureMethodSnapshot
+      );
+      const identityLevelSnapshot = normalizePayloadPrimitive(
+        obj.identityLevelSnapshot
+      );
 
       return [
         reportVersion
           ? `Verification report generated • Version: ${reportVersion}`
           : "Verification report generated.",
+        verificationStatusSnapshot
+          ? `Verification: ${verificationStatusSnapshot}`
+          : null,
+        captureMethodSnapshot ? `Capture: ${captureMethodSnapshot}` : null,
+        identityLevelSnapshot ? `Identity: ${identityLevelSnapshot}` : null,
         refreshReason ? `Refresh: ${refreshReason}` : null,
       ]
         .filter(Boolean)
@@ -334,9 +454,16 @@ function summarizePayloadForReport(
 
     case "TECHNICAL_VERIFICATION_CHECKED": {
       const source = normalizePayloadPrimitive(obj.source);
+      const overallIntegrity = normalizePayloadPrimitive(obj.overallIntegrity);
+      const verificationStatus = normalizePayloadPrimitive(obj.verificationStatus);
+      const accessPolicyMode = normalizePayloadPrimitive(obj.accessPolicyMode);
+
       return [
         "Technical verification checked",
         source ? `Source: ${source}` : null,
+        overallIntegrity ? `Overall integrity: ${overallIntegrity}` : null,
+        verificationStatus ? `Status: ${verificationStatus}` : null,
+        accessPolicyMode ? `Access policy: ${accessPolicyMode}` : null,
       ]
         .filter(Boolean)
         .join(" • ");
@@ -544,39 +671,463 @@ async function deleteObjectIfExists(params: { bucket: string; key: string }) {
   }
 }
 
-function extensionFromMimeType(mimeType: string | null | undefined): string {
-  const mime = (mimeType ?? "").toLowerCase().trim();
-
-  if (!mime) return "bin";
-  if (mime === "image/jpeg") return "jpg";
-  if (mime === "image/png") return "png";
-  if (mime === "image/webp") return "webp";
-  if (mime === "video/mp4") return "mp4";
-  if (mime === "video/webm") return "webm";
-  if (mime === "audio/mpeg") return "mp3";
-  if (mime === "audio/wav") return "wav";
-  if (mime === "audio/webm") return "webm";
-  if (mime === "application/pdf") return "pdf";
-  if (mime === "text/plain") return "txt";
-  if (mime === "application/json") return "json";
-
-  const slashIndex = mime.indexOf("/");
-  if (slashIndex >= 0 && slashIndex < mime.length - 1) {
-    return mime.slice(slashIndex + 1).replace(/[^a-z0-9]+/gi, "") || "bin";
-  }
-
-  return "bin";
+function buildReportLegalLimitations(): ReportLegalLimitations {
+  return {
+    short:
+      "This report verifies the recorded integrity state of the evidence record. It does not independently prove factual truth, authorship, context, or legal admissibility.",
+    detailed:
+      "Technical verification supports detection of post-completion changes to the recorded evidence state. It does not by itself establish who created the content, whether the depicted events are true, or whether any court, insurer, regulator, or authority must accept the material.",
+  };
 }
 
-function basenameFromStorageKey(
-  key: string | null | undefined,
-  fallback: string
-): string {
-  const raw = typeof key === "string" ? key.trim() : "";
-  if (!raw) return fallback;
-  const parts = raw.split("/");
-  const base = parts[parts.length - 1]?.trim();
-  return base || fallback;
+function buildReportReviewGuidance(params: {
+  itemCount: number;
+  previewableItemCount: number;
+  overallIntegrity: boolean;
+}): ReportReviewGuidance {
+  return {
+    reviewerWorkflow: [
+      "First review the evidence content and item structure.",
+      "Then review the recorded integrity outcome and custody chronology.",
+      "Finally evaluate relevance, context, authorship, and admissibility separately.",
+    ],
+    contentReviewNote:
+      params.previewableItemCount > 0
+        ? "The report includes a structured evidence inventory and may embed reviewer-facing previews of the recorded evidence content where appropriate for the artifact type."
+        : "The recorded evidence content is not directly previewable in a standard way, but its structure and recorded integrity state remain reviewable.",
+    legalAssessmentNote:
+      "Use the evidence content together with the technical verification record; neither should be treated as a substitute for the other.",
+    integrityAssessmentNote: params.overallIntegrity
+      ? "The recorded technical integrity checks passed for the available materials at report generation time."
+      : "One or more recorded technical integrity checks require manual review before relying on this record.",
+    multipartReviewNote:
+      params.itemCount > 1
+        ? "This record contains multiple items and should be reviewed as a package, including the role of the primary item."
+        : "This record contains a single primary evidence item.",
+  };
+}
+
+function resolveReportContentAccessPolicy(): EvidenceContentAccessPolicy {
+  const mode = (process.env.REPORT_CONTENT_ACCESS_MODE ?? "full_access")
+    .trim()
+    .toLowerCase();
+
+  if (mode === "metadata_only") {
+    return {
+      mode: "metadata_only",
+      allowContentView: false,
+      allowDownload: false,
+    };
+  }
+
+  if (mode === "preview_only") {
+    return {
+      mode: "preview_only",
+      allowContentView: true,
+      allowDownload: false,
+    };
+  }
+
+  return {
+    mode: "full_access",
+    allowContentView: true,
+    allowDownload: true,
+  };
+}
+
+function resolveEmbedPreference(
+  kind: ReportEvidenceAssetKind
+): ReportEvidenceAsset["embedPreference"] {
+  switch (kind) {
+    case "image":
+      return "image";
+    case "pdf":
+      return "pdf_first_page";
+    case "audio":
+      return "audio_placeholder";
+    case "video":
+      return "video_placeholder";
+    case "text":
+      return "text_excerpt";
+    default:
+      return "metadata_only";
+  }
+}
+
+function buildPreviewCaption(params: {
+  label: string;
+  kind: ReportEvidenceAssetKind;
+  mimeType: string | null;
+}): string | null {
+  const kindLabel =
+    params.kind.charAt(0).toUpperCase() + params.kind.slice(1);
+
+  if (params.mimeType) {
+    return `${kindLabel} preview for ${params.label} (${params.mimeType})`;
+  }
+
+  return `${kindLabel} preview for ${params.label}`;
+}
+
+function buildOriginalPreservationNote(params: {
+  label: string;
+  kind: ReportEvidenceAssetKind;
+}): string {
+  return `Original preserved ${params.kind} evidence item: ${params.label}.`;
+}
+
+function buildReviewerRepresentationLabel(params: {
+  kind: ReportEvidenceAssetKind;
+  isPrimary: boolean;
+}): string {
+  const prefix = params.isPrimary ? "Primary" : "Supporting";
+  switch (params.kind) {
+    case "image":
+      return `${prefix} image reviewer preview`;
+    case "video":
+      return `${prefix} video reviewer representation`;
+    case "audio":
+      return `${prefix} audio reviewer representation`;
+    case "pdf":
+      return `${prefix} document reviewer representation`;
+    case "text":
+      return `${prefix} text reviewer representation`;
+    default:
+      return `${prefix} evidence reviewer representation`;
+  }
+}
+
+function buildReviewerRepresentationNote(params: {
+  kind: ReportEvidenceAssetKind;
+  label: string;
+}): string {
+  switch (params.kind) {
+    case "image":
+      return `Reviewer preview generated from the preserved image evidence item ${params.label}. Original image remains separately preserved.`;
+    case "video":
+      return `Reviewer representation generated for preserved video evidence item ${params.label}. Controlled playback should be performed through the verification workflow when needed.`;
+    case "audio":
+      return `Reviewer representation generated for preserved audio evidence item ${params.label}. Controlled listening should be performed through the verification workflow when needed.`;
+    case "pdf":
+      return `Reviewer representation generated from the preserved PDF evidence item ${params.label}. Original document remains separately preserved.`;
+    case "text":
+      return `Reviewer excerpt generated from the preserved text evidence item ${params.label}. Original file remains separately preserved.`;
+    default:
+      return `Reviewer representation generated from the preserved evidence item ${params.label}. Original file remains separately preserved.`;
+  }
+}
+
+function buildVerificationMaterialsNote(params: {
+  kind: ReportEvidenceAssetKind;
+}): string {
+  return `Verification materials for this ${params.kind} item include the recorded digest, custody linkage, timestamping state, and any published anchoring records associated with the preserved evidence record.`;
+}
+
+function buildReportEvidenceContent(params: {
+  accessPolicy: EvidenceContentAccessPolicy;
+  previews?: Map<string, ExtractedPreview>;
+  evidence: {
+    id: string;
+    mimeType: string | null;
+    sizeBytes: bigint | number | null;
+    storageBucket: string | null;
+    storageKey: string | null;
+    fileSha256: string | null;
+  };
+  parts: Array<{
+    id: string;
+    partIndex: number;
+    originalFileName: string | null;
+    mimeType: string | null;
+    sizeBytes: bigint | number | null;
+    sha256: string | null;
+    durationMs: number | null;
+    storageBucket: string;
+    storageKey: string;
+  }>;
+}): {
+  summary: ReportEvidenceContentSummary;
+  items: ReportEvidenceAsset[];
+  primaryItem: ReportEvidenceAsset | null;
+  previewPolicy: ReportPreviewPolicy;
+  limitations: ReportLegalLimitations;
+} {
+  const multipart = params.parts.length > 0;
+  const accessPolicy = params.accessPolicy;
+  const canExposeContent = accessPolicy.allowContentView;
+  const canDownload = accessPolicy.allowDownload;
+
+  const items: ReportEvidenceAsset[] = multipart
+    ? params.parts.map((part) => {
+        const kind = detectEvidenceAssetKind(part.mimeType);
+        const sizeBytes = part.sizeBytes != null ? String(part.sizeBytes) : null;
+        const isPrimary =
+          params.evidence.storageBucket === part.storageBucket &&
+          params.evidence.storageKey === part.storageKey;
+
+        const canPreviewThisItem =
+          canExposeContent && isPreviewableEvidenceKind(kind);
+
+        const label = getEvidencePartDisplayLabel({
+          partIndex: part.partIndex,
+          mimeType: part.mimeType,
+          originalFileName: part.originalFileName,
+          storageKey: part.storageKey,
+        });
+
+        const preview = params.previews?.get(part.id);
+
+        return {
+          id: part.id,
+          index: part.partIndex,
+          label,
+          originalFileName: part.originalFileName ?? null,
+          mimeType: part.mimeType ?? null,
+          kind,
+          sizeBytes,
+          durationMs: part.durationMs ?? null,
+          sha256: part.sha256 ?? null,
+          isPrimary,
+          previewable: canPreviewThisItem,
+          downloadable: canDownload,
+          viewUrl: null,
+          displaySizeLabel: formatBytesForDisplay(sizeBytes),
+          previewRole: canPreviewThisItem
+            ? isPrimary
+              ? "primary_preview"
+              : "secondary_preview"
+            : canDownload
+              ? "download_only"
+              : "metadata_only",
+          embedPreference: canPreviewThisItem
+            ? resolveEmbedPreference(kind)
+            : "metadata_only",
+          artifactRole: isPrimary
+            ? "primary_evidence"
+            : canPreviewThisItem
+              ? "supporting_evidence"
+              : "attachment",
+          originalPreservationNote: buildOriginalPreservationNote({ label, kind }),
+          reviewerRepresentationLabel: buildReviewerRepresentationLabel({
+            kind,
+            isPrimary,
+          }),
+          reviewerRepresentationNote: buildReviewerRepresentationNote({
+            kind,
+            label,
+          }),
+          verificationMaterialsNote: buildVerificationMaterialsNote({ kind }),
+          previewDataUrl: preview?.previewDataUrl ?? null,
+          previewTextExcerpt: preview?.previewTextExcerpt ?? null,
+          previewCaption:
+            preview?.previewCaption ??
+            buildPreviewCaption({
+              label,
+              kind,
+              mimeType: part.mimeType ?? null,
+            }),
+        };
+      })
+    : params.evidence.storageBucket && params.evidence.storageKey
+      ? (() => {
+          const singleKind = detectEvidenceAssetKind(params.evidence.mimeType);
+          const singlePreviewable =
+            canExposeContent && isPreviewableEvidenceKind(singleKind);
+
+          const label = getEvidencePartDisplayLabel({
+            partIndex: 0,
+            mimeType: params.evidence.mimeType,
+            storageKey: params.evidence.storageKey,
+          });
+
+          const preview = params.previews?.get(params.evidence.id);
+
+          return [
+            {
+              id: params.evidence.id,
+              index: 0,
+              label,
+              originalFileName: basenameFromStorageKey(
+                params.evidence.storageKey,
+                `evidence-file.${extensionFromMimeType(params.evidence.mimeType)}`
+              ),
+              mimeType: params.evidence.mimeType ?? null,
+              kind: singleKind,
+              sizeBytes:
+                params.evidence.sizeBytes != null
+                  ? String(params.evidence.sizeBytes)
+                  : null,
+              durationMs: null,
+              sha256: params.evidence.fileSha256 ?? null,
+              isPrimary: true,
+              previewable: singlePreviewable,
+              downloadable: canDownload,
+              viewUrl: null,
+              displaySizeLabel: formatBytesForDisplay(params.evidence.sizeBytes),
+              previewRole: singlePreviewable
+                ? "primary_preview"
+                : canDownload
+                  ? "download_only"
+                  : "metadata_only",
+              embedPreference: singlePreviewable
+                ? resolveEmbedPreference(singleKind)
+                : "metadata_only",
+              artifactRole: "primary_evidence",
+              originalPreservationNote: buildOriginalPreservationNote({
+                label,
+                kind: singleKind,
+              }),
+              reviewerRepresentationLabel: buildReviewerRepresentationLabel({
+                kind: singleKind,
+                isPrimary: true,
+              }),
+              reviewerRepresentationNote: buildReviewerRepresentationNote({
+                kind: singleKind,
+                label,
+              }),
+              verificationMaterialsNote: buildVerificationMaterialsNote({
+                kind: singleKind,
+              }),
+              previewDataUrl: preview?.previewDataUrl ?? null,
+              previewTextExcerpt: preview?.previewTextExcerpt ?? null,
+              previewCaption:
+                preview?.previewCaption ??
+                buildPreviewCaption({
+                  label,
+                  kind: singleKind,
+                  mimeType: params.evidence.mimeType ?? null,
+                }),
+            },
+          ];
+        })()
+      : [];
+
+  if (items.length > 1 && !items.some((item) => item.isPrimary)) {
+    items[0] = {
+      ...items[0],
+      isPrimary: true,
+      previewRole:
+        items[0]?.previewRole === "metadata_only"
+          ? "metadata_only"
+          : "primary_preview",
+      artifactRole: "primary_evidence",
+    };
+  }
+
+  const primaryItem =
+    items.find((item) => item.isPrimary) ?? (items.length > 0 ? items[0] : null);
+
+  const summary = items.reduce<ReportEvidenceContentSummary>(
+    (acc, item) => {
+      acc.itemCount += 1;
+      if (item.previewable) acc.previewableItemCount += 1;
+      if (item.downloadable) acc.downloadableItemCount += 1;
+
+      if (item.kind === "image") acc.imageCount += 1;
+      else if (item.kind === "video") acc.videoCount += 1;
+      else if (item.kind === "audio") acc.audioCount += 1;
+      else if (item.kind === "pdf") acc.pdfCount += 1;
+      else if (item.kind === "text") acc.textCount += 1;
+      else acc.otherCount += 1;
+
+      return acc;
+    },
+    {
+      structure: multipart ? "multipart" : "single",
+      itemCount: 0,
+      previewableItemCount: 0,
+      downloadableItemCount: 0,
+      imageCount: 0,
+      videoCount: 0,
+      audioCount: 0,
+      pdfCount: 0,
+      textCount: 0,
+      otherCount: 0,
+      primaryKind: primaryItem?.kind ?? null,
+      primaryMimeType: primaryItem?.mimeType ?? null,
+      totalSizeBytes: null,
+      totalSizeDisplay: null,
+    }
+  );
+
+  const totalSizeBigInt = items.reduce<bigint>((acc, item) => {
+    const value = item.sizeBytes ? BigInt(item.sizeBytes) : 0n;
+    return acc + value;
+  }, 0n);
+
+  summary.totalSizeBytes =
+    totalSizeBigInt > 0n ? totalSizeBigInt.toString() : null;
+  summary.totalSizeDisplay = formatBytesForDisplay(summary.totalSizeBytes);
+  summary.primaryKind = primaryItem?.kind ?? null;
+  summary.primaryMimeType = primaryItem?.mimeType ?? null;
+
+  const previewPolicy = buildEvidencePreviewPolicy({
+    itemCount: summary.itemCount,
+    previewableItemCount: summary.previewableItemCount,
+    downloadableItemCount: summary.downloadableItemCount,
+    accessPolicy,
+  });
+
+  const limitations = buildReportLegalLimitations();
+
+  return {
+    summary,
+    items,
+    primaryItem,
+    previewPolicy,
+    limitations,
+  };
+}
+
+async function resolveAnchorStatusForReport(
+  evidenceId: string
+): Promise<ReportAnchorSummary> {
+  const mode = normalizeAnchorMode(process.env.ANCHOR_MODE);
+  const provider = process.env.ANCHOR_PROVIDER?.trim() || null;
+  const publicBaseUrl = process.env.ANCHOR_PUBLIC_BASE_URL?.trim() || null;
+
+  const anchor = await prisma.evidenceAnchor.findUnique({
+    where: { evidenceId },
+    select: {
+      mode: true,
+      provider: true,
+      anchorHash: true,
+      receiptId: true,
+      transactionId: true,
+      publicUrl: true,
+      anchoredAtUtc: true,
+    },
+  });
+
+  if (!anchor) {
+    return {
+      mode,
+      provider,
+      publicBaseUrl,
+      configured: Boolean(provider),
+      published: false,
+      anchorHash: null,
+      receiptId: null,
+      transactionId: null,
+      publicUrl: null,
+      anchoredAtUtc: null,
+    };
+  }
+
+  return {
+    mode: normalizeAnchorMode(anchor.mode),
+    provider: anchor.provider ?? provider,
+    publicBaseUrl,
+    configured: Boolean(anchor.provider ?? provider),
+    published: true,
+    anchorHash: anchor.anchorHash ?? null,
+    receiptId: anchor.receiptId ?? null,
+    transactionId: anchor.transactionId ?? null,
+    publicUrl: anchor.publicUrl ?? null,
+    anchoredAtUtc: anchor.anchoredAtUtc
+      ? anchor.anchoredAtUtc.toISOString()
+      : null,
+  };
 }
 
 async function resolveEvidenceStorageSnapshot(params: {
@@ -807,68 +1358,82 @@ async function prepareReportArtifacts(
       evidence.storageObjectLockLegalHoldStatus ?? null,
   });
 
-const [parts, ownerUser] = await Promise.all([
-  prisma.evidencePart.findMany({
-    where: { evidenceId: evidence.id },
-    orderBy: { partIndex: "asc" },
-  }),
-  prisma.user.findUnique({
-    where: { id: evidence.ownerUserId },
-    select: {
-      id: true,
-      email: true,
-      provider: true,
-      emailVerifiedAt: true,
-      organizationVerificationState: true,
-      currentWorkspaceId: true,
-    },
-  }),
-]);
+  const [parts, ownerUser, anchorSummary] = await Promise.all([
+    prisma.evidencePart.findMany({
+      where: { evidenceId: evidence.id },
+      orderBy: { partIndex: "asc" },
+      select: {
+        id: true,
+        partIndex: true,
+        originalFileName: true,
+        mimeType: true,
+        sizeBytes: true,
+        sha256: true,
+        durationMs: true,
+        storageBucket: true,
+        storageKey: true,
+        uploadedByUserId: true,
+      },
+    }),
+    prisma.user.findUnique({
+      where: { id: evidence.ownerUserId },
+      select: {
+        id: true,
+        email: true,
+        provider: true,
+        emailVerifiedAt: true,
+        organizationVerificationState: true,
+        currentWorkspaceId: true,
+      },
+    }),
+    resolveAnchorStatusForReport(evidence.id),
+  ]);
 
   if (!ownerUser) {
     throw createWorkerError("OWNER_USER_NOT_FOUND", false);
   }
 
-const effectivePlan = await resolveEffectivePlanForEvidence({
-  ownerUserId: evidence.ownerUserId,
-  teamId: evidence.teamId ?? null,
-});
+  const effectivePlan = await resolveEffectivePlanForEvidence({
+    ownerUserId: evidence.ownerUserId,
+    teamId: evidence.teamId ?? null,
+  });
 
   if (!canPlanGenerateReports(effectivePlan)) {
     throw createWorkerError("REPORT_NOT_INCLUDED_IN_PLAN", false);
   }
 
-let workspaceTeam:
-  | {
-      id: string;
-      name: string;
-      legalName: string | null;
-      evidenceWorkspaceLabel: string | null;
-      verificationState: prismaPkg.OrganizationVerificationState | null;
-    }
-  | null = null;
+  let workspaceTeam:
+    | {
+        id: string;
+        name: string;
+        legalName: string | null;
+        evidenceWorkspaceLabel: string | null;
+        verificationState: prismaPkg.OrganizationVerificationState | null;
+      }
+    | null = null;
 
-if (evidence.teamId) {
-  workspaceTeam = await prisma.team.findUnique({
-    where: { id: evidence.teamId },
-    select: {
-      id: true,
-      name: true,
-      legalName: true,
-      evidenceWorkspaceLabel: true,
-      verificationState: true,
-    },
-  });
-}
+  if (evidence.teamId) {
+    workspaceTeam = await prisma.team.findUnique({
+      where: { id: evidence.teamId },
+      select: {
+        id: true,
+        name: true,
+        legalName: true,
+        evidenceWorkspaceLabel: true,
+        verificationState: true,
+      },
+    });
+  }
 
   if (parts.length === 0 && (!evidence.storageBucket || !evidence.storageKey)) {
     throw createWorkerError("EVIDENCE_STORAGE_NOT_SET", false);
   }
 
-  let storageBucket = evidence.storageBucket ?? null;
-  let storageKey = evidence.storageKey ?? null;
-  let fileSha256 = "";
-  const verificationEvidenceFiles: VerificationEvidenceFile[] = [];
+let storageBucket = evidence.storageBucket ?? null;
+let storageKey = evidence.storageKey ?? null;
+let fileSha256 = "";
+const verificationEvidenceFiles: VerificationEvidenceFile[] = [];
+const loadedArtifacts: LoadedEvidenceArtifact[] = [];
 
   if (parts.length > 0) {
     const hashes: string[] = [];
@@ -901,6 +1466,20 @@ if (evidence.teamId) {
               part.mimeType
             )}`
           ),
+        buffer: partBuffer,
+      });
+            loadedArtifacts.push({
+        id: part.id,
+        partIndex: part.partIndex,
+        label: getEvidencePartDisplayLabel({
+          partIndex: part.partIndex,
+          mimeType: part.mimeType,
+          originalFileName: part.originalFileName,
+          storageKey: part.storageKey,
+        }),
+        originalFileName: part.originalFileName ?? null,
+        mimeType: part.mimeType ?? null,
+        kind: detectEvidenceAssetKind(part.mimeType),
         buffer: partBuffer,
       });
     }
@@ -942,6 +1521,22 @@ if (evidence.teamId) {
       ),
       buffer: singleEvidenceBuffer,
     });
+        loadedArtifacts.push({
+      id: evidence.id,
+      partIndex: 0,
+      label: getEvidencePartDisplayLabel({
+        partIndex: 0,
+        mimeType: evidence.mimeType,
+        storageKey: evidence.storageKey!,
+      }),
+      originalFileName: basenameFromStorageKey(
+        evidence.storageKey!,
+        `evidence-file.${extensionFromMimeType(evidence.mimeType)}`
+      ),
+      mimeType: evidence.mimeType ?? null,
+      kind: detectEvidenceAssetKind(evidence.mimeType),
+      buffer: singleEvidenceBuffer,
+    });
 
     fileSha256 = createHash("sha256")
       .update(singleEvidenceBuffer)
@@ -954,6 +1549,65 @@ if (evidence.teamId) {
     storageBucket = evidence.storageBucket ?? storageBucket;
     storageKey = evidence.storageKey ?? storageKey;
   }
+
+  const reportContentAccessPolicy = resolveReportContentAccessPolicy();
+
+  const previewMap = new Map<string, ExtractedPreview>();
+
+  for (const artifact of loadedArtifacts) {
+    const extracted = await extractPreviewForAsset({
+      kind: artifact.kind,
+      mimeType: artifact.mimeType,
+      buffer: artifact.buffer,
+    });
+
+    previewMap.set(artifact.id, extracted);
+  }
+
+  const contentArtifacts = buildReportEvidenceContent({
+    accessPolicy: reportContentAccessPolicy,
+    previews: previewMap,
+    evidence: {
+      id: evidence.id,
+      mimeType: evidence.mimeType ?? null,
+      sizeBytes: evidence.sizeBytes ?? null,
+      storageBucket,
+      storageKey,
+      fileSha256,
+    },
+    parts: parts.map((part) => ({
+      id: part.id,
+      partIndex: part.partIndex,
+      originalFileName: part.originalFileName,
+      mimeType: part.mimeType,
+      sizeBytes: part.sizeBytes,
+      sha256: part.sha256,
+      durationMs: part.durationMs,
+      storageBucket: part.storageBucket,
+      storageKey: part.storageKey,
+    })),
+  });
+
+  const defaultPreviewItem =
+    contentArtifacts.items.find((item) => item.previewable) ??
+    contentArtifacts.items.find((item) => item.isPrimary) ??
+    contentArtifacts.items[0] ??
+    null;
+
+  const defaultPreviewItemId = defaultPreviewItem?.id ?? null;
+
+  const contentCompositionSummary = buildContentCompositionSummary(
+    contentArtifacts.summary
+  );
+  const primaryContentLabel = buildPrimaryContentLabel(
+    contentArtifacts.summary.primaryKind
+  );
+
+  const display = buildEvidenceDisplayDescriptor({
+    title: evidence.title,
+    summary: contentArtifacts.summary,
+    itemCount: contentArtifacts.summary.itemCount,
+  });
 
   const custodyEvents = await prisma.custodyEvent.findMany({
     where: { evidenceId: evidence.id },
@@ -1040,18 +1694,19 @@ if (evidence.teamId) {
     workspaceTeam?.verificationState ===
     prismaPkg.OrganizationVerificationState.VERIFIED;
 
-const identityLevel = deriveIdentityLevel({
-  provider: ownerUser.provider,
-  emailVerifiedAt: ownerUser.emailVerifiedAt ?? null,
-  organizationVerificationState:
-    ownerUser.organizationVerificationState ?? null,
-  currentWorkspaceVerified: workspaceVerified,
-  hasWorkspaceTeam: Boolean(evidence.teamId),
-});
+  const identityLevel = deriveIdentityLevel({
+    provider: ownerUser.provider,
+    emailVerifiedAt: ownerUser.emailVerifiedAt ?? null,
+    organizationVerificationState:
+      ownerUser.organizationVerificationState ?? null,
+    currentWorkspaceVerified: workspaceVerified,
+    hasWorkspaceTeam: Boolean(evidence.teamId),
+  });
 
   const identitySnapshot: IdentitySnapshot = {
     verificationStatus:
-      prismaPkg.VerificationStatus.RECORDED_INTEGRITY_VERIFIED,
+      evidence.verificationStatus ??
+      prismaPkg.VerificationStatus.MATERIALS_AVAILABLE,
     captureMethod,
     identityLevelSnapshot: identityLevel,
     submittedByEmail: ownerUser.email ?? null,
@@ -1063,14 +1718,22 @@ const identityLevel = deriveIdentityLevel({
       parts.find((p) => p.uploadedByUserId)?.uploadedByUserId ??
       evidence.ownerUserId,
     workspaceNameSnapshot:
-      workspaceTeam?.evidenceWorkspaceLabel ??
-      workspaceTeam?.name ??
-      null,
+      workspaceTeam?.evidenceWorkspaceLabel ?? workspaceTeam?.name ?? null,
     organizationNameSnapshot:
       workspaceTeam?.legalName ?? workspaceTeam?.name ?? null,
     organizationVerifiedSnapshot: workspaceVerified,
     reviewerSummaryVersion: provisionalVersion,
   };
+
+  const reviewGuidance = buildReportReviewGuidance({
+    itemCount: contentArtifacts.summary.itemCount,
+    previewableItemCount: contentArtifacts.summary.previewableItemCount,
+    overallIntegrity: Boolean(
+      evidence.recordedIntegrityVerifiedAtUtc ||
+        evidence.verificationStatus ===
+          prismaPkg.VerificationStatus.RECORDED_INTEGRITY_VERIFIED
+    ),
+  });
 
   const custodyEventsForReport = [
     ...custodyEvents.map((ev) => ({
@@ -1165,7 +1828,9 @@ const identityLevel = deriveIdentityLevel({
 
   const reportEvidencePayload = {
     id: evidence.id,
-    status: evidence.status,
+    title: resolveEvidenceTitle(evidence.title),
+    // Report artifacts snapshot the post-generation lifecycle state as REPORTED.
+    status: EvidenceStatus.REPORTED,
     verificationStatus: identitySnapshot.verificationStatus,
     captureMethod: identitySnapshot.captureMethod,
     identityLevelSnapshot: identitySnapshot.identityLevelSnapshot,
@@ -1180,15 +1845,21 @@ const identityLevel = deriveIdentityLevel({
     organizationNameSnapshot: identitySnapshot.organizationNameSnapshot,
     organizationVerifiedSnapshot:
       identitySnapshot.organizationVerifiedSnapshot,
-    recordedIntegrityVerifiedAtUtc: now.toISOString(),
-    lastVerifiedAtUtc: now.toISOString(),
-    lastVerifiedSource: prismaPkg.VerificationSource.REPORT_GENERATED,
+    recordedIntegrityVerifiedAtUtc: evidence.recordedIntegrityVerifiedAtUtc
+      ? evidence.recordedIntegrityVerifiedAtUtc.toISOString()
+      : null,
+    lastVerifiedAtUtc: evidence.lastVerifiedAtUtc
+      ? evidence.lastVerifiedAtUtc.toISOString()
+      : null,
+    lastVerifiedSource: evidence.lastVerifiedSource ?? null,
     verificationPackageGeneratedAtUtc: verificationPackageIncluded
       ? now.toISOString()
-      : null,
+      : evidence.verificationPackageGeneratedAtUtc
+        ? evidence.verificationPackageGeneratedAtUtc.toISOString()
+        : null,
     verificationPackageVersion: verificationPackageIncluded
       ? provisionalVersion
-      : null,
+      : evidence.verificationPackageVersion ?? null,
     latestReportVersion: provisionalVersion,
     reviewReadyAtUtc: now.toISOString(),
     reviewerSummaryVersion: provisionalVersion,
@@ -1215,6 +1886,26 @@ const identityLevel = deriveIdentityLevel({
       lng: evidence.lng?.toString() ?? null,
       accuracyMeters: evidence.accuracyMeters?.toString() ?? null,
     },
+
+    evidenceStructure:
+      contentArtifacts.summary.structure === "multipart"
+        ? "Multipart evidence package"
+        : "Single evidence item",
+    itemCount: contentArtifacts.summary.itemCount,
+    display,
+    displayTitle: display.displayTitle,
+    displayDescription: display.displayDescription,
+    contentAccessPolicy: reportContentAccessPolicy,
+    contentSummary: contentArtifacts.summary,
+    contentCompositionSummary,
+    primaryContentLabel,
+    contentItems: contentArtifacts.items,
+    primaryContentItem: contentArtifacts.primaryItem,
+    defaultPreviewItemId,
+    previewPolicy: contentArtifacts.previewPolicy,
+    reviewGuidance,
+    limitations: contentArtifacts.limitations,
+
     fileSha256,
     fingerprintCanonicalJson,
     fingerprintHash,
@@ -1222,6 +1913,7 @@ const identityLevel = deriveIdentityLevel({
     signingKeyId,
     signingKeyVersion,
     publicKeyPem: signingKey.publicKeyPem,
+
     tsaProvider: evidence.tsaProvider ?? null,
     tsaUrl: evidence.tsaUrl ?? null,
     tsaSerialNumber: evidence.tsaSerialNumber ?? null,
@@ -1231,6 +1923,7 @@ const identityLevel = deriveIdentityLevel({
     tsaHashAlgorithm: evidence.tsaHashAlgorithm ?? null,
     tsaStatus: evidence.tsaStatus ?? null,
     tsaFailureReason: evidence.tsaFailureReason ?? null,
+
     otsProofBase64: otsResult?.proofBase64 ?? evidence.otsProofBase64 ?? null,
     otsHash: otsResult?.hash ?? evidence.otsHash ?? null,
     otsStatus: otsResult?.status ?? evidence.otsStatus ?? null,
@@ -1248,6 +1941,8 @@ const identityLevel = deriveIdentityLevel({
         : null),
     otsFailureReason:
       otsResult?.failureReason ?? evidence.otsFailureReason ?? null,
+
+    anchor: anchorSummary,
   } as Parameters<typeof buildReportPdf>[0]["evidence"];
 
   const reportPdf = await buildReportPdf({
@@ -1262,11 +1957,7 @@ const identityLevel = deriveIdentityLevel({
 
   let verificationZip: Buffer | null = null;
 
-if (
-  verificationEvidenceFiles.length > 0 &&
-  verificationPackageIncluded
-)
-  {
+  if (verificationEvidenceFiles.length > 0 && verificationPackageIncluded) {
     try {
       verificationZip = await createVerificationPackage({
         evidenceFiles: verificationEvidenceFiles,
@@ -1300,11 +1991,7 @@ if (
     }
   }
 
-if (
-  verificationEvidenceFiles.length > 0 &&
-  !verificationPackageIncluded
-)
-  {
+  if (verificationEvidenceFiles.length > 0 && !verificationPackageIncluded) {
     logger.info(
       {
         evidenceId,
@@ -1326,6 +2013,19 @@ if (
     fingerprintCanonicalJson,
     identitySnapshot,
     effectivePlan,
+    display,
+    reviewGuidance,
+    contentAccessPolicy: reportContentAccessPolicy,
+    contentSummary: contentArtifacts.summary,
+    contentItems: contentArtifacts.items,
+    primaryContentItem: contentArtifacts.primaryItem,
+    previewPolicy: contentArtifacts.previewPolicy,
+    contentCompositionSummary,
+    primaryContentLabel,
+    defaultPreviewItemId,
+    limitations: contentArtifacts.limitations,
+    anchorSummary,
+    reportEvidencePayload,
   };
 }
 
@@ -1416,7 +2116,7 @@ export async function processGenerateReport(job: Job<GenerateReportJobData>) {
       refreshReason: regenerateReason,
     });
 
-        await assertWorkspaceAllowsReportArtifact({
+    await assertWorkspaceAllowsReportArtifact({
       ownerUserId: evidence.ownerUserId,
       teamId: evidence.teamId ?? null,
       incomingBytes: BigInt(prepared.reportPdf.length),
@@ -1545,6 +2245,7 @@ export async function processGenerateReport(job: Job<GenerateReportJobData>) {
                 : null,
             generatedAtUtc: prepared.now,
             sizeBytes: BigInt(prepared.reportPdf.length),
+
             verificationStatusSnapshot:
               prepared.identitySnapshot.verificationStatus,
             identityLevelSnapshot:
@@ -1556,10 +2257,79 @@ export async function processGenerateReport(job: Job<GenerateReportJobData>) {
             captureMethodSnapshot: prepared.identitySnapshot.captureMethod,
             reviewerSummaryVersion:
               prepared.identitySnapshot.reviewerSummaryVersion,
-            verificationPackageVersion: prepared.version,
+            verificationPackageVersion: prepared.verificationZip
+              ? prepared.version
+              : null,
+
+            displayTitleSnapshot: prepared.display.displayTitle,
+            displayDescriptionSnapshot: prepared.display.displayDescription,
+            contentStructureSnapshot: prepared.contentSummary.structure,
+            itemCountSnapshot: prepared.contentSummary.itemCount,
+            previewableItemCountSnapshot:
+              prepared.contentSummary.previewableItemCount,
+            downloadableItemCountSnapshot:
+              prepared.contentSummary.downloadableItemCount,
+            primaryContentKindSnapshot: prepared.contentSummary.primaryKind,
+            primaryContentLabelSnapshot: prepared.primaryContentLabel,
+            contentCompositionSummarySnapshot:
+              prepared.contentCompositionSummary,
+            contentAccessPolicyModeSnapshot:
+              prepared.contentAccessPolicy.mode ?? null,
+            defaultPreviewItemIdSnapshot: prepared.defaultPreviewItemId,
+
+            workspaceNameSnapshot:
+              prepared.identitySnapshot.workspaceNameSnapshot,
+            organizationNameSnapshot:
+              prepared.identitySnapshot.organizationNameSnapshot,
+            organizationVerifiedSnapshot:
+              prepared.identitySnapshot.organizationVerifiedSnapshot,
+            recordedIntegrityVerifiedAtUtcSnapshot:
+              prepared.reportEvidencePayload.recordedIntegrityVerifiedAtUtc
+                ? new Date(
+                    prepared.reportEvidencePayload.recordedIntegrityVerifiedAtUtc
+                  )
+                : null,
+            lastVerifiedAtUtcSnapshot:
+              prepared.reportEvidencePayload.lastVerifiedAtUtc
+                ? new Date(prepared.reportEvidencePayload.lastVerifiedAtUtc)
+                : null,
+            lastVerifiedSourceSnapshot:
+              prepared.reportEvidencePayload.lastVerifiedSource ?? null,
+            storageImmutableSnapshot:
+              prepared.reportEvidencePayload.storageImmutable ?? null,
+
+            displaySnapshot:
+              prepared.display as unknown as Prisma.InputJsonValue,
+            contentSummarySnapshot:
+              prepared.contentSummary as unknown as Prisma.InputJsonValue,
+            contentItemsSnapshot:
+              prepared.contentItems as unknown as Prisma.InputJsonValue,
+            primaryContentItemSnapshot:
+              prepared.primaryContentItem as unknown as Prisma.InputJsonValue,
+            previewPolicySnapshot:
+              prepared.previewPolicy as unknown as Prisma.InputJsonValue,
+            reviewGuidanceSnapshot:
+              prepared.reviewGuidance as unknown as Prisma.InputJsonValue,
+            limitationsSnapshot:
+              prepared.limitations as unknown as Prisma.InputJsonValue,
+            anchorSnapshot:
+              prepared.anchorSummary as unknown as Prisma.InputJsonValue,
+            contentAccessPolicySnapshot:
+              prepared.contentAccessPolicy as unknown as Prisma.InputJsonValue,
+            embeddedPreviewsSnapshot:
+              prepared.contentItems
+                .filter(
+                  (item) => item.previewDataUrl || item.previewTextExcerpt
+                )
+                .map((item) => ({
+                  id: item.id,
+                  previewDataUrl: item.previewDataUrl ?? null,
+                  previewTextExcerpt: item.previewTextExcerpt ?? null,
+                  previewCaption: item.previewCaption ?? null,
+                })) as unknown as Prisma.InputJsonValue,
           },
         });
-
+        
         await appendCustodyEventTx(tx, {
           evidenceId: prepared.evidenceId,
           eventType: prismaPkg.CustodyEventType.IDENTITY_SNAPSHOT_RECORDED,
@@ -1679,8 +2449,6 @@ export async function processGenerateReport(job: Job<GenerateReportJobData>) {
           where: { id: prepared.evidenceId },
           data: {
             status: EvidenceStatus.REPORTED,
-            verificationStatus:
-              prismaPkg.VerificationStatus.RECORDED_INTEGRITY_VERIFIED,
             captureMethod: prepared.identitySnapshot.captureMethod,
             identityLevelSnapshot:
               prepared.identitySnapshot.identityLevelSnapshot,
@@ -1696,10 +2464,6 @@ export async function processGenerateReport(job: Job<GenerateReportJobData>) {
               prepared.identitySnapshot.organizationNameSnapshot,
             organizationVerifiedSnapshot:
               prepared.identitySnapshot.organizationVerifiedSnapshot,
-            recordedIntegrityVerifiedAtUtc: prepared.now,
-            lastVerifiedAtUtc: prepared.now,
-            lastVerifiedSource:
-              prismaPkg.VerificationSource.REPORT_GENERATED,
             latestReportVersion: prepared.version,
             reportGeneratedAtUtc: prepared.now,
             reviewReadyAtUtc: prepared.now,
@@ -1734,12 +2498,12 @@ export async function processGenerateReport(job: Job<GenerateReportJobData>) {
 
     if (!finalized.skipped && prepared.verificationZip) {
       try {
-                await assertWorkspaceAllowsVerificationPackageArtifact({
+        await assertWorkspaceAllowsVerificationPackageArtifact({
           ownerUserId: evidence.ownerUserId,
           teamId: evidence.teamId ?? null,
           incomingBytes: BigInt(prepared.verificationZip.length),
         });
-        
+
         await putObjectBuffer({
           bucket: env.S3_BUCKET,
           key: prepared.verificationKey,
@@ -1788,7 +2552,7 @@ export async function processGenerateReport(job: Job<GenerateReportJobData>) {
                   ? String(verificationHead.objectLockLegalHoldStatus)
                   : null,
               generatedAtUtc: prepared.now,
-sizeBytes: BigInt((prepared.verificationZip as Buffer).length),
+              sizeBytes: BigInt((prepared.verificationZip as Buffer).length),
               packageType: "full_evidence_package",
             },
           });
@@ -2027,6 +2791,11 @@ sizeBytes: BigInt((prepared.verificationZip as Buffer).length),
   }
 }
 
+function isRetentionStillActive(retainUntilUtc: Date | null | undefined): boolean {
+  if (!retainUntilUtc) return false;
+  return retainUntilUtc.getTime() > Date.now();
+}
+
 export async function processPurgeDeletedEvidence(
   job: Job<PurgeDeletedEvidenceJobData>
 ) {
@@ -2047,16 +2816,18 @@ export async function processPurgeDeletedEvidence(
   try {
     const evidence = await prisma.evidence.findUnique({
       where: { id: evidenceId },
-      select: {
-        id: true,
-        ownerUserId: true,
-        deletedAt: true,
-        deleteScheduledForUtc: true,
-        archivedAt: true,
-        lockedAt: true,
-        storageBucket: true,
-        storageKey: true,
-      },
+select: {
+  id: true,
+  ownerUserId: true,
+  deletedAt: true,
+  deleteScheduledForUtc: true,
+  archivedAt: true,
+  lockedAt: true,
+  storageBucket: true,
+  storageKey: true,
+  storageObjectLockMode: true,
+  storageObjectLockRetainUntilUtc: true,
+},
     });
 
     if (!evidence) {
@@ -2085,6 +2856,26 @@ export async function processPurgeDeletedEvidence(
       return;
     }
 
+    const retentionUntilUtc = evidence.storageObjectLockRetainUntilUtc;
+
+    if (retentionUntilUtc && isRetentionStillActive(retentionUntilUtc)) {
+      const retentionUntilIso = retentionUntilUtc.toISOString();
+
+      await enqueueEvidencePurgeJob(
+        evidence.id,
+        retentionUntilIso
+      );
+
+      logger.info(
+        {
+          ...ctx,
+          retentionUntilUtc: retentionUntilIso,
+        },
+        "PurgeDeletedEvidenceJob rescheduled because storage retention is still active"
+      );
+      return;
+    }
+
     const now = new Date();
     if (evidence.deleteScheduledForUtc.getTime() > now.getTime()) {
       await enqueueEvidencePurgeJob(
@@ -2102,32 +2893,67 @@ export async function processPurgeDeletedEvidence(
       return;
     }
 
-    const [parts, reports, verificationPackages] = await Promise.all([
-      prisma.evidencePart.findMany({
-        where: { evidenceId: evidence.id },
-        select: {
-          id: true,
-          storageBucket: true,
-          storageKey: true,
-        },
-      }),
-      prisma.report.findMany({
-        where: { evidenceId: evidence.id },
-        select: {
-          id: true,
-          storageBucket: true,
-          storageKey: true,
-        },
-      }),
-      prisma.verificationPackage.findMany({
-        where: { evidenceId: evidence.id },
-        select: {
-          id: true,
-          storageBucket: true,
-          storageKey: true,
-        },
-      }),
-    ]);
+const [parts, reports, verificationPackages] = await Promise.all([
+  prisma.evidencePart.findMany({
+    where: { evidenceId: evidence.id },
+    select: {
+      id: true,
+      storageBucket: true,
+      storageKey: true,
+      storageObjectLockRetainUntilUtc: true,
+    },
+  }),
+  prisma.report.findMany({
+    where: { evidenceId: evidence.id },
+    select: {
+      id: true,
+      storageBucket: true,
+      storageKey: true,
+      storageObjectLockRetainUntilUtc: true,
+    },
+  }),
+  prisma.verificationPackage.findMany({
+    where: { evidenceId: evidence.id },
+    select: {
+      id: true,
+      storageBucket: true,
+      storageKey: true,
+      storageObjectLockRetainUntilUtc: true,
+    },
+  }),
+]);
+
+const artifactRetentionDates = [
+  evidence.storageObjectLockRetainUntilUtc ?? null,
+  ...parts.map((item) => item.storageObjectLockRetainUntilUtc ?? null),
+  ...reports.map((item) => item.storageObjectLockRetainUntilUtc ?? null),
+  ...verificationPackages.map(
+    (item) => item.storageObjectLockRetainUntilUtc ?? null
+  ),
+].filter((value): value is Date => value instanceof Date);
+
+const latestRetentionUntilUtc =
+  artifactRetentionDates.length > 0
+    ? new Date(
+        Math.max(...artifactRetentionDates.map((value) => value.getTime()))
+      )
+    : null;
+
+if (latestRetentionUntilUtc && isRetentionStillActive(latestRetentionUntilUtc)) {
+  await enqueueEvidencePurgeJob(
+    evidence.id,
+    latestRetentionUntilUtc.toISOString()
+  );
+
+  logger.info(
+    {
+      ...ctx,
+      retentionUntilUtc: latestRetentionUntilUtc.toISOString(),
+    },
+    "PurgeDeletedEvidenceJob rescheduled because one or more stored artifacts are still under retention"
+  );
+  return;
+}
 
     if (evidence.storageBucket && evidence.storageKey) {
       await deleteObjectIfExists({

@@ -6,11 +6,108 @@ import { signPdfIfEnabled } from "./signPdf.js";
 
 type PDFDoc = InstanceType<typeof PDFDocument>;
 
+export type ReportEvidenceAssetKind =
+  | "image"
+  | "video"
+  | "audio"
+  | "pdf"
+  | "text"
+  | "other";
+
+export type ReportEvidenceAsset = {
+  id: string;
+  index: number;
+  label: string;
+  originalFileName: string | null;
+  mimeType: string | null;
+  kind: ReportEvidenceAssetKind;
+  sizeBytes: string | null;
+  durationMs: number | null;
+  sha256: string | null;
+  isPrimary: boolean;
+  previewable: boolean;
+  downloadable: boolean;
+  viewUrl: string | null;
+  displaySizeLabel: string | null;
+  previewRole?:
+    | "primary_preview"
+    | "secondary_preview"
+    | "download_only"
+    | "metadata_only";
+  embedPreference?:
+    | "image"
+    | "pdf_first_page"
+    | "audio_placeholder"
+    | "video_placeholder"
+    | "text_excerpt"
+    | "metadata_only";
+  artifactRole?: "primary_evidence" | "supporting_evidence" | "attachment";
+  originalPreservationNote?: string | null;
+  reviewerRepresentationLabel?: string | null;
+  reviewerRepresentationNote?: string | null;
+  verificationMaterialsNote?: string | null;
+
+  previewDataUrl?: string | null;
+  previewTextExcerpt?: string | null;
+  previewCaption?: string | null;
+};
+
+export type ReportEvidenceContentSummary = {
+  structure: "single" | "multipart";
+  itemCount: number;
+  previewableItemCount: number;
+  downloadableItemCount: number;
+  imageCount: number;
+  videoCount: number;
+  audioCount: number;
+  pdfCount: number;
+  textCount: number;
+  otherCount: number;
+  primaryKind: ReportEvidenceAssetKind | null;
+  primaryMimeType: string | null;
+  totalSizeBytes: string | null;
+  totalSizeDisplay: string | null;
+};
+
+export type ReportPreviewPolicy = {
+  contentVisible: boolean;
+  previewEnabled: boolean;
+  downloadableFromVerify: boolean;
+  rationale: string;
+  privacyNotice: string;
+};
+
+export type ReportReviewGuidance = {
+  reviewerWorkflow: string[];
+  contentReviewNote: string;
+  legalAssessmentNote: string;
+  integrityAssessmentNote: string;
+  multipartReviewNote: string;
+};
+
+export type ReportLegalLimitations = {
+  short: string;
+  detailed: string;
+};
+
+export type ReportAnchorSummary = {
+  mode: "off" | "ready" | "active";
+  provider: string | null;
+  publicBaseUrl: string | null;
+  configured: boolean;
+  published: boolean;
+  anchorHash: string | null;
+  receiptId: string | null;
+  transactionId: string | null;
+  publicUrl: string | null;
+  anchoredAtUtc: string | null;
+};
+
 export type ReportEvidence = {
   id: string;
   title?: string | null;
 
-  type: string;
+  type?: string | null;
   status: string;
   verificationStatus?: string | null;
 
@@ -46,7 +143,7 @@ export type ReportEvidence = {
 
   mimeType: string | null;
   sizeBytes: string | null;
-  durationSec: string | null;
+  durationSec?: string | null;
 
   storageBucket: string | null;
   storageKey: string | null;
@@ -62,6 +159,30 @@ export type ReportEvidence = {
     lng: string | null;
     accuracyMeters: string | null;
   };
+
+  evidenceStructure?: string | null;
+  itemCount?: number | null;
+  display?: {
+    displayTitle: string;
+    displayDescription: string | null;
+  } | null;
+  displayTitle?: string | null;
+  displayDescription?: string | null;
+  contentCompositionSummary?: string | null;
+  primaryContentLabel?: string | null;
+  contentSummary?: ReportEvidenceContentSummary | null;
+  contentItems?: ReportEvidenceAsset[] | null;
+  primaryContentItem?: ReportEvidenceAsset | null;
+  defaultPreviewItemId?: string | null;
+  previewPolicy?: ReportPreviewPolicy | null;
+  reviewGuidance?: ReportReviewGuidance | null;
+  limitations?: ReportLegalLimitations | null;
+
+  contentAccessPolicy?: {
+    mode?: string | null;
+    allowContentView?: boolean;
+    allowDownload?: boolean;
+  } | null;
 
   fileSha256: string | null;
   fingerprintCanonicalJson: string | null;
@@ -90,6 +211,8 @@ export type ReportEvidence = {
   otsUpgradedAtUtc?: string | null;
   otsFailureReason?: string | null;
 
+  anchor?: ReportAnchorSummary | null;
+
   anchorMode?: string | null;
   anchorProvider?: string | null;
   anchorHash?: string | null;
@@ -97,6 +220,12 @@ export type ReportEvidence = {
   anchorTransactionId?: string | null;
   anchorPublicUrl?: string | null;
   anchorAnchoredAtUtc?: string | null;
+    embeddedPreviewsSnapshot?: Array<{
+    id: string;
+    previewDataUrl?: string | null;
+    previewTextExcerpt?: string | null;
+    previewCaption?: string | null;
+  }> | null;
 };
 
 export type ReportCustodyEvent = {
@@ -121,6 +250,11 @@ type HeaderContext = {
   evidenceId: string;
   generatedAtUtc: string;
   status?: string;
+};
+
+type ReportEvidenceDisplayDescriptor = {
+  displayTitle: string;
+  displayDescription: string | null;
 };
 
 type ClassifiedCustodyEvent = ReportCustodyEvent & {
@@ -187,6 +321,20 @@ function redactIdentifier(
   return `${t.slice(0, visible)}…${t.slice(-visible)}`;
 }
 
+function maskEmail(value: string | null | undefined): string {
+  const t = safe(value, "");
+  if (!t || !t.includes("@")) return "Not recorded";
+
+  const [local, domain] = t.split("@");
+  if (!local || !domain) return t;
+
+  if (local.length <= 2) {
+    return `${local[0] ?? "*"}***@${domain}`;
+  }
+
+  return `${local.slice(0, 2)}***@${domain}`;
+}
+
 function buildPublicEvidenceReference(
   evidenceId: string | null | undefined
 ): string {
@@ -222,54 +370,6 @@ function normalizeEnumText(value: string | null | undefined): string {
     .filter(Boolean)
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
     .join(" ");
-}
-
-function mapPublicEvidenceTypeLabel(
-  evidence: ReportEvidence,
-  summary: ParsedFingerprintSummary
-): string {
-  if (summary.itemCount > 1) {
-    const hasImage = summary.imageCount > 0;
-    const hasVideo = summary.videoCount > 0;
-    const hasAudio = summary.audioCount > 0;
-    const hasDocument = summary.documentCount > 0;
-
-    const categories = [
-      hasImage ? "Image" : null,
-      hasVideo ? "Video" : null,
-      hasAudio ? "Audio" : null,
-      hasDocument ? "Document" : null,
-    ].filter(Boolean) as string[];
-
-    if (categories.length > 1) return "Mixed Media Evidence Package";
-    if (categories.length === 1) return `${categories[0]} Evidence Package`;
-    return "Multipart Evidence Package";
-  }
-
-  switch (safe(evidence.type, "").toUpperCase()) {
-    case "PHOTO":
-      return "Photo Evidence";
-    case "VIDEO":
-      return "Video Evidence";
-    case "AUDIO":
-      return "Audio Evidence";
-    case "DOCUMENT":
-      return "Document Evidence";
-    default:
-      if (safe(evidence.mimeType, "").startsWith("image/")) {
-        return "Photo Evidence";
-      }
-      if (safe(evidence.mimeType, "").startsWith("video/")) {
-        return "Video Evidence";
-      }
-      if (safe(evidence.mimeType, "").startsWith("audio/")) {
-        return "Audio Evidence";
-      }
-      if (safe(evidence.mimeType, "").includes("pdf")) {
-        return "Document Evidence";
-      }
-      return "Digital Evidence Record";
-  }
 }
 
 function mapRecordStatusLabel(status: string | null | undefined): string {
@@ -398,6 +498,16 @@ function mapCustodyEventLabel(eventType: string | null | undefined): string {
       return "Report downloaded";
     case "VERIFICATION_PACKAGE_DOWNLOADED":
       return "Verification package downloaded";
+    case "EVIDENCE_LOCKED":
+      return "Evidence locked";
+    case "EVIDENCE_ARCHIVED":
+      return "Evidence archived";
+    case "EVIDENCE_RESTORED":
+      return "Evidence restored";
+    case "ANCHOR_PUBLISHED":
+      return "External anchor published";
+    case "ANCHOR_FAILED":
+      return "External anchor failed";
     default:
       return normalizeEnumText(eventType);
   }
@@ -430,6 +540,8 @@ function mapOtsStatusPublicLabel(status: string | null | undefined): string {
       return "Anchoring pending";
     case "FAILED":
       return "Anchoring failed";
+    case "DISABLED":
+      return "Anchoring disabled";
     default:
       return "Anchoring not recorded";
   }
@@ -448,12 +560,39 @@ function mapObjectLockModePublicLabel(mode: string | null | undefined): string {
 
 function mapAnchorModePublicLabel(mode: string | null | undefined): string {
   switch (safe(mode, "").toUpperCase()) {
+    case "ACTIVE":
+      return "Active anchoring";
+    case "READY":
+      return "Anchor configured";
+    case "OFF":
+      return "Anchoring off";
     case "PUBLIC":
       return "Public anchoring";
     case "PRIVATE":
       return "Private anchoring";
     case "HASH_ONLY":
       return "Digest anchoring";
+    default:
+      return "Not recorded";
+  }
+}
+
+function mapEvidenceAssetKindLabel(
+  kind: ReportEvidenceAssetKind | null | undefined
+): string {
+  switch (kind) {
+    case "image":
+      return "Image";
+    case "video":
+      return "Video";
+    case "audio":
+      return "Audio";
+    case "pdf":
+      return "PDF";
+    case "text":
+      return "Text";
+    case "other":
+      return "Other";
     default:
       return "Not recorded";
   }
@@ -481,25 +620,6 @@ function buildOrganizationStatus(evidence: ReportEvidence): string {
   if (hasOrg) return "Organization recorded";
   if (hasWorkspace) return "Workspace recorded";
   return "Not recorded";
-}
-
-function buildFingerprintNarrative(summary: ParsedFingerprintSummary): string {
-  const mimeText =
-    summary.mimeTypes.length > 0 ? summary.mimeTypes.join(", ") : "not recorded";
-
-  if (summary.itemCount <= 1) {
-    return `Single-item evidence record. MIME types recorded: ${mimeText}.`;
-  }
-
-  return `Multipart evidence package with ${summary.itemCount} items (${summary.imageCount} image, ${summary.videoCount} video, ${summary.audioCount} audio, ${summary.documentCount} document). MIME types recorded: ${mimeText}. Full canonical fingerprint should be reviewed in the technical verification package.`;
-}
-
-function buildVerificationLinkLabel(
-  kind: "public" | "technical" = "public"
-): string {
-  return kind === "technical"
-    ? "Open technical verification view"
-    : "Open public verification page";
 }
 
 function parseFingerprintSummary(
@@ -572,6 +692,392 @@ function parseFingerprintSummary(
   }
 }
 
+function buildFallbackContentSummary(
+  evidence: ReportEvidence,
+  parsed: ParsedFingerprintSummary
+): ReportEvidenceContentSummary {
+  const otherCount = Math.max(
+    0,
+    parsed.itemCount -
+      (parsed.imageCount +
+        parsed.videoCount +
+        parsed.audioCount +
+        parsed.documentCount)
+  );
+
+  return {
+    structure: parsed.itemCount > 1 ? "multipart" : "single",
+    itemCount: parsed.itemCount,
+    previewableItemCount: 0,
+    downloadableItemCount: parsed.itemCount > 0 ? parsed.itemCount : 0,
+    imageCount: parsed.imageCount,
+    videoCount: parsed.videoCount,
+    audioCount: parsed.audioCount,
+    pdfCount: parsed.documentCount,
+    textCount: 0,
+    otherCount,
+    primaryKind: null,
+    primaryMimeType: evidence.mimeType ?? null,
+    totalSizeBytes: evidence.sizeBytes ?? null,
+    totalSizeDisplay: formatBytesHuman(evidence.sizeBytes ?? null),
+  };
+}
+
+function resolveContentSummary(
+  evidence: ReportEvidence,
+  parsed: ParsedFingerprintSummary
+): ReportEvidenceContentSummary {
+  return evidence.contentSummary ?? buildFallbackContentSummary(evidence, parsed);
+}
+
+function resolveContentItems(evidence: ReportEvidence): ReportEvidenceAsset[] {
+  const items = Array.isArray(evidence.contentItems) ? evidence.contentItems : [];
+
+  const embeddedPreviewMap = new Map<
+    string,
+    {
+      previewDataUrl?: string | null;
+      previewTextExcerpt?: string | null;
+      previewCaption?: string | null;
+    }
+  >();
+
+  const embedded = (evidence as ReportEvidence & {
+    embeddedPreviewsSnapshot?: Array<{
+      id: string;
+      previewDataUrl?: string | null;
+      previewTextExcerpt?: string | null;
+      previewCaption?: string | null;
+    }> | null;
+  }).embeddedPreviewsSnapshot;
+
+  if (Array.isArray(embedded)) {
+    for (const item of embedded) {
+      if (item?.id) {
+        embeddedPreviewMap.set(item.id, {
+          previewDataUrl: item.previewDataUrl ?? null,
+          previewTextExcerpt: item.previewTextExcerpt ?? null,
+          previewCaption: item.previewCaption ?? null,
+        });
+      }
+    }
+  }
+
+  return items.map((item) => {
+    const preview = embeddedPreviewMap.get(item.id);
+    if (!preview) return item;
+    return {
+      ...item,
+      previewDataUrl: item.previewDataUrl ?? preview.previewDataUrl ?? null,
+      previewTextExcerpt:
+        item.previewTextExcerpt ?? preview.previewTextExcerpt ?? null,
+      previewCaption: item.previewCaption ?? preview.previewCaption ?? null,
+    };
+  });
+}
+
+function resolvePrimaryContentItem(
+  evidence: ReportEvidence
+): ReportEvidenceAsset | null {
+  const items = resolveContentItems(evidence);
+
+  if (evidence.defaultPreviewItemId) {
+    const previewItem = items.find(
+      (item) => item.id === evidence.defaultPreviewItemId
+    );
+    if (previewItem) return previewItem;
+  }
+
+  if (evidence.primaryContentItem) return evidence.primaryContentItem;
+
+  return items.find((item) => item.isPrimary) ?? items[0] ?? null;
+}
+
+function evidenceStructureLabel(summary: ReportEvidenceContentSummary): string {
+  if (summary.itemCount <= 1) return "Single evidence item";
+  return "Multipart evidence package";
+}
+
+function resolveDisplayDescriptor(
+  evidence: ReportEvidence,
+  contentSummary: ReportEvidenceContentSummary
+): ReportEvidenceDisplayDescriptor {
+  if (evidence.display?.displayTitle) {
+    return {
+      displayTitle: evidence.display.displayTitle,
+      displayDescription: evidence.display.displayDescription ?? null,
+    };
+  }
+
+  const displayTitle =
+    safe(evidence.displayTitle, "") ||
+    safe(evidence.title, "") ||
+    "Digital Evidence Record";
+
+  const displayDescription =
+    safe(evidence.displayDescription, "") ||
+    safe(evidence.contentCompositionSummary, "") ||
+    (contentSummary.totalSizeDisplay
+      ? `${evidenceStructureLabel(contentSummary)} • ${contentSummary.totalSizeDisplay}`
+      : evidenceStructureLabel(contentSummary));
+
+  return {
+    displayTitle,
+    displayDescription: displayDescription || null,
+  };
+}
+
+function resolvePreviewPolicy(evidence: ReportEvidence): ReportPreviewPolicy {
+  return (
+    evidence.previewPolicy ?? {
+      contentVisible: false,
+      previewEnabled: false,
+      downloadableFromVerify: false,
+      rationale:
+        "Evidence content may be described in the report while technical verification separately validates the recorded integrity state.",
+      privacyNotice:
+        "Anyone with access to the report or verification page may be able to inspect evidence-related materials exposed there.",
+    }
+  );
+}
+
+function resolveReviewGuidance(
+  evidence: ReportEvidence,
+  itemCount: number,
+  previewableItemCount: number,
+  integrityVerified: boolean
+): ReportReviewGuidance {
+  return (
+    evidence.reviewGuidance ?? {
+      reviewerWorkflow: [
+        "First review the evidence content and item structure.",
+        "Then review the recorded integrity outcome and custody chronology.",
+        "Finally evaluate relevance, context, authorship, and admissibility separately.",
+      ],
+      contentReviewNote:
+        previewableItemCount > 0
+          ? "The report includes a structured evidence inventory and supports direct review of recorded evidence content where preview is appropriate."
+          : "The recorded evidence content is not directly previewable in a standard way, but its structure and recorded integrity state remain reviewable.",
+      legalAssessmentNote:
+        "Use the evidence content together with the technical verification record; neither should be treated as a substitute for the other.",
+      integrityAssessmentNote: integrityVerified
+        ? "The recorded technical integrity checks passed for the available materials at report generation time."
+        : "One or more recorded technical integrity checks require manual review before relying on this record.",
+      multipartReviewNote:
+        itemCount > 1
+          ? "This record contains multiple items and should be reviewed as a package, including the role of the primary item."
+          : "This record contains a single primary evidence item.",
+    }
+  );
+}
+
+function resolveLegalLimitations(
+  evidence: ReportEvidence
+): ReportLegalLimitations {
+  return (
+    evidence.limitations ?? {
+      short:
+        "This report verifies the recorded integrity state of the evidence record. It does not independently prove factual truth, authorship, context, or legal admissibility.",
+      detailed:
+        "Technical verification supports detection of post-completion changes to the recorded evidence state. It does not by itself establish who created the content, whether the depicted events are true, or whether any court, insurer, regulator, employer, or authority must accept the material. Admissibility, evidentiary weight, authenticity disputes, and procedural acceptance remain matters for the competent decision-maker under applicable law.",
+    }
+  );
+}
+
+function resolveAnchorSummary(
+  evidence: ReportEvidence
+): ReportAnchorSummary | null {
+  if (evidence.anchor) return evidence.anchor;
+
+  const hasLegacyAnchor =
+    Boolean(evidence.anchorMode) ||
+    Boolean(evidence.anchorProvider) ||
+    Boolean(evidence.anchorHash) ||
+    Boolean(evidence.anchorPublicUrl) ||
+    Boolean(evidence.anchorAnchoredAtUtc);
+
+  if (!hasLegacyAnchor) return null;
+
+  const modeText = safe(evidence.anchorMode, "").toLowerCase();
+  let normalizedMode: "off" | "ready" | "active" = "ready";
+  if (modeText === "off") normalizedMode = "off";
+  if (modeText === "active") normalizedMode = "active";
+
+  return {
+    mode: normalizedMode,
+    provider: evidence.anchorProvider ?? null,
+    publicBaseUrl: null,
+    configured: Boolean(evidence.anchorProvider),
+    published: Boolean(evidence.anchorPublicUrl || evidence.anchorAnchoredAtUtc),
+    anchorHash: evidence.anchorHash ?? null,
+    receiptId: evidence.anchorReceiptId ?? null,
+    transactionId: evidence.anchorTransactionId ?? null,
+    publicUrl: evidence.anchorPublicUrl ?? null,
+    anchoredAtUtc: evidence.anchorAnchoredAtUtc ?? null,
+  };
+}
+
+function buildWhatChangedSinceCompletionNarrative(
+  evidence: ReportEvidence
+): string {
+  const changes: string[] = [];
+
+  if (evidence.latestReportVersion != null) {
+    changes.push(`Report version ${evidence.latestReportVersion} recorded`);
+  }
+
+  if (evidence.reportGeneratedAtUtc) {
+    changes.push(`latest report generated at ${evidence.reportGeneratedAtUtc}`);
+  }
+
+  if (evidence.reviewerSummaryVersion != null) {
+    changes.push(`reviewer summary version ${evidence.reviewerSummaryVersion}`);
+  }
+
+  if (evidence.reviewReadyAtUtc) {
+    changes.push(`review-ready state recorded at ${evidence.reviewReadyAtUtc}`);
+  }
+
+  if (evidence.verificationPackageVersion != null) {
+    changes.push(
+      `verification package version ${evidence.verificationPackageVersion}`
+    );
+  }
+
+  if (evidence.lastAccessedAtUtc) {
+    changes.push(`last recorded access at ${evidence.lastAccessedAtUtc}`);
+  }
+
+  return changes.length > 0
+    ? `${changes.join(" • ")}.`
+    : "No later report, reviewer-summary, verification-package, or access-state changes were included in this report payload.";
+}
+
+function buildMismatchNarrative(params: {
+  evidence: ReportEvidence;
+  integrityVerified: boolean;
+  custody: ReturnType<typeof splitCustodyEvents>;
+}): { title: string; body: string; tone: "success" | "warning" | "danger" } {
+  const issues: string[] = [];
+
+  if (!params.integrityVerified) {
+    issues.push(
+      "Recorded integrity did not reach a verified state and should be reviewed manually."
+    );
+  }
+
+  if (safe(params.evidence.tsaStatus, "").toUpperCase() === "FAILED") {
+    issues.push(
+      `Trusted timestamp processing reported a failure${
+        params.evidence.tsaFailureReason
+          ? `: ${params.evidence.tsaFailureReason}`
+          : "."
+      }`
+    );
+  }
+
+  if (safe(params.evidence.otsStatus, "").toUpperCase() === "FAILED") {
+    issues.push(
+      `OpenTimestamps processing reported a failure${
+        params.evidence.otsFailureReason
+          ? `: ${params.evidence.otsFailureReason}`
+          : "."
+      }`
+    );
+  }
+
+  if (params.custody.forensic.length === 0) {
+    issues.push("No forensic custody events were included in this report payload.");
+  }
+
+  if (issues.length === 0) {
+    return {
+      title: "Mismatch detection",
+      body:
+        "No explicit integrity, timestamping, OpenTimestamps, or custody mismatch signals were recorded in this report payload. Reviewers should still evaluate legal context and evidentiary relevance separately.",
+      tone: "success",
+    };
+  }
+
+  return {
+    title: "Mismatch detection",
+    body: issues.join(" "),
+    tone: issues.length > 1 ? "danger" : "warning",
+  };
+}
+
+function mapPublicEvidenceTypeLabel(
+  evidence: ReportEvidence,
+  summary: ReportEvidenceContentSummary
+): string {
+  if (summary.itemCount > 1) {
+    const hasImage = summary.imageCount > 0;
+    const hasVideo = summary.videoCount > 0;
+    const hasAudio = summary.audioCount > 0;
+    const hasPdf = summary.pdfCount > 0 || summary.textCount > 0;
+
+    const categories = [
+      hasImage ? "Image" : null,
+      hasVideo ? "Video" : null,
+      hasAudio ? "Audio" : null,
+      hasPdf ? "Document" : null,
+    ].filter(Boolean) as string[];
+
+    if (categories.length > 1) return "Mixed Media Evidence Package";
+    if (categories.length === 1) return `${categories[0]} Evidence Package`;
+    return "Multipart Evidence Package";
+  }
+
+  switch (safe(evidence.type, "").toUpperCase()) {
+    case "PHOTO":
+      return "Photo Evidence";
+    case "VIDEO":
+      return "Video Evidence";
+    case "AUDIO":
+      return "Audio Evidence";
+    case "DOCUMENT":
+      return "Document Evidence";
+    default:
+      if (safe(evidence.mimeType, "").startsWith("image/")) {
+        return "Photo Evidence";
+      }
+      if (safe(evidence.mimeType, "").startsWith("video/")) {
+        return "Video Evidence";
+      }
+      if (safe(evidence.mimeType, "").startsWith("audio/")) {
+        return "Audio Evidence";
+      }
+      if (safe(evidence.mimeType, "").includes("pdf")) {
+        return "Document Evidence";
+      }
+      return "Digital Evidence Record";
+  }
+}
+
+function buildFingerprintNarrative(
+  parsedSummary: ParsedFingerprintSummary,
+  contentSummary: ReportEvidenceContentSummary
+): string {
+  const mimeText =
+    parsedSummary.mimeTypes.length > 0
+      ? parsedSummary.mimeTypes.join(", ")
+      : safe(contentSummary.primaryMimeType, "not recorded");
+
+  if (contentSummary.itemCount <= 1) {
+    return `Single-item evidence record represented by a canonical fingerprint and recorded MIME metadata. MIME types recorded: ${mimeText}.`;
+  }
+
+  return `Multipart evidence package with ${contentSummary.itemCount} items (${contentSummary.imageCount} image, ${contentSummary.videoCount} video, ${contentSummary.audioCount} audio, ${contentSummary.pdfCount + contentSummary.textCount} document/text, ${contentSummary.otherCount} other). The package is represented by a canonical fingerprint describing structure, metadata, and recorded integrity values. MIME types recorded: ${mimeText}. Full canonical fingerprint should be reviewed in the technical verification package.`;
+}
+
+function buildVerificationLinkLabel(
+  kind: "public" | "technical" = "public"
+): string {
+  return kind === "technical"
+    ? "Open technical verification view"
+    : "Open public verification page";
+}
+
 function normalizeTimestampStatus(
   status: string | null | undefined
 ): "SUCCESS" | "WARNING" | "DANGER" | "NEUTRAL" {
@@ -622,11 +1128,6 @@ function normalizeStorageProtectionStatus(
     return "DANGER";
   }
   return "NEUTRAL";
-}
-
-function evidenceStructureLabel(summary: ParsedFingerprintSummary): string {
-  if (summary.itemCount <= 1) return "Single evidence item";
-  return "Multipart evidence package";
 }
 
 const ACCESS_EVENT_TYPES = new Set([
@@ -871,6 +1372,172 @@ function drawCallout(
   doc.restore();
 
   doc.y = y + blockHeight + 6;
+}
+
+function drawInfoCards(
+  doc: PDFDoc,
+  cards: Array<{
+    label: string;
+    value: string;
+    tone?: "neutral" | "success" | "warning" | "danger";
+  }>
+): void {
+  if (cards.length === 0) return;
+
+  const x = doc.page.margins.left;
+  const totalW = doc.page.width - doc.page.margins.left - doc.page.margins.right;
+  const gap = 10;
+  const columns = 2;
+  const cardW = (totalW - gap) / columns;
+
+  let cursorX = x;
+  let rowY = doc.y;
+  let rowMaxHeight = 0;
+
+  const estimateCardHeight = (card: { label: string; value: string }) => {
+    doc.font("Helvetica-Bold").fontSize(9.3);
+    const labelHeight = doc.heightOfString(card.label, { width: cardW - 24 });
+    doc.font("Helvetica-Bold").fontSize(14.5);
+    const valueHeight = doc.heightOfString(card.value, {
+      width: cardW - 24,
+      lineGap: 1.5,
+    });
+    return labelHeight + valueHeight + 28;
+  };
+
+  const estimatedHeights = cards.map(estimateCardHeight);
+  const firstRowMax = Math.max(...estimatedHeights.slice(0, columns), 84);
+  const secondRowMax =
+    cards.length > columns ? Math.max(...estimatedHeights.slice(columns), 84) : 0;
+  ensureSpace(doc, firstRowMax + (secondRowMax ? secondRowMax + gap : 0) + 8);
+
+  cards.forEach((card, index) => {
+    if (index > 0 && index % columns === 0) {
+      cursorX = x;
+      rowY += rowMaxHeight + gap;
+      rowMaxHeight = 0;
+    }
+
+    const tone = card.tone ?? "neutral";
+    const fill =
+      tone === "success"
+        ? "#EEF8F3"
+        : tone === "warning"
+          ? "#FFFAEB"
+          : tone === "danger"
+            ? "#FEF3F2"
+            : "#FFFFFF";
+    const border =
+      tone === "success"
+        ? BRAND.success
+        : tone === "warning"
+          ? BRAND.warning
+          : tone === "danger"
+            ? BRAND.danger
+            : BRAND.line;
+
+    doc.font("Helvetica-Bold").fontSize(9.3);
+    const labelHeight = doc.heightOfString(card.label, { width: cardW - 24 });
+    doc.font("Helvetica-Bold").fontSize(14.5);
+    const valueHeight = doc.heightOfString(card.value, {
+      width: cardW - 24,
+      lineGap: 1.5,
+    });
+    const cardH = Math.max(84, labelHeight + valueHeight + 28);
+    rowMaxHeight = Math.max(rowMaxHeight, cardH);
+
+    doc.save();
+    doc.roundedRect(cursorX, rowY, cardW, cardH, 12).fill(fill);
+    doc
+      .lineWidth(0.9)
+      .strokeColor(border)
+      .roundedRect(cursorX, rowY, cardW, cardH, 12)
+      .stroke();
+    doc.restore();
+
+    doc.save();
+    doc.fillColor(BRAND.muted).font("Helvetica-Bold").fontSize(9.3);
+    doc.text(card.label, cursorX + 12, rowY + 10, {
+      width: cardW - 24,
+      lineGap: 1.2,
+    });
+    doc.restore();
+
+    doc.save();
+    doc.fillColor(BRAND.ink).font("Helvetica-Bold").fontSize(14.5);
+    doc.text(card.value, cursorX + 12, rowY + 28, {
+      width: cardW - 24,
+      lineGap: 1.5,
+    });
+    doc.restore();
+
+    cursorX += cardW + gap;
+  });
+
+  doc.y = rowY + rowMaxHeight + 6;
+}
+
+function drawWorkflowCards(doc: PDFDoc, title: string, steps: string[]): void {
+  if (steps.length === 0) return;
+
+  const x = doc.page.margins.left;
+  const w = doc.page.width - doc.page.margins.left - doc.page.margins.right;
+  const gap = 8;
+
+  doc.save();
+  doc.fillColor(BRAND.ink).font("Helvetica-Bold").fontSize(10.6);
+  doc.text(title, x, doc.y, { width: w });
+  doc.restore();
+  doc.moveDown(0.12);
+
+  for (let index = 0; index < steps.length; index += 1) {
+    const step = steps[index] ?? "";
+    const badgeW = 22;
+    const textW = w - badgeW - 14;
+
+    doc.font("Helvetica").fontSize(9.3);
+    const stepHeight = Math.max(
+      28,
+      doc.heightOfString(step, { width: textW, lineGap: 1.5 }) + 14
+    );
+    ensureSpace(doc, stepHeight + gap);
+
+    const y = doc.y;
+
+    doc.save();
+    doc.roundedRect(x, y, w, stepHeight, 10).fill("#FFFFFF");
+    doc
+      .lineWidth(0.8)
+      .strokeColor(BRAND.line)
+      .roundedRect(x, y, w, stepHeight, 10)
+      .stroke();
+    doc.restore();
+
+    doc.save();
+    doc.circle(x + 16, y + 16, 11).fill(BRAND.accent);
+    doc.restore();
+
+    doc.save();
+    doc
+      .fillColor("#FFFFFF")
+      .font("Helvetica-Bold")
+      .fontSize(9.5)
+      .text(String(index + 1), x + 13, y + 10, {
+        width: 10,
+        align: "center",
+      });
+    doc.restore();
+
+    doc.save();
+    doc.fillColor(BRAND.ink).font("Helvetica").fontSize(9.3);
+    doc.text(step, x + 34, y + 8, {
+      width: w - 46,
+      lineGap: 1.5,
+    });
+    doc.restore();
+
+    doc.y = y + stepHeight + gap;
+  }
 }
 
 function drawHeader(
@@ -1663,13 +2330,17 @@ function renderForensicIntegrityStatement(
 function buildExecutiveRows(
   evidence: ReportEvidence,
   structureLabel: string,
-  fingerprintSummary: ParsedFingerprintSummary
+  contentSummary: ReportEvidenceContentSummary,
+  display: ReportEvidenceDisplayDescriptor,
+  externalMode: boolean
 ): Array<[string, string]> {
   return [
+    ["Display Title", safe(display.displayTitle)],
+    ["Display Description", safe(display.displayDescription)],
     ["Evidence Reference", buildPublicEvidenceReference(evidence.id)],
     [
       "Evidence Type",
-      mapPublicEvidenceTypeLabel(evidence, fingerprintSummary),
+      mapPublicEvidenceTypeLabel(evidence, contentSummary),
     ],
     ["Record Status", mapRecordStatusLabel(evidence.status)],
     [
@@ -1678,11 +2349,23 @@ function buildExecutiveRows(
     ],
     ["Capture Method", mapCaptureMethodLabel(evidence.captureMethod)],
     ["Identity Level", mapIdentityLevelLabel(evidence.identityLevelSnapshot)],
-    ["Submitted By", safe(evidence.submittedByEmail)],
+    [
+      "Submitted By",
+      externalMode
+        ? maskEmail(evidence.submittedByEmail)
+        : safe(evidence.submittedByEmail),
+    ],
     ["Auth Provider", mapAuthProviderLabel(evidence.submittedByAuthProvider)],
     ["Organization / Workspace", buildOrganizationDisplay(evidence)],
     ["Organization Status", buildOrganizationStatus(evidence)],
     ["Evidence Structure", structureLabel],
+    ["Item Count", String(contentSummary.itemCount)],
+    [
+      "Primary Content Kind",
+      mapEvidenceAssetKindLabel(contentSummary.primaryKind),
+    ],
+    ["MIME Type", safe(evidence.mimeType)],
+    ["Total Content Size", safe(contentSummary.totalSizeDisplay)],
     ["Captured (UTC)", safe(evidence.capturedAtUtc)],
     ["Uploaded (UTC)", safe(evidence.uploadedAtUtc)],
     ["Signed (UTC)", safe(evidence.signedAtUtc)],
@@ -1702,17 +2385,24 @@ function buildVerificationSummaryRows(
   evidence: ReportEvidence,
   custody: ReturnType<typeof splitCustodyEvents>,
   structureLabel: string,
-  fingerprintSummary: ParsedFingerprintSummary,
+  contentSummary: ReportEvidenceContentSummary,
   externalMode: boolean
 ): Array<[string, string]> {
   const rows: Array<[string, string]> = [
-    ["Display Title", safe(evidence.title, "Digital Evidence Record")],
-    ["Evidence Reference", buildPublicEvidenceReference(evidence.id)],
     [
-      "Evidence Type",
-      mapPublicEvidenceTypeLabel(evidence, fingerprintSummary),
+      "Display Title",
+      safe(
+        evidence.display?.displayTitle ??
+          evidence.displayTitle ??
+          evidence.title,
+        "Digital Evidence Record"
+      ),
     ],
+    ["Evidence Reference", buildPublicEvidenceReference(evidence.id)],
+    ["Evidence Type", mapPublicEvidenceTypeLabel(evidence, contentSummary)],
     ["Evidence Structure", structureLabel],
+    ["Previewable Items", String(contentSummary.previewableItemCount)],
+    ["Downloadable Items", String(contentSummary.downloadableItemCount)],
     ["MIME Type", safe(evidence.mimeType)],
     ["File Size", formatBytesHuman(evidence.sizeBytes)],
     [
@@ -1720,16 +2410,21 @@ function buildVerificationSummaryRows(
       evidence.durationSec ? `${evidence.durationSec} sec` : "N/A",
     ],
     ["Latest Report Version", String(evidence.latestReportVersion ?? "N/A")],
+    ["Report Generated At (UTC)", safe(evidence.reportGeneratedAtUtc)],
     [
       "Reviewer Summary Version",
       String(evidence.reviewerSummaryVersion ?? "N/A"),
     ],
-    ["Report Generated At (UTC)", safe(evidence.reportGeneratedAtUtc)],
     ["Last Verified At (UTC)", safe(evidence.lastVerifiedAtUtc)],
     [
       "Last Verified Source",
       mapVerificationSourceLabel(evidence.lastVerifiedSource),
     ],
+    [
+      "Storage Lock Mode",
+      mapObjectLockModePublicLabel(evidence.storageObjectLockMode),
+    ],
+    ["Retention Until (UTC)", safe(evidence.storageObjectLockRetainUntilUtc)],
     ["Review Ready At (UTC)", safe(evidence.reviewReadyAtUtc)],
     ["Forensic Custody Events", String(custody.forensic.length)],
     ["Access Activity Events", String(custody.access.length)],
@@ -1737,7 +2432,7 @@ function buildVerificationSummaryRows(
   ];
 
   if (!externalMode) {
-    rows.splice(8, 0, [
+    rows.splice(11, 0, [
       "Verification Package Version",
       String(evidence.verificationPackageVersion ?? "N/A"),
     ]);
@@ -1752,7 +2447,8 @@ function buildVerificationSummaryRows(
 
 function buildReviewReadinessRows(
   evidence: ReportEvidence,
-  custody: ReturnType<typeof splitCustodyEvents>
+  custody: ReturnType<typeof splitCustodyEvents>,
+  externalMode: boolean
 ): Array<[string, string]> {
   return [
     [
@@ -1794,11 +2490,318 @@ function buildReviewReadinessRows(
         ? "Yes"
         : "Incomplete",
     ],
-    ["Submitted By", safe(evidence.submittedByEmail)],
+    [
+      "Submitted By",
+      externalMode
+        ? maskEmail(evidence.submittedByEmail)
+        : safe(evidence.submittedByEmail),
+    ],
     ["Identity Level", mapIdentityLevelLabel(evidence.identityLevelSnapshot)],
     ["Capture Method", mapCaptureMethodLabel(evidence.captureMethod)],
     ["Organization / Workspace", buildOrganizationDisplay(evidence)],
   ];
+}
+
+function buildEvidenceContentSummaryRows(
+  contentSummary: ReportEvidenceContentSummary,
+  primaryItem: ReportEvidenceAsset | null,
+  evidence?: ReportEvidence
+): Array<[string, string]> {
+  return [
+    [
+      "Structure",
+      contentSummary.structure === "multipart"
+        ? "Multipart evidence package"
+        : "Single evidence item",
+    ],
+    ["Total Items", String(contentSummary.itemCount)],
+    ["Previewable Items", String(contentSummary.previewableItemCount)],
+    ["Downloadable Items", String(contentSummary.downloadableItemCount)],
+    ["Images", String(contentSummary.imageCount)],
+    ["Videos", String(contentSummary.videoCount)],
+    ["Audio", String(contentSummary.audioCount)],
+    ["PDF", String(contentSummary.pdfCount)],
+    ["Text", String(contentSummary.textCount)],
+    ["Other", String(contentSummary.otherCount)],
+    [
+      "Primary Content Kind",
+      mapEvidenceAssetKindLabel(contentSummary.primaryKind),
+    ],
+    [
+      "Primary Content Label",
+      safe(
+        evidence?.primaryContentLabel ??
+          mapEvidenceAssetKindLabel(contentSummary.primaryKind)
+      ),
+    ],
+    ["Primary MIME Type", safe(contentSummary.primaryMimeType)],
+    ["Total Size", safe(contentSummary.totalSizeDisplay)],
+    ["Composition Summary", safe(evidence?.contentCompositionSummary)],
+    ["Content Access Mode", safe(evidence?.contentAccessPolicy?.mode)],
+    [
+      "Content View Allowed",
+      safeBooleanLabel(
+        evidence?.contentAccessPolicy?.allowContentView,
+        "Yes",
+        "No",
+        "Not recorded"
+      ),
+    ],
+    [
+      "Download Allowed",
+      safeBooleanLabel(
+        evidence?.contentAccessPolicy?.allowDownload,
+        "Yes",
+        "No",
+        "Not recorded"
+      ),
+    ],
+    [
+      "Primary Item Label",
+      primaryItem ? safe(primaryItem.label) : "Not recorded",
+    ],
+    ["Primary Item Size", primaryItem?.displaySizeLabel ?? "N/A"],
+    [
+      "Primary Item Hash",
+      primaryItem?.sha256 ? shortHash(primaryItem.sha256) : "N/A",
+    ],
+  ];
+}
+
+function buildEvidenceItemsTableRows(
+  items: ReportEvidenceAsset[]
+): string[][] {
+  return items.map((item) => [
+    String(item.index + 1),
+    item.isPrimary ? `${safe(item.label)} (primary)` : safe(item.label),
+    mapEvidenceAssetKindLabel(item.kind),
+    [
+      item.mimeType ? `MIME: ${item.mimeType}` : null,
+      item.displaySizeLabel ? `Size: ${item.displaySizeLabel}` : null,
+      item.previewable ? "Previewable" : "Non-previewable",
+      item.downloadable ? "Downloadable" : null,
+      item.durationMs != null ? `Duration: ${item.durationMs} ms` : null,
+      item.previewRole ? `Role: ${item.previewRole}` : null,
+      item.embedPreference ? `Preview: ${item.embedPreference}` : null,
+      item.sha256 ? `SHA-256: ${shortHash(item.sha256)}` : null,
+    ]
+      .filter(Boolean)
+      .join(" • "),
+  ]);
+}
+
+function tryDecodeDataUrlToBuffer(dataUrl: string | null | undefined): Buffer | null {
+  const raw = safe(dataUrl, "");
+  if (!raw) return null;
+  const match = raw.match(/^data:.*?;base64,(.+)$/);
+  if (!match?.[1]) return null;
+  try {
+    return Buffer.from(match[1], "base64");
+  } catch {
+    return null;
+  }
+}
+
+function drawPreviewPlaceholder(
+  doc: PDFDoc,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  title: string,
+  subtitle?: string
+): void {
+  doc.save();
+  doc.roundedRect(x, y, w, h, 9).fill("#F3F6FA");
+  doc.lineWidth(0.8).strokeColor(BRAND.line);
+  doc.roundedRect(x, y, w, h, 9).stroke();
+  doc.restore();
+
+  doc.save();
+  doc.fillColor(BRAND.accent).font("Helvetica-Bold").fontSize(10);
+  doc.text(title, x + 12, y + 14, {
+    width: w - 24,
+    align: "center",
+  });
+  doc.restore();
+
+  if (subtitle) {
+    doc.save();
+    doc.fillColor(BRAND.muted).font("Helvetica").fontSize(8.8);
+    doc.text(subtitle, x + 12, y + 34, {
+      width: w - 24,
+      align: "center",
+      lineGap: 1.5,
+    });
+    doc.restore();
+  }
+}
+
+function renderEmbeddedEvidencePreview(
+  doc: PDFDoc,
+  item: ReportEvidenceAsset,
+  width: number,
+  height: number
+): boolean {
+  const previewBuffer = tryDecodeDataUrlToBuffer(item.previewDataUrl);
+  if (!previewBuffer) return false;
+
+  try {
+    const x = doc.page.margins.left;
+    const y = doc.y;
+
+    ensureSpace(doc, height + 18);
+
+    doc.save();
+    doc.roundedRect(x, y, width, height, 10).fill("#F8FAFC");
+    doc.restore();
+
+    doc.image(previewBuffer, x, y, {
+      fit: [width, height],
+      align: "center",
+      valign: "center",
+    });
+
+    doc.save();
+    doc.lineWidth(0.8).strokeColor(BRAND.line);
+    doc.roundedRect(x, y, width, height, 10).stroke();
+    doc.restore();
+
+    doc.y = y + height + 6;
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function drawEvidencePreviewCard(
+  doc: PDFDoc,
+  item: ReportEvidenceAsset,
+  options?: { large?: boolean }
+): void {
+  const pageW =
+    doc.page.width - doc.page.margins.left - doc.page.margins.right;
+  const width = pageW;
+  const previewH = options?.large ? 240 : 160;
+
+  ensureSpace(doc, previewH + 80);
+
+  doc.save();
+  doc.fillColor(BRAND.ink).font("Helvetica-Bold").fontSize(10.8);
+  doc.text(
+    item.isPrimary ? `Primary Evidence Preview — ${safe(item.label)}` : safe(item.label),
+    doc.page.margins.left,
+    doc.y,
+    { width }
+  );
+  doc.restore();
+  doc.moveDown(0.12);
+
+  const renderedEmbedded = renderEmbeddedEvidencePreview(doc, item, width, previewH);
+
+  if (!renderedEmbedded) {
+    const x = doc.page.margins.left;
+    const y = doc.y;
+
+    let placeholderTitle = "Evidence preview not embedded";
+    let placeholderSubtitle =
+      "This report retains the structured evidence inventory and technical verification record.";
+
+    switch (item.kind) {
+      case "image":
+placeholderTitle = "Image preview placeholder";
+placeholderSubtitle =
+  "The report confirms the recorded evidence structure and integrity state, but no embedded image rendering was included in this report artifact.";
+          break;
+      case "pdf":
+placeholderTitle = "PDF first-page preview placeholder";
+placeholderSubtitle =
+  "The report confirms the recorded evidence structure and integrity state, but no embedded PDF page rendering was included in this report artifact.";
+          break;
+      case "video":
+        placeholderTitle = "Video preview placeholder";
+placeholderSubtitle =
+  "This report records the evidence item and its integrity state. Controlled playback should be performed through the verification interface or protected evidence workspace.";
+          break;
+      case "audio":
+        placeholderTitle = "Audio preview placeholder";
+placeholderSubtitle =
+  "This report records the evidence item and its integrity state. Controlled playback should be performed through the verification interface or protected evidence workspace.";
+          break;
+      case "text":
+        placeholderTitle = "Text excerpt placeholder";
+        placeholderSubtitle =
+          item.previewTextExcerpt
+            ? summarizeText(item.previewTextExcerpt, 180)
+            : "No text excerpt was included in the report payload.";
+        break;
+      default:
+        placeholderTitle = "Evidence preview placeholder";
+        placeholderSubtitle =
+          "This item is represented in the structured evidence inventory.";
+        break;
+    }
+
+    drawPreviewPlaceholder(doc, x, y, width, previewH, placeholderTitle, placeholderSubtitle);
+    doc.y = y + previewH + 6;
+  }
+
+  doc.save();
+  doc.fillColor(BRAND.muted).font("Helvetica").fontSize(8.7);
+  doc.text(
+    "Reviewer representation note: any embedded preview in this report is provided to support human review of the preserved evidence item. The original evidence file remains separately preserved and should be evaluated together with the integrity, custody, timestamping, and publication materials recorded in this report.",
+    doc.page.margins.left,
+    doc.y,
+    {
+      width,
+      lineGap: 1.5,
+    }
+  );
+  doc.restore();
+  doc.moveDown(0.25);
+
+  kvGrid(doc, [
+    ["Item Label", safe(item.label)],
+    ["Kind", mapEvidenceAssetKindLabel(item.kind)],
+    ["MIME Type", safe(item.mimeType)],
+    ["Display Size", safe(item.displaySizeLabel)],
+    ["Previewable", item.previewable ? "Yes" : "No"],
+    ["Downloadable", item.downloadable ? "Yes" : "No"],
+    ["Preview Role", safe(item.previewRole)],
+    ["Artifact Role", safe(item.artifactRole)],
+    [
+      "SHA-256",
+      item.sha256 ? shortHash(item.sha256) : "Not recorded",
+    ],
+    [
+      "Caption",
+      safe(item.previewCaption),
+    ],
+    [
+      "Original Preservation",
+      safe(item.originalPreservationNote),
+    ],
+    [
+      "Reviewer Representation",
+      safe(item.reviewerRepresentationLabel),
+    ],
+  ]);
+
+  if (item.reviewerRepresentationNote) {
+    drawCallout(doc, {
+      title: "Reviewer representation note",
+      body: item.reviewerRepresentationNote,
+      tone: "warning",
+    });
+  }
+
+  if (item.verificationMaterialsNote) {
+    drawCallout(doc, {
+      title: "Verification materials note",
+      body: item.verificationMaterialsNote,
+      tone: "neutral",
+    });
+  }
 }
 
 export async function buildReportPdf(params: {
@@ -1827,7 +2830,7 @@ export async function buildReportPdf(params: {
   doc.info = {
     Title: `${BRAND.name} — Verification Report`,
     Subject:
-      "Executive Evidence Summary > Verification Summary > Review Readiness > Chain of Custody > Technical Appendix",
+      "Executive Evidence Summary > Evidence Content > Verification Summary > Review Readiness > Chain of Custody > Technical Appendix > Legal Limitations",
     Keywords: `PROOVRA_REPORT_VERSION=${params.version};PROOVRA_GENERATED_AT=${params.generatedAtUtc}${buildToken}`,
     Creator: BRAND.name,
     Producer: BRAND.name,
@@ -1843,22 +2846,22 @@ export async function buildReportPdf(params: {
     ? `${verifyUrl}&tab=technical`
     : `${verifyUrl}?tab=technical`;
 
-  const fingerprintSummary = parseFingerprintSummary(
+  const parsedFingerprintSummary = parseFingerprintSummary(
     params.evidence.fingerprintCanonicalJson
   );
-  const structureLabel = evidenceStructureLabel(fingerprintSummary);
+  const contentSummary = resolveContentSummary(
+    params.evidence,
+    parsedFingerprintSummary
+  );
+  const contentItems = resolveContentItems(params.evidence);
+  const primaryContentItem = resolvePrimaryContentItem(params.evidence);
+  const structureLabel =
+    params.evidence.evidenceStructure?.trim() ||
+    evidenceStructureLabel(contentSummary);
+  const previewPolicy = resolvePreviewPolicy(params.evidence);
+  const display = resolveDisplayDescriptor(params.evidence, contentSummary);
+
   const custody = splitCustodyEvents(params.custodyEvents);
-
-  const finalDisplayStatus = mapRecordStatusLabel(params.evidence.status);
-
-  const headerContext: HeaderContext = {
-    evidenceId: params.evidence.id,
-    generatedAtUtc: params.generatedAtUtc,
-    status: finalDisplayStatus,
-  };
-
-  setHeaderContext(headerContext);
-  drawHeader(doc, headerContext);
 
   const hasCoreCrypto =
     Boolean(params.evidence.fileSha256) &&
@@ -1876,14 +2879,49 @@ export async function buildReportPdf(params: {
 
   const integrityVerified =
     safe(params.evidence.verificationStatus, "").toUpperCase() ===
-      "RECORDED_INTEGRITY_VERIFIED" || hasCoreCrypto;
+      "RECORDED_INTEGRITY_VERIFIED" ||
+    safe(params.evidence.recordedIntegrityVerifiedAtUtc, "") !== "";
+
+  const reviewGuidance = resolveReviewGuidance(
+    params.evidence,
+    contentSummary.itemCount,
+    contentSummary.previewableItemCount,
+    integrityVerified
+  );
+  const legalLimitations = resolveLegalLimitations(params.evidence);
+  const anchorSummary = resolveAnchorSummary(params.evidence);
+
+  const finalDisplayStatus = mapRecordStatusLabel(params.evidence.status);
+
+  const headerContext: HeaderContext = {
+    evidenceId: params.evidence.id,
+    generatedAtUtc: params.generatedAtUtc,
+    status: finalDisplayStatus,
+  };
 
   const externalMode = params.externalMode !== false;
-
   const includeTechnicalQr =
     !externalMode &&
     (Boolean(params.downloadUrl) ||
       env("REPORT_INCLUDE_TECHNICAL_QR") === "true");
+
+  setHeaderContext(headerContext);
+  drawHeader(doc, headerContext);
+
+  doc.save();
+  doc.fillColor(BRAND.ink).font("Helvetica-Bold").fontSize(16);
+  doc.text(display.displayTitle, doc.page.margins.left, doc.y);
+  doc.restore();
+
+  if (display.displayDescription) {
+    doc.moveDown(0.1);
+    safeParagraph(doc, display.displayDescription, {
+      fontSize: 9.5,
+      color: BRAND.muted,
+    });
+  }
+
+  doc.moveDown(0.18);
 
   doc.save();
   doc.fillColor(integrityVerified ? BRAND.success : BRAND.danger);
@@ -1901,23 +2939,114 @@ export async function buildReportPdf(params: {
   drawCallout(doc, {
     title: "Executive conclusion",
     body: integrityVerified
-      ? "This report indicates that recorded integrity materials are present and assembled for reviewer inspection. The report supports later verification of the recorded evidence state."
-      : "This report contains incomplete or review-required integrity information. Reviewer inspection is still possible, but conclusions should not be made without manual assessment.",
+      ? "This report supports the conclusion that the recorded integrity state of the evidence record was verified within the system record. Reviewers should still separately assess factual context, authorship, relevance, and admissibility."
+      : "This report supports review of the recorded evidence state, but the integrity outcome remains incomplete or requires manual assessment before reliance.",
     tone: integrityVerified ? "success" : "danger",
   });
 
   drawCallout(doc, {
     title: "Important legal limitation",
-    body:
-      "PROOVRA verifies the recorded integrity state of an evidence record. It does not independently prove factual truth, authorship, context, or guaranteed legal admissibility.",
+    body: legalLimitations.short,
     tone: "warning",
   });
+
+  drawInfoCards(doc, [
+    {
+      label: "Primary Evidence",
+      value: primaryContentItem
+        ? `${safe(primaryContentItem.label)} (${mapEvidenceAssetKindLabel(
+            primaryContentItem.kind
+          )})`
+        : "No primary item identified",
+      tone: "neutral",
+    },
+    {
+      label: "Evidence Package",
+      value: `${structureLabel} • ${contentSummary.itemCount} item${
+        contentSummary.itemCount === 1 ? "" : "s"
+      }`,
+      tone: "neutral",
+    },
+    {
+      label: "Storage & Timestamp",
+      value: `${mapTimestampStatusPublicLabel(
+        params.evidence.tsaStatus
+      )} • ${safeBooleanLabel(
+        params.evidence.storageImmutable,
+        "Immutable",
+        "Review storage",
+        "Not reported"
+      )}`,
+      tone:
+        timestampTone === "SUCCESS" && storageTone === "SUCCESS"
+          ? "success"
+          : timestampTone === "DANGER" || storageTone === "DANGER"
+            ? "danger"
+            : "warning",
+    },
+    {
+      label: "External Publication",
+      value: anchorSummary?.published
+        ? `Published via ${safe(anchorSummary.provider, "external anchor")}`
+        : "No external publication recorded",
+      tone: anchorSummary?.published ? "success" : "warning",
+    },
+  ]);
+
+  drawCallout(doc, {
+    title: "What this report contains",
+    body:
+      "This report combines evidence-centered review material, a structured inventory of recorded evidence items, integrity verification outcomes, custody chronology, timestamping and anchoring status, and reviewer-facing legal limitations in one artifact.",
+    tone: "neutral",
+  });
+
+  drawCallout(doc, {
+    title: "What reviewers should look at first",
+    body:
+      "Start with the primary evidence item and evidence package summary, then review the recorded integrity outcome, then review the forensic chain of custody, and only then move into the technical appendix or external verification workflow when deeper validation is needed.",
+    tone: "neutral",
+  });
+
+  drawCallout(doc, {
+    title: "What changed since completion",
+    body: buildWhatChangedSinceCompletionNarrative(params.evidence),
+    tone: "neutral",
+  });
+
+  const mismatchSummary = buildMismatchNarrative({
+    evidence: params.evidence,
+    integrityVerified,
+    custody,
+  });
+
+  drawCallout(doc, mismatchSummary);
+
+  drawWorkflowCards(doc, "Recommended review sequence", [
+    `Review the primary evidence item${
+      primaryContentItem ? `: ${safe(primaryContentItem.label)}.` : "."
+    }`,
+    "Confirm whether the evidence package is single-item or multipart and whether any supporting items affect interpretation.",
+    "Review the recorded integrity outcome, storage protection, timestamping, and publication indicators together rather than in isolation.",
+    "Use the forensic custody timeline to understand sequence and integrity-relevant record events before relying on later access history.",
+  ]);
+
+  if (primaryContentItem && previewPolicy.previewEnabled) {
+    drawCallout(doc, {
+      title: "Primary evidence quick view",
+      body:
+        "The next embedded panel provides a reviewer-facing representation of the primary preserved evidence item. It supports human review, but it should be interpreted together with the integrity, custody, timestamping, and legal limitation sections of this report.",
+      tone: "neutral",
+    });
+    drawEvidencePreviewCard(doc, primaryContentItem);
+  }
 
   {
     const rows = buildExecutiveRows(
       params.evidence,
       structureLabel,
-      fingerprintSummary
+      contentSummary,
+      display,
+      externalMode
     );
     const neededHeight = estimateEvidenceSummarySectionHeight(doc, rows);
     const availableHeight =
@@ -1941,6 +3070,276 @@ export async function buildReportPdf(params: {
 
   section(
     doc,
+    "Evidence Content",
+    () => {
+      safeParagraph(
+        doc,
+        "This section describes what was recorded as evidence content. It is intentionally separated from the technical integrity proof so reviewers can distinguish the content itself from the mechanism used to verify the recorded state.",
+        { fontSize: 9.5, color: BRAND.muted }
+      );
+      doc.moveDown(0.12);
+
+      kvGrid(
+        doc,
+        buildEvidenceContentSummaryRows(
+          contentSummary,
+          primaryContentItem,
+          params.evidence
+        )
+      );
+      doc.moveDown(0.12);
+
+      drawInfoCards(doc, [
+        {
+          label: "Primary Content Type",
+          value: mapEvidenceAssetKindLabel(contentSummary.primaryKind),
+          tone: "neutral",
+        },
+        {
+          label: "Composition",
+          value:
+            safe(params.evidence.contentCompositionSummary) ||
+            `${contentSummary.itemCount} recorded item${
+              contentSummary.itemCount === 1 ? "" : "s"
+            }`,
+          tone: "neutral",
+        },
+        {
+          label: "Previewable Items",
+          value: String(contentSummary.previewableItemCount),
+          tone: contentSummary.previewableItemCount > 0 ? "success" : "warning",
+        },
+        {
+          label: "Total Content Size",
+          value: safe(contentSummary.totalSizeDisplay),
+          tone: "neutral",
+        },
+      ]);
+
+      drawCallout(doc, {
+        title: "Content review note",
+        body: reviewGuidance.contentReviewNote,
+        tone: "neutral",
+      });
+
+      drawCallout(doc, {
+        title: "Preview / exposure policy",
+        body: `${previewPolicy.rationale} ${previewPolicy.privacyNotice}`,
+        tone: "warning",
+      });
+
+      drawCallout(doc, {
+        title: "Primary evidence item",
+        body: primaryContentItem
+          ? [
+              `Label: ${safe(primaryContentItem.label)}`,
+              `Kind: ${mapEvidenceAssetKindLabel(primaryContentItem.kind)}`,
+              primaryContentItem.mimeType ? `MIME: ${primaryContentItem.mimeType}` : null,
+              primaryContentItem.displaySizeLabel
+                ? `Size: ${primaryContentItem.displaySizeLabel}`
+                : null,
+              primaryContentItem.previewable ? "Previewable item" : "Non-previewable item",
+              primaryContentItem.sha256
+                ? `SHA-256: ${shortHash(primaryContentItem.sha256)}`
+                : null,
+            ]
+              .filter(Boolean)
+              .join(" • ")
+          : "No primary evidence item was explicitly identified in the report payload.",
+        tone: "neutral",
+      });
+
+      if (contentItems.length > 1) {
+        drawCallout(doc, {
+          title: "Multipart evidence package note",
+          body:
+            "This report should be reviewed as an evidence package rather than as a single loose file. The primary item gives the fastest understanding of the record, but supporting items may materially affect interpretation, chronology, or context.",
+          tone: "warning",
+        });
+      }
+
+      if (primaryContentItem) {
+        if (previewPolicy.previewEnabled) {
+          drawEvidencePreviewCard(doc, primaryContentItem, { large: true });
+        } else {
+          drawCallout(doc, {
+            title: "Preview disabled by report policy",
+            body:
+              "The report policy for this artifact does not allow embedded evidence preview. Reviewers should use the structured inventory and verification workflow instead.",
+            tone: "warning",
+          });
+        }
+      }
+
+      const secondaryPreviewItems = contentItems.filter(
+        (item) => !item.isPrimary && item.previewable
+      );
+
+      if (secondaryPreviewItems.length > 0) {
+        doc.moveDown(0.1);
+        drawCallout(doc, {
+          title: "Additional evidence items",
+          body:
+            "Additional previewable or supporting items are listed below as part of the same evidence package.",
+          tone: "neutral",
+        });
+
+        if (previewPolicy.previewEnabled) {
+          const renderedSecondaryItems = secondaryPreviewItems.slice(0, 4);
+          for (const item of renderedSecondaryItems) {
+            drawEvidencePreviewCard(doc, item);
+          }
+
+          if (secondaryPreviewItems.length > renderedSecondaryItems.length) {
+            drawCallout(doc, {
+              title: "Additional items not embedded in full",
+              body: `${secondaryPreviewItems.length - renderedSecondaryItems.length} more supporting evidence item${
+                secondaryPreviewItems.length - renderedSecondaryItems.length === 1
+                  ? ""
+                  : "s"
+              } are included in the structured inventory below. They remain part of the same evidence package even when not all reviewer previews are embedded in this report artifact.`,
+              tone: "neutral",
+            });
+          }
+        } else {
+          drawCallout(doc, {
+            title: "Additional previews disabled by report policy",
+            body:
+              "Additional item previews are intentionally suppressed for this report artifact. The structured inventory remains available below.",
+            tone: "warning",
+          });
+        }
+      }
+
+      if (contentItems.length === 0) {
+        drawCallout(doc, {
+          title: "No structured evidence item inventory included",
+          body:
+            "The report payload did not include explicit item-level inventory rows. Reviewers should rely on the canonical fingerprint, MIME type, and evidence structure fields.",
+          tone: "warning",
+        });
+      } else {
+        const innerW =
+          doc.page.width - doc.page.margins.left - doc.page.margins.right;
+        const colWidths = [
+          Math.max(34, innerW * 0.07),
+          Math.max(150, innerW * 0.30),
+          Math.max(86, innerW * 0.16),
+          innerW -
+            (Math.max(34, innerW * 0.07) +
+              Math.max(150, innerW * 0.30) +
+              Math.max(86, innerW * 0.16)),
+        ];
+
+        drawTable(
+          doc,
+          ["#", "Item", "Kind", "Details"],
+          buildEvidenceItemsTableRows(contentItems),
+          colWidths
+        );
+      }
+    },
+    { minSpace: 150 }
+  );
+
+  addPageWithHeader(doc);
+
+  section(
+    doc,
+    "Integrity Proof",
+    () => {
+      safeParagraph(
+        doc,
+        "This section explains what the system technically supports about the recorded state of the evidence record. It is intentionally separated from the evidence content itself and from broader legal interpretation.",
+        { fontSize: 9.5, color: BRAND.muted }
+      );
+      doc.moveDown(0.12);
+
+      kvGrid(doc, [
+        [
+          "Recorded Integrity Status",
+          integrityVerified
+            ? "Recorded integrity state verified"
+            : "Recorded integrity review required",
+        ],
+        [
+          "Verification Status",
+          mapVerificationStatusLabel(params.evidence.verificationStatus),
+        ],
+        [
+          "Fingerprint Hash Present",
+          safeBooleanLabel(Boolean(params.evidence.fingerprintHash), "Yes", "No"),
+        ],
+        [
+          "Digital Signature Present",
+          safeBooleanLabel(Boolean(params.evidence.signatureBase64), "Yes", "No"),
+        ],
+        [
+          "Signing Key Reference",
+          buildPublicSigningKeyReference(
+            params.evidence.signingKeyId,
+            params.evidence.signingKeyVersion
+          ),
+        ],
+        [
+          "Chain of Custody Present",
+          custody.forensic.length > 0 ? "Yes" : "No",
+        ],
+        [
+          "Trusted Timestamp Status",
+          mapTimestampStatusPublicLabel(params.evidence.tsaStatus),
+        ],
+        [
+          "OpenTimestamps Status",
+          mapOtsStatusPublicLabel(params.evidence.otsStatus),
+        ],
+        [
+          "Immutable Storage",
+          safeBooleanLabel(
+            params.evidence.storageImmutable,
+            "Verified",
+            "Not fully verified",
+            "Not reported"
+          ),
+        ],
+        [
+          "External Anchor Published",
+          safeBooleanLabel(anchorSummary?.published, "Yes", "No", "Not reported"),
+        ],
+      ]);
+
+      doc.moveDown(0.14);
+
+      drawCallout(doc, {
+        title: "What is technically established",
+        body:
+          "The report records whether file and fingerprint digests, digital signature materials, custody events, timestamp records, public anchoring records, and storage-protection indicators were present in the recorded evidence state.",
+        tone: "success",
+      });
+
+      drawCallout(doc, {
+        title: "What is not technically established by this report alone",
+        body:
+          "This report does not independently prove factual truth, authorship, legal admissibility, narrative context, or the real-world meaning of the evidence content. It supports integrity review of the recorded state only.",
+        tone: "warning",
+      });
+
+      if (!hasCoreCrypto) {
+        drawCallout(doc, {
+          title: "Incomplete technical materials",
+          body:
+            "One or more core technical materials were not present in the report payload. Review should proceed with caution.",
+          tone: "danger",
+        });
+      }
+    },
+    { minSpace: 130 }
+  );
+
+  addPageWithHeader(doc);
+
+  section(
+    doc,
     "Verification Summary",
     () => {
       safeParagraph(
@@ -1956,12 +3355,19 @@ export async function buildReportPdf(params: {
           params.evidence,
           custody,
           structureLabel,
-          fingerprintSummary,
+          contentSummary,
           externalMode
         )
       );
 
       doc.moveDown(0.14);
+
+      drawCallout(doc, {
+        title: "What is technically established",
+        body:
+          "This report presents the recorded integrity outcome, file and fingerprint digests, signature materials, timestamping records, public anchoring status, immutable storage indicators, and structured custody events.",
+        tone: "success",
+      });
 
       drawCallout(doc, {
         title: "Public verification page",
@@ -1971,9 +3377,11 @@ export async function buildReportPdf(params: {
       });
 
       drawCallout(doc, {
-        title: "What reviewers can inspect",
+        title: "Verification package reference",
         body:
-          "Reviewers can inspect the recorded integrity summary, chain of custody, timestamp records, OpenTimestamps status, immutable storage protection, report versioning, and technical materials.",
+          params.evidence.verificationPackageVersion != null
+            ? `Verification package version ${params.evidence.verificationPackageVersion} is associated with this evidence record. Use the package together with this report and the public verification page when deeper technical review, legal handoff, or external expert review is required.`
+            : "No verification package version was included in the current report payload. The public verification page and technical appendix remain the primary review surfaces available from this artifact.",
         tone: "neutral",
       });
     },
@@ -1993,20 +3401,30 @@ export async function buildReportPdf(params: {
       );
       doc.moveDown(0.12);
 
-      kvGrid(doc, buildReviewReadinessRows(params.evidence, custody));
+      kvGrid(doc, buildReviewReadinessRows(params.evidence, custody, externalMode));
       doc.moveDown(0.14);
 
       drawCallout(doc, {
-        title: "Reviewer guidance",
-        body:
-          "Use the public verification page for the human summary and review trail first. Open the technical view only when deeper validation is required.",
+        title: "Reviewer workflow",
+        body: reviewGuidance.reviewerWorkflow.join(" "),
         tone: "neutral",
       });
 
       drawCallout(doc, {
-        title: "Who this report is for",
-        body:
-          "This report is designed for evidence-sensitive review workflows such as legal review, compliance review, investigations, insurance review, and verification-oriented journalism workflows.",
+        title: "Integrity assessment note",
+        body: reviewGuidance.integrityAssessmentNote,
+        tone: integrityVerified ? "success" : "warning",
+      });
+
+      drawCallout(doc, {
+        title: "Legal assessment note",
+        body: reviewGuidance.legalAssessmentNote,
+        tone: "warning",
+      });
+
+      drawCallout(doc, {
+        title: "Multipart review note",
+        body: reviewGuidance.multipartReviewNote,
         tone: "neutral",
       });
     },
@@ -2058,7 +3476,7 @@ export async function buildReportPdf(params: {
           ),
         ],
         ["RFC 3161 Provider", safe(params.evidence.tsaProvider)],
-        ["RFC 3161 URL", safe(params.evidence.tsaUrl)],
+        ["RFC 3161 URL", summarizeText(safe(params.evidence.tsaUrl), 84)],
         ["RFC 3161 Serial", safe(params.evidence.tsaSerialNumber)],
         ["RFC 3161 Time (UTC)", safe(params.evidence.tsaGenTimeUtc)],
         ["RFC 3161 Hash Algorithm", safe(params.evidence.tsaHashAlgorithm)],
@@ -2075,6 +3493,19 @@ export async function buildReportPdf(params: {
         ["OTS Upgraded At (UTC)", safe(params.evidence.otsUpgradedAtUtc)],
         ["OTS Bitcoin TxID", shortHash(params.evidence.otsBitcoinTxid)],
       ]);
+
+      if (anchorSummary) {
+        doc.moveDown(0.12);
+        kvGrid(doc, [
+          ["External Anchor Mode", mapAnchorModePublicLabel(anchorSummary.mode)],
+          ["External Anchor Provider", safe(anchorSummary.provider)],
+          ["Anchor Published", safeBooleanLabel(anchorSummary.published, "Yes", "No")],
+          ["Anchor Anchored At (UTC)", safe(anchorSummary.anchoredAtUtc)],
+          ["Anchor Public URL", summarizeText(safe(anchorSummary.publicUrl), 84)],
+          ["Anchor Receipt ID", shortHash(anchorSummary.receiptId)],
+          ["Anchor Transaction ID", shortHash(anchorSummary.transactionId)],
+        ]);
+      }
 
       doc.moveDown(0.14);
 
@@ -2159,18 +3590,18 @@ export async function buildReportPdf(params: {
               : "warning",
       });
     },
-    { minSpace: 140 }
+    { minSpace: 150 }
   );
 
   addPageWithHeader(doc);
 
   section(
     doc,
-    "Chain of Custody Summary",
+    "Custody & Lifecycle Summary",
     () => {
       safeParagraph(
         doc,
-        "Forensic events are listed separately from access activity. This separation reflects the distinction between integrity-relevant lifecycle events and later viewing or download activity.",
+        "Forensic lifecycle events are listed separately from later access activity. This separation helps reviewers distinguish integrity-relevant record changes from later viewing, download, and verification activity.",
         { fontSize: 8.9, color: BRAND.muted }
       );
       doc.moveDown(0.12);
@@ -2257,7 +3688,12 @@ export async function buildReportPdf(params: {
       : "Technical Appendix — Identity, Fingerprint, Signature, and Anchoring",
     () => {
       kvGrid(doc, [
-        ["Submitted By Email", safe(params.evidence.submittedByEmail)],
+        [
+          "Submitted By Email",
+          externalMode
+            ? maskEmail(params.evidence.submittedByEmail)
+            : safe(params.evidence.submittedByEmail),
+        ],
         [
           "Submitted By Provider",
           mapAuthProviderLabel(params.evidence.submittedByAuthProvider),
@@ -2292,7 +3728,7 @@ export async function buildReportPdf(params: {
 
       drawCallout(doc, {
         title: "Fingerprint structure summary",
-        body: buildFingerprintNarrative(fingerprintSummary),
+        body: buildFingerprintNarrative(parsedFingerprintSummary, contentSummary),
         tone: "neutral",
       });
 
@@ -2337,12 +3773,12 @@ export async function buildReportPdf(params: {
         drawCallout(doc, {
           title: "Technical signature materials",
           body:
-            "Detailed signature materials and public-key verification artifacts are available through the technical verification workflow and verification package, where enabled.",
+            "Detailed signature materials and public-key verification artifacts remain available through the technical verification workflow and verification package, where enabled. They are not reproduced in full in this reviewer-facing report.",
           tone: "neutral",
         });
       }
 
-      if (fingerprintSummary.itemCount > 1) {
+      if (contentSummary.itemCount > 1) {
         ensureSpace(doc, 180);
 
         doc.save();
@@ -2353,18 +3789,13 @@ export async function buildReportPdf(params: {
 
         kvGrid(doc, [
           ["Structure", structureLabel],
-          ["Total Items", String(fingerprintSummary.itemCount)],
-          ["Fingerprint Parts", String(fingerprintSummary.partsCount)],
-          ["Images", String(fingerprintSummary.imageCount)],
-          ["Videos", String(fingerprintSummary.videoCount)],
-          ["Audio", String(fingerprintSummary.audioCount)],
-          ["Documents", String(fingerprintSummary.documentCount)],
-          [
-            "MIME Types",
-            fingerprintSummary.mimeTypes.length > 0
-              ? summarizeText(fingerprintSummary.mimeTypes.join(", "), 80)
-              : "N/A",
-          ],
+          ["Total Items", String(contentSummary.itemCount)],
+          ["Images", String(contentSummary.imageCount)],
+          ["Videos", String(contentSummary.videoCount)],
+          ["Audio", String(contentSummary.audioCount)],
+          ["PDF", String(contentSummary.pdfCount)],
+          ["Text", String(contentSummary.textCount)],
+          ["Other", String(contentSummary.otherCount)],
         ]);
 
         doc.moveDown(0.12);
@@ -2380,7 +3811,7 @@ export async function buildReportPdf(params: {
 
       kvGrid(doc, [
         ["Timestamp Provider", safe(params.evidence.tsaProvider)],
-        ["Timestamp URL", safe(params.evidence.tsaUrl)],
+        ["Timestamp URL", summarizeText(safe(params.evidence.tsaUrl), 84)],
         ["Serial Number", safe(params.evidence.tsaSerialNumber)],
         ["Generation Time (UTC)", safe(params.evidence.tsaGenTimeUtc)],
         ["Hash Algorithm", safe(params.evidence.tsaHashAlgorithm)],
@@ -2459,11 +3890,7 @@ export async function buildReportPdf(params: {
         }
       }
 
-      if (
-        params.evidence.anchorProvider ||
-        params.evidence.anchorPublicUrl ||
-        params.evidence.anchorHash
-      ) {
+      if (anchorSummary) {
         ensureSpace(doc, 160);
 
         doc.save();
@@ -2473,19 +3900,19 @@ export async function buildReportPdf(params: {
         doc.moveDown(0.14);
 
         kvGrid(doc, [
-          ["Anchor Mode", mapAnchorModePublicLabel(params.evidence.anchorMode)],
-          ["Anchor Provider", safe(params.evidence.anchorProvider)],
-          ["Anchor Anchored At (UTC)", safe(params.evidence.anchorAnchoredAtUtc)],
+          ["Anchor Mode", mapAnchorModePublicLabel(anchorSummary.mode)],
+          ["Anchor Provider", safe(anchorSummary.provider)],
+          ["Anchor Anchored At (UTC)", safe(anchorSummary.anchoredAtUtc)],
           [
             "Anchor Public URL",
-            summarizeText(safe(params.evidence.anchorPublicUrl), 84),
+            summarizeText(safe(anchorSummary.publicUrl), 84),
           ],
-          ["Anchor Receipt ID", shortHash(params.evidence.anchorReceiptId)],
-          ["Anchor Transaction ID", shortHash(params.evidence.anchorTransactionId)],
+          ["Anchor Receipt ID", shortHash(anchorSummary.receiptId)],
+          ["Anchor Transaction ID", shortHash(anchorSummary.transactionId)],
         ]);
 
         if (!externalMode) {
-          monospaceStrip(doc, "Anchor Hash", safe(params.evidence.anchorHash), {
+          monospaceStrip(doc, "Anchor Hash", safe(anchorSummary.anchorHash), {
             maxChars: 180,
           });
         }
@@ -2508,6 +3935,49 @@ export async function buildReportPdf(params: {
       });
     }
   }
+
+  addPageWithHeader(doc);
+
+  section(
+    doc,
+    "Legal Limitations & Review Use",
+    () => {
+      safeParagraph(
+        doc,
+        "This section states what this report does and does not establish. It is intentionally separated from both the evidence-content section and the technical appendix to reduce legal ambiguity.",
+        { fontSize: 9.3, color: BRAND.muted }
+      );
+      doc.moveDown(0.12);
+
+      drawCallout(doc, {
+        title: "What this report supports",
+        body:
+          "This report supports review of the recorded evidence content, the recorded integrity state, the custody chronology, timestamp records, anchoring records, and storage-protection indicators included in the system record.",
+        tone: "success",
+      });
+
+      drawCallout(doc, {
+        title: "What this report does not independently prove",
+        body: legalLimitations.detailed,
+        tone: "warning",
+      });
+
+      drawCallout(doc, {
+        title: "Correct review posture",
+        body:
+          "Review the evidence content itself, then review the integrity materials that protect the recorded state of that content, then assess legal relevance, authenticity disputes, authorship, context, and admissibility under the applicable procedure.",
+        tone: "neutral",
+      });
+
+      drawCallout(doc, {
+        title: "Embedded previews are reviewer representations",
+        body:
+          "Any embedded image, document snapshot, or other reviewer-facing representation in this report is included to support human review of the preserved evidence item. It should not be treated as a substitute for the preserved original file when deeper review, expert comparison, or formal legal process requires the underlying evidence.",
+        tone: "warning",
+      });
+    },
+    { minSpace: 140 }
+  );
 
   const forensicBlockHeight = estimateForensicIntegrityStatementHeight(doc, {
     verifyUrl,
