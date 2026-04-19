@@ -2294,7 +2294,10 @@ export async function processGenerateReport(job: Job<GenerateReportJobData>) {
                 ? new Date(prepared.reportEvidencePayload.lastVerifiedAtUtc)
                 : null,
             lastVerifiedSourceSnapshot:
-              prepared.reportEvidencePayload.lastVerifiedSource ?? null,
+              (prepared.reportEvidencePayload.lastVerifiedSource as
+                | prismaPkg.VerificationSource
+                | null
+                | undefined) ?? null,
             storageImmutableSnapshot:
               prepared.reportEvidencePayload.storageImmutable ?? null,
 

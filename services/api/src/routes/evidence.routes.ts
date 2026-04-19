@@ -1649,73 +1649,75 @@ async function buildPublicEvidenceContent(params: {
         })
       )
     : params.evidence.storageBucket && params.evidence.storageKey
-      ? [
-          (() => {
+      ? await Promise.all([
+          (async () => {
+            const bucket = params.evidence.storageBucket!;
+            const key = params.evidence.storageKey!;
             const label = getEvidencePartDisplayLabel({
               partIndex: 0,
               mimeType: params.evidence.mimeType,
-              storageKey: params.evidence.storageKey,
+              storageKey: key,
             });
             return {
-            id: params.evidence.id,
-            index: 0,
-            label,
-            originalFileName: basenameFromStorageKey(
-              params.evidence.storageKey,
-              `evidence-file.${extensionFromMimeType(params.evidence.mimeType)}`
-            ),
-            mimeType: params.evidence.mimeType ?? null,
-            kind: singleKind,
-            sizeBytes: bigintToString(params.evidence.sizeBytes),
-            durationMs: null,
-            sha256: params.evidence.fileSha256 ?? null,
-            isPrimary: true,
-            previewable: singlePreviewable,
-            downloadable: canDownload,
-            viewUrl: singleCanExposeDirectUrl
-              ? await presignGetObject({
-                  bucket: params.evidence.storageBucket,
-                  key: params.evidence.storageKey,
-                  expiresInSeconds: 600,
-                })
-              : null,
-            displaySizeLabel: formatBytesForDisplay(params.evidence.sizeBytes),
-            previewRole: singlePreviewable
-              ? "primary_preview"
-              : canDownload
-                ? "download_only"
-                : "metadata_only",
-            originalPreservationNote: buildOriginalPreservationNote({
+              id: params.evidence.id,
+              index: 0,
               label,
+              originalFileName: basenameFromStorageKey(
+                key,
+                `evidence-file.${extensionFromMimeType(params.evidence.mimeType)}`
+              ),
+              mimeType: params.evidence.mimeType ?? null,
               kind: singleKind,
-            }),
-            reviewerRepresentationLabel: buildReviewerRepresentationLabel({
-              kind: singleKind,
+              sizeBytes: bigintToString(params.evidence.sizeBytes),
+              durationMs: null,
+              sha256: params.evidence.fileSha256 ?? null,
               isPrimary: true,
-            }),
-            reviewerRepresentationNote: buildReviewerRepresentationNote({
-              kind: singleKind,
-              label,
-              canExposeContent: singlePreviewable,
-            }),
-            verificationMaterialsNote: buildVerificationMaterialsNote({
-              kind: singleKind,
-            }),
-            previewDataUrl:
-              canExposeContent
-                ? params.previews?.get(params.evidence.id)?.previewDataUrl ?? null
+              previewable: singlePreviewable,
+              downloadable: canDownload,
+              viewUrl: singleCanExposeDirectUrl
+                ? await presignGetObject({
+                    bucket,
+                    key,
+                    expiresInSeconds: 600,
+                  })
                 : null,
-            previewTextExcerpt:
-              canExposeContent
-                ? params.previews?.get(params.evidence.id)?.previewTextExcerpt ?? null
-                : null,
-            previewCaption:
-              canExposeContent
-                ? params.previews?.get(params.evidence.id)?.previewCaption ?? null
-                : null,
-          };
+              displaySizeLabel: formatBytesForDisplay(params.evidence.sizeBytes),
+              previewRole: singlePreviewable
+                ? "primary_preview"
+                : canDownload
+                  ? "download_only"
+                  : "metadata_only",
+              originalPreservationNote: buildOriginalPreservationNote({
+                label,
+                kind: singleKind,
+              }),
+              reviewerRepresentationLabel: buildReviewerRepresentationLabel({
+                kind: singleKind,
+                isPrimary: true,
+              }),
+              reviewerRepresentationNote: buildReviewerRepresentationNote({
+                kind: singleKind,
+                label,
+                canExposeContent: singlePreviewable,
+              }),
+              verificationMaterialsNote: buildVerificationMaterialsNote({
+                kind: singleKind,
+              }),
+              previewDataUrl:
+                canExposeContent
+                  ? params.previews?.get(params.evidence.id)?.previewDataUrl ?? null
+                  : null,
+              previewTextExcerpt:
+                canExposeContent
+                  ? params.previews?.get(params.evidence.id)?.previewTextExcerpt ?? null
+                  : null,
+              previewCaption:
+                canExposeContent
+                  ? params.previews?.get(params.evidence.id)?.previewCaption ?? null
+                  : null,
+            };
           })(),
-        ]
+        ])
       : [];
 
   if (items.length > 1 && !items.some((item) => item.isPrimary)) {

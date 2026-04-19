@@ -158,7 +158,7 @@ async function buildAudioWaveformPreview(
 
 async function buildPdfFirstPagePreview(buffer: Buffer): Promise<string | null> {
   try {
-    const canvasModule = (await import("@napi-rs/canvas")) as {
+    const canvasModule = (await import("@napi-rs/canvas")) as unknown as {
       createCanvas: (
         width: number,
         height: number
@@ -181,7 +181,7 @@ async function buildPdfFirstPagePreview(buffer: Buffer): Promise<string | null> 
       globalThis.Path2D = canvasModule.Path2D;
     }
 
-    const pdfjs = (await import("pdfjs-dist/legacy/build/pdf.mjs")) as {
+    const pdfjs = (await import("pdfjs-dist/legacy/build/pdf.mjs")) as unknown as {
       getDocument: (options: Record<string, unknown>) => {
         promise: Promise<{
           getPage: (pageNumber: number) => Promise<{
