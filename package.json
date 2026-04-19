@@ -28,7 +28,14 @@
       "@types/react-dom": "18.2.18",
       "expo-modules-autolinking": "2.0.8",
       "expo-modules-core": "2.2.3"
-    }
+    },
+    "onlyBuiltDependencies": [
+      "@prisma/engines",
+      "esbuild",
+      "ffmpeg-static",
+      "msgpackr-extract",
+      "prisma"
+    ]
   },
   "devDependencies": {
     "@types/node": "^25.5.2"

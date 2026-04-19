@@ -61,7 +61,7 @@ model Evidence {
   createdAt                         DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt                         DateTime            @updatedAt @map("updated_at") @db.Timestamptz(6)
   deletedAtUtc                      DateTime?           @map("deleted_at_utc") @db.Timestamptz(6)
-  deletedByUserId                   String?             @map("deleted_by_user_id")
+  deletedByUserId                   String?             @map("deleted_by_user_id") @db.Uuid
   deleteScheduledForUtc             DateTime?           @map("delete_scheduled_for_utc") @db.Timestamptz(6)
   retentionUntilUtc                 DateTime?           @map("retention_until_utc") @db.Timestamptz(6)
   deviceTimeIso                     String?             @map("device_time_iso") @db.VarChar(64)
@@ -70,7 +70,7 @@ model Evidence {
   teamId                            String?             @map("team_id") @db.Uuid
   guestIdentityId                   String?             @map("guest_identity_id") @db.Uuid
   lockedAt                          DateTime?           @map("locked_at") @db.Timestamptz(6)
-  lockedByUserId                    String?             @map("locked_by_user_id")
+  lockedByUserId                    String?             @map("locked_by_user_id") @db.Uuid
   archivedAt                        DateTime?           @map("archived_at") @db.Timestamptz(6)
 
   tsaFailureReason                  String?             @map("tsa_failure_reason")
@@ -226,33 +226,69 @@ model CustodyEvent {
 }
 
 model Report {
-  id                               String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  evidenceId                       String              @map("evidence_id") @db.Uuid
-  version                          Int
-  storageBucket                    String              @map("storage_bucket") @db.VarChar(255)
-  sizeBytes                        BigInt?             @map("size_bytes")
-  storageKey                       String              @map("storage_key") @db.VarChar(512)
-  storageRegion                    String?             @map("storage_region") @db.VarChar(64)
-  storageObjectLockMode            String?             @map("storage_object_lock_mode") @db.VarChar(32)
-  storageObjectLockRetainUntilUtc  DateTime?           @map("storage_object_lock_retain_until_utc") @db.Timestamptz(6)
-  storageObjectLockLegalHoldStatus String?             @map("storage_object_lock_legal_hold_status") @db.VarChar(16)
-  generatedAtUtc                   DateTime            @map("generated_at_utc") @db.Timestamptz(6)
+  id                                         String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  evidenceId                                 String              @map("evidence_id") @db.Uuid
+  version                                    Int
+  storageBucket                              String              @map("storage_bucket") @db.VarChar(255)
+  sizeBytes                                  BigInt?             @map("size_bytes")
+  storageKey                                 String              @map("storage_key") @db.VarChar(512)
+  storageRegion                              String?             @map("storage_region") @db.VarChar(64)
+  storageObjectLockMode                      String?             @map("storage_object_lock_mode") @db.VarChar(32)
+  storageObjectLockRetainUntilUtc            DateTime?           @map("storage_object_lock_retain_until_utc") @db.Timestamptz(6)
+  storageObjectLockLegalHoldStatus           String?             @map("storage_object_lock_legal_hold_status") @db.VarChar(16)
+  generatedAtUtc                             DateTime            @map("generated_at_utc") @db.Timestamptz(6)
 
-  verificationStatusSnapshot       VerificationStatus? @map("verification_status_snapshot")
-  identityLevelSnapshot            IdentityLevel?      @map("identity_level_snapshot")
-  submittedByEmailSnapshot         String?             @map("submitted_by_email_snapshot") @db.VarChar(320)
-  submittedByAuthProviderSnapshot  AuthProvider?       @map("submitted_by_auth_provider_snapshot")
-  captureMethodSnapshot            CaptureMethod?      @map("capture_method_snapshot")
-  reviewerSummaryVersion           Int?                @map("reviewer_summary_version")
-  verificationPackageVersion       Int?                @map("verification_package_version")
+  verificationStatusSnapshot                 VerificationStatus? @map("verification_status_snapshot")
+  identityLevelSnapshot                      IdentityLevel?      @map("identity_level_snapshot")
+  submittedByEmailSnapshot                   String?             @map("submitted_by_email_snapshot") @db.VarChar(320)
+  submittedByAuthProviderSnapshot            AuthProvider?       @map("submitted_by_auth_provider_snapshot")
+  captureMethodSnapshot                      CaptureMethod?      @map("capture_method_snapshot")
+  reviewerSummaryVersion                     Int?                @map("reviewer_summary_version")
+  verificationPackageVersion                 Int?                @map("verification_package_version")
 
-  evidence                         Evidence            @relation(fields: [evidenceId], references: [id])
+  displayTitleSnapshot                       String?             @map("display_title_snapshot") @db.VarChar(200)
+  displayDescriptionSnapshot                 String?             @map("display_description_snapshot") @db.VarChar(500)
+  contentStructureSnapshot                   String?             @map("content_structure_snapshot") @db.VarChar(40)
+  itemCountSnapshot                          Int?                @map("item_count_snapshot")
+  previewableItemCountSnapshot               Int?                @map("previewable_item_count_snapshot")
+  downloadableItemCountSnapshot              Int?                @map("downloadable_item_count_snapshot")
+  primaryContentKindSnapshot                 String?             @map("primary_content_kind_snapshot") @db.VarChar(40)
+  primaryContentLabelSnapshot                String?             @map("primary_content_label_snapshot") @db.VarChar(80)
+  contentCompositionSummarySnapshot          String?             @map("content_composition_summary_snapshot") @db.VarChar(300)
+  contentAccessPolicyModeSnapshot            String?             @map("content_access_policy_mode_snapshot") @db.VarChar(40)
+  defaultPreviewItemIdSnapshot               String?             @map("default_preview_item_id_snapshot") @db.Uuid
+
+  workspaceNameSnapshot                      String?             @map("workspace_name_snapshot") @db.VarChar(180)
+  organizationNameSnapshot                   String?             @map("organization_name_snapshot") @db.VarChar(180)
+  organizationVerifiedSnapshot               Boolean?            @map("organization_verified_snapshot")
+  recordedIntegrityVerifiedAtUtcSnapshot     DateTime?           @map("recorded_integrity_verified_at_utc_snapshot") @db.Timestamptz(6)
+  lastVerifiedAtUtcSnapshot                  DateTime?           @map("last_verified_at_utc_snapshot") @db.Timestamptz(6)
+  lastVerifiedSourceSnapshot                 VerificationSource? @map("last_verified_source_snapshot")
+  storageImmutableSnapshot                   Boolean?            @map("storage_immutable_snapshot")
+
+  displaySnapshot                            Json?               @map("display_snapshot")
+  contentSummarySnapshot                     Json?               @map("content_summary_snapshot")
+  contentItemsSnapshot                       Json?               @map("content_items_snapshot")
+  primaryContentItemSnapshot                 Json?               @map("primary_content_item_snapshot")
+  previewPolicySnapshot                      Json?               @map("preview_policy_snapshot")
+  reviewGuidanceSnapshot                     Json?               @map("review_guidance_snapshot")
+  limitationsSnapshot                        Json?               @map("limitations_snapshot")
+  anchorSnapshot                             Json?               @map("anchor_snapshot")
+  contentAccessPolicySnapshot                Json?               @map("content_access_policy_snapshot")
+  embeddedPreviewsSnapshot                   Json?               @map("embedded_previews_snapshot")
+
+  evidence                                   Evidence            @relation(fields: [evidenceId], references: [id])
 
   @@unique([evidenceId, version])
   @@index([evidenceId])
   @@index([generatedAtUtc(sort: Desc)])
   @@index([storageObjectLockMode])
   @@index([storageObjectLockRetainUntilUtc])
+  @@index([verificationStatusSnapshot])
+  @@index([reviewerSummaryVersion])
+  @@index([verificationPackageVersion])
+  @@index([recordedIntegrityVerifiedAtUtcSnapshot])
+  @@index([lastVerifiedAtUtcSnapshot])
   @@map("reports")
 }
 
@@ -282,19 +318,31 @@ model VerificationPackage {
 }
 
 model VerificationView {
-  id           String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  evidenceId   String                 @map("evidence_id") @db.Uuid
-  viewerType   VerificationViewerType @map("viewer_type")
-  viewerUserId String?                @map("viewer_user_id") @db.Uuid
-  accessMode   String?                @map("access_mode") @db.VarChar(64)
-  ipAddress    String?                @map("ip_address") @db.VarChar(45)
-  userAgent    String?                @map("user_agent") @db.VarChar(512)
-  createdAt    DateTime               @default(now()) @map("created_at") @db.Timestamptz(6)
-  evidence     Evidence               @relation(fields: [evidenceId], references: [id], onDelete: Cascade)
+  id                           String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  evidenceId                   String                 @map("evidence_id") @db.Uuid
+  viewerType                   VerificationViewerType @map("viewer_type")
+  viewerUserId                 String?                @map("viewer_user_id") @db.Uuid
+  accessMode                   String?                @map("access_mode") @db.VarChar(64)
+
+  verificationStatusSnapshot   VerificationStatus?    @map("verification_status_snapshot")
+  overallIntegrity             Boolean?               @map("overall_integrity")
+  recordedIntegrityVerified    Boolean?               @map("recorded_integrity_verified")
+  accessPolicyModeSnapshot     String?                @map("access_policy_mode_snapshot") @db.VarChar(40)
+  defaultPreviewItemIdSnapshot String?                @map("default_preview_item_id_snapshot") @db.Uuid
+  details                      Json?                  @map("details")
+
+  ipAddress                    String?                @map("ip_address") @db.VarChar(45)
+  userAgent                    String?                @map("user_agent") @db.VarChar(512)
+  createdAt                    DateTime               @default(now()) @map("created_at") @db.Timestamptz(6)
+  evidence                     Evidence               @relation(fields: [evidenceId], references: [id], onDelete: Cascade)
 
   @@index([evidenceId, createdAt(sort: Desc)])
   @@index([viewerUserId])
   @@index([viewerType])
+  @@index([verificationStatusSnapshot])
+  @@index([overallIntegrity])
+  @@index([recordedIntegrityVerified])
+  @@index([accessPolicyModeSnapshot])
   @@map("verification_views")
 }
 
@@ -315,7 +363,6 @@ model User {
   id                            String                         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   email                         String?                        @db.VarChar(320)
   displayName                   String?                        @map("display_name") @db.VarChar(120)
-  /// Platform-wide role (e.g. admin dashboard). Distinct from team roles.
   platformRole                  String?                        @map("platform_role") @db.VarChar(32)
   provider                      AuthProvider
   providerUserId                String                         @map("provider_user_id") @db.VarChar(128)
@@ -344,7 +391,7 @@ model User {
   teamActivities                TeamActivity[]
   cookieConsentRecords          CookieConsentRecord[]
   legalAcceptances              UserLegalAcceptance[]
-  storageAddons                  WorkspaceStorageAddon[]
+  storageAddons                 WorkspaceStorageAddon[]
 
   ownedTeams                    Team[]                         @relation("TeamOwner")
   billingOwnedTeams             Team[]                         @relation("TeamBillingOwner")
@@ -403,28 +450,28 @@ model Team {
 }
 
 model WorkspaceStorageAddon {
-  id                     String                     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  ownerUserId            String                     @map("owner_user_id") @db.Uuid
-  teamId                 String?                    @map("team_id") @db.Uuid
-  addonKey               StorageAddonKey           @map("addon_key")
-  extraStorageBytes      BigInt                    @map("extra_storage_bytes")
-  billingCycle           StorageAddonBillingCycle  @map("billing_cycle")
-  status                 WorkspaceStorageAddonStatus @default(ACTIVE)
-  paymentProvider        PaymentProvider?          @map("payment_provider")
-  externalSubscriptionId String?                   @unique @map("external_subscription_id") @db.VarChar(191)
-  externalPaymentId      String?                   @unique @map("external_payment_id") @db.VarChar(191)
-  currency               String?                   @db.VarChar(8)
-  amountCents            Int?                      @map("amount_cents")
-  activatedAtUtc         DateTime?                 @map("activated_at_utc") @db.Timestamptz(6)
-  currentPeriodEnd       DateTime?                 @map("current_period_end") @db.Timestamptz(6)
-  expiresAtUtc           DateTime?                 @map("expires_at_utc") @db.Timestamptz(6)
-  canceledAtUtc          DateTime?                 @map("canceled_at_utc") @db.Timestamptz(6)
+  id                     String                       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  ownerUserId            String                       @map("owner_user_id") @db.Uuid
+  teamId                 String?                      @map("team_id") @db.Uuid
+  addonKey               StorageAddonKey             @map("addon_key")
+  extraStorageBytes      BigInt                       @map("extra_storage_bytes")
+  billingCycle           StorageAddonBillingCycle     @map("billing_cycle")
+  status                 WorkspaceStorageAddonStatus  @default(ACTIVE)
+  paymentProvider        PaymentProvider?             @map("payment_provider")
+  externalSubscriptionId String?                      @unique @map("external_subscription_id") @db.VarChar(191)
+  externalPaymentId      String?                      @unique @map("external_payment_id") @db.VarChar(191)
+  currency               String?                      @db.VarChar(8)
+  amountCents            Int?                         @map("amount_cents")
+  activatedAtUtc         DateTime?                    @map("activated_at_utc") @db.Timestamptz(6)
+  currentPeriodEnd       DateTime?                    @map("current_period_end") @db.Timestamptz(6)
+  expiresAtUtc           DateTime?                    @map("expires_at_utc") @db.Timestamptz(6)
+  canceledAtUtc          DateTime?                    @map("canceled_at_utc") @db.Timestamptz(6)
   metadata               Json?
-  createdAt              DateTime                  @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt              DateTime                  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdAt              DateTime                     @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt              DateTime                     @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  owner                  User                      @relation(fields: [ownerUserId], references: [id], onDelete: Cascade)
-  team                   Team?                     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  owner                  User                         @relation(fields: [ownerUserId], references: [id], onDelete: Cascade)
+  team                   Team?                        @relation(fields: [teamId], references: [id], onDelete: Cascade)
 
   @@index([ownerUserId, status])
   @@index([teamId, status])
@@ -782,29 +829,29 @@ model CookieConsentRecord {
 }
 
 model DemoRequest {
-  id                        String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  fullName                  String                @map("full_name") @db.VarChar(160)
-  workEmail                 String                @map("work_email") @db.VarChar(320)
-  organization              String?               @db.VarChar(180)
-  jobTitle                  String?               @map("job_title") @db.VarChar(120)
-  country                   String?               @db.VarChar(120)
-  teamSize                  String?               @map("team_size") @db.VarChar(64)
-  useCase                   String                @map("use_case")
+  id                        String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  fullName                  String                 @map("full_name") @db.VarChar(160)
+  workEmail                 String                 @map("work_email") @db.VarChar(320)
+  organization              String?                @db.VarChar(180)
+  jobTitle                  String?                @map("job_title") @db.VarChar(120)
+  country                   String?                @db.VarChar(120)
+  teamSize                  String?                @map("team_size") @db.VarChar(64)
+  useCase                   String                 @map("use_case")
   message                   String?
 
-  source                    String?               @db.VarChar(120)
-  sourcePath                String?               @map("source_path") @db.VarChar(512)
-  referrer                  String?               @db.VarChar(2048)
-  utmSource                 String?               @map("utm_source") @db.VarChar(160)
-  utmMedium                 String?               @map("utm_medium") @db.VarChar(160)
-  utmCampaign               String?               @map("utm_campaign") @db.VarChar(160)
-  utmTerm                   String?               @map("utm_term") @db.VarChar(160)
-  utmContent                String?               @map("utm_content") @db.VarChar(160)
+  source                    String?                @db.VarChar(120)
+  sourcePath                String?                @map("source_path") @db.VarChar(512)
+  referrer                  String?                @db.VarChar(2048)
+  utmSource                 String?                @map("utm_source") @db.VarChar(160)
+  utmMedium                 String?                @map("utm_medium") @db.VarChar(160)
+  utmCampaign               String?                @map("utm_campaign") @db.VarChar(160)
+  utmTerm                   String?                @map("utm_term") @db.VarChar(160)
+  utmContent                String?                @map("utm_content") @db.VarChar(160)
 
-  status                    DemoRequestStatus     @default(NEW)
-  priority                  DemoRequestPriority   @default(NORMAL)
-  leadQuality               DemoLeadQuality?      @map("lead_quality")
-  leadTrack                 DemoLeadTrack?        @map("lead_track")
+  status                    DemoRequestStatus      @default(NEW)
+  priority                  DemoRequestPriority    @default(NORMAL)
+  leadQuality               DemoLeadQuality?       @map("lead_quality")
+  leadTrack                 DemoLeadTrack?         @map("lead_track")
   recommendedAction         DemoRecommendedAction? @map("recommended_action")
   routingTarget             DemoRoutingTarget?     @map("routing_target")
   routingReason             String?                @map("routing_reason") @db.VarChar(255)
