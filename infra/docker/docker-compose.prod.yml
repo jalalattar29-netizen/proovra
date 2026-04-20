@@ -98,6 +98,8 @@ services:
       INTERNAL_API_BASE_URL: ${INTERNAL_API_BASE_URL}
       DEMO_FOLLOW_UP_ENABLED: ${DEMO_FOLLOW_UP_ENABLED}
       DEMO_FOLLOW_UP_INTERVAL_MS: ${DEMO_FOLLOW_UP_INTERVAL_MS}
+      PUPPETEER_EXECUTABLE_PATH: /usr/bin/chromium-browser
+      PUPPETEER_SKIP_DOWNLOAD: "true"
     volumes:
       - /opt/proovra/app/services/worker/keys:/app/services/worker/keys:ro
       - /opt/proovra/app/services/worker/src/pdf/assets:/app/services/worker/src/pdf/assets:ro
