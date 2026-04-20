@@ -16,8 +16,8 @@
     "isolatedModules": true,
     "types": ["node"],
     "paths": {
-      "@proovra/ui": ["../../packages/ui/src/index.ts"],
-  },
+      "@proovra/ui": ["../../packages/ui/src/index.ts"]
+    },
     "plugins": [
       {
         "name": "next"

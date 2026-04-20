@@ -7,13 +7,16 @@
     "dev:web": "pnpm --filter proovra-web dev",
     "dev:mobile": "pnpm --filter proovra-mobile dev",
     "dev:all": "pnpm --filter proovra-web dev & pnpm --filter proovra-mobile dev",
-    "build:web": "pnpm --filter proovra-web build",
+    "build:shared": "pnpm --filter @proovra/shared build && pnpm --filter @proovra/shared-evidence-presentation build && pnpm --filter @proovra/shared-billing build && pnpm --filter @proovra/ui build",
+    "build:web": "pnpm run build:shared && pnpm --filter proovra-web build",
+    "build:api": "pnpm run build:shared && pnpm --filter proovra-api build",
+    "build:worker": "pnpm run build:shared && pnpm --filter proovra-worker build",
     "lint": "pnpm -r lint",
     "typecheck": "pnpm -r typecheck",
     "test": "pnpm -r test",
     "test:e2e": "node scripts/e2e-web-smoke.mjs",
     "test:prod": "node scripts/smoke-prod.mjs",
-    "eas-build-post-install": "pnpm -r --filter @proovra/shared --filter @proovra/ui build"
+    "eas-build-post-install": "pnpm -r --filter @proovra/shared --filter @proovra/shared-evidence-presentation --filter @proovra/shared-billing --filter @proovra/ui build"
   },
   "keywords": [],
   "author": "",

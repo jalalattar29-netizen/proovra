@@ -130,6 +130,9 @@ importers:
       '@proovra/shared':
         specifier: workspace:*
         version: link:../../packages/shared
+      '@proovra/shared-evidence-presentation':
+        specifier: workspace:*
+        version: link:../../packages/shared-evidence-presentation
       '@proovra/ui':
         specifier: workspace:*
         version: link:../../packages/ui

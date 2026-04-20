@@ -5,10 +5,11 @@
   "main": "index.js",
   "scripts": {
     "dev": "tsx watch src/index.ts",
+    "prebuild": "pnpm --filter @proovra/shared build && pnpm --filter @proovra/shared-evidence-presentation build && pnpm --filter @proovra/shared-billing build",
+    "build": "tsc -p tsconfig.build.json && node ./scripts/copy-assets.mjs",
     "start": "node --experimental-specifier-resolution=node dist/index.js",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
-    "build": "tsc -p tsconfig.build.json && node ./scripts/copy-assets.mjs",
     "test": "vitest run"
   },
   "keywords": [],
