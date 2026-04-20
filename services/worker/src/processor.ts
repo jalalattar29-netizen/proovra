@@ -1,6 +1,5 @@
 import type { Job } from "bullmq";
 import type { Readable } from "node:stream";
-import { buildReportPdfV2 } from "./report-v2/index.js";
 import * as prismaPkg from "@prisma/client";
 import type {
   Prisma,
@@ -260,11 +259,6 @@ reportEvidencePayload: ReportBuildParams["evidence"];
     qualifiedPerson: ReportCertificationSnapshot | null;
   };
 };
-
-function shouldUseReportRendererV2(): boolean {
-  const value = process.env.REPORT_RENDERER?.trim().toLowerCase();
-  return value === "v2" || value === "html" || value === "next";
-}
 
 function toReportCertificationSnapshot(
   item:
@@ -2143,9 +2137,7 @@ const loadedArtifacts: LoadedEvidenceArtifact[] = [];
     externalMode: false,
   };
 
-  const reportPdf = shouldUseReportRendererV2()
-    ? await buildReportPdfV2(reportBuildParams)
-    : await buildReportPdf(reportBuildParams);
+  const reportPdf = await buildReportPdf(reportBuildParams);
     
   let verificationZip: Buffer | null = null;
 

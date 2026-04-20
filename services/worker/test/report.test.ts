@@ -1,12 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildReportPdf } from "../src/pdf/report";
-
-function extractText(buffer: Buffer): string {
-  const latin1 = buffer.toString("latin1");
-  const utf8 = buffer.toString("utf8");
-  const ascii = buffer.toString("ascii");
-  return `${latin1}\n${utf8}\n${ascii}`;
-}
+import { buildReportViewModel, renderReportHtml } from "../src/pdf/report";
 
 function expectInOrder(text: string, tokens: string[]) {
   let lastIndex = -1;
@@ -17,125 +10,193 @@ function expectInOrder(text: string, tokens: string[]) {
   }
 }
 
-describe("report pdf builder", () => {
-  it("builds a non-empty PDF buffer", async () => {
-    const buffer = await buildReportPdf({
-      evidence: {
-        tsaProvider: null,
-        tsaUrl: null,
-        tsaSerialNumber: null,
-        tsaGenTimeUtc: null,
-        tsaTokenBase64: null,
-        tsaMessageImprint: null,
-        tsaHashAlgorithm: null,
-        tsaStatus: null,
-        tsaFailureReason: null,
-        id: "evidence-1",
-        status: "SIGNED",
-        capturedAtUtc: "2026-01-01T00:00:00.000Z",
-        uploadedAtUtc: "2026-01-01T00:01:00.000Z",
-        signedAtUtc: "2026-01-01T00:02:00.000Z",
-        reportGeneratedAtUtc: "2026-01-01T00:03:00.000Z",
-        mimeType: "text/plain",
-        sizeBytes: "12",
-        durationSec: null,
-        storageBucket: "test-bucket",
-        storageKey: "evidence/evidence-1/original",
-        publicUrl: null,
-        gps: { lat: null, lng: null, accuracyMeters: null },
-        fileSha256: "abc",
-        fingerprintCanonicalJson: "{\"a\":1}",
-        fingerprintHash: "def",
-        signatureBase64: "sig",
-        signingKeyId: "proovra_ed25519",
-        signingKeyVersion: 1,
-        publicKeyPem:
-          "-----BEGIN PUBLIC KEY-----\nTEST\n-----END PUBLIC KEY-----\n",
+function buildInput(overrides?: Partial<Parameters<typeof buildReportViewModel>[0]>) {
+  return {
+    evidence: {
+      tsaProvider: null,
+      tsaUrl: null,
+      tsaSerialNumber: null,
+      tsaGenTimeUtc: null,
+      tsaTokenBase64: null,
+      tsaMessageImprint: null,
+      tsaHashAlgorithm: null,
+      tsaStatus: null,
+      tsaFailureReason: null,
+      id: "evidence-1",
+      title: "Evidence Title",
+      status: "SIGNED",
+      verificationStatus: "RECORDED_INTEGRITY_VERIFIED",
+      capturedAtUtc: "2026-01-01T00:00:00.000Z",
+      uploadedAtUtc: "2026-01-01T00:01:00.000Z",
+      signedAtUtc: "2026-01-01T00:02:00.000Z",
+      reportGeneratedAtUtc: "2026-01-01T00:03:00.000Z",
+      mimeType: "text/plain",
+      sizeBytes: "12",
+      durationSec: null,
+      storageBucket: "test-bucket",
+      storageKey: "evidence/evidence-1/original",
+      publicUrl: null,
+      gps: { lat: null, lng: null, accuracyMeters: null },
+      fileSha256: "abc",
+      fingerprintCanonicalJson: "{\"a\":1}",
+      fingerprintHash: "def",
+      signatureBase64: "sig",
+      signingKeyId: "proovra_ed25519",
+      signingKeyVersion: 1,
+      publicKeyPem:
+        "-----BEGIN PUBLIC KEY-----\nTEST\n-----END PUBLIC KEY-----\n",
+      contentSummary: {
+        structure: "single",
+        itemCount: 1,
+        previewableItemCount: 1,
+        downloadableItemCount: 1,
+        imageCount: 0,
+        videoCount: 0,
+        audioCount: 0,
+        pdfCount: 0,
+        textCount: 1,
+        otherCount: 0,
+        primaryKind: "text",
+        primaryMimeType: "text/plain",
+        totalSizeBytes: "12",
+        totalSizeDisplay: "12 B",
       },
-      custodyEvents: [
+      contentItems: [
         {
-          sequence: 1,
-          atUtc: "2026-01-01T00:00:00.000Z",
-          eventType: "EVIDENCE_CREATED",
-          payloadSummary: "{\"type\":\"PHOTO\"}",
+          id: "evidence-1",
+          index: 0,
+          label: "Primary evidence",
+          originalFileName: "evidence.txt",
+          mimeType: "text/plain",
+          kind: "text",
+          sizeBytes: "12",
+          durationMs: null,
+          sha256: "abc",
+          isPrimary: true,
+          previewable: true,
+          downloadable: true,
+          viewUrl: "https://example.com/evidence.txt",
+          displaySizeLabel: "12 B",
+          previewRole: "primary_preview",
+          embedPreference: "text_excerpt",
+          artifactRole: "primary_evidence",
+          originalPreservationNote: "Original preserved.",
+          reviewerRepresentationLabel: "Rendered excerpt",
+          reviewerRepresentationNote: "Reviewer-facing excerpt only.",
+          verificationMaterialsNote: "See technical appendix.",
+          previewTextExcerpt: "hello world",
+          previewCaption: "Text excerpt",
+          previewDataUrl: null,
         },
       ],
-      version: 1,
-      generatedAtUtc: "2026-01-01T00:03:00.000Z",
-    });
+      primaryContentItem: {
+        id: "evidence-1",
+        index: 0,
+        label: "Primary evidence",
+        originalFileName: "evidence.txt",
+        mimeType: "text/plain",
+        kind: "text",
+        sizeBytes: "12",
+        durationMs: null,
+        sha256: "abc",
+        isPrimary: true,
+        previewable: true,
+        downloadable: true,
+        viewUrl: "https://example.com/evidence.txt",
+        displaySizeLabel: "12 B",
+        previewRole: "primary_preview",
+        embedPreference: "text_excerpt",
+        artifactRole: "primary_evidence",
+        originalPreservationNote: "Original preserved.",
+        reviewerRepresentationLabel: "Rendered excerpt",
+        reviewerRepresentationNote: "Reviewer-facing excerpt only.",
+        verificationMaterialsNote: "See technical appendix.",
+        previewTextExcerpt: "hello world",
+        previewCaption: "Text excerpt",
+        previewDataUrl: null,
+      },
+      defaultPreviewItemId: "evidence-1",
+      previewPolicy: {
+        contentVisible: true,
+        previewEnabled: true,
+        downloadableFromVerify: true,
+        rationale: "Preview enabled.",
+        privacyNotice: "Preview is reviewer-facing only.",
+      },
+      reviewGuidance: {
+        reviewerWorkflow: ["Review content", "Review integrity"],
+        contentReviewNote: "Review content.",
+        legalAssessmentNote: "Assess legal context separately.",
+        integrityAssessmentNote: "Integrity verified.",
+        multipartReviewNote: "Single-item record.",
+      },
+      limitations: {
+        short: "Integrity only.",
+        detailed: "Does not prove factual truth or admissibility.",
+      },
+      contentAccessPolicy: {
+        mode: "full_access",
+        allowContentView: true,
+        allowDownload: true,
+      },
+      embeddedPreviewsSnapshot: [
+        {
+          id: "evidence-1",
+          previewTextExcerpt: "hello world",
+          previewCaption: "Text excerpt",
+        },
+      ],
+    },
+    custodyEvents: [
+      {
+        sequence: 1,
+        atUtc: "2026-01-01T00:00:00.000Z",
+        eventType: "EVIDENCE_CREATED",
+        payloadSummary: "{\"type\":\"PHOTO\"}",
+      },
+    ],
+    version: 1,
+    generatedAtUtc: "2026-01-01T00:03:00.000Z",
+    buildInfo: "build-123",
+    ...overrides,
+  };
+}
 
-    // Basic sanity checks
-    expect(buffer.length).toBeGreaterThan(1000);
+describe("report v2 pipeline", () => {
+  it("builds a view model with inventory and certification-aware sections", () => {
+    const vm = buildReportViewModel(buildInput());
 
-    // PDF header should be present at the beginning
-    const header = buffer.subarray(0, 16).toString("ascii");
-    expect(header.startsWith("%PDF-")).toBe(true);
-
-    // PDF trailer marker should exist somewhere near the end
-    const tail = buffer.subarray(Math.max(0, buffer.length - 2048));
-    expect(tail.toString("ascii")).toContain("%%EOF");
+    expect(vm.title).toBe("Evidence Title");
+    expect(vm.structureLabel).toBe("Single evidence item");
+    expect(vm.inventoryRows).toHaveLength(1);
+    expect(vm.contentItems[0]?.previewTextExcerpt).toBe("hello world");
+    expect(vm.certifications.hasAny).toBe(false);
+    expect(vm.forensicRows).toHaveLength(1);
   });
 
-  it("includes key sections in order", async () => {
-    const buffer = await buildReportPdf({
-      evidence: {
-        tsaProvider: null,
-        tsaUrl: null,
-        tsaSerialNumber: null,
-        tsaGenTimeUtc: null,
-        tsaTokenBase64: null,
-        tsaMessageImprint: null,
-        tsaHashAlgorithm: null,
-        tsaStatus: null,
-        tsaFailureReason: null,
-        id: "evidence-2",
-        status: "SIGNED",
-        capturedAtUtc: "2026-01-01T00:00:00.000Z",
-        uploadedAtUtc: "2026-01-01T00:01:00.000Z",
-        signedAtUtc: "2026-01-01T00:02:00.000Z",
-        reportGeneratedAtUtc: "2026-01-01T00:03:00.000Z",
-        mimeType: "text/plain",
-        sizeBytes: "12",
-        durationSec: "0",
-        storageBucket: "test-bucket",
-        storageKey: "evidence/evidence-2/original",
-        publicUrl: "http://example.com/evidence-2",
-        gps: { lat: "1.0", lng: "2.0", accuracyMeters: "3.0" },
-        fileSha256: "abc",
-        fingerprintCanonicalJson: "{\"a\":1,\"b\":2}",
-        fingerprintHash: "def",
-        signatureBase64: "sig",
-        signingKeyId: "proovra_ed25519",
-        signingKeyVersion: 1,
-        publicKeyPem:
-          "-----BEGIN PUBLIC KEY-----\nTEST\n-----END PUBLIC KEY-----\n",
-      },
-      custodyEvents: [
-        {
-          sequence: 1,
-          atUtc: "2026-01-01T00:00:00.000Z",
-          eventType: "EVIDENCE_CREATED",
-          payloadSummary: "{\"type\":\"PHOTO\"}",
-        },
-      ],
-      version: 1,
-      generatedAtUtc: "2026-01-01T00:03:00.000Z",
-      buildInfo: "build-123",
-    });
+  it("renders the v2 HTML report sections in the intended order", () => {
+    const vm = buildReportViewModel(buildInput());
+    const html = renderReportHtml(vm);
 
-    const text = extractText(buffer);
-    expect(text).toContain("PROOVRA_SECTION_ORDER:");
-    expectInOrder(text, [
-      "Evidence Summary",
-      "Cryptographic Details",
+    expect(html).toContain("Evidence Title");
+    expect(html).toContain("Executive conclusion");
+    expect(html).toContain("Evidence Inventory");
+    expect(html).toContain("Integrity Proof");
+    expect(html).toContain("Storage & Timestamping");
+    expect(html).toContain("Forensic Integrity Statement");
+    expect(html).toContain("Technical Appendix");
+
+    expectInOrder(html, [
+      "Executive conclusion",
+      "Evidence Content",
+      "Primary Evidence Review",
+      "Evidence Inventory",
+      "Integrity Proof",
+      "Storage & Timestamping",
       "Chain of Custody",
-      "Appendix A",
-      "Appendix B",
-      "Report Footer",
+      "Legal Limitations",
+      "Forensic Integrity Statement",
+      "Technical Appendix",
     ]);
-
-    expect(text).toContain("PROOVRA_REPORT_VERSION=1");
-    expect(text).toContain("PROOVRA_GENERATED_AT=2026-01-01T00:03:00.000Z");
-    expect(text).toContain("PROOVRA_BUILD=build-123");
   });
 });
