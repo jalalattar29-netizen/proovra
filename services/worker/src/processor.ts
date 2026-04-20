@@ -56,7 +56,7 @@ import {
   putObjectBuffer,
 } from "./storage.js";
 import { createHash, randomUUID } from "node:crypto";
-import { buildReportPdf } from "./pdf/report.js";
+import { buildReportPdfV2 } from "./report-v2/build-report-pdf.js";
 import {
   enqueueEvidencePurgeJob,
   enqueueReportJob as enqueueReportJobOnQueue,
@@ -217,8 +217,8 @@ type ReportAnchorSummary = {
 };
 
 type ReportBuildParams = {
-  evidence: Parameters<typeof buildReportPdf>[0]["evidence"];
-  custodyEvents: Parameters<typeof buildReportPdf>[0]["custodyEvents"];
+  evidence: Parameters<typeof buildReportPdfV2>[0]["evidence"];
+  custodyEvents: Parameters<typeof buildReportPdfV2>[0]["custodyEvents"];
   version: number;
   generatedAtUtc: string;
   buildInfo?: string | null;
@@ -2137,7 +2137,7 @@ const loadedArtifacts: LoadedEvidenceArtifact[] = [];
     externalMode: false,
   };
 
-  const reportPdf = await buildReportPdf(reportBuildParams);
+const reportPdf = await buildReportPdfV2(reportBuildParams);
     
   let verificationZip: Buffer | null = null;
 
