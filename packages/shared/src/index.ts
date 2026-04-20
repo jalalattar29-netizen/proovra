@@ -24,3 +24,22 @@ export const LegalVersionsSchema = z.object({
 export type LegalVersions = z.infer<typeof LegalVersionsSchema>;
 
 export * from "./i18n";
+export type {
+  EnqueueReportJobOptions,
+  ReportJobPayload,
+  ExistingReportJobState,
+  ReportJobEnqueueDecision,
+} from "./report-queue.js";
+export {
+  buildReportJobId,
+  buildReportJobPayload,
+  decideReportJobEnqueueAction,
+  generateReportJobName,
+  normalizeRegenerateReason,
+} from "./report-queue.js";
+export type { CustodyEventCategory } from "./custody.js";
+export {
+  classifyCustodyEventType,
+  isAccessCustodyEventType,
+  isForensicCustodyEventType,
+} from "./custody.js";

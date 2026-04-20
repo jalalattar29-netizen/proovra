@@ -128,7 +128,7 @@ export async function processOtsUpgrade(job: Job<{ evidenceId: string }>) {
           otsStatus: "PENDING",
           otsBitcoinTxid: txid,
           otsUpgradedAtUtc: upgradedAt,
-          otsFailureReason: merged || "OTS upgrade pending",
+          otsFailureReason: null,
         },
       });
 

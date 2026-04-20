@@ -14,7 +14,7 @@ import {
   buildContentCompositionSummary,
   buildPrimaryContentLabel,
   buildEvidenceDisplayDescriptor,
-  resolveEvidenceContentAccessPolicy,
+  resolveEvidenceContentAccessPolicyForSurface,
   buildEvidencePreviewPolicy,
 } from "@proovra/shared-evidence-presentation";
 import { z } from "zod";
@@ -37,7 +37,7 @@ import { enforceRateLimit } from "../services/rate-limit.js";
 import {
   appendCustodyEvent,
   evaluateCustodyChain,
-  isAccessCustodyEventType,
+  classifyCustodyEventType,
 } from "../services/custody-events.service.js";
 import {
   attestEvidenceCertification,
@@ -875,31 +875,6 @@ function mapOtsStatusLabel(status: string | null | undefined): string {
     default:
       return "OpenTimestamps not reported";
   }
-}
-
-function resolvePublicVerifyContentAccessPolicy(params?: {
-  evidenceStatus?: prismaPkg.EvidenceStatus | null;
-  lockedAt?: Date | null;
-  archivedAt?: Date | null;
-  latestReportVersion?: number | null;
-}): PublicVerifyContentAccessPolicy {
-  const configured = resolveEvidenceContentAccessPolicy(
-    process.env.PUBLIC_VERIFY_CONTENT_MODE ?? "preview_only"
-  );
-
-  if (!params) return configured;
-
-  // Conservative rule: if there is no completed report snapshot yet, do not
-  // widen access beyond metadata-only unless explicitly configured elsewhere.
-  if (!params.latestReportVersion) {
-    return {
-      mode: "metadata_only",
-      allowContentView: false,
-      allowDownload: false,
-    };
-  }
-
-  return configured;
 }
 
 function summarizePublicPayload(
@@ -2091,7 +2066,7 @@ function mapPublicCustodyEvent(ev: {
     payloadSummary: summarizePublicPayload(ev.eventType, ev.payload),
     prevEventHash: shortHash(ev.prevEventHash, 10, 8),
     eventHash: shortHash(ev.eventHash, 10, 8),
-    category: isAccessCustodyEventType(ev.eventType) ? "access" : "forensic",
+    category: classifyCustodyEventType(ev.eventType),
   };
 }
 
@@ -3478,11 +3453,9 @@ await appendCustodyEvent({
         });
 
         const authenticatedContentAccessPolicy: PublicVerifyContentAccessPolicy =
-          {
-            mode: "full_access",
-            allowContentView: true,
-            allowDownload: true,
-          };
+          resolveEvidenceContentAccessPolicyForSurface({
+            surface: "authenticated_verify",
+          });
 
         const content = await buildPublicEvidenceContent({
           accessPolicy: authenticatedContentAccessPolicy,
@@ -3644,11 +3617,10 @@ const parts = await prisma.evidencePart.findMany({
   },
 });
 
-const authenticatedContentAccessPolicy: PublicVerifyContentAccessPolicy = {
-  mode: "full_access",
-  allowContentView: true,
-  allowDownload: true,
-};
+const authenticatedContentAccessPolicy: PublicVerifyContentAccessPolicy =
+  resolveEvidenceContentAccessPolicyForSurface({
+    surface: "authenticated_verify",
+  });
 
 const content = await buildPublicEvidenceContent({
   accessPolicy: authenticatedContentAccessPolicy,
@@ -4608,11 +4580,11 @@ const originalFileName = basenameFromStorageKey(
     });
 
     const forensicCustodyEvents = allCustodyEvents.filter(
-      (ev) => !isAccessCustodyEventType(ev.eventType)
+      (ev) => classifyCustodyEventType(ev.eventType) === "forensic"
     );
 
-    const accessCustodyEvents = allCustodyEvents.filter((ev) =>
-      isAccessCustodyEventType(ev.eventType)
+    const accessCustodyEvents = allCustodyEvents.filter(
+      (ev) => classifyCustodyEventType(ev.eventType) === "access"
     );
 
     const latestReport = await prisma.report.findFirst({
@@ -4621,7 +4593,6 @@ const originalFileName = basenameFromStorageKey(
       select: {
         version: true,
         generatedAtUtc: true,
-        contentItemsSnapshot: true,
         embeddedPreviewsSnapshot: true,
       },
     });
@@ -4680,11 +4651,9 @@ if (Array.isArray(latestReport?.embeddedPreviewsSnapshot)) {
   }
 }
 
-const publicVerifyAccessPolicy = resolvePublicVerifyContentAccessPolicy({
-  evidenceStatus: evidence.status,
-  lockedAt: null,
-  archivedAt: null,
-  latestReportVersion: evidence.latestReportVersion ?? null,
+const publicVerifyAccessPolicy = resolveEvidenceContentAccessPolicyForSurface({
+  configuredMode: process.env.PUBLIC_VERIFY_CONTENT_MODE ?? "preview_only",
+  surface: "public_verify",
 });
 const content = await buildPublicEvidenceContent({
   accessPolicy: publicVerifyAccessPolicy,

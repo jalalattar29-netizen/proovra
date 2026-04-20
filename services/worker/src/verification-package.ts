@@ -1,5 +1,7 @@
 import archiver from "archiver";
+import path from "node:path";
 import { PassThrough } from "stream";
+import { isAccessCustodyEventType } from "@proovra/shared";
 
 type VerificationEvidenceFile = {
   name: string;
@@ -123,15 +125,6 @@ type CustodyEventRecord = {
   eventHash?: string | null;
 };
 
-const ACCESS_EVENT_TYPES = new Set([
-  "EVIDENCE_VIEWED",
-  "EVIDENCE_DOWNLOADED",
-  "VERIFY_VIEWED",
-  "REPORT_DOWNLOADED",
-  "VERIFICATION_PACKAGE_DOWNLOADED",
-  "TECHNICAL_VERIFICATION_CHECKED",
-]);
-
 function splitCustodyEvents(
   custody: unknown
 ): { forensic: CustodyEventRecord[]; access: CustodyEventRecord[] } {
@@ -147,7 +140,7 @@ function splitCustodyEvents(
       item && typeof item === "object" ? (item as CustodyEventRecord) : null;
     if (!event) continue;
 
-    if (ACCESS_EVENT_TYPES.has(String(event.eventType ?? "").trim())) {
+    if (isAccessCustodyEventType(event.eventType)) {
       access.push(event);
     } else {
       forensic.push(event);
@@ -168,6 +161,167 @@ function normalizeFileName(name: string, fallback: string): string {
     .slice(0, 180);
 
   return normalized || fallback;
+}
+
+function formatTimestampForFile(value: string | null | undefined): string | null {
+  if (!value || typeof value !== "string") return null;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  return date.toISOString().replace(/:\d{2}\.\d{3}Z$/, "Z").replace(/:/g, "-");
+}
+
+function mapMimeTypeToExtension(mimeType: string | null | undefined): string {
+  const normalized = typeof mimeType === "string" ? mimeType.trim().toLowerCase() : "";
+  switch (normalized) {
+    case "image/png":
+      return "png";
+    case "image/jpeg":
+    case "image/jpg":
+    case "photo":
+      return "jpg";
+    case "image/webp":
+      return "webp";
+    case "video/mp4":
+    case "video":
+      return "mp4";
+    case "video/quicktime":
+      return "mov";
+    case "audio/mpeg":
+    case "audio":
+      return "mp3";
+    case "audio/wav":
+      return "wav";
+    case "application/pdf":
+    case "document":
+    case "pdf":
+      return "pdf";
+    case "text/plain":
+      return "txt";
+    case "application/json":
+      return "json";
+    default:
+      return "bin";
+  }
+}
+
+function sanitizeFileBaseName(value: string, maxLen = 120): string {
+  const normalized = value
+    .normalize("NFKD")
+    .replace(/\p{Diacritic}/gu, "")
+    .replace(/[^a-zA-Z0-9]+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^[-\.]+|[-\.]+$/g, "")
+    .toLowerCase()
+    .slice(0, maxLen)
+    .replace(/-+/g, "-");
+
+  return normalized || "evidence";
+}
+
+function deriveEvidenceDescriptor(params: {
+  evidenceType?: string | null;
+  mimeType?: string | null;
+  captureMethod?: string | null;
+}): string {
+  const typeLabel = typeof params.evidenceType === "string" && params.evidenceType.trim()
+    ? params.evidenceType.trim().toLowerCase()
+    : params.mimeType
+      ? params.mimeType.split("/")[0]
+      : "evidence";
+
+  const methodLabel = typeof params.captureMethod === "string"
+    ? params.captureMethod.trim().toLowerCase()
+    : "captured";
+
+  if (typeLabel === "document" || typeLabel === "pdf") {
+    return `${methodLabel}-document`;
+  }
+  if (typeLabel === "photo" || typeLabel === "image") {
+    return `${methodLabel}-image`;
+  }
+  if (typeLabel === "video") {
+    return `${methodLabel}-video`;
+  }
+  if (typeLabel === "audio") {
+    return `${methodLabel}-audio`;
+  }
+
+  return `${methodLabel}-evidence`;
+}
+
+function normalizeFileNameSegments(parts: Array<string | null | undefined>): string {
+  return parts
+    .filter(
+      (part): part is string => typeof part === "string" && part.trim().length > 0
+    )
+    .map((part) => sanitizeFileBaseName(part))
+    .filter((part) => part !== "")
+    .join("-");
+}
+
+function buildEvidencePackageFileName(params: {
+  evidenceTitle?: string | null;
+  originalFileName?: string | null;
+  evidenceType?: string | null;
+  mimeType?: string | null;
+  captureMethod?: string | null;
+  capturedAtUtc?: string | null;
+  uploadedAtUtc?: string | null;
+  partIndex?: number | null;
+  totalParts: number;
+  fileOrder: number;
+}): string {
+  const extension = mapMimeTypeToExtension(params.mimeType);
+  const timestamp = formatTimestampForFile(params.capturedAtUtc ?? params.uploadedAtUtc);
+  const hasTitle = typeof params.evidenceTitle === "string" && params.evidenceTitle.trim().length > 0;
+  const hasOriginal = typeof params.originalFileName === "string" && params.originalFileName.trim().length > 0;
+
+  const originalNameBase = hasOriginal
+    ? sanitizeFileBaseName(path.basename(params.originalFileName!.trim(), path.extname(params.originalFileName!)))
+    : null;
+
+  const titleBase = hasTitle
+    ? sanitizeFileBaseName(params.evidenceTitle!.trim())
+    : null;
+
+  const descriptor = deriveEvidenceDescriptor({
+    evidenceType: params.evidenceType,
+    mimeType: params.mimeType,
+    captureMethod: params.captureMethod,
+  });
+
+  const partLabel = params.totalParts > 1 ? `part-${String(params.partIndex ?? params.fileOrder).padStart(2, "0")}` : null;
+
+  let baseName: string;
+
+  if (params.totalParts > 1) {
+    if (originalNameBase) {
+      baseName = normalizeFileNameSegments([originalNameBase, timestamp]);
+    } else if (titleBase) {
+      baseName = normalizeFileNameSegments([titleBase, partLabel, timestamp]);
+    } else {
+      baseName = normalizeFileNameSegments([descriptor, partLabel, timestamp]);
+    }
+  } else {
+    if (titleBase) {
+      baseName = normalizeFileNameSegments([titleBase, timestamp]);
+    } else if (originalNameBase) {
+      baseName = normalizeFileNameSegments([originalNameBase, timestamp]);
+    } else {
+      baseName = normalizeFileNameSegments([descriptor, timestamp]);
+    }
+  }
+
+  if (!baseName) {
+    baseName = timestamp ? `evidence-${timestamp}` : "evidence-item";
+  }
+
+  if (params.totalParts > 1) {
+    const orderPrefix = String(params.fileOrder).padStart(String(params.totalParts).length, "0");
+    baseName = `${orderPrefix}-${baseName}`;
+  }
+
+  return `${baseName}.${extension}`;
 }
 
 function normalizeAnchorMode(value: string | null | undefined): AnchorMode {
@@ -232,21 +386,22 @@ ${publicBaseLine}`;
 }
 
 function buildEvidenceManifest(
-  evidenceFiles: VerificationEvidenceFile[]
+  evidenceFiles: Array<VerificationEvidenceFile & { finalName: string }>
 ): Record<string, unknown> {
   return {
     multipart: evidenceFiles.length > 1,
     partCount: evidenceFiles.length,
     files: evidenceFiles.map((file, index) => ({
       index: index + 1,
-      name: normalizeFileName(file.name, `part-${index + 1}`),
+      name: file.finalName,
       sizeBytes: file.buffer.length,
+      mimeType: file.mimeType ?? null,
     })),
   };
 }
 
 function buildOriginalLinkage(
-  evidenceFiles: VerificationEvidenceFile[],
+  evidenceFiles: Array<VerificationEvidenceFile & { finalName: string }>,
   metadata: VerificationPackageMetadata
 ): Record<string, unknown> {
   return {
@@ -273,7 +428,7 @@ function buildOriginalLinkage(
     preservedOriginals: evidenceFiles.map((file, index) => ({
       packageIndex: index + 1,
       partIndex: file.partIndex ?? null,
-      packageName: normalizeFileName(file.name, `part-${index + 1}`),
+      packageName: file.finalName,
       originalFileName: file.originalFileName ?? null,
       mimeType: file.mimeType ?? null,
       sizeBytes: file.sizeBytes ?? file.buffer.length,
@@ -820,33 +975,52 @@ export async function createVerificationPackage(data: {
       return;
     }
 
+    const metadata = data.metadata ?? {};
+    const evidenceFilesWithFinalName = evidenceFiles.map((file, index) => {
+      const fileOrder = index + 1;
+      const totalParts = evidenceFiles.length;
+      const finalName = buildEvidencePackageFileName({
+        evidenceTitle: metadata.title ?? null,
+        originalFileName: file.originalFileName ?? file.name,
+        evidenceType: metadata.evidenceType ?? null,
+        mimeType: file.mimeType ?? null,
+        captureMethod: metadata.captureMethod ?? null,
+        capturedAtUtc: metadata.capturedAtUtc ?? null,
+        uploadedAtUtc: metadata.uploadedAtUtc ?? null,
+        partIndex: file.partIndex ?? null,
+        totalParts,
+        fileOrder,
+      });
+
+      return {
+        ...file,
+        finalName,
+      };
+    });
+
     const anchorMode = normalizeAnchorMode(data.anchorMode);
     const anchorIncluded = Boolean(data.anchor);
     const hasTimestampToken = Boolean(data.timestampToken);
-    const metadata = data.metadata ?? {};
     const certificationSummary = buildCertificationSummary({
       custodian: data.certifications?.custodian ?? null,
       qualifiedPerson: data.certifications?.qualifiedPerson ?? null,
     });
     const custodySplit = splitCustodyEvents(data.custody);
 
-    if (evidenceFiles.length === 1) {
-      const file = evidenceFiles[0];
+    if (evidenceFilesWithFinalName.length === 1) {
+      const file = evidenceFilesWithFinalName[0];
       archive.append(file.buffer, {
-        name: normalizeFileName(file.name, "evidence-file"),
+        name: file.finalName,
       });
     } else {
-      evidenceFiles.forEach((file, index) => {
+      evidenceFilesWithFinalName.forEach((file) => {
         archive.append(file.buffer, {
-          name: `evidence-parts/${String(index + 1).padStart(4, "0")}-${normalizeFileName(
-            file.name,
-            `part-${index + 1}`
-          )}`,
+          name: `evidence-parts/${file.finalName}`,
         });
       });
 
       archive.append(
-        JSON.stringify(buildEvidenceManifest(evidenceFiles), null, 2),
+        JSON.stringify(buildEvidenceManifest(evidenceFilesWithFinalName), null, 2),
         {
           name: "evidence-manifest.json",
         }
@@ -894,7 +1068,7 @@ export async function createVerificationPackage(data: {
       reportVersion: data.reportVersion,
       signingKeyId: data.signingKeyId,
       signingKeyVersion: data.signingKeyVersion,
-      evidenceFiles,
+      evidenceFiles: evidenceFilesWithFinalName,
       anchorIncluded,
       anchorMode,
       anchorProvider: data.anchorProvider,
@@ -910,7 +1084,7 @@ export async function createVerificationPackage(data: {
     archive.append(
       JSON.stringify(
         buildIntegritySummary({
-          evidenceFiles,
+          evidenceFiles: evidenceFilesWithFinalName,
           hasTimestampToken,
           anchorIncluded,
           anchorMode,
@@ -924,7 +1098,7 @@ export async function createVerificationPackage(data: {
     );
 
     archive.append(
-      JSON.stringify(buildOriginalLinkage(evidenceFiles, metadata), null, 2),
+      JSON.stringify(buildOriginalLinkage(evidenceFilesWithFinalName, metadata), null, 2),
       {
         name: "original-linkage.json",
       }
@@ -933,7 +1107,7 @@ export async function createVerificationPackage(data: {
     archive.append(
       JSON.stringify(
         buildArtifactBoundaries({
-          evidenceFiles,
+          evidenceFiles: evidenceFilesWithFinalName,
           reportIncluded: Boolean(data.reportPdf),
         }),
         null,
@@ -947,7 +1121,7 @@ export async function createVerificationPackage(data: {
     archive.append(
       JSON.stringify(
         buildCourtReadinessChecklist({
-          evidenceFiles,
+          evidenceFiles: evidenceFilesWithFinalName,
           hasTimestampToken,
           anchorIncluded,
           forensicCustodyCount: custodySplit.forensic.length,

@@ -17,7 +17,10 @@ import { createEvidenceTimestamp } from "./timestamp.service.js";
 import * as prismaPkg from "@prisma/client";
 import { enqueueGenerateReportJob } from "../queue/report-queue.js";
 import { Readable } from "stream";
-import { appendCustodyEventTx } from "./custody-events.service.js";
+import {
+  appendCustodyEvent,
+  appendCustodyEventTx,
+} from "./custody-events.service.js";
 
 type HttpError = Error & { statusCode: number };
 
@@ -848,6 +851,26 @@ export async function completeEvidence(params: {
             // ignore per-part snapshot failures
           }
         }
+
+        await appendCustodyEvent({
+          evidenceId: final.result.id,
+          eventType: prismaPkg.CustodyEventType.EVIDENCE_LOCKED,
+          atUtc: new Date(),
+          payload: {
+            storageRegion: process.env.S3_REGION?.trim() || null,
+            storageObjectLockMode: lockedMeta.objectLockMode
+              ? String(lockedMeta.objectLockMode)
+              : null,
+            storageObjectLockRetainUntilUtc:
+              lockedMeta.objectLockRetainUntilDate?.toISOString() ?? null,
+            storageObjectLockLegalHoldStatus:
+              lockedMeta.objectLockLegalHoldStatus
+                ? String(lockedMeta.objectLockLegalHoldStatus)
+                : null,
+            itemCount: final.retentionTargets.length,
+            retentionApplied: true,
+          } as prismaPkg.Prisma.InputJsonValue,
+        });
       } catch (error) {
         const reason =
           error instanceof Error ? error.message : "OBJECT_LOCK_SNAPSHOT_FAILED";

@@ -47,6 +47,12 @@ export type EvidenceContentAccessPolicy = {
   allowDownload: boolean;
 };
 
+export type EvidencePresentationSurface =
+  | "report"
+  | "public_verify"
+  | "authenticated_verify"
+  | "verification_package";
+
 export function resolveEvidenceTitle(title: string | null | undefined): string {
   const t = typeof title === "string" ? title.trim() : "";
   return t || "Digital Evidence Record";
@@ -133,7 +139,9 @@ export function getEvidencePartDisplayLabel(params: {
   if (existingName) return existingName;
 
   const ext = extensionFromMimeType(params.mimeType);
-  return `item-${params.partIndex + 1}.${ext}`;
+  return ext
+    ? `Evidence item ${params.partIndex + 1}.${ext}`
+    : `Evidence item ${params.partIndex + 1}`;
 }
 
 export function formatBytesForDisplay(
@@ -275,6 +283,32 @@ export function resolveEvidenceContentAccessPolicy(
         allowContentView: true,
         allowDownload: false,
       };
+  }
+}
+
+export function resolveEvidenceContentAccessPolicyForSurface(params: {
+  configuredMode?: string | null;
+  surface: EvidencePresentationSurface;
+}): EvidenceContentAccessPolicy {
+  const configured = resolveEvidenceContentAccessPolicy(params.configuredMode);
+
+  switch (params.surface) {
+    case "verification_package":
+      return {
+        mode: "full_access",
+        allowContentView: true,
+        allowDownload: true,
+      };
+    case "authenticated_verify":
+      return {
+        mode: "full_access",
+        allowContentView: true,
+        allowDownload: true,
+      };
+    case "report":
+    case "public_verify":
+    default:
+      return configured;
   }
 }
 

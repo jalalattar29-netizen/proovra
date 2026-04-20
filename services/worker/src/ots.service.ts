@@ -66,7 +66,7 @@ export type OtsStampResult =
       bitcoinTxid: null;
       anchoredAtUtc: null;
       upgradedAtUtc: string | null;
-      failureReason: string | null;
+      pendingDetail: string | null;
     }
   | {
       status: "ANCHORED";
@@ -80,7 +80,7 @@ export type OtsStampResult =
     }
   | {
       status: "FAILED";
-      proofBase64: null;
+      proofBase64: string | null;
       hash: string | null;
       calendar: string | null;
       bitcoinTxid: null;
@@ -125,20 +125,14 @@ function isPendingLikeUpgradeMessage(message: string): boolean {
   const m = message.toLowerCase();
 
   return (
+    m.includes("pending confirmations") ||
+    m.includes("still waiting") ||
+    m.includes("timestamp not complete") ||
+    m.includes("not yet anchored") ||
+    m.includes("waiting for") ||
     m.includes("cannot be greater than available calendar") ||
     m.includes("available calendar") ||
-    m.includes("pending confirmations") ||
-    m.includes("not enough attestations") ||
-    m.includes("still waiting") ||
-    m.includes("calendar") ||
-    m.includes("timeout") ||
-    m.includes("timed out") ||
-    m.includes("econnreset") ||
-    m.includes("enotfound") ||
-    m.includes("network") ||
-    m.includes("fetch failed") ||
-    m.includes("connection reset") ||
-    m.includes("temporary failure")
+    m.includes("calendar")
   );
 }
 
@@ -226,16 +220,16 @@ const stampArgs = [
         };
       }
 
-      return {
-        status: "PENDING",
-        proofBase64: upgradedProofBase64,
-        hash: contentHash,
-        calendar,
-        bitcoinTxid: null,
-        anchoredAtUtc: null,
-        upgradedAtUtc,
-        failureReason: "OTS proof created but not yet anchored on Bitcoin.",
-      };
+        return {
+          status: "PENDING",
+          proofBase64: upgradedProofBase64,
+          hash: contentHash,
+          calendar,
+          bitcoinTxid: null,
+          anchoredAtUtc: null,
+          upgradedAtUtc,
+          pendingDetail: "OTS proof created but not yet anchored on Bitcoin.",
+        };
     } catch (upgradeError) {
       const message = normalizeErrorMessage(upgradeError);
 
@@ -252,12 +246,12 @@ const stampArgs = [
             bitcoinTxid: null,
             anchoredAtUtc: null,
             upgradedAtUtc: null,
-            failureReason: message,
+            pendingDetail: message,
           };
         }
 
         return {
-          status: "PENDING",
+          status: "FAILED",
           proofBase64: latestProofBase64,
           hash: contentHash,
           calendar,
@@ -267,8 +261,21 @@ const stampArgs = [
           failureReason: message,
         };
       } catch {
+        if (isPendingLikeUpgradeMessage(message)) {
+          return {
+            status: "PENDING",
+            proofBase64,
+            hash: contentHash,
+            calendar,
+            bitcoinTxid: null,
+            anchoredAtUtc: null,
+            upgradedAtUtc: null,
+            pendingDetail: message,
+          };
+        }
+
         return {
-          status: "PENDING",
+          status: "FAILED",
           proofBase64,
           hash: contentHash,
           calendar,

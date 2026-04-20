@@ -29,6 +29,7 @@ import {
   type EvidenceDisplayDescriptor as ReportEvidenceDisplayDescriptor,
   type EvidencePreviewPolicy as ReportPreviewPolicy,
   type EvidenceContentAccessPolicy,
+  resolveEvidenceContentAccessPolicyForSurface,
   resolveEvidenceTitle,
   detectEvidenceAssetKind,
   isPreviewableEvidenceKind,
@@ -41,6 +42,7 @@ import {
   buildEvidenceDisplayDescriptor,
   buildEvidencePreviewPolicy,
 } from "@proovra/shared-evidence-presentation";
+import { classifyCustodyEventType } from "@proovra/shared";
 import { appendCustodyEventTx } from "./custody-events.js";
 import { appendWorkerAnalyticsEvent } from "./analytics-events.js";
 import { prisma } from "./db.js";
@@ -799,34 +801,6 @@ function buildReportReviewGuidance(params: {
   };
 }
 
-function resolveReportContentAccessPolicy(): EvidenceContentAccessPolicy {
-  const mode = (process.env.REPORT_CONTENT_ACCESS_MODE ?? "full_access")
-    .trim()
-    .toLowerCase();
-
-  if (mode === "metadata_only") {
-    return {
-      mode: "metadata_only",
-      allowContentView: false,
-      allowDownload: false,
-    };
-  }
-
-  if (mode === "preview_only") {
-    return {
-      mode: "preview_only",
-      allowContentView: true,
-      allowDownload: false,
-    };
-  }
-
-  return {
-    mode: "full_access",
-    allowContentView: true,
-    allowDownload: true,
-  };
-}
-
 function resolveEmbedPreference(
   kind: ReportEvidenceAssetKind
 ): ReportEvidenceAsset["embedPreference"] {
@@ -1423,6 +1397,8 @@ async function prepareReportArtifacts(
       verificationPackageGeneratedAtUtc: true,
       verificationPackageVersion: true,
       latestReportVersion: true,
+      reviewReadyAtUtc: true,
+      reviewerSummaryVersion: true,
       createdAt: true,
       uploadedAtUtc: true,
       signedAtUtc: true,
@@ -1810,7 +1786,12 @@ const loadedArtifacts: LoadedEvidenceArtifact[] = [];
     storageKey = evidence.storageKey ?? storageKey;
   }
 
-  const reportContentAccessPolicy = resolveReportContentAccessPolicy();
+  const reportContentAccessPolicy = resolveEvidenceContentAccessPolicyForSurface(
+    {
+      configuredMode: process.env.REPORT_CONTENT_ACCESS_MODE ?? undefined,
+      surface: "report",
+    }
+  );
 
   const previewMap = new Map<string, ExtractedPreview>();
 
@@ -1912,11 +1893,6 @@ const loadedArtifacts: LoadedEvidenceArtifact[] = [];
       ? custodyEvents[custodyEvents.length - 1]?.eventHash ?? null
       : null;
 
-  const reportGeneratedEventSequence =
-    (custodyEvents[custodyEvents.length - 1]?.sequence ?? 0) + 1;
-  const verificationPackageEventSequence = reportGeneratedEventSequence + 1;
-  const reviewReadyEventSequence = verificationPackageEventSequence + 1;
-
   const refreshReason = options?.refreshReason?.trim() || null;
 
   const anchorMode = normalizeAnchorMode(process.env.ANCHOR_MODE);
@@ -2001,38 +1977,10 @@ const loadedArtifacts: LoadedEvidenceArtifact[] = [];
       atUtc: ev.atUtc.toISOString(),
       eventType: ev.eventType,
       payloadSummary: summarizePayloadForReport(ev.eventType, ev.payload),
+      prevEventHash: ev.prevEventHash ?? null,
+      eventHash: ev.eventHash ?? null,
+      category: classifyCustodyEventType(ev.eventType),
     })),
-    {
-      sequence: reportGeneratedEventSequence,
-      atUtc: now.toISOString(),
-      eventType: "REPORT_GENERATED",
-      payloadSummary: summarizePayloadForReport("REPORT_GENERATED", {
-        phase: "report_generated",
-        reportVersion: provisionalVersion,
-        generatedAtUtc: now.toISOString(),
-        verificationStatusSnapshot: identitySnapshot.verificationStatus,
-        captureMethodSnapshot: identitySnapshot.captureMethod,
-        identityLevelSnapshot: identitySnapshot.identityLevelSnapshot,
-        ...(refreshReason ? { refreshReason } : {}),
-      }),
-    },
-    {
-      sequence: verificationPackageEventSequence,
-      atUtc: now.toISOString(),
-      eventType: "VERIFICATION_PACKAGE_GENERATED",
-      payloadSummary: summarizePayloadForReport("VERIFICATION_PACKAGE_GENERATED", {
-        version: provisionalVersion,
-        packageType: "full_evidence_package",
-      }),
-    },
-    {
-      sequence: reviewReadyEventSequence,
-      atUtc: now.toISOString(),
-      eventType: "REVIEW_READY",
-      payloadSummary: summarizePayloadForReport("REVIEW_READY", {
-        reviewerSummaryVersion: provisionalVersion,
-      }),
-    },
   ];
 
   const custodyForVerificationPackage = [
@@ -2044,43 +1992,6 @@ const loadedArtifacts: LoadedEvidenceArtifact[] = [];
       prevEventHash: ev.prevEventHash ?? null,
       eventHash: ev.eventHash ?? null,
     })),
-    {
-      sequence: reportGeneratedEventSequence,
-      atUtc: now.toISOString(),
-      eventType: "REPORT_GENERATED",
-      payload: {
-        phase: "report_generated",
-        reportVersion: provisionalVersion,
-        generatedAtUtc: now.toISOString(),
-        verificationStatusSnapshot: identitySnapshot.verificationStatus,
-        captureMethodSnapshot: identitySnapshot.captureMethod,
-        identityLevelSnapshot: identitySnapshot.identityLevelSnapshot,
-        ...(refreshReason ? { refreshReason } : {}),
-      } as Prisma.InputJsonValue,
-      prevEventHash: lastEventHash,
-      eventHash: null,
-    },
-    {
-      sequence: verificationPackageEventSequence,
-      atUtc: now.toISOString(),
-      eventType: "VERIFICATION_PACKAGE_GENERATED",
-      payload: {
-        version: provisionalVersion,
-        packageType: "full_evidence_package",
-      } as Prisma.InputJsonValue,
-      prevEventHash: null,
-      eventHash: null,
-    },
-    {
-      sequence: reviewReadyEventSequence,
-      atUtc: now.toISOString(),
-      eventType: "REVIEW_READY",
-      payload: {
-        reviewerSummaryVersion: provisionalVersion,
-      } as Prisma.InputJsonValue,
-      prevEventHash: null,
-      eventHash: null,
-    },
   ];
 
   const verificationPackageIncluded =
@@ -2089,9 +2000,10 @@ const loadedArtifacts: LoadedEvidenceArtifact[] = [];
   const reportEvidencePayload = {
     id: evidence.id,
     title: resolveEvidenceTitle(evidence.title),
-    // Report artifacts snapshot the post-generation lifecycle state as REPORTED.
-    status: EvidenceStatus.REPORTED,
-    verificationStatus: identitySnapshot.verificationStatus,
+    status: evidence.status,
+    verificationStatus:
+      evidence.verificationStatus ??
+      identitySnapshot.verificationStatus,
     captureMethod: identitySnapshot.captureMethod,
     identityLevelSnapshot: identitySnapshot.identityLevelSnapshot,
     submittedByEmail: identitySnapshot.submittedByEmail,
@@ -2112,22 +2024,17 @@ const loadedArtifacts: LoadedEvidenceArtifact[] = [];
       ? evidence.lastVerifiedAtUtc.toISOString()
       : null,
     lastVerifiedSource: evidence.lastVerifiedSource ?? null,
-    verificationPackageGeneratedAtUtc: verificationPackageIncluded
-      ? now.toISOString()
-      : evidence.verificationPackageGeneratedAtUtc
-        ? evidence.verificationPackageGeneratedAtUtc.toISOString()
-        : null,
-    verificationPackageVersion: verificationPackageIncluded
-      ? provisionalVersion
-      : evidence.verificationPackageVersion ?? null,
-    latestReportVersion: provisionalVersion,
-    reviewReadyAtUtc: now.toISOString(),
-    reviewerSummaryVersion: provisionalVersion,
+    verificationPackageGeneratedAtUtc:
+      evidence.verificationPackageGeneratedAtUtc?.toISOString() ?? null,
+    verificationPackageVersion: evidence.verificationPackageVersion ?? null,
+    latestReportVersion: evidence.latestReportVersion ?? null,
+    reviewReadyAtUtc: evidence.reviewReadyAtUtc?.toISOString() ?? null,
+    reviewerSummaryVersion: evidence.reviewerSummaryVersion ?? null,
 
     capturedAtUtc: evidence.capturedAtUtc?.toISOString() ?? null,
     uploadedAtUtc: evidence.uploadedAtUtc?.toISOString() ?? null,
     signedAtUtc: evidence.signedAtUtc?.toISOString() ?? null,
-    reportGeneratedAtUtc: now.toISOString(),
+    reportGeneratedAtUtc: evidence.reportGeneratedAtUtc?.toISOString() ?? null,
     mimeType: evidence.mimeType,
     sizeBytes: evidence.sizeBytes?.toString() ?? null,
     durationSec: evidence.durationSec?.toString() ?? null,
@@ -2200,7 +2107,9 @@ const loadedArtifacts: LoadedEvidenceArtifact[] = [];
         ? evidence.otsUpgradedAtUtc.toISOString()
         : null),
     otsFailureReason:
-      otsResult?.failureReason ?? evidence.otsFailureReason ?? null,
+      otsResult?.status === "FAILED"
+        ? otsResult.failureReason
+        : evidence.otsFailureReason ?? null,
 
     anchor: anchorSummary,
     certifications,
@@ -2214,6 +2123,7 @@ const loadedArtifacts: LoadedEvidenceArtifact[] = [];
     buildInfo: env.WORKER_BUILD_INFO ?? null,
     verifyUrl,
     downloadUrl: evidenceDetailUrl,
+    externalMode: false,
   });
 
   let verificationZip: Buffer | null = null;
@@ -2866,6 +2776,23 @@ export async function processGenerateReport(job: Job<GenerateReportJobData>) {
             } as Prisma.InputJsonValue,
           });
         });
+
+        appendWorkerAuditLog({
+          userId: evidence.ownerUserId,
+          action: "evidence.verification_package_generated",
+          category: "evidence",
+          severity: "info",
+          source: "worker_report",
+          outcome: "success",
+          resourceType: "evidence",
+          resourceId: prepared.evidenceId,
+          requestId,
+          metadata: {
+            evidenceId: prepared.evidenceId,
+            verificationPackageVersion: prepared.version,
+            effectivePlan: prepared.effectivePlan,
+          },
+        }).catch(() => null);
       } catch (verificationError) {
         captureException(verificationError, {
           requestId,
@@ -2887,6 +2814,28 @@ export async function processGenerateReport(job: Job<GenerateReportJobData>) {
           },
           "Verification package upload failed, but report was generated successfully"
         );
+
+        appendWorkerAuditLog({
+          userId: evidence.ownerUserId,
+          action: "evidence.verification_package_generation_failed",
+          category: "evidence",
+          severity: "warning",
+          source: "worker_report",
+          outcome: "failure",
+          resourceType: "evidence",
+          resourceId: prepared.evidenceId,
+          requestId,
+          metadata: {
+            evidenceId: prepared.evidenceId,
+            reportVersion: prepared.version,
+            verificationPackageVersion: prepared.version,
+            effectivePlan: prepared.effectivePlan,
+            errorMessage:
+              verificationError instanceof Error
+                ? verificationError.message
+                : "UNKNOWN_VERIFICATION_PACKAGE_ERROR",
+          },
+        }).catch(() => null);
       }
     }
 

@@ -3,6 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { signPdfIfEnabled } from "./signPdf.js";
+import { isAccessCustodyEventType } from "@proovra/shared";
 
 type PDFDoc = InstanceType<typeof PDFDocument>;
 
@@ -259,6 +260,9 @@ export type ReportCustodyEvent = {
   atUtc: string;
   eventType: string;
   payloadSummary: string;
+  prevEventHash?: string | null;
+  eventHash?: string | null;
+  category?: "forensic" | "access";
 };
 
 type ParsedFingerprintSummary = {
@@ -1159,19 +1163,12 @@ function normalizeStorageProtectionStatus(
   return "NEUTRAL";
 }
 
-const ACCESS_EVENT_TYPES = new Set([
-  "VERIFY_VIEWED",
-  "EVIDENCE_VIEWED",
-  "EVIDENCE_DOWNLOADED",
-  "REPORT_DOWNLOADED",
-  "VERIFICATION_PACKAGE_DOWNLOADED",
-]);
-
 function classifyCustodyEvent(event: ReportCustodyEvent): ClassifiedCustodyEvent {
-  const eventType = safe(event.eventType, "").toUpperCase();
   return {
     ...event,
-    category: ACCESS_EVENT_TYPES.has(eventType) ? "access" : "forensic",
+    category: isAccessCustodyEventType(event.eventType)
+      ? "access"
+      : "forensic",
   };
 }
 
@@ -2300,51 +2297,40 @@ function buildExecutiveRows(
   display: ReportEvidenceDisplayDescriptor,
   externalMode: boolean
 ): Array<[string, string]> {
-  return [
-    ["Display Title", safe(display.displayTitle)],
-    ["Display Description", safe(display.displayDescription)],
-    ["Evidence Reference", buildPublicEvidenceReference(evidence.id)],
-    [
-      "Evidence Type",
-      mapPublicEvidenceTypeLabel(evidence, contentSummary),
-    ],
-    ["Record Status", mapRecordStatusLabel(evidence.status)],
-    [
-      "Verification Status",
-      mapVerificationStatusLabel(evidence.verificationStatus),
-    ],
-    ["Capture Method", mapCaptureMethodLabel(evidence.captureMethod)],
-    ["Identity Level", mapIdentityLevelLabel(evidence.identityLevelSnapshot)],
-    [
-      "Submitted By",
-      externalMode
-        ? maskEmail(evidence.submittedByEmail)
-        : safe(evidence.submittedByEmail),
-    ],
-    ["Auth Provider", mapAuthProviderLabel(evidence.submittedByAuthProvider)],
-    ["Organization / Workspace", buildOrganizationDisplay(evidence)],
-    ["Organization Status", buildOrganizationStatus(evidence)],
-    ["Evidence Structure", structureLabel],
-    ["Item Count", String(contentSummary.itemCount)],
-    [
-      "Primary Content Kind",
-      mapEvidenceAssetKindLabel(contentSummary.primaryKind),
-    ],
-    ["MIME Type", safe(evidence.mimeType)],
-    ["Total Content Size", safe(contentSummary.totalSizeDisplay)],
-    ["Captured (UTC)", safe(evidence.capturedAtUtc)],
-    ["Uploaded (UTC)", safe(evidence.uploadedAtUtc)],
-    ["Signed (UTC)", safe(evidence.signedAtUtc)],
-    [
-      "Integrity Verified At (UTC)",
-      safe(evidence.recordedIntegrityVerifiedAtUtc),
-    ],
-    [
-      "Storage Protection",
-      mapObjectLockModePublicLabel(evidence.storageObjectLockMode),
-    ],
-    ["Retention Until (UTC)", safe(evidence.storageObjectLockRetainUntilUtc)],
-  ];
+  const rows: Array<[string, string]> = [];
+  const add = (label: string, value: string | null | undefined) => {
+    if (value === null || value === undefined || value === "") return;
+    rows.push([label, String(value)]);
+  };
+
+  add("Display Title", display.displayTitle);
+  add("Display Description", display.displayDescription);
+  add("Evidence Reference", buildPublicEvidenceReference(evidence.id));
+  add("Evidence Type", mapPublicEvidenceTypeLabel(evidence, contentSummary));
+  add("Record Status", mapRecordStatusLabel(evidence.status));
+  add("Verification Status", mapVerificationStatusLabel(evidence.verificationStatus));
+  add("Capture Method", mapCaptureMethodLabel(evidence.captureMethod));
+  add("Identity Level", mapIdentityLevelLabel(evidence.identityLevelSnapshot));
+  add(
+    "Submitted By",
+    externalMode ? maskEmail(evidence.submittedByEmail) : safe(evidence.submittedByEmail)
+  );
+  add("Auth Provider", mapAuthProviderLabel(evidence.submittedByAuthProvider));
+  add("Organization / Workspace", buildOrganizationDisplay(evidence));
+  add("Organization Status", buildOrganizationStatus(evidence));
+  add("Evidence Structure", structureLabel);
+  add("Item Count", String(contentSummary.itemCount));
+  add("Primary Content Kind", mapEvidenceAssetKindLabel(contentSummary.primaryKind));
+  add("MIME Type", safe(evidence.mimeType));
+  add("Total Content Size", safe(contentSummary.totalSizeDisplay));
+  add("Captured (UTC)", safe(evidence.capturedAtUtc));
+  add("Uploaded (UTC)", safe(evidence.uploadedAtUtc));
+  add("Signed (UTC)", safe(evidence.signedAtUtc));
+  add("Integrity Verified At (UTC)", safe(evidence.recordedIntegrityVerifiedAtUtc));
+  add("Storage Protection", mapObjectLockModePublicLabel(evidence.storageObjectLockMode));
+  add("Retention Until (UTC)", safe(evidence.storageObjectLockRetainUntilUtc));
+
+  return rows;
 }
 
 function buildVerificationSummaryRows(
@@ -2354,58 +2340,39 @@ function buildVerificationSummaryRows(
   contentSummary: ReportEvidenceContentSummary,
   externalMode: boolean
 ): Array<[string, string]> {
-  const rows: Array<[string, string]> = [
-    [
-      "Display Title",
-      safe(
-        evidence.display?.displayTitle ??
-          evidence.displayTitle ??
-          evidence.title,
-        "Digital Evidence Record"
-      ),
-    ],
-    ["Evidence Reference", buildPublicEvidenceReference(evidence.id)],
-    ["Evidence Type", mapPublicEvidenceTypeLabel(evidence, contentSummary)],
-    ["Evidence Structure", structureLabel],
-    ["Previewable Items", String(contentSummary.previewableItemCount)],
-    ["Downloadable Items", String(contentSummary.downloadableItemCount)],
-    ["MIME Type", safe(evidence.mimeType)],
-    ["File Size", formatBytesHuman(evidence.sizeBytes)],
-    [
-      "Duration",
-      evidence.durationSec ? `${evidence.durationSec} sec` : "N/A",
-    ],
-    ["Latest Report Version", String(evidence.latestReportVersion ?? "N/A")],
-    ["Report Generated At (UTC)", safe(evidence.reportGeneratedAtUtc)],
-    [
-      "Reviewer Summary Version",
-      String(evidence.reviewerSummaryVersion ?? "N/A"),
-    ],
-    ["Last Verified At (UTC)", safe(evidence.lastVerifiedAtUtc)],
-    [
-      "Last Verified Source",
-      mapVerificationSourceLabel(evidence.lastVerifiedSource),
-    ],
-    [
-      "Storage Lock Mode",
-      mapObjectLockModePublicLabel(evidence.storageObjectLockMode),
-    ],
-    ["Retention Until (UTC)", safe(evidence.storageObjectLockRetainUntilUtc)],
-    ["Review Ready At (UTC)", safe(evidence.reviewReadyAtUtc)],
-    ["Forensic Custody Events", String(custody.forensic.length)],
-    ["Access Activity Events", String(custody.access.length)],
-    ["Public Verification Page", "See QR / verification link section"],
-  ];
+  const rows: Array<[string, string]> = [];
+  const add = (label: string, value: string | null | undefined) => {
+    if (value === null || value === undefined || value === "") return;
+    rows.push([label, String(value)]);
+  };
+
+  add(
+    "Display Title",
+    safe(evidence.display?.displayTitle ?? evidence.displayTitle ?? evidence.title, "Digital Evidence Record")
+  );
+  add("Evidence Reference", buildPublicEvidenceReference(evidence.id));
+  add("Evidence Type", mapPublicEvidenceTypeLabel(evidence, contentSummary));
+  add("Evidence Structure", structureLabel);
+  add("Previewable Items", String(contentSummary.previewableItemCount));
+  add("Downloadable Items", String(contentSummary.downloadableItemCount));
+  add("MIME Type", safe(evidence.mimeType));
+  add("File Size", formatBytesHuman(evidence.sizeBytes));
+  add("Duration", evidence.durationSec ? `${evidence.durationSec} sec` : null);
+  add("Latest Report Version", evidence.latestReportVersion ? String(evidence.latestReportVersion) : null);
+  add("Report Generated At (UTC)", safe(evidence.reportGeneratedAtUtc));
+  add("Reviewer Summary Version", evidence.reviewerSummaryVersion ? String(evidence.reviewerSummaryVersion) : null);
+  add("Last Verified At (UTC)", safe(evidence.lastVerifiedAtUtc));
+  add("Last Verified Source", mapVerificationSourceLabel(evidence.lastVerifiedSource));
+  add("Storage Lock Mode", mapObjectLockModePublicLabel(evidence.storageObjectLockMode));
+  add("Retention Until (UTC)", safe(evidence.storageObjectLockRetainUntilUtc));
+  add("Review Ready At (UTC)", safe(evidence.reviewReadyAtUtc));
+  add("Forensic Custody Events", String(custody.forensic.length));
+  add("Access Activity Events", String(custody.access.length));
+  add("Public Verification Page", "See QR / verification link section");
 
   if (!externalMode) {
-    rows.splice(11, 0, [
-      "Verification Package Version",
-      String(evidence.verificationPackageVersion ?? "N/A"),
-    ]);
-    rows.splice(12, 0, [
-      "Verification Package Generated At (UTC)",
-      safe(evidence.verificationPackageGeneratedAtUtc),
-    ]);
+    add("Verification Package Version", evidence.verificationPackageVersion ? String(evidence.verificationPackageVersion) : null);
+    add("Verification Package Generated At (UTC)", safe(evidence.verificationPackageGeneratedAtUtc));
   }
 
   return rows;
@@ -2473,87 +2440,92 @@ function buildEvidenceContentSummaryRows(
   primaryItem: ReportEvidenceAsset | null,
   evidence?: ReportEvidence
 ): Array<[string, string]> {
-  return [
-    [
-      "Structure",
-      contentSummary.structure === "multipart"
-        ? "Multipart evidence package"
-        : "Single evidence item",
-    ],
-    ["Total Items", String(contentSummary.itemCount)],
-    ["Previewable Items", String(contentSummary.previewableItemCount)],
-    ["Downloadable Items", String(contentSummary.downloadableItemCount)],
-    ["Images", String(contentSummary.imageCount)],
-    ["Videos", String(contentSummary.videoCount)],
-    ["Audio", String(contentSummary.audioCount)],
-    ["PDF", String(contentSummary.pdfCount)],
-    ["Text", String(contentSummary.textCount)],
-    ["Other", String(contentSummary.otherCount)],
-    [
-      "Primary Content Kind",
-      mapEvidenceAssetKindLabel(contentSummary.primaryKind),
-    ],
-    [
-      "Primary Content Label",
-      safe(
-        evidence?.primaryContentLabel ??
-          mapEvidenceAssetKindLabel(contentSummary.primaryKind)
-      ),
-    ],
-    ["Primary MIME Type", safe(contentSummary.primaryMimeType)],
-    ["Total Size", safe(contentSummary.totalSizeDisplay)],
-    ["Composition Summary", safe(evidence?.contentCompositionSummary)],
-    ["Content Access Mode", safe(evidence?.contentAccessPolicy?.mode)],
-    [
-      "Content View Allowed",
-      safeBooleanLabel(
-        evidence?.contentAccessPolicy?.allowContentView,
-        "Yes",
-        "No",
-        "Not recorded"
-      ),
-    ],
-    [
-      "Download Allowed",
-      safeBooleanLabel(
-        evidence?.contentAccessPolicy?.allowDownload,
-        "Yes",
-        "No",
-        "Not recorded"
-      ),
-    ],
-    [
-      "Primary Item Label",
-      primaryItem ? safe(primaryItem.label) : "Not recorded",
-    ],
-    ["Primary Item Size", primaryItem?.displaySizeLabel ?? "N/A"],
-    [
-      "Primary Item Hash",
-      primaryItem?.sha256 ? shortHash(primaryItem.sha256) : "N/A",
-    ],
-  ];
+  const rows: Array<[string, string]> = [];
+  const add = (label: string, value: string | null | undefined) => {
+    if (value === null || value === undefined || value === "") return;
+    rows.push([label, String(value)]);
+  };
+
+  add(
+    "Structure",
+    contentSummary.structure === "multipart"
+      ? "Multipart evidence package"
+      : "Single evidence item"
+  );
+  add("Total Items", String(contentSummary.itemCount));
+  add("Previewable Items", String(contentSummary.previewableItemCount));
+  add("Downloadable Items", String(contentSummary.downloadableItemCount));
+  add("Images", contentSummary.imageCount > 0 ? String(contentSummary.imageCount) : null);
+  add("Videos", contentSummary.videoCount > 0 ? String(contentSummary.videoCount) : null);
+  add("Audio", contentSummary.audioCount > 0 ? String(contentSummary.audioCount) : null);
+  add("PDF", contentSummary.pdfCount > 0 ? String(contentSummary.pdfCount) : null);
+  add("Text", contentSummary.textCount > 0 ? String(contentSummary.textCount) : null);
+  add("Other", contentSummary.otherCount > 0 ? String(contentSummary.otherCount) : null);
+  add("Primary Content Kind", mapEvidenceAssetKindLabel(contentSummary.primaryKind));
+  add(
+    "Primary Content Label",
+    safe(evidence?.primaryContentLabel ?? mapEvidenceAssetKindLabel(contentSummary.primaryKind))
+  );
+  add("Primary MIME Type", safe(contentSummary.primaryMimeType));
+  add("Total Size", safe(contentSummary.totalSizeDisplay));
+  add("Composition Summary", safe(evidence?.contentCompositionSummary));
+  add("Content Access Mode", safe(evidence?.contentAccessPolicy?.mode));
+  add(
+    "Content View Allowed",
+    evidence?.contentAccessPolicy
+      ? safeBooleanLabel(evidence.contentAccessPolicy.allowContentView, "Yes", "No", "Not recorded")
+      : null
+  );
+  add(
+    "Download Allowed",
+    evidence?.contentAccessPolicy
+      ? safeBooleanLabel(evidence.contentAccessPolicy.allowDownload, "Yes", "No", "Not recorded")
+      : null
+  );
+  add("Primary Item Label", primaryItem ? safe(primaryItem.label) : null);
+  add("Primary Item Size", primaryItem?.displaySizeLabel);
+  add("Primary Item Hash", primaryItem?.sha256 ? shortHash(primaryItem.sha256) : null);
+
+  return rows;
 }
 
-function buildEvidenceItemsTableRows(
-  items: ReportEvidenceAsset[]
-): string[][] {
-  return items.map((item) => [
-    String(item.index + 1),
-    item.isPrimary ? `${safe(item.label)} (primary)` : safe(item.label),
-    mapEvidenceAssetKindLabel(item.kind),
-    [
-      item.mimeType ? `MIME: ${item.mimeType}` : null,
-      item.displaySizeLabel ? `Size: ${item.displaySizeLabel}` : null,
-      item.previewable ? "Previewable" : "Non-previewable",
-      item.downloadable ? "Downloadable" : null,
-      item.durationMs != null ? `Duration: ${item.durationMs} ms` : null,
-      item.previewRole ? `Role: ${item.previewRole}` : null,
-      item.embedPreference ? `Preview: ${item.embedPreference}` : null,
-      item.sha256 ? `SHA-256: ${shortHash(item.sha256)}` : null,
+function buildEvidenceInventoryRows(items: ReportEvidenceAsset[]): string[][] {
+  return items.map((item) => {
+    const roleParts = [
+      item.artifactRole === "primary_evidence"
+        ? "Primary evidence"
+        : item.artifactRole === "supporting_evidence"
+          ? "Supporting evidence"
+          : item.artifactRole === "attachment"
+            ? "Attachment"
+            : null,
+      item.previewRole === "primary_preview"
+        ? "Primary preview"
+        : item.previewRole === "secondary_preview"
+          ? "Secondary preview"
+          : item.previewRole === "download_only"
+            ? "Download-only"
+            : item.previewRole === "metadata_only"
+              ? "Metadata-only"
+              : null,
     ]
       .filter(Boolean)
-      .join(" • "),
-  ]);
+      .join("\n");
+
+    return [
+      String(item.index + 1),
+      item.isPrimary ? `${safe(item.label)} (primary)` : safe(item.label),
+      mapEvidenceAssetKindLabel(item.kind),
+      [
+        item.mimeType ? `MIME: ${item.mimeType}` : null,
+        item.displaySizeLabel ? `Size: ${item.displaySizeLabel}` : null,
+      ]
+        .filter(Boolean)
+        .join("\n"),
+      item.sha256 ? shortHash(item.sha256) : "N/A",
+      roleParts || "Not recorded",
+    ];
+  });
 }
 
 function tryDecodeDataUrlToBuffer(dataUrl: string | null | undefined): Buffer | null {
@@ -2710,7 +2682,7 @@ function drawEvidenceGallery(
   const x = doc.page.margins.left;
   const totalW = doc.page.width - doc.page.margins.left - doc.page.margins.right;
   const gap = 12;
-  const columns = 3;
+  const columns = Math.min(3, items.length);
   const cardW = (totalW - gap * (columns - 1)) / columns;
   const thumbH = 96;
   const cardPad = 10;
@@ -3082,7 +3054,7 @@ export async function buildReportPdf(params: {
     status: finalDisplayStatus,
   };
 
-  const externalMode = params.externalMode !== false;
+  const externalMode = params.externalMode === true;
   const includeTechnicalQr =
     !externalMode &&
     (Boolean(params.downloadUrl) ||
@@ -3285,32 +3257,45 @@ export async function buildReportPdf(params: {
             "The report payload did not include explicit item-level inventory rows. Reviewers should rely on the canonical fingerprint, MIME type, and evidence structure fields.",
           tone: "warning",
         });
-      } else if (contentItems.length === 1) {
+      } else {
+        drawCallout(doc, {
+          title: "Structured evidence inventory",
+          body:
+            contentItems.length > 1
+              ? "This report includes both a compact review gallery and a structured item-level inventory for multipart evidence. Reviewers can use the gallery for rapid orientation and the table below for precise item details."
+              : "This report includes a structured item-level inventory for the recorded evidence item.",
+          tone: "neutral",
+        });
+
         const innerW =
           doc.page.width - doc.page.margins.left - doc.page.margins.right;
         const colWidths = [
-          Math.max(34, innerW * 0.07),
-          Math.max(150, innerW * 0.30),
-          Math.max(86, innerW * 0.16),
+          Math.max(32, innerW * 0.06),
+          Math.max(120, innerW * 0.24),
+          Math.max(84, innerW * 0.14),
+          Math.max(96, innerW * 0.18),
+          Math.max(82, innerW * 0.12),
           innerW -
-            (Math.max(34, innerW * 0.07) +
-              Math.max(150, innerW * 0.30) +
-              Math.max(86, innerW * 0.16)),
+            (Math.max(32, innerW * 0.06) +
+              Math.max(120, innerW * 0.24) +
+              Math.max(84, innerW * 0.14) +
+              Math.max(96, innerW * 0.18) +
+              Math.max(82, innerW * 0.12)),
         ];
 
         drawTable(
           doc,
-          ["#", "Item", "Kind", "Details"],
-          buildEvidenceItemsTableRows(contentItems),
+          [
+            "#",
+            "Item",
+            "Kind",
+            "MIME / Size",
+            "SHA-256",
+            "Role / Preview",
+          ],
+          buildEvidenceInventoryRows(contentItems),
           colWidths
         );
-      } else {
-        drawCallout(doc, {
-          title: "Item-level inventory note",
-          body:
-            "Detailed item-by-item technical rows are intentionally omitted from the main report when a multipart gallery is already present. Use the verification workspace or technical package if a reviewer needs full item-level inspection beyond this compact dossier.",
-          tone: "neutral",
-        });
       }
     },
     { minSpace: 150 }
@@ -3685,12 +3670,23 @@ export async function buildReportPdf(params: {
         ];
 
         const headers = ["Seq", "At (UTC)", "Event", "Summary"];
-        const rows = custody.forensic.map((ev) => [
-          String(ev.sequence),
-          safe(ev.atUtc),
-          mapCustodyEventLabel(ev.eventType),
-          safe(ev.payloadSummary),
-        ]);
+        const rows = custody.forensic.map((ev) => {
+          const summaryLines = [safe(ev.payloadSummary)];
+
+          if (ev.prevEventHash) {
+            summaryLines.push(`Previous hash: ${ev.prevEventHash}`);
+          }
+          if (ev.eventHash) {
+            summaryLines.push(`Event hash: ${ev.eventHash}`);
+          }
+
+          return [
+            String(ev.sequence),
+            safe(ev.atUtc),
+            mapCustodyEventLabel(ev.eventType),
+            summaryLines.filter(Boolean).join("\n"),
+          ];
+        });
 
         drawTable(doc, headers, rows, colWidths);
       }
@@ -3718,12 +3714,23 @@ export async function buildReportPdf(params: {
         ];
 
         const headers = ["Seq", "At (UTC)", "Event", "Summary"];
-        const rows = custody.access.map((ev) => [
-          String(ev.sequence),
-          safe(ev.atUtc),
-          mapCustodyEventLabel(ev.eventType),
-          safe(ev.payloadSummary),
-        ]);
+        const rows = custody.access.map((ev) => {
+          const summaryLines = [safe(ev.payloadSummary)];
+
+          if (ev.prevEventHash) {
+            summaryLines.push(`Previous hash: ${ev.prevEventHash}`);
+          }
+          if (ev.eventHash) {
+            summaryLines.push(`Event hash: ${ev.eventHash}`);
+          }
+
+          return [
+            String(ev.sequence),
+            safe(ev.atUtc),
+            mapCustodyEventLabel(ev.eventType),
+            summaryLines.filter(Boolean).join("\n"),
+          ];
+        });
 
         drawTable(doc, headers, rows, colWidths);
       },
@@ -3880,7 +3887,12 @@ export async function buildReportPdf(params: {
           ["OTS Calendar", safe(params.evidence.otsCalendar)],
           ["OTS Anchored At (UTC)", safe(params.evidence.otsAnchoredAtUtc)],
           ["OTS Upgraded At (UTC)", safe(params.evidence.otsUpgradedAtUtc)],
-          ["OTS Bitcoin TxID", shortHash(params.evidence.otsBitcoinTxid)],
+          [
+            "OTS Bitcoin TxID",
+            !externalMode
+              ? safe(params.evidence.otsBitcoinTxid)
+              : shortHash(params.evidence.otsBitcoinTxid),
+          ],
         ]);
 
         if (!externalMode && params.evidence.otsHash) {
@@ -3934,8 +3946,14 @@ export async function buildReportPdf(params: {
             "Anchor Public URL",
             summarizeText(safe(anchorSummary.publicUrl), 84),
           ],
-          ["Anchor Receipt ID", shortHash(anchorSummary.receiptId)],
-          ["Anchor Transaction ID", shortHash(anchorSummary.transactionId)],
+          [
+            "Anchor Receipt ID",
+            !externalMode ? safe(anchorSummary.receiptId) : shortHash(anchorSummary.receiptId),
+          ],
+          [
+            "Anchor Transaction ID",
+            !externalMode ? safe(anchorSummary.transactionId) : shortHash(anchorSummary.transactionId),
+          ],
         ]);
 
         if (!externalMode) {

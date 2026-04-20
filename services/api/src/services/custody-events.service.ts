@@ -2,6 +2,11 @@ import * as prismaPkg from "@prisma/client";
 import type { Prisma } from "@prisma/client";
 import { prisma } from "../db.js";
 import { sha256Hex } from "../crypto.js";
+import {
+  classifyCustodyEventType,
+  isAccessCustodyEventType,
+} from "@proovra/shared";
+export { classifyCustodyEventType, isAccessCustodyEventType } from "@proovra/shared";
 
 type TxClient = Prisma.TransactionClient;
 
@@ -23,20 +28,6 @@ type CustodyChainRecord = {
   eventHash: string | null;
 };
 
-export const ACCESS_CUSTODY_EVENT_TYPES = new Set<prismaPkg.CustodyEventType>([
-  prismaPkg.CustodyEventType.VERIFY_VIEWED,
-  prismaPkg.CustodyEventType.EVIDENCE_VIEWED,
-  prismaPkg.CustodyEventType.EVIDENCE_DOWNLOADED,
-  prismaPkg.CustodyEventType.REPORT_DOWNLOADED,
-  prismaPkg.CustodyEventType.VERIFICATION_PACKAGE_DOWNLOADED,
-  prismaPkg.CustodyEventType.TECHNICAL_VERIFICATION_CHECKED,
-]);
-
-export function isAccessCustodyEventType(eventType: string): boolean {
-  return ACCESS_CUSTODY_EVENT_TYPES.has(
-    eventType as prismaPkg.CustodyEventType
-  );
-}
 
 export function isForensicCustodyEventType(eventType: string): boolean {
   return !isAccessCustodyEventType(eventType);

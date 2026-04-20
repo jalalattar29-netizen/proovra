@@ -319,12 +319,12 @@ async function buildReviewerRepresentationCard(params: {
           ? `<rect x="36" y="188" width="1128" height="396" rx="24" fill="#FFFFFF" stroke="#D0D5DD"/>
              ${lineNodes}`
           : `<rect x="36" y="204" width="1128" height="188" rx="24" fill="#FFFFFF" stroke="#D0D5DD"/>
-             <text x="56" y="258" font-size="22" font-weight="700" fill="#1D2939">Reviewer representation</text>
+             <text x="56" y="258" font-size="22" font-weight="700" fill="#1D2939">Evidence snapshot</text>
              <text x="56" y="292" font-size="18" fill="#475467">This embedded card summarizes the preserved evidence item for report review.</text>
              <text x="56" y="326" font-size="18" fill="#475467">Original content remains separately preserved and should be reviewed through controlled verification when needed.</text>`
       }
       <rect x="36" y="624" width="1128" height="60" rx="18" fill="#0F172A"/>
-      <text x="60" y="661" font-size="18" fill="#FFFFFF">Generated reviewer representation for report inclusion. Original evidence remains preserved separately.</text>
+      <text x="60" y="661" font-size="18" fill="#FFFFFF">Generated evidence snapshot for report inclusion. Original evidence remains preserved separately.</text>
     </svg>
   `;
 
@@ -382,9 +382,9 @@ async function extractPdfPreview(
 
     const reviewCard = await buildReviewerRepresentationCard({
       eyebrow: "PDF document",
-      title: "Document review snapshot",
+      title: "Document snapshot",
       subtitle:
-        "Reviewer-facing representation generated from the preserved PDF evidence item.",
+        "Structured representation generated from the preserved PDF evidence item.",
       excerpt: textExcerpt || "No extractable PDF text was available for this document.",
       accent: "#7C3AED",
     });
@@ -415,7 +415,7 @@ async function extractTextPreview(
       eyebrow: "Text evidence",
       title: "Text evidence excerpt",
       subtitle:
-        "Reviewer-facing representation generated from the preserved text evidence item.",
+        "Structured representation generated from the preserved text evidence item.",
       excerpt: excerpt || "No readable text excerpt was available for this evidence item.",
       accent: "#0F766E",
     });
@@ -448,16 +448,16 @@ async function extractMediaPlaceholder(
     eyebrow: type === "video" ? "Video evidence" : "Audio evidence",
     title:
       type === "video"
-        ? "Video review representation"
-        : "Audio review representation",
+        ? "Video snapshot"
+        : "Audio snapshot",
     subtitle:
       type === "video"
-        ? "Controlled playback should be performed through the verification interface or protected workspace."
-        : "Controlled listening should be performed through the verification interface or protected workspace.",
+        ? "Structured representation generated from the preserved video evidence item. Playback is handled through the verification workflow."
+        : "Structured representation generated from the preserved audio evidence item. Playback is handled through the verification workflow.",
     excerpt:
       type === "video"
-        ? "This report includes a reviewer-facing representation for the preserved video item. Original video playback is intentionally handled through controlled verification instead of direct PDF embedding."
-        : "This report includes a reviewer-facing representation for the preserved audio item. Original audio playback is intentionally handled through controlled verification instead of direct PDF embedding.",
+        ? "This report includes a snapshot of the preserved video item. Original video playback is intentionally handled through controlled verification instead of direct PDF embedding."
+        : "This report includes a snapshot of the preserved audio item. Original audio playback is intentionally handled through controlled verification instead of direct PDF embedding.",
     accent: type === "video" ? "#1D4ED8" : "#C2410C",
   });
 
@@ -501,9 +501,9 @@ export async function extractPreviewForAsset(
         return {
           previewDataUrl: await buildReviewerRepresentationCard({
             eyebrow: "Evidence file",
-            title: "Structured evidence representation",
+            title: "Structured evidence summary",
             subtitle:
-              "Reviewer-facing representation generated for a preserved evidence item that is not previewed inline as native media.",
+              "Structured representation generated for a preserved evidence item that is not previewed inline as native media.",
             excerpt: mimeType
               ? `Recorded MIME type: ${mimeType}`
               : "No MIME type was recorded for this evidence item.",
