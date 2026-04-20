@@ -68,9 +68,6 @@ RUN apk add --no-cache \
     fontconfig \
     ttf-freefont
 
-RUN ln -sf /usr/bin/chromium /usr/bin/chromium-browser || true
-RUN ln -sf /usr/bin/chromium-browser /usr/bin/chrome || true
-
 RUN python3 -m ensurepip || true
 RUN python3 -m venv /opt/ots-venv
 RUN /opt/ots-venv/bin/pip install --upgrade pip setuptools wheel
@@ -78,7 +75,7 @@ RUN /opt/ots-venv/bin/pip install --no-cache-dir opentimestamps-client
 
 ENV PATH="/opt/ots-venv/bin:$PATH"
 ENV NODE_ENV=production
-ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser
+ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
 ENV PUPPETEER_SKIP_DOWNLOAD=true
 
 RUN addgroup -S app && adduser -S app -G app

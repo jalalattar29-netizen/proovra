@@ -1,9 +1,41 @@
+import fs from "node:fs";
 import puppeteer from "puppeteer";
 
+function resolveBrowserExecutablePath(): string | undefined {
+  const candidates = [
+    process.env.PUPPETEER_EXECUTABLE_PATH?.trim() || "",
+    "/usr/bin/chromium",
+    "/usr/bin/chromium-browser",
+    "/usr/bin/chrome",
+    "/usr/lib/chromium/chromium",
+  ].filter(Boolean);
+
+  for (const candidate of candidates) {
+    try {
+      const real = fs.realpathSync(candidate);
+      if (fs.existsSync(real)) {
+        return candidate;
+      }
+    } catch {
+      // ignore broken symlink / missing path / loop
+    }
+  }
+
+  return undefined;
+}
+
 export async function renderPdfFromHtml(html: string): Promise<Buffer> {
+  const executablePath = resolveBrowserExecutablePath();
+
+  if (!executablePath) {
+    throw new Error(
+      "No usable Chromium executable was found for report-v2 PDF rendering"
+    );
+  }
+
   const browser = await puppeteer.launch({
     headless: true,
-    executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined,
+    executablePath,
     args: [
       "--no-sandbox",
       "--disable-setuid-sandbox",
