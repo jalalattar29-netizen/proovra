@@ -36,7 +36,12 @@ export function renderIntegrityProofSection(vm: ReportViewModel): string {
 
       ${
         vm.meta.hasCoreCrypto
-          ? ""
+          ? renderCallout({
+              title: "Core cryptographic materials present",
+              body:
+                "Core file hash, fingerprint hash, signature material, and signing-key reference are present in the report model.",
+              tone: "success",
+            })
           : renderCallout({
               title: "Incomplete technical materials",
               body:
@@ -44,6 +49,7 @@ export function renderIntegrityProofSection(vm: ReportViewModel): string {
               tone: "danger",
             })
       }
-    `
+    `,
+    { pageBreakBefore: true }
   );
 }

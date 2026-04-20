@@ -52,6 +52,7 @@ export function renderForensicIntegrityStatementSection(
           vm.forensicIntegrityStatement.verificationLinkText
         )}</div>
       </div>
-    `
+    `,
+    { pageBreakBefore: true }
   );
 }

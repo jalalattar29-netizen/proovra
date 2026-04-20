@@ -76,6 +76,101 @@ function getEvidenceKind(
   return "other";
 }
 
+function getMimeExtension(mimeType: string | null | undefined): string {
+  const mime = (mimeType ?? "").toLowerCase();
+
+  switch (mime) {
+    case "image/jpeg":
+      return ".jpg";
+    case "image/png":
+      return ".png";
+    case "image/webp":
+      return ".webp";
+    case "image/heic":
+      return ".heic";
+    case "image/heif":
+      return ".heif";
+    case "video/mp4":
+      return ".mp4";
+    case "video/webm":
+      return ".webm";
+    case "video/quicktime":
+      return ".mov";
+    case "audio/mpeg":
+      return ".mp3";
+    case "audio/wav":
+      return ".wav";
+    case "audio/webm":
+      return ".webm";
+    case "application/pdf":
+      return ".pdf";
+    case "text/plain":
+      return ".txt";
+    case "application/json":
+      return ".json";
+    default:
+      return "";
+  }
+}
+
+function sanitizePossibleFileName(value: string | null | undefined): string | null {
+  const raw = (value ?? "").trim();
+  if (!raw) return null;
+
+  const slashNormalized = raw.replace(/\\/g, "/");
+  const last = slashNormalized.split("/").pop()?.trim() ?? "";
+  if (!last) return null;
+
+  if (last === "." || last === "..") return null;
+  return last;
+}
+
+function formatCaptureTimestampForFileName(value: string | null | undefined): string {
+  const date = value ? new Date(value) : null;
+  if (!date || Number.isNaN(date.getTime())) {
+    return "unknown-time";
+  }
+
+  const yyyy = date.getUTCFullYear();
+  const mm = String(date.getUTCMonth() + 1).padStart(2, "0");
+  const dd = String(date.getUTCDate()).padStart(2, "0");
+  const hh = String(date.getUTCHours()).padStart(2, "0");
+  const mi = String(date.getUTCMinutes()).padStart(2, "0");
+  const ss = String(date.getUTCSeconds()).padStart(2, "0");
+  const ms = String(date.getUTCMilliseconds()).padStart(3, "0");
+
+  return `${yyyy}-${mm}-${dd}_${hh}-${mi}-${ss}.${ms}Z`;
+}
+
+function buildGeneratedCaptureFileName(params: {
+  mimeType?: string | null;
+  recordedAt?: string | null;
+  itemIndex?: number | null;
+  isMultipart?: boolean;
+}): string {
+  const kind = getEvidenceKind(params.mimeType ?? null);
+  const ext = getMimeExtension(params.mimeType ?? null);
+  const ts = formatCaptureTimestampForFileName(params.recordedAt ?? null);
+
+  const prefix =
+    kind === "image"
+      ? "PROOVRA-CAPTURE"
+      : kind === "video"
+        ? "PROOVRA-VIDEO-CAPTURE"
+        : kind === "audio"
+          ? "PROOVRA-AUDIO-CAPTURE"
+          : kind === "pdf"
+            ? "PROOVRA-DOCUMENT-CAPTURE"
+            : "PROOVRA-EVIDENCE";
+
+  const itemSuffix =
+    params.isMultipart && typeof params.itemIndex === "number"
+      ? `-ITEM-${params.itemIndex + 1}`
+      : "";
+
+  return `${prefix}-${ts}${itemSuffix}${ext}`;
+}
+
 function getEvidenceTypeLabel(type: string | null | undefined): string {
   const normalized = (type ?? "").trim().toUpperCase();
 
@@ -157,7 +252,13 @@ type EvidencePart = {
   durationMs?: number | null;
   publicUrl?: string | null;
   url?: string | null;
+  previewUrl?: string | null;
   isPrimary?: boolean;
+  originalFileName?: string | null;
+  fileName?: string | null;
+  displayName?: string | null;
+  capturedAt?: string | null;
+  createdAt?: string | null;
 };
 
 type PartsResponse = {
@@ -225,33 +326,25 @@ type WorkspaceCapabilitySnapshot = {
   overSeatLimit?: boolean | null;
 };
 
-function getPartDisplayName(part: EvidencePart): string {
-  const key = part.storageKey ?? "";
-  const rawName = key.split("/").pop()?.trim();
+function getPartDisplayName(
+  part: EvidencePart,
+  fallbackRecordedAt?: string | null,
+  isMultipart = false
+): string {
+  const preferred =
+    sanitizePossibleFileName(part.originalFileName) ||
+    sanitizePossibleFileName(part.displayName) ||
+    sanitizePossibleFileName(part.fileName) ||
+    sanitizePossibleFileName(part.storageKey);
 
-  if (rawName) return rawName;
+  if (preferred) return preferred;
 
-  const mime = (part.mimeType ?? "").toLowerCase();
-  const ext =
-    mime === "image/jpeg"
-      ? ".jpg"
-      : mime === "image/png"
-        ? ".png"
-        : mime === "image/webp"
-          ? ".webp"
-          : mime === "video/mp4"
-            ? ".mp4"
-            : mime === "video/webm"
-              ? ".webm"
-              : mime === "audio/mpeg"
-                ? ".mp3"
-                : mime === "audio/wav"
-                  ? ".wav"
-                  : mime === "application/pdf"
-                    ? ".pdf"
-                    : "";
-
-  return `item-${part.partIndex + 1}${ext}`;
+  return buildGeneratedCaptureFileName({
+    mimeType: part.mimeType ?? null,
+    recordedAt: part.capturedAt ?? part.createdAt ?? fallbackRecordedAt ?? null,
+    itemIndex: typeof part.partIndex === "number" ? part.partIndex : null,
+    isMultipart,
+  });
 }
 
 function resolveDisplayTitle(evidence: EvidenceRecord | undefined): string {
@@ -427,7 +520,7 @@ export default function EvidenceDetailPage() {
   const [personalWorkspace, setPersonalWorkspace] =
     useState<PersonalWorkspaceSummary | null>(null);
   const [teamWorkspaces, setTeamWorkspaces] = useState<TeamWorkspaceSummary[]>([]);
-  const [ , setBillingOverview] =
+  const [, setBillingOverview] =
     useState<BillingOverviewResponse | null>(null);
 
   const [originalPreviewUrl, setOriginalPreviewUrl] = useState<string | null>(null);
@@ -439,7 +532,16 @@ export default function EvidenceDetailPage() {
   const [parts, setParts] = useState<EvidencePart[]>([]);
   const [verificationPackageAvailable, setVerificationPackageAvailable] = useState(false);
 
-  const isMultipart = parts.length > 1;
+  const sortedParts = useMemo(
+    () => [...parts].sort((a, b) => a.partIndex - b.partIndex),
+    [parts]
+  );
+
+  const isMultipart = useMemo(
+    () => sortedParts.length > 1 || itemCount > 1,
+    [sortedParts.length, itemCount]
+  );
+
   const hasCase = Boolean(caseId);
   const isLocked = Boolean(lockedAt);
   const isArchived = Boolean(archivedAt);
@@ -447,11 +549,6 @@ export default function EvidenceDetailPage() {
   const canDelete = !isDeleted;
 
   const originalKind = useMemo(() => getEvidenceKind(originalMimeType), [originalMimeType]);
-
-  const sortedParts = useMemo(
-    () => [...parts].sort((a, b) => a.partIndex - b.partIndex),
-    [parts]
-  );
 
   const partTypeSummary = useMemo(() => {
     if (sortedParts.length === 0) {
@@ -483,6 +580,125 @@ export default function EvidenceDetailPage() {
       }
     );
   }, [sortedParts]);
+
+  const compositionSummary = useMemo(() => {
+    const partsList: string[] = [];
+
+    if (partTypeSummary.imageCount > 0) {
+      partsList.push(`${partTypeSummary.imageCount} image${partTypeSummary.imageCount > 1 ? "s" : ""}`);
+    }
+    if (partTypeSummary.videoCount > 0) {
+      partsList.push(`${partTypeSummary.videoCount} video${partTypeSummary.videoCount > 1 ? "s" : ""}`);
+    }
+    if (partTypeSummary.audioCount > 0) {
+      partsList.push(`${partTypeSummary.audioCount} audio${partTypeSummary.audioCount > 1 ? " files" : ""}`);
+    }
+    if (partTypeSummary.pdfCount > 0) {
+      partsList.push(`${partTypeSummary.pdfCount} document${partTypeSummary.pdfCount > 1 ? "s" : ""}`);
+    }
+    if (partTypeSummary.otherCount > 0) {
+      partsList.push(`${partTypeSummary.otherCount} other`);
+    }
+
+    if (partsList.length === 0) {
+      if (itemCount > 1) return `${itemCount} items`;
+      return "Single file";
+    }
+
+    return partsList.join(" • ");
+  }, [partTypeSummary, itemCount]);
+
+  const recordTypeLabel = useMemo(() => {
+    const availableKinds = [
+      partTypeSummary.imageCount > 0 ? "image" : null,
+      partTypeSummary.videoCount > 0 ? "video" : null,
+      partTypeSummary.audioCount > 0 ? "audio" : null,
+      partTypeSummary.pdfCount > 0 ? "pdf" : null,
+      partTypeSummary.otherCount > 0 ? "other" : null,
+    ].filter(Boolean) as Array<"image" | "video" | "audio" | "pdf" | "other">;
+
+    const totalKnown =
+      partTypeSummary.imageCount +
+      partTypeSummary.videoCount +
+      partTypeSummary.audioCount +
+      partTypeSummary.pdfCount +
+      partTypeSummary.otherCount;
+
+    const effectiveCount = totalKnown > 0 ? totalKnown : itemCount;
+
+    if (effectiveCount <= 1) {
+      const singleKind =
+        availableKinds[0] ??
+        (originalMimeType ? getEvidenceKind(originalMimeType) : null);
+
+      switch (singleKind) {
+        case "image":
+          return "Single Image Evidence";
+        case "video":
+          return "Single Video Evidence";
+        case "audio":
+          return "Single Audio Evidence";
+        case "pdf":
+          return "Single Document Evidence";
+        case "text":
+          return "Single Text Evidence";
+        default: {
+          const fallback = getEvidenceTypeLabel(evidenceType);
+          return fallback === "Unknown" ? "Single Evidence Record" : fallback;
+        }
+      }
+    }
+
+    if (availableKinds.length > 1) {
+      return "Mixed Media Evidence Package";
+    }
+
+    const onlyKind = availableKinds[0];
+    switch (onlyKind) {
+      case "image":
+        return "Image Evidence Package";
+      case "video":
+        return "Video Evidence Package";
+      case "audio":
+        return "Audio Evidence Package";
+      case "pdf":
+        return "Document Evidence Package";
+      default:
+        return "Multipart Evidence Package";
+    }
+  }, [partTypeSummary, itemCount, originalMimeType, evidenceType]);
+
+  const effectiveHeroSubtitle = useMemo(() => {
+    if (displaySubtitle) return displaySubtitle;
+    if (isMultipart) {
+      return `${itemCount} item${itemCount === 1 ? "" : "s"} • ${compositionSummary}`;
+    }
+    return compositionSummary || `${itemCount} item${itemCount === 1 ? "" : "s"}`;
+  }, [displaySubtitle, isMultipart, itemCount, compositionSummary]);
+
+  const effectiveOriginalSummaryName = useMemo(() => {
+    const cleanedOriginal = sanitizePossibleFileName(originalFileName);
+    if (cleanedOriginal) return cleanedOriginal;
+
+    if (isMultipart) {
+      return `Multiple original files (${sortedParts.length} items)`;
+    }
+
+    const firstPart = sortedParts[0];
+    if (firstPart) {
+      return getPartDisplayName(firstPart, createdAt, false);
+    }
+
+    if (originalMimeType) {
+      return buildGeneratedCaptureFileName({
+        mimeType: originalMimeType,
+        recordedAt: createdAt,
+        isMultipart: false,
+      });
+    }
+
+    return "Original filename not available";
+  }, [originalFileName, isMultipart, sortedParts, createdAt, originalMimeType]);
 
   const displayStatusMeta = useMemo(
     () =>
@@ -1074,7 +1290,13 @@ export default function EvidenceDetailPage() {
 
     try {
       let downloadUrl = originalDownloadUrl;
-      let filename = originalFileName || "evidence-file";
+      let filename =
+        sanitizePossibleFileName(originalFileName) ||
+        buildGeneratedCaptureFileName({
+          mimeType: originalMimeType,
+          recordedAt: createdAt,
+          isMultipart: false,
+        });
 
       if (!downloadUrl) {
         const data = await apiFetch(`/v1/evidence/${params.id}/original`);
@@ -1087,7 +1309,7 @@ export default function EvidenceDetailPage() {
         setOriginalFileName(data?.originalFileName ?? null);
 
         if (data?.originalFileName) {
-          filename = data.originalFileName;
+          filename = sanitizePossibleFileName(data.originalFileName) ?? filename;
         }
       }
 
@@ -1129,7 +1351,10 @@ export default function EvidenceDetailPage() {
     }
 
     try {
-      const ok = await tryDownloadFile(url, getPartDisplayName(part));
+      const ok = await tryDownloadFile(
+        url,
+        getPartDisplayName(part, createdAt, isMultipart)
+      );
       if (!ok) {
         window.open(url, "_blank", "noopener,noreferrer");
       }
@@ -1482,6 +1707,13 @@ export default function EvidenceDetailPage() {
       : "Verification packages are enabled for this workspace."
     : `${activeWorkspaceName} does not include verification packages on the current plan.`;
 
+  const originalRenderableUrl = useMemo(() => {
+    if (originalKind === "video" || originalKind === "audio") {
+      return originalDownloadUrl ?? originalPreviewUrl ?? null;
+    }
+    return originalPreviewUrl ?? originalDownloadUrl ?? null;
+  }, [originalKind, originalDownloadUrl, originalPreviewUrl]);
+
   return (
     <div className="section app-section evidence-detail-page-shell">
       <div className="app-hero app-hero-full">
@@ -1606,13 +1838,13 @@ export default function EvidenceDetailPage() {
                   color: "#aab5b2",
                 }}
               >
-                {displaySubtitle || `${itemCount} item${itemCount === 1 ? "" : "s"}`}
+                {effectiveHeroSubtitle}
               </p>
 
               <div className="evidence-hero-meta">
                 <span>Record ID: {shortId(evidenceId)}</span>
-                <span>Type: {getEvidenceTypeLabel(evidenceType)}</span>
-                <span>{isMultipart ? `${sortedParts.length} items` : "Single file"}</span>
+                <span>Type: {recordTypeLabel}</span>
+                <span>{isMultipart ? `${sortedParts.length || itemCount} items` : "Single file"}</span>
                 <span>{workspaceBillingSummary}</span>
               </div>
 
@@ -1717,7 +1949,7 @@ export default function EvidenceDetailPage() {
                       Original Submitted File
                     </div>
                     <div className="mt-2 text-[0.96rem] leading-[1.75] text-[#23373b]">
-                      {originalFileName || "Original filename not available"}
+                      {effectiveOriginalSummaryName}
                     </div>
                   </div>
 
@@ -1735,7 +1967,7 @@ export default function EvidenceDetailPage() {
                       Evidence Type
                     </div>
                     <div className="mt-2 text-[0.96rem] leading-[1.75] text-[#23373b]">
-                      {getEvidenceTypeLabel(evidenceType)}
+                      {recordTypeLabel}
                     </div>
                   </div>
 
@@ -1768,7 +2000,7 @@ export default function EvidenceDetailPage() {
                     </div>
                     <div className="mt-2 text-[0.96rem] leading-[1.75] text-[#23373b]">
                       {isMultipart
-                        ? `Multipart record (${sortedParts.length} items)`
+                        ? `Multipart record (${sortedParts.length || itemCount} items)`
                         : "Single-file record"}
                     </div>
                   </div>
@@ -1818,6 +2050,7 @@ export default function EvidenceDetailPage() {
                           }}
                         >
                           {partTypeSummary.audioCount} audio
+                          {partTypeSummary.audioCount > 1 ? " files" : ""}
                         </span>
                       )}
 
@@ -1860,7 +2093,7 @@ export default function EvidenceDetailPage() {
                         partTypeSummary.pdfCount === 0 &&
                         partTypeSummary.otherCount === 0 && (
                           <div className="text-[0.92rem] leading-[1.7] text-[#5d6d71]">
-                            Not available
+                            {compositionSummary}
                           </div>
                         )}
                     </div>
@@ -2262,7 +2495,7 @@ export default function EvidenceDetailPage() {
                         fontSize: 13,
                       }}
                     >
-                      {originalFileName && <div>Original file: {originalFileName}</div>}
+                      <div>Original file: {effectiveOriginalSummaryName}</div>
                       {originalMimeType && <div>Type: {originalMimeType}</div>}
                       {originalSizeBytes && <div>Size: {formatBytes(originalSizeBytes)}</div>}
                     </div>
@@ -2296,46 +2529,53 @@ export default function EvidenceDetailPage() {
                       </Button>
                     </div>
 
-                    {originalPreviewUrl && originalKind === "image" && (
+                    {originalRenderableUrl && originalKind === "image" && (
                       <div style={{ marginBottom: 12 }}>
                         <img
-                          src={originalPreviewUrl}
-                          alt="Evidence preview"
+                          src={originalRenderableUrl}
+                          alt={effectiveOriginalSummaryName}
                           className="evidence-preview-image"
                           style={{
                             width: "100%",
-                            maxWidth: 520,
+                            maxWidth: 560,
+                            maxHeight: 520,
                             margin: "0 auto",
                             display: "block",
+                            objectFit: "contain",
                             borderRadius: 18,
                             border: "1px solid rgba(79,112,107,0.10)",
                             boxShadow: "0 14px 28px rgba(0,0,0,0.08)",
+                            background: "rgba(255,255,255,0.72)",
                           }}
                         />
                       </div>
                     )}
 
-                    {originalPreviewUrl && originalKind === "video" && (
+                    {originalRenderableUrl && originalKind === "video" && (
                       <div style={{ marginBottom: 12 }}>
                         <video
-                          src={originalPreviewUrl}
                           controls
+                          playsInline
                           preload="metadata"
                           className="evidence-preview-video"
                           style={{
                             width: "100%",
-                            maxWidth: 520,
+                            maxWidth: 700,
                             margin: "0 auto",
                             display: "block",
                             borderRadius: 18,
                             border: "1px solid rgba(79,112,107,0.10)",
                             boxShadow: "0 14px 28px rgba(0,0,0,0.08)",
+                            background: "#0f1517",
                           }}
-                        />
+                        >
+                          <source src={originalRenderableUrl} type={originalMimeType ?? "video/mp4"} />
+                          Your browser could not play this video. Use Open Original or Download Original.
+                        </video>
                       </div>
                     )}
 
-                    {originalPreviewUrl && originalKind === "audio" && (
+                    {originalRenderableUrl && originalKind === "audio" && (
                       <div
                         style={{
                           marginBottom: 12,
@@ -2346,18 +2586,20 @@ export default function EvidenceDetailPage() {
                         }}
                       >
                         <audio
-                          src={originalPreviewUrl}
                           controls
                           preload="metadata"
                           style={{ width: "100%" }}
-                        />
+                        >
+                          <source src={originalRenderableUrl} type={originalMimeType ?? "audio/mpeg"} />
+                          Your browser could not play this audio.
+                        </audio>
                       </div>
                     )}
 
-                    {originalPreviewUrl && originalKind === "pdf" && (
+                    {originalRenderableUrl && originalKind === "pdf" && (
                       <div style={{ marginBottom: 12 }}>
                         <iframe
-                          src={originalPreviewUrl}
+                          src={originalRenderableUrl}
                           title="Original PDF evidence"
                           style={{
                             width: "100%",
@@ -2372,12 +2614,22 @@ export default function EvidenceDetailPage() {
                     )}
                   </>
                 ) : (
-                  <div style={{ display: "grid", gap: 16, marginTop: 16 }}>
+                  <div
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))",
+                      gap: 16,
+                      marginTop: 16,
+                    }}
+                  >
                     {sortedParts.map((part) => {
                       const kind = getEvidenceKind(part.mimeType ?? null);
-                      const previewUrl = part.publicUrl ?? part.url ?? null;
+                      const previewUrl =
+                        kind === "video" || kind === "audio"
+                          ? part.url ?? part.publicUrl ?? part.previewUrl ?? null
+                          : part.previewUrl ?? part.publicUrl ?? part.url ?? null;
                       const downloadUrl = part.url ?? part.publicUrl ?? null;
-                      const displayName = getPartDisplayName(part);
+                      const displayName = getPartDisplayName(part, createdAt, true);
 
                       return (
                         <div
@@ -2386,6 +2638,10 @@ export default function EvidenceDetailPage() {
                             padding: 16,
                             borderRadius: 20,
                             ...softCardStyle,
+                            display: "flex",
+                            flexDirection: "column",
+                            gap: 12,
+                            minHeight: 420,
                           }}
                         >
                           <div
@@ -2394,25 +2650,41 @@ export default function EvidenceDetailPage() {
                               justifyContent: "space-between",
                               gap: 12,
                               flexWrap: "wrap",
-                              alignItems: "center",
+                              alignItems: "flex-start",
                             }}
                           >
-                            <div>
+                            <div style={{ minWidth: 0, flex: 1 }}>
                               <div style={{ fontWeight: 800, color: "#23373b" }}>
                                 Item {part.partIndex + 1}
                                 {part.isPrimary ? " (Primary)" : ""}
                               </div>
-                              <div style={{ fontSize: 13, color: "#6a777b", marginTop: 4 }}>
+                              <div
+                                style={{
+                                  fontSize: 13,
+                                  color: "#31484d",
+                                  marginTop: 6,
+                                  lineHeight: 1.55,
+                                  wordBreak: "break-word",
+                                  fontWeight: 600,
+                                }}
+                              >
                                 {displayName}
                               </div>
                             </div>
 
-                            <div className="app-card-top-row__actions">
+                            <div
+                              style={{
+                                display: "flex",
+                                gap: 8,
+                                flexWrap: "wrap",
+                                justifyContent: "flex-end",
+                              }}
+                            >
                               <Button
                                 variant="secondary"
                                 onClick={() => handleOpenPart(part)}
                                 disabled={!downloadUrl || isDeleted}
-                                className="app-responsive-btn rounded-[999px] border px-4 py-2.5 text-[0.86rem] font-semibold"
+                                className="rounded-[999px] border px-3 py-2 text-[0.8rem] font-semibold"
                                 style={landingSecondaryButtonStyle}
                               >
                                 Open
@@ -2421,7 +2693,7 @@ export default function EvidenceDetailPage() {
                                 variant="secondary"
                                 onClick={() => handleDownloadPart(part)}
                                 disabled={!downloadUrl || isDeleted}
-                                className="app-responsive-btn rounded-[999px] border px-4 py-2.5 text-[0.86rem] font-semibold"
+                                className="rounded-[999px] border px-3 py-2 text-[0.8rem] font-semibold"
                                 style={landingTertiaryButtonStyle}
                               >
                                 Download
@@ -2433,49 +2705,108 @@ export default function EvidenceDetailPage() {
                             style={{
                               display: "grid",
                               gap: 6,
-                              marginTop: 12,
-                              marginBottom: 14,
                               color: "#6a777b",
                               fontSize: 13,
                             }}
                           >
                             <div>Type: {part.mimeType ?? "Unknown"}</div>
-                            <div>Kind: {kind}</div>
+                            <div>
+                              Kind:{" "}
+                              {kind === "pdf"
+                                ? "document"
+                                : kind}
+                            </div>
                             <div>Size: {formatBytes(part.sizeBytes ?? null)}</div>
+                            {part.durationMs && part.durationMs > 0 && (
+                              <div>Duration: {(part.durationMs / 1000).toFixed(1)} sec</div>
+                            )}
+                            {part.sha256 && (
+                              <div>SHA-256: {shortId(part.sha256)}</div>
+                            )}
                           </div>
 
-                          {previewUrl && kind === "image" && (
-                            <img
-                              src={previewUrl}
-                              alt={`Evidence item ${part.partIndex + 1}`}
-                              style={{
-                                width: "100%",
-                                maxWidth: 420,
-                                margin: "0 auto",
-                                display: "block",
-                                borderRadius: 16,
-                                border: "1px solid rgba(79,112,107,0.10)",
-                                boxShadow: "0 12px 24px rgba(0,0,0,0.06)",
-                              }}
-                            />
-                          )}
+                          <div
+                            style={{
+                              flex: 1,
+                              minHeight: 240,
+                              borderRadius: 16,
+                              border: "1px solid rgba(79,112,107,0.10)",
+                              background: "rgba(255,255,255,0.64)",
+                              boxShadow: "0 12px 24px rgba(0,0,0,0.06)",
+                              overflow: "hidden",
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              padding: 12,
+                            }}
+                          >
+                            {previewUrl && kind === "image" && (
+                              <img
+                                src={previewUrl}
+                                alt={displayName}
+                                style={{
+                                  width: "100%",
+                                  height: "100%",
+                                  objectFit: "contain",
+                                  display: "block",
+                                  borderRadius: 12,
+                                  background: "#fff",
+                                }}
+                              />
+                            )}
 
-                          {previewUrl && kind === "video" && (
-                            <video
-                              src={previewUrl}
-                              controls
-                              preload="metadata"
-                              style={{
-                                width: "100%",
-                                maxWidth: 420,
-                                margin: "0 auto",
-                                display: "block",
-                                borderRadius: 16,
-                                border: "1px solid rgba(79,112,107,0.10)",
-                                boxShadow: "0 12px 24px rgba(0,0,0,0.06)",
-                              }}
-                            />
-                          )}
+                            {previewUrl && kind === "video" && (
+                              <video
+                                controls
+                                playsInline
+                                preload="metadata"
+                                style={{
+                                  width: "100%",
+                                  height: "100%",
+                                  display: "block",
+                                  borderRadius: 12,
+                                  background: "#0f1517",
+                                }}
+                              >
+                                <source src={previewUrl} type={part.mimeType ?? "video/mp4"} />
+                                Your browser could not play this video.
+                              </video>
+                            )}
+
+                            {previewUrl && kind === "audio" && (
+                              <audio controls preload="metadata" style={{ width: "100%" }}>
+                                <source src={previewUrl} type={part.mimeType ?? "audio/mpeg"} />
+                                Your browser could not play this audio.
+                              </audio>
+                            )}
+
+                            {previewUrl && kind === "pdf" && (
+                              <iframe
+                                src={previewUrl}
+                                title={displayName}
+                                style={{
+                                  width: "100%",
+                                  height: "100%",
+                                  border: 0,
+                                  borderRadius: 12,
+                                  background: "#fff",
+                                }}
+                              />
+                            )}
+
+                            {!previewUrl && (
+                              <div
+                                style={{
+                                  fontSize: 13,
+                                  color: "#6a777b",
+                                  textAlign: "center",
+                                  lineHeight: 1.7,
+                                }}
+                              >
+                                Preview not available for this item right now.
+                              </div>
+                            )}
+                          </div>
                         </div>
                       );
                     })}

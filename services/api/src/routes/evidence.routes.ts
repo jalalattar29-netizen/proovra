@@ -57,10 +57,12 @@ const EvidenceTypeSchema = prismaPkg.EvidenceType
 const CreateEvidenceBody = z.object({
   type: EvidenceTypeSchema,
   mimeType: z.string().min(1).max(128).optional(),
+  originalFileName: z.string().trim().min(1).max(255).optional(),
+  captureFileName: z.string().trim().min(1).max(255).optional(),
   deviceTimeIso: z.string().min(1).max(64).optional(),
   checksumSha256Base64: z.string().min(1).max(128).optional(),
   contentMd5Base64: z.string().min(1).max(128).optional(),
-  gps: z
+    gps: z
     .object({
       lat: z.number(),
       lng: z.number(),
@@ -258,6 +260,8 @@ const SAFE_EVIDENCE_SELECT = {
   title: true,
   ownerUserId: true,
   organizationId: true,
+  originalFileName: true,
+  displayFileName: true,
   type: true,
   status: true,
   verificationStatus: true,
@@ -345,6 +349,8 @@ type SafeEvidence = {
   title: string;
   ownerUserId?: string;
   organizationId: string | null;
+  originalFileName: string | null;
+  displayFileName: string | null;
   type: prismaPkg.EvidenceType;
   status: prismaPkg.EvidenceStatus;
   verificationStatus: prismaPkg.VerificationStatus | null;
@@ -1178,6 +1184,8 @@ function toSafeEvidence(e: SelectedEvidence): SafeEvidence {
     id: e.id,
     title: resolveEvidenceTitle(e.title),
     ownerUserId: e.ownerUserId,
+    originalFileName: e.originalFileName ?? null,
+    displayFileName: e.displayFileName ?? null,
     organizationId: e.organizationId ?? null,
     type: e.type,
     status: e.status,
@@ -1542,14 +1550,17 @@ async function buildPublicEvidenceContent(params: {
       previewCaption?: string | null;
     }
   >;
-  evidence: {
-    id: string;
-    mimeType: string | null;
-    sizeBytes: bigint | number | null;
-    storageBucket: string | null;
-    storageKey: string | null;
-    fileSha256: string | null;
-  };
+evidence: {
+  id: string;
+  mimeType: string | null;
+  sizeBytes: bigint | number | null;
+  storageBucket: string | null;
+  storageKey: string | null;
+  fileSha256: string | null;
+  originalFileName?: string | null;
+  displayFileName?: string | null;
+  recordedAt?: Date | string | null;
+};
   parts: Array<{
     id: string;
     partIndex: number;
@@ -1665,11 +1676,18 @@ async function buildPublicEvidenceContent(params: {
               id: params.evidence.id,
               index: 0,
               label,
-              originalFileName: basenameFromStorageKey(
-                key,
-                `evidence-file.${extensionFromMimeType(params.evidence.mimeType)}`
-              ),
-              mimeType: params.evidence.mimeType ?? null,
+originalFileName:
+  params.evidence.originalFileName ??
+  params.evidence.displayFileName ??
+  resolveOriginalAssetDisplayName({
+    originalFileName: params.evidence.originalFileName ?? null,
+    storageKey: key,
+    mimeType: params.evidence.mimeType,
+    recordedAt: params.evidence.recordedAt ?? null,
+    partIndex: 0,
+    multipart: false,
+  }),
+                mimeType: params.evidence.mimeType ?? null,
               kind: singleKind,
               sizeBytes: bigintToString(params.evidence.sizeBytes),
               durationMs: null,
@@ -2131,6 +2149,103 @@ async function buildStorageLimitPayload(params: {
   };
 }
 
+function sanitizeFileName(value: string | null | undefined): string | null {
+  const raw = typeof value === "string" ? value.trim() : "";
+  if (!raw) return null;
+
+  const normalized = raw.replace(/\\/g, "/").split("/").pop()?.trim() ?? "";
+  if (!normalized || normalized === "." || normalized === "..") return null;
+
+  return normalized;
+}
+
+function formatCaptureFileTimestamp(value: Date | string | null | undefined): string {
+  const d =
+    value instanceof Date
+      ? value
+      : typeof value === "string"
+        ? new Date(value)
+        : null;
+
+  if (!d || Number.isNaN(d.getTime())) return "unknown-time";
+
+  const yyyy = d.getUTCFullYear();
+  const mm = String(d.getUTCMonth() + 1).padStart(2, "0");
+  const dd = String(d.getUTCDate()).padStart(2, "0");
+  const hh = String(d.getUTCHours()).padStart(2, "0");
+  const mi = String(d.getUTCMinutes()).padStart(2, "0");
+  const ss = String(d.getUTCSeconds()).padStart(2, "0");
+  const ms = String(d.getUTCMilliseconds()).padStart(3, "0");
+
+  return `${yyyy}-${mm}-${dd}_${hh}-${mi}-${ss}.${ms}Z`;
+}
+
+function buildGeneratedEvidenceFileName(params: {
+  mimeType: string | null | undefined;
+  recordedAt?: Date | string | null | undefined;
+  partIndex?: number | null;
+  multipart?: boolean;
+}): string {
+  const ext = extensionFromMimeType(params.mimeType);
+  const extSuffix = ext ? `.${ext}` : "";
+  const ts = formatCaptureFileTimestamp(params.recordedAt);
+
+  const kind = detectEvidenceAssetKind(params.mimeType);
+  const prefix =
+    kind === "image"
+      ? "PROOVRA-CAPTURE"
+      : kind === "video"
+        ? "PROOVRA-VIDEO-CAPTURE"
+        : kind === "audio"
+          ? "PROOVRA-AUDIO-CAPTURE"
+          : kind === "pdf"
+            ? "PROOVRA-DOCUMENT-CAPTURE"
+            : "PROOVRA-EVIDENCE";
+
+  const partSuffix =
+    params.multipart && typeof params.partIndex === "number"
+      ? `-ITEM-${params.partIndex + 1}`
+      : "";
+
+  return `${prefix}-${ts}${partSuffix}${extSuffix}`;
+}
+
+function resolveOriginalAssetDisplayName(params: {
+  originalFileName?: string | null;
+  storageKey?: string | null;
+  mimeType?: string | null;
+  recordedAt?: Date | string | null;
+  partIndex?: number | null;
+  multipart?: boolean;
+}): string {
+  const originalName = sanitizeFileName(params.originalFileName);
+  if (originalName) return originalName;
+
+  const fromStorageKey = sanitizeFileName(
+    basenameFromStorageKey(
+      params.storageKey ?? null,
+      `evidence-file.${extensionFromMimeType(params.mimeType)}`
+    )
+  );
+
+if (
+  fromStorageKey &&
+  fromStorageKey !== "0" &&
+  fromStorageKey !== "1" &&
+  fromStorageKey !== "2" &&
+  fromStorageKey.toLowerCase() !== "original"
+) {
+  return fromStorageKey;
+}
+
+  return buildGeneratedEvidenceFileName({
+    mimeType: params.mimeType ?? null,
+    recordedAt: params.recordedAt ?? null,
+    partIndex: params.partIndex ?? null,
+    multipart: params.multipart ?? false,
+  });
+}
+
 export async function evidenceRoutes(app: FastifyInstance) {
   app.post("/v1/evidence", { preHandler: requireAuthAndLegal }, async (req, reply) => {
     const body = CreateEvidenceBody.parse(req.body);
@@ -2170,15 +2285,17 @@ export async function evidenceRoutes(app: FastifyInstance) {
     }
 
     try {
-      const result = await createEvidence({
-        ownerUserId,
-        type: body.type,
-        mimeType: body.mimeType,
-        deviceTimeIso: body.deviceTimeIso,
-        gps: body.gps,
-        checksumSha256Base64: normalizedChecksum,
-        contentMd5Base64: normalizedContentMd5,
-      });
+const result = await createEvidence({
+  ownerUserId,
+  type: body.type,
+  mimeType: body.mimeType,
+  originalFileName: body.originalFileName,
+  captureFileName: body.captureFileName,
+  deviceTimeIso: body.deviceTimeIso,
+  gps: body.gps,
+  checksumSha256Base64: normalizedChecksum,
+  contentMd5Base64: normalizedContentMd5,
+});
 
       (req as FastifyRequest & { evidenceId?: string }).evidenceId = result.id;
       req.log = req.log.child({ evidenceId: result.id });
@@ -2439,10 +2556,17 @@ if (
             return { part: existing, created: false as const };
           }
 
-          const bucket = must("S3_BUCKET");
-          const key = `evidence/${id}/parts/${body.partIndex}`;
-          const normalizedMimeType =
-            normalizeMimeType(body.mimeType) ?? "application/octet-stream";
+const bucket = must("S3_BUCKET");
+const normalizedMimeType =
+  normalizeMimeType(body.mimeType) ?? "application/octet-stream";
+
+const safeOriginalFileName = sanitizeFileName(body.originalFileName);
+const ext = extensionFromMimeType(normalizedMimeType);
+const fallbackFileName =
+  safeOriginalFileName ??
+  `part-${body.partIndex + 1}${ext ? `.${ext}` : ""}`;
+
+const key = `evidence/${id}/parts/${String(body.partIndex).padStart(3, "0")}-${fallbackFileName}`;
 
           const part = await tx.evidencePart.create({
             data: {
@@ -2579,23 +2703,35 @@ if (
             }
           );
 
-          return {
-            ...toJsonSafe(part),
-            url,
-            kind,
-            previewable: isPreviewableEvidenceKind(kind),
-label: getEvidencePartDisplayLabel({
-  partIndex: part.partIndex,
-  mimeType: part.mimeType,
-  originalFileName: part.originalFileName ?? null,
-  storageKey: part.storageKey,
-}),
-            displaySizeLabel: formatBytesForDisplay(sizeBytes),
-            isPrimary:
-              evidence.storageBucket === part.storageBucket &&
-              evidence.storageKey === part.storageKey,
-            storage,
-          };
+const previewable = isPreviewableEvidenceKind(kind);
+
+return {
+  ...toJsonSafe(part),
+  url,
+  publicUrl: previewable ? url : null,
+  previewUrl: previewable ? url : null,
+  kind,
+  previewable,
+  label: getEvidencePartDisplayLabel({
+    partIndex: part.partIndex,
+    mimeType: part.mimeType,
+    originalFileName: part.originalFileName ?? null,
+    storageKey: part.storageKey,
+  }),
+  displayName: resolveOriginalAssetDisplayName({
+    originalFileName: part.originalFileName ?? null,
+    storageKey: part.storageKey,
+    mimeType: part.mimeType,
+    recordedAt: evidence.capturedAtUtc ?? evidence.createdAt,
+    partIndex: part.partIndex,
+    multipart: true,
+  }),
+  displaySizeLabel: formatBytesForDisplay(sizeBytes),
+  isPrimary:
+    evidence.storageBucket === part.storageBucket &&
+    evidence.storageKey === part.storageKey,
+  storage,
+};
         })
       );
 
@@ -3170,6 +3306,8 @@ await appendCustodyEvent({
       id: string;
       title: string | null;
       type: prismaPkg.EvidenceType;
+      originalFileName: string | null;
+      displayFileName: string | null;
       mimeType: string | null;
       status: prismaPkg.EvidenceStatus;
       verificationStatus: prismaPkg.VerificationStatus | null;
@@ -3224,8 +3362,11 @@ await appendCustodyEvent({
         captureMethodLabel: mapCaptureMethodLabel(item.captureMethod),
         identityLevel: item.identityLevelSnapshot,
         identityLevelLabel: mapIdentityLevelLabel(item.identityLevelSnapshot),
+
         submittedByEmail: item.submittedByEmail,
         latestReportVersion: item.latestReportVersion,
+        originalFileName: item.originalFileName ?? null,
+        displayFileName: item.displayFileName ?? null,
         reviewReadyAtUtc: item.reviewReadyAtUtc
           ? item.reviewReadyAtUtc.toISOString()
           : null,
@@ -3263,6 +3404,8 @@ await appendCustodyEvent({
         select: {
           id: true,
           title: true,
+originalFileName: true,
+displayFileName: true,
           type: true,
           mimeType: true,
           status: true,
@@ -3355,6 +3498,8 @@ await appendCustodyEvent({
         title: true,
         type: true,
         mimeType: true,
+        originalFileName: true,
+        displayFileName: true,
         status: true,
         verificationStatus: true,
         captureMethod: true,
@@ -3457,18 +3602,21 @@ await appendCustodyEvent({
             surface: "authenticated_verify",
           });
 
-        const content = await buildPublicEvidenceContent({
-          accessPolicy: authenticatedContentAccessPolicy,
-          evidence: {
-            id: evidence.id,
-            mimeType: evidence.mimeType,
-            sizeBytes: evidence.sizeBytes,
-            storageBucket: evidence.storageBucket,
-            storageKey: evidence.storageKey,
-            fileSha256: evidence.fileSha256,
-          },
-          parts,
-        });
+const content = await buildPublicEvidenceContent({
+  accessPolicy: authenticatedContentAccessPolicy,
+  evidence: {
+    id: evidence.id,
+    mimeType: evidence.mimeType,
+    sizeBytes: evidence.sizeBytes,
+    storageBucket: evidence.storageBucket,
+    storageKey: evidence.storageKey,
+    fileSha256: evidence.fileSha256,
+    originalFileName: evidence.originalFileName ?? null,
+    displayFileName: evidence.displayFileName ?? null,
+    recordedAt: evidence.capturedAtUtc ?? evidence.createdAt,
+  },
+  parts,
+});
 
         const defaultPreviewItem =
           content.items.find((item) => item.previewable && item.viewUrl) ??
@@ -3477,7 +3625,7 @@ await appendCustodyEvent({
           null;
 
         const display = buildEvidenceDisplayDescriptor({
-          title: evidence.title,
+title: evidence.title ?? evidence.displayFileName ?? evidence.originalFileName ?? null,
           summary: content.summary,
           itemCount,
         });
@@ -3631,6 +3779,9 @@ const content = await buildPublicEvidenceContent({
     storageBucket: refreshed.storageBucket,
     storageKey: refreshed.storageKey,
     fileSha256: refreshed.fileSha256,
+    originalFileName: refreshed.originalFileName ?? null,
+    displayFileName: refreshed.displayFileName ?? null,
+    recordedAt: refreshed.capturedAtUtc ?? refreshed.createdAt,
   },
   parts,
 });
@@ -3642,7 +3793,11 @@ const defaultPreviewItem =
   null;
 
 const display = buildEvidenceDisplayDescriptor({
-  title: refreshed.title,
+  title:
+    refreshed.title ??
+    refreshed.displayFileName ??
+    refreshed.originalFileName ??
+    null,
   summary: content.summary,
   itemCount,
 });
@@ -4002,23 +4157,59 @@ legalLimitations: toJsonSafe(latest.limitationsSnapshot ?? null),
         }
       );
 
-const originalFileName = basenameFromStorageKey(
-  evidence.storageKey,
-  `evidence-file.${extensionFromMimeType(evidence.mimeType)}`
-);
+const matchingPrimaryPart =
+  evidence.storageBucket && evidence.storageKey
+    ? await prisma.evidencePart.findFirst({
+        where: {
+          evidenceId: id,
+          storageBucket: evidence.storageBucket,
+          storageKey: evidence.storageKey,
+        },
+        select: {
+          partIndex: true,
+          originalFileName: true,
+          mimeType: true,
+        },
+      })
+    : null;
 
-      const originalKind = detectEvidenceAssetKind(evidence.mimeType);
+function cleanOptionalText(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  return trimmed ? trimmed : null;
+}
 
-      return reply.code(200).send({
-        evidenceId: id,
-        bucket: evidence.storageBucket,
-        key: evidence.storageKey,
-        originalFileName,
-        url,
-        mimeType: evidence.mimeType,
-        kind: originalKind,
-        previewable: isPreviewableEvidenceKind(originalKind),
-        sizeBytes: evidence.sizeBytes?.toString() ?? null,
+const resolvedOriginalFileName =
+  cleanOptionalText(evidence.originalFileName) ??
+  cleanOptionalText(matchingPrimaryPart?.originalFileName) ??
+  null;
+
+const resolvedDisplayName =
+  cleanOptionalText(evidence.displayFileName) ??
+  resolveOriginalAssetDisplayName({
+    originalFileName: resolvedOriginalFileName,
+    storageKey: evidence.storageKey,
+    mimeType: matchingPrimaryPart?.mimeType ?? evidence.mimeType,
+    recordedAt: evidence.capturedAtUtc ?? evidence.createdAt,
+    partIndex: matchingPrimaryPart?.partIndex ?? 0,
+    multipart: Boolean(matchingPrimaryPart),
+  });
+  
+  const originalKind = detectEvidenceAssetKind(evidence.mimeType);
+
+return reply.code(200).send({
+  evidenceId: id,
+  bucket: evidence.storageBucket,
+  key: evidence.storageKey,
+originalFileName: resolvedOriginalFileName ?? resolvedDisplayName,
+displayName: resolvedDisplayName,
+  url,
+  publicUrl: isPreviewableEvidenceKind(originalKind) ? url : null,
+  previewUrl: isPreviewableEvidenceKind(originalKind) ? url : null,
+  mimeType: evidence.mimeType,
+  kind: originalKind,
+  previewable: isPreviewableEvidenceKind(originalKind),
+          sizeBytes: evidence.sizeBytes?.toString() ?? null,
         displaySizeLabel: formatBytesForDisplay(
           evidence.sizeBytes?.toString() ?? null
         ),
@@ -4379,6 +4570,8 @@ const originalFileName = basenameFromStorageKey(
       select: {
         id: true,
         title: true,
+        originalFileName: true,
+        displayFileName: true,
         type: true,
         status: true,
         verificationStatus: true,
@@ -4665,6 +4858,9 @@ const content = await buildPublicEvidenceContent({
     storageBucket: evidence.storageBucket,
     storageKey: evidence.storageKey,
     fileSha256: evidence.fileSha256,
+originalFileName: evidence.originalFileName ?? null,
+displayFileName: evidence.displayFileName ?? null,
+    recordedAt: evidence.capturedAtUtc ?? evidence.createdAt,
   },
   parts,
 });
@@ -4817,7 +5013,7 @@ const effectiveRecordedIntegrityVerifiedAtUtc =
     const overview = buildPublicVerifyOverview({
       evidence: {
         id: evidence.id,
-        title: evidence.title,
+title: evidence.title ?? evidence.displayFileName ?? evidence.originalFileName ?? null,
         type: evidence.type,
         status: evidence.status,
         verificationStatus: effectiveVerificationStatus,
@@ -4925,7 +5121,7 @@ const defaultPreviewItem =
   content.primaryItem ??
   null;
 const display = buildEvidenceDisplayDescriptor({
-  title: evidence.title,
+title: evidence.title ?? evidence.displayFileName ?? evidence.originalFileName ?? null,
   summary: content.summary,
   itemCount,
 });

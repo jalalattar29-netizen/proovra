@@ -3,7 +3,7 @@ import { renderCallout, renderPageSection } from "../ui.js";
 
 export function renderLegalLimitationsSection(vm: ReportViewModel): string {
   return renderPageSection(
-    "Legal Limitations & Review Use",
+    "Legal Interpretation & Review Use",
     `
       ${renderCallout({
         title: "What this report supports",
@@ -31,6 +31,7 @@ export function renderLegalLimitationsSection(vm: ReportViewModel): string {
           "Any embedded image, document snapshot, or other reviewer-facing representation in this report is included to support human review of the preserved evidence item. It should not be treated as a substitute for the preserved original file when deeper review, expert comparison, or formal legal process requires the underlying evidence.",
         tone: "warning",
       })}
-    `
+    `,
+    { pageBreakBefore: true }
   );
 }

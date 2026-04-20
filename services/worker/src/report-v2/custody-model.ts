@@ -33,7 +33,7 @@ export function buildTimelineRows(events: ClassifiedCustodyEvent[]): TimelineRow
       sequence: String(ev.sequence),
       atUtc: safe(ev.atUtc),
       eventLabel: mapCustodyEventLabel(ev.eventType),
-      summary: summaryLines.filter(Boolean).join("<br>"),
+      summary: summaryLines.filter(Boolean).join("\n"),
     };
   });
 }

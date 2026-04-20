@@ -11,6 +11,7 @@ export function renderStorageTimestampingSection(vm: ReportViewModel): string {
     `
       ${renderKeyValueGrid(vm.storageRows)}
       ${vm.storageCallouts.map(renderCallout).join("")}
-    `
+    `,
+    { pageBreakBefore: true }
   );
 }

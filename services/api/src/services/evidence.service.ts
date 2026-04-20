@@ -58,16 +58,98 @@ function resolveIdentityLevel(params: {
 
 const { EvidenceStatus } = prismaPkg;
 
+function sanitizeFileName(value: string | null | undefined): string | null {
+  const raw = typeof value === "string" ? value.trim() : "";
+  if (!raw) return null;
+
+  const normalized = raw.replace(/\\/g, "/").split("/").pop()?.trim() ?? "";
+  if (!normalized || normalized === "." || normalized === "..") return null;
+
+  return normalized.slice(0, 255);
+}
+
+function formatCaptureFileTimestamp(value: Date): string {
+  const yyyy = value.getUTCFullYear();
+  const mm = String(value.getUTCMonth() + 1).padStart(2, "0");
+  const dd = String(value.getUTCDate()).padStart(2, "0");
+  const hh = String(value.getUTCHours()).padStart(2, "0");
+  const mi = String(value.getUTCMinutes()).padStart(2, "0");
+  const ss = String(value.getUTCSeconds()).padStart(2, "0");
+  const ms = String(value.getUTCMilliseconds()).padStart(3, "0");
+
+  return `${yyyy}-${mm}-${dd}_${hh}-${mi}-${ss}.${ms}Z`;
+}
+
+function buildGeneratedCaptureFileName(params: {
+  mimeType?: string | null;
+  capturedAt: Date;
+}): string {
+  const ext = normalizeUploadMimeType(params.mimeType)
+    ? (() => {
+        const mime = normalizeUploadMimeType(params.mimeType);
+        if (mime === "image/jpeg") return "jpg";
+        if (mime === "image/png") return "png";
+        if (mime === "image/webp") return "webp";
+        if (mime === "video/mp4") return "mp4";
+        if (mime === "video/webm") return "webm";
+        if (mime === "audio/mpeg") return "mp3";
+        if (mime === "audio/wav") return "wav";
+        if (mime === "application/pdf") return "pdf";
+        return "bin";
+      })()
+    : "bin";
+
+  return `PROOVRA-CAPTURE-${formatCaptureFileTimestamp(params.capturedAt)}.${ext}`;
+}
+
+function resolveRootEvidenceDisplayFileName(params: {
+  originalFileName?: string | null;
+  captureFileName?: string | null;
+  mimeType?: string | null;
+  capturedAt: Date;
+}): {
+  originalFileName: string | null;
+  displayFileName: string;
+} {
+  const original = sanitizeFileName(params.originalFileName);
+  const captureName = sanitizeFileName(params.captureFileName);
+
+  if (original) {
+    return {
+      originalFileName: original,
+      displayFileName: original,
+    };
+  }
+
+  if (captureName) {
+    return {
+      originalFileName: null,
+      displayFileName: captureName,
+    };
+  }
+
+  return {
+    originalFileName: null,
+    displayFileName: buildGeneratedCaptureFileName({
+      mimeType: params.mimeType,
+      capturedAt: params.capturedAt,
+    }),
+  };
+}
+
 export async function createEvidence(params: {
   ownerUserId: string;
   teamId?: string | null;
   type: prismaPkg.EvidenceType;
   mimeType?: string;
+  originalFileName?: string | null;
+  captureFileName?: string | null;
   deviceTimeIso?: string;
   gps?: { lat: number; lng: number; accuracyMeters?: number };
   checksumSha256Base64?: string | null;
   contentMd5Base64?: string | null;
-}) {
+})
+{
   const owner = await prisma.user.findUnique({
     where: { id: params.ownerUserId },
     select: {
@@ -139,6 +221,12 @@ export async function createEvidence(params: {
   const publicBase = getPublicBaseUrl();
   const capturedAt = new Date();
   const normalizedMimeType = normalizeUploadMimeType(params.mimeType);
+  const resolvedFileNames = resolveRootEvidenceDisplayFileName({
+  originalFileName: params.originalFileName ?? null,
+  captureFileName: params.captureFileName ?? null,
+  mimeType: normalizedMimeType,
+  capturedAt,
+});
 
   const organizationVerifiedSnapshot =
     workspaceTeam?.verificationState ===
@@ -165,6 +253,8 @@ export async function createEvidence(params: {
     const evidence = await tx.evidence.create({
       data: {
         ownerUserId: params.ownerUserId,
+        originalFileName: resolvedFileNames.originalFileName,
+        displayFileName: resolvedFileNames.displayFileName,
         teamId: scope.teamId,
         organizationId: scope.teamId,
         type: params.type,
@@ -194,7 +284,7 @@ export async function createEvidence(params: {
       },
     });
 
-    const key = `evidence/${evidence.id}/original`;
+const key = `evidence/${evidence.id}/original-${resolvedFileNames.displayFileName}`;
 
     await appendCustodyEventTx(tx, {
       evidenceId: evidence.id,

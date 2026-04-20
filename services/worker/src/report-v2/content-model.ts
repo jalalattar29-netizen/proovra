@@ -124,7 +124,9 @@ export function resolveContentSummary(
   return evidence.contentSummary ?? buildFallbackContentSummary(evidence, parsed);
 }
 
-export function resolveContentItems(evidence: ReportEvidence): ReportEvidenceAsset[] {
+export function resolveContentItems(
+  evidence: ReportEvidence
+): ReportEvidenceAsset[] {
   const items = Array.isArray(evidence.contentItems) ? evidence.contentItems : [];
 
   const embeddedPreviewMap = new Map<
@@ -181,41 +183,45 @@ export function evidenceStructureLabel(summary: ReportEvidenceContentSummary): s
   return "Multipart evidence package";
 }
 
+function buildRoleAndStatus(item: ReportEvidenceAsset): string {
+  const parts = [
+    item.artifactRole === "primary_evidence"
+      ? "Primary evidence"
+      : item.artifactRole === "supporting_evidence"
+        ? "Supporting evidence"
+        : item.artifactRole === "attachment"
+          ? "Attachment"
+          : null,
+    item.previewable ? "Previewable" : "Preview unavailable",
+    item.downloadable ? "Downloadable" : "Restricted",
+  ].filter(Boolean);
+
+  return parts.length > 0 ? parts.join("\n") : "Not recorded";
+}
+
 export function buildInventoryRows(items: ReportEvidenceAsset[]): InventoryRow[] {
   return items.map((item) => {
-    const roleParts = [
-      item.artifactRole === "primary_evidence"
-        ? "Primary evidence"
-        : item.artifactRole === "supporting_evidence"
-          ? "Supporting evidence"
-          : item.artifactRole === "attachment"
-            ? "Attachment"
-            : null,
-      item.previewRole === "primary_preview"
-        ? "Primary preview"
-        : item.previewRole === "secondary_preview"
-          ? "Secondary preview"
-          : item.previewRole === "download_only"
-            ? "Download-only"
-            : item.previewRole === "metadata_only"
-              ? "Metadata-only"
-              : null,
-    ]
-      .filter(Boolean)
-      .join("<br>");
+    const fileName =
+      safe(item.originalFileName, "") || safe(item.label, "Unnamed evidence item");
+
+    const displayLabel =
+      safe(item.label, "") && safe(item.label, "") !== fileName
+        ? safe(item.label)
+        : null;
 
     return {
       indexLabel: String(item.index + 1),
-      itemLabel: item.isPrimary ? `${safe(item.label)} (primary)` : safe(item.label),
+      fileName,
+      displayLabel,
       kindLabel: mapEvidenceAssetKindLabel(item.kind),
-      mimeAndSize: [
-        item.mimeType ? `MIME: ${item.mimeType}` : null,
-        item.displaySizeLabel ? `Size: ${item.displaySizeLabel}` : null,
-      ]
-        .filter(Boolean)
-        .join("<br>"),
+      formatAndSize: [
+        item.mimeType ? `MIME: ${item.mimeType}` : "MIME: N/A",
+        item.displaySizeLabel
+          ? `Size: ${item.displaySizeLabel}`
+          : `Size: ${formatBytesHuman(item.sizeBytes)}`,
+      ].join("\n"),
       shortHash: item.sha256 ? shortHash(item.sha256) : "N/A",
-      roleAndPreview: roleParts || "Not recorded",
+      roleAndStatus: buildRoleAndStatus(item),
     };
   });
 }

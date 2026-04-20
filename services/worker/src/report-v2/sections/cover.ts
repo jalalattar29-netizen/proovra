@@ -1,56 +1,92 @@
 import { ReportViewModel } from "../types.js";
 import { escapeHtml } from "../formatters.js";
+import { renderInlineQrBlock } from "../ui.js";
 
 export function renderCoverSection(vm: ReportViewModel): string {
   const integrityBadgeClass = vm.integrityVerified
     ? "badge-success"
     : "badge-danger";
   const integrityBadgeText = vm.integrityVerified
-    ? "Recorded Integrity Verified"
-    : "Recorded Integrity Review Required";
+    ? "VERIFIED AUTHENTIC"
+    : "REVIEW REQUIRED";
+
+  const shortHash =
+    vm.meta.primaryHashShort && vm.meta.primaryHashShort !== "N/A"
+      ? vm.meta.primaryHashShort
+      : vm.evidenceReference;
+
+  const storageLabel =
+    vm.storageRows.find((row) => row.label === "Immutable Storage")?.value ??
+    "Not recorded";
+
+  const timestampLabel =
+    vm.meta.timestampRows.find((row) => row.label === "Timestamp Status")?.value ??
+    "Not recorded";
+
+  const verificationBlock = vm.qr.publicDataUrl
+    ? `
+      ${renderInlineQrBlock(vm.qr.publicDataUrl, vm.qr.publicLabel)}
+      <div class="cover-verify-title">Verification Access</div>
+      <div class="cover-verify-url">${escapeHtml(vm.verifyUrl)}</div>
+    `
+    : `
+      <div class="cover-verify-placeholder">QR unavailable</div>
+      <div class="cover-verify-title">Verification Access</div>
+      <div class="cover-verify-url">${escapeHtml(vm.verifyUrl)}</div>
+    `;
 
   return `
     <div class="report-header-band"></div>
 
-    <section class="report-cover">
-      <div class="brand-lockup">
-        <div class="brand-name">PROOVRA</div>
-        <div class="brand-report-title">Verification Report</div>
-        <div class="brand-tagline">Capture truth. Prove it forever.</div>
-
-        <div class="cover-title">${escapeHtml(vm.title)}</div>
-        ${
-          vm.subtitle
-            ? `<div class="cover-subtitle">${escapeHtml(vm.subtitle)}</div>`
-            : ""
-        }
-      </div>
-
-      <div class="cover-side">
-        <div class="cover-panel">
-          <div class="badge ${integrityBadgeClass}">${escapeHtml(
-            integrityBadgeText
-          )}</div>
+    <section class="report-cover report-cover-certificate">
+      <div class="cover-certificate-card">
+        <div class="cover-certificate-top">
+          <div class="cover-brand-mini">PROOVRA</div>
         </div>
 
-        <div class="cover-panel">
-          <div class="kv-label">Evidence Reference</div>
-          <div class="kv-value">${escapeHtml(vm.evidenceReference)}</div>
+        <div class="cover-certificate-body">
+          <div class="cover-certificate-title">VERIFIABLE EVIDENCE REPORT</div>
+
+          <div class="cover-certificate-divider"></div>
+
+          <div class="cover-certificate-subtitle">
+            ${escapeHtml(vm.title)}
+          </div>
+
+          <div class="cover-status-wrap">
+            <div class="badge ${integrityBadgeClass}">
+              ${escapeHtml(integrityBadgeText)}
+            </div>
+          </div>
+
+          <div class="cover-meta-stack">
+            <div class="cover-meta-line">
+              <span class="cover-meta-label">Generated on</span>
+              <span class="cover-meta-value">${escapeHtml(vm.generatedAtUtc)}</span>
+            </div>
+
+            <div class="cover-meta-line">
+              <span class="cover-meta-label">Evidence Ref</span>
+              <span class="cover-meta-value">${escapeHtml(vm.evidenceReference)}</span>
+            </div>
+
+            <div class="cover-meta-line">
+              <span class="cover-meta-label">Hash</span>
+              <span class="cover-meta-value">${escapeHtml(shortHash)}</span>
+            </div>
+          </div>
+
+          <div class="cover-verify-box">
+            ${verificationBlock}
+          </div>
         </div>
 
-        <div class="cover-panel">
-          <div class="kv-label">Record Status</div>
-          <div class="kv-value">${escapeHtml(vm.recordStatusLabel)}</div>
-        </div>
-
-        <div class="cover-panel">
-          <div class="kv-label">Verification Status</div>
-          <div class="kv-value">${escapeHtml(vm.verificationStatusLabel)}</div>
-        </div>
-
-        <div class="cover-panel">
-          <div class="kv-label">Generated (UTC)</div>
-          <div class="kv-value">${escapeHtml(vm.generatedAtUtc)}</div>
+        <div class="cover-certificate-bottom">
+          <span>Signed</span>
+          <span>Timestamped</span>
+          <span>Custody Recorded</span>
+          <span>${escapeHtml(storageLabel)}</span>
+          <span>${escapeHtml(timestampLabel)}</span>
         </div>
       </div>
     </section>

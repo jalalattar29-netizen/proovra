@@ -24,6 +24,8 @@ model Evidence {
   storageObjectLockMode             String?             @map("storage_object_lock_mode") @db.VarChar(32)
   storageObjectLockRetainUntilUtc   DateTime?           @map("storage_object_lock_retain_until_utc") @db.Timestamptz(6)
   storageObjectLockLegalHoldStatus  String?             @map("storage_object_lock_legal_hold_status") @db.VarChar(16)
+  originalFileName                  String?             @map("original_file_name") @db.VarChar(255)
+  displayFileName                   String?             @map("display_file_name") @db.VarChar(255)
 
   captureMethod                     CaptureMethod?      @map("capture_method")
   identityLevelSnapshot             IdentityLevel?      @map("identity_level_snapshot")

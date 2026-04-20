@@ -263,11 +263,12 @@ export type CalloutModel = {
 
 export type InventoryRow = {
   indexLabel: string;
-  itemLabel: string;
+  fileName: string;
+  displayLabel: string | null;
   kindLabel: string;
-  mimeAndSize: string;
+  formatAndSize: string;
   shortHash: string;
-  roleAndPreview: string;
+  roleAndStatus: string;
 };
 
 export type TimelineRow = {
@@ -339,12 +340,17 @@ export type ReportViewModel = {
   technicalAppendix: {
     fileSha256: string;
     fingerprintHash: string;
+    fingerprintCanonicalJsonExcerpt: string | null;
     signingKeyReference: string;
     signatureExcerpt: string | null;
     publicKeyExcerpt: string | null;
     timestampRows: KeyValueRow[];
     otsRows: KeyValueRow[];
     anchorRows: KeyValueRow[];
+    timestampStatusLabel: string;
+    timestampStatusTone: Tone;
+    otsStatusLabel: string;
+    otsStatusTone: Tone;
     tsaMessageImprint: string | null;
     tsaTokenExcerpt: string | null;
     otsHash: string | null;
@@ -369,6 +375,8 @@ export type ReportViewModel = {
     technicalEnabled: boolean;
     publicLabel: string;
     technicalLabel: string;
+    publicDataUrl: string | null;
+    technicalDataUrl: string | null;
   };
 
   meta: {

@@ -11,11 +11,10 @@ export function renderExecutiveSummarySection(vm: ReportViewModel): string {
     "Executive Summary",
     `
       ${renderCallout(vm.executiveConclusion)}
-      ${renderCallout(vm.legalLimitationShort)}
       ${renderInfoCards(vm.heroCards)}
-      ${renderCallout(vm.reviewSequence)}
-      ${renderCallout(vm.mismatchSummary)}
       ${renderKeyValueGrid(vm.executiveRows)}
-    `
+      ${renderCallout(vm.legalLimitationShort)}
+    `,
+    { pageBreakBefore: true }
   );
 }

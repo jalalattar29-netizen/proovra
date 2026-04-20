@@ -1,3 +1,4 @@
+import QRCode from "qrcode";
 import type {
   CalloutModel,
   InfoCard,
@@ -29,6 +30,7 @@ import {
   mapCaptureMethodLabel,
   mapCertificationStatusLabel,
   mapEvidenceAssetKindLabel,
+  mapIdentityLevelLabel,
   mapObjectLockModePublicLabel,
   mapOtsStatusPublicLabel,
   mapRecordStatusLabel,
@@ -61,6 +63,9 @@ import {
   buildTimestampCallout,
   hasCoreCryptoMaterials,
   isIntegrityVerified,
+  normalizeOtsTone,
+  normalizeStorageTone,
+  normalizeTimestampTone,
 } from "./truth-model.js";
 import {
   buildOrganizationDisplay,
@@ -89,6 +94,22 @@ function buildVerifyUrl(evidenceId: string, provided?: string | null): string {
     .replace(/\/+$/, "");
 
   return `${base}/${encodeURIComponent(evidenceId)}`;
+}
+
+async function generateQrDataUrl(value: string): Promise<string | null> {
+  const text = safe(value, "");
+  if (!text) return null;
+
+  try {
+    return await QRCode.toDataURL(text, {
+      margin: 1,
+      width: 256,
+      errorCorrectionLevel: "M",
+    });
+  } catch (error) {
+    console.error("[report-v2] Failed to generate QR data URL:", error);
+    return null;
+  }
 }
 
 function resolveDisplayDescriptor(
@@ -236,8 +257,6 @@ function buildExecutiveRows(
     rows.push({ label, value: String(value) });
   };
 
-  add("Display Title", display.displayTitle);
-  add("Display Description", display.displayDescription);
   add("Evidence Reference", buildPublicEvidenceReference(evidence.id));
   add("Evidence Type", mapPublicEvidenceTypeLabel(evidence, contentSummary));
   add("Record Status", mapRecordStatusLabel(evidence.status));
@@ -245,28 +264,18 @@ function buildExecutiveRows(
     "Verification Status",
     mapVerificationStatusLabel(evidence.verificationStatus)
   );
-  add("Capture Method", mapCaptureMethodLabel(evidence.captureMethod));
-  add("Identity Level", safe(evidence.identityLevelSnapshot));
+  add("Evidence Structure", structureLabel);
+  add("Item Count", String(contentSummary.itemCount));
+  add("Total Content Size", safe(contentSummary.totalSizeDisplay));
+  add("Captured (UTC)", safe(evidence.capturedAtUtc));
+  add("Signed (UTC)", safe(evidence.signedAtUtc));
   add(
     "Submitted By",
     externalMode
       ? maskEmail(evidence.submittedByEmail)
       : safe(evidence.submittedByEmail)
   );
-  add("Auth Provider", mapAuthProviderLabel(evidence.submittedByAuthProvider));
   add("Organization / Workspace", buildOrganizationDisplay(evidence));
-  add("Organization Status", buildOrganizationStatus(evidence));
-  add("Evidence Structure", structureLabel);
-  add("Item Count", String(contentSummary.itemCount));
-  add(
-    "Primary Content Kind",
-    mapEvidenceAssetKindLabel(contentSummary.primaryKind)
-  );
-  add("MIME Type", safe(evidence.mimeType));
-  add("Total Content Size", safe(contentSummary.totalSizeDisplay));
-  add("Captured (UTC)", safe(evidence.capturedAtUtc));
-  add("Uploaded (UTC)", safe(evidence.uploadedAtUtc));
-  add("Signed (UTC)", safe(evidence.signedAtUtc));
   add(
     "Integrity Verified At (UTC)",
     safe(evidence.recordedIntegrityVerifiedAtUtc)
@@ -279,6 +288,8 @@ function buildExecutiveRows(
     "Retention Until (UTC)",
     safe(evidence.storageObjectLockRetainUntilUtc)
   );
+  add("Display Title", display.displayTitle);
+  add("Display Description", display.displayDescription);
 
   return rows;
 }
@@ -415,7 +426,7 @@ function buildReviewReadinessRows(
     },
     {
       label: "Identity Level",
-      value: safe(evidence.identityLevelSnapshot),
+      value: mapIdentityLevelLabel(evidence.identityLevelSnapshot),
     },
     {
       label: "Capture Method",
@@ -460,24 +471,28 @@ function buildEvidenceContentSummaryRows(
     "Audio",
     contentSummary.audioCount > 0 ? String(contentSummary.audioCount) : null
   );
-  add("PDF", contentSummary.pdfCount > 0 ? String(contentSummary.pdfCount) : null);
-  add("Text", contentSummary.textCount > 0 ? String(contentSummary.textCount) : null);
+  add(
+    "PDF",
+    contentSummary.pdfCount > 0 ? String(contentSummary.pdfCount) : null
+  );
+  add(
+    "Text",
+    contentSummary.textCount > 0 ? String(contentSummary.textCount) : null
+  );
   add(
     "Other",
     contentSummary.otherCount > 0 ? String(contentSummary.otherCount) : null
   );
   add(
-    "Primary Content Kind",
-    mapEvidenceAssetKindLabel(contentSummary.primaryKind)
+    "Lead Review Item",
+    primaryItem
+      ? safe(primaryItem.originalFileName || primaryItem.label)
+      : null
   );
   add(
-    "Primary Content Label",
-    safe(
-      evidence?.primaryContentLabel ??
-        mapEvidenceAssetKindLabel(contentSummary.primaryKind)
-    )
+    "Lead Item Type",
+    primaryItem ? mapEvidenceAssetKindLabel(primaryItem.kind) : null
   );
-  add("Primary MIME Type", safe(contentSummary.primaryMimeType));
   add("Total Size", safe(contentSummary.totalSizeDisplay));
   add("Composition Summary", safe(evidence?.contentCompositionSummary));
   add("Content Access Mode", safe(evidence?.contentAccessPolicy?.mode));
@@ -502,12 +517,6 @@ function buildEvidenceContentSummaryRows(
           "Not recorded"
         )
       : null
-  );
-  add("Primary Item Label", primaryItem ? safe(primaryItem.label) : null);
-  add("Primary Item Size", primaryItem?.displaySizeLabel);
-  add(
-    "Primary Item Hash",
-    primaryItem?.sha256 ? shortHash(primaryItem.sha256) : null
   );
 
   return rows;
@@ -658,7 +667,10 @@ function buildCertificationRows(
   const prefix = kind === "custodian" ? "Custodian" : "Qualified Person";
 
   return [
-    { label: `${prefix} Status`, value: mapCertificationStatusLabel(cert?.status) },
+    {
+      label: `${prefix} Status`,
+      value: mapCertificationStatusLabel(cert?.status),
+    },
     { label: `${prefix} Version`, value: String(cert?.version ?? "N/A") },
     { label: `${prefix} Requested At`, value: safe(cert?.requestedAtUtc) },
     { label: `${prefix} Attested At`, value: safe(cert?.attestedAtUtc) },
@@ -737,7 +749,9 @@ function buildForensicIntegrityStatementModel(
   };
 }
 
-export function buildReportViewModel(input: ReportV2Input): ReportViewModel {
+export async function buildReportViewModel(
+  input: ReportV2Input
+): Promise<ReportViewModel> {
   const mode: ReportArtifactMode = input.externalMode ? "external" : "internal";
   const verifyUrl = buildVerifyUrl(input.evidence.id, input.verifyUrl);
   const technicalUrl = verifyUrl.includes("?")
@@ -777,18 +791,50 @@ export function buildReportViewModel(input: ReportV2Input): ReportViewModel {
 
   const executiveConclusion = buildExecutiveConclusion(input.evidence);
   const legalLimitationShort = buildLegalLimitationShort();
-  const reviewSequence = buildReviewSequence(primaryContentItem?.label);
-const mismatchSummary = buildMismatchNarrative({
-  evidence: input.evidence,
-  integrityVerified,
-  forensicEventCount: custody.forensic.length,
-});
+  const reviewSequence = buildReviewSequence(
+    primaryContentItem?.originalFileName ?? primaryContentItem?.label
+  );
+  const mismatchSummary = buildMismatchNarrative({
+    evidence: input.evidence,
+    integrityVerified,
+    forensicEventCount: custody.forensic.length,
+  });
+
+  const timestampTone = normalizeTimestampTone(input.evidence.tsaStatus);
+  const storageTone = normalizeStorageTone(
+    input.evidence.storageImmutable,
+    input.evidence.storageObjectLockMode,
+    input.evidence.storageObjectLockRetainUntilUtc
+  );
+  const otsTone = normalizeOtsTone(input.evidence.otsStatus);
+
+  const storageAndTimestampTone =
+    timestampTone === "danger" || storageTone === "danger"
+      ? "danger"
+      : timestampTone === "success" && storageTone === "success"
+        ? "success"
+        : "warning";
+
+  const technicalQrEnabled =
+    !externalMode &&
+    (Boolean(input.downloadUrl) ||
+      process.env.REPORT_INCLUDE_TECHNICAL_QR === "true");
+
+  const [publicQrDataUrl, technicalQrDataUrl] = await Promise.all([
+    generateQrDataUrl(verifyUrl),
+    technicalQrEnabled ? generateQrDataUrl(technicalUrl) : Promise.resolve(null),
+  ]);
+
+  const leadItemName =
+    primaryContentItem?.originalFileName ??
+    primaryContentItem?.label ??
+    "No identified lead item";
 
   const heroCards: InfoCard[] = [
     {
-      label: "Primary Evidence",
+      label: "Lead Review Item",
       value: primaryContentItem
-        ? `${safe(primaryContentItem.label)} (${mapEvidenceAssetKindLabel(
+        ? `${safe(leadItemName)} (${mapEvidenceAssetKindLabel(
             primaryContentItem.kind
           )})`
         : "No primary item identified",
@@ -804,12 +850,16 @@ const mismatchSummary = buildMismatchNarrative({
     {
       label: "Storage & Timestamp",
       value: buildIntegrityReadinessSummary(input.evidence),
-      tone: "warning",
+      tone: storageAndTimestampTone,
     },
     {
       label: "External Publication",
       value: buildAnchorPublicationSummary(anchorSummary),
-      tone: anchorSummary?.published ? "success" : "warning",
+      tone: anchorSummary?.published
+        ? "success"
+        : otsTone === "danger"
+          ? "danger"
+          : "warning",
     },
   ];
 
@@ -883,8 +933,7 @@ const mismatchSummary = buildMismatchNarrative({
     primaryContentItem,
     structureLabel,
 
-    galleryEnabled:
-      contentItems.length > 1 && contentSummary.previewableItemCount > 0,
+    galleryEnabled: contentItems.length > 0,
     inventoryRows: buildInventoryRows(contentItems),
 
     certifications: {
@@ -949,12 +998,11 @@ const mismatchSummary = buildMismatchNarrative({
 
     qr: {
       publicEnabled: true,
-      technicalEnabled:
-        !externalMode &&
-        (Boolean(input.downloadUrl) ||
-          process.env.REPORT_INCLUDE_TECHNICAL_QR === "true"),
+      technicalEnabled: technicalQrEnabled,
       publicLabel: "Open verification page",
       technicalLabel: "Technical materials",
+      publicDataUrl: publicQrDataUrl,
+      technicalDataUrl: technicalQrDataUrl,
     },
 
     meta: {
@@ -998,8 +1046,12 @@ const mismatchSummary = buildMismatchNarrative({
         input.evidence.signingKeyId,
         input.evidence.signingKeyVersion
       ),
-      tsaMessageImprintShort: safe(input.evidence.tsaMessageImprint),
-      otsHashShort: safe(input.evidence.otsHash),
+      tsaMessageImprintShort: input.evidence.tsaMessageImprint
+        ? shortHash(input.evidence.tsaMessageImprint)
+        : "N/A",
+      otsHashShort: input.evidence.otsHash
+        ? shortHash(input.evidence.otsHash)
+        : "N/A",
       anchorHashShort: anchorSummary?.anchorHash
         ? shortHash(anchorSummary.anchorHash)
         : "N/A",

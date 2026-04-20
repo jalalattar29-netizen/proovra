@@ -5,6 +5,38 @@ import {
   renderPageSection,
   renderCallout,
 } from "../ui.js";
+import { escapeHtml } from "../formatters.js";
+
+function renderTechnicalStatusCards(vm: ReportViewModel): string {
+  const timestampTone = vm.technicalAppendix.timestampStatusTone ?? "neutral";
+  const otsTone = vm.technicalAppendix.otsStatusTone ?? "neutral";
+
+  return `
+    <div class="technical-status-grid">
+      <article class="technical-status-card tone-${timestampTone}">
+        <div class="technical-status-kicker">RFC 3161</div>
+        <div class="technical-status-title">Timestamp Status</div>
+        <div class="technical-status-value">${escapeHtml(
+          vm.technicalAppendix.timestampStatusLabel
+        )}</div>
+        <div class="technical-status-note">
+          Trusted timestamp issuance and verification state as recorded in the evidence record.
+        </div>
+      </article>
+
+      <article class="technical-status-card tone-${otsTone}">
+        <div class="technical-status-kicker">OpenTimestamps</div>
+        <div class="technical-status-title">Anchoring Status</div>
+        <div class="technical-status-value">${escapeHtml(
+          vm.technicalAppendix.otsStatusLabel
+        )}</div>
+        <div class="technical-status-note">
+          Public anchoring state for the recorded evidence digest and related proof materials.
+        </div>
+      </article>
+    </div>
+  `;
+}
 
 export function renderTechnicalAppendixSection(vm: ReportViewModel): string {
   return renderPageSection(
@@ -31,11 +63,24 @@ export function renderTechnicalAppendixSection(vm: ReportViewModel): string {
           : ""
       }
 
+      ${renderTechnicalStatusCards(vm)}
+
       ${renderMonoBlock("File SHA-256", vm.technicalAppendix.fileSha256)}
+
       ${renderMonoBlock(
         "Fingerprint Hash",
         vm.technicalAppendix.fingerprintHash
       )}
+
+      ${
+        vm.technicalAppendix.fingerprintCanonicalJsonExcerpt
+          ? renderMonoBlock(
+              "Fingerprint Canonical JSON (excerpt)",
+              vm.technicalAppendix.fingerprintCanonicalJsonExcerpt
+            )
+          : ""
+      }
+
       ${renderMonoBlock(
         "Signing Key Reference",
         vm.technicalAppendix.signingKeyReference
@@ -121,6 +166,7 @@ export function renderTechnicalAppendixSection(vm: ReportViewModel): string {
           ? renderMonoBlock("Anchor Hash", vm.technicalAppendix.anchorHash)
           : ""
       }
-    `
+    `,
+    { pageBreakBefore: true }
   );
 }

@@ -7,7 +7,7 @@ import { useLocale } from "../../providers";
 import { ApiError, apiFetch } from "../../../lib/api";
 import { captureException } from "../../../lib/sentry";
 
-type EvidenceType = "PHOTO" | "VIDEO" | "DOCUMENT";
+type EvidenceType = "PHOTO" | "VIDEO" | "AUDIO" | "DOCUMENT";
 type CameraMode = "PHOTO" | "VIDEO" | null;
 type FacingMode = "user" | "environment";
 
@@ -396,17 +396,19 @@ export default function CapturePage() {
 
       const integrity = await computeIntegrityFromBlob(firstFile);
 
-      const created = await apiFetch("/v1/evidence", {
-        method: "POST",
-        body: JSON.stringify({
-          type,
-          mimeType: firstFile.type || "application/octet-stream",
-          deviceTimeIso,
-          gps,
-          checksumSha256Base64: integrity.checksumSha256Base64,
-          contentMd5Base64: integrity.contentMd5Base64,
-        }),
-      });
+const created = await apiFetch("/v1/evidence", {
+  method: "POST",
+  body: JSON.stringify({
+    type,
+    mimeType: firstFile.type || "application/octet-stream",
+    originalFileName: firstFile.name,
+    captureFileName: firstFile.name,
+    deviceTimeIso,
+    gps,
+    checksumSha256Base64: integrity.checksumSha256Base64,
+    contentMd5Base64: integrity.contentMd5Base64,
+  }),
+});
 
       setSessionEvidenceId(created.id);
       setSessionInfo(null);
@@ -511,15 +513,16 @@ export default function CapturePage() {
 
         const integrity = await computeIntegrityFromBlob(item.file);
 
-        const part = await apiFetch(`/v1/evidence/${evidenceId}/parts`, {
-          method: "POST",
-          body: JSON.stringify({
-            partIndex: index,
-            mimeType: item.mimeType,
-            checksumSha256Base64: integrity.checksumSha256Base64,
-            contentMd5Base64: integrity.contentMd5Base64,
-          }),
-        });
+const part = await apiFetch(`/v1/evidence/${evidenceId}/parts`, {
+  method: "POST",
+  body: JSON.stringify({
+    partIndex: index,
+    mimeType: item.mimeType,
+    originalFileName: item.file.name,
+    checksumSha256Base64: integrity.checksumSha256Base64,
+    contentMd5Base64: integrity.contentMd5Base64,
+  }),
+});
 
         await new Promise<void>((resolve, reject) => {
           const xhr = new XMLHttpRequest();
@@ -720,10 +723,14 @@ export default function CapturePage() {
       return;
     }
 
-    const capturedFile = new File([blob], `capture-${Date.now()}.jpg`, {
-      type: "image/jpeg",
-      lastModified: Date.now(),
-    });
+const capturedFile = new File(
+  [blob],
+  `PROOVRA-CAPTURE-${new Date().toISOString().replace(/[:.]/g, "-")}.jpg`,
+  {
+    type: "image/jpeg",
+    lastModified: Date.now(),
+  }
+);
 
     await addFilesToSession([capturedFile]);
     addToast("Photo captured and added", "success");
@@ -773,10 +780,14 @@ export default function CapturePage() {
         }
 
         const extension = finalMimeType.includes("mp4") ? "mp4" : "webm";
-        const recordedFile = new File([blob], `capture-${Date.now()}.${extension}`, {
-          type: finalMimeType,
-          lastModified: Date.now(),
-        });
+const recordedFile = new File(
+  [blob],
+  `PROOVRA-VIDEO-CAPTURE-${new Date().toISOString().replace(/[:.]/g, "-")}.${extension}`,
+  {
+    type: finalMimeType,
+    lastModified: Date.now(),
+  }
+);
 
         await addFilesToSession([recordedFile]);
         addToast("Video recorded and added", "success");

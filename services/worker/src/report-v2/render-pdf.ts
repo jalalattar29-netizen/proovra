@@ -6,6 +6,7 @@ function resolveBrowserExecutablePath(): string | undefined {
     process.env.PUPPETEER_EXECUTABLE_PATH?.trim() || "",
     "/usr/bin/chromium",
     "/usr/bin/chromium-browser",
+    "/usr/bin/google-chrome",
     "/usr/bin/chrome",
     "/usr/lib/chromium/chromium",
   ].filter(Boolean);
@@ -48,13 +49,34 @@ export async function renderPdfFromHtml(html: string): Promise<Buffer> {
     const page = await browser.newPage();
 
     await page.setViewport({
-      width: 1400,
-      height: 1800,
+      width: 1440,
+      height: 2000,
       deviceScaleFactor: 1,
     });
 
+    await page.emulateMediaType("print");
+
     await page.setContent(html, {
       waitUntil: ["domcontentloaded", "networkidle0"],
+    });
+
+    await page.evaluate(async () => {
+      const fonts = (document as Document & { fonts?: FontFaceSet }).fonts;
+      if (fonts?.ready) {
+        await fonts.ready;
+      }
+
+      const images = Array.from(document.images);
+      await Promise.all(
+        images.map((img) => {
+          if (img.complete) return Promise.resolve();
+          return new Promise<void>((resolve) => {
+            const done = () => resolve();
+            img.addEventListener("load", done, { once: true });
+            img.addEventListener("error", done, { once: true });
+          });
+        })
+      );
     });
 
     const pdf = await page.pdf({

@@ -1,8 +1,19 @@
 import { escapeHtml } from "./formatters.js";
-import { CalloutModel, InfoCard, InventoryRow, KeyValueRow, TimelineRow, Tone } from "./types.js";
+import {
+  CalloutModel,
+  InfoCard,
+  InventoryRow,
+  KeyValueRow,
+  TimelineRow,
+  Tone,
+} from "./types.js";
 
 function toneClass(tone?: Tone): string {
   return tone ? ` tone-${tone}` : " tone-neutral";
+}
+
+function renderMultilineText(value: string): string {
+  return escapeHtml(value).replace(/\n/g, "<br>");
 }
 
 export function renderPageSection(
@@ -12,10 +23,18 @@ export function renderPageSection(
 ): string {
   return `
     <section class="report-section${opts?.pageBreakBefore ? " page-break-before" : ""}">
-      <div class="section-rule"></div>
-      <h2 class="section-title">${escapeHtml(title)}</h2>
-      <div class="section-body">
-        ${body}
+      <div class="report-page">
+        <div class="section-sheet">
+          <h2 class="section-title">${escapeHtml(title)}</h2>
+          <div class="section-rule"></div>
+          <div class="section-body">
+            ${body}
+          </div>
+          <div class="sheet-footer">
+            <div>PROOVRA report section</div>
+            <div>${escapeHtml(title)}</div>
+          </div>
+        </div>
       </div>
     </section>
   `;
@@ -25,7 +44,7 @@ export function renderCallout(callout: CalloutModel): string {
   return `
     <div class="callout${toneClass(callout.tone)}">
       <div class="callout-title">${escapeHtml(callout.title)}</div>
-      <div class="callout-body">${escapeHtml(callout.body)}</div>
+      <div class="callout-body">${renderMultilineText(callout.body)}</div>
     </div>
   `;
 }
@@ -38,7 +57,7 @@ export function renderInfoCards(cards: InfoCard[]): string {
           (card) => `
             <article class="info-card${toneClass(card.tone)}">
               <div class="info-card-label">${escapeHtml(card.label)}</div>
-              <div class="info-card-value">${escapeHtml(card.value)}</div>
+              <div class="info-card-value">${renderMultilineText(card.value)}</div>
             </article>
           `
         )
@@ -55,7 +74,7 @@ export function renderKeyValueGrid(rows: KeyValueRow[]): string {
           (row) => `
             <div class="kv-item">
               <div class="kv-label">${escapeHtml(row.label)}</div>
-              <div class="kv-value">${escapeHtml(row.value)}</div>
+              <div class="kv-value">${renderMultilineText(row.value)}</div>
             </div>
           `
         )
@@ -78,11 +97,11 @@ export function renderInventoryTable(rows: InventoryRow[]): string {
       <thead>
         <tr>
           <th>#</th>
-          <th>Item</th>
-          <th>Kind</th>
-          <th>MIME / Size</th>
+          <th>Original File Name</th>
+          <th>Type</th>
+          <th>Format / Size</th>
           <th>SHA-256</th>
-          <th>Role / Preview</th>
+          <th>Role / Access</th>
         </tr>
       </thead>
       <tbody>
@@ -91,11 +110,20 @@ export function renderInventoryTable(rows: InventoryRow[]): string {
             (row) => `
               <tr>
                 <td>${escapeHtml(row.indexLabel)}</td>
-                <td>${escapeHtml(row.itemLabel)}</td>
+                <td>
+                  <div class="manifest-file-name">${escapeHtml(row.fileName)}</div>
+                  ${
+                    row.displayLabel
+                      ? `<div class="manifest-display-label">${renderMultilineText(
+                          row.displayLabel
+                        )}</div>`
+                      : ""
+                  }
+                </td>
                 <td>${escapeHtml(row.kindLabel)}</td>
-                <td>${row.mimeAndSize}</td>
+                <td>${renderMultilineText(row.formatAndSize)}</td>
                 <td>${escapeHtml(row.shortHash)}</td>
-                <td>${row.roleAndPreview}</td>
+                <td>${renderMultilineText(row.roleAndStatus)}</td>
               </tr>
             `
           )
@@ -124,7 +152,7 @@ export function renderTimelineTable(rows: TimelineRow[]): string {
                 <td>${escapeHtml(row.sequence)}</td>
                 <td>${escapeHtml(row.atUtc)}</td>
                 <td>${escapeHtml(row.eventLabel)}</td>
-                <td>${row.summary}</td>
+                <td>${renderMultilineText(row.summary)}</td>
               </tr>
             `
           )
@@ -139,6 +167,27 @@ export function renderMonoBlock(label: string, value: string): string {
     <div class="mono-block">
       <div class="mono-label">${escapeHtml(label)}</div>
       <pre class="mono-value">${escapeHtml(value)}</pre>
+    </div>
+  `;
+}
+
+export function renderInlineQrBlock(
+  dataUrl: string | null | undefined,
+  label: string
+): string {
+  if (!dataUrl) {
+    return `
+      <div class="qr-inline-block">
+        <div class="cover-verify-placeholder">QR unavailable</div>
+        <div class="qr-inline-label">${escapeHtml(label)}</div>
+      </div>
+    `;
+  }
+
+  return `
+    <div class="qr-inline-block">
+      <img src="${dataUrl}" alt="${escapeHtml(label)}" />
+      <div class="qr-inline-label">${escapeHtml(label)}</div>
     </div>
   `;
 }

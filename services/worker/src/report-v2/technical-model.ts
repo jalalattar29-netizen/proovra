@@ -1,14 +1,49 @@
-import { ReportEvidence, ReportAnchorSummary, KeyValueRow } from "./types.js";
-import { safe, shortHash, buildPublicSigningKeyReference, redactIdentifier, maskEmail, summarizeText } from "./formatters.js";
+import {
+  ReportEvidence,
+  ReportAnchorSummary,
+  KeyValueRow,
+  Tone,
+} from "./types.js";
+import {
+  safe,
+  shortHash,
+  buildPublicSigningKeyReference,
+  redactIdentifier,
+  maskEmail,
+  summarizeText,
+} from "./formatters.js";
 import {
   mapAuthProviderLabel,
   mapCaptureMethodLabel,
   mapIdentityLevelLabel,
-  mapObjectLockModePublicLabel,
-  mapTimestampStatusPublicLabel,
-  mapOtsStatusPublicLabel,
   mapAnchorModePublicLabel,
+  mapOtsStatusPublicLabel,
+  mapTimestampStatusPublicLabel,
 } from "./normalizers.js";
+
+function mapTimestampTone(status: string | null | undefined): Tone {
+  const value = safe(status, "").toUpperCase();
+
+  if (["STAMPED", "GRANTED", "VERIFIED", "SUCCEEDED"].includes(value)) {
+    return "success";
+  }
+  if (["PENDING", "UNAVAILABLE"].includes(value)) {
+    return "warning";
+  }
+  if (value === "FAILED") {
+    return "danger";
+  }
+  return "neutral";
+}
+
+function mapOtsTone(status: string | null | undefined): Tone {
+  const value = safe(status, "").toUpperCase();
+
+  if (value === "ANCHORED") return "success";
+  if (value === "PENDING") return "warning";
+  if (value === "FAILED") return "danger";
+  return "neutral";
+}
 
 export function resolveAnchorSummary(
   evidence: ReportEvidence
@@ -59,7 +94,9 @@ export function buildOrganizationStatus(evidence: ReportEvidence): string {
   const hasOrg = safe(evidence.organizationNameSnapshot, "") !== "";
   const hasWorkspace = safe(evidence.workspaceNameSnapshot, "") !== "";
 
-  if (evidence.organizationVerifiedSnapshot === true) return "Verified organization";
+  if (evidence.organizationVerifiedSnapshot === true) {
+    return "Verified organization";
+  }
   if (hasOrg) return "Organization recorded";
   if (hasWorkspace) return "Workspace recorded";
   return "Not recorded";
@@ -72,7 +109,9 @@ export function buildTechnicalIdentityRows(
   return [
     {
       label: "Submitted By Email",
-      value: externalMode ? maskEmail(evidence.submittedByEmail) : safe(evidence.submittedByEmail),
+      value: externalMode
+        ? maskEmail(evidence.submittedByEmail)
+        : safe(evidence.submittedByEmail),
     },
     {
       label: "Submitted By Provider",
@@ -149,7 +188,10 @@ export function buildAnchorRows(
   return [
     { label: "Anchor Mode", value: mapAnchorModePublicLabel(anchorSummary.mode) },
     { label: "Anchor Provider", value: safe(anchorSummary.provider) },
-    { label: "Anchor Anchored At (UTC)", value: safe(anchorSummary.anchoredAtUtc) },
+    {
+      label: "Anchor Anchored At (UTC)",
+      value: safe(anchorSummary.anchoredAtUtc),
+    },
     {
       label: "Anchor Public URL",
       value: summarizeText(safe(anchorSummary.publicUrl), 84),
@@ -170,6 +212,11 @@ export function buildTechnicalAppendixModel(
   return {
     fileSha256: safe(evidence.fileSha256),
     fingerprintHash: safe(evidence.fingerprintHash),
+    fingerprintCanonicalJsonExcerpt: externalMode
+      ? null
+      : evidence.fingerprintCanonicalJson
+        ? summarizeText(evidence.fingerprintCanonicalJson, 1600)
+        : null,
     signingKeyReference: buildPublicSigningKeyReference(
       evidence.signingKeyId,
       evidence.signingKeyVersion
@@ -179,6 +226,10 @@ export function buildTechnicalAppendixModel(
     timestampRows: buildTimestampRows(evidence),
     otsRows: buildOtsRows(evidence),
     anchorRows: buildAnchorRows(anchorSummary),
+    timestampStatusLabel: mapTimestampStatusPublicLabel(evidence.tsaStatus),
+    timestampStatusTone: mapTimestampTone(evidence.tsaStatus),
+    otsStatusLabel: mapOtsStatusPublicLabel(evidence.otsStatus),
+    otsStatusTone: mapOtsTone(evidence.otsStatus),
     tsaMessageImprint: externalMode ? null : safe(evidence.tsaMessageImprint),
     tsaTokenExcerpt: externalMode ? null : safe(evidence.tsaTokenBase64),
     otsHash: externalMode ? null : safe(evidence.otsHash),
