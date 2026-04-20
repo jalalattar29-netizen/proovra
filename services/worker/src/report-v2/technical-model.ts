@@ -6,11 +6,9 @@ import {
 } from "./types.js";
 import {
   safe,
-  shortHash,
   buildPublicSigningKeyReference,
   redactIdentifier,
   maskEmail,
-  summarizeText,
 } from "./formatters.js";
 import {
   mapAuthProviderLabel,
@@ -159,7 +157,7 @@ export function buildTechnicalIdentityRows(
 export function buildTimestampRows(evidence: ReportEvidence): KeyValueRow[] {
   return [
     { label: "Timestamp Provider", value: safe(evidence.tsaProvider) },
-    { label: "Timestamp URL", value: summarizeText(safe(evidence.tsaUrl), 84) },
+    { label: "Timestamp URL", value: safe(evidence.tsaUrl) },
     { label: "Serial Number", value: safe(evidence.tsaSerialNumber) },
     { label: "Generation Time (UTC)", value: safe(evidence.tsaGenTimeUtc) },
     { label: "Hash Algorithm", value: safe(evidence.tsaHashAlgorithm) },
@@ -176,7 +174,7 @@ export function buildOtsRows(evidence: ReportEvidence): KeyValueRow[] {
     { label: "OTS Calendar", value: safe(evidence.otsCalendar) },
     { label: "OTS Anchored At (UTC)", value: safe(evidence.otsAnchoredAtUtc) },
     { label: "OTS Upgraded At (UTC)", value: safe(evidence.otsUpgradedAtUtc) },
-    { label: "OTS Bitcoin TxID", value: shortHash(evidence.otsBitcoinTxid) },
+    { label: "OTS Bitcoin TxID", value: safe(evidence.otsBitcoinTxid) },
   ];
 }
 
@@ -194,12 +192,12 @@ export function buildAnchorRows(
     },
     {
       label: "Anchor Public URL",
-      value: summarizeText(safe(anchorSummary.publicUrl), 84),
+      value: safe(anchorSummary.publicUrl),
     },
-    { label: "Anchor Receipt ID", value: shortHash(anchorSummary.receiptId) },
+    { label: "Anchor Receipt ID", value: safe(anchorSummary.receiptId) },
     {
       label: "Anchor Transaction ID",
-      value: shortHash(anchorSummary.transactionId),
+      value: safe(anchorSummary.transactionId),
     },
   ];
 }
@@ -215,7 +213,7 @@ export function buildTechnicalAppendixModel(
     fingerprintCanonicalJsonExcerpt: externalMode
       ? null
       : evidence.fingerprintCanonicalJson
-        ? summarizeText(evidence.fingerprintCanonicalJson, 1600)
+        ? evidence.fingerprintCanonicalJson
         : null,
     signingKeyReference: buildPublicSigningKeyReference(
       evidence.signingKeyId,

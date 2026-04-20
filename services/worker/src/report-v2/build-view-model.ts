@@ -21,12 +21,9 @@ import {
   maskEmail,
   safe,
   safeBooleanLabel,
-  shortHash,
-  summarizeText,
 } from "./formatters.js";
 import {
   mapAnchorModePublicLabel,
-  mapAuthProviderLabel,
   mapCaptureMethodLabel,
   mapCertificationStatusLabel,
   mapEvidenceAssetKindLabel,
@@ -69,7 +66,6 @@ import {
 } from "./truth-model.js";
 import {
   buildOrganizationDisplay,
-  buildOrganizationStatus,
   buildTechnicalAppendixModel,
   buildTechnicalIdentityRows,
   buildTimestampRows,
@@ -248,7 +244,7 @@ function buildExecutiveRows(
   evidence: ReportEvidence,
   structureLabel: string,
   contentSummary: ReportEvidenceContentSummary,
-  display: DisplayDescriptor,
+  primaryContentItem: ReportEvidenceAsset | null,
   externalMode: boolean
 ): KeyValueRow[] {
   const rows: KeyValueRow[] = [];
@@ -266,6 +262,16 @@ function buildExecutiveRows(
   );
   add("Evidence Structure", structureLabel);
   add("Item Count", String(contentSummary.itemCount));
+  add(
+    "Lead Review Item",
+    primaryContentItem
+      ? safe(primaryContentItem.originalFileName || primaryContentItem.label)
+      : "No identified lead item"
+  );
+  add(
+    "Lead Item Type",
+    primaryContentItem ? mapEvidenceAssetKindLabel(primaryContentItem.kind) : null
+  );
   add("Total Content Size", safe(contentSummary.totalSizeDisplay));
   add("Captured (UTC)", safe(evidence.capturedAtUtc));
   add("Signed (UTC)", safe(evidence.signedAtUtc));
@@ -288,8 +294,6 @@ function buildExecutiveRows(
     "Retention Until (UTC)",
     safe(evidence.storageObjectLockRetainUntilUtc)
   );
-  add("Display Title", display.displayTitle);
-  add("Display Description", display.displayDescription);
 
   return rows;
 }
@@ -307,20 +311,13 @@ function buildVerificationSummaryRows(
     rows.push({ label, value: String(value) });
   };
 
-  add(
-    "Display Title",
-    safe(
-      evidence.display?.displayTitle ?? evidence.displayTitle ?? evidence.title,
-      "Digital Evidence Record"
-    )
-  );
   add("Evidence Reference", buildPublicEvidenceReference(evidence.id));
   add("Evidence Type", mapPublicEvidenceTypeLabel(evidence, contentSummary));
   add("Evidence Structure", structureLabel);
   add("Previewable Items", String(contentSummary.previewableItemCount));
   add("Downloadable Items", String(contentSummary.downloadableItemCount));
-  add("MIME Type", safe(evidence.mimeType));
-  add("File Size", formatBytesHuman(evidence.sizeBytes));
+  add("Primary MIME Type", safe(contentSummary.primaryMimeType));
+  add("Total File Size", formatBytesHuman(evidence.sizeBytes));
   add("Duration", evidence.durationSec ? `${evidence.durationSec} sec` : null);
   add(
     "Latest Report Version",
@@ -351,7 +348,12 @@ function buildVerificationSummaryRows(
   add("Review Ready At (UTC)", safe(evidence.reviewReadyAtUtc));
   add("Forensic Custody Events", String(custody.forensic.length));
   add("Access Activity Events", String(custody.access.length));
-  add("Public Verification Page", "See verification section");
+  add(
+    "Submitted By",
+    externalMode
+      ? maskEmail(evidence.submittedByEmail)
+      : safe(evidence.submittedByEmail)
+  );
 
   if (!externalMode) {
     add(
@@ -493,6 +495,7 @@ function buildEvidenceContentSummaryRows(
     "Lead Item Type",
     primaryItem ? mapEvidenceAssetKindLabel(primaryItem.kind) : null
   );
+  add("Primary MIME Type", safe(contentSummary.primaryMimeType));
   add("Total Size", safe(contentSummary.totalSizeDisplay));
   add("Composition Summary", safe(evidence?.contentCompositionSummary));
   add("Content Access Mode", safe(evidence?.contentAccessPolicy?.mode));
@@ -552,7 +555,7 @@ function buildStorageRows(
     { label: "RFC 3161 Provider", value: safe(evidence.tsaProvider) },
     {
       label: "RFC 3161 URL",
-      value: summarizeText(safe(evidence.tsaUrl), 84),
+      value: safe(evidence.tsaUrl),
     },
     { label: "RFC 3161 Serial", value: safe(evidence.tsaSerialNumber) },
     { label: "RFC 3161 Time (UTC)", value: safe(evidence.tsaGenTimeUtc) },
@@ -573,7 +576,7 @@ function buildStorageRows(
     { label: "OTS Upgraded At (UTC)", value: safe(evidence.otsUpgradedAtUtc) },
     {
       label: "OTS Bitcoin TxID",
-      value: shortHash(evidence.otsBitcoinTxid),
+      value: safe(evidence.otsBitcoinTxid),
     },
   ];
 
@@ -597,15 +600,15 @@ function buildStorageRows(
       },
       {
         label: "Anchor Public URL",
-        value: summarizeText(safe(anchorSummary.publicUrl), 84),
+        value: safe(anchorSummary.publicUrl),
       },
       {
         label: "Anchor Receipt ID",
-        value: shortHash(anchorSummary.receiptId),
+        value: safe(anchorSummary.receiptId),
       },
       {
         label: "Anchor Transaction ID",
-        value: shortHash(anchorSummary.transactionId),
+        value: safe(anchorSummary.transactionId),
       }
     );
   }
@@ -682,7 +685,7 @@ function buildCertificationRows(
     },
     {
       label: `${prefix} Certification Hash`,
-      value: shortHash(cert?.certificationHash),
+      value: safe(cert?.certificationHash),
     },
     { label: `${prefix} Revoked At`, value: safe(cert?.revokedAtUtc) },
   ];
@@ -822,7 +825,9 @@ export async function buildReportViewModel(
 
   const [publicQrDataUrl, technicalQrDataUrl] = await Promise.all([
     generateQrDataUrl(verifyUrl),
-    technicalQrEnabled ? generateQrDataUrl(technicalUrl) : Promise.resolve(null),
+    technicalQrEnabled
+      ? generateQrDataUrl(technicalUrl)
+      : Promise.resolve(null),
   ]);
 
   const leadItemName =
@@ -904,7 +909,7 @@ export async function buildReportViewModel(
       input.evidence,
       structureLabel,
       contentSummary,
-      display,
+      primaryContentItem,
       externalMode
     ),
     verificationSummaryRows: buildVerificationSummaryRows(
@@ -1027,9 +1032,7 @@ export async function buildReportViewModel(
         input.evidence.signingKeyVersion
       ),
       fileSizeLabel: formatBytesHuman(input.evidence.sizeBytes),
-      primaryHashShort: primaryContentItem?.sha256
-        ? shortHash(primaryContentItem.sha256)
-        : "N/A",
+      primaryHashShort: primaryContentItem?.sha256 ?? "N/A",
       submittedByLabel: externalMode
         ? maskEmail(input.evidence.submittedByEmail)
         : safe(input.evidence.submittedByEmail),
@@ -1046,15 +1049,9 @@ export async function buildReportViewModel(
         input.evidence.signingKeyId,
         input.evidence.signingKeyVersion
       ),
-      tsaMessageImprintShort: input.evidence.tsaMessageImprint
-        ? shortHash(input.evidence.tsaMessageImprint)
-        : "N/A",
-      otsHashShort: input.evidence.otsHash
-        ? shortHash(input.evidence.otsHash)
-        : "N/A",
-      anchorHashShort: anchorSummary?.anchorHash
-        ? shortHash(anchorSummary.anchorHash)
-        : "N/A",
+      tsaMessageImprintShort: input.evidence.tsaMessageImprint ?? "N/A",
+      otsHashShort: input.evidence.otsHash ?? "N/A",
+      anchorHashShort: anchorSummary?.anchorHash ?? "N/A",
     },
   };
 }

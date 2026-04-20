@@ -1,4 +1,7 @@
-export function safe(value: string | null | undefined, fallback = "N/A"): string {
+export function safe(
+  value: string | null | undefined,
+  fallback = "N/A"
+): string {
   const t = typeof value === "string" ? value.trim() : "";
   return t ? t : fallback;
 }

@@ -14,7 +14,7 @@ export function renderEvidenceContentSection(vm: ReportViewModel): string {
       ${renderCallout({
         title: "Reviewer note",
         body:
-          "Review the evidence gallery for item-level visual orientation, then use the evidence manifest for exact file-level listing, and then move to custody, timestamping, storage, and technical appendix materials for deeper validation.",
+          "Use the evidence-presentation section for visual and reviewer-facing orientation, the evidence manifest for exact item-level listing, and the later technical, custody, timestamping, and storage sections for deeper validation of the recorded integrity state.",
         tone: "neutral",
       })}
     `,

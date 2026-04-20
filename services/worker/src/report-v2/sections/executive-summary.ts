@@ -7,13 +7,21 @@ import {
 } from "../ui.js";
 
 export function renderExecutiveSummarySection(vm: ReportViewModel): string {
+  const mismatchBlock =
+    vm.mismatchSummary.tone === "success" ? "" : renderCallout(vm.mismatchSummary);
+
   return renderPageSection(
     "Executive Summary",
     `
       ${renderCallout(vm.executiveConclusion)}
+
       ${renderInfoCards(vm.heroCards)}
+
+      ${renderCallout(vm.reviewSequence)}
+
       ${renderKeyValueGrid(vm.executiveRows)}
-      ${renderCallout(vm.legalLimitationShort)}
+
+      ${mismatchBlock}
     `,
     { pageBreakBefore: true }
   );

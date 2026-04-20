@@ -1,92 +1,157 @@
 import { ReportViewModel } from "../types.js";
-import { escapeHtml } from "../formatters.js";
+import { escapeHtml, safe } from "../formatters.js";
 import { renderInlineQrBlock } from "../ui.js";
+
+function findRowValue(
+  rows: Array<{ label: string; value: string }>,
+  label: string,
+  fallback = "Not recorded"
+): string {
+  return rows.find((row) => row.label === label)?.value ?? fallback;
+}
 
 export function renderCoverSection(vm: ReportViewModel): string {
   const integrityBadgeClass = vm.integrityVerified
     ? "badge-success"
     : "badge-danger";
   const integrityBadgeText = vm.integrityVerified
-    ? "VERIFIED AUTHENTIC"
-    : "REVIEW REQUIRED";
+    ? "Recorded Integrity Verified"
+    : "Recorded Integrity Review Required";
 
-  const shortHash =
-    vm.meta.primaryHashShort && vm.meta.primaryHashShort !== "N/A"
-      ? vm.meta.primaryHashShort
-      : vm.evidenceReference;
+  const primaryHash =
+    vm.primaryContentItem?.sha256 ||
+    vm.technicalAppendix.fileSha256 ||
+    vm.evidenceReference;
 
-  const storageLabel =
-    vm.storageRows.find((row) => row.label === "Immutable Storage")?.value ??
-    "Not recorded";
-
-  const timestampLabel =
-    vm.meta.timestampRows.find((row) => row.label === "Timestamp Status")?.value ??
-    "Not recorded";
+  const evidenceType = vm.meta.publicEvidenceTypeLabel || "Digital Evidence Record";
+  const itemCount = String(vm.contentSummary.itemCount);
+  const storageLabel = findRowValue(vm.storageRows, "Immutable Storage");
+  const timestampLabel = findRowValue(vm.storageRows, "RFC 3161 Status");
+  const anchoringLabel = findRowValue(vm.storageRows, "Public Anchoring Status");
+  const leadItemLabel = safe(
+    vm.primaryContentItem?.originalFileName || vm.primaryContentItem?.label,
+    "No identified lead item"
+  );
 
   const verificationBlock = vm.qr.publicDataUrl
     ? `
-      ${renderInlineQrBlock(vm.qr.publicDataUrl, vm.qr.publicLabel)}
-      <div class="cover-verify-title">Verification Access</div>
-      <div class="cover-verify-url">${escapeHtml(vm.verifyUrl)}</div>
+      <div class="cover-verify-qr-wrap">
+        ${renderInlineQrBlock(vm.qr.publicDataUrl, vm.qr.publicLabel)}
+      </div>
+      <div class="cover-verify-texts">
+        <div class="cover-verify-title">Verification Access</div>
+        <div class="cover-verify-url">${escapeHtml(vm.verifyUrl)}</div>
+      </div>
     `
     : `
-      <div class="cover-verify-placeholder">QR unavailable</div>
-      <div class="cover-verify-title">Verification Access</div>
-      <div class="cover-verify-url">${escapeHtml(vm.verifyUrl)}</div>
+      <div class="cover-verify-qr-wrap">
+        <div class="cover-verify-placeholder">QR unavailable</div>
+      </div>
+      <div class="cover-verify-texts">
+        <div class="cover-verify-title">Verification Access</div>
+        <div class="cover-verify-url">${escapeHtml(vm.verifyUrl)}</div>
+      </div>
     `;
 
   return `
     <div class="report-header-band"></div>
 
-    <section class="report-cover report-cover-certificate">
+    <section class="report-cover report-cover-premium">
       <div class="cover-certificate-card">
         <div class="cover-certificate-top">
-          <div class="cover-brand-mini">PROOVRA</div>
-        </div>
-
-        <div class="cover-certificate-body">
-          <div class="cover-certificate-title">VERIFIABLE EVIDENCE REPORT</div>
-
-          <div class="cover-certificate-divider"></div>
-
-          <div class="cover-certificate-subtitle">
-            ${escapeHtml(vm.title)}
+          <div class="cover-brand-lockup">
+            <div class="cover-brand-mini">PROOVRA</div>
+            <div class="cover-brand-sub">Verifiable Evidence Report</div>
           </div>
 
-          <div class="cover-status-wrap">
-            <div class="badge ${integrityBadgeClass}">
-              ${escapeHtml(integrityBadgeText)}
-            </div>
-          </div>
-
-          <div class="cover-meta-stack">
-            <div class="cover-meta-line">
-              <span class="cover-meta-label">Generated on</span>
-              <span class="cover-meta-value">${escapeHtml(vm.generatedAtUtc)}</span>
-            </div>
-
-            <div class="cover-meta-line">
-              <span class="cover-meta-label">Evidence Ref</span>
-              <span class="cover-meta-value">${escapeHtml(vm.evidenceReference)}</span>
-            </div>
-
-            <div class="cover-meta-line">
-              <span class="cover-meta-label">Hash</span>
-              <span class="cover-meta-value">${escapeHtml(shortHash)}</span>
-            </div>
-          </div>
-
-          <div class="cover-verify-box">
-            ${verificationBlock}
+          <div class="cover-top-badge badge ${integrityBadgeClass}">
+            ${escapeHtml(integrityBadgeText)}
           </div>
         </div>
 
-        <div class="cover-certificate-bottom">
-          <span>Signed</span>
-          <span>Timestamped</span>
+        <div class="cover-certificate-body cover-premium-body">
+          <div class="cover-left-column">
+            <div class="cover-eyebrow">Digital Evidence Integrity Record</div>
+
+            <h1 class="cover-certificate-title">
+              ${escapeHtml(vm.title)}
+            </h1>
+
+            ${
+              vm.subtitle
+                ? `<div class="cover-certificate-subtitle">${escapeHtml(vm.subtitle)}</div>`
+                : ""
+            }
+
+            <div class="cover-hero-summary">
+              <div class="cover-hero-summary-item">
+                <span class="cover-hero-summary-label">Evidence Type</span>
+                <span class="cover-hero-summary-value">${escapeHtml(evidenceType)}</span>
+              </div>
+              <div class="cover-hero-summary-item">
+                <span class="cover-hero-summary-label">Package Structure</span>
+                <span class="cover-hero-summary-value">${escapeHtml(vm.structureLabel)}</span>
+              </div>
+              <div class="cover-hero-summary-item">
+                <span class="cover-hero-summary-label">Item Count</span>
+                <span class="cover-hero-summary-value">${escapeHtml(itemCount)}</span>
+              </div>
+              <div class="cover-hero-summary-item">
+                <span class="cover-hero-summary-label">Lead Review Item</span>
+                <span class="cover-hero-summary-value">${escapeHtml(leadItemLabel)}</span>
+              </div>
+            </div>
+
+            <div class="cover-meta-grid">
+              <div class="cover-meta-card">
+                <div class="cover-meta-label">Generated (UTC)</div>
+                <div class="cover-meta-value">${escapeHtml(vm.generatedAtUtc)}</div>
+              </div>
+
+              <div class="cover-meta-card">
+                <div class="cover-meta-label">Evidence Reference</div>
+                <div class="cover-meta-value">${escapeHtml(vm.evidenceReference)}</div>
+              </div>
+
+              <div class="cover-meta-card cover-meta-card-wide">
+                <div class="cover-meta-label">Primary SHA-256 / Recorded Digest</div>
+                <div class="cover-meta-value cover-meta-value-code">${escapeHtml(primaryHash)}</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="cover-right-column">
+            <div class="cover-verify-box cover-verify-box-premium">
+              ${verificationBlock}
+            </div>
+
+            <div class="cover-status-panel">
+              <div class="cover-status-row">
+                <span class="cover-status-name">Storage Protection</span>
+                <span class="cover-status-value">${escapeHtml(storageLabel)}</span>
+              </div>
+              <div class="cover-status-row">
+                <span class="cover-status-name">Trusted Timestamp</span>
+                <span class="cover-status-value">${escapeHtml(timestampLabel)}</span>
+              </div>
+              <div class="cover-status-row">
+                <span class="cover-status-name">Public Anchoring</span>
+                <span class="cover-status-value">${escapeHtml(anchoringLabel)}</span>
+              </div>
+              <div class="cover-status-row">
+                <span class="cover-status-name">Record Status</span>
+                <span class="cover-status-value">${escapeHtml(vm.recordStatusLabel)}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="cover-certificate-bottom cover-certificate-bottom-premium">
+          <span>System Signed</span>
+          <span>Fingerprint Recorded</span>
           <span>Custody Recorded</span>
-          <span>${escapeHtml(storageLabel)}</span>
-          <span>${escapeHtml(timestampLabel)}</span>
+          <span>Timestamp State Preserved</span>
+          <span>Storage State Preserved</span>
         </div>
       </div>
     </section>

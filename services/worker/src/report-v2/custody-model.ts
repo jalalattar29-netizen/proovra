@@ -1,5 +1,10 @@
 import { isAccessCustodyEventType } from "@proovra/shared";
-import { ReportCustodyEvent, TimelineRow, CalloutModel, ReportEvidence } from "./types.js";
+import {
+  ReportCustodyEvent,
+  TimelineRow,
+  CalloutModel,
+  ReportEvidence,
+} from "./types.js";
 import { safe } from "./formatters.js";
 import { mapCustodyEventLabel } from "./normalizers.js";
 
@@ -7,7 +12,9 @@ export type ClassifiedCustodyEvent = ReportCustodyEvent & {
   category: "forensic" | "access";
 };
 
-export function classifyCustodyEvent(event: ReportCustodyEvent): ClassifiedCustodyEvent {
+export function classifyCustodyEvent(
+  event: ReportCustodyEvent
+): ClassifiedCustodyEvent {
   return {
     ...event,
     category: isAccessCustodyEventType(event.eventType) ? "access" : "forensic",
@@ -25,15 +32,11 @@ export function splitCustodyEvents(events: ReportCustodyEvent[]) {
 
 export function buildTimelineRows(events: ClassifiedCustodyEvent[]): TimelineRow[] {
   return events.map((ev) => {
-    const summaryLines = [safe(ev.payloadSummary)];
-    if (ev.prevEventHash) summaryLines.push(`Previous hash: ${ev.prevEventHash}`);
-    if (ev.eventHash) summaryLines.push(`Event hash: ${ev.eventHash}`);
-
     return {
       sequence: String(ev.sequence),
       atUtc: safe(ev.atUtc),
       eventLabel: mapCustodyEventLabel(ev.eventType),
-      summary: summaryLines.filter(Boolean).join("\n"),
+      summary: safe(ev.payloadSummary),
     };
   });
 }
@@ -72,7 +75,9 @@ export function buildMismatchNarrative(params: {
   }
 
   if (params.forensicEventCount === 0) {
-    issues.push("No forensic custody events were included in this report payload.");
+    issues.push(
+      "No forensic custody events were included in this report payload."
+    );
   }
 
   if (issues.length === 0) {

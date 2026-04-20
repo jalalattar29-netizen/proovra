@@ -6,13 +6,6 @@ export function renderLegalLimitationsSection(vm: ReportViewModel): string {
     "Legal Interpretation & Review Use",
     `
       ${renderCallout({
-        title: "What this report supports",
-        body:
-          "This report supports review of the recorded evidence content, the recorded integrity state, the custody chronology, timestamp records, anchoring records, and storage-protection indicators included in the system record.",
-        tone: "success",
-      })}
-
-      ${renderCallout({
         title: "What this report does not independently prove",
         body: vm.legalLimitations.detailed,
         tone: "warning",

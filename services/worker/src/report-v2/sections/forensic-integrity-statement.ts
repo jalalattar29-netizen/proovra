@@ -12,14 +12,11 @@ export function renderForensicIntegrityStatementSection(
   return renderPageSection(
     "Forensic Integrity Statement",
     `
-      <div class="callout tone-neutral">
-        <div class="callout-title">${escapeHtml(
-          vm.forensicIntegrityStatement.introLead
-        )}</div>
-        <div class="callout-body">${escapeHtml(
-          vm.forensicIntegrityStatement.introBody
-        )}</div>
-      </div>
+      ${renderCallout({
+        title: vm.forensicIntegrityStatement.introLead,
+        body: vm.forensicIntegrityStatement.introBody,
+        tone: "neutral",
+      })}
 
       <div class="callout tone-neutral">
         <div class="callout-title">Integrity materials included in this report</div>
@@ -35,20 +32,17 @@ export function renderForensicIntegrityStatementSection(
         </div>
       </div>
 
-      <div class="callout tone-neutral">
-        <div class="callout-title">Technical note</div>
-        <div class="callout-body">${escapeHtml(
-          vm.forensicIntegrityStatement.note
-        )}</div>
-      </div>
+      ${renderCallout({
+        title: "Technical note",
+        body: vm.forensicIntegrityStatement.note,
+        tone: "neutral",
+      })}
 
-      ${renderCallout(vm.forensicIntegrityStatement.legalNotice)}
-
-      <div class="callout tone-neutral">
-        <div class="callout-title">${escapeHtml(
+      <div class="verification-link-panel">
+        <div class="verification-link-panel-label">${escapeHtml(
           vm.forensicIntegrityStatement.verificationLinkLabel
         )}</div>
-        <div class="callout-body">${escapeHtml(
+        <div class="verification-link-panel-value">${escapeHtml(
           vm.forensicIntegrityStatement.verificationLinkText
         )}</div>
       </div>

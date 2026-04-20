@@ -14,7 +14,7 @@ export function renderInventorySection(vm: ReportViewModel): string {
       ${renderCallout({
         title: "Manifest scope",
         body:
-          "This manifest lists the preserved evidence items by original file name together with type, format, size, recorded hash summary, and reviewer-facing access role information.",
+          "This manifest lists the preserved evidence items by original file name together with type, format, size, full recorded SHA-256 value, and reviewer-facing role or access-state information. It is intended to support exact item-level review rather than visual orientation alone.",
         tone: "neutral",
       })}
 

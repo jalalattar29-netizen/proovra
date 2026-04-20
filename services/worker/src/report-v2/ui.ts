@@ -96,12 +96,12 @@ export function renderInventoryTable(rows: InventoryRow[]): string {
     <table class="report-table inventory-table">
       <thead>
         <tr>
-          <th>#</th>
-          <th>Original File Name</th>
-          <th>Type</th>
-          <th>Format / Size</th>
-          <th>SHA-256</th>
-          <th>Role / Access</th>
+          <th style="width: 6%">#</th>
+          <th style="width: 27%">Original File Name</th>
+          <th style="width: 11%">Type</th>
+          <th style="width: 16%">Format / Size</th>
+          <th style="width: 24%">SHA-256</th>
+          <th style="width: 16%">Role / Access</th>
         </tr>
       </thead>
       <tbody>
@@ -138,10 +138,10 @@ export function renderTimelineTable(rows: TimelineRow[]): string {
     <table class="report-table timeline-table">
       <thead>
         <tr>
-          <th>Seq</th>
-          <th>At (UTC)</th>
-          <th>Event</th>
-          <th>Summary</th>
+          <th style="width: 8%">Seq</th>
+          <th style="width: 22%">At (UTC)</th>
+          <th style="width: 18%">Event</th>
+          <th style="width: 52%">Summary</th>
         </tr>
       </thead>
       <tbody>

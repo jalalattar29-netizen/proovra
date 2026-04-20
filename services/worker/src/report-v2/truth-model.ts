@@ -1,4 +1,9 @@
-import { Tone, ReportEvidence, ReportAnchorSummary, CalloutModel } from "./types.js";
+import {
+  Tone,
+  ReportEvidence,
+  ReportAnchorSummary,
+  CalloutModel,
+} from "./types.js";
 import { safe, safeBooleanLabel } from "./formatters.js";
 import {
   mapOtsStatusPublicLabel,
@@ -26,6 +31,7 @@ export function normalizeTimestampTone(
   status: string | null | undefined
 ): Tone {
   const s = safe(status, "").toUpperCase();
+
   if (["GRANTED", "STAMPED", "VERIFIED", "SUCCEEDED"].includes(s)) {
     return "success";
   }
@@ -36,6 +42,7 @@ export function normalizeTimestampTone(
 
 export function normalizeOtsTone(status: string | null | undefined): Tone {
   const s = safe(status, "").toUpperCase();
+
   if (s === "ANCHORED") return "success";
   if (s === "PENDING") return "warning";
   if (s === "FAILED") return "danger";
@@ -49,26 +56,36 @@ export function normalizeStorageTone(
 ): Tone {
   const normalizedMode = safe(mode, "").toUpperCase();
 
-  if (immutable && normalizedMode === "COMPLIANCE" && safe(retainUntil, "") !== "") {
+  if (
+    immutable &&
+    normalizedMode === "COMPLIANCE" &&
+    safe(retainUntil, "") !== ""
+  ) {
     return "success";
   }
+
   if (immutable || normalizedMode === "GOVERNANCE") {
     return "warning";
   }
+
   if (normalizedMode) {
     return "danger";
   }
+
   return "neutral";
 }
 
-export function buildExecutiveConclusion(evidence: ReportEvidence): CalloutModel {
+export function buildExecutiveConclusion(
+  evidence: ReportEvidence
+): CalloutModel {
   const verified = isIntegrityVerified(evidence);
 
   return {
     title: "Executive conclusion",
     body: verified
-      ? "This report supports the conclusion that the recorded integrity state of the evidence record was verified within the system record. Reviewers should still separately assess factual context, authorship, relevance, and admissibility."
-      : "This report supports review of the recorded evidence state, but the integrity outcome remains incomplete or requires manual assessment before reliance.",
+      ? "This report supports the conclusion that the recorded integrity state of the evidence record was verified within the system record. It supports review of whether the preserved record remained technically consistent with its recorded cryptographic, timestamping, custody, and storage materials at the time of report generation. Reviewers should still separately assess factual context, authorship, relevance, and admissibility."
+      : "This report supports review of the recorded evidence state, but the integrity outcome remains incomplete or requires manual assessment before reliance. The record may still contain useful technical materials, but it should not be treated as a completed integrity-verification outcome without further review."
+      ,
     tone: verified ? "success" : "danger",
   };
 }
@@ -77,7 +94,7 @@ export function buildLegalLimitationShort(): CalloutModel {
   return {
     title: "Important legal limitation",
     body:
-      "This report verifies the recorded integrity state of the evidence record. It does not independently prove factual truth, authorship, context, or legal admissibility.",
+      "This report verifies the recorded integrity state of the evidence record. It does not independently prove factual truth, authorship, context, intent, or legal admissibility.",
     tone: "warning",
   };
 }
@@ -100,11 +117,11 @@ export function buildStorageCallout(evidence: ReportEvidence): CalloutModel {
             : "Storage protection not reported",
     body:
       tone === "success"
-        ? "This report records immutable-style storage protection consistent with Object Lock COMPLIANCE mode and a retention-until timestamp."
+        ? "This report records immutable-style storage protection consistent with Object Lock COMPLIANCE mode and a recorded retention-until timestamp."
         : tone === "warning"
-          ? "Some storage protection indicators are recorded, but the report does not fully confirm COMPLIANCE immutable protection."
+          ? "Some storage-protection indicators are recorded, but the report does not fully confirm COMPLIANCE immutable protection."
           : tone === "danger"
-            ? "Storage metadata indicates a state that should be reviewed before relying on immutability conclusions."
+            ? "Storage metadata indicates a protection state that should be reviewed before relying on immutability conclusions."
             : "No verifiable storage-protection information was included in the report payload.",
     tone,
   };
@@ -128,7 +145,12 @@ export function buildTimestampCallout(evidence: ReportEvidence): CalloutModel {
         : tone === "warning"
           ? "The report does not confirm a final trusted timestamp result."
           : tone === "danger"
-            ? `Timestamp processing reported a failure state. ${safe(evidence.tsaFailureReason, "")}`.trim()
+            ? `Timestamp processing reported a failure state.${safe(
+                evidence.tsaFailureReason,
+                ""
+              )
+                ? ` ${safe(evidence.tsaFailureReason)}`
+                : ""}`.trim()
             : "No trusted timestamp record was included.",
     tone,
   };
@@ -152,7 +174,12 @@ export function buildOtsCallout(evidence: ReportEvidence): CalloutModel {
         : tone === "warning"
           ? "OpenTimestamps proof data is present but not yet in a final anchored state."
           : tone === "danger"
-            ? `OpenTimestamps processing reported a failure state. ${safe(evidence.otsFailureReason, "")}`.trim()
+            ? `OpenTimestamps processing reported a failure state.${safe(
+                evidence.otsFailureReason,
+                ""
+              )
+                ? ` ${safe(evidence.otsFailureReason)}`
+                : ""}`.trim()
             : "No OpenTimestamps record was included.",
     tone,
   };
@@ -163,15 +190,16 @@ export function buildReviewSequence(
 ): CalloutModel {
   return {
     title: "Review sequence",
-    body:
-      `Start with the primary evidence item${
-        primaryLabel ? ` (${primaryLabel})` : ""
-      }, then review the package structure, then assess the recorded integrity outcome, and only then move into forensic custody, timestamps, and the technical appendix when deeper validation is needed.`,
+    body: `Start with the primary evidence item${
+      primaryLabel ? ` (${primaryLabel})` : ""
+    }, then review the package structure, then assess the recorded integrity outcome, and only then move into forensic custody, timestamping, storage, anchoring, and the technical appendix when deeper validation is needed.`,
     tone: "neutral",
   };
 }
 
-export function buildIntegrityReadinessSummary(evidence: ReportEvidence): string {
+export function buildIntegrityReadinessSummary(
+  evidence: ReportEvidence
+): string {
   return [
     mapTimestampStatusPublicLabel(evidence.tsaStatus),
     safeBooleanLabel(
@@ -183,9 +211,16 @@ export function buildIntegrityReadinessSummary(evidence: ReportEvidence): string
   ].join(" • ");
 }
 
-export function buildAnchorPublicationSummary(anchor: ReportAnchorSummary | null): string {
+export function buildAnchorPublicationSummary(
+  anchor: ReportAnchorSummary | null
+): string {
   if (anchor?.published) {
     return `Published via ${safe(anchor.provider, "external anchor")}`;
   }
+
+  if (anchor?.configured) {
+    return `Anchor configured but no published record captured`;
+  }
+
   return "No external publication recorded";
 }

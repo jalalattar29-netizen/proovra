@@ -38,15 +38,9 @@ export function renderCustodySection(vm: ReportViewModel): string {
       "Chain of Custody",
       `
         ${renderCallout({
-          title: "Custody separation note",
+          title: "Custody reading note",
           body:
-            "Forensic lifecycle events are listed separately from later access activity. This separation helps reviewers distinguish integrity-relevant record changes from later viewing, download, and verification activity.",
-          tone: "neutral",
-        })}
-        ${renderCallout({
-          title: "Sequence note",
-          body:
-            "Original event sequence numbers are preserved from the full evidence timeline. Access-related events are shown separately, so numbering may appear non-consecutive within this section.",
+            "This section presents reviewer-facing forensic lifecycle events in chronological order. It is intentionally separated from later access activity so the main custody reading remains cleaner and easier to follow.",
           tone: "neutral",
         })}
         ${forensicBlock}

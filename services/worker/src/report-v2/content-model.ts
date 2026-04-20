@@ -4,7 +4,7 @@ import {
   ReportEvidenceContentSummary,
   InventoryRow,
 } from "./types.js";
-import { formatBytesHuman, safe, shortHash } from "./formatters.js";
+import { formatBytesHuman, safe } from "./formatters.js";
 import { mapEvidenceAssetKindLabel } from "./normalizers.js";
 
 type ParsedFingerprintSummary = {
@@ -73,7 +73,9 @@ export function parseFingerprintSummary(
       audioCount:
         typeof summary?.audioCount === "number" ? summary.audioCount : 0,
       documentCount:
-        typeof summary?.documentCount === "number" ? summary.documentCount : 0,
+        typeof summary?.documentCount === "number"
+          ? summary.documentCount
+          : 0,
       mimeTypes: Array.isArray(summary?.mimeTypes)
         ? summary.mimeTypes.filter(
             (v): v is string => typeof v === "string" && v.trim().length > 0
@@ -170,7 +172,9 @@ export function resolvePrimaryContentItem(
   items: ReportEvidenceAsset[]
 ): ReportEvidenceAsset | null {
   if (evidence.defaultPreviewItemId) {
-    const previewItem = items.find((item) => item.id === evidence.defaultPreviewItemId);
+    const previewItem = items.find(
+      (item) => item.id === evidence.defaultPreviewItemId
+    );
     if (previewItem) return previewItem;
   }
 
@@ -178,7 +182,9 @@ export function resolvePrimaryContentItem(
   return items.find((item) => item.isPrimary) ?? items[0] ?? null;
 }
 
-export function evidenceStructureLabel(summary: ReportEvidenceContentSummary): string {
+export function evidenceStructureLabel(
+  summary: ReportEvidenceContentSummary
+): string {
   if (summary.itemCount <= 1) return "Single evidence item";
   return "Multipart evidence package";
 }
@@ -186,17 +192,17 @@ export function evidenceStructureLabel(summary: ReportEvidenceContentSummary): s
 function buildRoleAndStatus(item: ReportEvidenceAsset): string {
   const parts = [
     item.artifactRole === "primary_evidence"
-      ? "Primary evidence"
+      ? "Primary Evidence"
       : item.artifactRole === "supporting_evidence"
-        ? "Supporting evidence"
+        ? "Supporting Evidence"
         : item.artifactRole === "attachment"
           ? "Attachment"
           : null,
-    item.previewable ? "Previewable" : "Preview unavailable",
+    item.previewable ? "Previewable" : "No Preview",
     item.downloadable ? "Downloadable" : "Restricted",
   ].filter(Boolean);
 
-  return parts.length > 0 ? parts.join("\n") : "Not recorded";
+  return parts.length > 0 ? parts.join(" • ") : "Not recorded";
 }
 
 export function buildInventoryRows(items: ReportEvidenceAsset[]): InventoryRow[] {
@@ -220,7 +226,7 @@ export function buildInventoryRows(items: ReportEvidenceAsset[]): InventoryRow[]
           ? `Size: ${item.displaySizeLabel}`
           : `Size: ${formatBytesHuman(item.sizeBytes)}`,
       ].join("\n"),
-      shortHash: item.sha256 ? shortHash(item.sha256) : "N/A",
+      shortHash: item.sha256 ?? "N/A",
       roleAndStatus: buildRoleAndStatus(item),
     };
   });
@@ -236,8 +242,8 @@ export function buildFingerprintNarrative(
       : safe(contentSummary.primaryMimeType, "not recorded");
 
   if (contentSummary.itemCount <= 1) {
-    return `Single-item evidence record represented by a canonical fingerprint and recorded MIME metadata. MIME types recorded: ${mimeText}.`;
+    return `Single evidence item represented by a canonical fingerprint and recorded MIME metadata. MIME: ${mimeText}.`;
   }
 
-  return `Multipart evidence package with ${contentSummary.itemCount} items (${contentSummary.imageCount} image, ${contentSummary.videoCount} video, ${contentSummary.audioCount} audio, ${contentSummary.pdfCount + contentSummary.textCount} document/text, ${contentSummary.otherCount} other). The package is represented by a canonical fingerprint describing structure, metadata, and recorded integrity values. MIME types recorded: ${mimeText}. Full canonical fingerprint should be reviewed in the technical verification package.`;
+  return `Multipart evidence package (${contentSummary.itemCount} items) represented by a canonical fingerprint describing structure, metadata, and integrity values. MIME types: ${mimeText}.`;
 }
