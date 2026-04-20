@@ -552,29 +552,32 @@ export default function EvidenceDetailPage() {
 
   const partTypeSummary = useMemo(() => {
     if (sortedParts.length === 0) {
-      return {
-        imageCount: 0,
-        videoCount: 0,
-        audioCount: 0,
-        pdfCount: 0,
-        otherCount: 0,
-      };
+return {
+  imageCount: 0,
+  videoCount: 0,
+  audioCount: 0,
+  pdfCount: 0,
+  textCount: 0,
+  otherCount: 0,
+};
     }
 
     return sortedParts.reduce(
       (acc, part) => {
         const kind = getEvidenceKind(part.mimeType ?? null);
-        if (kind === "image") acc.imageCount += 1;
-        else if (kind === "video") acc.videoCount += 1;
-        else if (kind === "audio") acc.audioCount += 1;
-        else if (kind === "pdf") acc.pdfCount += 1;
-        else acc.otherCount += 1;
+if (kind === "image") acc.imageCount += 1;
+else if (kind === "video") acc.videoCount += 1;
+else if (kind === "audio") acc.audioCount += 1;
+else if (kind === "pdf") acc.pdfCount += 1;
+else if (kind === "text") acc.textCount += 1;
+else acc.otherCount += 1;
         return acc;
       },
       {
         imageCount: 0,
         videoCount: 0,
         audioCount: 0,
+        textCount: 0,
         pdfCount: 0,
         otherCount: 0,
       }
@@ -596,6 +599,9 @@ export default function EvidenceDetailPage() {
     if (partTypeSummary.pdfCount > 0) {
       partsList.push(`${partTypeSummary.pdfCount} document${partTypeSummary.pdfCount > 1 ? "s" : ""}`);
     }
+    if (partTypeSummary.textCount > 0) {
+  partsList.push(`${partTypeSummary.textCount} text file${partTypeSummary.textCount > 1 ? "s" : ""}`);
+}
     if (partTypeSummary.otherCount > 0) {
       partsList.push(`${partTypeSummary.otherCount} other`);
     }
@@ -609,20 +615,22 @@ export default function EvidenceDetailPage() {
   }, [partTypeSummary, itemCount]);
 
   const recordTypeLabel = useMemo(() => {
-    const availableKinds = [
-      partTypeSummary.imageCount > 0 ? "image" : null,
-      partTypeSummary.videoCount > 0 ? "video" : null,
-      partTypeSummary.audioCount > 0 ? "audio" : null,
-      partTypeSummary.pdfCount > 0 ? "pdf" : null,
-      partTypeSummary.otherCount > 0 ? "other" : null,
-    ].filter(Boolean) as Array<"image" | "video" | "audio" | "pdf" | "other">;
+const availableKinds = [
+  partTypeSummary.imageCount > 0 ? "image" : null,
+  partTypeSummary.videoCount > 0 ? "video" : null,
+  partTypeSummary.audioCount > 0 ? "audio" : null,
+  partTypeSummary.pdfCount > 0 ? "pdf" : null,
+  partTypeSummary.textCount > 0 ? "text" : null,
+  partTypeSummary.otherCount > 0 ? "other" : null,
+].filter(Boolean) as Array<"image" | "video" | "audio" | "pdf" | "text" | "other">;
 
-    const totalKnown =
-      partTypeSummary.imageCount +
-      partTypeSummary.videoCount +
-      partTypeSummary.audioCount +
-      partTypeSummary.pdfCount +
-      partTypeSummary.otherCount;
+const totalKnown =
+  partTypeSummary.imageCount +
+  partTypeSummary.videoCount +
+  partTypeSummary.audioCount +
+  partTypeSummary.pdfCount +
+  partTypeSummary.textCount +
+  partTypeSummary.otherCount;
 
     const effectiveCount = totalKnown > 0 ? totalKnown : itemCount;
 
@@ -654,18 +662,20 @@ export default function EvidenceDetailPage() {
     }
 
     const onlyKind = availableKinds[0];
-    switch (onlyKind) {
-      case "image":
-        return "Image Evidence Package";
-      case "video":
-        return "Video Evidence Package";
-      case "audio":
-        return "Audio Evidence Package";
-      case "pdf":
-        return "Document Evidence Package";
-      default:
-        return "Multipart Evidence Package";
-    }
+switch (onlyKind) {
+  case "image":
+    return "Image Evidence Package";
+  case "video":
+    return "Video Evidence Package";
+  case "audio":
+    return "Audio Evidence Package";
+  case "pdf":
+    return "Document Evidence Package";
+  case "text":
+    return "Text Evidence Package";
+  default:
+    return "Multipart Evidence Package";
+}
   }, [partTypeSummary, itemCount, originalMimeType, evidenceType]);
 
   const effectiveHeroSubtitle = useMemo(() => {
