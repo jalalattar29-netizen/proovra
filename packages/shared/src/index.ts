@@ -29,17 +29,17 @@ export type {
   ReportJobPayload,
   ExistingReportJobState,
   ReportJobEnqueueDecision,
-} from "./report-queue.js";
+} from "./report-queue";
 export {
   buildReportJobId,
   buildReportJobPayload,
   decideReportJobEnqueueAction,
   generateReportJobName,
   normalizeRegenerateReason,
-} from "./report-queue.js";
-export type { CustodyEventCategory } from "./custody.js";
+} from "./report-queue";
+export type { CustodyEventCategory } from "./custody";
 export {
   classifyCustodyEventType,
   isAccessCustodyEventType,
   isForensicCustodyEventType,
-} from "./custody.js";
+} from "./custody";
