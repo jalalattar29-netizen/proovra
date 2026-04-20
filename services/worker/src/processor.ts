@@ -1,5 +1,6 @@
 import type { Job } from "bullmq";
 import type { Readable } from "node:stream";
+import { buildReportPdfV2 } from "./report-v2/index.js";
 import * as prismaPkg from "@prisma/client";
 import type {
   Prisma,
@@ -216,6 +217,17 @@ type ReportAnchorSummary = {
   anchoredAtUtc: string | null;
 };
 
+type ReportBuildParams = {
+  evidence: Parameters<typeof buildReportPdf>[0]["evidence"];
+  custodyEvents: Parameters<typeof buildReportPdf>[0]["custodyEvents"];
+  version: number;
+  generatedAtUtc: string;
+  buildInfo?: string | null;
+  verifyUrl?: string | null;
+  downloadUrl?: string | null;
+  externalMode?: boolean;
+};
+
 type PreparedReportArtifacts = {
   reportPdf: Buffer;
   verificationZip: Buffer | null;
@@ -242,12 +254,17 @@ type PreparedReportArtifacts = {
   limitations: ReportLegalLimitations;
   anchorSummary: ReportAnchorSummary | null;
 
-  reportEvidencePayload: Parameters<typeof buildReportPdf>[0]["evidence"];
+reportEvidencePayload: ReportBuildParams["evidence"];
   certifications: {
     custodian: ReportCertificationSnapshot | null;
     qualifiedPerson: ReportCertificationSnapshot | null;
   };
 };
+
+function shouldUseReportRendererV2(): boolean {
+  const value = process.env.REPORT_RENDERER?.trim().toLowerCase();
+  return value === "v2" || value === "html" || value === "next";
+}
 
 function toReportCertificationSnapshot(
   item:
@@ -2113,9 +2130,9 @@ const loadedArtifacts: LoadedEvidenceArtifact[] = [];
 
     anchor: anchorSummary,
     certifications,
-  } as Parameters<typeof buildReportPdf>[0]["evidence"];
+} as ReportBuildParams["evidence"];
 
-  const reportPdf = await buildReportPdf({
+  const reportBuildParams: ReportBuildParams = {
     evidence: reportEvidencePayload,
     custodyEvents: custodyEventsForReport,
     version: provisionalVersion,
@@ -2124,8 +2141,12 @@ const loadedArtifacts: LoadedEvidenceArtifact[] = [];
     verifyUrl,
     downloadUrl: evidenceDetailUrl,
     externalMode: false,
-  });
+  };
 
+  const reportPdf = shouldUseReportRendererV2()
+    ? await buildReportPdfV2(reportBuildParams)
+    : await buildReportPdf(reportBuildParams);
+    
   let verificationZip: Buffer | null = null;
 
   if (verificationEvidenceFiles.length > 0 && verificationPackageIncluded) {

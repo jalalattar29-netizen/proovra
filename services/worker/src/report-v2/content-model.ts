@@ -1,0 +1,237 @@
+import {
+  ReportEvidence,
+  ReportEvidenceAsset,
+  ReportEvidenceContentSummary,
+  InventoryRow,
+} from "./types.js";
+import { formatBytesHuman, safe, shortHash } from "./formatters.js";
+import { mapEvidenceAssetKindLabel } from "./normalizers.js";
+
+type ParsedFingerprintSummary = {
+  multipart: boolean;
+  itemCount: number;
+  imageCount: number;
+  videoCount: number;
+  audioCount: number;
+  documentCount: number;
+  mimeTypes: string[];
+  partsCount: number;
+};
+
+export function parseFingerprintSummary(
+  fingerprintCanonicalJson: string | null | undefined
+): ParsedFingerprintSummary {
+  const fallback: ParsedFingerprintSummary = {
+    multipart: false,
+    itemCount: 1,
+    imageCount: 0,
+    videoCount: 0,
+    audioCount: 0,
+    documentCount: 0,
+    mimeTypes: [],
+    partsCount: 0,
+  };
+
+  if (!fingerprintCanonicalJson) return fallback;
+
+  try {
+    const parsed = JSON.parse(fingerprintCanonicalJson) as {
+      file?: {
+        multipart?: boolean;
+        summary?: {
+          itemCount?: number;
+          imageCount?: number;
+          videoCount?: number;
+          audioCount?: number;
+          documentCount?: number;
+          mimeTypes?: string[];
+        };
+        parts?: Array<unknown>;
+      };
+    };
+
+    const multipart = Boolean(parsed?.file?.multipart);
+    const partsCount = Array.isArray(parsed?.file?.parts)
+      ? parsed.file.parts.length
+      : 0;
+    const summary = parsed?.file?.summary;
+
+    const itemCount =
+      typeof summary?.itemCount === "number"
+        ? summary.itemCount
+        : multipart
+          ? partsCount || 0
+          : 1;
+
+    return {
+      multipart,
+      itemCount,
+      imageCount:
+        typeof summary?.imageCount === "number" ? summary.imageCount : 0,
+      videoCount:
+        typeof summary?.videoCount === "number" ? summary.videoCount : 0,
+      audioCount:
+        typeof summary?.audioCount === "number" ? summary.audioCount : 0,
+      documentCount:
+        typeof summary?.documentCount === "number" ? summary.documentCount : 0,
+      mimeTypes: Array.isArray(summary?.mimeTypes)
+        ? summary.mimeTypes.filter(
+            (v): v is string => typeof v === "string" && v.trim().length > 0
+          )
+        : [],
+      partsCount,
+    };
+  } catch {
+    return fallback;
+  }
+}
+
+export function buildFallbackContentSummary(
+  evidence: ReportEvidence,
+  parsed: ParsedFingerprintSummary
+): ReportEvidenceContentSummary {
+  const otherCount = Math.max(
+    0,
+    parsed.itemCount -
+      (parsed.imageCount +
+        parsed.videoCount +
+        parsed.audioCount +
+        parsed.documentCount)
+  );
+
+  return {
+    structure: parsed.itemCount > 1 ? "multipart" : "single",
+    itemCount: parsed.itemCount,
+    previewableItemCount: 0,
+    downloadableItemCount: parsed.itemCount > 0 ? parsed.itemCount : 0,
+    imageCount: parsed.imageCount,
+    videoCount: parsed.videoCount,
+    audioCount: parsed.audioCount,
+    pdfCount: parsed.documentCount,
+    textCount: 0,
+    otherCount,
+    primaryKind: null,
+    primaryMimeType: evidence.mimeType ?? null,
+    totalSizeBytes: evidence.sizeBytes ?? null,
+    totalSizeDisplay: formatBytesHuman(evidence.sizeBytes ?? null),
+  };
+}
+
+export function resolveContentSummary(
+  evidence: ReportEvidence,
+  parsed: ParsedFingerprintSummary
+): ReportEvidenceContentSummary {
+  return evidence.contentSummary ?? buildFallbackContentSummary(evidence, parsed);
+}
+
+export function resolveContentItems(evidence: ReportEvidence): ReportEvidenceAsset[] {
+  const items = Array.isArray(evidence.contentItems) ? evidence.contentItems : [];
+
+  const embeddedPreviewMap = new Map<
+    string,
+    {
+      previewDataUrl?: string | null;
+      previewTextExcerpt?: string | null;
+      previewCaption?: string | null;
+    }
+  >();
+
+  const embedded = evidence.embeddedPreviewsSnapshot;
+  if (Array.isArray(embedded)) {
+    for (const item of embedded) {
+      if (item?.id) {
+        embeddedPreviewMap.set(item.id, {
+          previewDataUrl: item.previewDataUrl ?? null,
+          previewTextExcerpt: item.previewTextExcerpt ?? null,
+          previewCaption: item.previewCaption ?? null,
+        });
+      }
+    }
+  }
+
+  return items.map((item) => {
+    const preview = embeddedPreviewMap.get(item.id);
+    if (!preview) return item;
+
+    return {
+      ...item,
+      previewDataUrl: item.previewDataUrl ?? preview.previewDataUrl ?? null,
+      previewTextExcerpt:
+        item.previewTextExcerpt ?? preview.previewTextExcerpt ?? null,
+      previewCaption: item.previewCaption ?? preview.previewCaption ?? null,
+    };
+  });
+}
+
+export function resolvePrimaryContentItem(
+  evidence: ReportEvidence,
+  items: ReportEvidenceAsset[]
+): ReportEvidenceAsset | null {
+  if (evidence.defaultPreviewItemId) {
+    const previewItem = items.find((item) => item.id === evidence.defaultPreviewItemId);
+    if (previewItem) return previewItem;
+  }
+
+  if (evidence.primaryContentItem) return evidence.primaryContentItem;
+  return items.find((item) => item.isPrimary) ?? items[0] ?? null;
+}
+
+export function evidenceStructureLabel(summary: ReportEvidenceContentSummary): string {
+  if (summary.itemCount <= 1) return "Single evidence item";
+  return "Multipart evidence package";
+}
+
+export function buildInventoryRows(items: ReportEvidenceAsset[]): InventoryRow[] {
+  return items.map((item) => {
+    const roleParts = [
+      item.artifactRole === "primary_evidence"
+        ? "Primary evidence"
+        : item.artifactRole === "supporting_evidence"
+          ? "Supporting evidence"
+          : item.artifactRole === "attachment"
+            ? "Attachment"
+            : null,
+      item.previewRole === "primary_preview"
+        ? "Primary preview"
+        : item.previewRole === "secondary_preview"
+          ? "Secondary preview"
+          : item.previewRole === "download_only"
+            ? "Download-only"
+            : item.previewRole === "metadata_only"
+              ? "Metadata-only"
+              : null,
+    ]
+      .filter(Boolean)
+      .join("<br>");
+
+    return {
+      indexLabel: String(item.index + 1),
+      itemLabel: item.isPrimary ? `${safe(item.label)} (primary)` : safe(item.label),
+      kindLabel: mapEvidenceAssetKindLabel(item.kind),
+      mimeAndSize: [
+        item.mimeType ? `MIME: ${item.mimeType}` : null,
+        item.displaySizeLabel ? `Size: ${item.displaySizeLabel}` : null,
+      ]
+        .filter(Boolean)
+        .join("<br>"),
+      shortHash: item.sha256 ? shortHash(item.sha256) : "N/A",
+      roleAndPreview: roleParts || "Not recorded",
+    };
+  });
+}
+
+export function buildFingerprintNarrative(
+  parsedSummary: ParsedFingerprintSummary,
+  contentSummary: ReportEvidenceContentSummary
+): string {
+  const mimeText =
+    parsedSummary.mimeTypes.length > 0
+      ? parsedSummary.mimeTypes.join(", ")
+      : safe(contentSummary.primaryMimeType, "not recorded");
+
+  if (contentSummary.itemCount <= 1) {
+    return `Single-item evidence record represented by a canonical fingerprint and recorded MIME metadata. MIME types recorded: ${mimeText}.`;
+  }
+
+  return `Multipart evidence package with ${contentSummary.itemCount} items (${contentSummary.imageCount} image, ${contentSummary.videoCount} video, ${contentSummary.audioCount} audio, ${contentSummary.pdfCount + contentSummary.textCount} document/text, ${contentSummary.otherCount} other). The package is represented by a canonical fingerprint describing structure, metadata, and recorded integrity values. MIME types recorded: ${mimeText}. Full canonical fingerprint should be reviewed in the technical verification package.`;
+}

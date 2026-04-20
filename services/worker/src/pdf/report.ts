@@ -1,3 +1,12 @@
+/**
+ * Legacy PDF renderer.
+ *
+ * This file remains as a compatibility fallback while Report V2
+ * is introduced under services/worker/src/report-v2.
+ *
+ * Do not add new structural report features here.
+ * Only critical compatibility or production hotfixes are allowed.
+ */
 import PDFDocument from "pdfkit";
 import fs from "node:fs";
 import path from "node:path";
