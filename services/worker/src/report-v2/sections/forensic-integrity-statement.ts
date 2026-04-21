@@ -9,6 +9,8 @@ import { escapeHtml } from "../formatters.js";
 export function renderForensicIntegrityStatementSection(
   vm: ReportViewModel
 ): string {
+  const compact = vm.presentation.decisions.compactForensicStatement;
+
   return renderPageSection(
     "Forensic Integrity Statement",
     `
@@ -32,11 +34,15 @@ export function renderForensicIntegrityStatementSection(
         </div>
       </div>
 
-      ${renderCallout({
-        title: vm.forensicIntegrityStatement.legalNotice.title,
-        body: vm.forensicIntegrityStatement.legalNotice.body,
-        tone: vm.forensicIntegrityStatement.legalNotice.tone,
-      })}
+      ${
+        compact
+          ? ""
+          : renderCallout({
+              title: vm.forensicIntegrityStatement.legalNotice.title,
+              body: vm.forensicIntegrityStatement.legalNotice.body,
+              tone: vm.forensicIntegrityStatement.legalNotice.tone,
+            })
+      }
 
       ${renderCallout({
         title: "Verification workflow note",

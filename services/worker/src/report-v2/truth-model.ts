@@ -83,9 +83,8 @@ export function buildExecutiveConclusion(
   return {
     title: "Executive conclusion",
     body: verified
-      ? "This report supports the conclusion that the recorded integrity state of the evidence record was verified within the system record. It supports review of whether the preserved record remained technically consistent with its recorded cryptographic, timestamping, custody, and storage materials at the time of report generation. Reviewers should still separately assess factual context, authorship, relevance, and admissibility."
-      : "This report supports review of the recorded evidence state, but the integrity outcome remains incomplete or requires manual assessment before reliance. The record may still contain useful technical materials, but it should not be treated as a completed integrity-verification outcome without further review."
-      ,
+      ? "The preserved evidence record reached a verified recorded-integrity state at report generation time. Reviewers can use this report to orient themselves to the package, then proceed to the later technical and legal sections for deeper validation and interpretation."
+      : "The preserved evidence record is present and reviewable, but the recorded-integrity outcome remains incomplete or requires manual assessment before reliance. The report should be treated as an orientation and investigation aid until technical review is completed.",
     tone: verified ? "success" : "danger",
   };
 }

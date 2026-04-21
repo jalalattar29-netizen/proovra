@@ -2,6 +2,7 @@ import type { ReportViewModel } from "./types.js";
 import { renderReportShell } from "./templates/report-shell.js";
 import { renderCoverSection } from "./sections/cover.js";
 import { renderExecutiveSummarySection } from "./sections/executive-summary.js";
+import { renderEvidenceContentSection } from "./sections/evidence-content.js";
 import { renderGallerySection } from "./sections/gallery.js";
 import { renderInventorySection } from "./sections/inventory.js";
 import { renderIntegrityProofSection } from "./sections/integrity-proof.js";
@@ -23,12 +24,14 @@ function hasMeaningfulStorageRows(vm: ReportViewModel): boolean {
 }
 
 export function renderReportHtml(vm: ReportViewModel): string {
-  const compact = vm.reportVariant === "short";
+  const { decisions } = vm.presentation;
 
   const body = [
     renderCoverSection(vm),
 
     renderExecutiveSummarySection(vm),
+
+    decisions.showEvidenceContentSection ? renderEvidenceContentSection(vm) : "",
 
     renderGallerySection(vm),
     renderInventorySection(vm),
@@ -39,11 +42,11 @@ export function renderReportHtml(vm: ReportViewModel): string {
 
     renderCustodySection(vm),
 
-    compact ? "" : renderCertificationsSection(vm),
+    decisions.showCertificationSection ? renderCertificationsSection(vm) : "",
 
     renderLegalLimitationsSection(vm),
 
-    compact ? "" : renderForensicIntegrityStatementSection(vm),
+    renderForensicIntegrityStatementSection(vm),
 
     renderTechnicalAppendixSection(vm),
   ]

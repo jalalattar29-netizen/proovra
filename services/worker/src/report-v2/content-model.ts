@@ -1,8 +1,11 @@
 import {
+  PresentationEvidenceItem,
   ReportEvidence,
   ReportEvidenceAsset,
   ReportEvidenceContentSummary,
   InventoryRow,
+  PresentationMode,
+  PreviewRenderKind,
 } from "./types.js";
 import { formatBytesHuman, safe } from "./formatters.js";
 import { mapEvidenceAssetKindLabel } from "./normalizers.js";
@@ -180,6 +183,72 @@ export function resolvePrimaryContentItem(
 
   if (evidence.primaryContentItem) return evidence.primaryContentItem;
   return items.find((item) => item.isPrimary) ?? items[0] ?? null;
+}
+
+export function determinePreviewRenderKind(
+  item: ReportEvidenceAsset
+): PreviewRenderKind {
+  switch (item.kind) {
+    case "image":
+      return "image";
+    case "pdf":
+      return "document";
+    case "text":
+      return "text";
+    case "video":
+      return "video";
+    case "audio":
+      return "audio";
+    default:
+      return "placeholder";
+  }
+}
+
+export function isPreviewRenderable(item: ReportEvidenceAsset): boolean {
+  if (item.previewable) return true;
+  if (item.previewDataUrl) return true;
+  if (item.kind === "text" && safe(item.previewTextExcerpt, "") !== "") return true;
+  return false;
+}
+
+export function buildPresentationBuckets(params: {
+  items: ReportEvidenceAsset[];
+  primaryItem: ReportEvidenceAsset | null;
+  presentationMode: PresentationMode;
+}) {
+  const mapped: PresentationEvidenceItem[] = params.items.map((asset) => ({
+    asset,
+    previewRenderKind: determinePreviewRenderKind(asset),
+    hasRenderablePreview: isPreviewRenderable(asset),
+    prominent: params.primaryItem ? asset.id === params.primaryItem.id : false,
+  }));
+
+  const heroItem =
+    mapped.find((item) => item.prominent) ??
+    mapped.find((item) => item.hasRenderablePreview) ??
+    mapped[0] ??
+    null;
+
+  const previewable = mapped.filter(
+    (item) => item.hasRenderablePreview && (!heroItem || item.asset.id !== heroItem.asset.id)
+  );
+
+  const metadataOnly = mapped.filter((item) => !item.hasRenderablePreview);
+
+  const primaryPreviewItems =
+    heroItem && heroItem.hasRenderablePreview ? [heroItem] : heroItem ? [heroItem] : [];
+
+  const supportingPreviewItems =
+    params.presentationMode === "heavy"
+      ? previewable
+      : previewable;
+
+  return {
+    heroItem,
+    primaryPreviewItems,
+    supportingPreviewItems,
+    metadataOnlyItems: metadataOnly,
+  };
 }
 
 export function evidenceStructureLabel(

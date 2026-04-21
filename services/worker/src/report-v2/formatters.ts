@@ -24,7 +24,7 @@ export function redactIdentifier(
   const t = safe(value, "");
   if (!t) return "Not included in external report";
   if (t.length <= visible * 2 + 3) return t;
-  return `${t.slice(0, visible)}…${t.slice(-visible)}`;
+  return `${t.slice(0, visible)}[redacted-middle]${t.slice(-visible)}`;
 }
 
 export function maskEmail(value: string | null | undefined): string {
@@ -42,8 +42,7 @@ export function buildPublicEvidenceReference(
 ): string {
   const t = safe(evidenceId, "");
   if (!t) return "Not recorded";
-  if (t.length <= 16) return t;
-  return `${t.slice(0, 8)}…${t.slice(-8)}`;
+  return t;
 }
 
 export function buildPublicSigningKeyReference(

@@ -6,15 +6,20 @@ import {
 } from "../ui.js";
 
 export function renderEvidenceContentSection(vm: ReportViewModel): string {
+  const title =
+    vm.presentationMode === "heavy"
+      ? "Evidence Package Structure"
+      : "Evidence Package Summary";
+
   return renderPageSection(
-    "Evidence Package Summary",
+    title,
     `
       ${renderKeyValueGrid(vm.contentSummaryRows)}
 
       ${renderCallout({
-        title: "Reviewer note",
+        title: "Section role",
         body:
-          "Use the evidence-presentation section for visual and reviewer-facing orientation, the evidence manifest for exact item-level listing, and the later technical, custody, timestamping, and storage sections for deeper validation of the recorded integrity state.",
+          "This section orients the reviewer to package composition only. Visual inspection belongs in Evidence Presentation, exact per-item listing belongs in the manifest, and technical validation belongs in the later integrity and appendix sections.",
         tone: "neutral",
       })}
     `,

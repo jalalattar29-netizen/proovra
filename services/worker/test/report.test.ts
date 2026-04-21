@@ -2,6 +2,13 @@ import { describe, expect, it } from "vitest";
 import { buildReportViewModel, renderReportHtml } from "../src/report-v2";
 import type { ReportV2Input } from "../src/report-v2";
 
+const FULL_HASH_A =
+  "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+const FULL_HASH_B =
+  "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
+const FULL_HASH_C =
+  "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc";
+
 function expectInOrder(text: string, tokens: string[]) {
   let lastIndex = -1;
   for (const token of tokens) {
@@ -38,9 +45,9 @@ function buildInput(overrides?: Partial<ReportV2Input>): ReportV2Input {
       storageKey: "evidence/evidence-1/original",
       publicUrl: null,
       gps: { lat: null, lng: null, accuracyMeters: null },
-      fileSha256: "abc",
+      fileSha256: FULL_HASH_A,
       fingerprintCanonicalJson: "{\"a\":1}",
-      fingerprintHash: "def",
+      fingerprintHash: FULL_HASH_B,
       signatureBase64: "sig",
       signingKeyId: "proovra_ed25519",
       signingKeyVersion: 1,
@@ -72,7 +79,7 @@ function buildInput(overrides?: Partial<ReportV2Input>): ReportV2Input {
           kind: "text",
           sizeBytes: "12",
           durationMs: null,
-          sha256: "abc",
+          sha256: FULL_HASH_A,
           isPrimary: true,
           previewable: true,
           downloadable: true,
@@ -99,7 +106,7 @@ function buildInput(overrides?: Partial<ReportV2Input>): ReportV2Input {
         kind: "text",
         sizeBytes: "12",
         durationMs: null,
-        sha256: "abc",
+        sha256: FULL_HASH_A,
         isPrimary: true,
         previewable: true,
         downloadable: true,
@@ -173,6 +180,8 @@ describe("report v2 pipeline", () => {
     expect(vm.contentItems[0]?.previewTextExcerpt).toBe("hello world");
     expect(vm.certifications.hasAny).toBe(false);
     expect(vm.forensicRows).toHaveLength(1);
+    expect(vm.presentationMode).toBe("simple");
+    expect(vm.presentation.buckets.supportingPreviewItems).toHaveLength(0);
   });
 
   it("renders the v2 HTML report sections in the intended order", async () => {
@@ -196,5 +205,103 @@ describe("report v2 pipeline", () => {
       "Legal Interpretation &amp; Review Use",
       "Technical Appendix",
     ]);
+  });
+
+  it("keeps full hashes and supporting previewable evidence visually represented", async () => {
+    const vm = await buildReportViewModel(
+      buildInput({
+        evidence: {
+          ...buildInput().evidence,
+          sizeBytes: "4096",
+          fingerprintHash: FULL_HASH_B,
+          contentSummary: {
+            ...buildInput().evidence.contentSummary!,
+            structure: "multipart",
+            itemCount: 3,
+            previewableItemCount: 3,
+            downloadableItemCount: 3,
+            imageCount: 1,
+            pdfCount: 1,
+            textCount: 1,
+            totalSizeBytes: "4096",
+            totalSizeDisplay: "4 KB",
+          },
+          contentItems: [
+            {
+              ...buildInput().evidence.contentItems![0]!,
+              kind: "image",
+              originalFileName: "lead-photo.jpg",
+              mimeType: "image/jpeg",
+              previewDataUrl: "data:image/png;base64,AAAA",
+              previewTextExcerpt: null,
+              displaySizeLabel: "2 KB",
+              sha256: FULL_HASH_A,
+            },
+            {
+              ...buildInput().evidence.contentItems![0]!,
+              id: "evidence-2",
+              index: 1,
+              label: "Supporting pdf",
+              originalFileName: "supporting.pdf",
+              mimeType: "application/pdf",
+              kind: "pdf",
+              previewDataUrl: "data:image/png;base64,BBBB",
+              previewTextExcerpt: null,
+              displaySizeLabel: "1 KB",
+              sha256: FULL_HASH_B,
+              isPrimary: false,
+              artifactRole: "supporting_evidence",
+            },
+            {
+              ...buildInput().evidence.contentItems![0]!,
+              id: "evidence-3",
+              index: 2,
+              label: "Supporting note",
+              originalFileName: "note.txt",
+              mimeType: "text/plain",
+              kind: "text",
+              previewDataUrl: null,
+              previewTextExcerpt: "secondary excerpt",
+              displaySizeLabel: "1 KB",
+              sha256: FULL_HASH_C,
+              isPrimary: false,
+              artifactRole: "supporting_evidence",
+            },
+          ],
+          primaryContentItem: {
+            ...buildInput().evidence.primaryContentItem!,
+            kind: "image",
+            originalFileName: "lead-photo.jpg",
+            mimeType: "image/jpeg",
+            previewDataUrl: "data:image/png;base64,AAAA",
+            previewTextExcerpt: null,
+            displaySizeLabel: "2 KB",
+            sha256: FULL_HASH_A,
+          },
+          embeddedPreviewsSnapshot: [
+            {
+              id: "evidence-2",
+              previewDataUrl: "data:image/png;base64,BBBB",
+            },
+            {
+              id: "evidence-3",
+              previewTextExcerpt: "secondary excerpt",
+            },
+          ],
+        },
+      })
+    );
+
+    const html = renderReportHtml(vm);
+
+    expect(vm.presentation.buckets.supportingPreviewItems).toHaveLength(2);
+    expect(html).toContain("Supporting preview items");
+    expect(html).toContain("supporting.pdf");
+    expect(html).toContain("note.txt");
+    expect(html).toContain(FULL_HASH_A);
+    expect(html).toContain(FULL_HASH_B);
+    expect(html).toContain(FULL_HASH_C);
+    expect(html).not.toContain(`${FULL_HASH_A.slice(0, 8)}…`);
+    expect(html).not.toContain(`${FULL_HASH_B.slice(0, 8)}...`);
   });
 });

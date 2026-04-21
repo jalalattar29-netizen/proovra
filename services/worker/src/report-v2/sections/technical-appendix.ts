@@ -1,6 +1,7 @@
 import { ReportViewModel } from "../types.js";
 import {
   renderCallout,
+  renderCustodyHashTable,
   renderKeyValueGrid,
   renderMonoBlock,
   renderPageSection,
@@ -57,7 +58,9 @@ function renderAppendixSection(title: string, body: string): string {
 }
 
 export function renderTechnicalAppendixSection(vm: ReportViewModel): string {
-  const minimalMode = vm.reportVariant === "short";
+  const appendixDepth = vm.presentation.decisions.appendixDepth;
+  const compact = appendixDepth === "compact";
+  const full = appendixDepth === "full";
 
   return renderPageSection(
     "Technical Appendix",
@@ -72,6 +75,16 @@ export function renderTechnicalAppendixSection(vm: ReportViewModel): string {
       ${renderVerificationLinkPanel(vm)}
 
       ${renderTechnicalStatusCards(vm)}
+
+      ${renderAppendixSection(
+        "Technical Scope",
+        renderCallout({
+          title: "Appendix role",
+          body:
+            "This appendix preserves exact technical references, full digest values, and verification-access information in a structured form. It does not repeat the report's legal interpretation or presentation guidance.",
+          tone: "neutral",
+        })
+      )}
 
       ${renderAppendixSection(
         "Identity",
@@ -93,7 +106,7 @@ export function renderTechnicalAppendixSection(vm: ReportViewModel): string {
       )}
 
       ${
-        minimalMode
+        compact
           ? ""
           : renderAppendixSection(
               "Signature",
@@ -158,6 +171,23 @@ export function renderTechnicalAppendixSection(vm: ReportViewModel): string {
           })}
         `
       )}
+
+      ${
+        full && vm.custodyHashRows.length > 0
+          ? renderAppendixSection(
+              "Custody Hash Chain Detail",
+              `
+                ${renderCallout({
+                  title: "Chain validation detail",
+                  body:
+                    "This block preserves the full previous-event and event-hash values for the forensic custody chain without overloading the reviewer-facing custody chronology in the main flow.",
+                  tone: "neutral",
+                })}
+                ${renderCustodyHashTable(vm.custodyHashRows)}
+              `
+            )
+          : ""
+      }
     `,
     { pageBreakBefore: true }
   );

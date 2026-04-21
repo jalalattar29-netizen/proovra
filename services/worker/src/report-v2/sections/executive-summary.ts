@@ -7,6 +7,7 @@ import {
 } from "../ui.js";
 
 export function renderExecutiveSummarySection(vm: ReportViewModel): string {
+  const { decisions } = vm.presentation;
   const mismatchBlock =
     vm.mismatchSummary.tone === "success" ? "" : renderCallout(vm.mismatchSummary);
 
@@ -18,6 +19,12 @@ export function renderExecutiveSummarySection(vm: ReportViewModel): string {
       ${renderInfoCards(vm.heroCards)}
 
       ${renderKeyValueGrid(vm.executiveRows)}
+
+      ${
+        decisions.compactExecutiveSummary
+          ? ""
+          : renderCallout(vm.reviewSequence)
+      }
 
       ${mismatchBlock}
     `,

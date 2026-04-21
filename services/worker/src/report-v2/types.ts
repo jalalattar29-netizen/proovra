@@ -1,5 +1,6 @@
 export type ReportArtifactMode = "external" | "internal";
-export type ReportVariant = "short" | "full";
+export type PresentationMode = "simple" | "medium" | "heavy";
+export type ReportVariant = "compact" | "balanced" | "full";
 
 export type ReportEvidenceAssetKind =
   | "image"
@@ -44,6 +45,21 @@ export type ReportEvidenceAsset = {
   previewDataUrl?: string | null;
   previewTextExcerpt?: string | null;
   previewCaption?: string | null;
+};
+
+export type PreviewRenderKind =
+  | "image"
+  | "document"
+  | "text"
+  | "video"
+  | "audio"
+  | "placeholder";
+
+export type PresentationEvidenceItem = {
+  asset: ReportEvidenceAsset;
+  previewRenderKind: PreviewRenderKind;
+  hasRenderablePreview: boolean;
+  prominent: boolean;
 };
 
 export type ReportEvidenceContentSummary = {
@@ -287,8 +303,28 @@ export type CustodyHashRow = {
   eventHash: string;
 };
 
+export type ReportPresentationDecisions = {
+  showAllPreviewableItems: boolean;
+  showSupportingPreviewCards: boolean;
+  compactExecutiveSummary: boolean;
+  compactLegalSection: boolean;
+  compactForensicStatement: boolean;
+  showHashChainDetailsInMainFlow: boolean;
+  showEvidenceContentSection: boolean;
+  showCertificationSection: boolean;
+  appendixDepth: "compact" | "balanced" | "full";
+};
+
+export type ReportPresentationBuckets = {
+  heroItem: PresentationEvidenceItem | null;
+  primaryPreviewItems: PresentationEvidenceItem[];
+  supportingPreviewItems: PresentationEvidenceItem[];
+  metadataOnlyItems: PresentationEvidenceItem[];
+};
+
 export type ReportViewModel = {
   mode: ReportArtifactMode;
+  presentationMode: PresentationMode;
   reportVariant: ReportVariant;
   generatedAtUtc: string;
   buildInfo: string | null;
@@ -323,6 +359,10 @@ export type ReportViewModel = {
   contentItems: ReportEvidenceAsset[];
   primaryContentItem: ReportEvidenceAsset | null;
   structureLabel: string;
+  presentation: {
+    decisions: ReportPresentationDecisions;
+    buckets: ReportPresentationBuckets;
+  };
 
   galleryEnabled: boolean;
   inventoryRows: InventoryRow[];

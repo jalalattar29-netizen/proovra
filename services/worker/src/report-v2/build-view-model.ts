@@ -4,6 +4,7 @@ import type {
   CustodyHashRow,
   InfoCard,
   KeyValueRow,
+  PresentationMode,
   ReportAnchorSummary,
   ReportArtifactMode,
   ReportCertificationSnapshot,
@@ -11,6 +12,8 @@ import type {
   ReportEvidence,
   ReportEvidenceAsset,
   ReportEvidenceContentSummary,
+  ReportPresentationBuckets,
+  ReportPresentationDecisions,
   ReportPreviewPolicy,
   ReportReviewGuidance,
   ReportV2Input,
@@ -40,8 +43,10 @@ import {
 } from "./normalizers.js";
 import {
   buildFingerprintNarrative,
+  buildPresentationBuckets,
   buildInventoryRows,
   evidenceStructureLabel,
+  isPreviewRenderable,
   parseFingerprintSummary,
   resolveContentItems,
   resolveContentSummary,
@@ -604,23 +609,64 @@ function buildCustodyHashRows(events: ReportCustodyEvent[]): CustodyHashRow[] {
     }));
 }
 
-function isSimpleEvidenceSet(
+function determinePresentationMode(
   contentSummary: ReportEvidenceContentSummary,
   contentItems: ReportEvidenceAsset[],
   custody: ReturnType<typeof splitCustodyEvents>,
   evidence: ReportEvidence
-): boolean {
-  if (contentSummary.itemCount > 3) return false;
-  if (custody.access.length > 0) return false;
+): PresentationMode {
+  let score = 0;
+
+  if (contentSummary.itemCount >= 4) score += 1;
+  if (contentSummary.itemCount >= 8) score += 2;
+  if (contentSummary.previewableItemCount >= 4) score += 1;
+  if (custody.access.length > 0) score += 1;
+  if (custody.forensic.length > 8) score += 1;
   if (evidence.certifications?.custodian || evidence.certifications?.qualifiedPerson) {
-    return false;
+    score += 1;
   }
 
-  const kinds = new Set(
-    contentItems.map((item) => item.kind).filter((kind) => kind !== "other")
-  );
+  const kinds = new Set(contentItems.map((item) => item.kind));
+  if (kinds.size > 2) score += 1;
+  if (kinds.has("video") || kinds.has("audio")) score += 1;
 
-  return kinds.size <= 1 && !["video", "audio"].some((kind) => kinds.has(kind as "video" | "audio"));
+  const totalBytes = Number(contentSummary.totalSizeBytes ?? evidence.sizeBytes ?? 0);
+  if (Number.isFinite(totalBytes) && totalBytes > 10 * 1024 * 1024) score += 1;
+
+  if (score <= 1) return "simple";
+  if (score <= 4) return "medium";
+  return "heavy";
+}
+
+function mapReportVariant(mode: PresentationMode): ReportVariant {
+  if (mode === "simple") return "compact";
+  if (mode === "medium") return "balanced";
+  return "full";
+}
+
+function buildPresentationDecisions(params: {
+  presentationMode: PresentationMode;
+  contentSummary: ReportEvidenceContentSummary;
+  certifications: boolean;
+}): ReportPresentationDecisions {
+  const { presentationMode, contentSummary, certifications } = params;
+
+  return {
+    showAllPreviewableItems: true,
+    showSupportingPreviewCards: contentSummary.previewableItemCount > 1,
+    compactExecutiveSummary: presentationMode === "simple",
+    compactLegalSection: presentationMode !== "heavy",
+    compactForensicStatement: presentationMode === "simple",
+    showHashChainDetailsInMainFlow: false,
+    showEvidenceContentSection: presentationMode !== "simple",
+    showCertificationSection: certifications,
+    appendixDepth:
+      presentationMode === "simple"
+        ? "compact"
+        : presentationMode === "medium"
+          ? "balanced"
+          : "full",
+  };
 }
 
 function buildCertificationBlockTitle(
@@ -792,14 +838,26 @@ export async function buildReportViewModel(
   const legalLimitations = resolveLegalLimitations(input.evidence);
   const anchorSummary = resolveAnchorSummary(input.evidence);
   const externalMode = mode === "external";
-  const reportVariant: ReportVariant = isSimpleEvidenceSet(
+  const presentationMode = determinePresentationMode(
     contentSummary,
     contentItems,
     custody,
     input.evidence
-  )
-    ? "short"
-    : "full";
+  );
+  const reportVariant: ReportVariant = mapReportVariant(presentationMode);
+  const presentationBuckets: ReportPresentationBuckets = buildPresentationBuckets({
+    items: contentItems,
+    primaryItem: primaryContentItem,
+    presentationMode,
+  });
+  const presentationDecisions = buildPresentationDecisions({
+    presentationMode,
+    contentSummary,
+    certifications: Boolean(
+      input.evidence.certifications?.custodian ||
+        input.evidence.certifications?.qualifiedPerson
+    ),
+  });
 
   const executiveConclusion = buildExecutiveConclusion(input.evidence);
   const legalLimitationShort = buildLegalLimitationShort();
@@ -869,9 +927,11 @@ export async function buildReportViewModel(
     {
       label: "Report Mode",
       value:
-        reportVariant === "short"
-          ? "Short evidentiary report"
-          : "Full forensic report",
+        presentationMode === "simple"
+          ? "Simple package presentation"
+          : presentationMode === "medium"
+            ? "Balanced package presentation"
+            : "Heavy package presentation",
       tone: anchorSummary?.published
         ? "success"
         : otsTone === "danger"
@@ -894,6 +954,7 @@ export async function buildReportViewModel(
 
   return {
     mode,
+    presentationMode,
     reportVariant,
     generatedAtUtc: input.generatedAtUtc,
     buildInfo: input.buildInfo ?? null,
@@ -950,8 +1011,12 @@ export async function buildReportViewModel(
     contentItems,
     primaryContentItem,
     structureLabel,
+    presentation: {
+      decisions: presentationDecisions,
+      buckets: presentationBuckets,
+    },
 
-    galleryEnabled: contentItems.length > 0,
+    galleryEnabled: contentItems.some((item) => isPreviewRenderable(item)),
     inventoryRows: buildInventoryRows(contentItems),
 
     certifications: {

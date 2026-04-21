@@ -240,6 +240,109 @@ export function getReportCss(): string {
       gap: 10px;
     }
 
+    .cover-evidence-panel {
+      border: 1px solid ${c.line};
+      background: linear-gradient(180deg, rgba(255,255,255,0.998) 0%, rgba(245,248,248,0.995) 100%);
+      box-shadow:
+        0 10px 20px rgba(17, 36, 41, 0.04),
+        inset 0 1px 0 rgba(255,255,255,0.88);
+      display: grid;
+      grid-template-columns: 148px minmax(0, 1fr);
+      gap: 12px;
+      padding: 12px;
+      break-inside: avoid;
+      page-break-inside: avoid;
+    }
+
+    .cover-evidence-visual {
+      min-height: 116px;
+      background: linear-gradient(180deg, #F3F7F7 0%, #EEF3F2 100%);
+      border: 1px solid ${c.softLine};
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: visible;
+    }
+
+    .cover-evidence-visual img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      display: block;
+      background: #F8FAFC;
+    }
+
+    .cover-evidence-text {
+      padding: 10px;
+      align-items: stretch;
+      justify-content: flex-start;
+      overflow: visible;
+    }
+
+    .cover-evidence-text-label {
+      font-size: 9px;
+      font-weight: 900;
+      color: ${c.subtle};
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 6px;
+    }
+
+    .cover-evidence-text-body {
+      font-size: 9.3px;
+      line-height: 1.45;
+      color: ${c.ink};
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    .cover-evidence-placeholder {
+      flex-direction: column;
+      gap: 8px;
+      padding: 12px;
+      text-align: center;
+    }
+
+    .cover-evidence-placeholder-kind {
+      font-size: 11px;
+      font-weight: 900;
+      letter-spacing: 0.04em;
+      color: ${c.accent};
+    }
+
+    .cover-evidence-placeholder-note {
+      font-size: 9px;
+      line-height: 1.4;
+      color: ${c.muted};
+      font-weight: 700;
+    }
+
+    .cover-evidence-meta {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      min-width: 0;
+    }
+
+    .cover-evidence-name {
+      font-size: 14px;
+      font-weight: 900;
+      line-height: 1.35;
+      color: ${c.accent};
+      word-break: break-word;
+    }
+
+    .cover-evidence-facts {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      color: ${c.muted};
+      font-size: 9.6px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
     .cover-meta-card {
       border: 1px solid ${c.line};
       background:
@@ -591,6 +694,7 @@ export function getReportCss(): string {
       white-space: pre-wrap;
       line-height: 1.56;
       word-break: break-word;
+      overflow-wrap: anywhere;
     }
 
     .info-cards {
@@ -665,6 +769,7 @@ export function getReportCss(): string {
       color: ${c.ink};
       white-space: pre-wrap;
       word-break: break-word;
+      overflow-wrap: anywhere;
     }
 
     .report-table {
@@ -767,16 +872,17 @@ export function getReportCss(): string {
 
     .gallery-primary {
       display: grid;
-      grid-template-columns: minmax(0, 1.25fr) minmax(260px, 0.75fr);
+      grid-template-columns: 1fr;
       gap: 12px;
       align-items: stretch;
       break-inside: avoid;
       page-break-inside: avoid;
     }
 
-    .gallery-grid,
-    .gallery-grid-single {
-      display: block;
+    .gallery-support-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 11px;
     }
 
     .gallery-card {
@@ -1203,6 +1309,7 @@ export function getReportCss(): string {
       .gallery-lead-note,
       .gallery-card,
       .gallery-primary,
+      .gallery-support-grid,
       .gallery-secondary-item,
       .mono-block,
       .appendix-section,

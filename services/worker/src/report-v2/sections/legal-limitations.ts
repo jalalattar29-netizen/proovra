@@ -2,6 +2,8 @@ import { ReportViewModel } from "../types.js";
 import { renderCallout, renderPageSection } from "../ui.js";
 
 export function renderLegalLimitationsSection(vm: ReportViewModel): string {
+  const { decisions } = vm.presentation;
+
   return renderPageSection(
     "Legal Interpretation & Review Use",
     `
@@ -18,12 +20,16 @@ export function renderLegalLimitationsSection(vm: ReportViewModel): string {
         tone: "neutral",
       })}
 
-      ${renderCallout({
-        title: "Presentation materials",
-        body:
-          "Any embedded preview in this report is a reviewer-facing representation only. Where deeper review, expert comparison, or formal process is required, rely on the preserved original evidence and the verification workflow rather than the PDF rendering alone.",
-        tone: "warning",
-      })}
+      ${
+        decisions.compactLegalSection
+          ? ""
+          : renderCallout({
+              title: "Presentation materials",
+              body:
+                "Any embedded preview in this report is a reviewer-facing representation only. Where deeper review, expert comparison, or formal process is required, rely on the preserved original evidence and the verification workflow rather than the PDF rendering alone.",
+              tone: "warning",
+            })
+      }
     `,
     { pageBreakBefore: true }
   );

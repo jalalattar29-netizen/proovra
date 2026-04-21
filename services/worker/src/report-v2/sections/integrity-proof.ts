@@ -6,6 +6,20 @@ import {
 } from "../ui.js";
 
 export function renderIntegrityProofSection(vm: ReportViewModel): string {
+  const stateCallout = vm.meta.hasCoreCrypto
+    ? renderCallout({
+        title: "Core cryptographic materials present",
+        body:
+          "Core file hash, fingerprint hash, signature references, and signing-key references are present in the report model.",
+        tone: "success",
+      })
+    : renderCallout({
+        title: "Incomplete technical materials",
+        body:
+          "One or more core technical materials were not present in the report payload. Review should proceed with caution.",
+        tone: "danger",
+      });
+
   return renderPageSection(
     "Integrity Proof",
     `
@@ -25,21 +39,7 @@ export function renderIntegrityProofSection(vm: ReportViewModel): string {
         tone: "success",
       })}
 
-      ${
-        vm.meta.hasCoreCrypto
-          ? renderCallout({
-              title: "Core cryptographic materials present",
-              body:
-                "Core file hash, fingerprint hash, signature material, and signing-key reference are present in the report model.",
-              tone: "success",
-            })
-          : renderCallout({
-              title: "Incomplete technical materials",
-              body:
-                "One or more core technical materials were not present in the report payload. Review should proceed with caution.",
-              tone: "danger",
-            })
-      }
+      ${stateCallout}
     `,
     { pageBreakBefore: true }
   );

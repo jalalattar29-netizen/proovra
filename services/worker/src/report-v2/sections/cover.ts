@@ -10,6 +10,58 @@ function findRowValue(
   return rows.find((row) => row.label === label)?.value ?? fallback;
 }
 
+function renderCoverEvidenceIdentity(vm: ReportViewModel): string {
+  const hero = vm.presentation.buckets.heroItem;
+  if (!hero) return "";
+
+  const asset = hero.asset;
+  const fileName = safe(
+    asset.originalFileName || asset.label,
+    "Unnamed evidence item"
+  );
+
+  const visualBlock =
+    vm.presentationMode !== "heavy" && asset.previewDataUrl
+      ? `<div class="cover-evidence-visual"><img src="${asset.previewDataUrl}" alt="${escapeHtml(
+          fileName
+        )}" /></div>`
+      : vm.presentationMode !== "heavy" &&
+          hero.previewRenderKind === "text" &&
+          asset.previewTextExcerpt
+        ? `
+          <div class="cover-evidence-visual cover-evidence-text">
+            <div class="cover-evidence-text-label">Lead text excerpt</div>
+            <div class="cover-evidence-text-body">${escapeHtml(
+              asset.previewTextExcerpt
+            )}</div>
+          </div>
+        `
+        : `
+          <div class="cover-evidence-visual cover-evidence-placeholder">
+            <div class="cover-evidence-placeholder-kind">${escapeHtml(
+              hero.previewRenderKind.toUpperCase()
+            )}</div>
+            <div class="cover-evidence-placeholder-note">
+              Lead evidence represented in the presentation section and verification workflow.
+            </div>
+          </div>
+        `;
+
+  return `
+    <div class="cover-evidence-panel">
+      ${visualBlock}
+      <div class="cover-evidence-meta">
+        <div class="cover-meta-label">Lead Evidence Identity</div>
+        <div class="cover-evidence-name">${escapeHtml(fileName)}</div>
+        <div class="cover-evidence-facts">
+          <span>${escapeHtml(safe(asset.kind, "Not recorded"))}</span>
+          <span>${escapeHtml(safe(asset.displaySizeLabel, "N/A"))}</span>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
 export function renderCoverSection(vm: ReportViewModel): string {
   const integrityBadgeClass = vm.integrityVerified
     ? "badge-success"
@@ -113,9 +165,11 @@ export function renderCoverSection(vm: ReportViewModel): string {
               <div class="cover-meta-card">
                 <div class="cover-meta-label">Report Mode</div>
                 <div class="cover-meta-value">${escapeHtml(
-                  vm.reportVariant === "short"
-                    ? "Short evidentiary report"
-                    : "Full forensic report"
+                  vm.presentationMode === "simple"
+                    ? "Compact evidentiary report"
+                    : vm.presentationMode === "medium"
+                      ? "Balanced evidentiary report"
+                      : "Full forensic report"
                 )}</div>
               </div>
 
@@ -124,6 +178,8 @@ export function renderCoverSection(vm: ReportViewModel): string {
                 <div class="cover-meta-value cover-meta-value-code">${escapeHtml(primaryHash)}</div>
               </div>
             </div>
+
+            ${renderCoverEvidenceIdentity(vm)}
           </div>
 
           <div class="cover-right-column">

@@ -1,7 +1,6 @@
 import { ReportViewModel } from "../types.js";
 import {
   renderCallout,
-  renderCustodyHashTable,
   renderPageSection,
   renderTimelineTable,
 } from "../ui.js";
@@ -41,23 +40,10 @@ export function renderCustodySection(vm: ReportViewModel): string {
         ${renderCallout({
           title: "Custody reading note",
           body:
-            "This section presents reviewer-facing forensic lifecycle events in chronological order. Hash-chain values are intentionally moved into a separate subsection so the main custody table stays readable.",
+            "This section presents reviewer-facing forensic lifecycle events in chronological order. Hash-chain values are intentionally reserved for the technical appendix so the main custody table stays readable.",
           tone: "neutral",
         })}
         ${forensicBlock}
-        ${
-          vm.custodyHashRows.length > 0
-            ? `
-              ${renderCallout({
-                title: "Custody Hash Chain Details",
-                body:
-                  "Full prevEventHash and eventHash values are preserved below for chain validation without overloading the main chronology table.",
-                tone: "neutral",
-              })}
-              ${renderCustodyHashTable(vm.custodyHashRows)}
-            `
-            : ""
-        }
       `,
       { pageBreakBefore: true }
     )}
