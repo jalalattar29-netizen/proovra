@@ -133,11 +133,6 @@ export function renderTechnicalAppendixSection(vm: ReportViewModel): string {
                 )
               : ""
           }
-          ${renderCallout({
-            title: "Timestamp payload handling",
-            body: vm.technicalAppendix.timestampReferenceNote,
-            tone: "neutral",
-          })}
         `
       )}
 
@@ -164,11 +159,6 @@ export function renderTechnicalAppendixSection(vm: ReportViewModel): string {
                 })
               : ""
           }
-          ${renderCallout({
-            title: "Anchoring payload handling",
-            body: vm.technicalAppendix.anchoringReferenceNote,
-            tone: "neutral",
-          })}
         `
       )}
 
@@ -176,15 +166,7 @@ export function renderTechnicalAppendixSection(vm: ReportViewModel): string {
         full && vm.custodyHashRows.length > 0
           ? renderAppendixSection(
               "Custody Hash Chain Detail",
-              `
-                ${renderCallout({
-                  title: "Chain validation detail",
-                  body:
-                    "This block preserves the full previous-event and event-hash values for the forensic custody chain without overloading the reviewer-facing custody chronology in the main flow.",
-                  tone: "neutral",
-                })}
-                ${renderCustodyHashTable(vm.custodyHashRows)}
-              `
+              renderCustodyHashTable(vm.custodyHashRows)
             )
           : ""
       }

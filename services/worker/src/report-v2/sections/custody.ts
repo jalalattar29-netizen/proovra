@@ -44,8 +44,7 @@ export function renderCustodySection(vm: ReportViewModel): string {
           tone: "neutral",
         })}
         ${forensicBlock}
-      `,
-      { pageBreakBefore: true }
+      `
     )}
     ${accessBlock}
   `;

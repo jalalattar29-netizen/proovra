@@ -1,4 +1,5 @@
 import QRCode from "qrcode";
+import sharp from "sharp";
 import type {
   CalloutModel,
   CustodyHashRow,
@@ -85,6 +86,8 @@ type DisplayDescriptor = {
   displayTitle: string;
   displayDescription: string | null;
 };
+
+const PREVIEW_DATA_URL_RE = /^data:image\/[a-z0-9.+-]+;base64,(.+)$/i;
 
 function buildVerifyUrl(evidenceId: string, provided?: string | null): string {
   const v = typeof provided === "string" ? provided.trim() : "";
@@ -294,6 +297,61 @@ function buildExecutiveRows(
   );
 
   return rows;
+}
+
+async function optimizePreviewDataUrl(
+  value: string | null | undefined,
+  presentationMode: PresentationMode
+): Promise<string | null | undefined> {
+  const dataUrl = safe(value, "");
+  if (!dataUrl) return value;
+
+  const match = dataUrl.match(PREVIEW_DATA_URL_RE);
+  if (!match?.[1]) return value;
+
+  const source = Buffer.from(match[1], "base64");
+  const shouldProcess = source.length > 80_000 || presentationMode !== "heavy";
+  if (!shouldProcess) return value;
+
+  const maxEdge =
+    presentationMode === "simple"
+      ? 980
+      : presentationMode === "medium"
+        ? 1120
+        : 1280;
+
+  try {
+    const optimized = await sharp(source, { limitInputPixels: 24_000_000 })
+      .rotate()
+      .resize({
+        width: maxEdge,
+        height: maxEdge,
+        fit: "inside",
+        withoutEnlargement: true,
+      })
+      .jpeg({ quality: 74, mozjpeg: true })
+      .toBuffer();
+
+    return `data:image/jpeg;base64,${optimized.toString("base64")}`;
+  } catch (error) {
+    console.warn("[report-v2] Failed to optimize preview image:", error);
+    return value;
+  }
+}
+
+async function optimizeEvidencePreviews(
+  items: ReportEvidenceAsset[],
+  presentationMode: PresentationMode
+): Promise<ReportEvidenceAsset[]> {
+  return Promise.all(
+    items.map(async (item) => ({
+      ...item,
+      previewDataUrl: await optimizePreviewDataUrl(
+        item.previewDataUrl,
+        presentationMode
+      ),
+    }))
+  );
 }
 
 function buildVerificationSummaryRows(
@@ -816,11 +874,7 @@ export async function buildReportViewModel(
     input.evidence,
     parsedFingerprintSummary
   );
-  const contentItems = resolveContentItems(input.evidence);
-  const primaryContentItem = resolvePrimaryContentItem(
-    input.evidence,
-    contentItems
-  );
+  const resolvedContentItems = resolveContentItems(input.evidence);
   const structureLabel =
     input.evidence.evidenceStructure?.trim() ||
     evidenceStructureLabel(contentSummary);
@@ -840,11 +894,19 @@ export async function buildReportViewModel(
   const externalMode = mode === "external";
   const presentationMode = determinePresentationMode(
     contentSummary,
-    contentItems,
+    resolvedContentItems,
     custody,
     input.evidence
   );
   const reportVariant: ReportVariant = mapReportVariant(presentationMode);
+  const contentItems = await optimizeEvidencePreviews(
+    resolvedContentItems,
+    presentationMode
+  );
+  const primaryContentItem = resolvePrimaryContentItem(
+    input.evidence,
+    contentItems
+  );
   const presentationBuckets: ReportPresentationBuckets = buildPresentationBuckets({
     items: contentItems,
     primaryItem: primaryContentItem,

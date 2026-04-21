@@ -822,6 +822,26 @@ export function getReportCss(): string {
       page-break-inside: avoid;
     }
 
+    .custody-hash-table th {
+      padding: 5px 7px;
+      font-size: 7.2px;
+      line-height: 1.2;
+    }
+
+    .custody-hash-table td {
+      padding: 5px 7px;
+      font-size: 7.7px;
+      line-height: 1.22;
+    }
+
+    .custody-hash-table .hash-text {
+      font-size: 7px;
+      line-height: 1.2;
+      letter-spacing: -0.01em;
+      word-break: break-all;
+      overflow-wrap: anywhere;
+    }
+
     .report-table tbody tr:last-child td {
       border-bottom: none;
     }
@@ -1149,8 +1169,8 @@ export function getReportCss(): string {
       background: linear-gradient(180deg, rgba(255,255,255,0.998) 0%, rgba(247,249,249,0.995) 100%);
       padding: 12px;
       box-shadow: 0 8px 18px rgba(17, 36, 41, 0.03);
-      break-inside: avoid;
-      page-break-inside: avoid;
+      break-inside: auto;
+      page-break-inside: auto;
     }
 
     .appendix-section-title {
@@ -1312,12 +1332,64 @@ export function getReportCss(): string {
       .gallery-support-grid,
       .gallery-secondary-item,
       .mono-block,
-      .appendix-section,
       .technical-status-card,
       .verification-link-panel {
         break-inside: avoid;
         page-break-inside: avoid;
       }
+    }
+
+    /*
+      Chromium emits PDF shading instructions for CSS gradients that some PDF
+      readers/rasterizers render unpredictably. Keep the report visually premium
+      with solid, layered surfaces instead of gradient fills.
+    */
+    body {
+      background: ${c.paper} !important;
+    }
+
+    .report-header-band,
+    .cover-certificate-top,
+    .cover-certificate-bottom {
+      background: ${c.accent} !important;
+    }
+
+    .cover-certificate-card,
+    .section-sheet,
+    .callout,
+    .info-card,
+    .kv-item,
+    .report-table,
+    .gallery-card,
+    .gallery-secondary-item,
+    .mono-block,
+    .appendix-section,
+    .technical-status-card,
+    .verification-link-panel,
+    .cover-evidence-panel,
+    .cover-meta-card,
+    .cover-hero-summary-item,
+    .cover-status-panel,
+    .cover-verify-box {
+      background: ${c.white} !important;
+    }
+
+    .report-table thead th,
+    .mono-label {
+      background: ${c.accentSoft} !important;
+    }
+
+    .gallery-thumb,
+    .cover-evidence-visual,
+    .qr-inline-block {
+      background: ${c.neutralSoft} !important;
+    }
+
+    .cover-certificate-card::before,
+    .section-sheet::before {
+      display: none !important;
+      content: none !important;
+      background: none !important;
     }
   `;
 }

@@ -31,10 +31,6 @@ export function renderPageSection(
           <div class="section-body">
             ${body}
           </div>
-          <div class="sheet-footer">
-            <div>PROOVRA report section</div>
-            <div>${escapeHtml(title)}</div>
-          </div>
         </div>
       </div>
     </section>

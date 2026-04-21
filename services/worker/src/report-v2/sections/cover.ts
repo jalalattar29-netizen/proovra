@@ -20,32 +20,16 @@ function renderCoverEvidenceIdentity(vm: ReportViewModel): string {
     "Unnamed evidence item"
   );
 
-  const visualBlock =
-    vm.presentationMode !== "heavy" && asset.previewDataUrl
-      ? `<div class="cover-evidence-visual"><img src="${asset.previewDataUrl}" alt="${escapeHtml(
-          fileName
-        )}" /></div>`
-      : vm.presentationMode !== "heavy" &&
-          hero.previewRenderKind === "text" &&
-          asset.previewTextExcerpt
-        ? `
-          <div class="cover-evidence-visual cover-evidence-text">
-            <div class="cover-evidence-text-label">Lead text excerpt</div>
-            <div class="cover-evidence-text-body">${escapeHtml(
-              asset.previewTextExcerpt
-            )}</div>
-          </div>
-        `
-        : `
-          <div class="cover-evidence-visual cover-evidence-placeholder">
-            <div class="cover-evidence-placeholder-kind">${escapeHtml(
-              hero.previewRenderKind.toUpperCase()
-            )}</div>
-            <div class="cover-evidence-placeholder-note">
-              Lead evidence represented in the presentation section and verification workflow.
-            </div>
-          </div>
-        `;
+  const visualBlock = `
+    <div class="cover-evidence-visual cover-evidence-placeholder">
+      <div class="cover-evidence-placeholder-kind">${escapeHtml(
+        hero.previewRenderKind.toUpperCase()
+      )}</div>
+      <div class="cover-evidence-placeholder-note">
+        Lead evidence preview appears once in Evidence Presentation to keep the PDF compact.
+      </div>
+    </div>
+  `;
 
   return `
     <div class="cover-evidence-panel">

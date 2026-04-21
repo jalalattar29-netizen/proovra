@@ -4,7 +4,6 @@ import {
   renderCallout,
   renderPageSection,
 } from "../ui.js";
-import { escapeHtml } from "../formatters.js";
 
 export function renderForensicIntegrityStatementSection(
   vm: ReportViewModel
@@ -50,14 +49,6 @@ export function renderForensicIntegrityStatementSection(
         tone: "neutral",
       })}
 
-      <div class="verification-link-panel">
-        <div class="verification-link-panel-label">${escapeHtml(
-          vm.forensicIntegrityStatement.verificationLinkLabel
-        )}</div>
-        <div class="verification-link-panel-value">${escapeHtml(
-          vm.forensicIntegrityStatement.verificationLinkText
-        )}</div>
-      </div>
     `,
     { pageBreakBefore: true }
   );

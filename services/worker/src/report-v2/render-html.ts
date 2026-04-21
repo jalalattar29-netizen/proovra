@@ -2,9 +2,7 @@ import type { ReportViewModel } from "./types.js";
 import { renderReportShell } from "./templates/report-shell.js";
 import { renderCoverSection } from "./sections/cover.js";
 import { renderExecutiveSummarySection } from "./sections/executive-summary.js";
-import { renderEvidenceContentSection } from "./sections/evidence-content.js";
 import { renderGallerySection } from "./sections/gallery.js";
-import { renderInventorySection } from "./sections/inventory.js";
 import { renderIntegrityProofSection } from "./sections/integrity-proof.js";
 import { renderCertificationsSection } from "./sections/certifications.js";
 import { renderStorageTimestampingSection } from "./sections/storage-timestamping.js";
@@ -24,17 +22,12 @@ function hasMeaningfulStorageRows(vm: ReportViewModel): boolean {
 }
 
 export function renderReportHtml(vm: ReportViewModel): string {
-  const { decisions } = vm.presentation;
-
   const body = [
     renderCoverSection(vm),
 
     renderExecutiveSummarySection(vm),
 
-    decisions.showEvidenceContentSection ? renderEvidenceContentSection(vm) : "",
-
     renderGallerySection(vm),
-    renderInventorySection(vm),
 
     renderIntegrityProofSection(vm),
 
@@ -42,7 +35,9 @@ export function renderReportHtml(vm: ReportViewModel): string {
 
     renderCustodySection(vm),
 
-    decisions.showCertificationSection ? renderCertificationsSection(vm) : "",
+    vm.presentation.decisions.showCertificationSection
+      ? renderCertificationsSection(vm)
+      : "",
 
     renderLegalLimitationsSection(vm),
 

@@ -8,11 +8,13 @@ const FULL_HASH_B =
   "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
 const FULL_HASH_C =
   "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc";
+const TINY_PNG_DATA_URL =
+  "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=";
 
 function expectInOrder(text: string, tokens: string[]) {
   let lastIndex = -1;
   for (const token of tokens) {
-    const next = text.indexOf(token);
+    const next = text.indexOf(token, lastIndex + 1);
     expect(next).toBeGreaterThan(lastIndex);
     lastIndex = next;
   }
@@ -190,15 +192,15 @@ describe("report v2 pipeline", () => {
 
     expect(html).toContain("Evidence Title");
     expect(html).toContain("Executive conclusion");
-    expect(html).toContain("Evidence Manifest");
     expect(html).toContain("Integrity Proof");
     expect(html).toContain("Storage, Timestamping &amp; Publication");
     expect(html).toContain("Technical Appendix");
+    expect(html).not.toContain("Evidence Manifest");
+    expect(html).not.toContain("Evidence Package Structure");
 
     expectInOrder(html, [
       "Executive conclusion",
       "Evidence Presentation",
-      "Evidence Manifest",
       "Integrity Proof",
       "Storage, Timestamping &amp; Publication",
       "Chain of Custody",
@@ -232,7 +234,7 @@ describe("report v2 pipeline", () => {
               kind: "image",
               originalFileName: "lead-photo.jpg",
               mimeType: "image/jpeg",
-              previewDataUrl: "data:image/png;base64,AAAA",
+              previewDataUrl: TINY_PNG_DATA_URL,
               previewTextExcerpt: null,
               displaySizeLabel: "2 KB",
               sha256: FULL_HASH_A,
@@ -245,7 +247,7 @@ describe("report v2 pipeline", () => {
               originalFileName: "supporting.pdf",
               mimeType: "application/pdf",
               kind: "pdf",
-              previewDataUrl: "data:image/png;base64,BBBB",
+              previewDataUrl: TINY_PNG_DATA_URL,
               previewTextExcerpt: null,
               displaySizeLabel: "1 KB",
               sha256: FULL_HASH_B,
@@ -273,7 +275,7 @@ describe("report v2 pipeline", () => {
             kind: "image",
             originalFileName: "lead-photo.jpg",
             mimeType: "image/jpeg",
-            previewDataUrl: "data:image/png;base64,AAAA",
+            previewDataUrl: TINY_PNG_DATA_URL,
             previewTextExcerpt: null,
             displaySizeLabel: "2 KB",
             sha256: FULL_HASH_A,
@@ -281,7 +283,7 @@ describe("report v2 pipeline", () => {
           embeddedPreviewsSnapshot: [
             {
               id: "evidence-2",
-              previewDataUrl: "data:image/png;base64,BBBB",
+              previewDataUrl: TINY_PNG_DATA_URL,
             },
             {
               id: "evidence-3",
