@@ -7,7 +7,6 @@ import { renderIntegrityProofSection } from "./sections/integrity-proof.js";
 import { renderCertificationsSection } from "./sections/certifications.js";
 import { renderStorageTimestampingSection } from "./sections/storage-timestamping.js";
 import { renderCustodySection } from "./sections/custody.js";
-import { renderLegalLimitationsSection } from "./sections/legal-limitations.js";
 import { renderForensicIntegrityStatementSection } from "./sections/forensic-integrity-statement.js";
 import { renderTechnicalAppendixSection } from "./sections/technical-appendix.js";
 
@@ -38,8 +37,6 @@ export function renderReportHtml(vm: ReportViewModel): string {
     vm.presentation.decisions.showCertificationSection
       ? renderCertificationsSection(vm)
       : "",
-
-    renderLegalLimitationsSection(vm),
 
     renderForensicIntegrityStatementSection(vm),
 

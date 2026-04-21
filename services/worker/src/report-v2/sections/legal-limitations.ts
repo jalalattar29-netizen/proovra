@@ -1,12 +1,10 @@
 import { ReportViewModel } from "../types.js";
-import { renderCallout, renderPageSection } from "../ui.js";
+import { renderCallout } from "../ui.js";
 
-export function renderLegalLimitationsSection(vm: ReportViewModel): string {
+export function renderLegalLimitationsBlock(vm: ReportViewModel): string {
   const { decisions } = vm.presentation;
 
-  return renderPageSection(
-    "Legal Interpretation & Review Use",
-    `
+  return `
       ${renderCallout({
         title: "What this report does not independently prove",
         body: vm.legalLimitations.detailed,
@@ -30,7 +28,5 @@ export function renderLegalLimitationsSection(vm: ReportViewModel): string {
               tone: "warning",
             })
       }
-    `,
-    { pageBreakBefore: true }
-  );
+    `;
 }

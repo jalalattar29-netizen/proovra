@@ -1,9 +1,21 @@
 import { ReportViewModel } from "../types.js";
+import { escapeHtml } from "../formatters.js";
 import {
   renderCallout,
+  renderCustodyHashTable,
   renderPageSection,
   renderTimelineTable,
 } from "../ui.js";
+import { renderLegalLimitationsBlock } from "./legal-limitations.js";
+
+function renderCustodySubsection(title: string, body: string): string {
+  return `
+    <section class="appendix-section">
+      <h3 class="appendix-section-title">${escapeHtml(title)}</h3>
+      ${body}
+    </section>
+  `;
+}
 
 export function renderCustodySection(vm: ReportViewModel): string {
   const forensicBlock =
@@ -29,6 +41,24 @@ export function renderCustodySection(vm: ReportViewModel): string {
           ${renderTimelineTable(vm.accessRows)}
         `;
 
+  const custodyHashBlock =
+    vm.custodyHashRows.length === 0
+      ? renderCallout({
+          title: "Custody hash chain detail unavailable",
+          body:
+            "No event-hash values were included in the report payload for the forensic custody events. The custody chronology remains visible above, but technical hash-chain review requires recorded prev-event and event-hash values.",
+          tone: "warning",
+        })
+      : `
+          ${renderCallout({
+            title: "Hash-chain review context",
+            body:
+              "The table below restores the technical custody-chain detail for reviewer and audit use. Each row preserves the recorded previous-event hash and event hash relationship for the corresponding forensic custody event.",
+            tone: "neutral",
+          })}
+          ${renderCustodyHashTable(vm.custodyHashRows)}
+        `;
+
   return `
     ${renderPageSection(
       "Chain of Custody",
@@ -36,11 +66,16 @@ export function renderCustodySection(vm: ReportViewModel): string {
         ${renderCallout({
           title: "Custody reading note",
           body:
-            "This section presents reviewer-facing forensic lifecycle events in chronological order. Hash-chain values are intentionally reserved for the technical appendix so the main custody table stays readable.",
+            "This section presents reviewer-facing forensic lifecycle events in chronological order. The main table stays readable, while the restored hash-chain detail below preserves the technical custody relationship for audit review.",
           tone: "neutral",
         })}
         ${forensicBlock}
         ${accessBlock}
+        ${renderCustodySubsection("Custody Hash Chain Detail", custodyHashBlock)}
+        ${renderCustodySubsection(
+          "Legal Interpretation & Review Use",
+          renderLegalLimitationsBlock(vm)
+        )}
       `
     )}
   `;
