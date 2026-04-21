@@ -17,11 +17,11 @@ function enabled(): boolean {
   return (process.env.OTS_ENABLED ?? "false").trim().toLowerCase() === "true";
 }
 
-function otsBin(): string {
+export function resolveOtsBin(): string {
   return clean(process.env.OTS_BIN) ?? "ots";
 }
 
-function timeoutMs(): number {
+export function resolveOtsTimeoutMs(): number {
   const raw = clean(process.env.OTS_TIMEOUT_MS);
   const parsed = raw ? Number.parseInt(raw, 10) : 30000;
   return Number.isFinite(parsed) && parsed > 0 ? parsed : 30000;
@@ -160,7 +160,7 @@ export async function createOpenTimestamp(params: {
     };
   }
 
-  const bin = otsBin();
+  const bin = resolveOtsBin();
   const calendar = calendarUrl();
   const workDir = await mkWorkDir();
   const stem =
@@ -180,7 +180,7 @@ const stampArgs = [
 ];
 
     await execFileAsync(bin, stampArgs, {
-      timeout: timeoutMs(),
+      timeout: resolveOtsTimeoutMs(),
       cwd: workDir,
     });
 
@@ -194,7 +194,7 @@ const stampArgs = [
     try {
       const upgradeArgs = ["upgrade", proofFile];
       const { stdout, stderr } = await execFileAsync(bin, upgradeArgs, {
-        timeout: timeoutMs(),
+        timeout: resolveOtsTimeoutMs(),
         cwd: workDir,
       });
 

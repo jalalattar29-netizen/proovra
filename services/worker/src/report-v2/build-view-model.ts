@@ -315,10 +315,10 @@ async function optimizePreviewDataUrl(
 
   const maxEdge =
     presentationMode === "simple"
-      ? 980
+      ? 820
       : presentationMode === "medium"
-        ? 1120
-        : 1280;
+        ? 880
+        : 940;
 
   try {
     const optimized = await sharp(source, { limitInputPixels: 24_000_000 })
@@ -329,7 +329,7 @@ async function optimizePreviewDataUrl(
         fit: "inside",
         withoutEnlargement: true,
       })
-      .jpeg({ quality: 74, mozjpeg: true })
+      .jpeg({ quality: 70, mozjpeg: true })
       .toBuffer();
 
     return `data:image/jpeg;base64,${optimized.toString("base64")}`;
@@ -344,13 +344,14 @@ async function optimizeEvidencePreviews(
   presentationMode: PresentationMode
 ): Promise<ReportEvidenceAsset[]> {
   return Promise.all(
-    items.map(async (item) => ({
-      ...item,
-      previewDataUrl: await optimizePreviewDataUrl(
-        item.previewDataUrl,
-        presentationMode
-      ),
-    }))
+    items.map(async (item) =>
+      Object.assign({}, item, {
+        previewDataUrl: await optimizePreviewDataUrl(
+          item.previewDataUrl,
+          presentationMode
+        ),
+      })
+    )
   );
 }
 

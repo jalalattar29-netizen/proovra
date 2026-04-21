@@ -59,8 +59,8 @@ import { createHash, randomUUID } from "node:crypto";
 import { buildReportPdfV2 } from "./report-v2/build-report-pdf.js";
 import {
   enqueueEvidencePurgeJob,
+  enqueueOtsUpgradeJob,
   enqueueReportJob as enqueueReportJobOnQueue,
-  otsUpgradeQueue,
   reportDlqQueue,
 } from "./queue.js";
 import { captureException } from "./sentry.js";
@@ -1289,35 +1289,7 @@ async function resolveEvidenceStorageSnapshot(params: {
 }
 
 async function enqueueOtsUpgradeRetry(evidenceId: string) {
-  const jobId = `ots-upgrade-${evidenceId}`;
-  const existing = await otsUpgradeQueue.getJob(jobId);
-
-  if (existing) {
-    const state = await existing.getState();
-    if (
-      state === "waiting" ||
-      state === "delayed" ||
-      state === "active" ||
-      state === "prioritized"
-    ) {
-      return { enqueued: false, reason: `job_${state}` };
-    }
-  }
-
-  await otsUpgradeQueue.add(
-    "UpgradeOts",
-    { evidenceId },
-    {
-      jobId,
-      delay: 5 * 60 * 1000,
-      attempts: 20,
-      backoff: { type: "exponential", delay: 60_000 },
-      removeOnComplete: 100,
-      removeOnFail: false,
-    }
-  );
-
-  return { enqueued: true };
+  return enqueueOtsUpgradeJob(evidenceId);
 }
 
 function deriveIdentityLevel(params: {

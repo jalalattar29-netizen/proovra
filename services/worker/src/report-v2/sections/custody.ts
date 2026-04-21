@@ -19,19 +19,15 @@ export function renderCustodySection(vm: ReportViewModel): string {
   const accessBlock =
     vm.accessRows.length === 0
       ? ""
-      : renderPageSection(
-          "Access Activity",
-          `
-            ${renderCallout({
-              title: "Access activity note",
-              body:
-                "Access activity is separated from forensic lifecycle events so later viewing, downloading, and verification actions do not visually mix with integrity-relevant record events.",
-              tone: "neutral",
-            })}
-            ${renderTimelineTable(vm.accessRows)}
-          `,
-          { pageBreakBefore: true }
-        );
+      : `
+          ${renderCallout({
+            title: "Access activity",
+            body:
+              "Access activity is listed after forensic lifecycle events so later viewing, downloading, and verification actions remain distinguishable from integrity-relevant custody events.",
+            tone: "neutral",
+          })}
+          ${renderTimelineTable(vm.accessRows)}
+        `;
 
   return `
     ${renderPageSection(
@@ -44,8 +40,8 @@ export function renderCustodySection(vm: ReportViewModel): string {
           tone: "neutral",
         })}
         ${forensicBlock}
+        ${accessBlock}
       `
     )}
-    ${accessBlock}
   `;
 }

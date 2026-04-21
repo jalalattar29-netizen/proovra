@@ -13,7 +13,8 @@ export function getReportCss(): string {
       box-sizing: border-box;
     }
 
-    html, body {
+    html,
+    body {
       margin: 0;
       padding: 0;
       background: ${c.paper};
@@ -23,6 +24,7 @@ export function getReportCss(): string {
       line-height: 1.5;
       -webkit-print-color-adjust: exact;
       print-color-adjust: exact;
+      overflow: visible;
     }
 
     body {
@@ -43,9 +45,13 @@ export function getReportCss(): string {
 
     .report-page {
       display: block;
+      width: 100%;
       min-height: auto;
       height: auto;
       overflow: visible;
+      margin-bottom: 18px;
+      break-after: auto;
+      page-break-after: auto;
     }
 
     .report-header-band {
@@ -63,10 +69,13 @@ export function getReportCss(): string {
 
     .report-cover {
       display: block;
+      width: 100%;
       min-height: auto;
       height: auto;
       overflow: visible;
-      margin: 0;
+      margin: 0 0 18px;
+      break-after: page;
+      page-break-after: always;
     }
 
     .report-cover-premium {
@@ -87,16 +96,9 @@ export function getReportCss(): string {
       flex-direction: column;
       overflow: visible;
       position: relative;
-    }
-
-    .cover-certificate-card::before {
-      content: "";
-      position: absolute;
-      inset: 0;
-      background:
-        radial-gradient(circle at top left, rgba(255,255,255,0.85), transparent 25%),
-        linear-gradient(135deg, rgba(255,255,255,0.18), transparent 38%);
-      pointer-events: none;
+      border-radius: 12px;
+      break-inside: avoid-page;
+      page-break-inside: avoid;
     }
 
     .cover-certificate-top {
@@ -153,8 +155,10 @@ export function getReportCss(): string {
       display: grid;
       grid-template-columns: minmax(0, 1.5fr) minmax(250px, 0.9fr);
       gap: 20px;
-      align-items: stretch;
+      align-items: start;
       padding: 24px 22px 20px;
+      break-inside: auto;
+      page-break-inside: auto;
     }
 
     .cover-left-column {
@@ -202,6 +206,8 @@ export function getReportCss(): string {
       display: grid;
       grid-template-columns: repeat(2, minmax(0, 1fr));
       gap: 10px;
+      break-inside: auto;
+      page-break-inside: auto;
     }
 
     .cover-hero-summary-item {
@@ -232,12 +238,15 @@ export function getReportCss(): string {
       color: ${c.ink};
       line-height: 1.42;
       word-break: break-word;
+      overflow-wrap: anywhere;
     }
 
     .cover-meta-grid {
       display: grid;
       grid-template-columns: repeat(2, minmax(0, 1fr));
       gap: 10px;
+      break-inside: auto;
+      page-break-inside: auto;
     }
 
     .cover-evidence-panel {
@@ -261,7 +270,7 @@ export function getReportCss(): string {
       display: flex;
       align-items: center;
       justify-content: center;
-      overflow: visible;
+      overflow: hidden;
     }
 
     .cover-evidence-visual img {
@@ -294,6 +303,9 @@ export function getReportCss(): string {
       color: ${c.ink};
       white-space: pre-wrap;
       word-break: break-word;
+      overflow-wrap: anywhere;
+      orphans: 3;
+      widows: 3;
     }
 
     .cover-evidence-placeholder {
@@ -315,6 +327,8 @@ export function getReportCss(): string {
       line-height: 1.4;
       color: ${c.muted};
       font-weight: 700;
+      orphans: 3;
+      widows: 3;
     }
 
     .cover-evidence-meta {
@@ -330,6 +344,7 @@ export function getReportCss(): string {
       line-height: 1.35;
       color: ${c.accent};
       word-break: break-word;
+      overflow-wrap: anywhere;
     }
 
     .cover-evidence-facts {
@@ -375,13 +390,18 @@ export function getReportCss(): string {
       font-weight: 700;
       line-height: 1.45;
       word-break: break-word;
+      overflow-wrap: anywhere;
       white-space: pre-wrap;
+      orphans: 3;
+      widows: 3;
     }
 
     .cover-meta-value-code {
       font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
       font-size: 9.8px;
       line-height: 1.55;
+      word-break: break-all;
+      overflow-wrap: anywhere;
     }
 
     .badge {
@@ -484,6 +504,7 @@ export function getReportCss(): string {
       font-size: 9px;
       line-height: 1.5;
       word-break: break-word;
+      overflow-wrap: anywhere;
       text-align: center;
     }
 
@@ -524,7 +545,10 @@ export function getReportCss(): string {
       color: ${c.ink};
       line-height: 1.45;
       word-break: break-word;
+      overflow-wrap: anywhere;
       white-space: pre-wrap;
+      orphans: 3;
+      widows: 3;
     }
 
     .cover-certificate-bottom {
@@ -556,17 +580,13 @@ export function getReportCss(): string {
     .cover-certificate-bottom span {
       position: relative;
       white-space: nowrap;
+      padding-left: 12px;
+      border-left: 1px solid rgba(255,255,255,0.28);
     }
 
-    .cover-certificate-bottom span:not(:last-child)::after {
-      content: "";
-      position: absolute;
-      right: -7px;
-      top: 50%;
-      width: 1px;
-      height: 11px;
-      background: rgba(255,255,255,0.35);
-      transform: translateY(-50%);
+    .cover-certificate-bottom span:first-child {
+      padding-left: 0;
+      border-left: none;
     }
 
     .report-section {
@@ -590,27 +610,9 @@ export function getReportCss(): string {
         inset 0 1px 0 rgba(255,255,255,0.92);
       padding: 15px 15px 13px;
       position: relative;
-    }
-
-    .section-sheet::before {
-      content: "";
-      position: absolute;
-      inset: 0;
-      background:
-        linear-gradient(135deg, rgba(255,255,255,0.08), transparent 45%);
-      pointer-events: none;
-    }
-
-    .section-sheet::after {
-      content: "PROOVRA";
-      position: absolute;
-      top: 15px;
-      right: 17px;
-      font-size: 11px;
-      font-weight: 900;
-      color: ${c.accent};
-      letter-spacing: 0.08em;
-      opacity: 0.9;
+      border-radius: 12px;
+      break-inside: auto;
+      page-break-inside: auto;
     }
 
     .section-rule {
@@ -621,11 +623,13 @@ export function getReportCss(): string {
 
     .section-title {
       margin: 0;
-      font-size: 17px;
+      font-size: 20px;
       font-weight: 900;
       color: ${c.accent};
       letter-spacing: -0.01em;
-      padding-right: 90px;
+      padding-right: 0;
+      break-after: avoid;
+      page-break-after: avoid;
     }
 
     .section-body {
@@ -634,6 +638,8 @@ export function getReportCss(): string {
       gap: 9px;
       position: relative;
       z-index: 1;
+      break-inside: auto;
+      page-break-inside: auto;
     }
 
     .sheet-footer {
@@ -651,7 +657,7 @@ export function getReportCss(): string {
 
     .callout {
       border: 1px solid ${c.line};
-      border-radius: 0;
+      border-radius: 10px;
       padding: 11px 12px;
       background: ${c.white};
       box-shadow:
@@ -695,17 +701,21 @@ export function getReportCss(): string {
       line-height: 1.56;
       word-break: break-word;
       overflow-wrap: anywhere;
+      orphans: 3;
+      widows: 3;
     }
 
     .info-cards {
       display: grid;
       grid-template-columns: repeat(2, minmax(0, 1fr));
       gap: 9px;
+      break-inside: auto;
+      page-break-inside: auto;
     }
 
     .info-card {
       border: 1px solid ${c.line};
-      border-radius: 0;
+      border-radius: 10px;
       padding: 12px;
       background:
         linear-gradient(180deg, rgba(255,255,255,0.998) 0%, rgba(246,248,248,0.995) 100%);
@@ -732,20 +742,25 @@ export function getReportCss(): string {
       line-height: 1.34;
       color: ${c.ink};
       word-break: break-word;
+      overflow-wrap: anywhere;
       white-space: pre-wrap;
+      orphans: 3;
+      widows: 3;
     }
 
     .kv-grid {
       display: grid;
       grid-template-columns: repeat(2, minmax(0, 1fr));
       gap: 8px 11px;
+      break-inside: auto;
+      page-break-inside: auto;
     }
 
     .kv-item {
       background:
         linear-gradient(180deg, rgba(255,255,255,0.998) 0%, rgba(247,249,249,0.995) 100%);
       border: 1px solid ${c.softLine};
-      border-radius: 0;
+      border-radius: 10px;
       padding: 10px 11px;
       min-height: 60px;
       box-shadow: inset 0 1px 0 rgba(255,255,255,0.88);
@@ -770,24 +785,31 @@ export function getReportCss(): string {
       white-space: pre-wrap;
       word-break: break-word;
       overflow-wrap: anywhere;
+      orphans: 3;
+      widows: 3;
     }
 
-    .report-table {
+    .report-table,
+    table {
       width: 100%;
       border-collapse: separate;
       border-spacing: 0;
       border: 1px solid ${c.line};
-      border-radius: 0;
+      border-radius: 10px;
       background: ${c.white};
       box-shadow: 0 8px 18px rgba(17, 36, 41, 0.03);
       table-layout: fixed;
+      break-inside: auto;
+      page-break-inside: auto;
     }
 
-    .report-table thead {
+    .report-table thead,
+    table thead {
       display: table-header-group;
     }
 
-    .report-table tfoot {
+    .report-table tfoot,
+    table tfoot {
       display: table-footer-group;
     }
 
@@ -803,6 +825,8 @@ export function getReportCss(): string {
       text-transform: uppercase;
       letter-spacing: 0.05em;
       vertical-align: top;
+      break-inside: avoid;
+      page-break-inside: avoid;
     }
 
     .report-table tbody td {
@@ -815,28 +839,31 @@ export function getReportCss(): string {
       word-break: break-word;
       white-space: pre-wrap;
       overflow-wrap: anywhere;
+      break-inside: avoid;
+      page-break-inside: avoid;
     }
 
-    .report-table tbody tr {
+    .report-table tbody tr,
+    .report-table tr {
       break-inside: avoid;
       page-break-inside: avoid;
     }
 
     .custody-hash-table th {
-      padding: 5px 7px;
-      font-size: 7.2px;
-      line-height: 1.2;
+      padding: 4px 6px;
+      font-size: 7px;
+      line-height: 1.15;
     }
 
     .custody-hash-table td {
-      padding: 5px 7px;
-      font-size: 7.7px;
-      line-height: 1.22;
+      padding: 4px 6px;
+      font-size: 7.2px;
+      line-height: 1.16;
     }
 
     .custody-hash-table .hash-text {
-      font-size: 7px;
-      line-height: 1.2;
+      font-size: 6.8px;
+      line-height: 1.16;
       letter-spacing: -0.01em;
       word-break: break-all;
       overflow-wrap: anywhere;
@@ -852,6 +879,7 @@ export function getReportCss(): string {
       color: ${c.ink};
       line-height: 1.38;
       word-break: break-word;
+      overflow-wrap: anywhere;
     }
 
     .manifest-display-label {
@@ -860,12 +888,14 @@ export function getReportCss(): string {
       color: ${c.subtle};
       line-height: 1.42;
       word-break: break-word;
+      overflow-wrap: anywhere;
     }
 
     .gallery-lead-note {
       border: 1px solid ${c.line};
       background: linear-gradient(180deg, rgba(255,255,255,0.997) 0%, rgba(247,249,249,0.995) 100%);
       padding: 11px 13px;
+      border-radius: 10px;
       box-shadow:
         0 8px 18px rgba(17, 36, 41, 0.03),
         inset 0 1px 0 rgba(255,255,255,0.86);
@@ -887,7 +917,10 @@ export function getReportCss(): string {
       font-weight: 800;
       color: ${c.ink};
       word-break: break-word;
+      overflow-wrap: anywhere;
       white-space: pre-wrap;
+      orphans: 3;
+      widows: 3;
     }
 
     .gallery-primary {
@@ -895,20 +928,22 @@ export function getReportCss(): string {
       grid-template-columns: 1fr;
       gap: 12px;
       align-items: stretch;
-      break-inside: avoid;
-      page-break-inside: avoid;
+      break-inside: auto;
+      page-break-inside: auto;
     }
 
     .gallery-support-grid {
       display: grid;
       grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 11px;
+      gap: 16px;
+      break-inside: auto;
+      page-break-inside: auto;
     }
 
     .gallery-card {
       border: 1px solid ${c.line};
       background: ${c.white};
-      border-radius: 0;
+      border-radius: 12px;
       overflow: visible;
       display: flex;
       flex-direction: column;
@@ -963,6 +998,7 @@ export function getReportCss(): string {
       color: ${c.accent};
       line-height: 1.34;
       word-break: break-word;
+      overflow-wrap: anywhere;
     }
 
     .gallery-card-display-label {
@@ -970,10 +1006,11 @@ export function getReportCss(): string {
       color: ${c.subtle};
       line-height: 1.42;
       word-break: break-word;
+      overflow-wrap: anywhere;
     }
 
     .gallery-thumb {
-      height: 182px;
+      height: 220px;
       background:
         linear-gradient(180deg, #F3F7F7 0%, #EEF3F2 100%);
       border-top: 1px solid ${c.softLine};
@@ -981,11 +1018,11 @@ export function getReportCss(): string {
       display: flex;
       align-items: center;
       justify-content: center;
-      overflow: visible;
+      overflow: hidden;
     }
 
     .gallery-thumb-emphasis {
-      height: 320px;
+      height: 380px;
     }
 
     .gallery-thumb img {
@@ -1008,7 +1045,7 @@ export function getReportCss(): string {
       display: flex;
       flex-direction: column;
       gap: 8px;
-      overflow: visible;
+      overflow: hidden;
       background: linear-gradient(180deg, rgba(255,255,255,0.996) 0%, rgba(247,249,249,0.994) 100%);
     }
 
@@ -1026,7 +1063,10 @@ export function getReportCss(): string {
       line-height: 1.52;
       white-space: pre-wrap;
       word-break: break-word;
-      overflow: visible;
+      overflow-wrap: anywhere;
+      overflow: hidden;
+      orphans: 3;
+      widows: 3;
     }
 
     .gallery-thumb-placeholder {
@@ -1052,6 +1092,8 @@ export function getReportCss(): string {
       font-weight: 700;
       line-height: 1.46;
       max-width: 88%;
+      orphans: 3;
+      widows: 3;
     }
 
     .gallery-card-meta {
@@ -1063,12 +1105,15 @@ export function getReportCss(): string {
     .gallery-secondary-list {
       display: grid;
       gap: 9px;
+      break-inside: auto;
+      page-break-inside: auto;
     }
 
     .gallery-secondary-item {
       border: 1px solid ${c.line};
       background: linear-gradient(180deg, rgba(255,255,255,0.998) 0%, rgba(246,248,248,0.995) 100%);
       padding: 12px;
+      border-radius: 10px;
       box-shadow: 0 8px 18px rgba(17, 36, 41, 0.03);
       break-inside: avoid;
       page-break-inside: avoid;
@@ -1081,12 +1126,15 @@ export function getReportCss(): string {
       line-height: 1.4;
       margin-bottom: 8px;
       word-break: break-word;
+      overflow-wrap: anywhere;
     }
 
     .gallery-secondary-grid {
       display: grid;
       grid-template-columns: 110px 1fr;
       gap: 8px 12px;
+      break-inside: auto;
+      page-break-inside: auto;
     }
 
     .gallery-meta-row {
@@ -1117,12 +1165,15 @@ export function getReportCss(): string {
       color: ${c.ink};
       line-height: 1.46;
       word-break: break-word;
+      overflow-wrap: anywhere;
       white-space: pre-wrap;
+      orphans: 3;
+      widows: 3;
     }
 
     .mono-block {
       border: 1px solid ${c.line};
-      border-radius: 0;
+      border-radius: 10px;
       background: ${c.white};
       overflow: visible;
       box-shadow: 0 8px 18px rgba(17, 36, 41, 0.03);
@@ -1168,6 +1219,7 @@ export function getReportCss(): string {
       border: 1px solid ${c.line};
       background: linear-gradient(180deg, rgba(255,255,255,0.998) 0%, rgba(247,249,249,0.995) 100%);
       padding: 12px;
+      border-radius: 10px;
       box-shadow: 0 8px 18px rgba(17, 36, 41, 0.03);
       break-inside: auto;
       page-break-inside: auto;
@@ -1180,12 +1232,16 @@ export function getReportCss(): string {
       color: ${c.accent};
       text-transform: uppercase;
       letter-spacing: 0.04em;
+      break-after: avoid;
+      page-break-after: avoid;
     }
 
     .technical-status-grid {
       display: grid;
       grid-template-columns: repeat(2, minmax(0, 1fr));
       gap: 9px;
+      break-inside: auto;
+      page-break-inside: auto;
     }
 
     .technical-status-card {
@@ -1193,6 +1249,7 @@ export function getReportCss(): string {
       background:
         linear-gradient(180deg, rgba(255,255,255,0.998) 0%, rgba(247,249,249,0.995) 100%);
       padding: 12px;
+      border-radius: 10px;
       min-height: 108px;
       box-shadow:
         0 8px 18px rgba(17, 36, 41, 0.03),
@@ -1225,6 +1282,7 @@ export function getReportCss(): string {
       color: ${c.ink};
       line-height: 1.28;
       word-break: break-word;
+      overflow-wrap: anywhere;
     }
 
     .technical-status-note {
@@ -1232,6 +1290,8 @@ export function getReportCss(): string {
       color: ${c.muted};
       line-height: 1.48;
       margin-top: auto;
+      orphans: 3;
+      widows: 3;
     }
 
     .bullet-list {
@@ -1242,6 +1302,8 @@ export function getReportCss(): string {
 
     .bullet-list li {
       margin: 0 0 6px;
+      orphans: 3;
+      widows: 3;
     }
 
     .qr-inline-block {
@@ -1279,6 +1341,7 @@ export function getReportCss(): string {
       background:
         linear-gradient(180deg, rgba(255,255,255,0.998) 0%, rgba(247,249,249,0.995) 100%);
       padding: 12px 13px;
+      border-radius: 10px;
       box-shadow:
         0 8px 18px rgba(17, 36, 41, 0.03),
         inset 0 1px 0 rgba(255,255,255,0.88);
@@ -1300,8 +1363,11 @@ export function getReportCss(): string {
       font-weight: 700;
       color: ${c.ink};
       word-break: break-word;
+      overflow-wrap: anywhere;
       line-height: 1.48;
       white-space: pre-wrap;
+      orphans: 3;
+      widows: 3;
     }
 
     .report-footer-note {
@@ -1316,8 +1382,31 @@ export function getReportCss(): string {
     }
 
     @media print {
+      body {
+        overflow: visible;
+      }
+
+      .report-root > .report-section:last-of-type .report-page {
+        break-after: auto;
+        page-break-after: auto;
+        margin-bottom: 0;
+      }
+
       .report-footer-note {
         position: static;
+      }
+
+      .info-cards,
+      .kv-grid,
+      .technical-status-grid,
+      .gallery-support-grid,
+      .gallery-secondary-grid,
+      .gallery-primary,
+      .cover-premium-body,
+      .cover-meta-grid,
+      .cover-hero-summary {
+        break-inside: auto !important;
+        page-break-inside: auto !important;
       }
 
       .callout,
@@ -1328,14 +1417,49 @@ export function getReportCss(): string {
       .cover-status-panel,
       .gallery-lead-note,
       .gallery-card,
-      .gallery-primary,
-      .gallery-support-grid,
       .gallery-secondary-item,
       .mono-block,
       .technical-status-card,
-      .verification-link-panel {
-        break-inside: avoid;
-        page-break-inside: avoid;
+      .verification-link-panel,
+      .cover-evidence-panel,
+      .cover-verify-box {
+        break-inside: avoid !important;
+        page-break-inside: avoid !important;
+      }
+
+      .report-table,
+      table {
+        break-inside: auto !important;
+        page-break-inside: auto !important;
+      }
+
+      .report-table thead,
+      table thead {
+        display: table-header-group !important;
+      }
+
+      .report-table tbody tr,
+      .report-table tr,
+      .report-table td,
+      .report-table th {
+        break-inside: avoid !important;
+        page-break-inside: avoid !important;
+      }
+
+      .callout-body,
+      .kv-value,
+      .gallery-meta-value,
+      .cover-meta-value,
+      .cover-status-value,
+      .verification-link-panel-value,
+      .gallery-thumb-text-body,
+      .mono-value,
+      .technical-status-note,
+      .cover-evidence-text-body,
+      p,
+      li {
+        orphans: 3;
+        widows: 3;
       }
     }
 
@@ -1386,7 +1510,8 @@ export function getReportCss(): string {
     }
 
     .cover-certificate-card::before,
-    .section-sheet::before {
+    .section-sheet::before,
+    .section-sheet::after {
       display: none !important;
       content: none !important;
       background: none !important;

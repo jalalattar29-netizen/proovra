@@ -8,6 +8,8 @@ import * as prismaPkg from "@prisma/client";
 import type { Prisma } from "@prisma/client";
 import { appendCustodyEventTx } from "./custody-events.js";
 import { prisma } from "./db.js";
+import { enqueueOtsUpgradeJob } from "./queue.js";
+import { resolveOtsBin, resolveOtsTimeoutMs } from "./ots.service.js";
 import { enqueueReportJob } from "./processor.js";
 
 const execFileAsync = promisify(execFile);
@@ -27,7 +29,11 @@ function normalizeOutput(stdout?: string, stderr?: string): string {
 
 function isAnchoredOutput(text: string): boolean {
   const lower = text.toLowerCase();
-  return lower.includes("success! timestamp complete");
+  return (
+    lower.includes("success! timestamp complete") ||
+    lower.includes("timestamp complete") ||
+    lower.includes("bitcoin transaction")
+  );
 }
 
 function isPendingOutput(text: string): boolean {
@@ -35,9 +41,17 @@ function isPendingOutput(text: string): boolean {
 
   return (
     lower.includes("pending confirmation in bitcoin blockchain") ||
+    lower.includes("pending confirmations") ||
+    lower.includes("still waiting") ||
     lower.includes("waiting for 6 confirmations") ||
-    lower.includes("timestamp not complete")
+    lower.includes("timestamp not complete") ||
+    lower.includes("not yet anchored") ||
+    lower.includes("available calendar")
   );
+}
+
+function buildFollowUpJobId(evidenceId: string, upgradedAt: Date): string {
+  return `ots-upgrade-${evidenceId}-${upgradedAt.getTime()}`;
 }
 
 export async function processOtsUpgrade(job: Job<{ evidenceId: string }>) {
@@ -65,7 +79,10 @@ export async function processOtsUpgrade(job: Job<{ evidenceId: string }>) {
     let stderr = "";
 
     try {
-      const result = await execFileAsync("ots", ["upgrade", file]);
+      const result = await execFileAsync(resolveOtsBin(), ["upgrade", file], {
+        timeout: resolveOtsTimeoutMs(),
+        cwd: workDir,
+      });
       stdout = result.stdout ?? "";
       stderr = result.stderr ?? "";
     } catch (error) {
@@ -84,7 +101,7 @@ export async function processOtsUpgrade(job: Job<{ evidenceId: string }>) {
     const updated = await fs.readFile(file);
     const upgradedAt = now();
 
-    if (isAnchoredOutput(merged)) {
+    if (isAnchoredOutput(merged) || txid) {
       await prisma.$transaction(async (tx) => {
         await tx.evidence.update({
           where: { id: evidenceId },
@@ -132,7 +149,13 @@ export async function processOtsUpgrade(job: Job<{ evidenceId: string }>) {
         },
       });
 
-      throw new Error("NOT_ANCHORED_YET");
+      await enqueueOtsUpgradeJob(evidenceId, {
+        delayMs: 6 * 60 * 60 * 1000,
+        jobId: buildFollowUpJobId(evidenceId, upgradedAt),
+        excludeJobId: job.id,
+      });
+
+      return;
     }
 
     await prisma.$transaction(async (tx) => {

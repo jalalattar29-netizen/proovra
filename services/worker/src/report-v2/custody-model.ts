@@ -8,6 +8,22 @@ import {
 import { safe } from "./formatters.js";
 import { mapCustodyEventLabel } from "./normalizers.js";
 
+const UNICODE_ELLIPSIS = String.fromCharCode(8230);
+const TRUNCATED_MARKER_PATTERN = new RegExp(
+  String.raw`(?:\.{3}|${UNICODE_ELLIPSIS})`,
+  "g"
+);
+const TRUNCATED_CRYPTO_VALUE_PATTERN = new RegExp(
+  String.raw`\b[a-f0-9]{8,}(?:\.{3}|${UNICODE_ELLIPSIS})[a-f0-9]*\b`,
+  "gi"
+);
+const LABELED_TRUNCATED_CRYPTO_PATTERN = new RegExp(
+  String.raw`\b(?:hash|fingerprint|digest|sha-?256)\s*:\s*[a-f0-9]{8,}(?:\.{3}|${UNICODE_ELLIPSIS})[a-f0-9]*`,
+  "gi"
+);
+const LABELED_FULL_CRYPTO_PATTERN =
+  /\b(?:hash|fingerprint|digest|sha-?256)\s*:\s*[a-f0-9]{32,}\b/gi;
+
 export type ClassifiedCustodyEvent = ReportCustodyEvent & {
   category: "forensic" | "access";
 };
@@ -15,10 +31,9 @@ export type ClassifiedCustodyEvent = ReportCustodyEvent & {
 export function classifyCustodyEvent(
   event: ReportCustodyEvent
 ): ClassifiedCustodyEvent {
-  return {
-    ...event,
+  return Object.assign({}, event, {
     category: isAccessCustodyEventType(event.eventType) ? "access" : "forensic",
-  };
+  });
 }
 
 export function splitCustodyEvents(events: ReportCustodyEvent[]) {
@@ -30,13 +45,26 @@ export function splitCustodyEvents(events: ReportCustodyEvent[]) {
   };
 }
 
+function sanitizeReviewerSummary(value: string | null | undefined): string {
+  const raw = safe(value);
+  if (raw === "N/A") return raw;
+
+  return raw
+    .replace(LABELED_TRUNCATED_CRYPTO_PATTERN, "technical digest recorded in appendix")
+    .replace(LABELED_FULL_CRYPTO_PATTERN, "technical digest recorded in appendix")
+    .replace(TRUNCATED_CRYPTO_VALUE_PATTERN, "technical digest recorded")
+    .replace(TRUNCATED_MARKER_PATTERN, " ")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+}
+
 export function buildTimelineRows(events: ClassifiedCustodyEvent[]): TimelineRow[] {
   return events.map((ev) => {
     return {
       sequence: String(ev.sequence),
       atUtc: safe(ev.atUtc),
       eventLabel: mapCustodyEventLabel(ev.eventType),
-      summary: safe(ev.payloadSummary),
+      summary: sanitizeReviewerSummary(ev.payloadSummary),
     };
   });
 }

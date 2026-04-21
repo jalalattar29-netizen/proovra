@@ -2077,7 +2077,9 @@ export default function VerifyPage() {
 
     const fetchVerify = async (background = false) => {
       try {
-        const data = await apiFetch(`/public/verify/${params.token}`);
+        const data = await apiFetch(
+          `/public/verify/${encodeURIComponent(params.token)}`
+        );
         if (cancelled || !isMountedRef.current) return;
 
         const otsDetails = applyVerifyResponse(data as VerifyResponse);

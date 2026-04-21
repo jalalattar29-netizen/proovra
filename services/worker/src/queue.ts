@@ -15,6 +15,7 @@ export { generateReportJobName };
 export const reportQueueName = "report";
 export const reportDlqQueueName = "report-dlq";
 export const otsUpgradeQueueName = "ots-upgrade";
+export const otsUpgradeJobName = "UpgradeOts";
 export const evidencePurgeQueueName = "evidence-purge";
 export const purgeDeletedEvidenceJobName = "PurgeDeletedEvidenceJob";
 
@@ -63,6 +64,76 @@ export const evidencePurgeQueue = new Queue(evidencePurgeQueueName, {
     removeOnFail: false,
   },
 });
+
+export function buildOtsUpgradeJobId(evidenceId: string): string {
+  return `ots-upgrade-${evidenceId}`;
+}
+
+function isRunnableQueueState(state: string): boolean {
+  return (
+    state === "waiting" ||
+    state === "delayed" ||
+    state === "active" ||
+    state === "prioritized"
+  );
+}
+
+export async function enqueueOtsUpgradeJob(
+  evidenceId: string,
+  options?: {
+    delayMs?: number;
+    jobId?: string;
+    excludeJobId?: string | number | null;
+  }
+) {
+  const jobId = options?.jobId ?? buildOtsUpgradeJobId(evidenceId);
+  const existing = await otsUpgradeQueue.getJob(jobId);
+
+  if (existing) {
+    const state = await existing.getState();
+
+    if (isRunnableQueueState(state)) {
+      return { enqueued: false, reason: `job_${state}` };
+    }
+
+    try {
+      await existing.remove();
+    } catch {
+      // ignore remove race conditions
+    }
+  }
+
+  const runnableJobs = await otsUpgradeQueue.getJobs(
+    ["waiting", "delayed", "active", "prioritized"],
+    0,
+    1000
+  );
+
+  const existingRunnableForEvidence = runnableJobs.find((job) => {
+    if (String(job.id) === String(options?.excludeJobId ?? "")) return false;
+    return job.data?.evidenceId === evidenceId;
+  });
+
+  if (existingRunnableForEvidence) {
+    const state = await existingRunnableForEvidence.getState();
+    return { enqueued: false, reason: `job_${state}` };
+  }
+
+  await otsUpgradeQueue.add(
+    otsUpgradeJobName,
+    { evidenceId },
+    {
+      jobId,
+      delay: Math.max(0, options?.delayMs ?? 5 * 60 * 1000),
+      attempts: 20,
+      backoff: { type: "exponential", delay: 60_000 },
+      removeOnComplete: 100,
+      removeOnFail: false,
+    }
+  );
+
+  return { enqueued: true };
+}
 
 export async function enqueueReportJob(
   evidenceId: string,

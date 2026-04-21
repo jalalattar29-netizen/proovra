@@ -504,7 +504,7 @@ process.on("uncaughtException", (err) => {
 logger.info(
   {
     requestId: randomUUID(),
-    jobs: [generateReportJobName, purgeDeletedEvidenceJobName],
+    jobs: [generateReportJobName, otsUpgradeQueueName, purgeDeletedEvidenceJobName],
     followUpEnabled,
     followUpIntervalMs,
     internalApiBase,

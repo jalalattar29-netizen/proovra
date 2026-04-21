@@ -47,6 +47,8 @@ export async function renderPdfFromHtml(html: string): Promise<Buffer> {
 
   try {
     const page = await browser.newPage();
+    page.setDefaultTimeout(120_000);
+    page.setDefaultNavigationTimeout(120_000);
 
     await page.setViewport({
       width: 1440,
@@ -57,7 +59,8 @@ export async function renderPdfFromHtml(html: string): Promise<Buffer> {
     await page.emulateMediaType("print");
 
     await page.setContent(html, {
-      waitUntil: ["domcontentloaded", "networkidle0"],
+      waitUntil: ["domcontentloaded", "load"],
+      timeout: 120_000,
     });
 
     await page.evaluate(async () => {

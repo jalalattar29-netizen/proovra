@@ -165,10 +165,8 @@ export function renderCustodyHashTable(rows: CustodyHashRow[]): string {
       <thead>
         <tr>
           <th style="width: 8%">Seq</th>
-          <th style="width: 18%">At (UTC)</th>
-          <th style="width: 16%">Event</th>
-          <th style="width: 29%">Prev Event Hash</th>
-          <th style="width: 29%">Event Hash</th>
+          <th style="width: 46%">Prev Event Hash</th>
+          <th style="width: 46%">Event Hash</th>
         </tr>
       </thead>
       <tbody>
@@ -177,8 +175,6 @@ export function renderCustodyHashTable(rows: CustodyHashRow[]): string {
             (row) => `
               <tr>
                 <td>${escapeHtml(row.sequence)}</td>
-                <td>${escapeHtml(row.atUtc)}</td>
-                <td>${escapeHtml(row.eventLabel)}</td>
                 <td><span class="hash-text">${escapeHtml(row.prevEventHash)}</span></td>
                 <td><span class="hash-text">${escapeHtml(row.eventHash)}</span></td>
               </tr>

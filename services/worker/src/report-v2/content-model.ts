@@ -160,13 +160,12 @@ export function resolveContentItems(
     const preview = embeddedPreviewMap.get(item.id);
     if (!preview) return item;
 
-    return {
-      ...item,
+    return Object.assign({}, item, {
       previewDataUrl: item.previewDataUrl ?? preview.previewDataUrl ?? null,
       previewTextExcerpt:
         item.previewTextExcerpt ?? preview.previewTextExcerpt ?? null,
       previewCaption: item.previewCaption ?? preview.previewCaption ?? null,
-    };
+    });
   });
 }
 

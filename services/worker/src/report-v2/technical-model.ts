@@ -43,6 +43,11 @@ function mapOtsTone(status: string | null | undefined): Tone {
   return "neutral";
 }
 
+function isMeaningfulTechnicalRow(row: KeyValueRow): boolean {
+  const value = safe(row.value, "");
+  return value !== "" && value !== "N/A" && value !== "Not recorded";
+}
+
 export function resolveAnchorSummary(
   evidence: ReportEvidence
 ): ReportAnchorSummary | null {
@@ -175,7 +180,7 @@ export function buildOtsRows(evidence: ReportEvidence): KeyValueRow[] {
     { label: "OTS Anchored At (UTC)", value: safe(evidence.otsAnchoredAtUtc) },
     { label: "OTS Upgraded At (UTC)", value: safe(evidence.otsUpgradedAtUtc) },
     { label: "OTS Bitcoin TxID", value: safe(evidence.otsBitcoinTxid) },
-  ];
+  ].filter(isMeaningfulTechnicalRow);
 }
 
 export function buildAnchorRows(
@@ -199,7 +204,7 @@ export function buildAnchorRows(
       label: "Anchor Transaction ID",
       value: safe(anchorSummary.transactionId),
     },
-  ];
+  ].filter(isMeaningfulTechnicalRow);
 }
 
 export function buildTechnicalAppendixModel(
@@ -250,7 +255,7 @@ export function buildTechnicalAppendixModel(
     signatureRows,
     fingerprintRows,
     timestampRows: buildTimestampRows(evidence),
-    anchoringRows: [...buildOtsRows(evidence), ...buildAnchorRows(anchorSummary)],
+    anchoringRows: buildOtsRows(evidence).concat(buildAnchorRows(anchorSummary)),
     timestampStatusLabel: mapTimestampStatusPublicLabel(evidence.tsaStatus),
     timestampStatusTone: mapTimestampTone(evidence.tsaStatus),
     otsStatusLabel: mapOtsStatusPublicLabel(evidence.otsStatus),

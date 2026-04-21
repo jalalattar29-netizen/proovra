@@ -183,7 +183,7 @@ export function renderGallerySection(vm: ReportViewModel): string {
                 "These preserved items remain visually represented in the PDF because they are previewable within the report workflow. Their original names and full hashes are preserved alongside the preview.",
               tone: "neutral",
             })}
-            <div class="gallery-support-grid">
+            <div class="gallery-support-grid support-grid">
               ${buckets.supportingPreviewItems
                 .map((item) => renderPreviewCard(item))
                 .join("")}
