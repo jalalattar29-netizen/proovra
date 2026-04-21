@@ -19,21 +19,27 @@ export function renderForensicIntegrityStatementSection(
       })}
 
       <div class="callout tone-neutral">
-        <div class="callout-title">Integrity materials included in this report</div>
+        <div class="callout-title">Procedural checkpoints</div>
         <div class="callout-body">
           ${renderBulletList(vm.forensicIntegrityStatement.includedBulletItems)}
         </div>
       </div>
 
       <div class="callout tone-neutral">
-        <div class="callout-title">Independent review may include</div>
+        <div class="callout-title">Validation workflow</div>
         <div class="callout-body">
           ${renderBulletList(vm.forensicIntegrityStatement.reviewSteps)}
         </div>
       </div>
 
       ${renderCallout({
-        title: "Technical note",
+        title: vm.forensicIntegrityStatement.legalNotice.title,
+        body: vm.forensicIntegrityStatement.legalNotice.body,
+        tone: vm.forensicIntegrityStatement.legalNotice.tone,
+      })}
+
+      ${renderCallout({
+        title: "Verification workflow note",
         body: vm.forensicIntegrityStatement.note,
         tone: "neutral",
       })}

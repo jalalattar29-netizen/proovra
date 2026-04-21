@@ -17,22 +17,6 @@ export function safeBooleanLabel(
   return unknownLabel;
 }
 
-export function summarizeText(value: string, maxLength: number): string {
-  if (value.length <= maxLength) return value;
-  return `${value.slice(0, Math.max(0, maxLength - 1))}…`;
-}
-
-export function shortHash(
-  h: string | null | undefined,
-  head = 10,
-  tail = 8
-): string {
-  const t = safe(h, "");
-  if (!t) return "N/A";
-  if (t.length <= head + tail + 3) return t;
-  return `${t.slice(0, head)}…${t.slice(-tail)}`;
-}
-
 export function redactIdentifier(
   value: string | null | undefined,
   visible = 6
@@ -100,12 +84,6 @@ export function formatBytesHuman(bytesStr: string | null): string {
   }
 
   return `${v.toFixed(idx === 0 ? 0 : 2)} ${units[idx]}`;
-}
-
-export function textClamp(text: string, maxChars: number): string {
-  return text.length > maxChars
-    ? `${text.slice(0, Math.max(0, maxChars - 1))}…`
-    : text;
 }
 
 export function prettifySummaryText(input: string): string {

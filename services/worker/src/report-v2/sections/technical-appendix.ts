@@ -1,9 +1,9 @@
 import { ReportViewModel } from "../types.js";
 import {
+  renderCallout,
   renderKeyValueGrid,
   renderMonoBlock,
   renderPageSection,
-  renderCallout,
 } from "../ui.js";
 import { escapeHtml } from "../formatters.js";
 
@@ -25,13 +25,13 @@ function renderTechnicalStatusCards(vm: ReportViewModel): string {
       </article>
 
       <article class="technical-status-card tone-${otsTone}">
-        <div class="technical-status-kicker">OpenTimestamps</div>
-        <div class="technical-status-title">Anchoring Status</div>
+        <div class="technical-status-kicker">Anchoring</div>
+        <div class="technical-status-title">Publication Status</div>
         <div class="technical-status-value">${escapeHtml(
           vm.technicalAppendix.otsStatusLabel
         )}</div>
         <div class="technical-status-note">
-          Public anchoring state for the recorded evidence digest and related proof materials.
+          OpenTimestamps and external anchoring state for the recorded evidence digest.
         </div>
       </article>
     </div>
@@ -47,193 +47,117 @@ function renderVerificationLinkPanel(vm: ReportViewModel): string {
   `;
 }
 
-function renderTechnicalMaterialsBlock(vm: ReportViewModel): string {
-  const blocks: string[] = [
-    renderMonoBlock("File SHA-256", vm.technicalAppendix.fileSha256),
-    renderMonoBlock("Fingerprint Hash", vm.technicalAppendix.fingerprintHash),
-    renderMonoBlock(
-      "Signing Key Reference",
-      vm.technicalAppendix.signingKeyReference
-    ),
-  ];
-
-  if (vm.technicalAppendix.fingerprintCanonicalJsonExcerpt) {
-    blocks.push(
-      renderMonoBlock(
-        "Fingerprint Canonical JSON (excerpt)",
-        vm.technicalAppendix.fingerprintCanonicalJsonExcerpt
-      )
-    );
-  }
-
-  if (vm.technicalAppendix.signatureExcerpt) {
-    blocks.push(
-      renderMonoBlock(
-        "Signature (Base64) (excerpt)",
-        vm.technicalAppendix.signatureExcerpt
-      )
-    );
-  } else {
-    blocks.push(
-      renderCallout({
-        title: "Technical signature materials",
-        body:
-          "Detailed signature materials and public-key verification artifacts remain available through the technical verification workflow and verification package, where enabled. They are not reproduced in full in this reviewer-facing report.",
-        tone: "neutral",
-      })
-    );
-  }
-
-  if (vm.technicalAppendix.publicKeyExcerpt) {
-    blocks.push(
-      renderMonoBlock(
-        "Public Key (PEM) (excerpt)",
-        vm.technicalAppendix.publicKeyExcerpt
-      )
-    );
-  }
-
-  return blocks.join("");
-}
-
-function renderTimestampMaterialsBlock(vm: ReportViewModel): string {
-  const parts: string[] = [
-    renderCallout({
-      title: "RFC 3161 timestamp materials",
-      body:
-        "This block preserves the recorded trusted-timestamp metadata and associated technical values exactly as represented in the report model.",
-      tone: "neutral",
-    }),
-    renderKeyValueGrid(vm.technicalAppendix.timestampRows),
-  ];
-
-  if (vm.technicalAppendix.tsaMessageImprint) {
-    parts.push(
-      renderMonoBlock(
-        "Timestamp Message Imprint",
-        vm.technicalAppendix.tsaMessageImprint
-      )
-    );
-  }
-
-  if (vm.technicalAppendix.tsaTokenExcerpt) {
-    parts.push(
-      renderMonoBlock(
-        "Timestamp Token (Base64) (excerpt)",
-        vm.technicalAppendix.tsaTokenExcerpt
-      )
-    );
-  }
-
-  return parts.join("");
-}
-
-function renderOtsMaterialsBlock(vm: ReportViewModel): string {
-  const parts: string[] = [
-    renderCallout({
-      title: "OpenTimestamps materials",
-      body:
-        "This block preserves the recorded public-anchoring metadata and any associated proof values carried in the report model.",
-      tone: "neutral",
-    }),
-    renderKeyValueGrid(vm.technicalAppendix.otsRows),
-  ];
-
-  if (vm.technicalAppendix.otsHash) {
-    parts.push(renderMonoBlock("OTS Hash", vm.technicalAppendix.otsHash));
-  }
-
-  if (vm.technicalAppendix.otsProofExcerpt) {
-    parts.push(
-      renderMonoBlock(
-        "OTS Proof (Base64) (excerpt)",
-        vm.technicalAppendix.otsProofExcerpt
-      )
-    );
-  }
-
-  if (vm.technicalAppendix.otsDetail) {
-    parts.push(
-      renderMonoBlock(
-        "OTS Failure / Detail",
-        vm.technicalAppendix.otsDetail
-      )
-    );
-  }
-
-  return parts.join("");
-}
-
-function renderAnchorMaterialsBlock(vm: ReportViewModel): string {
-  if (!vm.technicalAppendix.anchorRows.length && !vm.technicalAppendix.anchorHash) {
-    return "";
-  }
-
+function renderAppendixSection(title: string, body: string): string {
   return `
-    ${renderCallout({
-      title: "External anchoring materials",
-      body:
-        "Where external anchoring was configured or published, this block preserves the recorded anchoring references and related identifier values.",
-      tone: "neutral",
-    })}
-    ${
-      vm.technicalAppendix.anchorRows.length
-        ? renderKeyValueGrid(vm.technicalAppendix.anchorRows)
-        : ""
-    }
-    ${
-      vm.technicalAppendix.anchorHash
-        ? renderMonoBlock("Anchor Hash", vm.technicalAppendix.anchorHash)
-        : ""
-    }
+    <section class="appendix-section">
+      <h3 class="appendix-section-title">${escapeHtml(title)}</h3>
+      ${body}
+    </section>
   `;
 }
 
 export function renderTechnicalAppendixSection(vm: ReportViewModel): string {
+  const minimalMode = vm.reportVariant === "short";
+
   return renderPageSection(
-    vm.mode === "external"
-      ? "Technical Appendix — Reviewer-Facing Technical Summary"
-      : "Technical Appendix — Identity, Fingerprint, Signature, and Anchoring",
+    "Technical Appendix",
     `
       ${renderCallout({
-        title: "Technical appendix scope",
+        title: "Appendix scope",
         body:
-          vm.mode === "external"
-            ? "This appendix presents reviewer-facing technical materials in a readable form while preserving full critical values such as recorded hashes and technical references."
-            : "This appendix presents recorded technical materials in a denser review format, including full recorded hash values and preserved integrity references where available.",
+          "This appendix preserves the structured technical references needed for audit and verification. Heavy payloads such as canonical JSON, signature blobs, timestamp tokens, and anchoring proof blobs are intentionally omitted from the PDF body and remain available through the verification workflow.",
         tone: "neutral",
       })}
 
       ${renderVerificationLinkPanel(vm)}
 
-      ${renderKeyValueGrid(vm.technicalIdentityRows)}
-
-      ${renderCallout({
-        title: "Fingerprint structure summary",
-        body: vm.technicalFingerprintNarrative,
-        tone: "neutral",
-      })}
-
-      ${
-        vm.mode === "external"
-          ? renderCallout({
-              title: "External report note",
-              body:
-                "This external report includes reviewer-facing technical summaries only. Deeper technical payloads should be reviewed through the technical verification workflow or verification package when required.",
-              tone: "neutral",
-            })
-          : ""
-      }
-
       ${renderTechnicalStatusCards(vm)}
 
-      ${renderTechnicalMaterialsBlock(vm)}
+      ${renderAppendixSection(
+        "Identity",
+        renderKeyValueGrid(vm.technicalIdentityRows)
+      )}
 
-      ${renderTimestampMaterialsBlock(vm)}
+      ${renderAppendixSection(
+        "Fingerprint",
+        `
+          ${renderCallout({
+            title: "Fingerprint summary",
+            body: vm.technicalFingerprintNarrative,
+            tone: "neutral",
+          })}
+          ${renderKeyValueGrid(vm.technicalAppendix.fingerprintRows)}
+          ${renderMonoBlock("File SHA-256", vm.technicalAppendix.fileSha256)}
+          ${renderMonoBlock("Fingerprint Hash", vm.technicalAppendix.fingerprintHash)}
+        `
+      )}
 
-      ${renderOtsMaterialsBlock(vm)}
+      ${
+        minimalMode
+          ? ""
+          : renderAppendixSection(
+              "Signature",
+              `
+                ${renderKeyValueGrid(vm.technicalAppendix.signatureRows)}
+                ${renderCallout({
+                  title: "Signature material handling",
+                  body: vm.technicalAppendix.signatureReferenceNote,
+                  tone: "neutral",
+                })}
+              `
+            )
+      }
 
-      ${renderAnchorMaterialsBlock(vm)}
+      ${renderAppendixSection(
+        "Timestamp",
+        `
+          ${renderKeyValueGrid(vm.technicalAppendix.timestampRows)}
+          ${
+            vm.technicalAppendix.tsaMessageImprint
+              ? renderMonoBlock(
+                  "TSA Message Imprint",
+                  vm.technicalAppendix.tsaMessageImprint
+                )
+              : ""
+          }
+          ${renderCallout({
+            title: "Timestamp payload handling",
+            body: vm.technicalAppendix.timestampReferenceNote,
+            tone: "neutral",
+          })}
+        `
+      )}
+
+      ${renderAppendixSection(
+        "Anchoring",
+        `
+          ${renderKeyValueGrid(vm.technicalAppendix.anchoringRows)}
+          ${
+            vm.technicalAppendix.otsHash
+              ? renderMonoBlock("OTS Hash", vm.technicalAppendix.otsHash)
+              : ""
+          }
+          ${
+            vm.technicalAppendix.anchorHash
+              ? renderMonoBlock("Anchor Hash", vm.technicalAppendix.anchorHash)
+              : ""
+          }
+          ${
+            vm.technicalAppendix.otsDetail
+              ? renderCallout({
+                  title: "Anchoring detail",
+                  body: vm.technicalAppendix.otsDetail,
+                  tone: "warning",
+                })
+              : ""
+          }
+          ${renderCallout({
+            title: "Anchoring payload handling",
+            body: vm.technicalAppendix.anchoringReferenceNote,
+            tone: "neutral",
+          })}
+        `
+      )}
     `,
     { pageBreakBefore: true }
   );

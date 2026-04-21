@@ -12,16 +12,16 @@ export function renderLegalLimitationsSection(vm: ReportViewModel): string {
       })}
 
       ${renderCallout({
-        title: "Correct review posture",
+        title: "Legal review posture",
         body:
-          "Review the evidence content itself, then review the integrity materials that protect the recorded state of that content, then assess legal relevance, authenticity disputes, authorship, context, and admissibility under the applicable procedure.",
+          "Use this report as a technical and procedural record. Questions of factual truth, authorship, context, relevance, evidentiary weight, and admissibility remain for the relevant court, investigator, regulator, insurer, employer, or expert process.",
         tone: "neutral",
       })}
 
       ${renderCallout({
-        title: "Embedded previews are reviewer representations",
+        title: "Presentation materials",
         body:
-          "Any embedded image, document snapshot, or other reviewer-facing representation in this report is included to support human review of the preserved evidence item. It should not be treated as a substitute for the preserved original file when deeper review, expert comparison, or formal legal process requires the underlying evidence.",
+          "Any embedded preview in this report is a reviewer-facing representation only. Where deeper review, expert comparison, or formal process is required, rely on the preserved original evidence and the verification workflow rather than the PDF rendering alone.",
         tone: "warning",
       })}
     `,

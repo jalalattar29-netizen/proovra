@@ -12,9 +12,9 @@ export function renderStorageTimestampingSection(vm: ReportViewModel): string {
       ${renderKeyValueGrid(vm.storageRows)}
 
       ${renderCallout({
-        title: "Interpretation note",
+        title: "Operational preservation status",
         body:
-          "Storage protection, trusted timestamping, and public anchoring are presented together in this section because they collectively support later review of preservation, time-related integrity state, and external publication evidence.",
+          "Storage protection, trusted timestamping, and anchoring are grouped here as preservation controls. Exact technical identifiers remain in the technical appendix to avoid repeating those values across sections.",
         tone: "neutral",
       })}
 

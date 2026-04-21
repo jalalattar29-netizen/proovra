@@ -18,10 +18,7 @@ export function renderCoverSection(vm: ReportViewModel): string {
     ? "Recorded Integrity Verified"
     : "Recorded Integrity Review Required";
 
-  const primaryHash =
-    vm.primaryContentItem?.sha256 ||
-    vm.technicalAppendix.fileSha256 ||
-    vm.evidenceReference;
+  const primaryHash = vm.primaryContentItem?.sha256 || vm.technicalAppendix.fileSha256;
 
   const evidenceType = vm.meta.publicEvidenceTypeLabel || "Digital Evidence Record";
   const itemCount = String(vm.contentSummary.itemCount);
@@ -111,6 +108,15 @@ export function renderCoverSection(vm: ReportViewModel): string {
               <div class="cover-meta-card">
                 <div class="cover-meta-label">Evidence Reference</div>
                 <div class="cover-meta-value">${escapeHtml(vm.evidenceReference)}</div>
+              </div>
+
+              <div class="cover-meta-card">
+                <div class="cover-meta-label">Report Mode</div>
+                <div class="cover-meta-value">${escapeHtml(
+                  vm.reportVariant === "short"
+                    ? "Short evidentiary report"
+                    : "Full forensic report"
+                )}</div>
               </div>
 
               <div class="cover-meta-card cover-meta-card-wide">

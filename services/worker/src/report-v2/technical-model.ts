@@ -207,32 +207,69 @@ export function buildTechnicalAppendixModel(
   externalMode: boolean,
   anchorSummary: ReportAnchorSummary | null
 ) {
+  const signatureRows: KeyValueRow[] = [
+    {
+      label: "Signing Key Reference",
+      value: buildPublicSigningKeyReference(
+        evidence.signingKeyId,
+        evidence.signingKeyVersion
+      ),
+    },
+    {
+      label: "Signature Material",
+      value: evidence.signatureBase64
+        ? "Recorded in verification package and verification workflow"
+        : "Not recorded",
+    },
+    {
+      label: "Public Key Material",
+      value: evidence.publicKeyPem
+        ? "Recorded in verification workflow"
+        : "Not recorded",
+    },
+  ];
+
+  const fingerprintRows: KeyValueRow[] = [
+    { label: "File SHA-256", value: safe(evidence.fileSha256) },
+    { label: "Fingerprint Hash", value: safe(evidence.fingerprintHash) },
+    {
+      label: "Canonical Fingerprint Record",
+      value: evidence.fingerprintCanonicalJson
+        ? "Recorded in verification package; omitted from PDF to keep the report readable and lightweight"
+        : "Not recorded",
+    },
+  ];
+
   return {
     fileSha256: safe(evidence.fileSha256),
     fingerprintHash: safe(evidence.fingerprintHash),
-    fingerprintCanonicalJsonExcerpt: externalMode
-      ? null
-      : evidence.fingerprintCanonicalJson
-        ? evidence.fingerprintCanonicalJson
-        : null,
     signingKeyReference: buildPublicSigningKeyReference(
       evidence.signingKeyId,
       evidence.signingKeyVersion
     ),
-    signatureExcerpt: externalMode ? null : safe(evidence.signatureBase64),
-    publicKeyExcerpt: externalMode ? null : safe(evidence.publicKeyPem),
+    signatureRows,
+    fingerprintRows,
     timestampRows: buildTimestampRows(evidence),
-    otsRows: buildOtsRows(evidence),
-    anchorRows: buildAnchorRows(anchorSummary),
+    anchoringRows: [...buildOtsRows(evidence), ...buildAnchorRows(anchorSummary)],
     timestampStatusLabel: mapTimestampStatusPublicLabel(evidence.tsaStatus),
     timestampStatusTone: mapTimestampTone(evidence.tsaStatus),
     otsStatusLabel: mapOtsStatusPublicLabel(evidence.otsStatus),
     otsStatusTone: mapOtsTone(evidence.otsStatus),
-    tsaMessageImprint: externalMode ? null : safe(evidence.tsaMessageImprint),
-    tsaTokenExcerpt: externalMode ? null : safe(evidence.tsaTokenBase64),
-    otsHash: externalMode ? null : safe(evidence.otsHash),
-    otsProofExcerpt: externalMode ? null : safe(evidence.otsProofBase64),
+    tsaMessageImprint: safe(evidence.tsaMessageImprint),
+    otsHash: safe(evidence.otsHash),
     otsDetail: safe(evidence.otsFailureReason, ""),
-    anchorHash: externalMode ? null : safe(anchorSummary?.anchorHash),
+    anchorHash: safe(anchorSummary?.anchorHash),
+    timestampReferenceNote:
+      evidence.tsaTokenBase64 && !externalMode
+        ? "Full RFC 3161 token remains available through the verification package and technical verification endpoint."
+        : "RFC 3161 token bytes are intentionally excluded from the PDF body.",
+    signatureReferenceNote:
+      evidence.signatureBase64 && !externalMode
+        ? "Full signature and public-key materials remain available through the verification package and technical verification endpoint."
+        : "Signature blobs are intentionally excluded from the PDF body.",
+    anchoringReferenceNote:
+      evidence.otsProofBase64 || anchorSummary?.publicUrl
+        ? "Full anchoring proofs and publication materials remain available through the verification package and verification endpoint."
+        : "No additional anchoring proof payload was recorded.",
   };
 }

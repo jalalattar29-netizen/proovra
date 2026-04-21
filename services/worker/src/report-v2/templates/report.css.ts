@@ -18,7 +18,7 @@ export function getReportCss(): string {
       padding: 0;
       background: ${c.paper};
       color: ${c.ink};
-      font-family: Inter, Arial, Helvetica, sans-serif;
+      font-family: "IBM Plex Sans", "Segoe UI", Arial, Helvetica, sans-serif;
       font-size: 11.2px;
       line-height: 1.5;
       -webkit-print-color-adjust: exact;
@@ -42,10 +42,10 @@ export function getReportCss(): string {
     }
 
     .report-page {
+      display: block;
       min-height: auto;
-      display: flex;
-      flex-direction: column;
-      justify-content: flex-start;
+      height: auto;
+      overflow: visible;
     }
 
     .report-header-band {
@@ -62,11 +62,11 @@ export function getReportCss(): string {
     }
 
     .report-cover {
-      min-height: calc(297mm - 28mm);
       display: block;
+      min-height: auto;
+      height: auto;
+      overflow: visible;
       margin: 0;
-      break-inside: avoid-page;
-      page-break-inside: avoid;
     }
 
     .report-cover-premium {
@@ -77,7 +77,6 @@ export function getReportCss(): string {
 
     .cover-certificate-card {
       width: 100%;
-      min-height: calc(297mm - 34mm);
       background:
         linear-gradient(180deg, rgba(255,255,255,0.996) 0%, rgba(249,251,251,0.995) 100%);
       border: 1px solid ${c.line};
@@ -86,10 +85,8 @@ export function getReportCss(): string {
         inset 0 1px 0 rgba(255,255,255,0.95);
       display: flex;
       flex-direction: column;
-      overflow: hidden;
+      overflow: visible;
       position: relative;
-      break-inside: avoid-page;
-      page-break-inside: avoid;
     }
 
     .cover-certificate-card::before {
@@ -478,7 +475,10 @@ export function getReportCss(): string {
     }
 
     .section-sheet {
+      display: block;
       min-height: auto;
+      height: auto;
+      overflow: visible;
       background:
         linear-gradient(180deg, rgba(255,255,255,0.997) 0%, rgba(249,251,251,0.996) 100%);
       border: 1px solid ${c.line};
@@ -486,10 +486,7 @@ export function getReportCss(): string {
         0 12px 28px rgba(17, 36, 41, 0.05),
         inset 0 1px 0 rgba(255,255,255,0.92);
       padding: 15px 15px 13px;
-      display: flex;
-      flex-direction: column;
       position: relative;
-      overflow: hidden;
     }
 
     .section-sheet::before {
@@ -532,13 +529,12 @@ export function getReportCss(): string {
       display: flex;
       flex-direction: column;
       gap: 9px;
-      flex: 1;
       position: relative;
       z-index: 1;
     }
 
     .sheet-footer {
-      margin-top: auto;
+      margin-top: 12px;
       padding-top: 12px;
       border-top: 1px solid rgba(208, 213, 221, 0.72);
       display: flex;
@@ -677,7 +673,6 @@ export function getReportCss(): string {
       border-spacing: 0;
       border: 1px solid ${c.line};
       border-radius: 0;
-      overflow: hidden;
       background: ${c.white};
       box-shadow: 0 8px 18px rgba(17, 36, 41, 0.03);
       table-layout: fixed;
@@ -714,6 +709,7 @@ export function getReportCss(): string {
       line-height: 1.48;
       word-break: break-word;
       white-space: pre-wrap;
+      overflow-wrap: anywhere;
     }
 
     .report-table tbody tr {
@@ -769,24 +765,28 @@ export function getReportCss(): string {
       white-space: pre-wrap;
     }
 
-    .gallery-grid {
+    .gallery-primary {
       display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 11px;
+      grid-template-columns: minmax(0, 1.25fr) minmax(260px, 0.75fr);
+      gap: 12px;
+      align-items: stretch;
+      break-inside: avoid;
+      page-break-inside: avoid;
     }
 
+    .gallery-grid,
     .gallery-grid-single {
-      grid-template-columns: 1fr;
+      display: block;
     }
 
     .gallery-card {
       border: 1px solid ${c.line};
       background: ${c.white};
       border-radius: 0;
-      overflow: hidden;
+      overflow: visible;
       display: flex;
       flex-direction: column;
-      min-height: 280px;
+      min-height: auto;
       box-shadow:
         0 10px 20px rgba(17, 36, 41, 0.035),
         inset 0 1px 0 rgba(255,255,255,0.84);
@@ -795,7 +795,7 @@ export function getReportCss(): string {
     }
 
     .gallery-card-emphasis {
-      min-height: 452px;
+      min-height: auto;
     }
 
     .gallery-card-header {
@@ -855,11 +855,11 @@ export function getReportCss(): string {
       display: flex;
       align-items: center;
       justify-content: center;
-      overflow: hidden;
+      overflow: visible;
     }
 
     .gallery-thumb-emphasis {
-      height: 292px;
+      height: 320px;
     }
 
     .gallery-thumb img {
@@ -882,7 +882,7 @@ export function getReportCss(): string {
       display: flex;
       flex-direction: column;
       gap: 8px;
-      overflow: hidden;
+      overflow: visible;
       background: linear-gradient(180deg, rgba(255,255,255,0.996) 0%, rgba(247,249,249,0.994) 100%);
     }
 
@@ -900,7 +900,7 @@ export function getReportCss(): string {
       line-height: 1.52;
       white-space: pre-wrap;
       word-break: break-word;
-      overflow: hidden;
+      overflow: visible;
     }
 
     .gallery-thumb-placeholder {
@@ -932,6 +932,35 @@ export function getReportCss(): string {
       padding: 11px 12px 13px;
       display: grid;
       gap: 7px;
+    }
+
+    .gallery-secondary-list {
+      display: grid;
+      gap: 9px;
+    }
+
+    .gallery-secondary-item {
+      border: 1px solid ${c.line};
+      background: linear-gradient(180deg, rgba(255,255,255,0.998) 0%, rgba(246,248,248,0.995) 100%);
+      padding: 12px;
+      box-shadow: 0 8px 18px rgba(17, 36, 41, 0.03);
+      break-inside: avoid;
+      page-break-inside: avoid;
+    }
+
+    .gallery-secondary-name {
+      font-size: 11.8px;
+      font-weight: 900;
+      color: ${c.accent};
+      line-height: 1.4;
+      margin-bottom: 8px;
+      word-break: break-word;
+    }
+
+    .gallery-secondary-grid {
+      display: grid;
+      grid-template-columns: 110px 1fr;
+      gap: 8px 12px;
     }
 
     .gallery-meta-row {
@@ -969,7 +998,7 @@ export function getReportCss(): string {
       border: 1px solid ${c.line};
       border-radius: 0;
       background: ${c.white};
-      overflow: hidden;
+      overflow: visible;
       box-shadow: 0 8px 18px rgba(17, 36, 41, 0.03);
       break-inside: avoid;
       page-break-inside: avoid;
@@ -992,10 +1021,39 @@ export function getReportCss(): string {
       font-size: 9.5px;
       line-height: 1.54;
       white-space: pre-wrap;
-      word-break: break-word;
+      word-break: break-all;
+      overflow-wrap: anywhere;
       font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
       color: ${c.ink};
       background: linear-gradient(180deg, #FFFFFF 0%, #FAFBFB 100%);
+    }
+
+    .hash-text {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 9.15px;
+      line-height: 1.55;
+      word-break: break-all;
+      overflow-wrap: anywhere;
+      white-space: pre-wrap;
+      color: ${c.ink};
+    }
+
+    .appendix-section {
+      border: 1px solid ${c.line};
+      background: linear-gradient(180deg, rgba(255,255,255,0.998) 0%, rgba(247,249,249,0.995) 100%);
+      padding: 12px;
+      box-shadow: 0 8px 18px rgba(17, 36, 41, 0.03);
+      break-inside: avoid;
+      page-break-inside: avoid;
+    }
+
+    .appendix-section-title {
+      margin: 0 0 10px;
+      font-size: 11.6px;
+      font-weight: 900;
+      color: ${c.accent};
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
     }
 
     .technical-status-grid {
@@ -1144,7 +1202,10 @@ export function getReportCss(): string {
       .cover-status-panel,
       .gallery-lead-note,
       .gallery-card,
+      .gallery-primary,
+      .gallery-secondary-item,
       .mono-block,
+      .appendix-section,
       .technical-status-card,
       .verification-link-panel {
         break-inside: avoid;

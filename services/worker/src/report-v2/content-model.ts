@@ -226,7 +226,7 @@ export function buildInventoryRows(items: ReportEvidenceAsset[]): InventoryRow[]
           ? `Size: ${item.displaySizeLabel}`
           : `Size: ${formatBytesHuman(item.sizeBytes)}`,
       ].join("\n"),
-      shortHash: item.sha256 ?? "N/A",
+      sha256: item.sha256 ?? "N/A",
       roleAndStatus: buildRoleAndStatus(item),
     };
   });

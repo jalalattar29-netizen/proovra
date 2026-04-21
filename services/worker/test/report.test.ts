@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { buildReportViewModel, renderReportHtml } from "../src/pdf/report";
+import { buildReportViewModel, renderReportHtml } from "../src/report-v2";
+import type { ReportV2Input } from "../src/report-v2";
 
 function expectInOrder(text: string, tokens: string[]) {
   let lastIndex = -1;
@@ -10,7 +11,7 @@ function expectInOrder(text: string, tokens: string[]) {
   }
 }
 
-function buildInput(overrides?: Partial<Parameters<typeof buildReportViewModel>[0]>) {
+function buildInput(overrides?: Partial<ReportV2Input>): ReportV2Input {
   return {
     evidence: {
       tsaProvider: null,
@@ -163,8 +164,8 @@ function buildInput(overrides?: Partial<Parameters<typeof buildReportViewModel>[
 }
 
 describe("report v2 pipeline", () => {
-  it("builds a view model with inventory and certification-aware sections", () => {
-    const vm = buildReportViewModel(buildInput());
+  it("builds a view model with inventory and certification-aware sections", async () => {
+    const vm = await buildReportViewModel(buildInput());
 
     expect(vm.title).toBe("Evidence Title");
     expect(vm.structureLabel).toBe("Single evidence item");
@@ -174,28 +175,25 @@ describe("report v2 pipeline", () => {
     expect(vm.forensicRows).toHaveLength(1);
   });
 
-  it("renders the v2 HTML report sections in the intended order", () => {
-    const vm = buildReportViewModel(buildInput());
+  it("renders the v2 HTML report sections in the intended order", async () => {
+    const vm = await buildReportViewModel(buildInput());
     const html = renderReportHtml(vm);
 
     expect(html).toContain("Evidence Title");
     expect(html).toContain("Executive conclusion");
-    expect(html).toContain("Evidence Inventory");
+    expect(html).toContain("Evidence Manifest");
     expect(html).toContain("Integrity Proof");
-    expect(html).toContain("Storage & Timestamping");
-    expect(html).toContain("Forensic Integrity Statement");
+    expect(html).toContain("Storage, Timestamping &amp; Publication");
     expect(html).toContain("Technical Appendix");
 
     expectInOrder(html, [
       "Executive conclusion",
-      "Evidence Content",
-      "Primary Evidence Review",
-      "Evidence Inventory",
+      "Evidence Presentation",
+      "Evidence Manifest",
       "Integrity Proof",
-      "Storage & Timestamping",
+      "Storage, Timestamping &amp; Publication",
       "Chain of Custody",
-      "Legal Limitations",
-      "Forensic Integrity Statement",
+      "Legal Interpretation &amp; Review Use",
       "Technical Appendix",
     ]);
   });

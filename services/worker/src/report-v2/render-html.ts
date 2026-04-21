@@ -22,16 +22,8 @@ function hasMeaningfulStorageRows(vm: ReportViewModel): boolean {
   );
 }
 
-function shouldRenderCompactReport(vm: ReportViewModel): boolean {
-  return (
-    vm.contentSummary.itemCount <= 3 &&
-    vm.accessRows.length === 0 &&
-    !vm.certifications.hasAny
-  );
-}
-
 export function renderReportHtml(vm: ReportViewModel): string {
-  const compact = shouldRenderCompactReport(vm);
+  const compact = vm.reportVariant === "short";
 
   const body = [
     renderCoverSection(vm),
@@ -47,7 +39,7 @@ export function renderReportHtml(vm: ReportViewModel): string {
 
     renderCustodySection(vm),
 
-    renderCertificationsSection(vm),
+    compact ? "" : renderCertificationsSection(vm),
 
     renderLegalLimitationsSection(vm),
 

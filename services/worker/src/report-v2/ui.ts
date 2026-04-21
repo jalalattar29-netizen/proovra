@@ -1,6 +1,7 @@
 import { escapeHtml } from "./formatters.js";
 import {
   CalloutModel,
+  CustodyHashRow,
   InfoCard,
   InventoryRow,
   KeyValueRow,
@@ -122,7 +123,7 @@ export function renderInventoryTable(rows: InventoryRow[]): string {
                 </td>
                 <td>${escapeHtml(row.kindLabel)}</td>
                 <td>${renderMultilineText(row.formatAndSize)}</td>
-                <td>${escapeHtml(row.shortHash)}</td>
+                <td><span class="hash-text">${escapeHtml(row.sha256)}</span></td>
                 <td>${renderMultilineText(row.roleAndStatus)}</td>
               </tr>
             `
@@ -153,6 +154,37 @@ export function renderTimelineTable(rows: TimelineRow[]): string {
                 <td>${escapeHtml(row.atUtc)}</td>
                 <td>${escapeHtml(row.eventLabel)}</td>
                 <td>${renderMultilineText(row.summary)}</td>
+              </tr>
+            `
+          )
+          .join("")}
+      </tbody>
+    </table>
+  `;
+}
+
+export function renderCustodyHashTable(rows: CustodyHashRow[]): string {
+  return `
+    <table class="report-table timeline-table custody-hash-table">
+      <thead>
+        <tr>
+          <th style="width: 8%">Seq</th>
+          <th style="width: 18%">At (UTC)</th>
+          <th style="width: 16%">Event</th>
+          <th style="width: 29%">Prev Event Hash</th>
+          <th style="width: 29%">Event Hash</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${rows
+          .map(
+            (row) => `
+              <tr>
+                <td>${escapeHtml(row.sequence)}</td>
+                <td>${escapeHtml(row.atUtc)}</td>
+                <td>${escapeHtml(row.eventLabel)}</td>
+                <td><span class="hash-text">${escapeHtml(row.prevEventHash)}</span></td>
+                <td><span class="hash-text">${escapeHtml(row.eventHash)}</span></td>
               </tr>
             `
           )

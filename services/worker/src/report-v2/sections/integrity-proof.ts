@@ -12,16 +12,16 @@ export function renderIntegrityProofSection(vm: ReportViewModel): string {
       ${renderCallout({
         title: "Technical scope",
         body:
-          "This section explains what the system technically supports about the recorded state of the evidence record. It is intentionally separated from evidence presentation and from legal interpretation.",
+          "This section states the recorded technical condition of the evidence package only. Legal interpretation and procedural workflow are handled elsewhere in the report.",
         tone: "neutral",
       })}
 
       ${renderKeyValueGrid(vm.verificationSummaryRows)}
 
       ${renderCallout({
-        title: "What is technically established",
+        title: "Recorded technical state",
         body:
-          "The report records whether file digests, fingerprint digests, digital-signature materials, custody events, timestamp records, public anchoring records, and storage-protection indicators were present in the recorded evidence state.",
+          "The report records whether core digests, signature references, custody events, timestamp status, anchoring status, and storage controls were present in the preserved evidence state at report generation time.",
         tone: "success",
       })}
 

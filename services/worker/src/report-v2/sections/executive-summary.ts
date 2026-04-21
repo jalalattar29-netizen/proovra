@@ -17,8 +17,6 @@ export function renderExecutiveSummarySection(vm: ReportViewModel): string {
 
       ${renderInfoCards(vm.heroCards)}
 
-      ${renderCallout(vm.reviewSequence)}
-
       ${renderKeyValueGrid(vm.executiveRows)}
 
       ${mismatchBlock}

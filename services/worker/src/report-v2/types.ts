@@ -1,4 +1,5 @@
 export type ReportArtifactMode = "external" | "internal";
+export type ReportVariant = "short" | "full";
 
 export type ReportEvidenceAssetKind =
   | "image"
@@ -267,7 +268,7 @@ export type InventoryRow = {
   displayLabel: string | null;
   kindLabel: string;
   formatAndSize: string;
-  shortHash: string;
+  sha256: string;
   roleAndStatus: string;
 };
 
@@ -278,8 +279,17 @@ export type TimelineRow = {
   summary: string;
 };
 
+export type CustodyHashRow = {
+  sequence: string;
+  atUtc: string;
+  eventLabel: string;
+  prevEventHash: string;
+  eventHash: string;
+};
+
 export type ReportViewModel = {
   mode: ReportArtifactMode;
+  reportVariant: ReportVariant;
   generatedAtUtc: string;
   buildInfo: string | null;
   verifyUrl: string;
@@ -334,29 +344,29 @@ export type ReportViewModel = {
 
   forensicRows: TimelineRow[];
   accessRows: TimelineRow[];
+  custodyHashRows: CustodyHashRow[];
 
   technicalIdentityRows: KeyValueRow[];
   technicalFingerprintNarrative: string;
   technicalAppendix: {
     fileSha256: string;
     fingerprintHash: string;
-    fingerprintCanonicalJsonExcerpt: string | null;
     signingKeyReference: string;
-    signatureExcerpt: string | null;
-    publicKeyExcerpt: string | null;
+    signatureRows: KeyValueRow[];
+    fingerprintRows: KeyValueRow[];
     timestampRows: KeyValueRow[];
-    otsRows: KeyValueRow[];
-    anchorRows: KeyValueRow[];
+    anchoringRows: KeyValueRow[];
     timestampStatusLabel: string;
     timestampStatusTone: Tone;
     otsStatusLabel: string;
     otsStatusTone: Tone;
     tsaMessageImprint: string | null;
-    tsaTokenExcerpt: string | null;
     otsHash: string | null;
-    otsProofExcerpt: string | null;
     otsDetail: string | null;
     anchorHash: string | null;
+    timestampReferenceNote: string;
+    signatureReferenceNote: string;
+    anchoringReferenceNote: string;
   };
 
   forensicIntegrityStatement: {
@@ -394,14 +404,14 @@ export type ReportViewModel = {
     anchorRows: KeyValueRow[];
     signingKeyReference: string;
     fileSizeLabel: string;
-    primaryHashShort: string;
+    primaryHash: string;
     submittedByLabel: string;
     verificationPackageVersionLabel: string;
     reviewerSummaryVersionLabel: string;
     lastVerifiedSourceLabel: string;
-    signingKeyShort: string;
-    tsaMessageImprintShort: string;
-    otsHashShort: string;
-    anchorHashShort: string;
+    signingKeyLabel: string;
+    tsaMessageImprint: string;
+    otsHash: string;
+    anchorHash: string;
   };
 };

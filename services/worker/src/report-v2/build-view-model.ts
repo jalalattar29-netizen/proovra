@@ -1,11 +1,13 @@
 import QRCode from "qrcode";
 import type {
   CalloutModel,
+  CustodyHashRow,
   InfoCard,
   KeyValueRow,
   ReportAnchorSummary,
   ReportArtifactMode,
   ReportCertificationSnapshot,
+  ReportCustodyEvent,
   ReportEvidence,
   ReportEvidenceAsset,
   ReportEvidenceContentSummary,
@@ -13,6 +15,7 @@ import type {
   ReportReviewGuidance,
   ReportV2Input,
   ReportViewModel,
+  ReportVariant,
 } from "./types.js";
 import {
   buildPublicEvidenceReference,
@@ -50,7 +53,6 @@ import {
   splitCustodyEvents,
 } from "./custody-model.js";
 import {
-  buildAnchorPublicationSummary,
   buildExecutiveConclusion,
   buildIntegrityReadinessSummary,
   buildLegalLimitationShort,
@@ -255,7 +257,6 @@ function buildExecutiveRows(
 
   add("Evidence Reference", buildPublicEvidenceReference(evidence.id));
   add("Evidence Type", mapPublicEvidenceTypeLabel(evidence, contentSummary));
-  add("Record Status", mapRecordStatusLabel(evidence.status));
   add(
     "Verification Status",
     mapVerificationStatusLabel(evidence.verificationStatus)
@@ -286,14 +287,6 @@ function buildExecutiveRows(
     "Integrity Verified At (UTC)",
     safe(evidence.recordedIntegrityVerifiedAtUtc)
   );
-  add(
-    "Storage Protection",
-    mapObjectLockModePublicLabel(evidence.storageObjectLockMode)
-  );
-  add(
-    "Retention Until (UTC)",
-    safe(evidence.storageObjectLockRetainUntilUtc)
-  );
 
   return rows;
 }
@@ -312,61 +305,44 @@ function buildVerificationSummaryRows(
   };
 
   add("Evidence Reference", buildPublicEvidenceReference(evidence.id));
-  add("Evidence Type", mapPublicEvidenceTypeLabel(evidence, contentSummary));
-  add("Evidence Structure", structureLabel);
-  add("Previewable Items", String(contentSummary.previewableItemCount));
-  add("Downloadable Items", String(contentSummary.downloadableItemCount));
+  add("Integrity State", mapVerificationStatusLabel(evidence.verificationStatus));
+  add("Primary SHA-256", safe(evidence.fileSha256));
+  add("Fingerprint Hash", safe(evidence.fingerprintHash));
   add("Primary MIME Type", safe(contentSummary.primaryMimeType));
-  add("Total File Size", formatBytesHuman(evidence.sizeBytes));
-  add("Duration", evidence.durationSec ? `${evidence.durationSec} sec` : null);
+  add("Content Size", formatBytesHuman(evidence.sizeBytes));
+  add("Forensic Custody Events", String(custody.forensic.length));
+  add("Access Activity Events", String(custody.access.length));
   add(
-    "Latest Report Version",
-    evidence.latestReportVersion
-      ? String(evidence.latestReportVersion)
-      : null
+    "Signature Materials",
+    evidence.signatureBase64 && evidence.signingKeyId
+      ? "Recorded"
+      : "Incomplete"
   );
-  add("Report Generated At (UTC)", safe(evidence.reportGeneratedAtUtc));
   add(
-    "Reviewer Summary Version",
-    evidence.reviewerSummaryVersion
-      ? String(evidence.reviewerSummaryVersion)
-      : null
+    "Timestamp Status",
+    mapTimestampStatusPublicLabel(evidence.tsaStatus)
+  );
+  add(
+    "Anchoring Status",
+    mapOtsStatusPublicLabel(evidence.otsStatus)
   );
   add("Last Verified At (UTC)", safe(evidence.lastVerifiedAtUtc));
   add(
     "Last Verified Source",
     mapVerificationSourceLabel(evidence.lastVerifiedSource)
   );
+  add("Storage Lock Mode", mapObjectLockModePublicLabel(evidence.storageObjectLockMode));
+  add("Retention Until (UTC)", safe(evidence.storageObjectLockRetainUntilUtc));
+  add("Report Generated At (UTC)", safe(evidence.reportGeneratedAtUtc));
+  add("Evidence Structure", structureLabel);
+  add("Previewable Items", String(contentSummary.previewableItemCount));
+  add("Downloadable Items", String(contentSummary.downloadableItemCount));
   add(
-    "Storage Lock Mode",
-    mapObjectLockModePublicLabel(evidence.storageObjectLockMode)
+    "Verification Package Version",
+    !externalMode && evidence.verificationPackageVersion
+      ? String(evidence.verificationPackageVersion)
+      : null
   );
-  add(
-    "Retention Until (UTC)",
-    safe(evidence.storageObjectLockRetainUntilUtc)
-  );
-  add("Review Ready At (UTC)", safe(evidence.reviewReadyAtUtc));
-  add("Forensic Custody Events", String(custody.forensic.length));
-  add("Access Activity Events", String(custody.access.length));
-  add(
-    "Submitted By",
-    externalMode
-      ? maskEmail(evidence.submittedByEmail)
-      : safe(evidence.submittedByEmail)
-  );
-
-  if (!externalMode) {
-    add(
-      "Verification Package Version",
-      evidence.verificationPackageVersion
-        ? String(evidence.verificationPackageVersion)
-        : null
-    );
-    add(
-      "Verification Package Generated At (UTC)",
-      safe(evidence.verificationPackageGeneratedAtUtc)
-    );
-  }
 
   return rows;
 }
@@ -616,6 +592,37 @@ function buildStorageRows(
   return rows;
 }
 
+function buildCustodyHashRows(events: ReportCustodyEvent[]): CustodyHashRow[] {
+  return events
+    .filter((event) => safe(event.eventHash, "") || safe(event.prevEventHash, ""))
+    .map((event) => ({
+      sequence: String(event.sequence),
+      atUtc: safe(event.atUtc),
+      eventLabel: event.eventType,
+      prevEventHash: safe(event.prevEventHash),
+      eventHash: safe(event.eventHash),
+    }));
+}
+
+function isSimpleEvidenceSet(
+  contentSummary: ReportEvidenceContentSummary,
+  contentItems: ReportEvidenceAsset[],
+  custody: ReturnType<typeof splitCustodyEvents>,
+  evidence: ReportEvidence
+): boolean {
+  if (contentSummary.itemCount > 3) return false;
+  if (custody.access.length > 0) return false;
+  if (evidence.certifications?.custodian || evidence.certifications?.qualifiedPerson) {
+    return false;
+  }
+
+  const kinds = new Set(
+    contentItems.map((item) => item.kind).filter((kind) => kind !== "other")
+  );
+
+  return kinds.size <= 1 && !["video", "audio"].some((kind) => kinds.has(kind as "video" | "audio"));
+}
+
 function buildCertificationBlockTitle(
   kind: "custodian" | "qualified"
 ): string {
@@ -698,20 +705,14 @@ function buildForensicIntegrityStatementModel(
 ) {
   return {
     introLead:
-      "This report was generated by the PROOVRA Digital Evidence Integrity System.",
+      "Procedural verification checklist",
     introBody:
-      "PROOVRA applies cryptographic integrity controls, structured evidence fingerprinting, trusted timestamping records, OpenTimestamps anchoring evidence, and immutable storage protection designed to preserve the integrity state of the submitted evidence at the time of completion.",
+      "Use this section as a review workflow for validating the report against the preserved evidence package and the verification endpoint.",
     includedBulletItems: [
-      structureLabel === "Single evidence item"
-        ? "A SHA-256 cryptographic hash of the original evidence file"
-        : "A SHA-256 cryptographic hash representing the multipart evidence set",
-      "A canonical fingerprint record describing the evidence state and metadata",
-      "A fingerprint hash derived from the canonical record",
-      "A digital signature generated using the PROOVRA signing key",
-      "A trusted RFC 3161 timestamp token issued by the configured Time Stamping Authority, when available",
-      "OpenTimestamps anchoring evidence, when available",
-      "A forensic custody timeline documenting relevant integrity-related system events",
-      "Immutable storage protection using AWS S3 Object Lock, when available",
+      "Confirm the evidence reference, package structure, and lead review item.",
+      "Validate the full SHA-256 and fingerprint hash values against the preserved materials.",
+      "Review custody chronology before relying on later access activity.",
+      "Use the verification endpoint for signature, timestamp token, and anchoring proof validation.",
     ],
     reviewSteps:
       structureLabel === "Single evidence item"
@@ -736,12 +737,12 @@ function buildForensicIntegrityStatementModel(
             "Review immutable storage details, when present.",
           ],
     note:
-      "Where present, the RFC 3161 timestamp provides evidence that the signed integrity state existed at or before the issuance time recorded by the Time Stamping Authority. Where present, OpenTimestamps provides additional independent public anchoring evidence linked to the recorded evidence digest.",
+      "Where a timestamp, anchoring record, or signature package exists, this PDF identifies the exact reference values while the verification workflow preserves the heavier validation payloads.",
     legalNotice: {
-      title: "Legal Notice",
+      title: "Procedural note",
       body:
-        "Cryptographic verification confirms integrity of the recorded evidence state only. It does not independently establish authorship, factual accuracy, legal admissibility, context, or probative weight. These issues remain subject to judicial, administrative, or expert evaluation under the applicable law and procedure.",
-      tone: "warning" as const,
+        "This checklist is operational only and is intentionally separate from the report's legal interpretation section.",
+      tone: "neutral" as const,
     },
     verificationLinkLabel: externalMode
       ? "Public verification page:"
@@ -791,6 +792,14 @@ export async function buildReportViewModel(
   const legalLimitations = resolveLegalLimitations(input.evidence);
   const anchorSummary = resolveAnchorSummary(input.evidence);
   const externalMode = mode === "external";
+  const reportVariant: ReportVariant = isSimpleEvidenceSet(
+    contentSummary,
+    contentItems,
+    custody,
+    input.evidence
+  )
+    ? "short"
+    : "full";
 
   const executiveConclusion = buildExecutiveConclusion(input.evidence);
   const legalLimitationShort = buildLegalLimitationShort();
@@ -858,13 +867,16 @@ export async function buildReportViewModel(
       tone: storageAndTimestampTone,
     },
     {
-      label: "External Publication",
-      value: buildAnchorPublicationSummary(anchorSummary),
+      label: "Report Mode",
+      value:
+        reportVariant === "short"
+          ? "Short evidentiary report"
+          : "Full forensic report",
       tone: anchorSummary?.published
         ? "success"
         : otsTone === "danger"
           ? "danger"
-          : "warning",
+          : "neutral",
     },
   ];
 
@@ -882,6 +894,7 @@ export async function buildReportViewModel(
 
   return {
     mode,
+    reportVariant,
     generatedAtUtc: input.generatedAtUtc,
     buildInfo: input.buildInfo ?? null,
     verifyUrl,
@@ -988,6 +1001,7 @@ export async function buildReportViewModel(
 
     forensicRows: buildTimelineRows(custody.forensic),
     accessRows: buildTimelineRows(custody.access),
+    custodyHashRows: buildCustodyHashRows(custody.forensic),
 
     technicalIdentityRows: buildTechnicalIdentityRows(
       input.evidence,
@@ -1032,7 +1046,7 @@ export async function buildReportViewModel(
         input.evidence.signingKeyVersion
       ),
       fileSizeLabel: formatBytesHuman(input.evidence.sizeBytes),
-      primaryHashShort: primaryContentItem?.sha256 ?? "N/A",
+      primaryHash: primaryContentItem?.sha256 ?? "N/A",
       submittedByLabel: externalMode
         ? maskEmail(input.evidence.submittedByEmail)
         : safe(input.evidence.submittedByEmail),
@@ -1045,13 +1059,13 @@ export async function buildReportViewModel(
       lastVerifiedSourceLabel: mapVerificationSourceLabel(
         input.evidence.lastVerifiedSource
       ),
-      signingKeyShort: buildPublicSigningKeyReference(
+      signingKeyLabel: buildPublicSigningKeyReference(
         input.evidence.signingKeyId,
         input.evidence.signingKeyVersion
       ),
-      tsaMessageImprintShort: input.evidence.tsaMessageImprint ?? "N/A",
-      otsHashShort: input.evidence.otsHash ?? "N/A",
-      anchorHashShort: anchorSummary?.anchorHash ?? "N/A",
+      tsaMessageImprint: input.evidence.tsaMessageImprint ?? "N/A",
+      otsHash: input.evidence.otsHash ?? "N/A",
+      anchorHash: anchorSummary?.anchorHash ?? "N/A",
     },
   };
 }
