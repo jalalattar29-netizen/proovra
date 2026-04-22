@@ -1,5 +1,6 @@
 import QRCode from "qrcode";
 import sharp from "sharp";
+import { isCompleteOtsAnchor } from "@proovra/shared";
 import type {
   CalloutModel,
   CustodyHashRow,
@@ -411,6 +412,25 @@ function buildVerificationSummaryRows(
   return rows;
 }
 
+function resolveOtsPresentationEvidence(evidence: ReportEvidence): ReportEvidence {
+  if (
+    safe(evidence.otsStatus, "").toUpperCase() !== "ANCHORED" ||
+    isCompleteOtsAnchor({
+      status: evidence.otsStatus,
+      bitcoinTxid: evidence.otsBitcoinTxid,
+      anchoredAtUtc: evidence.otsAnchoredAtUtc,
+    })
+  ) {
+    return evidence;
+  }
+
+  return Object.assign({}, evidence, {
+    otsStatus: "PENDING",
+    otsAnchoredAtUtc: null,
+    otsFailureReason: null,
+  });
+}
+
 function buildReviewReadinessRows(
   evidence: ReportEvidence,
   custody: ReturnType<typeof splitCustodyEvents>,
@@ -611,14 +631,19 @@ function buildStorageRows(
       label: "Public Anchoring Status",
       value: mapOtsStatusPublicLabel(evidence.otsStatus),
     },
-    { label: "OTS Calendar", value: safe(evidence.otsCalendar) },
-    { label: "OTS Anchored At (UTC)", value: safe(evidence.otsAnchoredAtUtc) },
-    { label: "OTS Upgraded At (UTC)", value: safe(evidence.otsUpgradedAtUtc) },
+  ];
+
+  const otsRows: KeyValueRow[] = [
+    { label: "OTS Calendar", value: safe(evidence.otsCalendar, "") },
+    { label: "OTS Anchored At (UTC)", value: safe(evidence.otsAnchoredAtUtc, "") },
+    { label: "OTS Upgraded At (UTC)", value: safe(evidence.otsUpgradedAtUtc, "") },
     {
       label: "OTS Bitcoin TxID",
-      value: safe(evidence.otsBitcoinTxid),
+      value: safe(evidence.otsBitcoinTxid, ""),
     },
-  ];
+  ].filter((row) => safe(row.value, "") !== "");
+
+  rows.push(...otsRows);
 
   if (anchorSummary) {
     rows.push(
@@ -883,6 +908,7 @@ export async function buildReportViewModel(
   const previewPolicy = resolvePreviewPolicy(input.evidence);
   const display = resolveDisplayDescriptor(input.evidence, contentSummary);
   const custody = splitCustodyEvents(input.custodyEvents);
+  const otsEvidence = resolveOtsPresentationEvidence(input.evidence);
   const integrityVerified = isIntegrityVerified(input.evidence);
   const reviewGuidance = resolveReviewGuidance(
     input.evidence,
@@ -928,7 +954,7 @@ export async function buildReportViewModel(
     primaryContentItem?.originalFileName ?? primaryContentItem?.label
   );
   const mismatchSummary = buildMismatchNarrative({
-    evidence: input.evidence,
+    evidence: otsEvidence,
     integrityVerified,
     forensicEventCount: custody.forensic.length,
   });
@@ -939,7 +965,7 @@ export async function buildReportViewModel(
     input.evidence.storageObjectLockMode,
     input.evidence.storageObjectLockRetainUntilUtc
   );
-  const otsTone = normalizeOtsTone(input.evidence.otsStatus);
+  const otsTone = normalizeOtsTone(otsEvidence.otsStatus);
 
   const storageAndTimestampTone =
     timestampTone === "danger" || storageTone === "danger"
@@ -1004,7 +1030,7 @@ export async function buildReportViewModel(
   ];
 
   const technicalAppendix = buildTechnicalAppendixModel(
-    input.evidence,
+    otsEvidence,
     externalMode,
     anchorSummary
   );
@@ -1050,14 +1076,14 @@ export async function buildReportViewModel(
       externalMode
     ),
     verificationSummaryRows: buildVerificationSummaryRows(
-      input.evidence,
+      otsEvidence,
       custody,
       structureLabel,
       contentSummary,
       externalMode
     ),
     reviewReadinessRows: buildReviewReadinessRows(
-      input.evidence,
+      otsEvidence,
       custody,
       externalMode
     ),
@@ -1120,11 +1146,11 @@ export async function buildReportViewModel(
         : null,
     ].filter(Boolean) as ReportViewModel["certificationBlocks"],
 
-    storageRows: buildStorageRows(input.evidence, anchorSummary),
+    storageRows: buildStorageRows(otsEvidence, anchorSummary),
     storageCallouts: [
       buildStorageCallout(input.evidence),
       buildTimestampCallout(input.evidence),
-      buildOtsCallout(input.evidence),
+      buildOtsCallout(otsEvidence),
     ],
 
     forensicRows: buildTimelineRows(custody.forensic),
@@ -1162,12 +1188,12 @@ export async function buildReportViewModel(
         contentSummary
       ),
       reviewReadinessSummary: buildReviewReadinessRows(
-        input.evidence,
+        otsEvidence,
         custody,
         externalMode
       ),
       timestampRows: buildTimestampRows(input.evidence),
-      otsRows: buildOtsRows(input.evidence),
+      otsRows: buildOtsRows(otsEvidence),
       anchorRows: buildAnchorRows(anchorSummary),
       signingKeyReference: buildPublicSigningKeyReference(
         input.evidence.signingKeyId,
@@ -1192,7 +1218,7 @@ export async function buildReportViewModel(
         input.evidence.signingKeyVersion
       ),
       tsaMessageImprint: input.evidence.tsaMessageImprint ?? "N/A",
-      otsHash: input.evidence.otsHash ?? "N/A",
+      otsHash: otsEvidence.otsHash ?? "N/A",
       anchorHash: anchorSummary?.anchorHash ?? "N/A",
     },
   };

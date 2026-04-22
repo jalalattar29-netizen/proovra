@@ -1691,6 +1691,7 @@ export default function VerifyPage() {
   const [otsUpgradedAtUtc, setOtsUpgradedAtUtc] = useState<string | null>(null);
   const [otsFailureReason, setOtsFailureReason] = useState<string | null>(null);
   const [otsProofBase64, setOtsProofBase64] = useState<string | null>(null);
+  const [otsProofPresent, setOtsProofPresent] = useState<boolean | null>(null);
 
   const [canonicalHashMatches, setCanonicalHashMatches] = useState<boolean | null>(null);
   const [signatureValid, setSignatureValid] = useState<boolean | null>(null);
@@ -1987,6 +1988,7 @@ export default function VerifyPage() {
     setOtsUpgradedAtUtc(otsDetails.upgradedAtUtc);
     setOtsFailureReason(otsDetails.failureReason);
     setOtsProofBase64(otsDetails.proofBase64);
+    setOtsProofPresent(otsDetails.proofPresent);
     const integrity = data.integrityProof ?? data.verification ?? null;
 
     setCanonicalHashMatches(
@@ -2154,7 +2156,7 @@ export default function VerifyPage() {
         upgradedAtUtc: otsUpgradedAtUtc,
         failureReason: otsFailureReason,
         proofBase64: otsProofBase64,
-        proofPresent: otsProofBase64 ? true : null,
+        proofPresent: otsProofPresent,
         hashMatchesFingerprintHash: otsHashMatches,
       }),
     [
@@ -2166,6 +2168,7 @@ export default function VerifyPage() {
       otsUpgradedAtUtc,
       otsFailureReason,
       otsProofBase64,
+      otsProofPresent,
       otsHashMatches,
     ]
   );
@@ -2870,6 +2873,22 @@ export default function VerifyPage() {
           show: Boolean(otsCalendar),
         },
         {
+          label: "OTS Proof",
+          content: (
+            <Badge
+              label={
+                otsProofPresent === true
+                  ? "Proof Present"
+                  : otsProofPresent === false
+                    ? "Not Present"
+                    : "Unavailable"
+              }
+              tone={otsProofPresent === true ? "success" : "neutral"}
+            />
+          ),
+          show: otsProofPresent !== null,
+        },
+        {
           label: "OTS Anchored At",
           content: otsAnchoredAtUtc ? formatDateTime(otsAnchoredAtUtc) : null,
           show: Boolean(otsAnchoredAtUtc),
@@ -2936,6 +2955,7 @@ export default function VerifyPage() {
       custodyChainMode,
       otsStatus,
       otsCalendar,
+      otsProofPresent,
       otsAnchoredAtUtc,
       otsUpgradedAtUtc,
       otsHashMatches,
@@ -3002,6 +3022,7 @@ export default function VerifyPage() {
           "Signing Key",
           "Signing Key Version",
           "OTS Calendar",
+          "OTS Proof",
           "OTS Anchored At",
           "OTS Upgraded At",
           "OTS Hash Check",

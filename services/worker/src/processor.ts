@@ -66,6 +66,7 @@ import {
 import { captureException } from "./sentry.js";
 import { createVerificationPackage } from "./verification-package.js";
 import { createOpenTimestamp, type OtsStampResult } from "./ots.service.js";
+import { buildOtsEvidenceUpdateData } from "./ots-state.js";
 import { appendWorkerAuditLog } from "./platform-audit-append.js";
 
 type GenerateReportJobData = {
@@ -488,10 +489,13 @@ function summarizePayloadForReport(eventType: string, payload: unknown): string 
 
     case "OTS_APPLIED": {
       const otsStatus = normalizePayloadPrimitive(obj.otsStatus);
-      const bitcoinTxid = shortHash(normalizePayloadPrimitive(obj.bitcoinTxid));
+      const otsPhase = normalizePayloadPrimitive(obj.otsPhase);
+      const bitcoinTxid = normalizePayloadPrimitive(obj.bitcoinTxid);
       const calendar = normalizePayloadPrimitive(obj.calendar);
       return [
-        "OpenTimestamp proof created",
+        otsPhase === "anchored"
+          ? "OpenTimestamp anchoring completed"
+          : "OpenTimestamp proof created",
         otsStatus ? `Status: ${otsStatus}` : null,
         bitcoinTxid ? `Bitcoin Tx: ${bitcoinTxid}` : null,
         calendar ? `Calendar: ${calendar}` : null,
@@ -1289,7 +1293,18 @@ async function resolveEvidenceStorageSnapshot(params: {
 }
 
 async function enqueueOtsUpgradeRetry(evidenceId: string) {
-  return enqueueOtsUpgradeJob(evidenceId);
+  const result = await enqueueOtsUpgradeJob(evidenceId);
+
+  logger.info(
+    {
+      evidenceId,
+      enqueued: result.enqueued,
+      reason: "reason" in result ? result.reason : null,
+    },
+    "ots.upgrade.retry_scheduled"
+  );
+
+  return result;
 }
 
 function deriveIdentityLevel(params: {
@@ -2074,24 +2089,32 @@ const loadedArtifacts: LoadedEvidenceArtifact[] = [];
     tsaStatus: evidence.tsaStatus ?? null,
     tsaFailureReason: evidence.tsaFailureReason ?? null,
 
-    otsProofBase64: otsResult?.proofBase64 ?? evidence.otsProofBase64 ?? null,
-    otsHash: otsResult?.hash ?? evidence.otsHash ?? null,
-    otsStatus: otsResult?.status ?? evidence.otsStatus ?? null,
-    otsCalendar: otsResult?.calendar ?? evidence.otsCalendar ?? null,
-    otsBitcoinTxid: otsResult?.bitcoinTxid ?? evidence.otsBitcoinTxid ?? null,
+    otsProofBase64: otsResult
+      ? otsResult.proofBase64
+      : evidence.otsProofBase64 ?? null,
+    otsHash: otsResult ? otsResult.hash : evidence.otsHash ?? null,
+    otsStatus: otsResult ? otsResult.status : evidence.otsStatus ?? null,
+    otsCalendar: otsResult ? otsResult.calendar : evidence.otsCalendar ?? null,
+    otsBitcoinTxid: otsResult
+      ? otsResult.bitcoinTxid
+      : evidence.otsBitcoinTxid ?? null,
     otsAnchoredAtUtc:
-      otsResult?.anchoredAtUtc ??
-      (evidence.otsAnchoredAtUtc
+      otsResult
+        ? otsResult.anchoredAtUtc
+        : evidence.otsAnchoredAtUtc
         ? evidence.otsAnchoredAtUtc.toISOString()
-        : null),
+        : null,
     otsUpgradedAtUtc:
-      otsResult?.upgradedAtUtc ??
-      (evidence.otsUpgradedAtUtc
+      otsResult
+        ? otsResult.upgradedAtUtc
+        : evidence.otsUpgradedAtUtc
         ? evidence.otsUpgradedAtUtc.toISOString()
-        : null),
+        : null,
     otsFailureReason:
-      otsResult?.status === "FAILED"
-        ? otsResult.failureReason
+      otsResult
+        ? otsResult.status === "FAILED"
+          ? otsResult.failureReason
+          : null
         : evidence.otsFailureReason ?? null,
 
     anchor: anchorSummary,
@@ -2557,20 +2580,7 @@ export async function processGenerateReport(job: Job<GenerateReportJobData>) {
           if (otsData.status === "PENDING" || otsData.status === "ANCHORED") {
             await tx.evidence.update({
               where: { id: prepared.evidenceId },
-              data: {
-                otsProofBase64: otsData.proofBase64,
-                otsHash: otsData.hash,
-                otsStatus: otsData.status,
-                otsCalendar: otsData.calendar,
-                otsBitcoinTxid: otsData.bitcoinTxid,
-                otsAnchoredAtUtc: otsData.anchoredAtUtc
-                  ? new Date(otsData.anchoredAtUtc)
-                  : null,
-                otsUpgradedAtUtc: otsData.upgradedAtUtc
-                  ? new Date(otsData.upgradedAtUtc)
-                  : null,
-                otsFailureReason: null,
-              },
+              data: buildOtsEvidenceUpdateData(otsData),
             });
 
             await appendCustodyEventTx(tx, {
@@ -2579,6 +2589,10 @@ export async function processGenerateReport(job: Job<GenerateReportJobData>) {
               atUtc: new Date(),
               payload: {
                 otsStatus: otsData.status,
+                otsPhase:
+                  otsData.status === "ANCHORED"
+                    ? "anchored"
+                    : "proof_created",
                 hash: otsData.hash,
                 calendar: otsData.calendar,
                 bitcoinTxid: otsData.bitcoinTxid,
@@ -2593,16 +2607,7 @@ export async function processGenerateReport(job: Job<GenerateReportJobData>) {
           } else if (otsData.status === "FAILED") {
             await tx.evidence.update({
               where: { id: prepared.evidenceId },
-              data: {
-                otsProofBase64: null,
-                otsHash: otsData.hash,
-                otsStatus: otsData.status,
-                otsCalendar: otsData.calendar,
-                otsBitcoinTxid: null,
-                otsAnchoredAtUtc: null,
-                otsUpgradedAtUtc: null,
-                otsFailureReason: otsData.failureReason,
-              },
+              data: buildOtsEvidenceUpdateData(otsData),
             });
 
             await appendCustodyEventTx(tx, {
@@ -2610,22 +2615,15 @@ export async function processGenerateReport(job: Job<GenerateReportJobData>) {
               eventType: prismaPkg.CustodyEventType.OTS_FAILED,
               atUtc: new Date(),
               payload: {
+                otsStatus: "FAILED",
+                otsPhase: "stamp_failed",
                 failureReason: otsData.failureReason,
               } as Prisma.InputJsonValue,
             });
           } else if (otsData.status === "DISABLED") {
             await tx.evidence.update({
               where: { id: prepared.evidenceId },
-              data: {
-                otsProofBase64: null,
-                otsHash: null,
-                otsStatus: "DISABLED",
-                otsCalendar: null,
-                otsBitcoinTxid: null,
-                otsAnchoredAtUtc: null,
-                otsUpgradedAtUtc: null,
-                otsFailureReason: null,
-              },
+              data: buildOtsEvidenceUpdateData(otsData),
             });
           }
         }

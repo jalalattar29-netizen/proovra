@@ -4,13 +4,16 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
+import { resolveEffectiveOtsStatus } from "@proovra/shared";
 import * as prismaPkg from "@prisma/client";
 import type { Prisma } from "@prisma/client";
 import { appendCustodyEventTx } from "./custody-events.js";
 import { prisma } from "./db.js";
 import { enqueueOtsUpgradeJob } from "./queue.js";
 import { resolveOtsBin, resolveOtsTimeoutMs } from "./ots.service.js";
+import { buildOtsEvidenceUpdateData } from "./ots-state.js";
 import { enqueueReportJob } from "./processor.js";
+import { logger, withJobContext } from "./logger.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -56,6 +59,17 @@ function buildFollowUpJobId(evidenceId: string, upgradedAt: Date): string {
 
 export async function processOtsUpgrade(job: Job<{ evidenceId: string }>) {
   const { evidenceId } = job.data;
+  const startedAt = Date.now();
+
+  logger.info(
+    withJobContext({
+      jobId: job.id,
+      evidenceId,
+      attempt: job.attemptsMade + 1,
+      status: "started",
+    }),
+    "ots.upgrade.started"
+  );
 
   const evidence = await prisma.evidence.findUnique({
     where: { id: evidenceId },
@@ -63,11 +77,43 @@ export async function processOtsUpgrade(job: Job<{ evidenceId: string }>) {
       id: true,
       otsProofBase64: true,
       otsStatus: true,
+      otsHash: true,
+      otsCalendar: true,
+      otsBitcoinTxid: true,
+      otsAnchoredAtUtc: true,
     },
   });
 
-  if (!evidence || !evidence.otsProofBase64) return;
-  if (evidence.otsStatus === "ANCHORED") return;
+  if (!evidence || !evidence.otsProofBase64) {
+    logger.warn(
+      withJobContext({
+        jobId: job.id,
+        evidenceId,
+        durationMs: Date.now() - startedAt,
+        status: "skipped_missing_proof",
+      }),
+      "ots.upgrade.skipped"
+    );
+    return;
+  }
+  if (
+    resolveEffectiveOtsStatus({
+      status: evidence.otsStatus,
+      bitcoinTxid: evidence.otsBitcoinTxid,
+      anchoredAtUtc: evidence.otsAnchoredAtUtc,
+    }) === "ANCHORED"
+  ) {
+    logger.info(
+      withJobContext({
+        jobId: job.id,
+        evidenceId,
+        durationMs: Date.now() - startedAt,
+        status: "already_anchored",
+      }),
+      "ots.upgrade.skipped"
+    );
+    return;
+  }
 
   const workDir = await fs.mkdtemp(path.join(os.tmpdir(), "ots-upgrade-"));
   const file = path.join(workDir, "proof.ots");
@@ -101,18 +147,19 @@ export async function processOtsUpgrade(job: Job<{ evidenceId: string }>) {
     const updated = await fs.readFile(file);
     const upgradedAt = now();
 
-    if (isAnchoredOutput(merged) || txid) {
+    if (txid && isAnchoredOutput(merged)) {
       await prisma.$transaction(async (tx) => {
         await tx.evidence.update({
           where: { id: evidenceId },
-          data: {
-            otsProofBase64: updated.toString("base64"),
-            otsStatus: "ANCHORED",
-            otsBitcoinTxid: txid,
-            otsAnchoredAtUtc: upgradedAt,
-            otsUpgradedAtUtc: upgradedAt,
-            otsFailureReason: null,
-          },
+          data: buildOtsEvidenceUpdateData({
+            status: "ANCHORED",
+            proofBase64: updated.toString("base64"),
+            hash: evidence.otsHash,
+            calendar: evidence.otsCalendar,
+            bitcoinTxid: txid,
+            anchoredAtUtc: upgradedAt,
+            upgradedAtUtc: upgradedAt,
+          }),
         });
 
         await appendCustodyEventTx(tx, {
@@ -121,6 +168,7 @@ export async function processOtsUpgrade(job: Job<{ evidenceId: string }>) {
           atUtc: upgradedAt,
           payload: {
             otsStatus: "ANCHORED",
+            otsPhase: "anchored",
             bitcoinTxid: txid,
             upgradedAtUtc: upgradedAt.toISOString(),
             anchoredAtUtc: upgradedAt.toISOString(),
@@ -134,19 +182,29 @@ export async function processOtsUpgrade(job: Job<{ evidenceId: string }>) {
         regenerateReason: "ots_anchored",
       });
 
+      logger.info(
+        withJobContext({
+          jobId: job.id,
+          evidenceId,
+          durationMs: Date.now() - startedAt,
+          status: "anchored",
+        }),
+        "ots.upgrade.anchored"
+      );
+
       return;
     }
 
     if (isPendingOutput(merged)) {
       await prisma.evidence.update({
         where: { id: evidenceId },
-        data: {
-          otsProofBase64: updated.toString("base64"),
-          otsStatus: "PENDING",
-          otsBitcoinTxid: txid,
-          otsUpgradedAtUtc: upgradedAt,
-          otsFailureReason: null,
-        },
+        data: buildOtsEvidenceUpdateData({
+          status: "PENDING",
+          proofBase64: updated.toString("base64"),
+          hash: evidence.otsHash,
+          calendar: evidence.otsCalendar,
+          upgradedAtUtc: upgradedAt,
+        }),
       });
 
       await enqueueOtsUpgradeJob(evidenceId, {
@@ -155,19 +213,35 @@ export async function processOtsUpgrade(job: Job<{ evidenceId: string }>) {
         excludeJobId: job.id,
       });
 
+      logger.info(
+        withJobContext({
+          jobId: job.id,
+          evidenceId,
+          durationMs: Date.now() - startedAt,
+          status: "pending_rescheduled",
+        }),
+        "ots.upgrade.pending"
+      );
+
       return;
     }
 
     await prisma.$transaction(async (tx) => {
+      const failureReason =
+        isAnchoredOutput(merged) && !txid
+          ? "OTS upgrade reported completion but no Bitcoin transaction id was detected."
+          : merged || "OTS upgrade failed";
+
       await tx.evidence.update({
         where: { id: evidenceId },
-        data: {
-          otsProofBase64: updated.toString("base64"),
-          otsStatus: "FAILED",
-          otsBitcoinTxid: txid,
-          otsUpgradedAtUtc: upgradedAt,
-          otsFailureReason: merged || "OTS upgrade failed",
-        },
+        data: buildOtsEvidenceUpdateData({
+          status: "FAILED",
+          proofBase64: updated.toString("base64"),
+          hash: evidence.otsHash,
+          calendar: evidence.otsCalendar,
+          upgradedAtUtc: upgradedAt,
+          failureReason,
+        }),
       });
 
       await appendCustodyEventTx(tx, {
@@ -175,10 +249,22 @@ export async function processOtsUpgrade(job: Job<{ evidenceId: string }>) {
         eventType: prismaPkg.CustodyEventType.OTS_FAILED,
         atUtc: upgradedAt,
         payload: {
-          failureReason: merged || "OTS upgrade failed",
+          otsStatus: "FAILED",
+          otsPhase: "upgrade_failed",
+          failureReason,
         } as Prisma.InputJsonValue,
       });
     });
+
+    logger.error(
+      withJobContext({
+        jobId: job.id,
+        evidenceId,
+        durationMs: Date.now() - startedAt,
+        status: "failed",
+      }),
+      "ots.upgrade.failed"
+    );
 
     throw new Error("OTS_UPGRADE_FAILED");
   } finally {

@@ -78,6 +78,33 @@ function isRunnableQueueState(state: string): boolean {
   );
 }
 
+async function findRunnableOtsUpgradeJobForEvidence(
+  evidenceId: string,
+  excludeJobId?: string | number | null
+) {
+  const states = ["waiting", "delayed", "active", "prioritized"] as const;
+  const batchSize = 1000;
+  let start = 0;
+
+  while (true) {
+    const jobs = await otsUpgradeQueue.getJobs(
+      [...states],
+      start,
+      start + batchSize - 1
+    );
+
+    const existing = jobs.find((job) => {
+      if (String(job.id) === String(excludeJobId ?? "")) return false;
+      return job.data?.evidenceId === evidenceId;
+    });
+
+    if (existing) return existing;
+    if (jobs.length < batchSize) return null;
+
+    start += batchSize;
+  }
+}
+
 export async function enqueueOtsUpgradeJob(
   evidenceId: string,
   options?: {
@@ -103,16 +130,11 @@ export async function enqueueOtsUpgradeJob(
     }
   }
 
-  const runnableJobs = await otsUpgradeQueue.getJobs(
-    ["waiting", "delayed", "active", "prioritized"],
-    0,
-    1000
-  );
-
-  const existingRunnableForEvidence = runnableJobs.find((job) => {
-    if (String(job.id) === String(options?.excludeJobId ?? "")) return false;
-    return job.data?.evidenceId === evidenceId;
-  });
+  const existingRunnableForEvidence =
+    await findRunnableOtsUpgradeJobForEvidence(
+      evidenceId,
+      options?.excludeJobId
+    );
 
   if (existingRunnableForEvidence) {
     const state = await existingRunnableForEvidence.getState();

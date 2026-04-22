@@ -73,9 +73,9 @@ export type OtsStampResult =
       proofBase64: string;
       hash: string;
       calendar: string | null;
-      bitcoinTxid: string | null;
-      anchoredAtUtc: string | null;
-      upgradedAtUtc: string | null;
+      bitcoinTxid: string;
+      anchoredAtUtc: string;
+      upgradedAtUtc: string;
       failureReason: null;
     }
   | {
@@ -126,13 +126,14 @@ function isPendingLikeUpgradeMessage(message: string): boolean {
 
   return (
     m.includes("pending confirmations") ||
+    m.includes("pending confirmation in bitcoin blockchain") ||
     m.includes("still waiting") ||
     m.includes("timestamp not complete") ||
+    m.includes("not complete") ||
     m.includes("not yet anchored") ||
     m.includes("waiting for") ||
     m.includes("cannot be greater than available calendar") ||
-    m.includes("available calendar") ||
-    m.includes("calendar")
+    m.includes("available calendar")
   );
 }
 

@@ -1,5 +1,8 @@
 import type { FastifyInstance, FastifyRequest } from "fastify";
 import {
+  resolveEffectiveOtsStatus,
+} from "@proovra/shared";
+import {
   type EvidenceAssetKind as PublicEvidenceAssetKind,
   type EvidenceContentSummary as PublicEvidenceContentSummary,
   type EvidencePreviewPolicy as PublicPreviewPolicy,
@@ -968,6 +971,7 @@ function summarizePublicPayload(
 
     case prismaPkg.CustodyEventType.OTS_APPLIED: {
       const otsStatus = normalizePublicPayloadValue(obj.otsStatus);
+      const otsPhase = normalizePublicPayloadValue(obj.otsPhase);
       const calendar =
         normalizePublicPayloadValue(obj.calendar) ??
         normalizePublicPayloadValue(obj.otsCalendar);
@@ -977,10 +981,12 @@ function summarizePublicPayload(
         normalizePublicPayloadValue(obj.otsBitcoinTxid);
 
       return [
-                "OpenTimestamps proof recorded",
+        otsPhase === "anchored"
+          ? "OpenTimestamps anchoring completed"
+          : "OpenTimestamps proof recorded",
         otsStatus ? `Status: ${otsStatus}` : null,
         calendar ? `Calendar: ${calendar}` : null,
-        bitcoinTxid ? `Bitcoin Tx: ${shortHash(bitcoinTxid)}` : null,
+        bitcoinTxid ? `Bitcoin Tx: ${bitcoinTxid}` : null,
       ]
         .filter(Boolean)
         .join(" • ");
@@ -3996,6 +4002,18 @@ limitationsSnapshot: true,
         return reply.code(404).send({ message: "Report not found" });
       }
 
+      try {
+        const meta = await headObject({
+          bucket: latest.storageBucket,
+          key: latest.storageKey,
+        });
+        if (!meta.sizeBytes || meta.sizeBytes <= 0) {
+          return reply.code(404).send({ message: "Report not found" });
+        }
+      } catch {
+        return reply.code(404).send({ message: "Report not found" });
+      }
+
       await appendCustodyEvent({
         evidenceId: id,
         eventType: prismaPkg.CustodyEventType.REPORT_DOWNLOADED,
@@ -4888,11 +4906,18 @@ displayFileName: evidence.displayFileName ?? null,
           evidence.fileSha256.toLowerCase()
         : true;
 
+    const effectiveOtsStatus = resolveEffectiveOtsStatus({
+      status: evidence.otsStatus,
+      bitcoinTxid: evidence.otsBitcoinTxid,
+      anchoredAtUtc: evidence.otsAnchoredAtUtc,
+    });
+    const effectiveOtsAnchoredAtUtc =
+      effectiveOtsStatus === "ANCHORED" ? evidence.otsAnchoredAtUtc : null;
     const otsHashMatches =
       evidence.otsHash && evidence.fingerprintHash
         ? evidence.otsHash.toLowerCase() ===
           evidence.fingerprintHash.toLowerCase()
-        : evidence.otsStatus
+        : effectiveOtsStatus === "ANCHORED"
           ? false
           : true;
 
@@ -5046,7 +5071,7 @@ title: evidence.title ?? evidence.displayFileName ?? evidence.originalFileName ?
       itemCount,
       storageProtection,
       timestampStatus: evidence.tsaStatus,
-      otsStatus: evidence.otsStatus,
+      otsStatus: effectiveOtsStatus,
       overallIntegrity,
       chainOfCustodyPresent: forensicCustodyEvents.length > 0,
       anchor,
@@ -5173,12 +5198,12 @@ defaultPreviewItemId: defaultPreviewItem?.id ?? null,
       digestMatchesFileHash: timestampDigestMatches,
     },
     ots: {
-      status: evidence.otsStatus ?? null,
+      status: effectiveOtsStatus,
       hash: evidence.otsHash ?? null,
       calendar: evidence.otsCalendar ?? null,
       bitcoinTxid: evidence.otsBitcoinTxid ?? null,
-      anchoredAtUtc: evidence.otsAnchoredAtUtc
-        ? evidence.otsAnchoredAtUtc.toISOString()
+      anchoredAtUtc: effectiveOtsAnchoredAtUtc
+        ? effectiveOtsAnchoredAtUtc.toISOString()
         : null,
       upgradedAtUtc: evidence.otsUpgradedAtUtc
         ? evidence.otsUpgradedAtUtc.toISOString()

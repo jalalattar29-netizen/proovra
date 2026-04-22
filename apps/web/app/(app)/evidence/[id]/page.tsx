@@ -530,6 +530,7 @@ export default function EvidenceDetailPage() {
   const [originalFileName, setOriginalFileName] = useState<string | null>(null);
 
   const [parts, setParts] = useState<EvidencePart[]>([]);
+  const [reportAvailable, setReportAvailable] = useState(false);
   const [verificationPackageAvailable, setVerificationPackageAvailable] = useState(false);
 
   const sortedParts = useMemo(
@@ -819,9 +820,14 @@ switch (onlyKind) {
         }
 
         if (reportRes.status === "fulfilled") {
-          if (reportRes.value?.url) {
-            setReportGeneratedAtUtc((current) => current);
-          }
+          const generatedAtUtc =
+            typeof reportRes.value?.generatedAtUtc === "string"
+              ? reportRes.value.generatedAtUtc
+              : null;
+          setReportAvailable(Boolean(reportRes.value?.url && generatedAtUtc));
+          if (generatedAtUtc) setReportGeneratedAtUtc(generatedAtUtc);
+        } else {
+          setReportAvailable(false);
         }
 
         if (casesRes.status === "fulfilled") {
@@ -843,7 +849,14 @@ switch (onlyKind) {
         }
 
         if (verificationPackageRes.status === "fulfilled") {
-          setVerificationPackageAvailable(Boolean(verificationPackageRes.value?.url));
+          const generatedAtUtc =
+            typeof verificationPackageRes.value?.generatedAtUtc === "string"
+              ? verificationPackageRes.value.generatedAtUtc
+              : null;
+          setVerificationPackageAvailable(
+            Boolean(verificationPackageRes.value?.url && generatedAtUtc)
+          );
+          if (generatedAtUtc) setVerificationPackageGeneratedAtUtc(generatedAtUtc);
         } else {
           setVerificationPackageAvailable(false);
         }
@@ -934,9 +947,14 @@ switch (onlyKind) {
       }
 
       if (reportData.status === "fulfilled") {
-        if (reportData.value?.url) {
-          setReportGeneratedAtUtc((current) => current);
-        }
+        const generatedAtUtc =
+          typeof reportData.value?.generatedAtUtc === "string"
+            ? reportData.value.generatedAtUtc
+            : null;
+        setReportAvailable(Boolean(reportData.value?.url && generatedAtUtc));
+        if (generatedAtUtc) setReportGeneratedAtUtc(generatedAtUtc);
+      } else {
+        setReportAvailable(false);
       }
 
       if (originalData.status === "fulfilled") {
@@ -964,7 +982,14 @@ switch (onlyKind) {
       }
 
       if (verificationData.status === "fulfilled") {
-        setVerificationPackageAvailable(Boolean(verificationData.value?.url));
+        const generatedAtUtc =
+          typeof verificationData.value?.generatedAtUtc === "string"
+            ? verificationData.value.generatedAtUtc
+            : null;
+        setVerificationPackageAvailable(
+          Boolean(verificationData.value?.url && generatedAtUtc)
+        );
+        if (generatedAtUtc) setVerificationPackageGeneratedAtUtc(generatedAtUtc);
       } else {
         setVerificationPackageAvailable(false);
       }
@@ -1210,11 +1235,14 @@ switch (onlyKind) {
       const data = await apiFetch(`/v1/evidence/${params.id}/report/latest`);
       const nextUrl = data?.url ?? null;
 
-      if (!nextUrl) {
+      if (!nextUrl || typeof data?.generatedAtUtc !== "string") {
+        setReportAvailable(false);
         addToast("Report not available", "info");
         return;
       }
 
+      setReportAvailable(true);
+      setReportGeneratedAtUtc(data.generatedAtUtc);
       window.open(nextUrl, "_blank", "noopener,noreferrer");
       addToast("Report downloaded", "success");
     } catch (err) {
@@ -1241,12 +1269,14 @@ switch (onlyKind) {
       addToast("Preparing verification package...", "info");
       const data = await apiFetch(`/v1/evidence/${params.id}/verification-package`);
 
-      if (!data?.url) {
+      if (!data?.url || typeof data?.generatedAtUtc !== "string") {
+        setVerificationPackageAvailable(false);
         addToast("Verification package not available", "info");
         return;
       }
 
       setVerificationPackageAvailable(true);
+      setVerificationPackageGeneratedAtUtc(data.generatedAtUtc);
       const ok = await tryDownloadFile(data.url, `verification-package-${params.id}.zip`);
 
       if (!ok) {
@@ -1702,19 +1732,19 @@ switch (onlyKind) {
       : `${activeWorkspaceName} · ${activePlan}`;
 
   const reportCapabilityHint = canAccessReports
-    ? reportGeneratedAtUtc
+    ? reportAvailable && reportGeneratedAtUtc
       ? `PDF reports are enabled for this workspace. Latest report generated at ${formatUtcDateTime(
           reportGeneratedAtUtc
         )}.`
-      : "PDF reports are enabled for this workspace."
+      : "PDF reports are enabled, but no downloadable report artifact is available yet."
     : `${activeWorkspaceName} does not include PDF reports on the current plan.`;
 
   const packageCapabilityHint = canAccessVerificationPackage
-    ? verificationPackageGeneratedAtUtc
+    ? verificationPackageAvailable && verificationPackageGeneratedAtUtc
       ? `Verification packages are enabled. Latest package generated at ${formatUtcDateTime(
           verificationPackageGeneratedAtUtc
         )}.`
-      : "Verification packages are enabled for this workspace."
+      : "Verification packages are enabled, but no downloadable package artifact is available yet."
     : `${activeWorkspaceName} does not include verification packages on the current plan.`;
 
   const originalRenderableUrl = useMemo(() => {
@@ -2259,7 +2289,12 @@ switch (onlyKind) {
                 <div style={{ display: "grid", gap: 10, marginTop: 18 }}>
                   <Button
                     onClick={handleDownloadReport}
-                    disabled={actionBusy || !canAccessReports || isDeleted}
+                    disabled={
+                      actionBusy ||
+                      !canAccessReports ||
+                      !reportAvailable ||
+                      isDeleted
+                    }
                     className="app-responsive-btn w-full rounded-[999px] border px-4 py-2.5 text-[0.86rem] font-semibold"
                     style={landingPrimaryButtonStyle}
                   >
@@ -2865,7 +2900,7 @@ switch (onlyKind) {
           <Button
             variant="secondary"
             onClick={handleDownloadReport}
-            disabled={actionBusy || !canAccessReports || isDeleted}
+            disabled={actionBusy || !canAccessReports || !reportAvailable || isDeleted}
             className="w-full rounded-[999px] border px-4 py-2.5 text-[0.86rem] font-semibold"
             style={landingSecondaryButtonStyle}
           >

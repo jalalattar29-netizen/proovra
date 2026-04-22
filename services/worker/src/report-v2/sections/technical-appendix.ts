@@ -1,7 +1,6 @@
 import { ReportViewModel } from "../types.js";
 import {
   renderCallout,
-  renderCustodyHashTable,
   renderKeyValueGrid,
   renderMonoBlock,
   renderPageSection,
@@ -60,7 +59,6 @@ function renderAppendixSection(title: string, body: string): string {
 export function renderTechnicalAppendixSection(vm: ReportViewModel): string {
   const appendixDepth = vm.presentation.decisions.appendixDepth;
   const compact = appendixDepth === "compact";
-  const full = appendixDepth === "full";
 
   return renderPageSection(
     "Technical Appendix",
@@ -162,14 +160,6 @@ export function renderTechnicalAppendixSection(vm: ReportViewModel): string {
         `
       )}
 
-      ${
-        full && vm.custodyHashRows.length > 0
-          ? renderAppendixSection(
-              "Custody Hash Chain Detail",
-              renderCustodyHashTable(vm.custodyHashRows)
-            )
-          : ""
-      }
     `,
     { pageBreakBefore: true }
   );

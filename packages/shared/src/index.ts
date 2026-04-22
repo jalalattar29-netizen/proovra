@@ -47,3 +47,15 @@ export {
   isAccessCustodyEventType,
   isForensicCustodyEventType,
 } from "./custody.js";
+
+export type {
+  EffectiveOtsStatus,
+  OtsAnchorCompletenessInput,
+} from "./ots.js";
+
+export {
+  isCompleteOtsAnchor,
+  isValidOtsBitcoinTxid,
+  normalizeOtsStatusValue,
+  resolveEffectiveOtsStatus,
+} from "./ots.js";
