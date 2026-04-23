@@ -4,6 +4,10 @@ import path from "node:path";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { createHash } from "node:crypto";
+import {
+  parseOtsUpgradeOutput,
+  shouldTreatOtsAsAnchored,
+} from "./ots-upgrade-output.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -88,11 +92,6 @@ export type OtsStampResult =
       upgradedAtUtc: null;
       failureReason: string;
     };
-
-function parseTxid(text: string): string | null {
-  const txidMatch = text.match(/\b[a-f0-9]{64}\b/i);
-  return txidMatch?.[0]?.toLowerCase() ?? null;
-}
 
 function nowIso(): string {
   return new Date().toISOString();
@@ -199,14 +198,14 @@ const stampArgs = [
         cwd: workDir,
       });
 
-      const merged = `${stdout ?? ""}\n${stderr ?? ""}`;
+      const parsedUpgrade = parseOtsUpgradeOutput(stdout, stderr);
       upgradedAtUtc = nowIso();
-      bitcoinTxid = parseTxid(merged);
+      bitcoinTxid = parsedUpgrade.txid;
 
       const upgradedBuffer = await fs.readFile(proofFile);
       const upgradedProofBase64 = upgradedBuffer.toString("base64");
 
-      if (bitcoinTxid) {
+      if (shouldTreatOtsAsAnchored(parsedUpgrade) && bitcoinTxid) {
         anchoredAtUtc = upgradedAtUtc;
 
         return {

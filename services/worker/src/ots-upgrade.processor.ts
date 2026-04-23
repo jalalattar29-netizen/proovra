@@ -14,59 +14,15 @@ import { resolveOtsBin, resolveOtsTimeoutMs } from "./ots.service.js";
 import { buildOtsEvidenceUpdateData } from "./ots-state.js";
 import { enqueueReportJob } from "./processor.js";
 import { logger, withJobContext } from "./logger.js";
+import {
+  parseOtsUpgradeOutput,
+  shouldTreatOtsAsAnchored,
+} from "./ots-upgrade-output.js";
 
 const execFileAsync = promisify(execFile);
 
-function parseTxid(text: string): string | null {
-  const patterns = [
-    /bitcoin transaction[^a-f0-9]*([a-f0-9]{64})/i,
-    /\btxid[^a-f0-9]*([a-f0-9]{64})\b/i,
-    /\btransaction id[^a-f0-9]*([a-f0-9]{64})\b/i,
-    /\b([a-f0-9]{64})\b/i,
-  ];
-
-  for (const pattern of patterns) {
-    const match = text.match(pattern);
-    if (match?.[1]) {
-      return match[1].toLowerCase();
-    }
-    if (match?.[0] && /^[a-f0-9]{64}$/i.test(match[0])) {
-      return match[0].toLowerCase();
-    }
-  }
-
-  return null;
-}
-
 function now(): Date {
   return new Date();
-}
-
-function normalizeOutput(stdout?: string, stderr?: string): string {
-  return `${stdout ?? ""}\n${stderr ?? ""}`.trim();
-}
-
-function isAnchoredOutput(text: string): boolean {
-  const lower = text.toLowerCase();
-  return (
-    lower.includes("success! timestamp complete") ||
-    lower.includes("timestamp complete") ||
-    lower.includes("bitcoin transaction")
-  );
-}
-
-function isPendingOutput(text: string): boolean {
-  const lower = text.toLowerCase();
-
-  return (
-    lower.includes("pending confirmation in bitcoin blockchain") ||
-    lower.includes("pending confirmations") ||
-    lower.includes("still waiting") ||
-    lower.includes("waiting for 6 confirmations") ||
-    lower.includes("timestamp not complete") ||
-    lower.includes("not yet anchored") ||
-    lower.includes("available calendar")
-  );
 }
 
 function buildFollowUpJobId(evidenceId: string, upgradedAt: Date): string {
@@ -161,16 +117,13 @@ export async function processOtsUpgrade(job: Job<{ evidenceId: string }>) {
       stderr = err.stderr ?? err.message ?? "";
     }
 
-    const merged = normalizeOutput(stdout, stderr);
-    const txid = parseTxid(merged);
+    const parsedUpgrade = parseOtsUpgradeOutput(stdout, stderr);
+    const { raw: merged, txid, anchoredOutput, pendingOutput } = parsedUpgrade;
     const updated = await fs.readFile(file);
     const upgradedAt = now();
     const proofBase64 = updated.toString("base64");
 
-    const anchoredOutput = isAnchoredOutput(merged);
-    const pendingOutput = isPendingOutput(merged);
-
-    if (anchoredOutput && txid) {
+    if (shouldTreatOtsAsAnchored(parsedUpgrade) && txid) {
       await prisma.$transaction(async (tx) => {
         await tx.evidence.update({
           where: { id: evidenceId },
@@ -222,6 +175,8 @@ export async function processOtsUpgrade(job: Job<{ evidenceId: string }>) {
       const pendingReason =
         anchoredOutput && !txid
           ? "OTS upgrade returned completion-like output but no Bitcoin transaction id was detected yet."
+          : txid
+            ? "OTS upgrade detected a Bitcoin transaction id, but the output still indicates the proof is pending blockchain anchoring."
           : pendingOutput
             ? "OTS upgrade is still pending blockchain anchoring."
             : "OTS proof was refreshed but anchoring is not yet complete.";
@@ -234,6 +189,7 @@ export async function processOtsUpgrade(job: Job<{ evidenceId: string }>) {
             proofBase64,
             hash: evidence.otsHash,
             calendar: evidence.otsCalendar,
+            bitcoinTxid: txid,
             upgradedAtUtc: upgradedAt,
           }),
         });
@@ -247,9 +203,12 @@ export async function processOtsUpgrade(job: Job<{ evidenceId: string }>) {
             otsPhase:
               anchoredOutput && !txid
                 ? "awaiting_txid"
+                : txid
+                  ? "txid_detected_pending_confirmation"
                 : pendingOutput
                   ? "pending_confirmation"
                   : "proof_refreshed_pending",
+            bitcoinTxid: txid,
             upgradedAtUtc: upgradedAt.toISOString(),
             completionSource: "ots_upgrade",
             note: pendingReason,
