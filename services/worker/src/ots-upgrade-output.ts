@@ -68,5 +68,5 @@ export function parseOtsUpgradeOutput(
 }
 
 export function shouldTreatOtsAsAnchored(result: OtsUpgradeOutput): boolean {
-  return Boolean(result.txid) && !result.pendingOutput;
+  return result.anchoredOutput && !result.pendingOutput;
 }

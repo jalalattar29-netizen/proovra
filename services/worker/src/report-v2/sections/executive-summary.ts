@@ -6,27 +6,55 @@ import {
   renderPageSection,
 } from "../ui.js";
 
+function pickRows(
+  rows: Array<{ label: string; value: string }>,
+  labels: string[]
+): Array<{ label: string; value: string }> {
+  const wanted = new Set(labels);
+  return rows.filter((row) => wanted.has(row.label));
+}
+
 export function renderExecutiveSummarySection(vm: ReportViewModel): string {
-  const { decisions } = vm.presentation;
   const mismatchBlock =
     vm.mismatchSummary.tone === "success" ? "" : renderCallout(vm.mismatchSummary);
+
+  const executiveRows = pickRows(vm.executiveRows, [
+    "Evidence Reference",
+    "Evidence Type",
+    "Verification Status",
+    "Evidence Structure",
+    "Item Count",
+    "Lead Review Item",
+    "Lead Item Type",
+    "Total Content Size",
+    "Captured (UTC)",
+    "Signed (UTC)",
+    "Submitted By",
+    "Organization / Workspace",
+  ]);
 
   return renderPageSection(
     "Executive Summary",
     `
-      ${renderCallout(vm.executiveConclusion)}
+      <div class="executive-layout">
+        <div class="executive-main">
+          ${renderCallout(vm.executiveConclusion)}
 
-      ${renderInfoCards(vm.heroCards)}
+          <div class="evidence-strip">
+            This page is the reviewer-facing summary. It intentionally keeps legal posture, content identity, and technical verification signals separate so the report can be read quickly before deeper technical inspection.
+          </div>
 
-      ${renderKeyValueGrid(vm.executiveRows)}
+          ${renderInfoCards(vm.heroCards)}
+        </div>
 
-      ${
-        decisions.compactExecutiveSummary
-          ? ""
-          : renderCallout(vm.reviewSequence)
-      }
+        <div class="executive-side">
+          ${renderKeyValueGrid(executiveRows)}
+        </div>
+      </div>
 
       ${mismatchBlock}
+
+      ${renderCallout(vm.legalLimitationShort)}
     `,
     { pageBreakBefore: true }
   );

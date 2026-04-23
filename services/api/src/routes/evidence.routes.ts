@@ -290,6 +290,22 @@ const SAFE_EVIDENCE_SELECT = {
   reviewerSummaryVersion: true,
   createdAt: true,
   uploadedAtUtc: true,
+    tsaStatus: true,
+  tsaProvider: true,
+  tsaSerialNumber: true,
+  tsaGenTimeUtc: true,
+  tsaMessageImprint: true,
+  tsaHashAlgorithm: true,
+  tsaFailureReason: true,
+
+  otsProofBase64: true,
+  otsHash: true,
+  otsStatus: true,
+  otsCalendar: true,
+  otsBitcoinTxid: true,
+  otsAnchoredAtUtc: true,
+  otsUpgradedAtUtc: true,
+  otsFailureReason: true,
   signedAtUtc: true,
   capturedAtUtc: true,
   reportGeneratedAtUtc: true,
@@ -354,6 +370,22 @@ type SafeEvidence = {
   organizationId: string | null;
   originalFileName: string | null;
   displayFileName: string | null;
+    tsaStatus: string | null;
+  tsaProvider: string | null;
+  tsaSerialNumber: string | null;
+  tsaGenTimeUtc: string | null;
+  tsaMessageImprint: string | null;
+  tsaHashAlgorithm: string | null;
+  tsaFailureReason: string | null;
+
+  otsProofBase64: string | null;
+  otsHash: string | null;
+  otsStatus: string | null;
+  otsCalendar: string | null;
+  otsBitcoinTxid: string | null;
+  otsAnchoredAtUtc: string | null;
+  otsUpgradedAtUtc: string | null;
+  otsFailureReason: string | null;
   type: prismaPkg.EvidenceType;
   status: prismaPkg.EvidenceStatus;
   verificationStatus: prismaPkg.VerificationStatus | null;
@@ -1191,6 +1223,26 @@ function toSafeEvidence(e: SelectedEvidence): SafeEvidence {
     title: resolveEvidenceTitle(e.title),
     ownerUserId: e.ownerUserId,
     originalFileName: e.originalFileName ?? null,
+        tsaStatus: e.tsaStatus ?? null,
+    tsaProvider: e.tsaProvider ?? null,
+    tsaSerialNumber: e.tsaSerialNumber ?? null,
+    tsaGenTimeUtc: e.tsaGenTimeUtc ? e.tsaGenTimeUtc.toISOString() : null,
+    tsaMessageImprint: e.tsaMessageImprint ?? null,
+    tsaHashAlgorithm: e.tsaHashAlgorithm ?? null,
+    tsaFailureReason: e.tsaFailureReason ?? null,
+
+    otsProofBase64: e.otsProofBase64 ?? null,
+    otsHash: e.otsHash ?? null,
+    otsStatus: e.otsStatus ?? null,
+    otsCalendar: e.otsCalendar ?? null,
+    otsBitcoinTxid: e.otsBitcoinTxid ?? null,
+    otsAnchoredAtUtc: e.otsAnchoredAtUtc
+      ? e.otsAnchoredAtUtc.toISOString()
+      : null,
+    otsUpgradedAtUtc: e.otsUpgradedAtUtc
+      ? e.otsUpgradedAtUtc.toISOString()
+      : null,
+    otsFailureReason: e.otsFailureReason ?? null,
     displayFileName: e.displayFileName ?? null,
     organizationId: e.organizationId ?? null,
     type: e.type,
@@ -4906,11 +4958,10 @@ displayFileName: evidence.displayFileName ?? null,
           evidence.fileSha256.toLowerCase()
         : true;
 
-    const effectiveOtsStatus = resolveEffectiveOtsStatus({
-      status: evidence.otsStatus,
-      bitcoinTxid: evidence.otsBitcoinTxid,
-      anchoredAtUtc: evidence.otsAnchoredAtUtc,
-    });
+const effectiveOtsStatus = resolveEffectiveOtsStatus({
+  status: evidence.otsStatus,
+  anchoredAtUtc: evidence.otsAnchoredAtUtc,
+});
     const effectiveOtsAnchoredAtUtc =
       effectiveOtsStatus === "ANCHORED" ? evidence.otsAnchoredAtUtc : null;
     const otsHashMatches =

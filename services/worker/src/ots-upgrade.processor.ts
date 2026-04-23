@@ -123,8 +123,8 @@ export async function processOtsUpgrade(job: Job<{ evidenceId: string }>) {
     const upgradedAt = now();
     const proofBase64 = updated.toString("base64");
 
-    if (shouldTreatOtsAsAnchored(parsedUpgrade) && txid) {
-      await prisma.$transaction(async (tx) => {
+if (shouldTreatOtsAsAnchored(parsedUpgrade)) {
+        await prisma.$transaction(async (tx) => {
         await tx.evidence.update({
           where: { id: evidenceId },
           data: buildOtsEvidenceUpdateData({
@@ -171,8 +171,8 @@ export async function processOtsUpgrade(job: Job<{ evidenceId: string }>) {
       return;
     }
 
-    if (pendingOutput || anchoredOutput || !commandErrored) {
-      const pendingReason =
+if (pendingOutput || !commandErrored) {
+        const pendingReason =
         anchoredOutput && !txid
           ? "OTS upgrade returned completion-like output but no Bitcoin transaction id was detected yet."
           : txid

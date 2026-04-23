@@ -1,6 +1,7 @@
 import { ReportViewModel } from "../types.js";
 import {
   renderCallout,
+  renderCustodyHashTable,
   renderKeyValueGrid,
   renderMonoBlock,
   renderPageSection,
@@ -66,23 +67,13 @@ export function renderTechnicalAppendixSection(vm: ReportViewModel): string {
       ${renderCallout({
         title: "Appendix scope",
         body:
-          "This appendix preserves the structured technical references needed for audit and verification. Heavy payloads such as canonical JSON, signature blobs, timestamp tokens, and anchoring proof blobs are intentionally omitted from the PDF body and remain available through the verification workflow.",
+          "This appendix preserves the exact technical references needed for audit and independent verification. Heavy payloads such as canonical JSON, signature blobs, timestamp tokens, and anchoring proof blobs remain available through the verification workflow or verification package.",
         tone: "neutral",
       })}
 
       ${renderVerificationLinkPanel(vm)}
 
       ${renderTechnicalStatusCards(vm)}
-
-      ${renderAppendixSection(
-        "Technical Scope",
-        renderCallout({
-          title: "Appendix role",
-          body:
-            "This appendix preserves exact technical references, full digest values, and verification-access information in a structured form. It does not repeat the report's legal interpretation or presentation guidance.",
-          tone: "neutral",
-        })
-      )}
 
       ${renderAppendixSection(
         "Identity",
@@ -160,6 +151,22 @@ export function renderTechnicalAppendixSection(vm: ReportViewModel): string {
         `
       )}
 
+      ${
+        vm.custodyHashRows.length > 0
+          ? renderAppendixSection(
+              "Custody Hash Chain",
+              `
+                ${renderCallout({
+                  title: "Audit hash-chain detail",
+                  body:
+                    "This table preserves the previous-event hash and event-hash relationship for forensic custody events. It is kept in the appendix so the main custody narrative remains readable.",
+                  tone: "neutral",
+                })}
+                ${renderCustodyHashTable(vm.custodyHashRows)}
+              `
+            )
+          : ""
+      }
     `,
     { pageBreakBefore: true }
   );

@@ -73,37 +73,36 @@ export function buildOtsEvidenceUpdateData(
         otsFailureReason: null,
       };
 
-    case "ANCHORED": {
-      if (
-        !isCompleteOtsAnchor({
-          status: input.status,
-          bitcoinTxid,
-          anchoredAtUtc,
-        })
-      ) {
-        return {
-          otsProofBase64: clean(input.proofBase64),
-          otsHash: clean(input.hash),
-          otsStatus: "PENDING",
-          otsCalendar: clean(input.calendar),
-          otsBitcoinTxid: bitcoinTxid,
-          otsAnchoredAtUtc: null,
-          otsUpgradedAtUtc: upgradedAtUtc,
-          otsFailureReason: null,
-        };
-      }
+case "ANCHORED": {
+  if (
+    !isCompleteOtsAnchor({
+      status: input.status,
+      anchoredAtUtc,
+    })
+  ) {
+    return {
+      otsProofBase64: clean(input.proofBase64),
+      otsHash: clean(input.hash),
+      otsStatus: "PENDING",
+      otsCalendar: clean(input.calendar),
+      otsBitcoinTxid: bitcoinTxid,
+      otsAnchoredAtUtc: null,
+      otsUpgradedAtUtc: upgradedAtUtc,
+      otsFailureReason: null,
+    };
+  }
 
-      return {
-        otsProofBase64: clean(input.proofBase64),
-        otsHash: clean(input.hash),
-        otsStatus: "ANCHORED",
-        otsCalendar: clean(input.calendar),
-        otsBitcoinTxid: bitcoinTxid,
-        otsAnchoredAtUtc: anchoredAtUtc,
-        otsUpgradedAtUtc: upgradedAtUtc ?? anchoredAtUtc,
-        otsFailureReason: null,
-      };
-    }
+  return {
+    otsProofBase64: clean(input.proofBase64),
+    otsHash: clean(input.hash),
+    otsStatus: "ANCHORED",
+    otsCalendar: clean(input.calendar),
+    otsBitcoinTxid: bitcoinTxid,
+    otsAnchoredAtUtc: anchoredAtUtc,
+    otsUpgradedAtUtc: upgradedAtUtc ?? anchoredAtUtc,
+    otsFailureReason: null,
+  };
+}
 
     case "FAILED":
       return {

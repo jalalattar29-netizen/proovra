@@ -933,18 +933,20 @@ function buildReportEvidenceContent(params: {
   previewPolicy: ReportPreviewPolicy;
   limitations: ReportLegalLimitations;
 } {
-  const multipart = params.parts.length > 0;
+const multipart = params.parts.length > 1;
+const hasStoredParts = params.parts.length > 0;
   const accessPolicy = params.accessPolicy;
   const canExposeContent = accessPolicy.allowContentView;
   const canDownload = accessPolicy.allowDownload;
 
-  const items: ReportEvidenceAsset[] = multipart
-    ? params.parts.map((part) => {
-        const kind = detectEvidenceAssetKind(part.mimeType);
+const items: ReportEvidenceAsset[] = hasStoredParts
+  ? params.parts.map((part) => {
+            const kind = detectEvidenceAssetKind(part.mimeType);
         const sizeBytes = part.sizeBytes != null ? String(part.sizeBytes) : null;
-        const isPrimary =
-          params.evidence.storageBucket === part.storageBucket &&
-          params.evidence.storageKey === part.storageKey;
+const isPrimary =
+  params.parts.length === 1 ||
+  (params.evidence.storageBucket === part.storageBucket &&
+    params.evidence.storageKey === part.storageKey);
 
         const canPreviewThisItem =
           canExposeContent && isPreviewableEvidenceKind(kind);
@@ -1083,8 +1085,8 @@ function buildReportEvidenceContent(params: {
         })()
       : [];
 
-  if (items.length > 1 && !items.some((item) => item.isPrimary)) {
-    items[0] = {
+if (items.length > 0 && !items.some((item) => item.isPrimary)) {
+      items[0] = {
       ...items[0],
       isPrimary: true,
       previewRole:
@@ -1114,7 +1116,7 @@ function buildReportEvidenceContent(params: {
       return acc;
     },
     {
-      structure: multipart ? "multipart" : "single",
+structure: items.length > 1 ? "multipart" : "single",
       itemCount: 0,
       previewableItemCount: 0,
       downloadableItemCount: 0,
@@ -1705,11 +1707,18 @@ const loadedArtifacts: LoadedEvidenceArtifact[] = [];
 
     storageBucket = parts[0].storageBucket;
     storageKey = parts[0].storageKey;
-    fileSha256 = sha256HexFromStrings(hashes);
+fileSha256 =
+  hashes.length === 1 ? hashes[0] : sha256HexFromStrings(hashes);
 
-    if (fileSha256 !== evidence.fileSha256) {
-      throw createWorkerError("EVIDENCE_FILE_SHA256_MISMATCH", false);
-    }
+const legacySinglePartCompositeSha =
+  hashes.length === 1 ? sha256HexFromStrings(hashes) : null;
+
+if (
+  fileSha256 !== evidence.fileSha256 &&
+  legacySinglePartCompositeSha !== evidence.fileSha256
+) {
+  throw createWorkerError("EVIDENCE_FILE_SHA256_MISMATCH", false);
+}
   } else {
     const head = await headObject({
       bucket: evidence.storageBucket!,
@@ -1919,7 +1928,7 @@ const loadedArtifacts: LoadedEvidenceArtifact[] = [];
         };
 
   const captureMethod = deriveCaptureMethod({
-    multipart: parts.length > 0,
+    multipart: parts.length > 1,
     mimeType: evidence.mimeType,
     existingCaptureMethod: evidence.captureMethod ?? null,
   });
@@ -2052,11 +2061,11 @@ const loadedArtifacts: LoadedEvidenceArtifact[] = [];
       accuracyMeters: evidence.accuracyMeters?.toString() ?? null,
     },
 
-    evidenceStructure:
-      contentArtifacts.summary.structure === "multipart"
-        ? "Multipart evidence package"
-        : "Single evidence item",
-    itemCount: contentArtifacts.summary.itemCount,
+evidenceStructure:
+  contentArtifacts.summary.itemCount > 1
+    ? "Multipart evidence package"
+    : "Single evidence item",
+        itemCount: contentArtifacts.summary.itemCount,
     display,
     displayTitle: display.displayTitle,
     displayDescription: display.displayDescription,

@@ -38,7 +38,6 @@ export function isCompleteOtsAnchor(
 ): boolean {
   return (
     normalizeOtsStatusValue(input.status) === "ANCHORED" &&
-    isValidOtsBitcoinTxid(input.bitcoinTxid) &&
     Boolean(input.anchoredAtUtc)
   );
 }

@@ -15,6 +15,13 @@ function renderGalleryMetaRow(label: string, value: string): string {
   `;
 }
 
+function shortHash(value: string | null | undefined): string {
+  const text = safe(value, "");
+  if (!text) return "Not recorded";
+  if (text.length <= 34) return text;
+  return `${text.slice(0, 18)}…${text.slice(-12)}`;
+}
+
 function renderPreviewMedia(
   item: PresentationEvidenceItem,
   opts?: { emphasis?: boolean }
@@ -47,21 +54,21 @@ function renderPreviewMedia(
 
   const title =
     item.previewRenderKind === "document"
-      ? "Document preview available"
+      ? "Document evidence"
       : item.previewRenderKind === "video"
-        ? "Video representation"
+        ? "Video evidence"
         : item.previewRenderKind === "audio"
-          ? "Audio representation"
-          : "Evidence representation";
+          ? "Audio evidence"
+          : "Evidence item";
 
   const note =
     item.previewRenderKind === "document"
-      ? "The document is part of the preserved package. Review the verification workflow for the underlying file when page-level inspection is needed."
+      ? "The document is preserved in the evidence package. Full review should use the verification workflow or original package."
       : item.previewRenderKind === "video"
-        ? "This video remains part of the preserved package. Where no poster frame was embedded, the PDF preserves its identity and technical references."
+        ? "The video is preserved in the evidence package. Playback is handled through the verification workflow."
         : item.previewRenderKind === "audio"
-          ? "This audio item remains part of the preserved package. The PDF records its identity while deeper playback remains in the verification workflow."
-          : "This item is represented without an inline preview image in the PDF but remains part of the preserved evidence package.";
+          ? "The audio item is preserved in the evidence package. Listening review is handled through the verification workflow."
+          : "This item is represented without an inline preview image but remains part of the preserved package.";
 
   return `
     <div class="gallery-thumb${emphasisClass}">
@@ -85,7 +92,7 @@ function renderPreviewCard(
   const fileName = buildAssetName(asset);
   const roleLabel =
     opts?.roleLabel ??
-    (asset.isPrimary ? "Primary evidence item" : "Supporting preview item");
+    (asset.isPrimary ? "Primary evidence item" : "Supporting evidence item");
 
   return `
     <article class="gallery-card${opts?.emphasize ? " gallery-card-emphasis" : ""}">
@@ -101,16 +108,18 @@ function renderPreviewCard(
             : ""
         }
       </div>
+
       ${renderPreviewMedia(item, { emphasis: opts?.emphasize })}
+
       <div class="gallery-card-meta">
         ${renderGalleryMetaRow("Type", safe(asset.kind, "Not recorded"))}
         ${renderGalleryMetaRow("MIME / Format", safe(asset.mimeType, "N/A"))}
-        ${renderGalleryMetaRow("Display Size", safe(asset.displaySizeLabel, "N/A"))}
+        ${renderGalleryMetaRow("Size", safe(asset.displaySizeLabel, "N/A"))}
         ${renderGalleryMetaRow(
-          "Access State",
+          "Access",
           asset.downloadable ? "Downloadable under policy" : "Restricted under policy"
         )}
-        ${renderGalleryMetaRow("SHA-256", asset.sha256 ?? "Not recorded")}
+        ${renderGalleryMetaRow("SHA-256", shortHash(asset.sha256))}
       </div>
     </article>
   `;
@@ -137,9 +146,7 @@ function renderMetadataOnlyCard(item: PresentationEvidenceItem): string {
         <div class="gallery-meta-value">${escapeHtml(safe(asset.displaySizeLabel, "N/A"))}</div>
 
         <div class="gallery-meta-label">SHA-256</div>
-        <div class="gallery-meta-value hash-text">${escapeHtml(
-          asset.sha256 ?? "Not recorded"
-        )}</div>
+        <div class="gallery-meta-value hash-text">${escapeHtml(shortHash(asset.sha256))}</div>
       </div>
     </article>
   `;
@@ -154,12 +161,9 @@ export function renderGallerySection(vm: ReportViewModel): string {
   return renderPageSection(
     "Evidence Presentation",
     `
-      ${renderCallout({
-        title: "Presentation structure",
-        body:
-          "The lead evidence item is emphasized first. Every other previewable preserved item is rendered as a supporting preview card, while non-previewable items remain listed with exact identifiers and recorded hashes.",
-        tone: "neutral",
-      })}
+      <div class="evidence-strip">
+        Evidence content is presented for reviewer orientation. The original preserved item, recorded digest, custody linkage, timestamp state, and storage controls remain the authoritative verification materials.
+      </div>
 
       ${
         heroItem
@@ -178,9 +182,9 @@ export function renderGallerySection(vm: ReportViewModel): string {
         buckets.supportingPreviewItems.length > 0
           ? `
             ${renderCallout({
-              title: "Supporting preview items",
+              title: "Supporting items",
               body:
-                "These preserved items remain visually represented in the PDF because they are previewable within the report workflow. Their original names and full hashes are preserved alongside the preview.",
+                "Additional previewable items are shown below with their recorded identifiers and digest references.",
               tone: "neutral",
             })}
             <div class="gallery-support-grid support-grid">
@@ -196,9 +200,9 @@ export function renderGallerySection(vm: ReportViewModel): string {
         buckets.metadataOnlyItems.length > 0
           ? `
             ${renderCallout({
-              title: "Reference-only package items",
+              title: "Reference-only items",
               body:
-                "These preserved items do not carry an inline report preview but remain part of the evidence package. Their identity, format, and full SHA-256 values are preserved here for package completeness.",
+                "These items do not include an inline PDF preview. They remain part of the evidence package and are listed with identity, format, and digest references.",
               tone: "neutral",
             })}
             <div class="gallery-secondary-list">

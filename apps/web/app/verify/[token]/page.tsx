@@ -1733,6 +1733,18 @@ export default function VerifyPage() {
     }
   };
 
+function extractEvidenceContent(data: VerifyResponse) {
+  return {
+    summary: data.evidenceContent?.summary ?? null,
+    items: Array.isArray(data.evidenceContent?.items)
+      ? data.evidenceContent.items
+      : [],
+    primaryItem: data.evidenceContent?.primaryItem ?? null,
+    defaultPreviewItemId: data.evidenceContent?.defaultPreviewItemId ?? null,
+    previewPolicy: data.evidenceContent?.previewPolicy ?? null,
+  };
+}
+
   const applyVerifyResponse = (data: VerifyResponse) => {
     const tsaDetails = buildTsaDetails(data);
     const otsDetails = buildOtsDetails(data);
@@ -2043,17 +2055,19 @@ export default function VerifyPage() {
     setOverview(effectiveOverview);
     setHumanSummary(effectiveHumanSummary);
     setLimitations(data.limitations ?? null);
-    setEvidenceContentSummary(data.evidenceContent?.summary ?? null);
-    setEvidenceItems(data.evidenceContent?.items ?? []);
-    setPrimaryContentItem(data.evidenceContent?.primaryItem ?? null);
-    setDefaultPreviewItemId(data.evidenceContent?.defaultPreviewItemId ?? null);
-    setSelectedEvidenceItemId(
-      data.evidenceContent?.defaultPreviewItemId ??
-        data.evidenceContent?.primaryItem?.id ??
-        data.evidenceContent?.items?.[0]?.id ??
-        null
-    );
-    setPreviewPolicy(data.evidenceContent?.previewPolicy ?? null);
+const content = extractEvidenceContent(data);
+
+setEvidenceContentSummary(content.summary);
+setEvidenceItems(content.items);
+setPrimaryContentItem(content.primaryItem);
+setDefaultPreviewItemId(content.defaultPreviewItemId);
+setSelectedEvidenceItemId(
+  content.defaultPreviewItemId ??
+    content.primaryItem?.id ??
+    content.items[0]?.id ??
+    null
+);
+setPreviewPolicy(content.previewPolicy);
     setContentAccessPolicy(data.contentAccessPolicy ?? null);
     setContentExposureDecision(data.contentExposureDecision ?? null);
 
@@ -3257,8 +3271,8 @@ export default function VerifyPage() {
                 )}
               />
             </Card>
-          ) : !hash && !signature ? (
-            <Card>
+) : !hash && !signature && evidenceItems.length === 0 && !overview && !humanSummary ? (
+              <Card>
               <EmptyState
                 title="Evidence Not Found"
                 subtitle="The evidence token is invalid, unavailable, or no verification materials were returned."
