@@ -258,7 +258,7 @@ export async function processOtsUpgrade(job: Job<{ evidenceId: string }>) {
       });
 
       await enqueueOtsUpgradeJob(evidenceId, {
-        delayMs: 6 * 60 * 60 * 1000,
+delayMs: 60 * 60 * 1000,
         jobId: buildFollowUpJobId(evidenceId, upgradedAt),
         excludeJobId: job.id,
       });
