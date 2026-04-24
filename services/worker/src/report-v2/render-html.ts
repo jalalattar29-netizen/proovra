@@ -5,7 +5,9 @@ import { renderExecutiveSummarySection } from "./sections/executive-summary.js";
 import { renderGallerySection } from "./sections/gallery.js";
 import { renderIntegrityProofSection } from "./sections/integrity-proof.js";
 import { renderCustodySection } from "./sections/custody.js";
+import { renderCustodyHashChainSection } from "./sections/custody-hash-chain.js";
 import { renderForensicIntegrityStatementSection } from "./sections/forensic-integrity-statement.js";
+import { renderLegalInterpretationSection } from "./sections/legal-interpretation.js";
 import { renderTechnicalAppendixSection } from "./sections/technical-appendix.js";
 
 export function renderReportHtml(vm: ReportViewModel): string {
@@ -14,8 +16,10 @@ export function renderReportHtml(vm: ReportViewModel): string {
     renderExecutiveSummarySection(vm),
     renderGallerySection(vm),
     renderCustodySection(vm),
+    renderCustodyHashChainSection(vm),
     renderIntegrityProofSection(vm),
     renderForensicIntegrityStatementSection(vm),
+    renderLegalInterpretationSection(vm),
     renderTechnicalAppendixSection(vm),
   ]
     .filter(Boolean)

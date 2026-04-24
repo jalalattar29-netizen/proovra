@@ -1,4 +1,3 @@
-// D:\digital-witness\services\worker\src\report-v2\sections\gallery.ts
 import {
   PresentationEvidenceItem,
   ReportEvidenceAsset,
@@ -8,14 +7,76 @@ import { escapeHtml, safe } from "../formatters.js";
 import { renderCallout, renderPageSection } from "../ui.js";
 
 function buildAssetName(asset: ReportEvidenceAsset): string {
-  return safe(asset.originalFileName, "") || safe(asset.label, "Unnamed evidence item");
+  return (
+    safe(asset.originalFileName, "") ||
+    safe(asset.label, "Unnamed evidence item")
+  );
+}
+
+function mediaKindLabel(item: PresentationEvidenceItem): string {
+  switch (item.previewRenderKind) {
+    case "video":
+      return "Video Evidence";
+    case "audio":
+      return "Audio Evidence";
+    case "document":
+      return "Document Evidence";
+    case "text":
+      return "Text Evidence";
+    case "image":
+      return "Image Evidence";
+    default:
+      return "Evidence Item";
+  }
+}
+
+function renderMediaOverlay(item: PresentationEvidenceItem): string {
+  if (item.previewRenderKind === "video") {
+    return `
+      <div class="gallery-media-overlay" aria-hidden="true">
+        <div class="gallery-play-icon"></div>
+        <div class="gallery-media-badge">Video</div>
+      </div>
+    `;
+  }
+
+  if (item.previewRenderKind === "audio") {
+    return `
+      <div class="gallery-media-overlay" aria-hidden="true">
+        <div class="gallery-audio-icon">
+          <span></span><span></span><span></span><span></span><span></span>
+        </div>
+        <div class="gallery-media-badge">Audio</div>
+      </div>
+    `;
+  }
+
+  if (item.previewRenderKind === "document" || item.previewRenderKind === "text") {
+    return `
+      <div class="gallery-media-overlay" aria-hidden="true">
+        <div class="gallery-document-icon">
+          <span class="gallery-document-fold"></span>
+          <span class="gallery-document-line"></span>
+          <span class="gallery-document-line"></span>
+          <span class="gallery-document-line short"></span>
+        </div>
+        <div class="gallery-media-badge">${
+          item.previewRenderKind === "text" ? "Text" : "Document"
+        }</div>
+      </div>
+    `;
+  }
+
+  return "";
 }
 
 function renderGalleryMetaRow(label: string, value: string): string {
   return `
     <div class="gallery-meta-row">
       <div class="gallery-meta-label">${escapeHtml(label)}</div>
-      <div class="gallery-meta-value${label === "SHA-256" ? " hash-text" : ""}">${escapeHtml(value)}</div>
+      <div class="gallery-meta-value${label === "SHA-256" ? " hash-text" : ""}">
+        ${escapeHtml(value)}
+      </div>
     </div>
   `;
 }
@@ -27,89 +88,97 @@ function renderPreviewMedia(
   const asset = item.asset;
   const fileName = buildAssetName(asset);
   const emphasisClass = opts?.emphasis ? " gallery-thumb-emphasis" : "";
+  const overlay = renderMediaOverlay(item);
 
   if (asset.previewDataUrl) {
     return `
-      <div class="gallery-thumb${emphasisClass}">
+      <div class="gallery-thumb${emphasisClass} gallery-thumb-kind-${escapeHtml(
+        item.previewRenderKind
+      )}">
         <img src="${asset.previewDataUrl}" alt="${escapeHtml(fileName)}" />
+        ${overlay}
       </div>
     `;
   }
 
   if (item.previewRenderKind === "text" && asset.previewTextExcerpt) {
     return `
-      <div class="gallery-thumb gallery-thumb-text${emphasisClass}">
+      <div class="gallery-thumb gallery-thumb-text${emphasisClass} gallery-thumb-kind-text">
         <div class="gallery-thumb-text-inner">
           <div class="gallery-thumb-text-title">Recorded text excerpt</div>
-          <div class="gallery-thumb-text-body">${escapeHtml(asset.previewTextExcerpt)}</div>
+          <div class="gallery-thumb-text-body">${escapeHtml(
+            asset.previewTextExcerpt
+          )}</div>
         </div>
+        ${overlay}
       </div>
     `;
   }
 
-  const title =
-    item.previewRenderKind === "document"
-      ? "Document Evidence"
-      : item.previewRenderKind === "video"
-        ? "Video Evidence"
-        : item.previewRenderKind === "audio"
-          ? "Audio Evidence"
-          : "Evidence Item";
-
-  const note =
-    item.previewRenderKind === "document"
-      ? "Document preserved in the evidence package. Full document review belongs in the verification workflow or original package."
-      : item.previewRenderKind === "video"
-        ? "Video preserved in the evidence package. Playback remains controlled through the verification workflow."
-        : item.previewRenderKind === "audio"
-          ? "Audio preserved in the evidence package. Listening review remains controlled through the verification workflow."
-          : "This item is represented by identity, format, digest, and custody references.";
-
   return `
-    <div class="gallery-thumb${emphasisClass}">
+    <div class="gallery-thumb${emphasisClass} gallery-thumb-kind-${escapeHtml(
+      item.previewRenderKind
+    )}">
       <div class="gallery-thumb-placeholder">
-        <div class="gallery-thumb-placeholder-title">${escapeHtml(title)}</div>
-        <div class="gallery-thumb-placeholder-note">${escapeHtml(note)}</div>
+        <div class="gallery-thumb-placeholder-title">${escapeHtml(
+          mediaKindLabel(item)
+        )}</div>
+        <div class="gallery-thumb-placeholder-note">
+          Preserved original content is represented through recorded metadata, digest references, and the verification workflow.
+        </div>
       </div>
+      ${overlay}
     </div>
   `;
 }
 
-function renderPreviewCard(
-  item: PresentationEvidenceItem,
-  opts?: { emphasize?: boolean; roleLabel?: string }
-): string {
+function renderPrimaryEvidenceCard(item: PresentationEvidenceItem): string {
   const asset = item.asset;
   const fileName = buildAssetName(asset);
-  const roleLabel =
-    opts?.roleLabel ??
-    (asset.isPrimary ? "Primary evidence item" : "Supporting evidence item");
 
   return `
-    <article class="gallery-card${opts?.emphasize ? " gallery-card-emphasis" : ""}">
-      <div class="gallery-card-header">
-        <div class="gallery-card-topline">
-          <div class="gallery-card-index">Item ${asset.index + 1}</div>
-          <div class="gallery-card-role">${escapeHtml(roleLabel)}</div>
+    <article class="primary-evidence-card">
+      <div class="primary-evidence-preview">
+        ${renderPreviewMedia(item, { emphasis: true })}
+        <div class="primary-evidence-caption">
+          Primary Preserved Evidence Item
         </div>
-        <div class="gallery-card-file-name">${escapeHtml(fileName)}</div>
-        ${
-          asset.label && asset.label !== fileName
-            ? `<div class="gallery-card-display-label">${escapeHtml(asset.label)}</div>`
-            : ""
-        }
       </div>
 
-      ${renderPreviewMedia(item, { emphasis: opts?.emphasize })}
-
-      <div class="gallery-card-meta">
-        ${renderGalleryMetaRow("Type", safe(asset.kind, "Not recorded"))}
+      <div class="primary-evidence-details">
+        ${renderGalleryMetaRow("File", fileName)}
+        ${renderGalleryMetaRow("Type", mediaKindLabel(item))}
         ${renderGalleryMetaRow("Format", safe(asset.mimeType, "N/A"))}
         ${renderGalleryMetaRow("Size", safe(asset.displaySizeLabel, "N/A"))}
         ${renderGalleryMetaRow(
           "Access",
-          asset.downloadable ? "Downloadable under policy" : "Restricted under policy"
+          asset.downloadable
+            ? "Downloadable under policy"
+            : "Restricted under policy"
         )}
+        ${renderGalleryMetaRow("SHA-256", asset.sha256 ?? "Not recorded")}
+      </div>
+    </article>
+  `;
+}
+
+function renderSupportingCard(item: PresentationEvidenceItem): string {
+  const asset = item.asset;
+  const fileName = buildAssetName(asset);
+
+  return `
+    <article class="gallery-card">
+      <div class="gallery-card-header">
+        <div class="gallery-card-file-name">${escapeHtml(fileName)}</div>
+        <div class="gallery-card-role">${escapeHtml(mediaKindLabel(item))}</div>
+      </div>
+
+      ${renderPreviewMedia(item)}
+
+      <div class="gallery-card-meta gallery-card-meta-compact">
+        ${renderGalleryMetaRow("Type", mediaKindLabel(item))}
+        ${renderGalleryMetaRow("Format", safe(asset.mimeType, "N/A"))}
+        ${renderGalleryMetaRow("Size", safe(asset.displaySizeLabel, "N/A"))}
         ${renderGalleryMetaRow("SHA-256", asset.sha256 ?? "Not recorded")}
       </div>
     </article>
@@ -128,7 +197,7 @@ function renderMetadataOnlyCard(item: PresentationEvidenceItem): string {
         <div class="gallery-meta-value">Metadata-only in PDF</div>
 
         <div class="gallery-meta-label">Type</div>
-        <div class="gallery-meta-value">${escapeHtml(safe(asset.kind, "Not recorded"))}</div>
+        <div class="gallery-meta-value">${escapeHtml(mediaKindLabel(item))}</div>
 
         <div class="gallery-meta-label">Format</div>
         <div class="gallery-meta-value">${escapeHtml(safe(asset.mimeType, "N/A"))}</div>
@@ -137,7 +206,9 @@ function renderMetadataOnlyCard(item: PresentationEvidenceItem): string {
         <div class="gallery-meta-value">${escapeHtml(safe(asset.displaySizeLabel, "N/A"))}</div>
 
         <div class="gallery-meta-label">SHA-256</div>
-        <div class="gallery-meta-value hash-text">${escapeHtml(asset.sha256 ?? "Not recorded")}</div>
+        <div class="gallery-meta-value hash-text">${escapeHtml(
+          asset.sha256 ?? "Not recorded"
+        )}</div>
       </div>
     </article>
   `;
@@ -150,21 +221,13 @@ export function renderGallerySection(vm: ReportViewModel): string {
   if (!heroItem && buckets.metadataOnlyItems.length === 0) return "";
 
   return renderPageSection(
-    "Evidence Presentation",
+    "Primary Evidence",
     `
-      <div class="evidence-strip">
-        <strong>Reviewer orientation.</strong>
-        Visual previews support human review only. The preserved original file, digest, custody chain, timestamp state, and storage controls remain the authoritative verification materials.
-      </div>
-
       ${
         heroItem
           ? `
-            <div class="gallery-primary">
-              ${renderPreviewCard(heroItem, {
-                emphasize: true,
-                roleLabel: "Lead review item",
-              })}
+            <div class="primary-evidence-layout">
+              ${renderPrimaryEvidenceCard(heroItem)}
             </div>
           `
           : ""
@@ -174,13 +237,15 @@ export function renderGallerySection(vm: ReportViewModel): string {
         buckets.supportingPreviewItems.length > 0
           ? `
             ${renderCallout({
-              title: "Supporting evidence items",
+              title: "Supporting evidence gallery",
               body:
-                "Additional previewable items are listed with their recorded identifiers and digest references. These previews do not replace the preserved originals.",
+                "Supporting previews are reviewer-facing representations only. The preserved originals, recorded hashes, custody chain, timestamp state, and verification workflow remain authoritative.",
               tone: "neutral",
             })}
             <div class="gallery-support-grid support-grid">
-              ${buckets.supportingPreviewItems.map((item) => renderPreviewCard(item)).join("")}
+              ${buckets.supportingPreviewItems
+                .map((item) => renderSupportingCard(item))
+                .join("")}
             </div>
           `
           : ""

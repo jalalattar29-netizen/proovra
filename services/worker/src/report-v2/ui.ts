@@ -199,12 +199,14 @@ export function renderCustodyHashTable(rows: CustodyHashRow[]): string {
   if (rows.length === 0) return "";
 
   return `
-    <table class="report-table custody-hash-table">
+    <table class="report-table custody-hash-table custody-hash-chain-table">
       <thead>
         <tr>
-          <th style="width: 8%">Seq</th>
-          <th style="width: 46%">Previous Event Hash</th>
-          <th style="width: 46%">Event Hash</th>
+          <th style="width: 6%">Seq</th>
+          <th style="width: 16%">At (UTC)</th>
+          <th style="width: 20%">Event</th>
+          <th style="width: 29%">Prev Event Hash</th>
+          <th style="width: 29%">Event Hash</th>
         </tr>
       </thead>
       <tbody>
@@ -213,8 +215,10 @@ export function renderCustodyHashTable(rows: CustodyHashRow[]): string {
             (row) => `
               <tr>
                 <td>${escapeHtml(row.sequence)}</td>
-                <td><span class="hash-text">${escapeHtml(row.prevEventHash)}</span></td>
-                <td><span class="hash-text">${escapeHtml(row.eventHash)}</span></td>
+                <td>${escapeHtml(row.atUtc)}</td>
+                <td>${escapeHtml(row.eventLabel)}</td>
+                <td><span class="hash-text">${escapeHtml(row.prevEventHash || "N/A")}</span></td>
+                <td><span class="hash-text">${escapeHtml(row.eventHash || "N/A")}</span></td>
               </tr>
             `
           )

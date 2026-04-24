@@ -1,60 +1,65 @@
 import { ReportViewModel } from "../types.js";
 import {
   renderCallout,
-  renderCustodyHashTable,
   renderKeyValueGrid,
   renderMonoBlock,
   renderPageSection,
 } from "../ui.js";
 import { escapeHtml } from "../formatters.js";
-import { renderLegalLimitationsBlock } from "./legal-limitations.js";
+
+function renderAppendixSection(title: string, subtitle: string, body: string): string {
+  return `
+    <section class="technical-appendix-block">
+      <div class="technical-appendix-block-head">
+        <h3 class="technical-appendix-block-title">${escapeHtml(title)}</h3>
+        <div class="technical-appendix-block-subtitle">${escapeHtml(subtitle)}</div>
+      </div>
+      <div class="technical-appendix-block-body">
+        ${body}
+      </div>
+    </section>
+  `;
+}
 
 function renderTechnicalStatusCards(vm: ReportViewModel): string {
   const timestampTone = vm.technicalAppendix.timestampStatusTone ?? "neutral";
   const otsTone = vm.technicalAppendix.otsStatusTone ?? "neutral";
 
   return `
-    <div class="technical-status-grid">
-      <article class="technical-status-card tone-${timestampTone}">
-        <div class="technical-status-kicker">RFC 3161</div>
-        <div class="technical-status-title">Timestamp Status</div>
-        <div class="technical-status-value">${escapeHtml(
-          vm.technicalAppendix.timestampStatusLabel
-        )}</div>
-        <div class="technical-status-note">
-          Trusted timestamp issuance and verification state as recorded in the evidence record.
+    <div class="technical-verification-strip">
+      <article class="technical-verification-card tone-${timestampTone}">
+        <div class="technical-verification-kicker">RFC 3161</div>
+        <div class="technical-verification-title">Trusted Timestamp</div>
+        <div class="technical-verification-value">${escapeHtml(vm.technicalAppendix.timestampStatusLabel)}</div>
+        <div class="technical-verification-note">
+          External timestamp state recorded for the preserved evidence digest.
         </div>
       </article>
 
-      <article class="technical-status-card tone-${otsTone}">
-        <div class="technical-status-kicker">Anchoring</div>
-        <div class="technical-status-title">Publication Status</div>
-        <div class="technical-status-value">${escapeHtml(
-          vm.technicalAppendix.otsStatusLabel
-        )}</div>
-        <div class="technical-status-note">
-          OpenTimestamps and external anchoring state for the recorded evidence digest.
+      <article class="technical-verification-card tone-${otsTone}">
+        <div class="technical-verification-kicker">Anchoring</div>
+        <div class="technical-verification-title">Public Anchoring</div>
+        <div class="technical-verification-value">${escapeHtml(vm.technicalAppendix.otsStatusLabel)}</div>
+        <div class="technical-verification-note">
+          OpenTimestamps or external publication state for the recorded digest.
         </div>
       </article>
     </div>
   `;
 }
 
-function renderVerificationLinkPanel(vm: ReportViewModel): string {
+function renderVerificationAccess(vm: ReportViewModel): string {
   return `
-    <div class="verification-link-panel">
-      <div class="verification-link-panel-label">Technical Verification Access</div>
-      <div class="verification-link-panel-value">${escapeHtml(vm.technicalUrl)}</div>
+    <div class="technical-access-panel">
+      <div>
+        <div class="technical-access-kicker">Technical Verification Access</div>
+        <div class="technical-access-title">Independent verification endpoint</div>
+        <div class="technical-access-copy">
+          Reviewers can use this endpoint to inspect the verification materials, public status, and technical references connected to this evidence record.
+        </div>
+      </div>
+      <div class="technical-access-url">${escapeHtml(vm.technicalUrl)}</div>
     </div>
-  `;
-}
-
-function renderAppendixSection(title: string, body: string): string {
-  return `
-    <section class="appendix-section">
-      <h3 class="appendix-section-title">${escapeHtml(title)}</h3>
-      ${body}
-    </section>
   `;
 }
 
@@ -65,118 +70,112 @@ export function renderTechnicalAppendixSection(vm: ReportViewModel): string {
   return renderPageSection(
     "Technical Appendix",
     `
-      ${renderCallout({
-        title: "Appendix scope",
-        body:
-          "This appendix preserves exact technical references for audit and independent verification. It intentionally avoids repeating the human summary and decision-page narrative.",
-        tone: "neutral",
-      })}
+      <div class="technical-appendix-page">
+        ${renderCallout({
+          title: "Technical appendix scope",
+          body:
+            "This appendix preserves exact technical references for audit and independent verification. Human interpretation, legal posture, and custody chronology are kept in their own sections so this appendix remains a structured technical reference.",
+          tone: "neutral",
+        })}
 
-      ${renderVerificationLinkPanel(vm)}
+        ${renderVerificationAccess(vm)}
 
-      ${renderTechnicalStatusCards(vm)}
+        ${renderTechnicalStatusCards(vm)}
 
-      ${renderAppendixSection(
-        "Identity",
-        renderKeyValueGrid(vm.technicalIdentityRows)
-      )}
+        ${renderAppendixSection(
+          "Identity & Provenance",
+          "Who submitted the evidence, which identity level was recorded, and what workspace or organization context exists.",
+          renderKeyValueGrid(vm.technicalIdentityRows)
+        )}
 
-      ${renderAppendixSection(
-        "Fingerprint",
-        `
-          ${renderCallout({
-            title: "Fingerprint summary",
-            body: vm.technicalFingerprintNarrative,
-            tone: "neutral",
-          })}
-          ${renderKeyValueGrid(vm.technicalAppendix.fingerprintRows)}
-          ${renderMonoBlock("File SHA-256", vm.technicalAppendix.fileSha256)}
-          ${renderMonoBlock(
-            "Fingerprint Hash",
-            vm.technicalAppendix.fingerprintHash
-          )}
-        `
-      )}
+        ${renderAppendixSection(
+          "Cryptographic Fingerprint",
+          "Primary digest and canonical fingerprint references used to identify the preserved evidence state.",
+          `
+            ${renderCallout({
+              title: "Fingerprint interpretation",
+              body: vm.technicalFingerprintNarrative,
+              tone: "neutral",
+            })}
+            ${renderKeyValueGrid(vm.technicalAppendix.fingerprintRows)}
+            <div class="technical-mono-grid">
+              ${renderMonoBlock("File SHA-256", vm.technicalAppendix.fileSha256)}
+              ${renderMonoBlock("Fingerprint Hash", vm.technicalAppendix.fingerprintHash)}
+            </div>
+          `
+        )}
 
-      ${
-        compact
-          ? ""
-          : renderAppendixSection(
-              "Signature",
-              `
-                ${renderKeyValueGrid(vm.technicalAppendix.signatureRows)}
-                ${renderCallout({
-                  title: "Signature material handling",
-                  body: vm.technicalAppendix.signatureReferenceNote,
-                  tone: "neutral",
-                })}
-              `
-            )
-      }
+        ${
+          compact
+            ? ""
+            : renderAppendixSection(
+                "Digital Signature",
+                "Signature and signing-key references used for independent verification of the recorded evidence state.",
+                `
+                  ${renderKeyValueGrid(vm.technicalAppendix.signatureRows)}
+                  ${renderCallout({
+                    title: "Signature material handling",
+                    body: vm.technicalAppendix.signatureReferenceNote,
+                    tone: "neutral",
+                  })}
+                `
+              )
+        }
 
-      ${renderAppendixSection(
-        "Timestamp",
-        `
-          ${renderKeyValueGrid(vm.technicalAppendix.timestampRows)}
-          ${
-            vm.technicalAppendix.tsaMessageImprint
-              ? renderMonoBlock(
-                  "TSA Message Imprint",
-                  vm.technicalAppendix.tsaMessageImprint
-                )
-              : ""
-          }
-        `
-      )}
+        ${renderAppendixSection(
+          "Trusted Timestamp",
+          "RFC 3161 timestamp metadata and message-imprint reference recorded for the evidence digest.",
+          `
+            ${renderKeyValueGrid(vm.technicalAppendix.timestampRows)}
+            ${
+              vm.technicalAppendix.tsaMessageImprint
+                ? renderMonoBlock("TSA Message Imprint", vm.technicalAppendix.tsaMessageImprint)
+                : ""
+            }
+            ${renderCallout({
+              title: "Timestamp material handling",
+              body: vm.technicalAppendix.timestampReferenceNote,
+              tone: "neutral",
+            })}
+          `
+        )}
 
-      ${renderAppendixSection(
-        "Anchoring",
-        `
-          ${renderKeyValueGrid(vm.technicalAppendix.anchoringRows)}
-          ${
-            vm.technicalAppendix.otsHash
-              ? renderMonoBlock("OTS Hash", vm.technicalAppendix.otsHash)
-              : ""
-          }
-          ${
-            vm.technicalAppendix.anchorHash
-              ? renderMonoBlock("Anchor Hash", vm.technicalAppendix.anchorHash)
-              : ""
-          }
-          ${
-            vm.technicalAppendix.otsDetail
-              ? renderCallout({
-                  title: "Anchoring detail",
-                  body: vm.technicalAppendix.otsDetail,
-                  tone: "warning",
-                })
-              : ""
-          }
-        `
-      )}
+        ${renderAppendixSection(
+          "Anchoring & Publication",
+          "OpenTimestamps and external anchoring references connected to the recorded digest state.",
+          `
+            ${renderKeyValueGrid(vm.technicalAppendix.anchoringRows)}
+            <div class="technical-mono-grid">
+              ${
+                vm.technicalAppendix.otsHash
+                  ? renderMonoBlock("OTS Hash", vm.technicalAppendix.otsHash)
+                  : ""
+              }
+              ${
+                vm.technicalAppendix.anchorHash
+                  ? renderMonoBlock("Anchor Hash", vm.technicalAppendix.anchorHash)
+                  : ""
+              }
+            </div>
+            ${renderCallout({
+              title: "Anchoring material handling",
+              body: vm.technicalAppendix.anchoringReferenceNote,
+              tone: "neutral",
+            })}
+            ${
+              vm.technicalAppendix.otsDetail
+                ? renderCallout({
+                    title: "Anchoring detail",
+                    body: vm.technicalAppendix.otsDetail,
+                    tone: "warning",
+                  })
+                : ""
+            }
+          `
+        )}
 
-      ${
-        vm.custodyHashRows.length > 0
-          ? renderAppendixSection(
-              "Custody Hash Chain",
-              `
-                ${renderCallout({
-                  title: "Audit hash-chain detail",
-                  body:
-                    "This table preserves the previous-event hash and event-hash relationship for forensic custody events. It is kept in the appendix so the main custody narrative remains readable.",
-                  tone: "neutral",
-                })}
-                ${renderCustodyHashTable(vm.custodyHashRows)}
-              `
-            )
-          : ""
-      }
-
-      ${renderAppendixSection(
-        "Legal Boundary",
-        renderLegalLimitationsBlock(vm)
-      )}
+      </div>
     `,
-    { pageBreakBefore: true }
+    { pageBreakBefore: true, className: "technical-appendix-section" }
   );
 }

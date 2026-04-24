@@ -1,9 +1,8 @@
 import { ReportViewModel } from "../types.js";
-import {
-  renderCallout,
-  renderKeyValueGrid,
-  renderPageSection,
-} from "../ui.js";
+import { escapeHtml } from "../formatters.js";
+import { renderCallout, renderPageSection } from "../ui.js";
+
+type IntegrityTone = "success" | "warning" | "danger" | "neutral";
 
 function findRowValue(
   rows: Array<{ label: string; value: string }>,
@@ -13,27 +12,73 @@ function findRowValue(
   return rows.find((row) => row.label === label)?.value ?? fallback;
 }
 
-function toneFromValue(value: string, positiveWords: string[]) {
+function toneFromValue(
+  value: string,
+  positiveWords: string[],
+  warningWords: string[] = ["pending", "review", "not fully", "not recorded"]
+): IntegrityTone {
   const normalized = value.toLowerCase();
-  return positiveWords.some((word) => normalized.includes(word))
-    ? "success"
-    : "warning";
+
+  if (
+    normalized.includes("failed") ||
+    normalized.includes("incomplete") ||
+    normalized.includes("invalid") ||
+    normalized.includes("error")
+  ) {
+    return "danger";
+  }
+
+  if (positiveWords.some((word) => normalized.includes(word))) {
+    return "success";
+  }
+
+  if (warningWords.some((word) => normalized.includes(word))) {
+    return "warning";
+  }
+
+  return "neutral";
 }
 
-function renderIntegrityControlCard(params: {
-  kicker: string;
-  title: string;
+function renderIntegrityCheckRow(params: {
+  label: string;
   value: string;
-  note: string;
-  tone: "success" | "warning" | "danger" | "neutral";
+  explanation: string;
+  tone: IntegrityTone;
 }): string {
+  const mark =
+    params.tone === "success"
+      ? "✓"
+      : params.tone === "danger"
+        ? "!"
+        : params.tone === "warning"
+          ? "!"
+          : "i";
+
   return `
-    <article class="integrity-control-card tone-${params.tone}">
-      <div class="integrity-control-kicker">${params.kicker}</div>
-      <div class="integrity-control-title">${params.title}</div>
-      <div class="integrity-control-value">${params.value}</div>
-      <div class="integrity-control-note">${params.note}</div>
-    </article>
+    <div class="integrity-check-row integrity-check-${params.tone}">
+      <div class="integrity-check-mark">${escapeHtml(mark)}</div>
+      <div class="integrity-check-content">
+        <div class="integrity-check-top">
+          <div class="integrity-check-label">${escapeHtml(params.label)}</div>
+          <div class="integrity-check-value">${escapeHtml(params.value)}</div>
+        </div>
+        <div class="integrity-check-explanation">${escapeHtml(params.explanation)}</div>
+      </div>
+    </div>
+  `;
+}
+
+function renderIntegrityResultPill(vm: ReportViewModel): string {
+  const tone = vm.integrityVerified ? "success" : "warning";
+  const value = vm.integrityVerified
+    ? "VERIFIED RECORDED INTEGRITY"
+    : "TECHNICAL REVIEW REQUIRED";
+
+  return `
+    <div class="integrity-result-pill integrity-result-${tone}">
+      <span>${vm.integrityVerified ? "✓" : "!"}</span>
+      ${escapeHtml(value)}
+    </div>
   `;
 }
 
@@ -47,136 +92,166 @@ export function renderIntegrityProofSection(vm: ReportViewModel): string {
     "Signature Materials"
   );
 
-  const integrityRows = vm.verificationSummaryRows.filter((row) =>
-    [
-      "Integrity State",
-      "Signature Materials",
-      "Timestamp Status",
-      "Anchoring Status",
-      "Storage Lock Mode",
-      "Retention Until (UTC)",
-      "Forensic Custody Events",
-      "Last Verified At (UTC)",
-      "Last Verified Source",
-    ].includes(row.label)
+  const integrityState = findRowValue(
+    vm.verificationSummaryRows,
+    "Integrity State",
+    vm.verificationStatusLabel
   );
 
-  const stateCallout = vm.meta.hasCoreCrypto
-    ? renderCallout({
-        title: "Core verification materials present",
-        body:
-          "The report payload includes the recorded file digest, canonical fingerprint hash, signature reference, signing-key reference, timestamp state, storage state, and anchoring state required for technical review.",
-        tone: "success",
-      })
-    : renderCallout({
-        title: "Incomplete verification materials",
-        body:
-          "One or more core verification materials were not present in the report payload. Review should proceed with caution and the verification endpoint should be inspected.",
-        tone: "danger",
-      });
+  const storageLockMode = findRowValue(
+    vm.verificationSummaryRows,
+    "Storage Lock Mode"
+  );
+
+  const retentionUntil = findRowValue(
+    vm.verificationSummaryRows,
+    "Retention Until (UTC)"
+  );
+
+  const lastVerifiedAt = findRowValue(
+    vm.verificationSummaryRows,
+    "Last Verified At (UTC)"
+  );
+
+  const forensicEvents =
+    vm.forensicRows.length > 0
+      ? `${vm.forensicRows.length} forensic event${
+          vm.forensicRows.length === 1 ? "" : "s"
+        }`
+      : "No forensic custody events";
+
+  const coreMaterialTone: IntegrityTone = vm.meta.hasCoreCrypto
+    ? "success"
+    : "danger";
 
   return renderPageSection(
-    "Integrity & Preservation",
+    "Integrity & Verification Summary",
     `
-      ${renderCallout({
-        title: "Technical control summary",
-        body:
-          "This page consolidates the integrity and preservation controls that matter for fast review. Full hashes, timestamp identifiers, anchoring values, and audit references remain in the Technical Appendix.",
-        tone: "neutral",
-      })}
+      <div class="integrity-summary-page">
+        <div class="integrity-summary-intro">
+          <div>
+            <div class="integrity-summary-kicker">Recorded preservation controls</div>
+            <div class="integrity-summary-title">
+              Technical integrity signals for reviewer assessment
+            </div>
+            <div class="integrity-summary-copy">
+              This page summarizes the controls used to evaluate the recorded evidence state.
+              It is a reviewer-facing checklist, not a substitute for the preserved original,
+              full hashes, signature material, timestamp token, custody records, or legal review.
+            </div>
+          </div>
+          ${renderIntegrityResultPill(vm)}
+        </div>
 
-      <div class="integrity-control-grid">
-        ${renderIntegrityControlCard({
-          kicker: "Integrity",
-          title: "Recorded Integrity State",
-          value: vm.integrityVerified ? "Verified" : "Review required",
-          note:
-            "Represents whether the recorded technical integrity state passed at report generation time.",
-          tone: vm.integrityVerified ? "success" : "warning",
-        })}
+        <div class="integrity-check-list">
+          ${renderIntegrityCheckRow({
+            label: "File Hash",
+            value: vm.meta.primaryHash || "Not recorded",
+            explanation:
+              "Recorded SHA-256 digest for comparing the preserved file or lead evidence item against the report.",
+            tone: vm.meta.primaryHash && vm.meta.primaryHash !== "N/A" ? "success" : "danger",
+          })}
 
-        ${renderIntegrityControlCard({
-          kicker: "Signature",
-          title: "Signature Materials",
-          value: signatureStatus,
-          note:
-            "Indicates whether signature and signing-key references are present for independent verification.",
-          tone:
-            signatureStatus.toLowerCase().includes("recorded") ||
-            signatureStatus.toLowerCase().includes("present")
-              ? "success"
-              : "warning",
-        })}
+          ${renderIntegrityCheckRow({
+            label: "Digital Signature",
+            value: signatureStatus,
+            explanation:
+              "Signature material and signing-key references support independent validation of the recorded integrity package.",
+            tone: toneFromValue(signatureStatus, ["recorded", "present"]),
+          })}
 
-        ${renderIntegrityControlCard({
-          kicker: "RFC 3161",
-          title: "Trusted Timestamp",
-          value: timestampStatus,
-          note:
-            "Timestamp status shows whether an external time reference was recorded for the evidence state.",
-          tone: toneFromValue(timestampStatus, [
-            "recorded",
-            "granted",
-            "verified",
-            "valid",
-          ]),
-        })}
+          ${renderIntegrityCheckRow({
+            label: "Trusted Timestamp",
+            value: timestampStatus,
+            explanation:
+              "RFC 3161 timestamp status records whether an external time reference exists for the evidence state.",
+            tone: toneFromValue(timestampStatus, [
+              "recorded",
+              "granted",
+              "verified",
+              "valid",
+              "trusted timestamp",
+            ]),
+          })}
 
-        ${renderIntegrityControlCard({
-          kicker: "Storage",
-          title: "Immutable Storage",
-          value: storageStatus,
-          note:
-            "Storage protection records whether immutable/object-lock controls were available for the preserved artifact state.",
-          tone: toneFromValue(storageStatus, [
-            "verified",
-            "protected",
-            "compliance",
-            "governance",
-          ]),
-        })}
+          ${renderIntegrityCheckRow({
+            label: "Immutable Storage",
+            value: storageStatus,
+            explanation:
+              "Storage controls indicate whether object-lock or immutable-style preservation was recorded for the artifact state.",
+            tone: toneFromValue(storageStatus, [
+              "verified",
+              "protected",
+              "immutable",
+              "compliance",
+              "governance",
+            ]),
+          })}
 
-        ${renderIntegrityControlCard({
-          kicker: "Anchoring",
-          title: "Public Anchoring",
-          value: anchoringStatus,
-          note:
-            "Anchoring links the recorded digest state to an external publication or OpenTimestamps workflow when available.",
-          tone: toneFromValue(anchoringStatus, [
-            "anchored",
-            "recorded",
-            "published",
-            "verified",
-            "pending",
-          ]),
-        })}
+          ${renderIntegrityCheckRow({
+            label: "Public Anchoring",
+            value: anchoringStatus,
+            explanation:
+              "Anchoring records whether OpenTimestamps or external publication proof is available or still pending.",
+            tone: toneFromValue(
+              anchoringStatus,
+              ["anchored", "published", "verified"],
+              ["pending", "configured", "not recorded"]
+            ),
+          })}
 
-        ${renderIntegrityControlCard({
-          kicker: "Custody",
-          title: "Forensic Events",
-          value:
-            vm.forensicRows.length > 0
-              ? `${vm.forensicRows.length} forensic event${
-                  vm.forensicRows.length === 1 ? "" : "s"
-                }`
-              : "No forensic custody events",
-          note:
-            "Custody events are presented chronologically in the Chain of Custody section.",
-          tone: vm.forensicRows.length > 0 ? "success" : "warning",
+          ${renderIntegrityCheckRow({
+            label: "Chain of Custody",
+            value: forensicEvents,
+            explanation:
+              "Forensic custody events are recorded separately from access activity and shown chronologically in the custody section.",
+            tone: vm.forensicRows.length > 0 ? "success" : "warning",
+          })}
+
+          ${renderIntegrityCheckRow({
+            label: "Core Verification Materials",
+            value: vm.meta.hasCoreCrypto ? "Present" : "Incomplete",
+            explanation:
+              "Core materials include file digest, fingerprint hash, signature reference, signing key, timestamp state, storage state, and anchoring state.",
+            tone: coreMaterialTone,
+          })}
+
+          ${renderIntegrityCheckRow({
+            label: "Overall Recorded Integrity",
+            value: integrityState,
+            explanation:
+              "This is the recorded integrity outcome at report generation time. Legal meaning and evidentiary weight remain separate questions.",
+            tone: vm.integrityVerified ? "success" : "warning",
+          })}
+        </div>
+
+        <div class="integrity-detail-grid">
+          <div class="integrity-detail-card">
+            <div class="integrity-detail-label">Storage Lock Mode</div>
+            <div class="integrity-detail-value">${escapeHtml(storageLockMode)}</div>
+          </div>
+          <div class="integrity-detail-card">
+            <div class="integrity-detail-label">Retention Until UTC</div>
+            <div class="integrity-detail-value">${escapeHtml(retentionUntil)}</div>
+          </div>
+          <div class="integrity-detail-card">
+            <div class="integrity-detail-label">Last Verified At UTC</div>
+            <div class="integrity-detail-value">${escapeHtml(lastVerifiedAt)}</div>
+          </div>
+          <div class="integrity-detail-card">
+            <div class="integrity-detail-label">Verification Source</div>
+            <div class="integrity-detail-value">${escapeHtml(vm.meta.lastVerifiedSourceLabel)}</div>
+          </div>
+        </div>
+
+        ${renderCallout({
+          title: "Important boundary",
+          body:
+            "Integrity, timestamping, immutable storage, custody records, and anchoring help verify the recorded preservation state. They do not independently prove factual truth, authorship, context, intent, relevance, evidentiary weight, or legal admissibility.",
+          tone: "warning",
         })}
       </div>
-
-      ${renderKeyValueGrid(integrityRows)}
-
-      ${renderCallout({
-        title: "Important boundary",
-        body:
-          "Integrity, timestamping, storage protection, and anchoring help verify the recorded preservation state. They do not independently prove factual truth, authorship, context, or admissibility.",
-        tone: "neutral",
-      })}
-
-      ${stateCallout}
     `,
-    { pageBreakBefore: true }
+    { pageBreakBefore: true, className: "integrity-summary-section" }
   );
 }
