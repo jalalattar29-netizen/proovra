@@ -11,7 +11,7 @@ export function renderForensicIntegrityStatementSection(
   const compact = vm.presentation.decisions.compactForensicStatement;
 
   return renderPageSection(
-    "Forensic Integrity Statement",
+    "Reviewer Verification Workflow",
     `
       ${renderCallout({
         title: vm.forensicIntegrityStatement.introLead,
@@ -19,18 +19,16 @@ export function renderForensicIntegrityStatementSection(
         tone: "neutral",
       })}
 
-      <div class="callout tone-neutral">
-        <div class="callout-title">Procedural checkpoints</div>
-        <div class="callout-body">
+      <div class="workflow-grid">
+        <section class="workflow-card">
+          <div class="workflow-card-title">Procedural checkpoints</div>
           ${renderBulletList(vm.forensicIntegrityStatement.includedBulletItems)}
-        </div>
-      </div>
+        </section>
 
-      <div class="callout tone-neutral">
-        <div class="callout-title">Validation workflow</div>
-        <div class="callout-body">
+        <section class="workflow-card">
+          <div class="workflow-card-title">Validation workflow</div>
           ${renderBulletList(vm.forensicIntegrityStatement.reviewSteps)}
-        </div>
+        </section>
       </div>
 
       ${
@@ -48,8 +46,7 @@ export function renderForensicIntegrityStatementSection(
         body: vm.forensicIntegrityStatement.note,
         tone: "neutral",
       })}
-
     `,
-    { pageBreakBefore: true }
+    { pageBreakBefore: true, className: "workflow-section" }
   );
 }

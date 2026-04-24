@@ -1,3 +1,4 @@
+// D:\digital-witness\services\worker\src\report-v2\ui.ts
 import { escapeHtml } from "./formatters.js";
 import {
   CalloutModel,
@@ -17,17 +18,31 @@ function renderMultilineText(value: string): string {
   return escapeHtml(value).replace(/\n/g, "<br>");
 }
 
+function sanitizeClassName(value: string): string {
+  return value
+    .split(/\s+/)
+    .map((part) => part.replace(/[^a-zA-Z0-9_-]/g, ""))
+    .filter(Boolean)
+    .join(" ");
+}
+
 export function renderPageSection(
   title: string,
   body: string,
-  opts?: { pageBreakBefore?: boolean }
+  opts?: { pageBreakBefore?: boolean; className?: string }
 ): string {
+  const extraClass = opts?.className
+    ? ` ${escapeHtml(sanitizeClassName(opts.className))}`
+    : "";
+
   return `
-    <section class="report-section${opts?.pageBreakBefore ? " page-break-before" : ""}">
+    <section class="report-section${opts?.pageBreakBefore ? " page-break-before" : ""}${extraClass}">
       <div class="report-page">
         <div class="section-sheet">
-          <h2 class="section-title">${escapeHtml(title)}</h2>
-          <div class="section-rule"></div>
+          <div class="section-heading">
+            <div class="section-kicker">PROOVRA Verification Report</div>
+            <h2 class="section-title">${escapeHtml(title)}</h2>
+          </div>
           <div class="section-body">
             ${body}
           </div>
@@ -47,6 +62,8 @@ export function renderCallout(callout: CalloutModel): string {
 }
 
 export function renderInfoCards(cards: InfoCard[]): string {
+  if (cards.length === 0) return "";
+
   return `
     <div class="info-cards">
       ${cards
@@ -64,6 +81,8 @@ export function renderInfoCards(cards: InfoCard[]): string {
 }
 
 export function renderKeyValueGrid(rows: KeyValueRow[]): string {
+  if (rows.length === 0) return "";
+
   return `
     <div class="kv-grid">
       ${rows
@@ -80,25 +99,48 @@ export function renderKeyValueGrid(rows: KeyValueRow[]): string {
   `;
 }
 
+export function renderCompactKeyValueList(rows: KeyValueRow[]): string {
+  if (rows.length === 0) return "";
+
+  return `
+    <div class="compact-kv-list">
+      ${rows
+        .map(
+          (row) => `
+            <div class="compact-kv-row">
+              <div class="compact-kv-label">${escapeHtml(row.label)}</div>
+              <div class="compact-kv-value">${renderMultilineText(row.value)}</div>
+            </div>
+          `
+        )
+        .join("")}
+    </div>
+  `;
+}
+
 export function renderBulletList(items: string[]): string {
+  if (items.length === 0) return "";
+
   return `
     <ul class="bullet-list">
-      ${items.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}
+      ${items.map((item) => `<li><span>${escapeHtml(item)}</span></li>`).join("")}
     </ul>
   `;
 }
 
 export function renderInventoryTable(rows: InventoryRow[]): string {
+  if (rows.length === 0) return "";
+
   return `
     <table class="report-table inventory-table">
       <thead>
         <tr>
           <th style="width: 6%">#</th>
-          <th style="width: 27%">Original File Name</th>
+          <th style="width: 27%">File</th>
           <th style="width: 11%">Type</th>
-          <th style="width: 16%">Format / Size</th>
-          <th style="width: 24%">SHA-256</th>
-          <th style="width: 16%">Role / Access</th>
+          <th style="width: 15%">Format / Size</th>
+          <th style="width: 27%">Full SHA-256</th>
+          <th style="width: 14%">Role</th>
         </tr>
       </thead>
       <tbody>
@@ -111,9 +153,7 @@ export function renderInventoryTable(rows: InventoryRow[]): string {
                   <div class="manifest-file-name">${escapeHtml(row.fileName)}</div>
                   ${
                     row.displayLabel
-                      ? `<div class="manifest-display-label">${renderMultilineText(
-                          row.displayLabel
-                        )}</div>`
+                      ? `<div class="manifest-display-label">${renderMultilineText(row.displayLabel)}</div>`
                       : ""
                   }
                 </td>
@@ -131,41 +171,39 @@ export function renderInventoryTable(rows: InventoryRow[]): string {
 }
 
 export function renderTimelineTable(rows: TimelineRow[]): string {
+  if (rows.length === 0) return "";
+
   return `
-    <table class="report-table timeline-table">
-      <thead>
-        <tr>
-          <th style="width: 8%">Seq</th>
-          <th style="width: 22%">At (UTC)</th>
-          <th style="width: 18%">Event</th>
-          <th style="width: 52%">Summary</th>
-        </tr>
-      </thead>
-      <tbody>
-        ${rows
-          .map(
-            (row) => `
-              <tr>
-                <td>${escapeHtml(row.sequence)}</td>
-                <td>${escapeHtml(row.atUtc)}</td>
-                <td>${escapeHtml(row.eventLabel)}</td>
-                <td>${renderMultilineText(row.summary)}</td>
-              </tr>
-            `
-          )
-          .join("")}
-      </tbody>
-    </table>
+    <div class="timeline-list">
+      ${rows
+        .map(
+          (row) => `
+            <article class="timeline-card">
+              <div class="timeline-seq">${escapeHtml(row.sequence)}</div>
+              <div class="timeline-content">
+                <div class="timeline-top">
+                  <div class="timeline-event">${escapeHtml(row.eventLabel)}</div>
+                  <div class="timeline-time">${escapeHtml(row.atUtc)}</div>
+                </div>
+                <div class="timeline-summary">${renderMultilineText(row.summary)}</div>
+              </div>
+            </article>
+          `
+        )
+        .join("")}
+    </div>
   `;
 }
 
 export function renderCustodyHashTable(rows: CustodyHashRow[]): string {
+  if (rows.length === 0) return "";
+
   return `
-    <table class="report-table timeline-table custody-hash-table">
+    <table class="report-table custody-hash-table">
       <thead>
         <tr>
           <th style="width: 8%">Seq</th>
-          <th style="width: 46%">Prev Event Hash</th>
+          <th style="width: 46%">Previous Event Hash</th>
           <th style="width: 46%">Event Hash</th>
         </tr>
       </thead>

@@ -1,3 +1,4 @@
+// D:\digital-witness\services\worker\src\report-v2\sections\cover.ts
 import { ReportViewModel } from "../types.js";
 import { escapeHtml, safe } from "../formatters.js";
 import { renderInlineQrBlock } from "../ui.js";
@@ -10,11 +11,35 @@ function findRowValue(
   return rows.find((row) => row.label === label)?.value ?? fallback;
 }
 
-function shortHash(value: string | null | undefined, head = 18, tail = 14): string {
-  const text = safe(value, "");
-  if (!text) return "Not recorded";
-  if (text.length <= head + tail + 3) return text;
-  return `${text.slice(0, head)}…${text.slice(-tail)}`;
+function hasMeaningfulValue(value: string): boolean {
+  const normalized = value.trim().toLowerCase();
+  return Boolean(
+    normalized &&
+      normalized !== "n/a" &&
+      normalized !== "not recorded" &&
+      normalized !== "not reported" &&
+      normalized !== "off"
+  );
+}
+
+function statusTone(value: string, positiveWords: string[]): "success" | "warning" {
+  const normalized = value.toLowerCase();
+  return positiveWords.some((word) => normalized.includes(word))
+    ? "success"
+    : "warning";
+}
+
+function renderDecisionIndicator(params: {
+  label: string;
+  value: string;
+  tone: "success" | "warning";
+}): string {
+  return `
+    <div class="cover-decision-indicator tone-${params.tone}">
+      <div class="cover-decision-label">${escapeHtml(params.label)}</div>
+      <div class="cover-decision-value">${escapeHtml(params.value)}</div>
+    </div>
+  `;
 }
 
 function renderCoverEvidenceIdentity(vm: ReportViewModel): string {
@@ -39,7 +64,7 @@ function renderCoverEvidenceIdentity(vm: ReportViewModel): string {
           hero.previewRenderKind.toUpperCase()
         )}</div>
         <div class="cover-evidence-placeholder-note">
-          Evidence content is represented by preserved metadata and technical references.
+          Evidence represented by preserved metadata and technical references.
         </div>
       </div>
     `;
@@ -70,7 +95,7 @@ export function renderCoverSection(vm: ReportViewModel): string {
     : "Technical Review Required";
 
   const primaryHash =
-    vm.primaryContentItem?.sha256 || vm.technicalAppendix.fileSha256;
+    vm.primaryContentItem?.sha256 || vm.technicalAppendix.fileSha256 || "Not recorded";
 
   const evidenceType =
     vm.meta.publicEvidenceTypeLabel || "Digital Evidence Record";
@@ -79,10 +104,24 @@ export function renderCoverSection(vm: ReportViewModel): string {
   const timestampLabel = findRowValue(vm.storageRows, "RFC 3161 Status");
   const anchoringLabel = findRowValue(vm.storageRows, "Public Anchoring Status");
 
+  const custodyLabel =
+    vm.forensicRows.length > 0
+      ? `${vm.forensicRows.length} forensic event${
+          vm.forensicRows.length === 1 ? "" : "s"
+        }`
+      : "No custody events";
+
   const leadItemLabel = safe(
     vm.primaryContentItem?.originalFileName || vm.primaryContentItem?.label,
     "No identified lead item"
   );
+
+  const reportMode =
+    vm.presentationMode === "simple"
+      ? "Compact review report"
+      : vm.presentationMode === "medium"
+        ? "Balanced review report"
+        : "Full forensic report";
 
   const verificationBlock = vm.qr.publicDataUrl
     ? `
@@ -122,37 +161,59 @@ export function renderCoverSection(vm: ReportViewModel): string {
 
         <div class="cover-certificate-body cover-premium-body">
           <div class="cover-left-column">
-            <div class="cover-eyebrow">Digital Evidence Integrity Record</div>
+            <div class="cover-eyebrow">Decision Page</div>
 
-            <h1 class="cover-certificate-title">
-              ${escapeHtml(vm.title)}
-            </h1>
+            <h1 class="cover-certificate-title">${escapeHtml(vm.title)}</h1>
 
             ${
               vm.subtitle
-                ? `<div class="cover-certificate-subtitle">${escapeHtml(
-                    vm.subtitle
-                  )}</div>`
+                ? `<div class="cover-certificate-subtitle">${escapeHtml(vm.subtitle)}</div>`
                 : ""
             }
+
+            <div class="cover-decision-grid">
+              ${renderDecisionIndicator({
+                label: "Integrity",
+                value: vm.integrityVerified ? "Verified" : "Review required",
+                tone: vm.integrityVerified ? "success" : "warning",
+              })}
+              ${renderDecisionIndicator({
+                label: "Timestamp",
+                value: timestampLabel,
+                tone: statusTone(timestampLabel, ["recorded", "granted", "verified", "valid"]),
+              })}
+              ${renderDecisionIndicator({
+                label: "Storage",
+                value: storageLabel,
+                tone: statusTone(storageLabel, ["verified", "protected", "compliance", "governance"]),
+              })}
+              ${renderDecisionIndicator({
+                label: "Custody",
+                value: custodyLabel,
+                tone: vm.forensicRows.length > 0 ? "success" : "warning",
+              })}
+            </div>
 
             <div class="cover-hero-summary">
               <div class="cover-hero-summary-item">
                 <span class="cover-hero-summary-label">Evidence Type</span>
                 <span class="cover-hero-summary-value">${escapeHtml(evidenceType)}</span>
               </div>
+
               <div class="cover-hero-summary-item">
-                <span class="cover-hero-summary-label">Package Structure</span>
+                <span class="cover-hero-summary-label">Structure</span>
                 <span class="cover-hero-summary-value">${escapeHtml(vm.structureLabel)}</span>
               </div>
+
               <div class="cover-hero-summary-item">
                 <span class="cover-hero-summary-label">Item Count</span>
                 <span class="cover-hero-summary-value">${escapeHtml(
                   String(vm.contentSummary.itemCount)
                 )}</span>
               </div>
+
               <div class="cover-hero-summary-item">
-                <span class="cover-hero-summary-label">Lead Review Item</span>
+                <span class="cover-hero-summary-label">Lead Item</span>
                 <span class="cover-hero-summary-value">${escapeHtml(leadItemLabel)}</span>
               </div>
             </div>
@@ -172,27 +233,17 @@ export function renderCoverSection(vm: ReportViewModel): string {
 
               <div class="cover-meta-card">
                 <div class="cover-meta-label">Report Mode</div>
-                <div class="cover-meta-value">${escapeHtml(
-                  vm.presentationMode === "simple"
-                    ? "Compact review report"
-                    : vm.presentationMode === "medium"
-                      ? "Balanced review report"
-                      : "Full forensic report"
-                )}</div>
+                <div class="cover-meta-value">${escapeHtml(reportMode)}</div>
               </div>
 
               <div class="cover-meta-card">
                 <div class="cover-meta-label">Verification Status</div>
-                <div class="cover-meta-value">${escapeHtml(
-                  vm.verificationStatusLabel
-                )}</div>
+                <div class="cover-meta-value">${escapeHtml(vm.verificationStatusLabel)}</div>
               </div>
 
               <div class="cover-meta-card cover-meta-card-wide">
                 <div class="cover-meta-label">Primary SHA-256 / Recorded Digest</div>
-                <div class="cover-meta-value cover-meta-value-code">${escapeHtml(
-                  shortHash(primaryHash)
-                )}</div>
+                <div class="cover-meta-value cover-meta-value-code">${escapeHtml(primaryHash)}</div>
               </div>
             </div>
           </div>
@@ -204,17 +255,33 @@ export function renderCoverSection(vm: ReportViewModel): string {
 
             <div class="cover-status-panel">
               <div class="cover-status-row">
-                <span class="cover-status-name">Storage</span>
-                <span class="cover-status-value">${escapeHtml(storageLabel)}</span>
+                <span class="cover-status-name">Integrity</span>
+                <span class="cover-status-value">${escapeHtml(
+                  vm.integrityVerified ? "Recorded integrity verified" : "Technical review required"
+                )}</span>
               </div>
               <div class="cover-status-row">
                 <span class="cover-status-name">Timestamp</span>
                 <span class="cover-status-value">${escapeHtml(timestampLabel)}</span>
               </div>
               <div class="cover-status-row">
-                <span class="cover-status-name">Anchoring</span>
-                <span class="cover-status-value">${escapeHtml(anchoringLabel)}</span>
+                <span class="cover-status-name">Storage</span>
+                <span class="cover-status-value">${escapeHtml(storageLabel)}</span>
               </div>
+              <div class="cover-status-row">
+                <span class="cover-status-name">Custody</span>
+                <span class="cover-status-value">${escapeHtml(custodyLabel)}</span>
+              </div>
+              ${
+                hasMeaningfulValue(anchoringLabel)
+                  ? `
+                    <div class="cover-status-row">
+                      <span class="cover-status-name">Anchoring</span>
+                      <span class="cover-status-value">${escapeHtml(anchoringLabel)}</span>
+                    </div>
+                  `
+                  : ""
+              }
               <div class="cover-status-row">
                 <span class="cover-status-name">Record</span>
                 <span class="cover-status-value">${escapeHtml(vm.recordStatusLabel)}</span>

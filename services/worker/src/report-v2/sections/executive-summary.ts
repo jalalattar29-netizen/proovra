@@ -41,7 +41,7 @@ export function renderExecutiveSummarySection(vm: ReportViewModel): string {
           ${renderCallout(vm.executiveConclusion)}
 
           <div class="evidence-strip">
-            This page is the reviewer-facing summary. It intentionally keeps legal posture, content identity, and technical verification signals separate so the report can be read quickly before deeper technical inspection.
+            This page is the reviewer-facing summary. It keeps legal posture, evidence identity, and technical verification signals separate so the report can be read quickly before deeper technical inspection.
           </div>
 
           ${renderInfoCards(vm.heroCards)}

@@ -4,42 +4,18 @@ import { renderCoverSection } from "./sections/cover.js";
 import { renderExecutiveSummarySection } from "./sections/executive-summary.js";
 import { renderGallerySection } from "./sections/gallery.js";
 import { renderIntegrityProofSection } from "./sections/integrity-proof.js";
-import { renderCertificationsSection } from "./sections/certifications.js";
-import { renderStorageTimestampingSection } from "./sections/storage-timestamping.js";
 import { renderCustodySection } from "./sections/custody.js";
 import { renderForensicIntegrityStatementSection } from "./sections/forensic-integrity-statement.js";
 import { renderTechnicalAppendixSection } from "./sections/technical-appendix.js";
 
-function hasMeaningfulStorageRows(vm: ReportViewModel): boolean {
-  return vm.storageRows.some(
-    (row) =>
-      row.value &&
-      row.value !== "N/A" &&
-      row.value !== "Not recorded" &&
-      row.value !== "OFF"
-  );
-}
-
 export function renderReportHtml(vm: ReportViewModel): string {
   const body = [
     renderCoverSection(vm),
-
     renderExecutiveSummarySection(vm),
-
     renderGallerySection(vm),
-
-    renderIntegrityProofSection(vm),
-
-    hasMeaningfulStorageRows(vm) ? renderStorageTimestampingSection(vm) : "",
-
     renderCustodySection(vm),
-
-    vm.presentation.decisions.showCertificationSection
-      ? renderCertificationsSection(vm)
-      : "",
-
+    renderIntegrityProofSection(vm),
     renderForensicIntegrityStatementSection(vm),
-
     renderTechnicalAppendixSection(vm),
   ]
     .filter(Boolean)

@@ -1,3 +1,4 @@
+// D:\digital-witness\services\worker\src\report-v2\render-pdf.ts
 import fs from "node:fs";
 import puppeteer from "puppeteer";
 
@@ -14,11 +15,9 @@ function resolveBrowserExecutablePath(): string | undefined {
   for (const candidate of candidates) {
     try {
       const real = fs.realpathSync(candidate);
-      if (fs.existsSync(real)) {
-        return candidate;
-      }
+      if (fs.existsSync(real)) return candidate;
     } catch {
-      // ignore broken symlink / missing path / loop
+      // ignore missing / broken browser candidates
     }
   }
 
@@ -42,6 +41,9 @@ export async function renderPdfFromHtml(html: string): Promise<Buffer> {
       "--disable-setuid-sandbox",
       "--disable-dev-shm-usage",
       "--font-render-hinting=medium",
+      "--disable-gpu",
+      "--disable-extensions",
+      "--no-first-run",
     ],
   });
 
@@ -59,20 +61,19 @@ export async function renderPdfFromHtml(html: string): Promise<Buffer> {
     await page.emulateMediaType("print");
 
     await page.setContent(html, {
-      waitUntil: ["domcontentloaded", "load"],
+      waitUntil: ["domcontentloaded", "load", "networkidle0"],
       timeout: 120_000,
     });
 
     await page.evaluate(async () => {
       const fonts = (document as Document & { fonts?: FontFaceSet }).fonts;
-      if (fonts?.ready) {
-        await fonts.ready;
-      }
+      if (fonts?.ready) await fonts.ready;
 
       const images = Array.from(document.images);
       await Promise.all(
         images.map((img) => {
           if (img.complete) return Promise.resolve();
+
           return new Promise<void>((resolve) => {
             const done = () => resolve();
             img.addEventListener("load", done, { once: true });
@@ -86,6 +87,7 @@ export async function renderPdfFromHtml(html: string): Promise<Buffer> {
       format: "A4",
       printBackground: true,
       preferCSSPageSize: true,
+      tagged: true,
       margin: {
         top: "0mm",
         right: "0mm",

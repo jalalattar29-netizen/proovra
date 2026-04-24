@@ -7,6 +7,7 @@ import {
   renderPageSection,
 } from "../ui.js";
 import { escapeHtml } from "../formatters.js";
+import { renderLegalLimitationsBlock } from "./legal-limitations.js";
 
 function renderTechnicalStatusCards(vm: ReportViewModel): string {
   const timestampTone = vm.technicalAppendix.timestampStatusTone ?? "neutral";
@@ -67,7 +68,7 @@ export function renderTechnicalAppendixSection(vm: ReportViewModel): string {
       ${renderCallout({
         title: "Appendix scope",
         body:
-          "This appendix preserves the exact technical references needed for audit and independent verification. Heavy payloads such as canonical JSON, signature blobs, timestamp tokens, and anchoring proof blobs remain available through the verification workflow or verification package.",
+          "This appendix preserves exact technical references for audit and independent verification. It intentionally avoids repeating the human summary and decision-page narrative.",
         tone: "neutral",
       })}
 
@@ -90,7 +91,10 @@ export function renderTechnicalAppendixSection(vm: ReportViewModel): string {
           })}
           ${renderKeyValueGrid(vm.technicalAppendix.fingerprintRows)}
           ${renderMonoBlock("File SHA-256", vm.technicalAppendix.fileSha256)}
-          ${renderMonoBlock("Fingerprint Hash", vm.technicalAppendix.fingerprintHash)}
+          ${renderMonoBlock(
+            "Fingerprint Hash",
+            vm.technicalAppendix.fingerprintHash
+          )}
         `
       )}
 
@@ -167,6 +171,11 @@ export function renderTechnicalAppendixSection(vm: ReportViewModel): string {
             )
           : ""
       }
+
+      ${renderAppendixSection(
+        "Legal Boundary",
+        renderLegalLimitationsBlock(vm)
+      )}
     `,
     { pageBreakBefore: true }
   );

@@ -1,3 +1,4 @@
+// D:\digital-witness\services\worker\src\report-v2\sections\gallery.ts
 import {
   PresentationEvidenceItem,
   ReportEvidenceAsset,
@@ -6,20 +7,17 @@ import {
 import { escapeHtml, safe } from "../formatters.js";
 import { renderCallout, renderPageSection } from "../ui.js";
 
+function buildAssetName(asset: ReportEvidenceAsset): string {
+  return safe(asset.originalFileName, "") || safe(asset.label, "Unnamed evidence item");
+}
+
 function renderGalleryMetaRow(label: string, value: string): string {
   return `
     <div class="gallery-meta-row">
       <div class="gallery-meta-label">${escapeHtml(label)}</div>
-      <div class="gallery-meta-value">${escapeHtml(value)}</div>
+      <div class="gallery-meta-value${label === "SHA-256" ? " hash-text" : ""}">${escapeHtml(value)}</div>
     </div>
   `;
-}
-
-function shortHash(value: string | null | undefined): string {
-  const text = safe(value, "");
-  if (!text) return "Not recorded";
-  if (text.length <= 34) return text;
-  return `${text.slice(0, 18)}…${text.slice(-12)}`;
 }
 
 function renderPreviewMedia(
@@ -27,8 +25,7 @@ function renderPreviewMedia(
   opts?: { emphasis?: boolean }
 ): string {
   const asset = item.asset;
-  const fileName =
-    safe(asset.originalFileName, "") || safe(asset.label, "Unnamed evidence item");
+  const fileName = buildAssetName(asset);
   const emphasisClass = opts?.emphasis ? " gallery-thumb-emphasis" : "";
 
   if (asset.previewDataUrl) {
@@ -44,9 +41,7 @@ function renderPreviewMedia(
       <div class="gallery-thumb gallery-thumb-text${emphasisClass}">
         <div class="gallery-thumb-text-inner">
           <div class="gallery-thumb-text-title">Recorded text excerpt</div>
-          <div class="gallery-thumb-text-body">${escapeHtml(
-            asset.previewTextExcerpt
-          )}</div>
+          <div class="gallery-thumb-text-body">${escapeHtml(asset.previewTextExcerpt)}</div>
         </div>
       </div>
     `;
@@ -54,21 +49,21 @@ function renderPreviewMedia(
 
   const title =
     item.previewRenderKind === "document"
-      ? "Document evidence"
+      ? "Document Evidence"
       : item.previewRenderKind === "video"
-        ? "Video evidence"
+        ? "Video Evidence"
         : item.previewRenderKind === "audio"
-          ? "Audio evidence"
-          : "Evidence item";
+          ? "Audio Evidence"
+          : "Evidence Item";
 
   const note =
     item.previewRenderKind === "document"
-      ? "The document is preserved in the evidence package. Full review should use the verification workflow or original package."
+      ? "Document preserved in the evidence package. Full document review belongs in the verification workflow or original package."
       : item.previewRenderKind === "video"
-        ? "The video is preserved in the evidence package. Playback is handled through the verification workflow."
+        ? "Video preserved in the evidence package. Playback remains controlled through the verification workflow."
         : item.previewRenderKind === "audio"
-          ? "The audio item is preserved in the evidence package. Listening review is handled through the verification workflow."
-          : "This item is represented without an inline preview image but remains part of the preserved package.";
+          ? "Audio preserved in the evidence package. Listening review remains controlled through the verification workflow."
+          : "This item is represented by identity, format, digest, and custody references.";
 
   return `
     <div class="gallery-thumb${emphasisClass}">
@@ -78,10 +73,6 @@ function renderPreviewMedia(
       </div>
     </div>
   `;
-}
-
-function buildAssetName(asset: ReportEvidenceAsset): string {
-  return safe(asset.originalFileName, "") || safe(asset.label, "Unnamed evidence item");
 }
 
 function renderPreviewCard(
@@ -113,13 +104,13 @@ function renderPreviewCard(
 
       <div class="gallery-card-meta">
         ${renderGalleryMetaRow("Type", safe(asset.kind, "Not recorded"))}
-        ${renderGalleryMetaRow("MIME / Format", safe(asset.mimeType, "N/A"))}
+        ${renderGalleryMetaRow("Format", safe(asset.mimeType, "N/A"))}
         ${renderGalleryMetaRow("Size", safe(asset.displaySizeLabel, "N/A"))}
         ${renderGalleryMetaRow(
           "Access",
           asset.downloadable ? "Downloadable under policy" : "Restricted under policy"
         )}
-        ${renderGalleryMetaRow("SHA-256", shortHash(asset.sha256))}
+        ${renderGalleryMetaRow("SHA-256", asset.sha256 ?? "Not recorded")}
       </div>
     </article>
   `;
@@ -146,7 +137,7 @@ function renderMetadataOnlyCard(item: PresentationEvidenceItem): string {
         <div class="gallery-meta-value">${escapeHtml(safe(asset.displaySizeLabel, "N/A"))}</div>
 
         <div class="gallery-meta-label">SHA-256</div>
-        <div class="gallery-meta-value hash-text">${escapeHtml(shortHash(asset.sha256))}</div>
+        <div class="gallery-meta-value hash-text">${escapeHtml(asset.sha256 ?? "Not recorded")}</div>
       </div>
     </article>
   `;
@@ -162,7 +153,8 @@ export function renderGallerySection(vm: ReportViewModel): string {
     "Evidence Presentation",
     `
       <div class="evidence-strip">
-        Evidence content is presented for reviewer orientation. The original preserved item, recorded digest, custody linkage, timestamp state, and storage controls remain the authoritative verification materials.
+        <strong>Reviewer orientation.</strong>
+        Visual previews support human review only. The preserved original file, digest, custody chain, timestamp state, and storage controls remain the authoritative verification materials.
       </div>
 
       ${
@@ -182,15 +174,13 @@ export function renderGallerySection(vm: ReportViewModel): string {
         buckets.supportingPreviewItems.length > 0
           ? `
             ${renderCallout({
-              title: "Supporting items",
+              title: "Supporting evidence items",
               body:
-                "Additional previewable items are shown below with their recorded identifiers and digest references.",
+                "Additional previewable items are listed with their recorded identifiers and digest references. These previews do not replace the preserved originals.",
               tone: "neutral",
             })}
             <div class="gallery-support-grid support-grid">
-              ${buckets.supportingPreviewItems
-                .map((item) => renderPreviewCard(item))
-                .join("")}
+              ${buckets.supportingPreviewItems.map((item) => renderPreviewCard(item)).join("")}
             </div>
           `
           : ""
@@ -200,9 +190,9 @@ export function renderGallerySection(vm: ReportViewModel): string {
         buckets.metadataOnlyItems.length > 0
           ? `
             ${renderCallout({
-              title: "Reference-only items",
+              title: "Reference-only evidence items",
               body:
-                "These items do not include an inline PDF preview. They remain part of the evidence package and are listed with identity, format, and digest references.",
+                "These items are part of the preserved package but do not include an inline PDF preview. Their identity, format, and digest references are preserved for completeness.",
               tone: "neutral",
             })}
             <div class="gallery-secondary-list">
@@ -212,6 +202,6 @@ export function renderGallerySection(vm: ReportViewModel): string {
           : ""
       }
     `,
-    { pageBreakBefore: true }
+    { pageBreakBefore: true, className: "evidence-presentation-section" }
   );
 }
