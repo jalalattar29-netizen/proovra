@@ -1,10 +1,6 @@
 import { ReportViewModel, TimelineRow } from "../types.js";
 import { escapeHtml } from "../formatters.js";
-import {
-  renderAccessActivityList,
-  renderCallout,
-  renderPageSection,
-} from "../ui.js";
+import { renderCallout, renderPageSection } from "../ui.js";
 
 function renderCustodyStats(vm: ReportViewModel): string {
   return `
@@ -14,14 +10,14 @@ function renderCustodyStats(vm: ReportViewModel): string {
         <div class="custody-stat-value">${vm.forensicRows.length}</div>
       </div>
       <div class="custody-stat-card">
-        <div class="custody-stat-label">Access Events</div>
-        <div class="custody-stat-value">${vm.accessRows.length}</div>
-      </div>
-      <div class="custody-stat-card">
         <div class="custody-stat-label">Hash Chain</div>
         <div class="custody-stat-value">${
           vm.custodyHashRows.length > 0 ? "Recorded" : "Not reported"
         }</div>
+      </div>
+      <div class="custody-stat-card">
+        <div class="custody-stat-label">Access Activity</div>
+        <div class="custody-stat-value">Verify page</div>
       </div>
     </div>
   `;
@@ -71,65 +67,42 @@ function renderForensicTimeline(rows: TimelineRow[]): string {
 
   return `
     <div class="timeline-list custody-forensic-timeline">
-      ${rows
-        .map((row) => {
-          const shouldShowPendingNote =
-            !pendingNoteRendered &&
-            anchoringCompletesLater &&
-            isOtsPendingRow(row);
+${rows
+  .map((row, index) => {
+    const displaySequence = String(index + 1);
 
-          if (shouldShowPendingNote) pendingNoteRendered = true;
+    const shouldShowPendingNote =
+      !pendingNoteRendered &&
+      anchoringCompletesLater &&
+      isOtsPendingRow(row);
 
-          return `
-            <article class="timeline-card custody-forensic-event">
-              <div class="timeline-seq">${escapeHtml(row.sequence)}</div>
-              <div class="timeline-content">
-                <div class="timeline-top">
-                  <div class="timeline-event">${escapeHtml(row.eventLabel)}</div>
-                  <div class="timeline-time">${escapeHtml(row.atUtc)}</div>
+    if (shouldShowPendingNote) pendingNoteRendered = true;
+
+    return `
+      <article class="timeline-card custody-forensic-event">
+        <div class="timeline-seq">${escapeHtml(displaySequence)}</div>
+        <div class="timeline-content">
+          <div class="timeline-top">
+            <div class="timeline-event">${escapeHtml(row.eventLabel)}</div>
+            <div class="timeline-time">${escapeHtml(row.atUtc)}</div>
+          </div>
+          <div class="timeline-summary">${escapeHtml(row.summary)}</div>
+          ${
+            shouldShowPendingNote
+              ? `
+                <div class="custody-inline-note">
+                  Later OpenTimestamps events show anchoring completion.
                 </div>
-                <div class="timeline-summary">${escapeHtml(row.summary)}</div>
-                ${
-                  shouldShowPendingNote
-                    ? `
-                      <div class="custody-inline-note">
-                        Later OpenTimestamps events show anchoring completion.
-                      </div>
-                    `
-                    : ""
-                }
-              </div>
-            </article>
-          `;
-        })
-        .join("")}
-    </div>
-  `;
-}
-
-function renderAccessSection(vm: ReportViewModel): string {
-  if (vm.accessRows.length === 0) return "";
-
-  return renderPageSection(
-    "Access Activity Log",
-    `
-      <div class="custody-page custody-access-page">
-        ${renderCallout({
-          title: "Access activity is separate from forensic custody",
-          body:
-            "Viewing, download, and verification events are listed separately so routine access history does not get confused with integrity-relevant custody events. Access activity uses original event sequence numbers in a reduced style.",
-          tone: "neutral",
-        })}
-
-        <div class="custody-access-note">
-          Access events are reviewer-visible audit records, but they are not forensic custody milestones. Original sequence numbers are preserved for traceability.
+              `
+              : ""
+          }
         </div>
-
-        ${renderAccessActivityList(vm.accessRows)}
+      </article>
+    `;
+  })
+  .join("")}
       </div>
-    `,
-    { pageBreakBefore: true, className: "custody-access-section" }
-  );
+  `;
 }
 
 export function renderCustodySection(vm: ReportViewModel): string {
@@ -143,14 +116,14 @@ export function renderCustodySection(vm: ReportViewModel): string {
         })
       : renderForensicTimeline(vm.forensicRows);
 
-  const custodySection = renderPageSection(
+  return renderPageSection(
     "Chain of Custody",
     `
       <div class="custody-page">
         ${renderCallout({
           title: "Recorded Forensic Lifecycle",
           body:
-            "The events below show the system-recorded custody path of the evidence package. Access activity is separated so routine viewing or downloads are not confused with integrity-relevant custody events.",
+            "The events below show the system-recorded custody path of the evidence package. Routine viewing, download, and verification access activity is intentionally kept out of this PDF and should be reviewed through the verification page or internal audit trail when needed.",
           tone: "neutral",
         })}
 
@@ -165,6 +138,4 @@ export function renderCustodySection(vm: ReportViewModel): string {
     `,
     { pageBreakBefore: true, className: "custody-section" }
   );
-
-  return custodySection + renderAccessSection(vm);
 }

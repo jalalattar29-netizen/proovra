@@ -126,6 +126,6 @@ export function renderExecutiveSummarySection(vm: ReportViewModel): string {
         </section>
       </div>
     `,
-    { pageBreakBefore: true, className: "executive-summary-section" }
+{ className: "executive-summary-section" }
   );
 }

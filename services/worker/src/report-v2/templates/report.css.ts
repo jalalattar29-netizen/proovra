@@ -1,10 +1,19 @@
+import { fileURLToPath } from "node:url";
+import path from "node:path";
 import { REPORT_BRAND } from "../brand.js";
+
+function assetFileUrl(fileName: string): string {
+  const currentDir = path.dirname(fileURLToPath(import.meta.url));
+  return new URL(`../assets/${fileName}`, `file://${currentDir}/`).href;
+}
 
 export function getReportCss(): string {
   const c = REPORT_BRAND.colors;
+  const paperSilverUrl = assetFileUrl("paper-silver.png");
+  const brandIconUrl = assetFileUrl("icon-192.png");
 
   return `
-@page {
+  @page {
   size: A4;
   margin: 11mm 10mm 17mm 10mm;
 }
@@ -13,23 +22,27 @@ export function getReportCss(): string {
       box-sizing: border-box;
     }
 
-    html,
-    body {
-      margin: 0;
-      padding: 0;
-      background: ${c.paper};
-      color: ${c.ink};
-      font-family: "Segoe UI", Arial, Helvetica, sans-serif;
-      font-size: 10.4px;
-      line-height: 1.48;
-      -webkit-print-color-adjust: exact;
-      print-color-adjust: exact;
-      overflow: visible;
-    }
+html,
+body {
+  margin: 0;
+  padding: 0;
+  min-height: 100%;
+  color: ${c.ink};
+  font-family: "Segoe UI", Arial, Helvetica, sans-serif;
+  font-size: 10.4px;
+  line-height: 1.48;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+  overflow: visible;
+}
 
-    body {
-      background: ${c.paper} !important;
-    }
+body {
+  background-color: #eef0f1 !important;
+  background-image: url("${paperSilverUrl}") !important;
+  background-size: cover !important;
+  background-repeat: repeat-y !important;
+  background-position: center top !important;
+}
 
 .report-root {
   width: 100%;
@@ -57,8 +70,8 @@ export function getReportCss(): string {
 }
 
 .section-sheet {
-  background: ${c.white};
-  border: 1px solid ${c.softLine};
+  background: rgba(255,255,255,0.86);
+  border: 1px solid rgba(150,160,165,0.38);
   border-radius: 12px;
   box-shadow: none;
   overflow: visible;
@@ -73,14 +86,28 @@ export function getReportCss(): string {
       page-break-after: avoid;
     }
 
-    .section-kicker {
-      margin-bottom: 3px;
-      color: ${c.subtle};
-      font-size: 8.2px;
-      font-weight: 850;
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
-    }
+.section-kicker {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 3px;
+  color: #9da3a6;
+  font-size: 8.2px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.section-kicker::before {
+  content: "";
+  width: 13px;
+  height: 13px;
+  display: inline-block;
+  background-image: url("${brandIconUrl}");
+  background-size: contain;
+  background-repeat: no-repeat;
+  background-position: center;
+}
 
     .section-title {
       margin: 0 0 10px;
@@ -108,8 +135,8 @@ export function getReportCss(): string {
   height: 270mm;
   min-height: auto;
   overflow: hidden;
-  background: ${c.white};
-  border: 1px solid ${c.line};
+  background: rgba(255,255,255,0.82);
+    border: 1px solid ${c.line};
   border-radius: 0;
   box-shadow: none;
   break-inside: avoid;
@@ -123,6 +150,7 @@ export function getReportCss(): string {
     }
 
 .cover-certificate-top {
+  background: rgba(18, 42, 38, 0.92) !important;
   min-height: 50px;
   display: flex;
   align-items: center;
@@ -132,6 +160,23 @@ export function getReportCss(): string {
   border-bottom: 2px solid ${c.accentMetal};
 }
 
+.cover-brand-row {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.cover-brand-icon {
+  width: 24px;
+  height: 24px;
+  flex: 0 0 auto;
+  background-image: url("${brandIconUrl}");
+  background-size: contain;
+  background-position: center;
+  background-repeat: no-repeat;
+  border-radius: 6px;
+}
+
     .cover-brand-lockup {
       display: flex;
       flex-direction: column;
@@ -139,8 +184,8 @@ export function getReportCss(): string {
     }
 
     .cover-brand-mini {
-      color: #ffffff;
-      font-size: 15px;
+  color: #c7c9c9;
+        font-size: 15px;
       font-weight: 900;
       letter-spacing: 0.08em;
     }
@@ -159,8 +204,8 @@ export function getReportCss(): string {
   flex-direction: column;
   gap: 8px;
   padding: 14px 18px 9px;
-  background: ${c.white};
-  min-height: 0;
+  background: rgba(255,255,255,0.78);
+    min-height: 0;
 }
 
 .cover-decision-hero {
@@ -590,7 +635,7 @@ export function getReportCss(): string {
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   text-decoration: none;
 }
-  
+
 .cover-boundary-note {
   border: 1px solid ${c.softLine};
   border-left: 4px solid ${c.accentMetal};
@@ -1265,9 +1310,9 @@ export function getReportCss(): string {
       display: table-header-group;
     }
 
-    .report-table th {
-      background: ${c.accentSoft};
-      color: ${c.accent};
+.report-table th {
+  background: rgba(255,255,255,0.72);
+        color: ${c.accent};
       font-size: 8.2px;
       font-weight: 850;
       text-align: left;
@@ -1416,7 +1461,7 @@ export function getReportCss(): string {
 
 .mono-label {
   padding: 9px 11px;
-  background: ${c.accentSoft};
+  background: rgba(255,255,255,0.72);
   border-bottom: 1px solid ${c.softLine};
   font-size: 9px;
   font-weight: 950;
@@ -2078,8 +2123,8 @@ export function getReportCss(): string {
 
     .technical-access-url {
       border: 1px solid ${c.softLine};
-      background: ${c.neutralSoft};
-      border-radius: 7px;
+  background: rgba(255,255,255,0.78);
+        border-radius: 7px;
       padding: 8px 9px;
       font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
       font-size: 7.8px;
@@ -2150,8 +2195,8 @@ export function getReportCss(): string {
     .technical-appendix-block-head {
       padding: 10px 12px;
       border-bottom: 1px solid ${c.softLine};
-      background: ${c.neutralSoft};
-    }
+  background: rgba(255,255,255,0.68);
+      }
 
     .technical-appendix-block-title {
       margin: 0 0 4px;
@@ -2305,7 +2350,9 @@ export function getReportCss(): string {
 .cover-verify-url {
   display: block;
   margin-top: 6px;
-  color: ${c.subtle};
+  color: #10201d !important;
+  opacity: 0.92;
+  font-weight: 850;
   font-size: 7.7px;
   line-height: 1.32;
   word-break: break-all;
@@ -2315,12 +2362,11 @@ export function getReportCss(): string {
   text-decoration: none;
 }
 
-    .cover-primary-hash {
-      font-size: 8.9px;
-      line-height: 1.45;
-      letter-spacing: 0.01em;
-      color: ${c.ink};
-    }
+.cover-primary-hash {
+  font-size: 10.5px;
+  letter-spacing: 0.02em;
+  background: rgba(255,255,255,0.78);
+}
 
     .cover-boundary-footer {
       margin-top: auto;
@@ -2543,7 +2589,7 @@ export function getReportCss(): string {
 }
 
 .print-footer-brand {
-  color: ${c.accent};
+  color: #9da3a6;
   font-weight: 950;
   letter-spacing: 0.06em;
 }
@@ -2607,7 +2653,9 @@ export function getReportCss(): string {
       .verification-link-panel,
       .cover-evidence-panel,
       .cover-verify-box,
-      .cover-boundary-note,
+      .cover-meta-card,
+      .cover-boundary-note {
+        background: rgba(255,255,255,0.9);
       .evidence-strip,
       .timeline-card {
         break-inside: avoid !important;

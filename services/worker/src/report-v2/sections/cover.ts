@@ -178,6 +178,8 @@ export function renderCoverSection(vm: ReportViewModel): string {
         ? "Balanced review report"
         : "Full forensic report";
 
+  const verifyUrl = vm.verifyUrl.trim();
+
   const verificationBlock = `
     <div class="cover-verify-qr-wrap">
       ${
@@ -189,24 +191,25 @@ export function renderCoverSection(vm: ReportViewModel): string {
     <div class="cover-verify-texts">
       <div class="cover-verify-title">Public Verification</div>
       <div class="cover-verify-hint">Scan QR code or open verification page</div>
-<a
-  class="cover-verify-url"
-  href="${escapeHtml(vm.verifyUrl.trim())}"
-  target="_blank"
-  rel="noopener noreferrer"
->
-  ${escapeHtml(vm.verifyUrl.trim())}
-</a>
- </div>
+      <a
+        class="cover-verify-url"
+        href="${escapeHtml(verifyUrl)}"
+        target="_blank"
+        rel="noopener noreferrer"
+      >${escapeHtml(verifyUrl)}</a>
+    </div>
   `;
 
   return `
     <section class="report-cover report-cover-premium">
       <div class="cover-certificate-card">
         <div class="cover-certificate-top">
-          <div class="cover-brand-lockup">
-            <div class="cover-brand-mini">PROOVRA</div>
-            <div class="cover-brand-sub">Evidence Verification Report</div>
+          <div class="cover-brand-row">
+            <span class="cover-brand-icon" aria-hidden="true"></span>
+            <div class="cover-brand-lockup">
+              <div class="cover-brand-mini">PROOVRA</div>
+              <div class="cover-brand-sub">Evidence Verification Report</div>
+            </div>
           </div>
 
           <div class="cover-top-badge badge ${integrityBadgeClass}">
@@ -250,7 +253,6 @@ export function renderCoverSection(vm: ReportViewModel): string {
               value: vm.integrityVerified ? "No mismatch detected" : "Review required",
               tone: vm.integrityVerified ? "success" : "warning",
             })}
-
             ${renderDecisionIndicator({
               label: "Timestamp",
               value:
@@ -259,7 +261,6 @@ export function renderCoverSection(vm: ReportViewModel): string {
                   : timestampLabel,
               tone: timestampTone,
             })}
-
             ${renderDecisionIndicator({
               label: "Storage",
               value:
@@ -268,7 +269,6 @@ export function renderCoverSection(vm: ReportViewModel): string {
                   : storageLabel,
               tone: storageTone,
             })}
-
             ${renderDecisionIndicator({
               label: "Custody",
               value: custodyLabel,

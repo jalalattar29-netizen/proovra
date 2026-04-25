@@ -1,4 +1,6 @@
-// D:\digital-witness\services\worker\src\report-v2\ui.ts
+import fs from "node:fs";
+import path from "node:path";
+import { pathToFileURL } from "node:url";
 import { escapeHtml } from "./formatters.js";
 import {
   CalloutModel,
@@ -26,6 +28,16 @@ function sanitizeClassName(value: string): string {
     .join(" ");
 }
 
+function resolveReportAssetUrl(fileName: string): string {
+  const distPath = path.resolve(process.cwd(), "dist/report-v2/assets", fileName);
+  const srcPath = path.resolve(process.cwd(), "src/report-v2/assets", fileName);
+
+  const finalPath = fs.existsSync(distPath) ? distPath : srcPath;
+  return pathToFileURL(finalPath).href;
+}
+
+const reportIconUrl = resolveReportAssetUrl("icon-192.png");
+
 export function renderPageSection(
   title: string,
   body: string,
@@ -40,7 +52,10 @@ export function renderPageSection(
       <div class="report-page">
         <div class="section-sheet">
           <header class="section-heading">
-            <div class="section-kicker">PROOVRA Verification Report</div>
+            <div class="section-kicker">
+              <img class="report-brand-icon" src="${escapeHtml(reportIconUrl)}" alt="" />
+              <span>PROOVRA Verification Report</span>
+            </div>
             <h2 class="section-title">${escapeHtml(title)}</h2>
           </header>
 
@@ -154,9 +169,7 @@ export function renderInventoryTable(rows: InventoryRow[]): string {
                   <div class="manifest-file-name">${escapeHtml(row.fileName)}</div>
                   ${
                     row.displayLabel
-                      ? `<div class="manifest-display-label">${renderMultilineText(
-                          row.displayLabel
-                        )}</div>`
+                      ? `<div class="manifest-display-label">${renderMultilineText(row.displayLabel)}</div>`
                       : ""
                   }
                 </td>

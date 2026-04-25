@@ -388,7 +388,6 @@ function buildVerificationSummaryRows(
   add("Primary MIME Type", safe(contentSummary.primaryMimeType));
   add("Content Size", formatBytesHuman(evidence.sizeBytes));
   add("Forensic Custody Events", String(custody.forensic.length));
-  add("Access Activity Events", String(custody.access.length));
   add(
     "Signature Materials",
     evidence.signatureBase64 && evidence.signingKeyId
@@ -477,10 +476,6 @@ function buildReviewReadinessRows(
     {
       label: "Chain of Custody Present",
       value: custody.forensic.length > 0 ? "Yes" : "No",
-    },
-    {
-      label: "Public / Access Activity Present",
-      value: custody.access.length > 0 ? "Yes" : "No",
     },
     {
       label: "Technical Materials Available",
@@ -716,7 +711,6 @@ function determinePresentationMode(
   if (contentSummary.itemCount >= 4) score += 1;
   if (contentSummary.itemCount >= 8) score += 2;
   if (contentSummary.previewableItemCount >= 4) score += 1;
-  if (custody.access.length > 0) score += 1;
   if (custody.forensic.length > 8) score += 1;
   if (evidence.certifications?.custodian || evidence.certifications?.qualifiedPerson) {
     score += 1;
@@ -853,7 +847,7 @@ function buildForensicIntegrityStatementModel(
     includedBulletItems: [
       "Confirm the evidence reference, package structure, and lead review item.",
       "Validate the full SHA-256 and fingerprint hash values against the preserved materials.",
-      "Review custody chronology before relying on later access activity.",
+"Review custody chronology before relying on the evidence record.",
       "Use the verification endpoint for signature, timestamp token, and anchoring proof validation.",
     ],
     reviewSteps:
