@@ -39,10 +39,11 @@ export function renderPageSection(
     <section class="report-section${opts?.pageBreakBefore ? " page-break-before" : ""}${extraClass}">
       <div class="report-page">
         <div class="section-sheet">
-          <div class="section-heading">
+          <header class="section-heading">
             <div class="section-kicker">PROOVRA Verification Report</div>
             <h2 class="section-title">${escapeHtml(title)}</h2>
-          </div>
+          </header>
+
           <div class="section-body">
             ${body}
           </div>
@@ -153,7 +154,9 @@ export function renderInventoryTable(rows: InventoryRow[]): string {
                   <div class="manifest-file-name">${escapeHtml(row.fileName)}</div>
                   ${
                     row.displayLabel
-                      ? `<div class="manifest-display-label">${renderMultilineText(row.displayLabel)}</div>`
+                      ? `<div class="manifest-display-label">${renderMultilineText(
+                          row.displayLabel
+                        )}</div>`
                       : ""
                   }
                 </td>
@@ -195,6 +198,34 @@ export function renderTimelineTable(rows: TimelineRow[]): string {
   `;
 }
 
+export function renderAccessActivityList(rows: TimelineRow[]): string {
+  if (rows.length === 0) return "";
+
+  return `
+    <div class="custody-access-list">
+      ${rows
+        .map(
+          (row) => `
+            <article class="custody-access-event">
+              <div class="custody-access-marker">Access<br/>event</div>
+              <div class="custody-access-content">
+                <div class="custody-access-top">
+                  <div class="custody-access-title">${escapeHtml(row.eventLabel)}</div>
+                  <div class="custody-access-time">${escapeHtml(row.atUtc)}</div>
+                </div>
+                <div class="custody-access-summary">${renderMultilineText(row.summary)}</div>
+                <div class="custody-access-sequence">
+                  Original custody sequence: ${escapeHtml(row.sequence)}
+                </div>
+              </div>
+            </article>
+          `
+        )
+        .join("")}
+    </div>
+  `;
+}
+
 export function renderCustodyHashTable(rows: CustodyHashRow[]): string {
   if (rows.length === 0) return "";
 
@@ -203,10 +234,10 @@ export function renderCustodyHashTable(rows: CustodyHashRow[]): string {
       <thead>
         <tr>
           <th style="width: 6%">Seq</th>
-          <th style="width: 16%">At (UTC)</th>
-          <th style="width: 20%">Event</th>
-          <th style="width: 29%">Prev Event Hash</th>
-          <th style="width: 29%">Event Hash</th>
+          <th style="width: 14%">At (UTC)</th>
+          <th style="width: 16%">Event</th>
+          <th style="width: 32%">Prev Event Hash</th>
+          <th style="width: 32%">Event Hash</th>
         </tr>
       </thead>
       <tbody>

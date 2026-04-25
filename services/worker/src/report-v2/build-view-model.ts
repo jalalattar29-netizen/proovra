@@ -91,16 +91,28 @@ type DisplayDescriptor = {
 const PREVIEW_DATA_URL_RE = /^data:image\/[a-z0-9.+-]+;base64,(.+)$/i;
 
 function buildVerifyUrl(evidenceId: string, provided?: string | null): string {
-  const v = typeof provided === "string" ? provided.trim() : "";
-  if (v) return v;
-
   const base = (
     process.env.REPORT_VERIFY_BASE_URL ?? "https://app.proovra.com/verify"
   )
     .trim()
     .replace(/\/+$/, "");
 
-  return `${base}/${encodeURIComponent(evidenceId)}`;
+  const fallback = `${base}/${encodeURIComponent(evidenceId)}`;
+
+  const v = typeof provided === "string" ? provided.trim() : "";
+  if (!v) return fallback;
+
+  try {
+    const url = new URL(v);
+    const token = url.pathname.split("/").filter(Boolean).at(-1) ?? "";
+
+    // reject broken/short verify tokens like /verify/814c5
+    if (token.length < 12) return fallback;
+
+    return url.toString();
+  } catch {
+    return fallback;
+  }
 }
 
 async function generateQrDataUrl(value: string): Promise<string | null> {

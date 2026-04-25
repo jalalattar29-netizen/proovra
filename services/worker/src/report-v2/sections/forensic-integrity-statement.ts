@@ -13,7 +13,7 @@ function renderWorkflowStep(params: {
   result: string;
 }): string {
   return `
-    <div class="workflow-step">
+    <div class="workflow-step workflow-step-compact">
       <div class="workflow-step-index">${params.index}</div>
       <div class="workflow-step-body">
         <div class="workflow-step-title">${escapeHtml(params.title)}</div>
@@ -91,41 +91,45 @@ export function renderForensicIntegrityStatementSection(
   return renderPageSection(
     "Reviewer Verification Workflow",
     `
-      ${renderCallout({
-        title: vm.forensicIntegrityStatement.introLead,
-        body: vm.forensicIntegrityStatement.introBody,
-        tone: "neutral",
-      })}
+      <div class="workflow-page">
+        ${renderCallout({
+          title: vm.forensicIntegrityStatement.introLead,
+          body: vm.forensicIntegrityStatement.introBody,
+          tone: "neutral",
+        })}
 
-      <div class="workflow-grid">
-        <section class="workflow-card">
-          <div class="workflow-card-title">Procedural checkpoints</div>
-          ${renderBulletList(vm.forensicIntegrityStatement.includedBulletItems)}
-        </section>
+        <div class="workflow-grid">
+          <section class="workflow-card workflow-card-checkpoints">
+            <div class="workflow-card-title">Procedural checkpoints</div>
+            ${renderBulletList(vm.forensicIntegrityStatement.includedBulletItems)}
+          </section>
 
-        <section class="workflow-card">
-          <div class="workflow-card-title">Verification steps</div>
-          <div class="workflow-steps">
-            ${steps}
-          </div>
-        </section>
+          <section class="workflow-card workflow-card-steps">
+            <div class="workflow-card-title">Verification steps</div>
+            <div class="workflow-steps">
+              ${steps}
+            </div>
+          </section>
+        </div>
+
+        ${
+          compact
+            ? ""
+            : renderCallout({
+                title: vm.forensicIntegrityStatement.legalNotice.title,
+                body: vm.forensicIntegrityStatement.legalNotice.body,
+                tone: vm.forensicIntegrityStatement.legalNotice.tone,
+              })
+        }
+
+        <div class="workflow-note-block">
+          ${renderCallout({
+            title: "Verification workflow note",
+            body: vm.forensicIntegrityStatement.note,
+            tone: "neutral",
+          })}
+        </div>
       </div>
-
-      ${
-        compact
-          ? ""
-          : renderCallout({
-              title: vm.forensicIntegrityStatement.legalNotice.title,
-              body: vm.forensicIntegrityStatement.legalNotice.body,
-              tone: vm.forensicIntegrityStatement.legalNotice.tone,
-            })
-      }
-
-      ${renderCallout({
-        title: "Verification workflow note",
-        body: vm.forensicIntegrityStatement.note,
-        tone: "neutral",
-      })}
     `,
     { pageBreakBefore: true, className: "workflow-section" }
   );

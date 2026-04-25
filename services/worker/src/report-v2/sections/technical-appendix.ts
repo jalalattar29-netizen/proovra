@@ -7,9 +7,16 @@ import {
 } from "../ui.js";
 import { escapeHtml } from "../formatters.js";
 
-function renderAppendixSection(title: string, subtitle: string, body: string): string {
+function renderAppendixSection(
+  title: string,
+  subtitle: string,
+  body: string,
+  opts?: { className?: string }
+): string {
+  const className = opts?.className ? ` ${escapeHtml(opts.className)}` : "";
+
   return `
-    <section class="technical-appendix-block">
+    <section class="technical-appendix-block${className}">
       <div class="technical-appendix-block-head">
         <h3 class="technical-appendix-block-title">${escapeHtml(title)}</h3>
         <div class="technical-appendix-block-subtitle">${escapeHtml(subtitle)}</div>
@@ -107,15 +114,7 @@ function renderVerificationAccess(vm: ReportViewModel): string {
         </div>
       </div>
 
-      <div
-        class="technical-access-url"
-        style="
-          font-size: 9.6px;
-          line-height: 1.55;
-          font-weight: 700;
-          padding: 10px 11px;
-        "
-      >
+      <div class="technical-access-url technical-access-url-emphasis">
         ${escapeHtml(vm.technicalUrl)}
       </div>
     </div>
@@ -163,7 +162,8 @@ export function renderTechnicalAppendixSection(vm: ReportViewModel): string {
         ${renderAppendixSection(
           "Identity & Provenance",
           "Who submitted the evidence, which identity level was recorded, and what workspace or organization context exists.",
-          renderKeyValueGrid(vm.technicalIdentityRows)
+          renderKeyValueGrid(vm.technicalIdentityRows),
+          { className: "technical-appendix-identity-block" }
         )}
 
         ${renderAppendixSection(
@@ -176,7 +176,8 @@ export function renderTechnicalAppendixSection(vm: ReportViewModel): string {
               tone: "neutral",
             })}
             ${renderKeyValueGrid(vm.technicalAppendix.fingerprintRows)}
-          `
+          `,
+          { className: "technical-appendix-fingerprint-block" }
         )}
 
         ${
@@ -192,7 +193,8 @@ export function renderTechnicalAppendixSection(vm: ReportViewModel): string {
                     body: vm.technicalAppendix.signatureReferenceNote,
                     tone: "neutral",
                   })}
-                `
+                `,
+                { className: "technical-appendix-signature-block" }
               )
         }
 
@@ -211,7 +213,8 @@ export function renderTechnicalAppendixSection(vm: ReportViewModel): string {
               body: vm.technicalAppendix.timestampReferenceNote,
               tone: "neutral",
             })}
-          `
+          `,
+          { className: "technical-appendix-timestamp-block" }
         )}
 
         ${renderAppendixSection(
@@ -220,10 +223,16 @@ export function renderTechnicalAppendixSection(vm: ReportViewModel): string {
           `
             ${renderKeyValueGrid(anchoringRows)}
 
-            <div class="technical-mono-grid">
-              ${otsHash ? renderMonoBlock("OTS Hash", otsHash) : ""}
-              ${anchorHash ? renderMonoBlock("Anchor Hash", anchorHash) : ""}
-            </div>
+            ${
+              otsHash || anchorHash
+                ? `
+                  <div class="technical-mono-grid">
+                    ${otsHash ? renderMonoBlock("OTS Hash", otsHash) : ""}
+                    ${anchorHash ? renderMonoBlock("Anchor Hash", anchorHash) : ""}
+                  </div>
+                `
+                : ""
+            }
 
             ${renderCallout({
               title: "Anchoring material handling",
@@ -240,7 +249,8 @@ export function renderTechnicalAppendixSection(vm: ReportViewModel): string {
                   })
                 : ""
             }
-          `
+          `,
+          { className: "technical-appendix-anchoring-block" }
         )}
       </div>
     `,

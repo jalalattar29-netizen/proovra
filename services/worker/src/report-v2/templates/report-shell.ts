@@ -19,7 +19,7 @@ export function renderReportShell(params: {
     <style>${getReportCss()}</style>
   </head>
   <body>
-    <div class="print-footer" aria-hidden="true">
+    <footer class="print-footer" aria-hidden="true">
       <div class="print-footer-left">
         <span class="print-footer-brand">PROOVRA</span>
         <span class="print-footer-divider">•</span>
@@ -28,7 +28,7 @@ export function renderReportShell(params: {
       <div class="print-footer-right">
         Generated UTC: ${generatedAtUtc}
       </div>
-    </div>
+    </footer>
 
     <main class="report-root">
       ${params.body}

@@ -6,7 +6,7 @@ export function getReportCss(): string {
   return `
 @page {
   size: A4;
-  margin: 12mm 10mm 18mm 10mm;
+  margin: 11mm 10mm 17mm 10mm;
 }
 
     * {
@@ -34,7 +34,7 @@ export function getReportCss(): string {
 .report-root {
   width: 100%;
   color: ${c.ink};
-  padding-bottom: 8mm;
+  padding-bottom: 0;
 }
 
     .page-break-before {
@@ -51,7 +51,7 @@ export function getReportCss(): string {
   
 .report-page {
   width: 100%;
-  margin-bottom: 10px;
+  margin: 0 0 10px;
   overflow: visible;
   background: transparent;
 }
@@ -62,7 +62,8 @@ export function getReportCss(): string {
   border-radius: 12px;
   box-shadow: none;
   overflow: visible;
-  padding: 14px 14px 12px;
+  padding: 14px;
+  min-height: auto;
   break-inside: auto;
   page-break-inside: auto;
 }
@@ -101,18 +102,19 @@ export function getReportCss(): string {
       page-break-inside: auto;
     }
 
-    .cover-certificate-card {
-      display: flex;
-      flex-direction: column;
-      min-height: 258mm;
-      overflow: hidden;
-      background: ${c.white};
-      border: 1px solid ${c.line};
-      border-radius: 0;
-      box-shadow: none;
-      break-inside: avoid;
-      page-break-inside: avoid;
-    }
+.cover-certificate-card {
+  display: flex;
+  flex-direction: column;
+  height: 270mm;
+  min-height: auto;
+  overflow: hidden;
+  background: ${c.white};
+  border: 1px solid ${c.line};
+  border-radius: 0;
+  box-shadow: none;
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
 
     .cover-certificate-top,
     .cover-certificate-bottom {
@@ -120,15 +122,15 @@ export function getReportCss(): string {
       color: #ffffff;
     }
 
-    .cover-certificate-top {
-      min-height: 58px;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 16px;
-      padding: 13px 18px;
-      border-bottom: 2px solid ${c.accentMetal};
-    }
+.cover-certificate-top {
+  min-height: 50px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 10px 16px;
+  border-bottom: 2px solid ${c.accentMetal};
+}
 
     .cover-brand-lockup {
       display: flex;
@@ -155,17 +157,18 @@ export function getReportCss(): string {
   flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  padding: 18px 20px 12px;
+  gap: 8px;
+  padding: 14px 18px 9px;
   background: ${c.white};
+  min-height: 0;
 }
 
 .cover-decision-hero {
   text-align: center;
-  padding: 4px 30px 2px;
-        break-inside: avoid;
-      page-break-inside: avoid;
-    }
+  padding: 2px 28px 0;
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
 
     .cover-eyebrow {
       color: ${c.subtle};
@@ -176,28 +179,28 @@ export function getReportCss(): string {
       margin-bottom: 8px;
     }
 
-    .cover-certificate-title {
-      margin: 0 auto;
-      max-width: 520px;
-      font-size: 30px;
-      line-height: 1.08;
-      font-weight: 950;
-      color: ${c.accent};
-      letter-spacing: -0.035em;
-      word-break: break-word;
-      overflow-wrap: anywhere;
-    }
+.cover-certificate-title {
+  margin: 0 auto;
+  max-width: 520px;
+  font-size: 27px;
+  line-height: 1.06;
+  font-weight: 950;
+  color: ${c.accent};
+  letter-spacing: -0.035em;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
 
-    .cover-certificate-subtitle {
-      margin: 9px auto 0;
-      max-width: 560px;
-      font-size: 11.5px;
-      font-weight: 600;
-      color: ${c.muted};
-      line-height: 1.48;
-      word-break: break-word;
-      overflow-wrap: anywhere;
-    }
+.cover-certificate-subtitle {
+  margin: 6px auto 0;
+  max-width: 560px;
+  font-size: 10.6px;
+  font-weight: 650;
+  color: ${c.muted};
+  line-height: 1.4;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
 
     .badge {
       display: inline-flex;
@@ -251,20 +254,20 @@ export function getReportCss(): string {
     }
 
 .cover-status-stamp {
-  margin: 12px auto 0;
-        display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      gap: 9px;
-      min-width: 210px;
-      border-radius: 8px;
-      padding: 10px 16px;
-      border: 1px solid ${c.softLine};
-      font-size: 11px;
-      font-weight: 900;
-      text-transform: uppercase;
-      letter-spacing: 0.045em;
-    }
+  margin: 9px auto 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-width: 200px;
+  border-radius: 8px;
+  padding: 8px 14px;
+  border: 1px solid ${c.softLine};
+  font-size: 10.5px;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.045em;
+}
 
     .cover-status-stamp span {
       width: 22px;
@@ -286,18 +289,18 @@ export function getReportCss(): string {
       page-break-inside: avoid;
     }
 
-    .cover-decision-indicator {
-      border: 1px solid ${c.softLine};
-      border-radius: 8px;
-      padding: 10px;
-      min-height: 70px;
-      display: grid;
-      grid-template-columns: 24px minmax(0, 1fr);
-      gap: 8px;
-      align-items: start;
-      break-inside: avoid;
-      page-break-inside: avoid;
-    }
+.cover-decision-indicator {
+  border: 1px solid ${c.softLine};
+  border-radius: 8px;
+  padding: 8px;
+  min-height: 58px;
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr);
+  gap: 7px;
+  align-items: start;
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
 
     .cover-decision-mark {
       width: 22px;
@@ -344,28 +347,29 @@ export function getReportCss(): string {
       margin-bottom: 8px;
     }
 
-    .cover-evidence-panel {
-      display: grid;
-      grid-template-columns: 188px minmax(0, 1fr);
-      gap: 12px;
-      padding: 12px;
-      background: ${c.white};
-      border: 1px solid ${c.softLine};
-      border-radius: 9px;
-      break-inside: avoid;
-      page-break-inside: avoid;
-    }
+.cover-evidence-panel {
+  display: grid;
+  grid-template-columns: 165px minmax(0, 1fr);
+  gap: 10px;
+  padding: 10px;
+  background: ${c.white};
+  border: 1px solid ${c.softLine};
+  border-radius: 9px;
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
 
-    .cover-evidence-visual {
-      min-height: 150px;
-      background: ${c.neutralSoft};
-      border: 1px solid ${c.softLine};
-      border-radius: 7px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      overflow: hidden;
-    }
+.cover-evidence-visual {
+  min-height: 118px;
+  max-height: 128px;
+  background: ${c.neutralSoft};
+  border: 1px solid ${c.softLine};
+  border-radius: 7px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
 
     .cover-evidence-visual img {
       width: 100%;
@@ -444,10 +448,10 @@ export function getReportCss(): string {
       page-break-inside: avoid;
     }
 
-    .cover-meta-card {
-      padding: 10px 11px;
-      min-height: 56px;
-    }
+.cover-meta-card {
+  padding: 8px 9px;
+  min-height: 46px;
+}
 
     .cover-meta-label,
     .info-card-label,
@@ -503,17 +507,17 @@ export function getReportCss(): string {
       line-height: 1.4;
     }
 
-    .cover-verify-box {
-      padding: 12px;
-      display: flex;
-      flex-direction: column;
-      align-items: stretch;
-      justify-content: center;
-      gap: 10px;
-      min-height: 176px;
-      break-inside: avoid;
-      page-break-inside: avoid;
-    }
+.cover-verify-box {
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: center;
+  gap: 8px;
+  min-height: 142px;
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
 
     .cover-verify-qr-wrap {
       display: flex;
@@ -534,13 +538,13 @@ export function getReportCss(): string {
       border-radius: 8px;
     }
 
-    .qr-inline-block img {
-      width: 104px;
-      height: 104px;
-      object-fit: contain;
-      display: block;
-      background: white;
-    }
+.qr-inline-block img {
+  width: 92px;
+  height: 92px;
+  object-fit: contain;
+  display: block;
+  background: white;
+}
 
     .qr-inline-label {
       font-size: 8.8px;
@@ -549,21 +553,21 @@ export function getReportCss(): string {
       text-align: center;
     }
 
-    .cover-verify-placeholder {
-      width: 104px;
-      height: 104px;
-      border: 1px dashed ${c.line};
-      background: ${c.neutralSoft};
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      color: ${c.subtle};
-      font-size: 9px;
-      font-weight: 700;
-      text-align: center;
-      padding: 10px;
-      border-radius: 8px;
-    }
+.cover-verify-placeholder {
+  width: 92px;
+  height: 92px;
+  border: 1px dashed ${c.line};
+  background: ${c.neutralSoft};
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: ${c.subtle};
+  font-size: 9px;
+  font-weight: 700;
+  text-align: center;
+  padding: 10px;
+  border-radius: 8px;
+}
 
     .cover-verify-title {
       color: ${c.accent};
@@ -574,46 +578,49 @@ export function getReportCss(): string {
       text-align: center;
     }
 
-    .cover-verify-url {
-      margin-top: 5px;
-      color: ${c.subtle};
-      font-size: 8.1px;
-      line-height: 1.42;
-      word-break: break-word;
-      overflow-wrap: anywhere;
-      text-align: center;
-    }
-
-    .cover-boundary-note {
-      border: 1px solid ${c.softLine};
-      border-left: 4px solid ${c.accentMetal};
-      background: ${c.neutralSoft};
-      border-radius: 8px;
-      padding: 10px 12px;
-      color: ${c.muted};
-      font-size: 9.4px;
-      line-height: 1.48;
-      break-inside: avoid;
-      page-break-inside: avoid;
-    }
+.cover-verify-url {
+  display: block;
+  margin-top: 6px;
+  color: ${c.subtle};
+  font-size: 7.7px;
+  line-height: 1.32;
+  word-break: break-all;
+  overflow-wrap: anywhere;
+  text-align: center;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  text-decoration: none;
+}
+  
+.cover-boundary-note {
+  border: 1px solid ${c.softLine};
+  border-left: 4px solid ${c.accentMetal};
+  background: ${c.white};
+  border-radius: 8px;
+  padding: 8px 10px;
+  color: ${c.muted};
+  font-size: 8.8px;
+  line-height: 1.38;
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
 
     .cover-boundary-note strong {
       color: ${c.ink};
       font-weight: 900;
     }
 
-    .cover-certificate-bottom {
-      min-height: 42px;
-      border-top: 2px solid ${c.accentMetal};
-      padding: 10px 13px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 10px;
-      flex-wrap: wrap;
-      font-size: 9px;
-      font-weight: 750;
-    }
+.cover-certificate-bottom {
+  min-height: 32px;
+  border-top: 2px solid ${c.accentMetal};
+  padding: 7px 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-size: 8.2px;
+  font-weight: 750;
+}
 
     .cover-certificate-bottom span {
       white-space: nowrap;
@@ -2295,16 +2302,18 @@ export function getReportCss(): string {
       text-align: center;
     }
 
-    .cover-verify-url {
-      margin-top: 6px;
-      color: ${c.subtle};
-      font-size: 7.7px;
-      line-height: 1.32;
-      word-break: break-all;
-      overflow-wrap: anywhere;
-      text-align: center;
-      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-    }
+.cover-verify-url {
+  display: block;
+  margin-top: 6px;
+  color: ${c.subtle};
+  font-size: 7.7px;
+  line-height: 1.32;
+  word-break: break-all;
+  overflow-wrap: anywhere;
+  text-align: center;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  text-decoration: none;
+}
 
     .cover-primary-hash {
       font-size: 8.9px;
@@ -2508,9 +2517,9 @@ export function getReportCss(): string {
 
 .print-footer {
   position: fixed;
-  left: 10mm;
-  right: 10mm;
-  bottom: 5mm;
+  left: 12mm;
+  right: 12mm;
+  bottom: 5.5mm;
   height: 8mm;
   display: flex;
   align-items: center;
@@ -2518,10 +2527,10 @@ export function getReportCss(): string {
   gap: 12px;
   border-top: 1px solid ${c.softLine};
   color: ${c.subtle};
-  font-size: 7.9px;
-  font-weight: 750;
+  font-size: 7.5px;
+  font-weight: 700;
   letter-spacing: 0.012em;
-  background: ${c.paper};
+  background: transparent;
   z-index: 1000;
 }
 
@@ -2542,6 +2551,21 @@ export function getReportCss(): string {
 .print-footer-divider {
   margin: 0 6px;
   color: ${c.line};
+}
+
+.report-page,
+.section-sheet,
+.technical-appendix-block,
+.legal-interpretation-page,
+.executive-summary-page,
+.integrity-summary-page,
+.custody-page {
+  min-height: auto !important;
+}
+
+.section-sheet::after,
+.report-page::after {
+  content: none !important;
 }
 
     @media print {

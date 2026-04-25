@@ -1,5 +1,9 @@
 import { ReportViewModel } from "../types.js";
-import { renderCallout, renderCustodyHashTable, renderPageSection } from "../ui.js";
+import {
+  renderCallout,
+  renderCustodyHashTable,
+  renderPageSection,
+} from "../ui.js";
 
 export function renderCustodyHashChainSection(vm: ReportViewModel): string {
   if (vm.custodyHashRows.length === 0) return "";
