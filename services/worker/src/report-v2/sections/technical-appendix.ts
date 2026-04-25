@@ -1,4 +1,4 @@
-import { ReportViewModel } from "../types.js";
+import { ReportViewModel, KeyValueRow } from "../types.js";
 import {
   renderCallout,
   renderKeyValueGrid,
@@ -21,6 +21,50 @@ function renderAppendixSection(title: string, subtitle: string, body: string): s
   `;
 }
 
+function hasMeaningfulTechnicalValue(value: string | null | undefined): boolean {
+  const normalized = String(value ?? "").trim().toLowerCase();
+
+  return Boolean(
+    normalized &&
+      normalized !== "n/a" &&
+      normalized !== "na" &&
+      normalized !== "not recorded" &&
+      normalized !== "not reported" &&
+      normalized !== "none" &&
+      normalized !== "null" &&
+      normalized !== "undefined"
+  );
+}
+
+function hasRecordedPublicAnchoring(vm: ReportViewModel): boolean {
+  const status = String(vm.technicalAppendix.otsStatusLabel ?? "").toLowerCase();
+
+  return (
+    status.includes("recorded") ||
+    status.includes("anchored") ||
+    status.includes("published") ||
+    status.includes("verified") ||
+    hasMeaningfulTechnicalValue(vm.technicalAppendix.otsHash)
+  );
+}
+
+function normalizeAnchoringRows(vm: ReportViewModel): KeyValueRow[] {
+  const publicAnchoringRecorded = hasRecordedPublicAnchoring(vm);
+
+  return vm.technicalAppendix.anchoringRows
+    .filter((row) => hasMeaningfulTechnicalValue(row.value))
+    .map((row) => {
+      if (row.label === "Anchor Mode" && publicAnchoringRecorded) {
+        return {
+          ...row,
+          value: "Public anchoring recorded",
+        };
+      }
+
+      return row;
+    });
+}
+
 function renderTechnicalStatusCards(vm: ReportViewModel): string {
   const timestampTone = vm.technicalAppendix.timestampStatusTone ?? "neutral";
   const otsTone = vm.technicalAppendix.otsStatusTone ?? "neutral";
@@ -30,7 +74,9 @@ function renderTechnicalStatusCards(vm: ReportViewModel): string {
       <article class="technical-verification-card tone-${timestampTone}">
         <div class="technical-verification-kicker">RFC 3161</div>
         <div class="technical-verification-title">Trusted Timestamp</div>
-        <div class="technical-verification-value">${escapeHtml(vm.technicalAppendix.timestampStatusLabel)}</div>
+        <div class="technical-verification-value">${escapeHtml(
+          vm.technicalAppendix.timestampStatusLabel
+        )}</div>
         <div class="technical-verification-note">
           External timestamp state recorded for the preserved evidence digest.
         </div>
@@ -39,7 +85,9 @@ function renderTechnicalStatusCards(vm: ReportViewModel): string {
       <article class="technical-verification-card tone-${otsTone}">
         <div class="technical-verification-kicker">Anchoring</div>
         <div class="technical-verification-title">Public Anchoring</div>
-        <div class="technical-verification-value">${escapeHtml(vm.technicalAppendix.otsStatusLabel)}</div>
+        <div class="technical-verification-value">${escapeHtml(
+          vm.technicalAppendix.otsStatusLabel
+        )}</div>
         <div class="technical-verification-note">
           OpenTimestamps or external publication state for the recorded digest.
         </div>
@@ -53,12 +101,23 @@ function renderVerificationAccess(vm: ReportViewModel): string {
     <div class="technical-access-panel">
       <div>
         <div class="technical-access-kicker">Technical Verification Access</div>
-        <div class="technical-access-title">Independent verification endpoint</div>
+        <div class="technical-access-title">Independent Technical Verification Endpoint</div>
         <div class="technical-access-copy">
           Reviewers can use this endpoint to inspect the verification materials, public status, and technical references connected to this evidence record.
         </div>
       </div>
-      <div class="technical-access-url">${escapeHtml(vm.technicalUrl)}</div>
+
+      <div
+        class="technical-access-url"
+        style="
+          font-size: 9.6px;
+          line-height: 1.55;
+          font-weight: 700;
+          padding: 10px 11px;
+        "
+      >
+        ${escapeHtml(vm.technicalUrl)}
+      </div>
     </div>
   `;
 }
@@ -66,6 +125,25 @@ function renderVerificationAccess(vm: ReportViewModel): string {
 export function renderTechnicalAppendixSection(vm: ReportViewModel): string {
   const appendixDepth = vm.presentation.decisions.appendixDepth;
   const compact = appendixDepth === "compact";
+  const anchoringRows = normalizeAnchoringRows(vm);
+
+  const tsaMessageImprint = hasMeaningfulTechnicalValue(
+    vm.technicalAppendix.tsaMessageImprint
+  )
+    ? String(vm.technicalAppendix.tsaMessageImprint)
+    : "";
+
+  const otsHash = hasMeaningfulTechnicalValue(vm.technicalAppendix.otsHash)
+    ? String(vm.technicalAppendix.otsHash)
+    : "";
+
+  const anchorHash = hasMeaningfulTechnicalValue(vm.technicalAppendix.anchorHash)
+    ? String(vm.technicalAppendix.anchorHash)
+    : "";
+
+  const otsDetail = hasMeaningfulTechnicalValue(vm.technicalAppendix.otsDetail)
+    ? String(vm.technicalAppendix.otsDetail)
+    : "";
 
   return renderPageSection(
     "Technical Appendix",
@@ -98,10 +176,6 @@ export function renderTechnicalAppendixSection(vm: ReportViewModel): string {
               tone: "neutral",
             })}
             ${renderKeyValueGrid(vm.technicalAppendix.fingerprintRows)}
-            <div class="technical-mono-grid">
-              ${renderMonoBlock("File SHA-256", vm.technicalAppendix.fileSha256)}
-              ${renderMonoBlock("Fingerprint Hash", vm.technicalAppendix.fingerprintHash)}
-            </div>
           `
         )}
 
@@ -128,8 +202,8 @@ export function renderTechnicalAppendixSection(vm: ReportViewModel): string {
           `
             ${renderKeyValueGrid(vm.technicalAppendix.timestampRows)}
             ${
-              vm.technicalAppendix.tsaMessageImprint
-                ? renderMonoBlock("TSA Message Imprint", vm.technicalAppendix.tsaMessageImprint)
+              tsaMessageImprint
+                ? renderMonoBlock("TSA Message Imprint", tsaMessageImprint)
                 : ""
             }
             ${renderCallout({
@@ -144,36 +218,30 @@ export function renderTechnicalAppendixSection(vm: ReportViewModel): string {
           "Anchoring & Publication",
           "OpenTimestamps and external anchoring references connected to the recorded digest state.",
           `
-            ${renderKeyValueGrid(vm.technicalAppendix.anchoringRows)}
+            ${renderKeyValueGrid(anchoringRows)}
+
             <div class="technical-mono-grid">
-              ${
-                vm.technicalAppendix.otsHash
-                  ? renderMonoBlock("OTS Hash", vm.technicalAppendix.otsHash)
-                  : ""
-              }
-              ${
-                vm.technicalAppendix.anchorHash
-                  ? renderMonoBlock("Anchor Hash", vm.technicalAppendix.anchorHash)
-                  : ""
-              }
+              ${otsHash ? renderMonoBlock("OTS Hash", otsHash) : ""}
+              ${anchorHash ? renderMonoBlock("Anchor Hash", anchorHash) : ""}
             </div>
+
             ${renderCallout({
               title: "Anchoring material handling",
               body: vm.technicalAppendix.anchoringReferenceNote,
               tone: "neutral",
             })}
+
             ${
-              vm.technicalAppendix.otsDetail
+              otsDetail
                 ? renderCallout({
                     title: "Anchoring detail",
-                    body: vm.technicalAppendix.otsDetail,
+                    body: otsDetail,
                     tone: "warning",
                   })
                 : ""
             }
           `
         )}
-
       </div>
     `,
     { pageBreakBefore: true, className: "technical-appendix-section" }

@@ -24,7 +24,7 @@ export function renderLegalInterpretationSection(vm: ReportViewModel): string {
         title: "Presentation materials",
         body:
           "Embedded previews in this PDF are reviewer-facing representations only. For deeper review, expert comparison, or formal process, rely on the preserved original evidence and the verification workflow rather than the PDF rendering alone.",
-        tone: "limit",
+        tone: "verify", // ✅ بدل الأصفر → أخضر
       });
 
   return renderPageSection(
@@ -53,8 +53,9 @@ export function renderLegalInterpretationSection(vm: ReportViewModel): string {
 
           ${renderLegalCard({
             title: "This report does not prove",
-            body: vm.legalLimitations.detailed,
-            tone: "limit",
+            body:
+              "Truth, authorship, intent, context, completeness, admissibility, evidentiary weight, or acceptance by any court, insurer, regulator, or authority.\n\nTechnical verification supports detection of post-completion changes only.",
+            tone: "verify", // ✅ كان أصفر → صار أخضر
           })}
 
           ${renderLegalCard({

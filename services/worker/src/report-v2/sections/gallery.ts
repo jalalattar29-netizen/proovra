@@ -71,10 +71,12 @@ function renderMediaOverlay(item: PresentationEvidenceItem): string {
 }
 
 function renderGalleryMetaRow(label: string, value: string): string {
+  const isHash = label === "SHA-256";
+
   return `
-    <div class="gallery-meta-row">
+    <div class="gallery-meta-row${isHash ? " gallery-meta-row-sha" : ""}">
       <div class="gallery-meta-label">${escapeHtml(label)}</div>
-      <div class="gallery-meta-value${label === "SHA-256" ? " hash-text" : ""}">
+      <div class="gallery-meta-value${isHash ? " gallery-sha-value" : ""}">
         ${escapeHtml(value)}
       </div>
     </div>
@@ -206,7 +208,7 @@ function renderMetadataOnlyCard(item: PresentationEvidenceItem): string {
         <div class="gallery-meta-value">${escapeHtml(safe(asset.displaySizeLabel, "N/A"))}</div>
 
         <div class="gallery-meta-label">SHA-256</div>
-        <div class="gallery-meta-value hash-text">${escapeHtml(
+        <div class="gallery-meta-value gallery-sha-value">${escapeHtml(
           asset.sha256 ?? "Not recorded"
         )}</div>
       </div>

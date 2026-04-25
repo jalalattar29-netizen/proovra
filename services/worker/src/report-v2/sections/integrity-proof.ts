@@ -92,12 +92,6 @@ export function renderIntegrityProofSection(vm: ReportViewModel): string {
     "Signature Materials"
   );
 
-  const integrityState = findRowValue(
-    vm.verificationSummaryRows,
-    "Integrity State",
-    vm.verificationStatusLabel
-  );
-
   const storageLockMode = findRowValue(
     vm.verificationSummaryRows,
     "Storage Lock Mode"
@@ -125,14 +119,14 @@ export function renderIntegrityProofSection(vm: ReportViewModel): string {
     : "danger";
 
   return renderPageSection(
-    "Integrity & Verification Summary",
+    "Integrity Control Checklist",
     `
       <div class="integrity-summary-page">
         <div class="integrity-summary-intro">
           <div>
             <div class="integrity-summary-kicker">Recorded preservation controls</div>
             <div class="integrity-summary-title">
-              Technical integrity signals for reviewer assessment
+              Technical controls supporting the verified integrity result
             </div>
             <div class="integrity-summary-copy">
               This page summarizes the controls used to evaluate the recorded evidence state.
@@ -149,7 +143,10 @@ export function renderIntegrityProofSection(vm: ReportViewModel): string {
             value: vm.meta.primaryHash || "Not recorded",
             explanation:
               "Recorded SHA-256 digest for comparing the preserved file or lead evidence item against the report.",
-            tone: vm.meta.primaryHash && vm.meta.primaryHash !== "N/A" ? "success" : "danger",
+            tone:
+              vm.meta.primaryHash && vm.meta.primaryHash !== "N/A"
+                ? "success"
+                : "danger",
           })}
 
           ${renderIntegrityCheckRow({
@@ -195,7 +192,7 @@ export function renderIntegrityProofSection(vm: ReportViewModel): string {
               "Anchoring records whether OpenTimestamps or external publication proof is available or still pending.",
             tone: toneFromValue(
               anchoringStatus,
-              ["anchored", "published", "verified"],
+              ["anchored", "anchoring", "published", "verified", "recorded"],
               ["pending", "configured", "not recorded"]
             ),
           })}
@@ -214,14 +211,6 @@ export function renderIntegrityProofSection(vm: ReportViewModel): string {
             explanation:
               "Core materials include file digest, fingerprint hash, signature reference, signing key, timestamp state, storage state, and anchoring state.",
             tone: coreMaterialTone,
-          })}
-
-          ${renderIntegrityCheckRow({
-            label: "Overall Recorded Integrity",
-            value: integrityState,
-            explanation:
-              "This is the recorded integrity outcome at report generation time. Legal meaning and evidentiary weight remain separate questions.",
-            tone: vm.integrityVerified ? "success" : "warning",
           })}
         </div>
 

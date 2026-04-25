@@ -29,6 +29,36 @@ function statusTone(value: string, positiveWords: string[]): "success" | "warnin
     : "warning";
 }
 
+function titleCaseEvidenceType(value: string): string {
+  if (!value.trim()) return "Digital evidence record";
+  return value
+    .replace(/\bMedia\b/g, "media")
+    .replace(/\bEvidence\b/g, "evidence")
+    .replace(/\bPackage\b/g, "package")
+    .replace(/\bRecord\b/g, "record");
+}
+
+function buildCoverSubtitle(vm: ReportViewModel): string {
+  const summary = vm.contentSummary;
+  const kinds = [
+    summary.videoCount > 0 ? "Video" : null,
+    summary.imageCount > 0 ? "Image" : null,
+    summary.pdfCount > 0 ? "PDF" : null,
+    summary.audioCount > 0 ? "Audio" : null,
+    summary.textCount > 0 ? "Text" : null,
+    summary.otherCount > 0 ? "Other" : null,
+  ].filter(Boolean) as string[];
+
+  const structure =
+    summary.itemCount > 1 ? "Multipart evidence package" : "Single evidence item";
+
+  const itemLabel = `${summary.itemCount} item${summary.itemCount === 1 ? "" : "s"}`;
+  const kindLabel = kinds.length > 0 ? kinds.join(", ") : "Digital evidence";
+  const sizeLabel = summary.totalSizeDisplay || vm.meta.fileSizeLabel || "Size not recorded";
+
+  return `${structure} • ${itemLabel} • ${kindLabel} • ${sizeLabel}`;
+}
+
 function renderDecisionIndicator(params: {
   label: string;
   value: string;
@@ -89,17 +119,16 @@ export function renderCoverSection(vm: ReportViewModel): string {
     ? "badge-success"
     : "badge-warning";
 
-  const integrityBadgeText = vm.integrityVerified
-    ? "Verified"
-    : "Review Required";
+  const integrityBadgeText = vm.integrityVerified ? "Verified" : "Review Required";
 
   const primaryHash =
     vm.primaryContentItem?.sha256 ||
     vm.technicalAppendix.fileSha256 ||
     "Not recorded";
 
-  const evidenceType =
-    vm.meta.publicEvidenceTypeLabel || "Digital Evidence Record";
+  const evidenceType = titleCaseEvidenceType(
+    vm.meta.publicEvidenceTypeLabel || "Digital evidence record"
+  );
 
   const storageLabel = findRowValue(vm.storageRows, "Immutable Storage");
   const timestampLabel = findRowValue(vm.storageRows, "RFC 3161 Status");
@@ -109,8 +138,8 @@ export function renderCoverSection(vm: ReportViewModel): string {
     vm.forensicRows.length > 0
       ? `${vm.forensicRows.length} forensic event${
           vm.forensicRows.length === 1 ? "" : "s"
-        }`
-      : "No custody events";
+        } recorded`
+      : "No custody events recorded";
 
   const leadItemLabel = safe(
     vm.primaryContentItem?.originalFileName || vm.primaryContentItem?.label,
@@ -131,6 +160,7 @@ export function renderCoverSection(vm: ReportViewModel): string {
       </div>
       <div class="cover-verify-texts">
         <div class="cover-verify-title">Public Verification</div>
+        <div class="cover-verify-hint">Scan QR code or open verification page</div>
         <div class="cover-verify-url">${escapeHtml(vm.verifyUrl)}</div>
       </div>
     `
@@ -140,6 +170,7 @@ export function renderCoverSection(vm: ReportViewModel): string {
       </div>
       <div class="cover-verify-texts">
         <div class="cover-verify-title">Public Verification</div>
+        <div class="cover-verify-hint">Scan QR code or open verification page</div>
         <div class="cover-verify-url">${escapeHtml(vm.verifyUrl)}</div>
       </div>
     `;
@@ -162,33 +193,55 @@ export function renderCoverSection(vm: ReportViewModel): string {
           <div class="cover-decision-hero">
             <div class="cover-eyebrow">Decision Page</div>
 
-            <h1 class="cover-certificate-title">${escapeHtml(vm.title)}</h1>
+            <h1 class="cover-certificate-title">
+              Digital Evidence Verification Record
+            </h1>
 
-            ${
-              vm.subtitle
-                ? `<div class="cover-certificate-subtitle">${escapeHtml(vm.subtitle)}</div>`
-                : ""
-            }
+            <div class="cover-certificate-subtitle">
+              ${escapeHtml(buildCoverSubtitle(vm))}
+            </div>
 
             <div class="cover-status-stamp ${integrityBadgeClass}">
               <span>${vm.integrityVerified ? "✓" : "!"}</span>
               <strong>${escapeHtml(
                 vm.integrityVerified
-                  ? "Recorded Integrity Verified"
+                  ? "Integrity Verified"
                   : "Technical Review Required"
               )}</strong>
             </div>
+
+            ${
+              vm.integrityVerified
+                ? `
+                  <div class="cover-status-subtitle">
+                    No post-recording modification detected in the preserved evidence state.
+                  </div>
+                `
+                : `
+                  <div class="cover-status-subtitle">
+                    Manual technical review is required before relying on this evidence state.
+                  </div>
+                `
+            }
           </div>
 
           <div class="cover-decision-grid">
             ${renderDecisionIndicator({
               label: "Integrity",
-              value: vm.integrityVerified ? "Verified" : "Review required",
+              value: vm.integrityVerified ? "No mismatch detected" : "Review required",
               tone: vm.integrityVerified ? "success" : "warning",
             })}
             ${renderDecisionIndicator({
               label: "Timestamp",
-              value: timestampLabel,
+              value: statusTone(timestampLabel, [
+                "recorded",
+                "granted",
+                "verified",
+                "valid",
+                "success",
+              ]) === "success"
+                ? "External trusted timestamp recorded"
+                : timestampLabel,
               tone: statusTone(timestampLabel, [
                 "recorded",
                 "granted",
@@ -199,7 +252,15 @@ export function renderCoverSection(vm: ReportViewModel): string {
             })}
             ${renderDecisionIndicator({
               label: "Storage",
-              value: storageLabel,
+              value: statusTone(storageLabel, [
+                "verified",
+                "protected",
+                "compliance",
+                "governance",
+                "locked",
+              ]) === "success"
+                ? "Immutable retention verified"
+                : storageLabel,
               tone: statusTone(storageLabel, [
                 "verified",
                 "protected",
@@ -289,15 +350,20 @@ export function renderCoverSection(vm: ReportViewModel): string {
 
             <div class="cover-meta-card cover-meta-card-wide">
               <div class="cover-meta-label">Primary SHA-256 / Recorded Digest</div>
-              <div class="cover-meta-value cover-meta-value-code">${escapeHtml(primaryHash)}</div>
+              <div class="cover-meta-value cover-meta-value-code cover-primary-hash">
+                ${escapeHtml(primaryHash)}
+              </div>
             </div>
           </div>
 
-          <div class="cover-boundary-note">
+          <div class="cover-boundary-note cover-boundary-footer">
             <strong>Report Boundary.</strong>
-            This report verifies recorded integrity state, preservation controls,
-            timestamps, storage state, and custody records. It does not independently
-            prove factual truth, authorship, context, or admissibility.
+            This report verifies integrity state, preservation controls, timestamps,
+            storage state, and custody records. It does not independently prove truth,
+            authorship, context, intent, admissibility, or evidentiary weight.
+            <span class="cover-boundary-followup">
+              For technical validation, use the verification page and appendix.
+            </span>
           </div>
         </div>
 

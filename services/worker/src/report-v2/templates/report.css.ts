@@ -4,10 +4,10 @@ export function getReportCss(): string {
   const c = REPORT_BRAND.colors;
 
   return `
-    @page {
-      size: A4;
-      margin: 12mm 10mm 13mm 10mm;
-    }
+@page {
+  size: A4;
+  margin: 12mm 10mm 18mm 10mm;
+}
 
     * {
       box-sizing: border-box;
@@ -31,39 +31,41 @@ export function getReportCss(): string {
       background: ${c.paper} !important;
     }
 
-    .report-root {
-      width: 100%;
-      color: ${c.ink};
-    }
+.report-root {
+  width: 100%;
+  color: ${c.ink};
+  padding-bottom: 8mm;
+}
 
     .page-break-before {
       break-before: page;
       page-break-before: always;
     }
 
-    .report-cover {
-      width: 100%;
-      margin: 0 0 16px;
-      break-after: page;
-      page-break-after: always;
-    }
+.report-cover {
+  width: 100%;
+  margin: 0;
+  break-after: page;
+  page-break-after: always;
+}
+  
+.report-page {
+  width: 100%;
+  margin-bottom: 10px;
+  overflow: visible;
+  background: transparent;
+}
 
-    .report-page {
-      width: 100%;
-      margin-bottom: 14px;
-      overflow: visible;
-    }
-
-    .section-sheet {
-      background: ${c.white};
-      border: 1px solid ${c.line};
-      border-radius: 10px;
-      box-shadow: none;
-      overflow: visible;
-      padding: 14px 14px 12px;
-      break-inside: auto;
-      page-break-inside: auto;
-    }
+.section-sheet {
+  background: ${c.white};
+  border: 1px solid ${c.softLine};
+  border-radius: 12px;
+  box-shadow: none;
+  overflow: visible;
+  padding: 14px 14px 12px;
+  break-inside: auto;
+  page-break-inside: auto;
+}
 
     .section-heading {
       break-after: avoid;
@@ -149,19 +151,19 @@ export function getReportCss(): string {
       text-transform: uppercase;
     }
 
-    .cover-premium-body {
-      flex: 1;
-      display: flex;
-      flex-direction: column;
-      gap: 13px;
-      padding: 22px 22px 18px;
-      background: ${c.white};
-    }
+.cover-premium-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 18px 20px 12px;
+  background: ${c.white};
+}
 
-    .cover-decision-hero {
-      text-align: center;
-      padding: 8px 34px 4px;
-      break-inside: avoid;
+.cover-decision-hero {
+  text-align: center;
+  padding: 4px 30px 2px;
+        break-inside: avoid;
       page-break-inside: avoid;
     }
 
@@ -248,9 +250,9 @@ export function getReportCss(): string {
       border-color: ${c.softLine} !important;
     }
 
-    .cover-status-stamp {
-      margin: 16px auto 0;
-      display: inline-flex;
+.cover-status-stamp {
+  margin: 12px auto 0;
+        display: inline-flex;
       align-items: center;
       justify-content: center;
       gap: 9px;
@@ -1405,11 +1407,13 @@ export function getReportCss(): string {
       overflow: visible;
     }
 
-    .mono-label {
-      padding: 8px 10px;
-      background: ${c.accentSoft};
-      border-bottom: 1px solid ${c.softLine};
-    }
+.mono-label {
+  padding: 9px 11px;
+  background: ${c.accentSoft};
+  border-bottom: 1px solid ${c.softLine};
+  font-size: 9px;
+  font-weight: 950;
+}
 
     .mono-value {
       margin: 0;
@@ -1421,17 +1425,6 @@ export function getReportCss(): string {
       background: ${c.white};
       word-break: break-all;
       overflow-wrap: anywhere;
-    }
-
-    .report-footer-note {
-      margin-top: 10px;
-      padding-top: 8px;
-      border-top: 1px solid ${c.line};
-      font-size: 8.3px;
-      color: ${c.subtle};
-      display: flex;
-      justify-content: space-between;
-      gap: 10px;
     }
 
         .executive-summary-page {
@@ -1743,15 +1736,21 @@ export function getReportCss(): string {
       color: ${c.ink};
     }
 
-    .custody-hash-chain-table .hash-text {
-      font-size: 7.2px;
-      line-height: 1.38;
-      letter-spacing: -0.01em;
-      word-break: break-all;
-      overflow-wrap: anywhere;
-      white-space: pre-wrap;
-    }
+.custody-hash-chain-table .hash-text {
+  font-size: 9px; /* كان صغير جداً */
+  line-height: 1.45;
+  letter-spacing: -0.005em;
+  font-weight: 650;
+  word-break: break-all;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
 
+.custody-hash-chain-table td {
+  font-size: 8.6px;
+  line-height: 1.4;
+}
+  
         .integrity-summary-page {
       display: flex;
       flex-direction: column;
@@ -2175,10 +2174,12 @@ export function getReportCss(): string {
       gap: 8px;
     }
 
-    .technical-appendix-section .mono-value {
-      font-size: 7.3px;
-      line-height: 1.35;
-    }
+.technical-appendix-section .mono-value {
+  font-size: 9.4px;
+  line-height: 1.55;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
 
         .legal-interpretation-page {
       display: flex;
@@ -2273,13 +2274,279 @@ export function getReportCss(): string {
       white-space: pre-wrap;
     }
 
+        .cover-status-subtitle {
+      margin: 7px auto 0;
+      max-width: 520px;
+      color: ${c.muted};
+      font-size: 9.7px;
+      font-weight: 700;
+      line-height: 1.42;
+      text-align: center;
+      word-break: normal;
+      overflow-wrap: normal;
+    }
+
+    .cover-verify-hint {
+      margin-top: 4px;
+      color: ${c.muted};
+      font-size: 8.6px;
+      font-weight: 750;
+      line-height: 1.35;
+      text-align: center;
+    }
+
+    .cover-verify-url {
+      margin-top: 6px;
+      color: ${c.subtle};
+      font-size: 7.7px;
+      line-height: 1.32;
+      word-break: break-all;
+      overflow-wrap: anywhere;
+      text-align: center;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    }
+
+    .cover-primary-hash {
+      font-size: 8.9px;
+      line-height: 1.45;
+      letter-spacing: 0.01em;
+      color: ${c.ink};
+    }
+
+    .cover-boundary-footer {
+      margin-top: auto;
+      padding: 9px 11px;
+      font-size: 8.9px;
+      line-height: 1.42;
+    }
+
+    .cover-boundary-followup {
+      display: block;
+      margin-top: 4px;
+      color: ${c.ink};
+      font-weight: 800;
+    }
+
+    .cover-certificate-bottom {
+      min-height: 36px;
+      padding: 8px 12px;
+      font-size: 8.6px;
+    }
+
+        .gallery-meta-row-sha {
+      grid-template-columns: 82px minmax(0, 1fr);
+      align-items: start;
+    }
+
+    .gallery-sha-value {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 8.9px;
+      line-height: 1.45;
+      font-weight: 850;
+      letter-spacing: 0.01em;
+      color: ${c.ink};
+      word-break: break-all;
+      overflow-wrap: anywhere;
+      white-space: normal;
+      text-align: left;
+    }
+
+    .primary-evidence-details .gallery-sha-value {
+      font-size: 9.2px;
+      line-height: 1.48;
+    }
+
+        .custody-lifecycle-summary {
+      border: 1px solid ${c.softLine};
+      border-left: 5px solid ${c.accent};
+      border-radius: 10px;
+      background: ${c.neutralSoft};
+      padding: 11px 13px;
+      break-inside: avoid;
+      page-break-inside: avoid;
+    }
+
+    .custody-lifecycle-label {
+      color: ${c.accent};
+      font-size: 9px;
+      font-weight: 950;
+      letter-spacing: 0.055em;
+      text-transform: uppercase;
+      margin-bottom: 7px;
+    }
+
+    .custody-lifecycle-flow {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      align-items: center;
+      color: ${c.ink};
+      font-size: 9px;
+      font-weight: 850;
+      line-height: 1.35;
+    }
+
+    .custody-lifecycle-flow span {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      white-space: nowrap;
+    }
+
+    .custody-lifecycle-flow span:not(:last-child)::after {
+      content: "→";
+      color: ${c.subtle};
+      font-weight: 900;
+      margin-left: 6px;
+    }
+
+    .custody-inline-note {
+      margin-top: 6px;
+      display: inline-block;
+      border: 1px solid rgba(138, 106, 47, 0.25);
+      border-radius: 999px;
+      background: ${c.warningSoft};
+      color: ${c.warning};
+      padding: 4px 8px;
+      font-size: 8px;
+      line-height: 1.25;
+      font-weight: 850;
+    }
+
+    .custody-access-note {
+      margin: 8px 0 8px;
+      border: 1px solid ${c.softLine};
+      border-radius: 8px;
+      background: ${c.neutralSoft};
+      color: ${c.muted};
+      padding: 8px 10px;
+      font-size: 8.7px;
+      line-height: 1.42;
+      font-weight: 650;
+      break-inside: avoid;
+      page-break-inside: avoid;
+    }
+
+    .custody-access-list {
+      display: flex;
+      flex-direction: column;
+      gap: 7px;
+    }
+
+    .custody-access-event {
+      display: grid;
+      grid-template-columns: 78px minmax(0, 1fr);
+      gap: 10px;
+      border: 1px solid ${c.softLine};
+      border-radius: 9px;
+      background: ${c.white};
+      padding: 9px 10px;
+      break-inside: avoid;
+      page-break-inside: avoid;
+    }
+
+    .custody-access-marker {
+      align-self: start;
+      border: 1px solid ${c.softLine};
+      border-radius: 999px;
+      background: ${c.neutralSoft};
+      color: ${c.subtle};
+      padding: 5px 7px;
+      font-size: 7.6px;
+      font-weight: 950;
+      text-align: center;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      line-height: 1.2;
+    }
+
+    .custody-access-content {
+      min-width: 0;
+    }
+
+    .custody-access-top {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) max-content;
+      gap: 10px;
+      align-items: baseline;
+      margin-bottom: 3px;
+    }
+
+    .custody-access-title {
+      color: ${c.accent};
+      font-size: 10px;
+      font-weight: 950;
+      line-height: 1.25;
+      word-break: normal;
+      overflow-wrap: anywhere;
+    }
+
+    .custody-access-time {
+      color: ${c.subtle};
+      font-size: 8px;
+      font-weight: 800;
+      white-space: nowrap;
+      text-align: right;
+    }
+
+    .custody-access-summary {
+      color: ${c.muted};
+      font-size: 8.8px;
+      line-height: 1.42;
+      font-weight: 650;
+      word-break: normal;
+      overflow-wrap: anywhere;
+    }
+
+    .custody-access-sequence {
+      margin-top: 4px;
+      color: ${c.subtle};
+      font-size: 7.8px;
+      font-weight: 800;
+      letter-spacing: 0.02em;
+    }
+
+.print-footer {
+  position: fixed;
+  left: 10mm;
+  right: 10mm;
+  bottom: 5mm;
+  height: 8mm;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border-top: 1px solid ${c.softLine};
+  color: ${c.subtle};
+  font-size: 7.9px;
+  font-weight: 750;
+  letter-spacing: 0.012em;
+  background: ${c.paper};
+  z-index: 1000;
+}
+
+.print-footer-left,
+.print-footer-right {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  white-space: nowrap;
+}
+
+.print-footer-brand {
+  color: ${c.accent};
+  font-weight: 950;
+  letter-spacing: 0.06em;
+}
+
+.print-footer-divider {
+  margin: 0 6px;
+  color: ${c.line};
+}
+
     @media print {
       body {
         overflow: visible;
-      }
-
-      .report-footer-note {
-        position: static;
       }
 
       .info-cards,
@@ -2323,6 +2590,13 @@ export function getReportCss(): string {
         page-break-inside: avoid !important;
       }
 
+            .cover-status-subtitle,
+      .cover-boundary-footer,
+      .cover-primary-hash {
+        break-inside: avoid !important;
+        page-break-inside: avoid !important;
+      }
+
       .report-table,
       table {
         break-inside: auto !important;
@@ -2334,6 +2608,14 @@ export function getReportCss(): string {
   break-inside: auto !important;
   page-break-inside: auto !important;
 }
+
+      .custody-lifecycle-summary,
+      .custody-access-note,
+      .custody-access-event,
+      .custody-inline-note {
+        break-inside: avoid !important;
+        page-break-inside: avoid !important;
+      }
 
 .custody-hash-chain-table tr {
   break-inside: avoid !important;

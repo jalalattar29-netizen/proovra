@@ -7,6 +7,9 @@ export function renderReportShell(params: {
   generatedAtUtc: string;
   version: number;
 }): string {
+  const versionLabel = escapeHtml(String(params.version));
+  const generatedAtUtc = escapeHtml(params.generatedAtUtc);
+
   return `<!DOCTYPE html>
 <html lang="en">
   <head>
@@ -16,13 +19,20 @@ export function renderReportShell(params: {
     <style>${getReportCss()}</style>
   </head>
   <body>
-    <div class="report-root">
-      ${params.body}
-      <footer class="report-footer-note">
-        <div>PROOVRA • Verification Report v${escapeHtml(String(params.version))}</div>
-        <div>Generated (UTC): ${escapeHtml(params.generatedAtUtc)}</div>
-      </footer>
+    <div class="print-footer" aria-hidden="true">
+      <div class="print-footer-left">
+        <span class="print-footer-brand">PROOVRA</span>
+        <span class="print-footer-divider">•</span>
+        <span>Verification Report v${versionLabel}</span>
+      </div>
+      <div class="print-footer-right">
+        Generated UTC: ${generatedAtUtc}
+      </div>
     </div>
+
+    <main class="report-root">
+      ${params.body}
+    </main>
   </body>
 </html>`;
 }

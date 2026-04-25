@@ -26,48 +26,67 @@ function renderWorkflowStep(params: {
   `;
 }
 
+function buildWorkflowResult(step: string, index: number): string {
+  const normalized = step.toLowerCase();
+
+  if (index === 0 && normalized.includes("complete multipart evidence set")) {
+    return "Ensures the reviewer validates the complete package, not only a preview or single extracted file.";
+  }
+
+  if (index === 1 && normalized.includes("canonical fingerprint")) {
+    return "Confirms the package structure and expected items before hash comparison.";
+  }
+
+  if (
+    index === 2 &&
+    (normalized.includes("multipart composite hash") ||
+      normalized.includes("composite hash"))
+  ) {
+    return "Confirms the recorded package fingerprint matches the preserved item structure and digests.";
+  }
+
+  if (normalized.includes("sha")) {
+    return "Confirms the preserved file has not been altered after recording.";
+  }
+
+  if (normalized.includes("signature")) {
+    return "Validates authenticity of the recorded evidence package.";
+  }
+
+  if (normalized.includes("timestamp")) {
+    return "Establishes existence of the evidence at a specific point in time.";
+  }
+
+  if (normalized.includes("opentimestamp")) {
+    return "Links the evidence state to a public, independently verifiable timeline.";
+  }
+
+  if (normalized.includes("custody")) {
+    return "Provides a chronological record of how the evidence was handled.";
+  }
+
+  if (normalized.includes("storage")) {
+    return "Indicates protection against modification after preservation.";
+  }
+
+  return "Supports structured technical verification of the evidence.";
+}
+
 export function renderForensicIntegrityStatementSection(
   vm: ReportViewModel
 ): string {
   const compact = vm.presentation.decisions.compactForensicStatement;
 
-  const steps = vm.forensicIntegrityStatement.reviewSteps.map(
-    (step, i) => {
-      // 💡 نولد معنى لكل خطوة (مؤقت – بعدين ممكن نربطه بالbackend)
-      let result = "Supports structured technical verification of the evidence.";
-
-      if (step.toLowerCase().includes("sha")) {
-        result = "Confirms the preserved file has not been altered after recording.";
-      }
-
-      if (step.toLowerCase().includes("signature")) {
-        result = "Validates authenticity of the recorded evidence package.";
-      }
-
-      if (step.toLowerCase().includes("timestamp")) {
-        result = "Establishes existence of the evidence at a specific point in time.";
-      }
-
-      if (step.toLowerCase().includes("opentimestamp")) {
-        result = "Links the evidence state to a public, independently verifiable timeline.";
-      }
-
-      if (step.toLowerCase().includes("custody")) {
-        result = "Provides a chronological record of how the evidence was handled.";
-      }
-
-      if (step.toLowerCase().includes("storage")) {
-        result = "Indicates protection against modification after preservation.";
-      }
-
-      return renderWorkflowStep({
+  const steps = vm.forensicIntegrityStatement.reviewSteps
+    .map((step, i) =>
+      renderWorkflowStep({
         index: i + 1,
         title: `Step ${i + 1}`,
         action: step,
-        result,
-      });
-    }
-  ).join("");
+        result: buildWorkflowResult(step, i),
+      })
+    )
+    .join("");
 
   return renderPageSection(
     "Reviewer Verification Workflow",

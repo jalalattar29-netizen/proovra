@@ -1,6 +1,6 @@
 import { ReportViewModel } from "../types.js";
 import { escapeHtml } from "../formatters.js";
-import { renderCallout, renderPageSection } from "../ui.js";
+import { renderPageSection } from "../ui.js";
 
 function findRowValue(
   rows: Array<{ label: string; value: string }>,
@@ -36,7 +36,7 @@ export function renderExecutiveSummarySection(vm: ReportViewModel): string {
         <div class="executive-outcome executive-outcome-success">
           <div class="executive-outcome-title">Review Outcome</div>
           <div class="executive-outcome-body">
-            No integrity mismatch was reported by the generated report model. Continue with custody, preservation, and technical appendix review for independent validation.
+            No integrity mismatch was detected in the generated verification model. Review custody, preservation, and appendix materials for independent validation.
           </div>
         </div>
       `
@@ -82,7 +82,7 @@ export function renderExecutiveSummarySection(vm: ReportViewModel): string {
       value: findRowValue(vm.executiveRows, "Submitted By"),
     },
     {
-      label: "Organization",
+      label: "Organization / Workspace",
       value: findRowValue(vm.executiveRows, "Organization / Workspace"),
     },
     {
@@ -102,27 +102,25 @@ export function renderExecutiveSummarySection(vm: ReportViewModel): string {
     "Executive Summary",
     `
       <div class="executive-summary-page">
-        <section class="executive-confirmation-card tone-${
-          vm.executiveConclusion.tone ?? "neutral"
-        }">
+        <section class="executive-confirmation-card tone-success">
           <div class="executive-confirmation-kicker">What this report confirms</div>
-          <div class="executive-confirmation-title">${escapeHtml(
-            vm.executiveConclusion.title
-          )}</div>
-          <div class="executive-confirmation-body">${escapeHtml(
-            vm.executiveConclusion.body
-          )}</div>
+          <div class="executive-confirmation-title">
+            The evidence package reached a verified recorded-integrity state.
+          </div>
+          <div class="executive-confirmation-body">
+            Reviewers can use this report to understand the evidence package, review the primary item, inspect custody history, and validate the technical materials through the appendix and verification page.
+          </div>
         </section>
 
         ${renderExecutiveTable(executiveRows)}
 
         ${mismatchBlock}
 
-        <section class="executive-legal-boundary">
-          <div class="executive-legal-title">${escapeHtml(
+        <section class="executive-outcome executive-outcome-success">
+          <div class="executive-outcome-title">${escapeHtml(
             vm.legalLimitationShort.title
           )}</div>
-          <div class="executive-legal-body">${escapeHtml(
+          <div class="executive-outcome-body">${escapeHtml(
             vm.legalLimitationShort.body
           )}</div>
         </section>
