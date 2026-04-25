@@ -31,7 +31,6 @@ export function renderReportShell(params: {
   const generatedAtUtc = escapeHtml(params.generatedAtUtc);
   const generatedDateUtc = escapeHtml(formatGeneratedDateUtc(params.generatedAtUtc));
   const paperUrl = escapeHtml(resolveReportAssetUrl("paper-silver.png"));
-  const iconUrl = escapeHtml(resolveReportAssetUrl("icon-192.png"));
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -56,41 +55,38 @@ export function renderReportShell(params: {
         background-position: center top !important;
       }
 
-      .section-sheet,
-      .cover-certificate-card,
-      .cover-premium-body,
-      .technical-appendix-block,
-      .callout,
-      .kv-item,
-      .info-card,
-      .mono-block,
-      .workflow-step,
-      .custody-stat-card,
-      .custody-access-event,
-      .integrity-detail-card,
-      .integrity-check-list,
-      .executive-summary-table,
-      .executive-confirmation-card,
-      .executive-outcome,
-      .technical-verification-card,
-      .technical-access-panel,
-      .legal-interpretation-card,
-      .report-table,
-      table {
-        background-color: rgba(255, 255, 255, 0.78) !important;
-        background-image: url("${paperUrl}") !important;
-        background-size: cover !important;
-        background-repeat: repeat !important;
-        background-position: center top !important;
-      }
+.section-sheet,
+.cover-certificate-card,
+.cover-premium-body,
+.technical-appendix-block,
+.callout,
+.kv-item,
+.info-card,
+.mono-block,
+.workflow-step,
+.custody-stat-card,
+.custody-access-event,
+.integrity-detail-card,
+.integrity-check-list,
+.executive-summary-table,
+.executive-confirmation-card,
+.executive-outcome,
+.technical-verification-card,
+.technical-access-panel,
+.legal-interpretation-card,
+.report-table,
+table {
+  background: transparent !important;
+  background-image: none !important;
+}
 
-      .report-table th,
-      table th,
-      .mono-label,
-      .technical-appendix-block-head {
-        background: rgba(255, 255, 255, 0.48) !important;
-      }
-
+.report-table th,
+table th,
+.mono-label,
+.technical-appendix-block-head {
+  background: rgba(255, 255, 255, 0.06) !important;
+}
+  
       .section-kicker,
       .print-footer-brand {
         color: #9b9d9d !important;

@@ -356,15 +356,22 @@ export function renderCoverSection(vm: ReportViewModel): string {
             </div>
           </div>
 
-          <div class="cover-boundary-note cover-boundary-footer">
-            <strong>Report Boundary.</strong>
-            This report verifies integrity state, preservation controls, timestamps,
-            storage state, and custody records. It does not independently prove truth,
-            authorship, context, intent, admissibility, or evidentiary weight.
-            <span class="cover-boundary-followup">
-              For technical validation, use the verification page and appendix.
-            </span>
-          </div>
+<div class="cover-meta-card cover-meta-card-wide">
+  <div class="cover-meta-label">Primary SHA-256 / Recorded Digest</div>
+  <div class="cover-meta-value cover-meta-value-code cover-primary-hash">
+    ${escapeHtml(primaryHash)}
+  </div>
+</div>
+
+<div class="cover-boundary-note cover-boundary-inline">
+  <strong>Report Boundary.</strong>
+  This report verifies integrity state, preservation controls, timestamps,
+  storage state, and custody records. It does not independently prove truth,
+  authorship, context, intent, admissibility, or evidentiary weight.
+  <span class="cover-boundary-followup">
+    For technical validation, use the verification page and appendix.
+  </span>
+</div>
         </div>
 
         <div class="cover-certificate-bottom cover-certificate-bottom-premium">

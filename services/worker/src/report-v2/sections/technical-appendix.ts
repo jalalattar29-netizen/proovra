@@ -125,6 +125,9 @@ export function renderTechnicalAppendixSection(vm: ReportViewModel): string {
   const appendixDepth = vm.presentation.decisions.appendixDepth;
   const compact = appendixDepth === "compact";
   const anchoringRows = normalizeAnchoringRows(vm);
+  const filteredIdentityRows = vm.technicalIdentityRows.filter(
+  (row) => !row.label?.toLowerCase().includes("last accessed")
+);
 
   const tsaMessageImprint = hasMeaningfulTechnicalValue(
     vm.technicalAppendix.tsaMessageImprint
@@ -159,13 +162,12 @@ export function renderTechnicalAppendixSection(vm: ReportViewModel): string {
 
         ${renderTechnicalStatusCards(vm)}
 
-        ${renderAppendixSection(
-          "Identity & Provenance",
-          "Who submitted the evidence, which identity level was recorded, and what workspace or organization context exists.",
-          renderKeyValueGrid(vm.technicalIdentityRows),
-          { className: "technical-appendix-identity-block" }
-        )}
-
+${renderAppendixSection(
+  "Identity & Provenance",
+  "Who submitted the evidence, which identity level was recorded, and what workspace or organization context exists.",
+  renderKeyValueGrid(filteredIdentityRows),
+  { className: "technical-appendix-identity-block" }
+)}
         ${renderAppendixSection(
           "Cryptographic Fingerprint",
           "Primary digest and canonical fingerprint references used to identify the preserved evidence state.",

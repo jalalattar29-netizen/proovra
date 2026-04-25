@@ -32,19 +32,16 @@ function escapeFooterHtml(value: string): string {
     .replace(/"/g, "&quot;");
 }
 
-function shortReportId(value: string | null | undefined): string {
+function fullReportId(value: string | null | undefined): string {
   const raw = typeof value === "string" ? value.trim() : "";
   if (!raw) return "N/A";
 
   const uuidMatch = raw.match(
     /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i
   );
-  if (uuidMatch?.[0]) return uuidMatch[0].slice(0, 6);
+  if (uuidMatch?.[0]) return uuidMatch[0];
 
-  const hexMatch = raw.match(/[0-9a-f]{6,}/i);
-  if (hexMatch?.[0]) return hexMatch[0].slice(0, 6);
-
-  return raw.slice(0, 6);
+  return raw;
 }
 
 function normalizeGeneratedDate(value: string | null | undefined): string {
@@ -95,11 +92,11 @@ function buildFooterTemplate(params: {
         letter-spacing: 0.055em;
       }
 
-      .proovra-footer-sep {
-        color: #a7adad;
-        padding: 0 3.2px;
-      }
-
+.proovra-footer-sep {
+  color: #a7adad;
+  padding: 0 8px;
+}
+  
       .proovra-footer-page {
         color: #233633;
         font-weight: 900;
@@ -241,7 +238,7 @@ export async function renderPdfFromHtml(html: string): Promise<Buffer> {
     });
 
     const footerTemplate = buildFooterTemplate({
-      reportId: shortReportId(footerData.evidenceReference),
+reportId: fullReportId(footerData.evidenceReference),
       version: footerData.version || "1",
       generatedDateUtc: normalizeGeneratedDate(footerData.generatedDateUtc),
     });

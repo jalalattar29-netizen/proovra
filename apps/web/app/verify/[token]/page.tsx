@@ -348,6 +348,13 @@ type VerifyResponse = {
   overview?: VerifyOverview | null;
   humanSummary?: VerifyHumanSummary | null;
   reviewTrail?: VerifyReviewTrail | null;
+    custodyLifecycle?: {
+    forensicEventCount?: number | null;
+    accessEventCount?: number | null;
+    forensicEvents?: VerifyTimelineEvent[] | null;
+    accessEvents?: VerifyTimelineEvent[] | null;
+    chronologyNote?: string | null;
+  } | null;
   technicalMaterials?: VerifyTechnicalMaterials | null;
   storageAndTimestamping?: VerifyStorageAndTimestamping | null;
   limitations?: VerifyLimitations | null;
@@ -1745,12 +1752,32 @@ function extractEvidenceContent(data: VerifyResponse) {
   };
 }
 
+function isAccessEventType(eventType?: string | null): boolean {
+  const value = (eventType ?? "").toUpperCase();
+
+  return [
+    "VERIFY_VIEWED",
+    "EVIDENCE_VIEWED",
+    "EVIDENCE_DOWNLOADED",
+    "REPORT_DOWNLOADED",
+    "VERIFICATION_PACKAGE_DOWNLOADED",
+    "TECHNICAL_VERIFICATION_CHECKED",
+  ].includes(value);
+}
+
   const applyVerifyResponse = (data: VerifyResponse) => {
     const tsaDetails = buildTsaDetails(data);
     const otsDetails = buildOtsDetails(data);
 
-    const reviewTrailForensic = data.reviewTrail?.forensicCustodyEvents ?? null;
-    const reviewTrailAccess = data.reviewTrail?.accessCustodyEvents ?? null;
+    const reviewTrailForensic =
+      data.reviewTrail?.forensicCustodyEvents ??
+      data.custodyLifecycle?.forensicEvents ??
+      null;
+
+    const reviewTrailAccess =
+      data.reviewTrail?.accessCustodyEvents ??
+      data.custodyLifecycle?.accessEvents ??
+      null;
 
     const rawTimeline: TimelineItem[] = (data.custodyEvents ?? []).map((ev) => ({
       sequence: ev.sequence ?? null,
@@ -1783,7 +1810,9 @@ function extractEvidenceContent(data: VerifyResponse) {
               eventHash: ev.eventHash ?? null,
               category: ev.category ?? "forensic",
             }))
-          : rawTimeline.filter((item) => item.category !== "access");
+: rawTimeline.filter(
+    (item) => item.category === "forensic" || !isAccessEventType(item.eventType)
+  );
 
     const accessOnly: TimelineItem[] =
       reviewTrailAccess && reviewTrailAccess.length > 0
@@ -1806,7 +1835,9 @@ function extractEvidenceContent(data: VerifyResponse) {
               eventHash: ev.eventHash ?? null,
               category: ev.category ?? "access",
             }))
-          : rawTimeline.filter((item) => item.category === "access");
+: rawTimeline.filter(
+    (item) => item.category === "access" || isAccessEventType(item.eventType)
+  );
 
     const effectiveOverview = data.overview ?? null;
     const effectiveHumanSummary = data.humanSummary ?? null;

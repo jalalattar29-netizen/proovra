@@ -28,7 +28,7 @@ body {
   padding: 0;
   min-height: 100%;
   color: ${c.ink};
-  font-family: "Segoe UI", Arial, Helvetica, sans-serif;
+font-family: "Helvetica Neue", Arial, Helvetica, sans-serif;
   font-size: 10.4px;
   line-height: 1.48;
   -webkit-print-color-adjust: exact;
@@ -58,10 +58,12 @@ body {
 .report-cover {
   width: 100%;
   margin: 0;
+  padding: 0;
   break-after: page;
   page-break-after: always;
+  overflow: hidden;
 }
-  
+
 .report-page {
   width: 100%;
   margin: 0 0 10px;
@@ -81,45 +83,40 @@ body {
   page-break-inside: auto;
 }
 
-    .section-heading {
-      break-after: avoid;
-      page-break-after: avoid;
-    }
-
+.section-heading {
+  margin-bottom: 10px;
+  break-after: avoid;
+  page-break-after: avoid;
+}
+  
 .section-kicker {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  margin-bottom: 3px;
-  color: #9da3a6;
-  font-size: 8.2px;
+  display: block;
+  margin: 0 0 4px;
+  color: ${c.subtle};
+  font-size: 7.4px;
   font-weight: 900;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.16em;
   text-transform: uppercase;
+  text-align: left;
 }
 
 .section-kicker::before {
-  content: "";
-  width: 13px;
-  height: 13px;
-  display: inline-block;
-  background-image: url("${brandIconUrl}");
-  background-size: contain;
-  background-repeat: no-repeat;
-  background-position: center;
+  content: none !important;
 }
 
-    .section-title {
-      margin: 0 0 10px;
-      padding-bottom: 8px;
-      border-bottom: 1px solid ${c.line};
-      font-size: 17px;
-      font-weight: 850;
-      color: ${c.accent};
-      letter-spacing: -0.01em;
-      break-after: avoid;
-      page-break-after: avoid;
-    }
+.section-title {
+  margin: 0 0 12px;
+  padding-bottom: 9px;
+  border-bottom: 2px solid rgba(18, 42, 38, 0.18);
+  font-size: 18px;
+  font-weight: 950;
+  color: ${c.accent};
+  letter-spacing: -0.025em;
+  line-height: 1.12;
+  text-align: left;
+  break-after: avoid;
+  page-break-after: avoid;
+}
 
     .section-body {
       display: flex;
@@ -132,11 +129,11 @@ body {
 .cover-certificate-card {
   display: flex;
   flex-direction: column;
-  height: 270mm;
-  min-height: auto;
+  height: 266mm;
+  min-height: 266mm;
   overflow: hidden;
   background: rgba(255,255,255,0.82);
-    border: 1px solid ${c.line};
+  border: 1px solid ${c.line};
   border-radius: 0;
   box-shadow: none;
   break-inside: avoid;
@@ -167,14 +164,14 @@ body {
 }
 
 .cover-brand-icon {
-  width: 24px;
-  height: 24px;
+  width: 30px;
+  height: 30px;
   flex: 0 0 auto;
   background-image: url("${brandIconUrl}");
   background-size: contain;
   background-position: center;
   background-repeat: no-repeat;
-  border-radius: 6px;
+  border-radius: 8px;
 }
 
     .cover-brand-lockup {
@@ -183,29 +180,32 @@ body {
       gap: 2px;
     }
 
-    .cover-brand-mini {
-  color: #c7c9c9;
-        font-size: 15px;
-      font-weight: 900;
-      letter-spacing: 0.08em;
-    }
+.cover-brand-mini {
+  font-family: Georgia, "Times New Roman", serif;
+  color: #d8dad9;
+  font-size: 21px;
+  font-weight: 700;
+  letter-spacing: 0.105em;
+  line-height: 1;
+  text-transform: uppercase;
+  text-shadow:
+    0 1px 0 rgba(255,255,255,0.22),
+    0 8px 18px rgba(0,0,0,0.22);
+}
 
-    .cover-brand-sub {
-      color: rgba(255,255,255,0.84);
-      font-size: 9px;
-      font-weight: 750;
-      letter-spacing: 0.055em;
-      text-transform: uppercase;
-    }
+.cover-brand-sub {
+  font-family: "Helvetica Neue", Arial, Helvetica, sans-serif;
+  color: rgba(235,237,236,0.78);
+  font-size: 7.7px;
+  font-weight: 800;
+  letter-spacing: 0.145em;
+  text-transform: uppercase;
+}
 
 .cover-premium-body {
   flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding: 14px 18px 9px;
-  background: rgba(255,255,255,0.78);
-    min-height: 0;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .cover-decision-hero {
@@ -1749,60 +1749,76 @@ body {
       padding: 16px 16px 13px;
     }
 
-    .custody-hash-chain-table {
-      table-layout: fixed;
-      border: 1px solid ${c.line};
-      background: ${c.white};
-    }
+.custody-hash-chain-table {
+  table-layout: fixed;
+  border: 1px solid ${c.line};
+  background: transparent;
+}
 
-    .custody-hash-chain-table th {
-      background: ${c.accentSoft};
-      color: ${c.accent};
-      font-size: 8.2px;
-      font-weight: 950;
-      letter-spacing: 0.045em;
-      text-transform: uppercase;
-      padding: 8px 8px;
-      line-height: 1.15;
-      border-bottom: 1px solid ${c.line};
-    }
+.custody-hash-chain-table th:nth-child(1),
+.custody-hash-chain-table td:nth-child(1) {
+  width: 6%;
+}
 
-    .custody-hash-chain-table td {
-      padding: 8px 8px;
-      font-size: 8.1px;
-      line-height: 1.35;
-      vertical-align: top;
-      border-bottom: 1px solid ${c.softLine};
-      word-break: break-word;
-      overflow-wrap: anywhere;
-      white-space: pre-wrap;
-    }
+.custody-hash-chain-table th:nth-child(2),
+.custody-hash-chain-table td:nth-child(2) {
+  width: 14%;
+}
 
-    .custody-hash-chain-table td:nth-child(1) {
-      font-weight: 900;
-      color: ${c.accent};
-    }
+.custody-hash-chain-table th:nth-child(3),
+.custody-hash-chain-table td:nth-child(3) {
+  width: 18%;
+}
 
-    .custody-hash-chain-table td:nth-child(3) {
-      font-weight: 850;
-      color: ${c.ink};
-    }
+.custody-hash-chain-table th:nth-child(4),
+.custody-hash-chain-table td:nth-child(4),
+.custody-hash-chain-table th:nth-child(5),
+.custody-hash-chain-table td:nth-child(5) {
+  width: 31%;
+}
 
-.custody-hash-chain-table .hash-text {
-  font-size: 9px; /* كان صغير جداً */
-  line-height: 1.45;
-  letter-spacing: -0.005em;
-  font-weight: 650;
-  word-break: break-all;
-  overflow-wrap: anywhere;
-  white-space: pre-wrap;
+.custody-hash-chain-table th {
+  background: rgba(255,255,255,0.08);
+  color: ${c.accent};
+  font-size: 7.2px;
+  font-weight: 950;
+  letter-spacing: 0.035em;
+  text-transform: uppercase;
+  padding: 6px 6px;
+  line-height: 1.15;
+  border-bottom: 1px solid ${c.line};
 }
 
 .custody-hash-chain-table td {
-  font-size: 8.6px;
-  line-height: 1.4;
+  padding: 6px 6px;
+  font-size: 7.1px;
+  line-height: 1.28;
+  vertical-align: top;
+  border-bottom: 1px solid ${c.softLine};
+  white-space: normal;
+  word-break: normal;
+  overflow-wrap: normal;
 }
-  
+
+.custody-hash-chain-table td:nth-child(3) {
+  font-size: 7px;
+  font-weight: 850;
+  color: ${c.ink};
+  word-break: normal;
+  overflow-wrap: anywhere;
+}
+
+.custody-hash-chain-table .hash-text {
+  font-size: 6.8px;
+  line-height: 1.28;
+  letter-spacing: -0.015em;
+  font-weight: 650;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  word-break: break-all;
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
         .integrity-summary-page {
       display: flex;
       flex-direction: column;
@@ -2368,12 +2384,13 @@ body {
   background: rgba(255,255,255,0.78);
 }
 
-    .cover-boundary-footer {
-      margin-top: auto;
-      padding: 9px 11px;
-      font-size: 8.9px;
-      line-height: 1.42;
-    }
+.cover-boundary-inline {
+  grid-column: 1 / -1;
+  margin-top: 0;
+  padding: 9px 11px;
+  font-size: 8.9px;
+  line-height: 1.42;
+}
 
     .cover-boundary-followup {
       display: block;
@@ -2614,6 +2631,54 @@ body {
   content: none !important;
 }
 
+.section-sheet,
+.cover-premium-body,
+.cover-evidence-panel,
+.cover-meta-card,
+.cover-verify-box,
+.cover-boundary-note,
+.cover-decision-indicator,
+.callout,
+.info-card,
+.kv-item,
+.workflow-step,
+.custody-stat-card,
+.custody-access-event,
+.integrity-detail-card,
+.integrity-check-list,
+.executive-summary-table,
+.executive-confirmation-card,
+.executive-outcome,
+.technical-status-card,
+.technical-verification-card,
+.technical-access-panel,
+.technical-appendix-block,
+.technical-appendix-block-head,
+.legal-interpretation-card,
+.verification-link-panel,
+.mono-block,
+.mono-label,
+.mono-value,
+.report-table,
+.report-table th,
+.report-table td,
+table,
+table th,
+table td {
+  background: transparent !important;
+  background-image: none !important;
+}
+
+.cover-certificate-card {
+  background: transparent !important;
+  background-image: none !important;
+}
+
+.qr-inline-block,
+.qr-inline-block img {
+  background: #ffffff !important;
+}
+
     @media print {
       body {
         overflow: visible;
@@ -2640,22 +2705,24 @@ body {
         page-break-inside: avoid !important;
       }
 
-      .callout,
-      .info-card,
-      .kv-item,
-      .cover-meta-card,
-      .cover-decision-indicator,
-      .gallery-card,
-      .gallery-secondary-item,
-      .mono-block,
-      .technical-status-card,
-      .integrity-control-card,
-      .verification-link-panel,
-      .cover-evidence-panel,
-      .cover-verify-box,
-      .cover-meta-card,
-      .cover-boundary-note {
-        background: rgba(255,255,255,0.9);
+.callout,
+.info-card,
+.kv-item,
+.cover-meta-card,
+.cover-decision-indicator,
+.gallery-card,
+.gallery-secondary-item,
+.mono-block,
+.technical-status-card,
+.integrity-control-card,
+.verification-link-panel,
+.cover-evidence-panel,
+.cover-verify-box,
+.cover-boundary-note {
+  background: transparent !important;
+  background-image: none !important;
+}
+
       .evidence-strip,
       .timeline-card {
         break-inside: avoid !important;
@@ -2663,7 +2730,6 @@ body {
       }
 
             .cover-status-subtitle,
-      .cover-boundary-footer,
       .cover-primary-hash {
         break-inside: avoid !important;
         page-break-inside: avoid !important;
