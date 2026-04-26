@@ -259,3 +259,17 @@ export function mapEvidenceAssetKindLabel(
       return "Not recorded";
   }
 }
+
+export function normalizeReviewerText(value: string | null | undefined): string {
+  return safe(value, "")
+    .replace(/\bOAUTH_BACKED_IDENTITY\b/g, "OAuth-backed identity")
+    .replace(/\bMULTIPART_PACKAGE\b/g, "Multipart package")
+    .replace(/\bSECURE_CAMERA\b/g, "PROOVRA secure camera")
+    .replace(/\bUPLOADED_FILE\b/g, "Uploaded existing file")
+    .replace(/\bIMPORTED_DOCUMENT\b/g, "Imported document")
+    .replace(/\bBASIC_ACCOUNT\b/g, "Basic account")
+    .replace(/\bVERIFIED_EMAIL\b/g, "Verified email")
+    .replace(/\bORGANIZATION_ACCOUNT\b/g, "Organization account")
+    .replace(/\bVERIFIED_ORGANIZATION\b/g, "Verified organization")
+    .replace(/_/g, " ");
+}

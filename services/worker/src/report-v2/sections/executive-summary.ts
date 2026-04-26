@@ -51,6 +51,15 @@ export function renderExecutiveSummarySection(vm: ReportViewModel): string {
         </div>
       `;
 
+
+  const leadItemType = findRowValue(vm.executiveRows, "Lead Item Type", "");
+const leadItemName = findRowValue(vm.executiveRows, "Lead Review Item", "");
+
+const leadItemValue =
+  leadItemType && leadItemName
+    ? `${leadItemType} • ${leadItemName}`
+    : leadItemName || leadItemType || "Not recorded";
+    
   const executiveRows = [
     {
       label: "Evidence Type",
@@ -85,13 +94,14 @@ export function renderExecutiveSummarySection(vm: ReportViewModel): string {
       label: "Organization / Workspace",
       value: findRowValue(vm.executiveRows, "Organization / Workspace"),
     },
-    {
-      label: "Identity / Lead Item",
-      value: `${findRowValue(vm.executiveRows, "Lead Item Type")} • ${findRowValue(
-        vm.executiveRows,
-        "Lead Review Item"
-      )}`,
-    },
+{
+  label: "Identity Level",
+  value: findRowValue(vm.reviewReadinessRows, "Identity Level"),
+},
+{
+  label: "Lead Item",
+  value: leadItemValue,
+},
     {
       label: "Integrity Result",
       value: vm.verificationStatusLabel,
@@ -116,14 +126,12 @@ export function renderExecutiveSummarySection(vm: ReportViewModel): string {
 
         ${mismatchBlock}
 
-        <section class="executive-outcome executive-outcome-success">
-          <div class="executive-outcome-title">${escapeHtml(
-            vm.legalLimitationShort.title
-          )}</div>
-          <div class="executive-outcome-body">${escapeHtml(
-            vm.legalLimitationShort.body
-          )}</div>
-        </section>
+<section class="executive-outcome executive-outcome-warning">
+  <div class="executive-outcome-title">Important boundary</div>
+  <div class="executive-outcome-body">
+    This report verifies recorded integrity and preservation state only. Legal admissibility, factual truth, authorship, context, and evidentiary weight require separate review.
+  </div>
+</section>
       </div>
     `,
 { className: "executive-summary-section" }

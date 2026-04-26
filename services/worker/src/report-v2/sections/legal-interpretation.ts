@@ -44,14 +44,8 @@ export function renderLegalInterpretationSection(vm: ReportViewModel): string {
         </div>
 
         <div class="legal-interpretation-grid">
-          ${renderLegalCard({
-            title: "This report verifies",
-            body:
-              "The report identifies the evidence record, preserved file/package structure, recorded digest references, custody events, signature materials, timestamp state, anchoring state, and storage-protection metadata available at report generation time.",
-            tone: "verify",
-          })}
 
-          ${renderLegalCard({
+        ${renderLegalCard({
             title: "This report does not prove",
             body:
               "Truth, authorship, intent, context, completeness, admissibility, evidentiary weight, or acceptance by any court, insurer, regulator, or authority.\n\nTechnical verification supports detection of post-completion changes only.",

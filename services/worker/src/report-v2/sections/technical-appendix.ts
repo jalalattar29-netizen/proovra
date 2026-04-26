@@ -229,7 +229,7 @@ ${renderAppendixSection(
               otsHash || anchorHash
                 ? `
                   <div class="technical-mono-grid">
-                    ${otsHash ? renderMonoBlock("OTS Hash", otsHash) : ""}
+${otsHash ? renderMonoBlock("OpenTimestamps Digest", otsHash) : ""}
                     ${anchorHash ? renderMonoBlock("Anchor Hash", anchorHash) : ""}
                   </div>
                 `

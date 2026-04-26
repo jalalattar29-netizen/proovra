@@ -4545,18 +4545,30 @@ setPreviewPolicy(content.previewPolicy);
                       </div>
 
                       {hash ? (
-                        <MaterialField
-                          label="File SHA-256"
-                          subtitle="Primary content hash recorded for the evidence file."
-                          value={hash}
-                          addToast={addToast}
-                          copyMessage="File hash copied"
-                        />
+<MaterialField
+  label={
+    evidenceContentSummary?.structure === "multipart"
+      ? "Canonical Package Digest (SHA-256)"
+      : "Original File SHA-256"
+  }
+  subtitle={
+    evidenceContentSummary?.structure === "multipart"
+      ? "SHA-256 digest representing the canonical multipart evidence package. Individual item hashes are listed separately, and the Canonical Fingerprint Hash defines the full package identity."
+      : "SHA-256 digest of the original preserved evidence file."
+  }
+  value={hash}
+  addToast={addToast}
+  copyMessage={
+    evidenceContentSummary?.structure === "multipart"
+      ? "Canonical package digest copied"
+      : "Original file hash copied"
+  }
+/>
                       ) : null}
 
                       {fingerprintHash ? (
                         <MaterialField
-                          label="Fingerprint Hash"
+label="Canonical Fingerprint Hash"
                           subtitle="Hash derived from the canonical fingerprint record."
                           value={fingerprintHash}
                           addToast={addToast}

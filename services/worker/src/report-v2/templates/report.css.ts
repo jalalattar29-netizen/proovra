@@ -13,9 +13,9 @@ export function getReportCss(): string {
   const brandIconUrl = assetFileUrl("icon-192.png");
 
   return `
-  @page {
+@page {
   size: A4;
-  margin: 11mm 10mm 17mm 10mm;
+  margin: 0;
 }
 
     * {
@@ -29,19 +29,13 @@ body {
   min-height: 100%;
   color: ${c.ink};
 font-family: "Helvetica Neue", Arial, Helvetica, sans-serif;
-  font-size: 10.4px;
-  line-height: 1.48;
+font-size: 10.2px;
+line-height: 1.55;
+font-weight: 400;
+letter-spacing: -0.005em;
   -webkit-print-color-adjust: exact;
   print-color-adjust: exact;
   overflow: visible;
-}
-
-body {
-  background-color: #eef0f1 !important;
-  background-image: url("${paperSilverUrl}") !important;
-  background-size: cover !important;
-  background-repeat: repeat-y !important;
-  background-position: center top !important;
 }
 
 .report-root {
@@ -101,18 +95,18 @@ body {
 }
 
 .section-kicker::before {
-  content: none !important;
+  content: none ;
 }
 
 .section-title {
-  margin: 0 0 12px;
-  padding-bottom: 9px;
-  border-bottom: 2px solid rgba(18, 42, 38, 0.18);
-  font-size: 18px;
-  font-weight: 950;
+  margin: 0 0 14px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid rgba(18, 42, 38, 0.16);
+  font-size: 18.5px;
+  font-weight: 800;
   color: ${c.accent};
-  letter-spacing: -0.025em;
-  line-height: 1.12;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
   text-align: left;
   break-after: avoid;
   page-break-after: avoid;
@@ -142,12 +136,12 @@ body {
 
     .cover-certificate-top,
     .cover-certificate-bottom {
-      background: ${c.accent} !important;
+      background: ${c.accent} ;
       color: #ffffff;
     }
 
 .cover-certificate-top {
-  background: rgba(18, 42, 38, 0.92) !important;
+  background: rgba(18, 42, 38, 0.92) ;
   min-height: 50px;
   display: flex;
   align-items: center;
@@ -160,18 +154,25 @@ body {
 .cover-brand-row {
   display: flex;
   align-items: center;
-  gap: 9px;
+  gap: 7px;
 }
 
 .cover-brand-icon {
-  width: 30px;
-  height: 30px;
-  flex: 0 0 auto;
-  background-image: url("${brandIconUrl}");
-  background-size: contain;
-  background-position: center;
-  background-repeat: no-repeat;
-  border-radius: 8px;
+  width: 22px;
+  height: 22px;
+  flex: 0 0 22px;
+  object-fit: contain;
+  display: block;
+  border-radius: 6px;
+}
+
+.cover-brand-icon-img {
+  width: 28px;
+  height: 28px;
+  flex: 0 0 28px;
+  object-fit: contain;
+  display: block;
+  border-radius: 7px;
 }
 
     .cover-brand-lockup {
@@ -183,14 +184,17 @@ body {
 .cover-brand-mini {
   font-family: Georgia, "Times New Roman", serif;
   color: #d8dad9;
-  font-size: 21px;
+
+  font-size: 18px;   /* كان 21 */
   font-weight: 700;
-  letter-spacing: 0.105em;
+  letter-spacing: 0.09em;
   line-height: 1;
+
   text-transform: uppercase;
+
   text-shadow:
-    0 1px 0 rgba(255,255,255,0.22),
-    0 8px 18px rgba(0,0,0,0.22);
+    0 1px 0 rgba(255,255,255,0.18),
+    0 6px 14px rgba(0,0,0,0.18);
 }
 
 .cover-brand-sub {
@@ -229,7 +233,7 @@ body {
   max-width: 520px;
   font-size: 27px;
   line-height: 1.06;
-  font-weight: 950;
+  font-weight: 800;
   color: ${c.accent};
   letter-spacing: -0.035em;
   word-break: break-word;
@@ -272,30 +276,30 @@ body {
 
     .badge-success,
     .tone-success {
-      background: ${c.successSoft} !important;
+      background: ${c.successSoft} ;
       color: ${c.success};
-      border-color: rgba(33, 117, 93, 0.22) !important;
+      border-color: rgba(33, 117, 93, 0.22) ;
     }
 
     .badge-warning,
     .tone-warning {
-      background: ${c.warningSoft} !important;
+      background: ${c.warningSoft} ;
       color: ${c.warning};
-      border-color: rgba(138, 106, 47, 0.22) !important;
+      border-color: rgba(138, 106, 47, 0.22) ;
     }
 
     .badge-danger,
     .tone-danger {
-      background: ${c.dangerSoft} !important;
+      background: ${c.dangerSoft} ;
       color: ${c.danger};
-      border-color: rgba(181, 71, 56, 0.2) !important;
+      border-color: rgba(181, 71, 56, 0.2) ;
     }
 
     .badge-neutral,
     .tone-neutral {
-      background: ${c.neutralSoft} !important;
+      background: ${c.neutralSoft} ;
       color: ${c.ink};
-      border-color: ${c.softLine} !important;
+      border-color: ${c.softLine} ;
     }
 
 .cover-status-stamp {
@@ -323,7 +327,7 @@ body {
       justify-content: center;
       background: rgba(255,255,255,0.85);
       font-size: 13px;
-      font-weight: 950;
+      font-weight: 800;
     }
 
     .cover-decision-grid {
@@ -356,7 +360,7 @@ body {
       align-items: center;
       justify-content: center;
       font-size: 12px;
-      font-weight: 950;
+      font-weight: 800;
     }
 
     .cover-decision-label {
@@ -1159,7 +1163,7 @@ body {
     .custody-stat-value {
       color: ${c.accent};
       font-size: 14px;
-      font-weight: 950;
+      font-weight: 800;
       line-height: 1.2;
       word-break: break-word;
       overflow-wrap: anywhere;
@@ -1221,7 +1225,7 @@ body {
       align-items: center;
       justify-content: center;
       font-size: 10px;
-      font-weight: 950;
+      font-weight: 800;
       line-height: 1;
     }
 
@@ -1242,7 +1246,7 @@ body {
     .timeline-event {
       color: ${c.accent};
       font-size: 10.8px;
-      font-weight: 950;
+      font-weight: 800;
       line-height: 1.25;
       word-break: break-word;
       overflow-wrap: anywhere;
@@ -1260,7 +1264,7 @@ body {
       color: ${c.muted};
       font-size: 9.2px;
       line-height: 1.45;
-      font-weight: 650;
+      font-weight: 400;
       word-break: break-word;
       overflow-wrap: anywhere;
       white-space: pre-wrap;
@@ -1380,13 +1384,16 @@ body {
       letter-spacing: -0.02em;
     }
 
-    .hash-text {
-      font-size: 7.8px;
-      line-height: 1.32;
-      color: ${c.ink};
-      word-break: break-all;
-      overflow-wrap: anywhere;
-    }
+.hash-text {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 7.6px;
+  line-height: 1.42;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  color: ${c.ink};
+  word-break: break-all;
+  overflow-wrap: anywhere;
+}
 
     .appendix-section {
       padding: 10px;
@@ -1464,20 +1471,21 @@ body {
   background: rgba(255,255,255,0.72);
   border-bottom: 1px solid ${c.softLine};
   font-size: 9px;
-  font-weight: 950;
+  font-weight: 800;
 }
 
-    .mono-value {
-      margin: 0;
-      padding: 9px 10px;
-      font-size: 7.7px;
-      line-height: 1.36;
-      white-space: pre-wrap;
-      color: ${c.ink};
-      background: ${c.white};
-      word-break: break-all;
-      overflow-wrap: anywhere;
-    }
+.mono-value {
+  margin: 0;
+  padding: 10px 11px;
+  font-size: 8px;
+  line-height: 1.48;
+  font-weight: 500;
+  white-space: pre-wrap;
+  color: ${c.ink};
+  background: rgba(255,255,255,0.88);
+  word-break: break-all;
+  overflow-wrap: anywhere;
+}
 
         .executive-summary-page {
       display: flex;
@@ -1515,7 +1523,7 @@ body {
     .executive-confirmation-body {
       color: ${c.ink};
       font-size: 10.4px;
-      font-weight: 650;
+      font-weight: 400;
       line-height: 1.58;
       word-break: break-word;
       overflow-wrap: anywhere;
@@ -1546,8 +1554,8 @@ body {
       .executive-summary-row,
       .executive-outcome,
       .executive-legal-boundary {
-        break-inside: avoid !important;
-        page-break-inside: avoid !important;
+        break-inside: avoid ;
+        page-break-inside: avoid ;
       }
 
     .executive-summary-row:first-child {
@@ -1598,7 +1606,7 @@ body {
     .executive-outcome-body {
       color: ${c.muted};
       font-size: 9.8px;
-      font-weight: 650;
+      font-weight: 400;
       line-height: 1.5;
       word-break: break-word;
       overflow-wrap: anywhere;
@@ -1781,7 +1789,7 @@ body {
   background: rgba(255,255,255,0.08);
   color: ${c.accent};
   font-size: 7.2px;
-  font-weight: 950;
+  font-weight: 800;
   letter-spacing: 0.035em;
   text-transform: uppercase;
   padding: 6px 6px;
@@ -1851,7 +1859,7 @@ body {
     .integrity-summary-title {
       color: ${c.accent};
       font-size: 13px;
-      font-weight: 950;
+      font-weight: 800;
       line-height: 1.25;
       margin-bottom: 5px;
     }
@@ -1874,7 +1882,7 @@ body {
       border-radius: 999px;
       padding: 9px 12px;
       font-size: 8.4px;
-      font-weight: 950;
+      font-weight: 800;
       letter-spacing: 0.045em;
       text-transform: uppercase;
       border: 1px solid ${c.softLine};
@@ -1890,7 +1898,7 @@ body {
       justify-content: center;
       background: rgba(255,255,255,0.75);
       font-size: 11px;
-      font-weight: 950;
+      font-weight: 800;
     }
 
     .integrity-result-success {
@@ -1938,7 +1946,7 @@ body {
       justify-content: center;
       color: #ffffff;
       font-size: 11px;
-      font-weight: 950;
+      font-weight: 800;
       line-height: 1;
       margin-top: 1px;
     }
@@ -1974,7 +1982,7 @@ body {
     .integrity-check-label {
       color: ${c.accent};
       font-size: 9.3px;
-      font-weight: 950;
+      font-weight: 800;
       line-height: 1.25;
     }
 
@@ -2003,7 +2011,7 @@ body {
       color: ${c.muted};
       font-size: 8.7px;
       line-height: 1.38;
-      font-weight: 650;
+      font-weight: 400;
       word-break: break-word;
       overflow-wrap: anywhere;
     }
@@ -2126,7 +2134,7 @@ body {
     .technical-access-title {
       color: ${c.accent};
       font-size: 12.5px;
-      font-weight: 950;
+      font-weight: 800;
       margin-bottom: 4px;
     }
 
@@ -2187,7 +2195,7 @@ body {
     .technical-verification-value {
       color: ${c.ink};
       font-size: 12px;
-      font-weight: 950;
+      font-weight: 800;
       line-height: 1.25;
       margin-bottom: 5px;
     }
@@ -2218,14 +2226,14 @@ body {
       margin: 0 0 4px;
       color: ${c.accent};
       font-size: 12px;
-      font-weight: 950;
+      font-weight: 800;
       line-height: 1.25;
     }
 
     .technical-appendix-block-subtitle {
       color: ${c.muted};
       font-size: 8.8px;
-      font-weight: 650;
+      font-weight: 400;
       line-height: 1.4;
     }
 
@@ -2243,10 +2251,10 @@ body {
     }
 
 .technical-appendix-section .mono-value {
-  font-size: 9.4px;
-  line-height: 1.55;
-  font-weight: 700;
-  letter-spacing: 0.01em;
+  font-size: 8.6px;
+  line-height: 1.5;
+  font-weight: 500;
+  letter-spacing: -0.005em;
 }
 
         .legal-interpretation-page {
@@ -2268,7 +2276,7 @@ body {
     .legal-interpretation-kicker {
       color: ${c.warning};
       font-size: 8.5px;
-      font-weight: 950;
+      font-weight: 800;
       letter-spacing: 0.075em;
       text-transform: uppercase;
       margin-bottom: 5px;
@@ -2277,7 +2285,7 @@ body {
     .legal-interpretation-title {
       color: ${c.ink};
       font-size: 13.5px;
-      font-weight: 950;
+      font-weight: 800;
       line-height: 1.28;
       margin-bottom: 6px;
     }
@@ -2324,7 +2332,7 @@ body {
       margin: 0 0 7px;
       color: ${c.accent};
       font-size: 11px;
-      font-weight: 950;
+      font-weight: 800;
       line-height: 1.25;
     }
 
@@ -2335,7 +2343,7 @@ body {
     .legal-interpretation-card-body {
       color: ${c.muted};
       font-size: 9.3px;
-      font-weight: 650;
+      font-weight: 400;
       line-height: 1.48;
       word-break: break-word;
       overflow-wrap: anywhere;
@@ -2366,7 +2374,7 @@ body {
 .cover-verify-url {
   display: block;
   margin-top: 6px;
-  color: #10201d !important;
+  color: #10201d ;
   opacity: 0.92;
   font-weight: 850;
   font-size: 7.7px;
@@ -2412,9 +2420,9 @@ body {
 
     .gallery-sha-value {
       font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-      font-size: 8.9px;
-      line-height: 1.45;
-      font-weight: 850;
+      font-size: 8.2px;
+      line-height: 1.42;
+      font-weight: 500;
       letter-spacing: 0.01em;
       color: ${c.ink};
       word-break: break-all;
@@ -2441,7 +2449,7 @@ body {
     .custody-lifecycle-label {
       color: ${c.accent};
       font-size: 9px;
-      font-weight: 950;
+      font-weight: 800;
       letter-spacing: 0.055em;
       text-transform: uppercase;
       margin-bottom: 7px;
@@ -2525,7 +2533,7 @@ body {
       color: ${c.subtle};
       padding: 5px 7px;
       font-size: 7.6px;
-      font-weight: 950;
+      font-weight: 800;
       text-align: center;
       text-transform: uppercase;
       letter-spacing: 0.04em;
@@ -2547,7 +2555,7 @@ body {
     .custody-access-title {
       color: ${c.accent};
       font-size: 10px;
-      font-weight: 950;
+      font-weight: 800;
       line-height: 1.25;
       word-break: normal;
       overflow-wrap: anywhere;
@@ -2607,7 +2615,7 @@ body {
 
 .print-footer-brand {
   color: #9da3a6;
-  font-weight: 950;
+  font-weight: 800;
   letter-spacing: 0.06em;
 }
 
@@ -2623,63 +2631,188 @@ body {
 .executive-summary-page,
 .integrity-summary-page,
 .custody-page {
-  min-height: auto !important;
+  min-height: auto ;
 }
 
 .section-sheet::after,
 .report-page::after {
-  content: none !important;
+  content: none ;
+}
+
+.qr-inline-block,
+.qr-inline-block img {
+  background: #ffffff ;
+}
+
+html,
+body {
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  background-color: #eef0f1 ;
+  -webkit-print-color-adjust: exact ;
+  print-color-adjust: exact ;
+}
+
+.report-root {
+  width: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+.report-cover,
+.report-page {
+  width: 210mm;
+  min-height: 297mm;
+  margin: 0 auto;
+  padding: 11mm 10mm 17mm 10mm;
+  background-color: #eef0f1;
+  background-image: var(--proovra-paper-silver, url("${paperSilverUrl}"));
+  background-size: cover;
+  background-repeat: no-repeat;
+  background-position: center center;
+  overflow: visible;
 }
 
 .section-sheet,
-.cover-premium-body,
+.cover-certificate-card {
+  background: rgba(255, 255, 255, 0.72);
+    border: 1px solid rgba(255, 255, 255, 0.48);
+  box-shadow: 0 1px 0 rgba(255,255,255,0.42) inset;
+  backdrop-filter: blur(1.2px);
+}
+
 .cover-evidence-panel,
 .cover-meta-card,
 .cover-verify-box,
 .cover-boundary-note,
 .cover-decision-indicator,
-.callout,
 .info-card,
 .kv-item,
-.workflow-step,
+.callout,
+.verification-link-panel,
+.mono-block,
+.appendix-section,
+.gallery-card,
+.gallery-secondary-item,
 .custody-stat-card,
 .custody-access-event,
-.integrity-detail-card,
+.integrity-summary-intro,
 .integrity-check-list,
+.integrity-detail-card,
+.workflow-step,
 .executive-summary-table,
 .executive-confirmation-card,
 .executive-outcome,
+.executive-legal-boundary,
 .technical-status-card,
 .technical-verification-card,
 .technical-access-panel,
 .technical-appendix-block,
-.technical-appendix-block-head,
+.legal-interpretation-hero,
 .legal-interpretation-card,
-.verification-link-panel,
-.mono-block,
-.mono-label,
-.mono-value,
+.primary-evidence-card,
+.primary-evidence-preview,
+.primary-evidence-details,
+.evidence-strip,
 .report-table,
+table {
+background: rgba(255, 255, 255, 0.78);
+border-color: rgba(178, 188, 184, 0.38);
+box-shadow: 0 1px 0 rgba(255,255,255,0.36) inset;
+}
+
 .report-table th,
-.report-table td,
-table,
 table th,
-table td {
-  background: transparent !important;
-  background-image: none !important;
+.mono-label,
+.technical-appendix-block-head,
+.gallery-card-header {
+  background: rgba(255, 255, 255, 0.62);
 }
-
-.cover-certificate-card {
-  background: transparent !important;
-  background-image: none !important;
-}
-
+  
 .qr-inline-block,
 .qr-inline-block img {
-  background: #ffffff !important;
+  background: #ffffff ;
 }
 
-    @media print {
+.gallery-thumb,
+.cover-evidence-visual {
+  background: rgba(245, 247, 247, 0.72) ;
+}
+
+.gallery-thumb img,
+.cover-evidence-visual img {
+  background: transparent ;
+}
+
+@media print {
+  .report-cover,
+  .report-page {
+    background-color: #eef0f1 ;
+background-image: var(--proovra-paper-silver, url("${paperSilverUrl}"));
+    background-size: cover ;
+    background-repeat: no-repeat ;
+    background-position: center center ;
+    -webkit-print-color-adjust: exact ;
+    print-color-adjust: exact ;
+    overflow: visible ;
+  }
+
+  body {
+    overflow: visible;
+  }
+
+      .cover-premium-body,
+      .cover-evidence-panel,
+      .cover-evidence-visual,
+      .cover-meta-card,
+      .cover-decision-indicator,
+      .cover-verify-box,
+      .cover-boundary-note,
+      .info-card,
+      .kv-item,
+      .callout,
+      .verification-link-panel,
+      .mono-block,
+      .mono-label,
+      .mono-value,
+      .appendix-section,
+      .gallery-card,
+      .gallery-card-header,
+      .gallery-thumb,
+      .gallery-thumb-text-inner,
+      .gallery-secondary-item,
+      .custody-stat-card,
+      .custody-access-event,
+      .custody-lifecycle-summary,
+      .custody-access-note,
+      .integrity-summary-intro,
+      .integrity-check-list,
+      .integrity-detail-card,
+      .workflow-step,
+      .executive-summary-table,
+      .executive-confirmation-card,
+      .executive-outcome,
+      .executive-legal-boundary,
+      .technical-status-card,
+      .technical-verification-card,
+      .technical-access-panel,
+      .technical-access-url,
+      .technical-appendix-block,
+      .technical-appendix-block-head,
+      .legal-interpretation-hero,
+      .legal-interpretation-card,
+      .primary-evidence-card,
+      .primary-evidence-preview,
+      .primary-evidence-details,
+      .evidence-strip,
+      .report-table,
+      .report-table th,
+      .report-table td,
+      table,
+      table th,
+      table td {
+      }
       body {
         overflow: visible;
       }
@@ -2695,69 +2828,51 @@ table td {
       .cover-decision-grid,
       .cover-main-grid,
       .executive-layout {
-        break-inside: auto !important;
-        page-break-inside: auto !important;
+        break-inside: auto ;
+        page-break-inside: auto ;
       }
 
             .custody-stat-card,
       .timeline-card {
-        break-inside: avoid !important;
-        page-break-inside: avoid !important;
+        break-inside: avoid ;
+        page-break-inside: avoid ;
       }
-
-.callout,
-.info-card,
-.kv-item,
-.cover-meta-card,
-.cover-decision-indicator,
-.gallery-card,
-.gallery-secondary-item,
-.mono-block,
-.technical-status-card,
-.integrity-control-card,
-.verification-link-panel,
-.cover-evidence-panel,
-.cover-verify-box,
-.cover-boundary-note {
-  background: transparent !important;
-  background-image: none !important;
-}
 
       .evidence-strip,
       .timeline-card {
-        break-inside: avoid !important;
-        page-break-inside: avoid !important;
+        break-inside: avoid ;
+        page-break-inside: avoid ;
       }
 
             .cover-status-subtitle,
       .cover-primary-hash {
-        break-inside: avoid !important;
-        page-break-inside: avoid !important;
+        break-inside: avoid ;
+        page-break-inside: avoid ;
       }
 
       .report-table,
       table {
-        break-inside: auto !important;
-        page-break-inside: auto !important;
+        break-inside: auto ;
+        page-break-inside: auto ;
       }
 
       .custody-hash-page,
 .custody-hash-chain-table {
-  break-inside: auto !important;
-  page-break-inside: auto !important;
+  break-inside: auto ;
+  page-break-inside: auto ;
 }
 
       .custody-lifecycle-summary,
       .custody-access-note,
       .custody-access-event,
       .custody-inline-note {
-        break-inside: avoid !important;
-        page-break-inside: avoid !important;
+        break-inside: avoid ;
+        page-break-inside: avoid ;
       }
 
 .custody-hash-chain-table tr {
-  break-inside: avoid !important;
-  page-break-inside: avoid !important;
+  break-inside: avoid ;
+  page-break-inside: avoid ;
 }
 
       .integrity-summary-intro,
@@ -2765,30 +2880,30 @@ table td {
       .integrity-check-row,
       .integrity-detail-grid,
       .integrity-detail-card {
-        break-inside: avoid !important;
-        page-break-inside: avoid !important;
+        break-inside: avoid ;
+        page-break-inside: avoid ;
       }
 
       .report-table thead,
       table thead {
-        display: table-header-group !important;
+        display: table-header-group ;
       }
 
             .legal-interpretation-hero,
       .legal-interpretation-card {
-        break-inside: avoid !important;
-        page-break-inside: avoid !important;
+        break-inside: avoid ;
+        page-break-inside: avoid ;
       }
 
 .report-table tr {
-  break-inside: avoid !important;
-  page-break-inside: avoid !important;
+  break-inside: avoid ;
+  page-break-inside: avoid ;
 }
 
 .report-table td,
 .report-table th {
-  break-inside: auto !important;
-  page-break-inside: auto !important;
+  break-inside: auto ;
+  page-break-inside: auto ;
 }
 
       p,

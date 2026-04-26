@@ -1,7 +1,20 @@
 // D:\digital-witness\services\worker\src\report-v2\sections\cover.ts
+import fs from "node:fs";
+import path from "node:path";
+import { pathToFileURL } from "node:url";
 import { ReportViewModel } from "../types.js";
 import { escapeHtml, safe } from "../formatters.js";
 import { renderInlineQrBlock } from "../ui.js";
+
+function resolveReportAssetUrl(fileName: string): string {
+  const distPath = path.resolve(process.cwd(), "dist/report-v2/assets", fileName);
+  const srcPath = path.resolve(process.cwd(), "src/report-v2/assets", fileName);
+
+  const finalPath = fs.existsSync(distPath) ? distPath : srcPath;
+  return pathToFileURL(finalPath).href;
+}
+
+const coverBrandIconUrl = resolveReportAssetUrl("icon-192.png");
 
 function findRowValue(
   rows: Array<{ label: string; value: string }>,
@@ -205,7 +218,11 @@ export function renderCoverSection(vm: ReportViewModel): string {
       <div class="cover-certificate-card">
         <div class="cover-certificate-top">
           <div class="cover-brand-row">
-            <span class="cover-brand-icon" aria-hidden="true"></span>
+            <img
+              class="cover-brand-icon-img"
+              src="${escapeHtml(coverBrandIconUrl)}"
+              alt=""
+            />
             <div class="cover-brand-lockup">
               <div class="cover-brand-mini">PROOVRA</div>
               <div class="cover-brand-sub">Evidence Verification Report</div>
@@ -299,8 +316,8 @@ export function renderCoverSection(vm: ReportViewModel): string {
                     )}</div>
                   </div>
                   <div>
-                    <div class="cover-meta-label">Lead Item</div>
-                    <div class="cover-meta-value">${escapeHtml(leadItemLabel)}</div>
+<div class="cover-meta-label">Lead Item</div>
+<div class="cover-meta-value">${escapeHtml(leadItemLabel)}</div>
                   </div>
                 </div>
               </div>
@@ -349,29 +366,26 @@ export function renderCoverSection(vm: ReportViewModel): string {
             </div>
 
             <div class="cover-meta-card cover-meta-card-wide">
-              <div class="cover-meta-label">Primary SHA-256 / Recorded Digest</div>
+<div class="cover-meta-label">${
+  vm.contentSummary.itemCount > 1
+    ? "Lead Item SHA-256"
+    : "Original File SHA-256"
+}</div>
               <div class="cover-meta-value cover-meta-value-code cover-primary-hash">
                 ${escapeHtml(primaryHash)}
               </div>
             </div>
           </div>
 
-<div class="cover-meta-card cover-meta-card-wide">
-  <div class="cover-meta-label">Primary SHA-256 / Recorded Digest</div>
-  <div class="cover-meta-value cover-meta-value-code cover-primary-hash">
-    ${escapeHtml(primaryHash)}
-  </div>
-</div>
-
-<div class="cover-boundary-note cover-boundary-inline">
-  <strong>Report Boundary.</strong>
-  This report verifies integrity state, preservation controls, timestamps,
-  storage state, and custody records. It does not independently prove truth,
-  authorship, context, intent, admissibility, or evidentiary weight.
-  <span class="cover-boundary-followup">
-    For technical validation, use the verification page and appendix.
-  </span>
-</div>
+          <div class="cover-boundary-note cover-boundary-inline">
+            <strong>Report Boundary.</strong>
+            This report verifies integrity state, preservation controls, timestamps,
+            storage state, and custody records. It does not independently prove truth,
+            authorship, context, intent, admissibility, or evidentiary weight.
+            <span class="cover-boundary-followup">
+              For technical validation, use the verification page and appendix.
+            </span>
+          </div>
         </div>
 
         <div class="cover-certificate-bottom cover-certificate-bottom-premium">

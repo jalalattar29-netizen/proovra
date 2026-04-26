@@ -139,11 +139,16 @@ export function renderIntegrityProofSection(vm: ReportViewModel): string {
 
         <div class="integrity-check-list">
           ${renderIntegrityCheckRow({
-            label: "File Hash",
-            value: vm.meta.primaryHash || "Not recorded",
+label:
+  vm.contentSummary.itemCount > 1
+    ? "Lead Item SHA-256"
+    : "Original File SHA-256",
+                value: vm.meta.primaryHash || "Not recorded",
             explanation:
-              "Recorded SHA-256 digest for comparing the preserved file or lead evidence item against the report.",
-            tone:
+vm.contentSummary.itemCount > 1
+  ? "Recorded SHA-256 digest for comparing the preserved lead evidence item against the report and verification materials."
+  : "Recorded SHA-256 digest for comparing the preserved original file against the report and verification materials.",
+              tone:
               vm.meta.primaryHash && vm.meta.primaryHash !== "N/A"
                 ? "success"
                 : "danger",

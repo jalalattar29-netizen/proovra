@@ -234,10 +234,16 @@ export function buildTechnicalAppendixModel(
     },
   ];
 
-  const fingerprintRows: KeyValueRow[] = [
-    { label: "File SHA-256", value: safe(evidence.fileSha256) },
-    { label: "Fingerprint Hash", value: safe(evidence.fingerprintHash) },
-    {
+const fingerprintRows: KeyValueRow[] = [
+  {
+    label: "Recorded Original File / Canonical Package Digest (SHA-256)",
+    value: safe(evidence.fileSha256),
+  },
+  {
+    label: "Canonical Fingerprint Hash",
+    value: safe(evidence.fingerprintHash),
+  },
+      {
       label: "Canonical Fingerprint Record",
       value: evidence.fingerprintCanonicalJson
         ? "Recorded in verification package; omitted from PDF to keep the report readable and lightweight"

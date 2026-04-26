@@ -6,7 +6,7 @@ import {
   ReportEvidence,
 } from "./types.js";
 import { safe } from "./formatters.js";
-import { mapCustodyEventLabel } from "./normalizers.js";
+import { mapCustodyEventLabel, normalizeReviewerText } from "./normalizers.js";
 
 const UNICODE_ELLIPSIS = String.fromCharCode(8230);
 const TRUNCATED_MARKER_PATTERN = new RegExp(
@@ -49,13 +49,15 @@ function sanitizeReviewerSummary(value: string | null | undefined): string {
   const raw = safe(value);
   if (raw === "N/A") return raw;
 
-  return raw
+  const cleaned = raw
     .replace(LABELED_TRUNCATED_CRYPTO_PATTERN, "technical digest recorded in appendix")
     .replace(LABELED_FULL_CRYPTO_PATTERN, "technical digest recorded in appendix")
     .replace(TRUNCATED_CRYPTO_VALUE_PATTERN, "technical digest recorded")
     .replace(TRUNCATED_MARKER_PATTERN, " ")
     .replace(/\s{2,}/g, " ")
     .trim();
+
+  return normalizeReviewerText(cleaned);
 }
 
 export function buildTimelineRows(events: ClassifiedCustodyEvent[]): TimelineRow[] {

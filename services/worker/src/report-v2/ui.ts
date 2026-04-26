@@ -155,7 +155,7 @@ export function renderInventoryTable(rows: InventoryRow[]): string {
           <th style="width: 27%">File</th>
           <th style="width: 11%">Type</th>
           <th style="width: 15%">Format / Size</th>
-          <th style="width: 27%">Full SHA-256</th>
+          <th style="width: 27%">Item SHA-256</th>
           <th style="width: 14%">Role</th>
         </tr>
       </thead>
@@ -249,8 +249,8 @@ export function renderCustodyHashTable(rows: CustodyHashRow[]): string {
           <th style="width: 6%">Seq</th>
           <th style="width: 14%">At (UTC)</th>
           <th style="width: 16%">Event</th>
-          <th style="width: 32%">Prev Event Hash</th>
-          <th style="width: 32%">Event Hash</th>
+<th style="width: 32%">Previous Custody Event Hash</th>
+<th style="width: 32%">Custody Event Hash</th>
         </tr>
       </thead>
       <tbody>

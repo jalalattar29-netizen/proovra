@@ -373,6 +373,7 @@ function buildVerificationSummaryRows(
   custody: ReturnType<typeof splitCustodyEvents>,
   structureLabel: string,
   contentSummary: ReportEvidenceContentSummary,
+  primaryContentItem: ReportEvidenceAsset | null,
   externalMode: boolean
 ): KeyValueRow[] {
   const rows: KeyValueRow[] = [];
@@ -383,10 +384,21 @@ function buildVerificationSummaryRows(
 
   add("Evidence Reference", buildPublicEvidenceReference(evidence.id));
   add("Integrity State", mapVerificationStatusLabel(evidence.verificationStatus));
-  add("Primary SHA-256", safe(evidence.fileSha256));
-  add("Fingerprint Hash", safe(evidence.fingerprintHash));
+
+  const recordedDigestLabel =
+    contentSummary.itemCount > 1
+      ? "Canonical Package Digest (SHA-256)"
+      : "Original File SHA-256";
+
+  add(recordedDigestLabel, safe(evidence.fileSha256));
+  add("Canonical Fingerprint Hash", safe(evidence.fingerprintHash));
+
+  if (contentSummary.itemCount > 1 && primaryContentItem?.sha256) {
+    add("Lead Item SHA-256", safe(primaryContentItem.sha256));
+  }
+
   add("Primary MIME Type", safe(contentSummary.primaryMimeType));
-  add("Content Size", formatBytesHuman(evidence.sizeBytes));
+    add("Content Size", formatBytesHuman(evidence.sizeBytes));
   add("Forensic Custody Events", String(custody.forensic.length));
   add(
     "Signature Materials",
@@ -691,13 +703,20 @@ function buildStorageRows(
 function buildCustodyHashRows(events: ReportCustodyEvent[]): CustodyHashRow[] {
   return events
     .filter((event) => safe(event.eventHash, "") || safe(event.prevEventHash, ""))
-    .map((event) => ({
-      sequence: String(event.sequence),
-      atUtc: safe(event.atUtc),
-      eventLabel: event.eventType,
-      prevEventHash: safe(event.prevEventHash),
-      eventHash: safe(event.eventHash),
-    }));
+    .map((event, index) => {
+      const sequence =
+        event.sequence !== null && event.sequence !== undefined
+          ? String(event.sequence)
+          : String(index + 1);
+
+      return {
+        sequence,
+        atUtc: safe(event.atUtc),
+        eventLabel: event.eventType,
+        prevEventHash: safe(event.prevEventHash),
+        eventHash: safe(event.eventHash),
+      };
+    });
 }
 
 function determinePresentationMode(
@@ -846,7 +865,7 @@ function buildForensicIntegrityStatementModel(
       "Use this section as a review workflow for validating the report against the preserved evidence package and the verification endpoint.",
     includedBulletItems: [
       "Confirm the evidence reference, package structure, and lead review item.",
-      "Validate the full SHA-256 and fingerprint hash values against the preserved materials.",
+"Validate the lead item SHA-256, original file or canonical package digest, and canonical fingerprint hash against the preserved materials.",
 "Review custody chronology before relying on the evidence record.",
       "Use the verification endpoint for signature, timestamp token, and anchoring proof validation.",
     ],
@@ -865,7 +884,7 @@ function buildForensicIntegrityStatementModel(
         : [
             "Obtain the complete multipart evidence set.",
             "Review the canonical fingerprint and listed evidence parts.",
-            "Validate the multipart composite hash against the recorded structure and hashes.",
+"Validate the canonical package digest against the recorded package structure and item SHA-256 values.",
             "Verify the digital signature using the provided public key.",
             "Verify the RFC 3161 timestamp token, when present.",
             "Verify the OpenTimestamps proof, when present.",
@@ -1081,13 +1100,14 @@ export async function buildReportViewModel(
       primaryContentItem,
       externalMode
     ),
-    verificationSummaryRows: buildVerificationSummaryRows(
-      otsEvidence,
-      custody,
-      structureLabel,
-      contentSummary,
-      externalMode
-    ),
+verificationSummaryRows: buildVerificationSummaryRows(
+  otsEvidence,
+  custody,
+  structureLabel,
+  contentSummary,
+  primaryContentItem,
+  externalMode
+),
     reviewReadinessRows: buildReviewReadinessRows(
       otsEvidence,
       custody,
