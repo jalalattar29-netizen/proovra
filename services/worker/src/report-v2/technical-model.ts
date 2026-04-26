@@ -234,12 +234,19 @@ export function buildTechnicalAppendixModel(
     },
   ];
 
+const recordedDigestLabel =
+  evidence.contentSummary?.structure === "multipart" ||
+  (evidence.contentSummary?.itemCount ?? 1) > 1 ||
+  (evidence.itemCount ?? 1) > 1
+    ? "Canonical Package Digest (SHA-256)"
+    : "Original File SHA-256";
+
 const fingerprintRows: KeyValueRow[] = [
   {
-    label: "Recorded Original File / Canonical Package Digest (SHA-256)",
+    label: recordedDigestLabel,
     value: safe(evidence.fileSha256),
   },
-  {
+    {
     label: "Canonical Fingerprint Hash",
     value: safe(evidence.fingerprintHash),
   },

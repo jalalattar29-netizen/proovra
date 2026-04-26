@@ -23,7 +23,18 @@ function renderCustodyStats(vm: ReportViewModel): string {
   `;
 }
 
-function renderLifecycleSummary(): string {
+function renderLifecycleSummary(vm: ReportViewModel): string {
+  const anchoringStatus = vm.storageRows.find(
+    (row) => row.label === "Public Anchoring Status"
+  )?.value;
+
+  const anchoringStep =
+    anchoringStatus?.toLowerCase().includes("recorded")
+      ? "Anchoring recorded"
+      : anchoringStatus?.toLowerCase().includes("pending")
+        ? "Anchoring pending"
+        : "Anchoring not recorded";
+
   return `
     <div class="custody-lifecycle-summary">
       <div class="custody-lifecycle-label">Lifecycle summary</div>
@@ -35,7 +46,7 @@ function renderLifecycleSummary(): string {
         <span>Timestamped</span>
         <span>Locked</span>
         <span>Report generated</span>
-        <span>Anchoring completed</span>
+        <span>${escapeHtml(anchoringStep)}</span>
       </div>
     </div>
   `;

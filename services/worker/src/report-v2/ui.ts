@@ -1,6 +1,4 @@
-import fs from "node:fs";
-import path from "node:path";
-import { pathToFileURL } from "node:url";
+import { reportAssetDataUrl } from "./asset-data-url.js";
 import { escapeHtml } from "./formatters.js";
 import {
   CalloutModel,
@@ -28,15 +26,7 @@ function sanitizeClassName(value: string): string {
     .join(" ");
 }
 
-function resolveReportAssetUrl(fileName: string): string {
-  const distPath = path.resolve(process.cwd(), "dist/report-v2/assets", fileName);
-  const srcPath = path.resolve(process.cwd(), "src/report-v2/assets", fileName);
-
-  const finalPath = fs.existsSync(distPath) ? distPath : srcPath;
-  return pathToFileURL(finalPath).href;
-}
-
-const reportIconUrl = resolveReportAssetUrl("icon-192.png");
+const reportIconUrl = reportAssetDataUrl("icon-192.png");
 
 export function renderPageSection(
   title: string,

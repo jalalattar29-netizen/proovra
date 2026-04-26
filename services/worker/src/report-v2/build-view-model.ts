@@ -40,6 +40,7 @@ import {
   mapOtsStatusPublicLabel,
   mapRecordStatusLabel,
   mapTimestampStatusPublicLabel,
+  mapCustodyEventLabel,
   mapVerificationSourceLabel,
   mapVerificationStatusLabel,
 } from "./normalizers.js";
@@ -712,7 +713,7 @@ function buildCustodyHashRows(events: ReportCustodyEvent[]): CustodyHashRow[] {
       return {
         sequence,
         atUtc: safe(event.atUtc),
-        eventLabel: event.eventType,
+        eventLabel: mapCustodyEventLabel(event.eventType),
         prevEventHash: safe(event.prevEventHash),
         eventHash: safe(event.eventHash),
       };

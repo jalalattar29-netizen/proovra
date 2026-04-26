@@ -1,20 +1,10 @@
 // D:\digital-witness\services\worker\src\report-v2\sections\cover.ts
-import fs from "node:fs";
-import path from "node:path";
-import { pathToFileURL } from "node:url";
+import { reportAssetDataUrl } from "../asset-data-url.js";
 import { ReportViewModel } from "../types.js";
 import { escapeHtml, safe } from "../formatters.js";
 import { renderInlineQrBlock } from "../ui.js";
 
-function resolveReportAssetUrl(fileName: string): string {
-  const distPath = path.resolve(process.cwd(), "dist/report-v2/assets", fileName);
-  const srcPath = path.resolve(process.cwd(), "src/report-v2/assets", fileName);
-
-  const finalPath = fs.existsSync(distPath) ? distPath : srcPath;
-  return pathToFileURL(finalPath).href;
-}
-
-const coverBrandIconUrl = resolveReportAssetUrl("icon-192.png");
+const coverBrandIconUrl = reportAssetDataUrl("icon-192.png");
 
 function findRowValue(
   rows: Array<{ label: string; value: string }>,

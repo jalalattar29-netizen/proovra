@@ -1,16 +1,9 @@
-import { fileURLToPath } from "node:url";
-import path from "node:path";
 import { REPORT_BRAND } from "../brand.js";
-
-function assetFileUrl(fileName: string): string {
-  const currentDir = path.dirname(fileURLToPath(import.meta.url));
-  return new URL(`../assets/${fileName}`, `file://${currentDir}/`).href;
-}
+import { reportAssetDataUrl } from "../asset-data-url.js";
 
 export function getReportCss(): string {
   const c = REPORT_BRAND.colors;
-  const paperSilverUrl = assetFileUrl("paper-silver.png");
-  const brandIconUrl = assetFileUrl("icon-192.png");
+const paperSilverUrl = reportAssetDataUrl("paper-silver.png");
 
   return `
 @page {
@@ -167,12 +160,12 @@ letter-spacing: -0.005em;
 }
 
 .cover-brand-icon-img {
-  width: 28px;
-  height: 28px;
-  flex: 0 0 28px;
+  width: 38px;
+  height: 38px;
+  flex: 0 0 38px;
   object-fit: contain;
   display: block;
-  border-radius: 7px;
+  border-radius: 9px;
 }
 
     .cover-brand-lockup {

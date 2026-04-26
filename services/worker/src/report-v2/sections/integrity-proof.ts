@@ -195,11 +195,11 @@ vm.contentSummary.itemCount > 1
             value: anchoringStatus,
             explanation:
               "Anchoring records whether OpenTimestamps or external publication proof is available or still pending.",
-            tone: toneFromValue(
-              anchoringStatus,
-              ["anchored", "anchoring", "published", "verified", "recorded"],
-              ["pending", "configured", "not recorded"]
-            ),
+tone: toneFromValue(
+  anchoringStatus,
+  ["anchored", "published", "verified", "recorded"],
+  ["pending", "configured", "not recorded"]
+),
           })}
 
           ${renderIntegrityCheckRow({

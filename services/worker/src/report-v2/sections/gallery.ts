@@ -71,8 +71,10 @@ function renderMediaOverlay(item: PresentationEvidenceItem): string {
 }
 
 function renderGalleryMetaRow(label: string, value: string): string {
-  const isHash = label === "SHA-256";
-
+  const isHash =
+    label === "SHA-256" ||
+    label === "Lead Item SHA-256" ||
+    label === "Item SHA-256";
   return `
     <div class="gallery-meta-row${isHash ? " gallery-meta-row-sha" : ""}">
       <div class="gallery-meta-label">${escapeHtml(label)}</div>
@@ -158,7 +160,7 @@ function renderPrimaryEvidenceCard(item: PresentationEvidenceItem): string {
             ? "Downloadable under policy"
             : "Restricted under policy"
         )}
-        ${renderGalleryMetaRow("SHA-256", asset.sha256 ?? "Not recorded")}
+${renderGalleryMetaRow("Lead Item SHA-256", asset.sha256 ?? "Not recorded")}
       </div>
     </article>
   `;
@@ -181,7 +183,7 @@ function renderSupportingCard(item: PresentationEvidenceItem): string {
         ${renderGalleryMetaRow("Type", mediaKindLabel(item))}
         ${renderGalleryMetaRow("Format", safe(asset.mimeType, "N/A"))}
         ${renderGalleryMetaRow("Size", safe(asset.displaySizeLabel, "N/A"))}
-        ${renderGalleryMetaRow("SHA-256", asset.sha256 ?? "Not recorded")}
+${renderGalleryMetaRow("Item SHA-256", asset.sha256 ?? "Not recorded")}
       </div>
     </article>
   `;

@@ -33,9 +33,15 @@ function buildWorkflowResult(step: string, index: number): string {
     return "Ensures the reviewer validates the complete package, not only a preview or single extracted file.";
   }
 
-  if (index === 1 && normalized.includes("canonical fingerprint")) {
-    return "Confirms the package structure and expected items before hash comparison.";
-  }
+if (
+  index === 2 &&
+  (normalized.includes("canonical package digest") ||
+    normalized.includes("package digest") ||
+    normalized.includes("multipart composite hash") ||
+    normalized.includes("composite hash"))
+) {
+  return "Confirms the recorded package digest matches the package structure and item SHA-256 values.";
+}
 
   if (
     index === 2 &&
@@ -53,12 +59,12 @@ function buildWorkflowResult(step: string, index: number): string {
     return "Validates authenticity of the recorded evidence package.";
   }
 
+  if (normalized.includes("opentimestamp")) {
+  return "Links the evidence digest to a public, independently verifiable timestamping trail.";
+}
+
   if (normalized.includes("timestamp")) {
     return "Establishes existence of the evidence at a specific point in time.";
-  }
-
-  if (normalized.includes("opentimestamp")) {
-    return "Links the evidence state to a public, independently verifiable timeline.";
   }
 
   if (normalized.includes("custody")) {
