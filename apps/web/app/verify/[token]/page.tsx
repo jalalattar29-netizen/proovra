@@ -2501,7 +2501,7 @@ setPreviewPolicy(content.previewPolicy);
 
   const executiveBadges = useMemo(
     () =>
-      verificationBadges.filter((item) =>
+      verificationBadges.filter((_item) =>
 [
   "Overall Integrity",
   "Fingerprint",

@@ -1927,11 +1927,27 @@ if (
           generatedAtUtc: now.toISOString(),
         };
 
-  const captureMethod = deriveCaptureMethod({
-    multipart: parts.length > 1,
-    mimeType: evidence.mimeType,
-    existingCaptureMethod: evidence.captureMethod ?? null,
-  });
+function deriveCaptureMethod(params: {
+  multipart: boolean;
+  mimeType: string | null;
+  existingCaptureMethod: prismaPkg.CaptureMethod | null;
+}): prismaPkg.CaptureMethod {
+  if (params.multipart) return prismaPkg.CaptureMethod.MULTIPART_PACKAGE;
+
+  if (
+    params.existingCaptureMethod &&
+    params.existingCaptureMethod !== prismaPkg.CaptureMethod.MULTIPART_PACKAGE
+  ) {
+    return params.existingCaptureMethod;
+  }
+
+  const mime = String(params.mimeType ?? "").toLowerCase();
+  if (mime === "application/pdf" || mime.startsWith("text/")) {
+    return prismaPkg.CaptureMethod.IMPORTED_DOCUMENT;
+  }
+
+  return prismaPkg.CaptureMethod.UPLOADED_FILE;
+}
 
   const workspaceVerified =
     workspaceTeam?.verificationState ===
@@ -1950,7 +1966,11 @@ if (
     verificationStatus:
       evidence.verificationStatus ??
       prismaPkg.VerificationStatus.MATERIALS_AVAILABLE,
-    captureMethod,
+    captureMethod: deriveCaptureMethod({
+      multipart: parts.length > 1,
+      mimeType: evidence.mimeType,
+      existingCaptureMethod: evidence.captureMethod ?? null,
+    }),
     identityLevelSnapshot: identityLevel,
     submittedByEmail: ownerUser.email ?? null,
     submittedByAuthProvider: ownerUser.provider ?? null,
