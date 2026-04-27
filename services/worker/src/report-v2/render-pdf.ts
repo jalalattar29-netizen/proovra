@@ -262,7 +262,7 @@ reportId: fullReportId(footerData.evidenceReference),
       margin: {
         top: "0mm",
         right: "0mm",
-        bottom: "14mm",
+        bottom: "0mm",
         left: "0mm",
       },
     });

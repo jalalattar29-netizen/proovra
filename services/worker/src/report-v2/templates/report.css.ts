@@ -2226,7 +2226,7 @@ letter-spacing: -0.005em;
   break-after: avoid;
   page-break-after: avoid;
 }
-  
+
     .technical-appendix-block-title {
       margin: 0 0 4px;
       color: ${c.accent};
@@ -2649,36 +2649,76 @@ letter-spacing: -0.005em;
   background: #ffffff ;
 }
 
+/* FINAL PDF PAGE FIX */
+
 html,
 body {
-  width: 100%;
-  margin: 0;
-  padding: 0;
-  background-color: #eef0f1 ;
-  -webkit-print-color-adjust: exact ;
-  print-color-adjust: exact ;
+  width: 210mm !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  background: transparent !important;
+  overflow: visible !important;
+  -webkit-print-color-adjust: exact !important;
+  print-color-adjust: exact !important;
 }
 
 .report-root {
-  width: 100%;
-  margin: 0;
-  padding: 0;
+  width: 210mm !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  background: transparent !important;
 }
 
-.report-cover,
+/* كل report-section لازم يبدأ صفحة جديدة وما ينكسر بنصه */
+.report-section {
+  display: block !important;
+  width: 210mm !important;
+  min-height: 297mm !important;
+  break-before: page !important;
+  page-break-before: always !important;
+  break-after: page !important;
+  page-break-after: always !important;
+  background-image: url("${paperSilverUrl}") !important;
+  background-size: 210mm 297mm !important;
+  background-repeat: repeat-y !important;
+  background-position: top center !important;
+}
+
+.report-cover {
+  width: 210mm !important;
+  min-height: 297mm !important;
+  margin: 0 !important;
+  padding: 11mm 10mm 17mm 10mm !important;
+  background-image: url("${paperSilverUrl}") !important;
+  background-size: 210mm 297mm !important;
+  background-repeat: repeat-y !important;
+  background-position: top center !important;
+  break-after: page !important;
+  page-break-after: always !important;
+}
+
+/* الصفحة نفسها لا تعمل صفحة داخل صفحة */
 .report-page {
-  width: 210mm;
-  min-height: 297mm;
-  margin: 0 auto;
-  padding: 11mm 10mm 17mm 10mm;
-  background-color: #eef0f1;
-background-image: url("${paperSilverUrl}");
-  background-size: cover;
-  background-repeat: no-repeat;
-  background-position: center center;
-  overflow: visible;
+  width: 210mm !important;
+  min-height: 297mm !important;
+  margin: 0 !important;
+  padding: 11mm 10mm 17mm 10mm !important;
+  background: transparent !important;
+  overflow: visible !important;
 }
 
+/* ألغِ الكرت الكبير الداخلي */
+.section-sheet {
+  background: transparent !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+  padding: 0 !important;
+  min-height: auto !important;
+}
+
+/* الكروت تكون زجاجية فوق الصورة، مو بيضاء */
 .cover-evidence-panel,
 .cover-meta-card,
 .cover-verify-box,
@@ -2692,17 +2732,23 @@ background-image: url("${paperSilverUrl}");
 .gallery-card,
 .gallery-secondary-item,
 .custody-stat-card,
+.custody-lifecycle-summary,
+.custody-access-event,
 .integrity-summary-intro,
 .integrity-check-list,
+.integrity-check-row,
 .integrity-detail-card,
 .workflow-step,
 .executive-summary-table,
+.executive-summary-row,
 .executive-confirmation-card,
 .executive-outcome,
 .executive-legal-boundary,
 .technical-verification-card,
 .technical-access-panel,
+.technical-access-url,
 .technical-appendix-block,
+.technical-appendix-block-head,
 .legal-interpretation-hero,
 .legal-interpretation-card,
 .primary-evidence-card,
@@ -2710,43 +2756,45 @@ background-image: url("${paperSilverUrl}");
 .primary-evidence-details,
 .evidence-strip,
 .report-table,
-table {
-  background: rgba(255, 255, 255, 0.54) !important;
-  border-color: rgba(120, 130, 130, 0.28) !important;
+.report-table th,
+.report-table td,
+table,
+table th,
+table td {
+  background: rgba(255, 255, 255, 0.34) !important;
+  border-color: rgba(120, 130, 130, 0.22) !important;
   box-shadow: none !important;
+  backdrop-filter: none !important;
 }
 
+/* شيل الخطوط/المساحات البيضاء الثقيلة */
 .report-table th,
 table th,
 .mono-label,
-.technical-appendix-block-head,
-.gallery-card-header {
-  background: rgba(255, 255, 255, 0.62);
-}
-  
-.qr-inline-block,
-.qr-inline-block img {
-  background: #ffffff ;
+.gallery-card-header,
+.technical-appendix-block-head {
+  background: rgba(255, 255, 255, 0.26) !important;
 }
 
-.gallery-thumb,
-.cover-evidence-visual {
-  background: rgba(245, 247, 247, 0.72) ;
-}
-
-.gallery-thumb img,
-.cover-evidence-visual img {
-  background: transparent ;
+/* لا تخلي appendix بلوك طويل يندمج بغباء */
+.technical-appendix-section .section-body,
+.technical-appendix-page,
+.technical-appendix-block {
+  break-inside: auto !important;
+  page-break-inside: auto !important;
 }
 
 .technical-appendix-block {
-  margin-bottom: 12px;
+  margin-bottom: 10px !important;
 }
 
-.technical-appendix-section .section-sheet {
-  padding-bottom: 24mm;
+/* أول صفحة لا تحتاج break-before */
+.report-root > .report-cover:first-child,
+.report-root > .report-section:first-child {
+  break-before: auto !important;
+  page-break-before: auto !important;
 }
-
+  
 @media print {
   .report-cover,
   .report-page {
