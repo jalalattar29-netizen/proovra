@@ -43,7 +43,6 @@ export function renderPageSection(
         <div class="section-sheet">
           <header class="section-heading">
             <div class="section-kicker">
-              <img class="report-brand-icon" src="${escapeHtml(reportIconUrl)}" alt="" />
               <span>PROOVRA Verification Report</span>
             </div>
             <h2 class="section-title">${escapeHtml(title)}</h2>

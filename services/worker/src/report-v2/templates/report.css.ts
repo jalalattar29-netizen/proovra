@@ -77,7 +77,9 @@ letter-spacing: -0.005em;
 }
   
 .section-kicker {
-  display: block;
+  display: flex;
+  align-items: center;
+  gap: 5px;
   margin: 0 0 4px;
   color: ${c.subtle};
   font-size: 7.4px;
@@ -87,6 +89,22 @@ letter-spacing: -0.005em;
   text-align: left;
 }
 
+.report-brand-icon {
+  width: 9px !important;
+  height: 9px !important;
+  max-width: 9px !important;
+  max-height: 9px !important;
+  object-fit: contain !important;
+  display: inline-block !important;
+  flex: 0 0 9px !important;
+}
+
+.section-kicker {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+  
 .section-kicker::before {
   content: none ;
 }
@@ -2660,7 +2678,7 @@ body {
   margin: 0 auto;
   padding: 11mm 10mm 17mm 10mm;
   background-color: #eef0f1;
-  background-image: var(--proovra-paper-silver, url("${paperSilverUrl}"));
+background-image: url("${paperSilverUrl}");
   background-size: cover;
   background-repeat: no-repeat;
   background-position: center center;
@@ -2755,7 +2773,7 @@ table th,
   .report-cover,
   .report-page {
     background-color: #eef0f1 ;
-background-image: var(--proovra-paper-silver, url("${paperSilverUrl}"));
+background-image: url("${paperSilverUrl}");
     background-size: cover ;
     background-repeat: no-repeat ;
     background-position: center center ;
