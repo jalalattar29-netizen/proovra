@@ -264,6 +264,24 @@ function mapPublicEvidenceTypeLabel(
   }
 }
 
+function normalizeProviderFailure(value: string | null | undefined): string {
+  const raw = safe(value, "");
+  const lower = raw.toLowerCase();
+
+  if (!raw) return "";
+
+  if (
+    lower.includes("403") ||
+    lower.includes("kontingent") ||
+    lower.includes("quota") ||
+    lower.includes("verbrauch")
+  ) {
+    return "Trusted timestamp could not be obtained because the provider quota is exhausted.";
+  }
+
+  return raw;
+}
+
 function buildExecutiveRows(
   evidence: ReportEvidence,
   structureLabel: string,
@@ -473,6 +491,12 @@ function buildReviewReadinessRows(
       label: "Timestamp Status",
       value: mapTimestampStatusPublicLabel(evidence.tsaStatus),
     },
+
+{
+  label: "RFC 3161 Note",
+  value: normalizeProviderFailure(evidence.tsaFailureReason),
+},
+
     {
       label: "Public Anchoring Status",
       value: mapOtsStatusPublicLabel(evidence.otsStatus),
@@ -651,8 +675,12 @@ function buildStorageRows(
       label: "Public Anchoring Status",
       value: mapOtsStatusPublicLabel(evidence.otsStatus),
     },
-  ];
-
+    {
+      label: "RFC 3161 Note",
+      value: normalizeProviderFailure(evidence.tsaFailureReason),
+    },
+  ].filter((row) => safe(row.value, "") !== "");
+  
   const otsRows: KeyValueRow[] = [
     { label: "OTS Calendar", value: safe(evidence.otsCalendar, "") },
     { label: "OTS Anchored At (UTC)", value: safe(evidence.otsAnchoredAtUtc, "") },

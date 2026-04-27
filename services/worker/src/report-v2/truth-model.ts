@@ -81,11 +81,11 @@ export function buildExecutiveConclusion(
   const verified = isIntegrityVerified(evidence);
 
   return {
-    title: "Executive conclusion",
+    title: verified ? "Executive conclusion" : "Reviewable evidence record",
     body: verified
       ? "The preserved evidence record reached a verified recorded-integrity state at report generation time. Reviewers can use this report to orient themselves to the package, then proceed to the later technical and legal sections for deeper validation and interpretation."
-      : "The preserved evidence record is present and reviewable, but the recorded-integrity outcome remains incomplete or requires manual assessment before reliance. The report should be treated as an orientation and investigation aid until technical review is completed.",
-    tone: verified ? "success" : "danger",
+      : "The preserved evidence record is present and reviewable, but one or more technical confirmation signals were not finalized at report generation time. Reviewers should use the report as an evidence-orientation and technical-review aid.",
+    tone: verified ? "success" : "warning",
   };
 }
 
@@ -126,6 +126,32 @@ export function buildStorageCallout(evidence: ReportEvidence): CalloutModel {
   };
 }
 
+function normalizeTimestampFailureReason(reason: string | null | undefined): string {
+  const value = safe(reason, "").trim();
+  const lower = value.toLowerCase();
+
+  if (!value) return "The timestamp provider did not return a usable timestamp token.";
+
+  if (
+    lower.includes("quota") ||
+    lower.includes("kontingent") ||
+    lower.includes("verbraucht") ||
+    lower.includes("403")
+  ) {
+    return "Trusted timestamp could not be obtained because the provider quota appears to be exhausted.";
+  }
+
+  if (
+    lower.includes("curl:") ||
+    lower.includes("requested url returned error") ||
+    lower.includes("http")
+  ) {
+    return "Trusted timestamp could not be obtained because the timestamp provider request failed.";
+  }
+
+  return value;
+}
+
 export function buildTimestampCallout(evidence: ReportEvidence): CalloutModel {
   const tone = normalizeTimestampTone(evidence.tsaStatus);
 
@@ -134,22 +160,17 @@ export function buildTimestampCallout(evidence: ReportEvidence): CalloutModel {
       tone === "success"
         ? "Trusted timestamp recorded"
         : tone === "warning"
-          ? "Timestamp pending or unavailable"
+          ? "Trusted timestamp not finalized"
           : tone === "danger"
-            ? "Timestamp failure recorded"
-            : "Timestamp not reported",
+            ? "Trusted timestamp could not be obtained"
+            : "Trusted timestamp not reported",
     body:
       tone === "success"
         ? "An RFC 3161 timestamp record is available and may support later review of when the recorded integrity state existed."
         : tone === "warning"
-          ? "The report does not confirm a final trusted timestamp result."
+          ? "A trusted timestamp was not finalized in the current report state. The evidence record can still be reviewed using its recorded fingerprint, signature, custody, and storage materials."
           : tone === "danger"
-            ? `Timestamp processing reported a failure state.${safe(
-                evidence.tsaFailureReason,
-                ""
-              )
-                ? ` ${safe(evidence.tsaFailureReason)}`
-                : ""}`.trim()
+            ? normalizeTimestampFailureReason(evidence.tsaFailureReason)
             : "No trusted timestamp record was included.",
     tone,
   };

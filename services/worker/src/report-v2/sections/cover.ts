@@ -129,7 +129,7 @@ export function renderCoverSection(vm: ReportViewModel): string {
     ? "badge-success"
     : "badge-warning";
 
-  const integrityBadgeText = vm.integrityVerified ? "Verified" : "Review Required";
+const integrityBadgeText = vm.integrityVerified ? "Verified" : "Review";
 
   const primaryHash =
     vm.primaryContentItem?.sha256 ||
@@ -241,7 +241,7 @@ export function renderCoverSection(vm: ReportViewModel): string {
               <strong>${escapeHtml(
                 vm.integrityVerified
                   ? "Integrity Verified"
-                  : "Technical Review Required"
+: "Review Materials Available"
               )}</strong>
             </div>
 
@@ -249,7 +249,7 @@ export function renderCoverSection(vm: ReportViewModel): string {
               ${escapeHtml(
                 vm.integrityVerified
                   ? "No post-recording modification detected in the preserved evidence state."
-                  : "Manual technical review is required before relying on this evidence state."
+: "Technical materials are recorded; reviewer validation is recommended before reliance."
               )}
             </div>
           </div>
@@ -257,7 +257,7 @@ export function renderCoverSection(vm: ReportViewModel): string {
           <div class="cover-decision-grid">
             ${renderDecisionIndicator({
               label: "Integrity",
-              value: vm.integrityVerified ? "No mismatch detected" : "Review required",
+value: vm.integrityVerified ? "No mismatch detected" : "Materials available",
               tone: vm.integrityVerified ? "success" : "warning",
             })}
             ${renderDecisionIndicator({

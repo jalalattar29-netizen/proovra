@@ -72,8 +72,8 @@ function renderIntegrityCheckRow(params: {
 function renderIntegrityResultPill(vm: ReportViewModel): string {
   const tone = vm.integrityVerified ? "success" : "warning";
   const value = vm.integrityVerified
-    ? "VERIFIED RECORDED INTEGRITY"
-    : "TECHNICAL REVIEW REQUIRED";
+    ? "RECORDED INTEGRITY PASSED"
+    : "REVIEW MATERIALS AVAILABLE";
 
   return `
     <div class="integrity-result-pill integrity-result-${tone}">
@@ -127,7 +127,7 @@ export function renderIntegrityProofSection(vm: ReportViewModel): string {
           <div>
             <div class="integrity-summary-kicker">Recorded preservation controls</div>
             <div class="integrity-summary-title">
-              Technical controls supporting the verified integrity result
+Technical controls supporting reviewer validation
             </div>
             <div class="integrity-summary-copy">
               This page summarizes the controls used to evaluate the recorded evidence state.
@@ -165,8 +165,11 @@ vm.contentSummary.itemCount > 1
 
           ${renderIntegrityCheckRow({
             label: "Trusted Timestamp",
-            value: timestampStatus,
-            explanation:
+value:
+  timestampStatus.toLowerCase().includes("failed")
+    ? "Trusted timestamp could not be obtained"
+    : timestampStatus,
+                explanation:
               "RFC 3161 timestamp status records whether an external time reference exists for the evidence state.",
             tone: toneFromValue(timestampStatus, [
               "recorded",

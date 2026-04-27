@@ -102,10 +102,12 @@ const leadItemValue =
   label: "Lead Item",
   value: leadItemValue,
 },
-    {
-      label: "Integrity Result",
-      value: vm.verificationStatusLabel,
-    },
+{
+  label: "Integrity Review State",
+  value: vm.integrityVerified
+    ? "Recorded integrity checks passed"
+    : "Recorded integrity materials available; reviewer validation required",
+},
   ];
 
   return renderPageSection(
@@ -115,10 +117,10 @@ const leadItemValue =
         <section class="executive-confirmation-card tone-success">
           <div class="executive-confirmation-kicker">What this report confirms</div>
           <div class="executive-confirmation-title">
-            The evidence package reached a verified recorded-integrity state.
+The evidence package has recorded preservation and integrity materials for review.
           </div>
           <div class="executive-confirmation-body">
-            Reviewers can use this report to understand the evidence package, review the primary item, inspect custody history, and validate the technical materials through the appendix and verification page.
+Reviewers can use this report to inspect the evidence package, custody history, storage controls, timestamp status, and technical materials through the appendix and verification page.
           </div>
         </section>
 

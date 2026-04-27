@@ -42,7 +42,7 @@ const anchoringStep =
           normalizedAnchoringStatus.includes("verified")
         ? "Anchoring recorded"
         : "Anchoring not recorded";
-        
+
   return `
     <div class="custody-lifecycle-summary">
       <div class="custody-lifecycle-label">Lifecycle summary</div>
@@ -51,7 +51,14 @@ const anchoringStep =
         <span>Identity recorded</span>
         <span>Upload completed</span>
         <span>Signed</span>
-        <span>Timestamped</span>
+<span>${
+  vm.storageRows
+    .find((row) => row.label === "RFC 3161 Status")
+    ?.value.toLowerCase()
+    .includes("failed")
+    ? "Timestamp unavailable"
+    : "Timestamped"
+}</span>
         <span>Locked</span>
         <span>Report generated</span>
         <span>${escapeHtml(anchoringStep)}</span>
