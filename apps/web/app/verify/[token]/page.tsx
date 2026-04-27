@@ -2499,21 +2499,21 @@ setPreviewPolicy(content.previewPolicy);
     externalPublicationPresent,
   ]);
 
-  const executiveBadges = useMemo(
-    () =>
-      verificationBadges.filter((_item) =>
-[
-  "Overall Integrity",
-  "Fingerprint",
-  "Signature",
-  "Custody Trail",
-  "Timestamp",
-  "OTS",
-  "Immutable Storage",
-]
-      ),
-    [verificationBadges]
-  );
+const executiveBadges = useMemo(
+  () =>
+    verificationBadges.filter((item) =>
+      [
+        "Overall Integrity",
+        "Fingerprint",
+        "Signature",
+        "Custody Trail",
+        "Timestamp",
+        "OTS",
+        "Immutable Storage",
+      ].includes(item.label)
+    ),
+  [verificationBadges]
+);
 
   const legalOutcomeNarrative = useMemo(() => {
     if (overallIntegrity === true) {
