@@ -4952,12 +4952,21 @@ displayFileName: evidence.displayFileName ?? null,
       signatureValid = false;
     }
 
-    const timestampDigestMatches =
-      evidence.tsaStatus === "STAMPED"
-        ? (evidence.tsaMessageImprint ?? "").toLowerCase() ===
-          evidence.fileSha256.toLowerCase()
-        : true;
+const normalizedTsaStatus = String(evidence.tsaStatus ?? "")
+  .trim()
+  .toUpperCase();
 
+const timestampDigestMatches =
+  normalizedTsaStatus === "STAMPED" ||
+  normalizedTsaStatus === "GRANTED" ||
+  normalizedTsaStatus === "VERIFIED" ||
+  normalizedTsaStatus === "SUCCEEDED"
+    ? (evidence.tsaMessageImprint ?? "").toLowerCase() ===
+      evidence.fileSha256.toLowerCase()
+    : normalizedTsaStatus === "FAILED"
+      ? false
+      : true;
+      
 const effectiveOtsStatus = resolveEffectiveOtsStatus({
   status: evidence.otsStatus,
   anchoredAtUtc: evidence.otsAnchoredAtUtc,

@@ -826,13 +826,6 @@ letter-spacing: -0.005em;
       letter-spacing: 0.01em;
     }
 
-    .primary-evidence-details {
-      border: 1px solid ${c.softLine};
-      border-top: none;
-      padding: 4px 12px 10px;
-      background: ${c.white};
-    }
-
     .gallery-support-grid {
       display: grid;
       grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -2436,11 +2429,6 @@ letter-spacing: -0.005em;
       text-align: left;
     }
 
-    .primary-evidence-details .gallery-sha-value {
-      font-size: 9.2px;
-      line-height: 1.48;
-    }
-
         .custody-lifecycle-summary {
       border: 1px solid ${c.softLine};
       border-left: 5px solid ${c.accent};
@@ -2745,7 +2733,7 @@ body {
 .cover-premium-body {
   flex: 1 1 auto !important;
   min-height: 0 !important;
-  padding: 5mm 14mm 5mm 14mm !important;
+  padding: 5mm 14mm 13mm 14mm !important;
   background: transparent !important;
   overflow: hidden !important;
 }
@@ -2760,7 +2748,8 @@ body {
   flex: 0 0 auto !important;
 }
 
-/* كل الكروت زجاجية فوق الورق */
+/* GLOBAL CARD READABILITY POLISH */
+
 .cover-evidence-panel,
 .cover-meta-card,
 .cover-verify-box,
@@ -2773,11 +2762,7 @@ body {
 .callout,
 .verification-link-panel,
 .mono-block,
-.mono-label,
-.mono-value,
 .gallery-card,
-.gallery-card-header,
-.gallery-card-meta,
 .gallery-secondary-item,
 .custody-stat-card,
 .custody-lifecycle-summary,
@@ -2796,27 +2781,46 @@ body {
 .technical-verification-card,
 .technical-access-panel,
 .technical-access-url,
-.technical-appendix-block,
-.technical-appendix-block-head,
-.technical-appendix-block-body,
 .legal-interpretation-hero,
 .legal-interpretation-card,
 .primary-evidence-card,
 .primary-evidence-preview,
 .primary-evidence-details,
-.evidence-strip,
-.report-table,
-.report-table th,
-.report-table td,
-table,
-table th,
-table td {
-  background-color: rgba(255, 255, 255, 0.18) !important;
-  border-color: rgba(80, 92, 92, 0.18) !important;
-  box-shadow: none !important;
-  backdrop-filter: none !important;
+.evidence-strip {
+  background-color: rgba(255, 255, 255, 0.16) !important;
+  border-color: rgba(12, 28, 25, 0.22) !important;
 }
 
+/* darker small labels inside cards */
+.cover-meta-label,
+.info-card-label,
+.kv-label,
+.gallery-meta-label,
+.technical-status-kicker,
+.integrity-control-kicker,
+.verification-link-panel-label,
+.mono-label,
+.appendix-section-title,
+.cover-status-name,
+.compact-kv-label,
+.integrity-detail-label,
+.custody-stat-label,
+.custody-lifecycle-label,
+.executive-summary-label {
+  color: rgba(11, 46, 39, 0.78) !important;
+  font-weight: 950 !important;
+}
+
+/* softer but clearer internal row dividers */
+.executive-summary-row,
+.compact-kv-row,
+.gallery-meta-row,
+.integrity-check-row,
+.report-table td,
+.report-table th {
+  border-color: rgba(12, 28, 25, 0.16) !important;
+}
+ 
 /* منع الأبيض الصارخ داخل الصور والجداول */
 .gallery-thumb,
 .gallery-thumb-text-inner,
@@ -2872,6 +2876,154 @@ table td {
 /* footer مساحة آمنة */
 .print-footer {
   background: transparent !important;
+}
+
+/* COVER FINAL POLISH */
+
+/* 1) Darker premium cover header */
+.cover-certificate-top {
+  background: #0b2e27 !important;
+  border-bottom-color: rgba(196, 165, 91, 0.75) !important;
+}
+
+/* 2) Remove green cover footer; keep only Chromium/main PDF footer */
+.cover-certificate-bottom,
+.cover-certificate-bottom-premium {
+  display: none !important;
+}
+
+/* 3) Remove inner white hash box */
+.cover-primary-hash,
+.cover-meta-value-code.cover-primary-hash {
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+  border-radius: 0 !important;
+}
+
+/* COVER PAGE SPACING POLISH */
+
+.cover-status-subtitle {
+  margin-bottom: 5mm !important;
+}
+
+.cover-decision-grid {
+  gap: 3.2mm !important;
+  margin-top: 0 !important;
+  margin-bottom: 3.8mm !important;
+}
+
+.cover-main-grid {
+  gap: 4mm !important;
+  margin-bottom: 3.5mm !important;
+}
+
+.cover-meta-grid {
+  gap: 3mm !important;
+  margin-top: 0 !important;
+  margin-bottom: 3.2mm !important;
+}
+
+.cover-evidence-panel,
+.cover-verify-box {
+  min-height: 44mm !important;
+}
+
+.cover-meta-card {
+  min-height: 13.5mm !important;
+  padding: 2.4mm 2.8mm !important;
+}
+
+.cover-decision-indicator {
+  min-height: 15mm !important;
+  padding: 2.3mm 2.6mm !important;
+}
+
+.cover-boundary-inline {
+  margin-top: 0 !important;
+}
+
+/* FORCE BACKGROUND ON ANY SPLIT PAGE */
+
+.report-page {
+  background-image: url("${paperSilverUrl}") !important;
+  background-size: 210mm 297mm !important;
+  background-repeat: no-repeat !important;
+  background-position: center top !important;
+}
+
+/* PRIMARY EVIDENCE — make card consistent with report glass style */
+.primary-evidence-card,
+.primary-evidence-preview,
+.primary-evidence-details {
+  background-color: rgba(255, 255, 255, 0.18) !important;
+  border-color: rgba(18, 42, 38, 0.22) !important;
+  box-shadow: none !important;
+}
+
+.primary-evidence-details {
+  padding: 6px 12px 10px !important;
+}
+
+/* Fix primary evidence detail rows spacing */
+.primary-evidence-details .gallery-meta-row {
+  grid-template-columns: 128px minmax(0, 1fr) !important;
+  gap: 18px !important;
+  align-items: center !important;
+  padding: 7px 0 !important;
+}
+
+/* Keep LEAD ITEM SHA-256 on one line */
+.primary-evidence-details .gallery-meta-label {
+  white-space: nowrap !important;
+  word-break: normal !important;
+  overflow-wrap: normal !important;
+  font-size: 8.3px !important;
+  letter-spacing: 0.035em !important;
+}
+
+/* Make the hash readable and aligned with other values */
+.primary-evidence-details .gallery-sha-value,
+.primary-evidence-details .hash-text {
+  font-size: 8.9px !important;
+  line-height: 1.42 !important;
+  font-weight: 750 !important;
+  color: ${c.ink} !important;
+  letter-spacing: -0.01em !important;
+  word-break: break-all !important;
+  overflow-wrap: anywhere !important;
+  text-align: left !important;
+}
+
+.technical-access-url-block {
+  margin-top: 12px;
+  padding: 14px 16px;
+  border-radius: 14px;
+  background: rgba(16, 24, 40, 0.04);
+  border: 1px solid rgba(16, 24, 40, 0.08);
+}
+
+.technical-access-url-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: #667085;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-bottom: 6px;
+}
+
+.technical-access-url-value {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 13px;
+  font-weight: 600;
+  color: #101828;
+  word-break: break-all;
+}
+
+.technical-appendix-block {
+  page-break-inside: avoid;
+  break-inside: avoid;
 }
 
 @media print {

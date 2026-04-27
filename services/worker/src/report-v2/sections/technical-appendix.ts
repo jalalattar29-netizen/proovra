@@ -110,9 +110,12 @@ function renderVerificationAccess(vm: ReportViewModel): string {
         </div>
       </div>
 
-      <div class="technical-access-url technical-access-url-emphasis">
-        ${escapeHtml(vm.technicalUrl)}
-      </div>
+<div class="technical-access-url-block">
+  <div class="technical-access-url-label">Verification Endpoint</div>
+  <div class="technical-access-url-value">
+    ${escapeHtml(vm.technicalUrl)}
+  </div>
+</div>
     </div>
   `;
 }
@@ -146,56 +149,48 @@ export function renderTechnicalAppendixSection(vm: ReportViewModel): string {
 
   const pages: string[] = [];
 
-  pages.push(
-    renderPageSection(
-      "Technical Appendix",
-      `
-        <div class="technical-appendix-page">
-          ${renderCallout({
-            title: "Technical appendix scope",
-            body:
-              "This appendix preserves exact technical references for audit and independent verification. Human interpretation, legal posture, and custody chronology are kept in their own sections so this appendix remains a structured technical reference.",
-            tone: "neutral",
-          })}
+pages.push(
+  renderPageSection(
+    "Technical Appendix",
+    `
+      <div class="technical-appendix-page">
 
-          ${renderVerificationAccess(vm)}
-          ${renderTechnicalStatusCards(vm)}
-        </div>
-      `,
-      { pageBreakBefore: true, className: "technical-appendix-section" }
-    )
-  );
+        ${renderCallout({
+          title: "Technical appendix scope",
+          body:
+            "This appendix preserves exact technical references for audit and independent verification. Human interpretation, legal posture, and custody chronology are kept in their own sections so this appendix remains a structured technical reference.",
+          tone: "neutral",
+        })}
 
-  pages.push(
-    renderPageSection(
-      "Technical Appendix — Identity & Fingerprint",
-      `
-        <div class="technical-appendix-page">
-          ${renderAppendixSection(
-            "Identity & Provenance",
-            "Who submitted the evidence, which identity level was recorded, and what workspace or organization context exists.",
-            renderKeyValueGrid(filteredIdentityRows),
-            { className: "technical-appendix-identity-block" }
-          )}
+        ${renderVerificationAccess(vm)}
+        ${renderTechnicalStatusCards(vm)}
 
-          ${renderAppendixSection(
-            "Cryptographic Fingerprint",
-            "Primary digest and canonical fingerprint references used to identify the preserved evidence state.",
-            `
-              ${renderCallout({
-                title: "Fingerprint interpretation",
-                body: vm.technicalFingerprintNarrative,
-                tone: "neutral",
-              })}
-              ${renderKeyValueGrid(vm.technicalAppendix.fingerprintRows)}
-            `,
-            { className: "technical-appendix-fingerprint-block" }
-          )}
-        </div>
-      `,
-      { pageBreakBefore: true, className: "technical-appendix-section" }
-    )
-  );
+        ${renderAppendixSection(
+          "Identity & Provenance",
+          "Who submitted the evidence, which identity level was recorded, and what workspace or organization context exists.",
+          renderKeyValueGrid(filteredIdentityRows),
+          { className: "technical-appendix-identity-block" }
+        )}
+
+        ${renderAppendixSection(
+          "Cryptographic Fingerprint",
+          "Primary digest and canonical fingerprint references used to identify the preserved evidence state.",
+          `
+            ${renderCallout({
+              title: "Fingerprint interpretation",
+              body: vm.technicalFingerprintNarrative,
+              tone: "neutral",
+            })}
+            ${renderKeyValueGrid(vm.technicalAppendix.fingerprintRows)}
+          `,
+          { className: "technical-appendix-fingerprint-block" }
+        )}
+
+      </div>
+    `,
+    { pageBreakBefore: true, className: "technical-appendix-section" }
+  )
+);
 
   if (!compact) {
     pages.push(

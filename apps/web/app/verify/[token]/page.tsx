@@ -9,7 +9,6 @@ import {
   EmptyState,
   Skeleton,
 } from "../../../components/ui";
-import { SilverWatermarkSection } from "../../../components/SilverWatermarkSection";
 import { useLocale } from "../../providers";
 import { apiFetch } from "../../../lib/api";
 import { captureException } from "../../../lib/sentry";
@@ -2503,14 +2502,15 @@ setPreviewPolicy(content.previewPolicy);
   const executiveBadges = useMemo(
     () =>
       verificationBadges.filter((item) =>
-        [
-          "Overall Integrity",
-          "Fingerprint",
-          "Signature",
-          "Custody Trail",
-          "OTS",
-          "Immutable Storage",
-        ].some((prefix) => item.label.startsWith(prefix))
+[
+  "Overall Integrity",
+  "Fingerprint",
+  "Signature",
+  "Custody Trail",
+  "Timestamp",
+  "OTS",
+  "Immutable Storage",
+]
       ),
     [verificationBadges]
   );
@@ -3085,41 +3085,16 @@ setPreviewPolicy(content.previewPolicy);
 
   return (
     <div className="page">
-      <SilverWatermarkSection
-        className="section"
-        style={{
-          position: "relative",
-          overflow: "hidden",
-          paddingTop: 16,
-          paddingBottom: 24,
-        }}
-      >
-        <div
-          style={{
-            position: "absolute",
-            inset: 0,
-            background:
-              "linear-gradient(180deg, rgba(248,250,252,0.96) 0%, rgba(248,250,252,0.985) 52%, rgba(248,250,252,0.995) 100%)",
-            pointerEvents: "none",
-          }}
-        />
-        <div
-          style={{
-            position: "absolute",
-            right: "-6%",
-            bottom: "-8%",
-            width: "38vw",
-            maxWidth: 520,
-            minWidth: 240,
-            aspectRatio: "1 / 1",
-            borderRadius: "50%",
-            background:
-              "radial-gradient(circle, rgba(31,58,95,0.05) 0%, rgba(31,58,95,0.02) 38%, rgba(31,58,95,0) 72%)",
-            pointerEvents: "none",
-            filter: "blur(2px)",
-          }}
-        />
-
+<section
+  className="section"
+  style={{
+    position: "relative",
+    overflow: "hidden",
+    paddingTop: 16,
+    paddingBottom: 24,
+    background: "#F8FAFC",
+  }}
+>
         <div className="container" style={{ position: "relative", zIndex: 1 }}>
           <div
             style={{
@@ -4862,7 +4837,7 @@ label="Canonical Fingerprint Hash"
             </div>
           )}
         </div>
-      </SilverWatermarkSection>
+</section>
     </div>
   );
 }

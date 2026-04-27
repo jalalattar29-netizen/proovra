@@ -377,14 +377,6 @@ value: vm.integrityVerified ? "No mismatch detected" : "Materials available",
             </span>
           </div>
         </div>
-
-        <div class="cover-certificate-bottom cover-certificate-bottom-premium">
-          <span>System Signed</span>
-          <span>Fingerprint Recorded</span>
-          <span>Custody Preserved</span>
-          <span>Timestamped</span>
-          <span>Storage Protected</span>
-        </div>
       </div>
     </section>
   `;

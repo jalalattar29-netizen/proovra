@@ -639,10 +639,16 @@ function buildStorageRows(
       label: "Storage Protection Mode",
       value: mapObjectLockModePublicLabel(evidence.storageObjectLockMode),
     },
-    {
-      label: "Retention Until (UTC)",
-      value: safe(evidence.storageObjectLockRetainUntilUtc),
-    },
+{
+  label: "Protected from modification until",
+  value: evidence.storageObjectLockRetainUntilUtc
+    ? `${new Date(evidence.storageObjectLockRetainUntilUtc).toLocaleDateString("en-GB", {
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+      })} (${evidence.storageObjectLockRetainUntilUtc})`
+    : "Not recorded",
+},
     {
       label: "Legal Hold",
       value: safe(evidence.storageObjectLockLegalHoldStatus, "OFF"),

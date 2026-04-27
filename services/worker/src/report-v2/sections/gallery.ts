@@ -209,7 +209,7 @@ function renderMetadataOnlyCard(item: PresentationEvidenceItem): string {
         <div class="gallery-meta-label">Size</div>
         <div class="gallery-meta-value">${escapeHtml(safe(asset.displaySizeLabel, "N/A"))}</div>
 
-        <div class="gallery-meta-label">SHA-256</div>
+        <div class="gallery-meta-label">Item SHA-256</div>
         <div class="gallery-meta-value gallery-sha-value">${escapeHtml(
           asset.sha256 ?? "Not recorded"
         )}</div>

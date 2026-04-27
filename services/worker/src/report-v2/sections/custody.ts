@@ -2,6 +2,20 @@ import { ReportViewModel, TimelineRow } from "../types.js";
 import { escapeHtml } from "../formatters.js";
 import { renderCallout, renderPageSection } from "../ui.js";
 
+const FIRST_PAGE_EVENTS = 10;
+const CONTINUED_PAGE_EVENTS = 12;
+
+function chunkRows<T>(rows: T[], firstSize: number, nextSize: number): T[][] {
+  if (rows.length <= firstSize) return [rows];
+
+  const chunks: T[][] = [rows.slice(0, firstSize)];
+  for (let i = firstSize; i < rows.length; i += nextSize) {
+    chunks.push(rows.slice(i, i + nextSize));
+  }
+
+  return chunks;
+}
+
 function renderCustodyStats(vm: ReportViewModel): string {
   return `
     <div class="custody-stats-grid">
@@ -28,20 +42,24 @@ function renderLifecycleSummary(vm: ReportViewModel): string {
     (row) => row.label === "Public Anchoring Status"
   )?.value;
 
-const normalizedAnchoringStatus = String(anchoringStatus ?? "").toLowerCase();
+  const timestampStatus = vm.storageRows.find(
+    (row) => row.label === "RFC 3161 Status"
+  )?.value;
 
-const anchoringStep =
-  normalizedAnchoringStatus.includes("pending")
-    ? "Anchoring pending"
-    : normalizedAnchoringStatus.includes("not recorded") ||
-        normalizedAnchoringStatus.includes("not reported")
-      ? "Anchoring not recorded"
-      : normalizedAnchoringStatus.includes("recorded") ||
-          normalizedAnchoringStatus.includes("anchored") ||
-          normalizedAnchoringStatus.includes("published") ||
-          normalizedAnchoringStatus.includes("verified")
-        ? "Anchoring recorded"
-        : "Anchoring not recorded";
+  const normalizedAnchoringStatus = String(anchoringStatus ?? "").toLowerCase();
+
+  const anchoringStep =
+    normalizedAnchoringStatus.includes("pending")
+      ? "Anchoring pending"
+      : normalizedAnchoringStatus.includes("not recorded") ||
+          normalizedAnchoringStatus.includes("not reported")
+        ? "Anchoring not recorded"
+        : normalizedAnchoringStatus.includes("recorded") ||
+            normalizedAnchoringStatus.includes("anchored") ||
+            normalizedAnchoringStatus.includes("published") ||
+            normalizedAnchoringStatus.includes("verified")
+          ? "Anchoring recorded"
+          : "Anchoring not recorded";
 
   return `
     <div class="custody-lifecycle-summary">
@@ -51,14 +69,11 @@ const anchoringStep =
         <span>Identity recorded</span>
         <span>Upload completed</span>
         <span>Signed</span>
-<span>${
-  vm.storageRows
-    .find((row) => row.label === "RFC 3161 Status")
-    ?.value.toLowerCase()
-    .includes("failed")
-    ? "Timestamp unavailable"
-    : "Timestamped"
-}</span>
+        <span>${
+          String(timestampStatus ?? "").toLowerCase().includes("failed")
+            ? "Timestamp unavailable"
+            : "Timestamped"
+        }</span>
         <span>Locked</span>
         <span>Report generated</span>
         <span>${escapeHtml(anchoringStep)}</span>
@@ -85,83 +100,150 @@ function hasAnchoringCompletion(rows: TimelineRow[]): boolean {
   });
 }
 
-function renderForensicTimeline(rows: TimelineRow[]): string {
-  if (rows.length === 0) return "";
+function renderForensicTimeline(
+  rows: TimelineRow[],
+  opts: {
+    sequenceOffset: number;
+    anchoringCompletesLater: boolean;
+    pendingNoteAlreadyRendered: boolean;
+  }
+): { html: string; pendingNoteRendered: boolean } {
+  let pendingNoteRendered = opts.pendingNoteAlreadyRendered;
 
-  const anchoringCompletesLater = hasAnchoringCompletion(rows);
-  let pendingNoteRendered = false;
+  if (rows.length === 0) {
+    return { html: "", pendingNoteRendered };
+  }
 
-  return `
+  const html = `
     <div class="timeline-list custody-forensic-timeline">
-${rows
-  .map((row, index) => {
-    const displaySequence = String(index + 1);
+      ${rows
+        .map((row, index) => {
+          const displaySequence = String(opts.sequenceOffset + index + 1);
 
-    const shouldShowPendingNote =
-      !pendingNoteRendered &&
-      anchoringCompletesLater &&
-      isOtsPendingRow(row);
+          const shouldShowPendingNote =
+            !pendingNoteRendered &&
+            opts.anchoringCompletesLater &&
+            isOtsPendingRow(row);
 
-    if (shouldShowPendingNote) pendingNoteRendered = true;
+          if (shouldShowPendingNote) pendingNoteRendered = true;
 
-    return `
-      <article class="timeline-card custody-forensic-event">
-        <div class="timeline-seq">${escapeHtml(displaySequence)}</div>
-        <div class="timeline-content">
-          <div class="timeline-top">
-            <div class="timeline-event">${escapeHtml(row.eventLabel)}</div>
-            <div class="timeline-time">${escapeHtml(row.atUtc)}</div>
-          </div>
-          <div class="timeline-summary">${escapeHtml(row.summary)}</div>
-          ${
-            shouldShowPendingNote
-              ? `
-                <div class="custody-inline-note">
-                  Later OpenTimestamps events show anchoring completion.
+          return `
+            <article class="timeline-card custody-forensic-event">
+              <div class="timeline-seq">${escapeHtml(displaySequence)}</div>
+              <div class="timeline-content">
+                <div class="timeline-top">
+                  <div class="timeline-event">${escapeHtml(row.eventLabel)}</div>
+                  <div class="timeline-time">${escapeHtml(row.atUtc)}</div>
                 </div>
-              `
-              : ""
-          }
-        </div>
-      </article>
-    `;
-  })
-  .join("")}
-      </div>
+                <div class="timeline-summary">${escapeHtml(row.summary)}</div>
+                ${
+                  shouldShowPendingNote
+                    ? `
+                      <div class="custody-inline-note">
+                        Later OpenTimestamps events show anchoring completion.
+                      </div>
+                    `
+                    : ""
+                }
+              </div>
+            </article>
+          `;
+        })
+        .join("")}
+    </div>
   `;
+
+  return { html, pendingNoteRendered };
 }
 
 export function renderCustodySection(vm: ReportViewModel): string {
-  const forensicBlock =
-    vm.forensicRows.length === 0
-      ? renderCallout({
-          title: "No forensic custody events returned",
-          body:
-            "This report did not receive internal forensic custody-event entries for this evidence record. That means no system-recorded forensic chain was available in this output; it should not be treated as proof that no handling occurred outside the recorded workflow.",
-          tone: "warning",
-        })
-      : renderForensicTimeline(vm.forensicRows);
+  if (vm.forensicRows.length === 0) {
+    return renderPageSection(
+      "Chain of Custody",
+      `
+        <div class="custody-page">
+          ${renderCallout({
+            title: "Recorded Forensic Lifecycle",
+            body:
+              "The events below show the system-recorded custody path of the evidence package. Routine viewing, download, and verification access activity is intentionally kept out of this PDF and should be reviewed through the verification page or internal audit trail when needed.",
+            tone: "neutral",
+          })}
 
-  return renderPageSection(
-    "Chain of Custody",
-    `
-      <div class="custody-page">
-        ${renderCallout({
-          title: "Recorded Forensic Lifecycle",
-          body:
-            "The events below show the system-recorded custody path of the evidence package. Routine viewing, download, and verification access activity is intentionally kept out of this PDF and should be reviewed through the verification page or internal audit trail when needed.",
-          tone: "neutral",
-        })}
+          ${renderCustodyStats(vm)}
 
-        ${renderCustodyStats(vm)}
+          ${renderLifecycleSummary(vm)}
 
-        ${renderLifecycleSummary(vm)}
-
-        <div class="custody-timeline-panel">
-          ${forensicBlock}
+          <div class="custody-timeline-panel">
+            ${renderCallout({
+              title: "No forensic custody events returned",
+              body:
+                "This report did not receive internal forensic custody-event entries for this evidence record. That means no system-recorded forensic chain was available in this output; it should not be treated as proof that no handling occurred outside the recorded workflow.",
+              tone: "warning",
+            })}
+          </div>
         </div>
-      </div>
-    `,
-    { pageBreakBefore: true, className: "custody-section" }
+      `,
+      { pageBreakBefore: true, className: "custody-section" }
+    );
+  }
+
+  const chunks = chunkRows(
+    vm.forensicRows,
+    FIRST_PAGE_EVENTS,
+    CONTINUED_PAGE_EVENTS
   );
+
+  const anchoringCompletesLater = hasAnchoringCompletion(vm.forensicRows);
+  let pendingNoteRendered = false;
+  let sequenceOffset = 0;
+
+  return chunks
+    .map((chunk, pageIndex) => {
+      const timeline = renderForensicTimeline(chunk, {
+        sequenceOffset,
+        anchoringCompletesLater,
+        pendingNoteAlreadyRendered: pendingNoteRendered,
+      });
+
+      pendingNoteRendered = timeline.pendingNoteRendered;
+      sequenceOffset += chunk.length;
+
+      if (pageIndex === 0) {
+        return renderPageSection(
+          "Chain of Custody",
+          `
+            <div class="custody-page">
+              ${renderCallout({
+                title: "Recorded Forensic Lifecycle",
+                body:
+                  "The events below show the system-recorded custody path of the evidence package. Routine viewing, download, and verification access activity is intentionally kept out of this PDF and should be reviewed through the verification page or internal audit trail when needed.",
+                tone: "neutral",
+              })}
+
+              ${renderCustodyStats(vm)}
+
+              ${renderLifecycleSummary(vm)}
+
+              <div class="custody-timeline-panel">
+                ${timeline.html}
+              </div>
+            </div>
+          `,
+          { pageBreakBefore: true, className: "custody-section" }
+        );
+      }
+
+      return renderPageSection(
+        "Chain of Custody — Continued",
+        `
+          <div class="custody-page custody-page-continued">
+            <div class="custody-timeline-panel">
+              ${timeline.html}
+            </div>
+          </div>
+        `,
+        { pageBreakBefore: true, className: "custody-section custody-section-continued" }
+      );
+    })
+    .join("");
 }

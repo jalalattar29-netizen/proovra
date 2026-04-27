@@ -2027,10 +2027,8 @@ if (
     recordedIntegrityVerifiedAtUtc: evidence.recordedIntegrityVerifiedAtUtc
       ? evidence.recordedIntegrityVerifiedAtUtc.toISOString()
       : null,
-    lastVerifiedAtUtc: evidence.lastVerifiedAtUtc
-      ? evidence.lastVerifiedAtUtc.toISOString()
-      : null,
-    lastVerifiedSource: evidence.lastVerifiedSource ?? null,
+lastVerifiedAtUtc: now.toISOString(),
+lastVerifiedSource: prismaPkg.VerificationSource.REPORT_GENERATED,
     verificationPackageGeneratedAtUtc:
       evidence.verificationPackageGeneratedAtUtc?.toISOString() ?? null,
     verificationPackageVersion: evidence.verificationPackageVersion ?? null,
@@ -2658,6 +2656,8 @@ export async function processGenerateReport(job: Job<GenerateReportJobData>) {
               prepared.identitySnapshot.organizationVerifiedSnapshot,
             latestReportVersion: prepared.version,
             reportGeneratedAtUtc: prepared.now,
+            lastVerifiedAtUtc: prepared.now,
+            lastVerifiedSource: prismaPkg.VerificationSource.REPORT_GENERATED,
             reviewReadyAtUtc: prepared.now,
             reviewerSummaryVersion:
               prepared.identitySnapshot.reviewerSummaryVersion,

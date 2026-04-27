@@ -103,11 +103,6 @@ export function renderIntegrityProofSection(vm: ReportViewModel): string {
     "Retention Until (UTC)"
   );
 
-  const lastVerifiedAt = findRowValue(
-    vm.verificationSummaryRows,
-    "Last Verified At (UTC)"
-  );
-
   const forensicEvents =
     vm.forensicRows.length > 0
       ? `${vm.forensicRows.length} forensic event${
@@ -232,10 +227,10 @@ tone: toneFromValue(
             <div class="integrity-detail-label">Retention Until UTC</div>
             <div class="integrity-detail-value">${escapeHtml(retentionUntil)}</div>
           </div>
-          <div class="integrity-detail-card">
-            <div class="integrity-detail-label">Last Verified At UTC</div>
-            <div class="integrity-detail-value">${escapeHtml(lastVerifiedAt)}</div>
-          </div>
+<div class="integrity-detail-card">
+  <div class="integrity-detail-label">Report Generated At UTC</div>
+  <div class="integrity-detail-value">${escapeHtml(vm.generatedAtUtc)}</div>
+</div>
           <div class="integrity-detail-card">
             <div class="integrity-detail-label">Verification Source</div>
             <div class="integrity-detail-value">${escapeHtml(vm.meta.lastVerifiedSourceLabel)}</div>
