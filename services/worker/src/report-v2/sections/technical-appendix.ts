@@ -216,7 +216,6 @@ ${renderAppendixSection(
       tone: "neutral",
     })}
   `,
-  { className: "technical-appendix-timestamp-block force-appendix-page-break" }
 )}
 
         ${renderAppendixSection(

@@ -59,15 +59,13 @@ letter-spacing: -0.005em;
 }
 
 .section-sheet {
-  background: rgba(255,255,255,0.86);
-  border: 1px solid rgba(150,160,165,0.38);
-  border-radius: 12px;
-  box-shadow: none;
-  overflow: visible;
-  padding: 14px;
-  min-height: auto;
-  break-inside: auto;
-  page-break-inside: auto;
+  background: transparent !important;
+  border: none !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+  padding: 0 !important;
+  min-height: auto !important;
 }
 
 .section-heading {
@@ -104,7 +102,7 @@ letter-spacing: -0.005em;
   align-items: center;
   gap: 5px;
 }
-  
+
 .section-kicker::before {
   content: none ;
 }
@@ -2218,21 +2216,17 @@ letter-spacing: -0.005em;
       line-height: 1.35;
     }
 
-    .technical-appendix-block {
-      border: 1px solid ${c.softLine};
-      border-radius: 10px;
-      background: ${c.white};
-      overflow: hidden;
-      break-inside: avoid;
-      page-break-inside: avoid;
-    }
+.technical-appendix-block {
+  break-inside: auto !important;
+  page-break-inside: auto !important;
+  margin-bottom: 10px;
+}
 
-    .technical-appendix-block-head {
-      padding: 10px 12px;
-      border-bottom: 1px solid ${c.softLine};
-  background: rgba(255,255,255,0.68);
-      }
-
+.technical-appendix-block-head {
+  break-after: avoid;
+  page-break-after: avoid;
+}
+  
     .technical-appendix-block-title {
       margin: 0 0 4px;
       color: ${c.accent};
@@ -2685,14 +2679,6 @@ background-image: url("${paperSilverUrl}");
   overflow: visible;
 }
 
-.section-sheet,
-.cover-certificate-card {
-  background: rgba(255, 255, 255, 0.72);
-    border: 1px solid rgba(255, 255, 255, 0.48);
-  box-shadow: 0 1px 0 rgba(255,255,255,0.42) inset;
-  backdrop-filter: blur(1.2px);
-}
-
 .cover-evidence-panel,
 .cover-meta-card,
 .cover-verify-box,
@@ -2703,11 +2689,9 @@ background-image: url("${paperSilverUrl}");
 .callout,
 .verification-link-panel,
 .mono-block,
-.appendix-section,
 .gallery-card,
 .gallery-secondary-item,
 .custody-stat-card,
-.custody-access-event,
 .integrity-summary-intro,
 .integrity-check-list,
 .integrity-detail-card,
@@ -2716,7 +2700,6 @@ background-image: url("${paperSilverUrl}");
 .executive-confirmation-card,
 .executive-outcome,
 .executive-legal-boundary,
-.technical-status-card,
 .technical-verification-card,
 .technical-access-panel,
 .technical-appendix-block,
@@ -2728,9 +2711,9 @@ background-image: url("${paperSilverUrl}");
 .evidence-strip,
 .report-table,
 table {
-background: rgba(255, 255, 255, 0.78);
-border-color: rgba(178, 188, 184, 0.38);
-box-shadow: 0 1px 0 rgba(255,255,255,0.36) inset;
+  background: rgba(255, 255, 255, 0.54) !important;
+  border-color: rgba(120, 130, 130, 0.28) !important;
+  box-shadow: none !important;
 }
 
 .report-table th,
@@ -2754,11 +2737,6 @@ table th,
 .gallery-thumb img,
 .cover-evidence-visual img {
   background: transparent ;
-}
-
-.force-appendix-page-break {
-  break-before: page;
-  page-break-before: always;
 }
 
 .technical-appendix-block {
