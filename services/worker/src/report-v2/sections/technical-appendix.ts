@@ -62,8 +62,12 @@ function normalizeAnchoringRows(vm: ReportViewModel): KeyValueRow[] {
     .filter((row) => hasMeaningfulTechnicalValue(row.value))
     .map((row) => {
       if (row.label === "Anchor Mode" && publicAnchoringRecorded) {
-        return { ...row, value: "Public anchoring recorded" };
+        return {
+          ...row,
+          value: "Public anchoring recorded",
+        };
       }
+
       return row;
     });
 }
@@ -144,167 +148,142 @@ export function renderTechnicalAppendixSection(vm: ReportViewModel): string {
     ? String(vm.technicalAppendix.otsDetail)
     : "";
 
-  const pages: string[] = [];
+  const overviewPage = renderPageSection(
+    "Technical Appendix",
+    `
+      <div class="technical-appendix-page">
+        ${renderCallout({
+          title: "Technical appendix scope",
+          body:
+            "This appendix preserves exact technical references for audit and independent verification. Human interpretation, legal posture, and custody chronology are kept in their own sections so this appendix remains a structured technical reference.",
+          tone: "neutral",
+        })}
 
-  pages.push(
-    renderPageSection(
-      "Technical Appendix",
-      `
-        <div class="technical-appendix-page">
-          ${renderCallout({
-            title: "Technical appendix scope",
-            body:
-              "This appendix preserves exact technical references for audit and independent verification. Human interpretation, legal posture, and custody chronology are kept in their own sections so this appendix remains a structured technical reference.",
-            tone: "neutral",
-          })}
+        ${renderVerificationAccess(vm)}
 
-          ${renderVerificationAccess(vm)}
-          ${renderTechnicalStatusCards(vm)}
-        </div>
-      `,
-      { pageBreakBefore: true, className: "technical-appendix-section" }
-    )
+        ${renderTechnicalStatusCards(vm)}
+
+        ${renderAppendixSection(
+          "Identity & Provenance",
+          "Who submitted the evidence, which identity level was recorded, and what workspace or organization context exists.",
+          renderKeyValueGrid(filteredIdentityRows),
+          { className: "technical-appendix-identity-block" }
+        )}
+
+        ${renderAppendixSection(
+          "Cryptographic Fingerprint",
+          "Primary digest and canonical fingerprint references used to identify the preserved evidence state.",
+          `
+            ${renderCallout({
+              title: "Fingerprint interpretation",
+              body: vm.technicalFingerprintNarrative,
+              tone: "neutral",
+            })}
+            ${renderKeyValueGrid(vm.technicalAppendix.fingerprintRows)}
+          `,
+          { className: "technical-appendix-fingerprint-block" }
+        )}
+
+        ${
+          compact
+            ? ""
+            : renderAppendixSection(
+                "Digital Signature",
+                "Signature and signing-key references used for independent verification of the recorded evidence state.",
+                `
+                  ${renderKeyValueGrid(vm.technicalAppendix.signatureRows)}
+                  ${renderCallout({
+                    title: "Signature material handling",
+                    body: vm.technicalAppendix.signatureReferenceNote,
+                    tone: "neutral",
+                  })}
+                `,
+                { className: "technical-appendix-signature-block" }
+              )
+        }
+      </div>
+    `,
+    { pageBreakBefore: true, className: "technical-appendix-section" }
   );
 
-  pages.push(
-    renderPageSection(
-      "Technical Appendix — Identity & Fingerprint",
-      `
-        <div class="technical-appendix-page">
-          ${renderAppendixSection(
-            "Identity & Provenance",
-            "Who submitted the evidence, which identity level was recorded, and what workspace or organization context exists.",
-            renderKeyValueGrid(filteredIdentityRows),
-            { className: "technical-appendix-identity-block" }
-          )}
+  const timestampPage = renderPageSection(
+    "Technical Appendix — Trusted Timestamp",
+    `
+      <div class="technical-appendix-page technical-appendix-timestamp-page">
+        ${renderAppendixSection(
+          "Trusted Timestamp",
+          "RFC 3161 timestamp metadata and message-imprint reference recorded for the evidence digest.",
+          `
+            ${renderKeyValueGrid(vm.technicalAppendix.timestampRows)}
 
-          ${renderAppendixSection(
-            "Cryptographic Fingerprint",
-            "Primary digest and canonical fingerprint references used to identify the preserved evidence state.",
-            `
-              ${renderCallout({
-                title: "Fingerprint interpretation",
-                body: vm.technicalFingerprintNarrative,
-                tone: "neutral",
-              })}
-              ${renderKeyValueGrid(vm.technicalAppendix.fingerprintRows)}
-            `,
-            { className: "technical-appendix-fingerprint-block" }
-          )}
-        </div>
-      `,
-      { pageBreakBefore: true, className: "technical-appendix-section" }
-    )
+            ${
+              tsaMessageImprint
+                ? renderMonoBlock("TSA Message Imprint", tsaMessageImprint)
+                : ""
+            }
+
+            ${renderCallout({
+              title: "Timestamp material handling",
+              body: vm.technicalAppendix.timestampReferenceNote,
+              tone: "neutral",
+            })}
+          `,
+          { className: "technical-appendix-timestamp-block" }
+        )}
+      </div>
+    `,
+    {
+      pageBreakBefore: true,
+      className: "technical-appendix-section technical-appendix-timestamp-section",
+    }
   );
 
-  if (!compact) {
-    pages.push(
-      renderPageSection(
-        "Technical Appendix — Digital Signature",
-        `
-          <div class="technical-appendix-page">
-            ${renderAppendixSection(
-              "Digital Signature",
-              "Signature and signing-key references used for independent verification of the recorded evidence state.",
-              `
-                ${renderKeyValueGrid(vm.technicalAppendix.signatureRows)}
-                ${renderCallout({
-                  title: "Signature material handling",
-                  body: vm.technicalAppendix.signatureReferenceNote,
-                  tone: "neutral",
-                })}
-              `,
-              { className: "technical-appendix-signature-block" }
-            )}
-          </div>
-        `,
-        { pageBreakBefore: true, className: "technical-appendix-section" }
-      )
-    );
-  }
+  const anchoringPage = renderPageSection(
+    "Technical Appendix — Anchoring & Publication",
+    `
+      <div class="technical-appendix-page technical-appendix-anchoring-page">
+        ${renderAppendixSection(
+          "Anchoring & Publication",
+          "OpenTimestamps and external anchoring references connected to the recorded digest state.",
+          `
+            ${renderKeyValueGrid(anchoringRows)}
 
-  pages.push(
-    renderPageSection(
-      "Technical Appendix — Trusted Timestamp",
-      `
-        <div class="technical-appendix-page">
-          ${renderAppendixSection(
-            "Trusted Timestamp",
-            "RFC 3161 timestamp metadata and message-imprint reference recorded for the evidence digest.",
-            `
-              ${renderKeyValueGrid(vm.technicalAppendix.timestampRows)}
-              ${
-                tsaMessageImprint
-                  ? renderMonoBlock("TSA Message Imprint", tsaMessageImprint)
-                  : ""
-              }
-              ${renderCallout({
-                title: "Timestamp material handling",
-                body: vm.technicalAppendix.timestampReferenceNote,
-                tone: "neutral",
-              })}
-            `,
-            { className: "technical-appendix-timestamp-block" }
-          )}
-        </div>
-      `,
-      { pageBreakBefore: true, className: "technical-appendix-section" }
-    )
+            ${
+              otsHash || anchorHash
+                ? `
+                  <div class="technical-mono-grid">
+                    ${otsHash ? renderMonoBlock("OpenTimestamps Digest", otsHash) : ""}
+                    ${anchorHash ? renderMonoBlock("Anchor Hash", anchorHash) : ""}
+                  </div>
+                `
+                : ""
+            }
+
+            ${renderCallout({
+              title: "Anchoring material handling",
+              body: vm.technicalAppendix.anchoringReferenceNote,
+              tone: "neutral",
+            })}
+
+            ${
+              otsDetail
+                ? renderCallout({
+                    title: "Anchoring detail",
+                    body: otsDetail,
+                    tone: "warning",
+                  })
+                : ""
+            }
+          `,
+          { className: "technical-appendix-anchoring-block" }
+        )}
+      </div>
+    `,
+    {
+      pageBreakBefore: true,
+      className: "technical-appendix-section technical-appendix-anchoring-section",
+    }
   );
 
-  pages.push(
-    renderPageSection(
-      "Technical Appendix — Anchoring & Publication",
-      `
-        <div class="technical-appendix-page">
-          ${renderAppendixSection(
-            "Anchoring & Publication",
-            "OpenTimestamps and external anchoring references connected to the recorded digest state.",
-            `
-              ${renderKeyValueGrid(anchoringRows)}
-
-              ${
-                otsHash || anchorHash
-                  ? `
-                    <div class="technical-mono-grid">
-                      ${
-                        otsHash
-                          ? renderMonoBlock("OpenTimestamps Digest", otsHash)
-                          : ""
-                      }
-                      ${
-                        anchorHash
-                          ? renderMonoBlock("Anchor Hash", anchorHash)
-                          : ""
-                      }
-                    </div>
-                  `
-                  : ""
-              }
-
-              ${renderCallout({
-                title: "Anchoring material handling",
-                body: vm.technicalAppendix.anchoringReferenceNote,
-                tone: "neutral",
-              })}
-
-              ${
-                otsDetail
-                  ? renderCallout({
-                      title: "Anchoring detail",
-                      body: otsDetail,
-                      tone: "warning",
-                    })
-                  : ""
-              }
-            `,
-            { className: "technical-appendix-anchoring-block" }
-          )}
-        </div>
-      `,
-      { pageBreakBefore: true, className: "technical-appendix-section" }
-    )
-  );
-
-  return pages.join("");
+  return overviewPage + timestampPage + anchoringPage;
 }
