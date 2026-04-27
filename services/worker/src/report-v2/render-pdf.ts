@@ -157,8 +157,8 @@ export async function renderPdfFromHtml(html: string): Promise<Buffer> {
     await page.emulateMediaType("print");
 
 await page.setContent(html, {
-  waitUntil: ["domcontentloaded", "load", "networkidle0"],
-  timeout: 120_000,
+  waitUntil: "domcontentloaded",
+  timeout: 30_000,
 });
 
 await page.evaluate(async () => {
