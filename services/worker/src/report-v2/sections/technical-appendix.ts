@@ -200,24 +200,24 @@ ${renderAppendixSection(
               )
         }
 
-        ${renderAppendixSection(
-          "Trusted Timestamp",
-          "RFC 3161 timestamp metadata and message-imprint reference recorded for the evidence digest.",
-          `
-            ${renderKeyValueGrid(vm.technicalAppendix.timestampRows)}
-            ${
-              tsaMessageImprint
-                ? renderMonoBlock("TSA Message Imprint", tsaMessageImprint)
-                : ""
-            }
-            ${renderCallout({
-              title: "Timestamp material handling",
-              body: vm.technicalAppendix.timestampReferenceNote,
-              tone: "neutral",
-            })}
-          `,
-          { className: "technical-appendix-timestamp-block" }
-        )}
+${renderAppendixSection(
+  "Trusted Timestamp",
+  "RFC 3161 timestamp metadata and message-imprint reference recorded for the evidence digest.",
+  `
+    ${renderKeyValueGrid(vm.technicalAppendix.timestampRows)}
+    ${
+      tsaMessageImprint
+        ? renderMonoBlock("TSA Message Imprint", tsaMessageImprint)
+        : ""
+    }
+    ${renderCallout({
+      title: "Timestamp material handling",
+      body: vm.technicalAppendix.timestampReferenceNote,
+      tone: "neutral",
+    })}
+  `,
+  { className: "technical-appendix-timestamp-block force-appendix-page-break" }
+)}
 
         ${renderAppendixSection(
           "Anchoring & Publication",

@@ -103,6 +103,7 @@ services:
     volumes:
       - /opt/proovra/app/services/worker/keys:/app/services/worker/keys:ro
       - /opt/proovra/app/services/worker/src/pdf/assets:/app/services/worker/src/pdf/assets:ro
+      - /opt/proovra/app/services/worker/src/report-v2/assets:/app/services/worker/src/report-v2/assets:ro
     ports:
       - "127.0.0.1:8090:8090"
     healthcheck:

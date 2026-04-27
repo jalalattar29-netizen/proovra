@@ -3,6 +3,7 @@ import {
   ReportAnchorSummary,
   KeyValueRow,
   Tone,
+  ReportEvidenceContentSummary,
 } from "./types.js";
 import {
   safe,
@@ -210,9 +211,10 @@ export function buildAnchorRows(
 export function buildTechnicalAppendixModel(
   evidence: ReportEvidence,
   externalMode: boolean,
-  anchorSummary: ReportAnchorSummary | null
+  anchorSummary: ReportAnchorSummary | null,
+  contentSummary: ReportEvidenceContentSummary
 ) {
-  const signatureRows: KeyValueRow[] = [
+    const signatureRows: KeyValueRow[] = [
     {
       label: "Signing Key Reference",
       value: buildPublicSigningKeyReference(
@@ -235,12 +237,10 @@ export function buildTechnicalAppendixModel(
   ];
 
 const recordedDigestLabel =
-  evidence.contentSummary?.structure === "multipart" ||
-  (evidence.contentSummary?.itemCount ?? 1) > 1 ||
-  (evidence.itemCount ?? 1) > 1
+  contentSummary.structure === "multipart" || contentSummary.itemCount > 1
     ? "Canonical Package Digest (SHA-256)"
     : "Original File SHA-256";
-
+    
 const fingerprintRows: KeyValueRow[] = [
   {
     label: recordedDigestLabel,

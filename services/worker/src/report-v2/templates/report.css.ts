@@ -2738,6 +2738,19 @@ table th,
   background: transparent ;
 }
 
+.force-appendix-page-break {
+  break-before: page;
+  page-break-before: always;
+}
+
+.technical-appendix-block {
+  margin-bottom: 12px;
+}
+
+.technical-appendix-section .section-sheet {
+  padding-bottom: 24mm;
+}
+
 @media print {
   .report-cover,
   .report-page {

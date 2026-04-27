@@ -28,12 +28,13 @@ function toneFromValue(
     return "danger";
   }
 
-  if (positiveWords.some((word) => normalized.includes(word))) {
-    return "success";
-  }
-
+  // مهم: warning قبل positive حتى "not recorded" ما تصير success بسبب كلمة recorded
   if (warningWords.some((word) => normalized.includes(word))) {
     return "warning";
+  }
+
+  if (positiveWords.some((word) => normalized.includes(word))) {
+    return "success";
   }
 
   return "neutral";

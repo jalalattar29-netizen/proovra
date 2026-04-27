@@ -28,13 +28,21 @@ function renderLifecycleSummary(vm: ReportViewModel): string {
     (row) => row.label === "Public Anchoring Status"
   )?.value;
 
-  const anchoringStep =
-    anchoringStatus?.toLowerCase().includes("recorded")
-      ? "Anchoring recorded"
-      : anchoringStatus?.toLowerCase().includes("pending")
-        ? "Anchoring pending"
-        : "Anchoring not recorded";
+const normalizedAnchoringStatus = String(anchoringStatus ?? "").toLowerCase();
 
+const anchoringStep =
+  normalizedAnchoringStatus.includes("pending")
+    ? "Anchoring pending"
+    : normalizedAnchoringStatus.includes("not recorded") ||
+        normalizedAnchoringStatus.includes("not reported")
+      ? "Anchoring not recorded"
+      : normalizedAnchoringStatus.includes("recorded") ||
+          normalizedAnchoringStatus.includes("anchored") ||
+          normalizedAnchoringStatus.includes("published") ||
+          normalizedAnchoringStatus.includes("verified")
+        ? "Anchoring recorded"
+        : "Anchoring not recorded";
+        
   return `
     <div class="custody-lifecycle-summary">
       <div class="custody-lifecycle-label">Lifecycle summary</div>
@@ -140,7 +148,7 @@ export function renderCustodySection(vm: ReportViewModel): string {
 
         ${renderCustodyStats(vm)}
 
-        ${renderLifecycleSummary()}
+        ${renderLifecycleSummary(vm)}
 
         <div class="custody-timeline-panel">
           ${forensicBlock}

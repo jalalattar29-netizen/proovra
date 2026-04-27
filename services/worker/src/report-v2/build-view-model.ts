@@ -1055,11 +1055,12 @@ export async function buildReportViewModel(
     },
   ];
 
-  const technicalAppendix = buildTechnicalAppendixModel(
-    otsEvidence,
-    externalMode,
-    anchorSummary
-  );
+const technicalAppendix = buildTechnicalAppendixModel(
+  otsEvidence,
+  externalMode,
+  anchorSummary,
+  contentSummary
+);
 
   const forensicIntegrityStatement = buildForensicIntegrityStatementModel(
     verifyUrl,
