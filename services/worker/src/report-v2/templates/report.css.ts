@@ -4,6 +4,7 @@ import { reportAssetDataUrl } from "../asset-data-url.js";
 export function getReportCss(): string {
   const c = REPORT_BRAND.colors;
 const paperSilverUrl = reportAssetDataUrl("paper-silver.png");
+const velvetUrl = reportAssetDataUrl("site-velvet-bg.webp.png");
 
   return `
 @page {
@@ -97,12 +98,6 @@ letter-spacing: -0.005em;
   flex: 0 0 9px ;
 }
 
-.section-kicker {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-}
-
 .section-kicker::before {
   content: none ;
 }
@@ -143,12 +138,6 @@ letter-spacing: -0.005em;
   page-break-inside: avoid;
 }
 
-    .cover-certificate-top,
-    .cover-certificate-bottom {
-      background: ${c.accent} ;
-      color: #ffffff;
-    }
-
 .cover-certificate-top {
   background: rgba(18, 42, 38, 0.92) ;
   min-height: 50px;
@@ -163,7 +152,7 @@ letter-spacing: -0.005em;
 .cover-brand-row {
   display: flex;
   align-items: center;
-  gap: 7px;
+  gap: 10px;
 }
 
 .cover-brand-icon {
@@ -176,12 +165,12 @@ letter-spacing: -0.005em;
 }
 
 .cover-brand-icon-img {
-  width: 38px;
-  height: 38px;
-  flex: 0 0 38px;
+  width: 56px;
+  height: 56px;
+  flex: 0 0 56px;
   object-fit: contain;
   display: block;
-  border-radius: 9px;
+  border-radius: 12px;
 }
 
     .cover-brand-lockup {
@@ -192,27 +181,30 @@ letter-spacing: -0.005em;
 
 .cover-brand-mini {
   font-family: Georgia, "Times New Roman", serif;
-  color: #d8dad9;
 
-  font-size: 18px;   /* كان 21 */
-  font-weight: 700;
-  letter-spacing: 0.09em;
-  line-height: 1;
+  background: linear-gradient(
+    180deg,
+    #f2f4f6 0%,
+    #cfd4d8 35%,
+    #9aa3aa 55%,
+    #e6eaed 100%
+  );
 
-  text-transform: uppercase;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
 
   text-shadow:
-    0 1px 0 rgba(255,255,255,0.18),
-    0 6px 14px rgba(0,0,0,0.18);
+    0 1px 0 rgba(255,255,255,0.25),
+    0 2px 6px rgba(0,0,0,0.25);
+
+  font-size: 18px;
+  font-weight: 800;
+  letter-spacing: 0.09em;
 }
 
 .cover-brand-sub {
-  font-family: "Helvetica Neue", Arial, Helvetica, sans-serif;
-  color: rgba(235,237,236,0.78);
-  font-size: 7.7px;
-  font-weight: 800;
-  letter-spacing: 0.145em;
-  text-transform: uppercase;
+  color: rgba(220, 225, 230, 0.85) !important;
+  letter-spacing: 0.18em !important;
 }
 
 .cover-premium-body {
@@ -471,7 +463,6 @@ letter-spacing: -0.005em;
     .cover-meta-grid,
     .info-cards,
     .kv-grid,
-    .technical-status-grid,
     .integrity-control-grid {
       display: grid;
       grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -480,19 +471,12 @@ letter-spacing: -0.005em;
       page-break-inside: auto;
     }
 
-    .cover-meta-card-wide {
-      grid-column: 1 / -1;
-    }
-
     .cover-meta-card,
     .info-card,
     .kv-item,
-    .technical-status-card,
     .integrity-control-card,
     .callout,
-    .verification-link-panel,
     .mono-block,
-    .appendix-section,
     .cover-status-panel,
     .cover-verify-box,
     .gallery-card,
@@ -515,11 +499,8 @@ letter-spacing: -0.005em;
     .info-card-label,
     .kv-label,
     .gallery-meta-label,
-    .technical-status-kicker,
     .integrity-control-kicker,
-    .verification-link-panel-label,
     .mono-label,
-    .appendix-section-title,
     .cover-status-name,
     .compact-kv-label {
       color: ${c.subtle};
@@ -531,7 +512,6 @@ letter-spacing: -0.005em;
 
     .cover-meta-value,
     .cover-status-value,
-    .verification-link-panel-value,
     .kv-value,
     .info-card-value,
     .gallery-meta-value,
@@ -665,30 +645,6 @@ letter-spacing: -0.005em;
     .cover-boundary-note strong {
       color: ${c.ink};
       font-weight: 900;
-    }
-
-.cover-certificate-bottom {
-  min-height: 32px;
-  border-top: 2px solid ${c.accentMetal};
-  padding: 7px 10px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  flex-wrap: wrap;
-  font-size: 8.2px;
-  font-weight: 750;
-}
-
-    .cover-certificate-bottom span {
-      white-space: nowrap;
-      padding-left: 10px;
-      border-left: 1px solid rgba(255,255,255,0.3);
-    }
-
-    .cover-certificate-bottom span:first-child {
-      padding-left: 0;
-      border-left: none;
     }
 
     .executive-layout {
@@ -1025,111 +981,6 @@ letter-spacing: -0.005em;
       gap: 6px 10px;
     }
 
-    .gallery-media-overlay {
-      position: absolute;
-      inset: 0;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      gap: 8px;
-      pointer-events: none;
-      z-index: 2;
-    }
-
-    .gallery-media-badge {
-      padding: 5px 10px;
-      border-radius: 999px;
-      background: rgba(10, 44, 38, 0.78);
-      color: #ffffff;
-      font-size: 8.4px;
-      font-weight: 900;
-      letter-spacing: 0.06em;
-      text-transform: uppercase;
-      border: 1px solid rgba(255,255,255,0.28);
-    }
-
-    .gallery-play-icon {
-      width: 58px;
-      height: 58px;
-      border-radius: 999px;
-      background: rgba(10, 44, 38, 0.72);
-      border: 1px solid rgba(255,255,255,0.34);
-      position: relative;
-    }
-
-    .gallery-play-icon::after {
-      content: "";
-      position: absolute;
-      left: 23px;
-      top: 17px;
-      width: 0;
-      height: 0;
-      border-top: 12px solid transparent;
-      border-bottom: 12px solid transparent;
-      border-left: 18px solid #ffffff;
-    }
-
-    .gallery-audio-icon {
-      width: 72px;
-      height: 50px;
-      border-radius: 14px;
-      background: rgba(10, 44, 38, 0.72);
-      border: 1px solid rgba(255,255,255,0.34);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 5px;
-    }
-
-    .gallery-audio-icon span {
-      width: 5px;
-      border-radius: 999px;
-      background: #ffffff;
-      display: block;
-    }
-
-    .gallery-audio-icon span:nth-child(1) { height: 16px; opacity: 0.72; }
-    .gallery-audio-icon span:nth-child(2) { height: 28px; opacity: 0.9; }
-    .gallery-audio-icon span:nth-child(3) { height: 38px; opacity: 1; }
-    .gallery-audio-icon span:nth-child(4) { height: 26px; opacity: 0.86; }
-    .gallery-audio-icon span:nth-child(5) { height: 18px; opacity: 0.72; }
-
-    .gallery-document-icon {
-      width: 58px;
-      height: 70px;
-      border-radius: 8px;
-      background: rgba(255,255,255,0.92);
-      border: 2px solid rgba(10, 44, 38, 0.72);
-      position: relative;
-      padding: 18px 10px 10px;
-      box-shadow: 0 8px 18px rgba(10,44,38,0.16);
-    }
-
-    .gallery-document-fold {
-      position: absolute;
-      top: 0;
-      right: 0;
-      width: 17px;
-      height: 17px;
-      background: rgba(10, 44, 38, 0.16);
-      border-left: 1px solid rgba(10,44,38,0.32);
-      border-bottom: 1px solid rgba(10,44,38,0.32);
-      border-radius: 0 6px 0 4px;
-    }
-
-    .gallery-document-line {
-      display: block;
-      height: 4px;
-      border-radius: 999px;
-      background: rgba(10, 44, 38, 0.72);
-      margin-bottom: 7px;
-    }
-
-    .gallery-document-line.short {
-      width: 62%;
-    }
-
     .custody-page {
       display: flex;
       flex-direction: column;
@@ -1368,24 +1219,6 @@ letter-spacing: -0.005em;
       overflow-wrap: anywhere;
     }
 
-    .custody-hash-table th {
-      padding: 4px 5px;
-      font-size: 6.8px;
-      line-height: 1.1;
-    }
-
-    .custody-hash-table td {
-      padding: 4px 5px;
-      font-size: 6.1px;
-      line-height: 1.12;
-    }
-
-    .custody-hash-table .hash-text {
-      font-size: 6.1px;
-      line-height: 1.12;
-      letter-spacing: -0.02em;
-    }
-
 .hash-text {
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 7.6px;
@@ -1396,48 +1229,6 @@ letter-spacing: -0.005em;
   word-break: break-all;
   overflow-wrap: anywhere;
 }
-
-    .appendix-section {
-      padding: 10px;
-      break-inside: auto;
-      page-break-inside: auto;
-    }
-
-    .appendix-section-title {
-      margin: 0 0 8px;
-      font-size: 10px;
-      color: ${c.accent};
-      break-after: avoid;
-      page-break-after: avoid;
-    }
-
-    .technical-status-card {
-      padding: 10px;
-      min-height: 88px;
-      display: flex;
-      flex-direction: column;
-      gap: 4px;
-    }
-
-    .technical-status-title {
-      font-size: 9.6px;
-      font-weight: 850;
-      color: ${c.accent};
-      line-height: 1.3;
-    }
-
-    .technical-status-value {
-      font-size: 12px;
-      font-weight: 850;
-      line-height: 1.25;
-    }
-
-    .technical-status-note {
-      font-size: 8.7px;
-      color: ${c.muted};
-      line-height: 1.38;
-      margin-top: auto;
-    }
 
     .bullet-list {
       margin: 0;
@@ -1451,21 +1242,6 @@ letter-spacing: -0.005em;
 
     .bullet-list li span {
       color: ${c.muted};
-    }
-
-    .verification-link-panel {
-      padding: 10px 11px;
-    }
-
-    .verification-link-panel-value {
-      margin-top: 5px;
-      font-size: 9.2px;
-      font-weight: 700;
-      line-height: 1.42;
-    }
-
-    .mono-block {
-      overflow: visible;
     }
 
 .mono-label {
@@ -2147,19 +1923,6 @@ letter-spacing: -0.005em;
       line-height: 1.45;
     }
 
-    .technical-access-url {
-      border: 1px solid ${c.softLine};
-  background: rgba(255,255,255,0.78);
-        border-radius: 7px;
-      padding: 8px 9px;
-      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-      font-size: 7.8px;
-      line-height: 1.35;
-      word-break: break-all;
-      overflow-wrap: anywhere;
-      color: ${c.ink};
-    }
-
     .technical-verification-strip {
       display: grid;
       grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -2248,11 +2011,31 @@ letter-spacing: -0.005em;
       gap: 8px;
     }
 
+.technical-appendix-section .mono-block {
+  background: rgba(255, 255, 255, 0.16) !important;
+  border: 1px solid rgba(12, 28, 25, 0.22) !important;
+  border-radius: 9px !important;
+  box-shadow: none !important;
+}
+
+.technical-appendix-section .mono-label {
+  background: transparent !important;
+  border-bottom: 1px solid rgba(12, 28, 25, 0.16) !important;
+  color: rgba(11, 46, 39, 0.78) !important;
+  font-size: 8px !important;
+  font-weight: 950 !important;
+}
+
 .technical-appendix-section .mono-value {
-  font-size: 8.6px;
-  line-height: 1.5;
-  font-weight: 500;
-  letter-spacing: -0.005em;
+  background: transparent !important;
+  color: #10201d !important;
+  font-size: 9.4px !important;
+  line-height: 1.45 !important;
+  font-weight: 700 !important;
+  letter-spacing: -0.012em !important;
+  word-break: break-all !important;
+  overflow-wrap: anywhere !important;
+  white-space: normal !important;
 }
 
         .legal-interpretation-page {
@@ -2382,12 +2165,6 @@ letter-spacing: -0.005em;
   text-align: center;
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   text-decoration: none;
-}
-
-.cover-primary-hash {
-  font-size: 10.5px;
-  letter-spacing: 0.02em;
-  background: rgba(255,255,255,0.78);
 }
 
 .cover-boundary-inline {
@@ -2760,7 +2537,6 @@ body {
 .compact-kv-list,
 .compact-kv-row,
 .callout,
-.verification-link-panel,
 .mono-block,
 .gallery-card,
 .gallery-secondary-item,
@@ -2796,11 +2572,8 @@ body {
 .info-card-label,
 .kv-label,
 .gallery-meta-label,
-.technical-status-kicker,
 .integrity-control-kicker,
-.verification-link-panel-label,
 .mono-label,
-.appendix-section-title,
 .cover-status-name,
 .compact-kv-label,
 .integrity-detail-label,
@@ -2880,10 +2653,20 @@ body {
 
 /* COVER FINAL POLISH */
 
-/* 1) Darker premium cover header */
 .cover-certificate-top {
-  background: #0b2e27 !important;
-  border-bottom-color: rgba(196, 165, 91, 0.75) !important;
+  background:
+    linear-gradient(
+      180deg,
+      rgba(0, 0, 0, 0.10) 0%,
+      rgba(0, 0, 0, 0.34) 100%
+    ),
+    url("${velvetUrl}") !important;
+
+  background-color: #062b24 !important;
+  background-size: cover !important;
+  background-position: center bottom !important;
+  background-repeat: no-repeat !important;
+  border-bottom-color: rgba(196, 165, 91, 0.82) !important;
 }
 
 /* 2) Remove green cover footer; keep only Chromium/main PDF footer */
@@ -2892,14 +2675,28 @@ body {
   display: none !important;
 }
 
-/* 3) Remove inner white hash box */
+.cover-meta-card:has(.cover-primary-hash) {
+  grid-column: auto !important;
+  min-height: 16mm !important;
+}
+
 .cover-primary-hash,
 .cover-meta-value-code.cover-primary-hash {
+  display: block !important;
   background: transparent !important;
   border: 0 !important;
   box-shadow: none !important;
   padding: 0 !important;
   border-radius: 0 !important;
+
+  font-size: 9.1px !important;
+  line-height: 1.42 !important;
+  font-weight: 800 !important;
+  letter-spacing: -0.01em !important;
+
+  word-break: break-all !important;
+  overflow-wrap: anywhere !important;
+  white-space: normal !important;
 }
 
 /* COVER PAGE SPACING POLISH */
@@ -2983,47 +2780,206 @@ body {
   letter-spacing: 0.035em !important;
 }
 
-/* Make the hash readable and aligned with other values */
+.primary-evidence-details .gallery-meta-value {
+  font-size: 10.4px !important;
+  font-weight: 700 !important;
+}
+
 .primary-evidence-details .gallery-sha-value,
 .primary-evidence-details .hash-text {
-  font-size: 8.9px !important;
+  font-size: 10.4px !important;
   line-height: 1.42 !important;
-  font-weight: 750 !important;
-  color: ${c.ink} !important;
+  font-weight: 700 !important;
   letter-spacing: -0.01em !important;
-  word-break: break-all !important;
-  overflow-wrap: anywhere !important;
-  text-align: left !important;
+}
+
+/* COURT-GRADE TECHNICAL APPENDIX */
+
+.technical-appendix-court-page {
+  gap: 8px !important;
+}
+
+.court-appendix-hero {
+  border: 1px solid rgba(12, 28, 25, 0.24) !important;
+  border-left: 5px solid ${c.accent} !important;
+  border-radius: 10px !important;
+  background: rgba(255, 255, 255, 0.20) !important;
+  padding: 10px 12px !important;
+  break-inside: avoid !important;
+  page-break-inside: avoid !important;
+}
+
+.court-appendix-kicker {
+  color: rgba(11, 46, 39, 0.78) !important;
+  font-size: 8px !important;
+  font-weight: 950 !important;
+  letter-spacing: 0.11em !important;
+  text-transform: uppercase !important;
+  margin-bottom: 4px !important;
+}
+
+.court-appendix-title {
+  color: ${c.accent} !important;
+  font-size: 14.5px !important;
+  line-height: 1.18 !important;
+  font-weight: 900 !important;
+  margin-bottom: 5px !important;
+}
+
+.court-appendix-copy {
+  color: ${c.ink} !important;
+  font-size: 9.2px !important;
+  line-height: 1.45 !important;
+  font-weight: 650 !important;
+}
+
+.technical-access-panel {
+  padding: 7px 9px !important;
+  gap: 8px !important;
 }
 
 .technical-access-url-block {
-  margin-top: 12px;
-  padding: 14px 16px;
-  border-radius: 14px;
-  background: rgba(16, 24, 40, 0.04);
-  border: 1px solid rgba(16, 24, 40, 0.08);
+  margin-top: 5px !important;
+  padding: 7px 9px !important;
+  border-radius: 10px !important;
+  background: rgba(255, 255, 255, 0.18) !important;
+  border: 1px solid rgba(12, 28, 25, 0.22) !important;
+  break-inside: avoid !important;
+  page-break-inside: avoid !important;
 }
 
 .technical-access-url-label {
-  font-size: 11px;
-  font-weight: 700;
-  color: #667085;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  margin-bottom: 6px;
+  font-size: 8.6px !important;
+  font-weight: 950 !important;
+  color: rgba(11, 46, 39, 0.78) !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.08em !important;
+  margin-bottom: 5px !important;
 }
 
-.technical-access-url-value {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  font-size: 13px;
-  font-weight: 600;
-  color: #101828;
-  word-break: break-all;
+.technical-verification-strip {
+  gap: 8px !important;
+}
+
+.technical-verification-card {
+  min-height: 70px !important;
+  padding: 9px 10px !important;
+  background-color: rgba(255, 255, 255, 0.18) !important;
+}
+
+.technical-appendix-block-title {
+  font-size: 10.8px !important;
+  font-weight: 900 !important;
+}
+
+.technical-appendix-block-subtitle {
+  font-size: 8.2px !important;
+  line-height: 1.35 !important;
+}
+
+.technical-appendix-block-body {
+  padding: 6px 0 0 0 !important;
+}
+
+.technical-appendix-section .kv-grid {
+  gap: 6px !important;
+}
+
+.technical-appendix-section .kv-item {
+  min-height: 42px !important;
+  padding: 7px 8px !important;
+  background-color: rgba(255, 255, 255, 0.16) !important;
+}
+
+.technical-appendix-section .kv-label {
+  font-size: 7.6px !important;
+}
+
+.technical-appendix-section .kv-value {
+  font-size: 8.5px !important;
+  line-height: 1.35 !important;
+  font-weight: 750 !important;
+}
+
+/* TECHNICAL APPENDIX — stable forensic pagination */
+
+.technical-appendix-page {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 8px !important;
+  break-inside: auto !important;
+  page-break-inside: auto !important;
 }
 
 .technical-appendix-block {
-  page-break-inside: avoid;
-  break-inside: avoid;
+  margin-bottom: 8px !important;
+  break-inside: auto !important;
+  page-break-inside: auto !important;
+}
+
+.technical-appendix-block-head {
+  break-after: avoid !important;
+  page-break-after: avoid !important;
+}
+
+.technical-appendix-court-index-block,
+.technical-appendix-identity-block,
+.technical-appendix-fingerprint-block,
+.technical-appendix-signature-block,
+.technical-appendix-timestamp-block,
+.technical-appendix-anchoring-block {
+  break-inside: auto !important;
+  page-break-inside: auto !important;
+}
+
+.court-appendix-hero,
+.technical-access-panel,
+.technical-verification-strip,
+.technical-verification-card {
+  break-inside: avoid !important;
+  page-break-inside: avoid !important;
+}
+
+.technical-appendix-section .kv-grid {
+  gap: 6px !important;
+}
+
+.technical-appendix-section .kv-item {
+  min-height: 38px !important;
+  padding: 7px 8px !important;
+  background-color: rgba(255, 255, 255, 0.16) !important;
+}
+
+.technical-appendix-section .kv-label {
+  font-size: 7.5px !important;
+}
+
+.technical-appendix-section .kv-value {
+  font-size: 8.4px !important;
+  line-height: 1.34 !important;
+  font-weight: 750 !important;
+}
+
+.technical-access-url-value {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace !important;
+  font-size: 7.8px !important;
+  line-height: 1.42 !important;
+  font-weight: 650 !important;
+  color: ${c.ink} !important;
+  letter-spacing: -0.018em !important;
+  word-break: break-all !important;
+  overflow-wrap: anywhere !important;
+  white-space: normal !important;
+}
+
+/* FORCE glass style on ALL technical appendix cards */
+
+.technical-appendix-section .kv-item,
+.technical-appendix-section .mono-block,
+.technical-appendix-section .technical-access-url-block,
+.technical-appendix-section .technical-verification-card {
+  background-color: rgba(255, 255, 255, 0.16) !important;
+  border-color: rgba(12, 28, 25, 0.22) !important;
 }
 
 @media print {

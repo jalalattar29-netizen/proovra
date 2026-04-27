@@ -943,6 +943,119 @@ function buildForensicIntegrityStatementModel(
   };
 }
 
+function buildTechnicalAppendixCourtRows(params: {
+  evidence: ReportEvidence;
+  structureLabel: string;
+  contentSummary: ReportEvidenceContentSummary;
+  primaryContentItem: ReportEvidenceAsset | null;
+  custody: ReturnType<typeof splitCustodyEvents>;
+}): KeyValueRow[] {
+  return [
+    {
+      label: "Evidence Record",
+      value: buildPublicEvidenceReference(params.evidence.id),
+    },
+    {
+      label: "Package Structure",
+      value: `${params.structureLabel} • ${params.contentSummary.itemCount} item${
+        params.contentSummary.itemCount === 1 ? "" : "s"
+      }`,
+    },
+    {
+      label: "Lead Review Item",
+      value:
+        params.primaryContentItem?.originalFileName ??
+        params.primaryContentItem?.label ??
+        "No identified lead item",
+    },
+    {
+  label: "File Digest Present",
+  value: params.evidence.fileSha256 ? "Yes" : "No",
+},
+{
+  label: "Canonical Fingerprint Present",
+  value: params.evidence.fingerprintHash ? "Yes" : "No",
+},
+{
+  label: "Signature Present",
+  value: params.evidence.signatureBase64 ? "Yes" : "No",
+},
+{
+  label: "Public Key Reference",
+  value:
+    params.evidence.signingKeyId && params.evidence.signingKeyVersion != null
+      ? buildPublicSigningKeyReference(
+          params.evidence.signingKeyId,
+          params.evidence.signingKeyVersion
+        )
+      : "Not recorded",
+},
+{
+  label: "Custody Chain Present",
+  value: params.custody.forensic.length > 0 ? "Yes" : "No",
+},
+{
+  label: "Report Version",
+  value: params.evidence.latestReportVersion
+    ? String(params.evidence.latestReportVersion)
+    : "Not recorded",
+},
+{
+  label: "Verification Package Version",
+  value: params.evidence.verificationPackageVersion
+    ? String(params.evidence.verificationPackageVersion)
+    : "Not recorded",
+},
+{
+  label: "Canonical JSON",
+  value: params.evidence.fingerprintCanonicalJson
+    ? "Available in technical materials / verification package"
+    : "Not embedded in appendix",
+},
+    {
+      label: "Primary Digest Type",
+      value:
+        params.contentSummary.itemCount > 1
+          ? "Canonical package digest"
+          : "Original file digest",
+    },
+    {
+      label: "Signature Material",
+      value:
+        params.evidence.signatureBase64 &&
+        params.evidence.signingKeyId &&
+        params.evidence.signingKeyVersion != null
+          ? "Recorded"
+          : "Incomplete",
+    },
+    {
+      label: "Timestamp Material",
+      value: mapTimestampStatusPublicLabel(params.evidence.tsaStatus),
+    },
+    {
+      label: "Public Anchoring",
+      value: mapOtsStatusPublicLabel(params.evidence.otsStatus),
+    },
+    {
+      label: "Forensic Custody Events",
+      value: String(params.custody.forensic.length),
+    },
+    {
+      label: "Access Events",
+      value: String(params.custody.access.length),
+    },
+    {
+      label: "Immutable Storage",
+      value: safeBooleanLabel(
+        params.evidence.storageImmutable,
+        "Verified",
+        "Not fully verified",
+        "Not reported"
+      ),
+    },
+  ];
+}
+
 export async function buildReportViewModel(
   input: ReportV2Input
 ): Promise<ReportViewModel> {
@@ -1275,6 +1388,13 @@ verificationSummaryRows: buildVerificationSummaryRows(
       lastVerifiedSourceLabel: mapVerificationSourceLabel(
         input.evidence.lastVerifiedSource
       ),
+      courtAppendixRows: buildTechnicalAppendixCourtRows({
+  evidence: otsEvidence,
+  structureLabel,
+  contentSummary,
+  primaryContentItem,
+  custody,
+}),
       signingKeyLabel: buildPublicSigningKeyReference(
         input.evidence.signingKeyId,
         input.evidence.signingKeyVersion

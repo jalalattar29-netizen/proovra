@@ -116,3 +116,35 @@ export function escapeHtml(input: string | null | undefined): string {
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#39;");
 }
+
+export function normalizeTimestampFailureReason(
+  reason: string | null | undefined
+): string {
+  const value = safe(reason, "").trim();
+  const lower = value.toLowerCase();
+
+  if (!value) {
+    return "Trusted timestamp could not be obtained because the timestamp provider did not return a usable timestamp token.";
+  }
+
+  if (
+    lower.includes("quota") ||
+    lower.includes("kontingent") ||
+    lower.includes("verbraucht") ||
+    lower.includes("verbrauch") ||
+    lower.includes("403")
+  ) {
+    return "Trusted timestamp could not be obtained because the provider quota appears to be exhausted.";
+  }
+
+  if (
+    lower.includes("command failed") ||
+    lower.includes("curl:") ||
+    lower.includes("requested url returned error") ||
+    lower.includes("http")
+  ) {
+    return "Trusted timestamp could not be obtained because the timestamp provider request failed.";
+  }
+
+  return value;
+}

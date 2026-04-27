@@ -4,7 +4,11 @@ import {
   ReportAnchorSummary,
   CalloutModel,
 } from "./types.js";
-import { safe, safeBooleanLabel } from "./formatters.js";
+import {
+  normalizeTimestampFailureReason,
+  safe,
+  safeBooleanLabel,
+} from "./formatters.js";
 import {
   mapOtsStatusPublicLabel,
   mapTimestampStatusPublicLabel,
@@ -124,32 +128,6 @@ export function buildStorageCallout(evidence: ReportEvidence): CalloutModel {
             : "No verifiable storage-protection information was included in the report payload.",
     tone,
   };
-}
-
-function normalizeTimestampFailureReason(reason: string | null | undefined): string {
-  const value = safe(reason, "").trim();
-  const lower = value.toLowerCase();
-
-  if (!value) return "The timestamp provider did not return a usable timestamp token.";
-
-  if (
-    lower.includes("quota") ||
-    lower.includes("kontingent") ||
-    lower.includes("verbraucht") ||
-    lower.includes("403")
-  ) {
-    return "Trusted timestamp could not be obtained because the provider quota appears to be exhausted.";
-  }
-
-  if (
-    lower.includes("curl:") ||
-    lower.includes("requested url returned error") ||
-    lower.includes("http")
-  ) {
-    return "Trusted timestamp could not be obtained because the timestamp provider request failed.";
-  }
-
-  return value;
 }
 
 export function buildTimestampCallout(evidence: ReportEvidence): CalloutModel {

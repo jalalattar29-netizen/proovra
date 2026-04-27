@@ -438,6 +438,7 @@ export type ReportViewModel = {
       displayDescription: string | null;
     };
     publicEvidenceTypeLabel: string;
+    courtAppendixRows?: KeyValueRow[];
     reviewReadinessSummary: KeyValueRow[];
     timestampRows: KeyValueRow[];
     otsRows: KeyValueRow[];

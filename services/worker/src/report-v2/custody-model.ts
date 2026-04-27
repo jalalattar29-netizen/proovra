@@ -5,7 +5,7 @@ import {
   CalloutModel,
   ReportEvidence,
 } from "./types.js";
-import { safe } from "./formatters.js";
+import { normalizeTimestampFailureReason, safe } from "./formatters.js";
 import { mapCustodyEventLabel, normalizeReviewerText } from "./normalizers.js";
 
 const UNICODE_ELLIPSIS = String.fromCharCode(8230);
@@ -84,15 +84,9 @@ export function buildMismatchNarrative(params: {
     );
   }
 
-  if (safe(params.evidence.tsaStatus, "").toUpperCase() === "FAILED") {
-    issues.push(
-      `Trusted timestamp processing reported a failure${
-        params.evidence.tsaFailureReason
-          ? `: ${params.evidence.tsaFailureReason}`
-          : "."
-      }`
-    );
-  }
+if (safe(params.evidence.tsaStatus, "").toUpperCase() === "FAILED") {
+  issues.push(normalizeTimestampFailureReason(params.evidence.tsaFailureReason));
+}
 
   if (safe(params.evidence.otsStatus, "").toUpperCase() === "FAILED") {
     issues.push(

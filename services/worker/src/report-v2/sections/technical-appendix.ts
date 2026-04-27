@@ -151,27 +151,54 @@ export function renderTechnicalAppendixSection(vm: ReportViewModel): string {
 
 pages.push(
   renderPageSection(
-    "Technical Appendix",
+    "Technical Appendix — Verification Access",
     `
-      <div class="technical-appendix-page">
-
-        ${renderCallout({
-          title: "Technical appendix scope",
-          body:
-            "This appendix preserves exact technical references for audit and independent verification. Human interpretation, legal posture, and custody chronology are kept in their own sections so this appendix remains a structured technical reference.",
-          tone: "neutral",
-        })}
+      <div class="technical-appendix-page technical-appendix-court-page">
+        <section class="court-appendix-hero">
+          <div class="court-appendix-kicker">Forensic Technical Appendix</div>
+          <div class="court-appendix-title">Independent Verification Materials</div>
+          <div class="court-appendix-copy">
+            This appendix preserves the technical references required for independent review of the recorded evidence state. It separates cryptographic identity, timestamping, anchoring, custody linkage, and reviewer access material from legal interpretation.
+          </div>
+        </section>
 
         ${renderVerificationAccess(vm)}
         ${renderTechnicalStatusCards(vm)}
 
+        ${renderAppendixSection(
+          "Court Review Index",
+          "Structured control points for legal, forensic, or technical review.",
+          renderKeyValueGrid(vm.meta.courtAppendixRows ?? []),
+          { className: "technical-appendix-court-index-block" }
+        )}
+      </div>
+    `,
+    { pageBreakBefore: true, className: "technical-appendix-section" }
+  )
+);
+
+pages.push(
+  renderPageSection(
+    "Technical Appendix — Identity & Provenance",
+    `
+      <div class="technical-appendix-page technical-appendix-identity-page">
         ${renderAppendixSection(
           "Identity & Provenance",
           "Who submitted the evidence, which identity level was recorded, and what workspace or organization context exists.",
           renderKeyValueGrid(filteredIdentityRows),
           { className: "technical-appendix-identity-block" }
         )}
+      </div>
+    `,
+    { pageBreakBefore: true, className: "technical-appendix-section" }
+  )
+);
 
+pages.push(
+  renderPageSection(
+    "Technical Appendix — Evidence Fingerprint",
+    `
+      <div class="technical-appendix-page technical-appendix-fingerprint-page">
         ${renderAppendixSection(
           "Cryptographic Fingerprint",
           "Primary digest and canonical fingerprint references used to identify the preserved evidence state.",
@@ -185,7 +212,6 @@ pages.push(
           `,
           { className: "technical-appendix-fingerprint-block" }
         )}
-
       </div>
     `,
     { pageBreakBefore: true, className: "technical-appendix-section" }
