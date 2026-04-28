@@ -2167,7 +2167,7 @@ letter-spacing: -0.005em;
   font-size: 9.4px !important;
   line-height: 1.5 !important;
 }
-  
+
     .cover-boundary-followup {
       display: block;
       margin-top: 4px;
@@ -3012,19 +3012,36 @@ body {
 }
 
 
+/* FINAL BRONZE BORDER + BOTTOM PLACEMENT FIX */
+
+.cover-premium-body {
+  display: flex !important;
+  flex-direction: column !important;
+}
+
 .cover-boundary-note.cover-boundary-inline {
-  border-color: rgba(96, 66, 24, 0.78) !important;
-  border-left: 5px solid rgba(96, 66, 24, 0.95) !important;
+  margin-top: auto !important;
+  margin-bottom: 6mm !important;
+  border-color: rgba(66, 43, 14, 0.82) !important;
+  border-left: 5px solid rgba(66, 43, 14, 0.96) !important;
   background-color: rgba(255, 255, 255, 0.14) !important;
 }
 
+/* مهم: لا تغيّر لون الخط هون — خلي النص مثل قبل */
 .cover-boundary-note.cover-boundary-inline strong {
-  color: ${c.ink} !important;
+  font-weight: 900 !important;
 }
 
-/* لا تعمل min-height هون أبداً لأنها تكسر الصفحة */
+.executive-summary-page {
+  display: flex !important;
+  flex-direction: column !important;
+  min-height: 232mm !important;
+  gap: 12px !important;
+}
+
 .executive-bottom-outcomes {
-  margin-top: 5mm !important;
+  margin-top: auto !important;
+  margin-bottom: 6mm !important;
   display: flex !important;
   flex-direction: column !important;
   gap: 3mm !important;
@@ -3032,20 +3049,21 @@ body {
   page-break-inside: avoid !important;
 }
 
-.executive-summary-section .executive-outcome {
-  border-color: rgba(96, 66, 24, 0.78) !important;
-  border-left: 5px solid rgba(96, 66, 24, 0.95) !important;
+.executive-summary-section .executive-bottom-outcomes .executive-outcome {
+  border-color: rgba(66, 43, 14, 0.82) !important;
+  border-left: 5px solid rgba(66, 43, 14, 0.96) !important;
   background-color: rgba(255, 255, 255, 0.14) !important;
 }
 
-.executive-summary-section .executive-outcome-title {
-  color: ${c.ink} !important;
+/* مهم: لا تفرض لون جديد للنص */
+.executive-summary-section .executive-bottom-outcomes .executive-outcome-title {
+  font-weight: 900 !important;
 }
 
-.executive-summary-section .executive-outcome-body {
-  color: ${c.muted} !important;
+.executive-summary-section .executive-bottom-outcomes .executive-outcome-body {
+  font-weight: 400 !important;
 }
-
+  
 @media print {
   html,
   body,
