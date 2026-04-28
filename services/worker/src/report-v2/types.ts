@@ -17,6 +17,12 @@ export type ReportEvidenceAsset = {
   originalFileName: string | null;
   mimeType: string | null;
   kind: ReportEvidenceAssetKind;
+  duplicateDigest?: {
+  groupId: string;
+  groupNumber: number;
+  groupSize: number;
+  matchingFileNames: string[];
+} | null;
   sizeBytes: string | null;
   durationMs: number | null;
   sha256: string | null;
@@ -45,8 +51,6 @@ export type ReportEvidenceAsset = {
   previewDataUrl?: string | null;
   previewTextExcerpt?: string | null;
   previewCaption?: string | null;
-  duplicateDigestNote?: string | null;
-  duplicateDigestGroupLabel?: string | null;
 };
 
 export type PreviewRenderKind =

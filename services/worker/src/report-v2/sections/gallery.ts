@@ -85,17 +85,13 @@ function renderGalleryMetaRow(label: string, value: string): string {
   `;
 }
 
-function renderDuplicateDigestNote(asset: ReportEvidenceAsset): string {
-  if (!asset.duplicateDigestNote) return "";
+function renderDuplicateDigestBadge(item: PresentationEvidenceItem): string {
+  const duplicate = item.asset.duplicateDigest;
+  if (!duplicate) return "";
 
   return `
-    <div class="gallery-duplicate-digest-note">
-      <div class="gallery-duplicate-digest-label">
-        ${escapeHtml(asset.duplicateDigestGroupLabel ?? "Duplicate digest detected")}
-      </div>
-      <div class="gallery-duplicate-digest-copy">
-        ${escapeHtml(asset.duplicateDigestNote)}
-      </div>
+    <div class="gallery-duplicate-badge">
+      Same content digest • ${escapeHtml(duplicate.groupId)}
     </div>
   `;
 }
@@ -176,7 +172,7 @@ function renderPrimaryEvidenceCard(item: PresentationEvidenceItem): string {
             : "Restricted under policy"
         )}
 ${renderGalleryMetaRow("Lead Item SHA-256", asset.sha256 ?? "Not recorded")}
-        ${renderDuplicateDigestNote(asset)}
+${renderDuplicateDigestBadge(item)}
       </div>
           </article>
   `;
@@ -200,7 +196,7 @@ function renderSupportingCard(item: PresentationEvidenceItem): string {
         ${renderGalleryMetaRow("Format", safe(asset.mimeType, "N/A"))}
         ${renderGalleryMetaRow("Size", safe(asset.displaySizeLabel, "N/A"))}
 ${renderGalleryMetaRow("Item SHA-256", asset.sha256 ?? "Not recorded")}
-        ${renderDuplicateDigestNote(asset)}
+${renderDuplicateDigestBadge(item)}
       </div>
           </article>
   `;
@@ -230,17 +226,8 @@ function renderMetadataOnlyCard(item: PresentationEvidenceItem): string {
         <div class="gallery-meta-value gallery-sha-value">${escapeHtml(
           asset.sha256 ?? "Not recorded"
         )}</div>
-                ${
-          asset.duplicateDigestNote
-            ? `
-              <div class="gallery-meta-label">Digest Note</div>
-              <div class="gallery-meta-value">
-                ${escapeHtml(asset.duplicateDigestNote)}
-              </div>
-            `
-            : ""
-        }
       </div>
+      ${renderDuplicateDigestBadge(item)}
     </article>
   `;
 }
@@ -251,6 +238,96 @@ function chunkItems<T>(items: T[], size: number): T[][] {
     chunks.push(items.slice(i, i + size));
   }
   return chunks;
+}
+
+function buildDuplicateDigestGroups(vm: ReportViewModel): Array<{
+  groupId: string;
+  sha256: string;
+  fileNames: string[];
+}> {
+  const groups = new Map<
+    string,
+    {
+      groupId: string;
+      sha256: string;
+      fileNames: string[];
+    }
+  >();
+
+  for (const item of vm.contentItems) {
+    const duplicate = item.duplicateDigest;
+    const sha256 = safe(item.sha256, "");
+
+    if (!duplicate || !sha256 || sha256 === "N/A") continue;
+
+    if (!groups.has(duplicate.groupId)) {
+      groups.set(duplicate.groupId, {
+        groupId: duplicate.groupId,
+        sha256,
+        fileNames: [],
+      });
+    }
+
+    groups.get(duplicate.groupId)!.fileNames.push(
+      safe(item.originalFileName || item.label, "Unnamed evidence item")
+    );
+  }
+
+  return Array.from(groups.values());
+}
+
+function renderDuplicateDigestRegister(vm: ReportViewModel): string {
+  const groups = buildDuplicateDigestGroups(vm);
+  if (groups.length === 0) return "";
+
+  return renderPageSection(
+    "Duplicate Digest Register",
+    `
+      <div class="duplicate-digest-register-page">
+        ${renderCallout({
+          title: "Duplicate content digest register",
+          body:
+            "This register lists evidence items that share the same SHA-256 content digest. Matching digests indicate identical preserved file content. Different filenames, roles, upload positions, or package references may still be relevant and are therefore retained as separate evidence items.",
+          tone: "neutral",
+        })}
+
+        <div class="duplicate-digest-register-list">
+          ${groups
+            .map(
+              (group) => `
+                <article class="duplicate-digest-group-card">
+                  <div class="duplicate-digest-group-head">
+                    <div class="duplicate-digest-group-id">${escapeHtml(
+                      group.groupId
+                    )}</div>
+                    <div class="duplicate-digest-group-count">
+                      ${escapeHtml(String(group.fileNames.length))} matching items
+                    </div>
+                  </div>
+
+                  <div class="duplicate-digest-sha-label">Shared SHA-256 content digest</div>
+                  <div class="duplicate-digest-sha-value">${escapeHtml(
+                    group.sha256
+                  )}</div>
+
+                  <div class="duplicate-digest-files-label">Preserved items in this digest group</div>
+                  <ul class="duplicate-digest-file-list">
+                    ${group.fileNames
+                      .map((name) => `<li>${escapeHtml(name)}</li>`)
+                      .join("")}
+                  </ul>
+                </article>
+              `
+            )
+            .join("")}
+        </div>
+      </div>
+    `,
+    {
+      pageBreakBefore: true,
+      className: "duplicate-digest-register-section",
+    }
+  );
 }
 
 export function renderGallerySection(vm: ReportViewModel): string {
@@ -343,6 +420,11 @@ export function renderGallerySection(vm: ReportViewModel): string {
       )
     );
   });
+
+  const duplicateRegister = renderDuplicateDigestRegister(vm);
+if (duplicateRegister) {
+  pages.push(duplicateRegister);
+}
 
   return pages.join("");
 }

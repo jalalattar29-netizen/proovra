@@ -1057,55 +1057,50 @@ function buildTechnicalAppendixCourtRows(params: {
   ];
 }
 
-function annotateDuplicateContentDigests(
+function attachDuplicateDigestGroups(
   items: ReportEvidenceAsset[]
 ): ReportEvidenceAsset[] {
   const bySha = new Map<string, ReportEvidenceAsset[]>();
 
   for (const item of items) {
-    const sha = safe(item.sha256, "").trim().toLowerCase();
-    if (!sha || sha === "not recorded" || sha === "n/a") continue;
+    const sha = safe(item.sha256, "").toLowerCase();
+    if (!sha || sha === "n/a" || sha === "not recorded") continue;
 
-    const existing = bySha.get(sha) ?? [];
-    existing.push(item);
-    bySha.set(sha, existing);
+    const group = bySha.get(sha) ?? [];
+    group.push(item);
+    bySha.set(sha, group);
   }
 
-  const duplicateShaGroups = Array.from(bySha.entries()).filter(
-    ([, group]) => group.length > 1
-  );
-
-  if (duplicateShaGroups.length === 0) return items;
-
+  let groupNumber = 0;
   const duplicateById = new Map<
     string,
-    { groupLabel: string; note: string }
+    NonNullable<ReportEvidenceAsset["duplicateDigest"]>
   >();
 
-  duplicateShaGroups.forEach(([, group], index) => {
-    const groupLabel = `Duplicate digest group ${index + 1}`;
-    const names = group
-      .map((item) => safe(item.originalFileName || item.label, "Unnamed item"))
-      .join(", ");
+  for (const group of bySha.values()) {
+    if (group.length < 2) continue;
+
+    groupNumber += 1;
+
+    const groupId = `D-${String(groupNumber).padStart(2, "0")}`;
+    const matchingFileNames = group.map((item) =>
+      safe(item.originalFileName || item.label, "Unnamed evidence item")
+    );
 
     for (const item of group) {
       duplicateById.set(item.id, {
-        groupLabel,
-        note: `Duplicate content digest detected within this evidence package. This item has the same SHA-256 content digest as: ${names}. This means the preserved file content is identical; filename, role, or package position may still differ.`,
+        groupId,
+        groupNumber,
+        groupSize: group.length,
+        matchingFileNames,
       });
     }
-  });
+  }
 
-  return items.map((item) => {
-    const duplicate = duplicateById.get(item.id);
-    if (!duplicate) return item;
-
-    return {
-      ...item,
-      duplicateDigestGroupLabel: duplicate.groupLabel,
-      duplicateDigestNote: duplicate.note,
-    };
-  });
+  return items.map((item) => ({
+    ...item,
+    duplicateDigest: duplicateById.get(item.id) ?? null,
+  }));
 }
 
 export async function buildReportViewModel(
@@ -1151,13 +1146,17 @@ export async function buildReportViewModel(
     input.evidence
   );
   const reportVariant: ReportVariant = mapReportVariant(presentationMode);
-  const contentItems = annotateDuplicateContentDigests(
-    await optimizeEvidencePreviews(resolvedContentItems, presentationMode)
-  );
-    const primaryContentItem = resolvePrimaryContentItem(
-    input.evidence,
-    contentItems
-  );
+const optimizedContentItems = await optimizeEvidencePreviews(
+  resolvedContentItems,
+  presentationMode
+);
+
+const contentItems = attachDuplicateDigestGroups(optimizedContentItems);
+
+const primaryContentItem = resolvePrimaryContentItem(
+  input.evidence,
+  contentItems
+);
   const presentationBuckets: ReportPresentationBuckets = buildPresentationBuckets({
     items: contentItems,
     primaryItem: primaryContentItem,

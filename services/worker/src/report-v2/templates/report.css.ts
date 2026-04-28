@@ -3358,49 +3358,115 @@ body {
   margin-bottom: 5mm !important;
 }
 
-/* DUPLICATE CONTENT DIGEST NOTE — gallery legal clarification */
-
-.gallery-duplicate-digest-note {
-  margin-top: 2mm !important;
-  padding: 2mm 2.4mm !important;
-  border: 1px solid rgba(12, 28, 25, 0.22) !important;
-  border-left: 5px solid rgba(96, 66, 24, 0.95) !important;
-  border-radius: 8px !important;
-  background-color: rgba(255, 255, 255, 0.16) !important;
+.gallery-duplicate-badge {
+  margin-top: 1.4mm !important;
+  display: inline-flex !important;
+  width: fit-content !important;
+  max-width: 100% !important;
+  padding: 0.9mm 1.5mm !important;
+  border-radius: 999px !important;
+  border: 1px solid rgba(96, 66, 24, 0.38) !important;
+  background: rgba(255, 255, 255, 0.18) !important;
+  color: rgba(96, 66, 24, 0.98) !important;
+  font-size: 7.1px !important;
+  line-height: 1.15 !important;
+  font-weight: 950 !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.04em !important;
   break-inside: avoid !important;
   page-break-inside: avoid !important;
 }
 
-.gallery-duplicate-digest-label {
+.duplicate-digest-register-section .report-page {
+  height: 297mm !important;
+  min-height: 297mm !important;
+  overflow: hidden !important;
+}
+
+.duplicate-digest-register-page {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 4mm !important;
+}
+
+.duplicate-digest-register-list {
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  gap: 4mm !important;
+}
+
+.duplicate-digest-group-card {
+  background-color: rgba(255, 255, 255, 0.16) !important;
+  border: 1px solid rgba(12, 28, 25, 0.22) !important;
+  border-left: 5px solid rgba(96, 66, 24, 0.95) !important;
+  border-radius: 9px !important;
+  padding: 3mm !important;
+  min-height: 52mm !important;
+  break-inside: avoid !important;
+  page-break-inside: avoid !important;
+}
+
+.duplicate-digest-group-head {
+  display: flex !important;
+  align-items: baseline !important;
+  justify-content: space-between !important;
+  gap: 3mm !important;
+  margin-bottom: 2mm !important;
+}
+
+.duplicate-digest-group-id {
+  color: ${c.accent} !important;
+  font-size: 13px !important;
+  line-height: 1.2 !important;
+  font-weight: 950 !important;
+}
+
+.duplicate-digest-group-count {
+  color: rgba(11, 46, 39, 0.78) !important;
+  font-size: 8px !important;
+  line-height: 1.25 !important;
+  font-weight: 900 !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.05em !important;
+}
+
+.duplicate-digest-sha-label,
+.duplicate-digest-files-label {
   color: rgba(11, 46, 39, 0.78) !important;
   font-size: 7.6px !important;
   font-weight: 950 !important;
   text-transform: uppercase !important;
   letter-spacing: 0.055em !important;
-  line-height: 1.25 !important;
   margin-bottom: 1mm !important;
 }
 
-.gallery-duplicate-digest-copy {
-  color: ${c.muted} !important;
-  font-size: 8.2px !important;
+.duplicate-digest-sha-value {
+  font-family: "Helvetica Neue", Arial, Helvetica, sans-serif !important;
+  color: ${c.ink} !important;
+  font-size: 8.5px !important;
   line-height: 1.38 !important;
-  font-weight: 650 !important;
-  word-break: normal !important;
+  font-weight: 750 !important;
+  letter-spacing: -0.005em !important;
+  word-break: break-all !important;
+  overflow-wrap: anywhere !important;
+  margin-bottom: 2.5mm !important;
+}
+
+.duplicate-digest-file-list {
+  margin: 0 !important;
+  padding-left: 4mm !important;
+  color: ${c.ink} !important;
+}
+
+.duplicate-digest-file-list li {
+  margin-bottom: 1mm !important;
+  font-size: 8.7px !important;
+  line-height: 1.35 !important;
+  font-weight: 700 !important;
+  word-break: break-word !important;
   overflow-wrap: anywhere !important;
 }
-
-/* Keep duplicate note compact inside 4-card gallery pages */
-.evidence-presentation-section .gallery-duplicate-digest-note {
-  margin-top: 1.6mm !important;
-  padding: 1.8mm 2.2mm !important;
-}
-
-.evidence-presentation-section .gallery-duplicate-digest-copy {
-  font-size: 7.8px !important;
-  line-height: 1.32 !important;
-}
-
+  
 /* RESTORE GALLERY PREVIEW SIZE — do not squeeze evidence previews */
 
 .evidence-gallery-section .gallery-thumb {
