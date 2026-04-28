@@ -1265,13 +1265,6 @@ letter-spacing: -0.005em;
   overflow-wrap: anywhere;
 }
 
-        .executive-summary-page {
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
-      max-width: 100%;
-    }
-
     .executive-confirmation-card {
       border: 1px solid ${c.softLine};
       border-left: 5px solid ${c.accent};
@@ -2168,13 +2161,13 @@ letter-spacing: -0.005em;
 }
 
 .cover-boundary-inline {
-  grid-column: 1 / -1;
-  margin-top: 0;
-  padding: 9px 11px;
-  font-size: 8.9px;
-  line-height: 1.42;
+  margin-top: auto !important;
+  margin-bottom: 9mm !important;
+  padding: 4.2mm 5mm !important;
+  font-size: 9.4px !important;
+  line-height: 1.5 !important;
 }
-
+  
     .cover-boundary-followup {
       display: block;
       margin-top: 4px;
@@ -2777,10 +2770,6 @@ body {
   padding: 2.3mm 2.6mm !important;
 }
 
-.cover-boundary-inline {
-  margin-top: 0 !important;
-}
-
 /* FORCE BACKGROUND ON ANY SPLIT PAGE */
 
 .report-page {
@@ -3022,10 +3011,10 @@ body {
   border-color: rgba(12, 28, 25, 0.22) !important;
 }
 
-/* COVER BOUNDARY CARD — bronze border */
+
 .cover-boundary-note.cover-boundary-inline {
-  border-color: rgba(196, 165, 91, 0.72) !important;
-  border-left: 5px solid rgba(196, 165, 91, 0.92) !important;
+  border-color: rgba(96, 66, 24, 0.78) !important;
+  border-left: 5px solid rgba(96, 66, 24, 0.95) !important;
   background-color: rgba(255, 255, 255, 0.14) !important;
 }
 
@@ -3033,27 +3022,19 @@ body {
   color: ${c.ink} !important;
 }
 
-/* EXECUTIVE SUMMARY — bronze bottom outcome cards */
-
-.executive-summary-page {
-  min-height: 247mm !important;
-  display: flex !important;
-  flex-direction: column !important;
-}
-
+/* لا تعمل min-height هون أبداً لأنها تكسر الصفحة */
 .executive-bottom-outcomes {
-  margin-top: auto !important;
+  margin-top: 5mm !important;
   display: flex !important;
   flex-direction: column !important;
-  gap: 4mm !important;
-  padding-top: 6mm !important;
+  gap: 3mm !important;
   break-inside: avoid !important;
   page-break-inside: avoid !important;
 }
 
 .executive-summary-section .executive-outcome {
-  border-color: rgba(196, 165, 91, 0.72) !important;
-  border-left: 5px solid rgba(196, 165, 91, 0.92) !important;
+  border-color: rgba(96, 66, 24, 0.78) !important;
+  border-left: 5px solid rgba(96, 66, 24, 0.95) !important;
   background-color: rgba(255, 255, 255, 0.14) !important;
 }
 
