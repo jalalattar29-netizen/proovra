@@ -2996,8 +2996,14 @@ body {
 }
 
 
-/* FINAL BRONZE BORDER + BOTTOM PLACEMENT FIX */
+/* FINAL REPORT POLISH — COVER / EXECUTIVE / RAIL SYSTEM */
 
+/* shared colors:
+   green:  #0b2e27
+   bronze: rgba(96, 66, 24, 0.95)
+*/
+
+/* COVER */
 .cover-premium-body {
   display: flex !important;
   flex-direction: column !important;
@@ -3006,24 +3012,42 @@ body {
 .cover-boundary-note.cover-boundary-inline {
   margin-top: auto !important;
   margin-bottom: 6mm !important;
-  border-color: rgba(66, 43, 14, 0.82) !important;
-  border-left: 5px solid rgba(66, 43, 14, 0.96) !important;
-  background-color: rgba(255, 255, 255, 0.14) !important;
+  border: 1px solid rgba(12, 28, 25, 0.22) !important;
+  border-left: 5px solid rgba(96, 66, 24, 0.95) !important;
+  background-color: rgba(255, 255, 255, 0.16) !important;
 }
 
-/* مهم: لا تغيّر لون الخط هون — خلي النص مثل قبل */
 .cover-boundary-note.cover-boundary-inline strong {
   font-weight: 900 !important;
 }
 
-.executive-summary-page {
+/* EXECUTIVE SUMMARY */
+.executive-summary-section .report-page,
+.report-section:has(.integrity-summary-page) .report-page {
+  display: flex !important;
+  flex-direction: column !important;
+}
+
+.executive-summary-section .section-sheet,
+.report-section:has(.integrity-summary-page) .section-sheet {
+  flex: 1 1 auto !important;
+  display: flex !important;
+  flex-direction: column !important;
+  min-height: 0 !important;
+}
+
+.executive-summary-page,
+.integrity-summary-page {
+  flex: 1 1 auto !important;
   display: flex !important;
   flex-direction: column !important;
   gap: 12px !important;
+  min-height: 0 !important;
 }
 
 .executive-bottom-outcomes {
-  margin-top: 24mm !important;
+  margin-top: auto !important;
+  margin-bottom: 0 !important;
   display: flex !important;
   flex-direction: column !important;
   gap: 3mm !important;
@@ -3031,13 +3055,16 @@ body {
   page-break-inside: avoid !important;
 }
 
+.executive-summary-section .executive-confirmation-card {
+  border-left: 5px solid #0b2e27 !important;
+}
+
 .executive-summary-section .executive-outcome {
   border: 1px solid rgba(12, 28, 25, 0.22) !important;
   border-left: 5px solid rgba(96, 66, 24, 0.95) !important;
   background-color: rgba(255, 255, 255, 0.16) !important;
 }
-  
-/* مهم: لا تفرض لون جديد للنص */
+
 .executive-summary-section .executive-bottom-outcomes .executive-outcome-title {
   font-weight: 900 !important;
 }
@@ -3046,6 +3073,37 @@ body {
   font-weight: 400 !important;
 }
 
+/* GREEN LEFT RAILS */
+.technical-appendix-section .technical-access-panel,
+.integrity-summary-page .integrity-summary-intro,
+.custody-page .custody-lifecycle-summary {
+  border-left: 5px solid #0b2e27 !important;
+}
+
+/* LEGAL PAGE — bronze rails */
+.legal-interpretation-page .legal-interpretation-hero,
+.legal-interpretation-page .legal-interpretation-card,
+.legal-interpretation-page .legal-interpretation-card-verify,
+.legal-interpretation-page .legal-interpretation-card-limit,
+.legal-interpretation-page .legal-interpretation-card-neutral {
+  border-left: 5px solid rgba(96, 66, 24, 0.95) !important;
+}
+
+/* BRONZE CALLOUTS */
+.report-section .callout:not(.tone-success):not(.tone-warning):not(.tone-danger) {
+  border-left: 5px solid rgba(96, 66, 24, 0.95) !important;
+  background-color: rgba(255, 255, 255, 0.16) !important;
+  border-color: rgba(12, 28, 25, 0.22) !important;
+}
+
+/* INTEGRITY IMPORTANT BOUNDARY — bottom placement */
+.integrity-summary-page > .callout:last-child {
+  margin-top: auto !important;
+  margin-bottom: 0 !important;
+  break-inside: avoid !important;
+  page-break-inside: avoid !important;
+}
+  
 @media print {
   html,
   body,
