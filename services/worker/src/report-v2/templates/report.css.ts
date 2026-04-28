@@ -2996,14 +2996,8 @@ body {
 }
 
 
-/* FINAL REPORT POLISH — COVER / EXECUTIVE / RAIL SYSTEM */
+/* FINAL REPORT POLISH — STABLE RAILS + BOTTOM PLACEMENT */
 
-/* shared colors:
-   green:  #0b2e27
-   bronze: rgba(96, 66, 24, 0.95)
-*/
-
-/* COVER */
 .cover-premium-body {
   display: flex !important;
   flex-direction: column !important;
@@ -3013,7 +3007,9 @@ body {
   margin-top: auto !important;
   margin-bottom: 6mm !important;
   border: 1px solid rgba(12, 28, 25, 0.22) !important;
-  border-left: 5px solid rgba(96, 66, 24, 0.95) !important;
+  border-left-width: 5px !important;
+  border-left-style: solid !important;
+  border-left-color: rgba(96, 66, 24, 0.95) !important;
   background-color: rgba(255, 255, 255, 0.16) !important;
 }
 
@@ -3021,15 +3017,28 @@ body {
   font-weight: 900 !important;
 }
 
-/* EXECUTIVE SUMMARY */
+/* pages that need bottom-pinned cards */
 .executive-summary-section .report-page,
-.report-section:has(.integrity-summary-page) .report-page {
+.report-section:has(.integrity-summary-page) .report-page,
+.report-section:has(.workflow-steps) .report-page {
+  height: 297mm !important;
+  min-height: 297mm !important;
   display: flex !important;
   flex-direction: column !important;
 }
 
 .executive-summary-section .section-sheet,
-.report-section:has(.integrity-summary-page) .section-sheet {
+.report-section:has(.integrity-summary-page) .section-sheet,
+.report-section:has(.workflow-steps) .section-sheet {
+  flex: 1 1 auto !important;
+  display: flex !important;
+  flex-direction: column !important;
+  min-height: 0 !important;
+}
+
+.executive-summary-section .section-body,
+.report-section:has(.integrity-summary-page) .section-body,
+.report-section:has(.workflow-steps) .section-body {
   flex: 1 1 auto !important;
   display: flex !important;
   flex-direction: column !important;
@@ -3045,9 +3054,10 @@ body {
   min-height: 0 !important;
 }
 
+/* Executive bottom cards */
 .executive-bottom-outcomes {
   margin-top: auto !important;
-  margin-bottom: 0 !important;
+  margin-bottom: 5mm !important;
   display: flex !important;
   flex-direction: column !important;
   gap: 3mm !important;
@@ -3056,54 +3066,68 @@ body {
 }
 
 .executive-summary-section .executive-confirmation-card {
-  border-left: 5px solid #0b2e27 !important;
+  border-left-width: 5px !important;
+  border-left-style: solid !important;
+  border-left-color: #0b2e27 !important;
 }
 
 .executive-summary-section .executive-outcome {
   border: 1px solid rgba(12, 28, 25, 0.22) !important;
-  border-left: 5px solid rgba(96, 66, 24, 0.95) !important;
+  border-left-width: 5px !important;
+  border-left-style: solid !important;
+  border-left-color: rgba(96, 66, 24, 0.95) !important;
   background-color: rgba(255, 255, 255, 0.16) !important;
 }
 
-.executive-summary-section .executive-bottom-outcomes .executive-outcome-title {
-  font-weight: 900 !important;
-}
-
-.executive-summary-section .executive-bottom-outcomes .executive-outcome-body {
-  font-weight: 400 !important;
-}
-
-/* GREEN LEFT RAILS */
+/* Green rails */
 .technical-appendix-section .technical-access-panel,
 .integrity-summary-page .integrity-summary-intro,
 .custody-page .custody-lifecycle-summary {
-  border-left: 5px solid #0b2e27 !important;
+  border-left-width: 5px !important;
+  border-left-style: solid !important;
+  border-left-color: #0b2e27 !important;
 }
 
-/* LEGAL PAGE — bronze rails */
+/* Legal bronze rails */
 .legal-interpretation-page .legal-interpretation-hero,
 .legal-interpretation-page .legal-interpretation-card,
 .legal-interpretation-page .legal-interpretation-card-verify,
 .legal-interpretation-page .legal-interpretation-card-limit,
 .legal-interpretation-page .legal-interpretation-card-neutral {
-  border-left: 5px solid rgba(96, 66, 24, 0.95) !important;
+  border-left-width: 5px !important;
+  border-left-style: solid !important;
+  border-left-color: rgba(96, 66, 24, 0.95) !important;
 }
 
-/* BRONZE CALLOUTS */
-.report-section .callout:not(.tone-success):not(.tone-warning):not(.tone-danger) {
-  border-left: 5px solid rgba(96, 66, 24, 0.95) !important;
+/* All neutral/info callouts bronze */
+.report-section .callout,
+.technical-appendix-section .callout,
+.custody-page .callout,
+.custody-hash-page .callout,
+.report-section:has(.workflow-steps) .callout {
+  border: 1px solid rgba(12, 28, 25, 0.22) !important;
+  border-left-width: 5px !important;
+  border-left-style: solid !important;
+  border-left-color: rgba(96, 66, 24, 0.95) !important;
   background-color: rgba(255, 255, 255, 0.16) !important;
-  border-color: rgba(12, 28, 25, 0.22) !important;
 }
 
-/* INTEGRITY IMPORTANT BOUNDARY — bottom placement */
+/* Integrity important boundary pinned */
 .integrity-summary-page > .callout:last-child {
   margin-top: auto !important;
-  margin-bottom: 0 !important;
+  margin-bottom: 5mm !important;
   break-inside: avoid !important;
   page-break-inside: avoid !important;
 }
-  
+
+/* Reviewer workflow note pinned */
+.report-section:has(.workflow-steps) .callout:last-child {
+  margin-top: auto !important;
+  margin-bottom: 5mm !important;
+  break-inside: avoid !important;
+  page-break-inside: avoid !important;
+}
+    
 @media print {
   html,
   body,
