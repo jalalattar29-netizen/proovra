@@ -2160,14 +2160,6 @@ letter-spacing: -0.005em;
   text-decoration: none;
 }
 
-.cover-boundary-inline {
-  margin-top: auto !important;
-  margin-bottom: 9mm !important;
-  padding: 4.2mm 5mm !important;
-  font-size: 9.4px !important;
-  line-height: 1.5 !important;
-}
-
     .cover-boundary-followup {
       display: block;
       margin-top: 4px;
@@ -2698,14 +2690,6 @@ body {
   white-space: normal !important;
 }
 
-.cover-boundary-inline {
-  margin-top: auto !important;
-  margin-bottom: 4mm !important;
-  padding: 4.2mm 5mm !important;
-  font-size: 9.4px !important;
-  line-height: 1.5 !important;
-}
-
 .cover-boundary-title {
   display: block !important;
   margin-bottom: 2.2mm !important;
@@ -3033,15 +3017,20 @@ body {
 }
 
 .executive-summary-page {
+  position: relative !important;
   display: flex !important;
   flex-direction: column !important;
-  min-height: 232mm !important;
+  height: 260mm !important;
+  min-height: 260mm !important;
   gap: 12px !important;
+  overflow: hidden !important;
 }
 
 .executive-bottom-outcomes {
-  margin-top: auto !important;
-  margin-bottom: 6mm !important;
+  position: absolute !important;
+  left: 0 !important;
+  right: 0 !important;
+  bottom: 12mm !important;
   display: flex !important;
   flex-direction: column !important;
   gap: 3mm !important;
@@ -3049,12 +3038,12 @@ body {
   page-break-inside: avoid !important;
 }
 
-.executive-summary-section .executive-bottom-outcomes .executive-outcome {
-  border-color: rgba(66, 43, 14, 0.82) !important;
-  border-left: 5px solid rgba(66, 43, 14, 0.96) !important;
-  background-color: rgba(255, 255, 255, 0.14) !important;
+.executive-summary-section .executive-outcome {
+  border: 1px solid rgba(12, 28, 25, 0.22) !important;
+  border-left: 5px solid rgba(96, 66, 24, 0.95) !important;
+  background-color: rgba(255, 255, 255, 0.16) !important;
 }
-
+  
 /* مهم: لا تفرض لون جديد للنص */
 .executive-summary-section .executive-bottom-outcomes .executive-outcome-title {
   font-weight: 900 !important;
@@ -3063,7 +3052,7 @@ body {
 .executive-summary-section .executive-bottom-outcomes .executive-outcome-body {
   font-weight: 400 !important;
 }
-  
+
 @media print {
   html,
   body,
