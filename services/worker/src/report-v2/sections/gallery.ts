@@ -218,59 +218,104 @@ function renderMetadataOnlyCard(item: PresentationEvidenceItem): string {
   `;
 }
 
+function chunkItems<T>(items: T[], size: number): T[][] {
+  const chunks: T[][] = [];
+  for (let i = 0; i < items.length; i += size) {
+    chunks.push(items.slice(i, i + size));
+  }
+  return chunks;
+}
+
 export function renderGallerySection(vm: ReportViewModel): string {
   const { buckets } = vm.presentation;
   const heroItem = buckets.heroItem;
 
-  if (!heroItem && buckets.metadataOnlyItems.length === 0) return "";
+  if (
+    !heroItem &&
+    buckets.supportingPreviewItems.length === 0 &&
+    buckets.metadataOnlyItems.length === 0
+  ) {
+    return "";
+  }
 
-  return renderPageSection(
-    "Primary Evidence",
-    `
-      ${
-        heroItem
-          ? `
-            <div class="primary-evidence-layout">
-              ${renderPrimaryEvidenceCard(heroItem)}
-            </div>
-          `
-          : ""
-      }
+  const pages: string[] = [];
 
-      ${
-        buckets.supportingPreviewItems.length > 0
-          ? `
-            ${renderCallout({
-              title: "Supporting evidence gallery",
-              body:
-                "Supporting previews are reviewer-facing representations only. The preserved originals, recorded hashes, custody chain, timestamp state, and verification workflow remain authoritative.",
-              tone: "neutral",
-            })}
-            <div class="gallery-support-grid support-grid">
-              ${buckets.supportingPreviewItems
-                .map((item) => renderSupportingCard(item))
-                .join("")}
-            </div>
-          `
-          : ""
-      }
+  if (heroItem) {
+    pages.push(
+      renderPageSection(
+        "Primary Evidence",
+        `
+          <div class="primary-evidence-layout">
+            ${renderPrimaryEvidenceCard(heroItem)}
+          </div>
 
-      ${
-        buckets.metadataOnlyItems.length > 0
-          ? `
-            ${renderCallout({
-              title: "Reference-only evidence items",
-              body:
-                "These items are part of the preserved package but do not include an inline PDF preview. Their identity, format, and digest references are preserved for completeness.",
-              tone: "neutral",
-            })}
-            <div class="gallery-secondary-list">
-              ${buckets.metadataOnlyItems.map(renderMetadataOnlyCard).join("")}
-            </div>
-          `
-          : ""
-      }
-    `,
-    { pageBreakBefore: true, className: "evidence-presentation-section" }
-  );
+          ${
+            buckets.supportingPreviewItems.length > 0 ||
+            buckets.metadataOnlyItems.length > 0
+? `
+  <div class="supporting-gallery-callout-wrapper">
+    ${renderCallout({
+      title: "Supporting evidence gallery",
+      body:
+        "Supporting previews are reviewer-facing representations only. The preserved originals, recorded hashes, custody chain, timestamp state, and verification workflow remain authoritative.",
+      tone: "neutral",
+    })}
+  </div>
+`
+              : ""
+          }
+        `,
+        { pageBreakBefore: true, className: "evidence-presentation-section primary-evidence-section" }
+      )
+    );
+  }
+
+  const supportingChunks = chunkItems(buckets.supportingPreviewItems, 4);
+
+  supportingChunks.forEach((chunk, index) => {
+    pages.push(
+      renderPageSection(
+        supportingChunks.length > 1
+          ? `Supporting Evidence Gallery ${index + 1}/${supportingChunks.length}`
+          : "Supporting Evidence Gallery",
+        `
+          <div class="gallery-support-grid support-grid">
+            ${chunk.map((item) => renderSupportingCard(item)).join("")}
+          </div>
+        `,
+        { pageBreakBefore: true, className: "evidence-presentation-section evidence-gallery-section" }
+      )
+    );
+  });
+
+  const metadataChunks = chunkItems(buckets.metadataOnlyItems, 6);
+
+  metadataChunks.forEach((chunk, index) => {
+    pages.push(
+      renderPageSection(
+        metadataChunks.length > 1
+          ? `Reference-Only Evidence Items ${index + 1}/${metadataChunks.length}`
+          : "Reference-Only Evidence Items",
+        `
+          ${
+            index === 0
+              ? renderCallout({
+                  title: "Reference-only evidence items",
+                  body:
+                    "These items are part of the preserved package but do not include an inline PDF preview. Their identity, format, and digest references are preserved for completeness.",
+                  tone: "neutral",
+                })
+              : ""
+          }
+
+          <div class="gallery-secondary-list">
+            ${chunk.map(renderMetadataOnlyCard).join("")}
+          </div>
+        `,
+        { pageBreakBefore: true, className: "evidence-presentation-section evidence-gallery-section" }
+      )
+    );
+  });
+
+  return pages.join("");
 }

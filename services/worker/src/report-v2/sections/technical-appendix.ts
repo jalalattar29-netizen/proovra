@@ -179,26 +179,16 @@ pages.push(
 
 pages.push(
   renderPageSection(
-    "Technical Appendix — Identity & Provenance",
+    "Technical Appendix — Identity, Provenance & Fingerprint",
     `
-      <div class="technical-appendix-page technical-appendix-identity-page">
+      <div class="technical-appendix-page technical-appendix-identity-fingerprint-page">
         ${renderAppendixSection(
           "Identity & Provenance",
           "Who submitted the evidence, which identity level was recorded, and what workspace or organization context exists.",
           renderKeyValueGrid(filteredIdentityRows),
           { className: "technical-appendix-identity-block" }
         )}
-      </div>
-    `,
-    { pageBreakBefore: true, className: "technical-appendix-section" }
-  )
-);
 
-pages.push(
-  renderPageSection(
-    "Technical Appendix — Evidence Fingerprint",
-    `
-      <div class="technical-appendix-page technical-appendix-fingerprint-page">
         ${renderAppendixSection(
           "Cryptographic Fingerprint",
           "Primary digest and canonical fingerprint references used to identify the preserved evidence state.",

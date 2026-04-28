@@ -2451,7 +2451,7 @@ body {
   width: 210mm !important;
   min-height: 297mm !important;
   margin: 0 !important;
-  padding: 13mm 14mm 24mm 14mm !important;
+  padding: 13mm 14mm 16mm 14mm !important;
   background: transparent !important;
   overflow: hidden !important;
 }
@@ -2541,7 +2541,7 @@ body {
 .executive-legal-boundary,
 .technical-verification-card,
 .technical-access-panel,
-.technical-access-url,
+.technical-access-url-block,
 .legal-interpretation-hero,
 .legal-interpretation-card,
 .primary-evidence-card,
@@ -2617,18 +2617,6 @@ body {
 
 .report-table td {
   background-color: rgba(255, 255, 255, 0.12) !important;
-}
-
-/* لا تخلي الصفحة تنفتح فوق صفحة ثانية */
-.section-body,
-.technical-appendix-page,
-.executive-summary-page,
-.integrity-summary-page,
-.custody-page,
-.legal-interpretation-page,
-.custody-hash-page {
-  break-inside: auto !important;
-  page-break-inside: auto !important;
 }
 
 /* footer مساحة آمنة */
@@ -2754,13 +2742,21 @@ body {
   padding: 2.3mm 2.6mm !important;
 }
 
-/* FORCE BACKGROUND ON ANY SPLIT PAGE */
+/* Page content must stay transparent — background lives on .report-section only */
+
+.report-section {
+  background-image: url("${paperSilverUrl}") !important;
+  background-size: 210mm 297mm !important;
+  background-repeat: no-repeat !important;
+  background-position: center top !important;
+}
 
 .report-page {
   background-image: url("${paperSilverUrl}") !important;
   background-size: 210mm 297mm !important;
   background-repeat: no-repeat !important;
   background-position: center top !important;
+  background-color: transparent !important;
 }
 
 /* PRIMARY EVIDENCE — make card consistent with report glass style */
@@ -2974,12 +2970,13 @@ body {
 }
 
 .technical-access-url-value {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace !important;
-  font-size: 7.8px !important;
-  line-height: 1.42 !important;
-  font-weight: 650 !important;
+  font-family: "Helvetica Neue", Arial, Helvetica, sans-serif !important;
+  font-size: 9.6px !important;
+  line-height: 1.48 !important;
+  font-weight: 700 !important;
   color: ${c.ink} !important;
-  letter-spacing: -0.018em !important;
+  letter-spacing: -0.005em !important;
+
   word-break: break-all !important;
   overflow-wrap: anywhere !important;
   white-space: normal !important;
@@ -3127,7 +3124,215 @@ body {
   break-inside: avoid !important;
   page-break-inside: avoid !important;
 }
-    
+
+/* TECHNICAL APPENDIX — combined identity/fingerprint spacing */
+
+.technical-appendix-identity-fingerprint-page {
+  gap: 12mm !important;
+}
+
+.technical-appendix-identity-fingerprint-page .technical-appendix-block {
+  margin-bottom: 0 !important;
+}
+
+/* TECHNICAL APPENDIX — timestamp/anchoring spacing */
+
+.technical-appendix-timestamp-anchor-page {
+  gap: 8mm !important;
+}
+
+.technical-appendix-timestamp-anchor-page .technical-appendix-block {
+  margin-bottom: 0 !important;
+}
+
+/* EVIDENCE GALLERY — stable multi-page layout */
+
+.evidence-presentation-section .report-page {
+  min-height: 297mm !important;
+  height: 297mm !important;
+  overflow: hidden !important;
+}
+
+.evidence-gallery-section .gallery-support-grid {
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  gap: 5mm !important;
+  align-items: start !important;
+}
+
+.evidence-gallery-section .gallery-card {
+  min-height: 92mm !important;
+  max-height: 96mm !important;
+  border-radius: 0 !important;
+  overflow: hidden !important;
+}
+
+.evidence-gallery-section .gallery-thumb {
+  height: 39mm !important;
+}
+
+.evidence-gallery-section .gallery-card-header {
+  min-height: 13mm !important;
+}
+
+.evidence-gallery-section .gallery-card-meta {
+  padding: 2mm 3mm 3mm !important;
+}
+
+.evidence-gallery-section .gallery-meta-row {
+  padding: 1.6mm 0 !important;
+  grid-template-columns: 26mm minmax(0, 1fr) !important;
+}
+
+.evidence-gallery-section .gallery-sha-value {
+  font-size: 6.7px !important;
+  line-height: 1.28 !important;
+}
+
+.evidence-gallery-section .gallery-secondary-list {
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  gap: 4mm !important;
+}
+
+.primary-evidence-section .section-body {
+  flex: 1 1 auto !important;
+  display: flex !important;
+  flex-direction: column !important;
+}
+
+.primary-evidence-section .primary-evidence-layout {
+  flex: 0 0 auto !important;
+}
+
+.supporting-gallery-callout-wrapper {
+  margin-top: auto !important;
+  margin-bottom: 5mm !important;
+  break-inside: avoid !important;
+  page-break-inside: avoid !important;
+}
+
+/* CUSTODY — keep generated custody pages as real report pages */
+
+.custody-section .report-page {
+  height: 297mm !important;
+  min-height: 297mm !important;
+  overflow: hidden !important;
+}
+
+.custody-section .section-sheet,
+.custody-section .section-body,
+.custody-page,
+.custody-timeline-panel,
+.custody-forensic-timeline {
+  min-height: 0 !important;
+  break-inside: avoid !important;
+  page-break-inside: avoid !important;
+}
+
+.custody-page {
+  gap: 10px !important;
+}
+
+.custody-section .timeline-card {
+  break-inside: avoid !important;
+  page-break-inside: avoid !important;
+}
+
+/* FINAL OVERRIDES — keep generated pages stable */
+
+.report-cover,
+.report-section,
+.report-page {
+  width: 210mm !important;
+  min-height: 297mm !important;
+}
+
+.report-page {
+  height: 297mm !important;
+  overflow: hidden !important;
+  padding: 13mm 14mm 16mm 14mm !important;
+  background-image: url("${paperSilverUrl}") !important;
+  background-size: 210mm 297mm !important;
+  background-repeat: no-repeat !important;
+  background-position: center top !important;
+}
+
+.section-sheet,
+.section-body {
+  min-height: 0 !important;
+}
+
+/* Bronze neutral callouts */
+.report-section .callout {
+  border: 1px solid rgba(12, 28, 25, 0.22) !important;
+  border-left: 5px solid rgba(96, 66, 24, 0.95) !important;
+  background-color: rgba(255, 255, 255, 0.16) !important;
+}
+
+/* Keep green rails where intended */
+.executive-summary-section .executive-confirmation-card,
+.technical-appendix-section .technical-access-panel,
+.integrity-summary-page .integrity-summary-intro,
+.custody-page .custody-lifecycle-summary {
+  border-left: 5px solid #0b2e27 !important;
+}
+
+/* Bottom pinned cards */
+.executive-summary-section .report-page,
+.report-section:has(.integrity-summary-page) .report-page,
+.report-section:has(.workflow-steps) .report-page,
+.primary-evidence-section .report-page {
+  display: flex !important;
+  flex-direction: column !important;
+}
+
+.executive-summary-section .section-sheet,
+.executive-summary-section .section-body,
+.report-section:has(.integrity-summary-page) .section-sheet,
+.report-section:has(.integrity-summary-page) .section-body,
+.report-section:has(.workflow-steps) .section-sheet,
+.report-section:has(.workflow-steps) .section-body,
+.primary-evidence-section .section-sheet,
+.primary-evidence-section .section-body {
+  flex: 1 1 auto !important;
+  display: flex !important;
+  flex-direction: column !important;
+}
+
+.executive-bottom-outcomes,
+.integrity-summary-page > .callout:last-child,
+.report-section:has(.workflow-steps) .callout:last-child,
+.supporting-gallery-callout-wrapper {
+  margin-top: auto !important;
+  margin-bottom: 5mm !important;
+  break-inside: avoid !important;
+  page-break-inside: avoid !important;
+}
+
+/* Gallery stable layout */
+.evidence-presentation-section .gallery-support-grid {
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  gap: 5mm !important;
+  align-items: start !important;
+}
+
+.evidence-presentation-section .gallery-card {
+  min-height: 92mm !important;
+  max-height: 96mm !important;
+  overflow: hidden !important;
+}
+
+.evidence-presentation-section .gallery-thumb {
+  height: 39mm !important;
+}
+
+.evidence-presentation-section .gallery-sha-value {
+  font-size: 6.7px !important;
+  line-height: 1.28 !important;
+}
+
 @media print {
   html,
   body,
