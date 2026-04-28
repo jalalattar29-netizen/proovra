@@ -126,15 +126,17 @@ Reviewers can use this report to inspect the evidence package, custody history, 
 
         ${renderExecutiveTable(executiveRows)}
 
-        ${mismatchBlock}
+        <div class="executive-bottom-outcomes">
+          ${mismatchBlock}
 
-<section class="executive-outcome executive-outcome-warning">
-  <div class="executive-outcome-title">Important boundary</div>
-  <div class="executive-outcome-body">
-    This report verifies recorded integrity and preservation state only. Legal admissibility, factual truth, authorship, context, and evidentiary weight require separate review.
-  </div>
-</section>
-      </div>
+          <section class="executive-outcome executive-outcome-warning executive-boundary-outcome">
+            <div class="executive-outcome-title">Important boundary</div>
+            <div class="executive-outcome-body">
+              This report verifies recorded integrity and preservation state only. Legal admissibility, factual truth, authorship, context, and evidentiary weight require separate review.
+            </div>
+          </section>
+        </div>
+              </div>
     `,
 { className: "executive-summary-section" }
   );

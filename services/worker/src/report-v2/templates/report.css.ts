@@ -2675,9 +2675,14 @@ body {
   display: none !important;
 }
 
-.cover-meta-card:has(.cover-primary-hash) {
-  grid-column: auto !important;
-  min-height: 16mm !important;
+.cover-premium-body {
+  display: flex !important;
+  flex-direction: column !important;
+}
+
+.cover-meta-card-wide {
+  grid-column: 1 / -1 !important;
+  width: 100% !important;
 }
 
 .cover-primary-hash,
@@ -2689,14 +2694,49 @@ body {
   padding: 0 !important;
   border-radius: 0 !important;
 
-  font-size: 9.1px !important;
+  font-family: inherit !important;
+  font-size: 10.4px !important;
   line-height: 1.42 !important;
-  font-weight: 800 !important;
-  letter-spacing: -0.01em !important;
+  font-weight: 700 !important;
+  letter-spacing: -0.005em !important;
 
   word-break: break-all !important;
   overflow-wrap: anywhere !important;
   white-space: normal !important;
+}
+
+.cover-boundary-inline {
+  margin-top: auto !important;
+  margin-bottom: 4mm !important;
+  padding: 4.2mm 5mm !important;
+  font-size: 9.4px !important;
+  line-height: 1.5 !important;
+}
+
+.cover-boundary-title {
+  display: block !important;
+  margin-bottom: 2.2mm !important;
+  color: ${c.ink} !important;
+  font-size: 10.4px !important;
+  font-weight: 900 !important;
+  line-height: 1.25 !important;
+}
+
+.cover-boundary-body {
+  display: block !important;
+  color: ${c.muted} !important;
+  font-size: 9.4px !important;
+  font-weight: 500 !important;
+  line-height: 1.55 !important;
+}
+
+.cover-boundary-followup {
+  display: block !important;
+  margin-top: 2.6mm !important;
+  color: ${c.ink} !important;
+  font-size: 9.4px !important;
+  font-weight: 900 !important;
+  line-height: 1.45 !important;
 }
 
 /* COVER PAGE SPACING POLISH */
@@ -2980,6 +3020,49 @@ body {
 .technical-appendix-section .technical-verification-card {
   background-color: rgba(255, 255, 255, 0.16) !important;
   border-color: rgba(12, 28, 25, 0.22) !important;
+}
+
+/* COVER BOUNDARY CARD — bronze border */
+.cover-boundary-note.cover-boundary-inline {
+  border-color: rgba(196, 165, 91, 0.72) !important;
+  border-left: 5px solid rgba(196, 165, 91, 0.92) !important;
+  background-color: rgba(255, 255, 255, 0.14) !important;
+}
+
+.cover-boundary-note.cover-boundary-inline strong {
+  color: ${c.ink} !important;
+}
+
+/* EXECUTIVE SUMMARY — bronze bottom outcome cards */
+
+.executive-summary-page {
+  min-height: 247mm !important;
+  display: flex !important;
+  flex-direction: column !important;
+}
+
+.executive-bottom-outcomes {
+  margin-top: auto !important;
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 4mm !important;
+  padding-top: 6mm !important;
+  break-inside: avoid !important;
+  page-break-inside: avoid !important;
+}
+
+.executive-summary-section .executive-outcome {
+  border-color: rgba(196, 165, 91, 0.72) !important;
+  border-left: 5px solid rgba(196, 165, 91, 0.92) !important;
+  background-color: rgba(255, 255, 255, 0.14) !important;
+}
+
+.executive-summary-section .executive-outcome-title {
+  color: ${c.ink} !important;
+}
+
+.executive-summary-section .executive-outcome-body {
+  color: ${c.muted} !important;
 }
 
 @media print {
