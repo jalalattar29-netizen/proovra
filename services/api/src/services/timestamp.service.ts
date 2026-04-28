@@ -27,6 +27,38 @@ function timeoutMs(): number {
   return Number.isFinite(n) && n > 0 ? n : 20000;
 }
 
+function normalizeTsaFailureReason(error: unknown): string {
+  const message =
+    error instanceof Error ? error.message.toLowerCase() : String(error ?? "").toLowerCase();
+
+  if (message.includes("quota") || message.includes("limit")) {
+    return "Trusted timestamp could not be obtained because the provider quota was exceeded.";
+  }
+
+  if (message.includes("403") || message.includes("forbidden")) {
+    return "Trusted timestamp could not be obtained due to provider access restrictions.";
+  }
+
+  if (message.includes("401") || message.includes("unauthorized")) {
+    return "Trusted timestamp request was not authorized by the provider.";
+  }
+
+  if (message.includes("timeout") || message.includes("timed out")) {
+    return "Trusted timestamp request timed out while contacting the provider.";
+  }
+
+  if (
+    message.includes("econnrefused") ||
+    message.includes("enotfound") ||
+    message.includes("network") ||
+    message.includes("connection")
+  ) {
+    return "Trusted timestamp request failed because the timestamp provider could not be reached.";
+  }
+
+  return "Trusted timestamp could not be obtained due to a timestamp provider error.";
+}
+
 export type TimestampResult = {
   provider: string;
   url: string;
@@ -167,8 +199,9 @@ const granted = Boolean(statusMatch);
       failureReason: null,
     };
   } catch (error) {
-    const reason = error instanceof Error ? error.message : "Unknown TSA error";
-    return {
+const reason = normalizeTsaFailureReason(error);
+
+return {
       provider,
       url: tsaUrl,
       serialNumber: null,

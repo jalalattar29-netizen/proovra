@@ -3137,7 +3137,7 @@ body {
 .technical-appendix-timestamp-anchor-page {
   gap: 10.5mm !important;
 }
-  
+
 .technical-appendix-timestamp-anchor-page .technical-appendix-block {
   margin-bottom: 0 !important;
 }
@@ -3345,12 +3345,27 @@ body {
   background-image: none !important;
 }
 
-/* FIX: spacing for workflow bottom cards */
+/* FIX: Reviewer Verification Workflow bottom callouts */
 
-.report-section:has(.workflow-steps) .section-body {
-  gap: 8px !important;
+.report-section:has(.workflow-steps) .workflow-steps {
+  flex: 0 0 auto !important;
 }
 
+.report-section:has(.workflow-steps + .callout + .callout) .workflow-steps + .callout {
+  margin-top: auto !important;
+  margin-bottom: 3mm !important;
+}
+
+.report-section:has(.workflow-steps + .callout + .callout) .workflow-steps + .callout + .callout {
+  margin-top: 0 !important;
+  margin-bottom: 5mm !important;
+}
+
+.report-section:has(.workflow-steps + .callout + .callout) .callout:last-child {
+  margin-top: 0 !important;
+  margin-bottom: 5mm !important;
+}
+  
 @media print {
   html,
   body,

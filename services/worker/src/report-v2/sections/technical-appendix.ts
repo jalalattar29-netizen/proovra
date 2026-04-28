@@ -103,8 +103,8 @@ function renderVerificationAccess(vm: ReportViewModel): string {
   return `
     <div class="technical-access-panel">
       <div>
-        <div class="technical-access-kicker">Technical Verification Access</div>
-        <div class="technical-access-title">Independent Technical Verification Endpoint</div>
+<div class="technical-access-kicker">Independent Verification Endpoint</div>
+<div class="technical-access-title">Technical Verification Endpoint</div>
         <div class="technical-access-copy">
           Reviewers can use this endpoint to inspect the verification materials, public status, and technical references connected to this evidence record.
         </div>
@@ -151,7 +151,7 @@ export function renderTechnicalAppendixSection(vm: ReportViewModel): string {
 
 pages.push(
   renderPageSection(
-    "Technical Appendix — Verification Access",
+"Technical Appendix — Verification Endpoint",
     `
       <div class="technical-appendix-page technical-appendix-court-page">
         <section class="court-appendix-hero">

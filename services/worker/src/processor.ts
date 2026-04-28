@@ -475,17 +475,17 @@ function summarizePayloadForReport(eventType: string, payload: unknown): string 
         .join(" • ");
     }
 
-    case "TIMESTAMP_FAILED": {
-      const tsaStatus = normalizePayloadPrimitive(obj.tsaStatus);
-      const reason = normalizePayloadPrimitive(obj.tsaFailureReason);
-      return [
-        "Timestamp request failed",
-        tsaStatus ? `Status: ${tsaStatus}` : null,
-        reason ? `Reason: ${reason}` : null,
-      ]
-        .filter(Boolean)
-        .join(" • ");
-    }
+case "TIMESTAMP_FAILED": {
+  const tsaStatus = normalizePayloadPrimitive(obj.tsaStatus);
+
+  return [
+    "Trusted timestamp could not be obtained",
+    tsaStatus ? `Status: ${tsaStatus}` : null,
+    "Reviewer should rely on the recorded digest, signature, custody history, and available verification materials.",
+  ]
+    .filter(Boolean)
+    .join(" • ");
+}
 
     case "OTS_APPLIED": {
       const otsStatus = normalizePayloadPrimitive(obj.otsStatus);

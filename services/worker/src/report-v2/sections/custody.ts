@@ -29,10 +29,10 @@ function renderCustodyStats(vm: ReportViewModel): string {
           vm.custodyHashRows.length > 0 ? "Recorded" : "Not reported"
         }</div>
       </div>
-      <div class="custody-stat-card">
-        <div class="custody-stat-label">Access Activity</div>
-        <div class="custody-stat-value">Verify page</div>
-      </div>
+<div class="custody-stat-card">
+  <div class="custody-stat-label">Access Activity</div>
+  <div class="custody-stat-value">Not in PDF</div>
+</div>
     </div>
   `;
 }

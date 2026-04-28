@@ -949,8 +949,9 @@ function buildTechnicalAppendixCourtRows(params: {
   contentSummary: ReportEvidenceContentSummary;
   primaryContentItem: ReportEvidenceAsset | null;
   custody: ReturnType<typeof splitCustodyEvents>;
+  reportVersion: number;
 }): KeyValueRow[] {
-  return [
+    return [
     {
       label: "Evidence Record",
       value: buildPublicEvidenceReference(params.evidence.id),
@@ -995,16 +996,14 @@ function buildTechnicalAppendixCourtRows(params: {
   value: params.custody.forensic.length > 0 ? "Yes" : "No",
 },
 {
-  label: "Report Version",
-  value: params.evidence.latestReportVersion
-    ? String(params.evidence.latestReportVersion)
-    : "Not recorded",
+  label: "Report Schema Version",
+  value: `v${params.reportVersion}`,
 },
 {
   label: "Verification Package Version",
   value: params.evidence.verificationPackageVersion
-    ? String(params.evidence.verificationPackageVersion)
-    : "Not recorded",
+    ? `v${params.evidence.verificationPackageVersion}`
+    : `Aligned with report v${params.reportVersion} when generated`,
 },
 {
   label: "Canonical JSON",
@@ -1012,13 +1011,15 @@ function buildTechnicalAppendixCourtRows(params: {
     ? "Available in technical materials / verification package"
     : "Not embedded in appendix",
 },
-    {
-      label: "Primary Digest Type",
-      value:
-        params.contentSummary.itemCount > 1
-          ? "Canonical package digest"
-          : "Original file digest",
-    },
+{
+  label: params.contentSummary.itemCount > 1
+    ? "Primary Package Digest Type"
+    : "Primary Digest Type",
+  value:
+    params.contentSummary.itemCount > 1
+      ? "Canonical multipart package digest"
+      : "Original file digest",
+},
     {
       label: "Signature Material",
       value:
@@ -1040,10 +1041,10 @@ function buildTechnicalAppendixCourtRows(params: {
       label: "Forensic Custody Events",
       value: String(params.custody.forensic.length),
     },
-    {
-      label: "Access Events",
-      value: String(params.custody.access.length),
-    },
+{
+  label: "Access Activity",
+  value: "Not included in PDF; review verification page or audit trail when enabled",
+},
     {
       label: "Immutable Storage",
       value: safeBooleanLabel(
@@ -1388,12 +1389,13 @@ verificationSummaryRows: buildVerificationSummaryRows(
       lastVerifiedSourceLabel: mapVerificationSourceLabel(
         input.evidence.lastVerifiedSource
       ),
-      courtAppendixRows: buildTechnicalAppendixCourtRows({
+courtAppendixRows: buildTechnicalAppendixCourtRows({
   evidence: otsEvidence,
   structureLabel,
   contentSummary,
   primaryContentItem,
   custody,
+  reportVersion: input.version,
 }),
       signingKeyLabel: buildPublicSigningKeyReference(
         input.evidence.signingKeyId,

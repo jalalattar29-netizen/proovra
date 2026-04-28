@@ -120,31 +120,36 @@ export function escapeHtml(input: string | null | undefined): string {
 export function normalizeTimestampFailureReason(
   reason: string | null | undefined
 ): string {
-  const value = safe(reason, "").trim();
-  const lower = value.toLowerCase();
+  const text = safe(reason, "").toLowerCase();
 
-  if (!value) {
-    return "Trusted timestamp could not be obtained because the timestamp provider did not return a usable timestamp token.";
+  if (!text) {
+    return "Trusted timestamp could not be obtained and should be reviewed manually.";
+  }
+
+  if (text.includes("quota") || text.includes("limit")) {
+    return "Trusted timestamp could not be obtained because the provider quota was exceeded.";
+  }
+
+  if (text.includes("403") || text.includes("forbidden")) {
+    return "Trusted timestamp could not be obtained due to provider access restrictions.";
+  }
+
+  if (text.includes("401") || text.includes("unauthorized")) {
+    return "Trusted timestamp request was not authorized by the provider.";
+  }
+
+  if (text.includes("timeout") || text.includes("timed out")) {
+    return "Trusted timestamp request timed out while contacting the provider.";
   }
 
   if (
-    lower.includes("quota") ||
-    lower.includes("kontingent") ||
-    lower.includes("verbraucht") ||
-    lower.includes("verbrauch") ||
-    lower.includes("403")
+    text.includes("econnrefused") ||
+    text.includes("enotfound") ||
+    text.includes("network") ||
+    text.includes("connection")
   ) {
-    return "Trusted timestamp could not be obtained because the provider quota appears to be exhausted.";
+    return "Trusted timestamp request failed because the timestamp provider could not be reached.";
   }
 
-  if (
-    lower.includes("command failed") ||
-    lower.includes("curl:") ||
-    lower.includes("requested url returned error") ||
-    lower.includes("http")
-  ) {
-    return "Trusted timestamp could not be obtained because the timestamp provider request failed.";
-  }
-
-  return value;
+  return "Trusted timestamp could not be obtained and should be reviewed manually.";
 }
