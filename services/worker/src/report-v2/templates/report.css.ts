@@ -3017,20 +3017,13 @@ body {
 }
 
 .executive-summary-page {
-  position: relative !important;
   display: flex !important;
   flex-direction: column !important;
-  height: 260mm !important;
-  min-height: 260mm !important;
   gap: 12px !important;
-  overflow: hidden !important;
 }
 
 .executive-bottom-outcomes {
-  position: absolute !important;
-  left: 0 !important;
-  right: 0 !important;
-  bottom: 12mm !important;
+  margin-top: 24mm !important;
   display: flex !important;
   flex-direction: column !important;
   gap: 3mm !important;
