@@ -3365,6 +3365,49 @@ body {
   margin-top: 0 !important;
   margin-bottom: 5mm !important;
 }
+
+/* DUPLICATE CONTENT DIGEST NOTE — gallery legal clarification */
+
+.gallery-duplicate-digest-note {
+  margin-top: 2mm !important;
+  padding: 2mm 2.4mm !important;
+  border: 1px solid rgba(12, 28, 25, 0.22) !important;
+  border-left: 5px solid rgba(96, 66, 24, 0.95) !important;
+  border-radius: 8px !important;
+  background-color: rgba(255, 255, 255, 0.16) !important;
+  break-inside: avoid !important;
+  page-break-inside: avoid !important;
+}
+
+.gallery-duplicate-digest-label {
+  color: rgba(11, 46, 39, 0.78) !important;
+  font-size: 7.6px !important;
+  font-weight: 950 !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.055em !important;
+  line-height: 1.25 !important;
+  margin-bottom: 1mm !important;
+}
+
+.gallery-duplicate-digest-copy {
+  color: ${c.muted} !important;
+  font-size: 8.2px !important;
+  line-height: 1.38 !important;
+  font-weight: 650 !important;
+  word-break: normal !important;
+  overflow-wrap: anywhere !important;
+}
+
+/* Keep duplicate note compact inside 4-card gallery pages */
+.evidence-presentation-section .gallery-duplicate-digest-note {
+  margin-top: 1.6mm !important;
+  padding: 1.8mm 2.2mm !important;
+}
+
+.evidence-presentation-section .gallery-duplicate-digest-copy {
+  font-size: 7.8px !important;
+  line-height: 1.32 !important;
+}
   
 @media print {
   html,

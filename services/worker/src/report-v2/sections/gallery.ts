@@ -85,6 +85,21 @@ function renderGalleryMetaRow(label: string, value: string): string {
   `;
 }
 
+function renderDuplicateDigestNote(asset: ReportEvidenceAsset): string {
+  if (!asset.duplicateDigestNote) return "";
+
+  return `
+    <div class="gallery-duplicate-digest-note">
+      <div class="gallery-duplicate-digest-label">
+        ${escapeHtml(asset.duplicateDigestGroupLabel ?? "Duplicate digest detected")}
+      </div>
+      <div class="gallery-duplicate-digest-copy">
+        ${escapeHtml(asset.duplicateDigestNote)}
+      </div>
+    </div>
+  `;
+}
+
 function renderPreviewMedia(
   item: PresentationEvidenceItem,
   opts?: { emphasis?: boolean }
@@ -161,8 +176,9 @@ function renderPrimaryEvidenceCard(item: PresentationEvidenceItem): string {
             : "Restricted under policy"
         )}
 ${renderGalleryMetaRow("Lead Item SHA-256", asset.sha256 ?? "Not recorded")}
+        ${renderDuplicateDigestNote(asset)}
       </div>
-    </article>
+          </article>
   `;
 }
 
@@ -184,8 +200,9 @@ function renderSupportingCard(item: PresentationEvidenceItem): string {
         ${renderGalleryMetaRow("Format", safe(asset.mimeType, "N/A"))}
         ${renderGalleryMetaRow("Size", safe(asset.displaySizeLabel, "N/A"))}
 ${renderGalleryMetaRow("Item SHA-256", asset.sha256 ?? "Not recorded")}
+        ${renderDuplicateDigestNote(asset)}
       </div>
-    </article>
+          </article>
   `;
 }
 
@@ -213,6 +230,16 @@ function renderMetadataOnlyCard(item: PresentationEvidenceItem): string {
         <div class="gallery-meta-value gallery-sha-value">${escapeHtml(
           asset.sha256 ?? "Not recorded"
         )}</div>
+                ${
+          asset.duplicateDigestNote
+            ? `
+              <div class="gallery-meta-label">Digest Note</div>
+              <div class="gallery-meta-value">
+                ${escapeHtml(asset.duplicateDigestNote)}
+              </div>
+            `
+            : ""
+        }
       </div>
     </article>
   `;

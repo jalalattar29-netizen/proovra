@@ -45,6 +45,8 @@ export type ReportEvidenceAsset = {
   previewDataUrl?: string | null;
   previewTextExcerpt?: string | null;
   previewCaption?: string | null;
+  duplicateDigestNote?: string | null;
+  duplicateDigestGroupLabel?: string | null;
 };
 
 export type PreviewRenderKind =

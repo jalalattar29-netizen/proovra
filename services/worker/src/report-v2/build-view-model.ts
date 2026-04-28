@@ -1057,6 +1057,57 @@ function buildTechnicalAppendixCourtRows(params: {
   ];
 }
 
+function annotateDuplicateContentDigests(
+  items: ReportEvidenceAsset[]
+): ReportEvidenceAsset[] {
+  const bySha = new Map<string, ReportEvidenceAsset[]>();
+
+  for (const item of items) {
+    const sha = safe(item.sha256, "").trim().toLowerCase();
+    if (!sha || sha === "not recorded" || sha === "n/a") continue;
+
+    const existing = bySha.get(sha) ?? [];
+    existing.push(item);
+    bySha.set(sha, existing);
+  }
+
+  const duplicateShaGroups = Array.from(bySha.entries()).filter(
+    ([, group]) => group.length > 1
+  );
+
+  if (duplicateShaGroups.length === 0) return items;
+
+  const duplicateById = new Map<
+    string,
+    { groupLabel: string; note: string }
+  >();
+
+  duplicateShaGroups.forEach(([, group], index) => {
+    const groupLabel = `Duplicate digest group ${index + 1}`;
+    const names = group
+      .map((item) => safe(item.originalFileName || item.label, "Unnamed item"))
+      .join(", ");
+
+    for (const item of group) {
+      duplicateById.set(item.id, {
+        groupLabel,
+        note: `Duplicate content digest detected within this evidence package. This item has the same SHA-256 content digest as: ${names}. This means the preserved file content is identical; filename, role, or package position may still differ.`,
+      });
+    }
+  });
+
+  return items.map((item) => {
+    const duplicate = duplicateById.get(item.id);
+    if (!duplicate) return item;
+
+    return {
+      ...item,
+      duplicateDigestGroupLabel: duplicate.groupLabel,
+      duplicateDigestNote: duplicate.note,
+    };
+  });
+}
+
 export async function buildReportViewModel(
   input: ReportV2Input
 ): Promise<ReportViewModel> {
@@ -1100,11 +1151,10 @@ export async function buildReportViewModel(
     input.evidence
   );
   const reportVariant: ReportVariant = mapReportVariant(presentationMode);
-  const contentItems = await optimizeEvidencePreviews(
-    resolvedContentItems,
-    presentationMode
+  const contentItems = annotateDuplicateContentDigests(
+    await optimizeEvidencePreviews(resolvedContentItems, presentationMode)
   );
-  const primaryContentItem = resolvePrimaryContentItem(
+    const primaryContentItem = resolvePrimaryContentItem(
     input.evidence,
     contentItems
   );
