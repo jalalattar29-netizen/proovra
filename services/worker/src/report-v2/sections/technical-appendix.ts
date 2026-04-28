@@ -179,9 +179,11 @@ pages.push(
 
 pages.push(
   renderPageSection(
-    "Technical Appendix — Identity, Provenance & Fingerprint",
+    compact
+      ? "Technical Appendix — Identity, Provenance & Fingerprint"
+      : "Technical Appendix — Identity, Provenance, Fingerprint & Signature",
     `
-      <div class="technical-appendix-page technical-appendix-identity-fingerprint-page">
+      <div class="technical-appendix-page technical-appendix-identity-fingerprint-signature-page">
         ${renderAppendixSection(
           "Identity & Provenance",
           "Who submitted the evidence, which identity level was recorded, and what workspace or organization context exists.",
@@ -202,37 +204,29 @@ pages.push(
           `,
           { className: "technical-appendix-fingerprint-block" }
         )}
+
+        ${
+          !compact
+            ? renderAppendixSection(
+                "Digital Signature",
+                "Signature and signing-key references used for independent verification of the recorded evidence state.",
+                `
+                  ${renderKeyValueGrid(vm.technicalAppendix.signatureRows)}
+                  ${renderCallout({
+                    title: "Signature material handling",
+                    body: vm.technicalAppendix.signatureReferenceNote,
+                    tone: "neutral",
+                  })}
+                `,
+                { className: "technical-appendix-signature-block" }
+              )
+            : ""
+        }
       </div>
     `,
     { pageBreakBefore: true, className: "technical-appendix-section" }
   )
 );
-
-  if (!compact) {
-    pages.push(
-      renderPageSection(
-        "Technical Appendix — Digital Signature",
-        `
-          <div class="technical-appendix-page">
-            ${renderAppendixSection(
-              "Digital Signature",
-              "Signature and signing-key references used for independent verification of the recorded evidence state.",
-              `
-                ${renderKeyValueGrid(vm.technicalAppendix.signatureRows)}
-                ${renderCallout({
-                  title: "Signature material handling",
-                  body: vm.technicalAppendix.signatureReferenceNote,
-                  tone: "neutral",
-                })}
-              `,
-              { className: "technical-appendix-signature-block" }
-            )}
-          </div>
-        `,
-        { pageBreakBefore: true, className: "technical-appendix-section" }
-      )
-    );
-  }
 
   pages.push(
     renderPageSection(

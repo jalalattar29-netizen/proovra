@@ -801,14 +801,15 @@ letter-spacing: -0.005em;
       page-break-inside: avoid;
     }
 
-    .gallery-card-header {
-      padding: 8px 9px;
-      display: flex;
-      flex-direction: column;
-      gap: 3px;
-      background: ${c.white};
-      border-bottom: 1px solid ${c.softLine};
-    }
+.gallery-card-header {
+  padding: 8px 9px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+
+  background: transparent !important;   /* 🔥 المهم */
+  border-bottom: 1px solid ${c.softLine};
+}
 
     .gallery-card-file-name {
       font-size: 11px;
@@ -3125,22 +3126,18 @@ body {
   page-break-inside: avoid !important;
 }
 
-/* TECHNICAL APPENDIX — combined identity/fingerprint spacing */
-
-.technical-appendix-identity-fingerprint-page {
-  gap: 12mm !important;
+.technical-appendix-identity-fingerprint-signature-page {
+  gap: 6.5mm !important;
 }
 
-.technical-appendix-identity-fingerprint-page .technical-appendix-block {
+.technical-appendix-identity-fingerprint-signature-page .technical-appendix-block {
   margin-bottom: 0 !important;
 }
 
-/* TECHNICAL APPENDIX — timestamp/anchoring spacing */
-
 .technical-appendix-timestamp-anchor-page {
-  gap: 8mm !important;
+  gap: 10.5mm !important;
 }
-
+  
 .technical-appendix-timestamp-anchor-page .technical-appendix-block {
   margin-bottom: 0 !important;
 }
@@ -3182,11 +3179,6 @@ body {
 .evidence-gallery-section .gallery-meta-row {
   padding: 1.6mm 0 !important;
   grid-template-columns: 26mm minmax(0, 1fr) !important;
-}
-
-.evidence-gallery-section .gallery-sha-value {
-  font-size: 6.7px !important;
-  line-height: 1.28 !important;
 }
 
 .evidence-gallery-section .gallery-secondary-list {
@@ -3328,9 +3320,35 @@ body {
   height: 39mm !important;
 }
 
-.evidence-presentation-section .gallery-sha-value {
-  font-size: 6.7px !important;
-  line-height: 1.28 !important;
+/* EVIDENCE HASH READABILITY — match cover primary hash */
+
+.primary-evidence-details .gallery-sha-value,
+.primary-evidence-details .hash-text,
+.evidence-presentation-section .gallery-sha-value,
+.evidence-presentation-section .hash-text {
+  font-family: "Helvetica Neue", Arial, Helvetica, sans-serif !important;
+  font-size: 10.4px !important;
+  line-height: 1.42 !important;
+  font-weight: 700 !important;
+  letter-spacing: -0.005em !important;
+  color: ${c.ink} !important;
+
+  word-break: break-all !important;
+  overflow-wrap: anywhere !important;
+  white-space: normal !important;
+}
+
+/* FIX: evidence card header must be transparent */
+
+.gallery-card-header {
+  background-color: transparent !important;
+  background-image: none !important;
+}
+
+/* FIX: spacing for workflow bottom cards */
+
+.report-section:has(.workflow-steps) .section-body {
+  gap: 8px !important;
 }
 
 @media print {
