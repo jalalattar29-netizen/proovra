@@ -3164,10 +3164,6 @@ body {
   overflow: hidden !important;
 }
 
-.evidence-gallery-section .gallery-thumb {
-  height: 39mm !important;
-}
-
 .evidence-gallery-section .gallery-card-header {
   min-height: 13mm !important;
 }
@@ -3312,14 +3308,10 @@ body {
 
 .evidence-presentation-section .gallery-card {
   min-height: 92mm !important;
-  max-height: 96mm !important;
+  max-height: none !important;
   overflow: hidden !important;
 }
-
-.evidence-presentation-section .gallery-thumb {
-  height: 39mm !important;
-}
-
+  
 /* EVIDENCE HASH READABILITY — match cover primary hash */
 
 .primary-evidence-details .gallery-sha-value,
@@ -3407,6 +3399,19 @@ body {
 .evidence-presentation-section .gallery-duplicate-digest-copy {
   font-size: 7.8px !important;
   line-height: 1.32 !important;
+}
+
+/* RESTORE GALLERY PREVIEW SIZE — do not squeeze evidence previews */
+
+.evidence-gallery-section .gallery-thumb {
+  height: 154px !important;
+  min-height: 154px !important;
+}
+
+.evidence-gallery-section .gallery-thumb img {
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: contain !important;
 }
   
 @media print {
