@@ -472,19 +472,19 @@ const VERIFY_TYPO = {
     color: VERIFY_BRAND.ink,
   },
   body: {
-    fontSize: 14,
+    fontSize: 13,
     lineHeight: 1.7,
     fontWeight: 500,
     color: VERIFY_BRAND.muted,
   },
   small: {
-    fontSize: 12,
+    fontSize: 11.5,
     lineHeight: 1.55,
     fontWeight: 650,
     color: VERIFY_BRAND.muted,
   },
   value: {
-    fontSize: 14,
+    fontSize: 13,
     lineHeight: 1.45,
     fontWeight: 800,
     color: VERIFY_BRAND.ink,
@@ -1127,6 +1127,71 @@ function TechnicalTabButton({
   );
 }
 
+function stripShortHashLines(value?: string | null): string | null {
+  if (!value) return null;
+
+  const cleaned = value
+    .split(/\s*•\s*|\n/g)
+    .map((part) => part.trim())
+    .filter((part) => {
+      const lower = part.toLowerCase();
+      if (lower.startsWith("event hash:")) return false;
+      if (lower.startsWith("prev hash:")) return false;
+      if (lower.startsWith("previous hash:")) return false;
+      return true;
+    })
+    .join(" • ")
+    .trim();
+
+  return cleaned || null;
+}
+
+function HashLine({
+  label,
+  value,
+}: {
+  label: string;
+  value?: string | null;
+}) {
+  if (!value) return null;
+
+  return (
+    <div
+      style={{
+        display: "grid",
+        gridTemplateColumns: "92px minmax(0, 1fr)",
+        gap: 10,
+        alignItems: "start",
+      }}
+    >
+      <div
+        style={{
+          ...VERIFY_TYPO.kicker,
+          fontSize: 9,
+          letterSpacing: "0.07em",
+          color: "rgba(11,46,39,0.62)",
+        }}
+      >
+        {label}
+      </div>
+      <div
+        style={{
+          fontFamily: VERIFY_FONT,
+          fontSize: 11,
+          lineHeight: 1.45,
+          fontWeight: 700,
+          color: VERIFY_BRAND.ink,
+          wordBreak: "break-all",
+          overflowWrap: "anywhere",
+          whiteSpace: "normal",
+        }}
+      >
+        {value}
+      </div>
+    </div>
+  );
+}
+
 function TimelinePanel({
   title,
   subtitle,
@@ -1149,34 +1214,25 @@ function TimelinePanel({
   };
 }) {
   return (
-    <div style={{ display: "grid", gap: 18 }}>
+    <div style={{ display: "grid", gap: 14 }}>
       <div
         style={{
           display: "flex",
-          alignItems: "center",
+          alignItems: "flex-start",
           justifyContent: "space-between",
-          gap: 12,
+          gap: 14,
           flexWrap: "wrap",
         }}
       >
-        <div>
-          <h3
-            style={{
-              margin: 0,
-              fontSize: 18,
-              fontWeight: 800,
-              color: "#101828",
-            }}
-          >
+        <div style={{ minWidth: 0, flex: "1 1 620px" }}>
+          <h3 style={{ margin: 0, ...VERIFY_TYPO.h3 }}>
             {title}
           </h3>
           <div
             style={{
               marginTop: 6,
-              fontSize: 13,
-              color: "#667085",
-              lineHeight: 1.65,
-              maxWidth: 760,
+              ...VERIFY_TYPO.small,
+              maxWidth: 860,
             }}
           >
             {subtitle}
@@ -1192,40 +1248,32 @@ function TimelinePanel({
       {events.length === 0 ? (
         <div
           style={{
-background: "rgba(255,255,255,0.36)",
-border: "1px solid rgba(12,28,25,0.16)",
-            borderRadius: 16,
-            padding: 18,
+            ...VERIFY_SURFACE.inset,
+            padding: 16,
             display: "grid",
-            gap: 8,
+            gap: 6,
           }}
         >
-          <div style={{ fontSize: 13, fontWeight: 800, color: "#344054" }}>
+          <div style={{ ...VERIFY_TYPO.value, fontSize: 13 }}>
             {emptyTitle}
           </div>
-          <div style={{ fontSize: 13, color: "#667085", lineHeight: 1.7 }}>
+          <div style={{ ...VERIFY_TYPO.small, fontSize: 12.5 }}>
             {emptyBody}
           </div>
         </div>
       ) : (
-        <div
-          style={{
-            position: "relative",
-            display: "grid",
-            gap: 14,
-          }}
-        >
+        <div style={{ display: "grid", gap: 10 }}>
           {events.map((event, idx) => {
-            const isLast = idx === events.length - 1;
+            const cleanSummary = stripShortHashLines(event.payloadSummary);
 
             return (
               <div
-                key={`${event.eventType}-${event.atUtc}-${idx}`}
+                key={`${event.sequence ?? idx}-${event.eventType}-${event.atUtc ?? "na"}`}
                 style={{
                   display: "grid",
-                  gridTemplateColumns: "28px minmax(0, 1fr)",
-                  gap: 14,
-                  alignItems: "start",
+                  gridTemplateColumns: "24px minmax(0, 1fr)",
+                  gap: 12,
+                  alignItems: "stretch",
                 }}
               >
                 <div
@@ -1233,26 +1281,25 @@ border: "1px solid rgba(12,28,25,0.16)",
                     position: "relative",
                     display: "flex",
                     justifyContent: "center",
-                    minHeight: 80,
                   }}
                 >
                   <div
                     style={{
-                      width: 14,
-                      height: 14,
+                      width: 12,
+                      height: 12,
                       borderRadius: 999,
                       background: accent.dot,
                       border: `3px solid ${accent.dotBorder}`,
-                      marginTop: 6,
+                      marginTop: 16,
                       zIndex: 1,
                     }}
                   />
-                  {!isLast ? (
+                  {idx !== events.length - 1 ? (
                     <div
                       style={{
                         position: "absolute",
-                        top: 22,
-                        bottom: -18,
+                        top: 30,
+                        bottom: -10,
                         width: 2,
                         background: accent.line,
                       }}
@@ -1262,11 +1309,14 @@ border: "1px solid rgba(12,28,25,0.16)",
 
                 <div
                   style={{
-                    border: "1px solid #EAECF0",
-                    background: "#FFFFFF",
+                    border: `1px solid ${VERIFY_BRAND.softLine}`,
+                    background:
+                      "linear-gradient(180deg, rgba(255,255,255,0.82) 0%, rgba(255,255,255,0.66) 100%)",
                     borderRadius: 16,
-                    padding: 16,
-                    boxShadow: "0 1px 2px rgba(16,24,40,0.04)",
+                    padding: 14,
+                    display: "grid",
+                    gap: 9,
+                    boxShadow: "0 10px 28px rgba(16,32,29,0.045)",
                   }}
                 >
                   <div
@@ -1276,14 +1326,15 @@ border: "1px solid rgba(12,28,25,0.16)",
                       justifyContent: "space-between",
                       gap: 12,
                       flexWrap: "wrap",
-                      marginBottom: 10,
                     }}
                   >
                     <div
                       style={{
-                        fontSize: 15,
-                        fontWeight: 800,
-                        color: "#101828",
+                        fontSize: 13,
+                        lineHeight: 1.25,
+                        fontWeight: 900,
+                        letterSpacing: "-0.012em",
+                        color: VERIFY_BRAND.ink,
                         minWidth: 0,
                         flex: "1 1 260px",
                       }}
@@ -1293,15 +1344,15 @@ border: "1px solid rgba(12,28,25,0.16)",
 
                     <div
                       style={{
-                        fontSize: 12,
-                        color: "#475467",
-                        fontWeight: 700,
-                        padding: "6px 10px",
+                        padding: "5px 9px",
                         borderRadius: 999,
-                        background: "#F2F4F7",
-                        border: "1px solid #EAECF0",
+                        border: `1px solid ${VERIFY_BRAND.softLine}`,
+                        background: "rgba(11,46,39,0.055)",
+                        color: VERIFY_BRAND.accent,
+                        fontSize: 10.5,
+                        lineHeight: 1,
+                        fontWeight: 900,
                         whiteSpace: "nowrap",
-                        flexShrink: 0,
                       }}
                     >
                       {formatDateTime(event.atUtc)}
@@ -1310,50 +1361,31 @@ border: "1px solid rgba(12,28,25,0.16)",
 
                   <div
                     style={{
-                      fontSize: 13,
-                      lineHeight: 1.7,
-                      color: "#667085",
+                      ...VERIFY_TYPO.small,
+                      fontSize: 12.5,
+                      color: VERIFY_BRAND.muted,
                       wordBreak: "break-word",
                       overflowWrap: "anywhere",
                       whiteSpace: "pre-wrap",
-                      maxWidth: "100%",
                     }}
                   >
-                    {event.payloadSummary?.trim()
-                      ? event.payloadSummary
-                      : "No additional event summary provided."}
+                    {cleanSummary ?? "No additional event summary provided."}
                   </div>
 
                   {(event.prevEventHash || event.eventHash) ? (
                     <div
                       style={{
-                        marginTop: 12,
+                        marginTop: 4,
+                        padding: 12,
+                        borderRadius: 14,
+                        border: `1px solid ${VERIFY_BRAND.softLine}`,
+                        background: "rgba(248,250,248,0.72)",
                         display: "grid",
                         gap: 8,
                       }}
                     >
-                      {event.prevEventHash ? (
-                        <div
-                          style={{
-                            fontSize: 12,
-                            color: "#98A2B3",
-                            wordBreak: "break-all",
-                          }}
-                        >
-                          Prev Hash: {event.prevEventHash}
-                        </div>
-                      ) : null}
-                      {event.eventHash ? (
-                        <div
-                          style={{
-                            fontSize: 12,
-                            color: "#98A2B3",
-                            wordBreak: "break-all",
-                          }}
-                        >
-                          Event Hash: {event.eventHash}
-                        </div>
-                      ) : null}
+                      <HashLine label="Prev Hash" value={event.prevEventHash} />
+                      <HashLine label="Event Hash" value={event.eventHash} />
                     </div>
                   ) : null}
                 </div>
@@ -3224,15 +3256,16 @@ const executiveBadges = useMemo(
 
   const glassCardStyle: CSSProperties = {
     border: `1px solid ${VERIFY_BRAND.line}`,
-    background: VERIFY_BRAND.glassStrong,
-    backdropFilter: "blur(16px)",
-    boxShadow: "0 18px 50px rgba(16, 32, 29, 0.08)",
+    background:
+      "linear-gradient(180deg, rgba(255,255,255,0.92) 0%, rgba(255,255,255,0.84) 100%)",
+    backdropFilter: "blur(10px)",
+    boxShadow: "0 18px 45px rgba(16,32,29,0.075)",
     borderRadius: 22,
   };
 
   const glassPanelStyle: CSSProperties = {
     border: `1px solid ${VERIFY_BRAND.softLine}`,
-    background: VERIFY_BRAND.glass,
+    background: "rgba(255,255,255,0.78)",
     borderRadius: 18,
   };
 
@@ -3245,20 +3278,12 @@ const executiveBadges = useMemo(
 
   const verifyAssetPaths = {
     logo: "/brand/icon-192.png",
-    pagePaper: "/brand/paper-silver.png",
     headerVelvet: "/brand/site-velvet-bg.webp.png",
   };
 
   const pageBackgroundStyle: CSSProperties = {
-    backgroundImage: `
-      radial-gradient(circle at 12% 6%, rgba(11,46,39,0.08), transparent 30%),
-      radial-gradient(circle at 92% 12%, rgba(96,66,24,0.08), transparent 28%),
-      url("${verifyAssetPaths.pagePaper}")
-    `,
-    backgroundColor: "#eef1ef",
-    backgroundSize: "auto, auto, cover",
-    backgroundPosition: "left top, right top, center top",
-    backgroundRepeat: "no-repeat, no-repeat, repeat",
+    background:
+      "radial-gradient(circle at 12% 0%, rgba(11,46,39,0.055), transparent 30%), radial-gradient(circle at 90% 8%, rgba(96,66,24,0.045), transparent 26%), linear-gradient(180deg, #f6f7f4 0%, #f8faf8 42%, #f2f4f1 100%)",
   };
 
   const headerVelvetStyle: CSSProperties = {
@@ -3303,7 +3328,7 @@ const executiveBadges = useMemo(
           >
             <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
               <img
-src="/brand/icon-192.png"
+                src={verifyAssetPaths.logo}
                 alt="PROOVRA"
                 style={{
                   width: 46,
