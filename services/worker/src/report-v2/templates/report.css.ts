@@ -4015,14 +4015,13 @@ body {
   min-height: 0 !important;
 }
 
-.trust-signal-analysis-section .callout:last-child,
+.trust-signal-analysis-footer,
 .workflow-note-block {
   margin-top: auto !important;
   margin-bottom: 9mm !important;
   break-inside: avoid !important;
   page-break-inside: avoid !important;
 }
-
 
 @media print {
   html,
