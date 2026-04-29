@@ -8,7 +8,6 @@ import type {
 } from "@prisma/client";
 import {
   CertificationType as PrismaCertificationType,
-  CertificationStatus as PrismaCertificationStatus,
 } from "@prisma/client";
 import {
   extractPreviewForAsset,
@@ -217,6 +216,22 @@ type ReportAnchorSummary = {
   anchoredAtUtc: string | null;
 };
 
+type PreparedAnchorPayload = {
+  version: 1;
+  evidenceId: string;
+  reportVersion: number;
+  fileSha256: string;
+  fingerprintHash: string;
+  lastEventHash: string | null;
+  anchorHash: string;
+  generatedAtUtc: string;
+  published?: boolean;
+  receiptId?: string | null;
+  transactionId?: string | null;
+  publicUrl?: string | null;
+  anchoredAtUtc?: string | null;
+};
+
 type ReportBuildParams = {
   evidence: Parameters<typeof buildReportPdfV2>[0]["evidence"];
   custodyEvents: Parameters<typeof buildReportPdfV2>[0]["custodyEvents"];
@@ -252,7 +267,17 @@ type PreparedReportArtifacts = {
   primaryContentLabel: string | null;
   defaultPreviewItemId: string | null;
   limitations: ReportLegalLimitations;
+  verificationEvidenceFiles: VerificationEvidenceFile[];
+  verificationPackageIncluded: boolean;
   anchorSummary: ReportAnchorSummary | null;
+    custodyForVerificationPackage: Array<{
+    sequence: number;
+    atUtc: string;
+    eventType: string;
+    payload: unknown;
+    prevEventHash: string | null;
+    eventHash: string | null;
+  }>;
 
 reportEvidencePayload: ReportBuildParams["evidence"];
   certifications: {
@@ -687,6 +712,41 @@ function createWorkerError(code: string, retriable: boolean): WorkerError {
   err.code = code;
   err.retriable = retriable;
   return err;
+}
+
+function buildFinalizedAnchorPayload(params: {
+  anchorMode: "off" | "ready" | "active";
+  evidenceId: string;
+  reportVersion: number;
+  fileSha256: string;
+  fingerprintHash: string;
+  lastEventHash: string | null;
+  generatedAtUtc: string;
+  anchorSummary: ReportAnchorSummary | null;
+}): PreparedAnchorPayload | null {
+  if (params.anchorMode === "off") return null;
+
+  return {
+    version: 1,
+    evidenceId: params.evidenceId,
+    reportVersion: params.reportVersion,
+    fileSha256: params.fileSha256,
+    fingerprintHash: params.fingerprintHash,
+    lastEventHash: params.lastEventHash,
+    anchorHash: sha256HexFromStrings([
+      params.evidenceId,
+      String(params.reportVersion),
+      params.fileSha256,
+      params.fingerprintHash,
+      params.lastEventHash ?? "",
+    ]),
+    generatedAtUtc: params.generatedAtUtc,
+    published: params.anchorSummary?.published ?? false,
+    receiptId: params.anchorSummary?.receiptId ?? null,
+    transactionId: params.anchorSummary?.transactionId ?? null,
+    publicUrl: params.anchorSummary?.publicUrl ?? null,
+    anchoredAtUtc: params.anchorSummary?.anchoredAtUtc ?? null,
+  };
 }
 
 function isRetriableError(error: unknown): boolean {
@@ -1895,37 +1955,8 @@ if (
   const publicUrl = storageKey ? buildPublicUrl(storageKey) : null;
   const evidenceDetailUrl = buildEvidenceDetailUrl(evidence.id);
   const verifyUrl = buildVerifyUrl(evidence.id);
-  const lastEventHash =
-    custodyEvents.length > 0
-      ? custodyEvents[custodyEvents.length - 1]?.eventHash ?? null
-      : null;
 
   const refreshReason = options?.refreshReason?.trim() || null;
-
-  const anchorMode = normalizeAnchorMode(process.env.ANCHOR_MODE);
-  const anchorProvider = process.env.ANCHOR_PROVIDER?.trim() || null;
-  const anchorPublicBaseUrl =
-    process.env.ANCHOR_PUBLIC_BASE_URL?.trim() || null;
-
-  const anchorPayload =
-    anchorMode === "off"
-      ? null
-      : {
-          version: 1 as const,
-          evidenceId: evidence.id,
-          reportVersion: provisionalVersion,
-          fileSha256,
-          fingerprintHash,
-          lastEventHash,
-          anchorHash: sha256HexFromStrings([
-            evidence.id,
-            String(provisionalVersion),
-            fileSha256,
-            fingerprintHash,
-            lastEventHash ?? "",
-          ]),
-          generatedAtUtc: now.toISOString(),
-        };
 
 function deriveCaptureMethod(params: {
   multipart: boolean;
@@ -2026,6 +2057,8 @@ function deriveCaptureMethod(params: {
 
   const reportEvidencePayload = {
     id: evidence.id,
+    type: evidence.type,
+createdAtUtc: evidence.createdAt.toISOString(),
     title: resolveEvidenceTitle(evidence.title),
     status: evidence.status,
     verificationStatus:
@@ -2161,66 +2194,7 @@ evidenceStructure:
 
 const reportPdf = await buildReportPdfV2(reportBuildParams);
     
-  let verificationZip: Buffer | null = null;
-
-  if (verificationEvidenceFiles.length > 0 && verificationPackageIncluded) {
-    try {
-      verificationZip = await createVerificationPackage({
-        evidenceFiles: verificationEvidenceFiles,
-        reportPdf,
-        reportFileName: `proovra-verification-report-v${provisionalVersion}.pdf`,
-        fingerprint: fingerprintCanonicalJson,
-        signature: signatureBase64,
-        timestampToken: evidence.tsaTokenBase64 ?? null,
-        publicKey: signingKey.publicKeyPem,
-        custody: custodyForVerificationPackage,
-        evidenceId: evidence.id,
-        reportVersion: provisionalVersion,
-        signingKeyId,
-        signingKeyVersion,
-        anchor: anchorPayload,
-        anchorMode,
-        anchorProvider,
-        anchorPublicBaseUrl,
-        certifications,
-        metadata: {
-          title: display.displayTitle,
-          evidenceType: evidence.type,
-          evidenceStatus: evidence.status,
-          verificationStatus: identitySnapshot.verificationStatus,
-          captureMethod: identitySnapshot.captureMethod,
-          identityLevelSnapshot: identitySnapshot.identityLevelSnapshot,
-          submittedByEmail: identitySnapshot.submittedByEmail,
-          submittedByAuthProvider: identitySnapshot.submittedByAuthProvider,
-          createdAtUtc: evidence.createdAt.toISOString(),
-          capturedAtUtc: evidence.capturedAtUtc?.toISOString() ?? null,
-          uploadedAtUtc: evidence.uploadedAtUtc?.toISOString() ?? null,
-          signedAtUtc: evidence.signedAtUtc?.toISOString() ?? null,
-          reportGeneratedAtUtc: now.toISOString(),
-          storageRegion: evidenceStorage.storageRegion,
-          storageObjectLockMode: evidenceStorage.storageObjectLockMode,
-          storageObjectLockRetainUntilUtc:
-            evidenceStorage.storageObjectLockRetainUntilUtc,
-          storageObjectLockLegalHoldStatus:
-            evidenceStorage.storageObjectLockLegalHoldStatus,
-          storageImmutable: evidenceStorage.storageImmutable,
-        },
-      });
-    } catch (verificationError) {
-      captureException(verificationError, {
-        evidenceId,
-        phase: "verification_package_prepare",
-      });
-
-      logger.error(
-        {
-          evidenceId,
-          err: verificationError,
-        },
-        "Verification package generation failed during preparation"
-      );
-    }
-  }
+const verificationZip: Buffer | null = null;
 
   if (verificationEvidenceFiles.length > 0 && !verificationPackageIncluded) {
     logger.info(
@@ -2255,9 +2229,12 @@ const reportPdf = await buildReportPdfV2(reportBuildParams);
     primaryContentLabel,
     defaultPreviewItemId,
     limitations: contentArtifacts.limitations,
-    anchorSummary,
-    reportEvidencePayload,
-    certifications,
+verificationEvidenceFiles,
+verificationPackageIncluded,
+anchorSummary,
+reportEvidencePayload,
+certifications,
+custodyForVerificationPackage,
   };
 }
 
@@ -2403,6 +2380,7 @@ export async function processGenerateReport(job: Job<GenerateReportJobData>) {
             existingReportVersion: existingLatestReport.version,
             scheduleOtsUpgrade: false,
             reportVersion: existingLatestReport.version,
+            finalizedCustodyEvents: [],
           };
         }
 
@@ -2694,12 +2672,33 @@ export async function processGenerateReport(job: Job<GenerateReportJobData>) {
           } as Prisma.InputJsonValue,
         });
 
+        const finalizedCustodyEvents = await tx.custodyEvent.findMany({
+          where: { evidenceId: prepared.evidenceId },
+          orderBy: { sequence: "asc" },
+          select: {
+            sequence: true,
+            atUtc: true,
+            eventType: true,
+            payload: true,
+            prevEventHash: true,
+            eventHash: true,
+          },
+        });
+
         return {
           skipped: false as const,
           version: prepared.version,
           reportKey: prepared.reportKey,
           scheduleOtsUpgrade,
           reportVersion: prepared.version,
+                    finalizedCustodyEvents: finalizedCustodyEvents.map((ev) => ({
+            sequence: ev.sequence,
+            atUtc: ev.atUtc.toISOString(),
+            eventType: ev.eventType,
+            payload: ev.payload,
+            prevEventHash: ev.prevEventHash ?? null,
+            eventHash: ev.eventHash ?? null,
+          })),
         };
       },
       {
@@ -2708,18 +2707,101 @@ export async function processGenerateReport(job: Job<GenerateReportJobData>) {
       }
     );
 
-    if (!finalized.skipped && prepared.verificationZip) {
+    let finalizedVerificationZip: Buffer | null = null;
+
+    if (
+      !finalized.skipped &&
+prepared.verificationPackageIncluded &&
+      finalized.finalizedCustodyEvents.length > 0
+    ) {
       try {
+                const finalizedLastEventHash =
+          finalized.finalizedCustodyEvents.at(-1)?.eventHash ?? null;
+
+const finalizedAnchorPayload = buildFinalizedAnchorPayload({
+  anchorMode: normalizeAnchorMode(process.env.ANCHOR_MODE),
+  evidenceId: prepared.evidenceId,
+  reportVersion: prepared.version,
+  fileSha256: evidence.fileSha256!,
+  fingerprintHash: evidence.fingerprintHash!,
+  lastEventHash: finalizedLastEventHash,
+  generatedAtUtc: prepared.now.toISOString(),
+  anchorSummary: prepared.anchorSummary,
+});
+        finalizedVerificationZip = await createVerificationPackage({
+evidenceFiles: prepared.verificationEvidenceFiles,
+          reportPdf: prepared.reportPdf,
+          reportFileName: `proovra-verification-report-v${prepared.version}.pdf`,
+          fingerprint: prepared.fingerprintCanonicalJson,
+signature: evidence.signatureBase64!,
+          timestampToken: evidence.tsaTokenBase64 ?? null,
+publicKey: prepared.reportEvidencePayload.publicKeyPem as string,
+          custody: finalized.finalizedCustodyEvents,
+          evidenceId: prepared.evidenceId,
+          reportVersion: prepared.version,
+signingKeyId: evidence.signingKeyId ?? undefined,
+signingKeyVersion: evidence.signingKeyVersion ?? undefined,
+          anchor: finalizedAnchorPayload,
+          anchorMode: normalizeAnchorMode(process.env.ANCHOR_MODE),
+          anchorProvider: process.env.ANCHOR_PROVIDER?.trim() || null,
+          anchorPublicBaseUrl:
+            process.env.ANCHOR_PUBLIC_BASE_URL?.trim() || null,
+          certifications: prepared.certifications,
+          metadata: {
+            title: prepared.display.displayTitle,
+evidenceType: evidence.type,
+createdAtUtc: evidence.createdAt.toISOString(),
+            verificationStatus: prepared.identitySnapshot.verificationStatus,
+            captureMethod: prepared.identitySnapshot.captureMethod,
+            identityLevelSnapshot:
+              prepared.identitySnapshot.identityLevelSnapshot,
+            submittedByEmail: prepared.identitySnapshot.submittedByEmail,
+            submittedByAuthProvider:
+              prepared.identitySnapshot.submittedByAuthProvider,
+            capturedAtUtc: prepared.reportEvidencePayload.capturedAtUtc ?? null,
+            uploadedAtUtc: prepared.reportEvidencePayload.uploadedAtUtc ?? null,
+            signedAtUtc: prepared.reportEvidencePayload.signedAtUtc ?? null,
+            reportGeneratedAtUtc: prepared.now.toISOString(),
+            storageRegion: prepared.evidenceStorage.storageRegion,
+            storageObjectLockMode:
+              prepared.evidenceStorage.storageObjectLockMode,
+            storageObjectLockRetainUntilUtc:
+              prepared.evidenceStorage.storageObjectLockRetainUntilUtc,
+            storageObjectLockLegalHoldStatus:
+              prepared.evidenceStorage.storageObjectLockLegalHoldStatus,
+            storageImmutable: prepared.evidenceStorage.storageImmutable,
+            tsaStatus: prepared.reportEvidencePayload.tsaStatus ?? null,
+            otsStatus: prepared.reportEvidencePayload.otsStatus ?? null,
+          },
+        });
+      } catch (verificationError) {
+        captureException(verificationError, {
+          evidenceId,
+          phase: "verification_package_prepare_finalized",
+        });
+
+        logger.error(
+          {
+            evidenceId,
+            err: verificationError,
+          },
+          "Verification package generation failed after finalized custody"
+        );
+      }
+    }
+
+    if (!finalized.skipped && finalizedVerificationZip) {
+            try {
         await assertWorkspaceAllowsVerificationPackageArtifact({
           ownerUserId: evidence.ownerUserId,
           teamId: evidence.teamId ?? null,
-          incomingBytes: BigInt(prepared.verificationZip.length),
+          incomingBytes: BigInt(finalizedVerificationZip.length),
         });
 
         await putObjectBuffer({
           bucket: env.S3_BUCKET,
           key: prepared.verificationKey,
-          body: prepared.verificationZip,
+          body: finalizedVerificationZip,
           contentType: "application/zip",
           immutable: true,
           metadata: {
@@ -2764,7 +2846,7 @@ export async function processGenerateReport(job: Job<GenerateReportJobData>) {
                   ? String(verificationHead.objectLockLegalHoldStatus)
                   : null,
               generatedAtUtc: prepared.now,
-              sizeBytes: BigInt((prepared.verificationZip as Buffer).length),
+              sizeBytes: BigInt((finalizedVerificationZip as Buffer).length),
               packageType: "full_evidence_package",
             },
           });
@@ -2776,6 +2858,16 @@ export async function processGenerateReport(job: Job<GenerateReportJobData>) {
               verificationPackageVersion: prepared.version,
             },
           });
+
+          await tx.report.updateMany({
+  where: {
+    evidenceId: prepared.evidenceId,
+    version: prepared.version,
+  },
+  data: {
+    verificationPackageVersion: prepared.version,
+  },
+});
 
           await appendCustodyEventTx(tx, {
             evidenceId: prepared.evidenceId,

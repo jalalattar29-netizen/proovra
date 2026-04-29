@@ -92,6 +92,7 @@ type PackageManifest = {
     verifyHtml: boolean;
     readme: boolean;
     actualCertifications: boolean;
+    duplicateDigests: boolean;
   };
 };
 
@@ -114,6 +115,8 @@ type VerificationPackageMetadata = {
   storageObjectLockRetainUntilUtc?: string | null;
   storageObjectLockLegalHoldStatus?: string | null;
   storageImmutable?: boolean | null;
+  tsaStatus?: string | null;
+  otsStatus?: string | null;
 };
 
 type CustodyEventRecord = {
@@ -338,6 +341,8 @@ function safeText(value: string | null | undefined, fallback = "N/A"): string {
 function buildAnchorReadmeSection(params: {
   anchorMode: AnchorMode;
   hasAnchorPayload: boolean;
+  anchorPublished: boolean;
+  otsStatus?: string | null;
   anchorProvider?: string | null;
   anchorPublicBaseUrl?: string | null;
 }): string {
@@ -349,38 +354,60 @@ function buildAnchorReadmeSection(params: {
     ? `Public base URL: ${params.anchorPublicBaseUrl}`
     : "Public base URL: Not configured";
 
+  const otsStatus = String(params.otsStatus ?? "").toUpperCase();
+
   if (params.anchorMode === "off") {
     return `ANCHOR STATUS
 
 Anchor publication is disabled for this environment.
-No external publication claim is made for this package.
+No external anchoring claim is made for this package.
 ${providerLine}
 ${publicBaseLine}`;
   }
 
-  if (params.anchorMode === "active") {
+  if (!params.hasAnchorPayload) {
     return `ANCHOR STATUS
 
-External anchor mode is enabled for this environment.
-${
-  params.hasAnchorPayload
-    ? "This package includes anchor-ready payload material."
-    : "This package does not include anchor payload material."
-}
-No external publication receipt or transaction identifier is attached inside this package yet.
+No anchor.json file is included in this package.
+Public anchoring status: ${otsStatus || "NOT_RECORDED"}.
+${providerLine}
+${publicBaseLine}`;
+  }
+
+  if (params.anchorPublished || otsStatus === "ANCHORED") {
+    return `ANCHOR STATUS
+
+anchor.json is included in this package.
+Public anchoring is confirmed for this record.
+This anchoring layer is independent from RFC 3161 timestamping.
+${providerLine}
+${publicBaseLine}`;
+  }
+
+  if (otsStatus === "PENDING") {
+    return `ANCHOR STATUS
+
+anchor.json is included in this package.
+Public anchoring is pending confirmation and should not be treated as fully confirmed yet.
+This anchoring layer is independent from RFC 3161 timestamping.
+${providerLine}
+${publicBaseLine}`;
+  }
+
+  if (otsStatus === "FAILED") {
+    return `ANCHOR STATUS
+
+anchor.json is included in this package, but public anchoring failed or could not be completed.
+Reviewers should rely on preserved originals, hashes, signature, custody continuity, and any available timestamp material.
 ${providerLine}
 ${publicBaseLine}`;
   }
 
   return `ANCHOR STATUS
 
-Anchor-ready mode is enabled for this environment.
-${
-  params.hasAnchorPayload
-    ? "This package includes anchor-ready integrity material."
-    : "This package does not include anchor-ready integrity material."
-}
-No external publication receipt or transaction identifier is attached to this record yet.
+anchor.json is included in this package as anchor-ready integrity material.
+No external publication receipt or transaction identifier is attached yet.
+This anchoring layer is independent from RFC 3161 timestamping.
 ${providerLine}
 ${publicBaseLine}`;
 }
@@ -397,6 +424,60 @@ function buildEvidenceManifest(
       sizeBytes: file.buffer.length,
       mimeType: file.mimeType ?? null,
     })),
+  };
+}
+
+function buildDuplicateDigests(
+  evidenceFiles: Array<VerificationEvidenceFile & { finalName: string }>
+): Record<string, unknown> {
+  const groups = new Map<
+    string,
+    Array<{
+      packageIndex: number;
+      partIndex: number | null;
+      name: string;
+      originalFileName: string | null;
+      mimeType: string | null;
+      sizeBytes: number;
+    }>
+  >();
+
+  evidenceFiles.forEach((file, index) => {
+    const sha256 =
+      typeof file.sha256 === "string" && file.sha256.trim()
+        ? file.sha256.trim().toLowerCase()
+        : null;
+
+    if (!sha256) return;
+
+    const existing = groups.get(sha256) ?? [];
+    existing.push({
+      packageIndex: index + 1,
+      partIndex: file.partIndex ?? null,
+      name: file.finalName,
+      originalFileName: file.originalFileName ?? null,
+      mimeType: file.mimeType ?? null,
+      sizeBytes: file.sizeBytes ?? file.buffer.length,
+    });
+    groups.set(sha256, existing);
+  });
+
+  const duplicateGroups = Array.from(groups.entries())
+    .filter(([, files]) => files.length > 1)
+    .map(([sha256, files]) => ({
+      sha256,
+      count: files.length,
+      files,
+    }));
+
+  return {
+    duplicatesDetected: duplicateGroups.length > 0,
+    duplicateGroupCount: duplicateGroups.length,
+    groups: duplicateGroups,
+    note:
+      duplicateGroups.length > 0
+        ? "One or more packaged evidence files have identical SHA-256 digests. This may be legitimate duplicate content, but reviewers should confirm whether the duplication is expected."
+        : "No duplicate SHA-256 digests were detected among packaged evidence files with available hashes.",
   };
 }
 
@@ -496,6 +577,7 @@ function buildPackageManifest(params: {
       anchor: params.anchorIncluded,
       evidenceManifest: params.evidenceFiles.length > 1,
       originalLinkage: true,
+      duplicateDigests: true,
       forensicCustody: true,
       accessActivity: true,
       reportArtifact: true,
@@ -532,15 +614,38 @@ function buildReadme(params: {
   evidenceFiles: VerificationEvidenceFile[];
   anchorMode: AnchorMode;
   anchorIncluded: boolean;
+  anchorPublished: boolean;
   anchorProvider?: string | null;
   anchorPublicBaseUrl?: string | null;
   evidenceId?: string;
   reportVersion?: number;
   signingKeyId?: string;
   signingKeyVersion?: number;
-  hasReportArtifact: boolean;
+hasReportArtifact: boolean;
+hasTimestampToken: boolean;
+timestampStatus?: string | null;
+otsStatus?: string | null;
 }): string {
   const multipart = params.evidenceFiles.length > 1;
+
+    const timestampStatus = String(params.timestampStatus ?? "").toUpperCase();
+  const otsStatus = String(params.otsStatus ?? "").toUpperCase();
+
+  const timestampReadmeLine = params.hasTimestampToken
+    ? `timestamp.tsr
+Included in this package. RFC3161 timestamping material was attached for independent timestamp verification.`
+    : `timestamp.tsr
+Not included in this package. RFC3161 timestamp status: ${
+        timestampStatus || "NOT_RECORDED"
+      }. Integrity verification still relies on hashes, digital signature, preserved originals, custody continuity, and any available anchoring material.`;
+
+  const anchorReadmeLine = params.anchorIncluded
+    ? `anchor.json
+Included in this package. This is anchor-ready or publication material depending on the configured anchoring mode.`
+    : `anchor.json
+Not included in this package. Public anchoring status: ${
+        otsStatus || "NOT_RECORDED"
+      }.`;
 
   return `PROOVRA Evidence Verification Package
 
@@ -559,6 +664,9 @@ Signing Key Version: ${
       : "Not included"
   }
 Evidence Structure: ${multipart ? "Multipart evidence package" : "Single evidence item"}
+
+Verification Profile: FORENSIC_INTEGRITY
+Verification Status Note: Integrity materials may be present even when the record still requires legal or reviewer assessment.
 
 FILES INCLUDED
 
@@ -579,8 +687,7 @@ Canonical fingerprint used to generate the signature.
 signature.txt
 Ed25519 signature of the fingerprint hash material.
 
-timestamp.tsr
-Included when RFC3161 timestamping was successfully obtained. Not all records contain this file.
+${timestampReadmeLine}
 
 public-key.pem
 Public key used to verify the signature.
@@ -588,8 +695,7 @@ Public key used to verify the signature.
 custody.json
 Chain of custody events recorded by the system.
 
-anchor.json
-Anchor-ready integrity payload that binds the fingerprint hash to the latest hashed custody event, when available.
+${anchorReadmeLine}
 
 package-manifest.json
 Package metadata describing the verification bundle.
@@ -599,6 +705,9 @@ High-level package integrity profile.
 
 original-linkage.json
 Links the included file(s), storage preservation details, and report artifact back to the preserved original record.
+
+duplicate-digests.json
+Lists any packaged evidence files that share the same SHA-256 digest. Duplicate digests do not automatically indicate tampering, but they should be reviewed when evaluating multipart evidence.
 
 forensic-custody.json
 Integrity-relevant system lifecycle events separated from later reviewer access activity.
@@ -622,6 +731,14 @@ reports/
 ${params.hasReportArtifact ? "Includes the generated PROOVRA verification report bundled with this package." : "No embedded report artifact was attached."}
 
 CUSTODY CHAIN INTERPRETATION
+
+VERIFICATION STATUS INTERPRETATION
+
+FORENSIC_INTEGRITY means the package contains technical integrity materials such as hashes, signatures, custody records, and available timestamp or anchoring materials.
+
+The evidence verification status describes whether the record is ready for reliance or still requires review.
+
+Technical integrity support does not by itself establish legal admissibility, authorship, factual truth, relevance, or evidentiary weight.
 
 custody.json
 Contains the complete immutable sequence of all recorded system events.
@@ -656,6 +773,8 @@ HOW TO VERIFY
 ${buildAnchorReadmeSection({
   anchorMode: params.anchorMode,
   hasAnchorPayload: params.anchorIncluded,
+  anchorPublished: params.anchorPublished,
+  otsStatus: params.otsStatus,
   anchorProvider: params.anchorProvider,
   anchorPublicBaseUrl: params.anchorPublicBaseUrl,
 })}
@@ -857,9 +976,44 @@ function buildVerifyHtml(params: {
   evidenceFiles: VerificationEvidenceFile[];
   anchorIncluded: boolean;
   hasTimestampToken: boolean;
+  timestampStatus?: string | null;
+  otsStatus?: string | null;
   evidenceId?: string;
   reportVersion?: number;
 }): string {
+    const timestampText = (() => {
+    const status = String(params.timestampStatus ?? "").toUpperCase();
+
+    if (params.hasTimestampToken && status !== "FAILED") {
+      return "RFC 3161 trusted timestamp token included.";
+    }
+
+    if (status === "FAILED") {
+      return "RFC 3161 timestamping failed or was unavailable. No timestamp.tsr file is attached.";
+    }
+
+    return "No RFC 3161 timestamp token is attached.";
+  })();
+
+  const anchoringText = (() => {
+    const status = String(params.otsStatus ?? "").toUpperCase();
+
+    if (status === "ANCHORED") {
+      return "Public anchoring is confirmed.";
+    }
+
+    if (status === "PENDING") {
+      return "Public anchoring is pending confirmation.";
+    }
+
+    if (status === "FAILED") {
+      return "Public anchoring failed or could not be completed.";
+    }
+
+    return params.anchorIncluded
+      ? "Anchor material is included for review."
+      : "No anchor material is attached.";
+  })();
   const multipart = params.evidenceFiles.length > 1;
   const verificationUrl = params.evidenceId
     ? `https://app.proovra.com/verify/${params.evidenceId}`
@@ -921,8 +1075,8 @@ a{color:#0b2e27;font-weight:700}
     <ul>
       <li>Structure: ${multipart ? "Multipart evidence package" : "Single evidence item"}</li>
       <li>Evidence file count: ${params.evidenceFiles.length}</li>
-      <li>Timestamp token: ${params.hasTimestampToken ? "Included" : "Not included"}</li>
-      <li>Anchor payload: ${params.anchorIncluded ? "Included" : "Not included"}</li>
+<li>Timestamp: ${timestampText}</li>
+<li>Anchoring: ${anchoringText}</li>
     </ul>
   </div>
 
@@ -950,8 +1104,21 @@ a{color:#0b2e27;font-weight:700}
     </ol>
   </div>
 
+    <div class="card">
+    <h2>4. Timestamping and Anchoring Interpretation</h2>
+    <p>
+      RFC 3161 timestamping and public anchoring are independent integrity-support layers.
+      A missing or failed RFC 3161 timestamp does not invalidate recorded hashes, digital signatures,
+      custody-chain continuity, or confirmed anchoring material.
+    </p>
+    <p>
+      If public anchoring is pending, reviewers should treat the anchoring layer as not yet fully confirmed
+      until the verification page or package materials show completion.
+    </p>
+  </div>
+
   <div class="card">
-    <h2>4. Custody Explanation</h2>
+    <h2>5. Custody Explanation</h2>
     <p>
       <code>custody.json</code> contains the complete system event chain.
       <code>forensic-custody.json</code> contains a filtered subset used for forensic review.
@@ -964,7 +1131,7 @@ a{color:#0b2e27;font-weight:700}
   </div>
 
   <div class="notice">
-    <h2>5. Legal Boundary</h2>
+    <h2>6. Legal Boundary</h2>
     <p>
       This package supports technical verification of recorded integrity, preservation state,
       signatures, hashes, custody continuity, and available timestamp or anchoring materials.
@@ -1155,19 +1322,20 @@ export async function createVerificationPackage(data: {
       });
     }
 
-    const packageManifest = buildPackageManifest({
-      evidenceId: data.evidenceId,
-      reportVersion: data.reportVersion,
-      signingKeyId: data.signingKeyId,
-      signingKeyVersion: data.signingKeyVersion,
-      evidenceFiles: evidenceFilesWithFinalName,
-      anchorIncluded,
-      anchorMode,
-      anchorProvider: data.anchorProvider,
-      anchorPublicBaseUrl: data.anchorPublicBaseUrl,
-      hasTimestampToken,
-      hasActualCertifications: certificationSummary.hasActualCertifications,
-    });
+const packageManifest = buildPackageManifest({
+  evidenceId: data.evidenceId,
+  reportVersion: data.reportVersion,
+  signingKeyId: data.signingKeyId,
+  signingKeyVersion: data.signingKeyVersion,
+  evidenceFiles: evidenceFilesWithFinalName,
+  anchorIncluded,
+  anchorMode,
+  anchorProvider: data.anchorProvider,
+  anchorPublicBaseUrl: data.anchorPublicBaseUrl,
+  anchor: data.anchor ?? null,
+  hasTimestampToken,
+  hasActualCertifications: certificationSummary.hasActualCertifications,
+});
 
     archive.append(JSON.stringify(packageManifest, null, 2), {
       name: "package-manifest.json",
@@ -1195,6 +1363,13 @@ export async function createVerificationPackage(data: {
         name: "original-linkage.json",
       }
     );
+
+    archive.append(
+  JSON.stringify(buildDuplicateDigests(evidenceFilesWithFinalName), null, 2),
+  {
+    name: "duplicate-digests.json",
+  }
+);
 
     archive.append(
       JSON.stringify(
@@ -1230,18 +1405,28 @@ export async function createVerificationPackage(data: {
     );
 
     archive.append(
-      buildReadme({
-        evidenceFiles,
-        anchorMode,
-        anchorIncluded,
-        anchorProvider: data.anchorProvider,
-        anchorPublicBaseUrl: data.anchorPublicBaseUrl,
-        evidenceId: data.evidenceId,
-        reportVersion: data.reportVersion,
-        signingKeyId: data.signingKeyId,
-        signingKeyVersion: data.signingKeyVersion,
-        hasReportArtifact: Boolean(data.reportPdf),
-      }),
+buildReadme({
+  evidenceFiles,
+  anchorMode,
+  anchorIncluded,
+  anchorPublished: Boolean(
+    data.anchor?.published ||
+      data.anchor?.receiptId ||
+      data.anchor?.transactionId ||
+      data.anchor?.publicUrl ||
+      data.anchor?.anchoredAtUtc
+  ),
+  anchorProvider: data.anchorProvider,
+  anchorPublicBaseUrl: data.anchorPublicBaseUrl,
+  evidenceId: data.evidenceId,
+  reportVersion: data.reportVersion,
+  signingKeyId: data.signingKeyId,
+  signingKeyVersion: data.signingKeyVersion,
+  hasReportArtifact: Boolean(data.reportPdf),
+  hasTimestampToken,
+  timestampStatus: metadata.tsaStatus ?? null,
+  otsStatus: metadata.otsStatus ?? null,
+}),
       {
         name: "README.txt",
       }
@@ -1301,10 +1486,12 @@ export async function createVerificationPackage(data: {
         evidenceFiles,
         anchorIncluded,
         hasTimestampToken,
+        timestampStatus: metadata.tsaStatus ?? null,
+        otsStatus: metadata.otsStatus ?? null,
         evidenceId: data.evidenceId,
         reportVersion: data.reportVersion,
       }),
-      {
+            {
         name: "verify.html",
       }
     );
