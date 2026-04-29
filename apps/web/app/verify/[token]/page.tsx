@@ -3604,34 +3604,6 @@ setPreviewPolicy(content.previewPolicy);
     [storageProtection]
   );
 
-  const otsPresentation = useMemo(
-    () =>
-      buildOtsPresentation({
-        status: otsStatus,
-        hash: otsHash,
-        calendar: otsCalendar,
-        bitcoinTxid: otsBitcoinTxid,
-        anchoredAtUtc: otsAnchoredAtUtc,
-        upgradedAtUtc: otsUpgradedAtUtc,
-        failureReason: otsFailureReason,
-        proofBase64: otsProofBase64,
-        proofPresent: otsProofPresent,
-        hashMatchesFingerprintHash: otsHashMatches,
-      }),
-    [
-      otsStatus,
-      otsHash,
-      otsCalendar,
-      otsBitcoinTxid,
-      otsAnchoredAtUtc,
-      otsUpgradedAtUtc,
-      otsFailureReason,
-      otsProofBase64,
-      otsProofPresent,
-      otsHashMatches,
-    ]
-  );
-
   const otsFailureDisplayMessage = useMemo(
     () => normalizeOtsFailureMessage(otsFailureReason),
     [otsFailureReason]
