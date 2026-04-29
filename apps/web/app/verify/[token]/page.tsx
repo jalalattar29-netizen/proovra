@@ -420,11 +420,6 @@ function formatDateTime(value?: string | null): string {
   return d.toLocaleString();
 }
 
-function shortText(value: string, head = 14, tail = 10): string {
-  if (value.length <= head + tail + 3) return value;
-  return `${value.slice(0, head)}…${value.slice(-tail)}`;
-}
-
 function normalizeEventLabel(value?: string | null): string {
   if (!value) return "Unknown Event";
   return value
