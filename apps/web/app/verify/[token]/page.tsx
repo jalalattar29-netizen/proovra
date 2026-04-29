@@ -3025,9 +3025,7 @@ export default function VerifyPage() {
     useState<string | null>(null);
 
   const [otsStatus, setOtsStatus] = useState<string | null>(null);
-  const [setOtsHash] = useState<string | null>(null);
   const [otsCalendar, setOtsCalendar] = useState<string | null>(null);
-  const [setOtsBitcoinTxid] = useState<string | null>(null);
   const [otsAnchoredAtUtc, setOtsAnchoredAtUtc] = useState<string | null>(null);
   const [otsUpgradedAtUtc, setOtsUpgradedAtUtc] = useState<string | null>(null);
   const [otsFailureReason, setOtsFailureReason] = useState<string | null>(null);
