@@ -138,11 +138,12 @@ type VerifyStorageProtection = {
 type VerifyTsa = {
   status?: string | null;
   provider?: string | null;
+  tokenBase64?: string | null;
+messageImprint?: string | null;
   url?: string | null;
   serialNumber?: string | null;
   genTimeUtc?: string | null;
   hashAlgorithm?: string | null;
-  messageImprint?: string | null;
   failureReason?: string | null;
   digestMatchesFileHash?: boolean | null;
 } | null;
@@ -269,6 +270,8 @@ type VerifyContentExposureDecision = {
 
 type VerifyResponse = {
   evidenceId?: string | null;
+  tsaTokenBase64?: string | null;
+tsaMessageImprint?: string | null;
   id?: string | null;
   title?: string | null;
   status?: string | null;
@@ -715,6 +718,14 @@ function buildTsaDetails(data: VerifyResponse) {
     status: extractTimestampStatus(data),
     provider: firstNonEmpty(tsa?.provider, data.tsaProvider),
     genTimeUtc: firstNonEmpty(tsa?.genTimeUtc, data.tsaGenTimeUtc),
+    tokenBase64: firstNonEmpty(
+  (tsa as VerifyTsa & { tokenBase64?: string | null })?.tokenBase64,
+  data.tsaTokenBase64
+),
+messageImprint: firstNonEmpty(
+  tsa?.messageImprint,
+  data.tsaMessageImprint
+),
     url: firstNonEmpty(tsa?.url, data.tsaUrl),
     serialNumber: firstNonEmpty(tsa?.serialNumber, data.tsaSerialNumber),
     hashAlgorithm: firstNonEmpty(tsa?.hashAlgorithm, data.tsaHashAlgorithm),
@@ -903,35 +914,40 @@ style={{
 function Badge({
   label,
   tone = "neutral",
+  muted = false,
 }: {
   label: string;
   tone?: "success" | "neutral" | "info" | "warning";
+  muted?: boolean;
 }) {
-const palette =
-  tone === "success"
-    ? {
-        bg: VERIFY_BRAND.successSoft,
-        color: VERIFY_BRAND.success,
-        border: "rgba(33,117,93,0.25)",
-      }
-    : tone === "info"
+  const effectiveTone = muted && tone === "success" ? "info" : tone;
+
+  const palette =
+    effectiveTone === "success"
       ? {
-          bg: "rgba(11,46,39,0.08)",
-          color: VERIFY_BRAND.accent,
-          border: "rgba(11,46,39,0.22)",
+          bg: VERIFY_BRAND.successSoft,
+          color: VERIFY_BRAND.success,
+          border: "rgba(33,117,93,0.25)",
         }
-      : tone === "warning"
+      : effectiveTone === "info"
         ? {
-            bg: VERIFY_BRAND.warningSoft,
-            color: VERIFY_BRAND.warning,
-            border: "rgba(138,106,47,0.28)",
+            bg: "rgba(11,46,39,0.07)",
+            color: VERIFY_BRAND.accent,
+            border: "rgba(11,46,39,0.18)",
           }
-        : {
-            bg: "rgba(255,255,255,0.36)",
-            color: VERIFY_BRAND.ink,
-            border: VERIFY_BRAND.softLine,
-          };
-            return (
+        : effectiveTone === "warning"
+          ? {
+              bg: VERIFY_BRAND.warningSoft,
+              color: VERIFY_BRAND.warning,
+              border: "rgba(138,106,47,0.28)",
+            }
+          : {
+              bg: "rgba(255,255,255,0.36)",
+              color: VERIFY_BRAND.ink,
+              border: VERIFY_BRAND.softLine,
+            };
+
+  return (
     <span
       style={{
         display: "inline-flex",
@@ -948,6 +964,7 @@ const palette =
         textTransform: "uppercase",
         lineHeight: 1,
         maxWidth: "100%",
+        opacity: muted && tone === "success" ? 0.78 : 1,
       }}
     >
       {label}
@@ -993,16 +1010,19 @@ function MaterialField({
   addToast,
   copyMessage,
   subtitle,
+  forensicMode = false,
 }: {
   label: string;
   value: string;
   addToast: ToastFn;
   copyMessage: string;
   subtitle?: string;
+  forensicMode?: boolean;
 }) {
-  const [expanded, setExpanded] = useState(false);
-  const long = value.length > 180;
-  const shown = expanded || !long ? value : `${value.slice(0, 180)}...`;
+const [expanded, setExpanded] = useState(false);
+const long = value.length > 180;
+const shouldExpand = forensicMode || expanded;
+const shown = shouldExpand || !long ? value : `${value.slice(0, 180)}...`;
 
   return (
     <div
@@ -1052,8 +1072,8 @@ function MaterialField({
             addToast={addToast}
           />
 
-          {long ? (
-            <button
+{long && !forensicMode ? (
+              <button
               type="button"
               onClick={() => setExpanded((v) => !v)}
               style={{
@@ -1106,25 +1126,26 @@ function TechnicalTabButton({
     <button
       type="button"
       onClick={onClick}
-      style={{
-        padding: "10px 14px",
-        borderRadius: 999,
-        border: active
-          ? `1px solid ${VERIFY_BRAND.accent}`
-          : `1px solid ${VERIFY_BRAND.line}`,
-        background: active
-          ? "rgba(11,46,39,0.10)"
-          : "rgba(255,255,255,0.54)",
-        color: active ? VERIFY_BRAND.accent : VERIFY_BRAND.ink,
-        boxShadow: active ? "inset 0 0 0 1px rgba(11,46,39,0.08)" : "none",
-        fontSize: 11.5,
-        fontWeight: 900,
-        letterSpacing: "0.06em",
-        textTransform: "uppercase",
-        cursor: "pointer",
-        whiteSpace: "nowrap",
-      }}
-    >
+style={{
+  padding: "12px 14px",
+  borderRadius: 16,
+  border: active
+    ? `1px solid ${VERIFY_BRAND.accent}`
+    : `1px solid ${VERIFY_BRAND.line}`,
+  background: active
+    ? "rgba(11,46,39,0.10)"
+    : "rgba(255,255,255,0.54)",
+  color: VERIFY_BRAND.ink,
+  fontSize: 13,
+  fontWeight: 800,
+  cursor: "pointer",
+  textAlign: "left",
+  minWidth: 220,
+  height: 72,
+  display: "flex",
+  flexDirection: "column",
+  justifyContent: "space-between",
+}}    >
       {label}
     </button>
   );
@@ -1203,13 +1224,15 @@ function TimelinePanel({
   emptyTitle,
   emptyBody,
   accent,
+  forensicMode = false,
 }: {
-  title: string;
+    title: string;
   subtitle: string;
   countTone: "info" | "neutral";
   events: TimelineItem[];
   emptyTitle: string;
   emptyBody: string;
+  forensicMode?: boolean;
   accent: {
     dot: string;
     dotBorder: string;
@@ -1375,8 +1398,8 @@ background:
                     {cleanSummary ?? "No additional event summary provided."}
                   </div>
 
-                  {(event.prevEventHash || event.eventHash) ? (
-                    <div
+{forensicMode && (event.prevEventHash || event.eventHash) ? (
+                      <div
                       style={{
                         marginTop: 4,
                         padding: 12,
@@ -2546,6 +2569,8 @@ export default function VerifyPage() {
 const [activeTechnicalTab, setActiveTechnicalTab] =
   useState<TechnicalTabId>("record");
 
+const [forensicMode, setForensicMode] = useState(false);
+
   const pollingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const hasShownAnchoredToastRef = useRef(false);
   const isMountedRef = useRef(true);
@@ -3408,6 +3433,8 @@ setPreviewPolicy(content.previewPolicy);
     ]
   );
 
+const verdictRequiresReview = overallIntegrity === false;
+
   const executiveBadges = useMemo(
     () =>
       verificationBadges
@@ -3686,15 +3713,17 @@ setPreviewPolicy(content.previewPolicy);
                       ? "Present"
                       : "Unavailable"
               }
-              tone={
-                signatureValid === true
-                  ? "success"
-                  : signatureValid === false
-                    ? "warning"
-                    : signature
-                      ? "info"
-                      : "neutral"
-              }
+tone={
+  signatureValid === true
+    ? verdictRequiresReview
+      ? "info"
+      : "success"
+    : signatureValid === false
+      ? "warning"
+      : signature
+        ? "info"
+        : "neutral"
+}
             />
           ),
           show: true,
@@ -3712,7 +3741,9 @@ setPreviewPolicy(content.previewPolicy);
               }
               tone={
                 canonicalHashMatches === true
-                  ? "success"
+                  ? verdictRequiresReview
+                    ? "info"
+                    : "success"
                   : canonicalHashMatches === false
                     ? "warning"
                     : "neutral"
@@ -3898,6 +3929,7 @@ setPreviewPolicy(content.previewPolicy);
       otsUpgradedAtUtc,
       otsHashMatches,
       storagePresentation,
+      verdictRequiresReview,
       tsaStatus,
       tsaProvider,
       tsaGenTimeUtc,
@@ -4301,15 +4333,15 @@ with this evidence record.
                       </div>
 
                       <div style={{ minWidth: 0 }}>
-                        <div
-                          style={{
-                            ...VERIFY_TYPO.kicker,
-                            fontSize: 11,
-                            marginBottom: 7,
-                          }}
-                        >
-                          Integrity Status
-                        </div>
+<div
+  style={{
+    ...VERIFY_TYPO.kicker,
+    fontSize: 11,
+    marginBottom: 7,
+  }}
+>
+  Verification Signal Summary
+</div>
                         <div
                           style={{
                             fontSize: cardTitleSize,
@@ -4321,7 +4353,7 @@ with this evidence record.
                             wordBreak: "break-word",
                           }}
                         >
-                          {heroIntegrityHeadline}
+Supporting Verification Signals
                         </div>
                         <div
                           style={{
@@ -4330,7 +4362,7 @@ with this evidence record.
                             maxWidth: 820,
                           }}
                         >
-                          {heroSummaryText}
+The signals below support the final verification decision shown above. They are not a separate verdict and must be interpreted through the final verification decision, legal boundary, and reviewer guidance.
                         </div>
                       </div>
                     </div>
@@ -4355,9 +4387,14 @@ with this evidence record.
                   </div>
 
                   <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
-                    {executiveBadges.map((item) => (
-                      <Badge key={item.label} label={item.label} tone={item.tone} />
-                    ))}
+{executiveBadges.map((item) => (
+  <Badge
+    key={item.label}
+    label={item.label}
+    tone={item.tone}
+    muted={verdictRequiresReview}
+  />
+))}
                   </div>
                   <div
   style={{
@@ -4883,15 +4920,15 @@ with this evidence record.
                       </div>
                     </div>
 
-                    {evidenceItems.length > 1 ? (
-                      <div
-                        style={{
-                          display: "flex",
-                          flexWrap: "wrap",
-                          gap: 10,
-                        }}
-                      >
-                        {evidenceItems.map((item) => {
+{evidenceItems.length > 1 ? (
+  <div
+    style={{
+      display: "grid",
+      gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))",
+      gap: 10,
+    }}
+  >
+                            {evidenceItems.map((item) => {
                           const active = selectedEvidenceItem?.id === item.id;
 
                           return (
@@ -4916,19 +4953,34 @@ with this evidence record.
                                 minWidth: 220,
                               }}
                             >
-                              <div style={{ marginBottom: 4 }}>{item.label}</div>
-                              <div
-                                style={{
-                                  ...VERIFY_TYPO.small,
-                                  fontSize: 12,
-                                  color: active
-                                    ? VERIFY_BRAND.accent
-                                    : VERIFY_BRAND.muted,
-                                }}
-                              >
-                                {evidenceKindLabel(item.kind)}
-                                {item.isPrimary ? " • Primary item" : ""}
-                              </div>
+<div
+  style={{
+    marginBottom: 4,
+
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap",
+  }}
+>
+  {item.label}
+</div>
+<div
+  style={{
+    ...VERIFY_TYPO.small,
+    fontSize: 12,
+    color: active
+      ? VERIFY_BRAND.accent
+      : VERIFY_BRAND.muted,
+
+    // 👇 يمنع التمدد
+    whiteSpace: "nowrap",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+  }}
+>
+  {evidenceKindLabel(item.kind)}
+  {item.isPrimary ? " • Primary item" : ""}
+</div>
                             </button>
                           );
                         })}
@@ -5262,14 +5314,75 @@ with this evidence record.
                           maxWidth: 820,
                         }}
                       >
-This technical layer separates record identity, cryptographic materials,
-custody-chain continuity, and access activity. It supports forensic and
-legal review, but the final reliance decision should be based on the
-verification verdict and reviewer guidance above.
+These materials support the final verification decision shown above. Raw hashes, signatures, custody-chain hashes, timestamp materials, and access activity must be interpreted through the verdict, legal boundary, and recommended reviewer actions.
                       </div>
                     </div>
                   </div>
+<div
+  style={{
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    gap: 12,
+    flexWrap: "wrap",
+    padding: 14,
+    borderRadius: 18,
+    border: `1px solid ${forensicMode ? VERIFY_BRAND.accent : VERIFY_BRAND.line}`,
+    background: forensicMode
+      ? "rgba(11,46,39,0.08)"
+      : "rgba(255,255,255,0.38)",
+  }}
+>
+  <div>
+    <div
+      style={{
+        ...VERIFY_TYPO.kicker,
+        fontSize: 10.5,
+        marginBottom: 4,
+      }}
+    >
+      Forensic Review Mode
+    </div>
+    <div
+      style={{
+        ...VERIFY_TYPO.small,
+        fontSize: 13,
+        color: VERIFY_BRAND.ink,
+      }}
+    >
+      {forensicMode
+        ? "Raw technical materials are expanded for forensic review."
+        : "Enable to expand raw hashes, signatures, public key material, custody hashes, and timestamp proof fields."}
+    </div>
+  </div>
 
+  <button
+    type="button"
+    onClick={() => setForensicMode((value) => !value)}
+    style={{
+      minHeight: 42,
+      padding: "10px 16px",
+      borderRadius: 999,
+      border: forensicMode
+        ? `1px solid ${VERIFY_BRAND.accent}`
+        : `1px solid ${VERIFY_BRAND.line}`,
+      background: forensicMode
+        ? VERIFY_BRAND.accent
+        : "rgba(255,255,255,0.62)",
+      color: forensicMode ? "#ffffff" : VERIFY_BRAND.accent,
+      fontSize: 11,
+      fontWeight: 900,
+      letterSpacing: "0.06em",
+      textTransform: "uppercase",
+      cursor: "pointer",
+      boxShadow: forensicMode
+        ? "0 12px 28px rgba(11,46,39,0.18)"
+        : "0 8px 20px rgba(16,32,29,0.06)",
+    }}
+  >
+    {forensicMode ? "Disable Forensic Mode" : "Enable Forensic Mode"}
+  </button>
+</div>
                   <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
                     <TechnicalTabButton
                       label="Record"
@@ -5374,6 +5487,7 @@ verification verdict and reviewer guidance above.
                               : "SHA-256 digest of the original preserved evidence file."
                           }
                           value={hash}
+                          forensicMode={forensicMode}
                           addToast={addToast}
                           copyMessage={
                             evidenceContentSummary?.structure === "multipart"
@@ -5386,6 +5500,7 @@ verification verdict and reviewer guidance above.
                       {fingerprintHash ? (
                         <MaterialField
                           label="Canonical Fingerprint Hash"
+                          forensicMode={forensicMode}
                           subtitle="Hash derived from the canonical fingerprint record."
                           value={fingerprintHash}
                           addToast={addToast}
@@ -5396,6 +5511,7 @@ verification verdict and reviewer guidance above.
                       {signature ? (
                         <MaterialField
                           label="Digital Signature"
+                          forensicMode={forensicMode}
                           subtitle="Recorded signature material associated with this evidence."
                           value={signature}
                           addToast={addToast}
@@ -5406,6 +5522,7 @@ verification verdict and reviewer guidance above.
                       {publicKeyPem ? (
                         <MaterialField
                           label="Public Key"
+                          forensicMode={forensicMode}
                           subtitle="Public key material available for advanced technical review."
                           value={publicKeyPem}
                           addToast={addToast}
@@ -5416,6 +5533,7 @@ verification verdict and reviewer guidance above.
                       {otsProofBase64 ? (
                         <MaterialField
                           label="OpenTimestamps Proof"
+                          forensicMode={forensicMode}
                           subtitle="Recorded OTS proof material for the evidence digest."
                           value={otsProofBase64}
                           addToast={addToast}
@@ -5571,6 +5689,7 @@ verification verdict and reviewer guidance above.
 {activeTechnicalTab === "full-custody" ? (
   <TimelinePanel
     title="Custody Chain"
+    forensicMode={forensicMode}
     subtitle="Complete recorded custody chronology, including integrity-relevant lifecycle events and later access activity when returned by the verification response. Event hashes are shown in full for chain-continuity review."
     countTone="info"
     events={fullCustodyTimeline}
@@ -5584,21 +5703,56 @@ verification verdict and reviewer guidance above.
   />
 ) : null}
 
-                  {activeTechnicalTab === "access" ? (
-                    <TimelinePanel
-                      title="Access Activity"
-subtitle="Access events show later viewing, download, and verification interactions. They are informational activity records, not proof of evidence authenticity, and must not be used alone to infer integrity or legal admissibility."
-                      countTone="neutral"
-                      events={accessTimeline}
-                      emptyTitle="No access activity was returned"
-                      emptyBody="No access-activity entries were included in this response. Their absence does not change the recorded integrity result and should not be read as a forensic custody conclusion."
-                      accent={{
-                        dot: "rgba(11,46,39,0.42)",
-                        dotBorder: "rgba(11,46,39,0.12)",
-                        line: "rgba(11,46,39,0.16)",
-                      }}
-                    />
-                  ) : null}
+{activeTechnicalTab === "access" ? (
+  <div style={{ display: "grid", gap: 14 }}>
+    <div
+      style={{
+        ...bronzeRailStyle,
+        padding: 16,
+        display: "grid",
+        gap: 6,
+      }}
+    >
+      <div
+        style={{
+          ...VERIFY_TYPO.kicker,
+          fontSize: 10.5,
+          color: VERIFY_BRAND.warning,
+        }}
+      >
+        Access Activity Boundary
+      </div>
+
+      <div
+        style={{
+          ...VERIFY_TYPO.small,
+          fontSize: 13,
+          color: VERIFY_BRAND.ink,
+        }}
+      >
+        Access activity is not part of the evidence integrity verdict. It records
+        later interaction with the verification page, files, reports, or packages
+        and must not be treated as proof that the underlying evidence is authentic
+        or admissible.
+      </div>
+    </div>
+
+    <TimelinePanel
+      title="Access Activity"
+      forensicMode={forensicMode}
+      subtitle="Access events show later viewing, download, and verification interactions. They are informational activity records, not proof of evidence authenticity, and must not be used alone to infer integrity or legal admissibility."
+      countTone="neutral"
+      events={accessTimeline}
+      emptyTitle="No access activity was returned"
+      emptyBody="No access-activity entries were included in this response. Their absence does not change the recorded integrity result and should not be read as a forensic custody conclusion."
+      accent={{
+        dot: "rgba(11,46,39,0.42)",
+        dotBorder: "rgba(11,46,39,0.12)",
+        line: "rgba(11,46,39,0.16)",
+      }}
+    />
+  </div>
+) : null}
                 </div>
               </Card>
 
