@@ -413,11 +413,132 @@ type TechnicalTabId =
   | "full-custody"
   | "access";
 
+const VERIFY_BRAND = {
+  ink: "#10201d",
+  accent: "#0b2e27",
+  accent2: "#12315A",
+  muted: "rgba(16, 32, 29, 0.68)",
+  subtle: "rgba(11, 46, 39, 0.72)",
+  line: "rgba(12, 28, 25, 0.18)",
+  softLine: "rgba(12, 28, 25, 0.12)",
+  glass: "rgba(255, 255, 255, 0.58)",
+  glassStrong: "rgba(255, 255, 255, 0.74)",
+  silver: "#eef1ef",
+  bronze: "rgba(96, 66, 24, 0.95)",
+  bronzeSoft: "rgba(96, 66, 24, 0.10)",
+  success: "#21755d",
+  successSoft: "rgba(33, 117, 93, 0.12)",
+  warning: "#8a6a2f",
+  warningSoft: "rgba(138, 106, 47, 0.13)",
+  danger: "#b54738",
+  dangerSoft: "rgba(181, 71, 56, 0.12)",
+};
+
+const VERIFY_FONT =
+  `"Helvetica Neue", Arial, Helvetica, sans-serif`;
+
+const VERIFY_TYPO = {
+  page: {
+    fontFamily: VERIFY_FONT,
+    letterSpacing: "-0.005em",
+    WebkitFontSmoothing: "antialiased" as const,
+    MozOsxFontSmoothing: "grayscale" as const,
+  },
+  kicker: {
+    fontSize: 12,
+    fontWeight: 900,
+    letterSpacing: "0.105em",
+    textTransform: "uppercase" as const,
+    color: VERIFY_BRAND.subtle,
+  },
+  h1: {
+    fontSize: "clamp(2rem, 3.2vw, 3.1rem)",
+    lineHeight: 1.05,
+    fontWeight: 900,
+    letterSpacing: "-0.04em",
+    color: VERIFY_BRAND.ink,
+  },
+  h2: {
+    fontSize: "clamp(1.45rem, 2vw, 2rem)",
+    lineHeight: 1.12,
+    fontWeight: 900,
+    letterSpacing: "-0.028em",
+    color: VERIFY_BRAND.ink,
+  },
+  h3: {
+    fontSize: 18,
+    lineHeight: 1.25,
+    fontWeight: 900,
+    letterSpacing: "-0.018em",
+    color: VERIFY_BRAND.ink,
+  },
+  body: {
+    fontSize: 14,
+    lineHeight: 1.7,
+    fontWeight: 500,
+    color: VERIFY_BRAND.muted,
+  },
+  small: {
+    fontSize: 12,
+    lineHeight: 1.55,
+    fontWeight: 650,
+    color: VERIFY_BRAND.muted,
+  },
+  value: {
+    fontSize: 14,
+    lineHeight: 1.45,
+    fontWeight: 800,
+    color: VERIFY_BRAND.ink,
+  },
+  hash: {
+    fontFamily: VERIFY_FONT,
+    fontSize: 12.5,
+    lineHeight: 1.55,
+    fontWeight: 750,
+    letterSpacing: "-0.012em",
+    color: VERIFY_BRAND.ink,
+    wordBreak: "break-all" as const,
+    overflowWrap: "anywhere" as const,
+    whiteSpace: "normal" as const,
+  },
+};
+
+const VERIFY_SURFACE = {
+  page: {
+    background:
+      "radial-gradient(circle at 12% 6%, rgba(11,46,39,0.08), transparent 30%), radial-gradient(circle at 92% 12%, rgba(96,66,24,0.08), transparent 28%), linear-gradient(180deg, #eef1ef 0%, #f8f8f5 46%, #edf1ef 100%)",
+  },
+  card: {
+    background: "rgba(255,255,255,0.48)",
+    border: `1px solid ${VERIFY_BRAND.line}`,
+    borderRadius: 22,
+    boxShadow: "0 18px 55px rgba(16,32,29,0.08)",
+    backdropFilter: "blur(14px)",
+  },
+  cardStrong: {
+    background: "rgba(255,255,255,0.66)",
+    border: `1px solid ${VERIFY_BRAND.line}`,
+    borderRadius: 22,
+    boxShadow: "0 18px 55px rgba(16,32,29,0.10)",
+    backdropFilter: "blur(16px)",
+  },
+  inset: {
+    background: "rgba(255,255,255,0.26)",
+    border: `1px solid ${VERIFY_BRAND.softLine}`,
+    borderRadius: 16,
+  },
+};
+
 function formatDateTime(value?: string | null): string {
   if (!value) return "N/A";
   const d = new Date(value);
   if (Number.isNaN(d.getTime())) return value;
   return d.toLocaleString();
+}
+
+function shortText(value: string, head = 14, tail = 10): string {
+  if (value.length <= head + tail + 3) return value;
+  return `${value.slice(0, head)}…${value.slice(-tail)}`;
 }
 
 function normalizeEventLabel(value?: string | null): string {
@@ -762,17 +883,20 @@ function CopyMiniButton({
         navigator.clipboard.writeText(value);
         addToast(successMessage, "success");
       }}
-      style={{
-        border: "1px solid #D0D5DD",
-        background: "#FFFFFF",
-        color: "#344054",
-        borderRadius: 10,
-        padding: "6px 10px",
-        fontSize: 12,
-        fontWeight: 600,
-        cursor: "pointer",
-        whiteSpace: "nowrap",
-      }}
+style={{
+  border: `1px solid ${VERIFY_BRAND.line}`,
+  background: "rgba(255,255,255,0.62)",
+  color: VERIFY_BRAND.accent,
+  borderRadius: 999,
+  padding: "7px 12px",
+  fontSize: 11,
+  fontWeight: 900,
+  letterSpacing: "0.055em",
+  textTransform: "uppercase",
+  cursor: "pointer",
+  whiteSpace: "nowrap",
+  boxShadow: "0 6px 16px rgba(16,32,29,0.06)",
+}}
     >
       Copy
     </button>
@@ -786,16 +910,31 @@ function Badge({
   label: string;
   tone?: "success" | "neutral" | "info" | "warning";
 }) {
-  const palette =
-    tone === "success"
-      ? { bg: "#ECFDF3", color: "#067647", border: "#ABEFC6" }
-      : tone === "info"
-        ? { bg: "#EFF8FF", color: "#175CD3", border: "#B2DDFF" }
-        : tone === "warning"
-          ? { bg: "#FFFAEB", color: "#B54708", border: "#FAD7A0" }
-          : { bg: "#F2F4F7", color: "#344054", border: "#D0D5DD" };
-
-  return (
+const palette =
+  tone === "success"
+    ? {
+        bg: VERIFY_BRAND.successSoft,
+        color: VERIFY_BRAND.success,
+        border: "rgba(33,117,93,0.25)",
+      }
+    : tone === "info"
+      ? {
+          bg: "rgba(11,46,39,0.08)",
+          color: VERIFY_BRAND.accent,
+          border: "rgba(11,46,39,0.22)",
+        }
+      : tone === "warning"
+        ? {
+            bg: VERIFY_BRAND.warningSoft,
+            color: VERIFY_BRAND.warning,
+            border: "rgba(138,106,47,0.28)",
+          }
+        : {
+            bg: "rgba(255,255,255,0.36)",
+            color: VERIFY_BRAND.ink,
+            border: VERIFY_BRAND.softLine,
+          };
+            return (
     <span
       style={{
         display: "inline-flex",
@@ -806,8 +945,10 @@ function Badge({
         border: `1px solid ${palette.border}`,
         background: palette.bg,
         color: palette.color,
-        fontSize: 12,
-        fontWeight: 700,
+        fontSize: 11,
+        fontWeight: 900,
+        letterSpacing: "0.045em",
+        textTransform: "uppercase",
         lineHeight: 1,
         maxWidth: "100%",
       }}
@@ -827,33 +968,22 @@ function SummaryField({
   return (
     <div
       style={{
+        ...VERIFY_SURFACE.inset,
         padding: 14,
-        borderRadius: 14,
-        border: "1px solid #EAECF0",
-        background: "#FFFFFF",
         minHeight: 74,
       }}
     >
       <div
         style={{
-          fontSize: 12,
-          color: "#667085",
-          fontWeight: 600,
+          ...VERIFY_TYPO.kicker,
+          fontSize: 10.5,
           marginBottom: 8,
         }}
       >
         {label}
       </div>
-      <div
-        style={{
-          fontSize: 14,
-          color: "#101828",
-          fontWeight: 700,
-          lineHeight: 1.45,
-          wordBreak: "break-word",
-          overflowWrap: "anywhere",
-        }}
-      >
+
+      <div style={VERIFY_TYPO.value}>
         {value}
       </div>
     </div>
@@ -880,10 +1010,8 @@ function MaterialField({
   return (
     <div
       style={{
-        border: "1px solid #E4E7EC",
-        background: "#FCFCFD",
-        borderRadius: 16,
-        padding: 16,
+        ...VERIFY_SURFACE.card,
+        padding: 18,
         display: "grid",
         gap: 10,
       }}
@@ -900,20 +1028,19 @@ function MaterialField({
         <div style={{ minWidth: 0 }}>
           <div
             style={{
-              fontSize: 12,
-              color: "#667085",
-              fontWeight: 700,
-              marginBottom: subtitle ? 4 : 0,
+              ...VERIFY_TYPO.kicker,
+              fontSize: 11,
+              marginBottom: subtitle ? 5 : 0,
             }}
           >
             {label}
           </div>
+
           {subtitle ? (
             <div
               style={{
-                fontSize: 12,
-                color: "#98A2B3",
-                lineHeight: 1.45,
+                ...VERIFY_TYPO.small,
+                maxWidth: 760,
               }}
             >
               {subtitle}
@@ -927,20 +1054,24 @@ function MaterialField({
             successMessage={copyMessage}
             addToast={addToast}
           />
+
           {long ? (
             <button
               type="button"
               onClick={() => setExpanded((v) => !v)}
               style={{
-                border: "1px solid #D0D5DD",
-                background: "#FFFFFF",
-                color: "#344054",
-                borderRadius: 10,
-                padding: "6px 10px",
-                fontSize: 12,
-                fontWeight: 600,
+                border: `1px solid ${VERIFY_BRAND.line}`,
+                background: "rgba(255,255,255,0.62)",
+                color: VERIFY_BRAND.accent,
+                borderRadius: 999,
+                padding: "7px 12px",
+                fontSize: 11,
+                fontWeight: 900,
+                letterSpacing: "0.055em",
+                textTransform: "uppercase",
                 cursor: "pointer",
                 whiteSpace: "nowrap",
+                boxShadow: "0 6px 16px rgba(16,32,29,0.06)",
               }}
             >
               {expanded ? "Collapse" : "Expand"}
@@ -952,15 +1083,11 @@ function MaterialField({
       <div
         style={{
           padding: 14,
-          borderRadius: 12,
-          border: "1px solid #EAECF0",
-          background: "#F8FAFC",
-          fontSize: 12,
-          color: "#344054",
-          fontFamily:
-            'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
-          lineHeight: 1.65,
-          wordBreak: "break-all",
+          borderRadius: 14,
+          border: `1px solid ${VERIFY_BRAND.softLine}`,
+          background:
+            "linear-gradient(180deg, rgba(255,255,255,0.34) 0%, rgba(255,255,255,0.18) 100%)",
+          ...VERIFY_TYPO.hash,
         }}
       >
         {shown}
@@ -985,11 +1112,18 @@ function TechnicalTabButton({
       style={{
         padding: "10px 14px",
         borderRadius: 999,
-        border: active ? "1px solid #175CD3" : "1px solid #D0D5DD",
-        background: active ? "#EFF8FF" : "#FFFFFF",
-        color: active ? "#175CD3" : "#344054",
-        fontSize: 13,
-        fontWeight: 700,
+        border: active
+          ? `1px solid ${VERIFY_BRAND.accent}`
+          : `1px solid ${VERIFY_BRAND.line}`,
+        background: active
+          ? "rgba(11,46,39,0.10)"
+          : "rgba(255,255,255,0.54)",
+        color: active ? VERIFY_BRAND.accent : VERIFY_BRAND.ink,
+        boxShadow: active ? "inset 0 0 0 1px rgba(11,46,39,0.08)" : "none",
+        fontSize: 11.5,
+        fontWeight: 900,
+        letterSpacing: "0.06em",
+        textTransform: "uppercase",
         cursor: "pointer",
         whiteSpace: "nowrap",
       }}
@@ -1064,8 +1198,8 @@ function TimelinePanel({
       {events.length === 0 ? (
         <div
           style={{
-            border: "1px solid #E4E7EC",
-            background: "#FCFCFD",
+background: "rgba(255,255,255,0.36)",
+border: "1px solid rgba(12,28,25,0.16)",
             borderRadius: 16,
             padding: 18,
             display: "grid",
@@ -1789,9 +1923,6 @@ function isAccessEventType(eventType?: string | null): boolean {
       category: ev.category ?? null,
     }));
 
-    setFullCustodyTimeline(rawTimeline);
-
-
     const forensicOnly: TimelineItem[] =
       reviewTrailForensic && reviewTrailForensic.length > 0
         ? reviewTrailForensic.map((ev) => ({
@@ -1841,6 +1972,26 @@ function isAccessEventType(eventType?: string | null): boolean {
 : rawTimeline.filter(
     (item) => item.category === "access" || isAccessEventType(item.eventType)
   );
+
+const sortTimeline = (items: TimelineItem[]) =>
+  [...items].sort((a, b) => {
+    const sa = a.sequence ?? Number.MAX_SAFE_INTEGER;
+    const sb = b.sequence ?? Number.MAX_SAFE_INTEGER;
+
+    if (sa !== sb) return sa - sb;
+
+    const ta = a.atUtc ? new Date(a.atUtc).getTime() : 0;
+    const tb = b.atUtc ? new Date(b.atUtc).getTime() : 0;
+
+    return ta - tb;
+  });
+
+const fullTimeline =
+  rawTimeline.length > 0
+    ? sortTimeline(rawTimeline)
+    : sortTimeline([...forensicOnly, ...accessOnly]);
+
+setFullCustodyTimeline(fullTimeline);
 
     const effectiveOverview = data.overview ?? null;
     const effectiveHumanSummary = data.humanSummary ?? null;
@@ -2095,11 +2246,12 @@ setEvidenceContentSummary(content.summary);
 setEvidenceItems(content.items);
 setPrimaryContentItem(content.primaryItem);
 setDefaultPreviewItemId(content.defaultPreviewItemId);
-setSelectedEvidenceItemId(
+setSelectedEvidenceItemId((current) =>
+  current ??
   content.defaultPreviewItemId ??
-    content.primaryItem?.id ??
-    content.items[0]?.id ??
-    null
+  content.primaryItem?.id ??
+  content.items[0]?.id ??
+  null
 );
 setPreviewPolicy(content.previewPolicy);
     setContentAccessPolicy(data.contentAccessPolicy ?? null);
@@ -2513,8 +2665,9 @@ const executiveBadges = useMemo(
         "Custody Trail",
         "Timestamp",
         "OTS",
-        "Storage",
-      ].some((keyword) => item.label.includes(keyword))
+        "Immutable Storage",
+        "Storage Protection",
+      ].some((prefix) => item.label.startsWith(prefix))
     ),
   [verificationBadges]
 );
@@ -2591,9 +2744,7 @@ const executiveBadges = useMemo(
         {
           label: "Evidence Type",
           value:
-            humanSummary?.evidenceType ??
-            overview?.evidenceType ??
-            "Evidence",
+            humanSummary?.evidenceType ?? overview?.evidenceType ?? "Evidence",
           show: true,
         },
         {
@@ -2609,9 +2760,7 @@ const executiveBadges = useMemo(
         {
           label: "Capture Method",
           value:
-            humanSummary?.captureMethod ??
-            overview?.captureMethod ??
-            "N/A",
+            humanSummary?.captureMethod ?? overview?.captureMethod ?? "N/A",
           show: Boolean(humanSummary?.captureMethod ?? overview?.captureMethod),
         },
         {
@@ -2670,42 +2819,38 @@ const executiveBadges = useMemo(
         },
         {
           label: "Created At",
-          value:
-            humanSummary?.createdAt
-              ? formatDateTime(humanSummary.createdAt)
-              : overview?.createdAt
-                ? formatDateTime(overview.createdAt)
-                : "N/A",
+          value: humanSummary?.createdAt
+            ? formatDateTime(humanSummary.createdAt)
+            : overview?.createdAt
+              ? formatDateTime(overview.createdAt)
+              : "N/A",
           show: Boolean(humanSummary?.createdAt ?? overview?.createdAt),
         },
         {
           label: "Captured At",
-          value:
-            humanSummary?.capturedAtUtc
-              ? formatDateTime(humanSummary.capturedAtUtc)
-              : overview?.capturedAtUtc
-                ? formatDateTime(overview.capturedAtUtc)
-                : "N/A",
+          value: humanSummary?.capturedAtUtc
+            ? formatDateTime(humanSummary.capturedAtUtc)
+            : overview?.capturedAtUtc
+              ? formatDateTime(overview.capturedAtUtc)
+              : "N/A",
           show: Boolean(humanSummary?.capturedAtUtc ?? overview?.capturedAtUtc),
         },
         {
           label: "Uploaded At",
-          value:
-            humanSummary?.uploadedAtUtc
-              ? formatDateTime(humanSummary.uploadedAtUtc)
-              : overview?.uploadedAtUtc
-                ? formatDateTime(overview.uploadedAtUtc)
-                : "N/A",
+          value: humanSummary?.uploadedAtUtc
+            ? formatDateTime(humanSummary.uploadedAtUtc)
+            : overview?.uploadedAtUtc
+              ? formatDateTime(overview.uploadedAtUtc)
+              : "N/A",
           show: Boolean(humanSummary?.uploadedAtUtc ?? overview?.uploadedAtUtc),
         },
         {
           label: "Signed At",
-          value:
-            humanSummary?.signedAtUtc
-              ? formatDateTime(humanSummary.signedAtUtc)
-              : overview?.signedAtUtc
-                ? formatDateTime(overview.signedAtUtc)
-                : "N/A",
+          value: humanSummary?.signedAtUtc
+            ? formatDateTime(humanSummary.signedAtUtc)
+            : overview?.signedAtUtc
+              ? formatDateTime(overview.signedAtUtc)
+              : "N/A",
           show: Boolean(humanSummary?.signedAtUtc ?? overview?.signedAtUtc),
         },
         {
@@ -2721,10 +2866,7 @@ const executiveBadges = useMemo(
         {
           label: "File Type",
           value:
-            humanSummary?.fileType ??
-            overview?.mimeType ??
-            mimeType ??
-            "N/A",
+            humanSummary?.fileType ?? overview?.mimeType ?? mimeType ?? "N/A",
           show: Boolean(humanSummary?.fileType ?? overview?.mimeType ?? mimeType),
         },
         {
@@ -2741,10 +2883,7 @@ const executiveBadges = useMemo(
         {
           label: "OTS Status",
           value:
-            humanSummary?.otsStatus ??
-            overview?.otsStatus ??
-            otsStatus ??
-            "N/A",
+            humanSummary?.otsStatus ?? overview?.otsStatus ?? otsStatus ?? "N/A",
           show: Boolean(humanSummary?.otsStatus ?? overview?.otsStatus ?? otsStatus),
         },
         {
@@ -2862,7 +3001,12 @@ const executiveBadges = useMemo(
         },
         {
           label: "OpenTimestamps",
-          content: <Badge label={otsTone(otsStatus).label} tone={otsTone(otsStatus).tone} />,
+          content: (
+            <Badge
+              label={otsTone(otsStatus).label}
+              tone={otsTone(otsStatus).tone}
+            />
+          ),
           show: true,
         },
         {
@@ -2912,8 +3056,7 @@ const executiveBadges = useMemo(
         },
         {
           label: "Signing Key Version",
-          content:
-            signingKeyVersion != null ? String(signingKeyVersion) : null,
+          content: signingKeyVersion != null ? String(signingKeyVersion) : null,
           show: signingKeyVersion != null,
         },
         {
@@ -2974,9 +3117,7 @@ const executiveBadges = useMemo(
           content: (
             <Badge
               label={
-                externalPublicationPresent === true
-                  ? "Published"
-                  : "Not Published"
+                externalPublicationPresent === true ? "Published" : "Not Published"
               }
               tone={externalPublicationPresent === true ? "success" : "neutral"}
             />
@@ -3083,78 +3224,90 @@ const executiveBadges = useMemo(
     [technicalCards]
   );
 
-  const heroTitleSize = "clamp(1.65rem, 3vw, 2.6rem)";
-  const heroTextSize = "clamp(0.92rem, 1.15vw, 1rem)";
+  const heroTitleSize = "clamp(2rem, 3.2vw, 3.1rem)";
+  const heroTextSize = "clamp(0.95rem, 1.15vw, 1rem)";
   const cardTitleSize = "clamp(1.45rem, 2.2vw, 1.95rem)";
 
+  const glassCardStyle: CSSProperties = {
+    border: `1px solid ${VERIFY_BRAND.line}`,
+    background: VERIFY_BRAND.glassStrong,
+    backdropFilter: "blur(16px)",
+    boxShadow: "0 18px 50px rgba(16, 32, 29, 0.08)",
+    borderRadius: 22,
+  };
+
+  const glassPanelStyle: CSSProperties = {
+    border: `1px solid ${VERIFY_BRAND.softLine}`,
+    background: VERIFY_BRAND.glass,
+    borderRadius: 18,
+  };
+
+  const bronzeRailStyle: CSSProperties = {
+    border: `1px solid ${VERIFY_BRAND.line}`,
+    borderLeft: `5px solid ${VERIFY_BRAND.bronze}`,
+    background: VERIFY_BRAND.bronzeSoft,
+    borderRadius: 18,
+  };
+
   return (
-    <div className="page">
-<section
-  className="section"
-  style={{
-    position: "relative",
-    overflow: "hidden",
-    paddingTop: 16,
-    paddingBottom: 24,
-    background: "#F8FAFC",
-  }}
->
+    <div className="page" style={VERIFY_TYPO.page}>
+      <section
+        className="section"
+        style={{
+          position: "relative",
+          overflow: "hidden",
+          paddingTop: 24,
+          paddingBottom: 42,
+          minHeight: "100vh",
+          ...VERIFY_SURFACE.page,
+        }}
+      >
         <div className="container" style={{ position: "relative", zIndex: 1 }}>
           <div
             style={{
-              marginBottom: 22,
-              padding: "14px 18px",
-              borderRadius: 18,
-              border: "1px solid rgba(208,213,221,0.85)",
-              background: "rgba(255,255,255,0.78)",
-              backdropFilter: "blur(14px)",
+              ...glassCardStyle,
+              marginBottom: 28,
+              padding: "16px 20px",
               display: "flex",
               alignItems: "center",
               justifyContent: "space-between",
               gap: 16,
               flexWrap: "wrap",
-              boxShadow: "0 8px 30px rgba(16,24,40,0.05)",
             }}
           >
             <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-              <div
+              <img
+src="/brand/icon-192.png"
+                alt="PROOVRA"
                 style={{
-                  width: 42,
-                  height: 42,
-                  borderRadius: 12,
-                  background: "linear-gradient(180deg, #12315A 0%, #1F3A5F 100%)",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  color: "#fff",
-                  fontSize: 16,
-                  fontWeight: 800,
-                  boxShadow: "0 8px 18px rgba(18,49,90,0.18)",
+                  width: 46,
+                  height: 46,
+                  borderRadius: 13,
+                  objectFit: "contain",
+                  boxShadow: "0 12px 28px rgba(11,46,39,0.16)",
                   flexShrink: 0,
                 }}
-                aria-hidden="true"
-              >
-                P
-              </div>
+              />
 
               <div>
                 <div
                   style={{
-                    fontSize: 18,
+                    fontFamily: 'Georgia, "Times New Roman", serif',
+                    fontSize: 20,
                     fontWeight: 900,
-                    color: "#101828",
-                    letterSpacing: "-0.02em",
-                    lineHeight: 1.1,
+                    letterSpacing: "0.075em",
+                    color: VERIFY_BRAND.accent,
+                    lineHeight: 1.05,
                   }}
                 >
                   PROOVRA
                 </div>
                 <div
                   style={{
-                    marginTop: 4,
-                    fontSize: 12,
-                    color: "#667085",
-                    fontWeight: 600,
+                    marginTop: 5,
+                    ...VERIFY_TYPO.kicker,
+                    fontSize: 10,
+                    letterSpacing: "0.13em",
                   }}
                 >
                   Secure Evidence Verification
@@ -3168,15 +3321,19 @@ const executiveBadges = useMemo(
                 display: "inline-flex",
                 alignItems: "center",
                 justifyContent: "center",
-                padding: "10px 14px",
-                borderRadius: 12,
-                border: "1px solid #D0D5DD",
-                background: "#FFFFFF",
-                color: "#344054",
-                fontSize: 13,
-                fontWeight: 700,
+                minHeight: 42,
+                padding: "10px 15px",
+                borderRadius: 999,
+                border: `1px solid ${VERIFY_BRAND.line}`,
+                background: "rgba(255,255,255,0.44)",
+                color: VERIFY_BRAND.ink,
+                fontSize: 11,
+                fontWeight: 900,
+                letterSpacing: "0.06em",
+                textTransform: "uppercase",
                 textDecoration: "none",
                 whiteSpace: "nowrap",
+                boxShadow: "0 8px 22px rgba(16,32,29,0.06)",
               }}
             >
               Back to Home
@@ -3186,23 +3343,24 @@ const executiveBadges = useMemo(
           <div
             className="page-title"
             style={{
-              marginBottom: 20,
+              marginBottom: 24,
               display: "flex",
               alignItems: "flex-end",
               justifyContent: "space-between",
-              gap: 16,
+              gap: 18,
               flexWrap: "wrap",
             }}
           >
-            <div style={{ minWidth: 0, flex: "1 1 620px" }}>
+            <div style={{ minWidth: 0, flex: "1 1 680px" }}>
               <h1
                 style={{
                   margin: 0,
                   fontSize: heroTitleSize,
-                  lineHeight: 1.08,
-                  letterSpacing: "-0.025em",
-                  color: "#101828",
-                  maxWidth: 680,
+                  lineHeight: 1.05,
+                  fontWeight: 900,
+                  letterSpacing: "-0.04em",
+                  color: VERIFY_BRAND.ink,
+                  maxWidth: 820,
                 }}
               >
                 Evidence Integrity Review
@@ -3210,12 +3368,13 @@ const executiveBadges = useMemo(
               <p
                 className="page-subtitle"
                 style={{
-                  marginTop: 10,
+                  marginTop: 12,
                   marginBottom: 0,
                   fontSize: heroTextSize,
-                  color: "#667085",
-                  maxWidth: 620,
-                  lineHeight: 1.55,
+                  color: VERIFY_BRAND.muted,
+                  maxWidth: 780,
+                  lineHeight: 1.65,
+                  fontWeight: 500,
                 }}
               >
                 Review recorded integrity status, cryptographic materials, immutable
@@ -3229,17 +3388,17 @@ const executiveBadges = useMemo(
               style={{
                 padding: "10px 14px",
                 borderRadius: 999,
-                border: "1px solid #D0D5DD",
-                background: "rgba(255,255,255,0.82)",
-                color: "#344054",
-                fontSize: 13,
-                fontWeight: 700,
-                backdropFilter: "blur(10px)",
+                border: `1px solid ${VERIFY_BRAND.line}`,
+                background: "rgba(255,255,255,0.42)",
+                color: VERIFY_BRAND.ink,
+                fontSize: 12,
+                fontWeight: 800,
+                backdropFilter: "blur(12px)",
                 maxWidth: "100%",
-                wordBreak: "break-word",
+                wordBreak: "break-all",
               }}
             >
-Token: {params?.token ?? ""}
+              Token: {params?.token ?? ""}
             </div>
           </div>
 
@@ -3281,8 +3440,12 @@ Token: {params?.token ?? ""}
                 )}
               />
             </Card>
-) : !hash && !signature && evidenceItems.length === 0 && !overview && !humanSummary ? (
-              <Card>
+          ) : !hash &&
+            !signature &&
+            evidenceItems.length === 0 &&
+            !overview &&
+            !humanSummary ? (
+            <Card>
               <EmptyState
                 title="Evidence Not Found"
                 subtitle="The evidence token is invalid, unavailable, or no verification materials were returned."
@@ -3298,6 +3461,8 @@ Token: {params?.token ?? ""}
               <Card>
                 <div
                   style={{
+                    ...glassCardStyle,
+                    padding: 24,
                     display: "grid",
                     gridTemplateColumns: "minmax(0, 1fr)",
                     gap: 18,
@@ -3328,18 +3493,18 @@ Token: {params?.token ?? ""}
                           borderRadius: 999,
                           background:
                             overallIntegrity === false
-                              ? "linear-gradient(180deg, #DC2626 0%, #B91C1C 100%)"
-                              : "linear-gradient(180deg, #16A34A 0%, #15803D 100%)",
+                              ? `linear-gradient(180deg, ${VERIFY_BRAND.danger} 0%, #8f3328 100%)`
+                              : `linear-gradient(180deg, ${VERIFY_BRAND.success} 0%, #145c48 100%)`,
                           display: "flex",
                           alignItems: "center",
                           justifyContent: "center",
                           color: "#fff",
                           fontSize: 28,
-                          fontWeight: 800,
+                          fontWeight: 900,
                           boxShadow:
                             overallIntegrity === false
-                              ? "0 10px 24px rgba(220,38,38,0.22)"
-                              : "0 10px 24px rgba(22,163,74,0.22)",
+                              ? "0 16px 34px rgba(181,71,56,0.20)"
+                              : "0 16px 34px rgba(33,117,93,0.20)",
                           flexShrink: 0,
                         }}
                       >
@@ -3349,12 +3514,9 @@ Token: {params?.token ?? ""}
                       <div style={{ minWidth: 0 }}>
                         <div
                           style={{
-                            fontSize: 12,
-                            fontWeight: 700,
-                            color: "#667085",
-                            textTransform: "uppercase",
-                            letterSpacing: "0.08em",
-                            marginBottom: 6,
+                            ...VERIFY_TYPO.kicker,
+                            fontSize: 11,
+                            marginBottom: 7,
                           }}
                         >
                           Integrity Status
@@ -3363,9 +3525,10 @@ Token: {params?.token ?? ""}
                           style={{
                             fontSize: cardTitleSize,
                             lineHeight: 1.12,
-                            fontWeight: 800,
-                            color: "#101828",
-                            marginBottom: 8,
+                            fontWeight: 900,
+                            color: VERIFY_BRAND.ink,
+                            letterSpacing: "-0.028em",
+                            marginBottom: 9,
                             wordBreak: "break-word",
                           }}
                         >
@@ -3373,10 +3536,9 @@ Token: {params?.token ?? ""}
                         </div>
                         <div
                           style={{
+                            ...VERIFY_TYPO.body,
                             fontSize: 15,
-                            color: "#667085",
-                            lineHeight: 1.65,
-                            maxWidth: 760,
+                            maxWidth: 820,
                           }}
                         >
                           {heroSummaryText}
@@ -3387,12 +3549,14 @@ Token: {params?.token ?? ""}
                     <div
                       style={{
                         padding: "10px 14px",
-                        borderRadius: 14,
+                        borderRadius: 999,
                         border: `1px solid ${statusTone(verifyStatus).border}`,
                         background: statusTone(verifyStatus).bg,
                         color: statusTone(verifyStatus).color,
-                        fontSize: 13,
-                        fontWeight: 800,
+                        fontSize: 11,
+                        fontWeight: 900,
+                        letterSpacing: "0.055em",
+                        textTransform: "uppercase",
                         alignSelf: "flex-start",
                         maxWidth: "100%",
                       }}
@@ -3401,13 +3565,7 @@ Token: {params?.token ?? ""}
                     </div>
                   </div>
 
-                  <div
-                    style={{
-                      display: "flex",
-                      flexWrap: "wrap",
-                      gap: 10,
-                    }}
-                  >
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
                     {executiveBadges.map((item) => (
                       <Badge key={item.label} label={item.label} tone={item.tone} />
                     ))}
@@ -3421,135 +3579,91 @@ Token: {params?.token ?? ""}
                       gap: 14,
                     }}
                   >
-                    <div
-                      style={{
-                        border: "1px solid #E4E7EC",
-                        background: "#FCFCFD",
-                        borderRadius: 16,
-                        padding: 16,
-                        display: "grid",
-                        gap: 8,
-                      }}
-                    >
+                    {[
+                      {
+                        title: "Legal review outcome",
+                        body: legalOutcomeNarrative,
+                        footer: null,
+                      },
+                      {
+                        title: "Forensic custody posture",
+                        body: forensicCustodyNarrative,
+                        footer: accessActivityNarrative,
+                      },
+                      {
+                        title: "Scope of this page",
+                        body: heroWhatIsVerifiedText,
+                        footer:
+                          "Technical details, timestamping, anchoring, and access history remain available below in the technical review layer.",
+                      },
+                    ].map((panel) => (
                       <div
+                        key={panel.title}
                         style={{
-                          fontSize: 12,
-                          color: "#667085",
-                          fontWeight: 800,
+                          ...glassPanelStyle,
+                          borderLeft: `5px solid ${VERIFY_BRAND.bronze}`,
+                          padding: 18,
+                          display: "grid",
+                          gap: 8,
                         }}
                       >
-                        Legal review outcome
+                        <div
+                          style={{
+                            ...VERIFY_TYPO.kicker,
+                            fontSize: 10.5,
+                          }}
+                        >
+                          {panel.title}
+                        </div>
+                        <div
+                          style={{
+                            ...VERIFY_TYPO.small,
+                            fontSize: 13,
+                            color: VERIFY_BRAND.ink,
+                            wordBreak: "break-word",
+                            overflowWrap: "anywhere",
+                          }}
+                        >
+                          {panel.body}
+                        </div>
+                        {panel.footer ? (
+                          <div
+                            style={{
+                              ...VERIFY_TYPO.small,
+                              fontSize: 12,
+                            }}
+                          >
+                            {panel.footer}
+                          </div>
+                        ) : null}
                       </div>
-                      <div
-                        style={{
-                          fontSize: 13,
-                          color: "#475467",
-                          lineHeight: 1.65,
-                          wordBreak: "break-word",
-                          overflowWrap: "anywhere",
-                        }}
-                      >
-                        {legalOutcomeNarrative}
-                      </div>
-                    </div>
-
-                    <div
-                      style={{
-                        border: "1px solid #E4E7EC",
-                        background: "#FCFCFD",
-                        borderRadius: 16,
-                        padding: 16,
-                        display: "grid",
-                        gap: 8,
-                      }}
-                    >
-                      <div
-                        style={{
-                          fontSize: 12,
-                          color: "#667085",
-                          fontWeight: 800,
-                        }}
-                      >
-                        Forensic custody posture
-                      </div>
-                      <div
-                        style={{
-                          fontSize: 13,
-                          color: "#475467",
-                          lineHeight: 1.65,
-                          wordBreak: "break-word",
-                          overflowWrap: "anywhere",
-                        }}
-                      >
-                        {forensicCustodyNarrative}
-                      </div>
-                      <div style={{ fontSize: 12, color: "#98A2B3", lineHeight: 1.6 }}>
-                        {accessActivityNarrative}
-                      </div>
-                    </div>
-
-                    <div
-                      style={{
-                        border: "1px solid #E4E7EC",
-                        background: "#FCFCFD",
-                        borderRadius: 16,
-                        padding: 16,
-                        display: "grid",
-                        gap: 8,
-                      }}
-                    >
-                      <div
-                        style={{
-                          fontSize: 12,
-                          color: "#667085",
-                          fontWeight: 800,
-                        }}
-                      >
-                        Scope of this page
-                      </div>
-                      <div
-                        style={{
-                          fontSize: 13,
-                          color: "#475467",
-                          lineHeight: 1.65,
-                          wordBreak: "break-word",
-                          overflowWrap: "anywhere",
-                        }}
-                      >
-                        {heroWhatIsVerifiedText}
-                      </div>
-                      <div style={{ fontSize: 12, color: "#98A2B3", lineHeight: 1.6 }}>
-                        Technical details, timestamping, anchoring, and access history
-                        remain available below in the technical review layer.
-                      </div>
-                    </div>
+                    ))}
                   </div>
 
                   {externalPublicationPresent === true ? (
                     <div
                       style={{
-                        border: "1px solid #D1FADF",
-                        background: "#F6FEF9",
-                        borderRadius: 16,
-                        padding: 16,
+                        ...glassPanelStyle,
+                        borderLeft: `5px solid ${VERIFY_BRAND.success}`,
+                        padding: 18,
                         display: "grid",
                         gap: 8,
                       }}
                     >
                       <div
                         style={{
-                          fontSize: 12,
-                          color: "#067647",
-                          fontWeight: 800,
+                          ...VERIFY_TYPO.kicker,
+                          fontSize: 10.5,
+                          color: VERIFY_BRAND.success,
                         }}
                       >
                         External Publication
                       </div>
                       <div
                         style={{
+                          ...VERIFY_TYPO.small,
                           fontSize: 13,
-                          color: "#065F46",
-                          lineHeight: 1.6,
+                          color: VERIFY_BRAND.ink,
                         }}
                       >
                         This evidence record includes external publication metadata.
@@ -3557,13 +3671,14 @@ Token: {params?.token ?? ""}
                         recorded for this integrity state.
                       </div>
                       {externalPublicationProvider ? (
-                        <div style={{ fontSize: 12, color: "#065F46" }}>
+                        <div style={VERIFY_TYPO.small}>
                           Provider: {externalPublicationProvider}
                         </div>
                       ) : null}
                       {externalPublicationAnchoredAtUtc ? (
-                        <div style={{ fontSize: 12, color: "#065F46" }}>
-                          Anchored At: {formatDateTime(externalPublicationAnchoredAtUtc)}
+                        <div style={VERIFY_TYPO.small}>
+                          Anchored At:{" "}
+                          {formatDateTime(externalPublicationAnchoredAtUtc)}
                         </div>
                       ) : null}
                       {externalPublicationUrl ? (
@@ -3572,9 +3687,9 @@ Token: {params?.token ?? ""}
                           target="_blank"
                           rel="noreferrer"
                           style={{
-                            fontSize: 12,
-                            color: "#175CD3",
-                            fontWeight: 700,
+                            ...VERIFY_TYPO.small,
+                            color: VERIFY_BRAND.accent2,
+                            fontWeight: 900,
                             textDecoration: "underline",
                             wordBreak: "break-all",
                           }}
@@ -3588,17 +3703,18 @@ Token: {params?.token ?? ""}
                   {custodyChainFailureReason ? (
                     <div
                       style={{
-                        border: "1px solid #FECACA",
-                        background: "#FEF2F2",
-                        borderRadius: 16,
-                        padding: 16,
+                        border: `1px solid rgba(181,71,56,0.25)`,
+                        borderLeft: `5px solid ${VERIFY_BRAND.danger}`,
+                        background: VERIFY_BRAND.dangerSoft,
+                        borderRadius: 18,
+                        padding: 18,
                       }}
                     >
                       <div
                         style={{
-                          fontSize: 12,
-                          color: "#991B1B",
-                          fontWeight: 800,
+                          ...VERIFY_TYPO.kicker,
+                          fontSize: 10.5,
+                          color: VERIFY_BRAND.danger,
                           marginBottom: 8,
                         }}
                       >
@@ -3606,9 +3722,9 @@ Token: {params?.token ?? ""}
                       </div>
                       <div
                         style={{
+                          ...VERIFY_TYPO.small,
                           fontSize: 13,
-                          color: "#7F1D1D",
-                          lineHeight: 1.6,
+                          color: VERIFY_BRAND.ink,
                           wordBreak: "break-word",
                           overflowWrap: "anywhere",
                         }}
@@ -3621,19 +3737,17 @@ Token: {params?.token ?? ""}
                   {limitations?.short || limitations?.detailed ? (
                     <div
                       style={{
-                        border: "1px solid #FEDF89",
-                        background: "#FFFAEB",
-                        borderRadius: 16,
-                        padding: 16,
+                        ...bronzeRailStyle,
+                        padding: 18,
                         display: "grid",
                         gap: 8,
                       }}
                     >
                       <div
                         style={{
-                          fontSize: 12,
-                          color: "#B54708",
-                          fontWeight: 800,
+                          ...VERIFY_TYPO.kicker,
+                          fontSize: 10.5,
+                          color: VERIFY_BRAND.warning,
                         }}
                       >
                         Important limitation
@@ -3641,9 +3755,9 @@ Token: {params?.token ?? ""}
                       {limitations?.short ? (
                         <div
                           style={{
+                            ...VERIFY_TYPO.small,
                             fontSize: 13,
-                            color: "#7A2E0E",
-                            lineHeight: 1.6,
+                            color: VERIFY_BRAND.ink,
                           }}
                         >
                           {limitations.short}
@@ -3652,9 +3766,9 @@ Token: {params?.token ?? ""}
                       {limitations?.detailed ? (
                         <div
                           style={{
+                            ...VERIFY_TYPO.small,
                             fontSize: 13,
-                            color: "#7A2E0E",
-                            lineHeight: 1.6,
+                            color: VERIFY_BRAND.ink,
                           }}
                         >
                           {limitations.detailed}
@@ -3667,7 +3781,14 @@ Token: {params?.token ?? ""}
 
               {evidenceItems.length > 0 ? (
                 <Card>
-                  <div style={{ display: "grid", gap: 18 }}>
+                  <div
+                    style={{
+                      ...glassCardStyle,
+                      padding: 24,
+                      display: "grid",
+                      gap: 18,
+                    }}
+                  >
                     <div
                       style={{
                         display: "flex",
@@ -3680,11 +3801,8 @@ Token: {params?.token ?? ""}
                       <div style={{ minWidth: 0, flex: "1 1 620px" }}>
                         <div
                           style={{
-                            fontSize: 12,
-                            color: "#667085",
-                            fontWeight: 800,
-                            letterSpacing: "0.08em",
-                            textTransform: "uppercase",
+                            ...VERIFY_TYPO.kicker,
+                            fontSize: 11,
                             marginBottom: 8,
                           }}
                         >
@@ -3693,21 +3811,22 @@ Token: {params?.token ?? ""}
                         <div
                           style={{
                             fontSize: cardTitleSize,
-                            fontWeight: 800,
-                            color: "#101828",
+                            fontWeight: 900,
+                            color: VERIFY_BRAND.ink,
                             lineHeight: 1.12,
+                            letterSpacing: "-0.028em",
                             marginBottom: 8,
                           }}
                         >
                           {selectedEvidenceItem
-                            ? `${evidenceKindLabel(selectedEvidenceItem.kind)} review surface`
+                            ? `${evidenceKindLabel(
+                                selectedEvidenceItem.kind
+                              )} review surface`
                             : "Evidence review surface"}
                         </div>
                         <div
                           style={{
-                            fontSize: 14,
-                            color: "#667085",
-                            lineHeight: 1.7,
+                            ...VERIFY_TYPO.body,
                             maxWidth: 860,
                           }}
                         >
@@ -3728,12 +3847,14 @@ Token: {params?.token ?? ""}
                           <div
                             style={{
                               padding: "10px 14px",
-                              borderRadius: 14,
-                              border: "1px solid #D0D5DD",
-                              background: "#FFFFFF",
-                              color: "#344054",
-                              fontSize: 13,
-                              fontWeight: 700,
+                              borderRadius: 999,
+                              border: `1px solid ${VERIFY_BRAND.line}`,
+                              background: "rgba(255,255,255,0.46)",
+                              color: VERIFY_BRAND.ink,
+                              fontSize: 11,
+                              fontWeight: 900,
+                              letterSpacing: "0.055em",
+                              textTransform: "uppercase",
                             }}
                           >
                             {evidenceSectionDescription}
@@ -3743,22 +3864,24 @@ Token: {params?.token ?? ""}
                           <div
                             style={{
                               padding: "10px 14px",
-                              borderRadius: 14,
-                              border: "1px solid #D0D5DD",
+                              borderRadius: 999,
+                              border: `1px solid ${VERIFY_BRAND.line}`,
                               background:
                                 contentAccessPolicy.mode === "full_access"
-                                  ? "#ECFDF3"
+                                  ? VERIFY_BRAND.successSoft
                                   : contentAccessPolicy.mode === "preview_only"
-                                    ? "#F5F8FF"
-                                    : "#FFF7ED",
+                                    ? "rgba(11,46,39,0.08)"
+                                    : VERIFY_BRAND.warningSoft,
                               color:
                                 contentAccessPolicy.mode === "full_access"
-                                  ? "#027A48"
+                                  ? VERIFY_BRAND.success
                                   : contentAccessPolicy.mode === "preview_only"
-                                    ? "#175CD3"
-                                    : "#B54708",
-                              fontSize: 13,
-                              fontWeight: 800,
+                                    ? VERIFY_BRAND.accent
+                                    : VERIFY_BRAND.warning,
+                              fontSize: 11,
+                              fontWeight: 900,
+                              letterSpacing: "0.055em",
+                              textTransform: "uppercase",
                             }}
                           >
                             {contentAccessPolicy.mode === "full_access"
@@ -3773,29 +3896,32 @@ Token: {params?.token ?? ""}
 
                     <div
                       style={{
-                        border: "1px solid #E4E7EC",
-                        background: "#FCFCFD",
-                        borderRadius: 18,
-                        padding: 16,
+                        ...bronzeRailStyle,
+                        padding: 18,
                         display: "grid",
                         gap: 10,
                       }}
                     >
                       <div
                         style={{
-                          fontSize: 12,
-                          color: "#667085",
-                          fontWeight: 800,
+                          ...VERIFY_TYPO.kicker,
+                          fontSize: 10.5,
                         }}
                       >
                         Reviewer access note
                       </div>
-                      <div style={{ fontSize: 13, color: "#475467", lineHeight: 1.7 }}>
+                      <div
+                        style={{
+                          ...VERIFY_TYPO.small,
+                          fontSize: 13,
+                          color: VERIFY_BRAND.ink,
+                        }}
+                      >
                         {contentExposureDecision?.rationale ??
                           previewPolicy?.privacyNotice ??
                           "Displayed content may be a reviewer-facing exposure of the preserved evidence item. Original evidence remains separately preserved and integrity-checked."}
                       </div>
-                      <div style={{ fontSize: 13, color: "#475467", lineHeight: 1.7 }}>
+                      <div style={{ ...VERIFY_TYPO.small, fontSize: 13 }}>
                         {previewPolicy?.privacyNotice ??
                           "Any preview shown here should be interpreted together with the integrity, custody, and timestamp sections below."}
                       </div>
@@ -3810,28 +3936,40 @@ Token: {params?.token ?? ""}
                     >
                       <div
                         style={{
-                          border: "1px solid #E4E7EC",
-                          background: "#FFFFFF",
-                          borderRadius: 18,
+                          ...glassPanelStyle,
                           padding: 18,
                           display: "grid",
                           gap: 8,
                         }}
                       >
-                        <div style={{ fontSize: 12, color: "#667085", fontWeight: 800 }}>
+                        <div
+                          style={{
+                            ...VERIFY_TYPO.kicker,
+                            fontSize: 10.5,
+                          }}
+                        >
                           What changed since completion
                         </div>
                         {whatChangedSinceCompletion.length > 0 ? (
                           whatChangedSinceCompletion.map((entry) => (
                             <div
                               key={entry}
-                              style={{ fontSize: 13, color: "#475467", lineHeight: 1.7 }}
+                              style={{
+                                ...VERIFY_TYPO.small,
+                                fontSize: 13,
+                                color: VERIFY_BRAND.ink,
+                              }}
                             >
                               {entry}
                             </div>
                           ))
                         ) : (
-                          <div style={{ fontSize: 13, color: "#475467", lineHeight: 1.7 }}>
+                          <div
+                            style={{
+                              ...VERIFY_TYPO.small,
+                              fontSize: 13,
+                            }}
+                          >
                             No later report, package, or reviewer-summary changes were
                             exposed in this verification response.
                           </div>
@@ -3842,10 +3980,16 @@ Token: {params?.token ?? ""}
                         style={{
                           border:
                             mismatchMessages.length > 0
-                              ? "1px solid #FECACA"
-                              : "1px solid #D1FADF",
+                              ? `1px solid rgba(181,71,56,0.25)`
+                              : `1px solid rgba(33,117,93,0.25)`,
+                          borderLeft:
+                            mismatchMessages.length > 0
+                              ? `5px solid ${VERIFY_BRAND.danger}`
+                              : `5px solid ${VERIFY_BRAND.success}`,
                           background:
-                            mismatchMessages.length > 0 ? "#FEF2F2" : "#F6FEF9",
+                            mismatchMessages.length > 0
+                              ? VERIFY_BRAND.dangerSoft
+                              : VERIFY_BRAND.successSoft,
                           borderRadius: 18,
                           padding: 18,
                           display: "grid",
@@ -3854,9 +3998,12 @@ Token: {params?.token ?? ""}
                       >
                         <div
                           style={{
-                            fontSize: 12,
-                            color: mismatchMessages.length > 0 ? "#991B1B" : "#067647",
-                            fontWeight: 800,
+                            ...VERIFY_TYPO.kicker,
+                            fontSize: 10.5,
+                            color:
+                              mismatchMessages.length > 0
+                                ? VERIFY_BRAND.danger
+                                : VERIFY_BRAND.success,
                           }}
                         >
                           Mismatch detection
@@ -3865,13 +4012,23 @@ Token: {params?.token ?? ""}
                           mismatchMessages.map((entry) => (
                             <div
                               key={entry}
-                              style={{ fontSize: 13, color: "#7F1D1D", lineHeight: 1.7 }}
+                              style={{
+                                ...VERIFY_TYPO.small,
+                                fontSize: 13,
+                                color: VERIFY_BRAND.ink,
+                              }}
                             >
                               {entry}
                             </div>
                           ))
                         ) : (
-                          <div style={{ fontSize: 13, color: "#065F46", lineHeight: 1.7 }}>
+                          <div
+                            style={{
+                              ...VERIFY_TYPO.small,
+                              fontSize: 13,
+                              color: VERIFY_BRAND.ink,
+                            }}
+                          >
                             No explicit digest, signature, custody, timestamp, or OTS
                             mismatches were detected in the current verification result.
                           </div>
@@ -3889,20 +4046,24 @@ Token: {params?.token ?? ""}
                       >
                         {evidenceItems.map((item) => {
                           const active = selectedEvidenceItem?.id === item.id;
+
                           return (
                             <button
                               key={item.id}
+                              type="button"
                               onClick={() => setSelectedEvidenceItemId(item.id)}
                               style={{
                                 padding: "12px 14px",
                                 borderRadius: 16,
                                 border: active
-                                  ? "1px solid #175CD3"
-                                  : "1px solid #D0D5DD",
-                                background: active ? "#EFF8FF" : "#FFFFFF",
-                                color: active ? "#1849A9" : "#344054",
+                                  ? `1px solid ${VERIFY_BRAND.accent}`
+                                  : `1px solid ${VERIFY_BRAND.line}`,
+                                background: active
+                                  ? "rgba(11,46,39,0.10)"
+                                  : "rgba(255,255,255,0.54)",
+                                color: VERIFY_BRAND.ink,
                                 fontSize: 13,
-                                fontWeight: 700,
+                                fontWeight: 800,
                                 cursor: "pointer",
                                 textAlign: "left",
                                 minWidth: 220,
@@ -3911,9 +4072,11 @@ Token: {params?.token ?? ""}
                               <div style={{ marginBottom: 4 }}>{item.label}</div>
                               <div
                                 style={{
+                                  ...VERIFY_TYPO.small,
                                   fontSize: 12,
-                                  fontWeight: 600,
-                                  color: active ? "#175CD3" : "#667085",
+                                  color: active
+                                    ? VERIFY_BRAND.accent
+                                    : VERIFY_BRAND.muted,
                                 }}
                               >
                                 {evidenceKindLabel(item.kind)}
@@ -3938,9 +4101,7 @@ Token: {params?.token ?? ""}
 
                         <div
                           style={{
-                            border: "1px solid #E4E7EC",
-                            borderRadius: 16,
-                            background: "#FCFCFD",
+                            ...glassPanelStyle,
                             padding: 16,
                             display: "grid",
                             gap: 8,
@@ -3948,14 +4109,19 @@ Token: {params?.token ?? ""}
                         >
                           <div
                             style={{
-                              fontSize: 12,
-                              color: "#667085",
-                              fontWeight: 800,
+                              ...VERIFY_TYPO.kicker,
+                              fontSize: 10.5,
                             }}
                           >
                             Representation note
                           </div>
-                          <div style={{ fontSize: 13, color: "#475467", lineHeight: 1.7 }}>
+                          <div
+                            style={{
+                              ...VERIFY_TYPO.small,
+                              fontSize: 13,
+                              color: VERIFY_BRAND.ink,
+                            }}
+                          >
                             This panel is intended for reviewer understanding of the
                             preserved evidence item. The original file remains
                             separately preserved and the technical sections below
@@ -3968,9 +4134,7 @@ Token: {params?.token ?? ""}
                       <div style={{ display: "grid", gap: 14 }}>
                         <div
                           style={{
-                            border: "1px solid #E4E7EC",
-                            borderRadius: 18,
-                            background: "#FFFFFF",
+                            ...VERIFY_SURFACE.card,
                             padding: 18,
                             display: "grid",
                             gap: 12,
@@ -3978,26 +4142,28 @@ Token: {params?.token ?? ""}
                         >
                           <div
                             style={{
-                              fontSize: 12,
-                              color: "#667085",
-                              fontWeight: 800,
-                              letterSpacing: "0.08em",
-                              textTransform: "uppercase",
+                              ...VERIFY_TYPO.kicker,
+                              fontSize: 10.5,
                             }}
                           >
                             Selected Evidence Item
                           </div>
                           <div
                             style={{
+                              ...VERIFY_TYPO.h3,
                               fontSize: 20,
-                              color: "#101828",
-                              fontWeight: 800,
-                              lineHeight: 1.2,
                             }}
                           >
                             {selectedEvidenceItem?.label ?? "No item selected"}
                           </div>
-                          <div style={{ display: "grid", gap: 10, fontSize: 13, color: "#475467" }}>
+                          <div
+                            style={{
+                              display: "grid",
+                              gap: 10,
+                              ...VERIFY_TYPO.small,
+                              color: VERIFY_BRAND.ink,
+                            }}
+                          >
                             <div>
                               <strong>Kind:</strong>{" "}
                               {evidenceKindLabel(selectedEvidenceItem?.kind)}
@@ -4027,9 +4193,9 @@ Token: {params?.token ?? ""}
                               </div>
                             ) : null}
                             {selectedEvidenceItem?.sha256 ? (
-                              <div style={{ wordBreak: "break-all" }}>
+                              <div style={VERIFY_TYPO.hash}>
                                 <strong>SHA-256:</strong>{" "}
-{selectedEvidenceItem.sha256}
+                                {selectedEvidenceItem.sha256}
                               </div>
                             ) : null}
                             {selectedEvidenceItem?.originalPreservationNote ? (
@@ -4057,13 +4223,16 @@ Token: {params?.token ?? ""}
                                   alignItems: "center",
                                   justifyContent: "center",
                                   padding: "10px 14px",
-                                  borderRadius: 12,
-                                  border: "1px solid #175CD3",
-                                  background: "#EFF8FF",
-                                  color: "#175CD3",
-                                  fontSize: 13,
-                                  fontWeight: 800,
+                                  borderRadius: 999,
+                                  border: `1px solid ${VERIFY_BRAND.accent}`,
+                                  background: VERIFY_BRAND.accent,
+                                  color: "#ffffff",
+                                  fontSize: 11,
+                                  fontWeight: 900,
+                                  letterSpacing: "0.055em",
+                                  textTransform: "uppercase",
                                   textDecoration: "none",
+                                  boxShadow: "0 12px 26px rgba(11,46,39,0.16)",
                                 }}
                               >
                                 Open preserved evidence
@@ -4079,12 +4248,14 @@ Token: {params?.token ?? ""}
                                   alignItems: "center",
                                   justifyContent: "center",
                                   padding: "10px 14px",
-                                  borderRadius: 12,
-                                  border: "1px solid #D0D5DD",
-                                  background: "#FFFFFF",
-                                  color: "#344054",
-                                  fontSize: 13,
-                                  fontWeight: 700,
+                                  borderRadius: 999,
+                                  border: `1px solid ${VERIFY_BRAND.line}`,
+                                  background: "rgba(255,255,255,0.54)",
+                                  color: VERIFY_BRAND.ink,
+                                  fontSize: 11,
+                                  fontWeight: 900,
+                                  letterSpacing: "0.055em",
+                                  textTransform: "uppercase",
                                   textDecoration: "none",
                                 }}
                               >
@@ -4097,18 +4268,28 @@ Token: {params?.token ?? ""}
                         {selectedEvidenceItem?.reviewerRepresentationNote ? (
                           <div
                             style={{
-                              border: "1px solid #FEDF89",
-                              background: "#FFFAEB",
-                              borderRadius: 18,
+                              ...bronzeRailStyle,
                               padding: 18,
                               display: "grid",
                               gap: 8,
                             }}
                           >
-                            <div style={{ fontSize: 12, color: "#B54708", fontWeight: 800 }}>
+                            <div
+                              style={{
+                                ...VERIFY_TYPO.kicker,
+                                fontSize: 10.5,
+                                color: VERIFY_BRAND.warning,
+                              }}
+                            >
                               Reviewer representation note
                             </div>
-                            <div style={{ fontSize: 13, color: "#7A2E0E", lineHeight: 1.7 }}>
+                            <div
+                              style={{
+                                ...VERIFY_TYPO.small,
+                                fontSize: 13,
+                                color: VERIFY_BRAND.ink,
+                              }}
+                            >
                               {selectedEvidenceItem.reviewerRepresentationNote}
                             </div>
                           </div>
@@ -4117,51 +4298,76 @@ Token: {params?.token ?? ""}
                         {selectedEvidenceItem?.verificationMaterialsNote ? (
                           <div
                             style={{
-                              border: "1px solid #D1E9FF",
-                              background: "#F5F8FF",
-                              borderRadius: 18,
+                              ...glassPanelStyle,
+                              borderLeft: `5px solid ${VERIFY_BRAND.accent}`,
                               padding: 18,
                               display: "grid",
                               gap: 8,
                             }}
                           >
-                            <div style={{ fontSize: 12, color: "#175CD3", fontWeight: 800 }}>
+                            <div
+                              style={{
+                                ...VERIFY_TYPO.kicker,
+                                fontSize: 10.5,
+                              }}
+                            >
                               Verification materials note
                             </div>
-                            <div style={{ fontSize: 13, color: "#1849A9", lineHeight: 1.7 }}>
+                            <div
+                              style={{
+                                ...VERIFY_TYPO.small,
+                                fontSize: 13,
+                                color: VERIFY_BRAND.ink,
+                              }}
+                            >
                               {selectedEvidenceItem.verificationMaterialsNote}
                             </div>
                           </div>
                         ) : null}
 
-                        {primaryContentItem && selectedEvidenceItem?.id !== primaryContentItem.id ? (
+                        {primaryContentItem &&
+                        selectedEvidenceItem?.id !== primaryContentItem.id ? (
                           <div
                             style={{
-                              border: "1px solid #D1E9FF",
-                              background: "#F5F8FF",
-                              borderRadius: 18,
+                              ...glassPanelStyle,
+                              borderLeft: `5px solid ${VERIFY_BRAND.accent}`,
                               padding: 18,
                               display: "grid",
                               gap: 8,
                             }}
                           >
-                            <div style={{ fontSize: 12, color: "#175CD3", fontWeight: 800 }}>
+                            <div
+                              style={{
+                                ...VERIFY_TYPO.kicker,
+                                fontSize: 10.5,
+                              }}
+                            >
                               Primary evidence item
                             </div>
-                            <div style={{ fontSize: 14, color: "#1849A9", fontWeight: 700 }}>
+                            <div
+                              style={{
+                                ...VERIFY_TYPO.value,
+                                color: VERIFY_BRAND.ink,
+                              }}
+                            >
                               {primaryContentItem.label}
                             </div>
                             <button
-                              onClick={() => setSelectedEvidenceItemId(primaryContentItem.id)}
+                              type="button"
+                              onClick={() =>
+                                setSelectedEvidenceItemId(primaryContentItem.id)
+                              }
                               style={{
                                 width: "fit-content",
                                 padding: "10px 14px",
-                                borderRadius: 12,
-                                border: "1px solid #B2DDFF",
-                                background: "#FFFFFF",
-                                color: "#175CD3",
-                                fontSize: 13,
-                                fontWeight: 700,
+                                borderRadius: 999,
+                                border: `1px solid ${VERIFY_BRAND.line}`,
+                                background: "rgba(255,255,255,0.54)",
+                                color: VERIFY_BRAND.accent,
+                                fontSize: 11,
+                                fontWeight: 900,
+                                letterSpacing: "0.055em",
+                                textTransform: "uppercase",
                                 cursor: "pointer",
                               }}
                             >
@@ -4171,216 +4377,19 @@ Token: {params?.token ?? ""}
                         ) : null}
                       </div>
                     </div>
-
-                    <div
-                      style={{
-                        border: "1px solid #E4E7EC",
-                        borderRadius: 18,
-                        background: "#FCFCFD",
-                        padding: 18,
-                        display: "grid",
-                        gap: 14,
-                      }}
-                    >
-                      <div
-                        style={{
-                          display: "flex",
-                          alignItems: "flex-start",
-                          justifyContent: "space-between",
-                          gap: 12,
-                          flexWrap: "wrap",
-                        }}
-                      >
-                        <div>
-                        </div>
-                        {evidenceContentSummary?.primaryKind ? (
-                          <div
-                            style={{
-                              padding: "10px 14px",
-                              borderRadius: 14,
-                              border: "1px solid #D0D5DD",
-                              background: "#FFFFFF",
-                              color: "#344054",
-                              fontSize: 13,
-                              fontWeight: 700,
-                            }}
-                          >
-                            Primary type:{" "}
-                            {evidenceKindLabel(evidenceContentSummary.primaryKind)}
-                          </div>
-                        ) : null}
-                      </div>
-
-                      <div style={{ fontSize: 13, color: "#475467", lineHeight: 1.7 }}>
-                        {verificationPackageVersion
-                          ? `Verification package version ${verificationPackageVersion} is associated with this evidence record. Use it together with this verification page when deeper technical review, legal handoff, or external sharing is required.`
-                          : "No verification package version was exposed in this response. Reviewers can still use this page together with the generated report artifact."}
-                      </div>
-
-                      <div
-                        style={{
-                          display: "grid",
-                          gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
-                          gap: 12,
-                        }}
-                      >
-                        {evidenceItems.map((item) => {
-                          const active = selectedEvidenceItem?.id === item.id;
-                          const roleLabel = previewRoleLabel(item.previewRole);
-                          const itemDuration = formatDuration(item.durationMs);
-
-                          return (
-                            <div
-                              key={`inventory-${item.id}`}
-                              style={{
-                                border: active
-                                  ? "1px solid #175CD3"
-                                  : "1px solid #D0D5DD",
-                                background: active ? "#F5F8FF" : "#FFFFFF",
-                                borderRadius: 18,
-                                padding: 16,
-                                display: "grid",
-                                gap: 10,
-                              }}
-                            >
-                              <div
-                                style={{
-                                  display: "flex",
-                                  alignItems: "flex-start",
-                                  justifyContent: "space-between",
-                                  gap: 10,
-                                }}
-                              >
-                                <div style={{ minWidth: 0 }}>
-                                  <div
-                                    style={{
-                                      fontSize: 15,
-                                      fontWeight: 800,
-                                      color: "#101828",
-                                      lineHeight: 1.35,
-                                      wordBreak: "break-word",
-                                    }}
-                                  >
-                                    {item.label}
-                                  </div>
-                                  <div
-                                    style={{
-                                      marginTop: 4,
-                                      fontSize: 12,
-                                      color: "#667085",
-                                      fontWeight: 700,
-                                    }}
-                                  >
-                                    {evidenceKindLabel(item.kind)}
-                                    {item.isPrimary ? " • Primary item" : ""}
-                                  </div>
-                                </div>
-
-                                {active ? (
-                                  <div
-                                    style={{
-                                      padding: "6px 10px",
-                                      borderRadius: 999,
-                                      background: "#D1E9FF",
-                                      color: "#175CD3",
-                                      fontSize: 11,
-                                      fontWeight: 800,
-                                      whiteSpace: "nowrap",
-                                    }}
-                                  >
-                                    Selected
-                                  </div>
-                                ) : null}
-                              </div>
-
-                              <div
-                                style={{
-                                  display: "grid",
-                                  gap: 6,
-                                  fontSize: 13,
-                                  color: "#475467",
-                                }}
-                              >
-                                {item.mimeType ? (
-                                  <div>
-                                    <strong>MIME:</strong> {item.mimeType}
-                                  </div>
-                                ) : null}
-                                {item.displaySizeLabel ? (
-                                  <div>
-                                    <strong>Size:</strong> {item.displaySizeLabel}
-                                  </div>
-                                ) : null}
-                                {itemDuration ? (
-                                  <div>
-                                    <strong>Duration:</strong> {itemDuration}
-                                  </div>
-                                ) : null}
-                                {roleLabel ? (
-                                  <div>
-                                    <strong>Access:</strong> {roleLabel}
-                                  </div>
-                                ) : null}
-                                {item.sha256 ? (
-                                  <div style={{ wordBreak: "break-all" }}>
-                                    <strong>SHA-256:</strong>{" "}
-{item.sha256}
-                                  </div>
-                                ) : null}
-                              </div>
-
-                              <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-                                <button
-                                  onClick={() => setSelectedEvidenceItemId(item.id)}
-                                  style={{
-                                    padding: "10px 12px",
-                                    borderRadius: 12,
-                                    border: active
-                                      ? "1px solid #175CD3"
-                                      : "1px solid #D0D5DD",
-                                    background: active ? "#EFF8FF" : "#FFFFFF",
-                                    color: active ? "#175CD3" : "#344054",
-                                    fontSize: 13,
-                                    fontWeight: 700,
-                                    cursor: "pointer",
-                                  }}
-                                >
-                                  {active ? "Viewing item" : "View item"}
-                                </button>
-                                {item.viewUrl ? (
-                                  <a
-                                    href={item.viewUrl}
-                                    target="_blank"
-                                    rel="noreferrer"
-                                    style={{
-                                      display: "inline-flex",
-                                      alignItems: "center",
-                                      justifyContent: "center",
-                                      padding: "10px 12px",
-                                      borderRadius: 12,
-                                      border: "1px solid #D0D5DD",
-                                      background: "#FFFFFF",
-                                      color: "#344054",
-                                      fontSize: 13,
-                                      fontWeight: 700,
-                                      textDecoration: "none",
-                                    }}
-                                  >
-                                    Open
-                                  </a>
-                                ) : null}
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
                   </div>
                 </Card>
               ) : null}
 
               <Card>
-                <div style={{ display: "grid", gap: 18 }}>
+                <div
+                  style={{
+                    ...glassCardStyle,
+                    padding: 24,
+                    display: "grid",
+                    gap: 18,
+                  }}
+                >
                   <div
                     style={{
                       display: "flex",
@@ -4394,20 +4403,16 @@ Token: {params?.token ?? ""}
                       <h3
                         style={{
                           margin: 0,
-                          fontSize: 18,
-                          fontWeight: 800,
-                          color: "#101828",
+                          ...VERIFY_TYPO.h3,
                         }}
                       >
                         Technical Review Materials
                       </h3>
                       <div
                         style={{
-                          marginTop: 6,
-                          fontSize: 13,
-                          color: "#667085",
-                          lineHeight: 1.65,
-                          maxWidth: 760,
+                          marginTop: 7,
+                          ...VERIFY_TYPO.small,
+                          maxWidth: 820,
                         }}
                       >
                         This technical layer keeps record metadata, cryptographic
@@ -4429,16 +4434,16 @@ Token: {params?.token ?? ""}
                       active={activeTechnicalTab === "integrity"}
                       onClick={() => setActiveTechnicalTab("integrity")}
                     />
-<TechnicalTabButton
-  label="Forensic Custody"
-  active={activeTechnicalTab === "forensic-custody"}
-  onClick={() => setActiveTechnicalTab("forensic-custody")}
-/>
-<TechnicalTabButton
-  label="Full Custody Chain"
-  active={activeTechnicalTab === "full-custody"}
-  onClick={() => setActiveTechnicalTab("full-custody")}
-/>
+                    <TechnicalTabButton
+                      label="Forensic Custody"
+                      active={activeTechnicalTab === "forensic-custody"}
+                      onClick={() => setActiveTechnicalTab("forensic-custody")}
+                    />
+                    <TechnicalTabButton
+                      label="Full Custody Chain"
+                      active={activeTechnicalTab === "full-custody"}
+                      onClick={() => setActiveTechnicalTab("full-custody")}
+                    />
                     <TechnicalTabButton
                       label="Access Activity"
                       active={activeTechnicalTab === "access"}
@@ -4450,13 +4455,11 @@ Token: {params?.token ?? ""}
                     <div style={{ display: "grid", gap: 16 }}>
                       <div
                         style={{
-                          border: "1px solid #E4E7EC",
-                          background: "#FCFCFD",
-                          borderRadius: 16,
+                          ...bronzeRailStyle,
                           padding: 16,
+                          ...VERIFY_TYPO.small,
                           fontSize: 13,
-                          color: "#475467",
-                          lineHeight: 1.7,
+                          color: VERIFY_BRAND.ink,
                         }}
                       >
                         Core record identity, lifecycle milestones, and versioning
@@ -4487,18 +4490,27 @@ Token: {params?.token ?? ""}
                     <div style={{ display: "grid", gap: 14 }}>
                       <div
                         style={{
-                          border: "1px solid #E4E7EC",
-                          background: "#FCFCFD",
-                          borderRadius: 16,
+                          ...bronzeRailStyle,
                           padding: 16,
                           display: "grid",
                           gap: 8,
                         }}
                       >
-                        <div style={{ fontSize: 13, fontWeight: 800, color: "#344054" }}>
+                        <div
+                          style={{
+                            ...VERIFY_TYPO.kicker,
+                            fontSize: 10.5,
+                          }}
+                        >
                           Integrity scope
                         </div>
-                        <div style={{ fontSize: 13, color: "#667085", lineHeight: 1.7 }}>
+                        <div
+                          style={{
+                            ...VERIFY_TYPO.small,
+                            fontSize: 13,
+                            color: VERIFY_BRAND.ink,
+                          }}
+                        >
                           These materials support review of the recorded file hash,
                           canonical fingerprint, signature, timestamp linkage,
                           OpenTimestamps proofing, immutable storage indicators, and
@@ -4508,30 +4520,30 @@ Token: {params?.token ?? ""}
                       </div>
 
                       {hash ? (
-<MaterialField
-  label={
-    evidenceContentSummary?.structure === "multipart"
-      ? "Canonical Package Digest (SHA-256)"
-      : "Original File SHA-256"
-  }
-  subtitle={
-    evidenceContentSummary?.structure === "multipart"
-      ? "SHA-256 digest representing the canonical multipart evidence package. Individual item hashes are listed separately, and the Canonical Fingerprint Hash defines the full package identity."
-      : "SHA-256 digest of the original preserved evidence file."
-  }
-  value={hash}
-  addToast={addToast}
-  copyMessage={
-    evidenceContentSummary?.structure === "multipart"
-      ? "Canonical package digest copied"
-      : "Original file hash copied"
-  }
-/>
+                        <MaterialField
+                          label={
+                            evidenceContentSummary?.structure === "multipart"
+                              ? "Canonical Package Digest (SHA-256)"
+                              : "Original File SHA-256"
+                          }
+                          subtitle={
+                            evidenceContentSummary?.structure === "multipart"
+                              ? "SHA-256 digest representing the canonical multipart evidence package. Individual item hashes are listed separately, and the Canonical Fingerprint Hash defines the full package identity."
+                              : "SHA-256 digest of the original preserved evidence file."
+                          }
+                          value={hash}
+                          addToast={addToast}
+                          copyMessage={
+                            evidenceContentSummary?.structure === "multipart"
+                              ? "Canonical package digest copied"
+                              : "Original file hash copied"
+                          }
+                        />
                       ) : null}
 
                       {fingerprintHash ? (
                         <MaterialField
-label="Canonical Fingerprint Hash"
+                          label="Canonical Fingerprint Hash"
                           subtitle="Hash derived from the canonical fingerprint record."
                           value={fingerprintHash}
                           addToast={addToast}
@@ -4581,9 +4593,7 @@ label="Canonical Fingerprint Hash"
                             <div
                               key={card.label}
                               style={{
-                                border: "1px solid #E4E7EC",
-                                background: "#FCFCFD",
-                                borderRadius: 16,
+                                ...glassPanelStyle,
                                 padding: 16,
                                 minWidth: 0,
                                 overflow: "hidden",
@@ -4591,9 +4601,8 @@ label="Canonical Fingerprint Hash"
                             >
                               <div
                                 style={{
-                                  fontSize: 12,
-                                  color: "#667085",
-                                  fontWeight: 700,
+                                  ...VERIFY_TYPO.kicker,
+                                  fontSize: 10.5,
                                   marginBottom: 10,
                                 }}
                               >
@@ -4602,10 +4611,7 @@ label="Canonical Fingerprint Hash"
 
                               <div
                                 style={{
-                                  fontSize: 14,
-                                  color: "#101828",
-                                  fontWeight: 700,
-                                  lineHeight: 1.5,
+                                  ...VERIFY_TYPO.value,
                                   wordBreak: "break-word",
                                   overflowWrap: "anywhere",
                                   minWidth: 0,
@@ -4621,17 +4627,18 @@ label="Canonical Fingerprint Hash"
                       {tsaFailureReason ? (
                         <div
                           style={{
-                            border: "1px solid #FECACA",
-                            background: "#FEF2F2",
-                            borderRadius: 16,
+                            border: `1px solid rgba(181,71,56,0.25)`,
+                            borderLeft: `5px solid ${VERIFY_BRAND.danger}`,
+                            background: VERIFY_BRAND.dangerSoft,
+                            borderRadius: 18,
                             padding: 16,
                           }}
                         >
                           <div
                             style={{
-                              fontSize: 12,
-                              color: "#991B1B",
-                              fontWeight: 800,
+                              ...VERIFY_TYPO.kicker,
+                              fontSize: 10.5,
+                              color: VERIFY_BRAND.danger,
                               marginBottom: 8,
                             }}
                           >
@@ -4639,9 +4646,9 @@ label="Canonical Fingerprint Hash"
                           </div>
                           <div
                             style={{
+                              ...VERIFY_TYPO.small,
                               fontSize: 13,
-                              color: "#7F1D1D",
-                              lineHeight: 1.6,
+                              color: VERIFY_BRAND.ink,
                               wordBreak: "break-word",
                               overflowWrap: "anywhere",
                             }}
@@ -4654,9 +4661,10 @@ label="Canonical Fingerprint Hash"
                       {otsFailureDisplayMessage ? (
                         <div
                           style={{
-                            border: "1px solid #FECACA",
-                            background: "#FEF2F2",
-                            borderRadius: 16,
+                            border: `1px solid rgba(181,71,56,0.25)`,
+                            borderLeft: `5px solid ${VERIFY_BRAND.danger}`,
+                            background: VERIFY_BRAND.dangerSoft,
+                            borderRadius: 18,
                             padding: 16,
                             display: "grid",
                             gap: 10,
@@ -4664,10 +4672,9 @@ label="Canonical Fingerprint Hash"
                         >
                           <div
                             style={{
-                              fontSize: 12,
-                              color: "#991B1B",
-                              fontWeight: 800,
-                              marginBottom: 2,
+                              ...VERIFY_TYPO.kicker,
+                              fontSize: 10.5,
+                              color: VERIFY_BRAND.danger,
                             }}
                           >
                             OpenTimestamps Status Note
@@ -4675,9 +4682,9 @@ label="Canonical Fingerprint Hash"
 
                           <div
                             style={{
+                              ...VERIFY_TYPO.small,
                               fontSize: 13,
-                              color: "#7F1D1D",
-                              lineHeight: 1.65,
+                              color: VERIFY_BRAND.ink,
                               wordBreak: "break-word",
                               overflowWrap: "anywhere",
                             }}
@@ -4690,9 +4697,9 @@ label="Canonical Fingerprint Hash"
                               <summary
                                 style={{
                                   cursor: "pointer",
-                                  fontSize: 12,
-                                  fontWeight: 700,
-                                  color: "#B42318",
+                                  ...VERIFY_TYPO.small,
+                                  fontWeight: 900,
+                                  color: VERIFY_BRAND.danger,
                                   userSelect: "none",
                                 }}
                               >
@@ -4704,14 +4711,10 @@ label="Canonical Fingerprint Hash"
                                   marginTop: 10,
                                   padding: 12,
                                   borderRadius: 12,
-                                  border: "1px solid #FECACA",
-                                  background: "#FFF7F7",
-                                  fontSize: 12,
-                                  color: "#7F1D1D",
-                                  lineHeight: 1.65,
-                                  wordBreak: "break-all",
-                                  fontFamily:
-                                    'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
+                                  border: `1px solid rgba(181,71,56,0.22)`,
+                                  background: "rgba(255,255,255,0.36)",
+                                  ...VERIFY_TYPO.hash,
+                                  color: VERIFY_BRAND.ink,
                                 }}
                               >
                                 {otsFailureTechnicalMessage}
@@ -4723,8 +4726,8 @@ label="Canonical Fingerprint Hash"
                     </div>
                   ) : null}
 
-{activeTechnicalTab === "forensic-custody" ? (
-                      <TimelinePanel
+                  {activeTechnicalTab === "forensic-custody" ? (
+                    <TimelinePanel
                       title="Forensic Custody"
                       subtitle="Forensic custody events describe integrity-relevant lifecycle activity recorded by the system. They are separated from later access or viewing events so the legal chain narrative does not get mixed with routine access history."
                       countTone="info"
@@ -4732,28 +4735,28 @@ label="Canonical Fingerprint Hash"
                       emptyTitle="No forensic custody events were returned"
                       emptyBody="This verification response does not include an internal forensic custody-event chain for this record. That means no system-recorded forensic custody entries were available here; it should not be interpreted as proof that no handling occurred outside the recorded workflow."
                       accent={{
-                        dot: "#175CD3",
-                        dotBorder: "#D1E9FF",
-                        line: "#D0D5DD",
+                        dot: VERIFY_BRAND.bronze,
+                        dotBorder: "rgba(96,66,24,0.16)",
+                        line: "rgba(96,66,24,0.25)",
                       }}
                     />
                   ) : null}
 
-{activeTechnicalTab === "full-custody" ? (
-  <TimelinePanel
-    title="Full Custody Chain"
-    subtitle="Complete custody chronology including forensic lifecycle events and later access activity. Full previous-event and event hashes are shown so reviewers can inspect chain continuity."
-    countTone="info"
-    events={fullCustodyTimeline}
-    emptyTitle="No custody-chain events were returned"
-    emptyBody="This verification response did not include a complete custody-event chain."
-    accent={{
-      dot: "#12315A",
-      dotBorder: "#D1E9FF",
-      line: "#D0D5DD",
-    }}
-  />
-) : null}
+                  {activeTechnicalTab === "full-custody" ? (
+                    <TimelinePanel
+                      title="Full Custody Chain"
+                      subtitle="Complete custody chronology including forensic lifecycle events and later access activity. Full previous-event and event hashes are shown so reviewers can inspect chain continuity."
+                      countTone="info"
+                      events={fullCustodyTimeline}
+                      emptyTitle="No custody-chain events were returned"
+                      emptyBody="This verification response did not include a complete custody-event chain."
+                      accent={{
+                        dot: VERIFY_BRAND.accent,
+                        dotBorder: "rgba(11,46,39,0.16)",
+                        line: "rgba(11,46,39,0.25)",
+                      }}
+                    />
+                  ) : null}
 
                   {activeTechnicalTab === "access" ? (
                     <TimelinePanel
@@ -4764,9 +4767,9 @@ label="Canonical Fingerprint Hash"
                       emptyTitle="No access activity was returned"
                       emptyBody="No access-activity entries were included in this response. Their absence does not change the recorded integrity result and should not be read as a forensic custody conclusion."
                       accent={{
-                        dot: "#98A2B3",
-                        dotBorder: "#EAECF0",
-                        line: "#EAECF0",
+                        dot: "rgba(11,46,39,0.42)",
+                        dotBorder: "rgba(11,46,39,0.12)",
+                        line: "rgba(11,46,39,0.16)",
                       }}
                     />
                   ) : null}
@@ -4776,72 +4779,100 @@ label="Canonical Fingerprint Hash"
               <Card>
                 <div
                   style={{
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                    gap: 12,
-                    flexWrap: "wrap",
-                    marginBottom: 16,
+                    ...glassCardStyle,
+                    padding: 24,
+                    display: "grid",
+                    gap: 18,
                   }}
                 >
                   <div>
                     <h3
                       style={{
                         margin: 0,
-                        fontSize: 18,
-                        fontWeight: 800,
-                        color: "#101828",
+                        ...VERIFY_TYPO.h3,
                       }}
                     >
                       Actions
                     </h3>
                     <div
                       style={{
-                        marginTop: 6,
-                        fontSize: 13,
-                        color: "#667085",
+                        marginTop: 7,
+                        ...VERIFY_TYPO.small,
+                        maxWidth: 760,
                       }}
                     >
-                      Copy the verification link or open the external publication record when available.
+                      Copy the verification link or open the external publication
+                      record when available.
                     </div>
                   </div>
-                </div>
 
-                <div
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-                    gap: 12,
-                    marginTop: 8,
-                  }}
-                >
-                  <Button
-                    onClick={() => {
-                      const url = window.location.href;
-                      navigator.clipboard.writeText(url);
-                      addToast("Verification link copied", "success");
+                  <div
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns:
+                        "repeat(auto-fit, minmax(220px, 1fr))",
+                      gap: 12,
                     }}
-                    variant="secondary"
                   >
-                    Copy Verification Link
-                  </Button>
-
-                  {externalPublicationUrl ? (
-                    <a
-                      href={externalPublicationUrl}
-                      target="_blank"
-                      rel="noreferrer"
-                      style={{ textDecoration: "none" }}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const url = window.location.href;
+                        navigator.clipboard.writeText(url);
+                        addToast("Verification link copied", "success");
+                      }}
+                      style={{
+                        width: "100%",
+                        minHeight: 52,
+                        borderRadius: 999,
+                        border: "1px solid rgba(196,165,91,0.42)",
+                        background:
+                          "linear-gradient(180deg, #163f38 0%, #0b2e27 100%)",
+                        color: "#ffffff",
+                        fontSize: 12,
+                        fontWeight: 900,
+                        letterSpacing: "0.065em",
+                        textTransform: "uppercase",
+                        cursor: "pointer",
+                        boxShadow: "0 16px 34px rgba(11,46,39,0.20)",
+                      }}
                     >
-                      <Button variant="secondary">Open External Publication</Button>
-                    </a>
-                  ) : null}
+                      Copy Verification Link
+                    </button>
+
+                    {externalPublicationUrl ? (
+                      <a
+                        href={externalPublicationUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        style={{
+                          width: "100%",
+                          minHeight: 52,
+                          borderRadius: 999,
+                          border: `1px solid ${VERIFY_BRAND.line}`,
+                          background: "rgba(255,255,255,0.54)",
+                          color: VERIFY_BRAND.ink,
+                          fontSize: 12,
+                          fontWeight: 900,
+                          letterSpacing: "0.065em",
+                          textTransform: "uppercase",
+                          textDecoration: "none",
+                          display: "inline-flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          boxShadow: "0 10px 24px rgba(16,32,29,0.08)",
+                        }}
+                      >
+                        Open External Publication
+                      </a>
+                    ) : null}
+                  </div>
                 </div>
               </Card>
             </div>
           )}
         </div>
-</section>
+      </section>
     </div>
   );
 }
