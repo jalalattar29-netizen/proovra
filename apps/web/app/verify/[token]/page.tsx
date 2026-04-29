@@ -275,6 +275,7 @@ tsaMessageImprint?: string | null;
   id?: string | null;
   title?: string | null;
   status?: string | null;
+  trustDecision?: VerifyTrustDecision | null;
   verificationStatus?: string | null;
   captureMethod?: string | null;
   identityLevelSnapshot?: string | null;
@@ -838,11 +839,11 @@ function buildVerificationPackageIntegrity(params: {
     available,
     version: params.version,
     generatedAtUtc: params.generatedAtUtc,
-    manifestPresent: available,
-    signedManifestPresent: available,
-    checksumIndexPresent: available,
-    offlineVerifierPresent: available,
-    auditExportPresent: available,
+manifestPresent: false,
+signedManifestPresent: false,
+checksumIndexPresent: false,
+offlineVerifierPresent: false,
+auditExportPresent: false,
     custodyExportPresent: params.forensicEventCount > 0,
     accessExportPresent: params.accessEventCount > 0,
   };
@@ -2316,20 +2317,19 @@ function buildVerifyTrustDecision(params: {
       "Identity context supports reviewer understanding, but it does not independently prove authorship or factual truth.",
   });
 
-  const verificationPackage = makeTrustSignal({
-    key: "verification_package",
-    label: "Verification package",
-    status: params.verificationPackageVersion ? "passed" : "partial",
-    points: params.verificationPackageVersion ? 5 : 3,
-    maxPoints: 5,
-    summary: params.verificationPackageVersion
-      ? "Verification package available"
-      : "Technical materials available",
-    detail:
-      params.verificationPackageVersion
-        ? "A verification package version is recorded for deeper review."
-        : "Technical materials are present, but no package version was exposed in this response.",
-  });
+const verificationPackage = makeTrustSignal({
+  key: "verification_package",
+  label: "Verification package",
+  status: params.verificationPackageVersion ? "partial" : "missing",
+  points: params.verificationPackageVersion ? 3 : 0,
+  maxPoints: 5,
+  summary: params.verificationPackageVersion
+    ? "Verification package version recorded"
+    : "Verification package not exposed",
+  detail: params.verificationPackageVersion
+    ? "A verification package version is recorded, but package manifest, manifest signature, checksum index, and offline verifier are not exposed in this public verification response."
+    : "No verification package version was exposed in this response.",
+});
 
   const signals = [
     core,
@@ -2828,9 +2828,9 @@ function VerificationPackageIntegrityCard({
 
   const decisionText = complete
     ? "Independent offline verification is enabled for this evidence package."
-    : integrity.available
-      ? "A verification package exists, but one or more package-level materials are incomplete or not exposed."
-      : "No generated verification package was exposed in this verification response.";
+: integrity.available
+  ? "A verification package version exists. Package-level manifest, checksum, and offline-verifier details are not exposed by this public verification response."
+        : "No generated verification package was exposed in this verification response.";
 
   const rows = [
     {
@@ -2838,11 +2838,11 @@ function VerificationPackageIntegrityCard({
       value: integrity.manifestPresent ? "Present" : "Not available",
       tone: integrity.manifestPresent ? "success" : "neutral",
     },
-    {
-      label: "Signed Manifest",
-      value: integrity.signedManifestPresent ? "Present" : "Not available",
-      tone: integrity.signedManifestPresent ? "success" : "neutral",
-    },
+{
+  label: "Manifest Signature",
+  value: integrity.signedManifestPresent ? "Ed25519 signature present" : "Not available",
+  tone: integrity.signedManifestPresent ? "success" : "neutral",
+},
     {
       label: "Checksum Index",
       value: integrity.checksumIndexPresent ? "Present" : "Not available",
@@ -2960,7 +2960,7 @@ function VerificationPackageIntegrityCard({
         <div style={{ ...VERIFY_TYPO.small, fontSize: 13, color: VERIFY_BRAND.ink }}>
           {complete
             ? "The exported forensic bundle supports independent offline verification of package contents, checksums, manifest integrity, custody export, and audit/access materials."
-            : "Evidence integrity can still be reviewed, but package-level offline verification may be limited until the missing package materials are available."}
+: "Evidence integrity can still be reviewed here. Package-level offline verification should be performed from the downloaded verification package."}
         </div>
 
         {integrity.generatedAtUtc ? (
@@ -3299,6 +3299,8 @@ export default function VerifyPage() {
     useState<VerifyContentAccessPolicy>(null);
   const [contentExposureDecision, setContentExposureDecision] =
     useState<VerifyContentExposureDecision>(null);
+  const [serverTrustDecision, setServerTrustDecision] =
+  useState<VerifyTrustDecision | null>(null);
 const [activeTechnicalTab, setActiveTechnicalTab] =
   useState<TechnicalTabId>("record");
 
@@ -3695,7 +3697,7 @@ setSelectedEvidenceItemId((current) =>
 setPreviewPolicy(content.previewPolicy);
     setContentAccessPolicy(data.contentAccessPolicy ?? null);
     setContentExposureDecision(data.contentExposureDecision ?? null);
-
+setServerTrustDecision(data.trustDecision ?? null);
     return otsDetails;
   };
 
@@ -3988,7 +3990,7 @@ setPreviewPolicy(content.previewPolicy);
     ]
   );
 
-  const trustDecision = useMemo(
+  const fallbackTrustDecision = useMemo(
     () =>
       buildVerifyTrustDecision({
         overallIntegrity,
@@ -4033,6 +4035,8 @@ setPreviewPolicy(content.previewPolicy);
       verificationPackageVersion,
     ]
   );
+
+  const trustDecision = serverTrustDecision ?? fallbackTrustDecision;
 
   const verificationPackageIntegrity = useMemo(
   () =>

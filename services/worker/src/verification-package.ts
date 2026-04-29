@@ -1,8 +1,10 @@
 import archiver from "archiver";
 import path from "node:path";
-import { createHash } from "node:crypto";
+import { createHash, sign as cryptoSign } from "node:crypto";
+import { readFileSync } from "node:fs";
 import { PassThrough } from "stream";
 import { isAccessCustodyEventType } from "@proovra/shared";
+import type { ReportTrustDecision } from "./report-v2/types.js";
 
 type VerificationEvidenceFile = {
   name: string;
@@ -387,6 +389,59 @@ function sha256Hex(bufferOrText: Buffer | string): string {
   return createHash("sha256").update(bufferOrText).digest("hex");
 }
 
+function readPackageSigningPrivateKeyPem(): string {
+  const privateKeyPath =
+    process.env.PACKAGE_SIGNING_PRIVATE_KEY_PATH?.trim() ||
+    process.env.SIGNING_PRIVATE_KEY_PATH?.trim();
+
+  if (!privateKeyPath) {
+    throw new Error("PACKAGE_SIGNING_PRIVATE_KEY_PATH or SIGNING_PRIVATE_KEY_PATH is not set");
+  }
+
+  const resolvedPath = path.isAbsolute(privateKeyPath)
+    ? privateKeyPath
+    : path.resolve(process.cwd(), privateKeyPath);
+
+  return readFileSync(resolvedPath, "utf8");
+}
+
+function readPackageSigningPublicKeyPem(): string {
+  const publicKeyPath =
+    process.env.PACKAGE_SIGNING_PUBLIC_KEY_PATH?.trim() ||
+    process.env.SIGNING_PUBLIC_KEY_PATH?.trim();
+
+  if (!publicKeyPath) {
+    throw new Error("PACKAGE_SIGNING_PUBLIC_KEY_PATH or SIGNING_PUBLIC_KEY_PATH is not set");
+  }
+
+  const resolvedPath = path.isAbsolute(publicKeyPath)
+    ? publicKeyPath
+    : path.resolve(process.cwd(), publicKeyPath);
+
+  return readFileSync(resolvedPath, "utf8");
+}
+
+function signPackageManifestDigest(digestHex: string) {
+  if (!/^[a-f0-9]{64}$/i.test(digestHex)) {
+    throw new Error("Package manifest digest must be a SHA-256 hex digest");
+  }
+
+const privateKeyPem = readPackageSigningPrivateKeyPem();
+  const signature = cryptoSign(null, Buffer.from(digestHex, "hex"), privateKeyPem);
+
+  return {
+    signatureBase64: signature.toString("base64"),
+    signingKeyId:
+      process.env.PACKAGE_SIGNING_KEY_ID?.trim() ||
+      process.env.SIGNING_KEY_ID?.trim() ||
+      "dw_ed25519",
+    signingKeyVersion:
+      process.env.PACKAGE_SIGNING_KEY_VERSION?.trim() ||
+      process.env.SIGNING_KEY_VERSION?.trim() ||
+      "1",
+  };
+}
+
 function jsonBuffer(value: unknown): Buffer {
   return Buffer.from(JSON.stringify(value, null, 2), "utf8");
 }
@@ -431,19 +486,27 @@ function buildSignedManifest(params: {
   signingKeyId?: string | null;
   signingKeyVersion?: number | null;
 }) {
+  const manifestSha256 = sha256Hex(params.manifestBuffer);
+  const signature = signPackageManifestDigest(manifestSha256);
+
   return {
     schema: "PROOVRA_SIGNED_PACKAGE_MANIFEST",
-    version: 1,
+    version: 2,
     generatedAtUtc: new Date().toISOString(),
-    signatureAlgorithm: "INTEGRITY_DIGEST_ONLY",
+    signatureAlgorithm: "ED25519",
     digestAlgorithm: "SHA-256",
-    signingKeyId: params.signingKeyId ?? null,
+    signingKeyId: signature.signingKeyId ?? params.signingKeyId ?? null,
     signingKeyVersion:
-      params.signingKeyVersion != null ? String(params.signingKeyVersion) : null,
+      signature.signingKeyVersion ??
+      (params.signingKeyVersion != null ? String(params.signingKeyVersion) : null),
     manifestFile: "package-manifest.json",
-    manifestSha256: sha256Hex(params.manifestBuffer),
+    manifestSha256,
+    publicKeyFile: "package-manifest-public-key.pem",
+    signatureBase64: signature.signatureBase64,
+    signatureInput:
+      "SHA-256 digest bytes of package-manifest.json signed with Ed25519 private key",
     note:
-      "This file binds the package manifest to a SHA-256 digest. It is not a private-key cryptographic signature. Treat it as an integrity digest record for the manifest.",
+      "This is a private-key Ed25519 cryptographic signature over the SHA-256 digest of package-manifest.json.",
   };
 }
 
@@ -587,7 +650,7 @@ sha256sum package-manifest.json
 cat package-manifest.sig
 \`\`\`
 
-The SHA-256 digest of \`package-manifest.json\` should match \`manifestSha256\` in \`package-manifest.sig\`.
+The SHA-256 digest of \`package-manifest.json\` should match \`manifestSha256\` in \`package-manifest.sig\`, and \`signatureBase64\` is the Ed25519 signature over that digest.
 
 ## 4. Verify signature material
 
@@ -631,7 +694,7 @@ This package supports technical integrity review only. It does not independently
 function buildVerifyPackageScript() {
   return [
     "#!/usr/bin/env node",
-    'import { createHash } from "node:crypto";',
+    'import { createHash, verify } from "node:crypto";',
     'import { readFileSync, existsSync } from "node:fs";',
     "",
     "function sha256(filePath) {",
@@ -643,27 +706,25 @@ function buildVerifyPackageScript() {
     "  process.exitCode = 1;",
     "}",
     "",
-    'const manifestPath = "package-checksums.json";',
+    "// ------------------------------",
+    "// 1. CHECKSUM VALIDATION",
+    "// ------------------------------",
+    'const checksumsPath = "package-checksums.json";',
     "",
-    "if (!existsSync(manifestPath)) {",
-    '  fail("package-checksums.json not found. Run this script from the extracted package root.");',
+    "if (!existsSync(checksumsPath)) {",
+    '  fail("package-checksums.json not found.");',
     "  process.exit();",
     "}",
     "",
-    'const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));',
-    "const files = Array.isArray(manifest.files) ? manifest.files : [];",
+    'const checksums = JSON.parse(readFileSync(checksumsPath, "utf8"));',
+    "const files = Array.isArray(checksums.files) ? checksums.files : [];",
     "",
     "let checked = 0;",
     "",
     "for (const item of files) {",
-    '  if (!item || typeof item.path !== "string" || typeof item.sha256 !== "string") {',
-    '    fail("Invalid checksum entry.");',
-    "    continue;",
-    "  }",
+    '  if (!item || typeof item.path !== "string") continue;',
     "",
-    '  if (item.path === "package-checksums.json") {',
-    "    continue;",
-    "  }",
+    '  if (item.path === "package-checksums.json") continue;',
     "",
     "  if (!existsSync(item.path)) {",
     '    fail("Missing file: " + item.path);',
@@ -671,20 +732,53 @@ function buildVerifyPackageScript() {
     "  }",
     "",
     "  const actual = sha256(item.path);",
-    "  checked += 1;",
+    "  checked++;",
     "",
-    "  if (actual.toLowerCase() !== item.sha256.toLowerCase()) {",
-    '    fail("Checksum mismatch: " + item.path + "\n  expected " + item.sha256 + "\n  actual   " + actual);',
+    "  if (actual !== item.sha256) {",
+    '    fail("Checksum mismatch: " + item.path);',
     "  }",
     "}",
     "",
-    "if (process.exitCode) {",
+    'console.log("✔ Checksums OK:", checked, "files");',
+    "",
+    "// ------------------------------",
+    "// 2. MANIFEST SIGNATURE VERIFY",
+    "// ------------------------------",
+    "",
+    'const manifestPath = "package-manifest.json";',
+    'const sigPath = "package-manifest.sig";',
+    'const pubKeyPath = "package-manifest-public-key.pem";',
+    "",
+    "if (!existsSync(manifestPath) || !existsSync(sigPath) || !existsSync(pubKeyPath)) {",
+    '  fail("Missing manifest signature files");',
     "  process.exit();",
     "}",
     "",
-    'console.log("OK: verified " + checked + " packaged files against package-checksums.json");',
+    "const manifestBuffer = readFileSync(manifestPath);",
+    "const manifestSha256 = createHash('sha256').update(manifestBuffer).digest();",
     "",
-  ].join("\n");
+    'const sigJson = JSON.parse(readFileSync(sigPath, "utf8"));',
+    "const signature = Buffer.from(sigJson.signatureBase64, 'base64');",
+    "",
+    "const publicKey = readFileSync(pubKeyPath);",
+    "",
+    "const verified = verify(null, manifestSha256, publicKey, signature);",
+    "",
+    "if (!verified) {",
+    '  fail("Manifest signature INVALID");',
+    "} else {",
+    '  console.log("✔ Manifest signature VALID");',
+    "}",
+    "",
+    "// ------------------------------",
+    "// FINAL RESULT",
+    "// ------------------------------",
+    "",
+    "if (process.exitCode) process.exit();",
+    "",
+    'console.log("✅ FULL PACKAGE VERIFIED");',
+    "",
+  ].join("\\n");
 }
 
 function buildAnchorReadmeSection(params: {
@@ -947,171 +1041,6 @@ function buildPackageManifest(params: {
   };
 }
 
-function buildPackageTrustDecision(params: {
-  metadata: VerificationPackageMetadata;
-  evidenceFiles: Array<VerificationEvidenceFile & { finalName: string }>;
-  hasTimestampToken: boolean;
-  anchorPublished: boolean;
-  forensicCustodyCount: number;
-}) {
-  const hasEvidenceFiles = params.evidenceFiles.length > 0;
-  const hasHashes = params.evidenceFiles.some(
-    (file) => typeof file.sha256 === "string" && file.sha256.trim().length > 0
-  );
-
-  const verificationStatus = String(
-    params.metadata.verificationStatus ?? ""
-  ).toUpperCase();
-
-  const tsaStatus = String(params.metadata.tsaStatus ?? "").toUpperCase();
-  const otsStatus = String(params.metadata.otsStatus ?? "").toUpperCase();
-
-  const corePassed =
-    hasEvidenceFiles &&
-    hasHashes &&
-    (verificationStatus === "RECORDED_INTEGRITY_VERIFIED" ||
-      Boolean(params.metadata.recordedIntegrityVerifiedAtUtc));
-
-  const corePartial = hasEvidenceFiles && hasHashes && !corePassed;
-
-  const timestampPassed =
-    params.hasTimestampToken &&
-    ["STAMPED", "GRANTED", "VERIFIED", "SUCCEEDED"].includes(tsaStatus);
-
-  const timestampPending = ["PENDING", "UNAVAILABLE"].includes(tsaStatus);
-  const timestampFailed = tsaStatus === "FAILED";
-
-  const anchoringPassed = params.anchorPublished || otsStatus === "ANCHORED";
-  const anchoringPending = otsStatus === "PENDING";
-  const anchoringFailed = otsStatus === "FAILED";
-
-  const storagePassed =
-    params.metadata.storageImmutable === true &&
-    String(params.metadata.storageObjectLockMode ?? "").toUpperCase() ===
-      "COMPLIANCE" &&
-    Boolean(params.metadata.storageObjectLockRetainUntilUtc);
-
-  const custodyPassed = params.forensicCustodyCount > 0;
-
-  const signals = [
-    {
-      key: "core_integrity",
-      label: "Core integrity",
-      status: corePassed ? "passed" : corePartial ? "partial" : "failed",
-      points: corePassed ? 25 : corePartial ? 18 : 0,
-      maxPoints: 25,
-      summary: corePassed
-        ? "Recorded integrity state verified"
-        : corePartial
-          ? "Integrity materials recorded"
-          : "Integrity materials incomplete",
-    },
-    {
-      key: "trusted_timestamp",
-      label: "Trusted timestamp",
-      status: timestampPassed
-        ? "passed"
-        : timestampPending
-          ? "pending"
-          : timestampFailed
-            ? "failed"
-            : "missing",
-      points: timestampPassed ? 15 : timestampPending ? 8 : timestampFailed ? 3 : 0,
-      maxPoints: 15,
-      summary: timestampPassed
-        ? "Trusted timestamp token included"
-        : timestampPending
-          ? "Timestamp pending"
-          : timestampFailed
-            ? "Timestamp unavailable"
-            : "Timestamp not included",
-    },
-    {
-      key: "public_anchoring",
-      label: "Public anchoring",
-      status: anchoringPassed
-        ? "passed"
-        : anchoringPending
-          ? "pending"
-          : anchoringFailed
-            ? "failed"
-            : "missing",
-      points: anchoringPassed ? 10 : anchoringPending ? 6 : anchoringFailed ? 2 : 0,
-      maxPoints: 10,
-      summary: anchoringPassed
-        ? "Public anchoring recorded"
-        : anchoringPending
-          ? "Anchoring pending"
-          : anchoringFailed
-            ? "Anchoring failed"
-            : "Anchoring not recorded",
-    },
-    {
-      key: "immutable_storage",
-      label: "Immutable storage",
-      status: storagePassed ? "passed" : "partial",
-      points: storagePassed ? 15 : 7,
-      maxPoints: 15,
-      summary: storagePassed
-        ? "Immutable retention verified"
-        : "Storage protection not fully verified in package metadata",
-    },
-    {
-      key: "custody_chain",
-      label: "Custody chain",
-      status: custodyPassed ? "passed" : "missing",
-      points: custodyPassed ? 10 : 0,
-      maxPoints: 10,
-      summary: custodyPassed
-        ? `${params.forensicCustodyCount} forensic custody events recorded`
-        : "No forensic custody events recorded",
-    },
-  ];
-
-  const rawScore = signals.reduce((sum, signal) => sum + signal.points, 0);
-  const rawMax = signals.reduce((sum, signal) => sum + signal.maxPoints, 0);
-  const score = rawMax > 0 ? Math.round((rawScore / rawMax) * 100) : 0;
-
-  const coreFailed = signals[0]?.status === "failed";
-
-  const verdict =
-    coreFailed || score < 45
-      ? "INSUFFICIENT_VERIFICATION"
-      : score >= 90
-        ? "STRONGLY_VERIFIED"
-        : score >= 78
-          ? "VERIFIED"
-          : score >= 62
-            ? "PARTIALLY_VERIFIED"
-            : "REVIEW_REQUIRED";
-
-  const degradedSignals = signals.filter((signal) =>
-    ["partial", "pending", "missing", "failed"].includes(signal.status)
-  );
-
-  return {
-    schema: "PROOVRA_PACKAGE_TRUST_DECISION",
-    version: 1,
-    generatedAtUtc: new Date().toISOString(),
-    verdict,
-    score,
-    scoreLabel: `${score}/100`,
-    degradedButUsable:
-      !coreFailed && score >= 62 && degradedSignals.length > 0,
-    summary:
-      verdict === "INSUFFICIENT_VERIFICATION"
-        ? "The verification package does not contain enough material for reliable integrity reliance."
-        : degradedSignals.length > 0
-          ? "The verification package contains usable integrity materials, but one or more supporting trust signals require review."
-          : "The verification package contains strong integrity, custody, timestamping, storage, or anchoring support.",
-    reviewerAction:
-      degradedSignals.length > 0
-        ? "Review degraded signals before high-reliance use. Missing or failed timestamping/anchoring does not automatically invalidate hashes, signatures, custody, or preserved originals."
-        : "Proceed with normal technical verification of hashes, signature, custody, timestamping, and anchoring materials.",
-    signals,
-  };
-}
-
 function buildIntegritySummary(params: {
   evidenceFiles: VerificationEvidenceFile[];
   hasTimestampToken: boolean;
@@ -1224,7 +1153,7 @@ package-manifest.json
 Package metadata describing the verification bundle.
 
 package-manifest.sig
-SHA-256 digest record for package-manifest.json.
+Ed25519 signature record for package-manifest.json.
 
 package-checksums.json
 SHA-256 checksum manifest for packaged files.
@@ -1697,6 +1626,7 @@ export async function createVerificationPackage(data: {
   publicKey: string;
   custody: unknown;
   evidenceId?: string;
+trustDecision: ReportTrustDecision;
   reportVersion?: number;
   signingKeyId?: string;
   signingKeyVersion?: number;
@@ -1749,6 +1679,8 @@ export async function createVerificationPackage(data: {
     });
 
     archive.pipe(stream);
+    void (async () => {
+  try {
 
     const evidenceFiles: VerificationEvidenceFile[] =
       Array.isArray(data.evidenceFiles) && data.evidenceFiles.length > 0
@@ -1934,18 +1866,26 @@ export async function createVerificationPackage(data: {
     );
 
     appendPackageEntry(
-      archive,
-      packageEntries,
-      "package-manifest.sig",
-      jsonBuffer(
-        buildSignedManifest({
-          manifestBuffer: packageManifestBuffer,
-          signingKeyId: data.signingKeyId ?? null,
-          signingKeyVersion: data.signingKeyVersion ?? null,
-        })
-      ),
-      "application/json"
-    );
+  archive,
+  packageEntries,
+  "package-manifest-public-key.pem",
+  textBuffer(readPackageSigningPublicKeyPem()),
+  "application/x-pem-file"
+);
+
+appendPackageEntry(
+  archive,
+  packageEntries,
+  "package-manifest.sig",
+  jsonBuffer(
+    buildSignedManifest({
+      manifestBuffer: packageManifestBuffer,
+      signingKeyId: data.signingKeyId ?? null,
+      signingKeyVersion: data.signingKeyVersion ?? null,
+    })
+  ),
+  "application/json"
+);
 
     appendPackageEntry(
       archive,
@@ -1989,13 +1929,13 @@ The result must match the expected SHA-256 above and the manifestSha256 field in
       packageEntries,
       "trust-decision.json",
       jsonBuffer(
-        buildPackageTrustDecision({
-          metadata,
-          evidenceFiles: evidenceFilesWithFinalName,
-          hasTimestampToken,
-          anchorPublished,
-          forensicCustodyCount: custodySplit.forensic.length,
-        })
+{
+  schema: "PROOVRA_PACKAGE_TRUST_DECISION",
+  version: 2,
+  generatedAtUtc: new Date().toISOString(),
+  source: "REPORT_TRUST_DECISION",
+  ...data.trustDecision,
+}
       ),
       "application/json"
     );
@@ -2226,6 +2166,10 @@ The result must match the expected SHA-256 above and the manifestSha256 field in
       "application/json"
     );
 
-    archive.finalize().catch(fail);
+    await archive.finalize();
+  } catch (error) {
+    fail(error);
+  }
+})();
   });
 }

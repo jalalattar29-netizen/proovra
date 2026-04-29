@@ -272,7 +272,7 @@ export type ReportTrustVerdict =
   | "VERIFIED"
   | "PARTIALLY_VERIFIED"
   | "REVIEW_REQUIRED"
-  | "FAILED";
+  | "INSUFFICIENT_VERIFICATION";
 
 export type ReportTrustLevel =
   | "strong"
@@ -414,10 +414,13 @@ verificationPackageIntegrity: {
   version: number | null;
   generatedAtUtc: string | null;
   manifestPresent: boolean;
+  signedManifestPresent: boolean;
   manifestDigestPresent: boolean;
   checksumIndexPresent: boolean;
   offlineVerifierIncluded: boolean;
   auditExportIncluded: boolean;
+  custodyExportIncluded?: boolean;
+  accessExportIncluded?: boolean;
 };
   executiveConclusion: CalloutModel;
   legalLimitationShort: CalloutModel;

@@ -147,8 +147,10 @@ function readPackageIntegrityRows(vm: ReportViewModel): KeyValueRow[] {
       value: integrity.manifestPresent ? "Present" : "Not available",
     },
     {
-      label: "Package Digest Reference",
-      value: integrity.manifestDigestPresent ? "Present" : "Not available",
+      label: "Manifest Signature",
+      value: integrity.manifestDigestPresent
+        ? "Ed25519 signature present"
+        : "Not available",
     },
     {
       label: "Checksum Index",
@@ -174,14 +176,14 @@ function readPackageIntegrityRows(vm: ReportViewModel): KeyValueRow[] {
 function renderVerificationPackageIntegrity(vm: ReportViewModel): string {
   return renderAppendixSection(
     "Verification Package Integrity",
-    "Compact reference to the machine-verifiable verification package artifacts.",
+"Compact reference to the machine-verifiable verification package artifacts, including the Ed25519 package-manifest signature when generated.",
     `
       ${renderKeyValueGrid(readPackageIntegrityRows(vm))}
       ${renderCallout({
         title: "Package integrity layer",
-        body:
-          "The verification package is the offline forensic bundle. It may include the preserved originals, package manifest, checksum index, manifest digest reference, offline verifier, custody export, and access audit export. The PDF summarizes this layer but does not replace the package itself.",
-        tone: "neutral",
+body:
+  "The verification package is the offline forensic bundle. It may include the preserved originals, package manifest, Ed25519 manifest signature, checksum index, offline verifier, custody export, and access audit export. The PDF summarizes this layer but does not replace the package itself.",
+          tone: "neutral",
       })}
     `,
     { className: "technical-appendix-package-integrity-block" }
@@ -353,13 +355,6 @@ ${
                 tone: "neutral",
               })}
 
-              ${renderAppendixSection(
-                "Court Review Index",
-                "Structured control points for legal, forensic, or technical review.",
-                renderKeyValueGrid(vm.meta.courtAppendixRows ?? []),
-                { className: "technical-appendix-court-index-block" }
-              )}
-              
               ${
                 otsDetail
                   ? renderCallout({

@@ -1,6 +1,8 @@
 import type { Job } from "bullmq";
 import type { Readable } from "node:stream";
 import * as prismaPkg from "@prisma/client";
+import type { ReportTrustDecision } from "./report-v2/types.js";
+import { buildTrustDecision } from "./report-v2/truth-model.js";
 import type {
   Prisma,
   CertificationType,
@@ -289,6 +291,7 @@ type PreparedReportArtifacts = {
   }>;
 
 reportEvidencePayload: ReportBuildParams["evidence"];
+trustDecision: ReportTrustDecision;
   certifications: {
     custodian: ReportCertificationSnapshot | null;
     qualifiedPerson: ReportCertificationSnapshot | null;
@@ -2198,6 +2201,11 @@ evidenceStructure:
     certifications,
 } as ReportBuildParams["evidence"];
 
+const trustDecision = buildTrustDecision({
+  evidence: reportEvidencePayload,
+  custodyEvents: custodyEventsForReport,
+});
+
   const reportBuildParams: ReportBuildParams = {
     evidence: reportEvidencePayload,
     custodyEvents: custodyEventsForReport,
@@ -2249,10 +2257,11 @@ return {
   verificationEvidenceFiles,
   verificationPackageIncluded,
   anchorSummary,
-  reportEvidencePayload,
-  certifications,
-  custodyForVerificationPackage,
-  packageMetadataContext: {
+reportEvidencePayload,
+trustDecision,
+certifications,
+custodyForVerificationPackage,
+packageMetadataContext: {
     caseId: evidence.caseId ?? null,
     caseName: caseItem?.name ?? null,
     retentionPolicy: null,
@@ -2551,11 +2560,13 @@ export async function processGenerateReport(job: Job<GenerateReportJobData>) {
               prepared.reviewGuidance as unknown as Prisma.InputJsonValue,
             limitationsSnapshot:
               prepared.limitations as unknown as Prisma.InputJsonValue,
-            anchorSnapshot:
-              prepared.anchorSummary as unknown as Prisma.InputJsonValue,
-            contentAccessPolicySnapshot:
-              prepared.contentAccessPolicy as unknown as Prisma.InputJsonValue,
-            embeddedPreviewsSnapshot:
+anchorSnapshot:
+  prepared.anchorSummary as unknown as Prisma.InputJsonValue,
+trustDecisionSnapshot:
+  prepared.trustDecision as unknown as Prisma.InputJsonValue,
+contentAccessPolicySnapshot:
+  prepared.contentAccessPolicy as unknown as Prisma.InputJsonValue,
+              embeddedPreviewsSnapshot:
               prepared.contentItems
                 .filter(
                   (item) => item.previewDataUrl || item.previewTextExcerpt
@@ -2765,6 +2776,7 @@ publicKey: prepared.reportEvidencePayload.publicKeyPem as string,
           custody: finalized.finalizedCustodyEvents,
           evidenceId: prepared.evidenceId,
           reportVersion: prepared.version,
+          trustDecision: prepared.trustDecision,
 signingKeyId: evidence.signingKeyId ?? undefined,
 signingKeyVersion: evidence.signingKeyVersion ?? undefined,
           anchor: finalizedAnchorPayload,
@@ -2884,7 +2896,9 @@ ownerUserId: prepared.packageMetadataContext.ownerUserId,
                   : null,
               generatedAtUtc: prepared.now,
               sizeBytes: BigInt((finalizedVerificationZip as Buffer).length),
-              packageType: "full_evidence_package",
+packageType: "full_evidence_package",
+trustDecisionSnapshot:
+  prepared.trustDecision as unknown as Prisma.InputJsonValue,
             },
           });
 

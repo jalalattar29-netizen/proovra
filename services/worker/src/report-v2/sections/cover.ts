@@ -1,6 +1,6 @@
 // D:\digital-witness\services\worker\src\report-v2\sections\cover.ts
 import { reportAssetDataUrl } from "../asset-data-url.js";
-import { ReportViewModel } from "../types.js";
+import type { ReportViewModel } from "../types.js";
 import { escapeHtml, safe } from "../formatters.js";
 import { renderInlineQrBlock } from "../ui.js";
 const coverBrandIconUrl = reportAssetDataUrl("icon-192.png");
@@ -22,13 +22,6 @@ function hasMeaningfulValue(value: string): boolean {
       normalized !== "not reported" &&
       normalized !== "off"
   );
-}
-
-function statusTone(value: string, positiveWords: string[]): "success" | "warning" {
-  const normalized = value.toLowerCase();
-  return positiveWords.some((word) => normalized.includes(word))
-    ? "success"
-    : "warning";
 }
 
 function titleCaseEvidenceType(value: string): string {
@@ -70,7 +63,7 @@ function buildCoverSubtitle(vm: ReportViewModel): string {
 function renderDecisionIndicator(params: {
   label: string;
   value: string;
-  tone: "success" | "warning";
+tone: "success" | "warning" | "danger";
 }): string {
   return `
     <div class="cover-decision-indicator tone-${params.tone}">
@@ -243,8 +236,13 @@ export function renderCoverSection(vm: ReportViewModel): string {
                 renderDecisionIndicator({
                   label: signal.label,
                   value: signal.summary,
-                  tone: signal.tone === "success" ? "success" : "warning",
-                })
+tone:
+  signal.tone === "success"
+    ? "success"
+    : signal.tone === "danger"
+      ? "danger"
+      : "warning",
+                    })
               )
               .join("")}
           </div>

@@ -4023,6 +4023,15 @@ body {
   page-break-inside: avoid !important;
 }
 
+.cover-decision-indicator.tone-danger {
+  border-color: rgba(181, 71, 56, 0.30);
+  background: rgba(181, 71, 56, 0.10);
+}
+
+.cover-decision-indicator.tone-danger .cover-decision-mark {
+  background: #b54738;
+}
+
 @media print {
   html,
   body,

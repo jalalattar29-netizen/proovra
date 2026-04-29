@@ -750,6 +750,7 @@ function buildVerdict(params: {
   score: number;
   core: ReportTrustSignal;
   signature: ReportTrustSignal;
+  custody: ReportTrustSignal;
   failedSignals: number;
 }): Pick<
   ReportTrustDecision,
@@ -763,14 +764,15 @@ function buildVerdict(params: {
 > {
   const coreFailed = params.core.status === "failed";
   const signatureFailed = params.signature.status === "failed";
+  const custodyFailed = params.custody.status === "failed";
 
-  if (coreFailed || signatureFailed || params.score < 45) {
+  if (coreFailed || signatureFailed || custodyFailed || params.score < 45) {
     return {
       verdict: "FAILED",
       level: "failed",
       tone: "danger",
       verdictLabel: "Insufficient verification",
-      shortLabel: "Failed",
+      shortLabel: "Insufficient",
       title: "Insufficient verification materials",
       relianceLevel: "low",
     };
@@ -896,17 +898,25 @@ export function buildTrustDecision(params: {
 
   const maxScore = signals.reduce((sum, signal) => sum + signal.maxPoints, 0);
   const rawScore = signals.reduce((sum, signal) => sum + signal.points, 0);
-  const score = clampScore((rawScore / maxScore) * 100, 100);
+
+  const score =
+    maxScore > 0 ? Math.max(0, Math.min(100, Math.round((rawScore / maxScore) * 100))) : 0;
 
   const passedSignals = signals.filter((s) => s.status === "passed").length;
+
   const failedSignals = signals.filter((s) => s.status === "failed").length;
+
   const degradedSignals = signals.filter((s) =>
     ["partial", "pending", "missing", "failed"].includes(s.status)
   ).length;
 
+  const criticalFailed =
+    core.status === "failed" ||
+    signature.status === "failed" ||
+    custody.status === "failed";
+
   const degradedButUsable =
-    core.status !== "failed" &&
-    signature.status !== "failed" &&
+    !criticalFailed &&
     score >= 62 &&
     degradedSignals > 0;
 
@@ -914,6 +924,7 @@ export function buildTrustDecision(params: {
     score,
     core,
     signature,
+    custody,
     failedSignals,
   });
 
@@ -931,7 +942,9 @@ export function buildTrustDecision(params: {
     scoreLabel: `${score}/100`,
     summary: narrative.summary,
     primaryReason: narrative.primaryReason,
-    reviewerAction: narrative.reviewerAction,
+    reviewerAction: criticalFailed
+      ? "Do not rely on this record as verified until failed core integrity, signature, or custody signals are reviewed."
+      : narrative.reviewerAction,
     degradedButUsable,
     signals,
     passedSignals,

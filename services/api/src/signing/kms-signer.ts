@@ -115,4 +115,39 @@ export class KmsEvidenceSigner {
       keyVersion: this.getBusinessKeyVersion(),
     };
   }
+    async signPackageManifestDigestHex(
+    digestHex: string
+  ): Promise<KmsSignFingerprintResult> {
+    const normalizedHex = digestHex.trim().toLowerCase();
+
+    if (!/^[a-f0-9]{64}$/.test(normalizedHex)) {
+      throw new Error(
+        "signPackageManifestDigestHex: digestHex must be a SHA-256 hex digest"
+      );
+    }
+
+    const message = Buffer.from(normalizedHex, "hex");
+
+    const res = await this.kms.send(
+      new SignCommand({
+        KeyId: this.getKmsKeyId(),
+        Message: message,
+        MessageType: "RAW",
+        SigningAlgorithm: "ED25519_SHA_512",
+      })
+    );
+
+    if (!res.Signature) {
+      throw new Error("KMS package manifest signature was not returned");
+    }
+
+    return {
+      signatureBase64: Buffer.from(res.Signature).toString("base64"),
+      keyId:
+        process.env.PACKAGE_SIGNING_KEY_ID?.trim() || this.getBusinessKeyId(),
+      keyVersion: process.env.PACKAGE_SIGNING_KEY_VERSION?.trim()
+        ? Number.parseInt(process.env.PACKAGE_SIGNING_KEY_VERSION.trim(), 10)
+        : this.getBusinessKeyVersion(),
+    };
+  }
 }

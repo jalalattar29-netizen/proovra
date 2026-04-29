@@ -1131,10 +1131,10 @@ export async function buildReportViewModel(
   const custody = splitCustodyEvents(input.custodyEvents);
   const otsEvidence = resolveOtsPresentationEvidence(input.evidence);
   const integrityVerified = isIntegrityVerified(input.evidence);
-  const trustDecision = buildTrustDecision({
-    evidence: otsEvidence,
-    custodyEvents: input.custodyEvents,
-  });
+const trustDecision = buildTrustDecision({
+  evidence: otsEvidence,
+  custodyEvents: custody.forensic,
+});
   const reviewGuidance = resolveReviewGuidance(
     input.evidence,
     contentSummary.itemCount,

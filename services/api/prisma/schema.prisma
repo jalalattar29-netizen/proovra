@@ -277,6 +277,7 @@ model Report {
   reviewGuidanceSnapshot                     Json?               @map("review_guidance_snapshot")
   limitationsSnapshot                        Json?               @map("limitations_snapshot")
   anchorSnapshot                             Json?               @map("anchor_snapshot")
+  trustDecisionSnapshot                      Json?               @map("trust_decision_snapshot")
   contentAccessPolicySnapshot                Json?               @map("content_access_policy_snapshot")
   embeddedPreviewsSnapshot                   Json?               @map("embedded_previews_snapshot")
 
@@ -342,6 +343,7 @@ model VerificationPackage {
   sizeBytes                        BigInt?   @map("size_bytes")
   generatedAtUtc                   DateTime  @map("generated_at_utc") @db.Timestamptz(6)
   packageType                      String?   @map("package_type") @db.VarChar(64)
+  trustDecisionSnapshot            Json?     @map("trust_decision_snapshot")
   createdAt                        DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt                        DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
   evidence                         Evidence  @relation(fields: [evidenceId], references: [id], onDelete: Cascade)

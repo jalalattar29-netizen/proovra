@@ -4,6 +4,7 @@ import {
   renderPageSection,
   renderTrustDecisionHero,
   renderTrustSignalGrid,
+  renderKeyValueGrid,
 } from "../ui.js";
 
 function findRowValue(
@@ -97,6 +98,40 @@ function renderTrustSignalAnalysisPage(vm: ReportViewModel): string {
   );
 }
 
+function renderCourtReviewIndexPage(vm: ReportViewModel): string {
+  return renderPageSection(
+    "Court & Technical Review Index",
+    `
+      <div class="trust-signal-analysis-page court-review-index-page">
+        <section class="trust-signal-analysis-hero">
+          <div class="executive-confirmation-kicker">Court-facing review map</div>
+          <div class="executive-confirmation-title">
+            Control points for legal, forensic, and technical review
+          </div>
+          <div class="executive-confirmation-body">
+            This page consolidates the main review checkpoints used to connect the report, preserved evidence, cryptographic materials, custody history, verification package, and technical appendix. It is an index for reviewers, not a legal admissibility conclusion.
+          </div>
+        </section>
+
+        <section class="executive-trust-decision-panel">
+          ${renderKeyValueGrid(vm.meta.courtAppendixRows ?? [])}
+        </section>
+
+        <section class="trust-signal-analysis-footer">
+          <div class="executive-outcome-title">Review boundary</div>
+          <div class="executive-outcome-body">
+            These control points support technical and procedural review. Factual truth, authorship, context, relevance, legal admissibility, and evidentiary weight remain separate human/legal determinations.
+          </div>
+        </section>
+      </div>
+    `,
+    {
+      pageBreakBefore: true,
+      className: "court-review-index-section",
+    }
+  );
+}
+
 export function renderExecutiveSummarySection(vm: ReportViewModel): string {
   const leadItemType = findRowValue(vm.executiveRows, "Lead Item Type", "");
   const leadItemName = findRowValue(vm.executiveRows, "Lead Review Item", "");
@@ -185,5 +220,5 @@ export function renderExecutiveSummarySection(vm: ReportViewModel): string {
     { className: "executive-summary-section" }
   );
 
-  return `${executivePage}${renderTrustSignalAnalysisPage(vm)}`;
+return `${executivePage}${renderTrustSignalAnalysisPage(vm)}${renderCourtReviewIndexPage(vm)}`;
 }

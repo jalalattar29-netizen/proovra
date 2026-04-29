@@ -4022,6 +4022,7 @@ if (
         orderBy: { version: "desc" },
         select: {
           version: true,
+          trustDecisionSnapshot: true,
           storageBucket: true,
           storageKey: true,
           storageRegion: true,
@@ -4112,6 +4113,7 @@ limitationsSnapshot: true,
         generatedAtUtc: latest.generatedAtUtc.toISOString(),
         reviewerSnapshot: {
           displayTitle: latest.displayTitleSnapshot ?? null,
+          trustDecision: toJsonSafe(latest.trustDecisionSnapshot ?? null),
           displayDescription: latest.displayDescriptionSnapshot ?? null,
           contentStructure: latest.contentStructureSnapshot ?? null,
           itemCount: latest.itemCountSnapshot ?? null,
@@ -4317,6 +4319,7 @@ displayName: resolvedDisplayName,
         select: {
           version: true,
           storageBucket: true,
+          trustDecisionSnapshot: true,
           storageKey: true,
           storageRegion: true,
           storageObjectLockMode: true,
@@ -4391,15 +4394,16 @@ displayName: resolvedDisplayName,
         },
       });
 
-      return reply.code(200).send({
-        evidenceId: id,
-        version: latest.version,
-        packageType: latest.packageType ?? null,
-        key: latest.storageKey,
-        url,
-        generatedAtUtc: latest.generatedAtUtc.toISOString(),
-        storage,
-      });
+return reply.code(200).send({
+  evidenceId: id,
+  version: latest.version,
+  packageType: latest.packageType ?? null,
+  key: latest.storageKey,
+  url,
+  generatedAtUtc: latest.generatedAtUtc.toISOString(),
+  storage,
+  trustDecision: toJsonSafe(latest.trustDecisionSnapshot ?? null),
+});
     }
   );
 
@@ -4850,15 +4854,31 @@ displayName: resolvedDisplayName,
       (ev) => classifyCustodyEventType(ev.eventType) === "access"
     );
 
-    const latestReport = await prisma.report.findFirst({
-      where: { evidenceId: id },
-      orderBy: { version: "desc" },
-      select: {
-        version: true,
-        generatedAtUtc: true,
-        embeddedPreviewsSnapshot: true,
-      },
-    });
+const latestReport = await prisma.report.findFirst({
+  where: { evidenceId: id },
+  orderBy: { version: "desc" },
+  select: {
+    version: true,
+    generatedAtUtc: true,
+    embeddedPreviewsSnapshot: true,
+    trustDecisionSnapshot: true,
+  },
+});
+
+const latestVerificationPackage = await prisma.verificationPackage.findFirst({
+  where: { evidenceId: id },
+  orderBy: { version: "desc" },
+  select: {
+    version: true,
+    generatedAtUtc: true,
+    trustDecisionSnapshot: true,
+  },
+});
+
+const trustDecision =
+  latestReport?.trustDecisionSnapshot ??
+  latestVerificationPackage?.trustDecisionSnapshot ??
+  null;
 
     const itemCount = await getEvidenceItemCount(id);
 
@@ -5213,6 +5233,22 @@ title: evidence.title ?? evidence.displayFileName ?? evidence.originalFileName ?
 
 return reply.code(200).send({
   evidenceId: evidence.id,
+  trustDecision,
+trustDecisionSource: trustDecision
+  ? latestReport?.trustDecisionSnapshot
+    ? "REPORT_SNAPSHOT"
+    : "VERIFICATION_PACKAGE_SNAPSHOT"
+  : "UNAVAILABLE",
+trustDecisionSnapshot: {
+  reportVersion: latestReport?.version ?? null,
+  reportGeneratedAtUtc: latestReport?.generatedAtUtc
+    ? latestReport.generatedAtUtc.toISOString()
+    : null,
+  verificationPackageVersion: latestVerificationPackage?.version ?? null,
+  verificationPackageGeneratedAtUtc: latestVerificationPackage?.generatedAtUtc
+    ? latestVerificationPackage.generatedAtUtc.toISOString()
+    : null,
+},
   contentAccessPolicy: publicVerifyAccessPolicy,
     contentExposureDecision: {
     mode: publicVerifyAccessPolicy.mode,
