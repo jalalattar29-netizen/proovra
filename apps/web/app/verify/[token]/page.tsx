@@ -409,7 +409,6 @@ type OtsDetails = {
 type TechnicalTabId =
   | "record"
   | "integrity"
-  | "forensic-custody"
   | "full-custody"
   | "access";
 
@@ -3244,8 +3243,39 @@ const executiveBadges = useMemo(
     borderRadius: 18,
   };
 
+  const verifyAssetPaths = {
+    logo: "/brand/icon-192.png",
+    pagePaper: "/brand/paper-silver.png",
+    headerVelvet: "/brand/site-velvet-bg.webp.png",
+  };
+
+  const pageBackgroundStyle: CSSProperties = {
+    backgroundImage: `
+      radial-gradient(circle at 12% 6%, rgba(11,46,39,0.08), transparent 30%),
+      radial-gradient(circle at 92% 12%, rgba(96,66,24,0.08), transparent 28%),
+      url("${verifyAssetPaths.pagePaper}")
+    `,
+    backgroundColor: "#eef1ef",
+    backgroundSize: "auto, auto, cover",
+    backgroundPosition: "left top, right top, center top",
+    backgroundRepeat: "no-repeat, no-repeat, repeat",
+  };
+
+  const headerVelvetStyle: CSSProperties = {
+    backgroundImage: `
+      linear-gradient(180deg, rgba(0,0,0,0.10) 0%, rgba(0,0,0,0.34) 100%),
+      url("${verifyAssetPaths.headerVelvet}")
+    `,
+    backgroundColor: "#062b24",
+    backgroundSize: "cover",
+    backgroundPosition: "center bottom",
+    backgroundRepeat: "no-repeat",
+    border: "1px solid rgba(255,255,255,0.18)",
+    boxShadow: "0 18px 50px rgba(11,46,39,0.18)",
+  };
+
   return (
-    <div className="page" style={VERIFY_TYPO.page}>
+        <div className="page" style={VERIFY_TYPO.page}>
       <section
         className="section"
         style={{
@@ -3254,13 +3284,14 @@ const executiveBadges = useMemo(
           paddingTop: 24,
           paddingBottom: 42,
           minHeight: "100vh",
-          ...VERIFY_SURFACE.page,
+          ...pageBackgroundStyle,
         }}
       >
-        <div className="container" style={{ position: "relative", zIndex: 1 }}>
+                <div className="container" style={{ position: "relative", zIndex: 1 }}>
           <div
             style={{
               ...glassCardStyle,
+              ...headerVelvetStyle,
               marginBottom: 28,
               padding: "16px 20px",
               display: "flex",
@@ -3291,10 +3322,15 @@ src="/brand/icon-192.png"
                     fontSize: 20,
                     fontWeight: 900,
                     letterSpacing: "0.075em",
-                    color: VERIFY_BRAND.accent,
                     lineHeight: 1.05,
+                    background:
+                      "linear-gradient(180deg, #f2f4f6 0%, #cfd4d8 35%, #9aa3aa 55%, #e6eaed 100%)",
+                    WebkitBackgroundClip: "text",
+                    WebkitTextFillColor: "transparent",
+                    textShadow:
+                      "0 1px 0 rgba(255,255,255,0.25), 0 2px 6px rgba(0,0,0,0.25)",
                   }}
-                >
+                                >
                   PROOVRA
                 </div>
                 <div
@@ -3303,8 +3339,9 @@ src="/brand/icon-192.png"
                     ...VERIFY_TYPO.kicker,
                     fontSize: 10,
                     letterSpacing: "0.13em",
+                    color: "rgba(220,225,230,0.85)",
                   }}
-                >
+                                  >
                   Secure Evidence Verification
                 </div>
               </div>
@@ -3319,10 +3356,10 @@ src="/brand/icon-192.png"
                 minHeight: 42,
                 padding: "10px 15px",
                 borderRadius: 999,
-                border: `1px solid ${VERIFY_BRAND.line}`,
-                background: "rgba(255,255,255,0.44)",
-                color: VERIFY_BRAND.ink,
-                fontSize: 11,
+                border: "1px solid rgba(255,255,255,0.24)",
+                background: "rgba(255,255,255,0.12)",
+                color: "#ffffff",
+                                fontSize: 11,
                 fontWeight: 900,
                 letterSpacing: "0.06em",
                 textTransform: "uppercase",
@@ -4430,11 +4467,6 @@ src="/brand/icon-192.png"
                       onClick={() => setActiveTechnicalTab("integrity")}
                     />
                     <TechnicalTabButton
-                      label="Forensic Custody"
-                      active={activeTechnicalTab === "forensic-custody"}
-                      onClick={() => setActiveTechnicalTab("forensic-custody")}
-                    />
-                    <TechnicalTabButton
                       label="Full Custody Chain"
                       active={activeTechnicalTab === "full-custody"}
                       onClick={() => setActiveTechnicalTab("full-custody")}
@@ -4721,37 +4753,21 @@ src="/brand/icon-192.png"
                     </div>
                   ) : null}
 
-                  {activeTechnicalTab === "forensic-custody" ? (
-                    <TimelinePanel
-                      title="Forensic Custody"
-                      subtitle="Forensic custody events describe integrity-relevant lifecycle activity recorded by the system. They are separated from later access or viewing events so the legal chain narrative does not get mixed with routine access history."
-                      countTone="info"
-                      events={forensicTimeline}
-                      emptyTitle="No forensic custody events were returned"
-                      emptyBody="This verification response does not include an internal forensic custody-event chain for this record. That means no system-recorded forensic custody entries were available here; it should not be interpreted as proof that no handling occurred outside the recorded workflow."
-                      accent={{
-                        dot: VERIFY_BRAND.bronze,
-                        dotBorder: "rgba(96,66,24,0.16)",
-                        line: "rgba(96,66,24,0.25)",
-                      }}
-                    />
-                  ) : null}
-
-                  {activeTechnicalTab === "full-custody" ? (
-                    <TimelinePanel
-                      title="Full Custody Chain"
-                      subtitle="Complete custody chronology including forensic lifecycle events and later access activity. Full previous-event and event hashes are shown so reviewers can inspect chain continuity."
-                      countTone="info"
-                      events={fullCustodyTimeline}
-                      emptyTitle="No custody-chain events were returned"
-                      emptyBody="This verification response did not include a complete custody-event chain."
-                      accent={{
-                        dot: VERIFY_BRAND.accent,
-                        dotBorder: "rgba(11,46,39,0.16)",
-                        line: "rgba(11,46,39,0.25)",
-                      }}
-                    />
-                  ) : null}
+{activeTechnicalTab === "full-custody" ? (
+  <TimelinePanel
+    title="Custody Chain"
+    subtitle="Complete recorded custody chronology, including integrity-relevant lifecycle events and later access activity when returned by the verification response. Event hashes are shown in full for chain-continuity review."
+    countTone="info"
+    events={fullCustodyTimeline}
+    emptyTitle="No custody-chain events were returned"
+    emptyBody="This verification response did not include a complete custody-event chain."
+    accent={{
+      dot: VERIFY_BRAND.accent,
+      dotBorder: "rgba(11,46,39,0.16)",
+      line: "rgba(11,46,39,0.25)",
+    }}
+  />
+) : null}
 
                   {activeTechnicalTab === "access" ? (
                     <TimelinePanel
