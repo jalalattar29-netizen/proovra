@@ -1,6 +1,11 @@
 import { ReportViewModel } from "../types.js";
 import { escapeHtml } from "../formatters.js";
-import { renderCallout, renderPageSection } from "../ui.js";
+import {
+  renderCallout,
+  renderPageSection,
+  renderTrustDecisionCompact,
+  renderTrustSignalGrid,
+} from "../ui.js";
 
 type IntegrityTone = "success" | "warning" | "danger" | "neutral";
 
@@ -70,15 +75,18 @@ function renderIntegrityCheckRow(params: {
 }
 
 function renderIntegrityResultPill(vm: ReportViewModel): string {
-  const tone = vm.integrityVerified ? "success" : "warning";
-  const value = vm.integrityVerified
-    ? "RECORDED INTEGRITY PASSED"
-    : "REVIEW MATERIALS AVAILABLE";
+  const decision = vm.trustDecision;
+  const tone =
+    decision.tone === "success"
+      ? "success"
+      : decision.tone === "danger"
+        ? "danger"
+        : "warning";
 
   return `
     <div class="integrity-result-pill integrity-result-${tone}">
-      <span>${vm.integrityVerified ? "✓" : "!"}</span>
-      ${escapeHtml(value)}
+      <span>${decision.tone === "success" ? "✓" : "!"}</span>
+      ${escapeHtml(`${decision.verdictLabel} • ${decision.scoreLabel}`)}
     </div>
   `;
 }
@@ -133,8 +141,12 @@ Technical controls supporting reviewer validation
           ${renderIntegrityResultPill(vm)}
         </div>
 
+        ${renderTrustDecisionCompact(vm.trustDecision)}
+
+        ${renderTrustSignalGrid(vm.trustDecision.signals)}
+
         <div class="integrity-check-list">
-          ${renderIntegrityCheckRow({
+                  ${renderIntegrityCheckRow({
 label:
   vm.contentSummary.itemCount > 1
     ? "Lead Item SHA-256"
@@ -238,12 +250,12 @@ tone: toneFromValue(
         </div>
 
         ${renderCallout({
-          title: "Important boundary",
+          title: "Reviewer reliance boundary",
           body:
-            "Integrity, timestamping, immutable storage, custody records, and anchoring help verify the recorded preservation state. They do not independently prove factual truth, authorship, context, intent, relevance, evidentiary weight, or legal admissibility.",
-          tone: "warning",
+            `${vm.trustDecision.reviewerAction}\n\nIntegrity, timestamping, immutable storage, custody records, and anchoring help verify the recorded preservation state. They do not independently prove factual truth, authorship, context, intent, relevance, evidentiary weight, or legal admissibility.`,
+          tone: vm.trustDecision.tone,
         })}
-      </div>
+              </div>
     `,
     { pageBreakBefore: true, className: "integrity-summary-section" }
   );

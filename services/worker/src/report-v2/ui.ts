@@ -8,8 +8,9 @@ import {
   KeyValueRow,
   TimelineRow,
   Tone,
+  ReportTrustDecision,
+  ReportTrustSignal,
 } from "./types.js";
-
 function toneClass(tone?: Tone): string {
   return tone ? ` tone-${tone}` : " tone-neutral";
 }
@@ -288,5 +289,82 @@ export function renderInlineQrBlock(
       <img src="${dataUrl}" alt="${escapeHtml(label)}" />
       <div class="qr-inline-label">${escapeHtml(label)}</div>
     </div>
+  `;
+}
+
+function trustSignalMark(signal: ReportTrustSignal): string {
+  switch (signal.status) {
+    case "passed":
+      return "✓";
+    case "partial":
+    case "pending":
+      return "!";
+    case "failed":
+      return "!";
+    case "missing":
+    default:
+      return "i";
+  }
+}
+
+export function renderTrustDecisionHero(decision: ReportTrustDecision): string {
+  return `
+    <section class="trust-decision-hero trust-decision-${escapeHtml(decision.level)} tone-${decision.tone}">
+      <div class="trust-decision-main">
+        <div class="trust-decision-kicker">Overall trust decision</div>
+        <div class="trust-decision-title">${escapeHtml(decision.verdictLabel)}</div>
+        <div class="trust-decision-summary">${renderMultilineText(decision.summary)}</div>
+      </div>
+
+      <div class="trust-score-card">
+        <div class="trust-score-value">${escapeHtml(decision.scoreLabel)}</div>
+        <div class="trust-score-label">Trust score</div>
+        <div class="trust-score-reliance">Reliance: ${escapeHtml(decision.relianceLevel)}</div>
+      </div>
+    </section>
+  `;
+}
+
+export function renderTrustSignalGrid(signals: ReportTrustSignal[]): string {
+  if (signals.length === 0) return "";
+
+  return `
+    <div class="trust-signal-grid">
+      ${signals
+        .map(
+          (signal) => `
+            <article class="trust-signal-card tone-${signal.tone}">
+              <div class="trust-signal-mark">${escapeHtml(trustSignalMark(signal))}</div>
+              <div class="trust-signal-content">
+                <div class="trust-signal-top">
+                  <div class="trust-signal-label">${escapeHtml(signal.label)}</div>
+                  <div class="trust-signal-score">${escapeHtml(
+                    `${signal.points}/${signal.maxPoints}`
+                  )}</div>
+                </div>
+                <div class="trust-signal-summary">${escapeHtml(signal.summary)}</div>
+                <div class="trust-signal-detail">${escapeHtml(signal.detail)}</div>
+              </div>
+            </article>
+          `
+        )
+        .join("")}
+    </div>
+  `;
+}
+
+export function renderTrustDecisionCompact(decision: ReportTrustDecision): string {
+  return `
+    <section class="trust-decision-compact tone-${decision.tone}">
+      <div>
+        <div class="trust-decision-compact-kicker">Trust decision</div>
+        <div class="trust-decision-compact-title">${escapeHtml(
+          decision.verdictLabel
+        )} <span>${escapeHtml(decision.scoreLabel)}</span></div>
+        <div class="trust-decision-compact-body">${escapeHtml(
+          decision.primaryReason
+        )}</div>
+      </div>
+    </section>
   `;
 }

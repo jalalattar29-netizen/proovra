@@ -2,8 +2,7 @@
 import { reportAssetDataUrl } from "../asset-data-url.js";
 import { ReportViewModel } from "../types.js";
 import { escapeHtml, safe } from "../formatters.js";
-import { renderInlineQrBlock } from "../ui.js";
-
+import { renderInlineQrBlock, renderTrustSignalGrid } from "../ui.js";
 const coverBrandIconUrl = reportAssetDataUrl("icon-192.png");
 
 function findRowValue(
@@ -125,11 +124,16 @@ function renderCoverEvidenceVisual(vm: ReportViewModel): string {
 }
 
 export function renderCoverSection(vm: ReportViewModel): string {
-  const integrityBadgeClass = vm.integrityVerified
-    ? "badge-success"
-    : "badge-warning";
+  const decision = vm.trustDecision;
 
-const integrityBadgeText = vm.integrityVerified ? "Verified" : "Review";
+  const integrityBadgeClass =
+    decision.tone === "success"
+      ? "badge-success"
+      : decision.tone === "danger"
+        ? "badge-danger"
+        : "badge-warning";
+
+  const integrityBadgeText = decision.shortLabel;
 
   const primaryHash =
     vm.primaryContentItem?.sha256 ||
@@ -140,34 +144,7 @@ const integrityBadgeText = vm.integrityVerified ? "Verified" : "Review";
     vm.meta.publicEvidenceTypeLabel || "Digital evidence record"
   );
 
-  const storageLabel = findRowValue(vm.storageRows, "Immutable Storage");
-  const timestampLabel = findRowValue(vm.storageRows, "RFC 3161 Status");
   const anchoringLabel = findRowValue(vm.storageRows, "Public Anchoring Status");
-
-  const timestampTone = statusTone(timestampLabel, [
-    "recorded",
-    "granted",
-    "verified",
-    "valid",
-    "success",
-    "trusted timestamp",
-  ]);
-
-  const storageTone = statusTone(storageLabel, [
-    "verified",
-    "protected",
-    "immutable",
-    "compliance",
-    "governance",
-    "locked",
-  ]);
-
-  const custodyLabel =
-    vm.forensicRows.length > 0
-      ? `${vm.forensicRows.length} forensic event${
-          vm.forensicRows.length === 1 ? "" : "s"
-        } recorded`
-      : "No custody events recorded";
 
   const leadItemLabel = safe(
     vm.primaryContentItem?.originalFileName || vm.primaryContentItem?.label,
@@ -237,53 +214,41 @@ const integrityBadgeText = vm.integrityVerified ? "Verified" : "Review";
             </div>
 
             <div class="cover-status-stamp ${integrityBadgeClass}">
-              <span>${vm.integrityVerified ? "✓" : "!"}</span>
-              <strong>${escapeHtml(
-                vm.integrityVerified
-                  ? "Integrity Verified"
-: "TECHNICAL Materials Available"
-              )}</strong>
+              <span>${decision.tone === "success" ? "✓" : decision.tone === "danger" ? "!" : "!"}</span>
+              <strong>${escapeHtml(decision.verdictLabel)}</strong>
             </div>
 
             <div class="cover-status-subtitle">
-              ${escapeHtml(
-                vm.integrityVerified
-                  ? "No post-recording modification detected in the preserved evidence state."
-: "Technical materials are recorded; reviewer validation is recommended before reliance."
-              )}
+              ${escapeHtml(decision.summary)}
             </div>
-          </div>
 
-          <div class="cover-decision-grid">
-            ${renderDecisionIndicator({
-              label: "Integrity",
-value: vm.integrityVerified ? "No mismatch detected" : "Materials available",
-              tone: vm.integrityVerified ? "success" : "warning",
-            })}
-            ${renderDecisionIndicator({
-              label: "Timestamp",
-              value:
-                timestampTone === "success"
-                  ? "External trusted timestamp recorded"
-                  : timestampLabel,
-              tone: timestampTone,
-            })}
-            ${renderDecisionIndicator({
-              label: "Storage",
-              value:
-                storageTone === "success"
-                  ? "Immutable retention verified"
-                  : storageLabel,
-              tone: storageTone,
-            })}
-            ${renderDecisionIndicator({
-              label: "Custody",
-              value: custodyLabel,
-              tone: vm.forensicRows.length > 0 ? "success" : "warning",
-            })}
-          </div>
+            <div class="cover-trust-score-line">
+              <span>Trust score</span>
+              <strong>${escapeHtml(decision.scoreLabel)}</strong>
+              <span>Reliance: ${escapeHtml(decision.relianceLevel)}</span>
+            </div>
+                      </div>
 
-          <div class="cover-main-grid">
+          <div class="cover-decision-grid cover-trust-signal-grid">
+            ${vm.trustDecision.signals
+              .filter((signal) =>
+                [
+                  "core_integrity",
+                  "signature",
+                  "trusted_timestamp",
+                  "immutable_storage",
+                ].includes(signal.key)
+              )
+              .map((signal) =>
+                renderDecisionIndicator({
+                  label: signal.label,
+                  value: signal.summary,
+                  tone: signal.tone === "success" ? "success" : "warning",
+                })
+              )
+              .join("")}
+          </div>
+                    <div class="cover-main-grid">
             <div class="cover-evidence-panel">
               ${renderCoverEvidenceVisual(vm)}
 
@@ -337,6 +302,12 @@ value: vm.integrityVerified ? "No mismatch detected" : "Materials available",
             <div class="cover-meta-card">
               <div class="cover-meta-label">Verification Status</div>
               <div class="cover-meta-value">${escapeHtml(vm.verificationStatusLabel)}</div>
+            </div>
+                        <div class="cover-meta-card">
+              <div class="cover-meta-label">Trust Decision</div>
+              <div class="cover-meta-value">${escapeHtml(
+                `${vm.trustDecision.verdictLabel} (${vm.trustDecision.scoreLabel})`
+              )}</div>
             </div>
 
             ${

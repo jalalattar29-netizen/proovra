@@ -1,7 +1,10 @@
 import { ReportViewModel } from "../types.js";
 import { escapeHtml } from "../formatters.js";
-import { renderPageSection } from "../ui.js";
-
+import {
+  renderPageSection,
+  renderTrustDecisionHero,
+  renderTrustSignalGrid,
+} from "../ui.js";
 function findRowValue(
   rows: Array<{ label: string; value: string }>,
   label: string,
@@ -30,27 +33,18 @@ function renderExecutiveTable(
 }
 
 export function renderExecutiveSummarySection(vm: ReportViewModel): string {
-  const mismatchBlock =
-    vm.mismatchSummary.tone === "success"
-      ? `
-        <div class="executive-outcome executive-outcome-success">
-          <div class="executive-outcome-title">Review Outcome</div>
-          <div class="executive-outcome-body">
-            No integrity mismatch was detected in the generated verification model. Review custody, preservation, and appendix materials for independent validation.
-          </div>
-        </div>
-      `
-      : `
-        <div class="executive-outcome executive-outcome-warning">
-          <div class="executive-outcome-title">${escapeHtml(
-            vm.mismatchSummary.title
-          )}</div>
-          <div class="executive-outcome-body">${escapeHtml(
-            vm.mismatchSummary.body
-          )}</div>
-        </div>
-      `;
-
+  const trustDecisionBlock = `
+    ${renderTrustDecisionHero(vm.trustDecision)}
+    <section class="executive-trust-reason">
+      <div class="executive-outcome-title">Decision basis</div>
+      <div class="executive-outcome-body">
+        ${escapeHtml(vm.trustDecision.primaryReason)}
+      </div>
+      <div class="executive-reviewer-action">
+        ${escapeHtml(vm.trustDecision.reviewerAction)}
+      </div>
+    </section>
+  `;
 
   const leadItemType = findRowValue(vm.executiveRows, "Lead Item Type", "");
 const leadItemName = findRowValue(vm.executiveRows, "Lead Review Item", "");
@@ -103,10 +97,12 @@ const leadItemValue =
   value: leadItemValue,
 },
 {
-  label: "Integrity Review State",
-  value: vm.integrityVerified
-    ? "Recorded integrity checks passed"
-    : "Recorded integrity materials available; reviewer validation required",
+  label: "Trust Decision",
+  value: `${vm.trustDecision.verdictLabel} • ${vm.trustDecision.scoreLabel}`,
+},
+{
+  label: "Reliance Level",
+  value: vm.trustDecision.relianceLevel,
 },
   ];
 
@@ -124,11 +120,13 @@ Reviewers can use this report to inspect the evidence package, custody history, 
           </div>
         </section>
 
+        ${trustDecisionBlock}
+
         ${renderExecutiveTable(executiveRows)}
 
         <div class="executive-bottom-outcomes">
-          ${mismatchBlock}
-
+          ${renderTrustSignalGrid(vm.trustDecision.signals)}
+          
           <section class="executive-outcome executive-outcome-warning executive-boundary-outcome">
             <div class="executive-outcome-title">Important boundary</div>
             <div class="executive-outcome-body">

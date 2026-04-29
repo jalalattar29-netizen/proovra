@@ -68,6 +68,7 @@ import {
   buildReviewSequence,
   buildStorageCallout,
   buildTimestampCallout,
+  buildTrustDecision,
   hasCoreCryptoMaterials,
   isIntegrityVerified,
   normalizeOtsTone,
@@ -1130,6 +1131,10 @@ export async function buildReportViewModel(
   const custody = splitCustodyEvents(input.custodyEvents);
   const otsEvidence = resolveOtsPresentationEvidence(input.evidence);
   const integrityVerified = isIntegrityVerified(input.evidence);
+  const trustDecision = buildTrustDecision({
+    evidence: otsEvidence,
+    custodyEvents: input.custodyEvents,
+  });
   const reviewGuidance = resolveReviewGuidance(
     input.evidence,
     contentSummary.itemCount,
@@ -1284,7 +1289,7 @@ const technicalAppendix = buildTechnicalAppendixModel(
       input.evidence.verificationStatus
     ),
     integrityVerified,
-
+    trustDecision,
     executiveConclusion,
     legalLimitationShort,
     reviewSequence,

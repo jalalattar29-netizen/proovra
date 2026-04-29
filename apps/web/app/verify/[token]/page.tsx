@@ -1819,6 +1819,54 @@ function renderVerifyEvidenceMedia(
   );
 }
 
+type TrustSignalStatus =
+  | "passed"
+  | "partial"
+  | "pending"
+  | "missing"
+  | "failed";
+
+type TrustDecisionTone = "success" | "warning" | "danger" | "neutral";
+
+type VerifyTrustSignal = {
+  key:
+    | "core_integrity"
+    | "signature"
+    | "trusted_timestamp"
+    | "public_anchoring"
+    | "immutable_storage"
+    | "custody_chain"
+    | "identity"
+    | "verification_package";
+  label: string;
+  status: TrustSignalStatus;
+  tone: TrustDecisionTone;
+  points: number;
+  maxPoints: number;
+  summary: string;
+  detail: string;
+};
+
+type VerifyTrustDecision = {
+  verdict:
+    | "STRONGLY_VERIFIED"
+    | "VERIFIED"
+    | "PARTIALLY_VERIFIED"
+    | "REVIEW_REQUIRED"
+    | "INSUFFICIENT_VERIFICATION";
+  verdictLabel: string;
+  shortLabel: string;
+  score: number;
+  scoreLabel: string;
+  tone: TrustDecisionTone;
+  relianceLevel: "high" | "medium" | "limited" | "low";
+  degradedButUsable: boolean;
+  summary: string;
+  primaryReason: string;
+  reviewerAction: string;
+  signals: VerifyTrustSignal[];
+};
+
 type VerificationVerdict = {
   status:
     | "verified"
@@ -1951,6 +1999,457 @@ function buildVerificationVerdict(input: VerificationSignalInput): VerificationV
       "The system returned insufficient verification material for a reliable integrity conclusion.",
     confidenceScore,
     tone: "neutral",
+  };
+}
+
+function trustTone(status: TrustSignalStatus): TrustDecisionTone {
+  switch (status) {
+    case "passed":
+      return "success";
+    case "partial":
+    case "pending":
+      return "warning";
+    case "failed":
+      return "danger";
+    case "missing":
+    default:
+      return "neutral";
+  }
+}
+
+function makeTrustSignal(params: {
+  key: VerifyTrustSignal["key"];
+  label: string;
+  status: TrustSignalStatus;
+  points: number;
+  maxPoints: number;
+  summary: string;
+  detail: string;
+}): VerifyTrustSignal {
+  return {
+    ...params,
+    tone: trustTone(params.status),
+    points: Math.max(0, Math.min(params.maxPoints, Math.round(params.points))),
+  };
+}
+
+function isPositiveTsa(status?: string | null): boolean {
+  const s = String(status ?? "").toUpperCase();
+  return ["STAMPED", "GRANTED", "VERIFIED", "SUCCEEDED"].includes(s);
+}
+
+function isPendingTsa(status?: string | null): boolean {
+  const s = String(status ?? "").toUpperCase();
+  return ["PENDING", "UNAVAILABLE"].includes(s);
+}
+
+function isFailedTsa(status?: string | null): boolean {
+  const s = String(status ?? "").toUpperCase();
+  return Boolean(s) && !isPositiveTsa(s) && !isPendingTsa(s);
+}
+
+function isAnchoredOts(status?: string | null): boolean {
+  return String(status ?? "").toUpperCase() === "ANCHORED";
+}
+
+function isPendingOts(status?: string | null): boolean {
+  return String(status ?? "").toUpperCase() === "PENDING";
+}
+
+function isFailedOts(status?: string | null): boolean {
+  return String(status ?? "").toUpperCase() === "FAILED";
+}
+
+function buildVerifyTrustDecision(params: {
+  overallIntegrity: boolean | null;
+  canonicalHashMatches: boolean | null;
+  signatureValid: boolean | null;
+  custodyChainValid: boolean | null;
+  timestampDigestMatches: boolean | null;
+  otsHashMatches: boolean | null;
+  storageProtection: StorageProtection | null;
+  externalPublicationPresent: boolean | null;
+  tsaStatus: string | null;
+  otsStatus: string | null;
+  hash: string | null;
+  fingerprintHash: string | null;
+  signature: string | null;
+  signingKeyId: string | null;
+  publicKeyPem: string | null;
+  forensicEventCount: number;
+  identityLevel: string | null;
+  submittedByEmail: string | null;
+  verificationPackageVersion: string | null;
+}): VerifyTrustDecision {
+  const hasCoreHashes = Boolean(params.hash && params.fingerprintHash);
+  const corePassed =
+    params.overallIntegrity === true ||
+    (params.canonicalHashMatches === true && hasCoreHashes);
+
+  const corePartial =
+    !corePassed && hasCoreHashes && params.canonicalHashMatches !== false;
+
+  const core = makeTrustSignal({
+    key: "core_integrity",
+    label: "Core integrity",
+    status:
+      corePassed ? "passed" : corePartial ? "partial" : "failed",
+    points: corePassed ? 25 : corePartial ? 18 : 0,
+    maxPoints: 25,
+    summary:
+      corePassed
+        ? "Recorded integrity state verified"
+        : corePartial
+          ? "Integrity materials recorded"
+          : "Integrity materials incomplete",
+    detail:
+      corePassed
+        ? "The verification response includes matching core integrity material for the preserved evidence state."
+        : corePartial
+          ? "Core hash and fingerprint material are available, but the response does not provide a fully verified integrity conclusion."
+          : "The verification response does not contain enough core hash/fingerprint material for reliable reliance.",
+  });
+
+  const hasSignatureMaterial = Boolean(params.signature || params.signingKeyId);
+  const signature = makeTrustSignal({
+    key: "signature",
+    label: "Digital signature",
+    status:
+      params.signatureValid === true
+        ? "passed"
+        : params.signatureValid === false
+          ? "failed"
+          : hasSignatureMaterial
+            ? "partial"
+            : "missing",
+    points:
+      params.signatureValid === true
+        ? 15
+        : params.signatureValid === false
+          ? 0
+          : hasSignatureMaterial
+            ? 8
+            : 0,
+    maxPoints: 15,
+    summary:
+      params.signatureValid === true
+        ? "Signature valid"
+        : params.signatureValid === false
+          ? "Signature invalid"
+          : hasSignatureMaterial
+            ? "Signature material present"
+            : "Signature unavailable",
+    detail:
+      params.signatureValid === true
+        ? "The digital signature validation passed for the returned verification materials."
+        : params.signatureValid === false
+          ? "The digital signature did not validate and must be reviewed before relying on this record."
+          : hasSignatureMaterial
+            ? "Signature-related material is present, but the verification response did not return a final positive signature validation."
+            : "No usable signature material was returned.",
+  });
+
+  const timestampPassed =
+    isPositiveTsa(params.tsaStatus) &&
+    params.timestampDigestMatches !== false;
+
+  const timestamp = makeTrustSignal({
+    key: "trusted_timestamp",
+    label: "Trusted timestamp",
+    status:
+      timestampPassed
+        ? "passed"
+        : params.timestampDigestMatches === false
+          ? "failed"
+          : isPendingTsa(params.tsaStatus)
+            ? "pending"
+            : isFailedTsa(params.tsaStatus)
+              ? "failed"
+              : "missing",
+    points:
+      timestampPassed
+        ? 15
+        : params.timestampDigestMatches === false
+          ? 3
+          : isPendingTsa(params.tsaStatus)
+            ? 8
+            : isFailedTsa(params.tsaStatus)
+              ? 3
+              : 0,
+    maxPoints: 15,
+    summary:
+      timestampPassed
+        ? "Trusted timestamp recorded"
+        : params.timestampDigestMatches === false
+          ? "Timestamp digest mismatch"
+          : isPendingTsa(params.tsaStatus)
+            ? "Timestamp pending"
+            : isFailedTsa(params.tsaStatus)
+              ? "Timestamp unavailable"
+              : "Timestamp not recorded",
+    detail:
+      timestampPassed
+        ? "RFC 3161 timestamping supports review of when the recorded evidence state existed."
+        : params.timestampDigestMatches === false
+          ? "The timestamp digest did not match the recorded evidence hash. This timestamp layer requires manual review."
+          : isPendingTsa(params.tsaStatus)
+            ? "The timestamp layer is not finalized yet. Other integrity layers can still be reviewed."
+            : isFailedTsa(params.tsaStatus)
+              ? "The timestamp provider did not return a usable timestamp for this record."
+              : "No trusted timestamp material was returned.",
+  });
+
+  const anchoringPassed =
+    isAnchoredOts(params.otsStatus) ||
+    params.externalPublicationPresent === true;
+
+  const anchoring = makeTrustSignal({
+    key: "public_anchoring",
+    label: "Public anchoring",
+    status:
+      anchoringPassed
+        ? "passed"
+        : params.otsHashMatches === false
+          ? "failed"
+          : isPendingOts(params.otsStatus)
+            ? "pending"
+            : isFailedOts(params.otsStatus)
+              ? "failed"
+              : "missing",
+    points:
+      anchoringPassed
+        ? 10
+        : params.otsHashMatches === false
+          ? 2
+          : isPendingOts(params.otsStatus)
+            ? 6
+            : isFailedOts(params.otsStatus)
+              ? 2
+              : 0,
+    maxPoints: 10,
+    summary:
+      anchoringPassed
+        ? "Public anchoring recorded"
+        : params.otsHashMatches === false
+          ? "Anchoring hash mismatch"
+          : isPendingOts(params.otsStatus)
+            ? "Anchoring pending"
+            : isFailedOts(params.otsStatus)
+              ? "Anchoring failed"
+              : "Anchoring not recorded",
+    detail:
+      anchoringPassed
+        ? "The record includes public anchoring or external publication metadata."
+        : isPendingOts(params.otsStatus)
+          ? "OpenTimestamps anchoring is pending. This is degraded but still reviewable when core integrity and signature material are present."
+          : "No confirmed public anchoring layer is available for this record.",
+  });
+
+  const storagePassed =
+    params.storageProtection?.immutable === true &&
+    String(params.storageProtection?.mode ?? "").toUpperCase() === "COMPLIANCE";
+
+  const storagePartial =
+    params.storageProtection?.verified === true ||
+    params.storageProtection?.immutable === true ||
+    Boolean(params.storageProtection?.mode);
+
+  const storage = makeTrustSignal({
+    key: "immutable_storage",
+    label: "Immutable storage",
+    status: storagePassed ? "passed" : storagePartial ? "partial" : "missing",
+    points: storagePassed ? 15 : storagePartial ? 8 : 0,
+    maxPoints: 15,
+    summary:
+      storagePassed
+        ? "Immutable retention verified"
+        : storagePartial
+          ? "Storage protection recorded"
+          : "Storage not verified",
+    detail:
+      storagePassed
+        ? "Object-lock style immutable retention is reported for the evidence record."
+        : storagePartial
+          ? "Some storage protection metadata is available, but compliance-grade immutability is not fully confirmed."
+          : "No verified immutable storage state was returned.",
+  });
+
+  const custody = makeTrustSignal({
+    key: "custody_chain",
+    label: "Custody chain",
+    status:
+      params.custodyChainValid === true
+        ? "passed"
+        : params.custodyChainValid === false
+          ? "failed"
+          : params.forensicEventCount > 0
+            ? "partial"
+            : "missing",
+    points:
+      params.custodyChainValid === true
+        ? 10
+        : params.custodyChainValid === false
+          ? 0
+          : params.forensicEventCount > 0
+            ? 6
+            : 0,
+    maxPoints: 10,
+    summary:
+      params.custodyChainValid === true
+        ? `${params.forensicEventCount} custody events recorded`
+        : params.custodyChainValid === false
+          ? "Custody chain invalid"
+          : params.forensicEventCount > 0
+            ? `${params.forensicEventCount} custody events available`
+            : "Custody not returned",
+    detail:
+      params.custodyChainValid === true
+        ? "Custody-chain continuity validated for the returned event material."
+        : params.custodyChainValid === false
+          ? "Custody-chain continuity failed and requires forensic review."
+          : "Custody events are available, but no final custody-chain validation was returned.",
+  });
+
+  const identityStrong =
+    params.identityLevel?.toLowerCase().includes("organization") ||
+    params.identityLevel?.toLowerCase().includes("oauth");
+
+  const identity = makeTrustSignal({
+    key: "identity",
+    label: "Submitter identity",
+    status: identityStrong ? "passed" : params.submittedByEmail ? "partial" : "missing",
+    points: identityStrong ? 5 : params.submittedByEmail ? 3 : 0,
+    maxPoints: 5,
+    summary:
+      identityStrong
+        ? "Strong identity context recorded"
+        : params.submittedByEmail
+          ? "Submitter identity recorded"
+          : "Identity not recorded",
+    detail:
+      "Identity context supports reviewer understanding, but it does not independently prove authorship or factual truth.",
+  });
+
+  const verificationPackage = makeTrustSignal({
+    key: "verification_package",
+    label: "Verification package",
+    status: params.verificationPackageVersion ? "passed" : "partial",
+    points: params.verificationPackageVersion ? 5 : 3,
+    maxPoints: 5,
+    summary: params.verificationPackageVersion
+      ? "Verification package available"
+      : "Technical materials available",
+    detail:
+      params.verificationPackageVersion
+        ? "A verification package version is recorded for deeper review."
+        : "Technical materials are present, but no package version was exposed in this response.",
+  });
+
+  const signals = [
+    core,
+    signature,
+    timestamp,
+    anchoring,
+    storage,
+    custody,
+    identity,
+    verificationPackage,
+  ];
+
+  const max = signals.reduce((sum, item) => sum + item.maxPoints, 0);
+  const raw = signals.reduce((sum, item) => sum + item.points, 0);
+  const score = Math.round((raw / max) * 100);
+
+  const criticalFailed =
+    core.status === "failed" ||
+    signature.status === "failed" ||
+    custody.status === "failed";
+
+  const degradedSignals = signals.filter((signal) =>
+    ["partial", "pending", "missing", "failed"].includes(signal.status)
+  );
+
+  const passedSignals = signals
+    .filter((signal) => signal.status === "passed")
+    .map((signal) => signal.label);
+
+  const degradedButUsable =
+    !criticalFailed && score >= 62 && degradedSignals.length > 0;
+
+  const verdict =
+    criticalFailed || score < 45
+      ? "INSUFFICIENT_VERIFICATION"
+      : score >= 90 && degradedSignals.length === 0
+        ? "STRONGLY_VERIFIED"
+        : score >= 78
+          ? "VERIFIED"
+          : score >= 62
+            ? "PARTIALLY_VERIFIED"
+            : "REVIEW_REQUIRED";
+
+  const verdictMeta =
+    verdict === "STRONGLY_VERIFIED"
+      ? {
+          label: "Strongly Verified",
+          short: "Strong",
+          tone: "success" as const,
+          reliance: "high" as const,
+        }
+      : verdict === "VERIFIED"
+        ? {
+            label: "Verified",
+            short: "Verified",
+            tone: "success" as const,
+            reliance: "high" as const,
+          }
+        : verdict === "PARTIALLY_VERIFIED"
+          ? {
+              label: "Partially Verified",
+              short: "Partial",
+              tone: "warning" as const,
+              reliance: "medium" as const,
+            }
+          : verdict === "REVIEW_REQUIRED"
+            ? {
+                label: "Review Required",
+                short: "Review",
+                tone: "warning" as const,
+                reliance: "limited" as const,
+              }
+            : {
+                label: "Insufficient Verification",
+                short: "Insufficient",
+                tone: "danger" as const,
+                reliance: "low" as const,
+              };
+
+  return {
+    verdict,
+    verdictLabel: verdictMeta.label,
+    shortLabel: verdictMeta.short,
+    score,
+    scoreLabel: `${score}/100`,
+    tone: verdictMeta.tone,
+    relianceLevel: verdictMeta.reliance,
+    degradedButUsable,
+    signals,
+    summary:
+      degradedButUsable
+        ? `${verdictMeta.label} — core verification remains usable, but one or more supporting trust layers require review.`
+        : `${verdictMeta.label} — verification decision based on integrity, signature, timestamping, anchoring, storage, custody, identity, and package availability.`,
+    primaryReason: `Passed signals: ${
+      passedSignals.length > 0 ? passedSignals.join(", ") : "none"
+    }. Degraded signals: ${
+      degradedSignals.length > 0
+        ? degradedSignals.map((s) => s.summary).join("; ")
+        : "none"
+    }.`,
+    reviewerAction:
+      degradedButUsable
+        ? "Review degraded signals before high-reliance use. Timestamping or anchoring issues do not automatically invalidate hashes, signatures, custody, or preserved originals."
+        : criticalFailed
+          ? "Do not rely on this record as verified until failed core integrity, signature, or custody signals are reviewed."
+          : "Proceed with normal technical review and separately assess factual truth, authorship, context, and legal admissibility.",
   };
 }
 
@@ -2260,6 +2759,233 @@ function VerdictStatusCard({
           {verdict.actionRequired}
         </div>
       </div>
+    </div>
+  );
+}
+
+function TrustDecisionCard({
+  decision,
+}: {
+  decision: VerifyTrustDecision;
+}) {
+  const palette =
+    decision.tone === "success"
+      ? {
+          rail: VERIFY_BRAND.success,
+          bg: "linear-gradient(180deg, rgba(33,117,93,0.10), rgba(255,255,255,0.78))",
+          border: "rgba(33,117,93,0.30)",
+        }
+      : decision.tone === "danger"
+        ? {
+            rail: VERIFY_BRAND.danger,
+            bg: "linear-gradient(180deg, rgba(181,71,56,0.10), rgba(255,255,255,0.78))",
+            border: "rgba(181,71,56,0.30)",
+          }
+        : {
+            rail: VERIFY_BRAND.warning,
+            bg: "linear-gradient(180deg, rgba(138,106,47,0.11), rgba(255,255,255,0.78))",
+            border: "rgba(138,106,47,0.30)",
+          };
+
+  return (
+    <div
+      style={{
+        border: `1px solid ${palette.border}`,
+        borderLeft: `7px solid ${palette.rail}`,
+        background: palette.bg,
+        borderRadius: 24,
+        padding: 24,
+        display: "grid",
+        gap: 18,
+        boxShadow: "0 18px 42px rgba(16,32,29,0.08)",
+      }}
+    >
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "minmax(0, 1fr) 170px",
+          gap: 18,
+          alignItems: "stretch",
+        }}
+      >
+        <div>
+          <div style={{ ...VERIFY_TYPO.kicker, marginBottom: 8 }}>
+            Overall Trust Decision
+          </div>
+
+          <div
+            style={{
+              fontSize: "clamp(1.45rem, 2.3vw, 2.15rem)",
+              lineHeight: 1.1,
+              fontWeight: 950,
+              letterSpacing: "-0.035em",
+              color: VERIFY_BRAND.ink,
+              marginBottom: 10,
+            }}
+          >
+            {decision.verdictLabel}
+          </div>
+
+          <div
+            style={{
+              ...VERIFY_TYPO.body,
+              fontSize: 14.5,
+              color: VERIFY_BRAND.ink,
+              maxWidth: 900,
+            }}
+          >
+            {decision.summary}
+          </div>
+        </div>
+
+        <div
+          style={{
+            border: `1px solid ${VERIFY_BRAND.line}`,
+            background: "rgba(255,255,255,0.58)",
+            borderRadius: 18,
+            padding: 16,
+            textAlign: "center",
+            display: "grid",
+            alignContent: "center",
+            gap: 8,
+          }}
+        >
+          <div
+            style={{
+              fontSize: 34,
+              lineHeight: 1,
+              fontWeight: 950,
+              color: VERIFY_BRAND.accent,
+            }}
+          >
+            {decision.scoreLabel}
+          </div>
+
+          <div style={{ ...VERIFY_TYPO.kicker, fontSize: 10 }}>
+            Trust Score
+          </div>
+
+          <div
+            style={{
+              fontSize: 12,
+              fontWeight: 900,
+              color: VERIFY_BRAND.muted,
+              textTransform: "uppercase",
+              letterSpacing: "0.06em",
+            }}
+          >
+            Reliance: {decision.relianceLevel}
+          </div>
+        </div>
+      </div>
+
+      <div
+        style={{
+          border: `1px solid ${VERIFY_BRAND.softLine}`,
+          background: "rgba(255,255,255,0.44)",
+          borderRadius: 18,
+          padding: 16,
+          display: "grid",
+          gap: 8,
+        }}
+      >
+        <div style={{ ...VERIFY_TYPO.kicker, fontSize: 10.5 }}>
+          Decision Basis
+        </div>
+        <div style={{ ...VERIFY_TYPO.small, color: VERIFY_BRAND.ink }}>
+          {decision.primaryReason}
+        </div>
+        <div
+          style={{
+            ...VERIFY_TYPO.small,
+            color: VERIFY_BRAND.ink,
+            fontWeight: 850,
+          }}
+        >
+          {decision.reviewerAction}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function TrustSignalGrid({
+  signals,
+}: {
+  signals: VerifyTrustSignal[];
+}) {
+  return (
+    <div
+      style={{
+        display: "grid",
+        gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
+        gap: 14,
+      }}
+    >
+      {signals.map((signal) => {
+        const color =
+          signal.tone === "success"
+            ? VERIFY_BRAND.success
+            : signal.tone === "danger"
+              ? VERIFY_BRAND.danger
+              : signal.tone === "warning"
+                ? VERIFY_BRAND.warning
+                : VERIFY_BRAND.accent;
+
+        return (
+          <div
+            key={signal.key}
+            style={{
+              border: `1px solid ${VERIFY_BRAND.line}`,
+              borderLeft: `5px solid ${color}`,
+              background: "rgba(255,255,255,0.64)",
+              borderRadius: 18,
+              padding: 16,
+              display: "grid",
+              gap: 9,
+              minHeight: 150,
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                gap: 12,
+                alignItems: "flex-start",
+              }}
+            >
+              <div style={{ ...VERIFY_TYPO.kicker, fontSize: 10.5 }}>
+                {signal.label}
+              </div>
+
+              <div
+                style={{
+                  color,
+                  fontSize: 12,
+                  fontWeight: 950,
+                  whiteSpace: "nowrap",
+                }}
+              >
+                {signal.points}/{signal.maxPoints}
+              </div>
+            </div>
+
+            <div
+              style={{
+                ...VERIFY_TYPO.value,
+                fontSize: 14,
+                color,
+              }}
+            >
+              {signal.summary}
+            </div>
+
+            <div style={{ ...VERIFY_TYPO.small, fontSize: 12.5 }}>
+              {signal.detail}
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -3426,31 +4152,80 @@ setPreviewPolicy(content.previewPolicy);
     ]
   );
 
-const verdictRequiresReview = overallIntegrity === false;
-
-  const executiveBadges = useMemo(
+  const trustDecision = useMemo(
     () =>
-      verificationBadges
-        .filter((item) =>
-          [
-            "Fingerprint",
-            "Signature",
-            "Custody Trail",
-            "Timestamp",
-            "OTS",
-            "Immutable Storage",
-            "Storage Protection",
-          ].some((prefix) => item.label.startsWith(prefix))
-        )
-        .filter((item) => {
-          if (verificationVerdict.status === "review_required") {
-            return item.tone === "warning" || item.label.includes("Mismatch");
-          }
-
-          return true;
-        }),
-    [verificationBadges, verificationVerdict.status]
+      buildVerifyTrustDecision({
+        overallIntegrity,
+        canonicalHashMatches,
+        signatureValid,
+        custodyChainValid,
+        timestampDigestMatches,
+        otsHashMatches,
+        storageProtection,
+        externalPublicationPresent,
+        tsaStatus,
+        otsStatus,
+        hash,
+        fingerprintHash,
+        signature,
+        signingKeyId,
+        publicKeyPem,
+        forensicEventCount: forensicTimeline.length,
+        identityLevel,
+        submittedByEmail,
+        verificationPackageVersion,
+      }),
+    [
+      overallIntegrity,
+      canonicalHashMatches,
+      signatureValid,
+      custodyChainValid,
+      timestampDigestMatches,
+      otsHashMatches,
+      storageProtection,
+      externalPublicationPresent,
+      tsaStatus,
+      otsStatus,
+      hash,
+      fingerprintHash,
+      signature,
+      signingKeyId,
+      publicKeyPem,
+      forensicTimeline.length,
+      identityLevel,
+      submittedByEmail,
+      verificationPackageVersion,
+    ]
   );
+
+const verdictRequiresReview =
+  trustDecision.verdict === "REVIEW_REQUIRED" ||
+  trustDecision.verdict === "INSUFFICIENT_VERIFICATION";
+
+const executiveBadges = useMemo<
+  Array<{
+    label: string;
+    tone: "success" | "warning" | "neutral" | "info";
+    show: boolean;
+  }>
+>(
+  () =>
+    trustDecision.signals.map((signal) => {
+      const tone: "success" | "warning" | "neutral" | "info" =
+        signal.tone === "success"
+          ? "success"
+          : signal.tone === "warning" || signal.tone === "danger"
+            ? "warning"
+            : "neutral";
+
+      return {
+        label: `${signal.label}: ${signal.summary}`,
+        tone,
+        show: true,
+      };
+    }),
+  [trustDecision.signals]
+);
 
   const forensicCustodyNarrative = useMemo(() => {
     if (forensicTimeline.length > 0) {
@@ -3490,6 +4265,16 @@ const verdictRequiresReview = overallIntegrity === false;
           value: heroIntegrityHeadline,
           show: true,
         },
+        {
+  label: "Trust Decision",
+  value: `${trustDecision.verdictLabel} • ${trustDecision.scoreLabel}`,
+  show: true,
+},
+{
+  label: "Reliance Level",
+  value: trustDecision.relianceLevel,
+  show: true,
+},
         {
           label: "Evidence Title",
           value:
@@ -3687,6 +4472,9 @@ const verdictRequiresReview = overallIntegrity === false;
       tsaStatus,
       otsStatus,
       storagePresentation.badgeLabel,
+          trustDecision.verdictLabel,
+    trustDecision.scoreLabel,
+    trustDecision.relianceLevel,
     ]
   );
 
@@ -3942,8 +4730,10 @@ tone={
         [
           "Record Status",
           "Verification Status",
-          "Integrity Status",
-          "Evidence Title",
+"Integrity Status",
+"Trust Decision",
+"Reliance Level",
+"Evidence Title",
           "Evidence ID",
           "Evidence Type",
           "Evidence Structure",
@@ -4169,7 +4959,7 @@ const glassPanelStyle: CSSProperties = {
                   maxWidth: 820,
                 }}
               >
-Evidence Verification Decision
+Evidence Trust Decision
               </h1>
               <p
                 className="page-subtitle"
@@ -4264,7 +5054,39 @@ with this evidence record.
             </Card>
           ) : (
             <div style={{ display: "grid", gap: 18 }}>
-              <VerdictStatusCard verdict={verificationVerdict} />
+<TrustDecisionCard decision={trustDecision} />
+<Card>
+  <div
+    style={{
+      ...glassCardStyle,
+      padding: 24,
+      display: "grid",
+      gap: 18,
+    }}
+  >
+    <div>
+      <div style={{ ...VERIFY_TYPO.kicker, fontSize: 11, marginBottom: 8 }}>
+        Trust Signal Breakdown
+      </div>
+      <div
+        style={{
+          ...VERIFY_TYPO.h3,
+          fontSize: 22,
+          marginBottom: 8,
+        }}
+      >
+        Why this decision was reached
+      </div>
+      <div style={{ ...VERIFY_TYPO.small, maxWidth: 860 }}>
+        These signals align the verification page with the PDF report and verification package.
+        A failed or pending timestamp/anchoring layer does not automatically invalidate core hashes,
+        signatures, custody records, or preserved originals.
+      </div>
+    </div>
+
+    <TrustSignalGrid signals={trustDecision.signals} />
+  </div>
+</Card>
 
               <LegalWarningBlock verdict={verificationVerdict} />
 
@@ -4305,11 +5127,13 @@ with this evidence record.
                           width: 60,
                           height: 60,
                           borderRadius: 999,
-                          background:
-                            overallIntegrity === false
-                              ? `linear-gradient(180deg, ${VERIFY_BRAND.danger} 0%, #8f3328 100%)`
-                              : `linear-gradient(180deg, ${VERIFY_BRAND.success} 0%, #145c48 100%)`,
-                          display: "flex",
+background:
+  trustDecision.tone === "danger"
+    ? `linear-gradient(180deg, ${VERIFY_BRAND.danger} 0%, #8f3328 100%)`
+    : trustDecision.tone === "warning"
+      ? `linear-gradient(180deg, ${VERIFY_BRAND.warning} 0%, #6f4f1f 100%)`
+      : `linear-gradient(180deg, ${VERIFY_BRAND.success} 0%, #145c48 100%)`,
+                                display: "flex",
                           alignItems: "center",
                           justifyContent: "center",
                           color: "#fff",
@@ -4322,7 +5146,7 @@ with this evidence record.
                           flexShrink: 0,
                         }}
                       >
-                        {overallIntegrity === false ? "!" : "✓"}
+{trustDecision.tone === "success" ? "✓" : "!"}
                       </div>
 
                       <div style={{ minWidth: 0 }}>
@@ -4346,7 +5170,7 @@ with this evidence record.
                             wordBreak: "break-word",
                           }}
                         >
-Supporting Verification Signals
+Supporting Technical Signals
                         </div>
                         <div
                           style={{
@@ -4355,7 +5179,7 @@ Supporting Verification Signals
                             maxWidth: 820,
                           }}
                         >
-The signals below support the final verification decision shown above. They are not a separate verdict and must be interpreted through the final verification decision, legal boundary, and reviewer guidance.
+The signals below are the raw technical checks behind the Trust Decision above. They are useful for forensic review, but the overall decision should be read from the trust score, signal breakdown, legal boundary, and reviewer action.
                         </div>
                       </div>
                     </div>
@@ -4421,7 +5245,7 @@ The signals below support the final verification decision shown above. They are 
           : VERIFY_BRAND.warning,
     }}
   >
-    Reviewer Decision
+Reviewer Action
   </div>
 
   <div
@@ -4431,9 +5255,7 @@ The signals below support the final verification decision shown above. They are 
       lineHeight: 1.55,
     }}
   >
-    {overallIntegrity === true
-      ? "This record can be treated as technically verified for the returned integrity materials."
-      : "This record should be treated as review-required. At least one returned integrity signal prevents a clean verification conclusion."}
+{trustDecision.reviewerAction}
   </div>
 
   <div
@@ -5307,7 +6129,7 @@ The signals below support the final verification decision shown above. They are 
                           maxWidth: 820,
                         }}
                       >
-These materials support the final verification decision shown above. Raw hashes, signatures, custody-chain hashes, timestamp materials, and access activity must be interpreted through the verdict, legal boundary, and recommended reviewer actions.
+These materials support the Trust Decision shown above. The Trust Decision is the reviewer-facing summary; this technical layer exposes the raw hashes, signatures, custody-chain hashes, timestamp materials, anchoring state, and access activity for deeper forensic review.
                       </div>
                     </div>
                   </div>
@@ -5444,6 +6266,17 @@ These materials support the final verification decision shown above. Raw hashes,
                           gap: 8,
                         }}
                       >
+                        <TrustSignalGrid
+  signals={trustDecision.signals.filter((signal) =>
+    [
+      "core_integrity",
+      "signature",
+      "trusted_timestamp",
+      "public_anchoring",
+      "immutable_storage",
+    ].includes(signal.key)
+  )}
+/>
                         <div
                           style={{
                             ...VERIFY_TYPO.kicker,

@@ -92,7 +92,8 @@ type PackageManifest = {
     verifyHtml: boolean;
     readme: boolean;
     actualCertifications: boolean;
-    duplicateDigests: boolean;
+duplicateDigests: boolean;
+trustDecision: boolean;    
   };
 };
 
@@ -117,6 +118,8 @@ type VerificationPackageMetadata = {
   storageImmutable?: boolean | null;
   tsaStatus?: string | null;
   otsStatus?: string | null;
+  verificationPackageVersion?: number | null;
+recordedIntegrityVerifiedAtUtc?: string | null;
 };
 
 type CustodyEventRecord = {
@@ -578,6 +581,7 @@ function buildPackageManifest(params: {
       evidenceManifest: params.evidenceFiles.length > 1,
       originalLinkage: true,
       duplicateDigests: true,
+      trustDecision: true,
       forensicCustody: true,
       accessActivity: true,
       reportArtifact: true,
@@ -587,6 +591,174 @@ function buildPackageManifest(params: {
       readme: true,
       actualCertifications: params.hasActualCertifications,
     },
+  };
+}
+
+function buildPackageTrustDecision(params: {
+  metadata: VerificationPackageMetadata;
+  evidenceFiles: Array<VerificationEvidenceFile & { finalName: string }>;
+  hasTimestampToken: boolean;
+  anchorIncluded: boolean;
+  anchorPublished: boolean;
+  forensicCustodyCount: number;
+}) {
+  const hasEvidenceFiles = params.evidenceFiles.length > 0;
+  const hasHashes = params.evidenceFiles.some(
+    (file) => typeof file.sha256 === "string" && file.sha256.trim().length > 0
+  );
+
+  const verificationStatus = String(
+    params.metadata.verificationStatus ?? ""
+  ).toUpperCase();
+
+  const tsaStatus = String(params.metadata.tsaStatus ?? "").toUpperCase();
+  const otsStatus = String(params.metadata.otsStatus ?? "").toUpperCase();
+
+  const corePassed =
+    hasEvidenceFiles &&
+    hasHashes &&
+    (verificationStatus === "RECORDED_INTEGRITY_VERIFIED" ||
+      Boolean(params.metadata.recordedIntegrityVerifiedAtUtc));
+
+  const corePartial = hasEvidenceFiles && hasHashes && !corePassed;
+
+  const timestampPassed =
+    params.hasTimestampToken &&
+    ["STAMPED", "GRANTED", "VERIFIED", "SUCCEEDED"].includes(tsaStatus);
+
+  const timestampPending = ["PENDING", "UNAVAILABLE"].includes(tsaStatus);
+  const timestampFailed = tsaStatus === "FAILED";
+
+  const anchoringPassed =
+    params.anchorPublished || otsStatus === "ANCHORED";
+
+  const anchoringPending = otsStatus === "PENDING";
+  const anchoringFailed = otsStatus === "FAILED";
+
+  const storagePassed =
+    params.metadata.storageImmutable === true &&
+    String(params.metadata.storageObjectLockMode ?? "").toUpperCase() ===
+      "COMPLIANCE" &&
+    Boolean(params.metadata.storageObjectLockRetainUntilUtc);
+
+  const custodyPassed = params.forensicCustodyCount > 0;
+
+  const signals = [
+    {
+      key: "core_integrity",
+      label: "Core integrity",
+      status: corePassed ? "passed" : corePartial ? "partial" : "failed",
+      points: corePassed ? 25 : corePartial ? 18 : 0,
+      maxPoints: 25,
+      summary: corePassed
+        ? "Recorded integrity state verified"
+        : corePartial
+          ? "Integrity materials recorded"
+          : "Integrity materials incomplete",
+    },
+    {
+      key: "trusted_timestamp",
+      label: "Trusted timestamp",
+      status: timestampPassed
+        ? "passed"
+        : timestampPending
+          ? "pending"
+          : timestampFailed
+            ? "failed"
+            : "missing",
+      points: timestampPassed ? 15 : timestampPending ? 8 : timestampFailed ? 3 : 0,
+      maxPoints: 15,
+      summary: timestampPassed
+        ? "Trusted timestamp token included"
+        : timestampPending
+          ? "Timestamp pending"
+          : timestampFailed
+            ? "Timestamp unavailable"
+            : "Timestamp not included",
+    },
+    {
+      key: "public_anchoring",
+      label: "Public anchoring",
+      status: anchoringPassed
+        ? "passed"
+        : anchoringPending
+          ? "pending"
+          : anchoringFailed
+            ? "failed"
+            : "missing",
+      points: anchoringPassed ? 10 : anchoringPending ? 6 : anchoringFailed ? 2 : 0,
+      maxPoints: 10,
+      summary: anchoringPassed
+        ? "Public anchoring recorded"
+        : anchoringPending
+          ? "Anchoring pending"
+          : anchoringFailed
+            ? "Anchoring failed"
+            : "Anchoring not recorded",
+    },
+    {
+      key: "immutable_storage",
+      label: "Immutable storage",
+      status: storagePassed ? "passed" : "partial",
+      points: storagePassed ? 15 : 7,
+      maxPoints: 15,
+      summary: storagePassed
+        ? "Immutable retention verified"
+        : "Storage protection not fully verified in package metadata",
+    },
+    {
+      key: "custody_chain",
+      label: "Custody chain",
+      status: custodyPassed ? "passed" : "missing",
+      points: custodyPassed ? 10 : 0,
+      maxPoints: 10,
+      summary: custodyPassed
+        ? `${params.forensicCustodyCount} forensic custody events recorded`
+        : "No forensic custody events recorded",
+    },
+  ];
+
+  const rawScore = signals.reduce((sum, signal) => sum + signal.points, 0);
+  const rawMax = signals.reduce((sum, signal) => sum + signal.maxPoints, 0);
+  const score = Math.round((rawScore / rawMax) * 100);
+
+  const coreFailed = signals[0]?.status === "failed";
+
+  const verdict =
+    coreFailed || score < 45
+      ? "INSUFFICIENT_VERIFICATION"
+      : score >= 90
+        ? "STRONGLY_VERIFIED"
+        : score >= 78
+          ? "VERIFIED"
+          : score >= 62
+            ? "PARTIALLY_VERIFIED"
+            : "REVIEW_REQUIRED";
+
+  const degradedSignals = signals.filter((signal) =>
+    ["partial", "pending", "missing", "failed"].includes(signal.status)
+  );
+
+  return {
+    schema: "PROOVRA_PACKAGE_TRUST_DECISION",
+    version: 1,
+    generatedAtUtc: new Date().toISOString(),
+    verdict,
+    score,
+    scoreLabel: `${score}/100`,
+    degradedButUsable:
+      !coreFailed && score >= 62 && degradedSignals.length > 0,
+    summary:
+      verdict === "INSUFFICIENT_VERIFICATION"
+        ? "The verification package does not contain enough material for reliable integrity reliance."
+        : degradedSignals.length > 0
+          ? "The verification package contains usable integrity materials, but one or more supporting trust signals require review."
+          : "The verification package contains strong integrity, custody, timestamping, storage, or anchoring support.",
+    reviewerAction:
+      degradedSignals.length > 0
+        ? "Review degraded signals before high-reliance use. Missing or failed timestamping/anchoring does not automatically invalidate hashes, signatures, custody, or preserved originals."
+        : "Proceed with normal technical verification of hashes, signature, custody, timestamping, and anchoring materials.",
+    signals,
   };
 }
 
@@ -702,6 +874,9 @@ Package metadata describing the verification bundle.
 
 integrity-summary.json
 High-level package integrity profile.
+
+trust-decision.json
+Enterprise trust decision summary aligned with the PDF report decision model. Includes verdict, score, degraded-but-usable state, reviewer action, and signal breakdown.
 
 original-linkage.json
 Links the included file(s), storage preservation details, and report artifact back to the preserved original record.
@@ -1095,7 +1270,7 @@ a{color:#0b2e27;font-weight:700}
   <div class="card">
     <h2>3. How to Verify</h2>
     <ol>
-      <li>Review <code>package-manifest.json</code> and <code>integrity-summary.json</code>.</li>
+<li>Review <code>package-manifest.json</code>, <code>integrity-summary.json</code>, and <code>trust-decision.json</code>.</li>
       <li>Hash the included evidence file(s) with SHA-256.</li>
       <li>Compare computed hashes against <code>original-linkage.json</code> and <code>fingerprint.json</code>.</li>
       <li>Verify <code>signature.txt</code> using <code>public-key.pem</code>.</li>
@@ -1266,6 +1441,14 @@ export async function createVerificationPackage(data: {
     });
     const custodySplit = splitCustodyEvents(data.custody);
 
+    const anchorPublished = Boolean(
+  data.anchor?.published ||
+    data.anchor?.receiptId ||
+    data.anchor?.transactionId ||
+    data.anchor?.publicUrl ||
+    data.anchor?.anchoredAtUtc
+);
+
     if (evidenceFilesWithFinalName.length === 1) {
       const file = evidenceFilesWithFinalName[0];
       archive.append(file.buffer, {
@@ -1356,7 +1539,23 @@ const packageManifest = buildPackageManifest({
         name: "integrity-summary.json",
       }
     );
-
+archive.append(
+  JSON.stringify(
+    buildPackageTrustDecision({
+      metadata,
+      evidenceFiles: evidenceFilesWithFinalName,
+      hasTimestampToken,
+      anchorIncluded,
+      anchorPublished,
+      forensicCustodyCount: custodySplit.forensic.length,
+    }),
+    null,
+    2
+  ),
+  {
+    name: "trust-decision.json",
+  }
+);
     archive.append(
       JSON.stringify(buildOriginalLinkage(evidenceFilesWithFinalName, metadata), null, 2),
       {

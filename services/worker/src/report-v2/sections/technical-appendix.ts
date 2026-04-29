@@ -90,9 +90,20 @@ function renderTechnicalStatusCards(vm: ReportViewModel): string {
         <div class="technical-verification-title">Public Anchoring</div>
         <div class="technical-verification-value">${escapeHtml(
           vm.technicalAppendix.otsStatusLabel
+          
         )}</div>
         <div class="technical-verification-note">
           OpenTimestamps or external publication state for the recorded digest.
+        </div>
+      </article>
+            <article class="technical-verification-card tone-${vm.trustDecision.tone}">
+        <div class="technical-verification-kicker">Trust Decision</div>
+        <div class="technical-verification-title">Overall Score</div>
+        <div class="technical-verification-value">${escapeHtml(
+          `${vm.trustDecision.verdictLabel} • ${vm.trustDecision.scoreLabel}`
+        )}</div>
+        <div class="technical-verification-note">
+          ${escapeHtml(vm.trustDecision.reviewerAction)}
         </div>
       </article>
     </div>

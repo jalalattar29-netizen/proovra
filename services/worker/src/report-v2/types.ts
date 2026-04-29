@@ -267,6 +267,69 @@ export type ReportV2Input = {
 
 export type Tone = "neutral" | "success" | "warning" | "danger";
 
+export type ReportTrustVerdict =
+  | "STRONGLY_VERIFIED"
+  | "VERIFIED"
+  | "PARTIALLY_VERIFIED"
+  | "REVIEW_REQUIRED"
+  | "FAILED";
+
+export type ReportTrustLevel =
+  | "strong"
+  | "standard"
+  | "partial"
+  | "review"
+  | "failed";
+
+export type ReportTrustSignalKey =
+  | "core_integrity"
+  | "signature"
+  | "trusted_timestamp"
+  | "public_anchoring"
+  | "immutable_storage"
+  | "custody_chain"
+  | "identity"
+  | "verification_package";
+
+export type ReportTrustSignalStatus =
+  | "passed"
+  | "partial"
+  | "pending"
+  | "missing"
+  | "failed";
+
+export type ReportTrustSignal = {
+  key: ReportTrustSignalKey;
+  label: string;
+  status: ReportTrustSignalStatus;
+  tone: Tone;
+  points: number;
+  maxPoints: number;
+  summary: string;
+  detail: string;
+};
+
+export type ReportTrustDecision = {
+  verdict: ReportTrustVerdict;
+  level: ReportTrustLevel;
+  tone: Tone;
+  score: number;
+  maxScore: number;
+  scoreLabel: string;
+  verdictLabel: string;
+  shortLabel: string;
+  title: string;
+  summary: string;
+  primaryReason: string;
+  reviewerAction: string;
+  degradedButUsable: boolean;
+  relianceLevel: "high" | "medium" | "limited" | "low";
+  signals: ReportTrustSignal[];
+  passedSignals: number;
+  degradedSignals: number;
+  failedSignals: number;
+};
+
 export type KeyValueRow = {
   label: string;
   value: string;
@@ -344,8 +407,8 @@ export type ReportViewModel = {
   evidenceReference: string;
   recordStatusLabel: string;
   verificationStatusLabel: string;
-  integrityVerified: boolean;
-
+integrityVerified: boolean;
+trustDecision: ReportTrustDecision;
   executiveConclusion: CalloutModel;
   legalLimitationShort: CalloutModel;
   reviewSequence: CalloutModel;
