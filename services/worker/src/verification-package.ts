@@ -1,5 +1,6 @@
 import archiver from "archiver";
 import path from "node:path";
+import { createHash } from "node:crypto";
 import { PassThrough } from "stream";
 import { isAccessCustodyEventType } from "@proovra/shared";
 
@@ -92,8 +93,14 @@ type PackageManifest = {
     verifyHtml: boolean;
     readme: boolean;
     actualCertifications: boolean;
-duplicateDigests: boolean;
-trustDecision: boolean;    
+    duplicateDigests: boolean;
+    trustDecision: boolean;
+    packageChecksums: boolean;
+    signedPackageManifest: boolean;
+    verificationInstructions: boolean;
+    verificationScript: boolean;
+    caseMetadata: boolean;
+    auditAccessReport: boolean;
   };
 };
 
@@ -119,7 +126,18 @@ type VerificationPackageMetadata = {
   tsaStatus?: string | null;
   otsStatus?: string | null;
   verificationPackageVersion?: number | null;
-recordedIntegrityVerifiedAtUtc?: string | null;
+  recordedIntegrityVerifiedAtUtc?: string | null;
+  caseId?: string | null;
+  caseName?: string | null;
+  matterNumber?: string | null;
+  clientName?: string | null;
+  reviewer?: string | null;
+  jurisdiction?: string | null;
+  retentionPolicy?: string | null;
+  workspaceId?: string | null;
+  organizationId?: string | null;
+  teamId?: string | null;
+  ownerUserId?: string | null;
 };
 
 type CustodyEventRecord = {
@@ -129,6 +147,12 @@ type CustodyEventRecord = {
   payload?: unknown;
   prevEventHash?: string | null;
   eventHash?: string | null;
+};
+
+type PackageEntry = {
+  name: string;
+  buffer: Buffer;
+  contentType?: string;
 };
 
 function splitCustodyEvents(
@@ -146,7 +170,7 @@ function splitCustodyEvents(
       item && typeof item === "object" ? (item as CustodyEventRecord) : null;
     if (!event) continue;
 
-    if (isAccessCustodyEventType(event.eventType)) {
+    if (isAccessCustodyEventType(String(event.eventType ?? ""))) {
       access.push(event);
     } else {
       forensic.push(event);
@@ -177,7 +201,8 @@ function formatTimestampForFile(value: string | null | undefined): string | null
 }
 
 function mapMimeTypeToExtension(mimeType: string | null | undefined): string {
-  const normalized = typeof mimeType === "string" ? mimeType.trim().toLowerCase() : "";
+  const normalized =
+    typeof mimeType === "string" ? mimeType.trim().toLowerCase() : "";
   switch (normalized) {
     case "image/png":
       return "png";
@@ -216,7 +241,7 @@ function sanitizeFileBaseName(value: string, maxLen = 120): string {
     .replace(/\p{Diacritic}/gu, "")
     .replace(/[^a-zA-Z0-9]+/g, "-")
     .replace(/-+/g, "-")
-    .replace(/^[-\.]+|[-\.]+$/g, "")
+    .replace(/^[-.]+|[-.]+$/g, "")
     .toLowerCase()
     .slice(0, maxLen)
     .replace(/-+/g, "-");
@@ -229,15 +254,17 @@ function deriveEvidenceDescriptor(params: {
   mimeType?: string | null;
   captureMethod?: string | null;
 }): string {
-  const typeLabel = typeof params.evidenceType === "string" && params.evidenceType.trim()
-    ? params.evidenceType.trim().toLowerCase()
-    : params.mimeType
-      ? params.mimeType.split("/")[0]
-      : "evidence";
+  const typeLabel =
+    typeof params.evidenceType === "string" && params.evidenceType.trim()
+      ? params.evidenceType.trim().toLowerCase()
+      : params.mimeType
+        ? params.mimeType.split("/")[0]
+        : "evidence";
 
-  const methodLabel = typeof params.captureMethod === "string"
-    ? params.captureMethod.trim().toLowerCase()
-    : "captured";
+  const methodLabel =
+    typeof params.captureMethod === "string"
+      ? params.captureMethod.trim().toLowerCase()
+      : "captured";
 
   if (typeLabel === "document" || typeLabel === "pdf") {
     return `${methodLabel}-document`;
@@ -278,12 +305,23 @@ function buildEvidencePackageFileName(params: {
   fileOrder: number;
 }): string {
   const extension = mapMimeTypeToExtension(params.mimeType);
-  const timestamp = formatTimestampForFile(params.capturedAtUtc ?? params.uploadedAtUtc);
-  const hasTitle = typeof params.evidenceTitle === "string" && params.evidenceTitle.trim().length > 0;
-  const hasOriginal = typeof params.originalFileName === "string" && params.originalFileName.trim().length > 0;
+  const timestamp = formatTimestampForFile(
+    params.capturedAtUtc ?? params.uploadedAtUtc
+  );
+  const hasTitle =
+    typeof params.evidenceTitle === "string" &&
+    params.evidenceTitle.trim().length > 0;
+  const hasOriginal =
+    typeof params.originalFileName === "string" &&
+    params.originalFileName.trim().length > 0;
 
   const originalNameBase = hasOriginal
-    ? sanitizeFileBaseName(path.basename(params.originalFileName!.trim(), path.extname(params.originalFileName!)))
+    ? sanitizeFileBaseName(
+        path.basename(
+          params.originalFileName!.trim(),
+          path.extname(params.originalFileName!)
+        )
+      )
     : null;
 
   const titleBase = hasTitle
@@ -296,7 +334,10 @@ function buildEvidencePackageFileName(params: {
     captureMethod: params.captureMethod,
   });
 
-  const partLabel = params.totalParts > 1 ? `part-${String(params.partIndex ?? params.fileOrder).padStart(2, "0")}` : null;
+  const partLabel =
+    params.totalParts > 1
+      ? `part-${String(params.partIndex ?? params.fileOrder).padStart(2, "0")}`
+      : null;
 
   let baseName: string;
 
@@ -308,14 +349,12 @@ function buildEvidencePackageFileName(params: {
     } else {
       baseName = normalizeFileNameSegments([descriptor, partLabel, timestamp]);
     }
+  } else if (titleBase) {
+    baseName = normalizeFileNameSegments([titleBase, timestamp]);
+  } else if (originalNameBase) {
+    baseName = normalizeFileNameSegments([originalNameBase, timestamp]);
   } else {
-    if (titleBase) {
-      baseName = normalizeFileNameSegments([titleBase, timestamp]);
-    } else if (originalNameBase) {
-      baseName = normalizeFileNameSegments([originalNameBase, timestamp]);
-    } else {
-      baseName = normalizeFileNameSegments([descriptor, timestamp]);
-    }
+    baseName = normalizeFileNameSegments([descriptor, timestamp]);
   }
 
   if (!baseName) {
@@ -323,7 +362,10 @@ function buildEvidencePackageFileName(params: {
   }
 
   if (params.totalParts > 1) {
-    const orderPrefix = String(params.fileOrder).padStart(String(params.totalParts).length, "0");
+    const orderPrefix = String(params.fileOrder).padStart(
+      String(params.totalParts).length,
+      "0"
+    );
     baseName = `${orderPrefix}-${baseName}`;
   }
 
@@ -339,6 +381,310 @@ function normalizeAnchorMode(value: string | null | undefined): AnchorMode {
 function safeText(value: string | null | undefined, fallback = "N/A"): string {
   const text = typeof value === "string" ? value.trim() : "";
   return text || fallback;
+}
+
+function sha256Hex(bufferOrText: Buffer | string): string {
+  return createHash("sha256").update(bufferOrText).digest("hex");
+}
+
+function jsonBuffer(value: unknown): Buffer {
+  return Buffer.from(JSON.stringify(value, null, 2), "utf8");
+}
+
+function textBuffer(value: string): Buffer {
+  return Buffer.from(value, "utf8");
+}
+
+function appendPackageEntry(
+  archive: archiver.Archiver,
+  entries: PackageEntry[],
+  name: string,
+  buffer: Buffer,
+  contentType?: string
+): void {
+  entries.push(
+    contentType === undefined ? { name, buffer } : { name, buffer, contentType }
+  );
+  archive.append(buffer, { name });
+}
+
+function buildPackageChecksums(entries: PackageEntry[]) {
+  return {
+    schema: "PROOVRA_PACKAGE_CHECKSUMS",
+    version: 1,
+    generatedAtUtc: new Date().toISOString(),
+    algorithm: "SHA-256",
+    fileCount: entries.length,
+    files: entries
+      .map((entry) => ({
+        path: entry.name,
+        sizeBytes: entry.buffer.length,
+        sha256: sha256Hex(entry.buffer),
+        contentType: entry.contentType ?? null,
+      }))
+      .sort((a, b) => a.path.localeCompare(b.path)),
+  };
+}
+
+function buildSignedManifest(params: {
+  manifestBuffer: Buffer;
+  signingKeyId?: string | null;
+  signingKeyVersion?: number | null;
+}) {
+  return {
+    schema: "PROOVRA_SIGNED_PACKAGE_MANIFEST",
+    version: 1,
+    generatedAtUtc: new Date().toISOString(),
+    signatureAlgorithm: "INTEGRITY_DIGEST_ONLY",
+    digestAlgorithm: "SHA-256",
+    signingKeyId: params.signingKeyId ?? null,
+    signingKeyVersion:
+      params.signingKeyVersion != null ? String(params.signingKeyVersion) : null,
+    manifestFile: "package-manifest.json",
+    manifestSha256: sha256Hex(params.manifestBuffer),
+    note:
+      "This file binds the package manifest to a SHA-256 digest. It is not a private-key cryptographic signature. Treat it as an integrity digest record for the manifest.",
+  };
+}
+
+function buildCaseMetadata(
+  metadata: VerificationPackageMetadata,
+  evidenceId?: string | null
+) {
+  return {
+    schema: "PROOVRA_CASE_METADATA",
+    version: 1,
+    generatedAtUtc: new Date().toISOString(),
+    evidence: {
+      evidenceId: evidenceId ?? null,
+      title: metadata.title ?? null,
+      evidenceType: metadata.evidenceType ?? null,
+      evidenceStatus: metadata.evidenceStatus ?? null,
+      verificationStatus: metadata.verificationStatus ?? null,
+      captureMethod: metadata.captureMethod ?? null,
+    },
+    case: {
+      caseId: metadata.caseId ?? null,
+      caseName: metadata.caseName ?? null,
+      matterNumber: metadata.matterNumber ?? null,
+      clientName: metadata.clientName ?? null,
+      reviewer: metadata.reviewer ?? null,
+      jurisdiction: metadata.jurisdiction ?? null,
+    },
+    workspace: {
+      ownerUserId: metadata.ownerUserId ?? null,
+      teamId: metadata.teamId ?? null,
+      workspaceId: metadata.workspaceId ?? null,
+      organizationId: metadata.organizationId ?? null,
+      retentionPolicy: metadata.retentionPolicy ?? null,
+    },
+    submitter: {
+      submittedByEmail: metadata.submittedByEmail ?? null,
+      submittedByAuthProvider: metadata.submittedByAuthProvider ?? null,
+      identityLevelSnapshot: metadata.identityLevelSnapshot ?? null,
+    },
+    timestamps: {
+      createdAtUtc: metadata.createdAtUtc ?? null,
+      capturedAtUtc: metadata.capturedAtUtc ?? null,
+      uploadedAtUtc: metadata.uploadedAtUtc ?? null,
+      signedAtUtc: metadata.signedAtUtc ?? null,
+      reportGeneratedAtUtc: metadata.reportGeneratedAtUtc ?? null,
+      recordedIntegrityVerifiedAtUtc:
+        metadata.recordedIntegrityVerifiedAtUtc ?? null,
+    },
+    retention: {
+      policy: metadata.retentionPolicy ?? null,
+      storageRegion: metadata.storageRegion ?? null,
+      storageImmutable: metadata.storageImmutable ?? null,
+      objectLockMode: metadata.storageObjectLockMode ?? null,
+      retainUntilUtc: metadata.storageObjectLockRetainUntilUtc ?? null,
+      legalHoldStatus: metadata.storageObjectLockLegalHoldStatus ?? null,
+    },
+  };
+}
+
+function buildAuditAccessReport(params: {
+  custody: CustodyEventRecord[];
+  forensic: CustodyEventRecord[];
+  access: CustodyEventRecord[];
+}) {
+  const accessTypes = new Map<string, number>();
+
+  for (const ev of params.access) {
+    const key = String(ev.eventType ?? "UNKNOWN");
+    accessTypes.set(key, (accessTypes.get(key) ?? 0) + 1);
+  }
+
+  return {
+    schema: "PROOVRA_AUDIT_ACCESS_REPORT",
+    version: 1,
+    generatedAtUtc: new Date().toISOString(),
+    summary: {
+      totalCustodyEvents: params.custody.length,
+      forensicCustodyEvents: params.forensic.length,
+      accessActivityEvents: params.access.length,
+      accessTypes: Object.fromEntries(accessTypes.entries()),
+    },
+    boundary:
+      "Access activity records later viewing, download, verification, or package access events. It is separate from forensic custody and does not by itself prove authenticity, admissibility, authorship, or factual truth.",
+    accessActivity:
+      params.access.length > 0
+        ? params.access
+        : [
+            {
+              note:
+                "No access activity events were present at package generation time. This does not mean no future access occurred after this package was generated.",
+            },
+          ],
+  };
+}
+
+function buildVerificationInstructions(params: {
+  evidenceFiles: Array<VerificationEvidenceFile & { finalName: string }>;
+  hasTimestampToken: boolean;
+  hasAnchor: boolean;
+}) {
+  const evidencePaths =
+    params.evidenceFiles.length === 1
+      ? [params.evidenceFiles[0].finalName]
+      : params.evidenceFiles.map((file) => `evidence-parts/${file.finalName}`);
+
+  return `# PROOVRA Verification Instructions
+
+This package is designed for independent technical review.
+
+## 1. Verify package checksums
+
+Run from the extracted package root:
+
+\`\`\`bash
+node verify-package.mjs
+\`\`\`
+
+This checks every file listed in \`package-checksums.json\`.
+
+## 2. Verify evidence file SHA-256
+
+${evidencePaths
+  .map(
+    (filePath) => `\`\`\`bash
+sha256sum "${filePath}"
+\`\`\``
+  )
+  .join("\n\n")}
+
+Compare the result with:
+
+- \`original-linkage.json\`
+- \`fingerprint.json\`
+- \`package-checksums.json\`
+- the PDF report
+
+## 3. Verify package manifest digest
+
+\`\`\`bash
+sha256sum package-manifest.json
+cat package-manifest.sig
+\`\`\`
+
+The SHA-256 digest of \`package-manifest.json\` should match \`manifestSha256\` in \`package-manifest.sig\`.
+
+## 4. Verify signature material
+
+The package includes:
+
+- \`fingerprint.json\`
+- \`signature.txt\`
+- \`public-key.pem\`
+
+The signature is generated against PROOVRA fingerprint material. Depending on the exact signing mode, independent verification may require the platform canonicalization rule or a verifier matched to the production signing scheme.
+
+## 5. Verify timestamp material
+
+${
+  params.hasTimestampToken
+    ? `\`timestamp.tsr\` is included. Use RFC 3161/OpenSSL timestamp tooling together with the original digest and TSA certificate chain available from the timestamp provider.`
+    : `No \`timestamp.tsr\` is included. Review \`trust-decision.json\`, \`integrity-summary.json\`, and the PDF timestamp section for the timestamp status.`
+}
+
+## 6. Verify anchoring material
+
+${
+  params.hasAnchor
+    ? `\`anchor.json\` is included. Review its anchor hash, receipt, transaction ID, public URL, and anchored timestamp when present.`
+    : `No \`anchor.json\` is included. Public anchoring is not claimed by this package unless the verification page later reports completion.`
+}
+
+## 7. Review custody and access
+
+- \`custody.json\`: complete custody event chain included in the package.
+- \`forensic-custody.json\`: integrity-relevant custody events.
+- \`access-activity.json\`: viewing/download/verification access activity.
+- \`audit-access-report.json\`: reviewer-friendly access/audit summary.
+
+## Legal boundary
+
+This package supports technical integrity review only. It does not independently prove factual truth, authorship, legal admissibility, relevance, intent, or evidentiary weight.
+`;
+}
+
+function buildVerifyPackageScript() {
+  return [
+    "#!/usr/bin/env node",
+    'import { createHash } from "node:crypto";',
+    'import { readFileSync, existsSync } from "node:fs";',
+    "",
+    "function sha256(filePath) {",
+    '  return createHash("sha256").update(readFileSync(filePath)).digest("hex");',
+    "}",
+    "",
+    "function fail(message) {",
+    '  console.error("FAIL:", message);',
+    "  process.exitCode = 1;",
+    "}",
+    "",
+    'const manifestPath = "package-checksums.json";',
+    "",
+    "if (!existsSync(manifestPath)) {",
+    '  fail("package-checksums.json not found. Run this script from the extracted package root.");',
+    "  process.exit();",
+    "}",
+    "",
+    'const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));',
+    "const files = Array.isArray(manifest.files) ? manifest.files : [];",
+    "",
+    "let checked = 0;",
+    "",
+    "for (const item of files) {",
+    '  if (!item || typeof item.path !== "string" || typeof item.sha256 !== "string") {',
+    '    fail("Invalid checksum entry.");',
+    "    continue;",
+    "  }",
+    "",
+    '  if (item.path === "package-checksums.json") {',
+    "    continue;",
+    "  }",
+    "",
+    "  if (!existsSync(item.path)) {",
+    '    fail("Missing file: " + item.path);',
+    "    continue;",
+    "  }",
+    "",
+    "  const actual = sha256(item.path);",
+    "  checked += 1;",
+    "",
+    "  if (actual.toLowerCase() !== item.sha256.toLowerCase()) {",
+    '    fail("Checksum mismatch: " + item.path + "\n  expected " + item.sha256 + "\n  actual   " + actual);',
+    "  }",
+    "}",
+    "",
+    "if (process.exitCode) {",
+    "  process.exit();",
+    "}",
+    "",
+    'console.log("OK: verified " + checked + " packaged files against package-checksums.json");',
+    "",
+  ].join("\n");
 }
 
 function buildAnchorReadmeSection(params: {
@@ -547,10 +893,11 @@ function buildPackageManifest(params: {
   anchor?: AnchorPayload | null;
   hasTimestampToken: boolean;
   hasActualCertifications: boolean;
+  hasReportArtifact: boolean;
 }): PackageManifest {
   return {
     packageType: "PROOVRA_VERIFICATION_PACKAGE",
-    version: 3,
+    version: 4,
     evidenceId: params.evidenceId ?? null,
     reportVersion: params.reportVersion ?? null,
     signingKeyId: params.signingKeyId ?? null,
@@ -584,12 +931,18 @@ function buildPackageManifest(params: {
       trustDecision: true,
       forensicCustody: true,
       accessActivity: true,
-      reportArtifact: true,
+      reportArtifact: params.hasReportArtifact,
       courtReadiness: true,
       certificationTemplates: true,
       verifyHtml: true,
       readme: true,
       actualCertifications: params.hasActualCertifications,
+      packageChecksums: true,
+      signedPackageManifest: true,
+      verificationInstructions: true,
+      verificationScript: true,
+      caseMetadata: true,
+      auditAccessReport: true,
     },
   };
 }
@@ -598,7 +951,6 @@ function buildPackageTrustDecision(params: {
   metadata: VerificationPackageMetadata;
   evidenceFiles: Array<VerificationEvidenceFile & { finalName: string }>;
   hasTimestampToken: boolean;
-  anchorIncluded: boolean;
   anchorPublished: boolean;
   forensicCustodyCount: number;
 }) {
@@ -629,9 +981,7 @@ function buildPackageTrustDecision(params: {
   const timestampPending = ["PENDING", "UNAVAILABLE"].includes(tsaStatus);
   const timestampFailed = tsaStatus === "FAILED";
 
-  const anchoringPassed =
-    params.anchorPublished || otsStatus === "ANCHORED";
-
+  const anchoringPassed = params.anchorPublished || otsStatus === "ANCHORED";
   const anchoringPending = otsStatus === "PENDING";
   const anchoringFailed = otsStatus === "FAILED";
 
@@ -720,7 +1070,7 @@ function buildPackageTrustDecision(params: {
 
   const rawScore = signals.reduce((sum, signal) => sum + signal.points, 0);
   const rawMax = signals.reduce((sum, signal) => sum + signal.maxPoints, 0);
-  const score = Math.round((rawScore / rawMax) * 100);
+  const score = rawMax > 0 ? Math.round((rawScore / rawMax) * 100) : 0;
 
   const coreFailed = signals[0]?.status === "failed";
 
@@ -793,14 +1143,13 @@ function buildReadme(params: {
   reportVersion?: number;
   signingKeyId?: string;
   signingKeyVersion?: number;
-hasReportArtifact: boolean;
-hasTimestampToken: boolean;
-timestampStatus?: string | null;
-otsStatus?: string | null;
+  hasReportArtifact: boolean;
+  hasTimestampToken: boolean;
+  timestampStatus?: string | null;
+  otsStatus?: string | null;
 }): string {
   const multipart = params.evidenceFiles.length > 1;
-
-    const timestampStatus = String(params.timestampStatus ?? "").toUpperCase();
+  const timestampStatus = String(params.timestampStatus ?? "").toUpperCase();
   const otsStatus = String(params.otsStatus ?? "").toUpperCase();
 
   const timestampReadmeLine = params.hasTimestampToken
@@ -827,7 +1176,9 @@ This package allows independent verification of the recorded digital evidence st
 
 Evidence ID: ${safeText(params.evidenceId, "Not included")}
 Report Version: ${
-    typeof params.reportVersion === "number" ? String(params.reportVersion) : "Not included"
+    typeof params.reportVersion === "number"
+      ? String(params.reportVersion)
+      : "Not included"
   }
 Signing Key ID: ${safeText(params.signingKeyId, "Not included")}
 Signing Key Version: ${
@@ -872,17 +1223,35 @@ ${anchorReadmeLine}
 package-manifest.json
 Package metadata describing the verification bundle.
 
+package-manifest.sig
+SHA-256 digest record for package-manifest.json.
+
+package-checksums.json
+SHA-256 checksum manifest for packaged files.
+
+verification-instructions.md
+Executable-style verification guide with shell commands.
+
+verify-package.mjs
+Node.js script for checking package file checksums.
+
+case-metadata.json
+Case, matter, workspace, retention, and reviewer context when available.
+
+audit-access-report.json
+Reviewer-friendly access and audit activity summary.
+
 integrity-summary.json
 High-level package integrity profile.
 
 trust-decision.json
-Enterprise trust decision summary aligned with the PDF report decision model. Includes verdict, score, degraded-but-usable state, reviewer action, and signal breakdown.
+Enterprise trust decision summary aligned with the PDF report decision model.
 
 original-linkage.json
 Links the included file(s), storage preservation details, and report artifact back to the preserved original record.
 
 duplicate-digests.json
-Lists any packaged evidence files that share the same SHA-256 digest. Duplicate digests do not automatically indicate tampering, but they should be reviewed when evaluating multipart evidence.
+Lists any packaged evidence files that share the same SHA-256 digest.
 
 forensic-custody.json
 Integrity-relevant system lifecycle events separated from later reviewer access activity.
@@ -907,43 +1276,24 @@ ${params.hasReportArtifact ? "Includes the generated PROOVRA verification report
 
 CUSTODY CHAIN INTERPRETATION
 
-VERIFICATION STATUS INTERPRETATION
-
-FORENSIC_INTEGRITY means the package contains technical integrity materials such as hashes, signatures, custody records, and available timestamp or anchoring materials.
-
-The evidence verification status describes whether the record is ready for reliance or still requires review.
-
-Technical integrity support does not by itself establish legal admissibility, authorship, factual truth, relevance, or evidentiary weight.
-
-custody.json
-Contains the complete immutable sequence of all recorded system events.
-
-forensic-custody.json
-Contains a curated subset of integrity-relevant events used for forensic review.
-
-access-activity.json
-Contains access, viewing, download, and verification activity that is not part of the forensic custody chronology shown in the PDF report.
+custody.json contains the complete immutable sequence of all recorded system events.
+forensic-custody.json contains a curated subset of integrity-relevant events used for forensic review.
+access-activity.json contains access, viewing, download, and verification activity that is not part of the forensic custody chronology shown in the PDF report.
 
 Sequence numbers reflect the original immutable event log. Gaps in forensic views may appear where non-forensic events are excluded.
-
-The complete custody-event chain can be independently inspected in custody.json and through the PROOVRA verification page.
 
 HOW TO VERIFY
 
 1) Extract the package.
-2) Review fingerprint.json.
-3) If this is a single-file evidence item:
-   - Calculate SHA256 hash of the included evidence file.
-   - Compare it with the fingerprint content and report materials.
-4) If this is a multipart evidence item:
-   - Review fingerprint.json and evidence-manifest.json.
-   - Calculate SHA256 hash for each included evidence part.
-   - Rebuild the multipart integrity state according to the platform rules.
-5) Verify the Ed25519 signature using public-key.pem.
-6) Verify the RFC3161 timestamp token using timestamp verification tools, if included.
-7) Review custody.json and, where present, anchor.json.
-8) Use original-linkage.json to tie every included file and the bundled report back to the preserved record.
-9) Complete the certification templates inside certifications/ before using this package as a court-facing packet.
+2) Run: node verify-package.mjs
+3) Review fingerprint.json.
+4) Calculate SHA-256 hash of the included evidence file(s).
+5) Compare computed hashes against original-linkage.json, fingerprint.json, and package-checksums.json.
+6) Verify the Ed25519 signature using public-key.pem and the platform signing rules.
+7) Verify the RFC3161 timestamp token using timestamp verification tools, if included.
+8) Review custody.json and, where present, anchor.json.
+9) Use original-linkage.json to tie every included file and the bundled report back to the preserved record.
+10) Complete the certification templates inside certifications/ before using this package as a court-facing packet.
 
 ${buildAnchorReadmeSection({
   anchorMode: params.anchorMode,
@@ -1021,6 +1371,10 @@ function buildCourtReadinessChecklist(params: {
       anchorIncluded: params.anchorIncluded,
       forensicCustodySeparated: true,
       accessActivitySeparated: true,
+      auditAccessReportIncluded: true,
+      packageChecksumManifestIncluded: true,
+      packageManifestDigestIncluded: true,
+      verificationInstructionsIncluded: true,
       reportArtifactIncluded: true,
       certificationTemplateIncluded: true,
       actualCustodianCertificationIncluded: Boolean(
@@ -1031,6 +1385,7 @@ function buildCourtReadinessChecklist(params: {
       ),
       systemProcessDeclarationIncluded: true,
       originalLinkageIncluded: true,
+      caseMetadataIncluded: true,
     },
     remainingHumanRequirements: [
       "Custodian declaration or qualified-person certification must be completed for court-facing use.",
@@ -1043,6 +1398,10 @@ function buildCourtReadinessChecklist(params: {
       captureMethod: params.metadata.captureMethod ?? null,
       forensicCustodyEventCount: params.forensicCustodyCount,
       accessActivityEventCount: params.accessActivityCount,
+      caseId: params.metadata.caseId ?? null,
+      caseName: params.metadata.caseName ?? null,
+      jurisdiction: params.metadata.jurisdiction ?? null,
+      retentionPolicy: params.metadata.retentionPolicy ?? null,
     },
   };
 }
@@ -1061,6 +1420,8 @@ Use this template with counsel review before court-facing submission.
     typeof params.reportVersion === "number" ? String(params.reportVersion) : "Not included"
   }
 - Evidence Title: ${safeText(params.metadata.title, "Not included")}
+- Case ID: ${safeText(params.metadata.caseId, "Not included")}
+- Jurisdiction: ${safeText(params.metadata.jurisdiction, "Not included")}
 
 ## Declarant
 
@@ -1134,6 +1495,7 @@ This package documents a PROOVRA evidence record and the integrity-verification 
 5. Timestamp and public anchoring records are attached where available.
 6. System custody events are recorded separately from later access activity.
 7. Reviewer-facing artifacts such as reports or previews are generated from, and linked back to, the preserved record.
+8. The verification package includes package-checksums.json and package-manifest.sig so reviewers can detect package artifact changes after export.
 
 ## Timestamping and anchoring availability
 
@@ -1156,7 +1518,7 @@ function buildVerifyHtml(params: {
   evidenceId?: string;
   reportVersion?: number;
 }): string {
-    const timestampText = (() => {
+  const timestampText = (() => {
     const status = String(params.timestampStatus ?? "").toUpperCase();
 
     if (params.hasTimestampToken && status !== "FAILED") {
@@ -1189,6 +1551,7 @@ function buildVerifyHtml(params: {
       ? "Anchor material is included for review."
       : "No anchor material is attached.";
   })();
+
   const multipart = params.evidenceFiles.length > 1;
   const verificationUrl = params.evidenceId
     ? `https://app.proovra.com/verify/${params.evidenceId}`
@@ -1250,13 +1613,21 @@ a{color:#0b2e27;font-weight:700}
     <ul>
       <li>Structure: ${multipart ? "Multipart evidence package" : "Single evidence item"}</li>
       <li>Evidence file count: ${params.evidenceFiles.length}</li>
-<li>Timestamp: ${timestampText}</li>
-<li>Anchoring: ${anchoringText}</li>
+      <li>Timestamp: ${timestampText}</li>
+      <li>Anchoring: ${anchoringText}</li>
     </ul>
   </div>
 
   <div class="card">
-    <h2>2. Original vs Report Artifact</h2>
+    <h2>2. Package Integrity</h2>
+    <p>
+      Run <code>node verify-package.mjs</code> from the extracted package root to verify files against <code>package-checksums.json</code>.
+      Review <code>package-manifest.sig</code> to confirm the SHA-256 digest of <code>package-manifest.json</code>.
+    </p>
+  </div>
+
+  <div class="card">
+    <h2>3. Original vs Report Artifact</h2>
     <p>
       The preserved original evidence file(s) are the primary evidentiary source.
       The PDF report, previews, and this HTML guide are reviewer-facing artifacts.
@@ -1268,40 +1639,26 @@ a{color:#0b2e27;font-weight:700}
   </div>
 
   <div class="card">
-    <h2>3. How to Verify</h2>
+    <h2>4. How to Verify</h2>
     <ol>
-<li>Review <code>package-manifest.json</code>, <code>integrity-summary.json</code>, and <code>trust-decision.json</code>.</li>
+      <li>Review <code>verification-instructions.md</code>.</li>
+      <li>Run <code>node verify-package.mjs</code>.</li>
+      <li>Review <code>package-manifest.json</code>, <code>package-manifest.sig</code>, <code>integrity-summary.json</code>, and <code>trust-decision.json</code>.</li>
       <li>Hash the included evidence file(s) with SHA-256.</li>
-      <li>Compare computed hashes against <code>original-linkage.json</code> and <code>fingerprint.json</code>.</li>
+      <li>Compare computed hashes against <code>original-linkage.json</code>, <code>fingerprint.json</code>, and <code>package-checksums.json</code>.</li>
       <li>Verify <code>signature.txt</code> using <code>public-key.pem</code>.</li>
       <li>If present, verify <code>timestamp.tsr</code> with RFC3161 timestamp verification tools.</li>
       <li>If present, review <code>anchor.json</code> for anchoring or publication material.</li>
     </ol>
   </div>
 
-    <div class="card">
-    <h2>4. Timestamping and Anchoring Interpretation</h2>
-    <p>
-      RFC 3161 timestamping and public anchoring are independent integrity-support layers.
-      A missing or failed RFC 3161 timestamp does not invalidate recorded hashes, digital signatures,
-      custody-chain continuity, or confirmed anchoring material.
-    </p>
-    <p>
-      If public anchoring is pending, reviewers should treat the anchoring layer as not yet fully confirmed
-      until the verification page or package materials show completion.
-    </p>
-  </div>
-
   <div class="card">
-    <h2>5. Custody Explanation</h2>
+    <h2>5. Custody and Access Explanation</h2>
     <p>
       <code>custody.json</code> contains the complete system event chain.
       <code>forensic-custody.json</code> contains a filtered subset used for forensic review.
       <code>access-activity.json</code> contains later access, viewing, download, or verification activity.
-    </p>
-    <p>
-      Full event continuity can be checked by verifying that each event's <code>eventHash</code>
-      matches the next event's <code>prevEventHash</code>.
+      <code>audit-access-report.json</code> summarizes access activity for reviewers.
     </p>
   </div>
 
@@ -1359,6 +1716,7 @@ export async function createVerificationPackage(data: {
     const archive = archiver("zip", { zlib: { level: 9 } });
     const stream = new PassThrough();
     const chunks: Buffer[] = [];
+    const packageEntries: PackageEntry[] = [];
 
     let settled = false;
 
@@ -1440,152 +1798,286 @@ export async function createVerificationPackage(data: {
       qualifiedPerson: data.certifications?.qualifiedPerson ?? null,
     });
     const custodySplit = splitCustodyEvents(data.custody);
+    const custodyArray = Array.isArray(data.custody)
+      ? (data.custody as CustodyEventRecord[])
+      : [];
 
     const anchorPublished = Boolean(
-  data.anchor?.published ||
-    data.anchor?.receiptId ||
-    data.anchor?.transactionId ||
-    data.anchor?.publicUrl ||
-    data.anchor?.anchoredAtUtc
-);
+      data.anchor?.published ||
+        data.anchor?.receiptId ||
+        data.anchor?.transactionId ||
+        data.anchor?.publicUrl ||
+        data.anchor?.anchoredAtUtc
+    );
 
     if (evidenceFilesWithFinalName.length === 1) {
       const file = evidenceFilesWithFinalName[0];
-      archive.append(file.buffer, {
-        name: file.finalName,
-      });
+      appendPackageEntry(
+        archive,
+        packageEntries,
+        file.finalName,
+        file.buffer,
+        file.mimeType ?? "application/octet-stream"
+      );
     } else {
       evidenceFilesWithFinalName.forEach((file) => {
-        archive.append(file.buffer, {
-          name: `evidence-parts/${file.finalName}`,
-        });
+        appendPackageEntry(
+          archive,
+          packageEntries,
+          `evidence-parts/${file.finalName}`,
+          file.buffer,
+          file.mimeType ?? "application/octet-stream"
+        );
       });
 
-      archive.append(
-        JSON.stringify(buildEvidenceManifest(evidenceFilesWithFinalName), null, 2),
-        {
-          name: "evidence-manifest.json",
-        }
+      appendPackageEntry(
+        archive,
+        packageEntries,
+        "evidence-manifest.json",
+        jsonBuffer(buildEvidenceManifest(evidenceFilesWithFinalName)),
+        "application/json"
       );
     }
 
-    archive.append(data.fingerprint, {
-      name: "fingerprint.json",
-    });
+    appendPackageEntry(
+      archive,
+      packageEntries,
+      "fingerprint.json",
+      textBuffer(data.fingerprint),
+      "application/json"
+    );
 
-    archive.append(data.signature, {
-      name: "signature.txt",
-    });
+    appendPackageEntry(
+      archive,
+      packageEntries,
+      "signature.txt",
+      textBuffer(data.signature),
+      "text/plain"
+    );
 
     if (data.timestampToken) {
-      archive.append(data.timestampToken, {
-        name: "timestamp.tsr",
-      });
+      appendPackageEntry(
+        archive,
+        packageEntries,
+        "timestamp.tsr",
+        textBuffer(data.timestampToken),
+        "application/octet-stream"
+      );
     }
 
-    archive.append(data.publicKey, {
-      name: "public-key.pem",
-    });
+    appendPackageEntry(
+      archive,
+      packageEntries,
+      "public-key.pem",
+      textBuffer(data.publicKey),
+      "application/x-pem-file"
+    );
 
-    archive.append(JSON.stringify(data.custody, null, 2), {
-      name: "custody.json",
-    });
+    appendPackageEntry(
+      archive,
+      packageEntries,
+      "custody.json",
+      jsonBuffer(data.custody),
+      "application/json"
+    );
 
-    archive.append(JSON.stringify(custodySplit.forensic, null, 2), {
-      name: "forensic-custody.json",
-    });
+    appendPackageEntry(
+      archive,
+      packageEntries,
+      "forensic-custody.json",
+      jsonBuffer(custodySplit.forensic),
+      "application/json"
+    );
 
-    archive.append(JSON.stringify(custodySplit.access, null, 2), {
-      name: "access-activity.json",
-    });
+    appendPackageEntry(
+      archive,
+      packageEntries,
+      "access-activity.json",
+      jsonBuffer(custodySplit.access),
+      "application/json"
+    );
 
     if (data.anchor) {
-      archive.append(JSON.stringify(data.anchor, null, 2), {
-        name: "anchor.json",
-      });
+      appendPackageEntry(
+        archive,
+        packageEntries,
+        "anchor.json",
+        jsonBuffer(data.anchor),
+        "application/json"
+      );
     }
 
-const packageManifest = buildPackageManifest({
-  evidenceId: data.evidenceId,
-  reportVersion: data.reportVersion,
-  signingKeyId: data.signingKeyId,
-  signingKeyVersion: data.signingKeyVersion,
-  evidenceFiles: evidenceFilesWithFinalName,
-  anchorIncluded,
-  anchorMode,
-  anchorProvider: data.anchorProvider,
-  anchorPublicBaseUrl: data.anchorPublicBaseUrl,
-  anchor: data.anchor ?? null,
-  hasTimestampToken,
-  hasActualCertifications: certificationSummary.hasActualCertifications,
-});
-
-    archive.append(JSON.stringify(packageManifest, null, 2), {
-      name: "package-manifest.json",
+    const packageManifest = buildPackageManifest({
+      evidenceId: data.evidenceId,
+      reportVersion: data.reportVersion,
+      signingKeyId: data.signingKeyId,
+      signingKeyVersion: data.signingKeyVersion,
+      evidenceFiles: evidenceFilesWithFinalName,
+      anchorIncluded,
+      anchorMode,
+      anchorProvider: data.anchorProvider,
+      anchorPublicBaseUrl: data.anchorPublicBaseUrl,
+      anchor: data.anchor ?? null,
+      hasTimestampToken,
+      hasActualCertifications: certificationSummary.hasActualCertifications,
+      hasReportArtifact: Boolean(data.reportPdf),
     });
 
-    archive.append(
-      JSON.stringify(
+    const packageManifestBuffer = jsonBuffer(packageManifest);
+
+    appendPackageEntry(
+      archive,
+      packageEntries,
+      "package-manifest.json",
+      packageManifestBuffer,
+      "application/json"
+    );
+
+    appendPackageEntry(
+      archive,
+      packageEntries,
+      "package-manifest.sig",
+      jsonBuffer(
+        buildSignedManifest({
+          manifestBuffer: packageManifestBuffer,
+          signingKeyId: data.signingKeyId ?? null,
+          signingKeyVersion: data.signingKeyVersion ?? null,
+        })
+      ),
+      "application/json"
+    );
+
+    appendPackageEntry(
+      archive,
+      packageEntries,
+      "package-manifest.verify.txt",
+      textBuffer(
+        `PROOVRA package manifest verification
+
+Manifest file:
+package-manifest.json
+
+Expected SHA-256:
+${sha256Hex(packageManifestBuffer)}
+
+Verify with:
+sha256sum package-manifest.json
+
+The result must match the expected SHA-256 above and the manifestSha256 field in package-manifest.sig.
+`
+      ),
+      "text/plain"
+    );
+
+    appendPackageEntry(
+      archive,
+      packageEntries,
+      "integrity-summary.json",
+      jsonBuffer(
         buildIntegritySummary({
           evidenceFiles: evidenceFilesWithFinalName,
           hasTimestampToken,
           anchorIncluded,
           anchorMode,
-        }),
-        null,
-        2
+        })
       ),
-      {
-        name: "integrity-summary.json",
-      }
-    );
-archive.append(
-  JSON.stringify(
-    buildPackageTrustDecision({
-      metadata,
-      evidenceFiles: evidenceFilesWithFinalName,
-      hasTimestampToken,
-      anchorIncluded,
-      anchorPublished,
-      forensicCustodyCount: custodySplit.forensic.length,
-    }),
-    null,
-    2
-  ),
-  {
-    name: "trust-decision.json",
-  }
-);
-    archive.append(
-      JSON.stringify(buildOriginalLinkage(evidenceFilesWithFinalName, metadata), null, 2),
-      {
-        name: "original-linkage.json",
-      }
+      "application/json"
     );
 
-    archive.append(
-  JSON.stringify(buildDuplicateDigests(evidenceFilesWithFinalName), null, 2),
-  {
-    name: "duplicate-digests.json",
-  }
-);
+    appendPackageEntry(
+      archive,
+      packageEntries,
+      "trust-decision.json",
+      jsonBuffer(
+        buildPackageTrustDecision({
+          metadata,
+          evidenceFiles: evidenceFilesWithFinalName,
+          hasTimestampToken,
+          anchorPublished,
+          forensicCustodyCount: custodySplit.forensic.length,
+        })
+      ),
+      "application/json"
+    );
 
-    archive.append(
-      JSON.stringify(
+    appendPackageEntry(
+      archive,
+      packageEntries,
+      "original-linkage.json",
+      jsonBuffer(buildOriginalLinkage(evidenceFilesWithFinalName, metadata)),
+      "application/json"
+    );
+
+    appendPackageEntry(
+      archive,
+      packageEntries,
+      "case-metadata.json",
+      jsonBuffer(buildCaseMetadata(metadata, data.evidenceId ?? null)),
+      "application/json"
+    );
+
+    appendPackageEntry(
+      archive,
+      packageEntries,
+      "audit-access-report.json",
+      jsonBuffer(
+        buildAuditAccessReport({
+          custody: custodyArray,
+          forensic: custodySplit.forensic,
+          access: custodySplit.access,
+        })
+      ),
+      "application/json"
+    );
+
+    appendPackageEntry(
+      archive,
+      packageEntries,
+      "verification-instructions.md",
+      textBuffer(
+        buildVerificationInstructions({
+          evidenceFiles: evidenceFilesWithFinalName,
+          hasTimestampToken,
+          hasAnchor: anchorIncluded,
+        })
+      ),
+      "text/markdown"
+    );
+
+    appendPackageEntry(
+      archive,
+      packageEntries,
+      "verify-package.mjs",
+      textBuffer(buildVerifyPackageScript()),
+      "text/javascript"
+    );
+
+    appendPackageEntry(
+      archive,
+      packageEntries,
+      "duplicate-digests.json",
+      jsonBuffer(buildDuplicateDigests(evidenceFilesWithFinalName)),
+      "application/json"
+    );
+
+    appendPackageEntry(
+      archive,
+      packageEntries,
+      "review-artifact-boundaries.json",
+      jsonBuffer(
         buildArtifactBoundaries({
           evidenceFiles: evidenceFilesWithFinalName,
           reportIncluded: Boolean(data.reportPdf),
-        }),
-        null,
-        2
+        })
       ),
-      {
-        name: "review-artifact-boundaries.json",
-      }
+      "application/json"
     );
 
-    archive.append(
-      JSON.stringify(
+    appendPackageEntry(
+      archive,
+      packageEntries,
+      "court-admissibility-checklist.json",
+      jsonBuffer(
         buildCourtReadinessChecklist({
           evidenceFiles: evidenceFilesWithFinalName,
           hasTimestampToken,
@@ -1594,115 +2086,145 @@ archive.append(
           accessActivityCount: custodySplit.access.length,
           metadata,
           certifications: data.certifications,
-        }),
-        null,
-        2
+        })
       ),
-      {
-        name: "court-admissibility-checklist.json",
-      }
+      "application/json"
     );
 
-    archive.append(
-buildReadme({
-  evidenceFiles,
-  anchorMode,
-  anchorIncluded,
-  anchorPublished: Boolean(
-    data.anchor?.published ||
-      data.anchor?.receiptId ||
-      data.anchor?.transactionId ||
-      data.anchor?.publicUrl ||
-      data.anchor?.anchoredAtUtc
-  ),
-  anchorProvider: data.anchorProvider,
-  anchorPublicBaseUrl: data.anchorPublicBaseUrl,
-  evidenceId: data.evidenceId,
-  reportVersion: data.reportVersion,
-  signingKeyId: data.signingKeyId,
-  signingKeyVersion: data.signingKeyVersion,
-  hasReportArtifact: Boolean(data.reportPdf),
-  hasTimestampToken,
-  timestampStatus: metadata.tsaStatus ?? null,
-  otsStatus: metadata.otsStatus ?? null,
-}),
-      {
-        name: "README.txt",
-      }
+    appendPackageEntry(
+      archive,
+      packageEntries,
+      "README.txt",
+      textBuffer(
+        buildReadme({
+          evidenceFiles,
+          anchorMode,
+          anchorIncluded,
+          anchorPublished,
+          anchorProvider: data.anchorProvider,
+          anchorPublicBaseUrl: data.anchorPublicBaseUrl,
+          evidenceId: data.evidenceId,
+          reportVersion: data.reportVersion,
+          signingKeyId: data.signingKeyId,
+          signingKeyVersion: data.signingKeyVersion,
+          hasReportArtifact: Boolean(data.reportPdf),
+          hasTimestampToken,
+          timestampStatus: metadata.tsaStatus ?? null,
+          otsStatus: metadata.otsStatus ?? null,
+        })
+      ),
+      "text/plain"
     );
 
-    archive.append(
-      buildCustodianDeclarationTemplate({
-        evidenceId: data.evidenceId,
-        reportVersion: data.reportVersion,
-        metadata,
-      }),
-      { name: "certifications/custodian-declaration-template.md" }
+    appendPackageEntry(
+      archive,
+      packageEntries,
+      "certifications/custodian-declaration-template.md",
+      textBuffer(
+        buildCustodianDeclarationTemplate({
+          evidenceId: data.evidenceId,
+          reportVersion: data.reportVersion,
+          metadata,
+        })
+      ),
+      "text/markdown"
     );
 
-    archive.append(
-      buildQualifiedPersonTemplate({
-        evidenceId: data.evidenceId,
-        reportVersion: data.reportVersion,
-      }),
-      { name: "certifications/qualified-person-certification-template.md" }
+    appendPackageEntry(
+      archive,
+      packageEntries,
+      "certifications/qualified-person-certification-template.md",
+      textBuffer(
+        buildQualifiedPersonTemplate({
+          evidenceId: data.evidenceId,
+          reportVersion: data.reportVersion,
+        })
+      ),
+      "text/markdown"
     );
 
-    archive.append(
-      buildSystemProcessDeclaration({
-        evidenceFiles,
-        metadata,
-      }),
-      { name: "certifications/system-process-declaration.md" }
+    appendPackageEntry(
+      archive,
+      packageEntries,
+      "certifications/system-process-declaration.md",
+      textBuffer(
+        buildSystemProcessDeclaration({
+          evidenceFiles,
+          metadata,
+        })
+      ),
+      "text/markdown"
     );
 
     if (data.certifications?.custodian) {
-      archive.append(
-        JSON.stringify(data.certifications.custodian, null, 2),
-        {
-          name: "certifications/custodian-record.json",
-        }
+      appendPackageEntry(
+        archive,
+        packageEntries,
+        "certifications/custodian-record.json",
+        jsonBuffer(data.certifications.custodian),
+        "application/json"
       );
     }
 
     if (data.certifications?.qualifiedPerson) {
-      archive.append(
-        JSON.stringify(data.certifications.qualifiedPerson, null, 2),
-        {
-          name: "certifications/qualified-person-record.json",
-        }
+      appendPackageEntry(
+        archive,
+        packageEntries,
+        "certifications/qualified-person-record.json",
+        jsonBuffer(data.certifications.qualifiedPerson),
+        "application/json"
       );
     }
 
     if (certificationSummary.hasActualCertifications) {
-      archive.append(JSON.stringify(certificationSummary, null, 2), {
-        name: "certifications/certification-summary.json",
-      });
+      appendPackageEntry(
+        archive,
+        packageEntries,
+        "certifications/certification-summary.json",
+        jsonBuffer(certificationSummary),
+        "application/json"
+      );
     }
 
-    archive.append(
-      buildVerifyHtml({
-        evidenceFiles,
-        anchorIncluded,
-        hasTimestampToken,
-        timestampStatus: metadata.tsaStatus ?? null,
-        otsStatus: metadata.otsStatus ?? null,
-        evidenceId: data.evidenceId,
-        reportVersion: data.reportVersion,
-      }),
-            {
-        name: "verify.html",
-      }
+    appendPackageEntry(
+      archive,
+      packageEntries,
+      "verify.html",
+      textBuffer(
+        buildVerifyHtml({
+          evidenceFiles,
+          anchorIncluded,
+          hasTimestampToken,
+          timestampStatus: metadata.tsaStatus ?? null,
+          otsStatus: metadata.otsStatus ?? null,
+          evidenceId: data.evidenceId,
+          reportVersion: data.reportVersion,
+        })
+      ),
+      "text/html"
     );
 
     if (data.reportPdf) {
-      archive.append(data.reportPdf, {
-        name: `reports/${normalizeFileName(
-          data.reportFileName ?? `proovra-report-v${data.reportVersion ?? "latest"}.pdf`,
+      appendPackageEntry(
+        archive,
+        packageEntries,
+        `reports/${normalizeFileName(
+          data.reportFileName ??
+            `proovra-report-v${data.reportVersion ?? "latest"}.pdf`,
           "proovra-report.pdf"
         )}`,
-      });
+        data.reportPdf,
+        "application/pdf"
+      );
     }
+
+    appendPackageEntry(
+      archive,
+      packageEntries,
+      "package-checksums.json",
+      jsonBuffer(buildPackageChecksums(packageEntries)),
+      "application/json"
+    );
 
     archive.finalize().catch(fail);
   });

@@ -131,6 +131,63 @@ function renderVerificationAccess(vm: ReportViewModel): string {
   `;
 }
 
+function readPackageIntegrityRows(vm: ReportViewModel): KeyValueRow[] {
+  const integrity = vm.verificationPackageIntegrity;
+
+  return [
+    {
+      label: "Verification Package",
+      value:
+        integrity.available && integrity.version != null
+          ? `Available • v${integrity.version}`
+          : "Not generated",
+    },
+    {
+      label: "Package Manifest",
+      value: integrity.manifestPresent ? "Present" : "Not available",
+    },
+    {
+      label: "Package Digest Reference",
+      value: integrity.manifestDigestPresent ? "Present" : "Not available",
+    },
+    {
+      label: "Checksum Index",
+      value: integrity.checksumIndexPresent ? "Present" : "Not available",
+    },
+    {
+      label: "Offline Verifier",
+      value: integrity.offlineVerifierIncluded ? "Included" : "Not available",
+    },
+    {
+      label: "Audit Export",
+      value: integrity.auditExportIncluded
+        ? "Custody and access export included"
+        : "Not available",
+    },
+    {
+      label: "Generated At",
+      value: integrity.generatedAtUtc ?? "Not recorded",
+    },
+  ];
+}
+
+function renderVerificationPackageIntegrity(vm: ReportViewModel): string {
+  return renderAppendixSection(
+    "Verification Package Integrity",
+    "Compact reference to the machine-verifiable verification package artifacts.",
+    `
+      ${renderKeyValueGrid(readPackageIntegrityRows(vm))}
+      ${renderCallout({
+        title: "Package integrity layer",
+        body:
+          "The verification package is the offline forensic bundle. It may include the preserved originals, package manifest, checksum index, manifest digest reference, offline verifier, custody export, and access audit export. The PDF summarizes this layer but does not replace the package itself.",
+        tone: "neutral",
+      })}
+    `,
+    { className: "technical-appendix-package-integrity-block" }
+  );
+}
+
 export function renderTechnicalAppendixSection(vm: ReportViewModel): string {
 const appendixDepth = vm.presentation.decisions.appendixDepth;
 
@@ -182,10 +239,11 @@ pages.push(
 
         ${renderVerificationAccess(vm)}
         ${renderTechnicalStatusCards(vm)}
+        ${renderVerificationPackageIntegrity(vm)}
 
         ${renderAppendixSection(
           "Court Review Index",
-          "Structured control points for legal, forensic, or technical review.",
+                    "Structured control points for legal, forensic, or technical review.",
           renderKeyValueGrid(vm.meta.courtAppendixRows ?? []),
           { className: "technical-appendix-court-index-block" }
         )}

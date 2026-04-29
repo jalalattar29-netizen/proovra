@@ -246,6 +246,15 @@ type ReportBuildParams = {
 type PreparedReportArtifacts = {
   reportPdf: Buffer;
   verificationZip: Buffer | null;
+    packageMetadataContext: {
+    caseId: string | null;
+    caseName: string | null;
+    retentionPolicy: string | null;
+    workspaceId: string | null;
+    organizationId: string | null;
+    teamId: string | null;
+    ownerUserId: string | null;
+  };
   reportKey: string;
   verificationKey: string;
   version: number;
@@ -1408,13 +1417,21 @@ function deriveCaptureMethod(params: {
   mimeType: string | null;
   existingCaptureMethod: prismaPkg.CaptureMethod | null;
 }): prismaPkg.CaptureMethod {
-  if (params.existingCaptureMethod) return params.existingCaptureMethod;
   if (params.multipart) return prismaPkg.CaptureMethod.MULTIPART_PACKAGE;
 
+  if (
+    params.existingCaptureMethod &&
+    params.existingCaptureMethod !== prismaPkg.CaptureMethod.MULTIPART_PACKAGE
+  ) {
+    return params.existingCaptureMethod;
+  }
+
   const mime = String(params.mimeType ?? "").toLowerCase();
+
   if (mime === "application/pdf" || mime.startsWith("text/")) {
     return prismaPkg.CaptureMethod.IMPORTED_DOCUMENT;
   }
+
   return prismaPkg.CaptureMethod.UPLOADED_FILE;
 }
 
@@ -1438,6 +1455,8 @@ async function prepareReportArtifacts(
       type: true,
       status: true,
       verificationStatus: true,
+      caseId: true,
+      organizationId: true,
       captureMethod: true,
       submittedByEmail: true,
       submittedByAuthProvider: true,
@@ -1683,9 +1702,31 @@ async function prepareReportArtifacts(
         legalName: true,
         evidenceWorkspaceLabel: true,
         verificationState: true,
+        retentionPolicy: true,
       },
     });
   }
+
+  let caseItem:
+  | {
+      id: string;
+      name: string;
+      teamId: string | null;
+      ownerUserId: string;
+    }
+  | null = null;
+
+if (evidence.caseId) {
+  caseItem = await prisma.case.findUnique({
+    where: { id: evidence.caseId },
+    select: {
+      id: true,
+      name: true,
+      teamId: true,
+      ownerUserId: true,
+    },
+  });
+}
 
   if (parts.length === 0 && (!evidence.storageBucket || !evidence.storageKey)) {
     throw createWorkerError("EVIDENCE_STORAGE_NOT_SET", false);
@@ -1956,28 +1997,6 @@ if (
 
   const refreshReason = options?.refreshReason?.trim() || null;
 
-function deriveCaptureMethod(params: {
-  multipart: boolean;
-  mimeType: string | null;
-  existingCaptureMethod: prismaPkg.CaptureMethod | null;
-}): prismaPkg.CaptureMethod {
-  if (params.multipart) return prismaPkg.CaptureMethod.MULTIPART_PACKAGE;
-
-  if (
-    params.existingCaptureMethod &&
-    params.existingCaptureMethod !== prismaPkg.CaptureMethod.MULTIPART_PACKAGE
-  ) {
-    return params.existingCaptureMethod;
-  }
-
-  const mime = String(params.mimeType ?? "").toLowerCase();
-  if (mime === "application/pdf" || mime.startsWith("text/")) {
-    return prismaPkg.CaptureMethod.IMPORTED_DOCUMENT;
-  }
-
-  return prismaPkg.CaptureMethod.UPLOADED_FILE;
-}
-
   const workspaceVerified =
     workspaceTeam?.verificationState ===
     prismaPkg.OrganizationVerificationState.VERIFIED;
@@ -1996,7 +2015,7 @@ function deriveCaptureMethod(params: {
       evidence.verificationStatus ??
       prismaPkg.VerificationStatus.MATERIALS_AVAILABLE,
     captureMethod: deriveCaptureMethod({
-      multipart: parts.length > 1,
+      multipart: parts.length > 0,
       mimeType: evidence.mimeType,
       existingCaptureMethod: evidence.captureMethod ?? null,
     }),
@@ -2204,36 +2223,45 @@ const verificationZip: Buffer | null = null;
     );
   }
 
-  return {
-    reportPdf,
-    verificationZip,
-    reportKey,
-    verificationKey,
-    version: provisionalVersion,
-    now,
-    evidenceId: evidence.id,
-    evidenceStorage,
-    fingerprintCanonicalJson,
-    identitySnapshot,
-    effectivePlan,
-    display,
-    reviewGuidance,
-    contentAccessPolicy: reportContentAccessPolicy,
-    contentSummary: contentArtifacts.summary,
-    contentItems: contentArtifacts.items,
-    primaryContentItem: contentArtifacts.primaryItem,
-    previewPolicy: contentArtifacts.previewPolicy,
-    contentCompositionSummary,
-    primaryContentLabel,
-    defaultPreviewItemId,
-    limitations: contentArtifacts.limitations,
-verificationEvidenceFiles,
-verificationPackageIncluded,
-anchorSummary,
-reportEvidencePayload,
-certifications,
-custodyForVerificationPackage,
-  };
+return {
+  reportPdf,
+  verificationZip,
+  reportKey,
+  verificationKey,
+  version: provisionalVersion,
+  now,
+  evidenceId: evidence.id,
+  evidenceStorage,
+  fingerprintCanonicalJson,
+  identitySnapshot,
+  effectivePlan,
+  display,
+  reviewGuidance,
+  contentAccessPolicy: reportContentAccessPolicy,
+  contentSummary: contentArtifacts.summary,
+  contentItems: contentArtifacts.items,
+  primaryContentItem: contentArtifacts.primaryItem,
+  previewPolicy: contentArtifacts.previewPolicy,
+  contentCompositionSummary,
+  primaryContentLabel,
+  defaultPreviewItemId,
+  limitations: contentArtifacts.limitations,
+  verificationEvidenceFiles,
+  verificationPackageIncluded,
+  anchorSummary,
+  reportEvidencePayload,
+  certifications,
+  custodyForVerificationPackage,
+  packageMetadataContext: {
+    caseId: evidence.caseId ?? null,
+    caseName: caseItem?.name ?? null,
+    retentionPolicy: null,
+    workspaceId: evidence.teamId ?? null,
+    organizationId: evidence.organizationId ?? null,
+    teamId: evidence.teamId ?? null,
+    ownerUserId: evidence.ownerUserId ?? null,
+  },
+};
 }
 
 export async function processGenerateReport(job: Job<GenerateReportJobData>) {
@@ -2747,16 +2775,17 @@ signingKeyVersion: evidence.signingKeyVersion ?? undefined,
           certifications: prepared.certifications,
           metadata: {
             title: prepared.display.displayTitle,
-evidenceType: evidence.type,
+evidenceType: String(evidence.type),
+evidenceStatus: String(evidence.status),
 createdAtUtc: evidence.createdAt.toISOString(),
-            verificationStatus: prepared.identitySnapshot.verificationStatus,
-            captureMethod: prepared.identitySnapshot.captureMethod,
-            identityLevelSnapshot:
-              prepared.identitySnapshot.identityLevelSnapshot,
-            submittedByEmail: prepared.identitySnapshot.submittedByEmail,
-            submittedByAuthProvider:
-              prepared.identitySnapshot.submittedByAuthProvider,
-            capturedAtUtc: prepared.reportEvidencePayload.capturedAtUtc ?? null,
+verificationStatus: String(prepared.identitySnapshot.verificationStatus),
+captureMethod: String(prepared.identitySnapshot.captureMethod),
+identityLevelSnapshot: String(prepared.identitySnapshot.identityLevelSnapshot),
+submittedByAuthProvider:
+  prepared.identitySnapshot.submittedByAuthProvider
+    ? String(prepared.identitySnapshot.submittedByAuthProvider)
+    : null,
+                capturedAtUtc: prepared.reportEvidencePayload.capturedAtUtc ?? null,
             uploadedAtUtc: prepared.reportEvidencePayload.uploadedAtUtc ?? null,
             signedAtUtc: prepared.reportEvidencePayload.signedAtUtc ?? null,
             reportGeneratedAtUtc: prepared.now.toISOString(),
@@ -2770,6 +2799,16 @@ createdAtUtc: evidence.createdAt.toISOString(),
             storageImmutable: prepared.evidenceStorage.storageImmutable,
             tsaStatus: prepared.reportEvidencePayload.tsaStatus ?? null,
             otsStatus: prepared.reportEvidencePayload.otsStatus ?? null,
+caseId: prepared.packageMetadataContext.caseId,
+caseName: prepared.packageMetadataContext.caseName,
+retentionPolicy: prepared.packageMetadataContext.retentionPolicy,
+workspaceId: prepared.packageMetadataContext.workspaceId,
+organizationId: prepared.packageMetadataContext.organizationId,
+teamId: prepared.packageMetadataContext.teamId,
+ownerUserId: prepared.packageMetadataContext.ownerUserId,
+            verificationPackageVersion: prepared.version,
+            recordedIntegrityVerifiedAtUtc:
+              prepared.reportEvidencePayload.recordedIntegrityVerifiedAtUtc ?? null,
           },
         });
       } catch (verificationError) {

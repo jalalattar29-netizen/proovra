@@ -412,6 +412,7 @@ type OtsDetails = {
 type TechnicalTabId =
   | "record"
   | "integrity"
+  | "package"
   | "full-custody"
   | "access";
 
@@ -815,6 +816,28 @@ function buildStoragePresentation(
     detailLabel: "Storage Protection",
     detailText:
       "Immutable storage metadata was not confirmed in the verification response.",
+  };
+}
+
+function buildVerificationPackageIntegrity(params: {
+  version: string | null;
+  generatedAtUtc: string | null;
+  forensicEventCount: number;
+  accessEventCount: number;
+}): VerificationPackageIntegrity {
+  const available = Boolean(params.version);
+
+  return {
+    available,
+    version: params.version,
+    generatedAtUtc: params.generatedAtUtc,
+    manifestPresent: available,
+    signedManifestPresent: available,
+    checksumIndexPresent: available,
+    offlineVerifierPresent: available,
+    auditExportPresent: available,
+    custodyExportPresent: params.forensicEventCount > 0,
+    accessExportPresent: params.accessEventCount > 0,
   };
 }
 
@@ -1838,6 +1861,19 @@ type VerificationSignalInput = {
   externalPublicationPresent: boolean | null;
 };
 
+type VerificationPackageIntegrity = {
+  available: boolean;
+  version: string | null;
+  generatedAtUtc: string | null;
+  manifestPresent: boolean;
+  signedManifestPresent: boolean;
+  checksumIndexPresent: boolean;
+  offlineVerifierPresent: boolean;
+  auditExportPresent: boolean;
+  custodyExportPresent: boolean;
+  accessExportPresent: boolean;
+};
+
 function buildVerificationVerdict(input: VerificationSignalInput): VerificationVerdict {
   const failedSignals = [
     input.canonicalHashMatches === false,
@@ -2754,6 +2790,153 @@ function TrustSignalGrid({
           </div>
         );
       })}
+    </div>
+  );
+}
+
+function VerificationPackageIntegrityCard({
+  integrity,
+}: {
+  integrity: VerificationPackageIntegrity;
+}) {
+  const rows = [
+    {
+      label: "Verification Package",
+      value: integrity.available
+        ? `Available • v${integrity.version}`
+        : "Not generated",
+      tone: integrity.available ? "success" : "neutral",
+    },
+    {
+      label: "Package Manifest",
+      value: integrity.manifestPresent ? "Present" : "Not available",
+      tone: integrity.manifestPresent ? "success" : "neutral",
+    },
+    {
+      label: "Signed Manifest",
+      value: integrity.signedManifestPresent ? "Present" : "Not available",
+      tone: integrity.signedManifestPresent ? "success" : "neutral",
+    },
+    {
+      label: "Checksum Index",
+      value: integrity.checksumIndexPresent ? "Present" : "Not available",
+      tone: integrity.checksumIndexPresent ? "success" : "neutral",
+    },
+    {
+      label: "Offline Verifier",
+      value: integrity.offlineVerifierPresent ? "Included" : "Not available",
+      tone: integrity.offlineVerifierPresent ? "success" : "neutral",
+    },
+    {
+      label: "Audit Export",
+      value: integrity.auditExportPresent ? "Included" : "Not available",
+      tone: integrity.auditExportPresent ? "success" : "neutral",
+    },
+  ] as const;
+
+  return (
+    <div
+      style={{
+        border: `1px solid ${
+          integrity.available
+            ? "rgba(33,117,93,0.28)"
+            : VERIFY_BRAND.line
+        }`,
+        borderLeft: `6px solid ${
+          integrity.available ? VERIFY_BRAND.success : VERIFY_BRAND.accent
+        }`,
+        background: integrity.available
+          ? "linear-gradient(180deg, rgba(33,117,93,0.10), rgba(255,255,255,0.72))"
+          : "linear-gradient(180deg, rgba(11,46,39,0.06), rgba(255,255,255,0.72))",
+        borderRadius: 22,
+        padding: 20,
+        display: "grid",
+        gap: 16,
+        boxShadow: "0 14px 34px rgba(16,32,29,0.06)",
+      }}
+    >
+      <div
+        style={{
+          display: "flex",
+          alignItems: "flex-start",
+          justifyContent: "space-between",
+          gap: 14,
+          flexWrap: "wrap",
+        }}
+      >
+        <div style={{ minWidth: 0, flex: "1 1 620px" }}>
+          <div style={{ ...VERIFY_TYPO.kicker, fontSize: 10.5, marginBottom: 7 }}>
+            Verification Package Integrity
+          </div>
+
+          <div style={{ ...VERIFY_TYPO.h3, fontSize: 21, marginBottom: 8 }}>
+            Offline forensic package layer
+          </div>
+
+          <div style={{ ...VERIFY_TYPO.small, fontSize: 13, maxWidth: 860 }}>
+            This layer confirms whether the machine-verifiable package exists:
+            package manifest, manifest digest reference, checksum index, offline
+            verifier, custody export, and access/audit export.
+          </div>
+        </div>
+
+        <Badge
+          label={integrity.available ? "Package Available" : "Package Not Generated"}
+          tone={integrity.available ? "success" : "neutral"}
+        />
+      </div>
+
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(210px, 1fr))",
+          gap: 12,
+        }}
+      >
+        {rows.map((row) => (
+          <div
+            key={row.label}
+            style={{
+              ...VERIFY_SURFACE.inset,
+              padding: 14,
+              display: "grid",
+              gap: 8,
+              minHeight: 86,
+            }}
+          >
+            <div style={{ ...VERIFY_TYPO.kicker, fontSize: 10 }}>
+              {row.label}
+            </div>
+            <Badge label={row.value} tone={row.tone} />
+          </div>
+        ))}
+      </div>
+
+      <div
+style={{
+  border: `1px solid ${VERIFY_BRAND.line}`,
+  borderLeft: `5px solid ${VERIFY_BRAND.bronze}`,
+  background: VERIFY_BRAND.bronzeSoft,
+  borderRadius: 18,
+  padding: 16,
+  display: "grid",
+  gap: 7,
+}}
+      >
+        <div style={{ ...VERIFY_TYPO.kicker, fontSize: 10.5 }}>
+          Reviewer boundary
+        </div>
+        <div style={{ ...VERIFY_TYPO.small, fontSize: 13, color: VERIFY_BRAND.ink }}>
+          The verification page summarizes package integrity. The ZIP package is
+          the offline forensic bundle and remains the source for independent
+          package-level verification.
+        </div>
+        {integrity.generatedAtUtc ? (
+          <div style={{ ...VERIFY_TYPO.small, fontSize: 12.5 }}>
+            Package generated at: {formatDateTime(integrity.generatedAtUtc)}
+          </div>
+        ) : null}
+      </div>
     </div>
   );
 }
@@ -3793,6 +3976,26 @@ setPreviewPolicy(content.previewPolicy);
     ]
   );
 
+  const verificationPackageIntegrity = useMemo(
+  () =>
+    buildVerificationPackageIntegrity({
+      version: verificationPackageVersion,
+      generatedAtUtc:
+        overview?.verificationPackageGeneratedAtUtc ??
+        humanSummary?.verificationPackageGeneratedAtUtc ??
+        null,
+      forensicEventCount: forensicTimeline.length,
+      accessEventCount: accessTimeline.length,
+    }),
+  [
+    verificationPackageVersion,
+    overview?.verificationPackageGeneratedAtUtc,
+    humanSummary?.verificationPackageGeneratedAtUtc,
+    forensicTimeline.length,
+    accessTimeline.length,
+  ]
+);
+
 const verdictRequiresReview =
   trustDecision.verdict === "REVIEW_REQUIRED" ||
   trustDecision.verdict === "INSUFFICIENT_VERIFICATION";
@@ -4682,7 +4885,6 @@ with this evidence record.
     <TrustSignalGrid signals={trustDecision.signals} />
   </div>
 </Card>
-
               <LegalWarningBlock verdict={verificationVerdict} />
 
               <ReviewerActionsBlock actions={reviewerActions} />
@@ -5799,16 +6001,21 @@ These materials support the Trust Decision shown above. The Trust Decision is th
                       active={activeTechnicalTab === "record"}
                       onClick={() => setActiveTechnicalTab("record")}
                     />
-                    <TechnicalTabButton
-                      label="Integrity"
-                      active={activeTechnicalTab === "integrity"}
-                      onClick={() => setActiveTechnicalTab("integrity")}
-                    />
-                    <TechnicalTabButton
-                      label="Custody Chain"
-                      active={activeTechnicalTab === "full-custody"}
-                      onClick={() => setActiveTechnicalTab("full-custody")}
-                    />
+<TechnicalTabButton
+  label="Integrity"
+  active={activeTechnicalTab === "integrity"}
+  onClick={() => setActiveTechnicalTab("integrity")}
+/>
+<TechnicalTabButton
+  label="Package Integrity"
+  active={activeTechnicalTab === "package"}
+  onClick={() => setActiveTechnicalTab("package")}
+/>
+<TechnicalTabButton
+  label="Custody Chain"
+  active={activeTechnicalTab === "full-custody"}
+  onClick={() => setActiveTechnicalTab("full-custody")}
+/>
                     <TechnicalTabButton
                       label="Access Activity"
                       active={activeTechnicalTab === "access"}
@@ -6106,9 +6313,43 @@ These materials support the Trust Decision shown above. The Trust Decision is th
                       ) : null}
                     </div>
                   ) : null}
+                  {activeTechnicalTab === "package" ? (
+                    <div style={{ display: "grid", gap: 14 }}>
+                      <VerificationPackageIntegrityCard
+                        integrity={verificationPackageIntegrity}
+                      />
+
+                      <div
+                        style={{
+                          ...bronzeRailStyle,
+                          padding: 16,
+                          display: "grid",
+                          gap: 8,
+                        }}
+                      >
+                        <div style={{ ...VERIFY_TYPO.kicker, fontSize: 10.5 }}>
+                          Package verification scope
+                        </div>
+                        <div
+                          style={{
+                            ...VERIFY_TYPO.small,
+                            fontSize: 13,
+                            color: VERIFY_BRAND.ink,
+                          }}
+                        >
+                          Package integrity is separate from evidence integrity.
+                          Evidence integrity verifies the preserved evidence state.
+                          Package integrity verifies whether the exported forensic
+                          bundle contains the manifest, checksum index, manifest
+                          digest reference, offline verifier, and audit exports
+                          needed for independent offline review.
+                        </div>
+                      </div>
+                    </div>
+                  ) : null}
 
 {activeTechnicalTab === "full-custody" ? (
-  <TimelinePanel
+    <TimelinePanel
     title="Custody Chain"
     forensicMode={forensicMode}
     subtitle="Complete recorded custody chronology, including integrity-relevant lifecycle events and later access activity when returned by the verification response. Event hashes are shown in full for chain-continuity review."

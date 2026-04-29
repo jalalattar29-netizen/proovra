@@ -409,6 +409,16 @@ export type ReportViewModel = {
   verificationStatusLabel: string;
 integrityVerified: boolean;
 trustDecision: ReportTrustDecision;
+verificationPackageIntegrity: {
+  available: boolean;
+  version: number | null;
+  generatedAtUtc: string | null;
+  manifestPresent: boolean;
+  manifestDigestPresent: boolean;
+  checksumIndexPresent: boolean;
+  offlineVerifierIncluded: boolean;
+  auditExportIncluded: boolean;
+};
   executiveConclusion: CalloutModel;
   legalLimitationShort: CalloutModel;
   reviewSequence: CalloutModel;
