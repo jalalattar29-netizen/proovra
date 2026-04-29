@@ -3380,9 +3380,7 @@ setFullCustodyTimeline(fullTimeline);
     setAccessTimeline(accessOnly);
 
     setOtsStatus(otsDetails.status);
-    setOtsHash(otsDetails.hash);
     setOtsCalendar(otsDetails.calendar);
-    setOtsBitcoinTxid(otsDetails.bitcoinTxid);
     setOtsAnchoredAtUtc(otsDetails.anchoredAtUtc);
     setOtsUpgradedAtUtc(otsDetails.upgradedAtUtc);
     setOtsFailureReason(otsDetails.failureReason);
