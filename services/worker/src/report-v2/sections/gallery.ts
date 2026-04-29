@@ -91,7 +91,7 @@ function renderDuplicateDigestBadge(item: PresentationEvidenceItem): string {
 
   return `
     <div class="gallery-duplicate-badge">
-      Same content digest • ${escapeHtml(duplicate.groupId)}
+      Digest Group ${escapeHtml(duplicate.groupId)}
     </div>
   `;
 }
@@ -181,10 +181,11 @@ ${renderDuplicateDigestBadge(item)}
 function renderSupportingCard(item: PresentationEvidenceItem): string {
   const asset = item.asset;
   const fileName = buildAssetName(asset);
+  const duplicate = asset.duplicateDigest;
 
   return `
-    <article class="gallery-card">
-      <div class="gallery-card-header">
+    <article class="gallery-card${duplicate ? " gallery-card-duplicate" : ""}">
+        <div class="gallery-card-header">
         <div class="gallery-card-file-name">${escapeHtml(fileName)}</div>
         <div class="gallery-card-role">${escapeHtml(mediaKindLabel(item))}</div>
       </div>
@@ -296,7 +297,7 @@ function renderDuplicateDigestRegister(vm: ReportViewModel): string {
             .map(
               (group) => `
                 <article class="duplicate-digest-group-card">
-                  <div class="duplicate-digest-group-head">
+                  <div class="duplicate-digest-group-line">
                     <div class="duplicate-digest-group-id">${escapeHtml(
                       group.groupId
                     )}</div>
@@ -305,19 +306,15 @@ function renderDuplicateDigestRegister(vm: ReportViewModel): string {
                     </div>
                   </div>
 
-                  <div class="duplicate-digest-sha-label">Shared SHA-256 content digest</div>
                   <div class="duplicate-digest-sha-value">${escapeHtml(
                     group.sha256
                   )}</div>
 
-                  <div class="duplicate-digest-files-label">Preserved items in this digest group</div>
-                  <ul class="duplicate-digest-file-list">
-                    ${group.fileNames
-                      .map((name) => `<li>${escapeHtml(name)}</li>`)
-                      .join("")}
-                  </ul>
+                  <div class="duplicate-digest-file-list-text">
+                    ${escapeHtml(group.fileNames.join(", "))}
+                  </div>
                 </article>
-              `
+                              `
             )
             .join("")}
         </div>

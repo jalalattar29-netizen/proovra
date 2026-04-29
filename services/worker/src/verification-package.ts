@@ -580,7 +580,7 @@ signature.txt
 Ed25519 signature of the fingerprint hash material.
 
 timestamp.tsr
-RFC3161 timestamp token issued by a trusted timestamp authority, when available.
+Included when RFC3161 timestamping was successfully obtained. Not all records contain this file.
 
 public-key.pem
 Public key used to verify the signature.
@@ -620,6 +620,21 @@ Offline explanatory page describing package contents.
 
 reports/
 ${params.hasReportArtifact ? "Includes the generated PROOVRA verification report bundled with this package." : "No embedded report artifact was attached."}
+
+CUSTODY CHAIN INTERPRETATION
+
+custody.json
+Contains the complete immutable sequence of all recorded system events.
+
+forensic-custody.json
+Contains a curated subset of integrity-relevant events used for forensic review.
+
+access-activity.json
+Contains access, viewing, download, and verification activity that is not part of the forensic custody chronology shown in the PDF report.
+
+Sequence numbers reflect the original immutable event log. Gaps in forensic views may appear where non-forensic events are excluded.
+
+The complete custody-event chain can be independently inspected in custody.json and through the PROOVRA verification page.
 
 HOW TO VERIFY
 
@@ -762,6 +777,7 @@ I, ________________________, declare under penalty of perjury that:
 3. The preserved original evidence item(s), cryptographic hash material, signature record, timestamping records, and custody-event records were maintained by the system as part of its regular evidence-preservation workflow.
 4. The included report artifact is a reviewer/court presentation summary derived from the preserved record and should be read together with the preserved original and technical materials.
 5. The original evidence file(s) referenced in original-linkage.json are the same preserved item(s) used to compute the recorded integrity state reflected in this package.
+6. The PROOVRA system is regularly used to preserve digital evidence and generate integrity records as part of a consistent and repeatable process.
 
 Executed on: ________________________
 Name: ________________________
@@ -791,6 +807,8 @@ I, ________________________, certify that:
 2. The accompanying package contains the preserved original evidence item(s) or parts, the recorded fingerprint and hash materials, signature verification materials, custody-event records, and associated timestamp/anchoring materials where available.
 3. The process used to generate these materials operates in a consistent and documented manner designed to preserve and verify the recorded integrity state of the evidence.
 4. The attached report is a presentation artifact and does not replace the preserved originals or the underlying technical materials.
+5. The cryptographic methods used, including hashing and digital signatures, are standard publicly verifiable mechanisms designed to support integrity verification.
+6. Independent verification of the integrity materials can be performed using the contents of the verification package without reliance on the PROOVRA platform.
 
 Executed on: ________________________
 Name: ________________________
@@ -823,6 +841,12 @@ This package documents a PROOVRA evidence record and the integrity-verification 
 6. System custody events are recorded separately from later access activity.
 7. Reviewer-facing artifacts such as reports or previews are generated from, and linked back to, the preserved record.
 
+## Timestamping and anchoring availability
+
+Timestamping may not be present in all records depending on external provider availability. In such cases, integrity verification relies on recorded hashes, digital signatures, preserved original files, and custody-chain continuity.
+
+Public anchoring may also be pending, unavailable, or completed after initial report generation depending on external network and calendar availability.
+
 ## Review posture
 
 This declaration describes the process and artifact boundaries. It does not independently determine legal admissibility, authenticity disputes, authorship, or factual truth.
@@ -837,61 +861,129 @@ function buildVerifyHtml(params: {
   reportVersion?: number;
 }): string {
   const multipart = params.evidenceFiles.length > 1;
+  const verificationUrl = params.evidenceId
+    ? `https://app.proovra.com/verify/${params.evidenceId}`
+    : null;
 
   return `<!DOCTYPE html>
 <html>
 <head>
 <meta charset="utf-8">
-<title>PROOVRA Evidence Verifier</title>
+<title>PROOVRA Offline Verification Guide</title>
 <style>
-body{font-family:Arial,sans-serif;padding:40px;background:#f8fafc;color:#0f172a;line-height:1.6}
-h1{color:#1f3a5f}
-.box{padding:20px;border:1px solid #cbd5e1;border-radius:12px;background:#ffffff;max-width:960px}
-code{background:#eef2ff;padding:2px 6px;border-radius:6px}
-ul{margin-top:8px}
-.meta{margin-bottom:18px;color:#475569}
+body{font-family:Arial,sans-serif;margin:0;background:#f4f6f5;color:#10201d;line-height:1.6}
+.page{max-width:980px;margin:0 auto;padding:40px}
+.header{border-left:6px solid #0b2e27;background:#fff;padding:22px 24px;border-radius:12px;margin-bottom:18px}
+h1{margin:0 0 8px;color:#0b2e27;font-size:28px}
+h2{margin:0 0 10px;color:#0b2e27;font-size:18px}
+.card{background:#fff;border:1px solid rgba(12,28,25,.18);border-radius:12px;padding:18px 20px;margin-bottom:14px}
+.grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.kv{background:#f8faf9;border:1px solid rgba(12,28,25,.12);border-radius:10px;padding:12px}
+.label{font-size:11px;font-weight:800;color:#56706a;text-transform:uppercase;letter-spacing:.06em}
+.value{font-size:14px;font-weight:700;word-break:break-word}
+code{background:#eef2f1;padding:2px 6px;border-radius:6px}
+ol,ul{margin-top:8px}
+.notice{border-left:5px solid rgba(96,66,24,.95);background:#fff;padding:16px 18px;border-radius:10px}
+.small{color:#56706a;font-size:13px}
+a{color:#0b2e27;font-weight:700}
 </style>
 </head>
 <body>
-<h1>PROOVRA Evidence Verification</h1>
-<div class="box">
-  <div class="meta">
-    <div><strong>Evidence ID:</strong> ${safeText(params.evidenceId, "Not included")}</div>
-    <div><strong>Report Version:</strong> ${
-      typeof params.reportVersion === "number"
-        ? String(params.reportVersion)
-        : "Not included"
-    }</div>
-    <div><strong>Structure:</strong> ${
-      multipart ? "Multipart evidence package" : "Single evidence item"
-    }</div>
+<div class="page">
+  <div class="header">
+    <h1>PROOVRA Offline Verification Guide</h1>
+    <div class="small">
+      This file explains how to interpret and verify the contents of this verification package without relying on live PROOVRA platform access.
+    </div>
   </div>
 
-  <p>This package contains the material required to review and verify the recorded evidence state.</p>
+  <div class="grid">
+    <div class="kv">
+      <div class="label">Evidence ID</div>
+      <div class="value">${safeText(params.evidenceId, "Not included")}</div>
+    </div>
+    <div class="kv">
+      <div class="label">Report Version</div>
+      <div class="value">${
+        typeof params.reportVersion === "number"
+          ? String(params.reportVersion)
+          : "Not included"
+      }</div>
+    </div>
+    <div class="kv">
+      <div class="label">Integrity Status</div>
+      <div class="value">Materials Available</div>
+    </div>
+  </div>
 
-  <p><strong>Included files:</strong></p>
-  <ul>
-    <li>Evidence file(s)</li>
-    <li>fingerprint.json</li>
-    <li>signature.txt</li>
-    ${params.hasTimestampToken ? "<li>timestamp.tsr</li>" : ""}
-    <li>public-key.pem</li>
-    <li>custody.json</li>
-    ${params.anchorIncluded ? "<li>anchor.json</li>" : ""}
-    ${multipart ? "<li>evidence-manifest.json</li>" : ""}
-    <li>package-manifest.json</li>
-    <li>integrity-summary.json</li>
-    <li>README.txt</li>
-  </ul>
+  <div class="card">
+    <h2>1. Package Summary</h2>
+    <ul>
+      <li>Structure: ${multipart ? "Multipart evidence package" : "Single evidence item"}</li>
+      <li>Evidence file count: ${params.evidenceFiles.length}</li>
+      <li>Timestamp token: ${params.hasTimestampToken ? "Included" : "Not included"}</li>
+      <li>Anchor payload: ${params.anchorIncluded ? "Included" : "Not included"}</li>
+    </ul>
+  </div>
+
+  <div class="card">
+    <h2>2. Original vs Report Artifact</h2>
+    <p>
+      The preserved original evidence file(s) are the primary evidentiary source.
+      The PDF report, previews, and this HTML guide are reviewer-facing artifacts.
+    </p>
+    <p>
+      Open <code>original-linkage.json</code> to map each packaged file to its original filename,
+      storage reference, SHA-256 digest, and preservation metadata.
+    </p>
+  </div>
+
+  <div class="card">
+    <h2>3. How to Verify</h2>
+    <ol>
+      <li>Review <code>package-manifest.json</code> and <code>integrity-summary.json</code>.</li>
+      <li>Hash the included evidence file(s) with SHA-256.</li>
+      <li>Compare computed hashes against <code>original-linkage.json</code> and <code>fingerprint.json</code>.</li>
+      <li>Verify <code>signature.txt</code> using <code>public-key.pem</code>.</li>
+      <li>If present, verify <code>timestamp.tsr</code> with RFC3161 timestamp verification tools.</li>
+      <li>If present, review <code>anchor.json</code> for anchoring or publication material.</li>
+    </ol>
+  </div>
+
+  <div class="card">
+    <h2>4. Custody Explanation</h2>
+    <p>
+      <code>custody.json</code> contains the complete system event chain.
+      <code>forensic-custody.json</code> contains a filtered subset used for forensic review.
+      <code>access-activity.json</code> contains later access, viewing, download, or verification activity.
+    </p>
+    <p>
+      Full event continuity can be checked by verifying that each event's <code>eventHash</code>
+      matches the next event's <code>prevEventHash</code>.
+    </p>
+  </div>
+
+  <div class="notice">
+    <h2>5. Legal Boundary</h2>
+    <p>
+      This package supports technical verification of recorded integrity, preservation state,
+      signatures, hashes, custody continuity, and available timestamp or anchoring materials.
+    </p>
+    <p>
+      It does not independently establish factual truth, authorship, intent, legal admissibility,
+      relevance, or evidentiary weight.
+    </p>
+  </div>
 
   ${
-    multipart
-      ? "<p>For multipart evidence, open <code>evidence-manifest.json</code> and review the files inside <code>evidence-parts/</code>.</p>"
-      : "<p>For single-file evidence, review the included original evidence file at the root of the package.</p>"
+    verificationUrl
+      ? `<div class="card">
+          <h2>Interactive Verification</h2>
+          <p>For the live reviewer interface, visit:</p>
+          <p><a href="${verificationUrl}">${verificationUrl}</a></p>
+        </div>`
+      : ""
   }
-
-  <p>Use cryptographic tools to verify the signature and timestamp where available.</p>
-  <p>This verification package is intended to support independent technical review and does not require live access to PROOVRA servers.</p>
 </div>
 </body>
 </html>`;

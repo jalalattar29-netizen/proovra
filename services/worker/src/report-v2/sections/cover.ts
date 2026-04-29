@@ -241,7 +241,7 @@ const integrityBadgeText = vm.integrityVerified ? "Verified" : "Review";
               <strong>${escapeHtml(
                 vm.integrityVerified
                   ? "Integrity Verified"
-: "Review Materials Available"
+: "TECHNICAL Materials Available"
               )}</strong>
             </div>
 

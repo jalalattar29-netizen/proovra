@@ -3118,14 +3118,6 @@ body {
   page-break-inside: avoid !important;
 }
 
-/* Reviewer workflow note pinned */
-.report-section:has(.workflow-steps) .callout:last-child {
-  margin-top: auto !important;
-  margin-bottom: 5mm !important;
-  break-inside: avoid !important;
-  page-break-inside: avoid !important;
-}
-
 .technical-appendix-identity-fingerprint-signature-page {
   gap: 6.5mm !important;
 }
@@ -3290,7 +3282,6 @@ body {
 
 .executive-bottom-outcomes,
 .integrity-summary-page > .callout:last-child,
-.report-section:has(.workflow-steps) .callout:last-child,
 .supporting-gallery-callout-wrapper {
   margin-top: auto !important;
   margin-bottom: 5mm !important;
@@ -3337,25 +3328,44 @@ body {
   background-image: none !important;
 }
 
-/* FIX: Reviewer Verification Workflow bottom callouts */
+/* REVIEWER WORKFLOW — stable bottom notes with real spacing */
 
 .report-section:has(.workflow-steps) .workflow-steps {
   flex: 0 0 auto !important;
 }
 
-.report-section:has(.workflow-steps + .callout + .callout) .workflow-steps + .callout {
+.report-section:has(.workflow-steps) .workflow-steps + .callout {
   margin-top: auto !important;
   margin-bottom: 3mm !important;
 }
 
-.report-section:has(.workflow-steps + .callout + .callout) .workflow-steps + .callout + .callout {
+.report-section:has(.workflow-steps) .workflow-steps + .callout + .callout {
   margin-top: 0 !important;
   margin-bottom: 5mm !important;
 }
 
-.report-section:has(.workflow-steps + .callout + .callout) .callout:last-child {
-  margin-top: 0 !important;
-  margin-bottom: 5mm !important;
+.report-section:has(.workflow-steps) .callout + .callout {
+  margin-top: 3mm !important;
+}
+  
+/* RESTORE GALLERY PREVIEW SIZE — do not squeeze evidence previews */
+
+.evidence-gallery-section .gallery-thumb {
+  height: 154px !important;
+  min-height: 154px !important;
+}
+
+.evidence-gallery-section .gallery-thumb img {
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: contain !important;
+}
+
+/* ENTERPRISE DUPLICATE DIGEST PRESENTATION */
+
+.gallery-card-duplicate {
+  outline: 1px solid rgba(96, 66, 24, 0.28) !important;
+  outline-offset: -1px !important;
 }
 
 .gallery-duplicate-badge {
@@ -3363,7 +3373,7 @@ body {
   display: inline-flex !important;
   width: fit-content !important;
   max-width: 100% !important;
-  padding: 0.9mm 1.5mm !important;
+  padding: 0.9mm 1.6mm !important;
   border-radius: 999px !important;
   border: 1px solid rgba(96, 66, 24, 0.38) !important;
   background: rgba(255, 255, 255, 0.18) !important;
@@ -3373,8 +3383,9 @@ body {
   font-weight: 950 !important;
   text-transform: uppercase !important;
   letter-spacing: 0.04em !important;
-  break-inside: avoid !important;
-  page-break-inside: avoid !important;
+  white-space: normal !important;
+  word-break: break-word !important;
+  overflow-wrap: anywhere !important;
 }
 
 .duplicate-digest-register-section .report-page {
@@ -3392,92 +3403,202 @@ body {
 .duplicate-digest-register-list {
   display: grid !important;
   grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
-  gap: 4mm !important;
+  gap: 3.6mm !important;
+  align-items: start !important;
 }
 
 .duplicate-digest-group-card {
-  background-color: rgba(255, 255, 255, 0.16) !important;
+  display: block !important;
+  min-height: auto !important;
+  padding: 2.4mm 3mm !important;
   border: 1px solid rgba(12, 28, 25, 0.22) !important;
-  border-left: 5px solid rgba(96, 66, 24, 0.95) !important;
+  border-left: 4px solid rgba(96, 66, 24, 0.9) !important;
   border-radius: 9px !important;
-  padding: 3mm !important;
-  min-height: 52mm !important;
+  background-color: rgba(255, 255, 255, 0.16) !important;
   break-inside: avoid !important;
   page-break-inside: avoid !important;
 }
 
-.duplicate-digest-group-head {
+.duplicate-digest-group-line {
   display: flex !important;
   align-items: baseline !important;
   justify-content: space-between !important;
   gap: 3mm !important;
-  margin-bottom: 2mm !important;
+  margin-bottom: 1.6mm !important;
 }
 
 .duplicate-digest-group-id {
   color: ${c.accent} !important;
-  font-size: 13px !important;
+  font-size: 10.5px !important;
   line-height: 1.2 !important;
   font-weight: 950 !important;
+  white-space: nowrap !important;
 }
 
 .duplicate-digest-group-count {
   color: rgba(11, 46, 39, 0.78) !important;
-  font-size: 8px !important;
+  font-size: 7.6px !important;
   line-height: 1.25 !important;
   font-weight: 900 !important;
   text-transform: uppercase !important;
   letter-spacing: 0.05em !important;
-}
-
-.duplicate-digest-sha-label,
-.duplicate-digest-files-label {
-  color: rgba(11, 46, 39, 0.78) !important;
-  font-size: 7.6px !important;
-  font-weight: 950 !important;
-  text-transform: uppercase !important;
-  letter-spacing: 0.055em !important;
-  margin-bottom: 1mm !important;
+  text-align: right !important;
+  white-space: nowrap !important;
 }
 
 .duplicate-digest-sha-value {
   font-family: "Helvetica Neue", Arial, Helvetica, sans-serif !important;
   color: ${c.ink} !important;
-  font-size: 8.5px !important;
-  line-height: 1.38 !important;
+  font-size: 8.2px !important;
+  line-height: 1.36 !important;
   font-weight: 750 !important;
   letter-spacing: -0.005em !important;
   word-break: break-all !important;
   overflow-wrap: anywhere !important;
-  margin-bottom: 2.5mm !important;
+  white-space: normal !important;
+  margin-bottom: 1.8mm !important;
 }
 
-.duplicate-digest-file-list {
-  margin: 0 !important;
-  padding-left: 4mm !important;
+.duplicate-digest-file-list-text {
   color: ${c.ink} !important;
-}
-
-.duplicate-digest-file-list li {
-  margin-bottom: 1mm !important;
-  font-size: 8.7px !important;
+  font-size: 8.4px !important;
   line-height: 1.35 !important;
   font-weight: 700 !important;
   word-break: break-word !important;
   overflow-wrap: anywhere !important;
-}
-  
-/* RESTORE GALLERY PREVIEW SIZE — do not squeeze evidence previews */
-
-.evidence-gallery-section .gallery-thumb {
-  height: 154px !important;
-  min-height: 154px !important;
+  white-space: normal !important;
 }
 
-.evidence-gallery-section .gallery-thumb img {
+/* ENTERPRISE CUSTODY HASH CHAIN TABLE */
+
+.custody-hash-page-enterprise {
+  gap: 4mm !important;
+}
+
+.custody-hash-chain-notice {
+  border: 1px solid rgba(12, 28, 25, 0.22) !important;
+  border-left: 5px solid rgba(96, 66, 24, 0.95) !important;
+  border-radius: 9px !important;
+  background-color: rgba(255, 255, 255, 0.16) !important;
+  padding: 3mm 3.5mm !important;
+  color: ${c.ink} !important;
+  break-inside: avoid !important;
+  page-break-inside: avoid !important;
+}
+
+.custody-hash-chain-notice p {
+  margin: 0 0 1.8mm !important;
+  font-size: 8.8px !important;
+  line-height: 1.45 !important;
+  font-weight: 650 !important;
+}
+
+.custody-hash-chain-notice p:last-child {
+  margin-bottom: 0 !important;
+}
+
+.custody-hash-chain-table-enterprise {
+  table-layout: fixed !important;
   width: 100% !important;
-  height: 100% !important;
-  object-fit: contain !important;
+  background: transparent !important;
+  border: 1px solid rgba(12, 28, 25, 0.22) !important;
+}
+
+.custody-hash-chain-table-enterprise th:nth-child(1),
+.custody-hash-chain-table-enterprise td:nth-child(1) {
+  width: 7% !important;
+}
+
+.custody-hash-chain-table-enterprise th:nth-child(2),
+.custody-hash-chain-table-enterprise td:nth-child(2) {
+  width: 18% !important;
+}
+
+.custody-hash-chain-table-enterprise th:nth-child(3),
+.custody-hash-chain-table-enterprise td:nth-child(3) {
+  width: 21% !important;
+}
+
+.custody-hash-chain-table-enterprise th:nth-child(4),
+.custody-hash-chain-table-enterprise td:nth-child(4),
+.custody-hash-chain-table-enterprise th:nth-child(5),
+.custody-hash-chain-table-enterprise td:nth-child(5) {
+  width: 27% !important;
+}
+
+.custody-hash-chain-table-enterprise th {
+  background-color: rgba(255, 255, 255, 0.22) !important;
+  color: ${c.accent} !important;
+  font-size: 7.4px !important;
+  line-height: 1.18 !important;
+  font-weight: 950 !important;
+  letter-spacing: 0.045em !important;
+  text-transform: uppercase !important;
+  padding: 2mm 1.8mm !important;
+  border-bottom: 1px solid rgba(12, 28, 25, 0.22) !important;
+}
+
+.custody-hash-chain-table-enterprise td {
+  background-color: rgba(255, 255, 255, 0.10) !important;
+  color: ${c.ink} !important;
+  font-size: 7.6px !important;
+  line-height: 1.32 !important;
+  font-weight: 650 !important;
+  padding: 1.8mm 1.8mm !important;
+  border-bottom: 1px solid rgba(12, 28, 25, 0.14) !important;
+  vertical-align: top !important;
+  word-break: normal !important;
+  overflow-wrap: anywhere !important;
+}
+
+.custody-hash-chain-table-enterprise tr {
+  break-inside: avoid !important;
+  page-break-inside: avoid !important;
+}
+
+.custody-hash-seq {
+  color: ${c.accent} !important;
+  font-size: 8.2px !important;
+  font-weight: 950 !important;
+  text-align: center !important;
+}
+
+.custody-hash-time {
+  color: rgba(11, 46, 39, 0.78) !important;
+  font-size: 7.2px !important;
+  font-weight: 800 !important;
+}
+
+.custody-hash-event {
+  color: ${c.ink} !important;
+  font-size: 7.8px !important;
+  font-weight: 850 !important;
+}
+
+.custody-hash-short {
+  font-family: "Helvetica Neue", Arial, Helvetica, sans-serif !important;
+  font-size: 8.2px !important;
+  line-height: 1.35 !important;
+  font-weight: 750 !important;
+  letter-spacing: -0.006em !important;
+  color: ${c.ink} !important;
+  word-break: break-all !important;
+  overflow-wrap: anywhere !important;
+  white-space: normal !important;
+}
+
+.custody-hash-chain-footnote {
+  border: 1px solid rgba(12, 28, 25, 0.18) !important;
+  border-left: 5px solid #0b2e27 !important;
+  border-radius: 9px !important;
+  background-color: rgba(255, 255, 255, 0.14) !important;
+  padding: 2.4mm 3mm !important;
+  color: ${c.muted} !important;
+  font-size: 8.4px !important;
+  line-height: 1.42 !important;
+  font-weight: 650 !important;
+  break-inside: avoid !important;
+  page-break-inside: avoid !important;
 }
   
 @media print {
