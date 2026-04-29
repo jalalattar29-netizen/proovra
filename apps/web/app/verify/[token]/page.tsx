@@ -535,6 +535,13 @@ const VERIFY_SURFACE = {
   },
 };
 
+const BRONZE_RAIL_STYLE: CSSProperties = {
+  border: `1px solid ${VERIFY_BRAND.line}`,
+  borderLeft: `5px solid ${VERIFY_BRAND.bronze}`,
+  background: VERIFY_BRAND.bronzeSoft,
+  borderRadius: 18,
+};
+
 function formatDateTime(value?: string | null): string {
   if (!value) return "N/A";
   const d = new Date(value);
@@ -2799,14 +2806,33 @@ function VerificationPackageIntegrityCard({
 }: {
   integrity: VerificationPackageIntegrity;
 }) {
+  const complete =
+    integrity.available &&
+    integrity.manifestPresent &&
+    integrity.signedManifestPresent &&
+    integrity.checksumIndexPresent &&
+    integrity.offlineVerifierPresent &&
+    integrity.auditExportPresent;
+
+  const decisionLabel = complete
+    ? "Package Integrity Complete"
+    : integrity.available
+      ? "Package Integrity Partial"
+      : "Package Not Generated";
+
+  const decisionTone = complete
+    ? "success"
+    : integrity.available
+      ? "warning"
+      : "neutral";
+
+  const decisionText = complete
+    ? "Independent offline verification is enabled for this evidence package."
+    : integrity.available
+      ? "A verification package exists, but one or more package-level materials are incomplete or not exposed."
+      : "No generated verification package was exposed in this verification response.";
+
   const rows = [
-    {
-      label: "Verification Package",
-      value: integrity.available
-        ? `Available • v${integrity.version}`
-        : "Not generated",
-      tone: integrity.available ? "success" : "neutral",
-    },
     {
       label: "Package Manifest",
       value: integrity.manifestPresent ? "Present" : "Not available",
@@ -2828,9 +2854,14 @@ function VerificationPackageIntegrityCard({
       tone: integrity.offlineVerifierPresent ? "success" : "neutral",
     },
     {
-      label: "Audit Export",
-      value: integrity.auditExportPresent ? "Included" : "Not available",
-      tone: integrity.auditExportPresent ? "success" : "neutral",
+      label: "Custody Export",
+      value: integrity.custodyExportPresent ? "Included" : "Not available",
+      tone: integrity.custodyExportPresent ? "success" : "neutral",
+    },
+    {
+      label: "Access / Audit Export",
+      value: integrity.accessExportPresent || integrity.auditExportPresent ? "Included" : "Not available",
+      tone: integrity.accessExportPresent || integrity.auditExportPresent ? "success" : "neutral",
     },
   ] as const;
 
@@ -2838,52 +2869,105 @@ function VerificationPackageIntegrityCard({
     <div
       style={{
         border: `1px solid ${
-          integrity.available
-            ? "rgba(33,117,93,0.28)"
-            : VERIFY_BRAND.line
+          complete
+            ? "rgba(33,117,93,0.30)"
+            : integrity.available
+              ? "rgba(138,106,47,0.30)"
+              : VERIFY_BRAND.line
         }`,
-        borderLeft: `6px solid ${
-          integrity.available ? VERIFY_BRAND.success : VERIFY_BRAND.accent
+        borderLeft: `7px solid ${
+          complete
+            ? VERIFY_BRAND.success
+            : integrity.available
+              ? VERIFY_BRAND.warning
+              : VERIFY_BRAND.accent
         }`,
-        background: integrity.available
-          ? "linear-gradient(180deg, rgba(33,117,93,0.10), rgba(255,255,255,0.72))"
-          : "linear-gradient(180deg, rgba(11,46,39,0.06), rgba(255,255,255,0.72))",
-        borderRadius: 22,
-        padding: 20,
+        background: complete
+          ? "linear-gradient(180deg, rgba(33,117,93,0.11), rgba(255,255,255,0.74))"
+          : integrity.available
+            ? "linear-gradient(180deg, rgba(138,106,47,0.11), rgba(255,255,255,0.74))"
+            : "linear-gradient(180deg, rgba(11,46,39,0.06), rgba(255,255,255,0.74))",
+        borderRadius: 24,
+        padding: 22,
         display: "grid",
-        gap: 16,
-        boxShadow: "0 14px 34px rgba(16,32,29,0.06)",
+        gap: 18,
+        boxShadow: "0 16px 38px rgba(16,32,29,0.07)",
       }}
     >
       <div
         style={{
-          display: "flex",
-          alignItems: "flex-start",
-          justifyContent: "space-between",
-          gap: 14,
-          flexWrap: "wrap",
+          display: "grid",
+          gridTemplateColumns: "minmax(0, 1fr) 190px",
+          gap: 18,
+          alignItems: "stretch",
         }}
       >
-        <div style={{ minWidth: 0, flex: "1 1 620px" }}>
-          <div style={{ ...VERIFY_TYPO.kicker, fontSize: 10.5, marginBottom: 7 }}>
+        <div>
+          <div style={{ ...VERIFY_TYPO.kicker, fontSize: 10.5, marginBottom: 8 }}>
             Verification Package Integrity
           </div>
 
-          <div style={{ ...VERIFY_TYPO.h3, fontSize: 21, marginBottom: 8 }}>
-            Offline forensic package layer
+          <div style={{ ...VERIFY_TYPO.h3, fontSize: 22, marginBottom: 8 }}>
+            {decisionLabel}
           </div>
 
-          <div style={{ ...VERIFY_TYPO.small, fontSize: 13, maxWidth: 860 }}>
-            This layer confirms whether the machine-verifiable package exists:
-            package manifest, manifest digest reference, checksum index, offline
-            verifier, custody export, and access/audit export.
+          <div style={{ ...VERIFY_TYPO.small, fontSize: 13.5, color: VERIFY_BRAND.ink, maxWidth: 860 }}>
+            {decisionText}
           </div>
         </div>
 
-        <Badge
-          label={integrity.available ? "Package Available" : "Package Not Generated"}
-          tone={integrity.available ? "success" : "neutral"}
-        />
+        <div
+          style={{
+            border: `1px solid ${VERIFY_BRAND.line}`,
+            background: "rgba(255,255,255,0.58)",
+            borderRadius: 18,
+            padding: 16,
+            display: "grid",
+            alignContent: "center",
+            gap: 8,
+            textAlign: "center",
+          }}
+        >
+          <Badge
+            label={complete ? "Offline Review Enabled" : integrity.available ? "Partial Package" : "Unavailable"}
+            tone={decisionTone}
+          />
+
+          <div style={{ ...VERIFY_TYPO.kicker, fontSize: 10 }}>
+            Package Decision
+          </div>
+
+          {integrity.version ? (
+            <div style={{ ...VERIFY_TYPO.small, fontWeight: 900 }}>
+              Version v{integrity.version}
+            </div>
+          ) : null}
+        </div>
+      </div>
+
+      <div
+        style={{
+          ...BRONZE_RAIL_STYLE,
+          padding: 16,
+          display: "grid",
+          gap: 8,
+        }}
+      >
+        <div style={{ ...VERIFY_TYPO.kicker, fontSize: 10.5 }}>
+          Impact on Trust Decision
+        </div>
+
+        <div style={{ ...VERIFY_TYPO.small, fontSize: 13, color: VERIFY_BRAND.ink }}>
+          {complete
+            ? "The exported forensic bundle supports independent offline verification of package contents, checksums, manifest integrity, custody export, and audit/access materials."
+            : "Evidence integrity can still be reviewed, but package-level offline verification may be limited until the missing package materials are available."}
+        </div>
+
+        {integrity.generatedAtUtc ? (
+          <div style={{ ...VERIFY_TYPO.small, fontSize: 12.5 }}>
+            Package generated at: {formatDateTime(integrity.generatedAtUtc)}
+          </div>
+        ) : null}
       </div>
 
       <div
@@ -2901,7 +2985,7 @@ function VerificationPackageIntegrityCard({
               padding: 14,
               display: "grid",
               gap: 8,
-              minHeight: 86,
+              minHeight: 84,
             }}
           >
             <div style={{ ...VERIFY_TYPO.kicker, fontSize: 10 }}>
@@ -2910,32 +2994,6 @@ function VerificationPackageIntegrityCard({
             <Badge label={row.value} tone={row.tone} />
           </div>
         ))}
-      </div>
-
-      <div
-style={{
-  border: `1px solid ${VERIFY_BRAND.line}`,
-  borderLeft: `5px solid ${VERIFY_BRAND.bronze}`,
-  background: VERIFY_BRAND.bronzeSoft,
-  borderRadius: 18,
-  padding: 16,
-  display: "grid",
-  gap: 7,
-}}
-      >
-        <div style={{ ...VERIFY_TYPO.kicker, fontSize: 10.5 }}>
-          Reviewer boundary
-        </div>
-        <div style={{ ...VERIFY_TYPO.small, fontSize: 13, color: VERIFY_BRAND.ink }}>
-          The verification page summarizes package integrity. The ZIP package is
-          the offline forensic bundle and remains the source for independent
-          package-level verification.
-        </div>
-        {integrity.generatedAtUtc ? (
-          <div style={{ ...VERIFY_TYPO.small, fontSize: 12.5 }}>
-            Package generated at: {formatDateTime(integrity.generatedAtUtc)}
-          </div>
-        ) : null}
       </div>
     </div>
   );
@@ -4606,13 +4664,6 @@ const glassPanelStyle: CSSProperties = {
   boxShadow: "inset 0 1px 0 rgba(255,255,255,0.7)",
 };
 
-  const bronzeRailStyle: CSSProperties = {
-    border: `1px solid ${VERIFY_BRAND.line}`,
-    borderLeft: `5px solid ${VERIFY_BRAND.bronze}`,
-    background: VERIFY_BRAND.bronzeSoft,
-    borderRadius: 18,
-  };
-
   const verifyAssetPaths = {
     logo: "/brand/icon-192.png",
     headerVelvet: "/brand/site-velvet-bg.webp.png",
@@ -5233,7 +5284,7 @@ Reviewer Action
                   {limitations?.short || limitations?.detailed ? (
                     <div
                       style={{
-                        ...bronzeRailStyle,
+                        ...BRONZE_RAIL_STYLE,
                         padding: 18,
                         display: "grid",
                         gap: 8,
@@ -5392,7 +5443,7 @@ Reviewer Action
 
                     <div
                       style={{
-                        ...bronzeRailStyle,
+                        ...BRONZE_RAIL_STYLE,
                         padding: 18,
                         display: "grid",
                         gap: 10,
@@ -5779,7 +5830,7 @@ Reviewer Action
                         {selectedEvidenceItem?.reviewerRepresentationNote ? (
                           <div
                             style={{
-                              ...bronzeRailStyle,
+                              ...BRONZE_RAIL_STYLE,
                               padding: 18,
                               display: "grid",
                               gap: 8,
@@ -6027,7 +6078,7 @@ These materials support the Trust Decision shown above. The Trust Decision is th
                     <div style={{ display: "grid", gap: 16 }}>
                       <div
                         style={{
-                          ...bronzeRailStyle,
+                          ...BRONZE_RAIL_STYLE,
                           padding: 16,
                           ...VERIFY_TYPO.small,
                           fontSize: 13,
@@ -6062,7 +6113,7 @@ These materials support the Trust Decision shown above. The Trust Decision is th
                     <div style={{ display: "grid", gap: 14 }}>
                       <div
                         style={{
-                          ...bronzeRailStyle,
+                          ...BRONZE_RAIL_STYLE,
                           padding: 16,
                           display: "grid",
                           gap: 8,
@@ -6321,7 +6372,7 @@ These materials support the Trust Decision shown above. The Trust Decision is th
 
                       <div
                         style={{
-                          ...bronzeRailStyle,
+                          ...BRONZE_RAIL_STYLE,
                           padding: 16,
                           display: "grid",
                           gap: 8,
@@ -6369,7 +6420,7 @@ These materials support the Trust Decision shown above. The Trust Decision is th
   <div style={{ display: "grid", gap: 14 }}>
     <div
       style={{
-        ...bronzeRailStyle,
+        ...BRONZE_RAIL_STYLE,
         padding: 16,
         display: "grid",
         gap: 6,
