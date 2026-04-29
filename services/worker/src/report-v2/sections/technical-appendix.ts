@@ -191,7 +191,6 @@ function renderVerificationPackageIntegrity(vm: ReportViewModel): string {
 export function renderTechnicalAppendixSection(vm: ReportViewModel): string {
 const appendixDepth = vm.presentation.decisions.appendixDepth;
 
-const compact = appendixDepth === "compact";
 const hasSignatureRows =
   Array.isArray(vm.technicalAppendix.signatureRows) &&
   vm.technicalAppendix.signatureRows.some((row) =>
@@ -241,12 +240,6 @@ pages.push(
         ${renderTechnicalStatusCards(vm)}
         ${renderVerificationPackageIntegrity(vm)}
 
-        ${renderAppendixSection(
-          "Court Review Index",
-                    "Structured control points for legal, forensic, or technical review.",
-          renderKeyValueGrid(vm.meta.courtAppendixRows ?? []),
-          { className: "technical-appendix-court-index-block" }
-        )}
       </div>
     `,
     { pageBreakBefore: true, className: "technical-appendix-section" }
@@ -360,6 +353,13 @@ ${
                 tone: "neutral",
               })}
 
+              ${renderAppendixSection(
+                "Court Review Index",
+                "Structured control points for legal, forensic, or technical review.",
+                renderKeyValueGrid(vm.meta.courtAppendixRows ?? []),
+                { className: "technical-appendix-court-index-block" }
+              )}
+              
               ${
                 otsDetail
                   ? renderCallout({
