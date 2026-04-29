@@ -444,7 +444,7 @@ function summarizePayloadForReport(eventType: string, payload: unknown): string 
           : null;
       const itemCount = itemCountValue !== null ? String(itemCountValue) : null;
       const sizeBytes = normalizePayloadPrimitive(obj.sizeBytes);
-      const hash = shortHash(normalizePayloadPrimitive(obj.fileSha256));
+const hash = normalizePayloadPrimitive(obj.fileSha256);
 
       const completionLabel =
         itemCountValue !== null
@@ -468,9 +468,7 @@ function summarizePayloadForReport(eventType: string, payload: unknown): string 
     case "SIGNATURE_APPLIED": {
       const signingKeyId = normalizePayloadPrimitive(obj.signingKeyId);
       const signingKeyVersion = normalizePayloadPrimitive(obj.signingKeyVersion);
-      const fingerprintHash = shortHash(
-        normalizePayloadPrimitive(obj.fingerprintHash)
-      );
+const fingerprintHash = normalizePayloadPrimitive(obj.fingerprintHash);
       const tsaStatus = normalizePayloadPrimitive(obj.tsaStatus);
       const tsaProvider = normalizePayloadPrimitive(obj.tsaProvider);
 

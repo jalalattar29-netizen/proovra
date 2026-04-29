@@ -1053,7 +1053,7 @@ function summarizePublicPayload(
           ? `Verification report generated • Version: ${reportVersion}`
           : "Verification report generated.",
         anchorMode ? `Anchor Mode: ${anchorMode}` : null,
-        anchorHash ? `Anchor: ${shortHash(anchorHash)}` : null,
+anchorHash ? `Anchor: ${anchorHash}` : null,
       ]
         .filter(Boolean)
         .join(" • ");
@@ -1129,8 +1129,8 @@ function summarizePublicPayload(
       return [
         "External anchor publication recorded",
         provider ? `Provider: ${provider}` : null,
-        receiptId ? `Receipt: ${shortHash(receiptId)}` : null,
-        transactionId ? `Tx: ${shortHash(transactionId)}` : null,
+receiptId ? `Receipt: ${receiptId}` : null,
+transactionId ? `Tx: ${transactionId}` : null,
       ]
         .filter(Boolean)
         .join(" • ");
@@ -2122,7 +2122,7 @@ function buildTechnicalMaterials(params: {
     publicKeyPem: params.publicKeyPem,
     signingKeyId: params.evidence.signingKeyId,
     signingKeyVersion: params.evidence.signingKeyVersion,
-    tsaMessageImprint: shortHash(params.evidence.tsaMessageImprint),
+    tsaMessageImprint: params.evidence.tsaMessageImprint,
     otsProofPresent: Boolean(params.evidence.otsProofBase64),
   };
 }
@@ -2140,8 +2140,8 @@ function mapPublicCustodyEvent(ev: {
     atUtc: ev.atUtc.toISOString(),
     eventType: ev.eventType,
     payloadSummary: summarizePublicPayload(ev.eventType, ev.payload),
-    prevEventHash: shortHash(ev.prevEventHash, 10, 8),
-    eventHash: shortHash(ev.eventHash, 10, 8),
+prevEventHash: ev.prevEventHash,
+eventHash: ev.eventHash,
     category: classifyCustodyEventType(ev.eventType),
   };
 }
@@ -5253,7 +5253,7 @@ defaultPreviewItemId: defaultPreviewItem?.id ?? null,
         ? evidence.tsaGenTimeUtc.toISOString()
         : null,
       hashAlgorithm: evidence.tsaHashAlgorithm,
-      messageImprint: shortHash(evidence.tsaMessageImprint),
+messageImprint: evidence.tsaMessageImprint,
       failureReason: evidence.tsaFailureReason,
       digestMatchesFileHash: timestampDigestMatches,
     },

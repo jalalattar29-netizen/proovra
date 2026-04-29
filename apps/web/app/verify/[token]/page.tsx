@@ -434,67 +434,67 @@ const VERIFY_BRAND = {
 };
 
 const VERIFY_FONT =
-  `"Helvetica Neue", Arial, Helvetica, sans-serif`;
+  `Inter, "Helvetica Neue", Arial, Helvetica, sans-serif`;
 
 const VERIFY_TYPO = {
   page: {
     fontFamily: VERIFY_FONT,
-    letterSpacing: "-0.005em",
+    letterSpacing: "-0.003em",
     WebkitFontSmoothing: "antialiased" as const,
     MozOsxFontSmoothing: "grayscale" as const,
   },
   kicker: {
-    fontSize: 12,
-    fontWeight: 900,
-    letterSpacing: "0.105em",
+    fontSize: 10.5,
+    fontWeight: 750,
+    letterSpacing: "0.085em",
     textTransform: "uppercase" as const,
     color: VERIFY_BRAND.subtle,
   },
   h1: {
-    fontSize: "clamp(2rem, 3.2vw, 3.1rem)",
-    lineHeight: 1.05,
-    fontWeight: 900,
+    fontSize: "clamp(2rem, 3vw, 2.85rem)",
+    lineHeight: 1.06,
+    fontWeight: 800,
     letterSpacing: "-0.04em",
     color: VERIFY_BRAND.ink,
   },
   h2: {
-    fontSize: "clamp(1.45rem, 2vw, 2rem)",
-    lineHeight: 1.12,
-    fontWeight: 900,
-    letterSpacing: "-0.028em",
+    fontSize: "clamp(1.35rem, 1.9vw, 1.85rem)",
+    lineHeight: 1.14,
+    fontWeight: 800,
+    letterSpacing: "-0.026em",
     color: VERIFY_BRAND.ink,
   },
   h3: {
-    fontSize: 18,
+    fontSize: 17,
     lineHeight: 1.25,
-    fontWeight: 900,
-    letterSpacing: "-0.018em",
+    fontWeight: 800,
+    letterSpacing: "-0.014em",
     color: VERIFY_BRAND.ink,
   },
   body: {
     fontSize: 13,
-    lineHeight: 1.7,
-    fontWeight: 500,
+    lineHeight: 1.62,
+    fontWeight: 450,
     color: VERIFY_BRAND.muted,
   },
   small: {
     fontSize: 11.5,
-    lineHeight: 1.55,
-    fontWeight: 650,
+    lineHeight: 1.5,
+    fontWeight: 500,
     color: VERIFY_BRAND.muted,
   },
   value: {
     fontSize: 13,
-    lineHeight: 1.45,
-    fontWeight: 800,
+    lineHeight: 1.42,
+    fontWeight: 650,
     color: VERIFY_BRAND.ink,
   },
   hash: {
     fontFamily: VERIFY_FONT,
-    fontSize: 12.5,
-    lineHeight: 1.55,
-    fontWeight: 750,
-    letterSpacing: "-0.012em",
+    fontSize: 11,
+    lineHeight: 1.45,
+    fontWeight: 550,
+    letterSpacing: "-0.006em",
     color: VERIFY_BRAND.ink,
     wordBreak: "break-all" as const,
     overflowWrap: "anywhere" as const,
@@ -505,24 +505,27 @@ const VERIFY_TYPO = {
 const VERIFY_SURFACE = {
   page: {
     background:
-      "radial-gradient(circle at 12% 6%, rgba(11,46,39,0.08), transparent 30%), radial-gradient(circle at 92% 12%, rgba(96,66,24,0.08), transparent 28%), linear-gradient(180deg, #eef1ef 0%, #f8f8f5 46%, #edf1ef 100%)",
+      "radial-gradient(circle at 12% 0%, rgba(11,46,39,0.05), transparent 32%), radial-gradient(circle at 92% 8%, rgba(96,66,24,0.04), transparent 28%), linear-gradient(180deg, #f6f7f4 0%, #fafbf8 48%, #f2f4f1 100%)",
   },
   card: {
-    background: "rgba(255,255,255,0.48)",
+    background:
+      "linear-gradient(180deg, rgba(255,255,255,0.96) 0%, rgba(248,250,248,0.92) 100%)",
     border: `1px solid ${VERIFY_BRAND.line}`,
     borderRadius: 22,
-    boxShadow: "0 18px 55px rgba(16,32,29,0.08)",
-    backdropFilter: "blur(14px)",
+    boxShadow: "0 18px 42px rgba(16,32,29,0.065)",
+    backdropFilter: "blur(8px)",
   },
   cardStrong: {
-    background: "rgba(255,255,255,0.66)",
+    background:
+      "linear-gradient(180deg, rgba(255,255,255,0.98) 0%, rgba(248,250,248,0.94) 100%)",
     border: `1px solid ${VERIFY_BRAND.line}`,
     borderRadius: 22,
-    boxShadow: "0 18px 55px rgba(16,32,29,0.10)",
-    backdropFilter: "blur(16px)",
+    boxShadow: "0 20px 48px rgba(16,32,29,0.075)",
+    backdropFilter: "blur(8px)",
   },
   inset: {
-    background: "rgba(255,255,255,0.26)",
+    background:
+      "linear-gradient(180deg, rgba(255,255,255,0.88) 0%, rgba(246,248,246,0.82) 100%)",
     border: `1px solid ${VERIFY_BRAND.softLine}`,
     borderRadius: 16,
   },
@@ -1310,9 +1313,9 @@ function TimelinePanel({
                 <div
                   style={{
                     border: `1px solid ${VERIFY_BRAND.softLine}`,
-                    background:
-                      "linear-gradient(180deg, rgba(255,255,255,0.82) 0%, rgba(255,255,255,0.66) 100%)",
-                    borderRadius: 16,
+background:
+  "linear-gradient(180deg, rgba(255,255,255,0.96) 0%, rgba(248,250,248,0.9) 100%)",
+                      borderRadius: 16,
                     padding: 14,
                     display: "grid",
                     gap: 9,
@@ -3254,20 +3257,17 @@ const executiveBadges = useMemo(
   const heroTextSize = "clamp(0.95rem, 1.15vw, 1rem)";
   const cardTitleSize = "clamp(1.45rem, 2.2vw, 1.95rem)";
 
-  const glassCardStyle: CSSProperties = {
-    border: `1px solid ${VERIFY_BRAND.line}`,
-    background:
-      "linear-gradient(180deg, rgba(255,255,255,0.92) 0%, rgba(255,255,255,0.84) 100%)",
-    backdropFilter: "blur(10px)",
-    boxShadow: "0 18px 45px rgba(16,32,29,0.075)",
-    borderRadius: 22,
-  };
+const glassCardStyle: CSSProperties = {
+  ...VERIFY_SURFACE.cardStrong,
+};
 
-  const glassPanelStyle: CSSProperties = {
-    border: `1px solid ${VERIFY_BRAND.softLine}`,
-    background: "rgba(255,255,255,0.78)",
-    borderRadius: 18,
-  };
+const glassPanelStyle: CSSProperties = {
+  border: `1px solid ${VERIFY_BRAND.softLine}`,
+  background:
+    "linear-gradient(180deg, rgba(255,255,255,0.9) 0%, rgba(248,250,248,0.84) 100%)",
+  borderRadius: 18,
+  boxShadow: "0 10px 26px rgba(16,32,29,0.045)",
+};
 
   const bronzeRailStyle: CSSProperties = {
     border: `1px solid ${VERIFY_BRAND.line}`,
@@ -3414,7 +3414,7 @@ const executiveBadges = useMemo(
                   margin: 0,
                   fontSize: heroTitleSize,
                   lineHeight: 1.05,
-                  fontWeight: 900,
+                  fontWeight: 700,
                   letterSpacing: "-0.04em",
                   color: VERIFY_BRAND.ink,
                   maxWidth: 820,

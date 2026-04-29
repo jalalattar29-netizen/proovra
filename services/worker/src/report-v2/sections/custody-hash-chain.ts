@@ -60,12 +60,12 @@ function renderEnterpriseCustodyHashTable(vm: ReportViewModel): string {
                 </td>
                 <td>
                   <span class="hash-text custody-hash-short">
-                    ${escapeHtml(shortHash(row.prevEventHash))}
+${escapeHtml(row.prevEventHash ?? "")}
                   </span>
                 </td>
                 <td>
                   <span class="hash-text custody-hash-short">
-                    ${escapeHtml(shortHash(row.eventHash))}
+${escapeHtml(row.eventHash ?? "")}
                   </span>
                 </td>
               </tr>
