@@ -3208,13 +3208,6 @@ setPreviewPolicy(content.previewPolicy);
     );
   }, [humanSummary?.integrityStatus, overview?.integrityHeadline, overallIntegrity]);
 
-  const heroSummaryText = useMemo(() => {
-    return (
-      humanSummary?.summary ??
-      "This page shows whether the recorded fingerprint, signature, timestamp linkage, hashed custody chain, OpenTimestamps status, immutable storage protection, and external publication state pass technical verification checks. It does not by itself prove authorship, factual truth, or legal admissibility of the underlying content."
-    );
-  }, [humanSummary?.summary]);
-
   const heroWhatIsVerifiedText = useMemo(() => {
     return (
       humanSummary?.whatIsVerified ??
