@@ -818,63 +818,6 @@ function buildStoragePresentation(
   };
 }
 
-function buildOtsPresentation(ots: OtsDetails): {
-  badgeLabel: string;
-  badgeTone: "success" | "warning" | "neutral" | "info";
-  detailLabel: string;
-  detailText: string;
-} {
-  const status = (ots.status ?? "").trim().toUpperCase();
-
-  if (status === "ANCHORED") {
-    return {
-      badgeLabel: "OTS Anchored",
-      badgeTone: "success",
-      detailLabel: "OpenTimestamps Status",
-      detailText:
-        "An OpenTimestamps proof is recorded and appears to be anchored. This adds an independent public-proof timestamping layer for the evidence digest.",
-    };
-  }
-
-  if (status === "PENDING") {
-    return {
-      badgeLabel: "OTS Pending",
-      badgeTone: "warning",
-      detailLabel: "OpenTimestamps Status",
-      detailText:
-        "An OpenTimestamps proof exists for this evidence digest, but the proof has not yet been upgraded to a final anchored state.",
-    };
-  }
-
-  if (status === "FAILED") {
-    return {
-      badgeLabel: "OTS Failed",
-      badgeTone: "warning",
-      detailLabel: "OpenTimestamps Status",
-      detailText:
-        "OpenTimestamps processing reported a failure for this evidence record.",
-    };
-  }
-
-  if (status === "DISABLED") {
-    return {
-      badgeLabel: "OTS Disabled",
-      badgeTone: "neutral",
-      detailLabel: "OpenTimestamps Status",
-      detailText:
-        "OpenTimestamps is disabled in this environment, so no public-proof timestamp was recorded for this evidence item.",
-    };
-  }
-
-  return {
-    badgeLabel: "OTS Not Reported",
-    badgeTone: "neutral",
-    detailLabel: "OpenTimestamps Status",
-    detailText:
-      "OpenTimestamps information was not included in the verification response.",
-  };
-}
-
 function CopyMiniButton({
   value,
   successMessage,
@@ -3082,9 +3025,9 @@ export default function VerifyPage() {
     useState<string | null>(null);
 
   const [otsStatus, setOtsStatus] = useState<string | null>(null);
-  const [otsHash, setOtsHash] = useState<string | null>(null);
+  const [setOtsHash] = useState<string | null>(null);
   const [otsCalendar, setOtsCalendar] = useState<string | null>(null);
-  const [otsBitcoinTxid, setOtsBitcoinTxid] = useState<string | null>(null);
+  const [setOtsBitcoinTxid] = useState<string | null>(null);
   const [otsAnchoredAtUtc, setOtsAnchoredAtUtc] = useState<string | null>(null);
   const [otsUpgradedAtUtc, setOtsUpgradedAtUtc] = useState<string | null>(null);
   const [otsFailureReason, setOtsFailureReason] = useState<string | null>(null);
