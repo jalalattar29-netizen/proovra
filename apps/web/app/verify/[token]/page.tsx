@@ -471,23 +471,23 @@ const VERIFY_TYPO = {
     letterSpacing: "-0.014em",
     color: VERIFY_BRAND.ink,
   },
-  body: {
-    fontSize: 13,
-    lineHeight: 1.62,
-    fontWeight: 450,
-    color: VERIFY_BRAND.muted,
+body: {
+  fontSize: 14,
+  lineHeight: 1.7,
+  fontWeight: 430,
+      color: VERIFY_BRAND.muted,
   },
-  small: {
-    fontSize: 11.5,
-    lineHeight: 1.5,
-    fontWeight: 500,
-    color: VERIFY_BRAND.muted,
+small: {
+  fontSize: 12,
+  lineHeight: 1.6,
+  fontWeight: 500,
+      color: VERIFY_BRAND.muted,
   },
-  value: {
-    fontSize: 13,
-    lineHeight: 1.42,
-    fontWeight: 650,
-    color: VERIFY_BRAND.ink,
+value: {
+  fontSize: 14,
+  lineHeight: 1.45,
+  fontWeight: 650,
+      color: VERIFY_BRAND.ink,
   },
   hash: {
     fontFamily: VERIFY_FONT,
@@ -1796,6 +1796,660 @@ function renderVerifyEvidenceMedia(
   );
 }
 
+type VerificationVerdict = {
+  status:
+    | "verified"
+    | "review_required"
+    | "partial"
+    | "unavailable";
+  title: string;
+  label: string;
+  riskLevel: "Low" | "Medium" | "High" | "Unknown";
+  actionRequired: string;
+  legalStatement: string;
+  reviewerSummary: string;
+  confidenceScore: number;
+  tone: "success" | "warning" | "danger" | "neutral";
+};
+
+type VerificationSignalInput = {
+  overallIntegrity: boolean | null;
+  canonicalHashMatches: boolean | null;
+  signatureValid: boolean | null;
+  custodyChainValid: boolean | null;
+  timestampDigestMatches: boolean | null;
+  otsHashMatches: boolean | null;
+  storageVerified: boolean | null;
+  immutableStorage: boolean | null;
+  externalPublicationPresent: boolean | null;
+};
+
+function buildVerificationVerdict(input: VerificationSignalInput): VerificationVerdict {
+  const failedSignals = [
+    input.canonicalHashMatches === false,
+    input.signatureValid === false,
+    input.custodyChainValid === false,
+    input.timestampDigestMatches === false,
+    input.otsHashMatches === false,
+  ].filter(Boolean).length;
+
+  const passedSignals = [
+    input.canonicalHashMatches === true,
+    input.signatureValid === true,
+    input.custodyChainValid === true,
+    input.timestampDigestMatches === true,
+    input.otsHashMatches === true,
+    input.storageVerified === true || input.immutableStorage === true,
+    input.externalPublicationPresent === true,
+  ].filter(Boolean).length;
+
+  const knownSignals = [
+    input.canonicalHashMatches !== null,
+    input.signatureValid !== null,
+    input.custodyChainValid !== null,
+    input.timestampDigestMatches !== null,
+    input.otsHashMatches !== null,
+    input.storageVerified !== null || input.immutableStorage !== null,
+    input.externalPublicationPresent !== null,
+  ].filter(Boolean).length;
+
+  const confidenceScore =
+    knownSignals === 0
+      ? 0
+      : Math.max(
+          0,
+          Math.min(
+            100,
+            Math.round((passedSignals / Math.max(knownSignals, 1)) * 100)
+          )
+        );
+
+  if (input.overallIntegrity === false || failedSignals > 0) {
+    return {
+      status: "review_required",
+      title: "Final Verification Verdict",
+      label: "Review Required",
+      riskLevel: "High",
+      actionRequired:
+        "Do not rely on this record as a fully verified evidence record until the failed integrity signal is reviewed by a qualified technical or forensic reviewer.",
+      legalStatement:
+        "One or more returned integrity checks did not pass. This page supports review of the recorded system state, but it must not be interpreted as conclusive proof of authenticity, authorship, factual truth, legal admissibility, or absence of tampering.",
+      reviewerSummary:
+        "The record contains usable verification materials, but at least one integrity layer requires manual review before this evidence should be relied upon without qualification.",
+      confidenceScore,
+      tone: "danger",
+    };
+  }
+
+  if (input.overallIntegrity === true && failedSignals === 0) {
+    return {
+      status: "verified",
+      title: "Final Verification Verdict",
+      label: "Recorded Integrity Verified",
+      riskLevel: "Low",
+      actionRequired:
+        "Reviewers may rely on the recorded integrity state, while still separately assessing authorship, factual context, relevance, and legal admissibility.",
+      legalStatement:
+        "The available cryptographic, custody, timestamping, storage, and publication signals returned in this verification response support the recorded integrity state. This does not independently prove factual truth, authorship, legal admissibility, or the real-world meaning of the evidence content.",
+      reviewerSummary:
+        "The available technical verification signals support the integrity of the recorded evidence state.",
+      confidenceScore,
+      tone: "success",
+    };
+  }
+
+  if (passedSignals > 0 || knownSignals > 0) {
+    return {
+      status: "partial",
+      title: "Final Verification Verdict",
+      label: "Partially Verified",
+      riskLevel: "Medium",
+      actionRequired:
+        "Use this record with caution. Review missing, pending, or unavailable verification layers before treating the evidence as fully verified.",
+      legalStatement:
+        "Some verification materials were returned, but the response did not provide a complete positive integrity conclusion for every technical layer. The record should be treated as partially verified until missing or pending layers are resolved.",
+      reviewerSummary:
+        "The record contains supporting verification materials, but the verification result is incomplete or not fully conclusive.",
+      confidenceScore,
+      tone: "warning",
+    };
+  }
+
+  return {
+    status: "unavailable",
+    title: "Final Verification Verdict",
+    label: "Verification Unavailable",
+    riskLevel: "Unknown",
+    actionRequired:
+      "Do not rely on this record as verified until verification materials are available and reviewed.",
+    legalStatement:
+      "The verification response did not expose enough technical material to support a complete integrity conclusion.",
+    reviewerSummary:
+      "The system returned insufficient verification material for a reliable integrity conclusion.",
+    confidenceScore,
+    tone: "neutral",
+  };
+}
+
+function buildReviewerActions(params: {
+  verdict: VerificationVerdict;
+  canonicalHashMatches: boolean | null;
+  signatureValid: boolean | null;
+  custodyChainValid: boolean | null;
+  timestampDigestMatches: boolean | null;
+  otsHashMatches: boolean | null;
+  storageProtection: StorageProtection | null;
+  externalPublicationPresent: boolean | null;
+}): string[] {
+  const actions: string[] = [];
+
+  if (params.verdict.status === "review_required") {
+    actions.push(
+      "Treat this record as requiring technical review before relying on it as a complete integrity verification result."
+    );
+  }
+
+  if (params.canonicalHashMatches === false) {
+    actions.push(
+      "Compare the displayed file/package hash against the original evidence material and confirm whether the preserved content differs from the recorded fingerprint."
+    );
+  }
+
+  if (params.signatureValid === false) {
+    actions.push(
+      "Review the digital signature, signing key identifier, key version, and public key material before accepting the signature layer."
+    );
+  }
+
+  if (params.custodyChainValid === false) {
+    actions.push(
+      "Inspect the custody chain continuity. A custody-chain mismatch may indicate missing, altered, or inconsistent event linkage."
+    );
+  }
+
+  if (params.timestampDigestMatches === false) {
+    actions.push(
+      "Review the trusted timestamp mismatch. A timestamp digest mismatch means the timestamped digest does not match the recorded file/package hash."
+    );
+  }
+
+  if (params.otsHashMatches === false) {
+    actions.push(
+      "Review the OpenTimestamps proof and its linked hash. The OTS proof should be checked against the recorded fingerprint/hash material."
+    );
+  }
+
+  if (
+    params.storageProtection?.immutable !== true &&
+    params.storageProtection?.verified !== true
+  ) {
+    actions.push(
+      "Confirm storage immutability or retention status before relying on the storage-protection layer."
+    );
+  }
+
+  if (params.externalPublicationPresent !== true) {
+    actions.push(
+      "Check whether an external anchor/publication record is expected for this evidence workflow."
+    );
+  }
+
+  if (actions.length === 0) {
+    actions.push(
+      "Review the displayed record identity, evidence hash, custody chain, timestamping materials, and access activity before external legal or operational reliance."
+    );
+  }
+
+  return actions;
+}
+
+function buildMismatchExplanations(params: {
+  canonicalHashMatches: boolean | null;
+  signatureValid: boolean | null;
+  custodyChainValid: boolean | null;
+  timestampDigestMatches: boolean | null;
+  otsHashMatches: boolean | null;
+  custodyChainFailureReason: string | null;
+}): Array<{ title: string; body: string; severity: "danger" | "warning" }> {
+  const explanations: Array<{
+    title: string;
+    body: string;
+    severity: "danger" | "warning";
+  }> = [];
+
+  if (params.canonicalHashMatches === false) {
+    explanations.push({
+      title: "Fingerprint mismatch",
+      severity: "danger",
+      body:
+        "The canonical fingerprint check did not match the recorded evidence state. This is a critical integrity signal and should be reviewed before relying on the record.",
+    });
+  }
+
+  if (params.signatureValid === false) {
+    explanations.push({
+      title: "Digital signature invalid",
+      severity: "danger",
+      body:
+        "The recorded digital signature did not validate against the available verification material. This may affect confidence in the signed record state.",
+    });
+  }
+
+  if (params.custodyChainValid === false) {
+    explanations.push({
+      title: "Custody-chain continuity issue",
+      severity: "danger",
+      body:
+        params.custodyChainFailureReason ??
+        "The custody chain reported an integrity issue. Review previous-event hashes and event hashes to determine where continuity failed.",
+    });
+  }
+
+  if (params.timestampDigestMatches === false) {
+    explanations.push({
+      title: "Trusted timestamp digest mismatch",
+      severity: "warning",
+      body:
+        "The trusted timestamp digest does not match the recorded file/package hash. This does not automatically prove the content is false, but it means the timestamp layer cannot be treated as clean without review.",
+    });
+  }
+
+  if (params.otsHashMatches === false) {
+    explanations.push({
+      title: "OpenTimestamps hash mismatch",
+      severity: "warning",
+      body:
+        "The OpenTimestamps hash does not match the recorded fingerprint hash. The OTS proof should be manually checked against the expected digest.",
+    });
+  }
+
+  return explanations;
+}
+
+function VerdictStatusCard({
+  verdict,
+}: {
+  verdict: VerificationVerdict;
+}) {
+  const palette =
+    verdict.tone === "success"
+      ? {
+          border: "rgba(33,117,93,0.30)",
+          rail: VERIFY_BRAND.success,
+          bg: "linear-gradient(180deg, rgba(33,117,93,0.10), rgba(255,255,255,0.72))",
+          iconBg: VERIFY_BRAND.success,
+        }
+      : verdict.tone === "danger"
+        ? {
+            border: "rgba(181,71,56,0.30)",
+            rail: VERIFY_BRAND.danger,
+            bg: "linear-gradient(180deg, rgba(181,71,56,0.11), rgba(255,255,255,0.76))",
+            iconBg: VERIFY_BRAND.danger,
+          }
+        : verdict.tone === "warning"
+          ? {
+              border: "rgba(138,106,47,0.32)",
+              rail: VERIFY_BRAND.warning,
+              bg: "linear-gradient(180deg, rgba(138,106,47,0.12), rgba(255,255,255,0.76))",
+              iconBg: VERIFY_BRAND.warning,
+            }
+          : {
+              border: VERIFY_BRAND.line,
+              rail: VERIFY_BRAND.accent,
+              bg: "rgba(255,255,255,0.72)",
+              iconBg: VERIFY_BRAND.accent,
+            };
+
+  return (
+    <div
+      style={{
+        border: `1px solid ${palette.border}`,
+        borderLeft: `7px solid ${palette.rail}`,
+        background: palette.bg,
+        borderRadius: 22,
+        padding: 22,
+        display: "grid",
+        gap: 18,
+        boxShadow: "0 18px 42px rgba(16,32,29,0.08)",
+      }}
+    >
+      <div
+        style={{
+          display: "flex",
+          alignItems: "flex-start",
+          justifyContent: "space-between",
+          gap: 18,
+          flexWrap: "wrap",
+        }}
+      >
+        <div style={{ display: "flex", gap: 16, minWidth: 0, flex: "1 1 640px" }}>
+          <div
+            style={{
+              width: 54,
+              height: 54,
+              borderRadius: 18,
+              background: palette.iconBg,
+              color: "#fff",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              fontSize: 28,
+              fontWeight: 950,
+              flexShrink: 0,
+              boxShadow: "0 14px 30px rgba(16,32,29,0.16)",
+            }}
+          >
+            {verdict.tone === "success" ? "✓" : verdict.tone === "danger" ? "!" : "?"}
+          </div>
+
+          <div style={{ minWidth: 0 }}>
+            <div
+              style={{
+                ...VERIFY_TYPO.kicker,
+                fontSize: 10.5,
+                marginBottom: 7,
+              }}
+            >
+              {verdict.title}
+            </div>
+
+            <div
+              style={{
+                fontSize: "clamp(1.35rem, 2.1vw, 2rem)",
+                lineHeight: 1.12,
+                fontWeight: 950,
+                letterSpacing: "-0.035em",
+                color: VERIFY_BRAND.ink,
+                marginBottom: 8,
+              }}
+            >
+              {verdict.label}
+            </div>
+
+            <div
+              style={{
+                ...VERIFY_TYPO.body,
+                fontSize: 14,
+                maxWidth: 880,
+                color: VERIFY_BRAND.ink,
+              }}
+            >
+              {verdict.reviewerSummary}
+            </div>
+          </div>
+        </div>
+
+        <div
+          style={{
+            display: "grid",
+            gap: 8,
+            minWidth: 180,
+          }}
+        >
+          <div
+            style={{
+              border: `1px solid ${VERIFY_BRAND.line}`,
+              background: "rgba(255,255,255,0.62)",
+              borderRadius: 16,
+              padding: 12,
+            }}
+          >
+            <div style={{ ...VERIFY_TYPO.kicker, fontSize: 9.5, marginBottom: 4 }}>
+              Risk Level
+            </div>
+            <div style={{ ...VERIFY_TYPO.value, fontSize: 18 }}>
+              {verdict.riskLevel}
+            </div>
+          </div>
+
+          <div
+            style={{
+              border: `1px solid ${VERIFY_BRAND.line}`,
+              background: "rgba(255,255,255,0.62)",
+              borderRadius: 16,
+              padding: 12,
+            }}
+          >
+            <div style={{ ...VERIFY_TYPO.kicker, fontSize: 9.5, marginBottom: 4 }}>
+              Confidence
+            </div>
+            <div style={{ ...VERIFY_TYPO.value, fontSize: 18 }}>
+              {verdict.confidenceScore}%
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div
+        style={{
+          border: `1px solid ${VERIFY_BRAND.line}`,
+          background: "rgba(255,255,255,0.52)",
+          borderRadius: 18,
+          padding: 16,
+          display: "grid",
+          gap: 7,
+        }}
+      >
+        <div style={{ ...VERIFY_TYPO.kicker, fontSize: 10.5 }}>
+          Action Required
+        </div>
+        <div style={{ ...VERIFY_TYPO.small, fontSize: 13.5, color: VERIFY_BRAND.ink }}>
+          {verdict.actionRequired}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function LegalWarningBlock({
+  verdict,
+}: {
+  verdict: VerificationVerdict;
+}) {
+  return (
+    <div
+      style={{
+        border: `1px solid ${
+          verdict.tone === "danger"
+            ? "rgba(181,71,56,0.28)"
+            : "rgba(138,106,47,0.30)"
+        }`,
+        borderLeft: `6px solid ${
+          verdict.tone === "danger" ? VERIFY_BRAND.danger : VERIFY_BRAND.bronze
+        }`,
+        background:
+          verdict.tone === "danger"
+            ? "linear-gradient(180deg, rgba(181,71,56,0.10), rgba(255,255,255,0.68))"
+            : "linear-gradient(180deg, rgba(138,106,47,0.11), rgba(255,255,255,0.68))",
+        borderRadius: 20,
+        padding: 18,
+        display: "grid",
+        gap: 8,
+      }}
+    >
+      <div
+        style={{
+          ...VERIFY_TYPO.kicker,
+          fontSize: 10.5,
+          color: verdict.tone === "danger" ? VERIFY_BRAND.danger : VERIFY_BRAND.warning,
+        }}
+      >
+        Legal Review Boundary
+      </div>
+      <div
+        style={{
+          ...VERIFY_TYPO.small,
+          fontSize: 13.5,
+          color: VERIFY_BRAND.ink,
+        }}
+      >
+        {verdict.legalStatement}
+      </div>
+    </div>
+  );
+}
+
+function ReviewerActionsBlock({
+  actions,
+}: {
+  actions: string[];
+}) {
+  return (
+    <div
+      style={{
+        border: `1px solid ${VERIFY_BRAND.line}`,
+        background: "rgba(255,255,255,0.68)",
+        borderRadius: 22,
+        padding: 20,
+        display: "grid",
+        gap: 14,
+        boxShadow: "0 14px 34px rgba(16,32,29,0.06)",
+      }}
+    >
+      <div>
+        <div style={{ ...VERIFY_TYPO.kicker, fontSize: 10.5, marginBottom: 6 }}>
+          Recommended Reviewer Actions
+        </div>
+        <div style={{ ...VERIFY_TYPO.small, fontSize: 13, maxWidth: 860 }}>
+          These actions help a legal, insurance, compliance, or forensic reviewer decide what must be checked before relying on this evidence record.
+        </div>
+      </div>
+
+      <div style={{ display: "grid", gap: 10 }}>
+        {actions.map((action, index) => (
+          <div
+            key={`${index}-${action}`}
+            style={{
+              display: "grid",
+              gridTemplateColumns: "32px minmax(0, 1fr)",
+              gap: 12,
+              alignItems: "start",
+              border: `1px solid ${VERIFY_BRAND.softLine}`,
+              background: "rgba(255,255,255,0.44)",
+              borderRadius: 16,
+              padding: 12,
+            }}
+          >
+            <div
+              style={{
+                width: 26,
+                height: 26,
+                borderRadius: 999,
+                background: VERIFY_BRAND.accent,
+                color: "#fff",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontSize: 12,
+                fontWeight: 950,
+              }}
+            >
+              {index + 1}
+            </div>
+            <div
+              style={{
+                ...VERIFY_TYPO.small,
+                fontSize: 13,
+                color: VERIFY_BRAND.ink,
+              }}
+            >
+              {action}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function MismatchExplanationBlock({
+  explanations,
+}: {
+  explanations: Array<{ title: string; body: string; severity: "danger" | "warning" }>;
+}) {
+  if (explanations.length === 0) return null;
+
+  return (
+    <div
+      style={{
+        border: "1px solid rgba(181,71,56,0.28)",
+        background: "rgba(255,255,255,0.70)",
+        borderRadius: 22,
+        padding: 20,
+        display: "grid",
+        gap: 14,
+        boxShadow: "0 14px 34px rgba(16,32,29,0.06)",
+      }}
+    >
+      <div>
+        <div
+          style={{
+            ...VERIFY_TYPO.kicker,
+            fontSize: 10.5,
+            color: VERIFY_BRAND.danger,
+            marginBottom: 6,
+          }}
+        >
+          Integrity Issue Explanation
+        </div>
+        <div style={{ ...VERIFY_TYPO.small, fontSize: 13 }}>
+          The following issue explanations translate raw technical mismatch signals into reviewer-facing meaning.
+        </div>
+      </div>
+
+      <div style={{ display: "grid", gap: 10 }}>
+        {explanations.map((item) => (
+          <div
+            key={item.title}
+            style={{
+              border: `1px solid ${
+                item.severity === "danger"
+                  ? "rgba(181,71,56,0.28)"
+                  : "rgba(138,106,47,0.30)"
+              }`,
+              borderLeft: `6px solid ${
+                item.severity === "danger"
+                  ? VERIFY_BRAND.danger
+                  : VERIFY_BRAND.warning
+              }`,
+              background:
+                item.severity === "danger"
+                  ? VERIFY_BRAND.dangerSoft
+                  : VERIFY_BRAND.warningSoft,
+              borderRadius: 16,
+              padding: 14,
+              display: "grid",
+              gap: 6,
+            }}
+          >
+            <div
+              style={{
+                ...VERIFY_TYPO.value,
+                fontSize: 14,
+                color:
+                  item.severity === "danger"
+                    ? VERIFY_BRAND.danger
+                    : VERIFY_BRAND.warning,
+              }}
+            >
+              {item.title}
+            </div>
+            <div
+              style={{
+                ...VERIFY_TYPO.small,
+                fontSize: 13,
+                color: VERIFY_BRAND.ink,
+              }}
+            >
+              {item.body}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export default function VerifyPage() {
   useLocale();
   const params = useParams<{ token: string }>();
@@ -2684,34 +3338,99 @@ setPreviewPolicy(content.previewPolicy);
     externalPublicationPresent,
   ]);
 
-const executiveBadges = useMemo(
-  () =>
-    verificationBadges.filter((item) =>
-      [
-        "Overall Integrity",
-        "Fingerprint",
-        "Signature",
-        "Custody Trail",
-        "Timestamp",
-        "OTS",
-        "Immutable Storage",
-        "Storage Protection",
-      ].some((prefix) => item.label.startsWith(prefix))
-    ),
-  [verificationBadges]
-);
+    const verificationVerdict = useMemo(
+    () =>
+      buildVerificationVerdict({
+        overallIntegrity,
+        canonicalHashMatches,
+        signatureValid,
+        custodyChainValid,
+        timestampDigestMatches,
+        otsHashMatches,
+        storageVerified: storageProtection?.verified ?? null,
+        immutableStorage: storageProtection?.immutable ?? null,
+        externalPublicationPresent,
+      }),
+    [
+      overallIntegrity,
+      canonicalHashMatches,
+      signatureValid,
+      custodyChainValid,
+      timestampDigestMatches,
+      otsHashMatches,
+      storageProtection?.verified,
+      storageProtection?.immutable,
+      externalPublicationPresent,
+    ]
+  );
 
-  const legalOutcomeNarrative = useMemo(() => {
-    if (overallIntegrity === true) {
-      return "The recorded integrity state passed the available cryptographic and timestamp-linked verification checks returned in this record. This supports reliance on the recorded system state, while authorship, factual truth, context, and admissibility still require separate legal or expert assessment.";
-    }
+  const reviewerActions = useMemo(
+    () =>
+      buildReviewerActions({
+        verdict: verificationVerdict,
+        canonicalHashMatches,
+        signatureValid,
+        custodyChainValid,
+        timestampDigestMatches,
+        otsHashMatches,
+        storageProtection,
+        externalPublicationPresent,
+      }),
+    [
+      verificationVerdict,
+      canonicalHashMatches,
+      signatureValid,
+      custodyChainValid,
+      timestampDigestMatches,
+      otsHashMatches,
+      storageProtection,
+      externalPublicationPresent,
+    ]
+  );
 
-    if (overallIntegrity === false) {
-      return "At least one returned integrity signal requires caution or further review before this record should be relied upon as a complete integrity verification result.";
-    }
+  const mismatchExplanations = useMemo(
+    () =>
+      buildMismatchExplanations({
+        canonicalHashMatches,
+        signatureValid,
+        custodyChainValid,
+        timestampDigestMatches,
+        otsHashMatches,
+        custodyChainFailureReason,
+      }),
+    [
+      canonicalHashMatches,
+      signatureValid,
+      custodyChainValid,
+      timestampDigestMatches,
+      otsHashMatches,
+      custodyChainFailureReason,
+    ]
+  );
 
-    return "The verification response exposes integrity materials, but the system did not return a final overall integrity conclusion for every technical layer.";
-  }, [overallIntegrity]);
+  const executiveBadges = useMemo(
+    () =>
+      verificationBadges
+        .filter((item) =>
+          [
+            "Fingerprint",
+            "Signature",
+            "Custody Trail",
+            "Timestamp",
+            "OTS",
+            "Immutable Storage",
+            "Storage Protection",
+          ].some((prefix) => item.label.startsWith(prefix))
+        )
+        .filter((item) => {
+          if (verificationVerdict.status === "review_required") {
+            return item.tone === "warning" || item.label.includes("Mismatch");
+          }
+
+          return true;
+        }),
+    [verificationBadges, verificationVerdict.status]
+  );
 
   const forensicCustodyNarrative = useMemo(() => {
     if (forensicTimeline.length > 0) {
@@ -3258,15 +3977,20 @@ const executiveBadges = useMemo(
   const cardTitleSize = "clamp(1.45rem, 2.2vw, 1.95rem)";
 
 const glassCardStyle: CSSProperties = {
-  ...VERIFY_SURFACE.cardStrong,
+  border: `1px solid ${VERIFY_BRAND.line}`,
+  background:
+    "linear-gradient(180deg, rgba(255,255,255,0.94) 0%, rgba(250,251,249,0.90) 100%)",
+  backdropFilter: "blur(10px)",
+  boxShadow: "0 18px 44px rgba(16, 32, 29, 0.075)",
+  borderRadius: 22,
 };
 
 const glassPanelStyle: CSSProperties = {
   border: `1px solid ${VERIFY_BRAND.softLine}`,
   background:
-    "linear-gradient(180deg, rgba(255,255,255,0.9) 0%, rgba(248,250,248,0.84) 100%)",
+    "linear-gradient(180deg, rgba(255,255,255,0.88) 0%, rgba(248,249,247,0.82) 100%)",
   borderRadius: 18,
-  boxShadow: "0 10px 26px rgba(16,32,29,0.045)",
+  boxShadow: "inset 0 1px 0 rgba(255,255,255,0.7)",
 };
 
   const bronzeRailStyle: CSSProperties = {
@@ -3420,7 +4144,7 @@ const glassPanelStyle: CSSProperties = {
                   maxWidth: 820,
                 }}
               >
-                Evidence Integrity Review
+Evidence Verification Decision
               </h1>
               <p
                 className="page-subtitle"
@@ -3434,10 +4158,10 @@ const glassPanelStyle: CSSProperties = {
                   fontWeight: 500,
                 }}
               >
-                Review recorded integrity status, cryptographic materials, immutable
-                storage protection, timestamp evidence, OpenTimestamps proofing,
-                verification history, and custody timeline associated with this
-                evidence record.
+Review the final verification verdict, legal reliance boundary,
+recommended reviewer actions, cryptographic materials, custody chain,
+timestamping state, storage protection, and access activity associated
+with this evidence record.
               </p>
             </div>
 
@@ -3515,8 +4239,16 @@ const glassPanelStyle: CSSProperties = {
             </Card>
           ) : (
             <div style={{ display: "grid", gap: 18 }}>
+              <VerdictStatusCard verdict={verificationVerdict} />
+
+              <LegalWarningBlock verdict={verificationVerdict} />
+
+              <ReviewerActionsBlock actions={reviewerActions} />
+
+              <MismatchExplanationBlock explanations={mismatchExplanations} />
+
               <Card>
-                <div
+                                <div
                   style={{
                     ...glassCardStyle,
                     padding: 24,
@@ -3627,6 +4359,64 @@ const glassPanelStyle: CSSProperties = {
                       <Badge key={item.label} label={item.label} tone={item.tone} />
                     ))}
                   </div>
+                  <div
+  style={{
+    border: `1px solid ${
+      overallIntegrity === true
+        ? "rgba(33,117,93,0.28)"
+        : "rgba(138,106,47,0.32)"
+    }`,
+    borderLeft: `5px solid ${
+      overallIntegrity === true
+        ? VERIFY_BRAND.success
+        : VERIFY_BRAND.warning
+    }`,
+    background:
+      overallIntegrity === true
+        ? VERIFY_BRAND.successSoft
+        : VERIFY_BRAND.warningSoft,
+    borderRadius: 18,
+    padding: 18,
+    display: "grid",
+    gap: 8,
+  }}
+>
+  <div
+    style={{
+      ...VERIFY_TYPO.kicker,
+      fontSize: 10.5,
+      color:
+        overallIntegrity === true
+          ? VERIFY_BRAND.success
+          : VERIFY_BRAND.warning,
+    }}
+  >
+    Reviewer Decision
+  </div>
+
+  <div
+    style={{
+      ...VERIFY_TYPO.value,
+      fontSize: 15,
+      lineHeight: 1.55,
+    }}
+  >
+    {overallIntegrity === true
+      ? "This record can be treated as technically verified for the returned integrity materials."
+      : "This record should be treated as review-required. At least one returned integrity signal prevents a clean verification conclusion."}
+  </div>
+
+  <div
+    style={{
+      ...VERIFY_TYPO.small,
+      fontSize: 13,
+      color: VERIFY_BRAND.ink,
+    }}
+  >
+    This decision is limited to the recorded technical state. It does not prove
+    factual truth, authorship, intent, context, or court admissibility.
+  </div>
+</div>
 
                   <div
                     style={{
@@ -3637,11 +4427,11 @@ const glassPanelStyle: CSSProperties = {
                     }}
                   >
                     {[
-                      {
-                        title: "Legal review outcome",
-                        body: legalOutcomeNarrative,
-                        footer: null,
-                      },
+{
+  title: "Legal review outcome",
+  body: verificationVerdict.legalStatement,
+  footer: verificationVerdict.actionRequired,
+},
                       {
                         title: "Forensic custody posture",
                         body: forensicCustodyNarrative,
@@ -4472,10 +5262,10 @@ const glassPanelStyle: CSSProperties = {
                           maxWidth: 820,
                         }}
                       >
-                        This technical layer keeps record metadata, cryptographic
-                        materials, forensic custody, and access activity separate so
-                        reviewers can distinguish legal posture from raw verification
-                        materials.
+This technical layer separates record identity, cryptographic materials,
+custody-chain continuity, and access activity. It supports forensic and
+legal review, but the final reliance decision should be based on the
+verification verdict and reviewer guidance above.
                       </div>
                     </div>
                   </div>
@@ -4492,7 +5282,7 @@ const glassPanelStyle: CSSProperties = {
                       onClick={() => setActiveTechnicalTab("integrity")}
                     />
                     <TechnicalTabButton
-                      label="Full Custody Chain"
+                      label="Custody Chain"
                       active={activeTechnicalTab === "full-custody"}
                       onClick={() => setActiveTechnicalTab("full-custody")}
                     />
@@ -4797,7 +5587,7 @@ const glassPanelStyle: CSSProperties = {
                   {activeTechnicalTab === "access" ? (
                     <TimelinePanel
                       title="Access Activity"
-                      subtitle="Access events show later viewing, download, and verification interactions. They are informational and should not be conflated with forensic custody events."
+subtitle="Access events show later viewing, download, and verification interactions. They are informational activity records, not proof of evidence authenticity, and must not be used alone to infer integrity or legal admissibility."
                       countTone="neutral"
                       events={accessTimeline}
                       emptyTitle="No access activity was returned"
