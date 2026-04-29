@@ -272,8 +272,8 @@ export type ReportTrustVerdict =
   | "VERIFIED"
   | "PARTIALLY_VERIFIED"
   | "REVIEW_REQUIRED"
-  | "INSUFFICIENT_VERIFICATION";
-
+  | "FAILED";
+  
 export type ReportTrustLevel =
   | "strong"
   | "standard"

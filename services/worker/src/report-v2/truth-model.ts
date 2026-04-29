@@ -766,17 +766,17 @@ function buildVerdict(params: {
   const signatureFailed = params.signature.status === "failed";
   const custodyFailed = params.custody.status === "failed";
 
-  if (coreFailed || signatureFailed || custodyFailed || params.score < 45) {
-    return {
-      verdict: "FAILED",
-      level: "failed",
-      tone: "danger",
-      verdictLabel: "Insufficient verification",
-      shortLabel: "Insufficient",
-      title: "Insufficient verification materials",
-      relianceLevel: "low",
-    };
-  }
+if (coreFailed || signatureFailed || custodyFailed || params.score < 45) {
+  return {
+    verdict: "REVIEW_REQUIRED",
+    level: "failed",
+    tone: "danger",
+    verdictLabel: "Insufficient verification",
+    shortLabel: "Insufficient",
+    title: "Insufficient verification materials",
+    relianceLevel: "low",
+  };
+}
 
   if (params.score >= 90 && params.failedSignals === 0) {
     return {

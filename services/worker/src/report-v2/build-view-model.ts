@@ -1276,10 +1276,13 @@ const verificationPackageIntegrity = {
     ? input.evidence.verificationPackageGeneratedAtUtc ?? null
     : null,
   manifestPresent: verificationPackageAvailable,
+  signedManifestPresent: verificationPackageAvailable,
   manifestDigestPresent: verificationPackageAvailable,
   checksumIndexPresent: verificationPackageAvailable,
   offlineVerifierIncluded: verificationPackageAvailable,
   auditExportIncluded: verificationPackageAvailable,
+  custodyExportIncluded: verificationPackageAvailable,
+  accessExportIncluded: verificationPackageAvailable,
 };
 
   const forensicIntegrityStatement = buildForensicIntegrityStatementModel(
