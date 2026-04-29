@@ -2,7 +2,7 @@
 import { reportAssetDataUrl } from "../asset-data-url.js";
 import { ReportViewModel } from "../types.js";
 import { escapeHtml, safe } from "../formatters.js";
-import { renderInlineQrBlock, renderTrustSignalGrid } from "../ui.js";
+import { renderInlineQrBlock } from "../ui.js";
 const coverBrandIconUrl = reportAssetDataUrl("icon-192.png");
 
 function findRowValue(

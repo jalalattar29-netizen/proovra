@@ -5,6 +5,7 @@ import {
   renderTrustDecisionHero,
   renderTrustSignalGrid,
 } from "../ui.js";
+
 function findRowValue(
   rows: Array<{ label: string; value: string }>,
   label: string,
@@ -32,28 +33,79 @@ function renderExecutiveTable(
   `;
 }
 
-export function renderExecutiveSummarySection(vm: ReportViewModel): string {
-  const trustDecisionBlock = `
-    ${renderTrustDecisionHero(vm.trustDecision)}
-    <section class="executive-trust-reason">
-      <div class="executive-outcome-title">Decision basis</div>
+function renderExecutiveTrustDecision(vm: ReportViewModel): string {
+  return `
+    <section class="executive-trust-decision-panel">
+      ${renderTrustDecisionHero(vm.trustDecision)}
+
+      <div class="executive-trust-reason">
+        <div class="executive-outcome-title">Decision basis</div>
+        <div class="executive-outcome-body">
+          ${escapeHtml(vm.trustDecision.primaryReason)}
+        </div>
+      </div>
+    </section>
+  `;
+}
+
+function renderExecutiveBoundary(vm: ReportViewModel): string {
+  return `
+    <section class="executive-outcome executive-outcome-warning executive-boundary-outcome">
+      <div class="executive-outcome-title">Important boundary</div>
       <div class="executive-outcome-body">
-        ${escapeHtml(vm.trustDecision.primaryReason)}
+        This report verifies recorded integrity and preservation state only. Legal admissibility, factual truth, authorship, context, and evidentiary weight require separate review.
       </div>
       <div class="executive-reviewer-action">
         ${escapeHtml(vm.trustDecision.reviewerAction)}
       </div>
     </section>
   `;
+}
 
+function renderTrustSignalAnalysisPage(vm: ReportViewModel): string {
+  return renderPageSection(
+    "Trust Signal Analysis",
+    `
+      <div class="trust-signal-analysis-page">
+        <section class="trust-signal-analysis-hero">
+          <div class="executive-confirmation-kicker">Trust scoring breakdown</div>
+          <div class="executive-confirmation-title">
+            Signal-level basis for the Trust Decision
+          </div>
+          <div class="executive-confirmation-body">
+            This page explains how the recorded integrity, signature, timestamping, anchoring, storage, custody, identity, and package signals contributed to the reviewer-facing trust score. It is a supporting analysis layer, not a separate legal conclusion.
+          </div>
+        </section>
+
+        ${renderTrustSignalGrid(vm.trustDecision.signals)}
+
+        <section class="trust-signal-analysis-footer">
+          <div class="executive-outcome-title">Reviewer interpretation</div>
+          <div class="executive-outcome-body">
+            ${escapeHtml(vm.trustDecision.primaryReason)}
+          </div>
+          <div class="executive-reviewer-action">
+            ${escapeHtml(vm.trustDecision.reviewerAction)}
+          </div>
+        </section>
+      </div>
+    `,
+    {
+      pageBreakBefore: true,
+      className: "trust-signal-analysis-section",
+    }
+  );
+}
+
+export function renderExecutiveSummarySection(vm: ReportViewModel): string {
   const leadItemType = findRowValue(vm.executiveRows, "Lead Item Type", "");
-const leadItemName = findRowValue(vm.executiveRows, "Lead Review Item", "");
+  const leadItemName = findRowValue(vm.executiveRows, "Lead Review Item", "");
 
-const leadItemValue =
-  leadItemType && leadItemName
-    ? `${leadItemType} • ${leadItemName}`
-    : leadItemName || leadItemType || "Not recorded";
-    
+  const leadItemValue =
+    leadItemType && leadItemName
+      ? `${leadItemType} • ${leadItemName}`
+      : leadItemName || leadItemType || "Not recorded";
+
   const executiveRows = [
     {
       label: "Evidence Type",
@@ -73,12 +125,13 @@ const leadItemValue =
     },
     {
       label: "Captured & Signed",
-      value: [
-        findRowValue(vm.executiveRows, "Captured (UTC)", ""),
-        findRowValue(vm.executiveRows, "Signed (UTC)", ""),
-      ]
-        .filter(Boolean)
-        .join(" / "),
+      value:
+        [
+          findRowValue(vm.executiveRows, "Captured (UTC)", ""),
+          findRowValue(vm.executiveRows, "Signed (UTC)", ""),
+        ]
+          .filter(Boolean)
+          .join(" / ") || "Not recorded",
     },
     {
       label: "Submitted By",
@@ -88,54 +141,49 @@ const leadItemValue =
       label: "Organization / Workspace",
       value: findRowValue(vm.executiveRows, "Organization / Workspace"),
     },
-{
-  label: "Identity Level",
-  value: findRowValue(vm.reviewReadinessRows, "Identity Level"),
-},
-{
-  label: "Lead Item",
-  value: leadItemValue,
-},
-{
-  label: "Trust Decision",
-  value: `${vm.trustDecision.verdictLabel} • ${vm.trustDecision.scoreLabel}`,
-},
-{
-  label: "Reliance Level",
-  value: vm.trustDecision.relianceLevel,
-},
+    {
+      label: "Identity Level",
+      value: findRowValue(vm.reviewReadinessRows, "Identity Level"),
+    },
+    {
+      label: "Lead Item",
+      value: leadItemValue,
+    },
+    {
+      label: "Trust Decision",
+      value: `${vm.trustDecision.verdictLabel} • ${vm.trustDecision.scoreLabel}`,
+    },
+    {
+      label: "Reliance Level",
+      value: vm.trustDecision.relianceLevel,
+    },
   ];
 
-  return renderPageSection(
+  const executivePage = renderPageSection(
     "Executive Summary",
     `
-      <div class="executive-summary-page">
+      <div class="executive-summary-page executive-summary-page-enterprise">
         <section class="executive-confirmation-card tone-success">
           <div class="executive-confirmation-kicker">What this report confirms</div>
           <div class="executive-confirmation-title">
-The evidence package has recorded preservation and integrity materials for review.
+            The evidence package has recorded preservation and integrity materials for review.
           </div>
           <div class="executive-confirmation-body">
-Reviewers can use this report to inspect the evidence package, custody history, storage controls, timestamp status, and technical materials through the appendix and verification page.
+            Reviewers can use this report to inspect the evidence package, custody history, storage controls, timestamp status, trust decision, and technical materials through the appendix and verification page.
           </div>
         </section>
 
-        ${trustDecisionBlock}
+        ${renderExecutiveTrustDecision(vm)}
 
         ${renderExecutiveTable(executiveRows)}
 
         <div class="executive-bottom-outcomes">
-          ${renderTrustSignalGrid(vm.trustDecision.signals)}
-          
-          <section class="executive-outcome executive-outcome-warning executive-boundary-outcome">
-            <div class="executive-outcome-title">Important boundary</div>
-            <div class="executive-outcome-body">
-              This report verifies recorded integrity and preservation state only. Legal admissibility, factual truth, authorship, context, and evidentiary weight require separate review.
-            </div>
-          </section>
+          ${renderExecutiveBoundary(vm)}
         </div>
-              </div>
+      </div>
     `,
-{ className: "executive-summary-section" }
+    { className: "executive-summary-section" }
   );
+
+  return `${executivePage}${renderTrustSignalAnalysisPage(vm)}`;
 }

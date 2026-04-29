@@ -3886,6 +3886,99 @@ body {
   grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
 }
   
+/* ENTERPRISE EXECUTIVE SUMMARY — clean page 1 */
+
+.executive-summary-page-enterprise {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 4mm !important;
+  min-height: 0 !important;
+}
+
+.executive-trust-decision-panel {
+  display: grid !important;
+  gap: 3mm !important;
+  break-inside: avoid !important;
+  page-break-inside: avoid !important;
+}
+
+.executive-trust-reason {
+  border: 1px solid rgba(12, 28, 25, 0.22) !important;
+  border-left: 5px solid rgba(96, 66, 24, 0.95) !important;
+  border-radius: 9px !important;
+  background-color: rgba(255, 255, 255, 0.16) !important;
+  padding: 2.8mm 3.2mm !important;
+  break-inside: avoid !important;
+  page-break-inside: avoid !important;
+}
+
+.executive-reviewer-action {
+  margin-top: 2mm !important;
+  color: ${c.ink} !important;
+  font-size: 8.8px !important;
+  line-height: 1.45 !important;
+  font-weight: 800 !important;
+}
+
+.executive-summary-page-enterprise .executive-summary-table {
+  margin-top: 0 !important;
+  break-inside: avoid !important;
+  page-break-inside: avoid !important;
+}
+
+.executive-summary-page-enterprise .executive-summary-row {
+  min-height: 8.8mm !important;
+  padding: 2.1mm 3mm !important;
+}
+
+.executive-summary-page-enterprise .executive-bottom-outcomes {
+  margin-top: auto !important;
+  margin-bottom: 5mm !important;
+}
+
+/* TRUST SIGNAL ANALYSIS — separate enterprise page */
+
+.trust-signal-analysis-page {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 4mm !important;
+  min-height: 0 !important;
+}
+
+.trust-signal-analysis-hero,
+.trust-signal-analysis-footer {
+  border: 1px solid rgba(12, 28, 25, 0.22) !important;
+  border-left: 5px solid #0b2e27 !important;
+  border-radius: 10px !important;
+  background-color: rgba(255, 255, 255, 0.16) !important;
+  padding: 3mm 3.5mm !important;
+  break-inside: avoid !important;
+  page-break-inside: avoid !important;
+}
+
+.trust-signal-analysis-footer {
+  border-left-color: rgba(96, 66, 24, 0.95) !important;
+  margin-top: auto !important;
+  margin-bottom: 5mm !important;
+}
+
+.trust-signal-analysis-section .trust-signal-grid,
+.trust-signal-analysis-section .trust-signal-card {
+  break-inside: avoid !important;
+  page-break-inside: avoid !important;
+}
+
+.trust-signal-analysis-section .trust-signal-grid {
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  gap: 3.2mm !important;
+}
+
+.cover-trust-score-line {
+  margin-top: 4mm !important;
+  margin-bottom: 6.5mm !important;
+}
+
 @media print {
   html,
   body,
