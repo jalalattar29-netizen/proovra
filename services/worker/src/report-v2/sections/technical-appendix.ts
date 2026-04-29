@@ -132,8 +132,15 @@ function renderVerificationAccess(vm: ReportViewModel): string {
 }
 
 export function renderTechnicalAppendixSection(vm: ReportViewModel): string {
-  const appendixDepth = vm.presentation.decisions.appendixDepth;
-  const compact = appendixDepth === "compact";
+const appendixDepth = vm.presentation.decisions.appendixDepth;
+
+const compact = appendixDepth === "compact";
+const hasSignatureRows =
+  Array.isArray(vm.technicalAppendix.signatureRows) &&
+  vm.technicalAppendix.signatureRows.some((row) =>
+    hasMeaningfulTechnicalValue(row.value)
+  );
+const shouldRenderSignature = hasSignatureRows;
   const anchoringRows = normalizeAnchoringRows(vm);
 
   const filteredIdentityRows = vm.technicalIdentityRows.filter(
@@ -190,10 +197,11 @@ pages.push(
 
 pages.push(
   renderPageSection(
-    compact
-      ? "Technical Appendix — Identity, Provenance & Fingerprint"
-      : "Technical Appendix — Identity, Provenance, Fingerprint & Signature",
-    `
+shouldRenderSignature
+  ? "Technical Appendix — Identity, Provenance, Fingerprint & Signature"
+  : "Technical Appendix — Identity, Provenance & Fingerprint"
+,
+      `
       <div class="technical-appendix-page technical-appendix-identity-fingerprint-signature-page">
         ${renderAppendixSection(
           "Identity & Provenance",
@@ -216,23 +224,23 @@ pages.push(
           { className: "technical-appendix-fingerprint-block" }
         )}
 
-        ${
-          !compact
-            ? renderAppendixSection(
-                "Digital Signature",
-                "Signature and signing-key references used for independent verification of the recorded evidence state.",
-                `
-                  ${renderKeyValueGrid(vm.technicalAppendix.signatureRows)}
-                  ${renderCallout({
-                    title: "Signature material handling",
-                    body: vm.technicalAppendix.signatureReferenceNote,
-                    tone: "neutral",
-                  })}
-                `,
-                { className: "technical-appendix-signature-block" }
-              )
-            : ""
-        }
+${
+  shouldRenderSignature
+    ? renderAppendixSection(
+        "Digital Signature",
+        "Signature and signing-key references used for independent verification of the recorded evidence state.",
+        `
+          ${renderKeyValueGrid(vm.technicalAppendix.signatureRows)}
+          ${renderCallout({
+            title: "Signature material handling",
+            body: vm.technicalAppendix.signatureReferenceNote,
+            tone: "neutral",
+          })}
+        `,
+        { className: "technical-appendix-signature-block" }
+      )
+    : ""
+}
       </div>
     `,
     { pageBreakBefore: true, className: "technical-appendix-section" }

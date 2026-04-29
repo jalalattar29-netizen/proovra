@@ -2707,10 +2707,6 @@ body {
 
 /* COVER PAGE SPACING POLISH */
 
-.cover-status-subtitle {
-  margin-bottom: 5mm !important;
-}
-
 .cover-decision-grid {
   gap: 3.2mm !important;
   margin-top: 0 !important;
@@ -2719,13 +2715,11 @@ body {
 
 .cover-main-grid {
   gap: 4mm !important;
-  margin-bottom: 3.5mm !important;
 }
 
 .cover-meta-grid {
   gap: 3mm !important;
   margin-top: 0 !important;
-  margin-bottom: 3.2mm !important;
 }
 
 .cover-evidence-panel,
@@ -3003,7 +2997,6 @@ body {
 
 .cover-boundary-note.cover-boundary-inline {
   margin-top: auto !important;
-  margin-bottom: 6mm !important;
   border: 1px solid rgba(12, 28, 25, 0.22) !important;
   border-left-width: 5px !important;
   border-left-style: solid !important;
@@ -3974,10 +3967,62 @@ body {
   gap: 3.2mm !important;
 }
 
+/* COVER — trust score balanced spacing without pushing footer down */
 .cover-trust-score-line {
-  margin-top: 4mm !important;
-  margin-bottom: 6.5mm !important;
+  margin-top: 3mm !important;
+  margin-bottom: 3.4mm !important;
 }
+
+.cover-status-subtitle {
+  margin-bottom: 2.6mm !important;
+}
+
+.cover-decision-grid.cover-trust-signal-grid {
+  margin-top: 0 !important;
+  margin-bottom: 3.2mm !important;
+}
+
+.cover-main-grid {
+  margin-bottom: 3mm !important;
+}
+
+.cover-meta-grid {
+  margin-bottom: 2.6mm !important;
+}
+
+.cover-boundary-note.cover-boundary-inline {
+  margin-bottom: 9mm !important;
+}
+
+/* Pin bottom notes above the Chromium footer */
+.trust-signal-analysis-section .report-page,
+.workflow-section .report-page {
+  height: 297mm !important;
+  min-height: 297mm !important;
+  display: flex !important;
+  flex-direction: column !important;
+  overflow: hidden !important;
+}
+
+.trust-signal-analysis-section .section-sheet,
+.trust-signal-analysis-section .section-body,
+.workflow-section .section-sheet,
+.workflow-section .section-body,
+.workflow-page {
+  flex: 1 1 auto !important;
+  display: flex !important;
+  flex-direction: column !important;
+  min-height: 0 !important;
+}
+
+.trust-signal-analysis-section .callout:last-child,
+.workflow-note-block {
+  margin-top: auto !important;
+  margin-bottom: 9mm !important;
+  break-inside: avoid !important;
+  page-break-inside: avoid !important;
+}
+
 
 @media print {
   html,
