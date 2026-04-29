@@ -406,7 +406,12 @@ type OtsDetails = {
   hashMatchesFingerprintHash: boolean | null;
 };
 
-type TechnicalTabId = "record" | "integrity" | "custody" | "access";
+type TechnicalTabId =
+  | "record"
+  | "integrity"
+  | "forensic-custody"
+  | "full-custody"
+  | "access";
 
 function formatDateTime(value?: string | null): string {
   if (!value) return "N/A";
@@ -1643,6 +1648,7 @@ export default function VerifyPage() {
   const [signature, setSignature] = useState<string | null>(null);
   const [forensicTimeline, setForensicTimeline] = useState<TimelineItem[]>([]);
   const [accessTimeline, setAccessTimeline] = useState<TimelineItem[]>([]);
+  const [fullCustodyTimeline, setFullCustodyTimeline] = useState<TimelineItem[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -1725,8 +1731,8 @@ export default function VerifyPage() {
     useState<VerifyContentAccessPolicy>(null);
   const [contentExposureDecision, setContentExposureDecision] =
     useState<VerifyContentExposureDecision>(null);
-  const [activeTechnicalTab, setActiveTechnicalTab] =
-    useState<TechnicalTabId>("record");
+const [activeTechnicalTab, setActiveTechnicalTab] =
+  useState<TechnicalTabId>("record");
 
   const pollingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const hasShownAnchoredToastRef = useRef(false);
@@ -1787,6 +1793,9 @@ function isAccessEventType(eventType?: string | null): boolean {
       eventHash: ev.eventHash ?? null,
       category: ev.category ?? null,
     }));
+
+    setFullCustodyTimeline(rawTimeline);
+
 
     const forensicOnly: TimelineItem[] =
       reviewTrailForensic && reviewTrailForensic.length > 0
@@ -2509,8 +2518,8 @@ const executiveBadges = useMemo(
         "Custody Trail",
         "Timestamp",
         "OTS",
-        "Immutable Storage",
-      ].includes(item.label)
+        "Storage",
+      ].some((keyword) => item.label.includes(keyword))
     ),
   [verificationBadges]
 );
@@ -3235,7 +3244,7 @@ const executiveBadges = useMemo(
                 wordBreak: "break-word",
               }}
             >
-              Token: {shortText(params?.token ?? "", 8, 8)}
+Token: {params?.token ?? ""}
             </div>
           </div>
 
@@ -4025,7 +4034,7 @@ const executiveBadges = useMemo(
                             {selectedEvidenceItem?.sha256 ? (
                               <div style={{ wordBreak: "break-all" }}>
                                 <strong>SHA-256:</strong>{" "}
-                                {shortText(selectedEvidenceItem.sha256, 18, 14)}
+{selectedEvidenceItem.sha256}
                               </div>
                             ) : null}
                             {selectedEvidenceItem?.originalPreservationNote ? (
@@ -4188,27 +4197,6 @@ const executiveBadges = useMemo(
                         }}
                       >
                         <div>
-                          <div
-                            style={{
-                              fontSize: 12,
-                              color: "#667085",
-                              fontWeight: 800,
-                              letterSpacing: "0.08em",
-                              textTransform: "uppercase",
-                              marginBottom: 6,
-                            }}
-                          >
-                            Evidence Inventory
-                          </div>
-                          <div
-                            style={{
-                              fontSize: 18,
-                              fontWeight: 800,
-                              color: "#101828",
-                            }}
-                          >
-                            Review every recorded item in this evidence package
-                          </div>
                         </div>
                         {evidenceContentSummary?.primaryKind ? (
                           <div
@@ -4341,7 +4329,7 @@ const executiveBadges = useMemo(
                                 {item.sha256 ? (
                                   <div style={{ wordBreak: "break-all" }}>
                                     <strong>SHA-256:</strong>{" "}
-                                    {shortText(item.sha256, 14, 12)}
+{item.sha256}
                                   </div>
                                 ) : null}
                               </div>
@@ -4446,11 +4434,16 @@ const executiveBadges = useMemo(
                       active={activeTechnicalTab === "integrity"}
                       onClick={() => setActiveTechnicalTab("integrity")}
                     />
-                    <TechnicalTabButton
-                      label="Forensic Custody"
-                      active={activeTechnicalTab === "custody"}
-                      onClick={() => setActiveTechnicalTab("custody")}
-                    />
+<TechnicalTabButton
+  label="Forensic Custody"
+  active={activeTechnicalTab === "forensic-custody"}
+  onClick={() => setActiveTechnicalTab("forensic-custody")}
+/>
+<TechnicalTabButton
+  label="Full Custody Chain"
+  active={activeTechnicalTab === "full-custody"}
+  onClick={() => setActiveTechnicalTab("full-custody")}
+/>
                     <TechnicalTabButton
                       label="Access Activity"
                       active={activeTechnicalTab === "access"}
@@ -4735,8 +4728,8 @@ label="Canonical Fingerprint Hash"
                     </div>
                   ) : null}
 
-                  {activeTechnicalTab === "custody" ? (
-                    <TimelinePanel
+{activeTechnicalTab === "forensic-custody" ? (
+                      <TimelinePanel
                       title="Forensic Custody"
                       subtitle="Forensic custody events describe integrity-relevant lifecycle activity recorded by the system. They are separated from later access or viewing events so the legal chain narrative does not get mixed with routine access history."
                       countTone="info"
@@ -4750,6 +4743,22 @@ label="Canonical Fingerprint Hash"
                       }}
                     />
                   ) : null}
+
+{activeTechnicalTab === "full-custody" ? (
+  <TimelinePanel
+    title="Full Custody Chain"
+    subtitle="Complete custody chronology including forensic lifecycle events and later access activity. Full previous-event and event hashes are shown so reviewers can inspect chain continuity."
+    countTone="info"
+    events={fullCustodyTimeline}
+    emptyTitle="No custody-chain events were returned"
+    emptyBody="This verification response did not include a complete custody-event chain."
+    accent={{
+      dot: "#12315A",
+      dotBorder: "#D1E9FF",
+      line: "#D0D5DD",
+    }}
+  />
+) : null}
 
                   {activeTechnicalTab === "access" ? (
                     <TimelinePanel
