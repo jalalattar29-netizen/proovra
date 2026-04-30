@@ -2510,17 +2510,19 @@ const verificationPackage = makeTrustSignal({
   const degradedButUsable =
     !criticalFailed && score >= 62 && degradedSignals.length > 0;
 
-  const verdict =
-    criticalFailed || score < 45
-      ? "INSUFFICIENT_VERIFICATION"
-      : score >= 90 && degradedSignals.length === 0
-        ? "STRONGLY_VERIFIED"
-        : score >= 78
-          ? "VERIFIED"
-          : score >= 62
-            ? "PARTIALLY_VERIFIED"
-            : "REVIEW_REQUIRED";
+const coreSignalPassed = core.status === "passed";
 
+const verdict =
+  criticalFailed || score < 45
+    ? "INSUFFICIENT_VERIFICATION"
+    : score >= 90 && degradedSignals.length === 0 && coreSignalPassed
+      ? "STRONGLY_VERIFIED"
+      : score >= 78 && coreSignalPassed
+        ? "VERIFIED"
+        : score >= 62
+          ? "PARTIALLY_VERIFIED"
+          : "REVIEW_REQUIRED";
+          
   const verdictMeta =
     verdict === "STRONGLY_VERIFIED"
       ? {
@@ -2536,14 +2538,17 @@ const verificationPackage = makeTrustSignal({
             tone: "success" as const,
             reliance: "high" as const,
           }
-        : verdict === "PARTIALLY_VERIFIED"
-          ? {
-              label: "Partially Verified",
-              short: "Partial",
-              tone: "warning" as const,
-              reliance: "medium" as const,
-            }
-          : verdict === "REVIEW_REQUIRED"
+: verdict === "PARTIALLY_VERIFIED"
+  ? {
+      label:
+        core.status !== "passed"
+          ? "Verified with limitations"
+          : "Partially Verified",
+      short: core.status !== "passed" ? "Limited" : "Partial",
+      tone: "warning" as const,
+      reliance: "medium" as const,
+    }
+              : verdict === "REVIEW_REQUIRED"
             ? {
                 label: "Review Required",
                 short: "Review",
@@ -3368,6 +3373,44 @@ function MismatchExplanationBlock({
       </div>
     </div>
   );
+}
+
+function normalizeVerificationStatusCode(status?: string | null): string {
+  return String(status ?? "").trim().toUpperCase();
+}
+
+function verificationStatusDisplayLabel(status?: string | null): string {
+  const code = normalizeVerificationStatusCode(status);
+
+  if (code === "RECORDED_INTEGRITY_VERIFIED") {
+    return "Recorded integrity state verified";
+  }
+
+  if (code === "MATERIALS_AVAILABLE") {
+    return "Technical materials available";
+  }
+
+  if (code === "REVIEW_REQUIRED") return "Review required";
+  if (code === "FAILED") return "Verification failed";
+
+  return code
+    ? code
+        .toLowerCase()
+        .split("_")
+        .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+        .join(" ")
+    : "Technical materials available";
+}
+
+function integrityStatusDisplayLabel(decision: VerifyTrustDecision): string {
+  const core = decision.signals.find((signal) => signal.key === "core_integrity");
+
+  if (core?.status === "passed") return "Core Integrity Verified";
+  if (core?.status === "partial") return "Integrity materials recorded";
+  if (core?.status === "failed") return "Integrity review required";
+  if (core?.status === "missing") return "Integrity materials missing";
+
+  return "Integrity materials recorded";
 }
 
 export default function VerifyPage() {
@@ -4380,16 +4423,18 @@ const executiveBadges = useMemo<
           value: overview?.recordStatus ?? statusTone(verifyStatus).label,
           show: true,
         },
-        {
-          label: "Verification Status",
-          value: verificationStatus ?? "N/A",
-          show: Boolean(verificationStatus),
-        },
-        {
-          label: "Integrity Status",
-          value: heroIntegrityHeadline,
-          show: true,
-        },
+{
+  label: "Verification Status",
+  value: verificationStatusDisplayLabel(
+    overview?.verificationStatusCode ?? verificationStatus
+  ),
+  show: true,
+},
+{
+  label: "Integrity Status",
+  value: integrityStatusDisplayLabel(trustDecision),
+  show: true,
+},
         {
   label: "Trust Decision",
   value: `${trustDecision.verdictLabel} • ${trustDecision.scoreLabel}`,
@@ -4578,7 +4623,8 @@ const executiveBadges = useMemo<
       humanSummary,
       verifyStatus,
       verificationStatus,
-      heroIntegrityHeadline,
+overview?.verificationStatusCode,
+trustDecision.signals,
       title,
       evidenceId,
       params?.token,
