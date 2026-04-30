@@ -84,6 +84,12 @@ services:
       S3_PUBLIC_BASE_URL: ${S3_PUBLIC_BASE_URL}
       S3_ALLOW_INSECURE: ${S3_ALLOW_INSECURE}
       WORKER_BUILD_INFO: ${WORKER_BUILD_INFO}
+      PDF_SIGNING_ENABLED: "true"
+      PDF_SIGNING_P12_PATH: /app/services/worker/keys/proovra-signing.p12
+      PACKAGE_SIGNING_PRIVATE_KEY_PATH: /app/services/worker/keys/signing-private.pem
+      PACKAGE_SIGNING_PUBLIC_KEY_PATH: /app/services/worker/keys/signing-public.pem
+      PACKAGE_SIGNING_KEY_ID: ${SIGNING_KEY_ID}
+      PACKAGE_SIGNING_KEY_VERSION: ${SIGNING_KEY_VERSION}
       WORKER_PORT: ${WORKER_PORT}
       OTS_ENABLED: "true"
       OTS_BIN: ots
