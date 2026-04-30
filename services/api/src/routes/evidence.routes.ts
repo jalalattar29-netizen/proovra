@@ -848,11 +848,21 @@ function mapCaptureMethodLabel(
   }
 }
 
-function mapIntegrityHeadline(
-  overallIntegrity: boolean | null | undefined
-): string {
-  if (overallIntegrity === true) return "Recorded Integrity Verified";
-  if (overallIntegrity === false) return "Recorded Integrity Review Required";
+function mapIntegrityHeadline(params: {
+  overallIntegrity: boolean | null | undefined;
+  timestampDigestMatches: boolean | null;
+  timestampStatus: string | null | undefined;
+}): string {
+  if (
+    params.overallIntegrity === true &&
+    params.timestampDigestMatches !== true
+  ) {
+    return "Core Integrity Verified; Trusted Timestamp Unavailable";
+  }
+  if (params.overallIntegrity === true) return "Recorded Integrity Verified";
+  if (params.overallIntegrity === false) {
+    return "Recorded Integrity Review Required";
+  }
   return "Recorded Integrity Materials Available";
 }
 
@@ -1898,6 +1908,7 @@ function buildPublicVerifyOverview(params: {
   itemCount: number;
   storageProtection: StorageProtectionSummary;
   timestampStatus: string | null;
+  timestampDigestMatches: boolean | null;
   otsStatus: string | null;
   overallIntegrity: boolean;
   chainOfCustodyPresent: boolean;
@@ -1920,7 +1931,11 @@ function buildPublicVerifyOverview(params: {
       params.evidence.verificationStatus
     ),
     verificationStatusCode: params.evidence.verificationStatus,
-    integrityHeadline: mapIntegrityHeadline(params.overallIntegrity),
+    integrityHeadline: mapIntegrityHeadline({
+      overallIntegrity: params.overallIntegrity,
+      timestampDigestMatches: params.timestampDigestMatches,
+      timestampStatus: params.timestampStatus,
+    }),
     evidenceTitle: resolveEvidenceTitle(params.evidence.title),
     contentStructure: params.contentSummary?.structure ?? null,
     contentCompositionSummary: buildContentCompositionSummary(
@@ -5252,6 +5267,7 @@ verificationPackageVersion:
       itemCount,
       storageProtection,
       timestampStatus: evidence.tsaStatus,
+      timestampDigestMatches,
       otsStatus: effectiveOtsStatus,
       overallIntegrity,
       chainOfCustodyPresent: forensicCustodyEvents.length > 0,

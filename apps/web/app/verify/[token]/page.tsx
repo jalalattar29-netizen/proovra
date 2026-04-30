@@ -336,7 +336,7 @@ tsaMessageImprint?: string | null;
     custodyChainValid?: boolean;
     custodyChainMode?: string | null;
     custodyChainFailureReason?: string | null;
-    timestampDigestMatches?: boolean;
+    timestampDigestMatches?: boolean | null;
     otsHashMatches?: boolean;
     overallIntegrity?: boolean;
     forensicEventCount?: number;
@@ -349,7 +349,7 @@ tsaMessageImprint?: string | null;
     custodyChainValid?: boolean;
     custodyChainMode?: string | null;
     custodyChainFailureReason?: string | null;
-    timestampDigestMatches?: boolean;
+    timestampDigestMatches?: boolean | null;
     otsHashMatches?: boolean;
     overallIntegrity?: boolean;
     forensicEventCount?: number;
@@ -359,6 +359,14 @@ tsaMessageImprint?: string | null;
   custodyEvents?: VerifyTimelineEvent[] | null;
   forensicCustodyEvents?: VerifyTimelineEvent[] | null;
   accessCustodyEvents?: VerifyTimelineEvent[] | null;
+  custodyDisplayCounts?: {
+    forensicAtReportGeneration?: number | null;
+    currentForensicEvents?: number | null;
+    accessAfterReportGeneration?: number | null;
+    currentAccessEvents?: number | null;
+    totalDisplayedEvents?: number | null;
+    reportGeneratedAtUtc?: string | null;
+  } | null;
 
   overview?: VerifyOverview | null;
   humanSummary?: VerifyHumanSummary | null;
@@ -1242,6 +1250,7 @@ function HashLine({
 function TimelinePanel({
   title,
   subtitle,
+  note,
   countTone,
   events,
   emptyTitle,
@@ -1249,8 +1258,9 @@ function TimelinePanel({
   accent,
   forensicMode = false,
 }: {
-    title: string;
+  title: string;
   subtitle: string;
+  note?: string | null;
   countTone: "info" | "neutral";
   events: TimelineItem[];
   emptyTitle: string;
@@ -1286,6 +1296,18 @@ function TimelinePanel({
           >
             {subtitle}
           </div>
+          {note ? (
+            <div
+              style={{
+                marginTop: 8,
+                ...VERIFY_TYPO.small,
+                maxWidth: 860,
+                color: VERIFY_BRAND.warning,
+              }}
+            >
+              {note}
+            </div>
+          ) : null}
         </div>
 
         <Badge
@@ -1935,11 +1957,17 @@ type VerificationPackageIntegrity = {
 };
 
 function buildVerificationVerdict(input: VerificationSignalInput): VerificationVerdict {
+  const timestampMismatch =
+    isPositiveTsa(input.tsaStatus) && input.timestampDigestMatches === false;
+  const timestampUnavailable =
+    (isFailedTsa(input.tsaStatus) || !String(input.tsaStatus ?? "").trim()) &&
+    input.timestampDigestMatches !== true;
+
   const failedSignals = [
     input.canonicalHashMatches === false,
     input.signatureValid === false,
     input.custodyChainValid === false,
-    input.timestampDigestMatches === false,
+    timestampMismatch,
     input.otsHashMatches === false,
   ].filter(Boolean).length;
 
@@ -1991,7 +2019,11 @@ function buildVerificationVerdict(input: VerificationSignalInput): VerificationV
     };
   }
 
-  if (input.overallIntegrity === true && failedSignals === 0) {
+  if (
+    input.overallIntegrity === true &&
+    failedSignals === 0 &&
+    !timestampUnavailable
+  ) {
     return {
       status: "verified",
       title: "Final Verification Verdict",
@@ -2012,14 +2044,22 @@ function buildVerificationVerdict(input: VerificationSignalInput): VerificationV
     return {
       status: "partial",
       title: "Final Verification Verdict",
-      label: "Partially Verified",
+      label: timestampUnavailable
+        ? "Available Integrity Checks Verified"
+        : "Partially Verified",
       riskLevel: "Medium",
       actionRequired:
-        "Use this record with caution. Review missing, pending, or unavailable verification layers before treating the evidence as fully verified.",
+        timestampUnavailable
+          ? "Core integrity checks are available, but the trusted timestamp provider did not return a usable token. Review timestamp availability before treating the evidence as fully timestamp-verified."
+          : "Use this record with caution. Review missing, pending, or unavailable verification layers before treating the evidence as fully verified.",
       legalStatement:
-        "Some verification materials were returned, but the response did not provide a complete positive integrity conclusion for every technical layer. The record should be treated as partially verified until missing or pending layers are resolved.",
+        timestampUnavailable
+          ? "Available integrity checks support the recorded evidence state, but trusted timestamp verification is unavailable. No timestamp digest match or mismatch can be concluded from this response."
+          : "Some verification materials were returned, but the response did not provide a complete positive integrity conclusion for every technical layer. The record should be treated as partially verified until missing or pending layers are resolved.",
       reviewerSummary:
-        "The record contains supporting verification materials, but the verification result is incomplete or not fully conclusive.",
+        timestampUnavailable
+          ? "The record contains supporting verification materials, but the trusted timestamp layer is unavailable and should not be described as a digest mismatch."
+          : "The record contains supporting verification materials, but the verification result is incomplete or not fully conclusive.",
       confidenceScore,
       tone: "warning",
     };
@@ -2079,12 +2119,12 @@ function isPositiveTsa(status?: string | null): boolean {
 
 function isPendingTsa(status?: string | null): boolean {
   const s = String(status ?? "").toUpperCase();
-  return ["PENDING", "UNAVAILABLE"].includes(s);
+  return s === "PENDING";
 }
 
 function isFailedTsa(status?: string | null): boolean {
   const s = String(status ?? "").toUpperCase();
-  return Boolean(s) && !isPositiveTsa(s) && !isPendingTsa(s);
+  return ["FAILED", "UNAVAILABLE", "ERROR"].includes(s);
 }
 
 function isAnchoredOts(status?: string | null): boolean {
@@ -2209,15 +2249,15 @@ status:
         : timestampUnavailable
           ? "missing"
           : "missing",
-              points:
+    points:
       timestampPassed
         ? 15
         : timestampMismatch
           ? 3
           : isPendingTsa(params.tsaStatus)
             ? 8
-            : isFailedTsa(params.tsaStatus)
-              ? 3
+            : timestampUnavailable
+              ? 0
               : 0,
     maxPoints: 15,
 summary:
@@ -2511,6 +2551,7 @@ function buildReviewerActions(params: {
   otsHashMatches: boolean | null;
   storageProtection: StorageProtection | null;
   externalPublicationPresent: boolean | null;
+  tsaStatus: string | null;
 }): string[] {
   const actions: string[] = [];
 
@@ -2538,9 +2579,18 @@ function buildReviewerActions(params: {
     );
   }
 
-  if (params.timestampDigestMatches === false) {
+  if (
+    isPositiveTsa(params.tsaStatus) &&
+    params.timestampDigestMatches === false
+  ) {
     actions.push(
       "Review the trusted timestamp mismatch. A timestamp digest mismatch means the timestamped digest does not match the recorded timestamp input digest."
+    );
+  }
+
+  if (isFailedTsa(params.tsaStatus)) {
+    actions.push(
+      "Review timestamp availability. The timestamp provider did not return a usable token, so no timestamp digest match or mismatch can be concluded."
     );
   }
 
@@ -2581,6 +2631,7 @@ function buildMismatchExplanations(params: {
   timestampDigestMatches: boolean | null;
   otsHashMatches: boolean | null;
   custodyChainFailureReason: string | null;
+  tsaStatus: string | null;
 }): Array<{ title: string; body: string; severity: "danger" | "warning" }> {
   const explanations: Array<{
     title: string;
@@ -2616,7 +2667,10 @@ function buildMismatchExplanations(params: {
     });
   }
 
-  if (params.timestampDigestMatches === false) {
+  if (
+    isPositiveTsa(params.tsaStatus) &&
+    params.timestampDigestMatches === false
+  ) {
     explanations.push({
       title: "Trusted timestamp digest mismatch",
       severity: "warning",
@@ -3358,6 +3412,8 @@ export default function VerifyPage() {
 
   const [overview, setOverview] = useState<VerifyOverview | null>(null);
   const [humanSummary, setHumanSummary] = useState<VerifyHumanSummary | null>(null);
+  const [custodyDisplayCounts, setCustodyDisplayCounts] =
+    useState<VerifyResponse["custodyDisplayCounts"]>(null);
   const [limitations, setLimitations] = useState<VerifyLimitations | null>(null);
   const [evidenceContentSummary, setEvidenceContentSummary] =
     useState<VerifyEvidenceContentSummary>(null);
@@ -3778,6 +3834,7 @@ setPreviewPolicy(content.previewPolicy);
     setContentExposureDecision(data.contentExposureDecision ?? null);
 setServerTrustDecision(data.trustDecision ?? null);
 setServerVerificationPackageIntegrity(data.verificationPackageIntegrity ?? null);
+    setCustodyDisplayCounts(data.custodyDisplayCounts ?? null);
     return otsDetails;
   };
 
@@ -3927,9 +3984,15 @@ setServerVerificationPackageIntegrity(data.verificationPackageIntegrity ?? null)
       );
     }
 
-    if (timestampDigestMatches === false) {
+    if (isPositiveTsa(tsaStatus) && timestampDigestMatches === false) {
       items.push(
-        "The trusted timestamp digest did not match the recorded file hash."
+        "The trusted timestamp digest did not match the recorded timestamp input digest."
+      );
+    }
+
+    if (isFailedTsa(tsaStatus)) {
+      items.push(
+        "Trusted timestamp unavailable. The timestamp provider did not return a usable token, so no timestamp digest match or mismatch can be concluded."
       );
     }
 
@@ -3947,6 +4010,7 @@ setServerVerificationPackageIntegrity(data.verificationPackageIntegrity ?? null)
     otsHashMatches,
     signatureValid,
     timestampDigestMatches,
+    tsaStatus,
   ]);
 
   const whatChangedSinceCompletion = useMemo(() => {
@@ -3982,16 +4046,26 @@ setServerVerificationPackageIntegrity(data.verificationPackageIntegrity ?? null)
   ]);
 
   const heroIntegrityHeadline = useMemo(() => {
+    const fallbackHeadline =
+      overallIntegrity === true
+        ? timestampDigestMatches === true
+          ? "Recorded Integrity Verified"
+          : "Core Integrity Verified; Trusted Timestamp Unavailable"
+        : overallIntegrity === false
+          ? "Recorded Integrity Review Required"
+          : "Recorded Integrity Materials Available";
+
     return (
       humanSummary?.integrityStatus ??
       overview?.integrityHeadline ??
-      (overallIntegrity === true
-        ? "Recorded Integrity Verified"
-        : overallIntegrity === false
-          ? "Recorded Integrity Review Required"
-          : "Recorded Integrity Materials Available")
+      fallbackHeadline
     );
-  }, [humanSummary?.integrityStatus, overview?.integrityHeadline, overallIntegrity]);
+  }, [
+    humanSummary?.integrityStatus,
+    overview?.integrityHeadline,
+    overallIntegrity,
+    timestampDigestMatches,
+  ]);
 
   const heroWhatIsVerifiedText = useMemo(() => {
     return (
@@ -4009,6 +4083,7 @@ setServerVerificationPackageIntegrity(data.verificationPackageIntegrity ?? null)
         custodyChainValid,
         timestampDigestMatches,
         otsHashMatches,
+        tsaStatus,
         storageVerified: storageProtection?.verified ?? null,
         immutableStorage: storageProtection?.immutable ?? null,
         externalPublicationPresent,
@@ -4020,6 +4095,7 @@ setServerVerificationPackageIntegrity(data.verificationPackageIntegrity ?? null)
       custodyChainValid,
       timestampDigestMatches,
       otsHashMatches,
+      tsaStatus,
       storageProtection?.verified,
       storageProtection?.immutable,
       externalPublicationPresent,
@@ -4037,6 +4113,7 @@ setServerVerificationPackageIntegrity(data.verificationPackageIntegrity ?? null)
         otsHashMatches,
         storageProtection,
         externalPublicationPresent,
+        tsaStatus,
       }),
     [
       verificationVerdict,
@@ -4047,6 +4124,7 @@ setServerVerificationPackageIntegrity(data.verificationPackageIntegrity ?? null)
       otsHashMatches,
       storageProtection,
       externalPublicationPresent,
+      tsaStatus,
     ]
   );
 
@@ -4059,6 +4137,7 @@ setServerVerificationPackageIntegrity(data.verificationPackageIntegrity ?? null)
         timestampDigestMatches,
         otsHashMatches,
         custodyChainFailureReason,
+        tsaStatus,
       }),
     [
       canonicalHashMatches,
@@ -4067,6 +4146,7 @@ setServerVerificationPackageIntegrity(data.verificationPackageIntegrity ?? null)
       timestampDigestMatches,
       otsHashMatches,
       custodyChainFailureReason,
+      tsaStatus,
     ]
   );
 
@@ -4170,6 +4250,19 @@ const executiveBadges = useMemo<
 );
 
   const forensicCustodyNarrative = useMemo(() => {
+    if (custodyDisplayCounts) {
+      return `Forensic custody at report/package generation: ${
+        custodyDisplayCounts.forensicAtReportGeneration ?? forensicTimeline.length
+      }. Current forensic custody events: ${
+        custodyDisplayCounts.currentForensicEvents ?? forensicTimeline.length
+      }. Access activity after report/package generation: ${
+        custodyDisplayCounts.accessAfterReportGeneration ?? accessTimeline.length
+      }. Total displayed events: ${
+        custodyDisplayCounts.totalDisplayedEvents ??
+        forensicTimeline.length + accessTimeline.length
+      }.`;
+    }
+
     if (forensicTimeline.length > 0) {
       return `The record contains ${forensicTimeline.length} forensic custody event${
         forensicTimeline.length === 1 ? "" : "s"
@@ -4177,7 +4270,22 @@ const executiveBadges = useMemo<
     }
 
     return "No forensic custody events were returned in this verification record. This means this response does not provide an internal custody-event chain for the evidence record; it should not be read as proof that no handling occurred outside the recorded system workflow.";
-  }, [forensicTimeline.length]);
+  }, [custodyDisplayCounts, forensicTimeline.length, accessTimeline.length]);
+
+  const custodyTimestampOrderNote = useMemo(() => {
+    for (let index = 1; index < fullCustodyTimeline.length; index += 1) {
+      const previousAt = fullCustodyTimeline[index - 1]?.atUtc;
+      const currentAt = fullCustodyTimeline[index]?.atUtc;
+
+      if (!previousAt || !currentAt) continue;
+
+      if (new Date(currentAt).getTime() < new Date(previousAt).getTime()) {
+        return "Timestamp order note: custody events are displayed in hash-chain sequence order. Some event timestamps may be slightly out of chronological order because system jobs complete asynchronously.";
+      }
+    }
+
+    return null;
+  }, [fullCustodyTimeline]);
 
   const accessActivityNarrative = useMemo(() => {
     if (accessTimeline.length > 0) {
@@ -5638,8 +5746,8 @@ Reviewer Action
                                 ? VERIFY_BRAND.danger
                                 : VERIFY_BRAND.success,
                           }}
-                        >
-                          Mismatch detection
+                      >
+                          Timestamp / mismatch review
                         </div>
                         {mismatchMessages.length > 0 ? (
                           mismatchMessages.map((entry) => (
@@ -6523,10 +6631,11 @@ These materials support the Trust Decision shown above. The Trust Decision is th
                   ) : null}
 
 {activeTechnicalTab === "full-custody" ? (
-    <TimelinePanel
+  <TimelinePanel
     title="Custody Chain"
     forensicMode={forensicMode}
     subtitle="Complete recorded custody chronology, including integrity-relevant lifecycle events and later access activity when returned by the verification response. Event hashes are shown in full for chain-continuity review."
+    note={custodyTimestampOrderNote}
     countTone="info"
     events={fullCustodyTimeline}
     emptyTitle="No custody-chain events were returned"
