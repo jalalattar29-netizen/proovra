@@ -252,24 +252,22 @@ export function buildTechnicalAppendixModel(
     },
   ];
 
-  const isMultipart =
-    contentSummary.structure === "multipart" || contentSummary.itemCount > 1;
+const usesCanonicalTimestampDigest =
+  evidence.tsaInputKind != null && evidence.tsaInputKind !== "FILE_SHA256";
 
-  const usesCanonicalTimestampDigest =
-    evidence.tsaInputKind != null && evidence.tsaInputKind !== "FILE_SHA256";
+const isMultipart =
+  contentSummary.structure === "multipart" || contentSummary.itemCount > 1;
 
-  const recordedDigestLabel =
-    isMultipart && usesCanonicalTimestampDigest
-      ? "Canonical Package Digest"
-      : "Original File SHA-256";
+const recordedDigestLabel =
+  isMultipart
+    ? "Canonical Package Digest (SHA-256)"
+    : "Original File SHA-256";
 
-  const timestampDigestLabel =
-    isMultipart && usesCanonicalTimestampDigest
-      ? "Timestamped Digest / Canonical Package Digest"
-      : evidence.tsaInputKind === "FILE_SHA256"
-        ? "Timestamped Digest / Original File SHA-256"
-        : "Timestamped Digest";
-          
+const timestampDigestLabel =
+  isMultipart && evidence.tsaInputKind && evidence.tsaInputKind !== "FILE_SHA256"
+    ? "Timestamped Digest / Canonical Package Digest"
+    : "Timestamped Digest";
+    
 const fingerprintRows: KeyValueRow[] = [
   {
     label: recordedDigestLabel,
