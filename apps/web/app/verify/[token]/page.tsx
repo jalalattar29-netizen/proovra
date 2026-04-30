@@ -3515,8 +3515,6 @@ export default function VerifyPage() {
     useState<VerifyContentAccessPolicy>(null);
   const [contentExposureDecision, setContentExposureDecision] =
     useState<VerifyContentExposureDecision>(null);
-  const [serverTrustDecision, setServerTrustDecision] =
-  useState<VerifyTrustDecision | null>(null);
   const [serverVerificationPackageIntegrity, setServerVerificationPackageIntegrity] =
   useState<Partial<VerificationPackageIntegrity> | null>(null);
 const [activeTechnicalTab, setActiveTechnicalTab] =
@@ -3922,7 +3920,6 @@ setSelectedEvidenceItemId((current) =>
 setPreviewPolicy(content.previewPolicy);
     setContentAccessPolicy(data.contentAccessPolicy ?? null);
     setContentExposureDecision(data.contentExposureDecision ?? null);
-setServerTrustDecision(data.trustDecision ?? null);
 setServerVerificationPackageIntegrity(data.verificationPackageIntegrity ?? null);
     setCustodyDisplayCounts(data.custodyDisplayCounts ?? null);
     return otsDetails;
