@@ -279,6 +279,7 @@ tsaMessageImprint?: string | null;
   verificationStatus?: string | null;
   captureMethod?: string | null;
   identityLevelSnapshot?: string | null;
+  verificationPackageIntegrity?: Partial<VerificationPackageIntegrity> | null;
   mimeType?: string | null;
 
   reportGeneratedAtUtc?: string | null;
@@ -828,24 +829,33 @@ function buildStoragePresentation(
 }
 
 function buildVerificationPackageIntegrity(params: {
+  serverIntegrity?: Partial<VerificationPackageIntegrity> | null;
   version: string | null;
   generatedAtUtc: string | null;
   forensicEventCount: number;
   accessEventCount: number;
 }): VerificationPackageIntegrity {
-  const available = Boolean(params.version);
+  const server = params.serverIntegrity ?? null;
+  const available = Boolean(server?.available ?? params.version);
 
   return {
     available,
-    version: params.version,
-    generatedAtUtc: params.generatedAtUtc,
-manifestPresent: false,
-signedManifestPresent: false,
-checksumIndexPresent: false,
-offlineVerifierPresent: false,
-auditExportPresent: false,
-    custodyExportPresent: params.forensicEventCount > 0,
-    accessExportPresent: params.accessEventCount > 0,
+    version: server?.version != null ? String(server.version) : params.version,
+    generatedAtUtc: server?.generatedAtUtc ?? params.generatedAtUtc,
+    packageType: server?.packageType ?? null,
+
+    manifestPresent: server?.manifestPresent === true,
+    signedManifestPresent: server?.signedManifestPresent === true,
+    manifestDigestPresent: server?.manifestDigestPresent === true,
+    checksumIndexPresent: server?.checksumIndexPresent === true,
+    offlineVerifierIncluded: server?.offlineVerifierIncluded === true,
+    auditExportIncluded: server?.auditExportIncluded === true,
+
+    custodyExportIncluded:
+      server?.custodyExportIncluded === true || params.forensicEventCount > 0,
+
+    accessExportIncluded:
+      server?.accessExportIncluded === true || params.accessEventCount > 0,
   };
 }
 
@@ -1873,13 +1883,15 @@ type VerificationPackageIntegrity = {
   available: boolean;
   version: string | null;
   generatedAtUtc: string | null;
+  packageType?: string | null;
   manifestPresent: boolean;
   signedManifestPresent: boolean;
+  manifestDigestPresent: boolean;
   checksumIndexPresent: boolean;
-  offlineVerifierPresent: boolean;
-  auditExportPresent: boolean;
-  custodyExportPresent: boolean;
-  accessExportPresent: boolean;
+  offlineVerifierIncluded: boolean;
+  auditExportIncluded: boolean;
+  custodyExportIncluded: boolean;
+  accessExportIncluded: boolean;
 };
 
 function buildVerificationVerdict(input: VerificationSignalInput): VerificationVerdict {
@@ -2811,8 +2823,8 @@ function VerificationPackageIntegrityCard({
     integrity.manifestPresent &&
     integrity.signedManifestPresent &&
     integrity.checksumIndexPresent &&
-    integrity.offlineVerifierPresent &&
-    integrity.auditExportPresent;
+    integrity.offlineVerifierIncluded &&
+    integrity.auditExportIncluded;
 
   const decisionLabel = complete
     ? "Package Integrity Complete"
@@ -2829,7 +2841,7 @@ function VerificationPackageIntegrityCard({
   const decisionText = complete
     ? "Independent offline verification is enabled for this evidence package."
 : integrity.available
-  ? "A verification package version exists. Package-level manifest, checksum, and offline-verifier details are not exposed by this public verification response."
+? "A verification package version exists, but this public response has not confirmed every offline package artifact."
         : "No generated verification package was exposed in this verification response.";
 
   const rows = [
@@ -2850,18 +2862,18 @@ function VerificationPackageIntegrityCard({
     },
     {
       label: "Offline Verifier",
-      value: integrity.offlineVerifierPresent ? "Included" : "Not available",
-      tone: integrity.offlineVerifierPresent ? "success" : "neutral",
+      value: integrity.offlineVerifierIncluded ? "Included" : "Not available",
+      tone: integrity.offlineVerifierIncluded ? "success" : "neutral",
     },
     {
       label: "Custody Export",
-      value: integrity.custodyExportPresent ? "Included" : "Not available",
-      tone: integrity.custodyExportPresent ? "success" : "neutral",
+      value: integrity.custodyExportIncluded ? "Included" : "Not available",
+      tone: integrity.custodyExportIncluded ? "success" : "neutral",
     },
     {
       label: "Access / Audit Export",
-      value: integrity.accessExportPresent || integrity.auditExportPresent ? "Included" : "Not available",
-      tone: integrity.accessExportPresent || integrity.auditExportPresent ? "success" : "neutral",
+      value: integrity.accessExportIncluded || integrity.auditExportIncluded ? "Included" : "Not available",
+      tone: integrity.accessExportIncluded || integrity.auditExportIncluded ? "success" : "neutral",
     },
   ] as const;
 
@@ -3301,6 +3313,8 @@ export default function VerifyPage() {
     useState<VerifyContentExposureDecision>(null);
   const [serverTrustDecision, setServerTrustDecision] =
   useState<VerifyTrustDecision | null>(null);
+  const [serverVerificationPackageIntegrity, setServerVerificationPackageIntegrity] =
+  useState<Partial<VerificationPackageIntegrity> | null>(null);
 const [activeTechnicalTab, setActiveTechnicalTab] =
   useState<TechnicalTabId>("record");
 
@@ -3698,6 +3712,7 @@ setPreviewPolicy(content.previewPolicy);
     setContentAccessPolicy(data.contentAccessPolicy ?? null);
     setContentExposureDecision(data.contentExposureDecision ?? null);
 setServerTrustDecision(data.trustDecision ?? null);
+setServerVerificationPackageIntegrity(data.verificationPackageIntegrity ?? null);
     return otsDetails;
   };
 
@@ -4038,9 +4053,10 @@ setServerTrustDecision(data.trustDecision ?? null);
 
   const trustDecision = serverTrustDecision ?? fallbackTrustDecision;
 
-  const verificationPackageIntegrity = useMemo(
+const verificationPackageIntegrity = useMemo(
   () =>
     buildVerificationPackageIntegrity({
+      serverIntegrity: serverVerificationPackageIntegrity,
       version: verificationPackageVersion,
       generatedAtUtc:
         overview?.verificationPackageGeneratedAtUtc ??
@@ -4050,6 +4066,7 @@ setServerTrustDecision(data.trustDecision ?? null);
       accessEventCount: accessTimeline.length,
     }),
   [
+    serverVerificationPackageIntegrity,
     verificationPackageVersion,
     overview?.verificationPackageGeneratedAtUtc,
     humanSummary?.verificationPackageGeneratedAtUtc,

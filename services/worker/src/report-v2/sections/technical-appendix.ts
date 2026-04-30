@@ -146,12 +146,16 @@ function readPackageIntegrityRows(vm: ReportViewModel): KeyValueRow[] {
       label: "Package Manifest",
       value: integrity.manifestPresent ? "Present" : "Not available",
     },
-    {
-      label: "Manifest Signature",
-      value: integrity.manifestDigestPresent
-        ? "Ed25519 signature present"
-        : "Not available",
-    },
+{
+  label: "Manifest Signature",
+  value: integrity.signedManifestPresent
+    ? "Ed25519 signature present"
+    : "Not available",
+},
+{
+  label: "Manifest Digest",
+  value: integrity.manifestDigestPresent ? "Present" : "Not available",
+},
     {
       label: "Checksum Index",
       value: integrity.checksumIndexPresent ? "Present" : "Not available",
@@ -191,7 +195,6 @@ body:
 }
 
 export function renderTechnicalAppendixSection(vm: ReportViewModel): string {
-const appendixDepth = vm.presentation.decisions.appendixDepth;
 
 const hasSignatureRows =
   Array.isArray(vm.technicalAppendix.signatureRows) &&

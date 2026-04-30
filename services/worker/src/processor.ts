@@ -2102,10 +2102,14 @@ createdAtUtc: evidence.createdAt.toISOString(),
       : null,
 lastVerifiedAtUtc: now.toISOString(),
 lastVerifiedSource: prismaPkg.VerificationSource.REPORT_GENERATED,
-    verificationPackageGeneratedAtUtc:
-      evidence.verificationPackageGeneratedAtUtc?.toISOString() ?? null,
-    verificationPackageVersion: evidence.verificationPackageVersion ?? null,
-    latestReportVersion: evidence.latestReportVersion ?? null,
+verificationPackageGeneratedAtUtc: verificationPackageIncluded
+  ? now.toISOString()
+  : evidence.verificationPackageGeneratedAtUtc?.toISOString() ?? null,
+
+verificationPackageVersion: verificationPackageIncluded
+  ? provisionalVersion
+  : evidence.verificationPackageVersion ?? null,
+      latestReportVersion: evidence.latestReportVersion ?? null,
     reviewReadyAtUtc: evidence.reviewReadyAtUtc?.toISOString() ?? null,
     reviewerSummaryVersion: evidence.reviewerSummaryVersion ?? null,
 

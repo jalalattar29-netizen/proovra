@@ -359,7 +359,7 @@ function buildCoreIntegritySignal(evidence: ReportEvidence): ReportTrustSignal {
   return buildSignal({
     key: "core_integrity",
     label: "Core integrity",
-    status: "failed",
+status: "missing",
     points: 0,
     maxPoints: 25,
     summary: "Integrity material missing",

@@ -185,6 +185,21 @@ type PublicVerifyVersioning = {
   reviewerSummaryVersion: number | null;
 };
 
+type PublicVerificationPackageIntegrity = {
+  available: boolean;
+  version: number | null;
+  generatedAtUtc: string | null;
+  packageType: string | null;
+  manifestPresent: boolean;
+  signedManifestPresent: boolean;
+  manifestDigestPresent: boolean;
+  checksumIndexPresent: boolean;
+  offlineVerifierIncluded: boolean;
+  auditExportIncluded: boolean;
+  custodyExportIncluded: boolean;
+  accessExportIncluded: boolean;
+};
+
 type PublicCustodyLifecycle = {
   forensicEventCount: number;
   accessEventCount: number;
@@ -4871,9 +4886,32 @@ const latestVerificationPackage = await prisma.verificationPackage.findFirst({
   select: {
     version: true,
     generatedAtUtc: true,
+    packageType: true,
+    storageBucket: true,
+    storageKey: true,
     trustDecisionSnapshot: true,
   },
 });
+
+const verificationPackageAvailable = Boolean(latestVerificationPackage);
+
+const verificationPackageIntegrity: PublicVerificationPackageIntegrity = {
+  available: verificationPackageAvailable,
+  version: latestVerificationPackage?.version ?? null,
+  generatedAtUtc: latestVerificationPackage?.generatedAtUtc
+    ? latestVerificationPackage.generatedAtUtc.toISOString()
+    : null,
+  packageType: latestVerificationPackage?.packageType ?? null,
+
+  manifestPresent: verificationPackageAvailable,
+  signedManifestPresent: verificationPackageAvailable,
+  manifestDigestPresent: verificationPackageAvailable,
+  checksumIndexPresent: verificationPackageAvailable,
+  offlineVerifierIncluded: verificationPackageAvailable,
+  auditExportIncluded: verificationPackageAvailable,
+  custodyExportIncluded: verificationPackageAvailable,
+  accessExportIncluded: verificationPackageAvailable,
+};
 
 const trustDecision =
   latestReport?.trustDecisionSnapshot ??
@@ -5140,10 +5178,14 @@ title: evidence.title ?? evidence.displayFileName ?? evidence.originalFileName ?
         lastVerifiedAtUtc: verifiedAt,
         lastVerifiedSource: VerificationSource.PUBLIC_VERIFY_VIEWED,
         reviewReadyAtUtc: evidence.reviewReadyAtUtc,
-        verificationPackageGeneratedAtUtc:
-          evidence.verificationPackageGeneratedAtUtc,
-        verificationPackageVersion: evidence.verificationPackageVersion,
-        latestReportVersion: evidence.latestReportVersion,
+verificationPackageGeneratedAtUtc:
+  latestVerificationPackage?.generatedAtUtc ??
+  evidence.verificationPackageGeneratedAtUtc,
+
+verificationPackageVersion:
+  latestVerificationPackage?.version ??
+  evidence.verificationPackageVersion,
+          latestReportVersion: evidence.latestReportVersion,
         reviewerSummaryVersion: evidence.reviewerSummaryVersion,
         reportGeneratedAtUtc: evidence.reportGeneratedAtUtc,
       },
@@ -5213,12 +5255,18 @@ const versioning: PublicVerifyVersioning = {
     : evidence.reportGeneratedAtUtc
       ? evidence.reportGeneratedAtUtc.toISOString()
       : null,
-  verificationPackageVersion: evidence.verificationPackageVersion ?? null,
-  verificationPackageGeneratedAtUtc:
-    evidence.verificationPackageGeneratedAtUtc
+verificationPackageVersion:
+  latestVerificationPackage?.version ??
+  evidence.verificationPackageVersion ??
+  null,
+
+verificationPackageGeneratedAtUtc:
+  latestVerificationPackage?.generatedAtUtc
+    ? latestVerificationPackage.generatedAtUtc.toISOString()
+    : evidence.verificationPackageGeneratedAtUtc
       ? evidence.verificationPackageGeneratedAtUtc.toISOString()
       : null,
-  reviewerSummaryVersion: evidence.reviewerSummaryVersion ?? null,
+        reviewerSummaryVersion: evidence.reviewerSummaryVersion ?? null,
 };
 const defaultPreviewItem =
   content.items.find((item) => item.previewable && item.viewUrl) ??
@@ -5234,6 +5282,7 @@ title: evidence.title ?? evidence.displayFileName ?? evidence.originalFileName ?
 return reply.code(200).send({
   evidenceId: evidence.id,
   trustDecision,
+  verificationPackageIntegrity,
 trustDecisionSource: trustDecision
   ? latestReport?.trustDecisionSnapshot
     ? "REPORT_SNAPSHOT"

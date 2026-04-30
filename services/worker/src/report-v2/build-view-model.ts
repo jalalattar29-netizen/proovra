@@ -1275,14 +1275,16 @@ const verificationPackageIntegrity = {
   generatedAtUtc: verificationPackageAvailable
     ? input.evidence.verificationPackageGeneratedAtUtc ?? null
     : null,
-  manifestPresent: verificationPackageAvailable,
-  signedManifestPresent: verificationPackageAvailable,
-  manifestDigestPresent: verificationPackageAvailable,
-  checksumIndexPresent: verificationPackageAvailable,
-  offlineVerifierIncluded: verificationPackageAvailable,
-  auditExportIncluded: verificationPackageAvailable,
-  custodyExportIncluded: verificationPackageAvailable,
-  accessExportIncluded: verificationPackageAvailable,
+
+  manifestPresent: false,
+  signedManifestPresent: false,
+  manifestDigestPresent: false,
+  checksumIndexPresent: false,
+  offlineVerifierIncluded: false,
+  auditExportIncluded: false,
+
+  custodyExportIncluded: custody.forensic.length > 0,
+  accessExportIncluded: custody.access.length > 0,
 };
 
   const forensicIntegrityStatement = buildForensicIntegrityStatementModel(
