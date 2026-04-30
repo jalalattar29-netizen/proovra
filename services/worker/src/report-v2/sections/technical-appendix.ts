@@ -230,29 +230,6 @@ const shouldRenderSignature = hasSignatureRows;
 
 pages.push(
   renderPageSection(
-"Technical Appendix — Verification Endpoint",
-    `
-      <div class="technical-appendix-page technical-appendix-court-page">
-        <section class="court-appendix-hero">
-          <div class="court-appendix-kicker">Forensic Technical Appendix</div>
-          <div class="court-appendix-title">Independent Verification Materials</div>
-          <div class="court-appendix-copy">
-            This appendix preserves the technical references required for independent review of the recorded evidence state. It separates cryptographic identity, timestamping, anchoring, custody linkage, and reviewer access material from legal interpretation.
-          </div>
-        </section>
-
-        ${renderVerificationAccess(vm)}
-        ${renderTechnicalStatusCards(vm)}
-        ${renderVerificationPackageIntegrity(vm)}
-
-      </div>
-    `,
-    { pageBreakBefore: true, className: "technical-appendix-section" }
-  )
-);
-
-pages.push(
-  renderPageSection(
 shouldRenderSignature
   ? "Technical Appendix — Identity, Provenance, Fingerprint & Signature"
   : "Technical Appendix — Identity, Provenance & Fingerprint"

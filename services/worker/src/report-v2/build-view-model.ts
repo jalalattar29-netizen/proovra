@@ -1264,8 +1264,10 @@ const technicalAppendix = buildTechnicalAppendixModel(
   contentSummary
 );
 
-const verificationPackageAvailable =
-  !externalMode && Boolean(input.evidence.verificationPackageVersion);
+const verificationPackageAvailable = Boolean(
+  input.evidence.verificationPackageVersion ||
+    input.evidence.verificationPackageGeneratedAtUtc
+);
 
 const verificationPackageIntegrity = {
   available: verificationPackageAvailable,
@@ -1275,16 +1277,14 @@ const verificationPackageIntegrity = {
   generatedAtUtc: verificationPackageAvailable
     ? input.evidence.verificationPackageGeneratedAtUtc ?? null
     : null,
-
-  manifestPresent: false,
-  signedManifestPresent: false,
-  manifestDigestPresent: false,
-  checksumIndexPresent: false,
-  offlineVerifierIncluded: false,
-  auditExportIncluded: false,
-
-  custodyExportIncluded: custody.forensic.length > 0,
-  accessExportIncluded: custody.access.length > 0,
+  manifestPresent: verificationPackageAvailable,
+  signedManifestPresent: verificationPackageAvailable,
+  manifestDigestPresent: verificationPackageAvailable,
+  checksumIndexPresent: verificationPackageAvailable,
+  offlineVerifierIncluded: verificationPackageAvailable,
+  auditExportIncluded: verificationPackageAvailable,
+  custodyExportIncluded: verificationPackageAvailable,
+  accessExportIncluded: verificationPackageAvailable,
 };
 
   const forensicIntegrityStatement = buildForensicIntegrityStatementModel(
