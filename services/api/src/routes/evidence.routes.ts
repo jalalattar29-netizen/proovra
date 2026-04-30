@@ -173,7 +173,7 @@ type PublicVerifyIntegrityProof = {
   custodyChainValid: boolean;
   custodyChainMode: string | null;
   custodyChainFailureReason: string | null;
-  timestampDigestMatches: boolean;
+  timestampDigestMatches: boolean | null;
   otsHashMatches: boolean;
 };
 
@@ -861,18 +861,25 @@ function mapIntegritySummaryText(params: {
   canonicalHashMatches: boolean;
   signatureValid: boolean;
   custodyChainValid: boolean;
-  timestampDigestMatches: boolean;
+  timestampDigestMatches: boolean | null;
   otsHashMatches: boolean;
 }) {
-  if (
-    params.overallIntegrity === true &&
+  const coreChecksPassed =
     params.canonicalHashMatches &&
     params.signatureValid &&
     params.custodyChainValid &&
-    params.timestampDigestMatches &&
-    params.otsHashMatches
-  ) {
-    return "Recorded integrity checks passed for the available fingerprint, signature, custody chain, timestamp linkage, and OpenTimestamps linkage.";
+    params.otsHashMatches;
+
+  if (coreChecksPassed && params.timestampDigestMatches === true) {
+    return "Recorded integrity checks passed for the available fingerprint, signature, custody chain, trusted timestamp linkage, and OpenTimestamps linkage.";
+  }
+
+  if (coreChecksPassed && params.timestampDigestMatches === null) {
+    return "Available integrity checks passed for the fingerprint, signature, custody chain, and OpenTimestamps linkage. Trusted timestamp verification is unavailable, so no timestamp digest match or mismatch can be concluded.";
+  }
+
+  if (params.timestampDigestMatches === false) {
+    return "A trusted timestamp digest mismatch was detected. Manual review is recommended before relying on the timestamp layer.";
   }
 
   if (params.overallIntegrity === false) {
@@ -1994,7 +2001,7 @@ function buildPublicVerifyHumanSummary(params: {
   canonicalHashMatches: boolean;
   signatureValid: boolean;
   custodyChainValid: boolean;
-  timestampDigestMatches: boolean;
+  timestampDigestMatches: boolean | null;
   otsHashMatches: boolean;
   overallIntegrity: boolean;
 }) {
@@ -5052,17 +5059,26 @@ const normalizedTsaStatus = String(evidence.tsaStatus ?? "")
 const timestampInputDigestHex =
   evidence.tsaInputDigestHex ?? evidence.fileSha256;
 
-const timestampDigestMatches =
+const timestampStatusIsPositive =
   normalizedTsaStatus === "STAMPED" ||
   normalizedTsaStatus === "GRANTED" ||
   normalizedTsaStatus === "VERIFIED" ||
-  normalizedTsaStatus === "SUCCEEDED"
-    ? (evidence.tsaMessageImprint ?? "").toLowerCase() ===
-      (timestampInputDigestHex ?? "").toLowerCase()
-    : normalizedTsaStatus === "FAILED"
-      ? false
-      : true;
-      
+  normalizedTsaStatus === "SUCCEEDED";
+
+const timestampStatusIsUnavailable =
+  normalizedTsaStatus === "FAILED" ||
+  normalizedTsaStatus === "UNAVAILABLE" ||
+  normalizedTsaStatus === "ERROR" ||
+  normalizedTsaStatus.length === 0;
+
+const timestampDigestMatches: boolean | null = timestampStatusIsPositive
+  ? Boolean(evidence.tsaMessageImprint && timestampInputDigestHex) &&
+    String(evidence.tsaMessageImprint).toLowerCase() ===
+      timestampInputDigestHex.toLowerCase()
+  : timestampStatusIsUnavailable
+    ? null
+    : null;
+
 const effectiveOtsStatus = resolveEffectiveOtsStatus({
   status: evidence.otsStatus,
   anchoredAtUtc: evidence.otsAnchoredAtUtc,
@@ -5104,12 +5120,14 @@ const effectiveOtsStatus = resolveEffectiveOtsStatus({
 
     const anchor = await getAnchorStatus(id);
 
-    const overallIntegrity =
-      canonicalHashMatches &&
-      signatureValid &&
-      custodyChain.valid &&
-      timestampDigestMatches &&
-      otsHashMatches;
+const timestampLayerBlocksIntegrity = timestampDigestMatches === false;
+
+const overallIntegrity =
+  canonicalHashMatches &&
+  signatureValid &&
+  custodyChain.valid &&
+  !timestampLayerBlocksIntegrity &&
+  otsHashMatches;
 
     const verifiedAt = new Date();
     const effectiveVerificationStatus = overallIntegrity
@@ -5154,7 +5172,10 @@ await prisma.$transaction([
         custodyChainValid: custodyChain.valid,
         custodyChainMode: custodyChain.mode,
         custodyChainFailureReason: custodyChain.reason,
-        timestampDigestMatches,
+timestampDigestMatches,
+timestampStatus: evidence.tsaStatus,
+timestampAvailable: timestampStatusIsPositive,
+timestampDigestCheckConclusive: timestampDigestMatches !== null,
         otsHashMatches,
         verificationStatus: effectiveVerificationStatus,
         accessPolicyMode: publicVerifyAccessPolicy.mode,
@@ -5272,6 +5293,29 @@ const custodyLifecycle = buildPublicCustodyLifecycle({
   accessEvents: mappedAccessEvents,
 });
 
+const reportGeneratedAtUtc =
+  latestReport?.generatedAtUtc ?? evidence.reportGeneratedAtUtc ?? null;
+
+const forensicEventsAtReportGeneration = reportGeneratedAtUtc
+  ? forensicCustodyEvents.filter((ev) => ev.atUtc <= reportGeneratedAtUtc)
+  : forensicCustodyEvents;
+
+const accessEventsAfterReportGeneration = reportGeneratedAtUtc
+  ? accessCustodyEvents.filter((ev) => ev.atUtc > reportGeneratedAtUtc)
+  : accessCustodyEvents;
+
+const custodyDisplayCounts = {
+  forensicAtReportGeneration: forensicEventsAtReportGeneration.length,
+  currentForensicEvents: forensicCustodyEvents.length,
+  accessAfterReportGeneration: accessEventsAfterReportGeneration.length,
+  currentAccessEvents: accessCustodyEvents.length,
+  totalDisplayedEvents:
+    forensicCustodyEvents.length + accessCustodyEvents.length,
+  reportGeneratedAtUtc: reportGeneratedAtUtc
+    ? reportGeneratedAtUtc.toISOString()
+    : null,
+};
+
 const technicalMaterials = buildTechnicalMaterials({
   evidence: {
     fileSha256: evidence.fileSha256,
@@ -5363,6 +5407,7 @@ defaultPreviewItemId: defaultPreviewItem?.id ?? null,
   },
   integrityProof,
   custodyLifecycle,
+  custodyDisplayCounts,
   legalAssessment: {
     limitations,
     reviewGuidance,
@@ -5385,10 +5430,11 @@ messageImprint: evidence.tsaMessageImprint,
       failureReason: evidence.tsaFailureReason,
 digestMatchesTimestampInput: timestampDigestMatches,
 digestMatchesFileHash:
-  evidence.fileSha256
-    ? String(evidence.tsaMessageImprint ?? "").toLowerCase() ===
-      evidence.fileSha256.toLowerCase()
+  timestampStatusIsPositive && evidence.fileSha256 && evidence.tsaMessageImprint
+    ? evidence.tsaMessageImprint.toLowerCase() === evidence.fileSha256.toLowerCase()
     : null,
+digestCheckConclusive: timestampDigestMatches !== null,
+timestampAvailable: timestampStatusIsPositive,
 timestampedDigestLabel:
   evidence.tsaInputKind && evidence.tsaInputKind !== "FILE_SHA256"
     ? content.summary.structure === "multipart"

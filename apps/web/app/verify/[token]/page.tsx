@@ -155,6 +155,8 @@ messageImprint?: string | null;
   digestMatchesFileHash?: boolean | null;
   timestampedDigestLabel?: string | null;
   timestampedDigestNote?: string | null;
+  digestCheckConclusive?: boolean | null;
+timestampAvailable?: boolean | null;
 } | null;
 
 type VerifyOts = {
@@ -761,6 +763,14 @@ messageImprint: firstNonEmpty(
           : null,
     url: firstNonEmpty(tsa?.url, data.tsaUrl),
     serialNumber: firstNonEmpty(tsa?.serialNumber, data.tsaSerialNumber),
+    digestCheckConclusive:
+  typeof tsa?.digestCheckConclusive === "boolean"
+    ? tsa.digestCheckConclusive
+    : null,
+timestampAvailable:
+  typeof tsa?.timestampAvailable === "boolean"
+    ? tsa.timestampAvailable
+    : null,
     hashAlgorithm: firstNonEmpty(tsa?.hashAlgorithm, data.tsaHashAlgorithm),
     failureReason: firstNonEmpty(tsa?.failureReason, data.tsaFailureReason),
     digestMatchesTimestampInput:
@@ -1903,6 +1913,7 @@ type VerificationSignalInput = {
   custodyChainValid: boolean | null;
   timestampDigestMatches: boolean | null;
   otsHashMatches: boolean | null;
+    tsaStatus?: string | null;
   storageVerified: boolean | null;
   immutableStorage: boolean | null;
   externalPublicationPresent: boolean | null;
@@ -2177,27 +2188,31 @@ function buildVerifyTrustDecision(params: {
             : "No usable signature material was returned.",
   });
 
-  const timestampPassed =
-    isPositiveTsa(params.tsaStatus) &&
-    params.timestampDigestMatches !== false;
+const timestampPositive = isPositiveTsa(params.tsaStatus);
+const timestampUnavailable = isFailedTsa(params.tsaStatus);
+const timestampMismatch =
+  timestampPositive && params.timestampDigestMatches === false;
+
+const timestampPassed =
+  timestampPositive && params.timestampDigestMatches === true;
 
   const timestamp = makeTrustSignal({
     key: "trusted_timestamp",
     label: "Trusted timestamp",
-    status:
-      timestampPassed
-        ? "passed"
-        : params.timestampDigestMatches === false
-          ? "failed"
-          : isPendingTsa(params.tsaStatus)
-            ? "pending"
-            : isFailedTsa(params.tsaStatus)
-              ? "failed"
-              : "missing",
-    points:
+status:
+  timestampPassed
+    ? "passed"
+    : timestampMismatch
+      ? "failed"
+      : isPendingTsa(params.tsaStatus)
+        ? "pending"
+        : timestampUnavailable
+          ? "missing"
+          : "missing",
+              points:
       timestampPassed
         ? 15
-        : params.timestampDigestMatches === false
+        : timestampMismatch
           ? 3
           : isPendingTsa(params.tsaStatus)
             ? 8
@@ -2205,27 +2220,27 @@ function buildVerifyTrustDecision(params: {
               ? 3
               : 0,
     maxPoints: 15,
-    summary:
-      timestampPassed
-        ? "Trusted timestamp recorded"
-        : params.timestampDigestMatches === false
-          ? "Timestamp digest mismatch"
-          : isPendingTsa(params.tsaStatus)
-            ? "Timestamp pending"
-            : isFailedTsa(params.tsaStatus)
-              ? "Timestamp unavailable"
-              : "Timestamp not recorded",
-    detail:
-      timestampPassed
-        ? "RFC 3161 timestamping supports review of when the recorded evidence state existed."
-        : params.timestampDigestMatches === false
-          ? "The timestamp digest did not match the recorded timestamp input digest. This timestamp layer requires manual review."
-          : isPendingTsa(params.tsaStatus)
-            ? "The timestamp layer is not finalized yet. Other integrity layers can still be reviewed."
-            : isFailedTsa(params.tsaStatus)
-              ? "The timestamp provider did not return a usable timestamp for this record."
-              : "No trusted timestamp material was returned.",
-  });
+summary:
+  timestampPassed
+    ? "Trusted timestamp recorded"
+    : timestampMismatch
+      ? "Timestamp digest mismatch"
+      : isPendingTsa(params.tsaStatus)
+        ? "Timestamp pending"
+        : timestampUnavailable
+          ? "Timestamp unavailable"
+          : "Timestamp not recorded",
+detail:
+  timestampPassed
+    ? "RFC 3161 timestamping supports review of when the recorded evidence state existed."
+    : timestampMismatch
+      ? "The timestamp digest did not match the recorded timestamp input digest. This timestamp layer requires manual review."
+      : timestampUnavailable
+        ? "The timestamp provider did not return a usable token. No timestamp digest match or mismatch can be concluded."
+        : isPendingTsa(params.tsaStatus)
+          ? "The timestamp layer is not finalized yet. Other integrity layers can still be reviewed."
+          : "No trusted timestamp material was returned.",
+          });
 
   const anchoringPassed = params.externalPublicationPresent === true;
   const anchorMaterialIncluded = isAnchoredOts(params.otsStatus);

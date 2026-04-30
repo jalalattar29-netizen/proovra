@@ -160,9 +160,16 @@ export function buildTechnicalIdentityRows(
   ];
 }
 
-export function buildTimestampRows(evidence: ReportEvidence): KeyValueRow[] {
+export function buildTimestampRows(
+  evidence: ReportEvidence,
+  contentSummary?: ReportEvidenceContentSummary
+): KeyValueRow[] {
+  const isMultipart =
+    contentSummary?.structure === "multipart" ||
+    Number(contentSummary?.itemCount ?? 0) > 1;
+
   const timestampDigestLabel =
-    evidence.tsaInputKind && evidence.tsaInputKind !== "FILE_SHA256"
+    isMultipart && evidence.tsaInputKind && evidence.tsaInputKind !== "FILE_SHA256"
       ? "Timestamped Digest / Canonical Package Digest"
       : "Timestamped Digest";
 
@@ -248,13 +255,16 @@ export function buildTechnicalAppendixModel(
 const usesCanonicalTimestampDigest =
   evidence.tsaInputKind != null && evidence.tsaInputKind !== "FILE_SHA256";
 
+const isMultipart =
+  contentSummary.structure === "multipart" || contentSummary.itemCount > 1;
+
 const recordedDigestLabel =
-  contentSummary.structure === "multipart" || contentSummary.itemCount > 1
+  isMultipart
     ? "Canonical Package Digest (SHA-256)"
     : "Original File SHA-256";
 
 const timestampDigestLabel =
-  contentSummary.structure === "multipart" || contentSummary.itemCount > 1
+  isMultipart && evidence.tsaInputKind && evidence.tsaInputKind !== "FILE_SHA256"
     ? "Timestamped Digest / Canonical Package Digest"
     : "Timestamped Digest";
     
@@ -284,7 +294,7 @@ const fingerprintRows: KeyValueRow[] = [
     ),
     signatureRows,
     fingerprintRows,
-    timestampRows: buildTimestampRows(evidence),
+    timestampRows: buildTimestampRows(evidence, contentSummary),
     anchoringRows: buildOtsRows(evidence).concat(buildAnchorRows(anchorSummary)),
     timestampStatusLabel: mapTimestampStatusPublicLabel(evidence.tsaStatus),
     timestampStatusTone: mapTimestampTone(evidence.tsaStatus),
