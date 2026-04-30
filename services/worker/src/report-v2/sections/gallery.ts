@@ -167,9 +167,9 @@ function renderPrimaryEvidenceCard(item: PresentationEvidenceItem): string {
         ${renderGalleryMetaRow("Size", safe(asset.displaySizeLabel, "N/A"))}
         ${renderGalleryMetaRow(
           "Access",
-          asset.downloadable
-            ? "Downloadable under policy"
-            : "Restricted under policy"
+asset.downloadable
+  ? "Original included in verification package; public download allowed under policy"
+  : "Original included in verification package; public preview/download may be restricted"
         )}
 ${renderGalleryMetaRow("Lead Item SHA-256", asset.sha256 ?? "Not recorded")}
 ${renderDuplicateDigestBadge(item)}

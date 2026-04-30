@@ -21,7 +21,7 @@ function renderCustodyStats(vm: ReportViewModel): string {
     <div class="custody-stats-grid">
       <div class="custody-stat-card">
         <div class="custody-stat-label">Forensic Events</div>
-        <div class="custody-stat-value">${vm.forensicRows.length}</div>
+<div class="custody-stat-value">${escapeHtml(vm.custodyCounts.label)}</div>
       </div>
       <div class="custody-stat-card">
         <div class="custody-stat-label">Hash Chain</div>
@@ -31,7 +31,9 @@ function renderCustodyStats(vm: ReportViewModel): string {
       </div>
 <div class="custody-stat-card">
   <div class="custody-stat-label">Access Activity</div>
-  <div class="custody-stat-value">Not in PDF</div>
+<div class="custody-stat-value">${escapeHtml(
+  `${vm.custodyCounts.accessEvents} access events`
+)}</div>
 </div>
     </div>
   `;

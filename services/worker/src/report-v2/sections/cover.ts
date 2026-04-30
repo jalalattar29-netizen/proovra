@@ -126,10 +126,7 @@ export function renderCoverSection(vm: ReportViewModel): string {
         ? "badge-danger"
         : "badge-warning";
 
-const integrityBadgeText =
-  decision.verdict === "VERIFIED" && decision.degradedButUsable
-    ? "Verified (with limitations)"
-    : decision.shortLabel;
+const integrityBadgeText = decision.shortLabel;
 
   const primaryHash =
     vm.primaryContentItem?.sha256 ||
@@ -211,11 +208,7 @@ const integrityBadgeText =
 
             <div class="cover-status-stamp ${integrityBadgeClass}">
               <span>${decision.tone === "success" ? "✓" : decision.tone === "danger" ? "!" : "!"}</span>
-<strong>${escapeHtml(
-  decision.verdict === "VERIFIED" && decision.degradedButUsable
-    ? "Verified (with limitations)"
-    : decision.verdictLabel
-)}</strong>
+<strong>${escapeHtml(decision.verdictLabel)}</strong>
             </div>
 
             <div class="cover-status-subtitle">
@@ -311,11 +304,7 @@ tone:
                         <div class="cover-meta-card">
               <div class="cover-meta-label">Trust Decision</div>
               <div class="cover-meta-value">${escapeHtml(
-`${
-  vm.trustDecision.verdict === "VERIFIED" && vm.trustDecision.degradedButUsable
-    ? "Verified (with limitations)"
-    : vm.trustDecision.verdictLabel
-} (${vm.trustDecision.scoreLabel})`
+`${vm.trustDecision.verdictLabel} (${vm.trustDecision.scoreLabel})`
               )}</div>
             </div>
 

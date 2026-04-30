@@ -1438,6 +1438,31 @@ function deriveCaptureMethod(params: {
   return prismaPkg.CaptureMethod.UPLOADED_FILE;
 }
 
+function deriveReportCaptureMethod(params: {
+  itemCount: number;
+  mimeType: string | null;
+  existingCaptureMethod: prismaPkg.CaptureMethod | null;
+}): prismaPkg.CaptureMethod {
+  if (params.itemCount > 1) {
+    return prismaPkg.CaptureMethod.MULTIPART_PACKAGE;
+  }
+
+  if (
+    params.existingCaptureMethod &&
+    params.existingCaptureMethod !== prismaPkg.CaptureMethod.MULTIPART_PACKAGE
+  ) {
+    return params.existingCaptureMethod;
+  }
+
+  const mime = String(params.mimeType ?? "").toLowerCase();
+
+  if (mime === "application/pdf" || mime.startsWith("text/")) {
+    return prismaPkg.CaptureMethod.IMPORTED_DOCUMENT;
+  }
+
+  return prismaPkg.CaptureMethod.UPLOADED_FILE;
+}
+
 const { EvidenceStatus } = prismaPkg;
 
 async function prepareReportArtifacts(
@@ -2017,11 +2042,11 @@ if (
     verificationStatus:
       evidence.verificationStatus ??
       prismaPkg.VerificationStatus.MATERIALS_AVAILABLE,
-    captureMethod: deriveCaptureMethod({
-      multipart: parts.length > 0,
-      mimeType: evidence.mimeType,
-      existingCaptureMethod: evidence.captureMethod ?? null,
-    }),
+captureMethod: deriveReportCaptureMethod({
+  itemCount: contentArtifacts.summary.itemCount,
+  mimeType: contentArtifacts.summary.primaryMimeType ?? evidence.mimeType,
+  existingCaptureMethod: evidence.captureMethod ?? null,
+}),
     identityLevelSnapshot: identityLevel,
     submittedByEmail: ownerUser.email ?? null,
     submittedByAuthProvider: ownerUser.provider ?? null,

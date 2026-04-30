@@ -287,13 +287,16 @@ ${
         <div class="technical-appendix-page technical-appendix-timestamp-anchor-page">
           ${renderAppendixSection(
             "Trusted Timestamp",
-            "RFC 3161 timestamp metadata and message-imprint reference recorded for the evidence digest.",
+"RFC 3161 timestamp metadata and timestamped digest reference. This digest may represent canonical package/fingerprint material rather than the original file SHA-256.",
             `
               ${renderKeyValueGrid(vm.technicalAppendix.timestampRows)}
               ${
                 tsaMessageImprint
-                  ? renderMonoBlock("TSA Message Imprint", tsaMessageImprint)
-                  : ""
+? renderMonoBlock(
+    "Timestamped Digest / Canonical Package Digest",
+    tsaMessageImprint
+  )
+                    : ""
               }
               ${renderCallout({
                 title: "Timestamp material handling",

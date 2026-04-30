@@ -171,6 +171,10 @@ export function buildTimestampRows(evidence: ReportEvidence): KeyValueRow[] {
       label: "Timestamp Status",
       value: mapTimestampStatusPublicLabel(evidence.tsaStatus),
     },
+    {
+      label: "Timestamped Digest Type",
+      value: "Timestamped Digest / Canonical Package Digest",
+    },
   ];
 }
 
@@ -277,11 +281,11 @@ const fingerprintRows: KeyValueRow[] = [
     otsHash: safe(evidence.otsHash),
     otsDetail: safe(evidence.otsFailureReason, ""),
     anchorHash: safe(anchorSummary?.anchorHash),
-    timestampReferenceNote:
-      evidence.tsaTokenBase64 && !externalMode
-        ? "Full RFC 3161 token remains available through the verification package and technical verification endpoint."
-        : "RFC 3161 token bytes are intentionally excluded from the PDF body.",
-    signatureReferenceNote:
+timestampReferenceNote:
+  evidence.tsaTokenBase64 && !externalMode
+    ? "Full RFC 3161 token remains available through the verification package and technical verification endpoint. The timestamped digest may differ from the original file SHA-256 when timestamping is applied to the canonical evidence package or fingerprint material."
+    : "RFC 3161 token bytes are intentionally excluded from the PDF body. The timestamped digest may differ from the original file SHA-256 when timestamping is applied to the canonical evidence package or fingerprint material.",
+        signatureReferenceNote:
       evidence.signatureBase64 && !externalMode
         ? "Full signature and public-key materials remain available through the verification package and technical verification endpoint."
         : "Signature blobs are intentionally excluded from the PDF body.",

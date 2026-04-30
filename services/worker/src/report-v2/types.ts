@@ -467,6 +467,13 @@ verificationPackageIntegrity: {
   forensicRows: TimelineRow[];
   accessRows: TimelineRow[];
   custodyHashRows: CustodyHashRow[];
+  custodyCounts: {
+  displayedForensicEvents: number;
+  packageForensicEvents: number;
+  accessEvents: number;
+  totalPackageEvents: number;
+  label: string;
+};
 
   technicalIdentityRows: KeyValueRow[];
   technicalFingerprintNarrative: string;

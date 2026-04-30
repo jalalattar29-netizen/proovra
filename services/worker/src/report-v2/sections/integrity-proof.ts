@@ -112,13 +112,11 @@ export function renderIntegrityProofSection(vm: ReportViewModel): string {
     "Retention Until (UTC)"
   );
 
-  const forensicEvents =
-    vm.forensicRows.length > 0
-      ? `${vm.forensicRows.length} forensic event${
-          vm.forensicRows.length === 1 ? "" : "s"
-        }`
-      : "No forensic custody events";
-
+const forensicEvents =
+  vm.custodyCounts.displayedForensicEvents > 0
+    ? vm.custodyCounts.label
+    : "No forensic custody events";
+    
   const coreMaterialTone: IntegrityTone = vm.meta.hasCoreCrypto
     ? "success"
     : "danger";

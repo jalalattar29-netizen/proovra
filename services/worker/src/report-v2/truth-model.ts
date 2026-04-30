@@ -802,17 +802,17 @@ if (coreFailed || signatureFailed || custodyFailed || params.score < 45) {
     };
   }
 
-  if (params.score >= 62) {
-    return {
-      verdict: "PARTIALLY_VERIFIED",
-      level: "partial",
-      tone: "warning",
-      verdictLabel: "Partially verified",
-      shortLabel: "Partial",
-      title: "Partially verified evidence state",
-      relianceLevel: "medium",
-    };
-  }
+if (params.score >= 62) {
+  return {
+    verdict: "PARTIALLY_VERIFIED",
+    level: "partial",
+    tone: "warning",
+    verdictLabel: "Verified with limitations",
+    shortLabel: "Verified with limitations",
+    title: "Verified evidence state with limitations",
+    relianceLevel: "medium",
+  };
+}
 
   return {
     verdict: "REVIEW_REQUIRED",

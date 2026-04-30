@@ -1104,6 +1104,24 @@ function attachDuplicateDigestGroups(
   }));
 }
 
+function buildCustodyCounts(custody: ReturnType<typeof splitCustodyEvents>) {
+  const displayedForensicEvents = custody.forensic.length;
+  const packageForensicEvents = custody.forensic.length;
+  const accessEvents = custody.access.length;
+  const totalPackageEvents = custody.all.length;
+
+  return {
+    displayedForensicEvents,
+    packageForensicEvents,
+    accessEvents,
+    totalPackageEvents,
+    label:
+      displayedForensicEvents === packageForensicEvents
+        ? `${displayedForensicEvents} forensic events`
+        : `Displayed forensic events: ${displayedForensicEvents} / Package forensic events: ${packageForensicEvents}`,
+  };
+}
+
 export async function buildReportViewModel(
   input: ReportV2Input
 ): Promise<ReportViewModel> {
@@ -1410,6 +1428,7 @@ verificationSummaryRows: buildVerificationSummaryRows(
     forensicRows: buildTimelineRows(custody.forensic),
     accessRows: buildTimelineRows(custody.access),
     custodyHashRows: buildCustodyHashRows(custody.forensic),
+    custodyCounts: buildCustodyCounts(custody),
 
     technicalIdentityRows: buildTechnicalIdentityRows(
       input.evidence,
