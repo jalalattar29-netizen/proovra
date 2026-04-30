@@ -161,6 +161,11 @@ export function buildTechnicalIdentityRows(
 }
 
 export function buildTimestampRows(evidence: ReportEvidence): KeyValueRow[] {
+  const timestampDigestLabel =
+    evidence.tsaInputKind && evidence.tsaInputKind !== "FILE_SHA256"
+      ? "Timestamped Digest / Canonical Package Digest"
+      : "Timestamped Digest";
+
   return [
     { label: "Timestamp Provider", value: safe(evidence.tsaProvider) },
     { label: "Timestamp URL", value: safe(evidence.tsaUrl) },
@@ -173,7 +178,7 @@ export function buildTimestampRows(evidence: ReportEvidence): KeyValueRow[] {
     },
     {
       label: "Timestamped Digest Type",
-      value: "Timestamped Digest / Canonical Package Digest",
+      value: timestampDigestLabel,
     },
   ];
 }
@@ -240,10 +245,18 @@ export function buildTechnicalAppendixModel(
     },
   ];
 
+const usesCanonicalTimestampDigest =
+  evidence.tsaInputKind != null && evidence.tsaInputKind !== "FILE_SHA256";
+
 const recordedDigestLabel =
   contentSummary.structure === "multipart" || contentSummary.itemCount > 1
     ? "Canonical Package Digest (SHA-256)"
     : "Original File SHA-256";
+
+const timestampDigestLabel =
+  contentSummary.structure === "multipart" || contentSummary.itemCount > 1
+    ? "Timestamped Digest / Canonical Package Digest"
+    : "Timestamped Digest";
     
 const fingerprintRows: KeyValueRow[] = [
   {
@@ -278,13 +291,19 @@ const fingerprintRows: KeyValueRow[] = [
     otsStatusLabel: mapOtsStatusPublicLabel(evidence.otsStatus),
     otsStatusTone: mapOtsTone(evidence.otsStatus),
     tsaMessageImprint: safe(evidence.tsaMessageImprint),
+    tsaInputDigestHex: safe(evidence.tsaInputDigestHex),
+    tsaInputKind: safe(evidence.tsaInputKind),
     otsHash: safe(evidence.otsHash),
     otsDetail: safe(evidence.otsFailureReason, ""),
     anchorHash: safe(anchorSummary?.anchorHash),
 timestampReferenceNote:
   evidence.tsaTokenBase64 && !externalMode
-    ? "Full RFC 3161 token remains available through the verification package and technical verification endpoint. The timestamped digest may differ from the original file SHA-256 when timestamping is applied to the canonical evidence package or fingerprint material."
-    : "RFC 3161 token bytes are intentionally excluded from the PDF body. The timestamped digest may differ from the original file SHA-256 when timestamping is applied to the canonical evidence package or fingerprint material.",
+    ? usesCanonicalTimestampDigest
+      ? `Full RFC 3161 token remains available through the verification package and technical verification endpoint. This value may differ from the original file SHA-256 when the timestamp is applied to canonical evidence or fingerprint material.`
+      : "Full RFC 3161 token remains available through the verification package and technical verification endpoint."
+    : usesCanonicalTimestampDigest
+      ? "RFC 3161 token bytes are intentionally excluded from the PDF body. This value may differ from the original file SHA-256 when the timestamp is applied to canonical evidence or fingerprint material."
+      : "RFC 3161 token bytes are intentionally excluded from the PDF body.",
         signatureReferenceNote:
       evidence.signatureBase64 && !externalMode
         ? "Full signature and public-key materials remain available through the verification package and technical verification endpoint."
@@ -293,5 +312,6 @@ timestampReferenceNote:
       evidence.otsProofBase64 || anchorSummary?.publicUrl
         ? "Full anchoring proofs and publication materials remain available through the verification package and verification endpoint."
         : "No additional anchoring proof payload was recorded.",
+    timestampDigestLabel,
   };
 }

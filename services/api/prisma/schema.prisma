@@ -79,6 +79,8 @@ model Evidence {
   tsaGenTimeUtc                     DateTime?           @map("tsa_gen_time_utc") @db.Timestamptz(6)
   tsaHashAlgorithm                  String?             @map("tsa_hash_algorithm") @db.VarChar(32)
   tsaMessageImprint                 String?             @map("tsa_message_imprint") @db.VarChar(128)
+  tsaInputDigestHex                 String?             @map("tsa_input_digest_hex") @db.VarChar(128)
+  tsaInputKind                      String?             @map("tsa_input_kind") @db.VarChar(64)
   tsaProvider                       String?             @map("tsa_provider") @db.VarChar(64)
   tsaSerialNumber                   String?             @map("tsa_serial_number") @db.VarChar(255)
   tsaStatus                         String?             @map("tsa_status") @db.VarChar(32)

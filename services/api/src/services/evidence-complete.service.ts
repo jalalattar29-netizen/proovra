@@ -546,9 +546,14 @@ export async function completeEvidence(params: {
         primaryMimeType =
           updatedParts[0].mimeType ?? primaryMimeType ?? evidenceMime;
 
-        fileSha256 = sha256Hex(updatedParts.map((p) => p.sha256).join("|"));
-        multipart = true;
-        multipartItemCount = updatedParts.length;
+const isMultipartPackage = updatedParts.length > 1;
+
+fileSha256 = isMultipartPackage
+  ? sha256Hex(updatedParts.map((p) => p.sha256).join("|"))
+  : updatedParts[0]!.sha256;
+
+multipart = isMultipartPackage;
+multipartItemCount = updatedParts.length;
 
         await Promise.all(
           updatedParts.map((p) =>
@@ -565,22 +570,34 @@ export async function completeEvidence(params: {
           )
         );
 
-        const fingerprint = buildFingerprint({
-          evidence: {
-            id: evidence.id,
-            type: evidence.type,
-            capturedAtUtc: evidence.capturedAtUtc,
-            deviceTimeIso: evidence.deviceTimeIso,
-            lat: evidence.lat,
-            lng: evidence.lng,
-            accuracyMeters: evidence.accuracyMeters,
-          },
-          uploadedAtUtcIso,
-          multipart: {
-            parts: updatedParts,
-            totalSizeBytes: sizeBytesNum,
-          },
-        });
+const fingerprint = buildFingerprint({
+  evidence: {
+    id: evidence.id,
+    type: evidence.type,
+    capturedAtUtc: evidence.capturedAtUtc,
+    deviceTimeIso: evidence.deviceTimeIso,
+    lat: evidence.lat,
+    lng: evidence.lng,
+    accuracyMeters: evidence.accuracyMeters,
+  },
+  uploadedAtUtcIso,
+  ...(isMultipartPackage
+    ? {
+        multipart: {
+          parts: updatedParts,
+          totalSizeBytes: sizeBytesNum,
+        },
+      }
+    : {
+        singleFile: {
+          bucket: updatedParts[0]!.bucket,
+          key: updatedParts[0]!.key,
+          sizeBytes: Number(updatedParts[0]!.sizeBytes),
+          mimeType: updatedParts[0]!.mimeType,
+          sha256: updatedParts[0]!.sha256,
+        },
+      }),
+});
 
         canonical = canonicalJson(fingerprint);
         fingerprintHash = sha256Hex(canonical);
@@ -663,11 +680,13 @@ export async function completeEvidence(params: {
       const tsaResult = await createEvidenceTimestamp({
         digestHex: fileSha256,
       });
+      const tsaInputKind = "FILE_SHA256";
 
-      const captureMethod = multipart
-        ? prismaPkg.CaptureMethod.MULTIPART_PACKAGE
-        : prismaPkg.CaptureMethod.UPLOADED_FILE;
-
+const captureMethod =
+  multipartItemCount > 1
+    ? prismaPkg.CaptureMethod.MULTIPART_PACKAGE
+    : prismaPkg.CaptureMethod.UPLOADED_FILE;
+    
       const ev = await tx.evidence.update({
         where: { id: evidence.id },
         data: {
@@ -693,6 +712,8 @@ export async function completeEvidence(params: {
           tsaGenTimeUtc: tsaResult?.genTimeUtc ?? null,
           tsaTokenBase64: tsaResult?.tokenBase64 ?? null,
           tsaMessageImprint: tsaResult?.messageImprint ?? null,
+          tsaInputDigestHex: tsaResult?.messageImprint ?? fileSha256,
+          tsaInputKind: tsaResult ? tsaInputKind : null,
           tsaHashAlgorithm: tsaResult?.hashAlgorithm ?? null,
           tsaStatus: tsaResult?.status ?? null,
           tsaFailureReason: tsaResult?.failureReason ?? null,
@@ -746,6 +767,8 @@ export async function completeEvidence(params: {
           tsaSerialNumber: tsaResult?.serialNumber ?? null,
           tsaGenTimeUtc: tsaResult?.genTimeUtc?.toISOString() ?? null,
           tsaMessageImprint: tsaResult?.messageImprint ?? null,
+          tsaInputDigestHex: tsaResult?.messageImprint ?? fileSha256,
+          tsaInputKind,
           tsaHashAlgorithm: tsaResult?.hashAlgorithm ?? null,
           tsaStatus: tsaResult?.status ?? null,
           tsaFailureReason: tsaResult?.failureReason ?? null,
@@ -766,6 +789,8 @@ export async function completeEvidence(params: {
             tsaSerialNumber: tsaResult.serialNumber,
             tsaGenTimeUtc: tsaResult.genTimeUtc?.toISOString() ?? null,
             tsaMessageImprint: tsaResult.messageImprint,
+            tsaInputDigestHex: tsaResult.messageImprint,
+            tsaInputKind,
             tsaHashAlgorithm: tsaResult.hashAlgorithm,
             tsaStatus: tsaResult.status,
             tsaFailureReason: tsaResult.failureReason,

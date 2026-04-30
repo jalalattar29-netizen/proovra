@@ -123,6 +123,9 @@ type VerifyTechnicalMaterials = {
   publicKeyPem?: string | null;
   signingKeyId?: string | null;
   signingKeyVersion?: number | null;
+  tsaInputDigestHex?: string | null;
+  tsaInputKind?: string | null;
+  legacyMode?: boolean | null;
   otsProofPresent?: boolean | null;
 };
 
@@ -140,12 +143,18 @@ type VerifyTsa = {
   provider?: string | null;
   tokenBase64?: string | null;
 messageImprint?: string | null;
+  inputDigestHex?: string | null;
+  inputKind?: string | null;
+  legacyMode?: boolean | null;
   url?: string | null;
   serialNumber?: string | null;
   genTimeUtc?: string | null;
   hashAlgorithm?: string | null;
   failureReason?: string | null;
+  digestMatchesTimestampInput?: boolean | null;
   digestMatchesFileHash?: boolean | null;
+  timestampedDigestLabel?: string | null;
+  timestampedDigestNote?: string | null;
 } | null;
 
 type VerifyOts = {
@@ -736,14 +745,34 @@ messageImprint: firstNonEmpty(
   tsa?.messageImprint,
   data.tsaMessageImprint
 ),
+    inputDigestHex: firstNonEmpty(
+      tsa?.inputDigestHex,
+      data.technicalMaterials?.tsaInputDigestHex
+    ),
+    inputKind: firstNonEmpty(
+      tsa?.inputKind,
+      data.technicalMaterials?.tsaInputKind
+    ),
+    legacyMode:
+      typeof tsa?.legacyMode === "boolean"
+        ? tsa.legacyMode
+        : typeof data.technicalMaterials?.legacyMode === "boolean"
+          ? data.technicalMaterials.legacyMode
+          : null,
     url: firstNonEmpty(tsa?.url, data.tsaUrl),
     serialNumber: firstNonEmpty(tsa?.serialNumber, data.tsaSerialNumber),
     hashAlgorithm: firstNonEmpty(tsa?.hashAlgorithm, data.tsaHashAlgorithm),
     failureReason: firstNonEmpty(tsa?.failureReason, data.tsaFailureReason),
+    digestMatchesTimestampInput:
+      typeof tsa?.digestMatchesTimestampInput === "boolean"
+        ? tsa.digestMatchesTimestampInput
+        : null,
     digestMatchesFileHash:
       typeof tsa?.digestMatchesFileHash === "boolean"
         ? tsa.digestMatchesFileHash
         : null,
+    timestampedDigestLabel: firstNonEmpty(tsa?.timestampedDigestLabel),
+    timestampedDigestNote: firstNonEmpty(tsa?.timestampedDigestNote),
   };
 }
 
@@ -2190,7 +2219,7 @@ function buildVerifyTrustDecision(params: {
       timestampPassed
         ? "RFC 3161 timestamping supports review of when the recorded evidence state existed."
         : params.timestampDigestMatches === false
-          ? "The timestamp digest did not match the recorded evidence hash. This timestamp layer requires manual review."
+          ? "The timestamp digest did not match the recorded timestamp input digest. This timestamp layer requires manual review."
           : isPendingTsa(params.tsaStatus)
             ? "The timestamp layer is not finalized yet. Other integrity layers can still be reviewed."
             : isFailedTsa(params.tsaStatus)
@@ -2198,9 +2227,8 @@ function buildVerifyTrustDecision(params: {
               : "No trusted timestamp material was returned.",
   });
 
-  const anchoringPassed =
-    isAnchoredOts(params.otsStatus) ||
-    params.externalPublicationPresent === true;
+  const anchoringPassed = params.externalPublicationPresent === true;
+  const anchorMaterialIncluded = isAnchoredOts(params.otsStatus);
 
   const anchoring = makeTrustSignal({
     key: "public_anchoring",
@@ -2208,6 +2236,8 @@ function buildVerifyTrustDecision(params: {
     status:
       anchoringPassed
         ? "passed"
+        : anchorMaterialIncluded
+          ? "partial"
         : params.otsHashMatches === false
           ? "failed"
           : isPendingOts(params.otsStatus)
@@ -2218,6 +2248,8 @@ function buildVerifyTrustDecision(params: {
     points:
       anchoringPassed
         ? 10
+        : anchorMaterialIncluded
+          ? 8
         : params.otsHashMatches === false
           ? 2
           : isPendingOts(params.otsStatus)
@@ -2229,6 +2261,8 @@ function buildVerifyTrustDecision(params: {
     summary:
       anchoringPassed
         ? "Public anchoring recorded"
+        : anchorMaterialIncluded
+          ? "Anchor material included"
         : params.otsHashMatches === false
           ? "Anchoring hash mismatch"
           : isPendingOts(params.otsStatus)
@@ -2238,7 +2272,9 @@ function buildVerifyTrustDecision(params: {
               : "Anchoring not recorded",
     detail:
       anchoringPassed
-        ? "The record includes public anchoring or external publication metadata."
+        ? "The record includes public anchoring metadata with a publication receipt, transaction, URL, or anchored timestamp."
+        : anchorMaterialIncluded
+          ? "Anchoring material is recorded, but no public publication receipt, transaction, URL, or anchored timestamp is attached yet."
         : isPendingOts(params.otsStatus)
           ? "OpenTimestamps anchoring is pending. This is degraded but still reviewable when core integrity and signature material are present."
           : "No confirmed public anchoring layer is available for this record.",
@@ -2471,7 +2507,7 @@ function buildReviewerActions(params: {
 
   if (params.canonicalHashMatches === false) {
     actions.push(
-      "Compare the displayed file/package hash against the original evidence material and confirm whether the preserved content differs from the recorded fingerprint."
+      "Compare the displayed evidence digest against the original evidence material and confirm whether the preserved content differs from the recorded fingerprint."
     );
   }
 
@@ -2489,7 +2525,7 @@ function buildReviewerActions(params: {
 
   if (params.timestampDigestMatches === false) {
     actions.push(
-      "Review the trusted timestamp mismatch. A timestamp digest mismatch means the timestamped digest does not match the recorded file/package hash."
+      "Review the trusted timestamp mismatch. A timestamp digest mismatch means the timestamped digest does not match the recorded timestamp input digest."
     );
   }
 
@@ -2570,7 +2606,7 @@ function buildMismatchExplanations(params: {
       title: "Trusted timestamp digest mismatch",
       severity: "warning",
       body:
-        "The trusted timestamp digest does not match the recorded file/package hash. This does not automatically prove the content is false, but it means the timestamp layer cannot be treated as clean without review.",
+        "The trusted timestamp digest does not match the recorded timestamp input digest. This does not automatically prove the content is false, but it means the timestamp layer cannot be treated as clean without review.",
     });
   }
 
@@ -3251,6 +3287,15 @@ export default function VerifyPage() {
   const [tsaSerialNumber, setTsaSerialNumber] = useState<string | null>(null);
   const [tsaHashAlgorithm, setTsaHashAlgorithm] = useState<string | null>(null);
   const [tsaFailureReason, setTsaFailureReason] = useState<string | null>(null);
+  const [tsaInputDigestHex, setTsaInputDigestHex] = useState<string | null>(null);
+  const [tsaInputKind, setTsaInputKind] = useState<string | null>(null);
+  const [tsaLegacyMode, setTsaLegacyMode] = useState<boolean | null>(null);
+  const [timestampedDigestLabel, setTimestampedDigestLabel] = useState<string | null>(
+    null
+  );
+  const [timestampedDigestNote, setTimestampedDigestNote] = useState<string | null>(
+    null
+  );
 
   const [publicKeyPem, setPublicKeyPem] = useState<string | null>(null);
   const [verifyStatus, setVerifyStatus] = useState<string | null>(null);
@@ -3548,6 +3593,11 @@ setFullCustodyTimeline(fullTimeline);
     setTsaSerialNumber(tsaDetails.serialNumber);
     setTsaHashAlgorithm(tsaDetails.hashAlgorithm);
     setTsaFailureReason(tsaDetails.failureReason);
+    setTsaInputDigestHex(tsaDetails.inputDigestHex);
+    setTsaInputKind(tsaDetails.inputKind);
+    setTsaLegacyMode(tsaDetails.legacyMode);
+    setTimestampedDigestLabel(tsaDetails.timestampedDigestLabel);
+    setTimestampedDigestNote(tsaDetails.timestampedDigestNote);
 
     setPublicKeyPem(
       data.technicalMaterials?.publicKeyPem ?? data.publicKeyPem ?? null
@@ -3665,8 +3715,8 @@ setFullCustodyTimeline(fullTimeline);
     setTimestampDigestMatches(
       typeof integrity?.timestampDigestMatches === "boolean"
         ? integrity.timestampDigestMatches
-        : typeof tsaDetails.digestMatchesFileHash === "boolean"
-          ? tsaDetails.digestMatchesFileHash
+        : typeof tsaDetails.digestMatchesTimestampInput === "boolean"
+          ? tsaDetails.digestMatchesTimestampInput
           : null
     );
     setOtsHashMatches(
@@ -3823,7 +3873,7 @@ setServerVerificationPackageIntegrity(data.verificationPackageIntegrity ?? null)
 
   const evidenceSectionDescription = useMemo(() => {
     const parts = [
-      evidenceContentSummary?.structure === "multipart"
+      (evidenceContentSummary?.itemCount ?? evidenceItems.length) > 1
         ? "Multipart evidence package"
         : evidenceItems.length > 0
           ? "Single evidence item"
@@ -4128,7 +4178,7 @@ const executiveBadges = useMemo<
     () =>
       [
         {
-          label: "Record Status",
+          label: "Evidence Status At Report Generation",
           value: overview?.recordStatus ?? statusTone(verifyStatus).label,
           show: true,
         },
@@ -4605,7 +4655,7 @@ tone={
     () =>
       summaryFields.filter((field) =>
         [
-          "Record Status",
+          "Evidence Status At Report Generation",
           "Verification Status",
 "Integrity Status",
 "Trust Decision",
@@ -6177,24 +6227,61 @@ These materials support the Trust Decision shown above. The Trust Decision is th
                       {hash ? (
                         <MaterialField
                           label={
-                            evidenceContentSummary?.structure === "multipart"
+                            evidenceContentSummary?.itemCount &&
+                            evidenceContentSummary.itemCount > 1
                               ? "Canonical Package Digest (SHA-256)"
-                              : "Original File SHA-256"
+                              : tsaInputKind && tsaInputKind !== "FILE_SHA256"
+                                ? "File Digest (SHA-256)"
+                                : "Original File SHA-256"
                           }
                           subtitle={
-                            evidenceContentSummary?.structure === "multipart"
+                            evidenceContentSummary?.itemCount &&
+                            evidenceContentSummary.itemCount > 1
                               ? "SHA-256 digest representing the canonical multipart evidence package. Individual item hashes are listed separately, and the Canonical Fingerprint Hash defines the full package identity."
-                              : "SHA-256 digest of the original preserved evidence file."
+                              : tsaInputKind && tsaInputKind !== "FILE_SHA256"
+                                ? "SHA-256 digest of the original preserved evidence file. The timestamp layer may instead reference canonical evidence or fingerprint material."
+                                : "SHA-256 digest of the original preserved evidence file."
                           }
                           value={hash}
                           forensicMode={forensicMode}
                           addToast={addToast}
                           copyMessage={
-                            evidenceContentSummary?.structure === "multipart"
+                            evidenceContentSummary?.itemCount &&
+                            evidenceContentSummary.itemCount > 1
                               ? "Canonical package digest copied"
-                              : "Original file hash copied"
+                              : tsaInputKind && tsaInputKind !== "FILE_SHA256"
+                                ? "File digest copied"
+                                : "Original file hash copied"
                           }
                         />
+                      ) : null}
+
+                      {tsaInputDigestHex && tsaInputDigestHex !== hash ? (
+                        <MaterialField
+                          label={
+                            timestampedDigestLabel ??
+                            (evidenceContentSummary?.itemCount &&
+                            evidenceContentSummary.itemCount > 1
+                              ? "Timestamped Digest / Canonical Package Digest"
+                              : "Timestamped Digest")
+                          }
+                          subtitle={
+                            timestampedDigestNote ??
+                            "This value may differ from the original file SHA-256 when the timestamp is applied to canonical evidence or fingerprint material."
+                          }
+                          value={tsaInputDigestHex}
+                          forensicMode={forensicMode}
+                          addToast={addToast}
+                          copyMessage="Timestamped digest copied"
+                        />
+                      ) : null}
+
+                      {tsaLegacyMode ? (
+                        <div style={{ ...VERIFY_TYPO.small, color: VERIFY_BRAND.subtle }}>
+                          Legacy mode: this record predates explicit timestamp-input
+                          digest storage, so timestamp verification falls back to the
+                          recorded legacy digest model.
+                        </div>
                       ) : null}
 
                       {fingerprintHash ? (

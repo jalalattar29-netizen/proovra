@@ -195,7 +195,7 @@ export function mapTimestampStatusPublicLabel(
 export function mapOtsStatusPublicLabel(status: string | null | undefined): string {
   switch (safe(status, "").toUpperCase()) {
     case "ANCHORED":
-      return "Public anchoring recorded";
+      return "Anchoring recorded";
     case "PENDING":
       return "Anchoring pending";
     case "FAILED":

@@ -310,6 +310,8 @@ const SAFE_EVIDENCE_SELECT = {
   tsaSerialNumber: true,
   tsaGenTimeUtc: true,
   tsaMessageImprint: true,
+  tsaInputDigestHex: true,
+  tsaInputKind: true,
   tsaHashAlgorithm: true,
   tsaFailureReason: true,
 
@@ -1418,57 +1420,6 @@ async function getStorageProtectionSummary(
   }
 }
 
-async function getAnchorStatus(
-  evidenceId: string
-): Promise<AnchorStatusSummary> {
-  const mode = normalizeAnchorMode(process.env.ANCHOR_MODE);
-  const provider = process.env.ANCHOR_PROVIDER?.trim() || null;
-  const publicBaseUrl = process.env.ANCHOR_PUBLIC_BASE_URL?.trim() || null;
-
-  const anchor = await prisma.evidenceAnchor.findUnique({
-    where: { evidenceId },
-    select: {
-      mode: true,
-      provider: true,
-      anchorHash: true,
-      receiptId: true,
-      transactionId: true,
-      publicUrl: true,
-      anchoredAtUtc: true,
-    },
-  });
-
-  if (!anchor) {
-    return {
-      mode,
-      provider,
-      publicBaseUrl,
-      configured: Boolean(provider),
-      published: false,
-      anchorHash: null,
-      receiptId: null,
-      transactionId: null,
-      publicUrl: null,
-      anchoredAtUtc: null,
-    };
-  }
-
-  return {
-    mode: normalizeAnchorMode(anchor.mode),
-    provider: anchor.provider ?? provider,
-    publicBaseUrl,
-    configured: Boolean(anchor.provider ?? provider),
-    published: true,
-    anchorHash: anchor.anchorHash ?? null,
-    receiptId: anchor.receiptId ?? null,
-    transactionId: anchor.transactionId ?? null,
-    publicUrl: anchor.publicUrl ?? null,
-    anchoredAtUtc: anchor.anchoredAtUtc
-      ? anchor.anchoredAtUtc.toISOString()
-      : null,
-  };
-}
-
 async function assertCaseAccess(userId: string, caseId: string) {
   const item = await prisma.case.findUnique({
     where: { id: caseId },
@@ -1623,17 +1574,17 @@ async function buildPublicEvidenceContent(params: {
       previewCaption?: string | null;
     }
   >;
-evidence: {
-  id: string;
-  mimeType: string | null;
-  sizeBytes: bigint | number | null;
-  storageBucket: string | null;
-  storageKey: string | null;
-  fileSha256: string | null;
-  originalFileName?: string | null;
-  displayFileName?: string | null;
-  recordedAt?: Date | string | null;
-};
+  evidence: {
+    id: string;
+    mimeType: string | null;
+    sizeBytes: bigint | number | null;
+    storageBucket: string | null;
+    storageKey: string | null;
+    fileSha256: string | null;
+    originalFileName?: string | null;
+    displayFileName?: string | null;
+    recordedAt?: Date | string | null;
+  };
   parts: Array<{
     id: string;
     partIndex: number;
@@ -1651,15 +1602,12 @@ evidence: {
   primaryItem: PublicEvidenceAsset | null;
   previewPolicy: PublicPreviewPolicy;
 }> {
-  const multipart = params.parts.length > 0;
+  const multipart = params.parts.length > 1;
+  const singlePart = params.parts.length === 1 ? params.parts[0]! : null;
+
   const accessPolicy = params.accessPolicy;
   const canExposeContent = accessPolicy.allowContentView;
   const canDownload = accessPolicy.allowDownload;
-
-  const singleKind = detectEvidenceAssetKind(params.evidence.mimeType);
-  const singlePreviewable =
-    canExposeContent && isPreviewableEvidenceKind(singleKind);
-  const singleCanExposeDirectUrl = singlePreviewable || canDownload;
 
   const items: PublicEvidenceAsset[] = multipart
     ? await Promise.all(
@@ -1685,12 +1633,14 @@ evidence: {
                 expiresInSeconds: 600,
               })
             : null;
+
           const label = getEvidencePartDisplayLabel({
             partIndex: part.partIndex,
             mimeType: part.mimeType,
             originalFileName: part.originalFileName,
             storageKey: part.storageKey,
           });
+
           const preview = params.previews?.get(part.id);
 
           return {
@@ -1715,7 +1665,10 @@ evidence: {
               : canDownload
                 ? "download_only"
                 : "metadata_only",
-            originalPreservationNote: buildOriginalPreservationNote({ label, kind }),
+            originalPreservationNote: buildOriginalPreservationNote({
+              label,
+              kind,
+            }),
             reviewerRepresentationLabel: buildReviewerRepresentationLabel({
               kind,
               isPrimary,
@@ -1735,80 +1688,98 @@ evidence: {
           };
         })
       )
-    : params.evidence.storageBucket && params.evidence.storageKey
+    : singlePart || (params.evidence.storageBucket && params.evidence.storageKey)
       ? await Promise.all([
           (async () => {
-            const bucket = params.evidence.storageBucket!;
-            const key = params.evidence.storageKey!;
+            const bucket = singlePart?.storageBucket ?? params.evidence.storageBucket!;
+            const key = singlePart?.storageKey ?? params.evidence.storageKey!;
+            const mimeType = singlePart?.mimeType ?? params.evidence.mimeType;
+            const sizeBytesValue =
+              singlePart?.sizeBytes ?? params.evidence.sizeBytes;
+            const sizeBytes = bigintToString(sizeBytesValue);
+            const sha256 = singlePart?.sha256 ?? params.evidence.fileSha256;
+            const itemId = singlePart?.id ?? params.evidence.id;
+            const itemIndex = singlePart?.partIndex ?? 0;
+            const kind = detectEvidenceAssetKind(mimeType);
+
+            const previewable =
+              canExposeContent && isPreviewableEvidenceKind(kind);
+            const canExposeDirectUrl = previewable || canDownload;
+
             const label = getEvidencePartDisplayLabel({
-              partIndex: 0,
-              mimeType: params.evidence.mimeType,
+              partIndex: itemIndex,
+              mimeType,
+              originalFileName:
+                singlePart?.originalFileName ??
+                params.evidence.originalFileName ??
+                null,
               storageKey: key,
             });
+
+            const preview = params.previews?.get(itemId);
+
             return {
-              id: params.evidence.id,
-              index: 0,
+              id: itemId,
+              index: itemIndex,
               label,
-originalFileName:
-  params.evidence.originalFileName ??
-  params.evidence.displayFileName ??
-  resolveOriginalAssetDisplayName({
-    originalFileName: params.evidence.originalFileName ?? null,
-    storageKey: key,
-    mimeType: params.evidence.mimeType,
-    recordedAt: params.evidence.recordedAt ?? null,
-    partIndex: 0,
-    multipart: false,
-  }),
-                mimeType: params.evidence.mimeType ?? null,
-              kind: singleKind,
-              sizeBytes: bigintToString(params.evidence.sizeBytes),
-              durationMs: null,
-              sha256: params.evidence.fileSha256 ?? null,
+              originalFileName:
+                singlePart?.originalFileName ??
+                params.evidence.originalFileName ??
+                params.evidence.displayFileName ??
+                resolveOriginalAssetDisplayName({
+                  originalFileName:
+                    singlePart?.originalFileName ??
+                    params.evidence.originalFileName ??
+                    null,
+                  storageKey: key,
+                  mimeType,
+                  recordedAt: params.evidence.recordedAt ?? null,
+                  partIndex: itemIndex,
+                  multipart: false,
+                }),
+              mimeType: mimeType ?? null,
+              kind,
+              sizeBytes,
+              durationMs: singlePart?.durationMs ?? null,
+              sha256: sha256 ?? null,
               isPrimary: true,
-              previewable: singlePreviewable,
+              previewable,
               downloadable: canDownload,
-              viewUrl: singleCanExposeDirectUrl
+              viewUrl: canExposeDirectUrl
                 ? await presignGetObject({
                     bucket,
                     key,
                     expiresInSeconds: 600,
                   })
                 : null,
-              displaySizeLabel: formatBytesForDisplay(params.evidence.sizeBytes),
-              previewRole: singlePreviewable
+              displaySizeLabel: formatBytesForDisplay(sizeBytes),
+              previewRole: previewable
                 ? "primary_preview"
                 : canDownload
                   ? "download_only"
                   : "metadata_only",
               originalPreservationNote: buildOriginalPreservationNote({
                 label,
-                kind: singleKind,
+                kind,
               }),
               reviewerRepresentationLabel: buildReviewerRepresentationLabel({
-                kind: singleKind,
+                kind,
                 isPrimary: true,
               }),
               reviewerRepresentationNote: buildReviewerRepresentationNote({
-                kind: singleKind,
+                kind,
                 label,
-                canExposeContent: singlePreviewable,
+                canExposeContent: previewable,
               }),
               verificationMaterialsNote: buildVerificationMaterialsNote({
-                kind: singleKind,
+                kind,
               }),
               previewDataUrl:
-                canExposeContent
-                  ? params.previews?.get(params.evidence.id)?.previewDataUrl ?? null
-                  : null,
+                canExposeContent ? preview?.previewDataUrl ?? null : null,
               previewTextExcerpt:
-                canExposeContent
-                  ? params.previews?.get(params.evidence.id)?.previewTextExcerpt ?? null
-                  : null,
+                canExposeContent ? preview?.previewTextExcerpt ?? null : null,
               previewCaption:
-                canExposeContent
-                  ? params.previews?.get(params.evidence.id)?.previewCaption ?? null
-                  : null,
+                canExposeContent ? preview?.previewCaption ?? null : null,
             };
           })(),
         ])
@@ -1866,7 +1837,8 @@ originalFileName:
     return acc + value;
   }, 0n);
 
-  summary.totalSizeBytes = totalSizeBigInt > 0n ? totalSizeBigInt.toString() : null;
+  summary.totalSizeBytes =
+    totalSizeBigInt > 0n ? totalSizeBigInt.toString() : null;
   summary.totalSizeDisplay = formatBytesForDisplay(summary.totalSizeBytes);
   summary.primaryKind = primaryItem?.kind ?? null;
   summary.primaryMimeType = primaryItem?.mimeType ?? null;
@@ -2126,6 +2098,8 @@ function buildTechnicalMaterials(params: {
     signingKeyId: string | null;
     signingKeyVersion: number | null;
     tsaMessageImprint: string | null;
+    tsaInputDigestHex: string | null;
+    tsaInputKind: string | null;
     otsProofBase64: string | null;
   };
   publicKeyPem: string;
@@ -2138,6 +2112,9 @@ function buildTechnicalMaterials(params: {
     signingKeyId: params.evidence.signingKeyId,
     signingKeyVersion: params.evidence.signingKeyVersion,
     tsaMessageImprint: params.evidence.tsaMessageImprint,
+    tsaInputDigestHex: params.evidence.tsaInputDigestHex,
+    tsaInputKind: params.evidence.tsaInputKind,
+    legacyMode: !params.evidence.tsaInputDigestHex,
     otsProofPresent: Boolean(params.evidence.otsProofBase64),
   };
 }
@@ -2158,6 +2135,62 @@ function mapPublicCustodyEvent(ev: {
 prevEventHash: ev.prevEventHash,
 eventHash: ev.eventHash,
     category: classifyCustodyEventType(ev.eventType),
+  };
+}
+
+async function getAnchorStatus(
+  evidenceId: string
+): Promise<AnchorStatusSummary> {
+  const mode = normalizeAnchorMode(process.env.ANCHOR_MODE);
+  const provider = process.env.ANCHOR_PROVIDER?.trim() || null;
+  const publicBaseUrl = process.env.ANCHOR_PUBLIC_BASE_URL?.trim() || null;
+
+  const anchor = await prisma.evidenceAnchor.findUnique({
+    where: { evidenceId },
+    select: {
+      mode: true,
+      provider: true,
+      anchorHash: true,
+      receiptId: true,
+      transactionId: true,
+      publicUrl: true,
+      anchoredAtUtc: true,
+    },
+  });
+
+  if (!anchor) {
+    return {
+      mode,
+      provider,
+      publicBaseUrl,
+      configured: Boolean(provider),
+      published: false,
+      anchorHash: null,
+      receiptId: null,
+      transactionId: null,
+      publicUrl: null,
+      anchoredAtUtc: null,
+    };
+  }
+
+  return {
+    mode: normalizeAnchorMode(anchor.mode),
+    provider: anchor.provider ?? provider,
+    publicBaseUrl,
+    configured: Boolean(anchor.provider ?? provider),
+    published: Boolean(
+      anchor.transactionId ||
+        anchor.receiptId ||
+        anchor.publicUrl ||
+        anchor.anchoredAtUtc
+    ),
+    anchorHash: anchor.anchorHash ?? null,
+    receiptId: anchor.receiptId ?? null,
+    transactionId: anchor.transactionId ?? null,
+    publicUrl: anchor.publicUrl ?? null,
+    anchoredAtUtc: anchor.anchoredAtUtc
+      ? anchor.anchoredAtUtc.toISOString()
+      : null,
   };
 }
 
@@ -4698,6 +4731,8 @@ return reply.code(200).send({
         tsaSerialNumber: true,
         tsaGenTimeUtc: true,
         tsaMessageImprint: true,
+        tsaInputDigestHex: true,
+        tsaInputKind: true,
         tsaHashAlgorithm: true,
         tsaStatus: true,
         tsaFailureReason: true,
@@ -5014,13 +5049,16 @@ const normalizedTsaStatus = String(evidence.tsaStatus ?? "")
   .trim()
   .toUpperCase();
 
+const timestampInputDigestHex =
+  evidence.tsaInputDigestHex ?? evidence.fileSha256;
+
 const timestampDigestMatches =
   normalizedTsaStatus === "STAMPED" ||
   normalizedTsaStatus === "GRANTED" ||
   normalizedTsaStatus === "VERIFIED" ||
   normalizedTsaStatus === "SUCCEEDED"
     ? (evidence.tsaMessageImprint ?? "").toLowerCase() ===
-      evidence.fileSha256.toLowerCase()
+      (timestampInputDigestHex ?? "").toLowerCase()
     : normalizedTsaStatus === "FAILED"
       ? false
       : true;
@@ -5242,6 +5280,8 @@ const technicalMaterials = buildTechnicalMaterials({
     signingKeyId: evidence.signingKeyId,
     signingKeyVersion: evidence.signingKeyVersion,
     tsaMessageImprint: evidence.tsaMessageImprint,
+    tsaInputDigestHex: evidence.tsaInputDigestHex,
+    tsaInputKind: evidence.tsaInputKind,
     otsProofBase64: evidence.otsProofBase64,
   },
   publicKeyPem: signingKey.publicKeyPem,
@@ -5339,8 +5379,26 @@ defaultPreviewItemId: defaultPreviewItem?.id ?? null,
         : null,
       hashAlgorithm: evidence.tsaHashAlgorithm,
 messageImprint: evidence.tsaMessageImprint,
+      inputDigestHex: evidence.tsaInputDigestHex ?? evidence.fileSha256,
+      inputKind: evidence.tsaInputKind ?? null,
+      legacyMode: !evidence.tsaInputDigestHex,
       failureReason: evidence.tsaFailureReason,
-      digestMatchesFileHash: timestampDigestMatches,
+digestMatchesTimestampInput: timestampDigestMatches,
+digestMatchesFileHash:
+  evidence.fileSha256
+    ? String(evidence.tsaMessageImprint ?? "").toLowerCase() ===
+      evidence.fileSha256.toLowerCase()
+    : null,
+timestampedDigestLabel:
+  evidence.tsaInputKind && evidence.tsaInputKind !== "FILE_SHA256"
+    ? content.summary.structure === "multipart"
+      ? "Timestamped Digest / Canonical Package Digest"
+      : "Timestamped Digest"
+    : "Timestamped Digest",
+timestampedDigestNote:
+  evidence.tsaInputKind && evidence.tsaInputKind !== "FILE_SHA256"
+    ? "This value may differ from the original file SHA-256 when the timestamp is applied to canonical evidence or fingerprint material."
+    : null,
     },
     ots: {
       status: effectiveOtsStatus,

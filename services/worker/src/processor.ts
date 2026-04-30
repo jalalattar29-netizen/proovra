@@ -248,6 +248,8 @@ type ReportBuildParams = {
 type PreparedReportArtifacts = {
   reportPdf: Buffer;
   verificationZip: Buffer | null;
+  verifyUrl: string;
+  downloadUrl: string;
     packageMetadataContext: {
     caseId: string | null;
     caseName: string | null;
@@ -1272,7 +1274,12 @@ async function resolveAnchorStatusForReport(
     provider: anchor.provider ?? provider,
     publicBaseUrl,
     configured: Boolean(anchor.provider ?? provider),
-    published: true,
+    published: Boolean(
+      anchor.transactionId ||
+        anchor.receiptId ||
+        anchor.publicUrl ||
+        anchor.anchoredAtUtc
+    ),
     anchorHash: anchor.anchorHash ?? null,
     receiptId: anchor.receiptId ?? null,
     transactionId: anchor.transactionId ?? null,
@@ -1534,6 +1541,8 @@ async function prepareReportArtifacts(
       tsaGenTimeUtc: true,
       tsaTokenBase64: true,
       tsaMessageImprint: true,
+      tsaInputDigestHex: true,
+      tsaInputKind: true,
       tsaHashAlgorithm: true,
       tsaStatus: true,
       tsaFailureReason: true,
@@ -2194,6 +2203,8 @@ evidenceStructure:
     tsaGenTimeUtc: evidence.tsaGenTimeUtc?.toISOString() ?? null,
     tsaTokenBase64: evidence.tsaTokenBase64 ?? null,
     tsaMessageImprint: evidence.tsaMessageImprint ?? null,
+    tsaInputDigestHex: evidence.tsaInputDigestHex ?? null,
+    tsaInputKind: evidence.tsaInputKind ?? null,
     tsaHashAlgorithm: evidence.tsaHashAlgorithm ?? null,
     tsaStatus: evidence.tsaStatus ?? null,
     tsaFailureReason: evidence.tsaFailureReason ?? null,
@@ -2263,6 +2274,8 @@ const verificationZip: Buffer | null = null;
 return {
   reportPdf,
   verificationZip,
+  verifyUrl,
+  downloadUrl: evidenceDetailUrl,
   reportKey,
   verificationKey,
   version: provisionalVersion,
@@ -2389,12 +2402,6 @@ export async function processGenerateReport(job: Job<GenerateReportJobData>) {
       refreshReason: regenerateReason,
     });
 
-    await assertWorkspaceAllowsReportArtifact({
-      ownerUserId: evidence.ownerUserId,
-      teamId: evidence.teamId ?? null,
-      incomingBytes: BigInt(prepared.reportPdf.length),
-    });
-
     const finalized = await prisma.$transaction(
       async (tx) => {
         await tx.$executeRaw`
@@ -2471,144 +2478,6 @@ export async function processGenerateReport(job: Job<GenerateReportJobData>) {
           );
         }
 
-        await putObjectBuffer({
-          bucket: env.S3_BUCKET,
-          key: prepared.reportKey,
-          body: prepared.reportPdf,
-          contentType: "application/pdf",
-          immutable: true,
-          metadata: {
-            evidence_id: prepared.evidenceId,
-            report_version: String(prepared.version),
-            artifact_type: "report_pdf",
-          },
-          tags: {
-            artifact: "report",
-            evidenceId: prepared.evidenceId,
-            immutable: "true",
-          },
-        });
-
-        await applyRetentionOrThrow([
-          {
-            bucket: env.S3_BUCKET,
-            key: prepared.reportKey,
-          },
-        ]);
-
-        const reportHead = await headObject({
-          bucket: env.S3_BUCKET,
-          key: prepared.reportKey,
-        });
-
-        await tx.report.create({
-          data: {
-            evidenceId: prepared.evidenceId,
-            version: prepared.version,
-            storageBucket: env.S3_BUCKET,
-            storageKey: prepared.reportKey,
-            storageRegion: process.env.S3_REGION?.trim() || null,
-            storageObjectLockMode: reportHead.objectLockMode
-              ? String(reportHead.objectLockMode)
-              : null,
-            storageObjectLockRetainUntilUtc:
-              reportHead.objectLockRetainUntilDate ?? null,
-            storageObjectLockLegalHoldStatus:
-              reportHead.objectLockLegalHoldStatus
-                ? String(reportHead.objectLockLegalHoldStatus)
-                : null,
-            generatedAtUtc: prepared.now,
-            sizeBytes: BigInt(prepared.reportPdf.length),
-
-            verificationStatusSnapshot:
-              prepared.identitySnapshot.verificationStatus,
-            identityLevelSnapshot:
-              prepared.identitySnapshot.identityLevelSnapshot,
-            submittedByEmailSnapshot:
-              prepared.identitySnapshot.submittedByEmail,
-            submittedByAuthProviderSnapshot:
-              prepared.identitySnapshot.submittedByAuthProvider,
-            captureMethodSnapshot: prepared.identitySnapshot.captureMethod,
-            reviewerSummaryVersion:
-              prepared.identitySnapshot.reviewerSummaryVersion,
-            verificationPackageVersion: prepared.verificationZip
-              ? prepared.version
-              : null,
-
-            displayTitleSnapshot: prepared.display.displayTitle,
-            displayDescriptionSnapshot: prepared.display.displayDescription,
-            contentStructureSnapshot: prepared.contentSummary.structure,
-            itemCountSnapshot: prepared.contentSummary.itemCount,
-            previewableItemCountSnapshot:
-              prepared.contentSummary.previewableItemCount,
-            downloadableItemCountSnapshot:
-              prepared.contentSummary.downloadableItemCount,
-            primaryContentKindSnapshot: prepared.contentSummary.primaryKind,
-            primaryContentLabelSnapshot: prepared.primaryContentLabel,
-            contentCompositionSummarySnapshot:
-              prepared.contentCompositionSummary,
-            contentAccessPolicyModeSnapshot:
-              prepared.contentAccessPolicy.mode ?? null,
-            defaultPreviewItemIdSnapshot: prepared.defaultPreviewItemId,
-
-            workspaceNameSnapshot:
-              prepared.identitySnapshot.workspaceNameSnapshot,
-            organizationNameSnapshot:
-              prepared.identitySnapshot.organizationNameSnapshot,
-            organizationVerifiedSnapshot:
-              prepared.identitySnapshot.organizationVerifiedSnapshot,
-            recordedIntegrityVerifiedAtUtcSnapshot:
-              prepared.reportEvidencePayload.recordedIntegrityVerifiedAtUtc
-                ? new Date(
-                    prepared.reportEvidencePayload.recordedIntegrityVerifiedAtUtc
-                  )
-                : null,
-            lastVerifiedAtUtcSnapshot:
-              prepared.reportEvidencePayload.lastVerifiedAtUtc
-                ? new Date(prepared.reportEvidencePayload.lastVerifiedAtUtc)
-                : null,
-            lastVerifiedSourceSnapshot:
-              (prepared.reportEvidencePayload.lastVerifiedSource as
-                | prismaPkg.VerificationSource
-                | null
-                | undefined) ?? null,
-            storageImmutableSnapshot:
-              prepared.reportEvidencePayload.storageImmutable ?? null,
-
-            displaySnapshot:
-              prepared.display as unknown as Prisma.InputJsonValue,
-            contentSummarySnapshot:
-              prepared.contentSummary as unknown as Prisma.InputJsonValue,
-            contentItemsSnapshot:
-              prepared.contentItems as unknown as Prisma.InputJsonValue,
-            primaryContentItemSnapshot:
-              prepared.primaryContentItem as unknown as Prisma.InputJsonValue,
-            previewPolicySnapshot:
-              prepared.previewPolicy as unknown as Prisma.InputJsonValue,
-            reviewGuidanceSnapshot:
-              prepared.reviewGuidance as unknown as Prisma.InputJsonValue,
-            limitationsSnapshot:
-              prepared.limitations as unknown as Prisma.InputJsonValue,
-anchorSnapshot:
-  prepared.anchorSummary as unknown as Prisma.InputJsonValue,
-trustDecisionSnapshot:
-  prepared.trustDecision as unknown as Prisma.InputJsonValue,
-contentAccessPolicySnapshot:
-  prepared.contentAccessPolicy as unknown as Prisma.InputJsonValue,
-              embeddedPreviewsSnapshot:
-              prepared.contentItems
-                .filter(
-                  (item) => item.previewDataUrl || item.previewTextExcerpt
-                )
-                .map((item) => ({
-                  id: item.id,
-                  previewDataUrl: item.previewDataUrl ?? null,
-                  previewTextExcerpt: item.previewTextExcerpt ?? null,
-                  previewCaption: item.previewCaption ?? null,
-                })) as unknown as Prisma.InputJsonValue,
-          },
-        });
-        
         await appendCustodyEventTx(tx, {
           evidenceId: prepared.evidenceId,
           eventType: prismaPkg.CustodyEventType.IDENTITY_SNAPSHOT_RECORDED,
@@ -2751,13 +2620,185 @@ contentAccessPolicySnapshot:
           },
         });
 
+        const finalizedCustodyForReport = finalizedCustodyEvents.map((ev) => ({
+          sequence: ev.sequence,
+          atUtc: ev.atUtc.toISOString(),
+          eventType: ev.eventType,
+          payloadSummary: summarizePayloadForReport(ev.eventType, ev.payload),
+          prevEventHash: ev.prevEventHash ?? null,
+          eventHash: ev.eventHash ?? null,
+          category: classifyCustodyEventType(ev.eventType),
+        }));
+
+        const finalizedTrustDecision = buildTrustDecision({
+          evidence: prepared.reportEvidencePayload,
+          custodyEvents: finalizedCustodyForReport,
+        });
+
+        const finalizedReportPdf = await buildReportPdfV2({
+          evidence: prepared.reportEvidencePayload,
+          custodyEvents: finalizedCustodyForReport,
+          version: prepared.version,
+          generatedAtUtc: prepared.now.toISOString(),
+          buildInfo: env.WORKER_BUILD_INFO ?? null,
+          verifyUrl: prepared.verifyUrl,
+          downloadUrl: prepared.downloadUrl,
+          externalMode: false,
+        });
+
+        await assertWorkspaceAllowsReportArtifact({
+          ownerUserId: evidence.ownerUserId,
+          teamId: evidence.teamId ?? null,
+          incomingBytes: BigInt(finalizedReportPdf.length),
+        });
+
+        await putObjectBuffer({
+          bucket: env.S3_BUCKET,
+          key: prepared.reportKey,
+          body: finalizedReportPdf,
+          contentType: "application/pdf",
+          immutable: true,
+          metadata: {
+            evidence_id: prepared.evidenceId,
+            report_version: String(prepared.version),
+            artifact_type: "report_pdf",
+          },
+          tags: {
+            artifact: "report",
+            evidenceId: prepared.evidenceId,
+            immutable: "true",
+          },
+        });
+
+        await applyRetentionOrThrow([
+          {
+            bucket: env.S3_BUCKET,
+            key: prepared.reportKey,
+          },
+        ]);
+
+        const reportHead = await headObject({
+          bucket: env.S3_BUCKET,
+          key: prepared.reportKey,
+        });
+
+        await tx.report.create({
+          data: {
+            evidenceId: prepared.evidenceId,
+            version: prepared.version,
+            storageBucket: env.S3_BUCKET,
+            storageKey: prepared.reportKey,
+            storageRegion: process.env.S3_REGION?.trim() || null,
+            storageObjectLockMode: reportHead.objectLockMode
+              ? String(reportHead.objectLockMode)
+              : null,
+            storageObjectLockRetainUntilUtc:
+              reportHead.objectLockRetainUntilDate ?? null,
+            storageObjectLockLegalHoldStatus:
+              reportHead.objectLockLegalHoldStatus
+                ? String(reportHead.objectLockLegalHoldStatus)
+                : null,
+            generatedAtUtc: prepared.now,
+            sizeBytes: BigInt(finalizedReportPdf.length),
+
+            verificationStatusSnapshot:
+              prepared.identitySnapshot.verificationStatus,
+            identityLevelSnapshot:
+              prepared.identitySnapshot.identityLevelSnapshot,
+            submittedByEmailSnapshot:
+              prepared.identitySnapshot.submittedByEmail,
+            submittedByAuthProviderSnapshot:
+              prepared.identitySnapshot.submittedByAuthProvider,
+            captureMethodSnapshot: prepared.identitySnapshot.captureMethod,
+            reviewerSummaryVersion:
+              prepared.identitySnapshot.reviewerSummaryVersion,
+            verificationPackageVersion: prepared.verificationPackageIncluded
+              ? prepared.version
+              : null,
+
+            displayTitleSnapshot: prepared.display.displayTitle,
+            displayDescriptionSnapshot: prepared.display.displayDescription,
+            contentStructureSnapshot: prepared.contentSummary.structure,
+            itemCountSnapshot: prepared.contentSummary.itemCount,
+            previewableItemCountSnapshot:
+              prepared.contentSummary.previewableItemCount,
+            downloadableItemCountSnapshot:
+              prepared.contentSummary.downloadableItemCount,
+            primaryContentKindSnapshot: prepared.contentSummary.primaryKind,
+            primaryContentLabelSnapshot: prepared.primaryContentLabel,
+            contentCompositionSummarySnapshot:
+              prepared.contentCompositionSummary,
+            contentAccessPolicyModeSnapshot:
+              prepared.contentAccessPolicy.mode ?? null,
+            defaultPreviewItemIdSnapshot: prepared.defaultPreviewItemId,
+
+            workspaceNameSnapshot:
+              prepared.identitySnapshot.workspaceNameSnapshot,
+            organizationNameSnapshot:
+              prepared.identitySnapshot.organizationNameSnapshot,
+            organizationVerifiedSnapshot:
+              prepared.identitySnapshot.organizationVerifiedSnapshot,
+            recordedIntegrityVerifiedAtUtcSnapshot:
+              prepared.reportEvidencePayload.recordedIntegrityVerifiedAtUtc
+                ? new Date(
+                    prepared.reportEvidencePayload.recordedIntegrityVerifiedAtUtc
+                  )
+                : null,
+            lastVerifiedAtUtcSnapshot:
+              prepared.reportEvidencePayload.lastVerifiedAtUtc
+                ? new Date(prepared.reportEvidencePayload.lastVerifiedAtUtc)
+                : null,
+            lastVerifiedSourceSnapshot:
+              (prepared.reportEvidencePayload.lastVerifiedSource as
+                | prismaPkg.VerificationSource
+                | null
+                | undefined) ?? null,
+            storageImmutableSnapshot:
+              prepared.reportEvidencePayload.storageImmutable ?? null,
+
+            displaySnapshot:
+              prepared.display as unknown as Prisma.InputJsonValue,
+            contentSummarySnapshot:
+              prepared.contentSummary as unknown as Prisma.InputJsonValue,
+            contentItemsSnapshot:
+              prepared.contentItems as unknown as Prisma.InputJsonValue,
+            primaryContentItemSnapshot:
+              prepared.primaryContentItem as unknown as Prisma.InputJsonValue,
+            previewPolicySnapshot:
+              prepared.previewPolicy as unknown as Prisma.InputJsonValue,
+            reviewGuidanceSnapshot:
+              prepared.reviewGuidance as unknown as Prisma.InputJsonValue,
+            limitationsSnapshot:
+              prepared.limitations as unknown as Prisma.InputJsonValue,
+            anchorSnapshot:
+              prepared.anchorSummary as unknown as Prisma.InputJsonValue,
+            trustDecisionSnapshot:
+              finalizedTrustDecision as unknown as Prisma.InputJsonValue,
+            contentAccessPolicySnapshot:
+              prepared.contentAccessPolicy as unknown as Prisma.InputJsonValue,
+            embeddedPreviewsSnapshot:
+              prepared.contentItems
+                .filter(
+                  (item) => item.previewDataUrl || item.previewTextExcerpt
+                )
+                .map((item) => ({
+                  id: item.id,
+                  previewDataUrl: item.previewDataUrl ?? null,
+                  previewTextExcerpt: item.previewTextExcerpt ?? null,
+                  previewCaption: item.previewCaption ?? null,
+                })) as unknown as Prisma.InputJsonValue,
+          },
+        });
+
         return {
           skipped: false as const,
           version: prepared.version,
           reportKey: prepared.reportKey,
           scheduleOtsUpgrade,
           reportVersion: prepared.version,
-                    finalizedCustodyEvents: finalizedCustodyEvents.map((ev) => ({
+          finalizedReportPdf,
+          finalizedTrustDecision,
+          finalizedCustodyEvents: finalizedCustodyEvents.map((ev) => ({
             sequence: ev.sequence,
             atUtc: ev.atUtc.toISOString(),
             eventType: ev.eventType,
@@ -2796,7 +2837,7 @@ const finalizedAnchorPayload = buildFinalizedAnchorPayload({
 });
         finalizedVerificationZip = await createVerificationPackage({
 evidenceFiles: prepared.verificationEvidenceFiles,
-          reportPdf: prepared.reportPdf,
+          reportPdf: finalized.finalizedReportPdf,
           reportFileName: `proovra-verification-report-v${prepared.version}.pdf`,
           fingerprint: prepared.fingerprintCanonicalJson,
 signature: evidence.signatureBase64!,
@@ -2805,7 +2846,7 @@ publicKey: prepared.reportEvidencePayload.publicKeyPem as string,
           custody: finalized.finalizedCustodyEvents,
           evidenceId: prepared.evidenceId,
           reportVersion: prepared.version,
-          trustDecision: prepared.trustDecision,
+          trustDecision: finalized.finalizedTrustDecision,
 signingKeyId: evidence.signingKeyId ?? undefined,
 signingKeyVersion: evidence.signingKeyVersion ?? undefined,
           anchor: finalizedAnchorPayload,
@@ -2822,6 +2863,7 @@ createdAtUtc: evidence.createdAt.toISOString(),
 verificationStatus: String(prepared.identitySnapshot.verificationStatus),
 captureMethod: String(prepared.identitySnapshot.captureMethod),
 identityLevelSnapshot: String(prepared.identitySnapshot.identityLevelSnapshot),
+submittedByEmail: prepared.identitySnapshot.submittedByEmail,
 submittedByAuthProvider:
   prepared.identitySnapshot.submittedByAuthProvider
     ? String(prepared.identitySnapshot.submittedByAuthProvider)
@@ -2927,7 +2969,7 @@ ownerUserId: prepared.packageMetadataContext.ownerUserId,
               sizeBytes: BigInt((finalizedVerificationZip as Buffer).length),
 packageType: "full_evidence_package",
 trustDecisionSnapshot:
-  prepared.trustDecision as unknown as Prisma.InputJsonValue,
+  finalized.finalizedTrustDecision as unknown as Prisma.InputJsonValue,
             },
           });
 

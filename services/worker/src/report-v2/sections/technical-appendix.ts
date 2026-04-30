@@ -44,14 +44,16 @@ function hasMeaningfulTechnicalValue(value: string | null | undefined): boolean 
 }
 
 function hasRecordedPublicAnchoring(vm: ReportViewModel): boolean {
-  const status = String(vm.technicalAppendix.otsStatusLabel ?? "").toLowerCase();
+  const rows = vm.technicalAppendix.anchoringRows;
 
-  return (
-    status.includes("recorded") ||
-    status.includes("anchored") ||
-    status.includes("published") ||
-    status.includes("verified") ||
-    hasMeaningfulTechnicalValue(vm.technicalAppendix.otsHash)
+  return rows.some(
+    (row) =>
+      [
+        "Anchor Anchored At (UTC)",
+        "Anchor Public URL",
+        "Anchor Receipt ID",
+        "Anchor Transaction ID",
+      ].includes(row.label) && hasMeaningfulTechnicalValue(row.value)
   );
 }
 

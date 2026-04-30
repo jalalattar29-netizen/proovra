@@ -320,7 +320,7 @@ tone:
             }
 
             <div class="cover-meta-card">
-              <div class="cover-meta-label">Record Status</div>
+              <div class="cover-meta-label">Evidence Status At Report Generation</div>
               <div class="cover-meta-value">${escapeHtml(vm.recordStatusLabel)}</div>
             </div>
 

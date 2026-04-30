@@ -213,6 +213,8 @@ export type ReportEvidence = {
   tsaGenTimeUtc: string | null;
   tsaTokenBase64: string | null;
   tsaMessageImprint: string | null;
+  tsaInputDigestHex?: string | null;
+  tsaInputKind?: string | null;
   tsaHashAlgorithm: string | null;
   tsaStatus: string | null;
   tsaFailureReason: string | null;
@@ -490,9 +492,12 @@ verificationPackageIntegrity: {
     otsStatusLabel: string;
     otsStatusTone: Tone;
     tsaMessageImprint: string | null;
+    tsaInputDigestHex?: string | null;
+    tsaInputKind?: string | null;
     otsHash: string | null;
     otsDetail: string | null;
     anchorHash: string | null;
+    timestampDigestLabel?: string | null;
     timestampReferenceNote: string;
     signatureReferenceNote: string;
     anchoringReferenceNote: string;

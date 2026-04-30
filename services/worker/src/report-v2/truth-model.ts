@@ -476,7 +476,9 @@ if (isFailedTimestamp(evidence.tsaStatus)) {
 }
 
 function buildAnchoringSignal(evidence: ReportEvidence): ReportTrustSignal {
-  if (isAnchoredOts(evidence.otsStatus)) {
+  const hasPublishedAnchor = evidence.anchor?.published === true;
+
+  if (isAnchoredOts(evidence.otsStatus) && hasPublishedAnchor) {
     return buildSignal({
       key: "public_anchoring",
       label: "Public anchoring",
@@ -485,7 +487,20 @@ function buildAnchoringSignal(evidence: ReportEvidence): ReportTrustSignal {
       maxPoints: 10,
       summary: "Public anchoring recorded",
       detail:
-        "OpenTimestamps or public anchoring material is recorded in an anchored state.",
+        "Public anchoring metadata includes an anchored receipt, transaction, URL, or anchored timestamp.",
+    });
+  }
+
+  if (isAnchoredOts(evidence.otsStatus)) {
+    return buildSignal({
+      key: "public_anchoring",
+      label: "Public anchoring",
+      status: "partial",
+      points: 8,
+      maxPoints: 10,
+      summary: "Anchor material included",
+      detail:
+        "Anchoring material is recorded in an anchored state, but no external publication receipt, transaction, URL, or anchored timestamp was attached.",
     });
   }
 
@@ -498,7 +513,7 @@ function buildAnchoringSignal(evidence: ReportEvidence): ReportTrustSignal {
       maxPoints: 10,
       summary: "Anchoring pending",
       detail:
-        "Anchoring material is present but not yet finalized. This is a degraded-but-usable state when core integrity, signature, custody, and storage are available.",
+        "Anchoring material is present but not yet finalized. This is a degraded but usable state when core integrity, signature, custody, and storage are available.",
     });
   }
 

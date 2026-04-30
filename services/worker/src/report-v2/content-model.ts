@@ -95,6 +95,8 @@ export function buildFallbackContentSummary(
   evidence: ReportEvidence,
   parsed: ParsedFingerprintSummary
 ): ReportEvidenceContentSummary {
+  const isMultipart = parsed.multipart && parsed.itemCount > 1;
+
   const otherCount = Math.max(
     0,
     parsed.itemCount -
@@ -105,7 +107,7 @@ export function buildFallbackContentSummary(
   );
 
   return {
-    structure: parsed.itemCount > 1 ? "multipart" : "single",
+    structure: isMultipart ? "multipart" : "single",
     itemCount: parsed.itemCount,
     previewableItemCount: 0,
     downloadableItemCount: parsed.itemCount > 0 ? parsed.itemCount : 0,
