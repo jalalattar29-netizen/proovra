@@ -2522,7 +2522,7 @@ const verdict =
         : score >= 62
           ? "PARTIALLY_VERIFIED"
           : "REVIEW_REQUIRED";
-          
+
   const verdictMeta =
     verdict === "STRONGLY_VERIFIED"
       ? {
@@ -4133,36 +4133,6 @@ setServerVerificationPackageIntegrity(data.verificationPackageIntegrity ?? null)
     reviewerSummaryVersion,
     verificationPackageVersion,
     verifiedAt,
-  ]);
-
-  const heroIntegrityHeadline = useMemo(() => {
-    const verificationStatusCode =
-      overview?.verificationStatusCode ?? verificationStatus ?? null;
-    const fallbackHeadline =
-      String(verificationStatusCode ?? "").toUpperCase() ===
-      "RECORDED_INTEGRITY_VERIFIED"
-        ? timestampDigestMatches === true
-          ? "Core Integrity Verified"
-          : "Core Integrity Verified; Trusted Timestamp Unavailable"
-        : String(verificationStatusCode ?? "").toUpperCase() ===
-            "MATERIALS_AVAILABLE"
-          ? "Integrity Materials Recorded"
-        : overallIntegrity === false
-          ? "Recorded Integrity Review Required"
-          : "Recorded Integrity Materials Available";
-
-    return (
-      humanSummary?.integrityStatus ??
-      overview?.integrityHeadline ??
-      fallbackHeadline
-    );
-  }, [
-    humanSummary?.integrityStatus,
-    overview?.integrityHeadline,
-    overview?.verificationStatusCode,
-    overallIntegrity,
-    timestampDigestMatches,
-    verificationStatus,
   ]);
 
   const heroWhatIsVerifiedText = useMemo(() => {

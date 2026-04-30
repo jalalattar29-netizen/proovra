@@ -75,9 +75,15 @@ ${escapeHtml(row.eventHash ?? "")}
       </tbody>
     </table>
 
-    <div class="custody-hash-chain-footnote">
-Full prevEventHash and eventHash values are preserved in custody.json inside the verification package and are available for technical inspection through the verification page.
-    </div>
+<div class="custody-hash-chain-footnote">
+  <p>
+    Events are displayed in custody hash-chain order. Some timestamps may appear slightly out of chronological order because asynchronous jobs can append events after using the workflow timestamp they document.
+  </p>
+
+  <p>
+    Full prevEventHash and eventHash values are preserved in custody.json inside the verification package and are available for technical inspection through the verification page.
+  </p>
+</div>
   `;
 }
 
