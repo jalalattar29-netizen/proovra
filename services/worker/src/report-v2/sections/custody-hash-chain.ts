@@ -77,7 +77,7 @@ ${escapeHtml(row.eventHash ?? "")}
 
 <div class="custody-hash-chain-footnote">
   <p>
-    Events are displayed in custody hash-chain order. Some timestamps may appear slightly out of chronological order because asynchronous jobs can append events after using the workflow timestamp they document.
+Events are displayed in custody hash-chain order. Timestamps may not always appear in strict chronological order because asynchronous system processes can append events after referencing the workflow timestamp they document.
   </p>
 
   <p>

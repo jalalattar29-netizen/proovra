@@ -4268,7 +4268,7 @@ setServerVerificationPackageIntegrity(data.verificationPackageIntegrity ?? null)
     ]
   );
 
-  const trustDecision = serverTrustDecision ?? fallbackTrustDecision;
+const trustDecision = fallbackTrustDecision;
 
 const verificationPackageIntegrity = useMemo(
   () =>
@@ -4395,9 +4395,13 @@ const executiveBadges = useMemo<
         },
 {
   label: "Verification Status",
-  value: verificationStatusDisplayLabel(
-    overview?.verificationStatusCode ?? verificationStatus
-  ),
+  value:
+    trustDecision.signals.find((signal) => signal.key === "core_integrity")
+      ?.status === "partial"
+      ? "Technical materials available"
+      : verificationStatusDisplayLabel(
+          overview?.verificationStatusCode ?? verificationStatus
+        ),
   show: true,
 },
 {
@@ -4594,7 +4598,7 @@ const executiveBadges = useMemo<
       verifyStatus,
       verificationStatus,
 overview?.verificationStatusCode,
-trustDecision.signals,
+trustDecision,
       title,
       evidenceId,
       params?.token,
