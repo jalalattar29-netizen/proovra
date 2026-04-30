@@ -164,17 +164,17 @@ export function buildOtsCallout(evidence: ReportEvidence): CalloutModel {
   return {
     title:
       tone === "success"
-        ? "OpenTimestamps anchored"
+        ? "Public anchoring verified"
         : tone === "warning"
-          ? "OpenTimestamps pending"
+          ? "OTS proof present, public anchoring pending"
           : tone === "danger"
-            ? "OpenTimestamps failed"
-            : "OpenTimestamps not reported",
+            ? "Public anchoring failed"
+            : "Public anchoring unavailable",
     body:
       tone === "success"
         ? "An OpenTimestamps proof is recorded in an anchored state and may provide additional independent public anchoring evidence."
         : tone === "warning"
-          ? "OpenTimestamps proof data is present but not yet in a final anchored state."
+          ? "OpenTimestamps proof material is present, but Bitcoin/public anchoring has not finalized yet."
           : tone === "danger"
             ? `OpenTimestamps processing reported a failure state.${safe(
                 evidence.otsFailureReason,
@@ -182,7 +182,7 @@ export function buildOtsCallout(evidence: ReportEvidence): CalloutModel {
               )
                 ? ` ${safe(evidence.otsFailureReason)}`
                 : ""}`.trim()
-            : "No OpenTimestamps record was included.",
+            : "No public anchoring record was included.",
     tone,
   };
 }
@@ -221,10 +221,10 @@ export function buildAnchorPublicationSummary(
   }
 
   if (anchor?.configured) {
-    return `Anchor configured but no published record captured`;
+    return "Public anchoring pending";
   }
 
-  return "No external publication recorded";
+  return "Public anchoring unavailable";
 }
 
 function isPositiveTimestamp(status: string | null | undefined): boolean {
@@ -315,8 +315,11 @@ function hasMeaningfulValue(value: string | null | undefined): boolean {
 function buildCoreIntegritySignal(evidence: ReportEvidence): ReportTrustSignal {
   const hasFileDigest = hasMeaningfulValue(evidence.fileSha256);
   const hasFingerprint = hasMeaningfulValue(evidence.fingerprintHash);
+  const hasSignatureMaterial =
+    hasMeaningfulValue(evidence.signatureBase64) &&
+    hasMeaningfulValue(evidence.signingKeyId);
   const verified = isIntegrityVerified(evidence);
-
+  
   if (verified && hasFileDigest && hasFingerprint) {
     return buildSignal({
       key: "core_integrity",
@@ -324,9 +327,9 @@ function buildCoreIntegritySignal(evidence: ReportEvidence): ReportTrustSignal {
       status: "passed",
       points: 25,
       maxPoints: 25,
-      summary: "Recorded integrity state verified",
+      summary: "Core integrity verified",
       detail:
-        "The report contains the primary digest and canonical fingerprint, and the recorded integrity state reached a verified condition.",
+        "Recorded digest, canonical fingerprint, signature material, and custody references are available and consistent for this evidence record.",
     });
   }
 
@@ -339,7 +342,7 @@ function buildCoreIntegritySignal(evidence: ReportEvidence): ReportTrustSignal {
       maxPoints: 25,
       summary: "Integrity materials recorded",
       detail:
-        "The digest and canonical fingerprint are recorded, but the overall integrity state was not finalized as fully verified at report generation time.",
+        "The digest and canonical fingerprint are recorded, but the core integrity record is still incomplete and should be reviewed before being treated as fully verified.",
     });
   }
 
@@ -485,7 +488,7 @@ function buildAnchoringSignal(evidence: ReportEvidence): ReportTrustSignal {
       status: "passed",
       points: 10,
       maxPoints: 10,
-      summary: "Public anchoring recorded",
+      summary: "Public anchoring verified",
       detail:
         "Public anchoring metadata includes an anchored receipt, transaction, URL, or anchored timestamp.",
     });
@@ -511,9 +514,9 @@ function buildAnchoringSignal(evidence: ReportEvidence): ReportTrustSignal {
       status: "pending",
       points: 6,
       maxPoints: 10,
-      summary: "Anchoring pending",
+      summary: "OTS proof present, public anchoring pending",
       detail:
-        "Anchoring material is present but not yet finalized. This is a degraded but usable state when core integrity, signature, custody, and storage are available.",
+        "OpenTimestamps proof material is present, but Bitcoin/public anchoring has not finalized yet.",
     });
   }
 
@@ -524,7 +527,7 @@ function buildAnchoringSignal(evidence: ReportEvidence): ReportTrustSignal {
       status: "missing",
       points: 3,
       maxPoints: 10,
-      summary: "Anchoring disabled",
+      summary: "Public anchoring unavailable",
       detail:
         "Public anchoring was disabled or not used for this evidence record.",
     });
@@ -550,7 +553,7 @@ function buildAnchoringSignal(evidence: ReportEvidence): ReportTrustSignal {
     status: "missing",
     points: 0,
     maxPoints: 10,
-    summary: "Anchoring not recorded",
+    summary: "Public anchoring unavailable",
     detail:
       "No public anchoring material was recorded for this evidence state.",
   });

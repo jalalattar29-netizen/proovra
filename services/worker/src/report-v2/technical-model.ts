@@ -171,7 +171,7 @@ export function buildTimestampRows(
   const timestampDigestLabel =
     isMultipart && evidence.tsaInputKind && evidence.tsaInputKind !== "FILE_SHA256"
       ? "Timestamped Digest / Canonical Package Digest"
-      : "Timestamped Digest";
+      : "Timestamped Digest / Original File SHA-256";
 
   return [
     { label: "Timestamp Provider", value: safe(evidence.tsaProvider) },
@@ -266,7 +266,7 @@ const recordedDigestLabel =
 const timestampDigestLabel =
   isMultipart && evidence.tsaInputKind && evidence.tsaInputKind !== "FILE_SHA256"
     ? "Timestamped Digest / Canonical Package Digest"
-    : "Timestamped Digest";
+    : "Timestamped Digest / Original File SHA-256";
     
 const fingerprintRows: KeyValueRow[] = [
   {

@@ -848,6 +848,30 @@ function mapCaptureMethodLabel(
   }
 }
 
+function getTimestampDigestLabel(params: {
+  itemCount: number;
+  tsaInputKind: string | null | undefined;
+}): string {
+  const isMultipart =
+    params.itemCount > 1 ||
+    String(params.tsaInputKind ?? "").toUpperCase() ===
+      "CANONICAL_PACKAGE_SHA256";
+
+  return isMultipart
+    ? "Timestamped Digest / Canonical Package Digest"
+    : "Timestamped Digest / Original File SHA-256";
+}
+
+function maskPublicEmail(email: string | null | undefined): string | null {
+  const value = String(email ?? "").trim();
+  if (!value) return null;
+  if (!value.includes("@")) return "Not recorded";
+
+  const [name, domain] = value.split("@");
+  const visible = name.slice(0, Math.min(3, name.length));
+  return `${visible}***@${domain}`;
+}
+
 function mapIntegrityHeadline(params: {
   overallIntegrity: boolean | null | undefined;
   timestampDigestMatches: boolean | null;
@@ -859,7 +883,7 @@ function mapIntegrityHeadline(params: {
   ) {
     return "Core Integrity Verified; Trusted Timestamp Unavailable";
   }
-  if (params.overallIntegrity === true) return "Recorded Integrity Verified";
+  if (params.overallIntegrity === true) return "Core Integrity Verified";
   if (params.overallIntegrity === false) {
     return "Recorded Integrity Review Required";
   }
@@ -881,7 +905,7 @@ function mapIntegritySummaryText(params: {
     params.otsHashMatches;
 
   if (coreChecksPassed && params.timestampDigestMatches === true) {
-    return "Recorded integrity checks passed for the available fingerprint, signature, custody chain, trusted timestamp linkage, and OpenTimestamps linkage.";
+    return "Core integrity verified. Recorded digest, canonical fingerprint, signature material, custody references, trusted timestamp linkage, and OpenTimestamps linkage are available and consistent for this evidence record.";
   }
 
   if (coreChecksPassed && params.timestampDigestMatches === null) {
@@ -940,15 +964,15 @@ function mapOtsStatusLabel(status: string | null | undefined): string {
   const normalized = normalizeOtsStatus(status);
   switch (normalized) {
     case "ANCHORED":
-      return "OpenTimestamps anchored";
+      return "Public anchoring verified";
     case "PENDING":
-      return "OpenTimestamps pending";
+      return "OTS proof present, public anchoring pending";
     case "FAILED":
-      return "OpenTimestamps failed";
+      return "Public anchoring failed";
     case "DISABLED":
-      return "OpenTimestamps disabled";
+      return "Public anchoring unavailable";
     default:
-      return "OpenTimestamps not reported";
+      return "Public anchoring unavailable";
   }
 }
 
@@ -1957,7 +1981,7 @@ primaryContentLabel: buildPrimaryContentLabel(
     captureMethod: mapCaptureMethodLabel(params.evidence.captureMethod),
     captureMethodCode: params.evidence.captureMethod,
     mimeType: params.evidence.mimeType ?? null,
-    submittedByEmail: params.evidence.submittedByEmail ?? null,
+    submittedByEmail: maskPublicEmail(params.evidence.submittedByEmail),
     submittedByAuthProvider: mapAuthProviderLabel(
       params.evidence.submittedByAuthProvider
     ),
@@ -5323,9 +5347,12 @@ const accessEventsAfterReportGeneration = reportGeneratedAtUtc
 const custodyDisplayCounts = {
   forensicAtReportGeneration: forensicEventsAtReportGeneration.length,
   currentForensicEvents: forensicCustodyEvents.length,
+  currentForensic: forensicCustodyEvents.length,
   accessAfterReportGeneration: accessEventsAfterReportGeneration.length,
   currentAccessEvents: accessCustodyEvents.length,
   totalDisplayedEvents:
+    forensicCustodyEvents.length + accessCustodyEvents.length,
+  totalDisplayedNow:
     forensicCustodyEvents.length + accessCustodyEvents.length,
   reportGeneratedAtUtc: reportGeneratedAtUtc
     ? reportGeneratedAtUtc.toISOString()
@@ -5452,11 +5479,10 @@ digestMatchesFileHash:
 digestCheckConclusive: timestampDigestMatches !== null,
 timestampAvailable: timestampStatusIsPositive,
 timestampedDigestLabel:
-  evidence.tsaInputKind && evidence.tsaInputKind !== "FILE_SHA256"
-    ? content.summary.structure === "multipart"
-      ? "Timestamped Digest / Canonical Package Digest"
-      : "Timestamped Digest"
-    : "Timestamped Digest",
+  getTimestampDigestLabel({
+    itemCount,
+    tsaInputKind: evidence.tsaInputKind,
+  }),
 timestampedDigestNote:
   evidence.tsaInputKind && evidence.tsaInputKind !== "FILE_SHA256"
     ? "This value may differ from the original file SHA-256 when the timestamp is applied to canonical evidence or fingerprint material."

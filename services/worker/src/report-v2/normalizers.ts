@@ -25,7 +25,7 @@ export function mapVerificationStatusLabel(
     case "MATERIALS_AVAILABLE":
       return "Technical materials available";
     case "RECORDED_INTEGRITY_VERIFIED":
-      return "Recorded integrity state verified";
+      return "Core integrity verified";
     case "REVIEW_REQUIRED":
       return "Review required";
     case "FAILED":
@@ -195,15 +195,15 @@ export function mapTimestampStatusPublicLabel(
 export function mapOtsStatusPublicLabel(status: string | null | undefined): string {
   switch (safe(status, "").toUpperCase()) {
     case "ANCHORED":
-      return "Anchoring recorded";
+      return "Public anchoring verified";
     case "PENDING":
-      return "Anchoring pending";
+      return "OTS proof present, public anchoring pending";
     case "FAILED":
-      return "Anchoring failed";
+      return "Public anchoring failed";
     case "DISABLED":
-      return "Anchoring disabled";
+      return "Public anchoring unavailable";
     default:
-      return "Anchoring not recorded";
+      return "Public anchoring unavailable";
   }
 }
 
@@ -223,9 +223,9 @@ export function mapObjectLockModePublicLabel(
 export function mapAnchorModePublicLabel(mode: string | null | undefined): string {
   switch (safe(mode, "").toUpperCase()) {
     case "ACTIVE":
-      return "Active anchoring";
+      return "Public anchoring in progress";
     case "READY":
-      return "Anchor configured";
+      return "Public anchoring pending";
     case "OFF":
       return "Anchoring off";
     case "PUBLIC":

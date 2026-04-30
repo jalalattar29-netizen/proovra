@@ -362,9 +362,11 @@ tsaMessageImprint?: string | null;
   custodyDisplayCounts?: {
     forensicAtReportGeneration?: number | null;
     currentForensicEvents?: number | null;
+    currentForensic?: number | null;
     accessAfterReportGeneration?: number | null;
     currentAccessEvents?: number | null;
     totalDisplayedEvents?: number | null;
+    totalDisplayedNow?: number | null;
     reportGeneratedAtUtc?: string | null;
   } | null;
 
@@ -1251,6 +1253,7 @@ function TimelinePanel({
   title,
   subtitle,
   note,
+  countLabel,
   countTone,
   events,
   emptyTitle,
@@ -1261,6 +1264,7 @@ function TimelinePanel({
   title: string;
   subtitle: string;
   note?: string | null;
+  countLabel?: string | null;
   countTone: "info" | "neutral";
   events: TimelineItem[];
   emptyTitle: string;
@@ -1311,7 +1315,7 @@ function TimelinePanel({
         </div>
 
         <Badge
-          label={`${events.length} Event${events.length === 1 ? "" : "s"}`}
+          label={countLabel ?? `${events.length} Event${events.length === 1 ? "" : "s"}`}
           tone={countTone}
         />
       </div>
@@ -2027,7 +2031,7 @@ function buildVerificationVerdict(input: VerificationSignalInput): VerificationV
     return {
       status: "verified",
       title: "Final Verification Verdict",
-      label: "Recorded Integrity Verified",
+      label: "Core Integrity Verified",
       riskLevel: "Low",
       actionRequired:
         "Reviewers may rely on the recorded integrity state, while still separately assessing authorship, factual context, relevance, and legal admissibility.",
@@ -2045,7 +2049,7 @@ function buildVerificationVerdict(input: VerificationSignalInput): VerificationV
       status: "partial",
       title: "Final Verification Verdict",
       label: timestampUnavailable
-        ? "Available Integrity Checks Verified"
+        ? "Available Integrity Checks Verified; Trusted Timestamp Unavailable"
         : "Partially Verified",
       riskLevel: "Medium",
       actionRequired:
@@ -2110,6 +2114,29 @@ function makeTrustSignal(params: {
     tone: trustTone(params.status),
     points: Math.max(0, Math.min(params.maxPoints, Math.round(params.points))),
   };
+}
+
+function maskPublicEmail(email: string | null | undefined): string {
+  const value = String(email ?? "").trim();
+  if (!value || !value.includes("@")) return "Not recorded";
+
+  const [name, domain] = value.split("@");
+  const visible = name.slice(0, Math.min(3, name.length));
+  return `${visible}***@${domain}`;
+}
+
+function getTimestampDigestLabel(params: {
+  itemCount?: number | null;
+  tsaInputKind?: string | null;
+}): string {
+  const isMultipart =
+    Number(params.itemCount ?? 0) > 1 ||
+    String(params.tsaInputKind ?? "").toUpperCase() ===
+      "CANONICAL_PACKAGE_SHA256";
+
+  return isMultipart
+    ? "Timestamped Digest / Canonical Package Digest"
+    : "Timestamped Digest / Original File SHA-256";
 }
 
 function isPositiveTsa(status?: string | null): boolean {
@@ -2177,13 +2204,13 @@ function buildVerifyTrustDecision(params: {
     maxPoints: 25,
     summary:
       corePassed
-        ? "Recorded integrity state verified"
+        ? "Core integrity verified"
         : corePartial
           ? "Integrity materials recorded"
           : "Integrity materials incomplete",
     detail:
       corePassed
-        ? "The verification response includes matching core integrity material for the preserved evidence state."
+        ? "Recorded digest, canonical fingerprint, signature material, and custody references are available and consistent for this evidence record."
         : corePartial
           ? "Core hash and fingerprint material are available, but the response does not provide a fully verified integrity conclusion."
           : "The verification response does not contain enough core hash/fingerprint material for reliable reliance.",
@@ -2315,23 +2342,23 @@ detail:
     maxPoints: 10,
     summary:
       anchoringPassed
-        ? "Public anchoring recorded"
+        ? "Public anchoring verified"
         : anchorMaterialIncluded
           ? "Anchor material included"
         : params.otsHashMatches === false
           ? "Anchoring hash mismatch"
           : isPendingOts(params.otsStatus)
-            ? "Anchoring pending"
+            ? "OTS proof present, public anchoring pending"
             : isFailedOts(params.otsStatus)
-              ? "Anchoring failed"
-              : "Anchoring not recorded",
+              ? "Public anchoring failed"
+              : "Public anchoring unavailable",
     detail:
       anchoringPassed
         ? "The record includes public anchoring metadata with a publication receipt, transaction, URL, or anchored timestamp."
         : anchorMaterialIncluded
           ? "Anchoring material is recorded, but no public publication receipt, transaction, URL, or anchored timestamp is attached yet."
         : isPendingOts(params.otsStatus)
-          ? "OpenTimestamps anchoring is pending. This is degraded but still reviewable when core integrity and signature material are present."
+          ? "OpenTimestamps proof material is present, but Bitcoin/public anchoring has not finalized yet."
           : "No confirmed public anchoring layer is available for this record.",
   });
 
@@ -3683,10 +3710,12 @@ setFullCustodyTimeline(fullTimeline);
     );
 
     setSubmittedByEmail(
-      effectiveHumanSummary?.submittedBy ??
-        effectiveOverview?.submittedByEmail ??
-        effectiveIdentity?.submittedByEmail ??
-        null
+      maskPublicEmail(
+        effectiveHumanSummary?.submittedBy ??
+          effectiveOverview?.submittedByEmail ??
+          effectiveIdentity?.submittedByEmail ??
+          null
+      )
     );
     setAuthProvider(
       effectiveHumanSummary?.authProvider ??
@@ -4049,7 +4078,7 @@ setServerVerificationPackageIntegrity(data.verificationPackageIntegrity ?? null)
     const fallbackHeadline =
       overallIntegrity === true
         ? timestampDigestMatches === true
-          ? "Recorded Integrity Verified"
+          ? "Core Integrity Verified"
           : "Core Integrity Verified; Trusted Timestamp Unavailable"
         : overallIntegrity === false
           ? "Recorded Integrity Review Required"
@@ -4286,6 +4315,12 @@ const executiveBadges = useMemo<
 
     return null;
   }, [fullCustodyTimeline]);
+
+  const liveCustodyCountsNote = useMemo(() => {
+    if (!custodyDisplayCounts) return null;
+
+    return "Counts are live and may increase after report or package generation as reviewers open, download, or verify materials.";
+  }, [custodyDisplayCounts]);
 
   const accessActivityNarrative = useMemo(() => {
     if (accessTimeline.length > 0) {
@@ -6383,10 +6418,10 @@ These materials support the Trust Decision shown above. The Trust Decision is th
                         <MaterialField
                           label={
                             timestampedDigestLabel ??
-                            (evidenceContentSummary?.itemCount &&
-                            evidenceContentSummary.itemCount > 1
-                              ? "Timestamped Digest / Canonical Package Digest"
-                              : "Timestamped Digest")
+                            getTimestampDigestLabel({
+                              itemCount: evidenceContentSummary?.itemCount,
+                              tsaInputKind,
+                            })
                           }
                           subtitle={
                             timestampedDigestNote ??
@@ -6635,7 +6670,16 @@ These materials support the Trust Decision shown above. The Trust Decision is th
     title="Custody Chain"
     forensicMode={forensicMode}
     subtitle="Complete recorded custody chronology, including integrity-relevant lifecycle events and later access activity when returned by the verification response. Event hashes are shown in full for chain-continuity review."
-    note={custodyTimestampOrderNote}
+    note={
+      [liveCustodyCountsNote, custodyTimestampOrderNote]
+        .filter(Boolean)
+        .join(" ")
+    }
+    countLabel={
+      custodyDisplayCounts
+        ? `Forensic ${custodyDisplayCounts.currentForensicEvents ?? forensicTimeline.length} • Access ${custodyDisplayCounts.accessAfterReportGeneration ?? accessTimeline.length} • Total ${custodyDisplayCounts.totalDisplayedNow ?? custodyDisplayCounts.totalDisplayedEvents ?? fullCustodyTimeline.length}`
+        : null
+    }
     countTone="info"
     events={fullCustodyTimeline}
     emptyTitle="No custody-chain events were returned"

@@ -20,7 +20,7 @@ function renderCustodyStats(vm: ReportViewModel): string {
   return `
     <div class="custody-stats-grid">
       <div class="custody-stat-card">
-        <div class="custody-stat-label">Forensic Events</div>
+        <div class="custody-stat-label">Forensic Events (Report Snapshot)</div>
 <div class="custody-stat-value">${escapeHtml(vm.custodyCounts.label)}</div>
       </div>
       <div class="custody-stat-card">
@@ -30,7 +30,7 @@ function renderCustodyStats(vm: ReportViewModel): string {
         }</div>
       </div>
 <div class="custody-stat-card">
-  <div class="custody-stat-label">Access Activity</div>
+  <div class="custody-stat-label">Later Access Activity</div>
 <div class="custody-stat-value">${escapeHtml(
   `${vm.custodyCounts.accessEvents} access events`
 )}</div>

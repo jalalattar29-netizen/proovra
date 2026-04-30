@@ -666,7 +666,13 @@ The signature is generated against PROOVRA fingerprint material. Depending on th
 
 ${
   params.hasTimestampToken
-    ? `\`timestamp.tsr\` is included. Use RFC 3161/OpenSSL timestamp tooling together with the original digest and TSA certificate chain available from the timestamp provider.`
+    ? `\`timestamp.tsr\` is included as RFC 3161 DER-encoded timestamp data. Example:
+
+\`\`\`bash
+openssl ts -reply -in timestamp.tsr -text
+\`\`\`
+
+Use it together with the original digest and TSA certificate chain available from the timestamp provider.`
     : `No \`timestamp.tsr\` is included. Review \`trust-decision.json\`, \`integrity-summary.json\`, and the PDF timestamp section for the timestamp status.`
 }
 
@@ -778,7 +784,7 @@ function buildVerifyPackageScript() {
     "",
     'console.log("✅ FULL PACKAGE VERIFIED");',
     "",
-  ].join("\\n");
+  ].join("\n");
 }
 
 function buildAnchorReadmeSection(params: {
@@ -848,8 +854,9 @@ ${publicBaseLine}`;
 
   return `ANCHOR STATUS
 
-anchor.json is included in this package as anchor-ready integrity material.
+anchor.json is included in this package as anchoring material.
 No external publication receipt or transaction identifier is attached yet.
+Public anchoring should be treated as pending unless a receipt, transaction ID, public URL, or anchored timestamp is present.
 This anchoring layer is independent from RFC 3161 timestamping.
 ${providerLine}
 ${publicBaseLine}`;
@@ -1083,7 +1090,7 @@ function buildReadme(params: {
 
   const timestampReadmeLine = params.hasTimestampToken
     ? `timestamp.tsr
-Included in this package. RFC3161 timestamping material was attached for independent timestamp verification.`
+Included in this package as RFC 3161 DER-encoded timestamp data. Example: openssl ts -reply -in timestamp.tsr -text`
     : `timestamp.tsr
 Not included in this package. RFC3161 timestamp status: ${
         timestampStatus || "NOT_RECORDED"
@@ -1091,7 +1098,7 @@ Not included in this package. RFC3161 timestamp status: ${
 
   const anchorReadmeLine = params.anchorIncluded
     ? `anchor.json
-Included in this package. This is anchor-ready or publication material depending on the configured anchoring mode.`
+Included in this package. This is anchoring material only and may still be pending public publication.`
     : `anchor.json
 Not included in this package. Public anchoring status: ${
         otsStatus || "NOT_RECORDED"
@@ -1576,8 +1583,8 @@ a{color:#0b2e27;font-weight:700}
       <li>Hash the included evidence file(s) with SHA-256.</li>
       <li>Compare computed hashes against <code>original-linkage.json</code>, <code>fingerprint.json</code>, and <code>package-checksums.json</code>.</li>
       <li>Verify <code>signature.txt</code> using <code>public-key.pem</code>.</li>
-      <li>If present, verify <code>timestamp.tsr</code> with RFC3161 timestamp verification tools.</li>
-      <li>If present, review <code>anchor.json</code> for anchoring or publication material.</li>
+      <li>If present, verify <code>timestamp.tsr</code> as RFC 3161 DER data, for example with <code>openssl ts -reply -in timestamp.tsr -text</code>.</li>
+      <li>If present, review <code>anchor.json</code> as anchoring material only; pending status is not the same as verified public publication.</li>
     </ol>
   </div>
 
@@ -1792,7 +1799,7 @@ trustDecision: ReportTrustDecision;
         archive,
         packageEntries,
         "timestamp.tsr",
-        textBuffer(data.timestampToken),
+        Buffer.from(data.timestampToken, "base64"),
         "application/octet-stream"
       );
     }
