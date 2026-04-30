@@ -3951,8 +3951,6 @@ body {
 
 .trust-signal-analysis-footer {
   border-left-color: rgba(96, 66, 24, 0.95) !important;
-  margin-top: auto !important;
-  margin-bottom: 5mm !important;
 }
 
 .trust-signal-analysis-section .trust-signal-grid,
@@ -4023,13 +4021,57 @@ body {
   page-break-inside: avoid !important;
 }
 
-.cover-decision-indicator.tone-danger {
-  border-color: rgba(181, 71, 56, 0.30);
-  background: rgba(181, 71, 56, 0.10);
+.cover-decision-indicator.tone-warning .cover-decision-mark {
+  background: rgba(255, 255, 255, 0.78) !important;
+  color: ${c.warning} !important;
+  border-radius: 999px !important;
 }
 
 .cover-decision-indicator.tone-danger .cover-decision-mark {
-  background: #b54738;
+  background: rgba(255, 255, 255, 0.78) !important;
+  color: ${c.danger} !important;
+  border-radius: 999px !important;
+}
+
+.cover-decision-indicator.tone-danger {
+  border-color: rgba(181, 71, 56, 0.30) !important;
+  background: rgba(181, 71, 56, 0.08) !important;
+}
+
+/* PIN TRUST / COURT FOOTERS TO BOTTOM */
+
+.trust-signal-analysis-section .report-page,
+.court-review-index-section .report-page {
+  height: 297mm !important;
+  min-height: 297mm !important;
+  display: flex !important;
+  flex-direction: column !important;
+  overflow: hidden !important;
+}
+
+.trust-signal-analysis-section .section-sheet,
+.trust-signal-analysis-section .section-body,
+.court-review-index-section .section-sheet,
+.court-review-index-section .section-body {
+  flex: 1 1 auto !important;
+  display: flex !important;
+  flex-direction: column !important;
+  min-height: 0 !important;
+}
+
+.trust-signal-analysis-page,
+.court-review-index-page {
+  flex: 1 1 auto !important;
+  display: flex !important;
+  flex-direction: column !important;
+  min-height: 0 !important;
+}
+
+.trust-signal-analysis-footer {
+  margin-top: auto !important;
+  margin-bottom: 9mm !important;
+  break-inside: avoid !important;
+  page-break-inside: avoid !important;
 }
 
 @media print {

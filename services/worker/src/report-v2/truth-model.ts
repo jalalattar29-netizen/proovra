@@ -451,17 +451,17 @@ function buildTimestampSignal(evidence: ReportEvidence): ReportTrustSignal {
     });
   }
 
-  if (isFailedTimestamp(evidence.tsaStatus)) {
-    return buildSignal({
-      key: "trusted_timestamp",
-      label: "Trusted timestamp",
-      status: "failed",
-      points: 3,
-      maxPoints: 15,
-      summary: "Timestamp unavailable",
-      detail: normalizeTimestampFailureReason(evidence.tsaFailureReason),
-    });
-  }
+if (isFailedTimestamp(evidence.tsaStatus)) {
+  return buildSignal({
+    key: "trusted_timestamp",
+    label: "Trusted timestamp",
+    status: "partial",
+    points: 3,
+    maxPoints: 15,
+    summary: "Timestamp unavailable",
+    detail: normalizeTimestampFailureReason(evidence.tsaFailureReason),
+  });
+}
 
   return buildSignal({
     key: "trusted_timestamp",
