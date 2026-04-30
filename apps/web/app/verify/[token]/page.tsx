@@ -2453,7 +2453,7 @@ detail:
     key: "identity",
     label: "Submitter identity",
     status: identityStrong ? "passed" : params.submittedByEmail ? "partial" : "missing",
-    points: identityStrong ? 5 : params.submittedByEmail ? 3 : 0,
+    points: identityStrong ? 4 : params.submittedByEmail ? 3 : 0,
     maxPoints: 5,
     summary:
       identityStrong
@@ -2469,13 +2469,13 @@ const verificationPackage = makeTrustSignal({
   key: "verification_package",
   label: "Verification package",
   status: params.verificationPackageVersion ? "partial" : "missing",
-  points: params.verificationPackageVersion ? 3 : 0,
+  points: params.verificationPackageVersion ? 5 : 0,
   maxPoints: 5,
   summary: params.verificationPackageVersion
     ? "Verification package version recorded"
     : "Verification package not exposed",
   detail: params.verificationPackageVersion
-    ? "A verification package version is recorded, but package manifest, manifest signature, checksum index, and offline verifier are not exposed in this public verification response."
+? "A verification package/version is recorded, supporting deeper technical validation outside the PDF body."
     : "No verification package version was exposed in this response.",
 });
 
