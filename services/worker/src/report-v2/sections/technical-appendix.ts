@@ -215,6 +215,9 @@ const shouldRenderSignature = hasSignatureRows;
   )
     ? String(vm.technicalAppendix.tsaMessageImprint)
     : "";
+  const timestampDigestLabel =
+    vm.technicalAppendix.timestampDigestLabel ??
+    "Timestamped Digest / Original File SHA-256";
 
   const otsHash = hasMeaningfulTechnicalValue(vm.technicalAppendix.otsHash)
     ? String(vm.technicalAppendix.otsHash)
@@ -289,13 +292,15 @@ ${
         <div class="technical-appendix-page technical-appendix-timestamp-anchor-page">
           ${renderAppendixSection(
             "Trusted Timestamp",
-"RFC 3161 timestamp metadata and timestamped digest reference. This digest may represent canonical package/fingerprint material rather than the original file SHA-256.",
+timestampDigestLabel.includes("Canonical Package Digest")
+  ? "RFC 3161 timestamp metadata and timestamped digest reference. This digest may represent canonical package/fingerprint material rather than the original file SHA-256."
+  : "RFC 3161 timestamp metadata and timestamped digest reference for the original preserved file SHA-256.",
             `
               ${renderKeyValueGrid(vm.technicalAppendix.timestampRows)}
               ${
                 tsaMessageImprint
 ? renderMonoBlock(
-    "Timestamped Digest / Canonical Package Digest",
+    timestampDigestLabel,
     tsaMessageImprint
   )
                     : ""

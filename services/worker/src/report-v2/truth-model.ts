@@ -320,7 +320,7 @@ function buildCoreIntegritySignal(evidence: ReportEvidence): ReportTrustSignal {
     hasMeaningfulValue(evidence.signingKeyId);
   const verified = isIntegrityVerified(evidence);
   
-  if (verified && hasFileDigest && hasFingerprint) {
+  if (verified && hasFileDigest && hasFingerprint && hasSignatureMaterial) {
     return buildSignal({
       key: "core_integrity",
       label: "Core integrity",
@@ -333,7 +333,7 @@ function buildCoreIntegritySignal(evidence: ReportEvidence): ReportTrustSignal {
     });
   }
 
-  if (hasFileDigest && hasFingerprint) {
+  if (hasFileDigest && hasFingerprint && hasSignatureMaterial) {
     return buildSignal({
       key: "core_integrity",
       label: "Core integrity",
@@ -342,7 +342,7 @@ function buildCoreIntegritySignal(evidence: ReportEvidence): ReportTrustSignal {
       maxPoints: 25,
       summary: "Integrity materials recorded",
       detail:
-        "The digest and canonical fingerprint are recorded, but the core integrity record is still incomplete and should be reviewed before being treated as fully verified.",
+        "Recorded digest, canonical fingerprint, and signature material are present, but the recorded-integrity state has not been finalized as fully verified.",
     });
   }
 
@@ -796,7 +796,11 @@ if (coreFailed || signatureFailed || custodyFailed || params.score < 45) {
   };
 }
 
-  if (params.score >= 90 && params.failedSignals === 0) {
+  if (
+    params.score >= 90 &&
+    params.failedSignals === 0 &&
+    params.core.status === "passed"
+  ) {
     return {
       verdict: "STRONGLY_VERIFIED",
       level: "strong",
@@ -805,6 +809,18 @@ if (coreFailed || signatureFailed || custodyFailed || params.score < 45) {
       shortLabel: "Strong",
       title: "Strong verification state",
       relianceLevel: "high",
+    };
+  }
+
+  if (params.score >= 78 && params.core.status !== "passed") {
+    return {
+      verdict: "PARTIALLY_VERIFIED",
+      level: "partial",
+      tone: "warning",
+      verdictLabel: "Verified with limitations",
+      shortLabel: "Limited",
+      title: "Verified evidence state with limitations",
+      relianceLevel: "medium",
     };
   }
 
@@ -881,7 +897,10 @@ function buildDecisionNarrative(params: {
   }
 
   return {
-    summary: `${params.verdictLabel} — ${params.score}/100. The recorded evidence state is summarized from cryptographic, custody, timestamping, storage, identity, and package-availability signals.`,
+    summary:
+      params.verdictLabel === "Verified with limitations"
+        ? `${params.verdictLabel} — ${params.score}/100. Core integrity materials are recorded, but the recorded-integrity state has not been finalized as fully verified.`
+        : `${params.verdictLabel} — ${params.score}/100. The recorded evidence state is summarized from cryptographic, custody, timestamping, storage, identity, and package-availability signals.`,
     primaryReason: `Passed signals: ${passedText}. Degraded signals: ${degradedText}.`,
     reviewerAction:
       params.score >= 78

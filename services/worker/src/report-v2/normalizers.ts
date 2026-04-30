@@ -25,7 +25,7 @@ export function mapVerificationStatusLabel(
     case "MATERIALS_AVAILABLE":
       return "Technical materials available";
     case "RECORDED_INTEGRITY_VERIFIED":
-      return "Core integrity verified";
+      return "Recorded integrity state verified";
     case "REVIEW_REQUIRED":
       return "Review required";
     case "FAILED":

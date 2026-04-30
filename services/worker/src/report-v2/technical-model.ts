@@ -20,6 +20,22 @@ import {
   mapTimestampStatusPublicLabel,
 } from "./normalizers.js";
 
+export function getTimestampDigestValueLabel(params: {
+  structure?: string | null;
+  itemCount?: number | null;
+  tsaInputKind?: string | null;
+}): string {
+  const isMultipart =
+    params.structure === "multipart" ||
+    Number(params.itemCount ?? 0) > 1 ||
+    String(params.tsaInputKind ?? "").toUpperCase() ===
+      "CANONICAL_PACKAGE_SHA256";
+
+  return isMultipart
+    ? "Timestamped Digest / Canonical Package Digest"
+    : "Timestamped Digest / Original File SHA-256";
+}
+
 function mapTimestampTone(status: string | null | undefined): Tone {
   const value = safe(status, "").toUpperCase();
 
@@ -168,10 +184,11 @@ export function buildTimestampRows(
     contentSummary?.structure === "multipart" ||
     Number(contentSummary?.itemCount ?? 0) > 1;
 
-  const timestampDigestLabel =
-    isMultipart && evidence.tsaInputKind && evidence.tsaInputKind !== "FILE_SHA256"
-      ? "Timestamped Digest / Canonical Package Digest"
-      : "Timestamped Digest / Original File SHA-256";
+  const timestampDigestLabel = getTimestampDigestValueLabel({
+    structure: contentSummary?.structure ?? null,
+    itemCount: contentSummary?.itemCount ?? null,
+    tsaInputKind: evidence.tsaInputKind,
+  });
 
   return [
     { label: "Timestamp Provider", value: safe(evidence.tsaProvider) },
@@ -263,10 +280,11 @@ const recordedDigestLabel =
     ? "Canonical Package Digest (SHA-256)"
     : "Original File SHA-256";
 
-const timestampDigestLabel =
-  isMultipart && evidence.tsaInputKind && evidence.tsaInputKind !== "FILE_SHA256"
-    ? "Timestamped Digest / Canonical Package Digest"
-    : "Timestamped Digest / Original File SHA-256";
+const timestampDigestLabel = getTimestampDigestValueLabel({
+  structure: contentSummary.structure,
+  itemCount: contentSummary.itemCount,
+  tsaInputKind: evidence.tsaInputKind,
+});
     
 const fingerprintRows: KeyValueRow[] = [
   {

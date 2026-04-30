@@ -874,16 +874,25 @@ function maskPublicEmail(email: string | null | undefined): string | null {
 
 function mapIntegrityHeadline(params: {
   overallIntegrity: boolean | null | undefined;
+  verificationStatus: prismaPkg.VerificationStatus | null | undefined;
   timestampDigestMatches: boolean | null;
   timestampStatus: string | null | undefined;
 }): string {
-  if (
-    params.overallIntegrity === true &&
-    params.timestampDigestMatches !== true
-  ) {
+  const explicitlyVerified =
+    String(params.verificationStatus ?? "").toUpperCase() ===
+    "RECORDED_INTEGRITY_VERIFIED";
+
+  if (explicitlyVerified && params.overallIntegrity === true && params.timestampDigestMatches !== true) {
     return "Core Integrity Verified; Trusted Timestamp Unavailable";
   }
-  if (params.overallIntegrity === true) return "Core Integrity Verified";
+  if (explicitlyVerified) return "Core Integrity Verified";
+  if (
+    params.overallIntegrity === true &&
+    String(params.verificationStatus ?? "").toUpperCase() ===
+      "MATERIALS_AVAILABLE"
+  ) {
+    return "Integrity Materials Recorded";
+  }
   if (params.overallIntegrity === false) {
     return "Recorded Integrity Review Required";
   }
@@ -1957,6 +1966,7 @@ function buildPublicVerifyOverview(params: {
     verificationStatusCode: params.evidence.verificationStatus,
     integrityHeadline: mapIntegrityHeadline({
       overallIntegrity: params.overallIntegrity,
+      verificationStatus: params.evidence.verificationStatus,
       timestampDigestMatches: params.timestampDigestMatches,
       timestampStatus: params.timestampStatus,
     }),

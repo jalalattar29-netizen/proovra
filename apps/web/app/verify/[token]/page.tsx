@@ -1934,6 +1934,7 @@ type VerificationVerdict = {
 
 type VerificationSignalInput = {
   overallIntegrity: boolean | null;
+  verificationStatus?: string | null;
   canonicalHashMatches: boolean | null;
   signatureValid: boolean | null;
   custodyChainValid: boolean | null;
@@ -1961,6 +1962,9 @@ type VerificationPackageIntegrity = {
 };
 
 function buildVerificationVerdict(input: VerificationSignalInput): VerificationVerdict {
+  const coreExplicitlyVerified =
+    String(input.verificationStatus ?? "").toUpperCase() ===
+    "RECORDED_INTEGRITY_VERIFIED";
   const timestampMismatch =
     isPositiveTsa(input.tsaStatus) && input.timestampDigestMatches === false;
   const timestampUnavailable =
@@ -2025,6 +2029,7 @@ function buildVerificationVerdict(input: VerificationSignalInput): VerificationV
 
   if (
     input.overallIntegrity === true &&
+    coreExplicitlyVerified &&
     failedSignals === 0 &&
     !timestampUnavailable
   ) {
@@ -2048,20 +2053,28 @@ function buildVerificationVerdict(input: VerificationSignalInput): VerificationV
     return {
       status: "partial",
       title: "Final Verification Verdict",
-      label: timestampUnavailable
+      label: !coreExplicitlyVerified
+        ? "Verified with limitations"
+        : timestampUnavailable
         ? "Available Integrity Checks Verified; Trusted Timestamp Unavailable"
         : "Partially Verified",
       riskLevel: "Medium",
       actionRequired:
-        timestampUnavailable
+        !coreExplicitlyVerified
+          ? "Core integrity materials are recorded, but the recorded-integrity state has not been finalized as fully verified. Use this record with limitations until that state is explicit."
+          : timestampUnavailable
           ? "Core integrity checks are available, but the trusted timestamp provider did not return a usable token. Review timestamp availability before treating the evidence as fully timestamp-verified."
           : "Use this record with caution. Review missing, pending, or unavailable verification layers before treating the evidence as fully verified.",
       legalStatement:
-        timestampUnavailable
+        !coreExplicitlyVerified
+          ? "Core integrity materials are present, but the recorded-integrity state has not been finalized as fully verified. This response should not be summarized as plain verified."
+          : timestampUnavailable
           ? "Available integrity checks support the recorded evidence state, but trusted timestamp verification is unavailable. No timestamp digest match or mismatch can be concluded from this response."
           : "Some verification materials were returned, but the response did not provide a complete positive integrity conclusion for every technical layer. The record should be treated as partially verified until missing or pending layers are resolved.",
       reviewerSummary:
-        timestampUnavailable
+        !coreExplicitlyVerified
+          ? "The record contains strong supporting verification materials, but the core recorded-integrity state remains partial rather than explicitly verified."
+          : timestampUnavailable
           ? "The record contains supporting verification materials, but the trusted timestamp layer is unavailable and should not be described as a digest mismatch."
           : "The record contains supporting verification materials, but the verification result is incomplete or not fully conclusive.",
       confidenceScore,
@@ -2168,6 +2181,7 @@ function isFailedOts(status?: string | null): boolean {
 
 function buildVerifyTrustDecision(params: {
   overallIntegrity: boolean | null;
+  verificationStatus: string | null;
   canonicalHashMatches: boolean | null;
   signatureValid: boolean | null;
   custodyChainValid: boolean | null;
@@ -2187,10 +2201,14 @@ function buildVerifyTrustDecision(params: {
   submittedByEmail: string | null;
   verificationPackageVersion: string | null;
 }): VerifyTrustDecision {
+  const coreExplicitlyVerified =
+    String(params.verificationStatus ?? "").toUpperCase() ===
+    "RECORDED_INTEGRITY_VERIFIED";
   const hasCoreHashes = Boolean(params.hash && params.fingerprintHash);
   const corePassed =
-    params.overallIntegrity === true ||
-    (params.canonicalHashMatches === true && hasCoreHashes);
+    coreExplicitlyVerified &&
+    (params.overallIntegrity === true ||
+      (params.canonicalHashMatches === true && hasCoreHashes));
 
   const corePartial =
     !corePassed && hasCoreHashes && params.canonicalHashMatches !== false;
@@ -2212,7 +2230,7 @@ function buildVerifyTrustDecision(params: {
       corePassed
         ? "Recorded digest, canonical fingerprint, signature material, and custody references are available and consistent for this evidence record."
         : corePartial
-          ? "Core hash and fingerprint material are available, but the response does not provide a fully verified integrity conclusion."
+          ? "Recorded digest, canonical fingerprint, and signature material are present, but the recorded-integrity state has not been finalized as fully verified."
           : "The verification response does not contain enough core hash/fingerprint material for reliable reliance.",
   });
 
@@ -4075,11 +4093,17 @@ setServerVerificationPackageIntegrity(data.verificationPackageIntegrity ?? null)
   ]);
 
   const heroIntegrityHeadline = useMemo(() => {
+    const verificationStatusCode =
+      overview?.verificationStatusCode ?? verificationStatus ?? null;
     const fallbackHeadline =
-      overallIntegrity === true
+      String(verificationStatusCode ?? "").toUpperCase() ===
+      "RECORDED_INTEGRITY_VERIFIED"
         ? timestampDigestMatches === true
           ? "Core Integrity Verified"
           : "Core Integrity Verified; Trusted Timestamp Unavailable"
+        : String(verificationStatusCode ?? "").toUpperCase() ===
+            "MATERIALS_AVAILABLE"
+          ? "Integrity Materials Recorded"
         : overallIntegrity === false
           ? "Recorded Integrity Review Required"
           : "Recorded Integrity Materials Available";
@@ -4092,8 +4116,10 @@ setServerVerificationPackageIntegrity(data.verificationPackageIntegrity ?? null)
   }, [
     humanSummary?.integrityStatus,
     overview?.integrityHeadline,
+    overview?.verificationStatusCode,
     overallIntegrity,
     timestampDigestMatches,
+    verificationStatus,
   ]);
 
   const heroWhatIsVerifiedText = useMemo(() => {
@@ -4107,6 +4133,7 @@ setServerVerificationPackageIntegrity(data.verificationPackageIntegrity ?? null)
     () =>
       buildVerificationVerdict({
         overallIntegrity,
+        verificationStatus,
         canonicalHashMatches,
         signatureValid,
         custodyChainValid,
@@ -4119,6 +4146,7 @@ setServerVerificationPackageIntegrity(data.verificationPackageIntegrity ?? null)
       }),
     [
       overallIntegrity,
+      verificationStatus,
       canonicalHashMatches,
       signatureValid,
       custodyChainValid,
@@ -4183,6 +4211,7 @@ setServerVerificationPackageIntegrity(data.verificationPackageIntegrity ?? null)
     () =>
       buildVerifyTrustDecision({
         overallIntegrity,
+        verificationStatus,
         canonicalHashMatches,
         signatureValid,
         custodyChainValid,
@@ -4204,6 +4233,7 @@ setServerVerificationPackageIntegrity(data.verificationPackageIntegrity ?? null)
       }),
     [
       overallIntegrity,
+      verificationStatus,
       canonicalHashMatches,
       signatureValid,
       custodyChainValid,
@@ -4284,9 +4314,10 @@ const executiveBadges = useMemo<
         custodyDisplayCounts.forensicAtReportGeneration ?? forensicTimeline.length
       }. Current forensic custody events: ${
         custodyDisplayCounts.currentForensicEvents ?? forensicTimeline.length
-      }. Access activity after report/package generation: ${
-        custodyDisplayCounts.accessAfterReportGeneration ?? accessTimeline.length
-      }. Total displayed events: ${
+      }. Current access activity events: ${
+        custodyDisplayCounts.currentAccessEvents ?? accessTimeline.length
+      }. Total displayed now: ${
+        custodyDisplayCounts.totalDisplayedNow ??
         custodyDisplayCounts.totalDisplayedEvents ??
         forensicTimeline.length + accessTimeline.length
       }.`;
@@ -4319,7 +4350,16 @@ const executiveBadges = useMemo<
   const liveCustodyCountsNote = useMemo(() => {
     if (!custodyDisplayCounts) return null;
 
-    return "Counts are live and may increase after report or package generation as reviewers open, download, or verify materials.";
+    const accessAfterGeneration =
+      custodyDisplayCounts.accessAfterReportGeneration;
+    const currentAccess = custodyDisplayCounts.currentAccessEvents;
+
+    return `Counts are live and may increase after report or package generation as reviewers open, download, or verify materials.${
+      typeof accessAfterGeneration === "number" &&
+      typeof currentAccess === "number"
+        ? ` Access activity after report/package generation: ${accessAfterGeneration}. Current access activity total: ${currentAccess}.`
+        : ""
+    }`;
   }, [custodyDisplayCounts]);
 
   const accessActivityNarrative = useMemo(() => {
@@ -6677,7 +6717,7 @@ These materials support the Trust Decision shown above. The Trust Decision is th
     }
     countLabel={
       custodyDisplayCounts
-        ? `Forensic ${custodyDisplayCounts.currentForensicEvents ?? forensicTimeline.length} • Access ${custodyDisplayCounts.accessAfterReportGeneration ?? accessTimeline.length} • Total ${custodyDisplayCounts.totalDisplayedNow ?? custodyDisplayCounts.totalDisplayedEvents ?? fullCustodyTimeline.length}`
+        ? `Forensic ${custodyDisplayCounts.currentForensicEvents ?? forensicTimeline.length} • Access ${custodyDisplayCounts.currentAccessEvents ?? accessTimeline.length} • Total ${custodyDisplayCounts.totalDisplayedNow ?? custodyDisplayCounts.totalDisplayedEvents ?? fullCustodyTimeline.length}`
         : null
     }
     countTone="info"
