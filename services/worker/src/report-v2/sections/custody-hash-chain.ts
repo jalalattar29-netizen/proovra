@@ -20,13 +20,13 @@ function renderCustodyHashChainNotice(): string {
   return `
     <div class="custody-hash-chain-notice">
       <p>
-        This table contains a curated subset of custody events selected for forensic validation.
+        This table shows a curated forensic subset of the custody hash chain. Sequence identifiers preserve the original custody-event log order, so numbering may be non-sequential when intermediate events are omitted from this PDF view.
       </p>
       <p>
-        Sequence identifiers correspond to the original, immutable custody-event log. Non-sequential numbering reflects additional recorded events that are not displayed in this PDF view.
+        Full custody records, intermediate entries, complete hash values, and access activity are preserved in the verification package and can be inspected through the public verification page.
       </p>
       <p>
-        Complete custody-event records, including all intermediate entries and full cryptographic hash values, are preserved in the verification package and can also be inspected through the public verification page.
+        Events are displayed in hash-chain order. Some timestamps may appear slightly out of chronological order because asynchronous system jobs can append events after the workflow timestamp they document.
       </p>
     </div>
   `;
@@ -75,15 +75,6 @@ ${escapeHtml(row.eventHash ?? "")}
       </tbody>
     </table>
 
-<div class="custody-hash-chain-footnote">
-  <p>
-Events are displayed in custody hash-chain order. Timestamps may not always appear in strict chronological order because asynchronous system processes can append events after referencing the workflow timestamp they document.
-  </p>
-
-  <p>
-    Full prevEventHash and eventHash values are preserved in custody.json inside the verification package and are available for technical inspection through the verification page.
-  </p>
-</div>
   `;
 }
 
@@ -94,12 +85,6 @@ export function renderCustodyHashChainSection(vm: ReportViewModel): string {
     "Custody Hash Chain Details",
     `
       <div class="custody-hash-page custody-hash-page-enterprise">
-        ${renderCallout({
-          title: "Chain validation material",
-          body:
-            "This section provides reviewer-facing custody-chain validation material without turning the PDF into a raw technical dump. The table preserves the relationship between selected custody events and their chained hash references.",
-          tone: "neutral",
-        })}
 
         ${renderCustodyHashChainNotice()}
 

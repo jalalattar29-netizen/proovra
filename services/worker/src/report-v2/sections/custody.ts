@@ -30,10 +30,8 @@ function renderCustodyStats(vm: ReportViewModel): string {
         }</div>
       </div>
 <div class="custody-stat-card">
-  <div class="custody-stat-label">Later Access Activity</div>
-<div class="custody-stat-value">${escapeHtml(
-  `${vm.custodyCounts.accessEvents} access events`
-)}</div>
+  <div class="custody-stat-label">Access Activity</div>
+  <div class="custody-stat-value">Current activity available on verification page</div>
 </div>
     </div>
   `;

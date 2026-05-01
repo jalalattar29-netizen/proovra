@@ -823,7 +823,7 @@ ${providerLine}
 ${publicBaseLine}`;
   }
 
-  if (params.anchorPublished || otsStatus === "ANCHORED") {
+  if (params.anchorPublished) {
     return `ANCHOR STATUS
 
 anchor.json is included in this package.

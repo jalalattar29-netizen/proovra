@@ -71,6 +71,10 @@ export type TrustDecisionEvidenceInput = {
   tsaStatus?: string | null;
   tsaFailureReason?: string | null;
   otsStatus?: string | null;
+  otsHash?: string | null;
+  otsBitcoinTxid?: string | null;
+  otsAnchoredAtUtc?: string | null;
+  otsCalendar?: string | null;
   otsFailureReason?: string | null;
   storageImmutable?: boolean | null;
   storageObjectLockMode?: string | null;
@@ -101,6 +105,26 @@ export type TrustDecisionCustodyEventInput = {
 export type BuildEvidenceTrustDecisionInput = {
   evidence: TrustDecisionEvidenceInput;
   custodyEvents: TrustDecisionCustodyEventInput[];
+};
+
+export type RecordedIntegrityPromotionInput = {
+  evidence: TrustDecisionEvidenceInput;
+  itemCount?: number | null;
+  multipartItemHashesPresent?: boolean | null;
+  canonicalHashMatches: boolean;
+  signatureValid: boolean;
+  custodyChainValid: boolean;
+  forensicCustodyEventCount: number;
+  forensicCustodyHasHashChain: boolean;
+  timestampDigestMatches?: boolean | null;
+  otsHashMatches?: boolean | null;
+};
+
+export type RecordedIntegrityPromotionDecision = {
+  qualifies: boolean;
+  alreadyExplicitlyVerified: boolean;
+  shouldPromote: boolean;
+  blockers: string[];
 };
 
 function safe(value: string | null | undefined, fallback = ""): string {
@@ -222,15 +246,102 @@ export function hasCoreCryptoMaterials(
   );
 }
 
+export function evaluateRecordedIntegrityPromotion(
+  input: RecordedIntegrityPromotionInput
+): RecordedIntegrityPromotionDecision {
+  const blockers: string[] = [];
+  const evidence = input.evidence;
+  const alreadyExplicitlyVerified = isExplicitRecordedIntegrityVerified(evidence);
+  const itemCount = Number(input.itemCount ?? 0);
+  const isMultipart = itemCount > 1;
+
+  if (!hasCoreCryptoMaterials(evidence)) {
+    blockers.push("core_crypto_material_missing");
+  }
+
+  if (isMultipart && input.multipartItemHashesPresent !== true) {
+    blockers.push("multipart_item_hashes_incomplete");
+  }
+
+  if (!input.canonicalHashMatches) {
+    blockers.push("canonical_hash_mismatch");
+  }
+
+  if (!input.signatureValid) {
+    blockers.push("signature_validation_failed");
+  }
+
+  if (!input.custodyChainValid) {
+    blockers.push("custody_chain_invalid");
+  }
+
+  if (input.forensicCustodyEventCount <= 0) {
+    blockers.push("forensic_custody_missing");
+  }
+
+  if (!input.forensicCustodyHasHashChain) {
+    blockers.push("forensic_hash_chain_missing");
+  }
+
+  if (input.timestampDigestMatches === false) {
+    blockers.push("timestamp_digest_mismatch");
+  }
+
+  if (input.otsHashMatches === false) {
+    blockers.push("ots_hash_mismatch");
+  }
+
+  const qualifies = blockers.length === 0;
+
+  return {
+    qualifies,
+    alreadyExplicitlyVerified,
+    shouldPromote: qualifies && !alreadyExplicitlyVerified,
+    blockers,
+  };
+}
+
 function hasPublishedAnchorMaterial(
   anchor: TrustDecisionEvidenceInput["anchor"]
 ): boolean {
   return Boolean(
-    anchor?.published ||
-      anchor?.publicUrl ||
-      anchor?.anchoredAtUtc ||
-      anchor?.transactionId ||
-      anchor?.receiptId
+    hasMeaningfulValue(anchor?.receiptId) ||
+      hasMeaningfulValue(anchor?.transactionId) ||
+      hasValidHttpUrl(anchor?.publicUrl) ||
+      hasMeaningfulValue(anchor?.anchoredAtUtc)
+  );
+}
+
+function isValidOtsBitcoinTxid(
+  value: string | null | undefined
+): boolean {
+  return typeof value === "string" && /^[a-f0-9]{64}$/i.test(value.trim());
+}
+
+function hasValidHttpUrl(value: string | null | undefined): boolean {
+  const text = safe(value);
+  if (!text) return false;
+
+  try {
+    const parsed = new URL(text);
+    return parsed.protocol === "http:" || parsed.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
+function hasMalformedOtsBitcoinTxid(
+  value: string | null | undefined
+): boolean {
+  return hasMeaningfulValue(value) && !isValidOtsBitcoinTxid(value);
+}
+
+function hasDefensibleOtsAnchorMaterial(
+  evidence: TrustDecisionEvidenceInput
+): boolean {
+  return Boolean(
+    isValidOtsBitcoinTxid(evidence.otsBitcoinTxid) ||
+      hasPublishedAnchorMaterial(evidence.anchor)
   );
 }
 
@@ -407,9 +518,43 @@ function buildTimestampSignal(
 function buildAnchoringSignal(
   evidence: TrustDecisionEvidenceInput
 ): TrustSignal {
-  const published = hasPublishedAnchorMaterial(evidence.anchor);
+  const otsHashMismatch =
+    hasMeaningfulValue(evidence.otsHash) &&
+    hasMeaningfulValue(evidence.fingerprintHash) &&
+    safe(evidence.otsHash).toLowerCase() !==
+      safe(evidence.fingerprintHash).toLowerCase();
+  const defensibleAnchorMaterial = hasDefensibleOtsAnchorMaterial(evidence);
+  const malformedTxidWithoutOtherProof =
+    hasMalformedOtsBitcoinTxid(evidence.otsBitcoinTxid) &&
+    !hasPublishedAnchorMaterial(evidence.anchor);
 
-  if (isAnchoredOts(evidence.otsStatus) && published) {
+  if (otsHashMismatch) {
+    return makeSignal({
+      key: "public_anchoring",
+      label: "Public anchoring",
+      status: "failed",
+      points: 2,
+      maxPoints: 10,
+      summary: "Public anchoring review required",
+      detail:
+        "Recorded OpenTimestamps hash material does not match the canonical fingerprint hash, so public anchoring cannot be treated as verified.",
+    });
+  }
+
+  if (malformedTxidWithoutOtherProof) {
+    return makeSignal({
+      key: "public_anchoring",
+      label: "Public anchoring",
+      status: "failed",
+      points: 2,
+      maxPoints: 10,
+      summary: "Public anchoring review required",
+      detail:
+        "A malformed Bitcoin transaction identifier was recorded without any other defensible public anchoring receipt, URL, or anchored publication metadata.",
+    });
+  }
+
+  if (isAnchoredOts(evidence.otsStatus) && defensibleAnchorMaterial) {
     return makeSignal({
       key: "public_anchoring",
       label: "Public anchoring",
@@ -418,7 +563,7 @@ function buildAnchoringSignal(
       maxPoints: 10,
       summary: "Public anchoring verified",
       detail:
-        "Public anchoring metadata includes an anchored receipt, transaction, URL, or anchored timestamp.",
+        "Public anchoring metadata includes defensible public evidence such as a valid Bitcoin transaction id, receipt, public URL, or anchored publication metadata.",
     });
   }
 
@@ -431,7 +576,7 @@ function buildAnchoringSignal(
       maxPoints: 10,
       summary: "Anchor material included",
       detail:
-        "Anchoring material is recorded in an anchored state, but no external publication receipt, transaction, URL, or anchored timestamp was attached.",
+        "Anchoring material is recorded in an anchored state, but no defensible public transaction id, receipt, public URL, or anchored publication metadata was attached.",
     });
   }
 

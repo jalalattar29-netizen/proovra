@@ -176,7 +176,7 @@ type PublicVerifyIntegrityProof = {
   custodyChainMode: string | null;
   custodyChainFailureReason: string | null;
   timestampDigestMatches: boolean | null;
-  otsHashMatches: boolean;
+  otsHashMatches: boolean | null;
 };
 
 type PublicVerifyVersioning = {
@@ -938,7 +938,7 @@ function mapIntegritySummaryText(params: {
   signatureValid: boolean;
   custodyChainValid: boolean;
   timestampDigestMatches: boolean | null;
-  otsHashMatches: boolean;
+  otsHashMatches: boolean | null;
   trustDecision?: TrustDecision | null;
 }) {
   const coreSignal = params.trustDecision?.signals.find(
@@ -953,7 +953,7 @@ function mapIntegritySummaryText(params: {
     params.canonicalHashMatches &&
     params.signatureValid &&
     params.custodyChainValid &&
-    params.otsHashMatches;
+    params.otsHashMatches !== false;
 
   if (coreChecksPassed && params.timestampDigestMatches === true) {
     return "Core integrity verified. Recorded digest, canonical fingerprint, signature material, custody references, trusted timestamp linkage, and OpenTimestamps linkage are available and consistent for this evidence record.";
@@ -2095,7 +2095,7 @@ function buildPublicVerifyHumanSummary(params: {
   signatureValid: boolean;
   custodyChainValid: boolean;
   timestampDigestMatches: boolean | null;
-  otsHashMatches: boolean;
+  otsHashMatches: boolean | null;
   overallIntegrity: boolean;
   trustDecision?: TrustDecision | null;
 }) {
@@ -5186,9 +5186,7 @@ const effectiveOtsStatus = resolveEffectiveOtsStatus({
       evidence.otsHash && evidence.fingerprintHash
         ? evidence.otsHash.toLowerCase() ===
           evidence.fingerprintHash.toLowerCase()
-        : effectiveOtsStatus === "ANCHORED"
-          ? false
-          : true;
+        : null;
 
     const custodyChain = evaluateCustodyChain({
       evidenceId: id,
@@ -5232,6 +5230,10 @@ const trustDecision =
       tsaStatus: evidence.tsaStatus ?? null,
       tsaFailureReason: evidence.tsaFailureReason ?? null,
       otsStatus: effectiveOtsStatus,
+      otsHash: evidence.otsHash ?? null,
+      otsBitcoinTxid: evidence.otsBitcoinTxid ?? null,
+      otsAnchoredAtUtc: effectiveOtsAnchoredAtUtc?.toISOString() ?? null,
+      otsCalendar: evidence.otsCalendar ?? null,
       otsFailureReason: evidence.otsFailureReason ?? null,
       storageImmutable: storageProtection?.immutable ?? null,
       storageObjectLockMode: storageProtection?.mode ?? null,
@@ -5274,7 +5276,7 @@ const overallIntegrity =
   signatureValid &&
   custodyChain.valid &&
   !timestampLayerBlocksIntegrity &&
-  otsHashMatches;
+  otsHashMatches !== false;
 
     const verifiedAt = new Date();
     const responseVerificationStatus = evidence.verificationStatus ?? null;

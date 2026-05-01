@@ -24,7 +24,7 @@
     "build": "tsc -p tsconfig.build.json",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
-    "test": "echo \"(no tests)\""
+    "test": "node --test tests/*.test.mjs"
   },
   "dependencies": {
     "zod": "^4.3.6"

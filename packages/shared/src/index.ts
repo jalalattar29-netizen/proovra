@@ -58,10 +58,13 @@ export type {
   TrustDecisionEvidenceInput,
   TrustDecisionCustodyEventInput,
   BuildEvidenceTrustDecisionInput,
+  RecordedIntegrityPromotionInput,
+  RecordedIntegrityPromotionDecision,
 } from "./trust-decision.js";
 
 export {
   buildEvidenceTrustDecision,
+  evaluateRecordedIntegrityPromotion,
   hasCoreCryptoMaterials,
   isExplicitRecordedIntegrityVerified,
 } from "./trust-decision.js";

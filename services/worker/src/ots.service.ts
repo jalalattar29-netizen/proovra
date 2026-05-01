@@ -77,7 +77,7 @@ export type OtsStampResult =
       proofBase64: string;
       hash: string;
       calendar: string | null;
-      bitcoinTxid: string;
+      bitcoinTxid: string | null;
       anchoredAtUtc: string;
       upgradedAtUtc: string;
       failureReason: null;
@@ -205,7 +205,11 @@ const stampArgs = [
       const upgradedBuffer = await fs.readFile(proofFile);
       const upgradedProofBase64 = upgradedBuffer.toString("base64");
 
-      if (shouldTreatOtsAsAnchored(parsedUpgrade) && bitcoinTxid) {
+      // Legal boundary: an OTS proof can reach an anchored state before we have
+      // a defensible public receipt such as a Bitcoin txid. We preserve the
+      // anchored proof state here, but downstream trust scoring only awards full
+      // public-anchoring credit when additional public anchor material exists.
+      if (shouldTreatOtsAsAnchored(parsedUpgrade)) {
         anchoredAtUtc = upgradedAtUtc;
 
         return {

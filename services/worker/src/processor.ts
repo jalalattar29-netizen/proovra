@@ -43,8 +43,12 @@ import {
   buildEvidenceDisplayDescriptor,
   buildEvidencePreviewPolicy,
 } from "@proovra/shared-evidence-presentation";
-import { classifyCustodyEventType } from "@proovra/shared";
-import { appendCustodyEventTx } from "./custody-events.js";
+import {
+  classifyCustodyEventType,
+  evaluateRecordedIntegrityPromotion,
+  resolveEffectiveOtsStatus,
+} from "@proovra/shared";
+import { appendCustodyEventTx, evaluateCustodyChain } from "./custody-events.js";
 import { appendWorkerAnalyticsEvent } from "./analytics-events.js";
 import { prisma } from "./db.js";
 import { env } from "./config.js";
@@ -56,7 +60,7 @@ import {
   headObject,
   putObjectBuffer,
 } from "./storage.js";
-import { createHash, randomUUID } from "node:crypto";
+import { createHash, randomUUID, verify as verifySignature } from "node:crypto";
 import { buildReportPdfV2 } from "./report-v2/build-report-pdf.js";
 import {
   enqueueEvidencePurgeJob,
@@ -719,6 +723,194 @@ function sha256HexFromStrings(parts: string[]) {
   return createHash("sha256").update(parts.join("|")).digest("hex");
 }
 
+function verifyEd25519HexSignature(params: {
+  messageHex: string;
+  signatureBase64: string;
+  publicKeyPem: string;
+}): boolean {
+  const normalizedHex = params.messageHex.trim().toLowerCase();
+
+  if (!/^[a-f0-9]+$/.test(normalizedHex) || normalizedHex.length % 2 !== 0) {
+    throw new Error("verifyEd25519HexSignature: messageHex must be valid hex");
+  }
+
+  const publicKeyPem = params.publicKeyPem.trim();
+  if (!publicKeyPem.includes("BEGIN") || !publicKeyPem.includes("END")) {
+    throw new Error("verifyEd25519HexSignature: publicKeyPem is invalid");
+  }
+
+  return verifySignature(
+    null,
+    Buffer.from(normalizedHex, "hex"),
+    `${publicKeyPem}\n`,
+    Buffer.from(params.signatureBase64, "base64")
+  );
+}
+
+function resolveTimestampDigestMatch(params: {
+  tsaStatus: string | null | undefined;
+  tsaMessageImprint: string | null | undefined;
+  tsaInputDigestHex: string | null | undefined;
+  fileSha256: string;
+}): boolean | null {
+  const normalizedTsaStatus = String(params.tsaStatus ?? "")
+    .trim()
+    .toUpperCase();
+
+  const timestampInputDigestHex =
+    params.tsaInputDigestHex ?? params.fileSha256 ?? null;
+
+  const timestampStatusIsPositive =
+    normalizedTsaStatus === "STAMPED" ||
+    normalizedTsaStatus === "GRANTED" ||
+    normalizedTsaStatus === "VERIFIED" ||
+    normalizedTsaStatus === "SUCCEEDED";
+
+  const timestampStatusIsUnavailable =
+    normalizedTsaStatus === "FAILED" ||
+    normalizedTsaStatus === "UNAVAILABLE" ||
+    normalizedTsaStatus === "ERROR" ||
+    normalizedTsaStatus.length === 0;
+
+  if (timestampStatusIsPositive) {
+    return (
+      Boolean(params.tsaMessageImprint && timestampInputDigestHex) &&
+      String(params.tsaMessageImprint).toLowerCase() ===
+        String(timestampInputDigestHex).toLowerCase()
+    );
+  }
+
+  if (timestampStatusIsUnavailable) {
+    return null;
+  }
+
+  return null;
+}
+
+function resolveRecordedIntegrityPromotionDecision(params: {
+  evidenceId: string;
+  verificationStatus: prismaPkg.VerificationStatus | null;
+  recordedIntegrityVerifiedAtUtc: Date | null;
+  fileSha256: string;
+  fingerprintCanonicalJson: string;
+  fingerprintHash: string;
+  signatureBase64: string;
+  signingKeyId: string;
+  tsaStatus: string | null;
+  tsaMessageImprint: string | null;
+  tsaInputDigestHex: string | null;
+  otsStatus: string | null;
+  otsHash: string | null;
+  otsAnchoredAtUtc: string | Date | null;
+  itemCount: number;
+  multipartItemHashesPresent: boolean;
+  publicKeyPem: string;
+  verifiedAtUtc: Date;
+  custodyEvents: Array<{
+    sequence: number;
+    atUtc: Date;
+    eventType: prismaPkg.CustodyEventType;
+    payload: Prisma.JsonValue | null;
+    prevEventHash: string | null;
+    eventHash: string | null;
+  }>;
+}): {
+  qualifies: boolean;
+  shouldPromote: boolean;
+  blockers: string[];
+  effectiveVerificationStatus: prismaPkg.VerificationStatus | null;
+  effectiveRecordedIntegrityVerifiedAtUtc: string | null;
+} {
+  const recomputedFingerprintHash = createHash("sha256")
+    .update(params.fingerprintCanonicalJson)
+    .digest("hex");
+  const canonicalHashMatches =
+    recomputedFingerprintHash === params.fingerprintHash;
+
+  let signatureValid = false;
+  try {
+    signatureValid = verifyEd25519HexSignature({
+      messageHex: recomputedFingerprintHash,
+      signatureBase64: params.signatureBase64,
+      publicKeyPem: params.publicKeyPem,
+    });
+  } catch {
+    signatureValid = false;
+  }
+
+  const custodyChain = evaluateCustodyChain({
+    evidenceId: params.evidenceId,
+    records: params.custodyEvents.map((event) => ({
+      sequence: event.sequence,
+      eventType: event.eventType,
+      atUtc: event.atUtc,
+      payload: event.payload,
+      prevEventHash: event.prevEventHash,
+      eventHash: event.eventHash,
+    })),
+  });
+
+  const forensicCustodyEvents = params.custodyEvents.filter(
+    (event) => classifyCustodyEventType(event.eventType) === "forensic"
+  );
+  const forensicCustodyHasHashChain = forensicCustodyEvents.some(
+    (event) => Boolean(event.prevEventHash || event.eventHash)
+  );
+
+  const timestampDigestMatches = resolveTimestampDigestMatch({
+    tsaStatus: params.tsaStatus,
+    tsaMessageImprint: params.tsaMessageImprint,
+    tsaInputDigestHex: params.tsaInputDigestHex,
+    fileSha256: params.fileSha256,
+  });
+
+  const effectiveOtsStatus = resolveEffectiveOtsStatus({
+    status: params.otsStatus,
+    anchoredAtUtc: params.otsAnchoredAtUtc,
+  });
+
+  const otsHashMatches =
+    params.otsHash && params.fingerprintHash
+      ? params.otsHash.toLowerCase() === params.fingerprintHash.toLowerCase()
+      : null;
+
+  const decision = evaluateRecordedIntegrityPromotion({
+    evidence: {
+      verificationStatus: params.verificationStatus,
+      recordedIntegrityVerifiedAtUtc:
+        params.recordedIntegrityVerifiedAtUtc?.toISOString() ?? null,
+      fileSha256: params.fileSha256,
+      fingerprintHash: params.fingerprintHash,
+      signatureBase64: params.signatureBase64,
+      signingKeyId: params.signingKeyId,
+    },
+    itemCount: params.itemCount,
+    multipartItemHashesPresent: params.multipartItemHashesPresent,
+    canonicalHashMatches,
+    signatureValid,
+    custodyChainValid: custodyChain.valid,
+    forensicCustodyEventCount: forensicCustodyEvents.length,
+    forensicCustodyHasHashChain,
+    timestampDigestMatches,
+    otsHashMatches,
+  });
+
+  const effectiveRecordedIntegrityVerifiedAtUtc = decision.qualifies
+    ? params.recordedIntegrityVerifiedAtUtc?.toISOString() ??
+      params.verifiedAtUtc.toISOString()
+    : params.recordedIntegrityVerifiedAtUtc?.toISOString() ?? null;
+
+  return {
+    qualifies: decision.qualifies,
+    shouldPromote: decision.shouldPromote,
+    blockers: decision.blockers,
+    effectiveVerificationStatus: decision.qualifies
+      ? prismaPkg.VerificationStatus.RECORDED_INTEGRITY_VERIFIED
+      : params.verificationStatus,
+    effectiveRecordedIntegrityVerifiedAtUtc,
+  };
+}
+
 function createWorkerError(code: string, retriable: boolean): WorkerError {
   const err = new Error(code) as WorkerError;
   err.code = code;
@@ -735,6 +927,8 @@ function buildFinalizedAnchorPayload(params: {
   lastEventHash: string | null;
   generatedAtUtc: string;
   anchorSummary: ReportAnchorSummary | null;
+  otsBitcoinTxid?: string | null;
+  otsAnchoredAtUtc?: string | null;
 }): PreparedAnchorPayload | null {
   if (params.anchorMode === "off") return null;
 
@@ -755,9 +949,12 @@ function buildFinalizedAnchorPayload(params: {
     generatedAtUtc: params.generatedAtUtc,
     published: params.anchorSummary?.published ?? false,
     receiptId: params.anchorSummary?.receiptId ?? null,
-    transactionId: params.anchorSummary?.transactionId ?? null,
+    transactionId:
+      params.anchorSummary?.transactionId ?? params.otsBitcoinTxid ?? null,
     publicUrl: params.anchorSummary?.publicUrl ?? null,
-    anchoredAtUtc: params.anchorSummary?.anchoredAtUtc ?? null,
+    anchoredAtUtc:
+      params.anchorSummary?.anchoredAtUtc ??
+      (params.otsBitcoinTxid ? params.otsAnchoredAtUtc ?? null : null),
   };
 }
 
@@ -2414,6 +2611,8 @@ export async function processGenerateReport(job: Job<GenerateReportJobData>) {
             id: true,
             ownerUserId: true,
             status: true,
+            verificationStatus: true,
+            recordedIntegrityVerifiedAtUtc: true,
             reportGeneratedAtUtc: true,
             fileSha256: true,
             fingerprintHash: true,
@@ -2497,23 +2696,6 @@ export async function processGenerateReport(job: Job<GenerateReportJobData>) {
           } as Prisma.InputJsonValue,
         });
 
-        await appendCustodyEventTx(tx, {
-          evidenceId: prepared.evidenceId,
-          eventType: prismaPkg.CustodyEventType.REPORT_GENERATED,
-          atUtc: prepared.now,
-          payload: {
-            phase: "report_generated",
-            reportVersion: prepared.version,
-            generatedAtUtc: prepared.now.toISOString(),
-            verificationStatusSnapshot:
-              prepared.identitySnapshot.verificationStatus,
-            captureMethodSnapshot: prepared.identitySnapshot.captureMethod,
-            identityLevelSnapshot:
-              prepared.identitySnapshot.identityLevelSnapshot,
-            ...(regenerateReason ? { refreshReason: regenerateReason } : {}),
-          } as Prisma.InputJsonValue,
-        });
-
         let scheduleOtsUpgrade = false;
 
         if (!forceRegenerate && otsData) {
@@ -2568,32 +2750,127 @@ export async function processGenerateReport(job: Job<GenerateReportJobData>) {
           }
         }
 
+        const promotionCustodyEvents = await tx.custodyEvent.findMany({
+          where: { evidenceId: prepared.evidenceId },
+          orderBy: { sequence: "asc" },
+          select: {
+            sequence: true,
+            atUtc: true,
+            eventType: true,
+            payload: true,
+            prevEventHash: true,
+            eventHash: true,
+          },
+        });
+
+        const promotionDecision = resolveRecordedIntegrityPromotionDecision({
+          evidenceId: prepared.evidenceId,
+          verificationStatus: lockedEvidence.verificationStatus ?? null,
+          recordedIntegrityVerifiedAtUtc:
+            lockedEvidence.recordedIntegrityVerifiedAtUtc ?? null,
+          fileSha256: prepared.reportEvidencePayload.fileSha256!,
+          fingerprintCanonicalJson: prepared.fingerprintCanonicalJson,
+          fingerprintHash: prepared.reportEvidencePayload.fingerprintHash!,
+          signatureBase64: prepared.reportEvidencePayload.signatureBase64!,
+          signingKeyId: prepared.reportEvidencePayload.signingKeyId!,
+          tsaStatus: prepared.reportEvidencePayload.tsaStatus ?? null,
+          tsaMessageImprint: prepared.reportEvidencePayload.tsaMessageImprint ?? null,
+          tsaInputDigestHex: prepared.reportEvidencePayload.tsaInputDigestHex ?? null,
+          otsStatus:
+            otsData?.status ?? prepared.reportEvidencePayload.otsStatus ?? null,
+          otsHash: otsData?.hash ?? prepared.reportEvidencePayload.otsHash ?? null,
+          otsAnchoredAtUtc:
+            otsData?.anchoredAtUtc ??
+            prepared.reportEvidencePayload.otsAnchoredAtUtc ??
+            null,
+          itemCount: prepared.contentSummary.itemCount,
+          multipartItemHashesPresent:
+            prepared.contentSummary.itemCount <= 1
+              ? true
+              : prepared.verificationEvidenceFiles.length > 1 &&
+                prepared.verificationEvidenceFiles.every((file) => Boolean(file.sha256)),
+          publicKeyPem: prepared.reportEvidencePayload.publicKeyPem as string,
+          verifiedAtUtc: prepared.now,
+          custodyEvents: promotionCustodyEvents,
+        });
+
+        const effectiveVerificationStatus =
+          promotionDecision.effectiveVerificationStatus ??
+          prepared.identitySnapshot.verificationStatus;
+        const effectiveRecordedIntegrityVerifiedAtUtc =
+          promotionDecision.effectiveRecordedIntegrityVerifiedAtUtc;
+        const effectiveIdentitySnapshot = {
+          ...prepared.identitySnapshot,
+          verificationStatus: effectiveVerificationStatus,
+        };
+        const effectiveReportEvidencePayload = {
+          ...prepared.reportEvidencePayload,
+          verificationStatus: effectiveVerificationStatus,
+          recordedIntegrityVerifiedAtUtc: effectiveRecordedIntegrityVerifiedAtUtc,
+        };
+        const effectiveReviewGuidance = buildReportReviewGuidance({
+          itemCount: prepared.contentSummary.itemCount,
+          previewableItemCount: prepared.contentSummary.previewableItemCount,
+          overallIntegrity:
+            effectiveVerificationStatus ===
+              prismaPkg.VerificationStatus.RECORDED_INTEGRITY_VERIFIED ||
+            Boolean(effectiveRecordedIntegrityVerifiedAtUtc),
+        });
+
+        await appendCustodyEventTx(tx, {
+          evidenceId: prepared.evidenceId,
+          eventType: prismaPkg.CustodyEventType.REPORT_GENERATED,
+          atUtc: prepared.now,
+          payload: {
+            phase: "report_generated",
+            reportVersion: prepared.version,
+            generatedAtUtc: prepared.now.toISOString(),
+            verificationStatusSnapshot: effectiveVerificationStatus,
+            captureMethodSnapshot: effectiveIdentitySnapshot.captureMethod,
+            identityLevelSnapshot:
+              effectiveIdentitySnapshot.identityLevelSnapshot,
+            ...(regenerateReason ? { refreshReason: regenerateReason } : {}),
+            ...(promotionDecision.shouldPromote
+              ? {
+                  recordedIntegrityVerifiedAtUtc:
+                    effectiveRecordedIntegrityVerifiedAtUtc,
+                  integrityPromotion: "recorded_integrity_verified",
+                }
+              : {}),
+          } as Prisma.InputJsonValue,
+        });
+
         await tx.evidence.update({
           where: { id: prepared.evidenceId },
           data: {
             status: EvidenceStatus.REPORTED,
-            captureMethod: prepared.identitySnapshot.captureMethod,
+            verificationStatus: effectiveVerificationStatus,
+            recordedIntegrityVerifiedAtUtc:
+              effectiveRecordedIntegrityVerifiedAtUtc != null
+                ? new Date(effectiveRecordedIntegrityVerifiedAtUtc)
+                : null,
+            captureMethod: effectiveIdentitySnapshot.captureMethod,
             identityLevelSnapshot:
-              prepared.identitySnapshot.identityLevelSnapshot,
-            submittedByEmail: prepared.identitySnapshot.submittedByEmail,
+              effectiveIdentitySnapshot.identityLevelSnapshot,
+            submittedByEmail: effectiveIdentitySnapshot.submittedByEmail,
             submittedByAuthProvider:
-              prepared.identitySnapshot.submittedByAuthProvider,
-            submittedByUserId: prepared.identitySnapshot.submittedByUserId,
-            createdByUserId: prepared.identitySnapshot.createdByUserId,
-            uploadedByUserId: prepared.identitySnapshot.uploadedByUserId,
+              effectiveIdentitySnapshot.submittedByAuthProvider,
+            submittedByUserId: effectiveIdentitySnapshot.submittedByUserId,
+            createdByUserId: effectiveIdentitySnapshot.createdByUserId,
+            uploadedByUserId: effectiveIdentitySnapshot.uploadedByUserId,
             workspaceNameSnapshot:
-              prepared.identitySnapshot.workspaceNameSnapshot,
+              effectiveIdentitySnapshot.workspaceNameSnapshot,
             organizationNameSnapshot:
-              prepared.identitySnapshot.organizationNameSnapshot,
+              effectiveIdentitySnapshot.organizationNameSnapshot,
             organizationVerifiedSnapshot:
-              prepared.identitySnapshot.organizationVerifiedSnapshot,
+              effectiveIdentitySnapshot.organizationVerifiedSnapshot,
             latestReportVersion: prepared.version,
             reportGeneratedAtUtc: prepared.now,
             lastVerifiedAtUtc: prepared.now,
             lastVerifiedSource: prismaPkg.VerificationSource.REPORT_GENERATED,
             reviewReadyAtUtc: prepared.now,
             reviewerSummaryVersion:
-              prepared.identitySnapshot.reviewerSummaryVersion,
+              effectiveIdentitySnapshot.reviewerSummaryVersion,
           },
         });
 
@@ -2603,7 +2880,7 @@ export async function processGenerateReport(job: Job<GenerateReportJobData>) {
           atUtc: prepared.now,
           payload: {
             reviewerSummaryVersion:
-              prepared.identitySnapshot.reviewerSummaryVersion,
+              effectiveIdentitySnapshot.reviewerSummaryVersion,
           } as Prisma.InputJsonValue,
         });
 
@@ -2631,12 +2908,12 @@ export async function processGenerateReport(job: Job<GenerateReportJobData>) {
         }));
 
         const finalizedTrustDecision = buildTrustDecision({
-          evidence: prepared.reportEvidencePayload,
+          evidence: effectiveReportEvidencePayload,
           custodyEvents: finalizedCustodyForReport,
         });
 
         const finalizedReportPdf = await buildReportPdfV2({
-          evidence: prepared.reportEvidencePayload,
+          evidence: effectiveReportEvidencePayload,
           custodyEvents: finalizedCustodyForReport,
           version: prepared.version,
           generatedAtUtc: prepared.now.toISOString(),
@@ -2701,17 +2978,16 @@ export async function processGenerateReport(job: Job<GenerateReportJobData>) {
             generatedAtUtc: prepared.now,
             sizeBytes: BigInt(finalizedReportPdf.length),
 
-            verificationStatusSnapshot:
-              prepared.identitySnapshot.verificationStatus,
+            verificationStatusSnapshot: effectiveIdentitySnapshot.verificationStatus,
             identityLevelSnapshot:
-              prepared.identitySnapshot.identityLevelSnapshot,
+              effectiveIdentitySnapshot.identityLevelSnapshot,
             submittedByEmailSnapshot:
-              prepared.identitySnapshot.submittedByEmail,
+              effectiveIdentitySnapshot.submittedByEmail,
             submittedByAuthProviderSnapshot:
-              prepared.identitySnapshot.submittedByAuthProvider,
-            captureMethodSnapshot: prepared.identitySnapshot.captureMethod,
+              effectiveIdentitySnapshot.submittedByAuthProvider,
+            captureMethodSnapshot: effectiveIdentitySnapshot.captureMethod,
             reviewerSummaryVersion:
-              prepared.identitySnapshot.reviewerSummaryVersion,
+              effectiveIdentitySnapshot.reviewerSummaryVersion,
             verificationPackageVersion: prepared.verificationPackageIncluded
               ? prepared.version
               : null,
@@ -2733,28 +3009,28 @@ export async function processGenerateReport(job: Job<GenerateReportJobData>) {
             defaultPreviewItemIdSnapshot: prepared.defaultPreviewItemId,
 
             workspaceNameSnapshot:
-              prepared.identitySnapshot.workspaceNameSnapshot,
+              effectiveIdentitySnapshot.workspaceNameSnapshot,
             organizationNameSnapshot:
-              prepared.identitySnapshot.organizationNameSnapshot,
+              effectiveIdentitySnapshot.organizationNameSnapshot,
             organizationVerifiedSnapshot:
-              prepared.identitySnapshot.organizationVerifiedSnapshot,
+              effectiveIdentitySnapshot.organizationVerifiedSnapshot,
             recordedIntegrityVerifiedAtUtcSnapshot:
-              prepared.reportEvidencePayload.recordedIntegrityVerifiedAtUtc
+              effectiveReportEvidencePayload.recordedIntegrityVerifiedAtUtc
                 ? new Date(
-                    prepared.reportEvidencePayload.recordedIntegrityVerifiedAtUtc
+                    effectiveReportEvidencePayload.recordedIntegrityVerifiedAtUtc
                   )
                 : null,
             lastVerifiedAtUtcSnapshot:
-              prepared.reportEvidencePayload.lastVerifiedAtUtc
-                ? new Date(prepared.reportEvidencePayload.lastVerifiedAtUtc)
+              effectiveReportEvidencePayload.lastVerifiedAtUtc
+                ? new Date(effectiveReportEvidencePayload.lastVerifiedAtUtc)
                 : null,
             lastVerifiedSourceSnapshot:
-              (prepared.reportEvidencePayload.lastVerifiedSource as
+              (effectiveReportEvidencePayload.lastVerifiedSource as
                 | prismaPkg.VerificationSource
                 | null
                 | undefined) ?? null,
             storageImmutableSnapshot:
-              prepared.reportEvidencePayload.storageImmutable ?? null,
+              effectiveReportEvidencePayload.storageImmutable ?? null,
 
             displaySnapshot:
               prepared.display as unknown as Prisma.InputJsonValue,
@@ -2767,7 +3043,7 @@ export async function processGenerateReport(job: Job<GenerateReportJobData>) {
             previewPolicySnapshot:
               prepared.previewPolicy as unknown as Prisma.InputJsonValue,
             reviewGuidanceSnapshot:
-              prepared.reviewGuidance as unknown as Prisma.InputJsonValue,
+              effectiveReviewGuidance as unknown as Prisma.InputJsonValue,
             limitationsSnapshot:
               prepared.limitations as unknown as Prisma.InputJsonValue,
             anchorSnapshot:
@@ -2796,6 +3072,8 @@ export async function processGenerateReport(job: Job<GenerateReportJobData>) {
           reportKey: prepared.reportKey,
           scheduleOtsUpgrade,
           reportVersion: prepared.version,
+          effectiveVerificationStatus,
+          effectiveRecordedIntegrityVerifiedAtUtc,
           finalizedReportPdf,
           finalizedTrustDecision,
           finalizedCustodyEvents: finalizedCustodyEvents.map((ev) => ({
@@ -2834,6 +3112,8 @@ const finalizedAnchorPayload = buildFinalizedAnchorPayload({
   lastEventHash: finalizedLastEventHash,
   generatedAtUtc: prepared.now.toISOString(),
   anchorSummary: prepared.anchorSummary,
+  otsBitcoinTxid: prepared.reportEvidencePayload.otsBitcoinTxid ?? null,
+  otsAnchoredAtUtc: prepared.reportEvidencePayload.otsAnchoredAtUtc ?? null,
 });
         finalizedVerificationZip = await createVerificationPackage({
 evidenceFiles: prepared.verificationEvidenceFiles,
@@ -2860,7 +3140,7 @@ signingKeyVersion: evidence.signingKeyVersion ?? undefined,
 evidenceType: String(evidence.type),
 evidenceStatus: String(evidence.status),
 createdAtUtc: evidence.createdAt.toISOString(),
-verificationStatus: String(prepared.identitySnapshot.verificationStatus),
+verificationStatus: String(finalized.effectiveVerificationStatus),
 captureMethod: String(prepared.identitySnapshot.captureMethod),
 identityLevelSnapshot: String(prepared.identitySnapshot.identityLevelSnapshot),
 submittedByEmail: prepared.identitySnapshot.submittedByEmail,
@@ -2891,7 +3171,7 @@ teamId: prepared.packageMetadataContext.teamId,
 ownerUserId: prepared.packageMetadataContext.ownerUserId,
             verificationPackageVersion: prepared.version,
             recordedIntegrityVerifiedAtUtc:
-              prepared.reportEvidencePayload.recordedIntegrityVerifiedAtUtc ?? null,
+              finalized.effectiveRecordedIntegrityVerifiedAtUtc ?? null,
           },
         });
       } catch (verificationError) {

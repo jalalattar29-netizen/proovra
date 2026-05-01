@@ -123,6 +123,10 @@ export async function processOtsUpgrade(job: Job<{ evidenceId: string }>) {
     const upgradedAt = now();
     const proofBase64 = updated.toString("base64");
 
+    // Legal boundary: the OTS proof can be preserved in an anchored state even
+    // before a Bitcoin txid or other public receipt is available. The shared
+    // trust engine still requires defensible public anchor material before it
+    // awards a full 10/10 public-anchoring signal.
 if (shouldTreatOtsAsAnchored(parsedUpgrade)) {
         await prisma.$transaction(async (tx) => {
         await tx.evidence.update({
