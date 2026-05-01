@@ -3,7 +3,14 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { useParams } from "next/navigation";
 import {
+  CAPTURE_LOCATION_SHORT_BOUNDARY,
+  CAPTURE_LOCATION_SOURCE_LABEL,
+  CAPTURE_LOCATION_STATUS_LABEL,
   buildEvidenceTrustDecision,
+  buildCaptureLocationMapDataUrl,
+  formatCaptureLocationAccuracy,
+  formatCaptureLocationCoordinate,
+  hasCaptureLocationMetadata,
   isAccessCustodyEventType,
 } from "@proovra/shared";
 import {
@@ -112,6 +119,18 @@ type VerifyHumanSummary = {
   externalPublicationUrl?: string | null;
   externalPublicationAnchoredAtUtc?: string | null;
 };
+
+type VerifyCaptureContext = {
+  statusLabel?: string | null;
+  description?: string | null;
+  lat?: number | null;
+  lng?: number | null;
+  accuracyMeters?: number | null;
+  capturedAtUtc?: string | null;
+  deviceTimeIso?: string | null;
+  source?: string | null;
+  legalBoundary?: string | null;
+} | null;
 
 type VerifyReviewTrail = {
   forensicEventCount?: number | null;
@@ -376,6 +395,7 @@ tsaMessageImprint?: string | null;
 
   overview?: VerifyOverview | null;
   humanSummary?: VerifyHumanSummary | null;
+  captureContext?: VerifyCaptureContext;
   reviewTrail?: VerifyReviewTrail | null;
     custodyLifecycle?: {
     forensicEventCount?: number | null;
@@ -3139,6 +3159,7 @@ export default function VerifyPage() {
 
   const [overview, setOverview] = useState<VerifyOverview | null>(null);
   const [humanSummary, setHumanSummary] = useState<VerifyHumanSummary | null>(null);
+  const [captureContext, setCaptureContext] = useState<VerifyCaptureContext>(null);
   const [serverTrustDecision, setServerTrustDecision] =
     useState<VerifyTrustDecision | null>(null);
   const [custodyDisplayCounts, setCustodyDisplayCounts] =
@@ -3194,6 +3215,7 @@ function isAccessEventType(eventType?: string | null): boolean {
     const tsaDetails = buildTsaDetails(data);
     const otsDetails = buildOtsDetails(data);
     setServerTrustDecision(data.trustDecision ?? null);
+    setCaptureContext(data.captureContext ?? null);
 
     const reviewTrailForensic =
       data.reviewTrail?.forensicCustodyEvents ??
@@ -3771,6 +3793,48 @@ setServerVerificationPackageIntegrity(data.verificationPackageIntegrity ?? null)
       "This page verifies the recorded integrity state of the evidence record. It does not independently prove factual truth, authorship, context, or legal admissibility."
     );
   }, [humanSummary?.whatIsVerified]);
+
+  const hasCaptureLocation = useMemo(
+    () =>
+      hasCaptureLocationMetadata({
+        lat: captureContext?.lat,
+        lng: captureContext?.lng,
+      }),
+    [captureContext?.lat, captureContext?.lng]
+  );
+
+  const captureLocationPreviewUrl = useMemo(() => {
+    if (
+      !hasCaptureLocation ||
+      captureContext?.lat === null ||
+      captureContext?.lat === undefined ||
+      captureContext?.lng === null ||
+      captureContext?.lng === undefined
+    ) {
+      return null;
+    }
+
+    return buildCaptureLocationMapDataUrl({
+      lat: captureContext.lat,
+      lng: captureContext.lng,
+      accuracyMeters: captureContext.accuracyMeters,
+      width: 1200,
+      height: 720,
+    });
+  }, [
+    captureContext?.accuracyMeters,
+    captureContext?.lat,
+    captureContext?.lng,
+    hasCaptureLocation,
+  ]);
+
+  const captureLocationCapturedAtLabel = useMemo(
+    () =>
+      formatDateTime(
+        captureContext?.capturedAtUtc ?? captureContext?.deviceTimeIso ?? null
+      ),
+    [captureContext?.capturedAtUtc, captureContext?.deviceTimeIso]
+  );
 
     const verificationVerdict = useMemo(
     () =>
@@ -4896,9 +4960,200 @@ with this evidence record.
       </div>
     </div>
 
-    <TrustSignalGrid signals={trustDecision.signals} />
+<TrustSignalGrid signals={trustDecision.signals} />
   </div>
 </Card>
+              {hasCaptureLocation ? (
+                <Card>
+                  <div
+                    style={{
+                      ...glassCardStyle,
+                      padding: 24,
+                      display: "grid",
+                      gap: 18,
+                    }}
+                  >
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "flex-start",
+                        justifyContent: "space-between",
+                        gap: 16,
+                        flexWrap: "wrap",
+                      }}
+                    >
+                      <div style={{ minWidth: 0, flex: "1 1 620px" }}>
+                        <div
+                          style={{
+                            ...VERIFY_TYPO.kicker,
+                            fontSize: 11,
+                            marginBottom: 8,
+                          }}
+                        >
+                          Capture Context
+                        </div>
+                        <div
+                          style={{
+                            fontSize: cardTitleSize,
+                            fontWeight: 900,
+                            color: VERIFY_BRAND.ink,
+                            lineHeight: 1.12,
+                            letterSpacing: "-0.028em",
+                            marginBottom: 8,
+                          }}
+                        >
+                          📍 {captureContext?.statusLabel ?? CAPTURE_LOCATION_STATUS_LABEL}
+                        </div>
+                        <div
+                          style={{
+                            ...VERIFY_TYPO.body,
+                            maxWidth: 860,
+                          }}
+                        >
+                          {captureContext?.description ??
+                            "This evidence record contains signed capture-location metadata preserved within the integrity state."}
+                        </div>
+                      </div>
+
+                      <div
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: 8,
+                          borderRadius: 999,
+                          border: `1px solid ${VERIFY_BRAND.line}`,
+                          background: "rgba(255,255,255,0.48)",
+                          padding: "10px 14px",
+                          color: VERIFY_BRAND.ink,
+                          fontSize: 11,
+                          fontWeight: 900,
+                          letterSpacing: "0.055em",
+                          textTransform: "uppercase",
+                        }}
+                      >
+                        Signed provenance context
+                      </div>
+                    </div>
+
+                    <div
+                      style={{
+                        display: "grid",
+                        gridTemplateColumns:
+                          "repeat(auto-fit, minmax(min(100%, 320px), 1fr))",
+                        gap: 18,
+                        alignItems: "stretch",
+                      }}
+                    >
+                      <div
+                        style={{
+                          overflow: "hidden",
+                          borderRadius: 22,
+                          border: `1px solid ${VERIFY_BRAND.line}`,
+                          background:
+                            "linear-gradient(180deg, rgba(18,26,30,0.96) 0%, rgba(42,51,57,0.98) 100%)",
+                          minHeight: 280,
+                          boxShadow:
+                            "0 18px 38px rgba(11,46,39,0.12), inset 0 1px 0 rgba(255,255,255,0.06)",
+                        }}
+                      >
+                        {captureLocationPreviewUrl ? (
+                          <img
+                            src={captureLocationPreviewUrl}
+                            alt="Capture location preview"
+                            style={{
+                              display: "block",
+                              width: "100%",
+                              height: "100%",
+                              objectFit: "cover",
+                            }}
+                          />
+                        ) : null}
+                      </div>
+
+                      <div
+                        style={{
+                          display: "grid",
+                          gap: 10,
+                          alignContent: "start",
+                        }}
+                      >
+                        {[
+                          [
+                            CAPTURE_LOCATION_STATUS_LABEL,
+                            "Yes",
+                          ],
+                          [
+                            "Latitude",
+                            formatCaptureLocationCoordinate(captureContext?.lat),
+                          ],
+                          [
+                            "Longitude",
+                            formatCaptureLocationCoordinate(captureContext?.lng),
+                          ],
+                          [
+                            "Accuracy radius",
+                            formatCaptureLocationAccuracy(
+                              captureContext?.accuracyMeters
+                            ),
+                          ],
+                          ["Capture timestamp", captureLocationCapturedAtLabel],
+                          [
+                            "Source",
+                            captureContext?.source ?? CAPTURE_LOCATION_SOURCE_LABEL,
+                          ],
+                        ].map(([label, value]) => (
+                          <div
+                            key={label}
+                            style={{
+                              ...glassPanelStyle,
+                              padding: 14,
+                              display: "grid",
+                              gap: 5,
+                            }}
+                          >
+                            <div
+                              style={{
+                                ...VERIFY_TYPO.kicker,
+                                fontSize: 10.5,
+                              }}
+                            >
+                              {label}
+                            </div>
+                            <div
+                              style={{
+                                ...VERIFY_TYPO.value,
+                                fontSize: 14,
+                                color: VERIFY_BRAND.ink,
+                              }}
+                            >
+                              {value}
+                            </div>
+                          </div>
+                        ))}
+
+                        <div
+                          style={{
+                            ...glassPanelStyle,
+                            borderLeft: `5px solid ${VERIFY_BRAND.bronze}`,
+                            padding: 16,
+                          }}
+                        >
+                          <div
+                            style={{
+                              ...VERIFY_TYPO.small,
+                              fontSize: 12.5,
+                              color: VERIFY_BRAND.ink,
+                            }}
+                          >
+                            {captureContext?.legalBoundary ??
+                              CAPTURE_LOCATION_SHORT_BOUNDARY}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </Card>
+              ) : null}
               <LegalWarningBlock verdict={verificationVerdict} />
 
               <ReviewerActionsBlock actions={reviewerActions} />

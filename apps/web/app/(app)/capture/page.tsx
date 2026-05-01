@@ -1529,24 +1529,97 @@ const recordedFile = new File(
                   </div>
                 </div>
 
-                <label
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 10,
-                    color: "#42565b",
-                    fontSize: 14,
-                    flexWrap: "wrap",
-                  }}
-                >
-                  <input
-                    type="checkbox"
-                    checked={useLocation}
-                    onChange={(event) => setUseLocation(event.target.checked)}
-                    disabled={Boolean(sessionEvidenceId)}
-                  />
-                  Include location metadata on session creation
-                </label>
+<label
+  style={{
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 16,
+    padding: "14px 16px",
+    borderRadius: 18,
+    border: "1px solid rgba(79,112,107,0.10)",
+    background:
+      "linear-gradient(180deg, rgba(255,255,255,0.58) 0%, rgba(243,245,242,0.90) 100%)",
+    boxShadow:
+      "inset 0 1px 0 rgba(255,255,255,0.42), 0 10px 22px rgba(0,0,0,0.04)",
+    cursor: sessionEvidenceId ? "not-allowed" : "pointer",
+    opacity: sessionEvidenceId ? 0.7 : 1,
+  }}
+>
+  <div
+    style={{
+      display: "flex",
+      flexDirection: "column",
+      gap: 4,
+      minWidth: 0,
+    }}
+  >
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 10,
+        flexWrap: "wrap",
+      }}
+    >
+      <span
+        style={{
+          color: "#21353a",
+          fontSize: 14,
+          fontWeight: 700,
+          letterSpacing: "-0.01em",
+        }}
+      >
+        📍 Include capture location
+      </span>
+
+      <span
+        style={{
+          display: "inline-flex",
+          alignItems: "center",
+          justifyContent: "center",
+          minHeight: 22,
+          padding: "0 10px",
+          borderRadius: 999,
+          fontSize: 11,
+          fontWeight: 800,
+          letterSpacing: "0.08em",
+          textTransform: "uppercase",
+          border: "1px solid rgba(183,157,132,0.16)",
+          background:
+            "linear-gradient(180deg, rgba(214,184,157,0.10) 0%, rgba(255,255,255,0.55) 100%)",
+          color: "#8a6e57",
+        }}
+      >
+        OPTIONAL
+      </span>
+    </div>
+
+    <div
+      style={{
+        color: "#5f6f73",
+        fontSize: 12,
+        lineHeight: 1.55,
+      }}
+    >
+      Attach device-reported location metadata to this evidence session.
+    </div>
+  </div>
+
+  <input
+    type="checkbox"
+    checked={useLocation}
+    onChange={(event) => setUseLocation(event.target.checked)}
+    disabled={sessionEvidenceId !== null}
+    style={{
+      width: 18,
+      height: 18,
+      accentColor: "#39565d",
+      cursor: sessionEvidenceId ? "not-allowed" : "pointer",
+      flexShrink: 0,
+    }}
+  />
+</label>
 
                 {locationPermissionDenied ? (
                   <div

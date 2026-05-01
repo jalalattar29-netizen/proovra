@@ -3148,10 +3148,33 @@ submittedByAuthProvider:
   prepared.identitySnapshot.submittedByAuthProvider
     ? String(prepared.identitySnapshot.submittedByAuthProvider)
     : null,
-                capturedAtUtc: prepared.reportEvidencePayload.capturedAtUtc ?? null,
+            capturedAtUtc: prepared.reportEvidencePayload.capturedAtUtc ?? null,
+            deviceTimeIso: prepared.reportEvidencePayload.deviceTimeIso ?? null,
             uploadedAtUtc: prepared.reportEvidencePayload.uploadedAtUtc ?? null,
             signedAtUtc: prepared.reportEvidencePayload.signedAtUtc ?? null,
             reportGeneratedAtUtc: prepared.now.toISOString(),
+            captureLocation:
+              prepared.reportEvidencePayload.gps &&
+              (prepared.reportEvidencePayload.gps.lat !== null ||
+                prepared.reportEvidencePayload.gps.lng !== null ||
+                prepared.reportEvidencePayload.gps.accuracyMeters !== null)
+                ? {
+                    lat:
+                      prepared.reportEvidencePayload.gps.lat !== null
+                        ? Number(prepared.reportEvidencePayload.gps.lat)
+                        : null,
+                    lng:
+                      prepared.reportEvidencePayload.gps.lng !== null
+                        ? Number(prepared.reportEvidencePayload.gps.lng)
+                        : null,
+                    accuracyMeters:
+                      prepared.reportEvidencePayload.gps.accuracyMeters !== null
+                        ? Number(
+                            prepared.reportEvidencePayload.gps.accuracyMeters
+                          )
+                        : null,
+                  }
+                : null,
             storageRegion: prepared.evidenceStorage.storageRegion,
             storageObjectLockMode:
               prepared.evidenceStorage.storageObjectLockMode,

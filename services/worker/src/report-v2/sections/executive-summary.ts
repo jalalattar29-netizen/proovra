@@ -2,7 +2,6 @@ import { ReportViewModel } from "../types.js";
 import { escapeHtml } from "../formatters.js";
 import {
   renderPageSection,
-  renderTrustDecisionHero,
   renderTrustSignalGrid,
   renderKeyValueGrid,
 } from "../ui.js";
@@ -34,16 +33,55 @@ function renderExecutiveTable(
   `;
 }
 
-function renderExecutiveTrustDecision(vm: ReportViewModel): string {
-  return `
-    <section class="executive-trust-decision-panel">
-      ${renderTrustDecisionHero(vm.trustDecision)}
+function renderCaptureContext(vm: ReportViewModel): string {
+  if (!vm.meta.captureContext) return "";
 
-      <div class="executive-trust-reason">
-        <div class="executive-outcome-title">Decision basis</div>
-        <div class="executive-outcome-body">
-          ${escapeHtml(vm.trustDecision.primaryReason)}
+  return `
+    <section class="capture-context-panel">
+      <div class="executive-confirmation-kicker">Capture Context &amp; Device Location</div>
+      <div class="capture-context-layout">
+        <div class="capture-context-map-shell">
+          <img
+            class="capture-context-map"
+            src="${vm.meta.captureContext.mapPreviewDataUrl}"
+            alt="Capture location preview"
+          />
         </div>
+
+        <div class="capture-context-metadata">
+          ${[
+            ["Location metadata included", "Yes"],
+            ["Latitude", vm.meta.captureContext.lat],
+            ["Longitude", vm.meta.captureContext.lng],
+            ["Accuracy radius", vm.meta.captureContext.accuracyRadius],
+            ["Captured at", vm.meta.captureContext.capturedAtLabel],
+            ["Source", vm.meta.captureContext.sourceLabel],
+          ]
+            .map(
+              ([label, value]) => `
+                <div class="capture-context-row">
+                  <div class="capture-context-label">${escapeHtml(label)}</div>
+                  <div class="capture-context-value">${escapeHtml(value)}</div>
+                </div>
+              `
+            )
+            .join("")}
+        </div>
+      </div>
+
+      <div class="capture-context-note">
+        ${escapeHtml(vm.meta.captureContext.legalBoundary)}
+      </div>
+    </section>
+  `;
+}
+
+function renderExecutiveDecisionBasis(vm: ReportViewModel): string {
+  return `
+    <section class="executive-trust-reason">
+      <div class="executive-outcome-title">Decision basis</div>
+      <div class="executive-outcome-body">
+        ${escapeHtml(vm.trustDecision.primaryReason)}
       </div>
     </section>
   `;
@@ -208,11 +246,12 @@ export function renderExecutiveSummarySection(vm: ReportViewModel): string {
           </div>
         </section>
 
-        ${renderExecutiveTrustDecision(vm)}
+        ${renderCaptureContext(vm)}
 
         ${renderExecutiveTable(executiveRows)}
 
         <div class="executive-bottom-outcomes">
+          ${renderExecutiveDecisionBasis(vm)}
           ${renderExecutiveBoundary(vm)}
         </div>
       </div>

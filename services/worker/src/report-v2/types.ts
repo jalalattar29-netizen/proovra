@@ -166,7 +166,9 @@ export type ReportEvidence = {
   latestReportVersion?: number | null;
   reviewReadyAtUtc?: string | null;
   reviewerSummaryVersion?: number | null;
+  createdAtUtc?: string | null;
   capturedAtUtc: string | null;
+  deviceTimeIso?: string | null;
   uploadedAtUtc: string | null;
   signedAtUtc: string | null;
   reportGeneratedAtUtc: string | null;
@@ -475,6 +477,16 @@ verificationPackageIntegrity: {
 
   meta: {
     hasCoreCrypto: boolean;
+    captureContext: {
+      statusLabel: string;
+      lat: string;
+      lng: string;
+      accuracyRadius: string;
+      capturedAtLabel: string;
+      sourceLabel: string;
+      legalBoundary: string;
+      mapPreviewDataUrl: string;
+    } | null;
     previewPolicy: ReportPreviewPolicy;
     anchorSummary: ReportAnchorSummary | null;
     display: {

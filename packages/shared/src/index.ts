@@ -24,6 +24,20 @@ export const LegalVersionsSchema = z.object({
 export type LegalVersions = z.infer<typeof LegalVersionsSchema>;
 
 export * from "./i18n.js";
+export {
+  CAPTURE_LOCATION_CONTEXT_DESCRIPTION,
+  CAPTURE_LOCATION_LEGAL_BOUNDARY,
+  CAPTURE_LOCATION_SHORT_BOUNDARY,
+  CAPTURE_LOCATION_SOURCE_LABEL,
+  CAPTURE_LOCATION_STATUS_LABEL,
+  buildCaptureLocationMapDataUrl,
+  buildCaptureLocationMapSvg,
+  formatCaptureLocationAccuracy,
+  formatCaptureLocationCoordinate,
+  hasCaptureLocationMetadata,
+} from "./capture-location.js";
+
+export type { CaptureLocationInput } from "./capture-location.js";
 
 export type {
   EnqueueReportJobOptions,

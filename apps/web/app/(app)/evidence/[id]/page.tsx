@@ -2,6 +2,15 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
+import {
+  CAPTURE_LOCATION_SHORT_BOUNDARY,
+  CAPTURE_LOCATION_SOURCE_LABEL,
+  CAPTURE_LOCATION_STATUS_LABEL,
+  buildCaptureLocationMapDataUrl,
+  formatCaptureLocationAccuracy,
+  formatCaptureLocationCoordinate,
+  hasCaptureLocationMetadata,
+} from "@proovra/shared";
 import { Button, Card, Modal, useToast } from "../../../../components/ui";
 import { useLocale } from "../../../providers";
 import { apiFetch } from "../../../../lib/api";
@@ -303,6 +312,11 @@ type EvidenceRecord = {
   workspaceName?: string | null;
   reportGeneratedAtUtc?: string | null;
   verificationPackageGeneratedAtUtc?: string | null;
+  capturedAtUtc?: string | null;
+  deviceTimeIso?: string | null;
+  lat?: number | null;
+  lng?: number | null;
+  accuracyMeters?: number | null;
 };
 
 type EvidenceResponse = {
@@ -495,6 +509,11 @@ export default function EvidenceDetailPage() {
   const [reportGeneratedAtUtc, setReportGeneratedAtUtc] = useState<string | null>(null);
   const [verificationPackageGeneratedAtUtc, setVerificationPackageGeneratedAtUtc] =
     useState<string | null>(null);
+  const [capturedAtUtc, setCapturedAtUtc] = useState<string | null>(null);
+  const [deviceTimeIso, setDeviceTimeIso] = useState<string | null>(null);
+  const [captureLat, setCaptureLat] = useState<number | null>(null);
+  const [captureLng, setCaptureLng] = useState<number | null>(null);
+  const [captureAccuracyMeters, setCaptureAccuracyMeters] = useState<number | null>(null);
 
   const [label, setLabel] = useState<string>("Digital Evidence Record");
   const [displaySubtitle, setDisplaySubtitle] = useState<string>("");
@@ -798,6 +817,13 @@ switch (onlyKind) {
           setVerificationPackageGeneratedAtUtc(
             ev.verificationPackageGeneratedAtUtc ?? null
           );
+          setCapturedAtUtc(ev.capturedAtUtc ?? null);
+          setDeviceTimeIso(ev.deviceTimeIso ?? null);
+          setCaptureLat(typeof ev.lat === "number" ? ev.lat : null);
+          setCaptureLng(typeof ev.lng === "number" ? ev.lng : null);
+          setCaptureAccuracyMeters(
+            typeof ev.accuracyMeters === "number" ? ev.accuracyMeters : null
+          );
           setLabel(resolveDisplayTitle(ev));
           setLabelDraft(resolveDisplayTitle(ev));
           setDisplaySubtitle(resolveDisplaySubtitle(ev));
@@ -930,6 +956,13 @@ switch (onlyKind) {
         setReportGeneratedAtUtc(ev.reportGeneratedAtUtc ?? null);
         setVerificationPackageGeneratedAtUtc(
           ev.verificationPackageGeneratedAtUtc ?? null
+        );
+        setCapturedAtUtc(ev.capturedAtUtc ?? null);
+        setDeviceTimeIso(ev.deviceTimeIso ?? null);
+        setCaptureLat(typeof ev.lat === "number" ? ev.lat : null);
+        setCaptureLng(typeof ev.lng === "number" ? ev.lng : null);
+        setCaptureAccuracyMeters(
+          typeof ev.accuracyMeters === "number" ? ev.accuracyMeters : null
         );
         setLabel(resolveDisplayTitle(ev));
         setLabelDraft(resolveDisplayTitle(ev));
@@ -1754,6 +1787,34 @@ switch (onlyKind) {
     return originalPreviewUrl ?? originalDownloadUrl ?? null;
   }, [originalKind, originalDownloadUrl, originalPreviewUrl]);
 
+  const hasCaptureLocation = useMemo(
+    () =>
+      hasCaptureLocationMetadata({
+        lat: captureLat,
+        lng: captureLng,
+      }),
+    [captureLat, captureLng]
+  );
+
+  const captureLocationPreviewUrl = useMemo(() => {
+    if (!hasCaptureLocation || captureLat === null || captureLng === null) {
+      return null;
+    }
+
+    return buildCaptureLocationMapDataUrl({
+      lat: captureLat,
+      lng: captureLng,
+      accuracyMeters: captureAccuracyMeters,
+      width: 1200,
+      height: 720,
+    });
+  }, [captureAccuracyMeters, captureLat, captureLng, hasCaptureLocation]);
+
+  const captureLocationCapturedAtLabel = useMemo(
+    () => formatUtcDateTime(capturedAtUtc ?? deviceTimeIso ?? createdAt),
+    [capturedAtUtc, createdAt, deviceTimeIso]
+  );
+
   return (
     <div className="section app-section evidence-detail-page-shell">
       <div className="app-hero app-hero-full">
@@ -2492,6 +2553,172 @@ switch (onlyKind) {
               </div>
             </Card>
           </div>
+
+          {hasCaptureLocation ? (
+            <Card
+              className="evidence-detail-location-card relative mt-6 overflow-hidden rounded-[30px] border bg-transparent p-0 shadow-none"
+              style={outerCardStyle}
+            >
+              <div className="absolute inset-0">
+                <img
+                  src="/images/panel-silver.webp.png"
+                  alt=""
+                  className="h-full w-full object-cover object-center"
+                />
+              </div>
+              <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.18)_0%,rgba(242,244,243,0.28)_52%,rgba(232,235,233,0.34)_100%)]" />
+              <div className="absolute inset-0 bg-[radial-gradient(circle_at_16%_12%,rgba(255,255,255,0.30),transparent_28%)] opacity-90" />
+
+              <div className="relative z-10 p-6 md:p-7">
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    gap: 14,
+                    flexWrap: "wrap",
+                    marginBottom: 18,
+                  }}
+                >
+                  <div>
+                    <div className="text-[1.08rem] font-semibold tracking-[-0.02em] text-[#21353a]">
+                      📍 Capture Location
+                    </div>
+                    <div
+                      style={{
+                        marginTop: 8,
+                        fontSize: 13,
+                        lineHeight: 1.65,
+                        color: "#5f6f73",
+                        maxWidth: 720,
+                      }}
+                    >
+                      Signed capture-location metadata preserved with this evidence
+                      session for contextual provenance review.
+                    </div>
+                  </div>
+
+                  <div
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 8,
+                      borderRadius: 999,
+                      border: "1px solid rgba(79,112,107,0.14)",
+                      background:
+                        "linear-gradient(180deg, rgba(244,247,246,0.92) 0%, rgba(255,255,255,0.72) 100%)",
+                      padding: "8px 12px",
+                      fontSize: 11,
+                      fontWeight: 800,
+                      letterSpacing: "0.08em",
+                      textTransform: "uppercase",
+                      color: "#466067",
+                    }}
+                  >
+                    {CAPTURE_LOCATION_STATUS_LABEL}
+                  </div>
+                </div>
+
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns:
+                      "repeat(auto-fit, minmax(min(100%, 320px), 1fr))",
+                    gap: 18,
+                    alignItems: "stretch",
+                  }}
+                >
+                  <div
+                    style={{
+                      borderRadius: 22,
+                      overflow: "hidden",
+                      border: "1px solid rgba(79,112,107,0.14)",
+                      background:
+                        "linear-gradient(180deg, rgba(18,26,30,0.96) 0%, rgba(42,51,57,0.98) 100%)",
+                      boxShadow:
+                        "0 18px 38px rgba(0,0,0,0.10), inset 0 1px 0 rgba(255,255,255,0.06)",
+                      minHeight: 280,
+                    }}
+                  >
+                    {captureLocationPreviewUrl ? (
+                      <img
+                        src={captureLocationPreviewUrl}
+                        alt="Capture location preview"
+                        style={{
+                          display: "block",
+                          width: "100%",
+                          height: "100%",
+                          objectFit: "cover",
+                        }}
+                      />
+                    ) : null}
+                  </div>
+
+                  <div
+                    style={{
+                      display: "grid",
+                      gap: 10,
+                      alignContent: "start",
+                    }}
+                  >
+                    {[
+                      [CAPTURE_LOCATION_STATUS_LABEL, "Yes"],
+                      ["Latitude", formatCaptureLocationCoordinate(captureLat)],
+                      ["Longitude", formatCaptureLocationCoordinate(captureLng)],
+                      [
+                        "Accuracy radius",
+                        formatCaptureLocationAccuracy(captureAccuracyMeters),
+                      ],
+                      ["Captured at", captureLocationCapturedAtLabel],
+                      ["Source", CAPTURE_LOCATION_SOURCE_LABEL],
+                    ].map(([labelText, valueText]) => (
+                      <div
+                        key={labelText}
+                        style={{
+                          padding: "12px 14px",
+                          borderRadius: 16,
+                          border: "1px solid rgba(79,112,107,0.12)",
+                          background:
+                            "linear-gradient(180deg, rgba(255,255,255,0.72) 0%, rgba(246,248,246,0.56) 100%)",
+                          boxShadow:
+                            "inset 0 1px 0 rgba(255,255,255,0.72), 0 8px 18px rgba(0,0,0,0.04)",
+                        }}
+                      >
+                        <div className="text-[11px] uppercase tracking-[0.14em] text-[#8a6e57]">
+                          {labelText}
+                        </div>
+                        <div
+                          style={{
+                            marginTop: 6,
+                            fontSize: 14,
+                            lineHeight: 1.55,
+                            color: "#203439",
+                            fontWeight: 650,
+                          }}
+                        >
+                          {valueText}
+                        </div>
+                      </div>
+                    ))}
+
+                    <div
+                      style={{
+                        padding: "12px 14px",
+                        borderRadius: 16,
+                        border: "1px solid rgba(79,112,107,0.10)",
+                        background: "rgba(255,255,255,0.54)",
+                        color: "#657479",
+                        fontSize: 12,
+                        lineHeight: 1.7,
+                      }}
+                    >
+                      {CAPTURE_LOCATION_SHORT_BOUNDARY}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </Card>
+          ) : null}
 
           {(sortedParts.length > 0 ||
             originalPreviewUrl ||

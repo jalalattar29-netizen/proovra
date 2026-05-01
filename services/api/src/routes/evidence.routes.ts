@@ -1,6 +1,11 @@
 import type { FastifyInstance, FastifyRequest } from "fastify";
 import {
+  CAPTURE_LOCATION_CONTEXT_DESCRIPTION,
+  CAPTURE_LOCATION_LEGAL_BOUNDARY,
+  CAPTURE_LOCATION_SOURCE_LABEL,
+  CAPTURE_LOCATION_STATUS_LABEL,
   buildEvidenceTrustDecision,
+  hasCaptureLocationMetadata,
   resolveEffectiveOtsStatus,
   type TrustDecision,
 } from "@proovra/shared";
@@ -67,11 +72,11 @@ const CreateEvidenceBody = z.object({
   deviceTimeIso: z.string().min(1).max(64).optional(),
   checksumSha256Base64: z.string().min(1).max(128).optional(),
   contentMd5Base64: z.string().min(1).max(128).optional(),
-    gps: z
+  gps: z
     .object({
-      lat: z.number(),
-      lng: z.number(),
-      accuracyMeters: z.number().positive().optional(),
+      lat: z.number().finite().min(-90).max(90),
+      lng: z.number().finite().min(-180).max(180),
+      accuracyMeters: z.number().finite().min(0).max(1_000_000).optional(),
     })
     .optional(),
 });
@@ -4822,6 +4827,10 @@ return reply.code(200).send({
         mimeType: true,
         sizeBytes: true,
         reportGeneratedAtUtc: true,
+        deviceTimeIso: true,
+        lat: true,
+        lng: true,
+        accuracyMeters: true,
         fingerprintCanonicalJson: true,
         fingerprintHash: true,
         signatureBase64: true,
@@ -5504,6 +5513,25 @@ title: evidence.title ?? evidence.displayFileName ?? evidence.originalFileName ?
   itemCount,
 });
 
+const captureContext = hasCaptureLocationMetadata({
+  lat: decimalToNumber(evidence.lat),
+  lng: decimalToNumber(evidence.lng),
+})
+  ? {
+      statusLabel: CAPTURE_LOCATION_STATUS_LABEL,
+      description: CAPTURE_LOCATION_CONTEXT_DESCRIPTION,
+      lat: decimalToNumber(evidence.lat),
+      lng: decimalToNumber(evidence.lng),
+      accuracyMeters: decimalToNumber(evidence.accuracyMeters),
+      capturedAtUtc: evidence.capturedAtUtc
+        ? evidence.capturedAtUtc.toISOString()
+        : evidence.createdAt.toISOString(),
+      deviceTimeIso: evidence.deviceTimeIso ?? null,
+      source: CAPTURE_LOCATION_SOURCE_LABEL,
+      legalBoundary: CAPTURE_LOCATION_LEGAL_BOUNDARY,
+    }
+  : null;
+
 return reply.code(200).send({
   evidenceId: evidence.id,
   trustDecision,
@@ -5539,6 +5567,7 @@ trustDecisionSnapshot: {
   },
   certifications: publicCertifications,
   display,
+  captureContext,
   overview,
   humanSummary,
   evidenceContent: {

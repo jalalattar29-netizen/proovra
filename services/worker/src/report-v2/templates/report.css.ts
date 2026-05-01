@@ -3925,8 +3925,81 @@ body {
 }
 
 .executive-summary-page-enterprise .executive-bottom-outcomes {
+  display: grid !important;
+  gap: 3mm !important;
   margin-top: auto !important;
   margin-bottom: 5mm !important;
+}
+
+.capture-context-panel {
+  border: 1px solid rgba(12, 28, 25, 0.22) !important;
+  border-left: 5px solid rgba(96, 66, 24, 0.95) !important;
+  border-radius: 10px !important;
+  background-color: rgba(255, 255, 255, 0.18) !important;
+  padding: 3mm 3.2mm !important;
+  display: grid !important;
+  gap: 2.4mm !important;
+  break-inside: avoid !important;
+  page-break-inside: avoid !important;
+}
+
+.capture-context-layout {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1.08fr) minmax(0, 0.92fr) !important;
+  gap: 3mm !important;
+  align-items: stretch !important;
+}
+
+.capture-context-map-shell {
+  min-height: 58mm !important;
+  border-radius: 9px !important;
+  overflow: hidden !important;
+  border: 1px solid rgba(12, 28, 25, 0.18) !important;
+  background: linear-gradient(180deg, rgba(18, 26, 30, 0.96) 0%, rgba(42, 51, 57, 0.98) 100%) !important;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.06) !important;
+}
+
+.capture-context-map {
+  display: block !important;
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover !important;
+}
+
+.capture-context-metadata {
+  display: grid !important;
+  gap: 1.6mm !important;
+}
+
+.capture-context-row {
+  border: 1px solid rgba(12, 28, 25, 0.16) !important;
+  border-radius: 8px !important;
+  padding: 2.1mm 2.4mm !important;
+  background: rgba(255, 255, 255, 0.52) !important;
+}
+
+.capture-context-label {
+  color: rgba(96, 66, 24, 0.95) !important;
+  font-size: 8.3px !important;
+  font-weight: 900 !important;
+  letter-spacing: 0.05em !important;
+  text-transform: uppercase !important;
+}
+
+.capture-context-value {
+  margin-top: 1.1mm !important;
+  color: ${c.ink} !important;
+  font-size: 10px !important;
+  font-weight: 700 !important;
+  line-height: 1.45 !important;
+  word-break: break-word !important;
+  overflow-wrap: anywhere !important;
+}
+
+.capture-context-note {
+  color: ${c.muted} !important;
+  font-size: 8.9px !important;
+  line-height: 1.55 !important;
 }
 
 /* TRUST SIGNAL ANALYSIS — separate enterprise page */

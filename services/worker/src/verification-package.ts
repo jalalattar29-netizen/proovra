@@ -3,7 +3,14 @@ import path from "node:path";
 import { createHash, sign as cryptoSign } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { PassThrough } from "stream";
-import { isAccessCustodyEventType } from "@proovra/shared";
+import sharp from "sharp";
+import {
+  CAPTURE_LOCATION_LEGAL_BOUNDARY,
+  CAPTURE_LOCATION_SOURCE_LABEL,
+  buildCaptureLocationMapSvg,
+  hasCaptureLocationMetadata,
+  isAccessCustodyEventType,
+} from "@proovra/shared";
 import type { ReportTrustDecision } from "./report-v2/types.js";
 
 type VerificationEvidenceFile = {
@@ -103,6 +110,8 @@ type PackageManifest = {
     verificationScript: boolean;
     caseMetadata: boolean;
     auditAccessReport: boolean;
+    captureContext: boolean;
+    captureContextMapPreview: boolean;
   };
 };
 
@@ -117,6 +126,7 @@ type VerificationPackageMetadata = {
   submittedByAuthProvider?: string | null;
   createdAtUtc?: string | null;
   capturedAtUtc?: string | null;
+  deviceTimeIso?: string | null;
   uploadedAtUtc?: string | null;
   signedAtUtc?: string | null;
   reportGeneratedAtUtc?: string | null;
@@ -140,6 +150,11 @@ type VerificationPackageMetadata = {
   organizationId?: string | null;
   teamId?: string | null;
   ownerUserId?: string | null;
+  captureLocation?: {
+    lat?: number | null;
+    lng?: number | null;
+    accuracyMeters?: number | null;
+  } | null;
 };
 
 type CustodyEventRecord = {
@@ -549,12 +564,21 @@ function buildCaseMetadata(
     timestamps: {
       createdAtUtc: metadata.createdAtUtc ?? null,
       capturedAtUtc: metadata.capturedAtUtc ?? null,
+      deviceTimeIso: metadata.deviceTimeIso ?? null,
       uploadedAtUtc: metadata.uploadedAtUtc ?? null,
       signedAtUtc: metadata.signedAtUtc ?? null,
       reportGeneratedAtUtc: metadata.reportGeneratedAtUtc ?? null,
       recordedIntegrityVerifiedAtUtc:
         metadata.recordedIntegrityVerifiedAtUtc ?? null,
     },
+    captureLocation: metadata.captureLocation
+      ? {
+          lat: metadata.captureLocation.lat ?? null,
+          lng: metadata.captureLocation.lng ?? null,
+          accuracyMeters: metadata.captureLocation.accuracyMeters ?? null,
+          legalBoundary: CAPTURE_LOCATION_LEGAL_BOUNDARY,
+        }
+      : null,
     retention: {
       policy: metadata.retentionPolicy ?? null,
       storageRegion: metadata.storageRegion ?? null,
@@ -600,6 +624,61 @@ function buildAuditAccessReport(params: {
             },
           ],
   };
+}
+
+function buildCaptureContext(
+  metadata: VerificationPackageMetadata,
+  evidenceId?: string | null
+) {
+  if (!hasCaptureLocationMetadata(metadata.captureLocation ?? null)) {
+    return null;
+  }
+
+  return {
+    schema: "PROOVRA_CAPTURE_CONTEXT",
+    version: 1,
+    evidenceId: evidenceId ?? null,
+    capturedAtUtc: metadata.capturedAtUtc ?? null,
+    deviceTimeIso: metadata.deviceTimeIso ?? null,
+    source: CAPTURE_LOCATION_SOURCE_LABEL,
+    integrityContext:
+      "Capture-location metadata was included in the signed integrity state for this evidence record.",
+    custodyReference: {
+      initialEventType: "EVIDENCE_CREATED",
+      note: "The initial evidence-creation custody event records whether capture-location metadata was present at session creation time.",
+    },
+    location: {
+      lat: metadata.captureLocation?.lat ?? null,
+      lng: metadata.captureLocation?.lng ?? null,
+      accuracyMeters: metadata.captureLocation?.accuracyMeters ?? null,
+    },
+    legalBoundary: CAPTURE_LOCATION_LEGAL_BOUNDARY,
+  };
+}
+
+async function buildCaptureContextMapPreview(
+  metadata: VerificationPackageMetadata
+): Promise<Buffer | null> {
+  if (!hasCaptureLocationMetadata(metadata.captureLocation ?? null)) {
+    return null;
+  }
+
+  try {
+    const svg = buildCaptureLocationMapSvg({
+      lat: metadata.captureLocation?.lat ?? 0,
+      lng: metadata.captureLocation?.lng ?? 0,
+      accuracyMeters: metadata.captureLocation?.accuracyMeters ?? null,
+      width: 1200,
+      height: 720,
+    });
+
+    return await sharp(Buffer.from(svg))
+      .png({ compressionLevel: 9 })
+      .toBuffer();
+  } catch (error) {
+    console.warn("[verification-package] Failed to build capture map preview:", error);
+    return null;
+  }
 }
 
 function buildVerificationInstructions(params: {
@@ -690,6 +769,11 @@ ${
 - \`forensic-custody.json\`: integrity-relevant custody events.
 - \`access-activity.json\`: viewing/download/verification access activity.
 - \`audit-access-report.json\`: reviewer-friendly access/audit summary.
+
+## 8. Review capture context, if present
+
+- \`capture-context.json\`: signed device/browser-reported capture-location context.
+- \`map-preview.png\`: deterministic reviewer-facing location preview derived from the signed capture context.
 
 ## Legal boundary
 
@@ -946,9 +1030,18 @@ function buildOriginalLinkage(
     submittedByAuthProvider: metadata.submittedByAuthProvider ?? null,
     createdAtUtc: metadata.createdAtUtc ?? null,
     capturedAtUtc: metadata.capturedAtUtc ?? null,
+    deviceTimeIso: metadata.deviceTimeIso ?? null,
     uploadedAtUtc: metadata.uploadedAtUtc ?? null,
     signedAtUtc: metadata.signedAtUtc ?? null,
     reportGeneratedAtUtc: metadata.reportGeneratedAtUtc ?? null,
+    captureLocation: metadata.captureLocation
+      ? {
+          lat: metadata.captureLocation.lat ?? null,
+          lng: metadata.captureLocation.lng ?? null,
+          accuracyMeters: metadata.captureLocation.accuracyMeters ?? null,
+          legalBoundary: CAPTURE_LOCATION_LEGAL_BOUNDARY,
+        }
+      : null,
     storageProtection: {
       region: metadata.storageRegion ?? null,
       immutable: metadata.storageImmutable ?? null,
@@ -995,6 +1088,8 @@ function buildPackageManifest(params: {
   hasTimestampToken: boolean;
   hasActualCertifications: boolean;
   hasReportArtifact: boolean;
+  hasCaptureContext: boolean;
+  hasCaptureContextMapPreview: boolean;
 }): PackageManifest {
   return {
     packageType: "PROOVRA_VERIFICATION_PACKAGE",
@@ -1044,6 +1139,8 @@ function buildPackageManifest(params: {
       verificationScript: true,
       caseMetadata: true,
       auditAccessReport: true,
+      captureContext: params.hasCaptureContext,
+      captureContextMapPreview: params.hasCaptureContextMapPreview,
     },
   };
 }
@@ -1174,6 +1271,12 @@ Node.js script for checking package file checksums.
 case-metadata.json
 Case, matter, workspace, retention, and reviewer context when available.
 
+capture-context.json
+Included when signed capture-location metadata exists for the evidence record.
+
+map-preview.png
+Optional deterministic location preview derived from capture-context.json for reviewer-facing context only.
+
 audit-access-report.json
 Reviewer-friendly access and audit activity summary.
 
@@ -1228,8 +1331,9 @@ HOW TO VERIFY
 6) Verify the Ed25519 signature using public-key.pem and the platform signing rules.
 7) Verify the RFC3161 timestamp token using timestamp verification tools, if included.
 8) Review custody.json and, where present, anchor.json.
-9) Use original-linkage.json to tie every included file and the bundled report back to the preserved record.
-10) Complete the certification templates inside certifications/ before using this package as a court-facing packet.
+9) Review capture-context.json and map-preview.png, if present, as contextual device/browser-reported metadata only.
+10) Use original-linkage.json to tie every included file and the bundled report back to the preserved record.
+11) Complete the certification templates inside certifications/ before using this package as a court-facing packet.
 
 ${buildAnchorReadmeSection({
   anchorMode: params.anchorMode,
@@ -1707,6 +1811,13 @@ trustDecision: ReportTrustDecision;
     }
 
     const metadata = data.metadata ?? {};
+    const captureContextData = buildCaptureContext(
+      metadata,
+      data.evidenceId ?? null
+    );
+    const captureContextMapPreview = await buildCaptureContextMapPreview(
+      metadata
+    );
     const evidenceFilesWithFinalName = evidenceFiles.map((file, index) => {
       const fileOrder = index + 1;
       const totalParts = evidenceFiles.length;
@@ -1860,6 +1971,8 @@ trustDecision: ReportTrustDecision;
       hasTimestampToken,
       hasActualCertifications: certificationSummary.hasActualCertifications,
       hasReportArtifact: Boolean(data.reportPdf),
+      hasCaptureContext: Boolean(captureContextData),
+      hasCaptureContextMapPreview: Boolean(captureContextMapPreview),
     });
 
     const packageManifestBuffer = jsonBuffer(packageManifest);
@@ -1954,6 +2067,26 @@ The result must match the expected SHA-256 above and the manifestSha256 field in
       jsonBuffer(buildCaseMetadata(metadata, data.evidenceId ?? null)),
       "application/json"
     );
+
+    if (captureContextData) {
+      appendPackageEntry(
+        archive,
+        packageEntries,
+        "capture-context.json",
+        jsonBuffer(captureContextData),
+        "application/json"
+      );
+    }
+
+    if (captureContextMapPreview) {
+      appendPackageEntry(
+        archive,
+        packageEntries,
+        "map-preview.png",
+        captureContextMapPreview,
+        "image/png"
+      );
+    }
 
     appendPackageEntry(
       archive,

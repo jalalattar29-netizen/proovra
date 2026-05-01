@@ -1,6 +1,15 @@
 import QRCode from "qrcode";
 import sharp from "sharp";
-import { isCompleteOtsAnchor } from "@proovra/shared";
+import {
+  CAPTURE_LOCATION_LEGAL_BOUNDARY,
+  CAPTURE_LOCATION_SOURCE_LABEL,
+  CAPTURE_LOCATION_STATUS_LABEL,
+  buildCaptureLocationMapDataUrl,
+  formatCaptureLocationAccuracy,
+  formatCaptureLocationCoordinate,
+  hasCaptureLocationMetadata,
+  isCompleteOtsAnchor,
+} from "@proovra/shared";
 import type {
   CalloutModel,
   CustodyHashRow,
@@ -330,6 +339,18 @@ function buildExecutiveRows(
   );
 
   return rows;
+}
+
+function formatReportTimestamp(value: string | null | undefined): string {
+  const raw = safe(value, "");
+  if (!raw) return "Not recorded";
+
+  const parsed = new Date(raw);
+  if (Number.isNaN(parsed.getTime())) {
+    return raw;
+  }
+
+  return parsed.toISOString().replace(".000Z", " UTC").replace("T", " ");
 }
 
 async function optimizePreviewDataUrl(
@@ -1311,6 +1332,34 @@ const verificationPackageIntegrity = {
     externalMode
   );
 
+  const captureContext = hasCaptureLocationMetadata({
+    lat: input.evidence.gps.lat,
+    lng: input.evidence.gps.lng,
+  })
+    ? {
+        statusLabel: CAPTURE_LOCATION_STATUS_LABEL,
+        lat: formatCaptureLocationCoordinate(input.evidence.gps.lat),
+        lng: formatCaptureLocationCoordinate(input.evidence.gps.lng),
+        accuracyRadius: formatCaptureLocationAccuracy(
+          input.evidence.gps.accuracyMeters
+        ),
+        capturedAtLabel: formatReportTimestamp(
+          input.evidence.capturedAtUtc ??
+            input.evidence.deviceTimeIso ??
+            input.evidence.createdAtUtc
+        ),
+        sourceLabel: CAPTURE_LOCATION_SOURCE_LABEL,
+        legalBoundary: CAPTURE_LOCATION_LEGAL_BOUNDARY,
+        mapPreviewDataUrl: buildCaptureLocationMapDataUrl({
+          lat: input.evidence.gps.lat ?? 0,
+          lng: input.evidence.gps.lng ?? 0,
+          accuracyMeters: input.evidence.gps.accuracyMeters,
+          width: 1200,
+          height: 720,
+        }),
+      }
+    : null;
+
   return {
     mode,
     presentationMode,
@@ -1453,6 +1502,7 @@ verificationSummaryRows: buildVerificationSummaryRows(
 
     meta: {
       hasCoreCrypto: hasCoreCryptoMaterials(input.evidence),
+      captureContext,
       previewPolicy,
       anchorSummary,
       display,
