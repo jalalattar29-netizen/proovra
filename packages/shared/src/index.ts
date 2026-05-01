@@ -49,6 +49,24 @@ export {
 } from "./custody.js";
 
 export type {
+  TrustDecision,
+  TrustDecisionTone,
+  TrustSignal,
+  TrustSignalKey,
+  TrustSignalStatus,
+  TrustDecisionVerdict,
+  TrustDecisionEvidenceInput,
+  TrustDecisionCustodyEventInput,
+  BuildEvidenceTrustDecisionInput,
+} from "./trust-decision.js";
+
+export {
+  buildEvidenceTrustDecision,
+  hasCoreCryptoMaterials,
+  isExplicitRecordedIntegrityVerified,
+} from "./trust-decision.js";
+
+export type {
   EffectiveOtsStatus,
   OtsAnchorCompletenessInput,
 } from "./ots.js";

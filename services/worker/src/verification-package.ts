@@ -1935,15 +1935,7 @@ The result must match the expected SHA-256 above and the manifestSha256 field in
       archive,
       packageEntries,
       "trust-decision.json",
-      jsonBuffer(
-{
-  schema: "PROOVRA_PACKAGE_TRUST_DECISION",
-  version: 2,
-  generatedAtUtc: new Date().toISOString(),
-  source: "REPORT_TRUST_DECISION",
-  ...data.trustDecision,
-}
-      ),
+      jsonBuffer(data.trustDecision),
       "application/json"
     );
 

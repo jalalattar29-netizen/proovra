@@ -1,12 +1,8 @@
-import { createHash } from "node:crypto";
 import type { Prisma } from "@prisma/client";
 import * as prismaPkg from "@prisma/client";
+import { buildCustodyEventHash } from "@proovra/shared/custody-hash";
 
 type TxClient = Prisma.TransactionClient;
-
-function sha256Hex(data: Buffer | string): string {
-  return createHash("sha256").update(data).digest("hex");
-}
 
 function normalizePayload(
   payload: Prisma.InputJsonValue | Prisma.JsonValue | null | undefined
@@ -15,61 +11,6 @@ function normalizePayload(
     return null;
   }
   return payload as Prisma.InputJsonValue;
-}
-
-/**
- * Stable canonical JSON serializer for plain JSON values.
- * Must stay identical to the API implementation so custody hashes match.
- */
-function canonicalJsonValue(value: unknown): string {
-  if (value === null) return "null";
-
-  const t = typeof value;
-
-  if (t === "number") {
-    if (!Number.isFinite(value as number)) {
-      throw new Error("canonicalJsonValue: non-finite number is not allowed");
-    }
-    return JSON.stringify(value);
-  }
-
-  if (t === "boolean") return value ? "true" : "false";
-  if (t === "string") return JSON.stringify(value);
-
-  if (Array.isArray(value)) {
-    return `[${value.map((item) => canonicalJsonValue(item)).join(",")}]`;
-  }
-
-  if (t === "object") {
-    const obj = value as Record<string, unknown>;
-    const keys = Object.keys(obj).sort();
-    return `{${keys
-      .map((key) => `${JSON.stringify(key)}:${canonicalJsonValue(obj[key])}`)
-      .join(",")}}`;
-  }
-
-  throw new Error(`canonicalJsonValue: unsupported value type "${t}"`);
-}
-
-export function buildCustodyEventHash(params: {
-  evidenceId: string;
-  sequence: number;
-  eventType: string;
-  atUtc: Date;
-  payload?: Prisma.InputJsonValue | Prisma.JsonValue | null;
-  prevEventHash?: string | null;
-}): string {
-  const canonical = canonicalJsonValue({
-    v: 1,
-    evidenceId: params.evidenceId,
-    sequence: params.sequence,
-    eventType: params.eventType,
-    atUtc: params.atUtc.toISOString(),
-    payload: normalizePayload(params.payload),
-    prevEventHash: params.prevEventHash ?? null,
-  });
-
-  return sha256Hex(canonical);
 }
 
 export async function appendCustodyEventTx(

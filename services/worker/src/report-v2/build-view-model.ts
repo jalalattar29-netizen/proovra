@@ -1465,7 +1465,7 @@ verificationSummaryRows: buildVerificationSummaryRows(
         custody,
         externalMode
       ),
-      timestampRows: buildTimestampRows(input.evidence),
+      timestampRows: buildTimestampRows(input.evidence, contentSummary),
       otsRows: buildOtsRows(otsEvidence),
       anchorRows: buildAnchorRows(anchorSummary),
       signingKeyReference: buildPublicSigningKeyReference(

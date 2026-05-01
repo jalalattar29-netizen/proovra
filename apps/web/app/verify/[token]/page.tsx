@@ -3,6 +3,10 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { useParams } from "next/navigation";
 import {
+  buildEvidenceTrustDecision,
+  isAccessCustodyEventType,
+} from "@proovra/shared";
+import {
   Button,
   Card,
   useToast,
@@ -1901,8 +1905,7 @@ type VerifyTrustDecision = {
     | "STRONGLY_VERIFIED"
     | "VERIFIED"
     | "PARTIALLY_VERIFIED"
-    | "REVIEW_REQUIRED"
-    | "INSUFFICIENT_VERIFICATION";
+    | "REVIEW_REQUIRED";
   verdictLabel: string;
   shortLabel: string;
   score: number;
@@ -1933,6 +1936,7 @@ type VerificationVerdict = {
 };
 
 type VerificationSignalInput = {
+  trustDecision?: VerifyTrustDecision | null;
   overallIntegrity: boolean | null;
   verificationStatus?: string | null;
   canonicalHashMatches: boolean | null;
@@ -1962,9 +1966,11 @@ type VerificationPackageIntegrity = {
 };
 
 function buildVerificationVerdict(input: VerificationSignalInput): VerificationVerdict {
-  const coreExplicitlyVerified =
-    String(input.verificationStatus ?? "").toUpperCase() ===
-    "RECORDED_INTEGRITY_VERIFIED";
+  const coreSignal = input.trustDecision?.signals.find(
+    (signal) => signal.key === "core_integrity"
+  );
+  const verdictCode = input.trustDecision?.verdict ?? null;
+  const coreExplicitlyVerified = coreSignal?.status === "passed";
   const timestampMismatch =
     isPositiveTsa(input.tsaStatus) && input.timestampDigestMatches === false;
   const timestampUnavailable =
@@ -2010,7 +2016,11 @@ function buildVerificationVerdict(input: VerificationSignalInput): VerificationV
           )
         );
 
-  if (input.overallIntegrity === false || failedSignals > 0) {
+  if (
+    verdictCode === "REVIEW_REQUIRED" ||
+    input.overallIntegrity === false ||
+    failedSignals > 0
+  ) {
     return {
       status: "review_required",
       title: "Final Verification Verdict",
@@ -2027,12 +2037,7 @@ function buildVerificationVerdict(input: VerificationSignalInput): VerificationV
     };
   }
 
-  if (
-    input.overallIntegrity === true &&
-    coreExplicitlyVerified &&
-    failedSignals === 0 &&
-    !timestampUnavailable
-  ) {
+  if (coreExplicitlyVerified && failedSignals === 0 && !timestampUnavailable) {
     return {
       status: "verified",
       title: "Final Verification Verdict",
@@ -2049,7 +2054,11 @@ function buildVerificationVerdict(input: VerificationSignalInput): VerificationV
     };
   }
 
-  if (passedSignals > 0 || knownSignals > 0) {
+  if (
+    verdictCode === "PARTIALLY_VERIFIED" ||
+    passedSignals > 0 ||
+    knownSignals > 0
+  ) {
     return {
       status: "partial",
       title: "Final Verification Verdict",
@@ -2098,35 +2107,95 @@ function buildVerificationVerdict(input: VerificationSignalInput): VerificationV
   };
 }
 
-function trustTone(status: TrustSignalStatus): TrustDecisionTone {
-  switch (status) {
-    case "passed":
-      return "success";
-    case "partial":
-    case "pending":
-      return "warning";
-    case "failed":
-      return "danger";
-    case "missing":
-    default:
-      return "neutral";
-  }
+function buildUnavailableTrustDecision(): VerifyTrustDecision {
+  return {
+    verdict: "REVIEW_REQUIRED",
+    verdictLabel: "Verification decision unavailable",
+    shortLabel: "Unavailable",
+    score: 0,
+    scoreLabel: "0/100",
+    tone: "neutral",
+    relianceLevel: "limited",
+    degradedButUsable: false,
+    summary:
+      "Verification decision unavailable. No shared trust-decision snapshot was returned by the verification response.",
+    primaryReason:
+      "The verification response did not include the canonical trust-decision object.",
+    reviewerAction:
+      "Refresh the verification response or regenerate the report/package so the shared trust-decision snapshot is available.",
+    signals: [],
+  };
 }
 
-function makeTrustSignal(params: {
-  key: VerifyTrustSignal["key"];
-  label: string;
-  status: TrustSignalStatus;
-  points: number;
-  maxPoints: number;
-  summary: string;
-  detail: string;
-}): VerifyTrustSignal {
-  return {
-    ...params,
-    tone: trustTone(params.status),
-    points: Math.max(0, Math.min(params.maxPoints, Math.round(params.points))),
-  };
+function buildLegacyTrustDecisionFallback(params: {
+  verificationStatus?: string | null;
+  recordedIntegrityVerifiedAtUtc?: string | null;
+  fileSha256?: string | null;
+  fingerprintHash?: string | null;
+  signatureBase64?: string | null;
+  signingKeyId?: string | null;
+  publicKeyPem?: string | null;
+  tsaStatus?: string | null;
+  tsaFailureReason?: string | null;
+  otsStatus?: string | null;
+  otsFailureReason?: string | null;
+  storageProtection?: StorageProtection | null;
+  identityLevelSnapshot?: string | null;
+  submittedByEmail?: string | null;
+  submittedByAuthProvider?: string | null;
+  verificationPackageVersion?: number | string | null;
+  verificationPackageGeneratedAtUtc?: string | null;
+  anchor?: VerifyAnchor;
+  custodyEvents: TimelineItem[];
+}): VerifyTrustDecision {
+  return buildEvidenceTrustDecision({
+    evidence: {
+      verificationStatus: params.verificationStatus ?? null,
+      recordedIntegrityVerifiedAtUtc:
+        params.recordedIntegrityVerifiedAtUtc ?? null,
+      fileSha256: params.fileSha256 ?? null,
+      fingerprintHash: params.fingerprintHash ?? null,
+      signatureBase64: params.signatureBase64 ?? null,
+      signingKeyId: params.signingKeyId ?? null,
+      publicKeyPem: params.publicKeyPem ?? null,
+      tsaStatus: params.tsaStatus ?? null,
+      tsaFailureReason: params.tsaFailureReason ?? null,
+      otsStatus: params.otsStatus ?? null,
+      otsFailureReason: params.otsFailureReason ?? null,
+      storageImmutable: params.storageProtection?.immutable ?? null,
+      storageObjectLockMode: params.storageProtection?.mode ?? null,
+      storageObjectLockRetainUntilUtc: params.storageProtection?.retainUntil ?? null,
+      identityLevelSnapshot: params.identityLevelSnapshot ?? null,
+      submittedByEmail: params.submittedByEmail ?? null,
+      submittedByAuthProvider: params.submittedByAuthProvider ?? null,
+      verificationPackageVersion: params.verificationPackageVersion ?? null,
+      verificationPackageGeneratedAtUtc:
+        params.verificationPackageGeneratedAtUtc ?? null,
+      anchor: params.anchor
+        ? {
+            configured:
+              typeof params.anchor.configured === "boolean"
+                ? params.anchor.configured
+                : null,
+            published:
+              typeof params.anchor.published === "boolean"
+                ? params.anchor.published
+                : null,
+            provider: params.anchor.provider ?? null,
+            publicUrl: params.anchor.publicUrl ?? null,
+            anchoredAtUtc: params.anchor.anchoredAtUtc ?? null,
+            transactionId: params.anchor.transactionId ?? null,
+            receiptId: params.anchor.receiptId ?? null,
+          }
+        : null,
+    },
+    custodyEvents: params.custodyEvents.map((event) => ({
+      eventType: event.eventType ?? null,
+      category: event.category ?? null,
+      eventHash: event.eventHash ?? null,
+      prevEventHash: event.prevEventHash ?? null,
+    })),
+  });
 }
 
 function maskPublicEmail(email: string | null | undefined): string {
@@ -2157,439 +2226,9 @@ function isPositiveTsa(status?: string | null): boolean {
   return ["STAMPED", "GRANTED", "VERIFIED", "SUCCEEDED"].includes(s);
 }
 
-function isPendingTsa(status?: string | null): boolean {
-  const s = String(status ?? "").toUpperCase();
-  return s === "PENDING";
-}
-
 function isFailedTsa(status?: string | null): boolean {
   const s = String(status ?? "").toUpperCase();
   return ["FAILED", "UNAVAILABLE", "ERROR"].includes(s);
-}
-
-function isAnchoredOts(status?: string | null): boolean {
-  return String(status ?? "").toUpperCase() === "ANCHORED";
-}
-
-function isPendingOts(status?: string | null): boolean {
-  return String(status ?? "").toUpperCase() === "PENDING";
-}
-
-function isFailedOts(status?: string | null): boolean {
-  return String(status ?? "").toUpperCase() === "FAILED";
-}
-
-function buildVerifyTrustDecision(params: {
-  overallIntegrity: boolean | null;
-  verificationStatus: string | null;
-  canonicalHashMatches: boolean | null;
-  signatureValid: boolean | null;
-  custodyChainValid: boolean | null;
-  timestampDigestMatches: boolean | null;
-  otsHashMatches: boolean | null;
-  storageProtection: StorageProtection | null;
-  externalPublicationPresent: boolean | null;
-  tsaStatus: string | null;
-  otsStatus: string | null;
-  hash: string | null;
-  fingerprintHash: string | null;
-  signature: string | null;
-  signingKeyId: string | null;
-  publicKeyPem: string | null;
-  forensicEventCount: number;
-  identityLevel: string | null;
-  submittedByEmail: string | null;
-  verificationPackageVersion: string | null;
-}): VerifyTrustDecision {
-  const coreExplicitlyVerified =
-    String(params.verificationStatus ?? "").toUpperCase() ===
-    "RECORDED_INTEGRITY_VERIFIED";
-  const hasCoreHashes = Boolean(params.hash && params.fingerprintHash);
-  const corePassed =
-    coreExplicitlyVerified &&
-    (params.overallIntegrity === true ||
-      (params.canonicalHashMatches === true && hasCoreHashes));
-
-  const corePartial =
-    !corePassed && hasCoreHashes && params.canonicalHashMatches !== false;
-
-  const core = makeTrustSignal({
-    key: "core_integrity",
-    label: "Core integrity",
-    status:
-      corePassed ? "passed" : corePartial ? "partial" : "failed",
-    points: corePassed ? 25 : corePartial ? 18 : 0,
-    maxPoints: 25,
-    summary:
-      corePassed
-        ? "Core integrity verified"
-        : corePartial
-          ? "Integrity materials recorded"
-          : "Integrity materials incomplete",
-    detail:
-      corePassed
-        ? "Recorded digest, canonical fingerprint, signature material, and custody references are available and consistent for this evidence record."
-        : corePartial
-          ? "Recorded digest, canonical fingerprint, and signature material are present, but the recorded-integrity state has not been finalized as fully verified."
-          : "The verification response does not contain enough core hash/fingerprint material for reliable reliance.",
-  });
-
-  const hasSignatureMaterial = Boolean(params.signature || params.signingKeyId);
-  const signature = makeTrustSignal({
-    key: "signature",
-    label: "Digital signature",
-    status:
-      params.signatureValid === true
-        ? "passed"
-        : params.signatureValid === false
-          ? "failed"
-          : hasSignatureMaterial
-            ? "partial"
-            : "missing",
-    points:
-      params.signatureValid === true
-        ? 15
-        : params.signatureValid === false
-          ? 0
-          : hasSignatureMaterial
-            ? 8
-            : 0,
-    maxPoints: 15,
-    summary:
-      params.signatureValid === true
-        ? "Signature valid"
-        : params.signatureValid === false
-          ? "Signature invalid"
-          : hasSignatureMaterial
-            ? "Signature material present"
-            : "Signature unavailable",
-    detail:
-      params.signatureValid === true
-        ? "The digital signature validation passed for the returned verification materials."
-        : params.signatureValid === false
-          ? "The digital signature did not validate and must be reviewed before relying on this record."
-          : hasSignatureMaterial
-            ? "Signature-related material is present, but the verification response did not return a final positive signature validation."
-            : "No usable signature material was returned.",
-  });
-
-const timestampPositive = isPositiveTsa(params.tsaStatus);
-const timestampUnavailable = isFailedTsa(params.tsaStatus);
-const timestampMismatch =
-  timestampPositive && params.timestampDigestMatches === false;
-
-const timestampPassed =
-  timestampPositive && params.timestampDigestMatches === true;
-
-  const timestamp = makeTrustSignal({
-    key: "trusted_timestamp",
-    label: "Trusted timestamp",
-status:
-  timestampPassed
-    ? "passed"
-    : timestampMismatch
-      ? "failed"
-      : isPendingTsa(params.tsaStatus)
-        ? "pending"
-        : timestampUnavailable
-          ? "missing"
-          : "missing",
-    points:
-      timestampPassed
-        ? 15
-        : timestampMismatch
-          ? 3
-          : isPendingTsa(params.tsaStatus)
-            ? 8
-            : timestampUnavailable
-              ? 0
-              : 0,
-    maxPoints: 15,
-summary:
-  timestampPassed
-    ? "Trusted timestamp recorded"
-    : timestampMismatch
-      ? "Timestamp digest mismatch"
-      : isPendingTsa(params.tsaStatus)
-        ? "Timestamp pending"
-        : timestampUnavailable
-          ? "Timestamp unavailable"
-          : "Timestamp not recorded",
-detail:
-  timestampPassed
-    ? "RFC 3161 timestamping supports review of when the recorded evidence state existed."
-    : timestampMismatch
-      ? "The timestamp digest did not match the recorded timestamp input digest. This timestamp layer requires manual review."
-      : timestampUnavailable
-        ? "The timestamp provider did not return a usable token. No timestamp digest match or mismatch can be concluded."
-        : isPendingTsa(params.tsaStatus)
-          ? "The timestamp layer is not finalized yet. Other integrity layers can still be reviewed."
-          : "No trusted timestamp material was returned.",
-          });
-
-  const anchoringPassed = params.externalPublicationPresent === true;
-  const anchorMaterialIncluded = isAnchoredOts(params.otsStatus);
-
-  const anchoring = makeTrustSignal({
-    key: "public_anchoring",
-    label: "Public anchoring",
-    status:
-      anchoringPassed
-        ? "passed"
-        : anchorMaterialIncluded
-          ? "partial"
-        : params.otsHashMatches === false
-          ? "failed"
-          : isPendingOts(params.otsStatus)
-            ? "pending"
-            : isFailedOts(params.otsStatus)
-              ? "failed"
-              : "missing",
-    points:
-      anchoringPassed
-        ? 10
-        : anchorMaterialIncluded
-          ? 8
-        : params.otsHashMatches === false
-          ? 2
-          : isPendingOts(params.otsStatus)
-            ? 6
-            : isFailedOts(params.otsStatus)
-              ? 2
-              : 0,
-    maxPoints: 10,
-    summary:
-      anchoringPassed
-        ? "Public anchoring verified"
-        : anchorMaterialIncluded
-          ? "Anchor material included"
-        : params.otsHashMatches === false
-          ? "Anchoring hash mismatch"
-          : isPendingOts(params.otsStatus)
-            ? "OTS proof present, public anchoring pending"
-            : isFailedOts(params.otsStatus)
-              ? "Public anchoring failed"
-              : "Public anchoring unavailable",
-    detail:
-      anchoringPassed
-        ? "The record includes public anchoring metadata with a publication receipt, transaction, URL, or anchored timestamp."
-        : anchorMaterialIncluded
-          ? "Anchoring material is recorded, but no public publication receipt, transaction, URL, or anchored timestamp is attached yet."
-        : isPendingOts(params.otsStatus)
-          ? "OpenTimestamps proof material is present, but Bitcoin/public anchoring has not finalized yet."
-          : "No confirmed public anchoring layer is available for this record.",
-  });
-
-  const storagePassed =
-    params.storageProtection?.immutable === true &&
-    String(params.storageProtection?.mode ?? "").toUpperCase() === "COMPLIANCE";
-
-  const storagePartial =
-    params.storageProtection?.verified === true ||
-    params.storageProtection?.immutable === true ||
-    Boolean(params.storageProtection?.mode);
-
-  const storage = makeTrustSignal({
-    key: "immutable_storage",
-    label: "Immutable storage",
-    status: storagePassed ? "passed" : storagePartial ? "partial" : "missing",
-    points: storagePassed ? 15 : storagePartial ? 8 : 0,
-    maxPoints: 15,
-    summary:
-      storagePassed
-        ? "Immutable retention verified"
-        : storagePartial
-          ? "Storage protection recorded"
-          : "Storage not verified",
-    detail:
-      storagePassed
-        ? "Object-lock style immutable retention is reported for the evidence record."
-        : storagePartial
-          ? "Some storage protection metadata is available, but compliance-grade immutability is not fully confirmed."
-          : "No verified immutable storage state was returned.",
-  });
-
-  const custody = makeTrustSignal({
-    key: "custody_chain",
-    label: "Custody chain",
-    status:
-      params.custodyChainValid === true
-        ? "passed"
-        : params.custodyChainValid === false
-          ? "failed"
-          : params.forensicEventCount > 0
-            ? "partial"
-            : "missing",
-    points:
-      params.custodyChainValid === true
-        ? 10
-        : params.custodyChainValid === false
-          ? 0
-          : params.forensicEventCount > 0
-            ? 6
-            : 0,
-    maxPoints: 10,
-    summary:
-      params.custodyChainValid === true
-        ? `${params.forensicEventCount} custody events recorded`
-        : params.custodyChainValid === false
-          ? "Custody chain invalid"
-          : params.forensicEventCount > 0
-            ? `${params.forensicEventCount} custody events available`
-            : "Custody not returned",
-    detail:
-      params.custodyChainValid === true
-        ? "Custody-chain continuity validated for the returned event material."
-        : params.custodyChainValid === false
-          ? "Custody-chain continuity failed and requires forensic review."
-          : "Custody events are available, but no final custody-chain validation was returned.",
-  });
-
-  const identityStrong =
-    params.identityLevel?.toLowerCase().includes("organization") ||
-    params.identityLevel?.toLowerCase().includes("oauth");
-
-  const identity = makeTrustSignal({
-    key: "identity",
-    label: "Submitter identity",
-    status: identityStrong ? "passed" : params.submittedByEmail ? "partial" : "missing",
-    points: identityStrong ? 4 : params.submittedByEmail ? 3 : 0,
-    maxPoints: 5,
-    summary:
-      identityStrong
-        ? "Strong identity context recorded"
-        : params.submittedByEmail
-          ? "Submitter identity recorded"
-          : "Identity not recorded",
-    detail:
-      "Identity context supports reviewer understanding, but it does not independently prove authorship or factual truth.",
-  });
-
-const verificationPackage = makeTrustSignal({
-  key: "verification_package",
-  label: "Verification package",
-  status: params.verificationPackageVersion ? "partial" : "missing",
-  points: params.verificationPackageVersion ? 5 : 0,
-  maxPoints: 5,
-  summary: params.verificationPackageVersion
-    ? "Verification package version recorded"
-    : "Verification package not exposed",
-  detail: params.verificationPackageVersion
-? "A verification package/version is recorded, supporting deeper technical validation outside the PDF body."
-    : "No verification package version was exposed in this response.",
-});
-
-  const signals = [
-    core,
-    signature,
-    timestamp,
-    anchoring,
-    storage,
-    custody,
-    identity,
-    verificationPackage,
-  ];
-
-  const max = signals.reduce((sum, item) => sum + item.maxPoints, 0);
-  const raw = signals.reduce((sum, item) => sum + item.points, 0);
-  const score = Math.round((raw / max) * 100);
-
-  const criticalFailed =
-    core.status === "failed" ||
-    signature.status === "failed" ||
-    custody.status === "failed";
-
-  const degradedSignals = signals.filter((signal) =>
-    ["partial", "pending", "missing", "failed"].includes(signal.status)
-  );
-
-  const passedSignals = signals
-    .filter((signal) => signal.status === "passed")
-    .map((signal) => signal.label);
-
-  const degradedButUsable =
-    !criticalFailed && score >= 62 && degradedSignals.length > 0;
-
-const coreSignalPassed = core.status === "passed";
-
-const verdict =
-  criticalFailed || score < 45
-    ? "INSUFFICIENT_VERIFICATION"
-    : score >= 90 && degradedSignals.length === 0 && coreSignalPassed
-      ? "STRONGLY_VERIFIED"
-      : score >= 78 && coreSignalPassed
-        ? "VERIFIED"
-        : score >= 62
-          ? "PARTIALLY_VERIFIED"
-          : "REVIEW_REQUIRED";
-
-  const verdictMeta =
-    verdict === "STRONGLY_VERIFIED"
-      ? {
-          label: "Strongly Verified",
-          short: "Strong",
-          tone: "success" as const,
-          reliance: "high" as const,
-        }
-      : verdict === "VERIFIED"
-        ? {
-            label: "Verified",
-            short: "Verified",
-            tone: "success" as const,
-            reliance: "high" as const,
-          }
-: verdict === "PARTIALLY_VERIFIED"
-  ? {
-      label:
-        core.status !== "passed"
-          ? "Verified with limitations"
-          : "Partially Verified",
-      short: core.status !== "passed" ? "Limited" : "Partial",
-      tone: "warning" as const,
-      reliance: "medium" as const,
-    }
-              : verdict === "REVIEW_REQUIRED"
-            ? {
-                label: "Review Required",
-                short: "Review",
-                tone: "warning" as const,
-                reliance: "limited" as const,
-              }
-            : {
-                label: "Insufficient Verification",
-                short: "Insufficient",
-                tone: "danger" as const,
-                reliance: "low" as const,
-              };
-
-  return {
-    verdict,
-    verdictLabel: verdictMeta.label,
-    shortLabel: verdictMeta.short,
-    score,
-    scoreLabel: `${score}/100`,
-    tone: verdictMeta.tone,
-    relianceLevel: verdictMeta.reliance,
-    degradedButUsable,
-    signals,
-    summary:
-      degradedButUsable
-        ? `${verdictMeta.label} — core verification remains usable, but one or more supporting trust layers require review.`
-        : `${verdictMeta.label} — verification decision based on integrity, signature, timestamping, anchoring, storage, custody, identity, and package availability.`,
-    primaryReason: `Passed signals: ${
-      passedSignals.length > 0 ? passedSignals.join(", ") : "none"
-    }. Degraded signals: ${
-      degradedSignals.length > 0
-        ? degradedSignals.map((s) => s.summary).join("; ")
-        : "none"
-    }.`,
-    reviewerAction:
-      degradedButUsable
-        ? "Review degraded signals before high-reliance use. Timestamping or anchoring issues do not automatically invalidate hashes, signatures, custody, or preserved originals."
-        : criticalFailed
-          ? "Do not rely on this record as verified until failed core integrity, signature, or custody signals are reviewed."
-          : "Proceed with normal technical review and separately assess factual truth, authorship, context, and legal admissibility.",
-  };
 }
 
 function buildReviewerActions(params: {
@@ -3500,6 +3139,8 @@ export default function VerifyPage() {
 
   const [overview, setOverview] = useState<VerifyOverview | null>(null);
   const [humanSummary, setHumanSummary] = useState<VerifyHumanSummary | null>(null);
+  const [serverTrustDecision, setServerTrustDecision] =
+    useState<VerifyTrustDecision | null>(null);
   const [custodyDisplayCounts, setCustodyDisplayCounts] =
     useState<VerifyResponse["custodyDisplayCounts"]>(null);
   const [limitations, setLimitations] = useState<VerifyLimitations | null>(null);
@@ -3546,21 +3187,13 @@ function extractEvidenceContent(data: VerifyResponse) {
 }
 
 function isAccessEventType(eventType?: string | null): boolean {
-  const value = (eventType ?? "").toUpperCase();
-
-  return [
-    "VERIFY_VIEWED",
-    "EVIDENCE_VIEWED",
-    "EVIDENCE_DOWNLOADED",
-    "REPORT_DOWNLOADED",
-    "VERIFICATION_PACKAGE_DOWNLOADED",
-    "TECHNICAL_VERIFICATION_CHECKED",
-  ].includes(value);
+  return isAccessCustodyEventType(eventType);
 }
 
   const applyVerifyResponse = (data: VerifyResponse) => {
     const tsaDetails = buildTsaDetails(data);
     const otsDetails = buildOtsDetails(data);
+    setServerTrustDecision(data.trustDecision ?? null);
 
     const reviewTrailForensic =
       data.reviewTrail?.forensicCustodyEvents ??
@@ -4142,6 +3775,7 @@ setServerVerificationPackageIntegrity(data.verificationPackageIntegrity ?? null)
     const verificationVerdict = useMemo(
     () =>
       buildVerificationVerdict({
+        trustDecision: serverTrustDecision,
         overallIntegrity,
         verificationStatus,
         canonicalHashMatches,
@@ -4155,6 +3789,7 @@ setServerVerificationPackageIntegrity(data.verificationPackageIntegrity ?? null)
         externalPublicationPresent,
       }),
     [
+      serverTrustDecision,
       overallIntegrity,
       verificationStatus,
       canonicalHashMatches,
@@ -4217,55 +3852,98 @@ setServerVerificationPackageIntegrity(data.verificationPackageIntegrity ?? null)
     ]
   );
 
-  const fallbackTrustDecision = useMemo(
-    () =>
-      buildVerifyTrustDecision({
-        overallIntegrity,
-        verificationStatus,
-        canonicalHashMatches,
-        signatureValid,
-        custodyChainValid,
-        timestampDigestMatches,
-        otsHashMatches,
-        storageProtection,
-        externalPublicationPresent,
-        tsaStatus,
-        otsStatus,
-        hash,
-        fingerprintHash,
-        signature,
-        signingKeyId,
-        publicKeyPem,
-        forensicEventCount: forensicTimeline.length,
-        identityLevel,
-        submittedByEmail,
-        verificationPackageVersion,
-      }),
-    [
-      overallIntegrity,
-      verificationStatus,
-      canonicalHashMatches,
-      signatureValid,
-      custodyChainValid,
-      timestampDigestMatches,
-      otsHashMatches,
-      storageProtection,
-      externalPublicationPresent,
-      tsaStatus,
-      otsStatus,
-      hash,
-      fingerprintHash,
-      signature,
-      signingKeyId,
-      publicKeyPem,
-      forensicTimeline.length,
-      identityLevel,
-      submittedByEmail,
-      verificationPackageVersion,
-    ]
-  );
+const trustDecision = useMemo(() => {
+  if (serverTrustDecision) {
+    return serverTrustDecision;
+  }
 
-const trustDecision = fallbackTrustDecision;
+  if (
+    !verificationStatus &&
+    !hash &&
+    !fingerprintHash &&
+    !signature &&
+    !signingKeyId &&
+    !tsaStatus &&
+    !otsStatus &&
+    !storageProtection &&
+    !identityLevel &&
+    !submittedByEmail &&
+    !authProvider &&
+    !verificationPackageVersion &&
+    !(overview?.verificationPackageGeneratedAtUtc ?? humanSummary?.verificationPackageGeneratedAtUtc) &&
+    !externalPublicationPresent &&
+    !externalPublicationProvider &&
+    !externalPublicationUrl &&
+    !externalPublicationAnchoredAtUtc &&
+    forensicTimeline.length === 0 &&
+    accessTimeline.length === 0
+  ) {
+    return buildUnavailableTrustDecision();
+  }
+
+  return buildLegacyTrustDecisionFallback({
+    verificationStatus,
+    recordedIntegrityVerifiedAtUtc:
+      overview?.recordedIntegrityVerifiedAtUtc ??
+      humanSummary?.recordedIntegrityVerifiedAtUtc ??
+      null,
+    fileSha256: hash,
+    fingerprintHash,
+    signatureBase64: signature,
+    signingKeyId,
+    publicKeyPem,
+    tsaStatus,
+    tsaFailureReason,
+    otsStatus,
+    otsFailureReason,
+    storageProtection,
+    identityLevelSnapshot: identityLevel,
+    submittedByEmail,
+    submittedByAuthProvider: authProvider,
+    verificationPackageVersion,
+    verificationPackageGeneratedAtUtc:
+      overview?.verificationPackageGeneratedAtUtc ??
+      humanSummary?.verificationPackageGeneratedAtUtc ??
+      null,
+    anchor: {
+      configured: externalPublicationPresent,
+      published: externalPublicationPresent,
+      provider: externalPublicationProvider,
+      publicUrl: externalPublicationUrl,
+      anchoredAtUtc: externalPublicationAnchoredAtUtc,
+      transactionId: null,
+      receiptId: null,
+    },
+    custodyEvents: [...forensicTimeline, ...accessTimeline],
+  });
+}, [
+  accessTimeline,
+  authProvider,
+  externalPublicationAnchoredAtUtc,
+  externalPublicationPresent,
+  externalPublicationProvider,
+  externalPublicationUrl,
+  fingerprintHash,
+  forensicTimeline,
+  hash,
+  humanSummary?.recordedIntegrityVerifiedAtUtc,
+  humanSummary?.verificationPackageGeneratedAtUtc,
+  identityLevel,
+  overview?.recordedIntegrityVerifiedAtUtc,
+  overview?.verificationPackageGeneratedAtUtc,
+  otsFailureReason,
+  otsStatus,
+  publicKeyPem,
+  serverTrustDecision,
+  signature,
+  signingKeyId,
+  storageProtection,
+  submittedByEmail,
+  tsaFailureReason,
+  tsaStatus,
+  verificationPackageVersion,
+  verificationStatus,
+]);
 
 const verificationPackageIntegrity = useMemo(
   () =>
@@ -4290,8 +3968,7 @@ const verificationPackageIntegrity = useMemo(
 );
 
 const verdictRequiresReview =
-  trustDecision.verdict === "REVIEW_REQUIRED" ||
-  trustDecision.verdict === "INSUFFICIENT_VERIFICATION";
+  trustDecision.verdict === "REVIEW_REQUIRED";
 
 const executiveBadges = useMemo<
   Array<{

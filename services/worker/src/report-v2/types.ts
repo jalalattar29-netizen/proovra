@@ -1,3 +1,11 @@
+import type {
+  TrustDecision,
+  TrustDecisionTone,
+  TrustSignal,
+  TrustSignalStatus,
+  TrustDecisionVerdict,
+} from "@proovra/shared";
+
 export type ReportArtifactMode = "external" | "internal";
 export type PresentationMode = "simple" | "medium" | "heavy";
 export type ReportVariant = "compact" | "balanced" | "full";
@@ -267,70 +275,12 @@ export type ReportV2Input = {
   externalMode?: boolean;
 };
 
-export type Tone = "neutral" | "success" | "warning" | "danger";
-
-export type ReportTrustVerdict =
-  | "STRONGLY_VERIFIED"
-  | "VERIFIED"
-  | "PARTIALLY_VERIFIED"
-  | "REVIEW_REQUIRED"
-  | "FAILED";
-  
-export type ReportTrustLevel =
-  | "strong"
-  | "standard"
-  | "partial"
-  | "review"
-  | "failed";
-
-export type ReportTrustSignalKey =
-  | "core_integrity"
-  | "signature"
-  | "trusted_timestamp"
-  | "public_anchoring"
-  | "immutable_storage"
-  | "custody_chain"
-  | "identity"
-  | "verification_package";
-
-export type ReportTrustSignalStatus =
-  | "passed"
-  | "partial"
-  | "pending"
-  | "missing"
-  | "failed";
-
-export type ReportTrustSignal = {
-  key: ReportTrustSignalKey;
-  label: string;
-  status: ReportTrustSignalStatus;
-  tone: Tone;
-  points: number;
-  maxPoints: number;
-  summary: string;
-  detail: string;
-};
-
-export type ReportTrustDecision = {
-  verdict: ReportTrustVerdict;
-  level: ReportTrustLevel;
-  tone: Tone;
-  score: number;
-  maxScore: number;
-  scoreLabel: string;
-  verdictLabel: string;
-  shortLabel: string;
-  title: string;
-  summary: string;
-  primaryReason: string;
-  reviewerAction: string;
-  degradedButUsable: boolean;
-  relianceLevel: "high" | "medium" | "limited" | "low";
-  signals: ReportTrustSignal[];
-  passedSignals: number;
-  degradedSignals: number;
-  failedSignals: number;
-};
+export type Tone = TrustDecisionTone;
+export type ReportTrustVerdict = TrustDecisionVerdict;
+export type ReportTrustLevel = TrustDecision["level"];
+export type ReportTrustSignal = TrustSignal;
+export type ReportTrustSignalStatus = TrustSignalStatus;
+export type ReportTrustDecision = TrustDecision;
 
 export type KeyValueRow = {
   label: string;

@@ -1,6 +1,8 @@
 import type { FastifyInstance, FastifyRequest } from "fastify";
 import {
+  buildEvidenceTrustDecision,
   resolveEffectiveOtsStatus,
+  type TrustDecision,
 } from "@proovra/shared";
 import {
   type EvidenceAssetKind as PublicEvidenceAssetKind,
@@ -872,20 +874,51 @@ function maskPublicEmail(email: string | null | undefined): string | null {
   return `${visible}***@${domain}`;
 }
 
+function normalizeTrustDecisionSnapshot(
+  value: Prisma.JsonValue | null | undefined
+): TrustDecision | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return null;
+  }
+
+  const candidate = value as Partial<TrustDecision>;
+
+  return typeof candidate.verdict === "string" &&
+    typeof candidate.verdictLabel === "string" &&
+    typeof candidate.score === "number" &&
+    Array.isArray(candidate.signals)
+    ? (candidate as TrustDecision)
+    : null;
+}
+
 function mapIntegrityHeadline(params: {
   overallIntegrity: boolean | null | undefined;
   verificationStatus: prismaPkg.VerificationStatus | null | undefined;
   timestampDigestMatches: boolean | null;
   timestampStatus: string | null | undefined;
+  trustDecision?: TrustDecision | null;
 }): string {
+  const coreSignal = params.trustDecision?.signals.find(
+    (signal) => signal.key === "core_integrity"
+  );
   const explicitlyVerified =
     String(params.verificationStatus ?? "").toUpperCase() ===
     "RECORDED_INTEGRITY_VERIFIED";
 
-  if (explicitlyVerified && params.overallIntegrity === true && params.timestampDigestMatches !== true) {
+  if (
+    coreSignal?.status === "passed" &&
+    explicitlyVerified &&
+    params.overallIntegrity === true &&
+    params.timestampDigestMatches !== true
+  ) {
     return "Core Integrity Verified; Trusted Timestamp Unavailable";
   }
-  if (explicitlyVerified) return "Core Integrity Verified";
+  if (coreSignal?.status === "passed" && explicitlyVerified) {
+    return "Core Integrity Verified";
+  }
+  if (coreSignal?.status === "partial") {
+    return "Integrity Materials Recorded";
+  }
   if (
     params.overallIntegrity === true &&
     String(params.verificationStatus ?? "").toUpperCase() ===
@@ -906,7 +939,16 @@ function mapIntegritySummaryText(params: {
   custodyChainValid: boolean;
   timestampDigestMatches: boolean | null;
   otsHashMatches: boolean;
+  trustDecision?: TrustDecision | null;
 }) {
+  const coreSignal = params.trustDecision?.signals.find(
+    (signal) => signal.key === "core_integrity"
+  );
+
+  if (coreSignal?.status === "partial" && params.trustDecision?.summary) {
+    return params.trustDecision.summary;
+  }
+
   const coreChecksPassed =
     params.canonicalHashMatches &&
     params.signatureValid &&
@@ -1947,6 +1989,7 @@ function buildPublicVerifyOverview(params: {
   chainOfCustodyPresent: boolean;
   anchor: AnchorStatusSummary;
   contentSummary: PublicEvidenceContentSummary | null;
+  trustDecision?: TrustDecision | null;
 }) {
     const reportGeneratedAtUtc = params.latestReport?.generatedAtUtc
     ? params.latestReport.generatedAtUtc.toISOString()
@@ -1969,6 +2012,7 @@ function buildPublicVerifyOverview(params: {
       verificationStatus: params.evidence.verificationStatus,
       timestampDigestMatches: params.timestampDigestMatches,
       timestampStatus: params.timestampStatus,
+      trustDecision: params.trustDecision ?? null,
     }),
     evidenceTitle: resolveEvidenceTitle(params.evidence.title),
     contentStructure: params.contentSummary?.structure ?? null,
@@ -2053,6 +2097,7 @@ function buildPublicVerifyHumanSummary(params: {
   timestampDigestMatches: boolean | null;
   otsHashMatches: boolean;
   overallIntegrity: boolean;
+  trustDecision?: TrustDecision | null;
 }) {
   return {
     integrityStatus: params.overview.integrityHeadline,
@@ -2069,6 +2114,7 @@ function buildPublicVerifyHumanSummary(params: {
       custodyChainValid: params.custodyChainValid,
       timestampDigestMatches: params.timestampDigestMatches,
       otsHashMatches: params.otsHashMatches,
+      trustDecision: params.trustDecision ?? null,
     }),
     whatIsVerified:
       "This verification checks the recorded integrity state of the evidence record, including fingerprint consistency, signature validation, recorded custody chain continuity, timestamp linkage, and OpenTimestamps linkage where available.",
@@ -5004,9 +5050,11 @@ const verificationPackageIntegrity: PublicVerificationPackageIntegrity = {
   accessExportIncluded: verificationPackageAvailable,
 };
 
-const trustDecision =
-  latestReport?.trustDecisionSnapshot ??
-  latestVerificationPackage?.trustDecisionSnapshot ??
+const snapshotTrustDecision =
+  normalizeTrustDecisionSnapshot(latestReport?.trustDecisionSnapshot) ??
+  normalizeTrustDecisionSnapshot(
+    latestVerificationPackage?.trustDecisionSnapshot
+  ) ??
   null;
 
     const itemCount = await getEvidenceItemCount(id);
@@ -5169,6 +5217,56 @@ const effectiveOtsStatus = resolveEffectiveOtsStatus({
 
     const anchor = await getAnchorStatus(id);
 
+const trustDecision =
+  snapshotTrustDecision ??
+  buildEvidenceTrustDecision({
+    evidence: {
+      verificationStatus: evidence.verificationStatus ?? null,
+      recordedIntegrityVerifiedAtUtc:
+        evidence.recordedIntegrityVerifiedAtUtc?.toISOString() ?? null,
+      fileSha256: evidence.fileSha256 ?? null,
+      fingerprintHash: evidence.fingerprintHash ?? null,
+      signatureBase64: evidence.signatureBase64 ?? null,
+      signingKeyId: evidence.signingKeyId ?? null,
+      publicKeyPem: signingKey.publicKeyPem ?? null,
+      tsaStatus: evidence.tsaStatus ?? null,
+      tsaFailureReason: evidence.tsaFailureReason ?? null,
+      otsStatus: effectiveOtsStatus,
+      otsFailureReason: evidence.otsFailureReason ?? null,
+      storageImmutable: storageProtection?.immutable ?? null,
+      storageObjectLockMode: storageProtection?.mode ?? null,
+      storageObjectLockRetainUntilUtc: storageProtection?.retainUntil ?? null,
+      identityLevelSnapshot: evidence.identityLevelSnapshot ?? null,
+      submittedByEmail: evidence.submittedByEmail ?? null,
+      submittedByAuthProvider: evidence.submittedByAuthProvider ?? null,
+      verificationPackageVersion:
+        latestVerificationPackage?.version ??
+        evidence.verificationPackageVersion ??
+        null,
+      verificationPackageGeneratedAtUtc:
+        latestVerificationPackage?.generatedAtUtc?.toISOString() ??
+        evidence.verificationPackageGeneratedAtUtc?.toISOString() ??
+        null,
+      anchor: anchor
+        ? {
+            configured: anchor.configured,
+            published: anchor.published,
+            provider: anchor.provider,
+            publicUrl: anchor.publicUrl,
+            anchoredAtUtc: anchor.anchoredAtUtc,
+            transactionId: anchor.transactionId,
+            receiptId: anchor.receiptId,
+          }
+        : null,
+    },
+    custodyEvents: allCustodyEvents.map((event) => ({
+      eventType: event.eventType,
+      category: classifyCustodyEventType(event.eventType),
+      eventHash: event.eventHash ?? null,
+      prevEventHash: event.prevEventHash ?? null,
+    })),
+  });
+
 const timestampLayerBlocksIntegrity = timestampDigestMatches === false;
 
 const overallIntegrity =
@@ -5179,9 +5277,7 @@ const overallIntegrity =
   otsHashMatches;
 
     const verifiedAt = new Date();
-    const effectiveVerificationStatus = overallIntegrity
-      ? prismaPkg.VerificationStatus.RECORDED_INTEGRITY_VERIFIED
-      : prismaPkg.VerificationStatus.REVIEW_REQUIRED;
+    const responseVerificationStatus = evidence.verificationStatus ?? null;
 
 await prisma.$transaction([
   prisma.evidence.update({
@@ -5189,13 +5285,6 @@ await prisma.$transaction([
     data: {
       lastVerifiedAtUtc: verifiedAt,
       lastVerifiedSource: VerificationSource.PUBLIC_VERIFY_VIEWED,
-      verificationStatus: effectiveVerificationStatus,
-      ...(overallIntegrity
-        ? {
-            recordedIntegrityVerifiedAtUtc:
-              evidence.recordedIntegrityVerifiedAtUtc ?? verifiedAt,
-          }
-        : {}),
     },
   }),
   prisma.verificationView.create({
@@ -5226,7 +5315,7 @@ timestampStatus: evidence.tsaStatus,
 timestampAvailable: timestampStatusIsPositive,
 timestampDigestCheckConclusive: timestampDigestMatches !== null,
         otsHashMatches,
-        verificationStatus: effectiveVerificationStatus,
+        verificationStatus: responseVerificationStatus,
         accessPolicyMode: publicVerifyAccessPolicy.mode,
       },
       ip: req.ip,
@@ -5256,18 +5345,13 @@ timestampDigestCheckConclusive: timestampDigestMatches !== null,
     const mappedForensicEvents = forensicCustodyEvents.map(mapPublicCustodyEvent);
     const mappedAccessEvents = accessCustodyEvents.map(mapPublicCustodyEvent);
 
-const effectiveRecordedIntegrityVerifiedAtUtc =
-  overallIntegrity
-    ? (evidence.recordedIntegrityVerifiedAtUtc ?? verifiedAt)
-    : evidence.recordedIntegrityVerifiedAtUtc;
-
     const overview = buildPublicVerifyOverview({
       evidence: {
         id: evidence.id,
 title: evidence.title ?? evidence.displayFileName ?? evidence.originalFileName ?? null,
         type: evidence.type,
         status: evidence.status,
-        verificationStatus: effectiveVerificationStatus,
+        verificationStatus: responseVerificationStatus,
         captureMethod: evidence.captureMethod ?? null,
         identityLevelSnapshot: evidence.identityLevelSnapshot ?? null,
         submittedByEmail: evidence.submittedByEmail ?? null,
@@ -5282,7 +5366,7 @@ title: evidence.title ?? evidence.displayFileName ?? evidence.originalFileName ?
         uploadedAtUtc: evidence.uploadedAtUtc,
         signedAtUtc: evidence.signedAtUtc,
         recordedIntegrityVerifiedAtUtc:
-          effectiveRecordedIntegrityVerifiedAtUtc,
+          evidence.recordedIntegrityVerifiedAtUtc,
         lastVerifiedAtUtc: verifiedAt,
         lastVerifiedSource: VerificationSource.PUBLIC_VERIFY_VIEWED,
         reviewReadyAtUtc: evidence.reviewReadyAtUtc,
@@ -5307,6 +5391,7 @@ verificationPackageVersion:
       chainOfCustodyPresent: forensicCustodyEvents.length > 0,
       anchor,
       contentSummary: content.summary,
+      trustDecision,
     });
 
     const humanSummary = buildPublicVerifyHumanSummary({
@@ -5317,6 +5402,7 @@ verificationPackageVersion:
       timestampDigestMatches,
       otsHashMatches,
       overallIntegrity,
+      trustDecision,
     });
 
     const limitations = buildPublicVerifyLimitations();
@@ -5423,7 +5509,9 @@ return reply.code(200).send({
 trustDecisionSource: trustDecision
   ? latestReport?.trustDecisionSnapshot
     ? "REPORT_SNAPSHOT"
-    : "VERIFICATION_PACKAGE_SNAPSHOT"
+    : latestVerificationPackage?.trustDecisionSnapshot
+      ? "VERIFICATION_PACKAGE_SNAPSHOT"
+      : "LIVE_SHARED_FALLBACK"
   : "UNAVAILABLE",
 trustDecisionSnapshot: {
   reportVersion: latestReport?.version ?? null,
