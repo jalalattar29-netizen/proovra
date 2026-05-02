@@ -4164,6 +4164,137 @@ body {
   page-break-inside: avoid !important;
 }
 
+/* EXECUTIVE SUMMARY — FINAL PDF BALANCE FIX */
+
+.executive-summary-section .report-page {
+  height: 297mm !important;
+  min-height: 297mm !important;
+  overflow: hidden !important;
+  padding: 11.5mm 14mm 15mm 14mm !important;
+}
+
+.executive-summary-page-enterprise {
+  gap: 2.8mm !important;
+}
+
+.executive-summary-section .executive-confirmation-card {
+  padding: 2.4mm 3.2mm !important;
+}
+
+.executive-summary-section .executive-confirmation-title {
+  font-size: 12.1px !important;
+  margin-bottom: 1.1mm !important;
+}
+
+.executive-summary-section .executive-confirmation-body {
+  font-size: 9.2px !important;
+  line-height: 1.38 !important;
+}
+
+.capture-context-panel {
+  padding: 2mm 2.4mm !important;
+  gap: 1.4mm !important;
+}
+
+.capture-context-intro {
+  font-size: 8px !important;
+  line-height: 1.28 !important;
+}
+
+.capture-context-layout {
+  grid-template-columns: minmax(0, 0.92fr) minmax(0, 1.08fr) !important;
+  gap: 2mm !important;
+}
+
+.capture-context-map-shell {
+  height: 32mm !important;
+  min-height: 32mm !important;
+  max-height: 32mm !important;
+  background: rgba(255,255,255,0.18) !important;
+  box-shadow: none !important;
+}
+
+.capture-context-map {
+  object-fit: cover !important;
+  image-rendering: auto !important;
+}
+
+.capture-context-metadata {
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  gap: 1mm !important;
+}
+
+.capture-context-row {
+  min-height: 8.8mm !important;
+  padding: 1.15mm 1.45mm !important;
+  border-radius: 7px !important;
+}
+
+.capture-context-label {
+  font-size: 7.3px !important;
+  line-height: 1.15 !important;
+}
+
+.capture-context-value {
+  margin-top: 0.35mm !important;
+  font-size: 8.35px !important;
+  line-height: 1.2 !important;
+}
+
+.capture-context-note {
+  font-size: 7.45px !important;
+  line-height: 1.25 !important;
+  margin-top: 0 !important;
+}
+
+.executive-summary-page-enterprise .executive-summary-table {
+  margin-top: 0.5mm !important;
+}
+
+.executive-summary-page-enterprise .executive-summary-row {
+  grid-template-columns: 42mm minmax(0, 1fr) !important;
+  min-height: 6.9mm !important;
+  padding: 1.35mm 2.4mm !important;
+  gap: 3mm !important;
+}
+
+.executive-summary-label {
+  font-size: 7.8px !important;
+  line-height: 1.15 !important;
+}
+
+.executive-summary-value {
+  font-size: 8.55px !important;
+  line-height: 1.22 !important;
+}
+
+.executive-summary-page-enterprise .executive-bottom-outcomes {
+  margin-top: auto !important;
+  margin-bottom: 3.5mm !important;
+  gap: 2mm !important;
+}
+
+.executive-trust-reason,
+.executive-summary-section .executive-outcome {
+  padding: 2.2mm 2.8mm !important;
+}
+
+.executive-outcome-title {
+  font-size: 9.6px !important;
+  margin-bottom: 0.8mm !important;
+}
+
+.executive-outcome-body {
+  font-size: 8.35px !important;
+  line-height: 1.3 !important;
+}
+
+.executive-reviewer-action {
+  margin-top: 1.2mm !important;
+  font-size: 8px !important;
+  line-height: 1.25 !important;
+}
+
 @media print {
   html,
   body,

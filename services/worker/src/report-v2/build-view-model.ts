@@ -1366,22 +1366,24 @@ const verificationPackageIntegrity = {
         ),
         sourceLabel: CAPTURE_LOCATION_SOURCE_LABEL,
         legalBoundary: CAPTURE_LOCATION_LEGAL_BOUNDARY,
-        mapPreviewDataUrl:
-          (await renderCaptureLocationMapPreviewDataUrl({
-          lat: input.evidence.gps.lat ?? 0,
-          lng: input.evidence.gps.lng ?? 0,
-          accuracyMeters: input.evidence.gps.accuracyMeters,
-          width: 1200,
-          height: 720,
-        })) ??
-          buildCaptureLocationMapDataUrl({
-            lat: input.evidence.gps.lat ?? 0,
-            lng: input.evidence.gps.lng ?? 0,
-            accuracyMeters: input.evidence.gps.accuracyMeters,
-            width: 1200,
-            height: 720,
-          }) ??
-          "",
+mapPreviewDataUrl:
+  (await renderCaptureLocationMapPreviewDataUrl({
+    lat: input.evidence.gps.lat ?? 0,
+    lng: input.evidence.gps.lng ?? 0,
+    accuracyMeters: input.evidence.gps.accuracyMeters,
+    width: 1600,
+    height: 620,
+    zoom: 16,
+  })) ??
+  buildCaptureLocationMapDataUrl({
+    lat: input.evidence.gps.lat ?? 0,
+    lng: input.evidence.gps.lng ?? 0,
+    accuracyMeters: input.evidence.gps.accuracyMeters,
+    width: 1600,
+    height: 620,
+    zoom: 16,
+  }) ??
+  "",
       }
     : null;
 

@@ -12,54 +12,45 @@ const DEFAULT_MAP_MODE = (
 ) as "static" | "fallback" | "off";
 
 function buildOverlaySvg(model: CaptureLocationDisplayModel): string {
-  const labelPadding = Math.max(20, Math.round(model.width * 0.038));
-  const footerHeight = Math.max(94, Math.round(model.height * 0.17));
-  const markerOuterRadius = Math.max(24, model.accuracyRadiusPx * 0.64);
+  const pad = Math.max(22, Math.round(model.width * 0.026));
   const scaleBarWidth = Math.min(
-    model.width * 0.22,
-    (model.scaleBarMeters / model.metersPerPixel) * 0.76
+    model.width * 0.18,
+    (model.scaleBarMeters / model.metersPerPixel) * 0.72
   );
 
   return `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" width="${model.width}" height="${model.height}" viewBox="0 0 ${model.width} ${model.height}" fill="none">
   <defs>
-    <linearGradient id="topFade" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stop-color="rgba(8,14,16,0.44)"/>
-      <stop offset="100%" stop-color="rgba(8,14,16,0)"/>
-    </linearGradient>
-    <linearGradient id="footer" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stop-color="rgba(9,16,18,0.02)"/>
-      <stop offset="100%" stop-color="rgba(9,16,18,0.76)"/>
-    </linearGradient>
-    <filter id="shadow" x="-30%" y="-30%" width="160%" height="160%">
-      <feDropShadow dx="0" dy="10" stdDeviation="14" flood-color="rgba(4,8,10,0.35)"/>
+    <filter id="pinShadow" x="-40%" y="-40%" width="180%" height="180%">
+      <feDropShadow dx="0" dy="8" stdDeviation="8" flood-color="rgba(0,0,0,0.24)"/>
     </filter>
   </defs>
 
-  <rect width="${model.width}" height="${model.height}" rx="28" fill="transparent"/>
-  <rect width="${model.width}" height="${Math.round(model.height * 0.26)}" rx="28" fill="url(#topFade)"/>
-  <rect y="${model.height - footerHeight}" width="${model.width}" height="${footerHeight}" fill="url(#footer)"/>
-  <rect x="1" y="1" width="${model.width - 2}" height="${model.height - 2}" rx="27" stroke="rgba(213,221,224,0.22)"/>
+  <rect x="1" y="1" width="${model.width - 2}" height="${model.height - 2}" rx="24"
+    fill="transparent" stroke="rgba(12,28,25,0.24)" stroke-width="2"/>
 
-  <circle cx="${model.markerX}" cy="${model.markerY}" r="${model.accuracyRadiusPx}" fill="rgba(98,176,171,0.18)" stroke="rgba(98,176,171,0.44)" stroke-width="2.4"/>
-  <circle cx="${model.markerX}" cy="${model.markerY}" r="${markerOuterRadius}" fill="rgba(98,176,171,0.08)"/>
-  <line x1="${model.markerX - 26}" y1="${model.markerY}" x2="${model.markerX + 26}" y2="${model.markerY}" stroke="rgba(236,241,243,0.72)" stroke-width="1.2"/>
-  <line x1="${model.markerX}" y1="${model.markerY - 26}" x2="${model.markerX}" y2="${model.markerY + 26}" stroke="rgba(236,241,243,0.72)" stroke-width="1.2"/>
-  <circle cx="${model.markerX}" cy="${model.markerY}" r="10" fill="#69c7bd" stroke="#dce6e3" stroke-width="3" filter="url(#shadow)"/>
-  <path d="M ${model.markerX} ${model.markerY + 15} l -7 16 h 14 z" fill="#69c7bd" stroke="#dce6e3" stroke-width="2" />
+  <circle cx="${model.markerX}" cy="${model.markerY}" r="${model.accuracyRadiusPx}"
+    fill="rgba(11,46,39,0.10)" stroke="rgba(11,46,39,0.32)" stroke-width="3"/>
 
-  <text x="${labelPadding}" y="42" fill="rgba(241,246,247,0.92)" font-size="18" font-weight="800" letter-spacing="2.4" font-family="Inter, Helvetica Neue, Arial, sans-serif">CAPTURE CONTEXT</text>
-  <text x="${labelPadding}" y="68" fill="rgba(241,246,247,0.94)" font-size="27" font-weight="700" font-family="Inter, Helvetica Neue, Arial, sans-serif">${model.locationLineLabel}</text>
-  <text x="${model.width - labelPadding}" y="42" text-anchor="end" fill="rgba(232,237,239,0.82)" font-size="15.5" font-weight="700" font-family="Inter, Helvetica Neue, Arial, sans-serif">${model.sourceLabel}</text>
+  <line x1="${model.markerX - 34}" y1="${model.markerY}" x2="${model.markerX + 34}" y2="${model.markerY}"
+    stroke="rgba(11,46,39,0.58)" stroke-width="2"/>
+  <line x1="${model.markerX}" y1="${model.markerY - 34}" x2="${model.markerX}" y2="${model.markerY + 34}"
+    stroke="rgba(11,46,39,0.58)" stroke-width="2"/>
 
-  <rect x="${labelPadding}" y="${model.height - 56}" width="${Math.round(scaleBarWidth)}" height="5" rx="2.5" fill="rgba(240,244,246,0.92)"/>
-  <line x1="${labelPadding}" y1="${model.height - 62}" x2="${labelPadding}" y2="${model.height - 44}" stroke="rgba(240,244,246,0.92)" stroke-width="1.1"/>
-  <line x1="${labelPadding + Math.round(scaleBarWidth)}" y1="${model.height - 62}" x2="${labelPadding + Math.round(scaleBarWidth)}" y2="${model.height - 44}" stroke="rgba(240,244,246,0.92)" stroke-width="1.1"/>
-  <text x="${labelPadding}" y="${model.height - 68}" fill="rgba(236,241,243,0.82)" font-size="12.5" font-weight="700" font-family="Inter, Helvetica Neue, Arial, sans-serif">${model.scaleBarLabel}</text>
+  <circle cx="${model.markerX}" cy="${model.markerY}" r="13"
+    fill="#0b2e27" stroke="#ffffff" stroke-width="4" filter="url(#pinShadow)"/>
 
-  <text x="${labelPadding}" y="${model.height - 22}" fill="rgba(236,241,243,0.88)" font-size="20" font-weight="600" font-family="Inter, Helvetica Neue, Arial, sans-serif">${model.accuracyLabel}</text>
-  <text x="${model.width - labelPadding}" y="${model.height - 20}" text-anchor="end" fill="rgba(200,209,212,0.78)" font-size="12" font-weight="600" font-family="Inter, Helvetica Neue, Arial, sans-serif">${model.attributionLabel}</text>
-  <text x="${model.width - labelPadding}" y="${model.height - 42}" text-anchor="end" fill="rgba(232,237,239,0.86)" font-size="15.5" font-weight="700" font-family="Inter, Helvetica Neue, Arial, sans-serif">PROOVRA</text>
+  <path d="M ${model.markerX} ${model.markerY + 17} l -8 18 h 16 z"
+    fill="#0b2e27" stroke="#ffffff" stroke-width="2"/>
+
+  <rect x="${pad}" y="${model.height - 42}" width="${Math.round(scaleBarWidth)}" height="5" rx="2.5"
+    fill="rgba(11,46,39,0.78)"/>
+  <text x="${pad}" y="${model.height - 52}" fill="rgba(11,46,39,0.84)"
+    font-size="13" font-weight="800" font-family="Helvetica Neue, Arial, sans-serif">${model.scaleBarLabel}</text>
+
+  <text x="${model.width - pad}" y="${model.height - 24}" text-anchor="end"
+    fill="rgba(11,46,39,0.58)" font-size="12" font-weight="700"
+    font-family="Helvetica Neue, Arial, sans-serif">${model.attributionLabel}</text>
 </svg>`;
 }
 
@@ -170,13 +161,15 @@ async function renderStaticTilePreview(
     .png()
     .toBuffer();
 
-  return base
-    .composite(composedTiles)
-    .modulate({ brightness: 0.76, saturation: 0.18 })
-    .gamma(1.08)
-    .composite([{ input: overlayBuffer, left: 0, top: 0 }])
-    .png({ compressionLevel: 9 })
-    .toBuffer();
+return base
+  .composite(composedTiles)
+  .grayscale()
+  .modulate({ brightness: 1.08, saturation: 0 })
+  .linear(1.12, -8)
+  .sharpen({ sigma: 0.8 })
+  .composite([{ input: overlayBuffer, left: 0, top: 0 }])
+  .png({ compressionLevel: 9 })
+  .toBuffer();
 }
 
 export async function renderCaptureLocationMapPreviewPng(
