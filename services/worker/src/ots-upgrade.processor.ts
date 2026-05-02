@@ -4,7 +4,7 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
-import { resolveEffectiveOtsStatus } from "@proovra/shared";
+import { isValidOtsBitcoinTxid, resolveEffectiveOtsStatus } from "@proovra/shared";
 import * as prismaPkg from "@prisma/client";
 import type { Prisma } from "@prisma/client";
 import { appendCustodyEventTx } from "./custody-events.js";
@@ -69,13 +69,14 @@ export async function processOtsUpgrade(job: Job<{ evidenceId: string }>) {
     return;
   }
 
-  if (
-    resolveEffectiveOtsStatus({
-      status: evidence.otsStatus,
-      bitcoinTxid: evidence.otsBitcoinTxid,
-      anchoredAtUtc: evidence.otsAnchoredAtUtc,
-    }) === "ANCHORED"
-  ) {
+  const effectiveStatus = resolveEffectiveOtsStatus({
+    status: evidence.otsStatus,
+    bitcoinTxid: evidence.otsBitcoinTxid,
+    anchoredAtUtc: evidence.otsAnchoredAtUtc,
+  });
+  const hasDefensibleTxid = isValidOtsBitcoinTxid(evidence.otsBitcoinTxid);
+
+  if (effectiveStatus === "ANCHORED" && hasDefensibleTxid) {
     logger.info(
       withJobContext({
         jobId: job.id,
@@ -128,6 +129,7 @@ export async function processOtsUpgrade(job: Job<{ evidenceId: string }>) {
     // trust engine still requires defensible public anchor material before it
     // awards a full 10/10 public-anchoring signal.
 if (shouldTreatOtsAsAnchored(parsedUpgrade)) {
+        const txidRecovered = !hasDefensibleTxid && Boolean(txid);
         await prisma.$transaction(async (tx) => {
         await tx.evidence.update({
           where: { id: evidenceId },
@@ -137,6 +139,7 @@ if (shouldTreatOtsAsAnchored(parsedUpgrade)) {
             hash: evidence.otsHash,
             calendar: evidence.otsCalendar,
             bitcoinTxid: txid,
+            existingBitcoinTxid: evidence.otsBitcoinTxid,
             anchoredAtUtc: upgradedAt,
             upgradedAtUtc: upgradedAt,
           }),
@@ -148,8 +151,10 @@ if (shouldTreatOtsAsAnchored(parsedUpgrade)) {
           atUtc: upgradedAt,
           payload: {
             otsStatus: "ANCHORED",
-            otsPhase: "anchored",
-            bitcoinTxid: txid,
+            otsPhase: txidRecovered
+              ? "anchor_material_recovered"
+              : "anchored",
+            bitcoinTxid: txid ?? evidence.otsBitcoinTxid ?? null,
             upgradedAtUtc: upgradedAt.toISOString(),
             anchoredAtUtc: upgradedAt.toISOString(),
             completionSource: "ots_upgrade",
@@ -176,6 +181,10 @@ if (shouldTreatOtsAsAnchored(parsedUpgrade)) {
     }
 
 if (pendingOutput || !commandErrored) {
+        const shouldPreserveAnchoredState =
+      effectiveStatus === "ANCHORED" && !hasDefensibleTxid;
+    const txidRecoveredWhileAnchored =
+      shouldPreserveAnchoredState && Boolean(txid);
         const pendingReason =
         anchoredOutput && !txid
           ? "OTS upgrade returned completion-like output but no Bitcoin transaction id was detected yet."
@@ -189,49 +198,67 @@ if (pendingOutput || !commandErrored) {
         await tx.evidence.update({
           where: { id: evidenceId },
           data: buildOtsEvidenceUpdateData({
-            status: "PENDING",
+            status: shouldPreserveAnchoredState ? "ANCHORED" : "PENDING",
             proofBase64,
             hash: evidence.otsHash,
             calendar: evidence.otsCalendar,
             bitcoinTxid: txid,
+            existingBitcoinTxid: evidence.otsBitcoinTxid,
+            anchoredAtUtc: shouldPreserveAnchoredState
+              ? evidence.otsAnchoredAtUtc ?? upgradedAt
+              : null,
             upgradedAtUtc: upgradedAt,
           }),
         });
 
-        await appendCustodyEventTx(tx, {
-          evidenceId,
-          eventType: prismaPkg.CustodyEventType.OTS_APPLIED,
-          atUtc: upgradedAt,
-          payload: {
-            otsStatus: "PENDING",
-            otsPhase:
-              anchoredOutput && !txid
-                ? "awaiting_txid"
-                : txid
-                  ? "txid_detected_pending_confirmation"
-                : pendingOutput
-                  ? "pending_confirmation"
-                  : "proof_refreshed_pending",
-            bitcoinTxid: txid,
-            upgradedAtUtc: upgradedAt.toISOString(),
-            completionSource: "ots_upgrade",
-            note: pendingReason,
-          } as Prisma.InputJsonValue,
-        });
+        if (!shouldPreserveAnchoredState || txid) {
+          await appendCustodyEventTx(tx, {
+            evidenceId,
+            eventType: prismaPkg.CustodyEventType.OTS_APPLIED,
+            atUtc: upgradedAt,
+            payload: {
+              otsStatus: shouldPreserveAnchoredState ? "ANCHORED" : "PENDING",
+              otsPhase: shouldPreserveAnchoredState
+                ? txid
+                  ? "anchor_material_recovered"
+                  : "anchored_no_public_receipt"
+                : anchoredOutput && !txid
+                  ? "awaiting_txid"
+                  : txid
+                    ? "txid_detected_pending_confirmation"
+                    : pendingOutput
+                      ? "pending_confirmation"
+                      : "proof_refreshed_pending",
+              bitcoinTxid: txid ?? evidence.otsBitcoinTxid ?? null,
+              upgradedAtUtc: upgradedAt.toISOString(),
+              completionSource: "ots_upgrade",
+              note: pendingReason,
+            } as Prisma.InputJsonValue,
+          });
+        }
       });
 
-      await enqueueOtsUpgradeJob(evidenceId, {
-delayMs: 60 * 60 * 1000,
-        jobId: buildFollowUpJobId(evidenceId, upgradedAt),
-        excludeJobId: job.id,
-      });
+      if (txidRecoveredWhileAnchored) {
+        await enqueueReportJob(evidenceId, {
+          forceRegenerate: true,
+          regenerateReason: "ots_anchor_material_recovered",
+        });
+      } else {
+        await enqueueOtsUpgradeJob(evidenceId, {
+  delayMs: 60 * 60 * 1000,
+          jobId: buildFollowUpJobId(evidenceId, upgradedAt),
+          excludeJobId: job.id,
+        });
+      }
 
       logger.info(
         withJobContext({
           jobId: job.id,
           evidenceId,
           durationMs: Date.now() - startedAt,
-          status: "pending_rescheduled",
+          status: txidRecoveredWhileAnchored
+            ? "anchor_material_recovered"
+            : "pending_rescheduled",
         }),
         "ots.upgrade.pending"
       );
@@ -249,6 +276,7 @@ delayMs: 60 * 60 * 1000,
           proofBase64,
           hash: evidence.otsHash,
           calendar: evidence.otsCalendar,
+          existingBitcoinTxid: evidence.otsBitcoinTxid,
           upgradedAtUtc: upgradedAt,
           failureReason,
         }),

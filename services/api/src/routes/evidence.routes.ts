@@ -4,6 +4,7 @@ import {
   CAPTURE_LOCATION_LEGAL_BOUNDARY,
   CAPTURE_LOCATION_SOURCE_LABEL,
   CAPTURE_LOCATION_STATUS_LABEL,
+  buildCaptureLocationExternalMapUrl,
   buildEvidenceTrustDecision,
   hasCaptureLocationMetadata,
   resolveEffectiveOtsStatus,
@@ -5528,6 +5529,12 @@ const captureContext = hasCaptureLocationMetadata({
         : evidence.createdAt.toISOString(),
       deviceTimeIso: evidence.deviceTimeIso ?? null,
       source: CAPTURE_LOCATION_SOURCE_LABEL,
+      externalMapUrl:
+        buildCaptureLocationExternalMapUrl({
+          lat: decimalToNumber(evidence.lat),
+          lng: decimalToNumber(evidence.lng),
+          accuracyMeters: decimalToNumber(evidence.accuracyMeters),
+        }) ?? null,
       legalBoundary: CAPTURE_LOCATION_LEGAL_BOUNDARY,
     }
   : null;

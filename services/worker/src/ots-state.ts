@@ -9,6 +9,7 @@ type OtsStateInput = {
   hash?: string | null;
   calendar?: string | null;
   bitcoinTxid?: string | null;
+  existingBitcoinTxid?: string | null;
   anchoredAtUtc?: Date | string | null;
   upgradedAtUtc?: Date | string | null;
   failureReason?: string | null;
@@ -44,7 +45,8 @@ function failureReason(value: string | null | undefined): string {
 export function buildOtsEvidenceUpdateData(
   input: OtsStateInput
 ): Prisma.EvidenceUpdateInput {
-  const bitcoinTxid = cleanTxid(input.bitcoinTxid);
+  const bitcoinTxid =
+    cleanTxid(input.bitcoinTxid) ?? cleanTxid(input.existingBitcoinTxid);
   const anchoredAtUtc = toDate(input.anchoredAtUtc);
   const upgradedAtUtc = toDate(input.upgradedAtUtc);
 
@@ -110,7 +112,7 @@ case "ANCHORED": {
         otsHash: clean(input.hash),
         otsStatus: "FAILED",
         otsCalendar: clean(input.calendar),
-        otsBitcoinTxid: null,
+        otsBitcoinTxid: bitcoinTxid,
         otsAnchoredAtUtc: null,
         otsUpgradedAtUtc: upgradedAtUtc,
         otsFailureReason: failureReason(input.failureReason),

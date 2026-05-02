@@ -479,6 +479,7 @@ verificationPackageIntegrity: {
     hasCoreCrypto: boolean;
     captureContext: {
       statusLabel: string;
+      description: string;
       lat: string;
       lng: string;
       accuracyRadius: string;

@@ -38,7 +38,12 @@ function renderCaptureContext(vm: ReportViewModel): string {
 
   return `
     <section class="capture-context-panel">
-      <div class="executive-confirmation-kicker">Capture Context &amp; Device Location</div>
+      <div class="capture-context-header">
+        <div class="executive-confirmation-kicker">Capture Context</div>
+        <div class="capture-context-intro">
+          ${escapeHtml(vm.meta.captureContext.description)}
+        </div>
+      </div>
       <div class="capture-context-layout">
         <div class="capture-context-map-shell">
           <img

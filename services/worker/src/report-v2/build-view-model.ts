@@ -1,9 +1,11 @@
 import QRCode from "qrcode";
 import sharp from "sharp";
 import {
+  CAPTURE_LOCATION_CONTEXT_DESCRIPTION,
   CAPTURE_LOCATION_LEGAL_BOUNDARY,
   CAPTURE_LOCATION_SOURCE_LABEL,
   CAPTURE_LOCATION_STATUS_LABEL,
+  buildCaptureLocationDisplayModel,
   buildCaptureLocationMapDataUrl,
   formatCaptureLocationAccuracy,
   formatCaptureLocationCoordinate,
@@ -93,6 +95,7 @@ import {
   buildAnchorRows,
   resolveAnchorSummary,
 } from "./technical-model.js";
+import { renderCaptureLocationMapPreviewDataUrl } from "../capture-location-map.js";
 
 type DisplayDescriptor = {
   displayTitle: string;
@@ -1332,17 +1335,30 @@ const verificationPackageIntegrity = {
     externalMode
   );
 
+  const captureLocationModel = buildCaptureLocationDisplayModel({
+    lat: input.evidence.gps.lat ?? 0,
+    lng: input.evidence.gps.lng ?? 0,
+    accuracyMeters: input.evidence.gps.accuracyMeters,
+    width: 1200,
+    height: 720,
+  });
+
   const captureContext = hasCaptureLocationMetadata({
     lat: input.evidence.gps.lat,
     lng: input.evidence.gps.lng,
   })
     ? {
         statusLabel: CAPTURE_LOCATION_STATUS_LABEL,
-        lat: formatCaptureLocationCoordinate(input.evidence.gps.lat),
-        lng: formatCaptureLocationCoordinate(input.evidence.gps.lng),
-        accuracyRadius: formatCaptureLocationAccuracy(
-          input.evidence.gps.accuracyMeters
-        ),
+        description: CAPTURE_LOCATION_CONTEXT_DESCRIPTION,
+        lat:
+          captureLocationModel?.latLabel ??
+          formatCaptureLocationCoordinate(input.evidence.gps.lat),
+        lng:
+          captureLocationModel?.lngLabel ??
+          formatCaptureLocationCoordinate(input.evidence.gps.lng),
+        accuracyRadius:
+          captureLocationModel?.accuracyLabel ??
+          formatCaptureLocationAccuracy(input.evidence.gps.accuracyMeters),
         capturedAtLabel: formatReportTimestamp(
           input.evidence.capturedAtUtc ??
             input.evidence.deviceTimeIso ??
@@ -1350,13 +1366,22 @@ const verificationPackageIntegrity = {
         ),
         sourceLabel: CAPTURE_LOCATION_SOURCE_LABEL,
         legalBoundary: CAPTURE_LOCATION_LEGAL_BOUNDARY,
-        mapPreviewDataUrl: buildCaptureLocationMapDataUrl({
+        mapPreviewDataUrl:
+          (await renderCaptureLocationMapPreviewDataUrl({
           lat: input.evidence.gps.lat ?? 0,
           lng: input.evidence.gps.lng ?? 0,
           accuracyMeters: input.evidence.gps.accuracyMeters,
           width: 1200,
           height: 720,
-        }),
+        })) ??
+          buildCaptureLocationMapDataUrl({
+            lat: input.evidence.gps.lat ?? 0,
+            lng: input.evidence.gps.lng ?? 0,
+            accuracyMeters: input.evidence.gps.accuracyMeters,
+            width: 1200,
+            height: 720,
+          }) ??
+          "",
       }
     : null;
 

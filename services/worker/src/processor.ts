@@ -2702,7 +2702,10 @@ export async function processGenerateReport(job: Job<GenerateReportJobData>) {
           if (otsData.status === "PENDING" || otsData.status === "ANCHORED") {
             await tx.evidence.update({
               where: { id: prepared.evidenceId },
-              data: buildOtsEvidenceUpdateData(otsData),
+              data: buildOtsEvidenceUpdateData({
+                ...otsData,
+                existingBitcoinTxid: evidence.otsBitcoinTxid ?? null,
+              }),
             });
 
             await appendCustodyEventTx(tx, {
@@ -2723,13 +2726,19 @@ export async function processGenerateReport(job: Job<GenerateReportJobData>) {
               } as Prisma.InputJsonValue,
             });
 
-            if (otsData.status === "PENDING") {
+            if (
+              otsData.status === "PENDING" ||
+              (otsData.status === "ANCHORED" && !otsData.bitcoinTxid)
+            ) {
               scheduleOtsUpgrade = true;
             }
           } else if (otsData.status === "FAILED") {
             await tx.evidence.update({
               where: { id: prepared.evidenceId },
-              data: buildOtsEvidenceUpdateData(otsData),
+              data: buildOtsEvidenceUpdateData({
+                ...otsData,
+                existingBitcoinTxid: evidence.otsBitcoinTxid ?? null,
+              }),
             });
 
             await appendCustodyEventTx(tx, {
@@ -2745,7 +2754,10 @@ export async function processGenerateReport(job: Job<GenerateReportJobData>) {
           } else if (otsData.status === "DISABLED") {
             await tx.evidence.update({
               where: { id: prepared.evidenceId },
-              data: buildOtsEvidenceUpdateData(otsData),
+              data: buildOtsEvidenceUpdateData({
+                ...otsData,
+                existingBitcoinTxid: evidence.otsBitcoinTxid ?? null,
+              }),
             });
           }
         }

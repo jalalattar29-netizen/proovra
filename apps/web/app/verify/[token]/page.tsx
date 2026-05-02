@@ -3,11 +3,12 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { useParams } from "next/navigation";
 import {
+  CAPTURE_LOCATION_CONTEXT_DESCRIPTION,
+  CAPTURE_LOCATION_LEGAL_BOUNDARY,
   CAPTURE_LOCATION_SHORT_BOUNDARY,
   CAPTURE_LOCATION_SOURCE_LABEL,
   CAPTURE_LOCATION_STATUS_LABEL,
   buildEvidenceTrustDecision,
-  buildCaptureLocationMapDataUrl,
   formatCaptureLocationAccuracy,
   formatCaptureLocationCoordinate,
   hasCaptureLocationMetadata,
@@ -20,6 +21,7 @@ import {
   EmptyState,
   Skeleton,
 } from "../../../components/ui";
+import CaptureLocationMapPanel from "../../../components/capture-location/CaptureLocationMapPanel";
 import { useLocale } from "../../providers";
 import { apiFetch } from "../../../lib/api";
 import { captureException } from "../../../lib/sentry";
@@ -129,6 +131,7 @@ type VerifyCaptureContext = {
   capturedAtUtc?: string | null;
   deviceTimeIso?: string | null;
   source?: string | null;
+  externalMapUrl?: string | null;
   legalBoundary?: string | null;
 } | null;
 
@@ -3803,31 +3806,6 @@ setServerVerificationPackageIntegrity(data.verificationPackageIntegrity ?? null)
     [captureContext?.lat, captureContext?.lng]
   );
 
-  const captureLocationPreviewUrl = useMemo(() => {
-    if (
-      !hasCaptureLocation ||
-      captureContext?.lat === null ||
-      captureContext?.lat === undefined ||
-      captureContext?.lng === null ||
-      captureContext?.lng === undefined
-    ) {
-      return null;
-    }
-
-    return buildCaptureLocationMapDataUrl({
-      lat: captureContext.lat,
-      lng: captureContext.lng,
-      accuracyMeters: captureContext.accuracyMeters,
-      width: 1200,
-      height: 720,
-    });
-  }, [
-    captureContext?.accuracyMeters,
-    captureContext?.lat,
-    captureContext?.lng,
-    hasCaptureLocation,
-  ]);
-
   const captureLocationCapturedAtLabel = useMemo(
     () =>
       formatDateTime(
@@ -5011,7 +4989,7 @@ with this evidence record.
                           }}
                         >
                           {captureContext?.description ??
-                            "This evidence record contains signed capture-location metadata preserved within the integrity state."}
+                            CAPTURE_LOCATION_CONTEXT_DESCRIPTION}
                         </div>
                       </div>
 
@@ -5031,7 +5009,7 @@ with this evidence record.
                           textTransform: "uppercase",
                         }}
                       >
-                        Signed provenance context
+                        Supporting provenance context
                       </div>
                     </div>
 
@@ -5048,24 +5026,19 @@ with this evidence record.
                         style={{
                           overflow: "hidden",
                           borderRadius: 22,
-                          border: `1px solid ${VERIFY_BRAND.line}`,
-                          background:
-                            "linear-gradient(180deg, rgba(18,26,30,0.96) 0%, rgba(42,51,57,0.98) 100%)",
                           minHeight: 280,
-                          boxShadow:
-                            "0 18px 38px rgba(11,46,39,0.12), inset 0 1px 0 rgba(255,255,255,0.06)",
                         }}
                       >
-                        {captureLocationPreviewUrl ? (
-                          <img
-                            src={captureLocationPreviewUrl}
-                            alt="Capture location preview"
-                            style={{
-                              display: "block",
-                              width: "100%",
-                              height: "100%",
-                              objectFit: "cover",
-                            }}
+                        {captureContext?.lat !== null &&
+                        captureContext?.lat !== undefined &&
+                        captureContext?.lng !== null &&
+                        captureContext?.lng !== undefined ? (
+                          <CaptureLocationMapPanel
+                            lat={captureContext.lat}
+                            lng={captureContext.lng}
+                            accuracyMeters={captureContext.accuracyMeters}
+                            addToast={addToast}
+                            height={280}
                           />
                         ) : null}
                       </div>
@@ -5146,6 +5119,7 @@ with this evidence record.
                             }}
                           >
                             {captureContext?.legalBoundary ??
+                              CAPTURE_LOCATION_LEGAL_BOUNDARY ??
                               CAPTURE_LOCATION_SHORT_BOUNDARY}
                           </div>
                         </div>

@@ -3,15 +3,16 @@ import path from "node:path";
 import { createHash, sign as cryptoSign } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { PassThrough } from "stream";
-import sharp from "sharp";
 import {
+  CAPTURE_LOCATION_CONTEXT_DESCRIPTION,
   CAPTURE_LOCATION_LEGAL_BOUNDARY,
   CAPTURE_LOCATION_SOURCE_LABEL,
-  buildCaptureLocationMapSvg,
+  buildCaptureLocationExternalMapUrl,
   hasCaptureLocationMetadata,
   isAccessCustodyEventType,
 } from "@proovra/shared";
 import type { ReportTrustDecision } from "./report-v2/types.js";
+import { renderCaptureLocationMapPreviewPng } from "./capture-location-map.js";
 
 type VerificationEvidenceFile = {
   name: string;
@@ -641,8 +642,11 @@ function buildCaptureContext(
     capturedAtUtc: metadata.capturedAtUtc ?? null,
     deviceTimeIso: metadata.deviceTimeIso ?? null,
     source: CAPTURE_LOCATION_SOURCE_LABEL,
+    title: "Capture Context",
+    statusLabel: "Location metadata included",
+    subtitle: CAPTURE_LOCATION_CONTEXT_DESCRIPTION,
     integrityContext:
-      "Capture-location metadata was included in the signed integrity state for this evidence record.",
+      "Device/browser-reported capture-location metadata was included in the signed integrity state for this evidence record.",
     custodyReference: {
       initialEventType: "EVIDENCE_CREATED",
       note: "The initial evidence-creation custody event records whether capture-location metadata was present at session creation time.",
@@ -652,6 +656,9 @@ function buildCaptureContext(
       lng: metadata.captureLocation?.lng ?? null,
       accuracyMeters: metadata.captureLocation?.accuracyMeters ?? null,
     },
+    externalMapUrl:
+      buildCaptureLocationExternalMapUrl(metadata.captureLocation ?? null) ??
+      null,
     legalBoundary: CAPTURE_LOCATION_LEGAL_BOUNDARY,
   };
 }
@@ -664,17 +671,13 @@ async function buildCaptureContextMapPreview(
   }
 
   try {
-    const svg = buildCaptureLocationMapSvg({
+    return await renderCaptureLocationMapPreviewPng({
       lat: metadata.captureLocation?.lat ?? 0,
       lng: metadata.captureLocation?.lng ?? 0,
       accuracyMeters: metadata.captureLocation?.accuracyMeters ?? null,
       width: 1200,
       height: 720,
     });
-
-    return await sharp(Buffer.from(svg))
-      .png({ compressionLevel: 9 })
-      .toBuffer();
   } catch (error) {
     console.warn("[verification-package] Failed to build capture map preview:", error);
     return null;

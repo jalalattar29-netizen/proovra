@@ -3,15 +3,17 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import {
+  CAPTURE_LOCATION_CONTEXT_DESCRIPTION,
+  CAPTURE_LOCATION_LEGAL_BOUNDARY,
   CAPTURE_LOCATION_SHORT_BOUNDARY,
   CAPTURE_LOCATION_SOURCE_LABEL,
   CAPTURE_LOCATION_STATUS_LABEL,
-  buildCaptureLocationMapDataUrl,
   formatCaptureLocationAccuracy,
   formatCaptureLocationCoordinate,
   hasCaptureLocationMetadata,
 } from "@proovra/shared";
 import { Button, Card, Modal, useToast } from "../../../../components/ui";
+import CaptureLocationMapPanel from "../../../../components/capture-location/CaptureLocationMapPanel";
 import { useLocale } from "../../../providers";
 import { apiFetch } from "../../../../lib/api";
 import { captureException } from "../../../../lib/sentry";
@@ -1796,20 +1798,6 @@ switch (onlyKind) {
     [captureLat, captureLng]
   );
 
-  const captureLocationPreviewUrl = useMemo(() => {
-    if (!hasCaptureLocation || captureLat === null || captureLng === null) {
-      return null;
-    }
-
-    return buildCaptureLocationMapDataUrl({
-      lat: captureLat,
-      lng: captureLng,
-      accuracyMeters: captureAccuracyMeters,
-      width: 1200,
-      height: 720,
-    });
-  }, [captureAccuracyMeters, captureLat, captureLng, hasCaptureLocation]);
-
   const captureLocationCapturedAtLabel = useMemo(
     () => formatUtcDateTime(capturedAtUtc ?? deviceTimeIso ?? createdAt),
     [capturedAtUtc, createdAt, deviceTimeIso]
@@ -2582,7 +2570,7 @@ switch (onlyKind) {
                 >
                   <div>
                     <div className="text-[1.08rem] font-semibold tracking-[-0.02em] text-[#21353a]">
-                      📍 Capture Location
+                      📍 Capture Context
                     </div>
                     <div
                       style={{
@@ -2593,8 +2581,7 @@ switch (onlyKind) {
                         maxWidth: 720,
                       }}
                     >
-                      Signed capture-location metadata preserved with this evidence
-                      session for contextual provenance review.
+                      {CAPTURE_LOCATION_CONTEXT_DESCRIPTION}
                     </div>
                   </div>
 
@@ -2632,24 +2619,16 @@ switch (onlyKind) {
                     style={{
                       borderRadius: 22,
                       overflow: "hidden",
-                      border: "1px solid rgba(79,112,107,0.14)",
-                      background:
-                        "linear-gradient(180deg, rgba(18,26,30,0.96) 0%, rgba(42,51,57,0.98) 100%)",
-                      boxShadow:
-                        "0 18px 38px rgba(0,0,0,0.10), inset 0 1px 0 rgba(255,255,255,0.06)",
                       minHeight: 280,
                     }}
                   >
-                    {captureLocationPreviewUrl ? (
-                      <img
-                        src={captureLocationPreviewUrl}
-                        alt="Capture location preview"
-                        style={{
-                          display: "block",
-                          width: "100%",
-                          height: "100%",
-                          objectFit: "cover",
-                        }}
+                    {captureLat !== null && captureLng !== null ? (
+                      <CaptureLocationMapPanel
+                        lat={captureLat}
+                        lng={captureLng}
+                        accuracyMeters={captureAccuracyMeters}
+                        addToast={addToast}
+                        height={280}
                       />
                     ) : null}
                   </div>
@@ -2712,7 +2691,7 @@ switch (onlyKind) {
                         lineHeight: 1.7,
                       }}
                     >
-                      {CAPTURE_LOCATION_SHORT_BOUNDARY}
+                      {CAPTURE_LOCATION_LEGAL_BOUNDARY ?? CAPTURE_LOCATION_SHORT_BOUNDARY}
                     </div>
                   </div>
                 </div>

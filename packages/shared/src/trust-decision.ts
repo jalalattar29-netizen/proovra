@@ -966,6 +966,8 @@ export function buildEvidenceTrustDecision(
   const summary =
     verdictLabel === "Verified with limitations" && !corePassed
       ? `${verdictLabel} — ${score}/100. Core integrity materials are recorded, but the recorded-integrity state has not been finalized as fully verified.`
+      : verdictLabel === "Strongly verified" && degradedButUsable
+        ? `${verdictLabel} — ${score}/100. Recorded integrity state is strongly verified; one or more supporting signals may still require follow-up.`
       : degradedButUsable
         ? `${verdictLabel} — ${score}/100. Core verification materials remain usable, but one or more supporting trust signals require follow-up.`
         : `${verdictLabel} — ${score}/100. The recorded evidence state is summarized from cryptographic, custody, timestamping, storage, identity, and package-availability signals.`;

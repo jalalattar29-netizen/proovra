@@ -35,4 +35,32 @@ describe("OTS upgrade output parsing", () => {
 
     expect(parsed.txid).toBe(TXID);
   });
+
+  it("extracts txid values from block explorer urls", () => {
+    const parsed = parseOtsUpgradeOutput(
+      "",
+      `Timestamp complete. Explorer: https://mempool.space/tx/${TXID}`
+    );
+
+    expect(parsed.txid).toBe(TXID);
+    expect(shouldTreatOtsAsAnchored(parsed)).toBe(true);
+  });
+
+  it("only accepts generic 64-hex values when bitcoin context is present", () => {
+    const parsed = parseOtsUpgradeOutput(
+      "",
+      `Bitcoin anchoring completed.\nTransaction ${TXID}`
+    );
+
+    expect(parsed.txid).toBe(TXID);
+  });
+
+  it("rejects malformed transaction identifiers", () => {
+    const parsed = parseOtsUpgradeOutput(
+      "",
+      "Bitcoin transaction: not-a-valid-txid"
+    );
+
+    expect(parsed.txid).toBeNull();
+  });
 });

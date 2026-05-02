@@ -2,22 +2,46 @@ function normalizeOutput(stdout?: string, stderr?: string): string {
   return `${stdout ?? ""}\n${stderr ?? ""}`.trim();
 }
 
+function normalizeTxid(value: string | null | undefined): string | null {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  return /^[a-f0-9]{64}$/i.test(trimmed) ? trimmed.toLowerCase() : null;
+}
+
+function hasBitcoinContext(text: string): boolean {
+  const lower = text.toLowerCase();
+  return (
+    lower.includes("bitcoin") ||
+    lower.includes("blockchain") ||
+    lower.includes("block explorer") ||
+    lower.includes("blockstream") ||
+    lower.includes("mempool") ||
+    lower.includes("txid") ||
+    lower.includes("transaction id") ||
+    lower.includes("transaction:")
+  );
+}
+
 function parseTxid(text: string): string | null {
-  const patterns = [
-    /bitcoin transaction[^a-f0-9]*([a-f0-9]{64})/i,
+  const contextualPatterns = [
+    /bitcoin transaction(?: id)?[^a-f0-9]*([a-f0-9]{64})/i,
     /\btxid[^a-f0-9]*([a-f0-9]{64})\b/i,
     /\btransaction id[^a-f0-9]*([a-f0-9]{64})\b/i,
-    /\b([a-f0-9]{64})\b/i,
+    /\btransaction[^a-f0-9]+([a-f0-9]{64})\b/i,
+    /https?:\/\/[^\s]*\/tx\/([a-f0-9]{64})(?:\b|[/?#])/i,
+    /https?:\/\/[^\s]*\/([a-f0-9]{64})(?:\b|[/?#])/i,
   ];
 
-  for (const pattern of patterns) {
+  for (const pattern of contextualPatterns) {
     const match = text.match(pattern);
-    if (match?.[1]) {
-      return match[1].toLowerCase();
-    }
-    if (match?.[0] && /^[a-f0-9]{64}$/i.test(match[0])) {
-      return match[0].toLowerCase();
-    }
+    const candidate = normalizeTxid(match?.[1] ?? match?.[0] ?? null);
+    if (candidate) return candidate;
+  }
+
+  if (hasBitcoinContext(text)) {
+    const genericMatch = text.match(/\b([a-f0-9]{64})\b/i);
+    const candidate = normalizeTxid(genericMatch?.[1] ?? null);
+    if (candidate) return candidate;
   }
 
   return null;
