@@ -17,6 +17,8 @@ function buildOverlaySvg(model: CaptureLocationDisplayModel): string {
     model.width * 0.18,
     (model.scaleBarMeters / model.metersPerPixel) * 0.72
   );
+  const centerX = Math.round(model.width / 2);
+  const centerY = Math.round(model.height / 2);
 
   return `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" width="${model.width}" height="${model.height}" viewBox="0 0 ${model.width} ${model.height}" fill="none">
@@ -29,18 +31,18 @@ function buildOverlaySvg(model: CaptureLocationDisplayModel): string {
   <rect x="1" y="1" width="${model.width - 2}" height="${model.height - 2}" rx="24"
     fill="transparent" stroke="rgba(12,28,25,0.24)" stroke-width="2"/>
 
-  <circle cx="${model.markerX}" cy="${model.markerY}" r="${model.accuracyRadiusPx}"
+  <circle cx="${centerX}" cy="${centerY}" r="${model.accuracyRadiusPx}"
     fill="rgba(11,46,39,0.10)" stroke="rgba(11,46,39,0.32)" stroke-width="3"/>
 
-  <line x1="${model.markerX - 34}" y1="${model.markerY}" x2="${model.markerX + 34}" y2="${model.markerY}"
+  <line x1="${centerX - 34}" y1="${centerY}" x2="${centerX + 34}" y2="${centerY}"
     stroke="rgba(11,46,39,0.58)" stroke-width="2"/>
-  <line x1="${model.markerX}" y1="${model.markerY - 34}" x2="${model.markerX}" y2="${model.markerY + 34}"
+  <line x1="${centerX}" y1="${centerY - 34}" x2="${centerX}" y2="${centerY + 34}"
     stroke="rgba(11,46,39,0.58)" stroke-width="2"/>
 
-  <circle cx="${model.markerX}" cy="${model.markerY}" r="13"
+  <circle cx="${centerX}" cy="${centerY}" r="13"
     fill="#0b2e27" stroke="#ffffff" stroke-width="4" filter="url(#pinShadow)"/>
 
-  <path d="M ${model.markerX} ${model.markerY + 17} l -8 18 h 16 z"
+  <path d="M ${centerX} ${centerY + 17} l -8 18 h 16 z"
     fill="#0b2e27" stroke="#ffffff" stroke-width="2"/>
 
   <rect x="${pad}" y="${model.height - 42}" width="${Math.round(scaleBarWidth)}" height="5" rx="2.5"
@@ -169,19 +171,22 @@ async function renderStaticTilePreview(
     zoom: model.zoom,
   });
 
-const minimumUsefulTiles = Math.ceil(model.tiles.length * 0.75);
+const minimumUsefulTiles = Math.max(
+  9,
+  Math.ceil(model.tiles.length * 0.75)
+);
 
-if (validTiles.length < minimumUsefulTiles) {
-  console.warn("[capture-location-map] insufficient valid tiles, falling back", {
-    requestedTiles: model.tiles.length,
-    validTiles: validTiles.length,
-    minimumUsefulTiles,
-    width: model.width,
-    height: model.height,
-    zoom: model.zoom,
-  });
-  return null;
-}
+  if (validTiles.length < minimumUsefulTiles) {
+    console.warn("[capture-location-map] insufficient valid tiles, falling back", {
+      requestedTiles: model.tiles.length,
+      validTiles: validTiles.length,
+      minimumUsefulTiles,
+      width: model.width,
+      height: model.height,
+      zoom: model.zoom,
+    });
+    return null;
+  }
 
   const base = sharp({
     create: {
@@ -209,15 +214,23 @@ if (validTiles.length < minimumUsefulTiles) {
     .png()
     .toBuffer();
 
-return base
-  .composite(composedTiles)
-  .grayscale()
-  .modulate({ brightness: 1.08, saturation: 0 })
-  .linear(1.08, -4)
-  .sharpen({ sigma: 0.7 })
-  .composite([{ input: overlayBuffer, left: 0, top: 0 }])
-  .png({ compressionLevel: 9 })
-  .toBuffer();
+  console.info("[capture-location-map] using tile mode", {
+    validTiles: validTiles.length,
+    requestedTiles: model.tiles.length,
+    width: model.width,
+    height: model.height,
+    zoom: model.zoom,
+  });
+
+  return base
+    .composite(composedTiles)
+    .grayscale()
+    .modulate({ brightness: 1.08, saturation: 0 })
+    .linear(1.08, -4)
+    .sharpen({ sigma: 0.7 })
+    .composite([{ input: overlayBuffer, left: 0, top: 0 }])
+    .png({ compressionLevel: 9 })
+    .toBuffer();
 }
 
 export async function renderCaptureLocationMapPreviewPng(

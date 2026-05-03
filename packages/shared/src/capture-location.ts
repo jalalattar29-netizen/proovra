@@ -400,6 +400,42 @@ markerY: clampedMarkerY,
   };
 }
 
+function buildCenteredMapMarker(params: {
+  centerX: number;
+  centerY: number;
+  markerFill: string;
+  markerStroke: string;
+  crosshairStroke: string;
+  crosshairExtent?: number;
+  markerRadius?: number;
+  tailHeight?: number;
+  tailHalfWidth?: number;
+  shadowId?: string;
+}): string {
+  const crosshairExtent = params.crosshairExtent ?? 26;
+  const markerRadius = params.markerRadius ?? 10.5;
+  const tailHeight = params.tailHeight ?? 14;
+  const tailHalfWidth = params.tailHalfWidth ?? 7;
+  const shadow = params.shadowId
+    ? ` filter="url(#${escapeSvgText(params.shadowId)})"`
+    : "";
+
+  return `
+  <line x1="${params.centerX - crosshairExtent}" y1="${params.centerY}" x2="${
+    params.centerX + crosshairExtent
+  }" y2="${params.centerY}" stroke="${params.crosshairStroke}" stroke-width="1.2"/>
+  <line x1="${params.centerX}" y1="${params.centerY - crosshairExtent}" x2="${
+    params.centerX
+  }" y2="${params.centerY + crosshairExtent}" stroke="${params.crosshairStroke}" stroke-width="1.2"/>
+  <circle cx="${params.centerX}" cy="${params.centerY}" r="${markerRadius}"
+    fill="${params.markerFill}" stroke="${params.markerStroke}" stroke-width="3.4"${shadow}/>
+  <path d="M ${params.centerX} ${params.centerY + markerRadius + 5} l -${tailHalfWidth} ${tailHeight} h ${
+    tailHalfWidth * 2
+  } z"
+    fill="${params.markerFill}" stroke="${params.markerStroke}" stroke-width="1.6"/>
+`;
+}
+
 function buildSurveyCurvePath(
   width: number,
   height: number,
@@ -437,8 +473,6 @@ export function buildCaptureLocationStaticMapFallbackSvg(params: {
   const {
     width,
     height,
-    markerX,
-    markerY,
     accuracyRadiusPx,
     locationLineLabel,
     accuracyLabel,
@@ -461,6 +495,8 @@ export function buildCaptureLocationStaticMapFallbackSvg(params: {
     (scaleBarMeters / model.metersPerPixel) * 0.72
   );
   const seed = Math.round((Math.abs(lat) + Math.abs(lng)) * 10_000);
+  const centerX = Math.round(width / 2);
+  const centerY = Math.round(height / 2);
 
   const verticalLines = Array.from({ length: 6 }, (_, index) => {
     const x = framePaddingX + (plotWidth / 5) * index;
@@ -549,12 +585,20 @@ export function buildCaptureLocationStaticMapFallbackSvg(params: {
   ${latTicks}
   ${lngTicks}
 
-  <circle cx="${markerX}" cy="${markerY}" r="${accuracyRadiusPx}" fill="rgba(98,176,171,0.14)" stroke="rgba(98,176,171,0.34)" stroke-width="2.2"/>
-  <circle cx="${markerX}" cy="${markerY}" r="${Math.max(24, accuracyRadiusPx * 0.66)}" fill="url(#glow)"/>
-  <line x1="${markerX - 30}" y1="${markerY}" x2="${markerX + 30}" y2="${markerY}" stroke="rgba(227,233,236,0.56)" stroke-width="1.3"/>
-  <line x1="${markerX}" y1="${markerY - 30}" x2="${markerX}" y2="${markerY + 30}" stroke="rgba(227,233,236,0.56)" stroke-width="1.3"/>
-  <circle cx="${markerX}" cy="${markerY}" r="9.5" fill="#67c7be" stroke="#dce6e3" stroke-width="3" filter="url(#shadow)"/>
-  <path d="M ${markerX} ${markerY + 15} l -7 15 h 14 z" fill="#67c7be" stroke="#dce6e3" stroke-width="2" />
+  <circle cx="${centerX}" cy="${centerY}" r="${accuracyRadiusPx}" fill="rgba(98,176,171,0.14)" stroke="rgba(98,176,171,0.34)" stroke-width="2.2"/>
+  <circle cx="${centerX}" cy="${centerY}" r="${Math.max(24, accuracyRadiusPx * 0.66)}" fill="url(#glow)"/>
+  ${buildCenteredMapMarker({
+    centerX,
+    centerY,
+    markerFill: "#0b2e27",
+    markerStroke: "#ffffff",
+    crosshairStroke: "rgba(227,233,236,0.56)",
+    crosshairExtent: 30,
+    markerRadius: 10,
+    tailHeight: 15,
+    tailHalfWidth: 7,
+    shadowId: "shadow",
+  })}
 
   <rect x="${framePaddingX + 18}" y="${height - 92}" width="${Math.round(scaleBarWidth)}" height="5" rx="2.5" fill="rgba(231,236,238,0.78)"/>
   <line x1="${framePaddingX + 18}" y1="${height - 98}" x2="${framePaddingX + 18}" y2="${height - 80}" stroke="rgba(231,236,238,0.88)" stroke-width="1.2"/>
@@ -611,8 +655,6 @@ export function buildCaptureLocationPdfFallbackSvg(params: {
   const {
     width,
     height,
-    markerX,
-    markerY,
     accuracyRadiusPx,
     latLabel,
     lngLabel,
@@ -636,6 +678,8 @@ export function buildCaptureLocationPdfFallbackSvg(params: {
     (scaleBarMeters / model.metersPerPixel) * 0.68
   );
   const seed = Math.round((Math.abs(lat) + Math.abs(lng)) * 10_000);
+  const centerX = Math.round(width / 2);
+  const centerY = Math.round(height / 2);
 
   const verticalLines = Array.from({ length: 6 }, (_, index) => {
     const x = framePaddingX + (plotWidth / 5) * index;
@@ -736,11 +780,19 @@ export function buildCaptureLocationPdfFallbackSvg(params: {
   ${latTicks}
   ${lngTicks}
 
-  <circle cx="${markerX}" cy="${markerY}" r="${accuracyRadiusPx}" fill="rgba(140,194,182,0.20)" stroke="rgba(88,136,126,0.36)" stroke-width="2.2"/>
-  <line x1="${markerX - 26}" y1="${markerY}" x2="${markerX + 26}" y2="${markerY}" stroke="rgba(28,69,63,0.36)" stroke-width="1.2"/>
-  <line x1="${markerX}" y1="${markerY - 26}" x2="${markerX}" y2="${markerY + 26}" stroke="rgba(28,69,63,0.36)" stroke-width="1.2"/>
-  <circle cx="${markerX}" cy="${markerY}" r="10.5" fill="#1f5f57" stroke="#f7faf8" stroke-width="3.4" filter="url(#pinShadow)"/>
-  <path d="M ${markerX} ${markerY + 16} l -7 14 h 14 z" fill="#1f5f57" stroke="#f7faf8" stroke-width="1.6"/>
+  <circle cx="${centerX}" cy="${centerY}" r="${accuracyRadiusPx}" fill="rgba(140,194,182,0.20)" stroke="rgba(88,136,126,0.36)" stroke-width="2.2"/>
+  ${buildCenteredMapMarker({
+    centerX,
+    centerY,
+    markerFill: "#1f5f57",
+    markerStroke: "#f7faf8",
+    crosshairStroke: "rgba(28,69,63,0.36)",
+    crosshairExtent: 26,
+    markerRadius: 10.5,
+    tailHeight: 14,
+    tailHalfWidth: 7,
+    shadowId: "pinShadow",
+  })}
 
   <rect x="${framePaddingX + 14}" y="${height - 45}" width="${Math.round(scaleBarWidth)}" height="4" rx="2" fill="rgba(28,69,63,0.74)"/>
   <line x1="${framePaddingX + 14}" y1="${height - 49}" x2="${framePaddingX + 14}" y2="${height - 37}" stroke="rgba(28,69,63,0.74)" stroke-width="1"/>

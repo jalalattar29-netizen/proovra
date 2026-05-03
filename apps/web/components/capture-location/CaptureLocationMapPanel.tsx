@@ -51,6 +51,14 @@ export default function CaptureLocationMapPanel(
   if (!display) return null;
 
   const rounded = props.rounded ?? 22;
+  const accuracyWidthPercent = Math.min(
+    72,
+    Math.max(10, (display.accuracyRadiusPx * 2 * 100) / display.width)
+  );
+  const accuracyHeightPercent = Math.min(
+    72,
+    Math.max(10, (display.accuracyRadiusPx * 2 * 100) / display.height)
+  );
 
   const handleCopyCoordinates = async () => {
     try {
@@ -109,12 +117,13 @@ export default function CaptureLocationMapPanel(
                 onError={() => setUseFallback(true)}
                 style={{
                   position: "absolute",
-                  left: tile.left,
-                  top: tile.top,
-                  width: tile.width,
-                  height: tile.height,
+                  left: `${(tile.left / display.width) * 100}%`,
+                  top: `${(tile.top / display.height) * 100}%`,
+                  width: `${(tile.width / display.width) * 100}%`,
+                  height: `${(tile.height / display.height) * 100}%`,
                   objectFit: "cover",
-                  filter: "grayscale(1) saturate(0.3) brightness(0.72) contrast(1.08)",
+                  filter:
+                    "grayscale(1) saturate(0.42) brightness(0.92) contrast(1.04)",
                 }}
               />
             ) : null
@@ -132,62 +141,70 @@ export default function CaptureLocationMapPanel(
           <div
             style={{
               position: "absolute",
-              left: display.markerX - display.accuracyRadiusPx,
-              top: display.markerY - display.accuracyRadiusPx,
-              width: display.accuracyRadiusPx * 2,
-              height: display.accuracyRadiusPx * 2,
+              left: "50%",
+              top: "50%",
+              width: `${accuracyWidthPercent}%`,
+              height: `${accuracyHeightPercent}%`,
+              transform: "translate(-50%, -50%)",
               borderRadius: "50%",
               background: "rgba(103, 199, 190, 0.14)",
               border: "2px solid rgba(103, 199, 190, 0.34)",
               boxShadow: "0 0 0 1px rgba(255,255,255,0.04) inset",
+              zIndex: 2,
             }}
           />
 
           <div
             style={{
               position: "absolute",
-              left: display.markerX - 28,
-              top: display.markerY - 1,
+              left: "calc(50% - 28px)",
+              top: "calc(50% - 1px)",
               width: 56,
               height: 2,
               background: "rgba(235,241,243,0.72)",
+              zIndex: 3,
             }}
           />
           <div
             style={{
               position: "absolute",
-              left: display.markerX - 1,
-              top: display.markerY - 28,
+              left: "calc(50% - 1px)",
+              top: "calc(50% - 28px)",
               width: 2,
               height: 56,
               background: "rgba(235,241,243,0.72)",
+              zIndex: 3,
             }}
           />
 
           <div
             style={{
               position: "absolute",
-              left: display.markerX - 10,
-              top: display.markerY - 10,
+              left: "50%",
+              top: "50%",
               width: 20,
               height: 20,
+              transform: "translate(-50%, -50%)",
               borderRadius: "50%",
-              background: "#69c7bd",
-              border: "3px solid #dce6e3",
+              background: "#0b2e27",
+              border: "3px solid #ffffff",
               boxShadow: "0 10px 22px rgba(0,0,0,0.26)",
+              zIndex: 4,
             }}
           />
           <div
             style={{
               position: "absolute",
-              left: display.markerX - 7,
-              top: display.markerY + 12,
+              left: "50%",
+              top: "50%",
               width: 0,
               height: 0,
+              transform: "translate(-50%, 12px)",
               borderLeft: "7px solid transparent",
               borderRight: "7px solid transparent",
-              borderTop: "16px solid #69c7bd",
+              borderTop: "16px solid #0b2e27",
               filter: "drop-shadow(0 6px 10px rgba(0,0,0,0.22))",
+              zIndex: 4,
             }}
           />
         </div>
