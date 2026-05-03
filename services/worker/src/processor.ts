@@ -46,6 +46,7 @@ import {
 import {
   classifyCustodyEventType,
   evaluateRecordedIntegrityPromotion,
+  getReviewerUploadModeLabel,
   resolveEffectiveOtsStatus,
 } from "@proovra/shared";
 import { appendCustodyEventTx, evaluateCustodyChain } from "./custody-events.js";
@@ -405,7 +406,14 @@ function normalizePayloadPrimitive(value: unknown): string | null {
   return null;
 }
 
-function summarizePayloadForReport(eventType: string, payload: unknown): string {
+function summarizePayloadForReport(
+  eventType: string,
+  payload: unknown,
+  context?: {
+    itemCount?: number | null;
+    structure?: "single" | "multipart" | null;
+  }
+): string {
   const event = String(eventType || "").toUpperCase();
 
   if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
@@ -446,13 +454,17 @@ function summarizePayloadForReport(eventType: string, payload: unknown): string 
       return "Evidence record created.";
 
     case "UPLOAD_STARTED": {
-      const uploadMode =
-        normalizePayloadPrimitive(obj.mode) ??
-        normalizePayloadPrimitive(obj.uploadKind);
-      return ["Upload session started", uploadMode ? `Mode: ${uploadMode}` : null]
-        .filter(Boolean)
-        .join(" • ");
-    }
+      const uploadMode = getReviewerUploadModeLabel({
+        itemCount: context?.itemCount ?? null,
+        structure: context?.structure ?? null,
+        rawMode:
+          normalizePayloadPrimitive(obj.mode) ??
+          normalizePayloadPrimitive(obj.uploadKind),
+      });
+  return ["Upload session started", uploadMode ? `Mode: ${uploadMode}` : null]
+    .filter(Boolean)
+    .join(" • ");
+}
 
     case "UPLOAD_COMPLETED": {
       const multipart = obj.multipart === true;
@@ -2280,12 +2292,21 @@ captureMethod: deriveReportCaptureMethod({
     ),
   });
 
+  const custodyDisplayContext = {
+    itemCount: contentArtifacts.summary.itemCount,
+    structure: contentArtifacts.summary.structure,
+  } as const;
+
   const custodyEventsForReport = [
     ...custodyEvents.map((ev) => ({
       sequence: ev.sequence,
       atUtc: ev.atUtc.toISOString(),
       eventType: ev.eventType,
-      payloadSummary: summarizePayloadForReport(ev.eventType, ev.payload),
+      payloadSummary: summarizePayloadForReport(
+        ev.eventType,
+        ev.payload,
+        custodyDisplayContext
+      ),
       prevEventHash: ev.prevEventHash ?? null,
       eventHash: ev.eventHash ?? null,
       category: classifyCustodyEventType(ev.eventType),
@@ -2909,11 +2930,20 @@ export async function processGenerateReport(job: Job<GenerateReportJobData>) {
           },
         });
 
+        const finalizedCustodyDisplayContext = {
+          itemCount: prepared.contentSummary.itemCount,
+          structure: prepared.contentSummary.structure,
+        } as const;
+
         const finalizedCustodyForReport = finalizedCustodyEvents.map((ev) => ({
           sequence: ev.sequence,
           atUtc: ev.atUtc.toISOString(),
           eventType: ev.eventType,
-          payloadSummary: summarizePayloadForReport(ev.eventType, ev.payload),
+          payloadSummary: summarizePayloadForReport(
+            ev.eventType,
+            ev.payload,
+            finalizedCustodyDisplayContext
+          ),
           prevEventHash: ev.prevEventHash ?? null,
           eventHash: ev.eventHash ?? null,
           category: classifyCustodyEventType(ev.eventType),

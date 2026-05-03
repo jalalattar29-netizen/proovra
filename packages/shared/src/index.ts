@@ -72,6 +72,11 @@ export {
   isForensicCustodyEventType,
 } from "./custody.js";
 
+export {
+  getReviewerEvidenceTypeLabel,
+  getReviewerUploadModeLabel,
+} from "./reviewer-evidence.js";
+
 export type {
   TrustDecision,
   TrustDecisionTone,

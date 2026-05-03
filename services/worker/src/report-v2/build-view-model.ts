@@ -12,6 +12,7 @@ import {
   buildCaptureLocationPdfFallbackSvg,
   formatCaptureLocationAccuracy,
   formatCaptureLocationCoordinate,
+  getReviewerEvidenceTypeLabel,
   hasCaptureLocationMetadata,
   isCompleteOtsAnchor,
 } from "@proovra/shared";
@@ -236,48 +237,18 @@ function mapPublicEvidenceTypeLabel(
   evidence: ReportEvidence,
   summary: ReportEvidenceContentSummary
 ): string {
-  if (summary.itemCount > 1) {
-    const hasImage = summary.imageCount > 0;
-    const hasVideo = summary.videoCount > 0;
-    const hasAudio = summary.audioCount > 0;
-    const hasPdf = summary.pdfCount > 0 || summary.textCount > 0;
-
-    const categories = [
-      hasImage ? "Image" : null,
-      hasVideo ? "Video" : null,
-      hasAudio ? "Audio" : null,
-      hasPdf ? "Document" : null,
-    ].filter(Boolean) as string[];
-
-    if (categories.length > 1) return "Mixed Media Evidence Package";
-    if (categories.length === 1) return `${categories[0]} Evidence Package`;
-    return "Multipart Evidence Package";
-  }
-
-  switch (safe(evidence.type, "").toUpperCase()) {
-    case "PHOTO":
-      return "Photo Evidence";
-    case "VIDEO":
-      return "Video Evidence";
-    case "AUDIO":
-      return "Audio Evidence";
-    case "DOCUMENT":
-      return "Document Evidence";
-    default:
-      if (safe(evidence.mimeType, "").startsWith("image/")) {
-        return "Photo Evidence";
-      }
-      if (safe(evidence.mimeType, "").startsWith("video/")) {
-        return "Video Evidence";
-      }
-      if (safe(evidence.mimeType, "").startsWith("audio/")) {
-        return "Audio Evidence";
-      }
-      if (safe(evidence.mimeType, "").includes("pdf")) {
-        return "Document Evidence";
-      }
-      return "Digital Evidence Record";
-  }
+  return getReviewerEvidenceTypeLabel({
+    itemCount: summary.itemCount,
+    structure: summary.structure,
+    imageCount: summary.imageCount,
+    videoCount: summary.videoCount,
+    audioCount: summary.audioCount,
+    pdfCount: summary.pdfCount,
+    textCount: summary.textCount,
+    otherCount: summary.otherCount,
+    evidenceType: evidence.type,
+    mimeType: evidence.mimeType,
+  });
 }
 
 function normalizeProviderFailure(value: string | null | undefined): string {

@@ -6,6 +6,8 @@ import {
   CAPTURE_LOCATION_STATUS_LABEL,
   buildCaptureLocationExternalMapUrl,
   buildEvidenceTrustDecision,
+  getReviewerEvidenceTypeLabel,
+  getReviewerUploadModeLabel,
   hasCaptureLocationMetadata,
   resolveEffectiveOtsStatus,
   type TrustDecision,
@@ -822,21 +824,24 @@ function normalizeOtsStatus(status: string | null | undefined): string | null {
   return text || null;
 }
 
-function mapEvidenceTypeLabel(
-  type: prismaPkg.EvidenceType | string | null | undefined
-): string {
-  switch (String(type ?? "").toUpperCase()) {
-    case "PHOTO":
-      return "Photo";
-    case "VIDEO":
-      return "Video";
-    case "AUDIO":
-      return "Audio";
-    case "DOCUMENT":
-      return "Document";
-    default:
-      return "Evidence";
-  }
+function mapEvidenceTypeLabel(params: {
+  type: prismaPkg.EvidenceType | string | null | undefined;
+  mimeType?: string | null;
+  itemCount?: number | null;
+  contentSummary?: PublicEvidenceContentSummary | null;
+}): string {
+  return getReviewerEvidenceTypeLabel({
+    itemCount: params.itemCount,
+    structure: params.contentSummary?.structure ?? null,
+    imageCount: params.contentSummary?.imageCount ?? null,
+    videoCount: params.contentSummary?.videoCount ?? null,
+    audioCount: params.contentSummary?.audioCount ?? null,
+    pdfCount: params.contentSummary?.pdfCount ?? null,
+    textCount: params.contentSummary?.textCount ?? null,
+    otherCount: params.contentSummary?.otherCount ?? null,
+    evidenceType: params.type,
+    mimeType: params.mimeType ?? null,
+  });
 }
 
 function mapCaptureMethodLabel(
@@ -1035,7 +1040,11 @@ function mapOtsStatusLabel(status: string | null | undefined): string {
 
 function summarizePublicPayload(
   eventType: prismaPkg.CustodyEventType,
-  payload: prismaPkg.Prisma.JsonValue | null
+  payload: prismaPkg.Prisma.JsonValue | null,
+  context?: {
+    itemCount?: number | null;
+    structure?: "single" | "multipart" | null;
+  }
 ): string | null {
   if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
     if (eventType === prismaPkg.CustodyEventType.VERIFY_VIEWED) {
@@ -1051,13 +1060,17 @@ function summarizePublicPayload(
       return "Evidence record created.";
 
     case prismaPkg.CustodyEventType.UPLOAD_STARTED: {
-      const uploadKind =
-        normalizePublicPayloadValue(obj.uploadKind) ??
-        normalizePublicPayloadValue(obj.mode);
-      return ["Upload session started", uploadKind ? `Mode: ${uploadKind}` : null]
-        .filter(Boolean)
-        .join(" • ");
-    }
+      const uploadMode = getReviewerUploadModeLabel({
+        itemCount: context?.itemCount ?? null,
+        structure: context?.structure ?? null,
+        rawMode:
+          normalizePublicPayloadValue(obj.uploadKind) ??
+          normalizePublicPayloadValue(obj.mode),
+      });
+  return ["Upload session started", uploadMode ? `Mode: ${uploadMode}` : null]
+    .filter(Boolean)
+    .join(" • ");
+}
 
     case prismaPkg.CustodyEventType.UPLOAD_COMPLETED: {
       const itemCount =
@@ -2034,7 +2047,12 @@ primaryContentLabel: buildPrimaryContentLabel(
     totalContentSizeBytes: params.contentSummary?.totalSizeBytes ?? null,
     totalContentSizeDisplay: params.contentSummary?.totalSizeDisplay ?? null,
     evidenceId: params.evidence.id,
-    evidenceType: mapEvidenceTypeLabel(params.evidence.type),
+    evidenceType: mapEvidenceTypeLabel({
+      type: params.evidence.type,
+      mimeType: params.evidence.mimeType,
+      itemCount: params.itemCount,
+      contentSummary: params.contentSummary,
+    }),
     evidenceStructure:
       params.itemCount > 1 ? "Multipart evidence package" : "Single evidence item",
     itemCount: params.itemCount,
@@ -2234,12 +2252,15 @@ function mapPublicCustodyEvent(ev: {
   payload: prismaPkg.Prisma.JsonValue | null;
   prevEventHash: string | null;
   eventHash: string | null;
+}, context?: {
+  itemCount?: number | null;
+  structure?: "single" | "multipart" | null;
 }): PublicVerifyTimelineEvent {
   return {
     sequence: ev.sequence,
     atUtc: ev.atUtc.toISOString(),
     eventType: ev.eventType,
-    payloadSummary: summarizePublicPayload(ev.eventType, ev.payload),
+    payloadSummary: summarizePublicPayload(ev.eventType, ev.payload, context),
 prevEventHash: ev.prevEventHash,
 eventHash: ev.eventHash,
     category: classifyCustodyEventType(ev.eventType),
@@ -5354,8 +5375,17 @@ timestampDigestCheckConclusive: timestampDigestMatches !== null,
       },
     });
 
-    const mappedForensicEvents = forensicCustodyEvents.map(mapPublicCustodyEvent);
-    const mappedAccessEvents = accessCustodyEvents.map(mapPublicCustodyEvent);
+    const custodyDisplayContext = {
+      itemCount: content.summary.itemCount,
+      structure: content.summary.structure,
+    } as const;
+
+    const mappedForensicEvents = forensicCustodyEvents.map((event) =>
+      mapPublicCustodyEvent(event, custodyDisplayContext)
+    );
+    const mappedAccessEvents = accessCustodyEvents.map((event) =>
+      mapPublicCustodyEvent(event, custodyDisplayContext)
+    );
 
     const overview = buildPublicVerifyOverview({
       evidence: {

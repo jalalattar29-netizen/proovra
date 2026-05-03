@@ -11,6 +11,7 @@ import {
   buildEvidenceTrustDecision,
   formatCaptureLocationAccuracy,
   formatCaptureLocationCoordinate,
+  getReviewerEvidenceTypeLabel,
   getReviewerRelianceLabel,
   getTrustDecisionLabel,
   getTrustNarrative,
@@ -3768,6 +3769,36 @@ setServerVerificationPackageIntegrity(data.verificationPackageIntegrity ?? null)
     return parts.join(" • ");
   }, [evidenceContentSummary?.structure, evidenceContentSummary?.totalSizeDisplay, evidenceItems.length, overview?.itemCount]);
 
+  const reviewerEvidenceTypeLabel = useMemo(() => {
+    return getReviewerEvidenceTypeLabel({
+      itemCount:
+        evidenceContentSummary?.itemCount ?? overview?.itemCount ?? evidenceItems.length,
+      structure: evidenceContentSummary?.structure ?? null,
+      imageCount: evidenceContentSummary?.imageCount ?? null,
+      videoCount: evidenceContentSummary?.videoCount ?? null,
+      audioCount: evidenceContentSummary?.audioCount ?? null,
+      pdfCount: evidenceContentSummary?.pdfCount ?? null,
+      textCount: evidenceContentSummary?.textCount ?? null,
+      otherCount: evidenceContentSummary?.otherCount ?? null,
+      evidenceType: overview?.evidenceType ?? humanSummary?.evidenceType ?? null,
+      mimeType: overview?.mimeType ?? null,
+    });
+  }, [
+    evidenceContentSummary?.audioCount,
+    evidenceContentSummary?.imageCount,
+    evidenceContentSummary?.itemCount,
+    evidenceContentSummary?.otherCount,
+    evidenceContentSummary?.pdfCount,
+    evidenceContentSummary?.structure,
+    evidenceContentSummary?.textCount,
+    evidenceContentSummary?.videoCount,
+    evidenceItems.length,
+    humanSummary?.evidenceType,
+    overview?.evidenceType,
+    overview?.itemCount,
+    overview?.mimeType,
+  ]);
+
   const mismatchMessages = useMemo(() => {
     const items: string[] = [];
 
@@ -4218,8 +4249,7 @@ const executiveBadges = useMemo<
         },
         {
           label: "Evidence Type",
-          value:
-            humanSummary?.evidenceType ?? overview?.evidenceType ?? "Evidence",
+          value: reviewerEvidenceTypeLabel || "Evidence",
           show: true,
         },
         {

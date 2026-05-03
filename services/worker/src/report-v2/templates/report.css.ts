@@ -3936,9 +3936,7 @@ body {
   border-left: 5px solid rgba(96, 66, 24, 0.95) !important;
   border-radius: 10px !important;
   background-color: rgba(255, 255, 255, 0.18) !important;
-  padding: 2.4mm 2.8mm !important;
   display: grid !important;
-  gap: 1.8mm !important;
   break-inside: avoid !important;
   page-break-inside: avoid !important;
 }
@@ -3956,27 +3954,8 @@ body {
 
 .capture-context-layout {
   display: grid !important;
-  grid-template-columns: minmax(0, 0.96fr) minmax(0, 1.04fr) !important;
   gap: 2.2mm !important;
   align-items: start !important;
-}
-
-.capture-context-map-shell {
-  height: 44mm !important;
-  min-height: 40mm !important;
-  max-height: 46mm !important;
-  border-radius: 9px !important;
-  overflow: hidden !important;
-  border: 1px solid rgba(12, 28, 25, 0.18) !important;
-  background: linear-gradient(180deg, rgba(18, 26, 30, 0.96) 0%, rgba(42, 51, 57, 0.98) 100%) !important;
-  box-shadow: inset 0 1px 0 rgba(255,255,255,0.06) !important;
-}
-
-.capture-context-map {
-  display: block !important;
-  width: 100% !important;
-  height: 100% !important;
-  object-fit: cover !important;
 }
 
 .capture-context-metadata {
@@ -4207,26 +4186,28 @@ body {
 }
 
 .capture-context-map-shell {
-  height: 39mm !important;
-  min-height: 38mm !important;
-  max-height: 40mm !important;
+  height: 40mm !important;
+  min-height: 40mm !important;
+  max-height: 42mm !important;
   background: rgba(243, 246, 244, 0.96) !important;
-  box-shadow: inset 0 0 0 1px rgba(111, 130, 127, 0.08) !important;
+  box-shadow: none !important;
 }
 
 .capture-context-map {
+  width: 100% !important;
+  height: 100% !important;
   object-fit: cover !important;
   image-rendering: auto !important;
 }
-
+  
 .capture-context-metadata {
   grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
   gap: 1mm !important;
 }
 
 .capture-context-row {
-  min-height: 9.4mm !important;
-  padding: 1.2mm 1.55mm !important;
+  min-height: 8.8mm !important;
+  padding: 1.15mm 1.45mm !important;
   border-radius: 7px !important;
 }
 
@@ -4237,8 +4218,8 @@ body {
 
 .capture-context-value {
   margin-top: 0.35mm !important;
-  font-size: 8.55px !important;
-  line-height: 1.24 !important;
+  font-size: 8.35px !important;
+  line-height: 1.2 !important;
 }
 
 .capture-context-note {
