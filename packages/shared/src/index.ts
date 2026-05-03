@@ -73,12 +73,15 @@ export {
 } from "./custody.js";
 
 export {
+  getReviewerEvidenceCategories,
   getReviewerEvidenceTypeLabel,
   getReviewerUploadModeLabel,
 } from "./reviewer-evidence.js";
 
 export type {
   TrustDecision,
+  ReviewerPackageTrustDecision,
+  ReviewerPackageTrustSignal,
   TrustDecisionTone,
   TrustSignal,
   TrustSignalKey,
@@ -100,6 +103,8 @@ export {
   getTrustSignalPresentationLabel,
   hasCoreCryptoMaterials,
   isExplicitRecordedIntegrityVerified,
+  serializeTrustDecisionForReviewerPackage,
+  TRUST_DECISION_LEGAL_BOUNDARY,
 } from "./trust-decision.js";
 
 export type {

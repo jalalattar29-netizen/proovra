@@ -11,6 +11,13 @@ type ReviewerEvidenceTypeInput = {
   mimeType?: string | null;
 };
 
+export type ReviewerEvidenceCategory =
+  | "Image"
+  | "Video"
+  | "Audio"
+  | "Document"
+  | "Other";
+
 type ReviewerUploadModeInput = {
   itemCount?: number | null;
   structure?: "single" | "multipart" | string | null;
@@ -45,22 +52,29 @@ function normalizeDisplayToken(value: string | null | undefined): string | null 
     .toLowerCase();
 }
 
+export function getReviewerEvidenceCategories(
+  input: ReviewerEvidenceTypeInput
+): ReviewerEvidenceCategory[] {
+  const categories = [
+    toPositiveNumber(input.imageCount) > 0 ? "Image" : null,
+    toPositiveNumber(input.videoCount) > 0 ? "Video" : null,
+    toPositiveNumber(input.audioCount) > 0 ? "Audio" : null,
+    toPositiveNumber(input.pdfCount) > 0 || toPositiveNumber(input.textCount) > 0
+      ? "Document"
+      : null,
+    toPositiveNumber(input.otherCount) > 0 ? "Other" : null,
+  ].filter(Boolean) as ReviewerEvidenceCategory[];
+
+  return categories;
+}
+
 export function getReviewerEvidenceTypeLabel(
   input: ReviewerEvidenceTypeInput
 ): string {
   if (isMultipartEvidence(input)) {
-    const hasImage = toPositiveNumber(input.imageCount) > 0;
-    const hasVideo = toPositiveNumber(input.videoCount) > 0;
-    const hasAudio = toPositiveNumber(input.audioCount) > 0;
-    const hasDocument =
-      toPositiveNumber(input.pdfCount) > 0 || toPositiveNumber(input.textCount) > 0;
-
-    const categories = [
-      hasImage ? "Image" : null,
-      hasVideo ? "Video" : null,
-      hasAudio ? "Audio" : null,
-      hasDocument ? "Document" : null,
-    ].filter(Boolean) as string[];
+    const categories = getReviewerEvidenceCategories(input).filter(
+      (category) => category !== "Other"
+    );
 
     if (categories.length > 1) return "Mixed Media Evidence Package";
     if (categories.length === 1) return `${categories[0]} Evidence Package`;

@@ -60,6 +60,36 @@ export type TrustDecision = {
   failedSignals: number;
 };
 
+export type ReviewerPackageTrustSignal = Pick<
+  TrustSignal,
+  "key" | "label" | "status" | "tone" | "summary"
+>;
+
+export type ReviewerPackageTrustDecision = {
+  verdict: TrustDecisionVerdict;
+  verdictLabel: string;
+  relianceLevel: TrustDecision["relianceLevel"];
+  relianceLabel: string;
+  narrative: string;
+  reviewerAction: string;
+  legalBoundary: string;
+  signals: ReviewerPackageTrustSignal[];
+  internalDebug?: {
+    score: number;
+    maxScore: number;
+    scoreLabel: string;
+    passedSignals: number;
+    degradedSignals: number;
+    failedSignals: number;
+    signals: Array<
+      ReviewerPackageTrustSignal & {
+        points: number;
+        maxPoints: number;
+      }
+    >;
+  };
+};
+
 export function getTrustDecisionLabel(
   decision: Pick<TrustDecision, "verdictLabel">
 ): string {
@@ -151,6 +181,53 @@ export function getTrustNarrative(
   }
 
   return "Recorded verification materials require reviewer follow-up before higher-reliance use.";
+}
+
+export const TRUST_DECISION_LEGAL_BOUNDARY =
+  "This trust decision summarizes the recorded integrity state of the evidence record. It does not independently prove factual truth, authorship, legal admissibility, intent, or completed public anchoring unless those external publication materials are separately verified.";
+
+export function serializeTrustDecisionForReviewerPackage(
+  decision: TrustDecision,
+  options?: { includeInternalDebug?: boolean }
+): ReviewerPackageTrustDecision {
+  const base: ReviewerPackageTrustDecision = {
+    verdict: decision.verdict,
+    verdictLabel: decision.verdictLabel,
+    relianceLevel: decision.relianceLevel,
+    relianceLabel: getReviewerRelianceLabel(decision.relianceLevel),
+    narrative: getTrustNarrative(decision),
+    reviewerAction: decision.reviewerAction,
+    legalBoundary: TRUST_DECISION_LEGAL_BOUNDARY,
+    signals: decision.signals.map((signal) => ({
+      key: signal.key,
+      label: signal.label,
+      status: signal.status,
+      tone: signal.tone,
+      summary: signal.summary,
+    })),
+  };
+
+  if (options?.includeInternalDebug) {
+    base.internalDebug = {
+      score: decision.score,
+      maxScore: decision.maxScore,
+      scoreLabel: decision.scoreLabel,
+      passedSignals: decision.passedSignals,
+      degradedSignals: decision.degradedSignals,
+      failedSignals: decision.failedSignals,
+      signals: decision.signals.map((signal) => ({
+        key: signal.key,
+        label: signal.label,
+        status: signal.status,
+        tone: signal.tone,
+        summary: signal.summary,
+        points: signal.points,
+        maxPoints: signal.maxPoints,
+      })),
+    };
+  }
+
+  return base;
 }
 
 export type TrustDecisionEvidenceInput = {

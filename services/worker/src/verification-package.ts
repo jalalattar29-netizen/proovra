@@ -7,9 +7,13 @@ import {
   CAPTURE_LOCATION_CONTEXT_DESCRIPTION,
   CAPTURE_LOCATION_LEGAL_BOUNDARY,
   CAPTURE_LOCATION_SOURCE_LABEL,
+  TRUST_DECISION_LEGAL_BOUNDARY,
   buildCaptureLocationExternalMapUrl,
+  getReviewerEvidenceCategories,
+  getReviewerEvidenceTypeLabel,
   hasCaptureLocationMetadata,
   isAccessCustodyEventType,
+  serializeTrustDecisionForReviewerPackage,
 } from "@proovra/shared";
 import type { ReportTrustDecision } from "./report-v2/types.js";
 import { renderCaptureLocationMapPreviewPng } from "./capture-location-map.js";
@@ -83,6 +87,12 @@ type PackageManifest = {
   signingKeyId: string | null;
   signingKeyVersion: string | null;
   multipart: boolean;
+  rawEvidenceType?: string | null;
+  rawEvidenceTypeSource?: string | null;
+  reviewerEvidenceType?: string | null;
+  evidenceStructure?: string | null;
+  itemCount?: number | null;
+  contentCategories?: string[] | null;
   fileCount: number;
   generatedAtUtc: string;
   accessSnapshotGeneratedAtUtc?: string | null;
@@ -126,7 +136,19 @@ type PackageManifest = {
 
 type VerificationPackageMetadata = {
   title?: string | null;
-  evidenceType?: string | null;
+  rawEvidenceType?: string | null;
+  rawEvidenceTypeSource?: string | null;
+  reviewerEvidenceType?: string | null;
+  evidenceStructure?: string | null;
+  itemCount?: number | null;
+  contentCategories?: string[] | null;
+  imageCount?: number | null;
+  videoCount?: number | null;
+  audioCount?: number | null;
+  pdfCount?: number | null;
+  textCount?: number | null;
+  otherCount?: number | null;
+  mimeType?: string | null;
   evidenceStatus?: string | null;
   verificationStatus?: string | null;
   captureMethod?: string | null;
@@ -478,6 +500,63 @@ function safeText(value: string | null | undefined, fallback = "N/A"): string {
   return text || fallback;
 }
 
+function buildReviewerEvidenceMetadata(metadata: VerificationPackageMetadata) {
+  return {
+    rawEvidenceType: metadata.rawEvidenceType ?? null,
+    rawEvidenceTypeSource: metadata.rawEvidenceTypeSource ?? null,
+    reviewerEvidenceType:
+      metadata.reviewerEvidenceType ??
+      getReviewerEvidenceTypeLabel({
+        itemCount: metadata.itemCount ?? null,
+        structure:
+          metadata.evidenceStructure === "Multipart evidence package"
+            ? "multipart"
+            : metadata.evidenceStructure === "Single evidence item"
+              ? "single"
+              : null,
+        imageCount: metadata.imageCount ?? null,
+        videoCount: metadata.videoCount ?? null,
+        audioCount: metadata.audioCount ?? null,
+        pdfCount: metadata.pdfCount ?? null,
+        textCount: metadata.textCount ?? null,
+        otherCount: metadata.otherCount ?? null,
+        evidenceType: metadata.rawEvidenceType ?? null,
+        mimeType: metadata.mimeType ?? null,
+      }),
+    evidenceStructure:
+      metadata.evidenceStructure ??
+      ((metadata.itemCount ?? 0) > 1
+        ? "Multipart evidence package"
+        : "Single evidence item"),
+    itemCount: metadata.itemCount ?? null,
+    contentCategories:
+      metadata.contentCategories ??
+      getReviewerEvidenceCategories({
+        itemCount: metadata.itemCount ?? null,
+        structure:
+          metadata.evidenceStructure === "Multipart evidence package"
+            ? "multipart"
+            : metadata.evidenceStructure === "Single evidence item"
+              ? "single"
+              : null,
+        imageCount: metadata.imageCount ?? null,
+        videoCount: metadata.videoCount ?? null,
+        audioCount: metadata.audioCount ?? null,
+        pdfCount: metadata.pdfCount ?? null,
+        textCount: metadata.textCount ?? null,
+        otherCount: metadata.otherCount ?? null,
+        evidenceType: metadata.rawEvidenceType ?? null,
+        mimeType: metadata.mimeType ?? null,
+      }),
+    imageCount: metadata.imageCount ?? null,
+    videoCount: metadata.videoCount ?? null,
+    audioCount: metadata.audioCount ?? null,
+    pdfCount: metadata.pdfCount ?? null,
+    textCount: metadata.textCount ?? null,
+    otherCount: metadata.otherCount ?? null,
+  };
+}
+
 function sha256Hex(bufferOrText: Buffer | string): string {
   return createHash("sha256").update(bufferOrText).digest("hex");
 }
@@ -607,6 +686,8 @@ function buildCaseMetadata(
   metadata: VerificationPackageMetadata,
   evidenceId?: string | null
 ) {
+  const reviewerEvidence = buildReviewerEvidenceMetadata(metadata);
+
   return {
     schema: "PROOVRA_CASE_METADATA",
     version: 1,
@@ -614,7 +695,19 @@ function buildCaseMetadata(
     evidence: {
       evidenceId: evidenceId ?? null,
       title: metadata.title ?? null,
-      evidenceType: metadata.evidenceType ?? null,
+      rawEvidenceType: reviewerEvidence.rawEvidenceType,
+      rawEvidenceTypeSource: reviewerEvidence.rawEvidenceTypeSource,
+      reviewerEvidenceType: reviewerEvidence.reviewerEvidenceType,
+      evidenceStructure: reviewerEvidence.evidenceStructure,
+      itemCount: reviewerEvidence.itemCount,
+      contentCategories: reviewerEvidence.contentCategories,
+      imageCount: reviewerEvidence.imageCount,
+      videoCount: reviewerEvidence.videoCount,
+      audioCount: reviewerEvidence.audioCount,
+      pdfCount: reviewerEvidence.pdfCount,
+      textCount: reviewerEvidence.textCount,
+      otherCount: reviewerEvidence.otherCount,
+      mimeType: metadata.mimeType ?? null,
       evidenceStatus: metadata.evidenceStatus ?? null,
       verificationStatus: metadata.verificationStatus ?? null,
       captureMethod: metadata.captureMethod ?? null,
@@ -822,7 +915,7 @@ The package includes:
 - \`signature.txt\`
 - \`public-key.pem\`
 
-The signature is generated against PROOVRA fingerprint material. Depending on the exact signing mode, independent verification may require the platform canonicalization rule or a verifier matched to the production signing scheme.
+The signature is generated against PROOVRA fingerprint material. \`fingerprint.json\` is the raw canonical technical record and may retain low-level source enums such as the primary record evidence type. Use \`case-metadata.json\` and \`original-linkage.json\` for reviewer-facing normalized evidence classification. Depending on the exact signing mode, independent verification may require the platform canonicalization rule or a verifier matched to the production signing scheme.
 
 ## 5. Verify timestamp material
 
@@ -946,12 +1039,55 @@ function buildVerifyPackageScript() {
     "}",
     "",
     "// ------------------------------",
+    "// 3. OPTIONAL MATERIAL STATUS",
+    "// ------------------------------",
+    "",
+    'if (existsSync("timestamp.tsr")) {',
+    '  console.log("ℹ RFC3161 TOKEN PRESENT");',
+    "} else {",
+    '  console.log("ℹ RFC3161 TOKEN NOT INCLUDED");',
+    "}",
+    "",
+    'if (existsSync("anchor.json")) {',
+    '  const anchor = JSON.parse(readFileSync("anchor.json", "utf8"));',
+    '  const anchorStatus = String(anchor.status || "").trim().toLowerCase();',
+    '  const anchorLabel = anchorStatus === "pending_public_anchor"',
+    '    ? "OTS PROOF PRESENT - PUBLIC ANCHORING PENDING"',
+    '    : anchorStatus === "anchored"',
+    '      ? "PUBLIC ANCHORING VERIFIED"',
+    '      : anchorStatus === "failed"',
+    '        ? "PUBLIC ANCHORING FAILED"',
+    '        : anchorStatus === "not_configured"',
+    '          ? "PUBLIC ANCHORING UNAVAILABLE"',
+    '          : String(anchor.statusLabel || "ANCHOR STATUS RECORDED").toUpperCase();',
+    '  console.log("ℹ " + anchorLabel);',
+    "} else {",
+    '  let manifestAnchorMode = "";',
+    '  if (existsSync(manifestPath)) {',
+    '    const manifestJson = JSON.parse(readFileSync(manifestPath, "utf8"));',
+    '    manifestAnchorMode = String(manifestJson.anchorMode || "").trim().toLowerCase();',
+    "  }",
+    '  if (manifestAnchorMode === "pending_public_anchor") {',
+    '    console.log("ℹ OTS PROOF PRESENT - PUBLIC ANCHORING PENDING");',
+    '  } else if (manifestAnchorMode === "not_configured") {',
+    '    console.log("ℹ PUBLIC ANCHORING UNAVAILABLE");',
+    '  } else {',
+    '    console.log("ℹ PUBLIC ANCHORING MATERIAL NOT INCLUDED");',
+    "  }",
+    "}",
+    "",
+    "// ------------------------------",
     "// FINAL RESULT",
     "// ------------------------------",
     "",
     "if (process.exitCode) process.exit();",
     "",
-    'console.log("✅ FULL PACKAGE VERIFIED");',
+    'console.log("✅ PACKAGE FILES AND MANIFEST VERIFIED");',
+    'console.log("  - Checksums OK");',
+    'console.log("  - Manifest signature VALID");',
+    'console.log("  - Preserved package files match the signed manifest");',
+    'console.log("  - This does not independently prove factual truth, authorship, legal admissibility, or completed public anchoring");',
+    'console.log("  - Review RFC3161 timestamp, OpenTimestamps/public anchoring, custody, and legal context separately");',
     "",
   ].join("\n");
 }
@@ -1106,9 +1242,23 @@ function buildOriginalLinkage(
   evidenceFiles: Array<VerificationEvidenceFile & { finalName: string }>,
   metadata: VerificationPackageMetadata
 ): Record<string, unknown> {
+  const reviewerEvidence = buildReviewerEvidenceMetadata(metadata);
+
   return {
     evidenceTitle: metadata.title ?? null,
-    evidenceType: metadata.evidenceType ?? null,
+    rawEvidenceType: reviewerEvidence.rawEvidenceType,
+    rawEvidenceTypeSource: reviewerEvidence.rawEvidenceTypeSource,
+    reviewerEvidenceType: reviewerEvidence.reviewerEvidenceType,
+    evidenceStructure: reviewerEvidence.evidenceStructure,
+    itemCount: reviewerEvidence.itemCount,
+    contentCategories: reviewerEvidence.contentCategories,
+    imageCount: reviewerEvidence.imageCount,
+    videoCount: reviewerEvidence.videoCount,
+    audioCount: reviewerEvidence.audioCount,
+    pdfCount: reviewerEvidence.pdfCount,
+    textCount: reviewerEvidence.textCount,
+    otherCount: reviewerEvidence.otherCount,
+    mimeType: metadata.mimeType ?? null,
     evidenceStatus: metadata.evidenceStatus ?? null,
     verificationStatus: metadata.verificationStatus ?? null,
     captureMethod: metadata.captureMethod ?? null,
@@ -1178,7 +1328,10 @@ function buildPackageManifest(params: {
   hasReportArtifact: boolean;
   hasCaptureContext: boolean;
   hasCaptureContextMapPreview: boolean;
+  metadata: VerificationPackageMetadata;
 }): PackageManifest {
+  const reviewerEvidence = buildReviewerEvidenceMetadata(params.metadata);
+
   return {
     packageType: "PROOVRA_VERIFICATION_PACKAGE",
     version: 4,
@@ -1188,6 +1341,12 @@ function buildPackageManifest(params: {
     signingKeyVersion:
       params.signingKeyVersion != null ? String(params.signingKeyVersion) : null,
     multipart: params.evidenceFiles.length > 1,
+    rawEvidenceType: reviewerEvidence.rawEvidenceType,
+    rawEvidenceTypeSource: reviewerEvidence.rawEvidenceTypeSource,
+    reviewerEvidenceType: reviewerEvidence.reviewerEvidenceType,
+    evidenceStructure: reviewerEvidence.evidenceStructure,
+    itemCount: reviewerEvidence.itemCount,
+    contentCategories: reviewerEvidence.contentCategories,
     fileCount: params.evidenceFiles.length,
     generatedAtUtc: new Date().toISOString(),
     accessSnapshotGeneratedAtUtc: new Date().toISOString(),
@@ -1273,8 +1432,10 @@ function buildReadme(params: {
   hasTimestampToken: boolean;
   timestampStatus?: string | null;
   otsStatus?: string | null;
+  metadata: VerificationPackageMetadata;
 }): string {
   const multipart = params.evidenceFiles.length > 1;
+  const reviewerEvidence = buildReviewerEvidenceMetadata(params.metadata);
   const timestampStatus = String(params.timestampStatus ?? "").toUpperCase();
   const otsStatus = String(params.otsStatus ?? "").toUpperCase();
 
@@ -1310,7 +1471,9 @@ Signing Key Version: ${
       ? String(params.signingKeyVersion)
       : "Not included"
   }
-Evidence Structure: ${multipart ? "Multipart evidence package" : "Single evidence item"}
+Reviewer Evidence Type: ${safeText(reviewerEvidence.reviewerEvidenceType, "Not included")}
+Raw Evidence Type Enum: ${safeText(reviewerEvidence.rawEvidenceType, "Not included")}
+Evidence Structure: ${safeText(reviewerEvidence.evidenceStructure, multipart ? "Multipart evidence package" : "Single evidence item")}
 
 Verification Profile: FORENSIC_INTEGRITY
 Verification Status Note: Integrity materials may be present even when the record still requires legal or reviewer assessment.
@@ -1329,7 +1492,7 @@ The original uploaded evidence item is included at the root of this package.`
 }
 
 fingerprint.json
-Canonical fingerprint used to generate the signature.
+Canonical fingerprint used to generate the signature. This is raw signed technical material and may retain the primary record enum rather than the reviewer-facing evidence classification.
 
 signature.txt
 Ed25519 signature of the fingerprint hash material.
@@ -1417,6 +1580,7 @@ HOW TO VERIFY
 
 1) Extract the package.
 2) Run: node verify-package.mjs
+   This verifies package file checksums and the signed package manifest only.
 3) Review fingerprint.json.
 4) Calculate SHA-256 hash of the included evidence file(s).
 5) Compare computed hashes against original-linkage.json, fingerprint.json, and package-checksums.json.
@@ -1493,6 +1657,8 @@ function buildCourtReadinessChecklist(params: {
     qualifiedPerson?: VerificationCertificationRecord | null;
   };
 }): Record<string, unknown> {
+  const reviewerEvidence = buildReviewerEvidenceMetadata(params.metadata);
+
   return {
     packetProfile: "COURT_READY_SUPPORTING_PACKET",
     status: {
@@ -1526,7 +1692,12 @@ function buildCourtReadinessChecklist(params: {
       "The preserved original should remain available for deeper inspection, comparison, and evidentiary challenge.",
     ],
     context: {
-      evidenceType: params.metadata.evidenceType ?? null,
+      rawEvidenceType: reviewerEvidence.rawEvidenceType,
+      rawEvidenceTypeSource: reviewerEvidence.rawEvidenceTypeSource,
+      reviewerEvidenceType: reviewerEvidence.reviewerEvidenceType,
+      evidenceStructure: reviewerEvidence.evidenceStructure,
+      itemCount: reviewerEvidence.itemCount,
+      contentCategories: reviewerEvidence.contentCategories,
       verificationStatus: params.metadata.verificationStatus ?? null,
       captureMethod: params.metadata.captureMethod ?? null,
       forensicCustodyEventCount: params.forensicCustodyCount,
@@ -1609,6 +1780,8 @@ function buildSystemProcessDeclaration(params: {
   evidenceFiles: VerificationEvidenceFile[];
   metadata: VerificationPackageMetadata;
 }): string {
+  const reviewerEvidence = buildReviewerEvidenceMetadata(params.metadata);
+
   return `# PROOVRA System Process Declaration
 
 This package documents a PROOVRA evidence record and the integrity-verification materials generated around it.
@@ -1616,7 +1789,8 @@ This package documents a PROOVRA evidence record and the integrity-verification 
 ## Preserved originals
 
 - Included preserved item count: ${params.evidenceFiles.length}
-- Evidence type: ${safeText(params.metadata.evidenceType, "Not included")}
+- Reviewer evidence type: ${safeText(reviewerEvidence.reviewerEvidenceType, "Not included")}
+- Raw evidence type enum: ${safeText(reviewerEvidence.rawEvidenceType, "Not included")}
 - Capture method snapshot: ${safeText(params.metadata.captureMethod, "Not included")}
 
 ## Integrity process
@@ -1917,7 +2091,7 @@ export async function createVerificationPackage(data: {
       const finalName = buildEvidencePackageFileName({
         evidenceTitle: metadata.title ?? null,
         originalFileName: file.originalFileName ?? file.name,
-        evidenceType: metadata.evidenceType ?? null,
+        evidenceType: metadata.rawEvidenceType ?? null,
         mimeType: file.mimeType ?? null,
         captureMethod: metadata.captureMethod ?? null,
         capturedAtUtc: metadata.capturedAtUtc ?? null,
@@ -2076,6 +2250,7 @@ export async function createVerificationPackage(data: {
       hasReportArtifact: Boolean(data.reportPdf),
       hasCaptureContext: Boolean(captureContextData),
       hasCaptureContextMapPreview: Boolean(captureContextMapPreview),
+      metadata,
     });
 
     const packageManifestBuffer = jsonBuffer(packageManifest);
@@ -2152,7 +2327,14 @@ The result must match the expected SHA-256 above and the manifestSha256 field in
       archive,
       packageEntries,
       "trust-decision.json",
-      jsonBuffer(data.trustDecision),
+      jsonBuffer(
+        serializeTrustDecisionForReviewerPackage(data.trustDecision, {
+          includeInternalDebug:
+            String(process.env.PROOVRA_INCLUDE_INTERNAL_TRUST_DEBUG ?? "")
+              .trim()
+              .toLowerCase() === "true",
+        })
+      ),
       "application/json"
     );
 
@@ -2289,6 +2471,7 @@ The result must match the expected SHA-256 above and the manifestSha256 field in
           hasTimestampToken,
           timestampStatus: metadata.tsaStatus ?? null,
           otsStatus: metadata.otsStatus ?? null,
+          metadata,
         })
       ),
       "text/plain"

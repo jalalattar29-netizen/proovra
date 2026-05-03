@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   buildEvidenceTrustDecision,
   evaluateRecordedIntegrityPromotion,
+  serializeTrustDecisionForReviewerPackage,
 } from "../dist/index.js";
 
 function buildForensicEvent(index) {
@@ -324,4 +325,48 @@ test("valid txid with missing ots hash can still pass anchoring", () => {
 
   assert.equal(anchoring?.status, "passed");
   assert.equal(anchoring?.points, 10);
+});
+
+test("reviewer package trust serialization omits numeric score fields by default", () => {
+  const trustDecision = buildEvidenceTrustDecision({
+    evidence: buildBaseEvidence({
+      verificationStatus: "RECORDED_INTEGRITY_VERIFIED",
+      recordedIntegrityVerifiedAtUtc: "2026-05-02T10:00:00.000Z",
+    }),
+    custodyEvents: [
+      buildForensicEvent(1),
+      buildForensicEvent(2),
+      buildForensicEvent(3),
+      buildForensicEvent(4),
+      buildForensicEvent(5),
+    ],
+  });
+
+  const serialized = serializeTrustDecisionForReviewerPackage(trustDecision);
+
+  assert.equal("score" in serialized, false);
+  assert.equal("scoreLabel" in serialized, false);
+  assert.equal("maxScore" in serialized, false);
+  assert.equal("internalDebug" in serialized, false);
+  assert.ok(Array.isArray(serialized.signals));
+  assert.equal("points" in serialized.signals[0], false);
+  assert.equal("maxPoints" in serialized.signals[0], false);
+});
+
+test("reviewer package trust serialization includes internal debug only when enabled", () => {
+  const trustDecision = buildEvidenceTrustDecision({
+    evidence: buildBaseEvidence(),
+    custodyEvents: [buildForensicEvent(1), buildForensicEvent(2), buildForensicEvent(3)],
+  });
+
+  const serialized = serializeTrustDecisionForReviewerPackage(trustDecision, {
+    includeInternalDebug: true,
+  });
+
+  assert.ok(serialized.internalDebug);
+  assert.equal(serialized.internalDebug.scoreLabel, trustDecision.scoreLabel);
+  assert.equal(
+    serialized.internalDebug.signals[0].points,
+    trustDecision.signals[0].points
+  );
 });
