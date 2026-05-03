@@ -83,6 +83,12 @@ async function fetchTileBuffer(url: string): Promise<Buffer> {
 async function renderFallbackPng(
   input: CaptureLocationInput & { width?: number; height?: number; zoom?: number }
 ): Promise<Buffer | null> {
+  console.info("[capture-location-map] using pdf fallback renderer", {
+    mode: DEFAULT_MAP_MODE,
+    width: input.width ?? null,
+    height: input.height ?? null,
+    zoom: input.zoom ?? null,
+  });
   const svg = buildCaptureLocationPdfFallbackSvg({
     lat: input.lat ?? 0,
     lng: input.lng ?? 0,
@@ -119,17 +125,35 @@ async function renderStaticTilePreview(
 
   if (!model) return null;
 
+  console.info("[capture-location-map] renderStaticTilePreview start", {
+    mode: DEFAULT_MAP_MODE,
+    width: model.width,
+    height: model.height,
+    zoom: model.zoom,
+    tileGrid: model.tileGrid,
+    tileCount: model.tiles.length,
+  });
+
   const tileBuffers = await Promise.all(
     model.tiles.map(async (tile) => {
       if (!tile.url) return null;
-      const buffer = await fetchTileBuffer(tile.url);
-      return {
-        left: Math.round(tile.left),
-        top: Math.round(tile.top),
-        width: Math.max(1, Math.round(tile.width)),
-        height: Math.max(1, Math.round(tile.height)),
-        buffer,
-      };
+      try {
+        const buffer = await fetchTileBuffer(tile.url);
+        return {
+          left: Math.round(tile.left),
+          top: Math.round(tile.top),
+          width: Math.max(1, Math.round(tile.width)),
+          height: Math.max(1, Math.round(tile.height)),
+          buffer,
+        };
+      } catch (error) {
+        console.warn("[capture-location-map] tile fetch failed", {
+          tile: tile.key,
+          url: tile.url,
+          error,
+        });
+        return null;
+      }
     })
   );
 
@@ -137,9 +161,27 @@ async function renderStaticTilePreview(
     (tile): tile is NonNullable<typeof tile> => tile !== null
   );
 
-  if (validTiles.length === 0) {
-    return null;
-  }
+  console.info("[capture-location-map] tile fetch result", {
+    requestedTiles: model.tiles.length,
+    validTiles: validTiles.length,
+    width: model.width,
+    height: model.height,
+    zoom: model.zoom,
+  });
+
+const minimumUsefulTiles = Math.ceil(model.tiles.length * 0.75);
+
+if (validTiles.length < minimumUsefulTiles) {
+  console.warn("[capture-location-map] insufficient valid tiles, falling back", {
+    requestedTiles: model.tiles.length,
+    validTiles: validTiles.length,
+    minimumUsefulTiles,
+    width: model.width,
+    height: model.height,
+    zoom: model.zoom,
+  });
+  return null;
+}
 
   const base = sharp({
     create: {
@@ -204,7 +246,8 @@ export async function renderCaptureLocationMapPreviewPng(
   }
 
   try {
-    return (await renderStaticTilePreview(input)) ?? (await renderFallbackPng(input));
+    const tilePreview = await renderStaticTilePreview(input);
+    return tilePreview ?? (await renderFallbackPng(input));
   } catch (error) {
     console.warn(
       "[capture-location-map] Falling back to deterministic preview:",

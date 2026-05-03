@@ -4207,11 +4207,11 @@ body {
 }
 
 .capture-context-map-shell {
-  height: 36mm !important;
-  min-height: 36mm !important;
-  max-height: 38mm !important;
+  height: 39mm !important;
+  min-height: 38mm !important;
+  max-height: 40mm !important;
   background: rgba(243, 246, 244, 0.96) !important;
-  box-shadow: none !important;
+  box-shadow: inset 0 0 0 1px rgba(111, 130, 127, 0.08) !important;
 }
 
 .capture-context-map {
@@ -4225,8 +4225,8 @@ body {
 }
 
 .capture-context-row {
-  min-height: 8.8mm !important;
-  padding: 1.15mm 1.45mm !important;
+  min-height: 9.4mm !important;
+  padding: 1.2mm 1.55mm !important;
   border-radius: 7px !important;
 }
 
@@ -4237,8 +4237,8 @@ body {
 
 .capture-context-value {
   margin-top: 0.35mm !important;
-  font-size: 8.35px !important;
-  line-height: 1.2 !important;
+  font-size: 8.55px !important;
+  line-height: 1.24 !important;
 }
 
 .capture-context-note {

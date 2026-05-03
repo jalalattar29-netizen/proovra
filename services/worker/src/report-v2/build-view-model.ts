@@ -6,7 +6,7 @@ import {
   CAPTURE_LOCATION_SOURCE_LABEL,
   CAPTURE_LOCATION_STATUS_LABEL,
   buildCaptureLocationDisplayModel,
-  buildCaptureLocationMapDataUrl,
+  buildCaptureLocationPdfFallbackSvg,
   formatCaptureLocationAccuracy,
   formatCaptureLocationCoordinate,
   hasCaptureLocationMetadata,
@@ -1335,59 +1335,68 @@ const verificationPackageIntegrity = {
     externalMode
   );
 
-  const captureLocationModel = buildCaptureLocationDisplayModel({
-    lat: input.evidence.gps.lat ?? 0,
-    lng: input.evidence.gps.lng ?? 0,
-    accuracyMeters: input.evidence.gps.accuracyMeters,
-    width: 1200,
-    height: 720,
-  });
+const captureLat = input.evidence.gps.lat;
+const captureLng = input.evidence.gps.lng;
 
-  const captureContext = hasCaptureLocationMetadata({
-    lat: input.evidence.gps.lat,
-    lng: input.evidence.gps.lng,
-  })
-    ? {
-        statusLabel: CAPTURE_LOCATION_STATUS_LABEL,
-        description: CAPTURE_LOCATION_CONTEXT_DESCRIPTION,
-        lat:
-          captureLocationModel?.latLabel ??
-          formatCaptureLocationCoordinate(input.evidence.gps.lat),
-        lng:
-          captureLocationModel?.lngLabel ??
-          formatCaptureLocationCoordinate(input.evidence.gps.lng),
-        accuracyRadius:
-          captureLocationModel?.accuracyLabel ??
-          formatCaptureLocationAccuracy(input.evidence.gps.accuracyMeters),
-        capturedAtLabel: formatReportTimestamp(
-          input.evidence.capturedAtUtc ??
-            input.evidence.deviceTimeIso ??
-            input.evidence.createdAtUtc
-        ),
-        sourceLabel: CAPTURE_LOCATION_SOURCE_LABEL,
-        legalBoundary: CAPTURE_LOCATION_LEGAL_BOUNDARY,
-mapPreviewDataUrl:
-  (await renderCaptureLocationMapPreviewDataUrl({
-    lat: input.evidence.gps.lat ?? 0,
-    lng: input.evidence.gps.lng ?? 0,
-    accuracyMeters: input.evidence.gps.accuracyMeters,
-    width: 1600,
-    height: 680,
-    zoom: 16,
-    tileGrid: 5,
-  })) ??
-  buildCaptureLocationMapDataUrl({
-    lat: input.evidence.gps.lat ?? 0,
-    lng: input.evidence.gps.lng ?? 0,
-    accuracyMeters: input.evidence.gps.accuracyMeters,
-    width: 1600,
-    height: 680,
-    zoom: 16,
-  }) ??
-  "",
-      }
+const hasCaptureContext = hasCaptureLocationMetadata({
+  lat: captureLat,
+  lng: captureLng,
+});
+
+const captureLocationModel =
+  hasCaptureContext && captureLat !== null && captureLng !== null
+    ? buildCaptureLocationDisplayModel({
+        lat: captureLat,
+        lng: captureLng,
+        accuracyMeters: input.evidence.gps.accuracyMeters,
+        width: 1200,
+        height: 720,
+      })
     : null;
 
+const captureContext = hasCaptureContext && captureLat !== null && captureLng !== null
+  ? {
+      statusLabel: CAPTURE_LOCATION_STATUS_LABEL,
+      description: CAPTURE_LOCATION_CONTEXT_DESCRIPTION,
+      lat:
+        captureLocationModel?.latLabel ??
+        formatCaptureLocationCoordinate(captureLat),
+      lng:
+        captureLocationModel?.lngLabel ??
+        formatCaptureLocationCoordinate(captureLng),
+      accuracyRadius:
+        captureLocationModel?.accuracyLabel ??
+        formatCaptureLocationAccuracy(input.evidence.gps.accuracyMeters),
+      capturedAtLabel: formatReportTimestamp(
+        input.evidence.capturedAtUtc ??
+          input.evidence.deviceTimeIso ??
+          input.evidence.createdAtUtc
+      ),
+      sourceLabel: CAPTURE_LOCATION_SOURCE_LABEL,
+      legalBoundary: CAPTURE_LOCATION_LEGAL_BOUNDARY,
+      mapPreviewDataUrl:
+        (await renderCaptureLocationMapPreviewDataUrl({
+          lat: captureLat,
+          lng: captureLng,
+          accuracyMeters: input.evidence.gps.accuracyMeters,
+          width: 1800,
+          height: 760,
+          zoom: 16,
+          tileGrid: 5,
+        })) ??
+        `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(
+          buildCaptureLocationPdfFallbackSvg({
+            lat: captureLat,
+            lng: captureLng,
+            accuracyMeters: input.evidence.gps.accuracyMeters,
+            width: 1800,
+            height: 760,
+            zoom: 16,
+          })
+        )}`,
+    }
+  : null;
+  
   return {
     mode,
     presentationMode,

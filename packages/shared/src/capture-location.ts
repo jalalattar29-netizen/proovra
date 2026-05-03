@@ -330,6 +330,8 @@ export function buildCaptureLocationDisplayModel(params: {
   const markerBaseY = worldPixel.y - startPixelY;
   const markerX = (markerBaseX - cropLeft) * scale;
   const markerY = (markerBaseY - cropTop) * scale;
+  const clampedMarkerX = Math.max(0, Math.min(width, markerX));
+const clampedMarkerY = Math.max(0, Math.min(height, markerY));
   const accuracyRadiusPx =
     accuracy === null || accuracy < 0
       ? Math.max(22, Math.min(46, width * 0.032))
@@ -387,8 +389,8 @@ export function buildCaptureLocationDisplayModel(params: {
       zoom
     )!,
     metersPerPixel,
-    markerX,
-    markerY,
+markerX: clampedMarkerX,
+markerY: clampedMarkerY,
     accuracyRadiusPx,
     scaleBarMeters,
     scaleBarLabel: formatScaleBarLabel(scaleBarMeters),
@@ -639,40 +641,60 @@ export function buildCaptureLocationPdfFallbackSvg(params: {
     const x = framePaddingX + (plotWidth / 5) * index;
     return `<line x1="${x}" y1="${framePaddingY}" x2="${x}" y2="${
       height - framePaddingY
-    }" stroke="rgba(128,145,144,0.14)" stroke-width="1" />`;
+    }" stroke="rgba(90,110,105,0.20)" stroke-width="1.1" />`;
   }).join("");
 
   const horizontalLines = Array.from({ length: 4 }, (_, index) => {
     const y = framePaddingY + (plotHeight / 3) * index;
     return `<line x1="${framePaddingX}" y1="${y}" x2="${
       width - framePaddingX
-    }" y2="${y}" stroke="rgba(128,145,144,0.12)" stroke-width="1" />`;
+    }" y2="${y}" stroke="rgba(90,110,105,0.18)" stroke-width="1.1" />`;
   }).join("");
 
   const roadPaths = [
     buildSurveyCurvePath(width, height, seed + 7, 20, 0.28),
     buildSurveyCurvePath(width, height, seed + 17, 18, 0.5),
     buildSurveyCurvePath(width, height, seed + 31, 22, 0.7),
+    buildSurveyCurvePath(width, height, seed + 41, 15, 0.38),
+    buildSurveyCurvePath(width, height, seed + 59, 17, 0.62),
   ]
     .map(
       (d, index) =>
         `<path d="${d}" fill="none" stroke="${
-          index === 1 ? "rgba(115,126,125,0.36)" : "rgba(162,171,169,0.32)"
-        }" stroke-width="${index === 1 ? 4.2 : 2.2}" stroke-linecap="round" />`
+          index === 1
+            ? "rgba(80,95,92,0.35)"
+            : index >= 3
+              ? "rgba(124,138,135,0.30)"
+              : "rgba(146,158,155,0.28)"
+        }" stroke-width="${
+          index === 1 ? 4.8 : index >= 3 ? 1.8 : 2.5
+        }" stroke-linecap="round" />`
     )
     .join("");
 
-  const terrainPaths = Array.from({ length: 4 }, (_, index) =>
+  const terrainPaths = Array.from({ length: 6 }, (_, index) =>
     `<path d="${buildSurveyCurvePath(
       width,
       height,
       seed + 47 + index * 9,
       11 + index * 3,
       0.18 + index * 0.18
-    )}" fill="none" stroke="rgba(178,186,183,0.25)" stroke-width="${
-      1.1 + index * 0.12
+    )}" fill="none" stroke="rgba(136,154,149,0.18)" stroke-width="${
+      1.15 + index * 0.16
     }" />`
   ).join("");
+
+  const parcelLines = Array.from({ length: 8 }, (_, index) => {
+    const x1 = framePaddingX + (plotWidth / 7) * (index % 7);
+    const y1 = framePaddingY + (plotHeight / 8) * index;
+    const x2 = x1 + plotWidth * 0.18;
+    const y2 = y1 + plotHeight * 0.12;
+    return `<line x1="${x1.toFixed(1)}" y1="${y1.toFixed(
+      1
+    )}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(
+      1
+    )}" stroke="rgba(120,138,133,0.12)" stroke-width="0.9" />`;
+  }).join("");
 
   const latTicks = Array.from({ length: 3 }, (_, index) => {
     const value = lat + (1 - index) * gridLatStep;
@@ -694,8 +716,8 @@ export function buildCaptureLocationPdfFallbackSvg(params: {
 <svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" fill="none">
   <defs>
     <linearGradient id="paperBg" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0%" stop-color="#f2f4f2"/>
-      <stop offset="100%" stop-color="#e6ebe8"/>
+      <stop offset="0%" stop-color="#f4f6f3"/>
+      <stop offset="100%" stop-color="#eef2ef"/>
     </linearGradient>
     <filter id="pinShadow" x="-30%" y="-30%" width="160%" height="160%">
       <feDropShadow dx="0" dy="5" stdDeviation="5" flood-color="rgba(33,57,54,0.18)"/>
@@ -703,21 +725,22 @@ export function buildCaptureLocationPdfFallbackSvg(params: {
   </defs>
 
   <rect width="${width}" height="${height}" rx="20" fill="url(#paperBg)"/>
-  <rect x="10" y="10" width="${width - 20}" height="${height - 20}" rx="16" fill="rgba(255,255,255,0.46)" stroke="rgba(111,130,127,0.18)"/>
-  <rect x="${framePaddingX}" y="${framePaddingY}" width="${plotWidth}" height="${plotHeight}" rx="16" fill="rgba(255,255,255,0.58)" stroke="rgba(117,136,134,0.18)"/>
+  <rect x="10" y="10" width="${width - 20}" height="${height - 20}" rx="16" fill="rgba(255,255,255,0.74)" stroke="rgba(111,130,127,0.20)"/>
+  <rect x="${framePaddingX}" y="${framePaddingY}" width="${plotWidth}" height="${plotHeight}" rx="16" fill="rgba(250,252,250,0.92)" stroke="rgba(117,136,134,0.22)"/>
 
   ${verticalLines}
   ${horizontalLines}
   ${terrainPaths}
+  ${parcelLines}
   ${roadPaths}
   ${latTicks}
   ${lngTicks}
 
-  <circle cx="${markerX}" cy="${markerY}" r="${accuracyRadiusPx}" fill="rgba(129,184,174,0.18)" stroke="rgba(98,151,141,0.34)" stroke-width="2"/>
-  <line x1="${markerX - 22}" y1="${markerY}" x2="${markerX + 22}" y2="${markerY}" stroke="rgba(28,69,63,0.34)" stroke-width="1.2"/>
-  <line x1="${markerX}" y1="${markerY - 22}" x2="${markerX}" y2="${markerY + 22}" stroke="rgba(28,69,63,0.34)" stroke-width="1.2"/>
-  <circle cx="${markerX}" cy="${markerY}" r="8.5" fill="#1f5f57" stroke="#f7faf8" stroke-width="3" filter="url(#pinShadow)"/>
-  <path d="M ${markerX} ${markerY + 13} l -6 12 h 12 z" fill="#1f5f57" stroke="#f7faf8" stroke-width="1.5"/>
+  <circle cx="${markerX}" cy="${markerY}" r="${accuracyRadiusPx}" fill="rgba(140,194,182,0.20)" stroke="rgba(88,136,126,0.36)" stroke-width="2.2"/>
+  <line x1="${markerX - 26}" y1="${markerY}" x2="${markerX + 26}" y2="${markerY}" stroke="rgba(28,69,63,0.36)" stroke-width="1.2"/>
+  <line x1="${markerX}" y1="${markerY - 26}" x2="${markerX}" y2="${markerY + 26}" stroke="rgba(28,69,63,0.36)" stroke-width="1.2"/>
+  <circle cx="${markerX}" cy="${markerY}" r="10.5" fill="#1f5f57" stroke="#f7faf8" stroke-width="3.4" filter="url(#pinShadow)"/>
+  <path d="M ${markerX} ${markerY + 16} l -7 14 h 14 z" fill="#1f5f57" stroke="#f7faf8" stroke-width="1.6"/>
 
   <rect x="${framePaddingX + 14}" y="${height - 45}" width="${Math.round(scaleBarWidth)}" height="4" rx="2" fill="rgba(28,69,63,0.74)"/>
   <line x1="${framePaddingX + 14}" y1="${height - 49}" x2="${framePaddingX + 14}" y2="${height - 37}" stroke="rgba(28,69,63,0.74)" stroke-width="1"/>
@@ -727,7 +750,7 @@ export function buildCaptureLocationPdfFallbackSvg(params: {
   )}</text>
 
   <text x="${framePaddingX}" y="27" fill="rgba(36,68,64,0.92)" font-size="15.5" font-weight="800" letter-spacing="0.06em" font-family="Helvetica Neue, Arial, sans-serif">CAPTURE CONTEXT</text>
-  <text x="${framePaddingX}" y="46" fill="rgba(72,88,87,0.84)" font-size="12.5" font-weight="700" font-family="Helvetica Neue, Arial, sans-serif">${escapeSvgText(
+  <text x="${framePaddingX}" y="46" fill="rgba(72,88,87,0.86)" font-size="12.5" font-weight="700" font-family="Helvetica Neue, Arial, sans-serif">${escapeSvgText(
     `Lat ${latLabel}° • Lng ${lngLabel}°`
   )}</text>
   <text x="${framePaddingX}" y="${height - 20}" fill="rgba(74,90,88,0.78)" font-size="11.8" font-weight="700" font-family="Helvetica Neue, Arial, sans-serif">${escapeSvgText(
