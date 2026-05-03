@@ -51,6 +51,8 @@ export default function CaptureLocationMapPanel(
   if (!display) return null;
 
   const rounded = props.rounded ?? 22;
+  const markerPercentX = (display.markerX / display.width) * 100;
+  const markerPercentY = (display.markerY / display.height) * 100;
   const accuracyWidthPercent = Math.min(
     72,
     Math.max(10, (display.accuracyRadiusPx * 2 * 100) / display.width)
@@ -141,8 +143,8 @@ export default function CaptureLocationMapPanel(
           <div
             style={{
               position: "absolute",
-              left: "50%",
-              top: "50%",
+              left: `${markerPercentX}%`,
+              top: `${markerPercentY}%`,
               width: `${accuracyWidthPercent}%`,
               height: `${accuracyHeightPercent}%`,
               transform: "translate(-50%, -50%)",
@@ -157,8 +159,8 @@ export default function CaptureLocationMapPanel(
           <div
             style={{
               position: "absolute",
-              left: "calc(50% - 28px)",
-              top: "calc(50% - 1px)",
+              left: `calc(${markerPercentX}% - 28px)`,
+              top: `calc(${markerPercentY}% - 1px)`,
               width: 56,
               height: 2,
               background: "rgba(235,241,243,0.72)",
@@ -168,8 +170,8 @@ export default function CaptureLocationMapPanel(
           <div
             style={{
               position: "absolute",
-              left: "calc(50% - 1px)",
-              top: "calc(50% - 28px)",
+              left: `calc(${markerPercentX}% - 1px)`,
+              top: `calc(${markerPercentY}% - 28px)`,
               width: 2,
               height: 56,
               background: "rgba(235,241,243,0.72)",
@@ -180,8 +182,8 @@ export default function CaptureLocationMapPanel(
           <div
             style={{
               position: "absolute",
-              left: "50%",
-              top: "50%",
+              left: `${markerPercentX}%`,
+              top: `${markerPercentY}%`,
               width: 20,
               height: 20,
               transform: "translate(-50%, -50%)",
@@ -195,8 +197,8 @@ export default function CaptureLocationMapPanel(
           <div
             style={{
               position: "absolute",
-              left: "50%",
-              top: "50%",
+              left: `${markerPercentX}%`,
+              top: `${markerPercentY}%`,
               width: 0,
               height: 0,
               transform: "translate(-50%, 12px)",

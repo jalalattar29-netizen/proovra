@@ -17,8 +17,6 @@ function buildOverlaySvg(model: CaptureLocationDisplayModel): string {
     model.width * 0.18,
     (model.scaleBarMeters / model.metersPerPixel) * 0.72
   );
-  const centerX = Math.round(model.width / 2);
-  const centerY = Math.round(model.height / 2);
 
   return `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" width="${model.width}" height="${model.height}" viewBox="0 0 ${model.width} ${model.height}" fill="none">
@@ -31,18 +29,18 @@ function buildOverlaySvg(model: CaptureLocationDisplayModel): string {
   <rect x="1" y="1" width="${model.width - 2}" height="${model.height - 2}" rx="24"
     fill="transparent" stroke="rgba(12,28,25,0.24)" stroke-width="2"/>
 
-  <circle cx="${centerX}" cy="${centerY}" r="${model.accuracyRadiusPx}"
+  <circle cx="${model.markerX}" cy="${model.markerY}" r="${model.accuracyRadiusPx}"
     fill="rgba(11,46,39,0.10)" stroke="rgba(11,46,39,0.32)" stroke-width="3"/>
 
-  <line x1="${centerX - 34}" y1="${centerY}" x2="${centerX + 34}" y2="${centerY}"
+  <line x1="${model.markerX - 34}" y1="${model.markerY}" x2="${model.markerX + 34}" y2="${model.markerY}"
     stroke="rgba(11,46,39,0.58)" stroke-width="2"/>
-  <line x1="${centerX}" y1="${centerY - 34}" x2="${centerX}" y2="${centerY + 34}"
+  <line x1="${model.markerX}" y1="${model.markerY - 34}" x2="${model.markerX}" y2="${model.markerY + 34}"
     stroke="rgba(11,46,39,0.58)" stroke-width="2"/>
 
-  <circle cx="${centerX}" cy="${centerY}" r="13"
+  <circle cx="${model.markerX}" cy="${model.markerY}" r="13"
     fill="#0b2e27" stroke="#ffffff" stroke-width="4" filter="url(#pinShadow)"/>
 
-  <path d="M ${centerX} ${centerY + 17} l -8 18 h 16 z"
+  <path d="M ${model.markerX} ${model.markerY + 17} l -8 18 h 16 z"
     fill="#0b2e27" stroke="#ffffff" stroke-width="2"/>
 
   <rect x="${pad}" y="${model.height - 42}" width="${Math.round(scaleBarWidth)}" height="5" rx="2.5"
@@ -165,6 +163,20 @@ async function renderStaticTilePreview(
       .slice(0, 4)
       .map((tile) => tile.url)
       .filter(Boolean),
+    ...(process.env.PROOVRA_CAPTURE_MAP_DEBUG === "true"
+      ? {
+          lat: model.lat,
+          lng: model.lng,
+          markerX: model.markerX,
+          markerY: model.markerY,
+          markerPercentX: Number(((model.markerX / model.width) * 100).toFixed(3)),
+          markerPercentY: Number(((model.markerY / model.height) * 100).toFixed(3)),
+          centerX: Number((model.width / 2).toFixed(3)),
+          centerY: Number((model.height / 2).toFixed(3)),
+          deltaFromCenterX: Number((model.markerX - model.width / 2).toFixed(3)),
+          deltaFromCenterY: Number((model.markerY - model.height / 2).toFixed(3)),
+        }
+      : {}),
   });
 
   const tileBuffers = await Promise.all(

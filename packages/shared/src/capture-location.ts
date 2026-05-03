@@ -328,6 +328,10 @@ export function buildCaptureLocationDisplayModel(params: {
 
   const markerBaseX = worldPixel.x - startPixelX;
   const markerBaseY = worldPixel.y - startPixelY;
+  // markerX/markerY are the authoritative rendered coordinates for the evidence
+  // lat/lng after the tile mosaic crop and scale have both been applied. Any
+  // overlay marker shown in the web UI or PDF should derive from these values
+  // (or percentages computed from them), not from an assumed visual center.
   const markerX = (markerBaseX - cropLeft) * scale;
   const markerY = (markerBaseY - cropTop) * scale;
   const clampedMarkerX = Math.max(0, Math.min(width, markerX));
@@ -400,9 +404,9 @@ markerY: clampedMarkerY,
   };
 }
 
-function buildCenteredMapMarker(params: {
-  centerX: number;
-  centerY: number;
+function buildMapMarker(params: {
+  markerX: number;
+  markerY: number;
   markerFill: string;
   markerStroke: string;
   crosshairStroke: string;
@@ -421,15 +425,15 @@ function buildCenteredMapMarker(params: {
     : "";
 
   return `
-  <line x1="${params.centerX - crosshairExtent}" y1="${params.centerY}" x2="${
-    params.centerX + crosshairExtent
-  }" y2="${params.centerY}" stroke="${params.crosshairStroke}" stroke-width="1.2"/>
-  <line x1="${params.centerX}" y1="${params.centerY - crosshairExtent}" x2="${
-    params.centerX
-  }" y2="${params.centerY + crosshairExtent}" stroke="${params.crosshairStroke}" stroke-width="1.2"/>
-  <circle cx="${params.centerX}" cy="${params.centerY}" r="${markerRadius}"
+  <line x1="${params.markerX - crosshairExtent}" y1="${params.markerY}" x2="${
+    params.markerX + crosshairExtent
+  }" y2="${params.markerY}" stroke="${params.crosshairStroke}" stroke-width="1.2"/>
+  <line x1="${params.markerX}" y1="${params.markerY - crosshairExtent}" x2="${
+    params.markerX
+  }" y2="${params.markerY + crosshairExtent}" stroke="${params.crosshairStroke}" stroke-width="1.2"/>
+  <circle cx="${params.markerX}" cy="${params.markerY}" r="${markerRadius}"
     fill="${params.markerFill}" stroke="${params.markerStroke}" stroke-width="3.4"${shadow}/>
-  <path d="M ${params.centerX} ${params.centerY + markerRadius + 5} l -${tailHalfWidth} ${tailHeight} h ${
+  <path d="M ${params.markerX} ${params.markerY + markerRadius + 5} l -${tailHalfWidth} ${tailHeight} h ${
     tailHalfWidth * 2
   } z"
     fill="${params.markerFill}" stroke="${params.markerStroke}" stroke-width="1.6"/>
@@ -473,6 +477,8 @@ export function buildCaptureLocationStaticMapFallbackSvg(params: {
   const {
     width,
     height,
+    markerX,
+    markerY,
     accuracyRadiusPx,
     locationLineLabel,
     accuracyLabel,
@@ -495,8 +501,6 @@ export function buildCaptureLocationStaticMapFallbackSvg(params: {
     (scaleBarMeters / model.metersPerPixel) * 0.72
   );
   const seed = Math.round((Math.abs(lat) + Math.abs(lng)) * 10_000);
-  const centerX = Math.round(width / 2);
-  const centerY = Math.round(height / 2);
 
   const verticalLines = Array.from({ length: 6 }, (_, index) => {
     const x = framePaddingX + (plotWidth / 5) * index;
@@ -585,11 +589,11 @@ export function buildCaptureLocationStaticMapFallbackSvg(params: {
   ${latTicks}
   ${lngTicks}
 
-  <circle cx="${centerX}" cy="${centerY}" r="${accuracyRadiusPx}" fill="rgba(98,176,171,0.14)" stroke="rgba(98,176,171,0.34)" stroke-width="2.2"/>
-  <circle cx="${centerX}" cy="${centerY}" r="${Math.max(24, accuracyRadiusPx * 0.66)}" fill="url(#glow)"/>
-  ${buildCenteredMapMarker({
-    centerX,
-    centerY,
+  <circle cx="${markerX}" cy="${markerY}" r="${accuracyRadiusPx}" fill="rgba(98,176,171,0.14)" stroke="rgba(98,176,171,0.34)" stroke-width="2.2"/>
+  <circle cx="${markerX}" cy="${markerY}" r="${Math.max(24, accuracyRadiusPx * 0.66)}" fill="url(#glow)"/>
+  ${buildMapMarker({
+    markerX,
+    markerY,
     markerFill: "#0b2e27",
     markerStroke: "#ffffff",
     crosshairStroke: "rgba(227,233,236,0.56)",
@@ -655,6 +659,8 @@ export function buildCaptureLocationPdfFallbackSvg(params: {
   const {
     width,
     height,
+    markerX,
+    markerY,
     accuracyRadiusPx,
     latLabel,
     lngLabel,
@@ -678,8 +684,6 @@ export function buildCaptureLocationPdfFallbackSvg(params: {
     (scaleBarMeters / model.metersPerPixel) * 0.68
   );
   const seed = Math.round((Math.abs(lat) + Math.abs(lng)) * 10_000);
-  const centerX = Math.round(width / 2);
-  const centerY = Math.round(height / 2);
 
   const verticalLines = Array.from({ length: 6 }, (_, index) => {
     const x = framePaddingX + (plotWidth / 5) * index;
@@ -780,10 +784,10 @@ export function buildCaptureLocationPdfFallbackSvg(params: {
   ${latTicks}
   ${lngTicks}
 
-  <circle cx="${centerX}" cy="${centerY}" r="${accuracyRadiusPx}" fill="rgba(140,194,182,0.20)" stroke="rgba(88,136,126,0.36)" stroke-width="2.2"/>
-  ${buildCenteredMapMarker({
-    centerX,
-    centerY,
+  <circle cx="${markerX}" cy="${markerY}" r="${accuracyRadiusPx}" fill="rgba(140,194,182,0.20)" stroke="rgba(88,136,126,0.36)" stroke-width="2.2"/>
+  ${buildMapMarker({
+    markerX,
+    markerY,
     markerFill: "#1f5f57",
     markerStroke: "#f7faf8",
     crosshairStroke: "rgba(28,69,63,0.36)",
