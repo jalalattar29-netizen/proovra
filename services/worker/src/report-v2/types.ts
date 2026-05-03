@@ -115,7 +115,14 @@ export type ReportLegalLimitations = {
 };
 
 export type ReportAnchorSummary = {
-  mode: "off" | "ready" | "active";
+  mode:
+    | "not_configured"
+    | "pending_public_anchor"
+    | "anchored"
+    | "failed"
+    | "off"
+    | "ready"
+    | "active";
   provider: string | null;
   publicBaseUrl: string | null;
   configured: boolean;

@@ -79,7 +79,7 @@ function renderIntegrityResultPill(vm: ReportViewModel): string {
         : "warning";
 
   const value = decision
-    ? `${decision.verdictLabel} • ${decision.scoreLabel}`
+    ? decision.verdictLabel
     : vm.integrityVerified
       ? "RECORDED INTEGRITY PASSED"
       : "REVIEW MATERIALS AVAILABLE";

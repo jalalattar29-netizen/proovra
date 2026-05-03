@@ -30,8 +30,8 @@ function renderCustodyStats(vm: ReportViewModel): string {
         }</div>
       </div>
 <div class="custody-stat-card">
-  <div class="custody-stat-label">Access Activity</div>
-  <div class="custody-stat-value">Current activity available on verification page</div>
+  <div class="custody-stat-label">Package Access Snapshot</div>
+  <div class="custody-stat-value">Snapshot preserved at package generation; current live access activity is reviewed on the verification page.</div>
 </div>
     </div>
   `;

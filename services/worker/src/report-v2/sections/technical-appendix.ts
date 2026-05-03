@@ -98,11 +98,11 @@ function renderTechnicalStatusCards(vm: ReportViewModel): string {
           OpenTimestamps or external publication state for the recorded digest.
         </div>
       </article>
-            <article class="technical-verification-card tone-${vm.trustDecision.tone}">
+      <article class="technical-verification-card tone-${vm.trustDecision.tone}">
         <div class="technical-verification-kicker">Trust Decision</div>
-        <div class="technical-verification-title">Overall Score</div>
+        <div class="technical-verification-title">Verification Classification</div>
         <div class="technical-verification-value">${escapeHtml(
-          `${vm.trustDecision.verdictLabel} • ${vm.trustDecision.scoreLabel}`
+          vm.trustDecision.verdictLabel
         )}</div>
         <div class="technical-verification-note">
           ${escapeHtml(vm.trustDecision.reviewerAction)}
@@ -188,7 +188,7 @@ function renderVerificationPackageIntegrity(vm: ReportViewModel): string {
       ${renderCallout({
         title: "Package integrity layer",
 body:
-  "The verification package is the offline forensic bundle. It may include the preserved originals, package manifest, Ed25519 manifest signature, checksum index, offline verifier, custody export, and access audit export. The PDF summarizes this layer but does not replace the package itself.",
+  "The verification package is the offline forensic bundle. It may include the preserved originals, package manifest, Ed25519 manifest signature, checksum index, offline verifier, custody export, and access audit export. Package access activity is a snapshot taken at generation time; current live access activity should be reviewed on the verification page.",
           tone: "neutral",
       })}
     `,

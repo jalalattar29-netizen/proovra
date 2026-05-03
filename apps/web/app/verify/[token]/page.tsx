@@ -1999,8 +1999,12 @@ function buildVerificationVerdict(input: VerificationSignalInput): VerificationV
   const coreSignal = input.trustDecision?.signals.find(
     (signal) => signal.key === "core_integrity"
   );
+  const publicAnchoringSignal = input.trustDecision?.signals.find(
+    (signal) => signal.key === "public_anchoring"
+  );
   const verdictCode = input.trustDecision?.verdict ?? null;
   const coreExplicitlyVerified = coreSignal?.status === "passed";
+  const publicAnchoringPending = publicAnchoringSignal?.status === "pending";
   const timestampMismatch =
     isPositiveTsa(input.tsaStatus) && input.timestampDigestMatches === false;
   const timestampUnavailable =
@@ -2074,11 +2078,17 @@ function buildVerificationVerdict(input: VerificationSignalInput): VerificationV
       label: "Core Integrity Verified",
       riskLevel: "Low",
       actionRequired:
-        "Reviewers may rely on the recorded integrity state, while still separately assessing authorship, factual context, relevance, and legal admissibility.",
+        publicAnchoringPending
+          ? "Reviewers may rely on the recorded integrity state, while still separately assessing authorship, factual context, relevance, and legal admissibility. Public anchoring is still pending and should be rechecked later if independent public anchoring is required."
+          : "Reviewers may rely on the recorded integrity state, while still separately assessing authorship, factual context, relevance, and legal admissibility.",
       legalStatement:
-        "The available cryptographic, custody, timestamping, storage, and publication signals returned in this verification response support the recorded integrity state. This does not independently prove factual truth, authorship, legal admissibility, or the real-world meaning of the evidence content.",
+        publicAnchoringPending
+          ? "The available cryptographic, custody, timestamping, and storage signals returned in this verification response support the recorded integrity state. Public anchoring is still pending and should not be treated as finalized. This does not independently prove factual truth, authorship, legal admissibility, or the real-world meaning of the evidence content."
+          : "The available cryptographic, custody, timestamping, storage, and publication signals returned in this verification response support the recorded integrity state. This does not independently prove factual truth, authorship, legal admissibility, or the real-world meaning of the evidence content.",
       reviewerSummary:
-        "The available technical verification signals support the integrity of the recorded evidence state.",
+        publicAnchoringPending
+          ? "The available technical verification signals support the integrity of the recorded evidence state, while public anchoring remains pending."
+          : "The available technical verification signals support the integrity of the recorded evidence state.",
       confidenceScore,
       tone: "success",
     };
@@ -4138,7 +4148,7 @@ const executiveBadges = useMemo<
     return `Counts are live and may increase after report or package generation as reviewers open, download, or verify materials.${
       typeof accessAfterGeneration === "number" &&
       typeof currentAccess === "number"
-        ? ` Access activity after report/package generation: ${accessAfterGeneration}. Current access activity total: ${currentAccess}.`
+        ? ` Package access snapshot at generation may be lower or zero by design. Access activity after report/package generation: ${accessAfterGeneration}. Current access activity total: ${currentAccess}.`
         : ""
     }`;
   }, [custodyDisplayCounts]);
@@ -6727,17 +6737,19 @@ These materials support the Trust Decision shown above. The Trust Decision is th
         Access Activity Boundary
       </div>
 
-      <div
-        style={{
-          ...VERIFY_TYPO.small,
-          fontSize: 13,
-          color: VERIFY_BRAND.ink,
-        }}
-      >
+        <div
+          style={{
+            ...VERIFY_TYPO.small,
+            fontSize: 13,
+            color: VERIFY_BRAND.ink,
+          }}
+        >
         Access activity is not part of the evidence integrity verdict. It records
         later interaction with the verification page, files, reports, or packages
         and must not be treated as proof that the underlying evidence is authentic
-        or admissible.
+        or admissible. Package access snapshots are taken at generation time;
+        the current activity shown here is live and may include later events not
+        present in the exported package.
       </div>
     </div>
 

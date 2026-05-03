@@ -222,12 +222,17 @@ export function mapObjectLockModePublicLabel(
 
 export function mapAnchorModePublicLabel(mode: string | null | undefined): string {
   switch (safe(mode, "").toUpperCase()) {
+    case "ANCHORED":
     case "ACTIVE":
-      return "Public anchoring in progress";
+      return "Public anchoring verified";
+    case "PENDING_PUBLIC_ANCHOR":
     case "READY":
-      return "Public anchoring pending";
+      return "OTS proof present, public anchoring pending";
+    case "FAILED":
+      return "Public anchoring failed";
+    case "NOT_CONFIGURED":
     case "OFF":
-      return "Anchoring off";
+      return "Public anchoring unavailable";
     case "PUBLIC":
       return "Public anchoring";
     case "PRIVATE":
@@ -235,7 +240,7 @@ export function mapAnchorModePublicLabel(mode: string | null | undefined): strin
     case "HASH_ONLY":
       return "Digest anchoring";
     default:
-      return "Not recorded";
+      return "Public anchoring unavailable";
   }
 }
 

@@ -51,7 +51,11 @@ type VerificationCertificationRecord = {
   revokeReason: string | null;
 };
 
-type AnchorMode = "off" | "ready" | "active";
+type AnchorMode =
+  | "not_configured"
+  | "pending_public_anchor"
+  | "anchored"
+  | "failed";
 
 type AnchorPayload = {
   version: 1;
@@ -62,6 +66,8 @@ type AnchorPayload = {
   lastEventHash: string | null;
   anchorHash: string;
   generatedAtUtc: string;
+  status?: AnchorMode;
+  statusLabel?: string;
   published?: boolean;
   receiptId?: string | null;
   transactionId?: string | null;
@@ -79,8 +85,10 @@ type PackageManifest = {
   multipart: boolean;
   fileCount: number;
   generatedAtUtc: string;
+  accessSnapshotGeneratedAtUtc?: string | null;
   anchorIncluded: boolean;
   anchorMode: AnchorMode;
+  anchorStatusLabel?: string | null;
   anchorProvider: string | null;
   anchorPublicBaseUrl: string | null;
   externalPublicationAttached: boolean;
@@ -391,9 +399,78 @@ function buildEvidencePackageFileName(params: {
 }
 
 function normalizeAnchorMode(value: string | null | undefined): AnchorMode {
-  const raw = String(value ?? "ready").trim().toLowerCase();
-  if (raw === "off" || raw === "active") return raw;
-  return "ready";
+  const raw = String(value ?? "").trim().toLowerCase();
+  switch (raw) {
+    case "anchored":
+    case "active":
+      return "anchored";
+    case "failed":
+      return "failed";
+    case "not_configured":
+    case "off":
+      return "not_configured";
+    case "pending_public_anchor":
+    case "ready":
+    default:
+      return "pending_public_anchor";
+  }
+}
+
+function getAnchorStatusLabel(mode: AnchorMode): string {
+  switch (mode) {
+    case "anchored":
+      return "Public anchoring verified";
+    case "failed":
+      return "Public anchoring failed";
+    case "not_configured":
+      return "Public anchoring unavailable";
+    case "pending_public_anchor":
+    default:
+      return "OTS proof present, public anchoring pending";
+  }
+}
+
+function derivePackageAnchorMode(params: {
+  rawMode?: string | null;
+  anchor?: AnchorPayload | null;
+  trustDecision: ReportTrustDecision;
+}): AnchorMode {
+  const normalizedRawMode = normalizeAnchorMode(params.rawMode);
+  const anchoringSignal = params.trustDecision.signals.find(
+    (signal) => signal.key === "public_anchoring"
+  );
+  const hasPublicAnchorMaterial = Boolean(
+    params.anchor?.receiptId ||
+      params.anchor?.transactionId ||
+      params.anchor?.publicUrl ||
+      params.anchor?.anchoredAtUtc
+  );
+
+  if (anchoringSignal?.status === "failed") {
+    return "failed";
+  }
+
+  if (anchoringSignal?.status === "passed") {
+    return "anchored";
+  }
+
+  if (
+    anchoringSignal?.status === "pending" ||
+    anchoringSignal?.status === "partial" ||
+    normalizedRawMode === "pending_public_anchor"
+  ) {
+    return "pending_public_anchor";
+  }
+
+  if (normalizedRawMode === "failed") {
+    return "failed";
+  }
+
+  if (normalizedRawMode === "anchored") {
+    return hasPublicAnchorMaterial ? "anchored" : "pending_public_anchor";
+  }
+
+  return "not_configured";
 }
 
 function safeText(value: string | null | undefined, fallback = "N/A"): string {
@@ -569,6 +646,7 @@ function buildCaseMetadata(
       uploadedAtUtc: metadata.uploadedAtUtc ?? null,
       signedAtUtc: metadata.signedAtUtc ?? null,
       reportGeneratedAtUtc: metadata.reportGeneratedAtUtc ?? null,
+      accessSnapshotGeneratedAtUtc: new Date().toISOString(),
       recordedIntegrityVerifiedAtUtc:
         metadata.recordedIntegrityVerifiedAtUtc ?? null,
     },
@@ -607,6 +685,7 @@ function buildAuditAccessReport(params: {
     schema: "PROOVRA_AUDIT_ACCESS_REPORT",
     version: 1,
     generatedAtUtc: new Date().toISOString(),
+    accessSnapshotGeneratedAtUtc: new Date().toISOString(),
     summary: {
       totalCustodyEvents: params.custody.length,
       forensicCustodyEvents: params.forensic.length,
@@ -688,6 +767,7 @@ function buildVerificationInstructions(params: {
   evidenceFiles: Array<VerificationEvidenceFile & { finalName: string }>;
   hasTimestampToken: boolean;
   hasAnchor: boolean;
+  anchorStatusLabel: string;
 }) {
   const evidencePaths =
     params.evidenceFiles.length === 1
@@ -762,16 +842,18 @@ Use it together with the original digest and TSA certificate chain available fro
 
 ${
   params.hasAnchor
-    ? `\`anchor.json\` is included. Review its anchor hash, receipt, transaction ID, public URL, and anchored timestamp when present.`
-    : `No \`anchor.json\` is included. Public anchoring is not claimed by this package unless the verification page later reports completion.`
+    ? `\`anchor.json\` is included. Status: ${params.anchorStatusLabel}. Review its anchor hash, receipt, transaction ID, public URL, and anchored timestamp when present.`
+    : `No \`anchor.json\` is included. Status: ${params.anchorStatusLabel}. Public anchoring should be rechecked on the verification page if independent public anchoring is required.`
 }
 
 ## 7. Review custody and access
 
 - \`custody.json\`: complete custody event chain included in the package.
 - \`forensic-custody.json\`: integrity-relevant custody events.
-- \`access-activity.json\`: viewing/download/verification access activity.
+- \`access-activity.json\`: package access snapshot at generation time.
 - \`audit-access-report.json\`: reviewer-friendly access/audit summary.
+
+Package access snapshot at generation may show zero events even when later live access activity appears on the verification page after reviewers open, download, or verify materials.
 
 ## 8. Review capture context, if present
 
@@ -876,6 +958,7 @@ function buildVerifyPackageScript() {
 
 function buildAnchorReadmeSection(params: {
   anchorMode: AnchorMode;
+  anchorStatusLabel: string;
   hasAnchorPayload: boolean;
   anchorPublished: boolean;
   otsStatus?: string | null;
@@ -892,7 +975,7 @@ function buildAnchorReadmeSection(params: {
 
   const otsStatus = String(params.otsStatus ?? "").toUpperCase();
 
-  if (params.anchorMode === "off") {
+  if (params.anchorMode === "not_configured") {
     return `ANCHOR STATUS
 
 Anchor publication is disabled for this environment.
@@ -905,32 +988,33 @@ ${publicBaseLine}`;
     return `ANCHOR STATUS
 
 No anchor.json file is included in this package.
-Public anchoring status: ${otsStatus || "NOT_RECORDED"}.
+Public anchoring status: ${params.anchorStatusLabel}.
 ${providerLine}
 ${publicBaseLine}`;
   }
 
-  if (params.anchorPublished) {
+  if (params.anchorMode === "anchored") {
     return `ANCHOR STATUS
 
 anchor.json is included in this package.
-Public anchoring is confirmed for this record.
+Public anchoring verified.
 This anchoring layer is independent from RFC 3161 timestamping.
 ${providerLine}
 ${publicBaseLine}`;
   }
 
-  if (otsStatus === "PENDING") {
+  if (params.anchorMode === "pending_public_anchor" || otsStatus === "PENDING") {
     return `ANCHOR STATUS
 
 anchor.json is included in this package.
-Public anchoring is pending confirmation and should not be treated as fully confirmed yet.
+OTS proof present, public anchoring pending.
+Public anchoring should be rechecked later if independent public anchoring is required.
 This anchoring layer is independent from RFC 3161 timestamping.
 ${providerLine}
 ${publicBaseLine}`;
   }
 
-  if (otsStatus === "FAILED") {
+  if (params.anchorMode === "failed" || otsStatus === "FAILED") {
     return `ANCHOR STATUS
 
 anchor.json is included in this package, but public anchoring failed or could not be completed.
@@ -1085,6 +1169,7 @@ function buildPackageManifest(params: {
   evidenceFiles: VerificationEvidenceFile[];
   anchorIncluded: boolean;
   anchorMode: AnchorMode;
+  anchorStatusLabel: string;
   anchorProvider?: string | null;
   anchorPublicBaseUrl?: string | null;
   anchor?: AnchorPayload | null;
@@ -1105,8 +1190,10 @@ function buildPackageManifest(params: {
     multipart: params.evidenceFiles.length > 1,
     fileCount: params.evidenceFiles.length,
     generatedAtUtc: new Date().toISOString(),
+    accessSnapshotGeneratedAtUtc: new Date().toISOString(),
     anchorIncluded: params.anchorIncluded,
     anchorMode: params.anchorMode,
+    anchorStatusLabel: params.anchorStatusLabel,
     anchorProvider: params.anchorProvider ?? null,
     anchorPublicBaseUrl: params.anchorPublicBaseUrl ?? null,
     externalPublicationAttached: Boolean(
@@ -1153,6 +1240,7 @@ function buildIntegritySummary(params: {
   hasTimestampToken: boolean;
   anchorIncluded: boolean;
   anchorMode: AnchorMode;
+  anchorStatusLabel: string;
 }) {
   return {
     verificationProfile: "FORENSIC_INTEGRITY",
@@ -1163,6 +1251,7 @@ function buildIntegritySummary(params: {
     containsTimestamp: params.hasTimestampToken,
     containsAnchor: params.anchorIncluded,
     anchorMode: params.anchorMode,
+    anchorStatusLabel: params.anchorStatusLabel,
     multipart: params.evidenceFiles.length > 1,
     fileCount: params.evidenceFiles.length,
   };
@@ -1171,6 +1260,7 @@ function buildIntegritySummary(params: {
 function buildReadme(params: {
   evidenceFiles: VerificationEvidenceFile[];
   anchorMode: AnchorMode;
+  anchorStatusLabel: string;
   anchorIncluded: boolean;
   anchorPublished: boolean;
   anchorProvider?: string | null;
@@ -1198,11 +1288,9 @@ Not included in this package. RFC3161 timestamp status: ${
 
   const anchorReadmeLine = params.anchorIncluded
     ? `anchor.json
-Included in this package. This is anchoring material only and may still be pending public publication.`
+Included in this package. Status: ${params.anchorStatusLabel}.`
     : `anchor.json
-Not included in this package. Public anchoring status: ${
-        otsStatus || "NOT_RECORDED"
-      }.`;
+Not included in this package. Public anchoring status: ${params.anchorStatusLabel}.`;
 
   return `PROOVRA Evidence Verification Package
 
@@ -1321,6 +1409,7 @@ CUSTODY CHAIN INTERPRETATION
 custody.json contains the complete immutable sequence of all recorded system events.
 forensic-custody.json contains a curated subset of integrity-relevant events used for forensic review.
 access-activity.json contains access, viewing, download, and verification activity that is not part of the forensic custody chronology shown in the PDF report.
+It is a package access snapshot at generation time. Current live access activity may increase later on the verification page.
 
 Sequence numbers reflect the original immutable event log. Gaps in forensic views may appear where non-forensic events are excluded.
 
@@ -1340,6 +1429,7 @@ HOW TO VERIFY
 
 ${buildAnchorReadmeSection({
   anchorMode: params.anchorMode,
+  anchorStatusLabel: params.anchorStatusLabel,
   hasAnchorPayload: params.anchorIncluded,
   anchorPublished: params.anchorPublished,
   otsStatus: params.otsStatus,
@@ -1579,11 +1669,11 @@ function buildVerifyHtml(params: {
     const status = String(params.otsStatus ?? "").toUpperCase();
 
     if (status === "ANCHORED") {
-      return "Public anchoring is confirmed.";
+      return "Public anchoring verified.";
     }
 
     if (status === "PENDING") {
-      return "Public anchoring is pending confirmation.";
+      return "OTS proof present, public anchoring pending.";
     }
 
     if (status === "FAILED") {
@@ -1740,12 +1830,12 @@ export async function createVerificationPackage(data: {
   publicKey: string;
   custody: unknown;
   evidenceId?: string;
-trustDecision: ReportTrustDecision;
+  trustDecision: ReportTrustDecision;
   reportVersion?: number;
   signingKeyId?: string;
   signingKeyVersion?: number;
   anchor?: AnchorPayload | null;
-  anchorMode?: AnchorMode | null;
+  anchorMode?: string | null;
   anchorProvider?: string | null;
   anchorPublicBaseUrl?: string | null;
   certifications?: {
@@ -1843,7 +1933,12 @@ trustDecision: ReportTrustDecision;
       };
     });
 
-    const anchorMode = normalizeAnchorMode(data.anchorMode);
+    const anchorMode = derivePackageAnchorMode({
+      rawMode: data.anchorMode,
+      anchor: data.anchor ?? null,
+      trustDecision: data.trustDecision,
+    });
+    const anchorStatusLabel = getAnchorStatusLabel(anchorMode);
     const anchorIncluded = Boolean(data.anchor);
     const hasTimestampToken = Boolean(data.timestampToken);
     const certificationSummary = buildCertificationSummary({
@@ -1955,7 +2050,11 @@ trustDecision: ReportTrustDecision;
         archive,
         packageEntries,
         "anchor.json",
-        jsonBuffer(data.anchor),
+        jsonBuffer({
+          ...data.anchor,
+          status: anchorMode,
+          statusLabel: anchorStatusLabel,
+        }),
         "application/json"
       );
     }
@@ -1968,6 +2067,7 @@ trustDecision: ReportTrustDecision;
       evidenceFiles: evidenceFilesWithFinalName,
       anchorIncluded,
       anchorMode,
+      anchorStatusLabel,
       anchorProvider: data.anchorProvider,
       anchorPublicBaseUrl: data.anchorPublicBaseUrl,
       anchor: data.anchor ?? null,
@@ -2042,6 +2142,7 @@ The result must match the expected SHA-256 above and the manifestSha256 field in
           hasTimestampToken,
           anchorIncluded,
           anchorMode,
+          anchorStatusLabel,
         })
       ),
       "application/json"
@@ -2114,6 +2215,7 @@ The result must match the expected SHA-256 above and the manifestSha256 field in
           evidenceFiles: evidenceFilesWithFinalName,
           hasTimestampToken,
           hasAnchor: anchorIncluded,
+          anchorStatusLabel,
         })
       ),
       "text/markdown"
@@ -2174,6 +2276,7 @@ The result must match the expected SHA-256 above and the manifestSha256 field in
         buildReadme({
           evidenceFiles,
           anchorMode,
+          anchorStatusLabel,
           anchorIncluded,
           anchorPublished,
           anchorProvider: data.anchorProvider,

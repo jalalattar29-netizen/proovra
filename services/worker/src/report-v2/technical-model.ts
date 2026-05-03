@@ -80,9 +80,35 @@ export function resolveAnchorSummary(
   if (!hasLegacyAnchor) return null;
 
   const modeText = safe(evidence.anchorMode, "").toLowerCase();
-  let normalizedMode: "off" | "ready" | "active" = "ready";
-  if (modeText === "off") normalizedMode = "off";
-  if (modeText === "active") normalizedMode = "active";
+  const otsStatus = safe(evidence.otsStatus, "").toUpperCase();
+  const hasDefensiblePublicAnchor = Boolean(
+    evidence.anchorReceiptId ||
+      evidence.anchorTransactionId ||
+      evidence.anchorPublicUrl ||
+      evidence.anchorAnchoredAtUtc
+  );
+
+  let normalizedMode: ReportAnchorSummary["mode"] = "pending_public_anchor";
+
+  if (otsStatus === "FAILED" || modeText === "failed") {
+    normalizedMode = "failed";
+  } else if (
+    hasDefensiblePublicAnchor ||
+    modeText === "anchored" ||
+    (modeText === "active" && hasDefensiblePublicAnchor)
+  ) {
+    normalizedMode = "anchored";
+  } else if (
+    otsStatus === "PENDING" ||
+    otsStatus === "ANCHORED" ||
+    modeText === "ready" ||
+    modeText === "pending_public_anchor" ||
+    modeText === "active"
+  ) {
+    normalizedMode = "pending_public_anchor";
+  } else if (modeText === "off" || modeText === "not_configured") {
+    normalizedMode = "not_configured";
+  }
 
   return {
     mode: normalizedMode,

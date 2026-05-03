@@ -66,6 +66,20 @@ export function getTrustDecisionLabel(
   return decision.verdictLabel;
 }
 
+function hasPendingPublicAnchoringSignal(
+  decision:
+    | Pick<TrustDecision, "signals">
+    | {
+        signals?: Array<Pick<TrustSignal, "key" | "status">> | null;
+      }
+): boolean {
+  const anchoringSignal = decision.signals?.find(
+    (signal) => signal.key === "public_anchoring"
+  );
+
+  return anchoringSignal?.status === "pending";
+}
+
 export function getReviewerRelianceLabel(
   relianceLevel: TrustDecision["relianceLevel"]
 ): string {
@@ -103,16 +117,28 @@ export function getTrustSignalPresentationLabel(
 export function getTrustNarrative(
   decision: Pick<
     TrustDecision,
-    "verdictLabel" | "relianceLevel" | "degradedButUsable" | "failedSignals"
+    | "verdictLabel"
+    | "relianceLevel"
+    | "degradedButUsable"
+    | "failedSignals"
+    | "signals"
   >
 ): string {
   if (decision.verdictLabel === "Strongly verified") {
+    if (hasPendingPublicAnchoringSignal(decision)) {
+      return "Recorded integrity state is strongly verified; public anchoring is still pending and should be rechecked if independent public anchoring is required.";
+    }
+
     return decision.degradedButUsable || decision.failedSignals > 0
       ? "Recorded integrity state is strongly verified. One or more supporting verification signals may still require follow-up."
       : "Recorded integrity state is strongly verified. No post-submission integrity mismatch was detected across the recorded verification layers.";
   }
 
   if (decision.verdictLabel === "Verified") {
+    if (hasPendingPublicAnchoringSignal(decision)) {
+      return "Recorded integrity state is verified; public anchoring is still pending and should be rechecked if independent public anchoring is required.";
+    }
+
     return "Recorded integrity state is verified. No post-submission integrity mismatch was detected across the recorded verification layers reviewed here.";
   }
 
@@ -957,6 +983,7 @@ export function buildEvidenceTrustDecision(
   const degradedButUsable = !criticalFailed && score >= 62 && degradedSignals > 0;
 
   const corePassed = core.status === "passed";
+  const publicAnchoringPending = anchoring.status === "pending";
 
   let verdict: TrustDecisionVerdict;
   let level: TrustDecision["level"];
@@ -1035,12 +1062,15 @@ export function buildEvidenceTrustDecision(
     relianceLevel,
     degradedButUsable,
     failedSignals,
+    signals,
   });
 
   const primaryReason = `Passed signals: ${passedText}. Degraded signals: ${degradedText}.`;
 
   const reviewerAction = criticalFailed
     ? "Do not rely on this record as verified until failed core integrity, signature, or custody signals are reviewed."
+    : publicAnchoringPending && corePassed
+      ? "Recorded integrity is strongly verified, but public anchoring is still pending. Recheck public anchoring later if independent public anchoring is required."
     : degradedButUsable
       ? "Review the degraded signals before high-reliance use, especially timestamping, public anchoring, storage, or custody items marked as pending, partial, missing, or failed."
       : score >= 78

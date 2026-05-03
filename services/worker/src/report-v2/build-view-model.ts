@@ -1099,7 +1099,8 @@ function buildTechnicalAppendixCourtRows(params: {
     },
 {
   label: "Access Activity",
-  value: "Not included in PDF; review verification page or audit trail when enabled",
+  value:
+    "Package access snapshot is taken at generation. Current live access activity should be reviewed on the verification page or audit trail when enabled.",
 },
     {
       label: "Immutable Storage",
