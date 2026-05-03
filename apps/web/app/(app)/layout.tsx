@@ -13,7 +13,7 @@ import { useAuth } from "../providers";
 
 const BOTTOM_NAV = [
   { href: "/home", label: "Workspace", Icon: Icons.Dashboard },
-  { href: "/capture", label: "Capture", Icon: Icons.Capture },
+  { href: "/capture", label: "Add Evidence", Icon: Icons.Capture },
   { href: "/cases", label: "Evidence", Icon: Icons.Evidence },
   { href: "/teams", label: "Teams", Icon: Icons.Teams },
   { href: "/reports", label: "Reports", Icon: Icons.Reports },

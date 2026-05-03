@@ -292,6 +292,36 @@ function buildMultipartSummary(parts: ProcessedPart[], totalSizeBytes: number) {
   };
 }
 
+function classifyMimeToEvidenceType(
+  mimeType: string | null | undefined
+): prismaPkg.EvidenceType {
+  const mime = String(mimeType ?? "").trim().toLowerCase();
+
+  if (mime.startsWith("image/")) return prismaPkg.EvidenceType.PHOTO;
+  if (mime.startsWith("video/")) return prismaPkg.EvidenceType.VIDEO;
+  if (mime.startsWith("audio/")) return prismaPkg.EvidenceType.AUDIO;
+  return prismaPkg.EvidenceType.DOCUMENT;
+}
+
+function deriveCanonicalEvidenceTypeFromParts(
+  parts: ProcessedPart[],
+  fallbackMimeType: string | null | undefined
+): prismaPkg.EvidenceType {
+  if (parts.length === 0) {
+    return classifyMimeToEvidenceType(fallbackMimeType);
+  }
+
+  const kinds = new Set(
+    parts.map((part) => classifyMimeToEvidenceType(part.mimeType ?? fallbackMimeType))
+  );
+
+  if (kinds.size === 1) {
+    return Array.from(kinds)[0] ?? prismaPkg.EvidenceType.DOCUMENT;
+  }
+
+  return prismaPkg.EvidenceType.DOCUMENT;
+}
+
 function buildFingerprint(params: {
   evidence: {
     id: string;
@@ -468,6 +498,7 @@ export async function completeEvidence(params: {
       let multipart = false;
       let canonical = "";
       let fingerprintHash = "";
+      let canonicalEvidenceType = evidence.type;
       const retentionTargets: RetentionTarget[] = [];
 
       const now = new Date();
@@ -545,6 +576,10 @@ export async function completeEvidence(params: {
         primaryKey = updatedParts[0].key;
         primaryMimeType =
           updatedParts[0].mimeType ?? primaryMimeType ?? evidenceMime;
+        canonicalEvidenceType = deriveCanonicalEvidenceTypeFromParts(
+          updatedParts,
+          primaryMimeType
+        );
 
 const isMultipartPackage = updatedParts.length > 1;
 
@@ -573,7 +608,7 @@ multipartItemCount = updatedParts.length;
 const fingerprint = buildFingerprint({
   evidence: {
     id: evidence.id,
-    type: evidence.type,
+    type: canonicalEvidenceType,
     capturedAtUtc: evidence.capturedAtUtc,
     deviceTimeIso: evidence.deviceTimeIso,
     lat: evidence.lat,
@@ -629,6 +664,7 @@ const fingerprint = buildFingerprint({
           normalizeObservedMimeType(meta.contentType) ?? evidenceMime ?? null;
         primaryBucket = bucket;
         primaryKey = key;
+        canonicalEvidenceType = classifyMimeToEvidenceType(primaryMimeType);
 
         retentionTargets.push({
           bucket,
@@ -641,7 +677,7 @@ const fingerprint = buildFingerprint({
         const fingerprint = buildFingerprint({
           evidence: {
             id: evidence.id,
-            type: evidence.type,
+            type: canonicalEvidenceType,
             capturedAtUtc: evidence.capturedAtUtc,
             deviceTimeIso: evidence.deviceTimeIso,
             lat: evidence.lat,
@@ -692,6 +728,7 @@ const captureMethod =
         data: {
           status: EvidenceStatus.SIGNED,
           verificationStatus: prismaPkg.VerificationStatus.MATERIALS_AVAILABLE,
+          type: canonicalEvidenceType,
           captureMethod,
           uploadedByUserId: params.ownerUserId,
           uploadedAtUtc: now,

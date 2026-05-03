@@ -3,13 +3,19 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button, Card, useToast } from "../../../components/ui";
-import { useLocale } from "../../providers";
 import { ApiError, apiFetch } from "../../../lib/api";
 import { captureException } from "../../../lib/sentry";
 
 type EvidenceType = "PHOTO" | "VIDEO" | "AUDIO" | "DOCUMENT";
 type CameraMode = "PHOTO" | "VIDEO" | null;
 type FacingMode = "user" | "environment";
+type AudioRecorderState =
+  | "idle"
+  | "recording"
+  | "stopped"
+  | "preview_ready"
+  | "uploading"
+  | "failed";
 
 type SessionItem = {
   id: string;
@@ -37,6 +43,61 @@ type BillingWallLike = {
   suggestedActions?: string[];
   incomingBytes?: string | null;
 };
+
+const GENERIC_EVIDENCE_UPLOAD_ACCEPT =
+  "image/*,video/*,audio/*,application/pdf,text/*,application/json,application/xml,text/xml,application/zip,application/x-zip-compressed,.csv,.log,.txt,.rtf,.doc,.docx,.xls,.xlsx,.eml,.msg,.zip,.json,.xml";
+
+function inferEvidenceTypeFromMimeType(mimeType: string | null | undefined): EvidenceType {
+  const mime = (mimeType ?? "").trim().toLowerCase();
+
+  if (mime.startsWith("image/")) return "PHOTO";
+  if (mime.startsWith("video/")) return "VIDEO";
+  if (mime.startsWith("audio/")) return "AUDIO";
+  return "DOCUMENT";
+}
+
+function deriveBatchEvidenceType(files: File[]): EvidenceType {
+  const kinds = new Set(
+    files.map((file) => inferEvidenceTypeFromMimeType(file.type))
+  );
+
+  if (kinds.size === 1) {
+    return Array.from(kinds)[0] ?? "DOCUMENT";
+  }
+
+  return "DOCUMENT";
+}
+
+function buildAudioRecordingFileName(extension: string): string {
+  return `proovra-audio-recording-${new Date()
+    .toISOString()
+    .replace(/[:.]/g, "-")}.${extension}`;
+}
+
+function pickSupportedAudioMimeType(): string | null {
+  if (typeof MediaRecorder === "undefined") {
+    return null;
+  }
+
+  const candidates = [
+    "audio/webm;codecs=opus",
+    "audio/webm",
+    "audio/mp4",
+    "audio/ogg;codecs=opus",
+    "audio/ogg",
+  ];
+
+  for (const candidate of candidates) {
+    if (typeof MediaRecorder.isTypeSupported !== "function") {
+      return candidate;
+    }
+    if (MediaRecorder.isTypeSupported(candidate)) {
+      return candidate;
+    }
+  }
+
+  return "";
+}
 
 function arrayBufferToBase64(buffer: ArrayBuffer): string {
   const bytes = new Uint8Array(buffer);
@@ -188,7 +249,6 @@ function buildStorageLimitMessage(error: unknown): string | null {
 }
 
 export default function CapturePage() {
-  const { t } = useLocale();
   const router = useRouter();
   const { addToast } = useToast();
 
@@ -206,6 +266,13 @@ export default function CapturePage() {
   const [cameraStarting, setCameraStarting] = useState(false);
   const [recordingSeconds, setRecordingSeconds] = useState(0);
   const [flashEnabled, setFlashEnabled] = useState(false);
+  const [audioRecorderOpen, setAudioRecorderOpen] = useState(false);
+  const [audioRecorderState, setAudioRecorderState] =
+    useState<AudioRecorderState>("idle");
+  const [audioRecorderError, setAudioRecorderError] = useState<string | null>(null);
+  const [audioRecordingSeconds, setAudioRecordingSeconds] = useState(0);
+  const [audioPreviewUrl, setAudioPreviewUrl] = useState<string | null>(null);
+  const [audioPreviewFile, setAudioPreviewFile] = useState<File | null>(null);
 
   const [sessionEvidenceId, setSessionEvidenceId] = useState<string | null>(null);
   const [sessionItems, setSessionItems] = useState<SessionItem[]>([]);
@@ -218,6 +285,10 @@ export default function CapturePage() {
   const mediaStreamRef = useRef<MediaStream | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const recordedChunksRef = useRef<Blob[]>([]);
+  const audioRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioStreamRef = useRef<MediaStream | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+  const audioPreviewUrlRef = useRef<string | null>(null);
   const sessionItemsRef = useRef<SessionItem[]>([]);
   const sessionEvidenceIdRef = useRef<string | null>(null);
 
@@ -228,6 +299,10 @@ export default function CapturePage() {
   useEffect(() => {
     sessionEvidenceIdRef.current = sessionEvidenceId;
   }, [sessionEvidenceId]);
+
+  useEffect(() => {
+    audioPreviewUrlRef.current = audioPreviewUrl;
+  }, [audioPreviewUrl]);
 
   const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -253,6 +328,11 @@ export default function CapturePage() {
   const stopMediaStream = () => {
     mediaStreamRef.current?.getTracks().forEach((track) => track.stop());
     mediaStreamRef.current = null;
+  };
+
+  const stopAudioStream = () => {
+    audioStreamRef.current?.getTracks().forEach((track) => track.stop());
+    audioStreamRef.current = null;
   };
 
   const attachStreamToPreview = async (stream: MediaStream) => {
@@ -292,6 +372,28 @@ export default function CapturePage() {
     sessionItemsRef.current.forEach(revokeItemPreview);
   };
 
+  const clearAudioPreview = () => {
+    if (audioPreviewUrl) {
+      URL.revokeObjectURL(audioPreviewUrl);
+    }
+    setAudioPreviewUrl(null);
+    setAudioPreviewFile(null);
+  };
+
+  const resetAudioRecorderState = () => {
+    if (audioRecorderRef.current && audioRecorderRef.current.state !== "inactive") {
+      audioRecorderRef.current.stop();
+    }
+    stopAudioStream();
+    audioRecorderRef.current = null;
+    audioChunksRef.current = [];
+    clearAudioPreview();
+    setAudioRecorderOpen(false);
+    setAudioRecorderState("idle");
+    setAudioRecorderError(null);
+    setAudioRecordingSeconds(0);
+  };
+
   const closeCamera = () => {
     const recorder = mediaRecorderRef.current;
     if (recorder && recorder.state !== "inactive") {
@@ -324,7 +426,11 @@ export default function CapturePage() {
   useEffect(() => {
     return () => {
       stopMediaStream();
+      stopAudioStream();
       revokeAllPreviews();
+      if (audioPreviewUrlRef.current) {
+        URL.revokeObjectURL(audioPreviewUrlRef.current);
+      }
       if (typeof document !== "undefined") {
         document.body.classList.remove("camera-open");
       }
@@ -358,7 +464,23 @@ export default function CapturePage() {
     return () => window.clearInterval(timer);
   }, [isRecording]);
 
-  const createEvidenceSessionIfNeeded = async (firstFile: File) => {
+  useEffect(() => {
+    if (audioRecorderState !== "recording") {
+      setAudioRecordingSeconds(0);
+      return;
+    }
+
+    const timer = window.setInterval(() => {
+      setAudioRecordingSeconds((prev) => prev + 1);
+    }, 1000);
+
+    return () => window.clearInterval(timer);
+  }, [audioRecorderState]);
+
+  const createEvidenceSessionIfNeeded = async (
+    firstFile: File,
+    sessionEvidenceType?: EvidenceType
+  ) => {
     if (sessionEvidenceIdRef.current) {
       return sessionEvidenceIdRef.current;
     }
@@ -369,6 +491,8 @@ export default function CapturePage() {
 
     try {
       const deviceTimeIso = new Date().toISOString();
+      const resolvedEvidenceType =
+        sessionEvidenceType ?? inferEvidenceTypeFromMimeType(firstFile.type);
       let gps: { lat: number; lng: number; accuracyMeters?: number } | undefined;
 
       if (useLocation && typeof navigator !== "undefined" && navigator.geolocation) {
@@ -399,7 +523,7 @@ export default function CapturePage() {
 const created = await apiFetch("/v1/evidence", {
   method: "POST",
   body: JSON.stringify({
-    type,
+    type: resolvedEvidenceType,
     mimeType: firstFile.type || "application/octet-stream",
     originalFileName: firstFile.name,
     captureFileName: firstFile.name,
@@ -426,14 +550,20 @@ const created = await apiFetch("/v1/evidence", {
     }
   };
 
-  const addFilesToSession = async (files: File[]) => {
+  const addFilesToSession = async (
+    files: File[],
+    options?: { sessionEvidenceType?: EvidenceType }
+  ) => {
     if (!files.length) return;
 
     setError(null);
     setSessionInfo(null);
 
     try {
-      await createEvidenceSessionIfNeeded(files[0]);
+      await createEvidenceSessionIfNeeded(
+        files[0],
+        options?.sessionEvidenceType
+      );
 
       const nextItems: SessionItem[] = files.map((nextFile) => ({
         id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
@@ -483,6 +613,7 @@ const created = await apiFetch("/v1/evidence", {
     setBusy(false);
     setLocationPermissionDenied(false);
     closeCamera();
+    resetAudioRecorderState();
   };
 
   const finalizeSession = async () => {
@@ -585,7 +716,7 @@ const part = await apiFetch(`/v1/evidence/${evidenceId}/parts`, {
       await pollReport(evidenceId);
 
       setProgress(100);
-      addToast("Evidence captured successfully!", "success");
+      addToast("Evidence record created successfully!", "success");
 
       resetCaptureState();
       router.push(`/evidence/${evidenceId}`);
@@ -599,7 +730,7 @@ const part = await apiFetch(`/v1/evidence/${evidenceId}/parts`, {
       const storageMessage = buildStorageLimitMessage(err);
       const baseMsg =
         storageMessage ||
-        (err instanceof Error ? err.message : "Capture failed");
+        (err instanceof Error ? err.message : "Evidence intake failed");
 
       const reqId = (err as { requestId?: string }).requestId;
       const msg =
@@ -674,6 +805,8 @@ const part = await apiFetch(`/v1/evidence/${evidenceId}/parts`, {
     setCameraError(null);
     setIsRecording(false);
     setRecordingSeconds(0);
+    resetAudioRecorderState();
+    setType(mode);
     await startCameraStream(mode, facingMode);
   };
 
@@ -732,8 +865,8 @@ const capturedFile = new File(
   }
 );
 
-    await addFilesToSession([capturedFile]);
-    addToast("Photo captured and added", "success");
+    await addFilesToSession([capturedFile], { sessionEvidenceType: "PHOTO" });
+    addToast("Photo evidence added to session", "success");
   };
 
   const startVideoRecording = () => {
@@ -789,8 +922,10 @@ const recordedFile = new File(
   }
 );
 
-        await addFilesToSession([recordedFile]);
-        addToast("Video recorded and added", "success");
+        await addFilesToSession([recordedFile], {
+          sessionEvidenceType: "VIDEO",
+        });
+        addToast("Video evidence added to session", "success");
         setIsRecording(false);
       };
 
@@ -812,22 +947,161 @@ const recordedFile = new File(
     addToast("Finishing video recording...", "info");
   };
 
-  const handleDroppedFiles = async (fileList: FileList | null) => {
-    const files = Array.from(fileList ?? []);
-    if (!files.length) return;
+  const openAudioRecorder = () => {
+    closeCamera();
+    setType("AUDIO");
+    setError(null);
+    setAudioRecorderOpen(true);
+    setAudioRecorderError(null);
+    if (audioRecorderState === "failed") {
+      setAudioRecorderState("idle");
+    }
+  };
 
-    const filtered = files.filter((nextFile) => {
-      if (type === "PHOTO") return nextFile.type.startsWith("image/");
-      if (type === "VIDEO") return nextFile.type.startsWith("video/");
-      return true;
-    });
+  const startAudioRecording = async () => {
+    setType("AUDIO");
+    setAudioRecorderOpen(true);
+    setAudioRecorderError(null);
+    clearAudioPreview();
 
-    if (!filtered.length) {
-      addToast("No matching files for the selected capture type", "warning");
+    if (typeof navigator === "undefined" || !navigator.mediaDevices?.getUserMedia) {
+      setAudioRecorderState("failed");
+      setAudioRecorderError(
+        "Audio recording is not supported in this browser. Upload an audio file instead."
+      );
       return;
     }
 
-    await addFilesToSession(filtered);
+    if (typeof MediaRecorder === "undefined") {
+      setAudioRecorderState("failed");
+      setAudioRecorderError(
+        "Audio recording is not supported in this browser. Upload an audio file instead."
+      );
+      return;
+    }
+
+    try {
+      const preferredMimeType = pickSupportedAudioMimeType();
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+        },
+      });
+
+      stopAudioStream();
+      audioStreamRef.current = stream;
+      audioChunksRef.current = [];
+
+      const recorder =
+        preferredMimeType !== null && preferredMimeType !== ""
+          ? new MediaRecorder(stream, { mimeType: preferredMimeType })
+          : new MediaRecorder(stream);
+
+      recorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          audioChunksRef.current.push(event.data);
+        }
+      };
+
+      recorder.onerror = () => {
+        stopAudioStream();
+        setAudioRecorderState("failed");
+        setAudioRecorderError(
+          "Audio recording could not be completed. No evidence record was created."
+        );
+      };
+
+      recorder.onstop = () => {
+        stopAudioStream();
+
+        const finalMimeType = recorder.mimeType || preferredMimeType || "audio/webm";
+        const blob = new Blob(audioChunksRef.current, { type: finalMimeType });
+
+        if (!blob.size) {
+          setAudioRecorderState("failed");
+          setAudioRecorderError(
+            "Audio recording could not be completed. No evidence record was created."
+          );
+          return;
+        }
+
+        const extension = finalMimeType.includes("ogg")
+          ? "ogg"
+          : finalMimeType.includes("mp4")
+            ? "m4a"
+            : "webm";
+        const previewUrl = URL.createObjectURL(blob);
+        const recordedFile = new File([blob], buildAudioRecordingFileName(extension), {
+          type: finalMimeType,
+          lastModified: Date.now(),
+        });
+
+        setAudioPreviewUrl(previewUrl);
+        setAudioPreviewFile(recordedFile);
+        setAudioRecorderState("preview_ready");
+        addToast("Audio recording ready for review", "success");
+      };
+
+      audioRecorderRef.current = recorder;
+      recorder.start(250);
+      setAudioRecorderState("recording");
+      addToast("Audio recording started", "info");
+    } catch (err) {
+      captureException(err, { feature: "web_capture_start_audio_recording" });
+      setAudioRecorderState("failed");
+      setAudioRecorderError(
+        err instanceof DOMException && err.name === "NotAllowedError"
+          ? "Microphone permission was denied. Enable microphone access or upload an existing audio file."
+          : "Audio recording could not be started. Upload an audio file instead."
+      );
+    }
+  };
+
+  const stopAudioRecording = () => {
+    const recorder = audioRecorderRef.current;
+    if (!recorder || recorder.state === "inactive") return;
+
+    recorder.stop();
+    setAudioRecorderState("stopped");
+    addToast("Finishing audio recording...", "info");
+  };
+
+  const discardAudioRecording = () => {
+    resetAudioRecorderState();
+    setAudioRecorderOpen(true);
+    addToast("Audio recording discarded", "info");
+  };
+
+  const addAudioRecordingToSession = async () => {
+    if (!audioPreviewFile) return;
+
+    setAudioRecorderState("uploading");
+
+    try {
+      await addFilesToSession([audioPreviewFile], {
+        sessionEvidenceType: "AUDIO",
+      });
+      resetAudioRecorderState();
+      addToast("Audio evidence added to session", "success");
+    } catch (err) {
+      captureException(err, { feature: "web_capture_add_audio_to_session" });
+      setAudioRecorderState("failed");
+      setAudioRecorderError(
+        err instanceof Error
+          ? err.message
+          : "Audio recording could not be added to the evidence session."
+      );
+    }
+  };
+
+  const handleDroppedFiles = async (fileList: FileList | null) => {
+    const files = Array.from(fileList ?? []);
+    if (!files.length) return;
+    const batchType = deriveBatchEvidenceType(files);
+    setType(batchType);
+    await addFilesToSession(files, { sessionEvidenceType: batchType });
   };
 
   const sessionCountLabel = useMemo(() => {
@@ -909,7 +1183,6 @@ const recordedFile = new File(
 
   return (
     <div className="section app-section capture-page-shell">
-      {/* نفس الستايل تبعك بدون تغيير منطقي */}
       <style jsx global>{`
         .capture-page-shell .capture-type-pill {
           transition: all 0.2s ease;
@@ -1256,15 +1529,15 @@ const recordedFile = new File(
                     flexShrink: 0,
                   }}
                 />
-                {t("capture")}
+                Add Evidence
               </div>
 
               <h1
                 className="mt-5 max-w-[760px] text-[1.72rem] font-medium leading-[1.02] tracking-[-0.045em] text-[#d9e2df] md:text-[2.22rem] lg:text-[2.72rem]"
                 style={{ margin: "20px 0 0" }}
               >
-                Capture signed evidence{" "}
-                <span style={{ color: "#c3ebe2" }}>in one clean session</span>.
+                Create a verifiable evidence record{" "}
+                <span style={{ color: "#c3ebe2" }}>from capture or upload</span>.
               </h1>
 
               <p
@@ -1277,10 +1550,9 @@ const recordedFile = new File(
                   color: "#aab5b2",
                 }}
               >
-                Add multiple <span style={{ color: "#cfd8d5" }}>photos</span>,{" "}
-                <span style={{ color: "#bbc7c3" }}>videos</span>, or{" "}
-                <span style={{ color: "#d9ccbf" }}>documents</span> into one
-                evidence record, then finalize and sign it as a single workflow.
+                Create a verifiable evidence record from a secure capture or an
+                existing file. PROOVRA preserves integrity metadata, custody
+                events, and verification materials for reviewer inspection.
               </p>
             </div>
 
@@ -1369,83 +1641,11 @@ const recordedFile = new File(
 
             <div className="relative z-10 p-6 md:p-7">
               <div style={{ display: "grid", gap: 18, padding: 2 }}>
-                <div
-                  className="capture-type-grid"
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
-                    gap: 10,
-                    alignItems: "stretch",
-                  }}
-                >
-                  {([
-                    { label: t("photo"), value: "PHOTO" },
-                    { label: t("video"), value: "VIDEO" },
-                    { label: t("document"), value: "DOCUMENT" },
-                  ] as const).map((item) => {
-                    const active = type === item.value;
-
-                    return (
-                      <button
-                        key={item.value}
-                        type="button"
-                        className="capture-type-pill"
-                        onClick={() => {
-                          setType(item.value);
-                          setError(null);
-                          setCameraError(null);
-                          closeCamera();
-                          if (fileInputRef.current) {
-                            fileInputRef.current.value = "";
-                          }
-                        }}
-                        style={{
-                          width: "100%",
-                          minWidth: 0,
-                          minHeight: 46,
-                          height: 46,
-                          padding: "0 12px",
-                          borderRadius: 999,
-                          fontWeight: 700,
-                          fontSize: 13,
-                          lineHeight: 1,
-                          whiteSpace: "nowrap",
-                          overflow: "hidden",
-                          textOverflow: "clip",
-                          textAlign: "center",
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          border: active
-                            ? "1px solid rgba(46,74,78,0.34)"
-                            : "1px solid rgba(79,112,107,0.10)",
-                          background: active
-                            ? "linear-gradient(180deg, rgba(67,96,101,0.96) 0%, rgba(33,54,58,0.98) 100%)"
-                            : "linear-gradient(180deg, rgba(250,251,249,0.86) 0%, rgba(241,244,241,0.98) 100%)",
-                          color: active ? "#f3f7f5" : "#5d6d71",
-                          boxShadow: active
-                            ? "inset 0 1px 0 rgba(255,255,255,0.10), 0 8px 18px rgba(20,38,42,0.16)"
-                            : "inset 0 1px 0 rgba(255,255,255,0.58)",
-                          transition: "all 180ms ease",
-                        }}
-                      >
-                        {item.label}
-                      </button>
-                    );
-                  })}
-                </div>
-
                 <input
                   type="file"
                   aria-label="Upload evidence files"
                   multiple
-                  accept={
-                    type === "PHOTO"
-                      ? "image/*"
-                      : type === "VIDEO"
-                        ? "video/*"
-                        : "application/pdf,.pdf,.doc,.docx,.txt,.rtf"
-                  }
+                  accept={GENERIC_EVIDENCE_UPLOAD_ACCEPT}
                   onChange={async (event) => {
                     await handleDroppedFiles(event.target.files);
                     if (fileInputRef.current) {
@@ -1456,77 +1656,380 @@ const recordedFile = new File(
                   style={{ display: "none" }}
                 />
 
-                <div className="capture-actions-row">
-                  <Button
-                    variant="secondary"
-                    onClick={openFilePicker}
-                    disabled={busy || sessionCreating}
-                    className="rounded-[999px] border px-5 py-3 text-[0.95rem] font-medium"
-                    style={secondaryButtonStyle}
-                  >
-                    {type === "PHOTO"
-                      ? "Add Photos"
-                      : type === "VIDEO"
-                        ? "Add Videos"
-                        : "Add Documents"}
-                  </Button>
-
-                  {type !== "DOCUMENT" ? (
-                    <Button
-                      variant="secondary"
-                      onClick={() => openCamera(type === "PHOTO" ? "PHOTO" : "VIDEO")}
-                      disabled={busy || sessionCreating}
-                      className="rounded-[999px] border px-5 py-3 text-[0.95rem] font-medium"
-                      style={tertiaryButtonStyle}
-                    >
-                      {type === "PHOTO" ? "Open Camera" : "Open Video Recorder"}
-                    </Button>
-                  ) : null}
-
-                  <Button
-                    variant="secondary"
-                    onClick={() => router.push("/billing")}
-                    className="rounded-[999px] border px-5 py-3 text-[0.95rem] font-medium"
-                    style={tertiaryButtonStyle}
-                  >
-                    Open Billing
-                  </Button>
-                </div>
-
-                <div
-                  className="capture-drop-zone"
-                  onDragOver={(event) => event.preventDefault()}
-                  onDrop={async (event) => {
-                    event.preventDefault();
-                    await handleDroppedFiles(event.dataTransfer.files);
-                  }}
-                  onClick={openFilePicker}
-                  style={{
-                    borderRadius: 24,
-                    border: "1px dashed rgba(183,157,132,0.18)",
-                    background:
-                      "linear-gradient(180deg, rgba(255,255,255,0.54), rgba(244,246,243,0.86))",
-                    boxShadow:
-                      "inset 0 1px 0 rgba(255,255,255,0.58), 0 18px 38px rgba(0,0,0,0.05)",
-                    padding: "34px 22px",
-                  }}
-                >
+                <div style={{ display: "grid", gap: 18 }}>
                   <div
-                    className="drop-hint"
                     style={{
-                      color: "#23373b",
-                      fontWeight: 600,
-                      fontSize: 15,
+                      ...softCardStyle,
+                      padding: 18,
+                      borderRadius: 24,
                     }}
                   >
-                    Drag &amp; drop or click to add{" "}
-                    {type === "PHOTO"
-                      ? "photos"
-                      : type === "VIDEO"
-                        ? "videos"
-                        : "documents"}{" "}
-                    to this evidence session
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        gap: 12,
+                        flexWrap: "wrap",
+                        marginBottom: 14,
+                      }}
+                    >
+                      <div>
+                        <div
+                          style={{
+                            fontSize: 12,
+                            fontWeight: 800,
+                            letterSpacing: "0.12em",
+                            textTransform: "uppercase",
+                            color: "#7e8d8f",
+                            marginBottom: 6,
+                          }}
+                        >
+                          Capture Evidence
+                        </div>
+                        <div
+                          style={{
+                            color: "#21353a",
+                            fontWeight: 800,
+                            fontSize: 17,
+                            letterSpacing: "-0.015em",
+                          }}
+                        >
+                          Record new evidence directly from this device.
+                        </div>
+                      </div>
+
+                      <Button
+                        variant="secondary"
+                        onClick={() => router.push("/billing")}
+                        className="rounded-[999px] border px-5 py-3 text-[0.95rem] font-medium"
+                        style={tertiaryButtonStyle}
+                      >
+                        Open Billing
+                      </Button>
+                    </div>
+
+                    <div
+                      className="capture-type-grid"
+                      style={{
+                        display: "grid",
+                        gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+                        gap: 12,
+                      }}
+                    >
+                      {[
+                        {
+                          title: "Capture Photo",
+                          body:
+                            "Take a photo and preserve it as a verifiable evidence record.",
+                          action: "Open Camera",
+                          onClick: () => openCamera("PHOTO"),
+                        },
+                        {
+                          title: "Record Video",
+                          body:
+                            "Record video evidence with integrity and custody metadata.",
+                          action: "Open Video Recorder",
+                          onClick: () => openCamera("VIDEO"),
+                        },
+                        {
+                          title: "Record Audio",
+                          body:
+                            "Record audio evidence such as interviews, witness statements, voice notes, incident recordings, or legal review materials.",
+                          action: "Open Audio Recorder",
+                          onClick: openAudioRecorder,
+                        },
+                      ].map((card) => (
+                        <div
+                          key={card.title}
+                          style={{
+                            borderRadius: 22,
+                            padding: 18,
+                            border: "1px solid rgba(79,112,107,0.12)",
+                            background:
+                              "linear-gradient(180deg, rgba(255,255,255,0.74) 0%, rgba(244,246,243,0.94) 100%)",
+                            boxShadow:
+                              "inset 0 1px 0 rgba(255,255,255,0.72), 0 14px 28px rgba(0,0,0,0.05)",
+                            display: "grid",
+                            gap: 12,
+                          }}
+                        >
+                          <div style={{ display: "grid", gap: 8 }}>
+                            <div
+                              style={{
+                                color: "#21353a",
+                                fontWeight: 800,
+                                fontSize: 16,
+                              }}
+                            >
+                              {card.title}
+                            </div>
+                            <div
+                              style={{
+                                color: "#5b6d71",
+                                fontSize: 13,
+                                lineHeight: 1.6,
+                              }}
+                            >
+                              {card.body}
+                            </div>
+                          </div>
+                          <Button
+                            variant="secondary"
+                            onClick={card.onClick}
+                            disabled={busy || sessionCreating}
+                            className="rounded-[999px] border px-5 py-3 text-[0.95rem] font-medium"
+                            style={card.title === "Record Audio" ? tertiaryButtonStyle : secondaryButtonStyle}
+                          >
+                            {card.action}
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
                   </div>
+
+                  <div
+                    style={{
+                      ...softCardStyle,
+                      padding: 18,
+                      borderRadius: 24,
+                    }}
+                  >
+                    <div style={{ display: "grid", gap: 8, marginBottom: 14 }}>
+                      <div
+                        style={{
+                          fontSize: 12,
+                          fontWeight: 800,
+                          letterSpacing: "0.12em",
+                          textTransform: "uppercase",
+                          color: "#7e8d8f",
+                        }}
+                      >
+                        Upload Evidence
+                      </div>
+                      <div
+                        style={{
+                          color: "#21353a",
+                          fontWeight: 800,
+                          fontSize: 17,
+                          letterSpacing: "-0.015em",
+                        }}
+                      >
+                        Upload existing files and let PROOVRA classify, fingerprint,
+                        preserve, and verify them.
+                      </div>
+                      <div
+                        style={{
+                          color: "#5b6d71",
+                          fontSize: 13,
+                          lineHeight: 1.6,
+                        }}
+                      >
+                        Upload photos, videos, audio, PDFs, screenshots, logs,
+                        exports, contracts, ZIPs, and other case materials.
+                      </div>
+                    </div>
+
+                    <div
+                      className="capture-drop-zone"
+                      onDragOver={(event) => event.preventDefault()}
+                      onDrop={async (event) => {
+                        event.preventDefault();
+                        await handleDroppedFiles(event.dataTransfer.files);
+                      }}
+                      onClick={openFilePicker}
+                      style={{
+                        borderRadius: 24,
+                        border: "1px dashed rgba(183,157,132,0.18)",
+                        background:
+                          "linear-gradient(180deg, rgba(255,255,255,0.54), rgba(244,246,243,0.86))",
+                        boxShadow:
+                          "inset 0 1px 0 rgba(255,255,255,0.58), 0 18px 38px rgba(0,0,0,0.05)",
+                        padding: "30px 22px",
+                        display: "grid",
+                        gap: 14,
+                      }}
+                    >
+                      <div style={{ display: "grid", gap: 8 }}>
+                        <div
+                          style={{
+                            color: "#23373b",
+                            fontWeight: 700,
+                            fontSize: 15,
+                          }}
+                        >
+                          Upload Evidence Files
+                        </div>
+                        <div
+                          className="drop-hint"
+                          style={{
+                            color: "#5b6d71",
+                            fontSize: 13,
+                            lineHeight: 1.6,
+                          }}
+                        >
+                          Drag and drop files here or choose files from this device.
+                        </div>
+                      </div>
+
+                      <div className="capture-actions-row">
+                        <Button
+                          variant="secondary"
+                          onClick={openFilePicker}
+                          disabled={busy || sessionCreating}
+                          className="rounded-[999px] border px-5 py-3 text-[0.95rem] font-medium"
+                          style={secondaryButtonStyle}
+                        >
+                          Upload Evidence Files
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+
+                  {audioRecorderOpen ? (
+                    <div
+                      style={{
+                        ...softCardStyle,
+                        padding: 18,
+                        borderRadius: 24,
+                        display: "grid",
+                        gap: 14,
+                      }}
+                    >
+                      <div style={{ display: "grid", gap: 8 }}>
+                        <div
+                          style={{
+                            color: "#21353a",
+                            fontWeight: 800,
+                            fontSize: 16,
+                          }}
+                        >
+                          Record Audio
+                        </div>
+                        <div
+                          style={{
+                            color: "#5b6d71",
+                            fontSize: 13,
+                            lineHeight: 1.6,
+                          }}
+                        >
+                          Only record audio where you have the right or permission
+                          to do so. PROOVRA preserves the recorded integrity state;
+                          it does not independently determine legality, consent,
+                          truth, or admissibility.
+                        </div>
+                      </div>
+
+                      <div
+                        style={{
+                          display: "grid",
+                          gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))",
+                          gap: 12,
+                        }}
+                      >
+                        {[
+                          ["Recording State", audioRecorderState.replace(/_/g, " ")],
+                          ["Timer", formatRecordingTime(audioRecordingSeconds)],
+                          [
+                            "Status",
+                            audioRecorderState === "preview_ready"
+                              ? "Preview ready"
+                              : audioRecorderState === "uploading"
+                                ? "Adding to evidence session"
+                                : audioRecorderState === "failed"
+                                  ? "Recording failed"
+                                  : audioRecorderState === "recording"
+                                    ? "Recording"
+                                    : "Ready",
+                          ],
+                        ].map(([label, value]) => (
+                          <div
+                            key={label}
+                            style={{
+                              borderRadius: 18,
+                              border: "1px solid rgba(79,112,107,0.10)",
+                              background:
+                                "linear-gradient(180deg, rgba(255,255,255,0.72) 0%, rgba(243,245,242,0.94) 100%)",
+                              padding: "12px 14px",
+                            }}
+                          >
+                            <div
+                              style={{
+                                color: "#7e8d8f",
+                                fontSize: 11,
+                                fontWeight: 800,
+                                textTransform: "uppercase",
+                                letterSpacing: "0.08em",
+                                marginBottom: 6,
+                              }}
+                            >
+                              {label}
+                            </div>
+                            <div style={{ color: "#21353a", fontWeight: 700 }}>{value}</div>
+                          </div>
+                        ))}
+                      </div>
+
+                      {audioPreviewUrl ? (
+                        <audio controls preload="metadata" src={audioPreviewUrl} style={{ width: "100%" }}>
+                          Your browser could not play this audio preview.
+                        </audio>
+                      ) : null}
+
+                      {audioRecorderError ? (
+                        <div
+                          style={{
+                            padding: 12,
+                            borderRadius: 14,
+                            background: "rgba(255,243,243,0.90)",
+                            border: "1px solid rgba(194,78,78,0.14)",
+                            color: "#b42318",
+                          }}
+                        >
+                          {audioRecorderError}
+                        </div>
+                      ) : null}
+
+                      <div className="capture-actions-row">
+                        <Button
+                          variant="secondary"
+                          onClick={startAudioRecording}
+                          disabled={busy || sessionCreating || audioRecorderState === "recording"}
+                          className="rounded-[999px] border px-5 py-3 text-[0.95rem] font-medium"
+                          style={secondaryButtonStyle}
+                        >
+                          Start Recording
+                        </Button>
+                        <Button
+                          variant="secondary"
+                          onClick={stopAudioRecording}
+                          disabled={audioRecorderState !== "recording"}
+                          className="rounded-[999px] border px-5 py-3 text-[0.95rem] font-medium"
+                          style={tertiaryButtonStyle}
+                        >
+                          Stop Recording
+                        </Button>
+                        <Button
+                          variant="secondary"
+                          onClick={discardAudioRecording}
+                          disabled={audioRecorderState === "recording" || audioRecorderState === "uploading"}
+                          className="rounded-[999px] border px-5 py-3 text-[0.95rem] font-medium"
+                          style={tertiaryButtonStyle}
+                        >
+                          Discard Recording
+                        </Button>
+                        <Button
+                          variant="primary"
+                          onClick={addAudioRecordingToSession}
+                          disabled={audioRecorderState !== "preview_ready"}
+                          className="rounded-[999px] border px-5 py-3 text-[0.95rem] font-medium"
+                          style={primaryButtonStyle}
+                        >
+                          Add to Evidence Session
+                        </Button>
+                      </div>
+                    </div>
+                  ) : null}
                 </div>
 
 <label
@@ -1663,7 +2166,7 @@ const recordedFile = new File(
                           fontSize: 16,
                         }}
                       >
-                        Session items
+                        Evidence session items
                       </div>
 
                       <div
@@ -1784,6 +2287,28 @@ const recordedFile = new File(
                                   objectFit: "cover",
                                 }}
                               />
+                            ) : item.mimeType.startsWith("audio/") ? (
+                              <div
+                                style={{
+                                  width: "100%",
+                                  height: "100%",
+                                  padding: 16,
+                                  display: "grid",
+                                  placeItems: "center",
+                                }}
+                              >
+                                <div
+                                  style={{
+                                    textAlign: "center",
+                                    color: "#55696d",
+                                    fontSize: 13,
+                                    lineHeight: 1.5,
+                                    fontWeight: 700,
+                                  }}
+                                >
+                                  Audio Evidence
+                                </div>
+                              </div>
                             ) : (
                               <div
                                 style={{
@@ -1795,7 +2320,7 @@ const recordedFile = new File(
                                   fontWeight: 600,
                                 }}
                               >
-                                Document
+                                Evidence File
                               </div>
                             )}
                           </div>
@@ -1961,7 +2486,7 @@ const recordedFile = new File(
 
             <div className="camera-topbar-title-group">
               <div className="camera-title">
-                {cameraMode === "PHOTO" ? "Photo Camera" : "Video Recorder"}
+                {cameraMode === "PHOTO" ? "Capture Photo" : "Record Video"}
               </div>
 
               {cameraMode === "VIDEO" && isRecording ? (
@@ -2027,7 +2552,7 @@ const recordedFile = new File(
                 <div className="camera-inline-error">{cameraError}</div>
               ) : cameraMode === "PHOTO" ? (
                 <div className="camera-helper-text">
-                  Capture repeatedly to add multiple photos into one evidence.
+                  Capture repeatedly to add multiple photos into one evidence record.
                 </div>
               ) : !isRecording ? (
                 <div className="camera-helper-text">
@@ -2048,7 +2573,7 @@ const recordedFile = new File(
                   onClick={capturePhotoFromCamera}
                   disabled={busy || cameraStarting || sessionCreating}
                 >
-                  Capture & Add
+                  Add to Evidence Session
                 </button>
               ) : !isRecording ? (
                 <button

@@ -10,6 +10,7 @@ import {
   CAPTURE_LOCATION_STATUS_LABEL,
   formatCaptureLocationAccuracy,
   formatCaptureLocationCoordinate,
+  getReviewerEvidenceTypeLabel,
   hasCaptureLocationMetadata,
 } from "@proovra/shared";
 import { Button, Card, Modal, useToast } from "../../../../components/ui";
@@ -180,23 +181,6 @@ function buildGeneratedCaptureFileName(params: {
       : "";
 
   return `${prefix}-${ts}${itemSuffix}${ext}`;
-}
-
-function getEvidenceTypeLabel(type: string | null | undefined): string {
-  const normalized = (type ?? "").trim().toUpperCase();
-
-  switch (normalized) {
-    case "PHOTO":
-      return "Photo";
-    case "VIDEO":
-      return "Video";
-    case "AUDIO":
-      return "Audio";
-    case "DOCUMENT":
-      return "Document";
-    default:
-      return normalized || "Unknown";
-  }
 }
 
 function getDisplayStatusMeta(
@@ -636,69 +620,33 @@ else acc.otherCount += 1;
     return partsList.join(" • ");
   }, [partTypeSummary, itemCount]);
 
-  const recordTypeLabel = useMemo(() => {
-const availableKinds = [
-  partTypeSummary.imageCount > 0 ? "image" : null,
-  partTypeSummary.videoCount > 0 ? "video" : null,
-  partTypeSummary.audioCount > 0 ? "audio" : null,
-  partTypeSummary.pdfCount > 0 ? "pdf" : null,
-  partTypeSummary.textCount > 0 ? "text" : null,
-  partTypeSummary.otherCount > 0 ? "other" : null,
-].filter(Boolean) as Array<"image" | "video" | "audio" | "pdf" | "text" | "other">;
-
-const totalKnown =
-  partTypeSummary.imageCount +
-  partTypeSummary.videoCount +
-  partTypeSummary.audioCount +
-  partTypeSummary.pdfCount +
-  partTypeSummary.textCount +
-  partTypeSummary.otherCount;
-
-    const effectiveCount = totalKnown > 0 ? totalKnown : itemCount;
-
-    if (effectiveCount <= 1) {
-      const singleKind =
-        availableKinds[0] ??
-        (originalMimeType ? getEvidenceKind(originalMimeType) : null);
-
-      switch (singleKind) {
-        case "image":
-          return "Single Image Evidence";
-        case "video":
-          return "Single Video Evidence";
-        case "audio":
-          return "Single Audio Evidence";
-        case "pdf":
-          return "Single Document Evidence";
-        case "text":
-          return "Single Text Evidence";
-        default: {
-          const fallback = getEvidenceTypeLabel(evidenceType);
-          return fallback === "Unknown" ? "Single Evidence Record" : fallback;
-        }
-      }
-    }
-
-    if (availableKinds.length > 1) {
-      return "Mixed Media Evidence Package";
-    }
-
-    const onlyKind = availableKinds[0];
-switch (onlyKind) {
-  case "image":
-    return "Image Evidence Package";
-  case "video":
-    return "Video Evidence Package";
-  case "audio":
-    return "Audio Evidence Package";
-  case "pdf":
-    return "Document Evidence Package";
-  case "text":
-    return "Text Evidence Package";
-  default:
-    return "Multipart Evidence Package";
-}
-  }, [partTypeSummary, itemCount, originalMimeType, evidenceType]);
+  const recordTypeLabel = useMemo(
+    () =>
+      getReviewerEvidenceTypeLabel({
+        itemCount,
+        structure: isMultipart ? "multipart" : "single",
+        imageCount: partTypeSummary.imageCount,
+        videoCount: partTypeSummary.videoCount,
+        audioCount: partTypeSummary.audioCount,
+        pdfCount: partTypeSummary.pdfCount,
+        textCount: partTypeSummary.textCount,
+        otherCount: partTypeSummary.otherCount,
+        evidenceType,
+        mimeType: originalMimeType,
+      }),
+    [
+      evidenceType,
+      isMultipart,
+      itemCount,
+      originalMimeType,
+      partTypeSummary.audioCount,
+      partTypeSummary.imageCount,
+      partTypeSummary.otherCount,
+      partTypeSummary.pdfCount,
+      partTypeSummary.textCount,
+      partTypeSummary.videoCount,
+    ]
+  );
 
   const effectiveHeroSubtitle = useMemo(() => {
     if (displaySubtitle) return displaySubtitle;

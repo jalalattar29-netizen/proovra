@@ -13,7 +13,7 @@ export const SUPPORT_EMAILS = {
   security: "security@proovra.com",
 } as const;
 
-export const EvidenceTypeSchema = z.enum(["PHOTO", "VIDEO", "DOCUMENT"]);
+export const EvidenceTypeSchema = z.enum(["PHOTO", "VIDEO", "AUDIO", "DOCUMENT"]);
 export type EvidenceType = z.infer<typeof EvidenceTypeSchema>;
 
 export const LegalVersionsSchema = z.object({
