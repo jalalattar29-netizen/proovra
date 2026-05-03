@@ -56,7 +56,9 @@ function buildOverlaySvg(model: CaptureLocationDisplayModel): string {
 </svg>`;
 }
 
-async function fetchTileBuffer(url: string): Promise<Buffer> {
+async function fetchTileBuffer(
+  url: string
+): Promise<{ buffer: Buffer; contentType: string | null; byteLength: number }> {
   const controller = new AbortController();
   const timeout = setTimeout(
     () => controller.abort(),
@@ -75,8 +77,23 @@ async function fetchTileBuffer(url: string): Promise<Buffer> {
       throw new Error(`Tile request failed with ${response.status}`);
     }
 
+    const contentType = response.headers.get("content-type");
     const arrayBuffer = await response.arrayBuffer();
-    return Buffer.from(arrayBuffer);
+    const buffer = Buffer.from(arrayBuffer);
+
+    if (buffer.byteLength < 512) {
+      throw new Error(`Tile body too small (${buffer.byteLength} bytes)`);
+    }
+
+    if (contentType && !contentType.startsWith("image/")) {
+      throw new Error(`Unexpected tile content-type: ${contentType}`);
+    }
+
+    return {
+      buffer,
+      contentType,
+      byteLength: buffer.byteLength,
+    };
   } finally {
     clearTimeout(timeout);
   }
@@ -127,6 +144,15 @@ async function renderStaticTilePreview(
 
   if (!model) return null;
 
+  const visibleTiles = model.tiles.filter(
+    (tile) =>
+      tile.url &&
+      tile.left < model.width &&
+      tile.top < model.height &&
+      tile.left + tile.width > 0 &&
+      tile.top + tile.height > 0
+  );
+
   console.info("[capture-location-map] renderStaticTilePreview start", {
     mode: DEFAULT_MAP_MODE,
     width: model.width,
@@ -134,19 +160,26 @@ async function renderStaticTilePreview(
     zoom: model.zoom,
     tileGrid: model.tileGrid,
     tileCount: model.tiles.length,
+    visibleTileCount: visibleTiles.length,
+    firstTileUrls: visibleTiles
+      .slice(0, 4)
+      .map((tile) => tile.url)
+      .filter(Boolean),
   });
 
   const tileBuffers = await Promise.all(
-    model.tiles.map(async (tile) => {
+    visibleTiles.map(async (tile) => {
       if (!tile.url) return null;
       try {
-        const buffer = await fetchTileBuffer(tile.url);
+        const tileResult = await fetchTileBuffer(tile.url);
         return {
           left: Math.round(tile.left),
           top: Math.round(tile.top),
           width: Math.max(1, Math.round(tile.width)),
           height: Math.max(1, Math.round(tile.height)),
-          buffer,
+          buffer: tileResult.buffer,
+          contentType: tileResult.contentType,
+          byteLength: tileResult.byteLength,
         };
       } catch (error) {
         console.warn("[capture-location-map] tile fetch failed", {
@@ -165,20 +198,28 @@ async function renderStaticTilePreview(
 
   console.info("[capture-location-map] tile fetch result", {
     requestedTiles: model.tiles.length,
+    requestedVisibleTiles: visibleTiles.length,
     validTiles: validTiles.length,
     width: model.width,
     height: model.height,
     zoom: model.zoom,
+    firstValidTiles: validTiles.slice(0, 4).map((tile) => ({
+      width: tile.width,
+      height: tile.height,
+      byteLength: tile.byteLength,
+      contentType: tile.contentType,
+    })),
   });
 
-const minimumUsefulTiles = Math.max(
-  9,
-  Math.ceil(model.tiles.length * 0.75)
-);
+  const minimumUsefulTiles = Math.max(
+    4,
+    Math.ceil(visibleTiles.length * 0.75)
+  );
 
   if (validTiles.length < minimumUsefulTiles) {
     console.warn("[capture-location-map] insufficient valid tiles, falling back", {
       requestedTiles: model.tiles.length,
+      requestedVisibleTiles: visibleTiles.length,
       validTiles: validTiles.length,
       minimumUsefulTiles,
       width: model.width,
@@ -217,17 +258,22 @@ const minimumUsefulTiles = Math.max(
   console.info("[capture-location-map] using tile mode", {
     validTiles: validTiles.length,
     requestedTiles: model.tiles.length,
+    requestedVisibleTiles: visibleTiles.length,
     width: model.width,
     height: model.height,
     zoom: model.zoom,
   });
 
-  return base
+  const mapBackground = await base
     .composite(composedTiles)
     .grayscale()
     .modulate({ brightness: 1.08, saturation: 0 })
     .linear(1.08, -4)
     .sharpen({ sigma: 0.7 })
+    .png({ compressionLevel: 9 })
+    .toBuffer();
+
+  return sharp(mapBackground)
     .composite([{ input: overlayBuffer, left: 0, top: 0 }])
     .png({ compressionLevel: 9 })
     .toBuffer();

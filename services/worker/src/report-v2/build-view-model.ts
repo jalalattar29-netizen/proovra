@@ -1,5 +1,8 @@
 import QRCode from "qrcode";
 import sharp from "sharp";
+import fs from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
 import {
   CAPTURE_LOCATION_CONTEXT_DESCRIPTION,
   CAPTURE_LOCATION_LEGAL_BOUNDARY,
@@ -354,6 +357,34 @@ function formatReportTimestamp(value: string | null | undefined): string {
   }
 
   return parsed.toISOString().replace(".000Z", " UTC").replace("T", " ");
+}
+
+async function writeCaptureContextDebugArtifact(
+  dataUrl: string,
+  evidenceId: string
+): Promise<void> {
+  if (process.env.PROOVRA_CAPTURE_MAP_DEBUG !== "true") {
+    return;
+  }
+
+  const match = dataUrl.match(/^data:(image\/[a-zA-Z0-9.+-]+);base64,(.+)$/);
+  if (!match?.[1] || !match[2]) {
+    console.warn("[report-v2] capture-context debug artifact skipped: unsupported data URL");
+    return;
+  }
+
+  const extension = match[1].includes("png") ? "png" : match[1].includes("svg") ? "svg" : "bin";
+  const outputPath = path.join(
+    os.tmpdir(),
+    `proovra-capture-location-map-debug-${evidenceId}.${extension}`
+  );
+
+  await fs.writeFile(outputPath, Buffer.from(match[2], "base64"));
+  console.info("[report-v2] capture-context debug artifact written", {
+    outputPath,
+    mimeType: match[1],
+    bytes: Buffer.byteLength(match[2], "base64"),
+  });
 }
 
 async function optimizePreviewDataUrl(
@@ -1396,6 +1427,27 @@ const captureContext = hasCaptureContext && captureLat !== null && captureLng !=
         )}`,
     }
   : null;
+
+  console.info("[report-v2] capture-context build", {
+    evidenceId: input.evidence.id,
+    hasCaptureContext,
+    lat: captureLat,
+    lng: captureLng,
+    accuracyMeters: input.evidence.gps.accuracyMeters ?? null,
+    mapPreviewPrefix: captureContext?.mapPreviewDataUrl?.slice(0, 48) ?? null,
+    mapPreviewLength: captureContext?.mapPreviewDataUrl?.length ?? 0,
+    usesSvgFallback:
+      captureContext?.mapPreviewDataUrl?.startsWith("data:image/svg+xml") ?? false,
+    usesPngPreview:
+      captureContext?.mapPreviewDataUrl?.startsWith("data:image/png") ?? false,
+  });
+
+  if (captureContext?.mapPreviewDataUrl) {
+    await writeCaptureContextDebugArtifact(
+      captureContext.mapPreviewDataUrl,
+      input.evidence.id
+    );
+  }
   
   return {
     mode,
