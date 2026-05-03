@@ -9,6 +9,7 @@ datasource db {
 model Evidence {
   id                                String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   title                             String?             @db.VarChar(160)
+  internalNotes                     String?             @map("internal_notes")
   type                              EvidenceType
   status                            EvidenceStatus      @default(CREATED)
   verificationStatus                VerificationStatus? @map("verification_status")

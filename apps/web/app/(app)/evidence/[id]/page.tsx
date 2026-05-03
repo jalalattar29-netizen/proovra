@@ -283,6 +283,7 @@ type EvidenceRecord = {
   title?: string;
   displayTitle?: string;
   displaySubtitle?: string;
+  internalNotes?: string | null;
   itemCount?: number;
   status?: string;
   createdAt?: string | null;
@@ -500,6 +501,7 @@ export default function EvidenceDetailPage() {
   const [captureLat, setCaptureLat] = useState<number | null>(null);
   const [captureLng, setCaptureLng] = useState<number | null>(null);
   const [captureAccuracyMeters, setCaptureAccuracyMeters] = useState<number | null>(null);
+  const [internalNotes, setInternalNotes] = useState<string | null>(null);
 
   const [label, setLabel] = useState<string>("Digital Evidence Record");
   const [displaySubtitle, setDisplaySubtitle] = useState<string>("");
@@ -774,6 +776,7 @@ else acc.otherCount += 1;
           setCaptureAccuracyMeters(
             typeof ev.accuracyMeters === "number" ? ev.accuracyMeters : null
           );
+          setInternalNotes(ev.internalNotes ?? null);
           setLabel(resolveDisplayTitle(ev));
           setLabelDraft(resolveDisplayTitle(ev));
           setDisplaySubtitle(resolveDisplaySubtitle(ev));
@@ -914,6 +917,7 @@ else acc.otherCount += 1;
         setCaptureAccuracyMeters(
           typeof ev.accuracyMeters === "number" ? ev.accuracyMeters : null
         );
+        setInternalNotes(ev.internalNotes ?? null);
         setLabel(resolveDisplayTitle(ev));
         setLabelDraft(resolveDisplayTitle(ev));
         setDisplaySubtitle(resolveDisplaySubtitle(ev));
@@ -2263,6 +2267,57 @@ else acc.otherCount += 1;
                 </div>
               </div>
             </Card>
+
+            {internalNotes?.trim() ? (
+              <Card
+                className="relative overflow-hidden rounded-[30px] border bg-transparent p-0 shadow-none"
+                style={outerCardStyle}
+              >
+                <div className="absolute inset-0">
+                  <img
+                    src="/images/panel-silver.webp.png"
+                    alt=""
+                    className="h-full w-full object-cover object-center"
+                  />
+                </div>
+                <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.24)_0%,rgba(248,249,246,0.34)_42%,rgba(239,241,238,0.42)_100%)]" />
+                <div className="absolute inset-0 bg-[radial-gradient(circle_at_16%_12%,rgba(255,255,255,0.34),transparent_28%)] opacity-90" />
+
+                <div className="relative z-10 p-6 md:p-7">
+                  <div className="text-[1.08rem] font-semibold tracking-[-0.02em] text-[#21353a]">
+                    Internal Notes
+                  </div>
+                  <div
+                    style={{
+                      marginTop: 8,
+                      fontSize: 12,
+                      fontWeight: 800,
+                      letterSpacing: "0.12em",
+                      textTransform: "uppercase",
+                      color: "#7e8d8f",
+                    }}
+                  >
+                    Only visible in authenticated app view
+                  </div>
+                  <div
+                    style={{
+                      marginTop: 18,
+                      borderRadius: 18,
+                      border: "1px solid rgba(79,112,107,0.10)",
+                      background:
+                        "linear-gradient(180deg, rgba(255,255,255,0.72) 0%, rgba(243,245,242,0.94) 100%)",
+                      padding: "16px 18px",
+                      color: "#23373b",
+                      fontSize: "0.96rem",
+                      lineHeight: 1.8,
+                      whiteSpace: "pre-wrap",
+                    }}
+                  >
+                    {internalNotes.trim()}
+                  </div>
+                </div>
+              </Card>
+            ) : null}
 
             <Card
               className="evidence-detail-actions-card relative h-full overflow-hidden rounded-[30px] border bg-transparent p-0 shadow-none"

@@ -70,6 +70,7 @@ const EvidenceTypeSchema = prismaPkg.EvidenceType
 const CreateEvidenceBody = z.object({
   type: EvidenceTypeSchema,
   mimeType: z.string().min(1).max(128).optional(),
+  internalNotes: z.string().trim().max(4000).optional(),
   originalFileName: z.string().trim().min(1).max(255).optional(),
   captureFileName: z.string().trim().min(1).max(255).optional(),
   deviceTimeIso: z.string().min(1).max(64).optional(),
@@ -290,6 +291,7 @@ const SAFE_EVIDENCE_SELECT = {
   organizationId: true,
   originalFileName: true,
   displayFileName: true,
+  internalNotes: true,
   type: true,
   status: true,
   verificationStatus: true,
@@ -397,6 +399,7 @@ type SafeEvidence = {
   organizationId: string | null;
   originalFileName: string | null;
   displayFileName: string | null;
+  internalNotes: string | null;
     tsaStatus: string | null;
   tsaProvider: string | null;
   tsaSerialNumber: string | null;
@@ -1376,6 +1379,7 @@ function toSafeEvidence(e: SelectedEvidence): SafeEvidence {
     displayFileName: e.displayFileName ?? null,
     organizationId: e.organizationId ?? null,
     type: e.type,
+    internalNotes: e.internalNotes ?? null,
     status: e.status,
     verificationStatus: e.verificationStatus ?? null,
     captureMethod: e.captureMethod ?? null,
@@ -2526,6 +2530,7 @@ const result = await createEvidence({
   ownerUserId,
   type: body.type,
   mimeType: body.mimeType,
+  internalNotes: body.internalNotes ?? null,
   originalFileName: body.originalFileName,
   captureFileName: body.captureFileName,
   deviceTimeIso: body.deviceTimeIso,

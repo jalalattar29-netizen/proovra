@@ -2,6 +2,10 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import {
+  getReviewerEvidenceCategories,
+  getReviewerEvidenceTypeLabel,
+} from "@proovra/shared";
 import { Button, Card, useToast } from "../../../components/ui";
 import { ApiError, apiFetch } from "../../../lib/api";
 import { captureException } from "../../../lib/sentry";
@@ -22,6 +26,7 @@ type SessionItem = {
   file: File;
   previewUrl: string | null;
   mimeType: string;
+  relativePath: string | null;
   uploadProgress: number;
   uploading: boolean;
   error?: string | null;
@@ -84,6 +89,21 @@ function deriveBatchEvidenceType(files: File[]): EvidenceType {
   }
 
   return "DOCUMENT";
+}
+
+function deriveSessionItemTypeLabel(mimeType: string): string {
+  if (mimeType.startsWith("image/")) return "Image";
+  if (mimeType.startsWith("video/")) return "Video";
+  if (mimeType.startsWith("audio/")) return "Audio";
+  if (mimeType === "application/pdf") return "PDF";
+  if (
+    mimeType.startsWith("text/") ||
+    mimeType === "application/json" ||
+    mimeType === "application/xml"
+  ) {
+    return "Document";
+  }
+  return "File";
 }
 
 function buildAudioRecordingFileName(extension: string): string {
@@ -322,6 +342,8 @@ export default function CapturePage() {
   const [useLocation, setUseLocation] = useState(false);
   const [progress, setProgress] = useState<number>(0);
   const [sessionStatus, setSessionStatus] = useState<string | null>(null);
+  const [sessionStartedAt] = useState(() => new Date());
+  const [internalNotes, setInternalNotes] = useState("");
 
   const [cameraOpen, setCameraOpen] = useState(false);
   const [cameraMode, setCameraMode] = useState<CameraMode>(null);
@@ -343,6 +365,7 @@ export default function CapturePage() {
   const [locationPermissionDenied, setLocationPermissionDenied] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const folderInputRef = useRef<HTMLInputElement | null>(null);
   const videoPreviewRef = useRef<HTMLVideoElement | null>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -360,6 +383,14 @@ export default function CapturePage() {
   useEffect(() => {
     audioPreviewUrlRef.current = audioPreviewUrl;
   }, [audioPreviewUrl]);
+
+  useEffect(() => {
+    const folderInput = folderInputRef.current;
+    if (!folderInput) return;
+
+    folderInput.setAttribute("webkitdirectory", "");
+    folderInput.setAttribute("directory", "");
+  }, []);
 
   const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -552,6 +583,12 @@ export default function CapturePage() {
             ? URL.createObjectURL(nextFile)
             : null,
         mimeType: normalizeClientMimeType(nextFile.type),
+        relativePath:
+          typeof (nextFile as File & { webkitRelativePath?: string }).webkitRelativePath ===
+            "string" &&
+          (nextFile as File & { webkitRelativePath?: string }).webkitRelativePath
+            ? (nextFile as File & { webkitRelativePath?: string }).webkitRelativePath ?? null
+            : null,
         uploadProgress: 0,
         uploading: false,
         error: null,
@@ -594,6 +631,7 @@ export default function CapturePage() {
     setProgress(0);
     setError(null);
     setBusy(false);
+    setInternalNotes("");
     setLocationPermissionDenied(false);
     closeCamera();
     resetAudioRecorderState();
@@ -651,7 +689,8 @@ export default function CapturePage() {
         body: JSON.stringify({
           type: rootType,
           mimeType: primaryMimeType,
-          originalFileName: primaryFile.name,
+          internalNotes: internalNotes.trim() || undefined,
+          originalFileName: items[0]?.relativePath || primaryFile.name,
           captureFileName: primaryFile.name,
           deviceTimeIso: new Date().toISOString(),
           gps,
@@ -681,7 +720,7 @@ const part = await apiFetch(`/v1/evidence/${evidenceId}/parts`, {
   body: JSON.stringify({
     partIndex: index,
     mimeType: normalizeClientMimeType(item.mimeType),
-    originalFileName: item.file.name,
+    originalFileName: item.relativePath || item.file.name,
     checksumSha256Base64: integrity.checksumSha256Base64,
     contentMd5Base64: integrity.contentMd5Base64,
   }),
@@ -740,7 +779,7 @@ const part = await apiFetch(`/v1/evidence/${evidenceId}/parts`, {
         );
       }
 
-      setSessionStatus("Finalizing evidence record...");
+      setSessionStatus("Finalizing signed record...");
       setProgress(95);
 
       await apiFetch(`/v1/evidence/${evidenceId}/complete`, {
@@ -748,6 +787,7 @@ const part = await apiFetch(`/v1/evidence/${evidenceId}/parts`, {
         body: JSON.stringify({}),
       });
 
+      setSessionStatus("Generating verification artifacts...");
       await pollReport(evidenceId);
 
       setProgress(100);
@@ -795,6 +835,18 @@ const part = await apiFetch(`/v1/evidence/${evidenceId}/parts`, {
       return;
     }
     fileInputRef.current?.click();
+  };
+
+  const openFolderPicker = () => {
+    if (busy) return;
+    setError(null);
+    if (!folderInputRef.current) {
+      const pickerError = new Error("Evidence folder input is unavailable");
+      logCaptureClientError("web_capture_open_folder_picker", pickerError, {});
+      setError("Folder picker is unavailable in this browser session.");
+      return;
+    }
+    folderInputRef.current.click();
   };
 
   const startCameraStream = async (
@@ -1254,6 +1306,71 @@ const recordedFile = new File(
     return `${count} item${count === 1 ? "" : "s"} added`;
   }, [sessionItems.length]);
 
+  const sessionComposition = useMemo(() => {
+    return sessionItems.reduce(
+      (acc, item) => {
+        const mimeType = item.mimeType;
+        if (mimeType.startsWith("image/")) acc.imageCount += 1;
+        else if (mimeType.startsWith("video/")) acc.videoCount += 1;
+        else if (mimeType.startsWith("audio/")) acc.audioCount += 1;
+        else if (mimeType === "application/pdf") acc.pdfCount += 1;
+        else if (
+          mimeType.startsWith("text/") ||
+          mimeType === "application/json" ||
+          mimeType === "application/xml"
+        ) {
+          acc.textCount += 1;
+        } else {
+          acc.otherCount += 1;
+        }
+        return acc;
+      },
+      {
+        imageCount: 0,
+        videoCount: 0,
+        audioCount: 0,
+        pdfCount: 0,
+        textCount: 0,
+        otherCount: 0,
+      }
+    );
+  }, [sessionItems]);
+
+  const reviewerClassificationPreview = useMemo(
+    () =>
+      getReviewerEvidenceTypeLabel({
+        itemCount: sessionItems.length,
+        structure: sessionItems.length > 1 ? "multipart" : "single",
+        evidenceType:
+          sessionItems.length === 1
+            ? inferEvidenceTypeFromMimeType(sessionItems[0]?.mimeType)
+            : "DOCUMENT",
+        mimeType: sessionItems[0]?.mimeType ?? null,
+        ...sessionComposition,
+      }),
+    [sessionComposition, sessionItems]
+  );
+
+  const reviewerCategoryPreview = useMemo(
+    () =>
+      getReviewerEvidenceCategories({
+        itemCount: sessionItems.length,
+        structure: sessionItems.length > 1 ? "multipart" : "single",
+        ...sessionComposition,
+      }),
+    [sessionComposition, sessionItems.length]
+  );
+
+  const totalStagedBytes = useMemo(
+    () => sessionItems.reduce((sum, item) => sum + item.file.size, 0),
+    [sessionItems]
+  );
+
+  const folderPathsPresent = useMemo(
+    () => sessionItems.some((item) => Boolean(item.relativePath)),
+    [sessionItems]
+  );
+
   const outerCardStyle = useMemo(
     () =>
       ({
@@ -1674,15 +1791,14 @@ const recordedFile = new File(
                     flexShrink: 0,
                   }}
                 />
-                Add Evidence
+                Create Evidence Record
               </div>
 
               <h1
                 className="mt-5 max-w-[760px] text-[1.72rem] font-medium leading-[1.02] tracking-[-0.045em] text-[#d9e2df] md:text-[2.22rem] lg:text-[2.72rem]"
                 style={{ margin: "20px 0 0" }}
               >
-                Create a verifiable evidence record{" "}
-                <span style={{ color: "#c3ebe2" }}>from capture or upload</span>.
+                Create Evidence Record
               </h1>
 
               <p
@@ -1695,9 +1811,8 @@ const recordedFile = new File(
                   color: "#aab5b2",
                 }}
               >
-                Create a verifiable evidence record from a secure capture or an
-                existing file. PROOVRA preserves integrity metadata, custody
-                events, and verification materials for reviewer inspection.
+                Capture or upload evidence materials, preserve cryptographic
+                fingerprints, and generate reviewer-ready verification artifacts.
               </p>
             </div>
 
@@ -1723,6 +1838,63 @@ const recordedFile = new File(
                 {sessionCountLabel}
               </span>
 
+            </div>
+
+            <div
+              style={{
+                marginTop: 22,
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+                gap: 12,
+              }}
+            >
+              {[
+                ["1", "Add materials"],
+                ["2", "Review session"],
+                ["3", "Finish & sign"],
+              ].map(([step, label]) => (
+                <div
+                  key={step}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 12,
+                    padding: "12px 14px",
+                    borderRadius: 18,
+                    border: "1px solid rgba(255,255,255,0.08)",
+                    background: "rgba(255,255,255,0.04)",
+                    boxShadow: "0 10px 24px rgba(0,0,0,0.06)",
+                  }}
+                >
+                  <span
+                    style={{
+                      width: 28,
+                      height: 28,
+                      borderRadius: 999,
+                      display: "inline-flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      background: "rgba(195,235,226,0.14)",
+                      color: "#c3ebe2",
+                      fontSize: 12,
+                      fontWeight: 800,
+                      flexShrink: 0,
+                    }}
+                  >
+                    {step}
+                  </span>
+                  <span
+                    style={{
+                      color: "#d9e2df",
+                      fontSize: 13,
+                      fontWeight: 700,
+                      letterSpacing: "-0.01em",
+                    }}
+                  >
+                    {label}
+                  </span>
+                </div>
+              ))}
             </div>
           </div>
         </div>
@@ -1782,6 +1954,23 @@ const recordedFile = new File(
                   ref={fileInputRef}
                   style={{ display: "none" }}
                 />
+                <input
+                  type="file"
+                  aria-label="Upload evidence folder"
+                  multiple
+                  onChange={async (event) => {
+                    try {
+                      await handleDroppedFiles(event.target.files);
+                    } catch {
+                      // handled in addFilesToSession/logCaptureClientError
+                    }
+                    if (folderInputRef.current) {
+                      folderInputRef.current.value = "";
+                    }
+                  }}
+                  ref={folderInputRef}
+                  style={{ display: "none" }}
+                />
 
                 <div style={{ display: "grid", gap: 18 }}>
                   <div
@@ -1793,54 +1982,39 @@ const recordedFile = new File(
                   >
                     <div
                       style={{
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "space-between",
-                        gap: 12,
-                        flexWrap: "wrap",
+                        display: "grid",
+                        gap: 8,
                         marginBottom: 14,
                       }}
                     >
-                      <div>
-                        <div
-                          style={{
-                            fontSize: 12,
-                            fontWeight: 800,
-                            letterSpacing: "0.12em",
-                            textTransform: "uppercase",
-                            color: "#7e8d8f",
-                            marginBottom: 6,
-                          }}
-                        >
-                          Capture Evidence
-                        </div>
-                        <div
-                          style={{
-                            color: "#21353a",
-                            fontWeight: 800,
-                            fontSize: 17,
-                            letterSpacing: "-0.015em",
-                          }}
-                        >
-                          Record new evidence directly from this device.
-                        </div>
-                      </div>
-
-                      <Button
-                        variant="secondary"
-                        onClick={() => router.push("/billing")}
-                        className="rounded-[999px] border px-5 py-3 text-[0.95rem] font-medium"
-                        style={tertiaryButtonStyle}
+                      <div
+                        style={{
+                          fontSize: 12,
+                          fontWeight: 800,
+                          letterSpacing: "0.12em",
+                          textTransform: "uppercase",
+                          color: "#7e8d8f",
+                        }}
                       >
-                        Open Billing
-                      </Button>
+                        Capture Evidence
+                      </div>
+                      <div
+                        style={{
+                          color: "#21353a",
+                          fontWeight: 800,
+                          fontSize: 17,
+                          letterSpacing: "-0.015em",
+                        }}
+                      >
+                        Record new evidence directly from this device.
+                      </div>
                     </div>
 
                     <div
                       className="capture-type-grid"
                       style={{
                         display: "grid",
-                        gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+                        gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))",
                         gap: 12,
                       }}
                     >
@@ -1849,68 +2023,43 @@ const recordedFile = new File(
                           title: "Capture Photo",
                           body:
                             "Take a photo and preserve it as a verifiable evidence record.",
-                          action: "Open Camera",
+                          action: "Capture Photo",
                           onClick: () => openCamera("PHOTO"),
                         },
                         {
                           title: "Record Video",
                           body:
                             "Record video evidence with integrity and custody metadata.",
-                          action: "Open Video Recorder",
+                          action: "Record Video",
                           onClick: () => openCamera("VIDEO"),
                         },
                         {
                           title: "Record Audio",
                           body:
                             "Record audio evidence such as interviews, witness statements, voice notes, incident recordings, or legal review materials.",
-                          action: "Open Audio Recorder",
+                          action: "Record Audio",
                           onClick: openAudioRecorder,
                         },
                       ].map((card) => (
-                        <div
+                        <Button
                           key={card.title}
+                          variant="secondary"
+                          onClick={card.onClick}
+                          disabled={busy}
+                          className="capture-type-pill rounded-[18px] border px-5 py-4 text-[0.95rem] font-semibold"
                           style={{
-                            borderRadius: 22,
-                            padding: 18,
                             border: "1px solid rgba(79,112,107,0.12)",
                             background:
                               "linear-gradient(180deg, rgba(255,255,255,0.74) 0%, rgba(244,246,243,0.94) 100%)",
                             boxShadow:
                               "inset 0 1px 0 rgba(255,255,255,0.72), 0 14px 28px rgba(0,0,0,0.05)",
-                            display: "grid",
-                            gap: 12,
+                            color: card.title === "Record Audio" ? "#705f50" : "#23373b",
+                            minHeight: 58,
+                            justifyContent: "center",
                           }}
                         >
-                          <div style={{ display: "grid", gap: 8 }}>
-                            <div
-                              style={{
-                                color: "#21353a",
-                                fontWeight: 800,
-                                fontSize: 16,
-                              }}
-                            >
-                              {card.title}
-                            </div>
-                            <div
-                              style={{
-                                color: "#5b6d71",
-                                fontSize: 13,
-                                lineHeight: 1.6,
-                              }}
-                            >
-                              {card.body}
-                            </div>
-                          </div>
-                          <Button
-                            variant="secondary"
-                            onClick={card.onClick}
-                            disabled={busy}
-                            className="rounded-[999px] border px-5 py-3 text-[0.95rem] font-medium"
-                            style={card.title === "Record Audio" ? tertiaryButtonStyle : secondaryButtonStyle}
-                          >
-                            {card.action}
-                          </Button>
-                        </div>
+                          {card.action}
+                        </Button>
                       ))}
                     </div>
                   </div>
@@ -1932,7 +2081,7 @@ const recordedFile = new File(
                           color: "#7e8d8f",
                         }}
                       >
-                        Upload Evidence Files
+                        Upload Evidence
                       </div>
                       <div
                         style={{
@@ -1942,8 +2091,7 @@ const recordedFile = new File(
                           letterSpacing: "-0.015em",
                         }}
                       >
-                        Upload existing files and let PROOVRA classify, fingerprint,
-                        preserve, and verify them.
+                        Stage files or folders for this evidence record.
                       </div>
                       <div
                         style={{
@@ -1952,8 +2100,8 @@ const recordedFile = new File(
                           lineHeight: 1.6,
                         }}
                       >
-                        Upload photos, videos, audio, PDFs, screenshots, logs,
-                        exports, contracts, ZIPs, and other case materials.
+                        Use local staging first. Materials are only created and signed
+                        when you finish the record.
                       </div>
                     </div>
 
@@ -1968,7 +2116,6 @@ const recordedFile = new File(
                           // handled in addFilesToSession/logCaptureClientError
                         }
                       }}
-                      onClick={openFilePicker}
                       style={{
                         borderRadius: 24,
                         border: "1px dashed rgba(183,157,132,0.18)",
@@ -1999,21 +2146,198 @@ const recordedFile = new File(
                             lineHeight: 1.6,
                           }}
                         >
-                          Drag and drop files here or choose files from this device.
+                          Drop files or folders here, or choose materials from this
+                          device.
                         </div>
                       </div>
 
                       <div className="capture-actions-row">
                         <Button
                           variant="secondary"
-                          onClick={openFilePicker}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            openFilePicker();
+                          }}
                           disabled={busy}
                           className="rounded-[999px] border px-5 py-3 text-[0.95rem] font-medium"
                           style={secondaryButtonStyle}
                         >
-                          Upload Evidence Files
+                          Upload Files
+                        </Button>
+                        <Button
+                          variant="secondary"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            openFolderPicker();
+                          }}
+                          disabled={busy}
+                          className="rounded-[999px] border px-5 py-3 text-[0.95rem] font-medium"
+                          style={tertiaryButtonStyle}
+                        >
+                          Upload Folder
                         </Button>
                       </div>
+                    </div>
+                  </div>
+
+                  <div
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
+                      gap: 18,
+                    }}
+                  >
+                    <div
+                      style={{
+                        ...softCardStyle,
+                        padding: 18,
+                        borderRadius: 24,
+                        display: "grid",
+                        gap: 10,
+                      }}
+                    >
+                      <div
+                        style={{
+                          fontSize: 12,
+                          fontWeight: 800,
+                          letterSpacing: "0.12em",
+                          textTransform: "uppercase",
+                          color: "#7e8d8f",
+                        }}
+                      >
+                        Internal Notes (optional)
+                      </div>
+                      <div
+                        style={{
+                          color: "#21353a",
+                          fontWeight: 800,
+                          fontSize: 16,
+                          letterSpacing: "-0.015em",
+                        }}
+                      >
+                        Private intake context for authenticated review only.
+                      </div>
+                      <textarea
+                        value={internalNotes}
+                        onChange={(event) => setInternalNotes(event.target.value)}
+                        maxLength={4000}
+                        disabled={busy}
+                        placeholder="Add investigator, legal, insurance, or internal review context."
+                        style={{
+                          minHeight: 132,
+                          resize: "vertical",
+                          borderRadius: 18,
+                          border: "1px solid rgba(79,112,107,0.12)",
+                          background:
+                            "linear-gradient(180deg, rgba(255,255,255,0.78) 0%, rgba(244,246,243,0.94) 100%)",
+                          color: "#23373b",
+                          padding: "14px 16px",
+                          fontSize: 14,
+                          lineHeight: 1.6,
+                          outline: "none",
+                        }}
+                      />
+                      <div style={{ fontSize: 12, color: "#6a777b", lineHeight: 1.5 }}>
+                        Only visible in the authenticated app view. Internal notes are
+                        excluded from public verification, PDF reports, and verification
+                        packages.
+                      </div>
+                    </div>
+
+                    <div
+                      style={{
+                        ...softCardStyle,
+                        padding: 18,
+                        borderRadius: 24,
+                        display: "grid",
+                        gap: 12,
+                      }}
+                    >
+                      <div
+                        style={{
+                          fontSize: 12,
+                          fontWeight: 800,
+                          letterSpacing: "0.12em",
+                          textTransform: "uppercase",
+                          color: "#7e8d8f",
+                        }}
+                      >
+                        Automatically Recorded
+                      </div>
+
+                      {[
+                        ["Item count", String(sessionItems.length)],
+                        [
+                          "Total staged size",
+                          `${(totalStagedBytes / 1024 / 1024).toFixed(2)} MB`,
+                        ],
+                        [
+                          "Capture/upload time",
+                          sessionStartedAt.toLocaleString(),
+                        ],
+                        [
+                          "Location metadata",
+                          useLocation ? "Included" : "Not included",
+                        ],
+                        [
+                          "Evidence classification preview",
+                          reviewerClassificationPreview,
+                        ],
+                        [
+                          "Folder paths",
+                          folderPathsPresent ? "Present" : "Not present",
+                        ],
+                      ].map(([label, value]) => (
+                        <div
+                          key={label}
+                          style={{
+                            display: "grid",
+                            gap: 4,
+                            paddingBottom: 10,
+                            borderBottom: "1px solid rgba(79,112,107,0.08)",
+                          }}
+                        >
+                          <div
+                            style={{
+                              color: "#7e8d8f",
+                              fontSize: 11,
+                              fontWeight: 800,
+                              textTransform: "uppercase",
+                              letterSpacing: "0.08em",
+                            }}
+                          >
+                            {label}
+                          </div>
+                          <div style={{ color: "#21353a", fontWeight: 700, lineHeight: 1.5 }}>
+                            {value}
+                          </div>
+                        </div>
+                      ))}
+
+                      {reviewerCategoryPreview.length > 0 ? (
+                        <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                          {reviewerCategoryPreview.map((category) => (
+                            <span
+                              key={category}
+                              style={{
+                                display: "inline-flex",
+                                alignItems: "center",
+                                minHeight: 28,
+                                padding: "0 10px",
+                                borderRadius: 999,
+                                background:
+                                  "linear-gradient(180deg, rgba(214,184,157,0.12) 0%, rgba(255,255,255,0.56) 100%)",
+                                border: "1px solid rgba(183,157,132,0.18)",
+                                color: "#8a6e57",
+                                fontSize: 12,
+                                fontWeight: 700,
+                              }}
+                            >
+                              {category}
+                            </span>
+                          ))}
+                        </div>
+                      ) : null}
                     </div>
                   </div>
 
@@ -2297,7 +2621,7 @@ const recordedFile = new File(
                           fontSize: 16,
                         }}
                       >
-                        Evidence session items
+                        Evidence Session Review
                       </div>
 
                       <div
@@ -2472,8 +2796,24 @@ const recordedFile = new File(
                             </div>
 
                             <div style={{ fontSize: 12, color: "#6a777b" }}>
+                              {deriveSessionItemTypeLabel(item.mimeType)} ·{" "}
                               {(item.file.size / 1024 / 1024).toFixed(2)} MB
                             </div>
+
+                            {item.relativePath ? (
+                              <div
+                                style={{
+                                  fontSize: 12,
+                                  color: "#6a777b",
+                                  whiteSpace: "nowrap",
+                                  overflow: "hidden",
+                                  textOverflow: "ellipsis",
+                                }}
+                                title={item.relativePath}
+                              >
+                                {item.relativePath}
+                              </div>
+                            ) : null}
 
                             {busy || item.uploadProgress > 0 ? (
                               <div
@@ -2570,18 +2910,6 @@ const recordedFile = new File(
                 ) : null}
 
                 <div style={{ display: "grid", gap: 10 }}>
-                  <div
-                    style={{
-                      fontSize: 12,
-                      fontWeight: 800,
-                      letterSpacing: "0.12em",
-                      textTransform: "uppercase",
-                      color: "#7e8d8f",
-                    }}
-                  >
-                    Finish &amp; Sign
-                  </div>
-
                 <div className="capture-finish-row">
                   <Button
                     onClick={finalizeSession}
@@ -2589,7 +2917,7 @@ const recordedFile = new File(
                     className="rounded-[999px] border px-5 py-3 text-[0.95rem] font-medium"
                     style={primaryButtonStyle}
                   >
-                    {busy ? "Finishing…" : "Finish & Sign"}
+                    {busy ? "Finishing…" : "Finish & Sign Evidence Record"}
                   </Button>
 
                   <Button

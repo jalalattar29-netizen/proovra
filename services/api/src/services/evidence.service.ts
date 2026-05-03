@@ -148,6 +148,7 @@ export async function createEvidence(params: {
   teamId?: string | null;
   type: prismaPkg.EvidenceType;
   mimeType?: string;
+  internalNotes?: string | null;
   originalFileName?: string | null;
   captureFileName?: string | null;
   deviceTimeIso?: string;
@@ -274,6 +275,7 @@ export async function createEvidence(params: {
         submittedByUserId: params.ownerUserId,
         createdByUserId: params.ownerUserId,
         uploadedByUserId: params.ownerUserId,
+        internalNotes: params.internalNotes?.trim() || null,
         workspaceNameSnapshot,
         organizationNameSnapshot,
         organizationVerifiedSnapshot,
