@@ -1,7 +1,7 @@
 import sharp from "sharp";
 import {
   buildCaptureLocationDisplayModel,
-  buildCaptureLocationMapSvg,
+  buildCaptureLocationPdfFallbackSvg,
   type CaptureLocationDisplayModel,
   type CaptureLocationInput,
 } from "@proovra/shared";
@@ -83,7 +83,7 @@ async function fetchTileBuffer(url: string): Promise<Buffer> {
 async function renderFallbackPng(
   input: CaptureLocationInput & { width?: number; height?: number; zoom?: number }
 ): Promise<Buffer | null> {
-  const svg = buildCaptureLocationMapSvg({
+  const svg = buildCaptureLocationPdfFallbackSvg({
     lat: input.lat ?? 0,
     lng: input.lng ?? 0,
     accuracyMeters: input.accuracyMeters ?? null,
@@ -99,7 +99,12 @@ async function renderFallbackPng(
 }
 
 async function renderStaticTilePreview(
-  input: CaptureLocationInput & { width?: number; height?: number; zoom?: number }
+  input: CaptureLocationInput & {
+    width?: number;
+    height?: number;
+    zoom?: number;
+    tileGrid?: number;
+  }
 ): Promise<Buffer | null> {
   const model = buildCaptureLocationDisplayModel({
     lat: input.lat ?? 0,
@@ -109,6 +114,7 @@ async function renderStaticTilePreview(
     height: input.height,
     zoom: input.zoom,
     tileTemplate: process.env.CAPTURE_LOCATION_TILE_URL?.trim() || undefined,
+    tileGrid: input.tileGrid,
   });
 
   if (!model) return null;
@@ -140,7 +146,7 @@ async function renderStaticTilePreview(
       width: model.width,
       height: model.height,
       channels: 4,
-      background: { r: 22, g: 31, b: 35, alpha: 1 },
+      background: { r: 238, g: 241, b: 240, alpha: 1 },
     },
   });
 
@@ -165,15 +171,20 @@ return base
   .composite(composedTiles)
   .grayscale()
   .modulate({ brightness: 1.08, saturation: 0 })
-  .linear(1.12, -8)
-  .sharpen({ sigma: 0.8 })
+  .linear(1.08, -4)
+  .sharpen({ sigma: 0.7 })
   .composite([{ input: overlayBuffer, left: 0, top: 0 }])
   .png({ compressionLevel: 9 })
   .toBuffer();
 }
 
 export async function renderCaptureLocationMapPreviewPng(
-  input: CaptureLocationInput & { width?: number; height?: number; zoom?: number }
+  input: CaptureLocationInput & {
+    width?: number;
+    height?: number;
+    zoom?: number;
+    tileGrid?: number;
+  }
 ): Promise<Buffer | null> {
   if (
     input.lat === null ||
@@ -204,7 +215,12 @@ export async function renderCaptureLocationMapPreviewPng(
 }
 
 export async function renderCaptureLocationMapPreviewDataUrl(
-  input: CaptureLocationInput & { width?: number; height?: number; zoom?: number }
+  input: CaptureLocationInput & {
+    width?: number;
+    height?: number;
+    zoom?: number;
+    tileGrid?: number;
+  }
 ): Promise<string | null> {
   const buffer = await renderCaptureLocationMapPreviewPng(input);
   return buffer ? `data:image/png;base64,${buffer.toString("base64")}` : null;

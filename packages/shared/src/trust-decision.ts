@@ -60,6 +60,73 @@ export type TrustDecision = {
   failedSignals: number;
 };
 
+export function getTrustDecisionLabel(
+  decision: Pick<TrustDecision, "verdictLabel">
+): string {
+  return decision.verdictLabel;
+}
+
+export function getReviewerRelianceLabel(
+  relianceLevel: TrustDecision["relianceLevel"]
+): string {
+  switch (relianceLevel) {
+    case "high":
+      return "High";
+    case "medium":
+      return "Medium";
+    case "limited":
+      return "Limited";
+    case "low":
+    default:
+      return "Low";
+  }
+}
+
+export function getTrustSignalPresentationLabel(
+  signal: Pick<TrustSignal, "status" | "tone">
+): string {
+  switch (signal.status) {
+    case "passed":
+      return signal.tone === "success" ? "Verified" : "Recorded";
+    case "partial":
+      return "Recorded";
+    case "pending":
+      return "Follow-up recommended";
+    case "failed":
+      return "Integrity concern";
+    case "missing":
+    default:
+      return "Not recorded";
+  }
+}
+
+export function getTrustNarrative(
+  decision: Pick<
+    TrustDecision,
+    "verdictLabel" | "relianceLevel" | "degradedButUsable" | "failedSignals"
+  >
+): string {
+  if (decision.verdictLabel === "Strongly verified") {
+    return decision.degradedButUsable || decision.failedSignals > 0
+      ? "Recorded integrity state is strongly verified. One or more supporting verification signals may still require follow-up."
+      : "Recorded integrity state is strongly verified. No post-submission integrity mismatch was detected across the recorded verification layers.";
+  }
+
+  if (decision.verdictLabel === "Verified") {
+    return "Recorded integrity state is verified. No post-submission integrity mismatch was detected across the recorded verification layers reviewed here.";
+  }
+
+  if (decision.verdictLabel === "Verified with limitations") {
+    return "Recorded integrity state is verified with limitations. Core integrity materials are recorded, but one or more supporting verification layers still require follow-up.";
+  }
+
+  if (decision.verdictLabel === "Insufficient verification") {
+    return "Integrity concerns were detected across one or more critical verification layers.";
+  }
+
+  return "Recorded verification materials require reviewer follow-up before higher-reliance use.";
+}
+
 export type TrustDecisionEvidenceInput = {
   verificationStatus?: string | null;
   recordedIntegrityVerifiedAtUtc?: string | null;
@@ -750,7 +817,7 @@ function buildIdentitySignal(
   if (level === "VERIFIED_ORGANIZATION") {
     return makeSignal({
       key: "identity",
-      label: "Submitter identity",
+      label: "Identity assurance",
       status: "passed",
       points: 5,
       maxPoints: 5,
@@ -763,7 +830,7 @@ function buildIdentitySignal(
   if (level === "ORGANIZATION_ACCOUNT" || level === "OAUTH_BACKED_IDENTITY") {
     return makeSignal({
       key: "identity",
-      label: "Submitter identity",
+      label: "Identity assurance",
       status: "passed",
       points: 4,
       maxPoints: 5,
@@ -779,7 +846,7 @@ function buildIdentitySignal(
   if (level === "VERIFIED_EMAIL" || hasEmail || hasProvider) {
     return makeSignal({
       key: "identity",
-      label: "Submitter identity",
+      label: "Identity assurance",
       status: "partial",
       points: 3,
       maxPoints: 5,
@@ -791,7 +858,7 @@ function buildIdentitySignal(
 
   return makeSignal({
     key: "identity",
-    label: "Submitter identity",
+    label: "Identity assurance",
     status: "missing",
     points: 0,
     maxPoints: 5,
@@ -963,14 +1030,12 @@ export function buildEvidenceTrustDecision(
       .map((signal) => signal.summary)
       .join("; ") || "No degraded signals were recorded";
 
-  const summary =
-    verdictLabel === "Verified with limitations" && !corePassed
-      ? `${verdictLabel} — ${score}/100. Core integrity materials are recorded, but the recorded-integrity state has not been finalized as fully verified.`
-      : verdictLabel === "Strongly verified" && degradedButUsable
-        ? `${verdictLabel} — ${score}/100. Recorded integrity state is strongly verified; one or more supporting signals may still require follow-up.`
-      : degradedButUsable
-        ? `${verdictLabel} — ${score}/100. Core verification materials remain usable, but one or more supporting trust signals require follow-up.`
-        : `${verdictLabel} — ${score}/100. The recorded evidence state is summarized from cryptographic, custody, timestamping, storage, identity, and package-availability signals.`;
+  const summary = getTrustNarrative({
+    verdictLabel,
+    relianceLevel,
+    degradedButUsable,
+    failedSignals,
+  });
 
   const primaryReason = `Passed signals: ${passedText}. Degraded signals: ${degradedText}.`;
 

@@ -3,6 +3,11 @@ import { reportAssetDataUrl } from "../asset-data-url.js";
 import type { ReportViewModel } from "../types.js";
 import { escapeHtml, safe } from "../formatters.js";
 import { renderInlineQrBlock } from "../ui.js";
+import {
+  getReviewerRelianceLabel,
+  getTrustDecisionLabel,
+  getTrustNarrative,
+} from "@proovra/shared";
 const coverBrandIconUrl = reportAssetDataUrl("icon-192.png");
 
 function findRowValue(
@@ -127,6 +132,8 @@ export function renderCoverSection(vm: ReportViewModel): string {
         : "badge-warning";
 
 const integrityBadgeText = decision.shortLabel;
+  const reviewerReliance = getReviewerRelianceLabel(decision.relianceLevel);
+  const trustNarrative = getTrustNarrative(decision);
 
   const primaryHash =
     vm.primaryContentItem?.sha256 ||
@@ -212,13 +219,11 @@ const integrityBadgeText = decision.shortLabel;
             </div>
 
             <div class="cover-status-subtitle">
-              ${escapeHtml(decision.summary)}
+              ${escapeHtml(trustNarrative)}
             </div>
 
             <div class="cover-trust-score-line">
-              <span>Trust score</span>
-              <strong>${escapeHtml(decision.scoreLabel)}</strong>
-              <span>Reliance: ${escapeHtml(decision.relianceLevel)}</span>
+              <strong>Reviewer Reliance: ${escapeHtml(reviewerReliance)}</strong>
             </div>
                       </div>
 
@@ -301,10 +306,10 @@ tone:
               <div class="cover-meta-label">Verification Status</div>
               <div class="cover-meta-value">${escapeHtml(vm.verificationStatusLabel)}</div>
             </div>
-                        <div class="cover-meta-card">
+            <div class="cover-meta-card">
               <div class="cover-meta-label">Trust Decision</div>
               <div class="cover-meta-value">${escapeHtml(
-`${vm.trustDecision.verdictLabel} (${vm.trustDecision.scoreLabel})`
+getTrustDecisionLabel(vm.trustDecision)
               )}</div>
             </div>
 

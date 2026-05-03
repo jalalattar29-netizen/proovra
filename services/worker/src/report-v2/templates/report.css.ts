@@ -4207,10 +4207,10 @@ body {
 }
 
 .capture-context-map-shell {
-  height: 32mm !important;
-  min-height: 32mm !important;
-  max-height: 32mm !important;
-  background: rgba(255,255,255,0.18) !important;
+  height: 36mm !important;
+  min-height: 36mm !important;
+  max-height: 38mm !important;
+  background: rgba(243, 246, 244, 0.96) !important;
   box-shadow: none !important;
 }
 
@@ -4253,8 +4253,8 @@ body {
 
 .executive-summary-page-enterprise .executive-summary-row {
   grid-template-columns: 42mm minmax(0, 1fr) !important;
-  min-height: 6.9mm !important;
-  padding: 1.35mm 2.4mm !important;
+  min-height: 7.4mm !important;
+  padding: 1.55mm 2.5mm !important;
   gap: 3mm !important;
 }
 

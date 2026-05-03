@@ -1,6 +1,11 @@
 import { reportAssetDataUrl } from "./asset-data-url.js";
 import { escapeHtml } from "./formatters.js";
 import {
+  getReviewerRelianceLabel,
+  getTrustDecisionLabel,
+  getTrustSignalPresentationLabel,
+} from "@proovra/shared";
+import {
   CalloutModel,
   CustodyHashRow,
   InfoCard,
@@ -312,14 +317,20 @@ export function renderTrustDecisionHero(decision: ReportTrustDecision): string {
     <section class="trust-decision-hero trust-decision-${escapeHtml(decision.level)} tone-${decision.tone}">
       <div class="trust-decision-main">
         <div class="trust-decision-kicker">Overall trust decision</div>
-        <div class="trust-decision-title">${escapeHtml(decision.verdictLabel)}</div>
+        <div class="trust-decision-title">${escapeHtml(
+          getTrustDecisionLabel(decision)
+        )}</div>
         <div class="trust-decision-summary">${renderMultilineText(decision.summary)}</div>
       </div>
 
       <div class="trust-score-card">
-        <div class="trust-score-value">${escapeHtml(decision.scoreLabel)}</div>
-        <div class="trust-score-label">Trust score</div>
-        <div class="trust-score-reliance">Reliance: ${escapeHtml(decision.relianceLevel)}</div>
+        <div class="trust-score-value">${escapeHtml(
+          getTrustDecisionLabel(decision)
+        )}</div>
+        <div class="trust-score-label">Trust classification</div>
+        <div class="trust-score-reliance">Reviewer reliance: ${escapeHtml(
+          getReviewerRelianceLabel(decision.relianceLevel)
+        )}</div>
       </div>
     </section>
   `;
@@ -339,7 +350,7 @@ export function renderTrustSignalGrid(signals: ReportTrustSignal[]): string {
                 <div class="trust-signal-top">
                   <div class="trust-signal-label">${escapeHtml(signal.label)}</div>
                   <div class="trust-signal-score">${escapeHtml(
-                    `${signal.points}/${signal.maxPoints}`
+                    getTrustSignalPresentationLabel(signal)
                   )}</div>
                 </div>
                 <div class="trust-signal-summary">${escapeHtml(signal.summary)}</div>
@@ -359,8 +370,10 @@ export function renderTrustDecisionCompact(decision: ReportTrustDecision): strin
       <div>
         <div class="trust-decision-compact-kicker">Trust decision</div>
         <div class="trust-decision-compact-title">${escapeHtml(
-          decision.verdictLabel
-        )} <span>${escapeHtml(decision.scoreLabel)}</span></div>
+          getTrustDecisionLabel(decision)
+        )} <span>${escapeHtml(
+          `Reviewer reliance: ${getReviewerRelianceLabel(decision.relianceLevel)}`
+        )}</span></div>
         <div class="trust-decision-compact-body">${escapeHtml(
           decision.primaryReason
         )}</div>

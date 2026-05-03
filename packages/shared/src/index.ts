@@ -36,6 +36,7 @@ export {
   buildCaptureLocationGeoUri,
   buildCaptureLocationMapDataUrl,
   buildCaptureLocationMapSvg,
+  buildCaptureLocationPdfFallbackSvg,
   buildCaptureLocationStaticMapFallbackSvg,
   formatCaptureLocationAccuracy,
   formatCaptureLocationCoordinate,
@@ -88,6 +89,10 @@ export type {
 export {
   buildEvidenceTrustDecision,
   evaluateRecordedIntegrityPromotion,
+  getReviewerRelianceLabel,
+  getTrustDecisionLabel,
+  getTrustNarrative,
+  getTrustSignalPresentationLabel,
   hasCoreCryptoMaterials,
   isExplicitRecordedIntegrityVerified,
 } from "./trust-decision.js";

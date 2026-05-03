@@ -593,6 +593,152 @@ export function buildCaptureLocationMapSvg(params: {
   return buildCaptureLocationStaticMapFallbackSvg(params);
 }
 
+export function buildCaptureLocationPdfFallbackSvg(params: {
+  lat: string | number;
+  lng: string | number;
+  accuracyMeters?: string | number | null;
+  width?: number;
+  height?: number;
+  zoom?: number;
+}): string {
+  const model = buildCaptureLocationDisplayModel(params);
+  if (!model) {
+    return "";
+  }
+
+  const {
+    width,
+    height,
+    markerX,
+    markerY,
+    accuracyRadiusPx,
+    latLabel,
+    lngLabel,
+    accuracyLabel,
+    sourceLabel,
+    attributionLabel,
+    scaleBarMeters,
+    scaleBarLabel,
+    lat,
+    lng,
+  } = model;
+
+  const framePaddingX = Math.round(width * 0.06);
+  const framePaddingY = Math.round(height * 0.11);
+  const plotWidth = width - framePaddingX * 2;
+  const plotHeight = height - framePaddingY * 2;
+  const gridLatStep = 0.0032 * (18 / model.zoom);
+  const gridLngStep = 0.0046 * (18 / model.zoom);
+  const scaleBarWidth = Math.min(
+    width * 0.19,
+    (scaleBarMeters / model.metersPerPixel) * 0.68
+  );
+  const seed = Math.round((Math.abs(lat) + Math.abs(lng)) * 10_000);
+
+  const verticalLines = Array.from({ length: 6 }, (_, index) => {
+    const x = framePaddingX + (plotWidth / 5) * index;
+    return `<line x1="${x}" y1="${framePaddingY}" x2="${x}" y2="${
+      height - framePaddingY
+    }" stroke="rgba(128,145,144,0.14)" stroke-width="1" />`;
+  }).join("");
+
+  const horizontalLines = Array.from({ length: 4 }, (_, index) => {
+    const y = framePaddingY + (plotHeight / 3) * index;
+    return `<line x1="${framePaddingX}" y1="${y}" x2="${
+      width - framePaddingX
+    }" y2="${y}" stroke="rgba(128,145,144,0.12)" stroke-width="1" />`;
+  }).join("");
+
+  const roadPaths = [
+    buildSurveyCurvePath(width, height, seed + 7, 20, 0.28),
+    buildSurveyCurvePath(width, height, seed + 17, 18, 0.5),
+    buildSurveyCurvePath(width, height, seed + 31, 22, 0.7),
+  ]
+    .map(
+      (d, index) =>
+        `<path d="${d}" fill="none" stroke="${
+          index === 1 ? "rgba(115,126,125,0.36)" : "rgba(162,171,169,0.32)"
+        }" stroke-width="${index === 1 ? 4.2 : 2.2}" stroke-linecap="round" />`
+    )
+    .join("");
+
+  const terrainPaths = Array.from({ length: 4 }, (_, index) =>
+    `<path d="${buildSurveyCurvePath(
+      width,
+      height,
+      seed + 47 + index * 9,
+      11 + index * 3,
+      0.18 + index * 0.18
+    )}" fill="none" stroke="rgba(178,186,183,0.25)" stroke-width="${
+      1.1 + index * 0.12
+    }" />`
+  ).join("");
+
+  const latTicks = Array.from({ length: 3 }, (_, index) => {
+    const value = lat + (1 - index) * gridLatStep;
+    const y = framePaddingY + (plotHeight / 2) * index;
+    return `<text x="${framePaddingX - 14}" y="${y + 4}" text-anchor="end" fill="rgba(82,102,100,0.64)" font-size="12" font-weight="700" font-family="Helvetica Neue, Arial, sans-serif">${escapeSvgText(
+      formatGridCoordinate(value)
+    )}</text>`;
+  }).join("");
+
+  const lngTicks = Array.from({ length: 3 }, (_, index) => {
+    const value = lng + (index - 1) * gridLngStep;
+    const x = framePaddingX + (plotWidth / 2) * index;
+    return `<text x="${x}" y="${height - framePaddingY + 18}" text-anchor="middle" fill="rgba(82,102,100,0.64)" font-size="12" font-weight="700" font-family="Helvetica Neue, Arial, sans-serif">${escapeSvgText(
+      formatGridCoordinate(value)
+    )}</text>`;
+  }).join("");
+
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" fill="none">
+  <defs>
+    <linearGradient id="paperBg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#f2f4f2"/>
+      <stop offset="100%" stop-color="#e6ebe8"/>
+    </linearGradient>
+    <filter id="pinShadow" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="5" stdDeviation="5" flood-color="rgba(33,57,54,0.18)"/>
+    </filter>
+  </defs>
+
+  <rect width="${width}" height="${height}" rx="20" fill="url(#paperBg)"/>
+  <rect x="10" y="10" width="${width - 20}" height="${height - 20}" rx="16" fill="rgba(255,255,255,0.46)" stroke="rgba(111,130,127,0.18)"/>
+  <rect x="${framePaddingX}" y="${framePaddingY}" width="${plotWidth}" height="${plotHeight}" rx="16" fill="rgba(255,255,255,0.58)" stroke="rgba(117,136,134,0.18)"/>
+
+  ${verticalLines}
+  ${horizontalLines}
+  ${terrainPaths}
+  ${roadPaths}
+  ${latTicks}
+  ${lngTicks}
+
+  <circle cx="${markerX}" cy="${markerY}" r="${accuracyRadiusPx}" fill="rgba(129,184,174,0.18)" stroke="rgba(98,151,141,0.34)" stroke-width="2"/>
+  <line x1="${markerX - 22}" y1="${markerY}" x2="${markerX + 22}" y2="${markerY}" stroke="rgba(28,69,63,0.34)" stroke-width="1.2"/>
+  <line x1="${markerX}" y1="${markerY - 22}" x2="${markerX}" y2="${markerY + 22}" stroke="rgba(28,69,63,0.34)" stroke-width="1.2"/>
+  <circle cx="${markerX}" cy="${markerY}" r="8.5" fill="#1f5f57" stroke="#f7faf8" stroke-width="3" filter="url(#pinShadow)"/>
+  <path d="M ${markerX} ${markerY + 13} l -6 12 h 12 z" fill="#1f5f57" stroke="#f7faf8" stroke-width="1.5"/>
+
+  <rect x="${framePaddingX + 14}" y="${height - 45}" width="${Math.round(scaleBarWidth)}" height="4" rx="2" fill="rgba(28,69,63,0.74)"/>
+  <line x1="${framePaddingX + 14}" y1="${height - 49}" x2="${framePaddingX + 14}" y2="${height - 37}" stroke="rgba(28,69,63,0.74)" stroke-width="1"/>
+  <line x1="${framePaddingX + 14 + Math.round(scaleBarWidth)}" y1="${height - 49}" x2="${framePaddingX + 14 + Math.round(scaleBarWidth)}" y2="${height - 37}" stroke="rgba(28,69,63,0.74)" stroke-width="1"/>
+  <text x="${framePaddingX + 14}" y="${height - 54}" fill="rgba(38,68,64,0.76)" font-size="11.5" font-weight="800" font-family="Helvetica Neue, Arial, sans-serif">${escapeSvgText(
+    scaleBarLabel
+  )}</text>
+
+  <text x="${framePaddingX}" y="27" fill="rgba(36,68,64,0.92)" font-size="15.5" font-weight="800" letter-spacing="0.06em" font-family="Helvetica Neue, Arial, sans-serif">CAPTURE CONTEXT</text>
+  <text x="${framePaddingX}" y="46" fill="rgba(72,88,87,0.84)" font-size="12.5" font-weight="700" font-family="Helvetica Neue, Arial, sans-serif">${escapeSvgText(
+    `Lat ${latLabel}° • Lng ${lngLabel}°`
+  )}</text>
+  <text x="${framePaddingX}" y="${height - 20}" fill="rgba(74,90,88,0.78)" font-size="11.8" font-weight="700" font-family="Helvetica Neue, Arial, sans-serif">${escapeSvgText(
+    `${accuracyLabel} • ${sourceLabel}`
+  )}</text>
+  <text x="${width - framePaddingX}" y="${height - 20}" text-anchor="end" fill="rgba(106,118,116,0.72)" font-size="10.6" font-weight="700" font-family="Helvetica Neue, Arial, sans-serif">${escapeSvgText(
+    attributionLabel
+  )}</text>
+</svg>`;
+}
+
 export function buildCaptureLocationMapDataUrl(params: {
   lat: string | number;
   lng: string | number;

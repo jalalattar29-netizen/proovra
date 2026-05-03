@@ -11,6 +11,10 @@ import {
   buildEvidenceTrustDecision,
   formatCaptureLocationAccuracy,
   formatCaptureLocationCoordinate,
+  getReviewerRelianceLabel,
+  getTrustDecisionLabel,
+  getTrustNarrative,
+  getTrustSignalPresentationLabel,
   hasCaptureLocationMetadata,
   isAccessCustodyEventType,
 } from "@proovra/shared";
@@ -1939,6 +1943,9 @@ type VerifyTrustDecision = {
   summary: string;
   primaryReason: string;
   reviewerAction: string;
+  passedSignals: number;
+  degradedSignals: number;
+  failedSignals: number;
   signals: VerifyTrustSignal[];
 };
 
@@ -2146,6 +2153,9 @@ function buildUnavailableTrustDecision(): VerifyTrustDecision {
       "The verification response did not include the canonical trust-decision object.",
     reviewerAction:
       "Refresh the verification response or regenerate the report/package so the shared trust-decision snapshot is available.",
+    passedSignals: 0,
+    degradedSignals: 0,
+    failedSignals: 0,
     signals: [],
   };
 }
@@ -2408,6 +2418,8 @@ function TrustDecisionCard({
 }: {
   decision: VerifyTrustDecision;
 }) {
+  const relianceLabel = getReviewerRelianceLabel(decision.relianceLevel);
+  const trustNarrative = getTrustNarrative(decision);
   const palette =
     decision.tone === "success"
       ? {
@@ -2443,7 +2455,7 @@ function TrustDecisionCard({
       <div
         style={{
           display: "grid",
-          gridTemplateColumns: "minmax(0, 1fr) 170px",
+          gridTemplateColumns: "minmax(0, 1fr) 210px",
           gap: 18,
           alignItems: "stretch",
         }}
@@ -2463,7 +2475,7 @@ function TrustDecisionCard({
               marginBottom: 10,
             }}
           >
-            {decision.verdictLabel}
+            {getTrustDecisionLabel(decision)}
           </div>
 
           <div
@@ -2474,7 +2486,7 @@ function TrustDecisionCard({
               maxWidth: 900,
             }}
           >
-            {decision.summary}
+            {trustNarrative}
           </div>
         </div>
 
@@ -2492,17 +2504,27 @@ function TrustDecisionCard({
         >
           <div
             style={{
-              fontSize: 34,
-              lineHeight: 1,
+              ...VERIFY_TYPO.kicker,
+              fontSize: 10.5,
+              color: VERIFY_BRAND.subtle,
+            }}
+          >
+            Reviewer Reliance
+          </div>
+
+          <div
+            style={{
+              fontSize: 24,
+              lineHeight: 1.1,
               fontWeight: 950,
               color: VERIFY_BRAND.accent,
             }}
           >
-            {decision.scoreLabel}
+            {relianceLabel}
           </div>
 
           <div style={{ ...VERIFY_TYPO.kicker, fontSize: 10 }}>
-            Trust Score
+            Verification Classification
           </div>
 
           <div
@@ -2514,7 +2536,7 @@ function TrustDecisionCard({
               letterSpacing: "0.06em",
             }}
           >
-            Reliance: {decision.relianceLevel}
+            {getTrustDecisionLabel(decision)}
           </div>
         </div>
       </div>
@@ -2606,7 +2628,7 @@ function TrustSignalGrid({
                   whiteSpace: "nowrap",
                 }}
               >
-                {signal.points}/{signal.maxPoints}
+                {getTrustSignalPresentationLabel(signal)}
               </div>
             </div>
 
@@ -2726,21 +2748,49 @@ function VerificationPackageIntegrityCard({
       <div
         style={{
           display: "grid",
-          gridTemplateColumns: "minmax(0, 1fr) 190px",
+          gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
           gap: 18,
           alignItems: "stretch",
         }}
       >
-        <div>
+        <div
+          style={{
+            minWidth: 0,
+            wordBreak: "normal",
+            overflowWrap: "break-word",
+            whiteSpace: "normal",
+          }}
+        >
           <div style={{ ...VERIFY_TYPO.kicker, fontSize: 10.5, marginBottom: 8 }}>
             Verification Package Integrity
           </div>
 
-          <div style={{ ...VERIFY_TYPO.h3, fontSize: 22, marginBottom: 8 }}>
+          <div
+            style={{
+              ...VERIFY_TYPO.h3,
+              fontSize: 22,
+              marginBottom: 8,
+              minWidth: 0,
+              wordBreak: "normal",
+              overflowWrap: "break-word",
+              whiteSpace: "normal",
+            }}
+          >
             {decisionLabel}
           </div>
 
-          <div style={{ ...VERIFY_TYPO.small, fontSize: 13.5, color: VERIFY_BRAND.ink, maxWidth: 860 }}>
+          <div
+            style={{
+              ...VERIFY_TYPO.small,
+              fontSize: 13.5,
+              color: VERIFY_BRAND.ink,
+              maxWidth: 860,
+              minWidth: 0,
+              wordBreak: "normal",
+              overflowWrap: "break-word",
+              whiteSpace: "normal",
+            }}
+          >
             {decisionText}
           </div>
         </div>
@@ -2755,6 +2805,8 @@ function VerificationPackageIntegrityCard({
             alignContent: "center",
             gap: 8,
             textAlign: "center",
+            minWidth: 0,
+            justifySelf: "stretch",
           }}
         >
           <Badge
@@ -4125,14 +4177,14 @@ const executiveBadges = useMemo<
   value: integrityStatusDisplayLabel(trustDecision),
   show: true,
 },
-        {
+{
   label: "Trust Decision",
-  value: `${trustDecision.verdictLabel} • ${trustDecision.scoreLabel}`,
+  value: getTrustDecisionLabel(trustDecision),
   show: true,
 },
 {
-  label: "Reliance Level",
-  value: trustDecision.relianceLevel,
+  label: "Reviewer Reliance",
+  value: getReviewerRelianceLabel(trustDecision.relianceLevel),
   show: true,
 },
         {
@@ -5219,7 +5271,7 @@ Supporting Technical Signals
                             maxWidth: 820,
                           }}
                         >
-The signals below are the raw technical checks behind the Trust Decision above. They are useful for forensic review, but the overall decision should be read from the trust score, signal breakdown, legal boundary, and reviewer action.
+The signals below show the recorded verification layers behind the Trust Decision above. They support forensic review, but the overall decision should be read from the classification, reviewer reliance, legal boundary, and reviewer action.
                         </div>
                       </div>
                     </div>

@@ -1372,15 +1372,16 @@ mapPreviewDataUrl:
     lng: input.evidence.gps.lng ?? 0,
     accuracyMeters: input.evidence.gps.accuracyMeters,
     width: 1600,
-    height: 620,
+    height: 680,
     zoom: 16,
+    tileGrid: 5,
   })) ??
   buildCaptureLocationMapDataUrl({
     lat: input.evidence.gps.lat ?? 0,
     lng: input.evidence.gps.lng ?? 0,
     accuracyMeters: input.evidence.gps.accuracyMeters,
     width: 1600,
-    height: 620,
+    height: 680,
     zoom: 16,
   }) ??
   "",

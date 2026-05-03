@@ -1,6 +1,10 @@
 import { ReportViewModel } from "../types.js";
 import { escapeHtml } from "../formatters.js";
 import {
+  getReviewerRelianceLabel,
+  getTrustDecisionLabel,
+} from "@proovra/shared";
+import {
   renderPageSection,
   renderTrustSignalGrid,
   renderKeyValueGrid,
@@ -112,12 +116,12 @@ function renderTrustSignalAnalysisPage(vm: ReportViewModel): string {
     `
       <div class="trust-signal-analysis-page">
         <section class="trust-signal-analysis-hero">
-          <div class="executive-confirmation-kicker">Trust scoring breakdown</div>
+          <div class="executive-confirmation-kicker">Verification layer review</div>
           <div class="executive-confirmation-title">
             Signal-level basis for the Trust Decision
           </div>
           <div class="executive-confirmation-body">
-            This page explains how the recorded integrity, signature, timestamping, anchoring, storage, custody, identity, and package signals contributed to the reviewer-facing trust score. It is a supporting analysis layer, not a separate legal conclusion.
+            This page explains how the recorded integrity, signature, timestamping, anchoring, storage, custody, identity, and package layers support reviewer interpretation. It is a supporting analysis layer, not a separate legal conclusion.
           </div>
         </section>
 
@@ -229,11 +233,11 @@ export function renderExecutiveSummarySection(vm: ReportViewModel): string {
     },
     {
       label: "Trust Decision",
-      value: `${vm.trustDecision.verdictLabel} • ${vm.trustDecision.scoreLabel}`,
+      value: getTrustDecisionLabel(vm.trustDecision),
     },
     {
-      label: "Reliance Level",
-      value: vm.trustDecision.relianceLevel,
+      label: "Reviewer Reliance",
+      value: getReviewerRelianceLabel(vm.trustDecision.relianceLevel),
     },
   ];
 
