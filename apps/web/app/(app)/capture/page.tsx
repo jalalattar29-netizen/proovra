@@ -321,6 +321,7 @@ export default function CapturePage() {
   const [error, setError] = useState<string | null>(null);
   const [useLocation, setUseLocation] = useState(false);
   const [progress, setProgress] = useState<number>(0);
+  const [sessionStatus, setSessionStatus] = useState<string | null>(null);
 
   const [cameraOpen, setCameraOpen] = useState(false);
   const [cameraMode, setCameraMode] = useState<CameraMode>(null);
@@ -338,10 +339,7 @@ export default function CapturePage() {
   const [audioPreviewUrl, setAudioPreviewUrl] = useState<string | null>(null);
   const [audioPreviewFile, setAudioPreviewFile] = useState<File | null>(null);
 
-  const [sessionEvidenceId, setSessionEvidenceId] = useState<string | null>(null);
   const [sessionItems, setSessionItems] = useState<SessionItem[]>([]);
-  const [sessionInfo, setSessionInfo] = useState<string | null>(null);
-  const [sessionCreating, setSessionCreating] = useState(false);
   const [locationPermissionDenied, setLocationPermissionDenied] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -354,15 +352,10 @@ export default function CapturePage() {
   const audioChunksRef = useRef<Blob[]>([]);
   const audioPreviewUrlRef = useRef<string | null>(null);
   const sessionItemsRef = useRef<SessionItem[]>([]);
-  const sessionEvidenceIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     sessionItemsRef.current = sessionItems;
   }, [sessionItems]);
-
-  useEffect(() => {
-    sessionEvidenceIdRef.current = sessionEvidenceId;
-  }, [sessionEvidenceId]);
 
   useEffect(() => {
     audioPreviewUrlRef.current = audioPreviewUrl;
@@ -541,85 +534,6 @@ export default function CapturePage() {
     return () => window.clearInterval(timer);
   }, [audioRecorderState]);
 
-  const createEvidenceSessionIfNeeded = async (
-    firstFile: File,
-    sessionEvidenceType?: EvidenceType
-  ) => {
-    if (sessionEvidenceIdRef.current) {
-      return sessionEvidenceIdRef.current;
-    }
-
-    setSessionCreating(true);
-    setSessionInfo("Creating evidence session...");
-    setError(null);
-
-    try {
-      const deviceTimeIso = new Date().toISOString();
-      const normalizedMimeType = normalizeClientMimeType(firstFile.type);
-      const resolvedEvidenceType =
-        sessionEvidenceType ?? inferEvidenceTypeFromMimeType(normalizedMimeType);
-      let gps: { lat: number; lng: number; accuracyMeters?: number } | undefined;
-
-      if (useLocation && typeof navigator !== "undefined" && navigator.geolocation) {
-        try {
-          gps = await new Promise<{ lat: number; lng: number; accuracyMeters?: number }>(
-            (resolve, reject) => {
-              navigator.geolocation.getCurrentPosition(
-                (pos) =>
-                  resolve({
-                    lat: pos.coords.latitude,
-                    lng: pos.coords.longitude,
-                    accuracyMeters: pos.coords.accuracy,
-                  }),
-                (geoErr) => reject(geoErr),
-                { enableHighAccuracy: true, timeout: 8000 }
-              );
-            }
-          );
-          setLocationPermissionDenied(false);
-        } catch {
-          setLocationPermissionDenied(true);
-          addToast("Location unavailable. Continuing without GPS.", "warning");
-        }
-      }
-
-      const integrity = await computeIntegrityFromBlob(firstFile);
-
-const created = await apiFetch("/v1/evidence", {
-  method: "POST",
-  body: JSON.stringify({
-    type: resolvedEvidenceType,
-    mimeType: normalizedMimeType,
-    originalFileName: firstFile.name,
-    captureFileName: firstFile.name,
-    deviceTimeIso,
-    gps,
-    checksumSha256Base64: integrity.checksumSha256Base64,
-    contentMd5Base64: integrity.contentMd5Base64,
-  }),
-});
-
-      setSessionEvidenceId(created.id);
-      setSessionInfo(null);
-      addToast("Evidence session created", "success");
-      return created.id as string;
-    } catch (err) {
-      logCaptureClientError("web_capture_create_evidence_session", err, {
-        fileName: firstFile.name,
-        mimeType: firstFile.type || null,
-        sessionEvidenceType: sessionEvidenceType ?? null,
-      });
-      const storageMessage = buildStorageLimitMessage(err);
-      if (storageMessage) {
-        setError(storageMessage);
-        addToast(storageMessage, "error");
-      }
-      throw err;
-    } finally {
-      setSessionCreating(false);
-    }
-  };
-
   const addFilesToSession = async (
     files: File[],
     options?: { sessionEvidenceType?: EvidenceType }
@@ -627,14 +541,9 @@ const created = await apiFetch("/v1/evidence", {
     if (!files.length) return;
 
     setError(null);
-    setSessionInfo(null);
+    setSessionStatus(null);
 
     try {
-      await createEvidenceSessionIfNeeded(
-        files[0],
-        options?.sessionEvidenceType
-      );
-
       const nextItems: SessionItem[] = files.map((nextFile) => ({
         id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
         file: nextFile,
@@ -665,6 +574,7 @@ const created = await apiFetch("/v1/evidence", {
         (err instanceof Error ? err.message : "Failed to add items to session");
       setError(message);
       addToast(message, "error");
+      throw err;
     }
   };
 
@@ -679,9 +589,8 @@ const created = await apiFetch("/v1/evidence", {
 
   const resetCaptureState = () => {
     revokeAllPreviews();
-    setSessionEvidenceId(null);
     setSessionItems([]);
-    setSessionInfo(null);
+    setSessionStatus(null);
     setProgress(0);
     setError(null);
     setBusy(false);
@@ -691,20 +600,69 @@ const created = await apiFetch("/v1/evidence", {
   };
 
   const finalizeSession = async () => {
-    const evidenceId = sessionEvidenceIdRef.current;
     const items = sessionItemsRef.current;
 
-    if (!evidenceId || items.length === 0) {
+    if (items.length === 0) {
       addToast("No items in session", "error");
       return;
     }
 
     setBusy(true);
     setError(null);
-    setSessionInfo("Uploading session...");
+    setSessionStatus("Creating evidence record...");
     setProgress(0);
 
     try {
+      const files = items.map((item) => item.file);
+      const rootType = deriveBatchEvidenceType(files);
+      const primaryFile = files[0];
+      if (!primaryFile) {
+        throw new Error("No evidence items are available to finalize.");
+      }
+
+      let gps: { lat: number; lng: number; accuracyMeters?: number } | undefined;
+      if (useLocation && typeof navigator !== "undefined" && navigator.geolocation) {
+        try {
+          gps = await new Promise<{ lat: number; lng: number; accuracyMeters?: number }>(
+            (resolve, reject) => {
+              navigator.geolocation.getCurrentPosition(
+                (pos) =>
+                  resolve({
+                    lat: pos.coords.latitude,
+                    lng: pos.coords.longitude,
+                    accuracyMeters: pos.coords.accuracy,
+                  }),
+                (geoErr) => reject(geoErr),
+                { enableHighAccuracy: true, timeout: 8000 }
+              );
+            }
+          );
+          setLocationPermissionDenied(false);
+        } catch {
+          setLocationPermissionDenied(true);
+          addToast("Location unavailable. Continuing without GPS.", "warning");
+        }
+      }
+
+      const primaryMimeType = normalizeClientMimeType(primaryFile.type);
+      const primaryIntegrity = await computeIntegrityFromBlob(primaryFile);
+      const created = await apiFetch("/v1/evidence", {
+        method: "POST",
+        body: JSON.stringify({
+          type: rootType,
+          mimeType: primaryMimeType,
+          originalFileName: primaryFile.name,
+          captureFileName: primaryFile.name,
+          deviceTimeIso: new Date().toISOString(),
+          gps,
+          checksumSha256Base64: primaryIntegrity.checksumSha256Base64,
+          contentMd5Base64: primaryIntegrity.contentMd5Base64,
+        }),
+      });
+
+      const evidenceId = created.id as string;
+      setSessionStatus("Uploading preserved evidence items...");
+
       for (let index = 0; index < items.length; index += 1) {
         const item = items[index];
 
@@ -782,7 +740,7 @@ const part = await apiFetch(`/v1/evidence/${evidenceId}/parts`, {
         );
       }
 
-      setSessionInfo("Finalizing evidence...");
+      setSessionStatus("Finalizing evidence record...");
       setProgress(95);
 
       await apiFetch(`/v1/evidence/${evidenceId}/complete`, {
@@ -799,7 +757,6 @@ const part = await apiFetch(`/v1/evidence/${evidenceId}/parts`, {
       router.push(`/evidence/${evidenceId}`);
     } catch (err) {
       logCaptureClientError("web_capture_finalize_session", err, {
-        evidenceId,
         itemCount: items.length,
       });
 
@@ -818,18 +775,18 @@ const part = await apiFetch(`/v1/evidence/${evidenceId}/parts`, {
       addToast(msg, "error");
 
       if (storageMessage) {
-        setSessionInfo("Storage limit reached");
+        setSessionStatus("Storage limit reached");
       }
     } finally {
       setBusy(false);
-      if (!error) {
-        setSessionInfo(null);
-      }
+      setSessionStatus((current) =>
+        current === "Storage limit reached" ? current : null
+      );
     }
   };
 
   const openFilePicker = () => {
-    if (busy || sessionCreating) return;
+    if (busy) return;
     setError(null);
     if (!fileInputRef.current) {
       const pickerError = new Error("Evidence file input is unavailable");
@@ -997,8 +954,11 @@ const capturedFile = new File(
   }
 );
 
-    await addFilesToSession([capturedFile], { sessionEvidenceType: "PHOTO" });
-    addToast("Photo evidence added to session", "success");
+    try {
+      await addFilesToSession([capturedFile], { sessionEvidenceType: "PHOTO" });
+    } catch {
+      setCameraError("Failed to add the captured photo to this evidence session.");
+    }
   };
 
   const startVideoRecording = () => {
@@ -1061,10 +1021,13 @@ const recordedFile = new File(
   }
 );
 
-        await addFilesToSession([recordedFile], {
-          sessionEvidenceType: "VIDEO",
-        });
-        addToast("Video evidence added to session", "success");
+        try {
+          await addFilesToSession([recordedFile], {
+            sessionEvidenceType: "VIDEO",
+          });
+        } catch {
+          setCameraError("Failed to add the recorded video to this evidence session.");
+        }
         setIsRecording(false);
       };
 
@@ -1260,7 +1223,6 @@ const recordedFile = new File(
         sessionEvidenceType: "AUDIO",
       });
       resetAudioRecorderState();
-      addToast("Audio evidence added to session", "success");
     } catch (err) {
       logCaptureClientError("web_capture_add_audio_to_session", err, {});
       setAudioRecorderState("failed");
@@ -1761,28 +1723,6 @@ const recordedFile = new File(
                 {sessionCountLabel}
               </span>
 
-              {sessionEvidenceId ? (
-                <span
-                  style={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    minHeight: 34,
-                    padding: "7px 14px",
-                    borderRadius: 999,
-                    fontSize: 12,
-                    fontWeight: 800,
-                    letterSpacing: "0.08em",
-                    textTransform: "uppercase",
-                    border: "1px solid rgba(214,184,157,0.20)",
-                    background:
-                      "linear-gradient(180deg, rgba(183,157,132,0.12) 0%, rgba(255,255,255,0.03) 100%)",
-                    color: "#dcc0a5",
-                  }}
-                >
-                  Session active
-                </span>
-              ) : null}
             </div>
           </div>
         </div>
@@ -1830,7 +1770,11 @@ const recordedFile = new File(
                   multiple
                   accept={GENERIC_EVIDENCE_UPLOAD_ACCEPT}
                   onChange={async (event) => {
-                    await handleDroppedFiles(event.target.files);
+                    try {
+                      await handleDroppedFiles(event.target.files);
+                    } catch {
+                      // handled in addFilesToSession/logCaptureClientError
+                    }
                     if (fileInputRef.current) {
                       fileInputRef.current.value = "";
                     }
@@ -1960,7 +1904,7 @@ const recordedFile = new File(
                           <Button
                             variant="secondary"
                             onClick={card.onClick}
-                            disabled={busy || sessionCreating}
+                            disabled={busy}
                             className="rounded-[999px] border px-5 py-3 text-[0.95rem] font-medium"
                             style={card.title === "Record Audio" ? tertiaryButtonStyle : secondaryButtonStyle}
                           >
@@ -1988,7 +1932,7 @@ const recordedFile = new File(
                           color: "#7e8d8f",
                         }}
                       >
-                        Upload Evidence
+                        Upload Evidence Files
                       </div>
                       <div
                         style={{
@@ -2018,7 +1962,11 @@ const recordedFile = new File(
                       onDragOver={(event) => event.preventDefault()}
                       onDrop={async (event) => {
                         event.preventDefault();
-                        await handleDroppedFiles(event.dataTransfer.files);
+                        try {
+                          await handleDroppedFiles(event.dataTransfer.files);
+                        } catch {
+                          // handled in addFilesToSession/logCaptureClientError
+                        }
                       }}
                       onClick={openFilePicker}
                       style={{
@@ -2059,7 +2007,7 @@ const recordedFile = new File(
                         <Button
                           variant="secondary"
                           onClick={openFilePicker}
-                          disabled={busy || sessionCreating}
+                          disabled={busy}
                           className="rounded-[999px] border px-5 py-3 text-[0.95rem] font-medium"
                           style={secondaryButtonStyle}
                         >
@@ -2177,7 +2125,7 @@ const recordedFile = new File(
                         <Button
                           variant="secondary"
                           onClick={startAudioRecording}
-                          disabled={busy || sessionCreating || audioRecorderState === "recording"}
+                          disabled={busy || audioRecorderState === "recording"}
                           className="rounded-[999px] border px-5 py-3 text-[0.95rem] font-medium"
                           style={secondaryButtonStyle}
                         >
@@ -2228,8 +2176,8 @@ const recordedFile = new File(
       "linear-gradient(180deg, rgba(255,255,255,0.58) 0%, rgba(243,245,242,0.90) 100%)",
     boxShadow:
       "inset 0 1px 0 rgba(255,255,255,0.42), 0 10px 22px rgba(0,0,0,0.04)",
-    cursor: sessionEvidenceId ? "not-allowed" : "pointer",
-    opacity: sessionEvidenceId ? 0.7 : 1,
+    cursor: busy ? "not-allowed" : "pointer",
+    opacity: busy ? 0.7 : 1,
   }}
 >
   <div
@@ -2296,12 +2244,12 @@ const recordedFile = new File(
     type="checkbox"
     checked={useLocation}
     onChange={(event) => setUseLocation(event.target.checked)}
-    disabled={sessionEvidenceId !== null}
+    disabled={busy}
     style={{
       width: 18,
       height: 18,
       accentColor: "#39565d",
-      cursor: sessionEvidenceId ? "not-allowed" : "pointer",
+      cursor: busy ? "not-allowed" : "pointer",
       flexShrink: 0,
     }}
   />
@@ -2527,24 +2475,26 @@ const recordedFile = new File(
                               {(item.file.size / 1024 / 1024).toFixed(2)} MB
                             </div>
 
-                            <div
-                              style={{
-                                height: 8,
-                                borderRadius: 999,
-                                background: "rgba(79,112,107,0.10)",
-                                overflow: "hidden",
-                              }}
-                            >
+                            {busy || item.uploadProgress > 0 ? (
                               <div
                                 style={{
-                                  width: `${item.uploadProgress}%`,
-                                  height: "100%",
-                                  background:
-                                    "linear-gradient(90deg, rgba(45,91,89,0.92), rgba(191,232,223,0.86))",
-                                  transition: "width 0.2s ease",
+                                  height: 8,
+                                  borderRadius: 999,
+                                  background: "rgba(79,112,107,0.10)",
+                                  overflow: "hidden",
                                 }}
-                              />
-                            </div>
+                              >
+                                <div
+                                  style={{
+                                    width: `${item.uploadProgress}%`,
+                                    height: "100%",
+                                    background:
+                                      "linear-gradient(90deg, rgba(45,91,89,0.92), rgba(191,232,223,0.86))",
+                                    transition: "width 0.2s ease",
+                                  }}
+                                />
+                              </div>
+                            ) : null}
 
                             <div style={{ fontSize: 12, color: "#55696d" }}>
                               {item.uploading
@@ -2572,7 +2522,7 @@ const recordedFile = new File(
                   </div>
                 ) : null}
 
-                {sessionCreating || busy ? (
+                {busy ? (
                   <div
                     className="uploading-hint"
                     style={{
@@ -2584,11 +2534,11 @@ const recordedFile = new File(
                       color: "#42565b",
                     }}
                   >
-                    {busy ? `Uploading… ${progress}%` : "Preparing session..."}
+                    {`Finishing evidence session… ${progress}%`}
                   </div>
                 ) : null}
 
-                {sessionInfo ? (
+                {sessionStatus ? (
                   <div
                     className="uploading-hint"
                     style={{
@@ -2600,7 +2550,7 @@ const recordedFile = new File(
                       color: "#42565b",
                     }}
                   >
-                    {sessionInfo}
+                    {sessionStatus}
                   </div>
                 ) : null}
 
@@ -2619,14 +2569,27 @@ const recordedFile = new File(
                   </div>
                 ) : null}
 
+                <div style={{ display: "grid", gap: 10 }}>
+                  <div
+                    style={{
+                      fontSize: 12,
+                      fontWeight: 800,
+                      letterSpacing: "0.12em",
+                      textTransform: "uppercase",
+                      color: "#7e8d8f",
+                    }}
+                  >
+                    Finish &amp; Sign
+                  </div>
+
                 <div className="capture-finish-row">
                   <Button
                     onClick={finalizeSession}
-                    disabled={busy || sessionCreating || sessionItems.length === 0}
+                    disabled={busy || sessionItems.length === 0}
                     className="rounded-[999px] border px-5 py-3 text-[0.95rem] font-medium"
                     style={primaryButtonStyle}
                   >
-                    {busy ? "Capturing..." : "Finish & Sign"}
+                    {busy ? "Finishing…" : "Finish & Sign"}
                   </Button>
 
                   <Button
@@ -2638,6 +2601,7 @@ const recordedFile = new File(
                   >
                     Clear Session
                   </Button>
+                </div>
                 </div>
               </div>
             </div>
@@ -2754,7 +2718,7 @@ const recordedFile = new File(
                   type="button"
                   className="camera-capture-btn"
                   onClick={capturePhotoFromCamera}
-                  disabled={busy || cameraStarting || sessionCreating}
+                  disabled={busy || cameraStarting}
                 >
                   Add to Evidence Session
                 </button>
@@ -2763,7 +2727,7 @@ const recordedFile = new File(
                   type="button"
                   className="camera-capture-btn"
                   onClick={startVideoRecording}
-                  disabled={busy || cameraStarting || sessionCreating}
+                  disabled={busy || cameraStarting}
                 >
                   Record
                 </button>
