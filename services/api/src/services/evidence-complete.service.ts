@@ -83,10 +83,12 @@ function normalizeObservedMimeType(
 ): string | null {
   const raw = clean(value)?.toLowerCase() ?? null;
   if (!raw) return null;
-  if (raw.length > 128) return null;
-  if (/[\r\n]/.test(raw)) return null;
-  if (!/^[a-z0-9!#$&^_.+-]+\/[a-z0-9!#$&^_.+-]+$/i.test(raw)) return null;
-  return raw;
+  const normalized = raw.split(";")[0]?.trim() ?? "";
+  if (!normalized) return null;
+  if (normalized.length > 128) return null;
+  if (/[\r\n]/.test(normalized)) return null;
+  if (!/^[a-z0-9!#$&^_.+-]+\/[a-z0-9!#$&^_.+-]+$/i.test(normalized)) return null;
+  return normalized;
 }
 
 function decimalToNumber(value: unknown): number | null {

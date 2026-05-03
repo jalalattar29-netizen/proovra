@@ -45,10 +45,28 @@ type BillingWallLike = {
 };
 
 const GENERIC_EVIDENCE_UPLOAD_ACCEPT =
-  "image/*,video/*,audio/*,application/pdf,text/*,application/json,application/xml,text/xml,application/zip,application/x-zip-compressed,.csv,.log,.txt,.rtf,.doc,.docx,.xls,.xlsx,.eml,.msg,.zip,.json,.xml";
+  "image/*,video/*,audio/*,application/pdf,text/*,application/json,application/xml,text/xml,application/zip,application/x-zip-compressed,application/octet-stream,.bin,.csv,.log,.txt,.rtf,.doc,.docx,.xls,.xlsx,.eml,.msg,.zip,.json,.xml";
+
+function normalizeClientMimeType(
+  mimeType: string | null | undefined,
+  fallback = "application/octet-stream"
+): string {
+  const raw = String(mimeType ?? "").trim().toLowerCase();
+  if (!raw) return fallback;
+
+  const base = raw.split(";")[0]?.trim() ?? "";
+  if (!base) return fallback;
+  if (base.length > 128) return fallback;
+  if (/[\r\n]/.test(base)) return fallback;
+  if (!/^[a-z0-9!#$&^_.+-]+\/[a-z0-9!#$&^_.+-]+$/i.test(base)) {
+    return fallback;
+  }
+
+  return base;
+}
 
 function inferEvidenceTypeFromMimeType(mimeType: string | null | undefined): EvidenceType {
-  const mime = (mimeType ?? "").trim().toLowerCase();
+  const mime = normalizeClientMimeType(mimeType, "");
 
   if (mime.startsWith("image/")) return "PHOTO";
   if (mime.startsWith("video/")) return "VIDEO";
@@ -246,6 +264,52 @@ function buildStorageLimitMessage(error: unknown): string | null {
   }
 
   return null;
+}
+
+function describeMediaError(
+  error: unknown,
+  messages: {
+    permissionDenied: string;
+    notFound: string;
+    busy: string;
+    constrained: string;
+    security: string;
+    fallback: string;
+  }
+): string {
+  if (!(error instanceof DOMException)) {
+    return error instanceof Error && error.message
+      ? `${messages.fallback} (${error.message})`
+      : messages.fallback;
+  }
+
+  switch (error.name) {
+    case "NotAllowedError":
+    case "PermissionDeniedError":
+      return messages.permissionDenied;
+    case "NotFoundError":
+    case "DevicesNotFoundError":
+      return messages.notFound;
+    case "NotReadableError":
+    case "TrackStartError":
+      return messages.busy;
+    case "OverconstrainedError":
+    case "ConstraintNotSatisfiedError":
+      return messages.constrained;
+    case "SecurityError":
+      return messages.security;
+    default:
+      return `${messages.fallback} (${error.name})`;
+  }
+}
+
+function logCaptureClientError(
+  feature: string,
+  error: unknown,
+  extra?: Record<string, unknown>
+) {
+  console.error(`[capture] ${feature}`, error, extra ?? {});
+  captureException(error, { feature, ...(extra ?? {}) });
 }
 
 export default function CapturePage() {
@@ -491,8 +555,9 @@ export default function CapturePage() {
 
     try {
       const deviceTimeIso = new Date().toISOString();
+      const normalizedMimeType = normalizeClientMimeType(firstFile.type);
       const resolvedEvidenceType =
-        sessionEvidenceType ?? inferEvidenceTypeFromMimeType(firstFile.type);
+        sessionEvidenceType ?? inferEvidenceTypeFromMimeType(normalizedMimeType);
       let gps: { lat: number; lng: number; accuracyMeters?: number } | undefined;
 
       if (useLocation && typeof navigator !== "undefined" && navigator.geolocation) {
@@ -524,7 +589,7 @@ const created = await apiFetch("/v1/evidence", {
   method: "POST",
   body: JSON.stringify({
     type: resolvedEvidenceType,
-    mimeType: firstFile.type || "application/octet-stream",
+    mimeType: normalizedMimeType,
     originalFileName: firstFile.name,
     captureFileName: firstFile.name,
     deviceTimeIso,
@@ -539,6 +604,11 @@ const created = await apiFetch("/v1/evidence", {
       addToast("Evidence session created", "success");
       return created.id as string;
     } catch (err) {
+      logCaptureClientError("web_capture_create_evidence_session", err, {
+        fileName: firstFile.name,
+        mimeType: firstFile.type || null,
+        sessionEvidenceType: sessionEvidenceType ?? null,
+      });
       const storageMessage = buildStorageLimitMessage(err);
       if (storageMessage) {
         setError(storageMessage);
@@ -572,7 +642,7 @@ const created = await apiFetch("/v1/evidence", {
           nextFile.type.startsWith("image/") || nextFile.type.startsWith("video/")
             ? URL.createObjectURL(nextFile)
             : null,
-        mimeType: nextFile.type || "application/octet-stream",
+        mimeType: normalizeClientMimeType(nextFile.type),
         uploadProgress: 0,
         uploading: false,
         error: null,
@@ -584,7 +654,11 @@ const created = await apiFetch("/v1/evidence", {
         "success"
       );
     } catch (err) {
-      captureException(err, { feature: "web_capture_add_to_session", type });
+      logCaptureClientError("web_capture_add_to_session", err, {
+        type,
+        sessionEvidenceType: options?.sessionEvidenceType ?? null,
+        fileCount: files.length,
+      });
       const storageMessage = buildStorageLimitMessage(err);
       const message =
         storageMessage ||
@@ -648,7 +722,7 @@ const part = await apiFetch(`/v1/evidence/${evidenceId}/parts`, {
   method: "POST",
   body: JSON.stringify({
     partIndex: index,
-    mimeType: item.mimeType,
+    mimeType: normalizeClientMimeType(item.mimeType),
     originalFileName: item.file.name,
     checksumSha256Base64: integrity.checksumSha256Base64,
     contentMd5Base64: integrity.contentMd5Base64,
@@ -690,7 +764,10 @@ const part = await apiFetch(`/v1/evidence/${evidenceId}/parts`, {
           };
 
           xhr.open("PUT", part.upload.putUrl);
-          xhr.setRequestHeader("content-type", item.mimeType || "application/octet-stream");
+          xhr.setRequestHeader(
+            "content-type",
+            normalizeClientMimeType(item.mimeType)
+          );
           xhr.setRequestHeader("x-amz-checksum-sha256", integrity.checksumSha256Base64);
           xhr.setRequestHeader("Content-MD5", integrity.contentMd5Base64);
           xhr.send(item.file);
@@ -721,8 +798,7 @@ const part = await apiFetch(`/v1/evidence/${evidenceId}/parts`, {
       resetCaptureState();
       router.push(`/evidence/${evidenceId}`);
     } catch (err) {
-      captureException(err, {
-        feature: "web_capture_finalize_session",
+      logCaptureClientError("web_capture_finalize_session", err, {
         evidenceId,
         itemCount: items.length,
       });
@@ -753,6 +829,14 @@ const part = await apiFetch(`/v1/evidence/${evidenceId}/parts`, {
   };
 
   const openFilePicker = () => {
+    if (busy || sessionCreating) return;
+    setError(null);
+    if (!fileInputRef.current) {
+      const pickerError = new Error("Evidence file input is unavailable");
+      logCaptureClientError("web_capture_open_file_picker", pickerError, {});
+      setError("File picker is unavailable in this browser session.");
+      return;
+    }
     fileInputRef.current?.click();
   };
 
@@ -775,25 +859,73 @@ const part = await apiFetch(`/v1/evidence/${evidenceId}/parts`, {
       setCameraMode(mode);
       setCameraOpen(true);
       setFacingMode(nextFacingMode);
+      const videoConstraints = {
+        facingMode: { ideal: nextFacingMode },
+        width: { ideal: 1280 },
+        height: { ideal: 720 },
+      } as const;
 
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: {
-          facingMode: { ideal: nextFacingMode },
-          width: { ideal: 1280 },
-          height: { ideal: 720 },
-        },
-        audio: mode === "VIDEO",
-      });
+      let stream: MediaStream;
+      let usedVideoOnlyFallback = false;
+
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: videoConstraints,
+          audio: mode === "VIDEO",
+        });
+      } catch (primaryError) {
+        if (mode !== "VIDEO") {
+          throw primaryError;
+        }
+
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: videoConstraints,
+          audio: false,
+        });
+        usedVideoOnlyFallback = true;
+      }
 
       mediaStreamRef.current = stream;
       await attachStreamToPreview(stream);
+
+      if (usedVideoOnlyFallback) {
+        setCameraError(
+          "Video recorder opened without microphone audio. Check microphone permissions if audio capture is required."
+        );
+      }
     } catch (err) {
-      captureException(err, {
-        feature: "web_capture_open_camera",
+      logCaptureClientError("web_capture_open_camera", err, {
         mode,
         facingMode: nextFacingMode,
       });
-      setCameraError("Unable to access camera or microphone. Please check browser permissions.");
+      setCameraError(
+        describeMediaError(err, {
+          permissionDenied:
+            mode === "VIDEO"
+              ? "Camera or microphone permission was denied. Allow device access to record video evidence."
+              : "Camera permission was denied. Allow camera access to capture photo evidence.",
+          notFound:
+            mode === "VIDEO"
+              ? "No camera device is available for video recording on this device."
+              : "No camera device is available for photo capture on this device.",
+          busy:
+            mode === "VIDEO"
+              ? "The camera or microphone is currently unavailable. Close other apps using them and try again."
+              : "The camera is currently unavailable. Close other apps using it and try again.",
+          constrained:
+            mode === "VIDEO"
+              ? "This browser could not satisfy the requested video recording settings. Try a different browser or device."
+              : "This browser could not satisfy the requested camera settings. Try a different browser or device.",
+          security:
+            mode === "VIDEO"
+              ? "Browser security settings blocked camera or microphone access."
+              : "Browser security settings blocked camera access.",
+          fallback:
+            mode === "VIDEO"
+              ? "Unable to open the video recorder."
+              : "Unable to open the camera.",
+        })
+      );
       setCameraOpen(false);
     } finally {
       setCameraStarting(false);
@@ -893,7 +1025,11 @@ const capturedFile = new File(
       ];
 
       const mimeType =
-        preferredMimeTypes.find((candidate) => MediaRecorder.isTypeSupported(candidate)) || "";
+        typeof MediaRecorder.isTypeSupported === "function"
+          ? preferredMimeTypes.find((candidate) =>
+              MediaRecorder.isTypeSupported(candidate)
+            ) || ""
+          : preferredMimeTypes[2] ?? "";
 
       const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
 
@@ -904,7 +1040,10 @@ const capturedFile = new File(
       };
 
       recorder.onstop = async () => {
-        const finalMimeType = recorder.mimeType || "video/webm";
+        const finalMimeType = normalizeClientMimeType(
+          recorder.mimeType || "video/webm",
+          "video/webm"
+        );
         const blob = new Blob(recordedChunksRef.current, { type: finalMimeType });
 
         if (blob.size === 0) {
@@ -934,8 +1073,22 @@ const recordedFile = new File(
       setIsRecording(true);
       addToast("Recording started", "info");
     } catch (err) {
-      captureException(err, { feature: "web_capture_start_recording" });
-      setCameraError("Unable to start video recording.");
+      logCaptureClientError("web_capture_start_recording", err, {
+        cameraMode,
+      });
+      setCameraError(
+        describeMediaError(err, {
+          permissionDenied:
+            "Camera or microphone permission was denied. Allow access to record video evidence.",
+          notFound: "A camera device is not available for video recording.",
+          busy:
+            "The camera or microphone is currently unavailable. Close other apps using them and try again.",
+          constrained:
+            "This browser could not start the requested recording settings. Try a different browser or device.",
+          security: "Browser security settings blocked video recording.",
+          fallback: "Unable to start video recording.",
+        })
+      );
     }
   };
 
@@ -982,13 +1135,19 @@ const recordedFile = new File(
 
     try {
       const preferredMimeType = pickSupportedAudioMimeType();
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true,
-        },
-      });
+      let stream: MediaStream;
+
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          audio: {
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true,
+          },
+        });
+      } catch {
+        stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      }
 
       stopAudioStream();
       audioStreamRef.current = stream;
@@ -1005,7 +1164,10 @@ const recordedFile = new File(
         }
       };
 
-      recorder.onerror = () => {
+      recorder.onerror = (event) => {
+        logCaptureClientError("web_capture_audio_recorder_error", event, {
+          state: recorder.state,
+        });
         stopAudioStream();
         setAudioRecorderState("failed");
         setAudioRecorderError(
@@ -1016,7 +1178,10 @@ const recordedFile = new File(
       recorder.onstop = () => {
         stopAudioStream();
 
-        const finalMimeType = recorder.mimeType || preferredMimeType || "audio/webm";
+        const finalMimeType = normalizeClientMimeType(
+          recorder.mimeType || preferredMimeType || "audio/webm",
+          "audio/webm"
+        );
         const blob = new Blob(audioChunksRef.current, { type: finalMimeType });
 
         if (!blob.size) {
@@ -1049,12 +1214,23 @@ const recordedFile = new File(
       setAudioRecorderState("recording");
       addToast("Audio recording started", "info");
     } catch (err) {
-      captureException(err, { feature: "web_capture_start_audio_recording" });
+      logCaptureClientError("web_capture_start_audio_recording", err, {});
       setAudioRecorderState("failed");
       setAudioRecorderError(
-        err instanceof DOMException && err.name === "NotAllowedError"
-          ? "Microphone permission was denied. Enable microphone access or upload an existing audio file."
-          : "Audio recording could not be started. Upload an audio file instead."
+        describeMediaError(err, {
+          permissionDenied:
+            "Microphone permission was denied. Enable microphone access or upload an existing audio file.",
+          notFound:
+            "No microphone device is available in this browser. Upload an audio file instead.",
+          busy:
+            "The microphone is currently unavailable. Close other apps using it and try again.",
+          constrained:
+            "This browser could not satisfy the requested audio recording settings. Upload an audio file instead.",
+          security:
+            "Browser security settings blocked microphone access. Upload an audio file instead.",
+          fallback:
+            "Audio recording could not be started. Upload an audio file instead.",
+        })
       );
     }
   };
@@ -1086,7 +1262,7 @@ const recordedFile = new File(
       resetAudioRecorderState();
       addToast("Audio evidence added to session", "success");
     } catch (err) {
-      captureException(err, { feature: "web_capture_add_audio_to_session" });
+      logCaptureClientError("web_capture_add_audio_to_session", err, {});
       setAudioRecorderState("failed");
       setAudioRecorderError(
         err instanceof Error
@@ -1101,7 +1277,14 @@ const recordedFile = new File(
     if (!files.length) return;
     const batchType = deriveBatchEvidenceType(files);
     setType(batchType);
-    await addFilesToSession(files, { sessionEvidenceType: batchType });
+    try {
+      await addFilesToSession(files, { sessionEvidenceType: batchType });
+    } catch (err) {
+      logCaptureClientError("web_capture_handle_dropped_files", err, {
+        fileCount: files.length,
+      });
+      throw err;
+    }
   };
 
   const sessionCountLabel = useMemo(() => {

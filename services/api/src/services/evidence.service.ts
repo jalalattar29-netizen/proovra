@@ -19,13 +19,15 @@ function normalizeUploadMimeType(input?: string | null): string {
   const raw = typeof input === "string" ? input.trim().toLowerCase() : "";
 
   if (!raw) return "application/octet-stream";
-  if (raw.length > 128) return "application/octet-stream";
-  if (/[\r\n]/.test(raw)) return "application/octet-stream";
-  if (!/^[a-z0-9!#$&^_.+-]+\/[a-z0-9!#$&^_.+-]+$/i.test(raw)) {
+  const base = raw.split(";")[0]?.trim() ?? "";
+  if (!base) return "application/octet-stream";
+  if (base.length > 128) return "application/octet-stream";
+  if (/[\r\n]/.test(base)) return "application/octet-stream";
+  if (!/^[a-z0-9!#$&^_.+-]+\/[a-z0-9!#$&^_.+-]+$/i.test(base)) {
     return "application/octet-stream";
   }
 
-  return raw;
+  return base;
 }
 
 function resolveIdentityLevel(params: {
@@ -92,8 +94,12 @@ function buildGeneratedCaptureFileName(params: {
         if (mime === "image/webp") return "webp";
         if (mime === "video/mp4") return "mp4";
         if (mime === "video/webm") return "webm";
+        if (mime === "audio/webm") return "webm";
+        if (mime === "audio/ogg") return "ogg";
+        if (mime === "audio/mp4") return "m4a";
         if (mime === "audio/mpeg") return "mp3";
         if (mime === "audio/wav") return "wav";
+        if (mime === "audio/x-wav") return "wav";
         if (mime === "application/pdf") return "pdf";
         return "bin";
       })()

@@ -639,7 +639,9 @@ function shortHash(
 }
 
 function normalizeMimeType(value: string | null | undefined): string | null {
-  const text = typeof value === "string" ? value.trim().toLowerCase() : "";
+  const raw = typeof value === "string" ? value.trim().toLowerCase() : "";
+  if (!raw) return null;
+  const text = raw.split(";")[0]?.trim() ?? "";
   if (!text) return null;
   if (text.length > 128) return null;
   if (/[\r\n]/.test(text)) return null;
