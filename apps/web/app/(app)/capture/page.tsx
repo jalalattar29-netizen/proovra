@@ -340,6 +340,120 @@ function logCaptureClientError(
   captureException(error, { feature, ...(extra ?? {}) });
 }
 
+  type FileSystemEntryLike = {
+  isFile: boolean;
+  isDirectory: boolean;
+  name: string;
+};
+
+type FileSystemFileEntryLike = FileSystemEntryLike & {
+  file: (success: (file: File) => void, error?: (error: unknown) => void) => void;
+};
+
+type FileSystemDirectoryEntryLike = FileSystemEntryLike & {
+  createReader: () => {
+    readEntries: (
+      success: (entries: FileSystemEntryLike[]) => void,
+      error?: (error: unknown) => void
+    ) => void;
+  };
+};
+
+async function readAllDirectoryEntries(
+  directoryEntry: FileSystemDirectoryEntryLike
+): Promise<FileSystemEntryLike[]> {
+  const reader = directoryEntry.createReader();
+  const entries: FileSystemEntryLike[] = [];
+
+  let keepReading = true;
+
+  while (keepReading) {
+    const batch = await new Promise<FileSystemEntryLike[]>((resolve, reject) => {
+      reader.readEntries(resolve, reject);
+    });
+
+    if (!batch.length) {
+      keepReading = false;
+    } else {
+      entries.push(...batch);
+    }
+  }
+
+  return entries;
+}
+
+async function fileFromEntry(
+  fileEntry: FileSystemFileEntryLike,
+  relativePath: string
+): Promise<File> {
+  const file = await new Promise<File>((resolve, reject) => {
+    fileEntry.file(resolve, reject);
+  });
+
+  Object.defineProperty(file, "webkitRelativePath", {
+    value: relativePath,
+    configurable: true,
+  });
+
+  return file;
+}
+
+async function collectFilesFromEntry(
+  entry: FileSystemEntryLike,
+  parentPath = ""
+): Promise<File[]> {
+  const currentPath = parentPath ? `${parentPath}/${entry.name}` : entry.name;
+
+  if (entry.isFile) {
+    return [
+      await fileFromEntry(entry as FileSystemFileEntryLike, currentPath),
+    ];
+  }
+
+  if (entry.isDirectory) {
+    const children = await readAllDirectoryEntries(
+      entry as FileSystemDirectoryEntryLike
+    );
+
+    const nestedFiles = await Promise.all(
+      children.map((child) => collectFilesFromEntry(child, currentPath))
+    );
+
+    return nestedFiles.flat();
+  }
+
+  return [];
+}
+
+async function filesFromDataTransfer(dataTransfer: DataTransfer): Promise<File[]> {
+  const items = Array.from(dataTransfer.items ?? []);
+
+  if (!items.length) {
+    return Array.from(dataTransfer.files ?? []);
+  }
+
+  const entryFiles: File[] = [];
+
+  for (const item of items) {
+    const maybeEntry =
+      "webkitGetAsEntry" in item
+        ? (item as DataTransferItem & {
+            webkitGetAsEntry?: () => FileSystemEntryLike | null;
+          }).webkitGetAsEntry?.()
+        : null;
+
+    if (maybeEntry) {
+      entryFiles.push(...(await collectFilesFromEntry(maybeEntry)));
+      continue;
+    }
+
+    const file = item.getAsFile();
+    if (file) entryFiles.push(file);
+  }
+
+  return entryFiles.length ? entryFiles : Array.from(dataTransfer.files ?? []);
+}
+
 export default function CapturePage() {
   const router = useRouter();
   const { addToast } = useToast();
@@ -349,8 +463,8 @@ export default function CapturePage() {
   const [useLocation, setUseLocation] = useState(false);
   const [progress, setProgress] = useState<number>(0);
   const [sessionStatus, setSessionStatus] = useState<string | null>(null);
-const [sessionStartedAt, setSessionStartedAt] = useState(() => new Date());
-  const [internalNotes, setInternalNotes] = useState("");
+  const [sessionStartedAt, setSessionStartedAt] = useState(() => new Date());
+    const [internalNotes, setInternalNotes] = useState("");
 
   const [cameraOpen, setCameraOpen] = useState(false);
   const [cameraMode, setCameraMode] = useState<CameraMode>(null);
@@ -1311,120 +1425,6 @@ const recordedFile = new File(
     }
   };
 
-  type FileSystemEntryLike = {
-  isFile: boolean;
-  isDirectory: boolean;
-  name: string;
-};
-
-type FileSystemFileEntryLike = FileSystemEntryLike & {
-  file: (success: (file: File) => void, error?: (error: unknown) => void) => void;
-};
-
-type FileSystemDirectoryEntryLike = FileSystemEntryLike & {
-  createReader: () => {
-    readEntries: (
-      success: (entries: FileSystemEntryLike[]) => void,
-      error?: (error: unknown) => void
-    ) => void;
-  };
-};
-
-async function readAllDirectoryEntries(
-  directoryEntry: FileSystemDirectoryEntryLike
-): Promise<FileSystemEntryLike[]> {
-  const reader = directoryEntry.createReader();
-  const entries: FileSystemEntryLike[] = [];
-
-  let keepReading = true;
-
-  while (keepReading) {
-    const batch = await new Promise<FileSystemEntryLike[]>((resolve, reject) => {
-      reader.readEntries(resolve, reject);
-    });
-
-    if (!batch.length) {
-      keepReading = false;
-    } else {
-      entries.push(...batch);
-    }
-  }
-
-  return entries;
-}
-
-async function fileFromEntry(
-  fileEntry: FileSystemFileEntryLike,
-  relativePath: string
-): Promise<File> {
-  const file = await new Promise<File>((resolve, reject) => {
-    fileEntry.file(resolve, reject);
-  });
-
-  Object.defineProperty(file, "webkitRelativePath", {
-    value: relativePath,
-    configurable: true,
-  });
-
-  return file;
-}
-
-async function collectFilesFromEntry(
-  entry: FileSystemEntryLike,
-  parentPath = ""
-): Promise<File[]> {
-  const currentPath = parentPath ? `${parentPath}/${entry.name}` : entry.name;
-
-  if (entry.isFile) {
-    return [
-      await fileFromEntry(entry as FileSystemFileEntryLike, currentPath),
-    ];
-  }
-
-  if (entry.isDirectory) {
-    const children = await readAllDirectoryEntries(
-      entry as FileSystemDirectoryEntryLike
-    );
-
-    const nestedFiles = await Promise.all(
-      children.map((child) => collectFilesFromEntry(child, currentPath))
-    );
-
-    return nestedFiles.flat();
-  }
-
-  return [];
-}
-
-async function filesFromDataTransfer(dataTransfer: DataTransfer): Promise<File[]> {
-  const items = Array.from(dataTransfer.items ?? []);
-
-  if (!items.length) {
-    return Array.from(dataTransfer.files ?? []);
-  }
-
-  const entryFiles: File[] = [];
-
-  for (const item of items) {
-    const maybeEntry =
-      "webkitGetAsEntry" in item
-        ? (item as DataTransferItem & {
-            webkitGetAsEntry?: () => FileSystemEntryLike | null;
-          }).webkitGetAsEntry?.()
-        : null;
-
-    if (maybeEntry) {
-      entryFiles.push(...(await collectFilesFromEntry(maybeEntry)));
-      continue;
-    }
-
-    const file = item.getAsFile();
-    if (file) entryFiles.push(file);
-  }
-
-  return entryFiles.length ? entryFiles : Array.from(dataTransfer.files ?? []);
-}
-
 const handleDroppedFiles = async (fileList: FileList | File[] | null) => {
   const files = Array.from(fileList ?? []);
       if (!files.length) return;
@@ -1509,12 +1509,15 @@ const handleDroppedFiles = async (fileList: FileList | File[] | null) => {
     [sessionItems]
   );
 
+  const activeWorkflowStep = busy ? 3 : sessionItems.length > 0 ? 2 : 1;
+
   const outerCardStyle = useMemo(
     () =>
       ({
-        border: "1px solid rgba(105,122,130,0.14)",
-        background: "rgba(255,255,255,0.94)",
-        boxShadow: "0 22px 48px rgba(15,23,42,0.08)",
+        border: "1px solid rgba(92,112,122,0.12)",
+        background:
+          "linear-gradient(180deg, rgba(255,255,255,0.985) 0%, rgba(249,251,252,0.985) 100%)",
+        boxShadow: "0 28px 72px rgba(15,23,42,0.10)",
       }) as const,
     []
   );
@@ -1572,10 +1575,37 @@ const handleDroppedFiles = async (fileList: FileList | File[] | null) => {
       ({
         border: "1px solid rgba(105,122,130,0.10)",
         background: "rgba(255,255,255,0.96)",
-        boxShadow: "0 12px 28px rgba(15,23,42,0.05)",
+        boxShadow: "0 14px 34px rgba(15,23,42,0.05)",
       }) as const,
     []
   );
+
+  const finishButtonStyle = useMemo(() => {
+    if (busy) {
+      return {
+        ...primaryButtonStyle,
+        opacity: 0.92,
+      } as const;
+    }
+
+    if (sessionItems.length === 0) {
+      return {
+        borderColor: "rgba(148,163,184,0.18)",
+        color: "#7a8892",
+        background:
+          "linear-gradient(180deg, rgba(233,237,241,0.96) 0%, rgba(223,229,234,0.98) 100%)",
+        boxShadow: "inset 0 1px 0 rgba(255,255,255,0.60)",
+        textShadow: "none",
+        cursor: "not-allowed",
+      } as const;
+    }
+
+    return {
+      ...primaryButtonStyle,
+      boxShadow:
+        "inset 0 1px 0 rgba(255,255,255,0.10), 0 18px 40px rgba(17,34,43,0.22)",
+    } as const;
+  }, [busy, primaryButtonStyle, sessionItems.length]);
 
   return (
     <div className="section app-section capture-page-shell">
@@ -1957,16 +1987,16 @@ const handleDroppedFiles = async (fileList: FileList | File[] | null) => {
 
               <p
                 style={{
-                  marginTop: 20,
+                  marginTop: 18,
                   maxWidth: 720,
-                  fontSize: "0.95rem",
-                  lineHeight: 1.8,
+                  fontSize: "0.92rem",
+                  lineHeight: 1.7,
                   letterSpacing: "-0.006em",
                   color: "#aab5b2",
                 }}
               >
-                Capture or upload evidence materials, preserve cryptographic
-                fingerprints, and generate reviewer-ready verification artifacts.
+                Stage materials locally, preserve cryptographic fingerprints, and
+                generate reviewer-ready verification artifacts.
               </p>
             </div>
 
@@ -2006,7 +2036,10 @@ const handleDroppedFiles = async (fileList: FileList | File[] | null) => {
                 ["1", "Add materials"],
                 ["2", "Review session"],
                 ["3", "Finish & sign"],
-              ].map(([step, label]) => (
+              ].map(([step, label]) => {
+                const stepNumber = Number(step);
+                const active = activeWorkflowStep === stepNumber;
+                return (
                 <div
                   key={step}
                   style={{
@@ -2015,9 +2048,15 @@ const handleDroppedFiles = async (fileList: FileList | File[] | null) => {
                     gap: 12,
                     padding: "12px 14px",
                     borderRadius: 18,
-                    border: "1px solid rgba(255,255,255,0.08)",
-                    background: "rgba(255,255,255,0.04)",
-                    boxShadow: "0 10px 24px rgba(0,0,0,0.06)",
+                    border: active
+                      ? "1px solid rgba(191,232,223,0.24)"
+                      : "1px solid rgba(255,255,255,0.08)",
+                    background: active
+                      ? "linear-gradient(180deg, rgba(191,232,223,0.12) 0%, rgba(255,255,255,0.06) 100%)"
+                      : "rgba(255,255,255,0.04)",
+                    boxShadow: active
+                      ? "0 14px 28px rgba(0,0,0,0.10)"
+                      : "0 10px 24px rgba(0,0,0,0.06)",
                   }}
                 >
                   <span
@@ -2028,8 +2067,8 @@ const handleDroppedFiles = async (fileList: FileList | File[] | null) => {
                       display: "inline-flex",
                       alignItems: "center",
                       justifyContent: "center",
-                      background: "rgba(195,235,226,0.14)",
-                      color: "#c3ebe2",
+                      background: active ? "#c3ebe2" : "rgba(195,235,226,0.14)",
+                      color: active ? "#17323a" : "#c3ebe2",
                       fontSize: 12,
                       fontWeight: 800,
                       flexShrink: 0,
@@ -2039,7 +2078,7 @@ const handleDroppedFiles = async (fileList: FileList | File[] | null) => {
                   </span>
                   <span
                     style={{
-                      color: "#d9e2df",
+                      color: active ? "#eef8f5" : "#d9e2df",
                       fontSize: 13,
                       fontWeight: 700,
                       letterSpacing: "-0.01em",
@@ -2048,7 +2087,7 @@ const handleDroppedFiles = async (fileList: FileList | File[] | null) => {
                     {label}
                   </span>
                 </div>
-              ))}
+              )})}
             </div>
           </div>
         </div>
@@ -2060,9 +2099,9 @@ const handleDroppedFiles = async (fileList: FileList | File[] | null) => {
           background: "linear-gradient(180deg, #f5f7f8 0%, #eef2f4 100%)",
         }}
       >
-        <div className="container" style={{ paddingBottom: 72 }}>
+        <div className="container" style={{ paddingBottom: 72, maxWidth: 1320 }}>
           <Card
-            className="rounded-[30px] border bg-white p-0 shadow-none"
+            className="rounded-[32px] border bg-white p-0 shadow-none"
             style={outerCardStyle}
           >
             <div className="p-5 md:p-6">
@@ -2112,6 +2151,8 @@ const handleDroppedFiles = async (fileList: FileList | File[] | null) => {
                         borderRadius: 24,
                         display: "grid",
                         gap: 16,
+                        borderTop: "4px solid #274b5a",
+                        boxShadow: "0 18px 38px rgba(15,23,42,0.07)",
                       }}
                     >
                       <div style={{ display: "grid", gap: 6 }}>
@@ -2124,17 +2165,160 @@ const handleDroppedFiles = async (fileList: FileList | File[] | null) => {
                             color: "#7e8d8f",
                           }}
                         >
-                          Capture Evidence
+                          Upload Evidence
                         </div>
                         <div
                           style={{
                             color: "#21353a",
-                            fontWeight: 700,
-                            fontSize: 15,
-                            lineHeight: 1.5,
+                            fontWeight: 800,
+                            fontSize: 16,
+                            lineHeight: 1.55,
                           }}
                         >
-                          Add captured materials directly from this device.
+                          Stage files or folders locally before signing this evidence
+                          record.
+                        </div>
+                      </div>
+
+                      <div className="capture-actions-row">
+                        <Button
+                          variant="secondary"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            openFilePicker();
+                          }}
+                          disabled={busy}
+                          className="rounded-[999px] border px-5 py-3 text-[0.95rem] font-medium"
+                          style={{
+                            ...secondaryButtonStyle,
+                            minWidth: 150,
+                          }}
+                        >
+                          Upload Files
+                        </Button>
+                        <Button
+                          variant="secondary"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            openFolderPicker();
+                          }}
+                          disabled={busy}
+                          className="rounded-[999px] border px-5 py-3 text-[0.95rem] font-medium"
+                          style={{
+                            ...tertiaryButtonStyle,
+                            minWidth: 150,
+                          }}
+                        >
+                          Upload Folder
+                        </Button>
+                      </div>
+
+                      <div
+                        className="capture-drop-zone"
+                        onDragOver={(event) => event.preventDefault()}
+onDrop={async (event) => {
+  event.preventDefault();
+
+  try {
+    const files = await filesFromDataTransfer(event.dataTransfer);
+    await handleDroppedFiles(files);
+  } catch (err) {
+    logCaptureClientError("web_capture_drop_files_or_folder", err, {});
+    setError(
+      err instanceof Error
+        ? err.message
+        : "Dropped files or folder could not be added."
+    );
+  }
+}}
+                        style={{
+                          borderRadius: 22,
+                          border: "1px dashed rgba(76,96,110,0.24)",
+                          background:
+                            "linear-gradient(180deg, rgba(246,249,251,0.98) 0%, rgba(251,252,253,1) 100%)",
+                          padding: "34px 24px",
+                          display: "grid",
+                          gap: 12,
+                          textAlign: "center",
+                        }}
+                      >
+                        <div
+                          style={{
+                            width: 44,
+                            height: 44,
+                            margin: "0 auto",
+                            borderRadius: 14,
+                            display: "grid",
+                            placeItems: "center",
+                            background: "linear-gradient(180deg, rgba(39,75,90,0.10) 0%, rgba(201,79,79,0.08) 100%)",
+                            border: "1px solid rgba(76,96,110,0.14)",
+                            color: "#274b5a",
+                            fontSize: 22,
+                          }}
+                        >
+                          ⤴
+                        </div>
+                        <div
+                          style={{
+                            color: "#23373b",
+                            fontWeight: 800,
+                            fontSize: 16,
+                          }}
+                        >
+Drop files or folders here.
+                        </div>
+                        <div
+                          style={{
+                            color: "#5b6d71",
+                            fontSize: 13,
+                            lineHeight: 1.6,
+                          }}
+                        >
+                          Nothing is signed or submitted until you finish the evidence
+                          record.
+                        </div>
+                      </div>
+                    </div>
+
+                    <div
+                      style={{
+                        ...softCardStyle,
+                        padding: 18,
+                        borderRadius: 24,
+                        display: "grid",
+                        gap: 14,
+                      }}
+                    >
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "space-between",
+                          gap: 12,
+                          flexWrap: "wrap",
+                        }}
+                      >
+                        <div style={{ display: "grid", gap: 4 }}>
+                          <div
+                            style={{
+                              fontSize: 12,
+                              fontWeight: 800,
+                              letterSpacing: "0.12em",
+                              textTransform: "uppercase",
+                              color: "#7e8d8f",
+                            }}
+                          >
+                            Capture Evidence
+                          </div>
+                          <div
+                            style={{
+                              color: "#21353a",
+                              fontWeight: 700,
+                              fontSize: 14,
+                            }}
+                          >
+                            Capture directly from this device.
+                          </div>
                         </div>
                       </div>
 
@@ -2149,19 +2333,19 @@ const handleDroppedFiles = async (fileList: FileList | File[] | null) => {
                         {[
                           {
                             title: "Capture Photo",
-                            note: "Still image",
+                            note: "Photo",
                             onClick: () => openCamera("PHOTO"),
                             style: secondaryButtonStyle,
                           },
                           {
                             title: "Record Video",
-                            note: "Camera recording",
+                            note: "Video",
                             onClick: () => openCamera("VIDEO"),
                             style: secondaryButtonStyle,
                           },
                           {
                             title: "Record Audio",
-                            note: "Voice or interview",
+                            note: "Audio",
                             onClick: openAudioRecorder,
                             style: tertiaryButtonStyle,
                           },
@@ -2174,21 +2358,15 @@ const handleDroppedFiles = async (fileList: FileList | File[] | null) => {
                             className="capture-type-pill rounded-[18px] border px-4 py-4 text-left"
                             style={{
                               ...action.style,
-                              minHeight: 82,
+                              minHeight: 74,
                               display: "grid",
                               justifyContent: "start",
                               alignContent: "center",
-                              gap: 4,
+                              gap: 3,
                             }}
                           >
                             <span style={{ fontSize: 14, fontWeight: 700 }}>{action.title}</span>
-                            <span
-                              style={{
-                                fontSize: 12,
-                                fontWeight: 500,
-                                opacity: 0.78,
-                              }}
-                            >
+                            <span style={{ fontSize: 12, fontWeight: 600, opacity: 0.72 }}>
                               {action.note}
                             </span>
                           </Button>
@@ -2200,86 +2378,37 @@ const handleDroppedFiles = async (fileList: FileList | File[] | null) => {
                       <div
                         style={{
                           ...softCardStyle,
-                          padding: 20,
-                          borderRadius: 24,
+                          padding: 18,
+                          borderRadius: 22,
                           display: "grid",
-                          gap: 14,
+                          gap: 12,
                         }}
                       >
-                        <div style={{ display: "grid", gap: 6 }}>
-                          <div
-                            style={{
-                              fontSize: 12,
-                              fontWeight: 800,
-                              letterSpacing: "0.12em",
-                              textTransform: "uppercase",
-                              color: "#7e8d8f",
-                            }}
-                          >
-                            Record Audio
-                          </div>
+                        <div
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "space-between",
+                            gap: 12,
+                            flexWrap: "wrap",
+                          }}
+                        >
                           <div
                             style={{
                               color: "#21353a",
-                              fontWeight: 700,
+                              fontWeight: 800,
                               fontSize: 15,
-                              lineHeight: 1.55,
                             }}
                           >
-                            Only record audio where you have the right or permission to do
-                            so. PROOVRA preserves integrity state; it does not independently
-                            determine legality, consent, truth, or admissibility.
+                            Audio Recorder
                           </div>
-                        </div>
-
-                        <div
-                          style={{
-                            display: "grid",
-                            gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))",
-                            gap: 10,
-                          }}
-                        >
-                          {[
-                            ["Recording state", audioRecorderState.replace(/_/g, " ")],
-                            ["Timer", formatRecordingTime(audioRecordingSeconds)],
-                            [
-                              "Status",
-                              audioRecorderState === "preview_ready"
+                          <div style={{ color: "#6a777b", fontSize: 12 }}>
+                            {audioRecorderState === "recording"
+                              ? `Recording · ${formatRecordingTime(audioRecordingSeconds)}`
+                              : audioRecorderState === "preview_ready"
                                 ? "Preview ready"
-                                : audioRecorderState === "uploading"
-                                  ? "Adding to session"
-                                  : audioRecorderState === "failed"
-                                    ? "Recording failed"
-                                    : audioRecorderState === "recording"
-                                      ? "Recording"
-                                      : "Ready",
-                            ],
-                          ].map(([label, value]) => (
-                            <div
-                              key={label}
-                              style={{
-                                borderRadius: 16,
-                                border: "1px solid rgba(105,122,130,0.10)",
-                                background: "#f8fafb",
-                                padding: "12px 14px",
-                                display: "grid",
-                                gap: 4,
-                              }}
-                            >
-                              <div
-                                style={{
-                                  color: "#7e8d8f",
-                                  fontSize: 11,
-                                  fontWeight: 800,
-                                  textTransform: "uppercase",
-                                  letterSpacing: "0.08em",
-                                }}
-                              >
-                                {label}
-                              </div>
-                              <div style={{ color: "#21353a", fontWeight: 700 }}>{value}</div>
-                            </div>
-                          ))}
+                                : "Ready"}
+                          </div>
                         </div>
 
                         {audioPreviewUrl ? (
@@ -2324,7 +2453,7 @@ const handleDroppedFiles = async (fileList: FileList | File[] | null) => {
                             className="rounded-[999px] border px-5 py-3 text-[0.95rem] font-medium"
                             style={tertiaryButtonStyle}
                           >
-                            Stop Recording
+                            Stop
                           </Button>
                           <Button
                             variant="secondary"
@@ -2336,7 +2465,7 @@ const handleDroppedFiles = async (fileList: FileList | File[] | null) => {
                             className="rounded-[999px] border px-5 py-3 text-[0.95rem] font-medium"
                             style={tertiaryButtonStyle}
                           >
-                            Discard Recording
+                            Discard
                           </Button>
                           <Button
                             variant="primary"
@@ -2345,122 +2474,11 @@ const handleDroppedFiles = async (fileList: FileList | File[] | null) => {
                             className="rounded-[999px] border px-5 py-3 text-[0.95rem] font-medium"
                             style={primaryButtonStyle}
                           >
-                            Add to Evidence Session
+                            Add to Session
                           </Button>
                         </div>
                       </div>
                     ) : null}
-
-                    <div
-                      style={{
-                        ...softCardStyle,
-                        padding: 20,
-                        borderRadius: 24,
-                        display: "grid",
-                        gap: 16,
-                      }}
-                    >
-                      <div style={{ display: "grid", gap: 6 }}>
-                        <div
-                          style={{
-                            fontSize: 12,
-                            fontWeight: 800,
-                            letterSpacing: "0.12em",
-                            textTransform: "uppercase",
-                            color: "#7e8d8f",
-                          }}
-                        >
-                          Upload Evidence
-                        </div>
-                        <div
-                          style={{
-                            color: "#21353a",
-                            fontWeight: 700,
-                            fontSize: 15,
-                            lineHeight: 1.55,
-                          }}
-                        >
-                          Stage files or folders locally before signing this evidence
-                          record.
-                        </div>
-                      </div>
-
-                      <div className="capture-actions-row">
-                        <Button
-                          variant="secondary"
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            openFilePicker();
-                          }}
-                          disabled={busy}
-                          className="rounded-[999px] border px-5 py-3 text-[0.95rem] font-medium"
-                          style={secondaryButtonStyle}
-                        >
-                          Upload Files
-                        </Button>
-                        <Button
-                          variant="secondary"
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            openFolderPicker();
-                          }}
-                          disabled={busy}
-                          className="rounded-[999px] border px-5 py-3 text-[0.95rem] font-medium"
-                          style={tertiaryButtonStyle}
-                        >
-                          Upload Folder
-                        </Button>
-                      </div>
-
-                      <div
-                        className="capture-drop-zone"
-                        onDragOver={(event) => event.preventDefault()}
-onDrop={async (event) => {
-  event.preventDefault();
-
-  try {
-    const files = await filesFromDataTransfer(event.dataTransfer);
-    await handleDroppedFiles(files);
-  } catch (err) {
-    logCaptureClientError("web_capture_drop_files_or_folder", err, {});
-    setError(
-      err instanceof Error
-        ? err.message
-        : "Dropped files or folder could not be added."
-    );
-  }
-}}
-                        style={{
-                          borderRadius: 20,
-                          border: "1px dashed rgba(123,138,145,0.22)",
-                          background: "#f9fbfc",
-                          padding: "28px 22px",
-                          display: "grid",
-                          gap: 10,
-                          textAlign: "center",
-                        }}
-                      >
-                        <div
-                          style={{
-                            color: "#23373b",
-                            fontWeight: 700,
-                            fontSize: 15,
-                          }}
-                        >
-                          Drop files or folders here, or choose materials from this device.
-                        </div>
-                        <div
-                          style={{
-                            color: "#5b6d71",
-                            fontSize: 13,
-                            lineHeight: 1.6,
-                          }}
-                        >
-                          No backend record is created until you finish and sign the staged
-                          evidence set.
-                        </div>
-                      </div>
-                    </div>
 
                     <label
                       style={{
@@ -2484,7 +2502,10 @@ onDrop={async (event) => {
                             letterSpacing: "-0.01em",
                           }}
                         >
-                          Include capture location
+                          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                            <span style={{ color: "#c94f4f", fontSize: 14 }}>📍</span>
+                            <span>Include capture location</span>
+                          </div>
                         </div>
                         <div
                           style={{
@@ -2537,6 +2558,7 @@ onDrop={async (event) => {
                         borderRadius: 24,
                         display: "grid",
                         gap: 18,
+                        borderTop: "4px solid #1f3c48",
                       }}
                     >
                       <div
@@ -2580,14 +2602,20 @@ onDrop={async (event) => {
                             gap: 8,
                             padding: "7px 12px",
                             borderRadius: 999,
-                            background: "#f3f6f8",
-                            border: "1px solid rgba(123,138,145,0.14)",
-                            color: "#4b6269",
+                            background:
+                              sessionItems.length > 0
+                                ? "linear-gradient(180deg, rgba(191,232,223,0.16) 0%, rgba(255,255,255,0.78) 100%)"
+                                : "#f3f6f8",
+                            border:
+                              sessionItems.length > 0
+                                ? "1px solid rgba(88,134,124,0.18)"
+                                : "1px solid rgba(123,138,145,0.14)",
+                            color: sessionItems.length > 0 ? "#274b5a" : "#4b6269",
                             fontSize: 12,
                             fontWeight: 800,
                           }}
                         >
-                          {sessionCountLabel}
+                          {sessionItems.length > 0 ? "Ready for review" : "No materials staged"}
                         </div>
                       </div>
 
@@ -2718,11 +2746,12 @@ onDrop={async (event) => {
                                           style={{
                                             border: "none",
                                             background: "transparent",
-                                            color: "#8f4a4a",
-                                            fontWeight: 700,
+                                            color: "#6b7780",
+                                            fontWeight: 600,
                                             cursor: "pointer",
                                             padding: 0,
                                             flexShrink: 0,
+                                            fontSize: 12,
                                           }}
                                         >
                                           Remove
@@ -2877,7 +2906,17 @@ onDrop={async (event) => {
                             fontWeight: 700,
                           }}
                         >
-                          Internal Notes (private – not included in reports)
+                          Private Internal Notes
+                        </div>
+                        <div
+                          style={{
+                            color: "#6b7780",
+                            fontSize: 12,
+                            lineHeight: 1.55,
+                          }}
+                        >
+                          Visible only inside the authenticated app. Excluded from public
+                          verification, reports, and verification packages.
                         </div>
                         <textarea
                           value={internalNotes}
@@ -2929,11 +2968,13 @@ onDrop={async (event) => {
                           <div
                             key={label}
                             style={{
-                              display: "flex",
-                              justifyContent: "space-between",
+                              display: "grid",
+                              gridTemplateColumns: "minmax(0, 1fr) minmax(120px, auto)",
                               gap: 12,
                               alignItems: "flex-start",
                               fontSize: 12,
+                              paddingBottom: 8,
+                              borderBottom: "1px solid rgba(105,122,130,0.08)",
                             }}
                           >
                             <span style={{ color: "#7e8d8f", fontWeight: 700 }}>{label}</span>
@@ -3026,11 +3067,24 @@ onDrop={async (event) => {
                           paddingTop: 4,
                         }}
                       >
+                        {sessionItems.length > 0 ? (
+                          <div
+                            style={{
+                              color: "#5f6f73",
+                              fontSize: 12,
+                              lineHeight: 1.55,
+                            }}
+                          >
+                            Creates the evidence record, uploads staged materials, signs
+                            integrity data, and starts verification artifact generation.
+                          </div>
+                        ) : null}
+
                         <Button
                           onClick={finalizeSession}
                           disabled={busy || sessionItems.length === 0}
                           className="rounded-[999px] border px-5 py-3 text-[0.95rem] font-medium"
-                          style={primaryButtonStyle}
+                          style={finishButtonStyle}
                         >
                           {busy ? "Finishing…" : "Finish & Sign Evidence Record"}
                         </Button>
