@@ -3016,22 +3016,36 @@ else acc.otherCount += 1;
                             {part.sha256 && (
                               <div>SHA-256: {shortId(part.sha256)}</div>
                             )}
-                            {part.privateRole ? (
-                              <div>
-                                Private role: <strong>{part.privateRole}</strong>
-                              </div>
-                            ) : null}
-                            {part.sourceLabel ? (
-                              <div>Source label: {part.sourceLabel}</div>
-                            ) : null}
-                            {part.checklistStepId ? (
-                              <div>Checklist step: {part.checklistStepId}</div>
-                            ) : null}
-                            {part.privateNote ? (
-                              <div style={{ color: "#4b6269" }}>
-                                Note: {part.privateNote}
-                              </div>
-                            ) : null}
+{part.privateRole || part.sourceLabel || part.checklistStepId || part.privateNote ? (
+  <div
+    style={{
+      marginTop: 4,
+      padding: 10,
+      borderRadius: 12,
+      background: "rgba(255,255,255,0.58)",
+      border: "1px solid rgba(79,112,107,0.10)",
+      display: "grid",
+      gap: 5,
+    }}
+  >
+    <div
+      style={{
+        fontSize: 11,
+        fontWeight: 800,
+        letterSpacing: "0.10em",
+        textTransform: "uppercase",
+        color: "#8a6e57",
+      }}
+    >
+      Private Intake Metadata
+    </div>
+
+    {part.privateRole ? <div>Role: <strong>{part.privateRole}</strong></div> : null}
+    {part.sourceLabel ? <div>Source: {part.sourceLabel}</div> : null}
+    {part.checklistStepId ? <div>Checklist step: {part.checklistStepId}</div> : null}
+    {part.privateNote ? <div style={{ color: "#4b6269" }}>Note: {part.privateNote}</div> : null}
+  </div>
+) : null}
                           </div>
 
                           <div

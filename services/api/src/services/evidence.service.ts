@@ -155,7 +155,7 @@ export async function createEvidence(params: {
   gps?: { lat: number; lng: number; accuracyMeters?: number };
   checksumSha256Base64?: string | null;
   contentMd5Base64?: string | null;
-  intakePlanJson?: prismaPkg.Prisma.JsonValue | null;
+intakePlanJson?: prismaPkg.Prisma.InputJsonValue;
 })
 {
   const owner = await prisma.user.findUnique({
@@ -259,40 +259,37 @@ export async function createEvidence(params: {
 
   const created = await prisma.$transaction(async (tx) => {
     const evidence = await tx.evidence.create({
-      data: {
-        ownerUserId: params.ownerUserId,
-        originalFileName: resolvedFileNames.originalFileName,
-        displayFileName: resolvedFileNames.displayFileName,
-        teamId: scope.teamId,
-        organizationId: scope.teamId,
-        type: params.type,
-        status: EvidenceStatus.CREATED,
-        verificationStatus: prismaPkg.VerificationStatus.MATERIALS_AVAILABLE,
-        mimeType: normalizedMimeType,
-        captureMethod: prismaPkg.CaptureMethod.UPLOADED_FILE,
-        identityLevelSnapshot,
-        submittedByEmail: owner.email ?? null,
-        submittedByAuthProvider: owner.provider,
-        submittedByUserId: params.ownerUserId,
-        createdByUserId: params.ownerUserId,
-        uploadedByUserId: params.ownerUserId,
-        internalNotes: params.internalNotes?.trim() || null,
-        intakePlanJson:
-          params.intakePlanJson === undefined
-            ? undefined
-            : params.intakePlanJson === null
-              ? prismaPkg.Prisma.JsonNull
-              : params.intakePlanJson,
-        workspaceNameSnapshot,
-        organizationNameSnapshot,
-        organizationVerifiedSnapshot,
-        capturedAtUtc: capturedAt,
-        deviceTimeIso: params.deviceTimeIso ?? null,
-        lat: params.gps?.lat ?? null,
-        lng: params.gps?.lng ?? null,
-        accuracyMeters: params.gps?.accuracyMeters ?? null,
-        guestIdentityId: guestIdentity?.id ?? null,
-      },
+data: {
+  ownerUserId: params.ownerUserId,
+  originalFileName: resolvedFileNames.originalFileName,
+  displayFileName: resolvedFileNames.displayFileName,
+  teamId: scope.teamId,
+  organizationId: scope.teamId,
+  type: params.type,
+  status: EvidenceStatus.CREATED,
+  verificationStatus: prismaPkg.VerificationStatus.MATERIALS_AVAILABLE,
+  mimeType: normalizedMimeType,
+  captureMethod: prismaPkg.CaptureMethod.UPLOADED_FILE,
+  identityLevelSnapshot,
+  submittedByEmail: owner.email ?? null,
+  submittedByAuthProvider: owner.provider,
+  submittedByUserId: params.ownerUserId,
+  createdByUserId: params.ownerUserId,
+  uploadedByUserId: params.ownerUserId,
+  internalNotes: params.internalNotes?.trim() || null,
+  ...(params.intakePlanJson === undefined
+    ? {}
+    : { intakePlanJson: params.intakePlanJson }),
+  workspaceNameSnapshot,
+  organizationNameSnapshot,
+  organizationVerifiedSnapshot,
+  capturedAtUtc: capturedAt,
+  deviceTimeIso: params.deviceTimeIso ?? null,
+  lat: params.gps?.lat ?? null,
+  lng: params.gps?.lng ?? null,
+  accuracyMeters: params.gps?.accuracyMeters ?? null,
+  guestIdentityId: guestIdentity?.id ?? null,
+},
       select: {
         id: true,
         status: true,

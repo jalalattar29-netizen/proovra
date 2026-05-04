@@ -2664,42 +2664,46 @@ style={{
           >
             <div className="p-5 md:p-6">
               <div style={{ display: "grid", gap: 24 }}>
-                <input
-                  type="file"
-                  aria-label="Upload evidence files"
-                  multiple
-                  accept={GENERIC_EVIDENCE_UPLOAD_ACCEPT}
-onChange={async (event) => {
-  const files = Array.from(event.currentTarget.files ?? []);
+<input
+  type="file"
+  aria-label="Upload evidence files"
+  multiple
+  accept={GENERIC_EVIDENCE_UPLOAD_ACCEPT}
+  onChange={async (event) => {
+    const input = event.currentTarget;
+    const files = input.files;
 
-  try {
-    await handleDroppedFiles(files);
-  } catch {
-    // handled in addFilesToSession/logCaptureClientError
-  } finally {
-    event.currentTarget.value = "";
-  }
-}}
-                  ref={fileInputRef}
-                  style={{ display: "none" }}
-                />
-                <input
-                  type="file"
-                  aria-label="Upload evidence folder"
-                  multiple
-                  onChange={async (event) => {
-                    try {
-                      await handleDroppedFiles(event.target.files);
-                    } catch {
-                      // handled in addFilesToSession/logCaptureClientError
-                    }
-                    if (folderInputRef.current) {
-                      folderInputRef.current.value = "";
-                    }
-                  }}
-                  ref={folderInputRef}
-                  style={{ display: "none" }}
-                />
+    try {
+      await handleDroppedFiles(files);
+    } catch {
+      // handled in addFilesToSession/logCaptureClientError
+    } finally {
+      input.value = "";
+    }
+  }}
+  ref={fileInputRef}
+  style={{ display: "none" }}
+/>
+
+<input
+  type="file"
+  aria-label="Upload evidence folder"
+  multiple
+  onChange={async (event) => {
+    const input = event.currentTarget;
+    const files = input.files;
+
+    try {
+      await handleDroppedFiles(files);
+    } catch {
+      // handled in addFilesToSession/logCaptureClientError
+    } finally {
+      input.value = "";
+    }
+  }}
+  ref={folderInputRef}
+  style={{ display: "none" }}
+/>
                 <datalist id="role-suggestions">
                   {ROLE_SUGGESTIONS.map((role) => (
                     <option key={role} value={role} />

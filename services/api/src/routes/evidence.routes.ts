@@ -155,6 +155,37 @@ const { EvidenceStatus, PlanType, VerificationSource, VerificationViewerType } =
 
 type PublicCustodyEventCategory = "forensic" | "access";
 
+function assertEvidenceNotLocked(evidence: SelectedEvidence) {
+  if (evidence.lockedAt) {
+    const err: Error & { statusCode?: number; code?: string } = new Error(
+      "Evidence is permanently locked"
+    );
+    err.statusCode = 409;
+    err.code = "EVIDENCE_LOCKED";
+    throw err;
+  }
+}
+
+function assertEvidenceDeletionAllowedByRetention(evidence: SelectedEvidence) {
+  const mode = String(evidence.storageObjectLockMode ?? "").toUpperCase();
+  const retainUntil = evidence.storageObjectLockRetainUntilUtc;
+
+  if (mode === "COMPLIANCE" && retainUntil && retainUntil > new Date()) {
+    const err: Error & { statusCode?: number; code?: string } = new Error(
+      "Evidence is under compliance retention and cannot be deleted before retention expiry"
+    );
+    err.statusCode = 409;
+    err.code = "COMPLIANCE_RETENTION_ACTIVE";
+    throw err;
+  }
+}
+
+function getErrorCode(err: unknown, fallback = "OPERATION_BLOCKED"): string {
+  return err instanceof Error && "code" in err
+    ? ((err as Error & { code?: string }).code ?? fallback)
+    : fallback;
+}
+
 type PublicVerifyTimelineEvent = {
   sequence: number;
   atUtc: string;
@@ -218,14 +249,14 @@ type PublicVerificationPackageIntegrity = {
   version: number | null;
   generatedAtUtc: string | null;
   packageType: string | null;
-  manifestPresent: boolean;
-  signedManifestPresent: boolean;
-  manifestDigestPresent: boolean;
-  checksumIndexPresent: boolean;
-  offlineVerifierIncluded: boolean;
-  auditExportIncluded: boolean;
-  custodyExportIncluded: boolean;
-  accessExportIncluded: boolean;
+  manifestPresent: boolean | null;
+  signedManifestPresent: boolean | null;
+  manifestDigestPresent: boolean | null;
+  checksumIndexPresent: boolean | null;
+  offlineVerifierIncluded: boolean | null;
+  auditExportIncluded: boolean | null;
+  custodyExportIncluded: boolean | null;
+  accessExportIncluded: boolean | null;
 };
 
 type PublicCustodyLifecycle = {
@@ -1332,6 +1363,9 @@ transactionId ? `Tx: ${transactionId}` : null,
     case prismaPkg.CustodyEventType.EVIDENCE_DELETED:
       return "Evidence record deleted.";
 
+    case prismaPkg.CustodyEventType.EVIDENCE_COMPLETED:
+  return "Evidence record completed.";  
+
     case prismaPkg.CustodyEventType.EVIDENCE_CLAIMED:
       return "Guest evidence ownership claimed.";
 
@@ -1555,6 +1589,34 @@ async function getStorageProtectionSummary(
       verified: false,
     };
   }
+}
+
+function getStorageProtectionSummaryFromSnapshot(snapshot: {
+  storageRegion?: string | null;
+  storageObjectLockMode?: string | null;
+  storageObjectLockRetainUntilUtc?: Date | string | null;
+  storageObjectLockLegalHoldStatus?: string | null;
+}): StorageProtectionSummary {
+  const mode = snapshot.storageObjectLockMode ?? null;
+
+  const retainUntil =
+    snapshot.storageObjectLockRetainUntilUtc instanceof Date
+      ? snapshot.storageObjectLockRetainUntilUtc.toISOString()
+      : snapshot.storageObjectLockRetainUntilUtc ?? null;
+
+  const legalHold = snapshot.storageObjectLockLegalHoldStatus ?? null;
+  const region = snapshot.storageRegion ?? process.env.S3_REGION?.trim() ?? null;
+
+  if (!mode && !retainUntil && !legalHold) return null;
+
+  return {
+    immutable: mode === "COMPLIANCE" && Boolean(retainUntil),
+    mode,
+    retainUntil,
+    legalHold,
+    region,
+    verified: Boolean(mode || retainUntil || legalHold),
+  };
 }
 
 async function assertCaseAccess(userId: string, caseId: string) {
@@ -2557,8 +2619,11 @@ const result = await createEvidence({
   gps: body.gps,
   checksumSha256Base64: normalizedChecksum,
   contentMd5Base64: normalizedContentMd5,
-  intakePlanJson: body.intakePlanJson,
-});
+intakePlanJson:
+  body.intakePlanJson === null || body.intakePlanJson === undefined
+    ? undefined
+    : (body.intakePlanJson as Prisma.InputJsonValue),
+      });
 
       auditEvidenceAction(req, {
         userId: ownerUserId,
@@ -2675,6 +2740,14 @@ if (
         });
         return reply.code(409).send({ message: "Evidence is deleted" });
       }
+      try {
+  assertEvidenceNotLocked(evidence);
+} catch (err) {
+  return reply.code(409).send({
+    code: getErrorCode(err, "EVIDENCE_LOCKED"),
+    message: "Evidence is permanently locked and cannot be renamed",
+  });
+}
 
       const updated = await prisma.evidence.update({
         where: { id },
@@ -2690,19 +2763,18 @@ if (
         metadata: { label: body.label },
       });
 
-      const itemCount = await getEvidenceItemCount(id);
-      const storage = await getStorageProtectionSummary(
-        updated.storageBucket,
-        updated.storageKey,
-        {
-          storageRegion: updated.storageRegion,
-          storageObjectLockMode: updated.storageObjectLockMode,
-          storageObjectLockRetainUntilUtc:
-            updated.storageObjectLockRetainUntilUtc,
-          storageObjectLockLegalHoldStatus:
-            updated.storageObjectLockLegalHoldStatus,
-        }
-      );
+const itemCount = await getEvidenceItemCount(id);
+
+const storage = await getStorageProtectionSummary(
+  updated.storageBucket,
+  updated.storageKey,
+  {
+    storageRegion: updated.storageRegion,
+    storageObjectLockMode: updated.storageObjectLockMode,
+    storageObjectLockRetainUntilUtc: updated.storageObjectLockRetainUntilUtc,
+    storageObjectLockLegalHoldStatus: updated.storageObjectLockLegalHoldStatus,
+  }
+);
 
       return reply.code(200).send({
         evidence: {
@@ -2746,16 +2818,21 @@ if (
         return reply.code(400).send({ message: "Invalid contentMd5Base64" });
       }
 
-      try {
-        await getEvidenceWithOwnerAccess(ownerUserId, id);
-      } catch (err) {
-        const statusCode =
-          err instanceof Error && "statusCode" in err
-            ? (err as Error & { statusCode?: number }).statusCode ?? 500
-            : 500;
-        const message = err instanceof Error ? err.message : "Unexpected error";
-        return reply.code(statusCode).send({ message });
-      }
+try {
+  const evidence = await getEvidenceWithOwnerAccess(ownerUserId, id);
+  assertEvidenceNotLocked(evidence);
+} catch (err) {
+  const statusCode =
+    err instanceof Error && "statusCode" in err
+      ? (err as Error & { statusCode?: number }).statusCode ?? 500
+      : 500;
+
+  return reply.code(statusCode).send({
+code: getErrorCode(err, "PART_UPLOAD_BLOCKED"),
+message:
+  err instanceof Error ? err.message : "Evidence part cannot be created",
+  });
+}
 
       try {
         const result = await prisma.$transaction(async (tx) => {
@@ -3210,6 +3287,14 @@ return {
         const message = err instanceof Error ? err.message : "Unexpected error";
         return reply.code(statusCode).send({ message });
       }
+      try {
+  assertEvidenceNotLocked(evidence);
+} catch (err) {
+  return reply.code(409).send({
+    code: getErrorCode(err, "EVIDENCE_LOCKED"),
+    message: "Evidence is permanently locked and cannot be archived",
+  });
+}
 
       if (evidence.archivedAt) {
         const storage = await getStorageProtectionSummary(
@@ -3297,6 +3382,14 @@ return {
         const message = err instanceof Error ? err.message : "Unexpected error";
         return reply.code(statusCode).send({ message });
       }
+      try {
+  assertEvidenceNotLocked(evidence);
+} catch (err) {
+  return reply.code(409).send({
+    code: getErrorCode(err, "EVIDENCE_LOCKED"),
+    message: "Evidence is permanently locked and cannot be restored from archive",
+  });
+}
 
       if (!evidence.archivedAt) {
         const storage = await getStorageProtectionSummary(
@@ -3387,6 +3480,19 @@ await appendCustodyEvent({
         const message = err instanceof Error ? err.message : "Unexpected error";
         return reply.code(statusCode).send({ message });
       }
+
+      try {
+  assertEvidenceNotLocked(evidence);
+  assertEvidenceDeletionAllowedByRetention(evidence);
+} catch (err) {
+  return reply.code(409).send({
+    code: getErrorCode(err, "DELETE_BLOCKED"),
+    message:
+      err instanceof Error
+        ? err.message
+        : "Evidence cannot be deleted in its current preservation state",
+  });
+}
 
       if (evidence.deletedAt) {
         auditEvidenceAction(req, {
@@ -3479,6 +3585,12 @@ await appendCustodyEvent({
         const message = err instanceof Error ? err.message : "Unexpected error";
         return reply.code(statusCode).send({ message });
       }
+      if (evidence.lockedAt) {
+  return reply.code(409).send({
+    code: "EVIDENCE_LOCKED",
+    message: "Evidence is permanently locked and cannot be restored from trash",
+  });
+}
 
       if (!body.restore) {
         return reply.code(400).send({ message: "Restore is required" });
@@ -3593,16 +3705,12 @@ await appendCustodyEvent({
       _count: { parts: number };
     }) => {
       const itemCount = item._count.parts > 0 ? item._count.parts : 1;
-      const storage = await getStorageProtectionSummary(
-        item.storageBucket,
-        item.storageKey,
-        {
-          storageRegion: item.storageRegion,
-          storageObjectLockMode: item.storageObjectLockMode,
-          storageObjectLockRetainUntilUtc: item.storageObjectLockRetainUntilUtc,
-          storageObjectLockLegalHoldStatus: item.storageObjectLockLegalHoldStatus,
-        }
-      );
+const storage = getStorageProtectionSummaryFromSnapshot({
+  storageRegion: item.storageRegion,
+  storageObjectLockMode: item.storageObjectLockMode,
+  storageObjectLockRetainUntilUtc: item.storageObjectLockRetainUntilUtc,
+  storageObjectLockLegalHoldStatus: item.storageObjectLockLegalHoldStatus,
+});
 
       return {
         id: item.id,
@@ -3940,10 +4048,11 @@ title: evidence.title ?? evidence.displayFileName ?? evidence.originalFileName ?
       (req as FastifyRequest & { evidenceId?: string }).evidenceId = id;
       req.log = req.log.child({ evidenceId: id });
 
-      try {
-        await getEvidenceWithOwnerAccess(ownerUserId, id);
-      } catch (err) {
-        const statusCode =
+try {
+  const evidence = await getEvidenceWithOwnerAccess(ownerUserId, id);
+  assertEvidenceNotLocked(evidence);
+} catch (err) {
+          const statusCode =
           err instanceof Error && "statusCode" in err
             ? (err as Error & { statusCode?: number }).statusCode ?? 500
             : 500;
@@ -3973,6 +4082,17 @@ title: evidence.title ?? evidence.displayFileName ?? evidence.originalFileName ?
 
       try {
         const result = await completeEvidence({ evidenceId: id, ownerUserId });
+
+        await appendCustodyEvent({
+  evidenceId: id,
+  eventType: prismaPkg.CustodyEventType.EVIDENCE_COMPLETED,
+  payload: {
+    completedByUserId: ownerUserId,
+    completedAtUtc: new Date().toISOString(),
+  } as Prisma.InputJsonValue,
+  ip: req.ip,
+  userAgent: req.headers["user-agent"],
+}).catch(() => null);
 
         const refreshed = await prisma.evidence.findUnique({
           where: { id },
@@ -4664,84 +4784,20 @@ return reply.code(200).send({
           requestedByUserId: ownerUserId,
         });
 
-        void appendCustodyEvent({
-          evidenceId: id,
-          eventType: prismaPkg.CustodyEventType.CERTIFICATION_REQUESTED,
-          payload: {
-            declarationType: body.declarationType,
-            requestedByUserId: ownerUserId,
-            version: certification.version,
-          } as Prisma.InputJsonValue,
-          ip: req.ip,
-          userAgent: req.headers["user-agent"],
-        }).catch(() => null);
-
+void appendCustodyEvent({
+  evidenceId: id,
+  eventType: prismaPkg.CustodyEventType.CERTIFICATION_REQUESTED,
+  payload: {
+    declarationType: body.declarationType,
+    requestedByUserId: ownerUserId,
+    version: certification.version,
+  } as Prisma.InputJsonValue,
+  ip: req.ip,
+  userAgent: req.headers["user-agent"],
+}).catch(() => null);
         auditEvidenceAction(req, {
           userId: ownerUserId,
-          action: "evidence.certification_requested",
-          outcome: "success",
-          resourceId: id,
-          metadata: {
-            declarationType: body.declarationType,
-            version: certification.version,
-          },
-        });
-
-        return reply.code(200).send({ evidenceId: id, certification });
-      } catch (err) {
-        const statusCode =
-          err instanceof Error && "statusCode" in err
-            ? (err as Error & { statusCode?: number }).statusCode ?? 500
-            : 500;
-        const message = err instanceof Error ? err.message : "Unexpected error";
-        return reply.code(statusCode).send({ message });
-      }
-    }
-  );
-
-  app.post(
-    "/v1/evidence/:id/certifications/attest",
-    { preHandler: requireAuth },
-    async (req: FastifyRequest, reply) => {
-      const ownerUserId = getAuthUserId(req);
-      const id = z.string().uuid().parse((req.params as ParamsId).id);
-      const body = AttestEvidenceCertificationBody.parse(req.body);
-
-      (req as FastifyRequest & { evidenceId?: string }).evidenceId = id;
-      req.log = req.log.child({ evidenceId: id });
-
-      try {
-        await getEvidenceWithOwnerAccess(ownerUserId, id);
-
-        const certification = await attestEvidenceCertification({
-          evidenceId: id,
-          declarationType: body.declarationType,
-          attestedByUserId: ownerUserId,
-          attestorName: body.attestorName,
-          attestorTitle: body.attestorTitle,
-          attestorEmail: body.attestorEmail,
-          attestorOrganization: body.attestorOrganization ?? null,
-          statementMarkdown: body.statementMarkdown,
-          statementSnapshot: body.statementSnapshot ?? null,
-          signatureText: body.signatureText,
-        });
-
-        void appendCustodyEvent({
-          evidenceId: id,
-          eventType: prismaPkg.CustodyEventType.CERTIFICATION_ATTESTED,
-          payload: {
-            declarationType: body.declarationType,
-            attestedByUserId: ownerUserId,
-            version: certification.version,
-            certificationHash: certification.certificationHash,
-          } as Prisma.InputJsonValue,
-          ip: req.ip,
-          userAgent: req.headers["user-agent"],
-        }).catch(() => null);
-
-        auditEvidenceAction(req, {
-          userId: ownerUserId,
-          action: "evidence.certification_attested",
+action: "evidence.certification_requested",
           outcome: "success",
           resourceId: id,
           metadata: {
@@ -5097,14 +5153,14 @@ const verificationPackageIntegrity: PublicVerificationPackageIntegrity = {
     : null,
   packageType: latestVerificationPackage?.packageType ?? null,
 
-  manifestPresent: verificationPackageAvailable,
-  signedManifestPresent: verificationPackageAvailable,
-  manifestDigestPresent: verificationPackageAvailable,
-  checksumIndexPresent: verificationPackageAvailable,
-  offlineVerifierIncluded: verificationPackageAvailable,
-  auditExportIncluded: verificationPackageAvailable,
-  custodyExportIncluded: verificationPackageAvailable,
-  accessExportIncluded: verificationPackageAvailable,
+  manifestPresent: verificationPackageAvailable ? null : false,
+  signedManifestPresent: verificationPackageAvailable ? null : false,
+  manifestDigestPresent: verificationPackageAvailable ? null : false,
+  checksumIndexPresent: verificationPackageAvailable ? null : false,
+  offlineVerifierIncluded: verificationPackageAvailable ? null : false,
+  auditExportIncluded: verificationPackageAvailable ? null : false,
+  custodyExportIncluded: verificationPackageAvailable ? null : false,
+  accessExportIncluded: verificationPackageAvailable ? null : false,
 };
 
 const snapshotTrustDecision =
@@ -5272,59 +5328,70 @@ const effectiveOtsStatus = resolveEffectiveOtsStatus({
 
     const anchor = await getAnchorStatus(id);
 
-const trustDecision =
-  snapshotTrustDecision ??
-  buildEvidenceTrustDecision({
-    evidence: {
-      verificationStatus: evidence.verificationStatus ?? null,
-      recordedIntegrityVerifiedAtUtc:
-        evidence.recordedIntegrityVerifiedAtUtc?.toISOString() ?? null,
-      fileSha256: evidence.fileSha256 ?? null,
-      fingerprintHash: evidence.fingerprintHash ?? null,
-      signatureBase64: evidence.signatureBase64 ?? null,
-      signingKeyId: evidence.signingKeyId ?? null,
-      publicKeyPem: signingKey.publicKeyPem ?? null,
-      tsaStatus: evidence.tsaStatus ?? null,
-      tsaFailureReason: evidence.tsaFailureReason ?? null,
-      otsStatus: effectiveOtsStatus,
-      otsHash: evidence.otsHash ?? null,
-      otsBitcoinTxid: evidence.otsBitcoinTxid ?? null,
-      otsAnchoredAtUtc: effectiveOtsAnchoredAtUtc?.toISOString() ?? null,
-      otsCalendar: evidence.otsCalendar ?? null,
-      otsFailureReason: evidence.otsFailureReason ?? null,
-      storageImmutable: storageProtection?.immutable ?? null,
-      storageObjectLockMode: storageProtection?.mode ?? null,
-      storageObjectLockRetainUntilUtc: storageProtection?.retainUntil ?? null,
-      identityLevelSnapshot: evidence.identityLevelSnapshot ?? null,
-      submittedByEmail: evidence.submittedByEmail ?? null,
-      submittedByAuthProvider: evidence.submittedByAuthProvider ?? null,
-      verificationPackageVersion:
-        latestVerificationPackage?.version ??
-        evidence.verificationPackageVersion ??
-        null,
-      verificationPackageGeneratedAtUtc:
-        latestVerificationPackage?.generatedAtUtc?.toISOString() ??
-        evidence.verificationPackageGeneratedAtUtc?.toISOString() ??
-        null,
-      anchor: anchor
-        ? {
-            configured: anchor.configured,
-            published: anchor.published,
-            provider: anchor.provider,
-            publicUrl: anchor.publicUrl,
-            anchoredAtUtc: anchor.anchoredAtUtc,
-            transactionId: anchor.transactionId,
-            receiptId: anchor.receiptId,
-          }
-        : null,
-    },
-    custodyEvents: allCustodyEvents.map((event) => ({
-      eventType: event.eventType,
-      category: classifyCustodyEventType(event.eventType),
-      eventHash: event.eventHash ?? null,
-      prevEventHash: event.prevEventHash ?? null,
-    })),
-  });
+const liveTrustDecision = buildEvidenceTrustDecision({
+  evidence: {
+    verificationStatus: evidence.verificationStatus ?? null,
+    recordedIntegrityVerifiedAtUtc:
+      evidence.recordedIntegrityVerifiedAtUtc?.toISOString() ?? null,
+    fileSha256: evidence.fileSha256 ?? null,
+    fingerprintHash: evidence.fingerprintHash ?? null,
+    signatureBase64: evidence.signatureBase64 ?? null,
+    signingKeyId: evidence.signingKeyId ?? null,
+    publicKeyPem: signingKey.publicKeyPem ?? null,
+    tsaStatus: evidence.tsaStatus ?? null,
+    tsaFailureReason: evidence.tsaFailureReason ?? null,
+    otsStatus: effectiveOtsStatus,
+    otsHash: evidence.otsHash ?? null,
+    otsBitcoinTxid: evidence.otsBitcoinTxid ?? null,
+    otsAnchoredAtUtc: effectiveOtsAnchoredAtUtc?.toISOString() ?? null,
+    otsCalendar: evidence.otsCalendar ?? null,
+    otsFailureReason: evidence.otsFailureReason ?? null,
+    storageImmutable: storageProtection?.immutable ?? null,
+    storageObjectLockMode: storageProtection?.mode ?? null,
+    storageObjectLockRetainUntilUtc: storageProtection?.retainUntil ?? null,
+    identityLevelSnapshot: evidence.identityLevelSnapshot ?? null,
+    submittedByEmail: evidence.submittedByEmail ?? null,
+    submittedByAuthProvider: evidence.submittedByAuthProvider ?? null,
+    verificationPackageVersion:
+      latestVerificationPackage?.version ??
+      evidence.verificationPackageVersion ??
+      null,
+    verificationPackageGeneratedAtUtc:
+      latestVerificationPackage?.generatedAtUtc?.toISOString() ??
+      evidence.verificationPackageGeneratedAtUtc?.toISOString() ??
+      null,
+    anchor: anchor
+      ? {
+          configured: anchor.configured,
+          published: anchor.published,
+          provider: anchor.provider,
+          publicUrl: anchor.publicUrl,
+          anchoredAtUtc: anchor.anchoredAtUtc,
+          transactionId: anchor.transactionId,
+          receiptId: anchor.receiptId,
+        }
+      : null,
+  },
+  custodyEvents: allCustodyEvents.map((event) => ({
+    eventType: event.eventType,
+    category: classifyCustodyEventType(event.eventType),
+    eventHash: event.eventHash ?? null,
+    prevEventHash: event.prevEventHash ?? null,
+  })),
+});
+
+const trustDecision = snapshotTrustDecision ?? liveTrustDecision;
+
+const trustDecisionConsistency = {
+  source: snapshotTrustDecision
+    ? latestReport?.trustDecisionSnapshot
+      ? "REPORT_SNAPSHOT"
+      : "VERIFICATION_PACKAGE_SNAPSHOT"
+    : "LIVE_SHARED_FALLBACK",
+  consistentWithSnapshot: snapshotTrustDecision
+    ? JSON.stringify(snapshotTrustDecision) === JSON.stringify(liveTrustDecision)
+    : null,
+};
 
 const timestampLayerBlocksIntegrity = timestampDigestMatches === false;
 
@@ -5358,48 +5425,54 @@ await prisma.$transaction([
   }),
 ]);
 
-    void appendCustodyEvent({
-      evidenceId: id,
-      eventType: prismaPkg.CustodyEventType.TECHNICAL_VERIFICATION_CHECKED,
-      payload: {
-        source: "public_verify",
-        overallIntegrity,
-        canonicalHashMatches,
-        signatureValid,
-        custodyChainValid: custodyChain.valid,
-        custodyChainMode: custodyChain.mode,
-        custodyChainFailureReason: custodyChain.reason,
-timestampDigestMatches,
-timestampStatus: evidence.tsaStatus,
-timestampAvailable: timestampStatusIsPositive,
-timestampDigestCheckConclusive: timestampDigestMatches !== null,
-        otsHashMatches,
-        verificationStatus: responseVerificationStatus,
-        accessPolicyMode: publicVerifyAccessPolicy.mode,
-      },
-      ip: req.ip,
-      userAgent: req.headers["user-agent"],
-    }).catch(() => null);
+const shouldWritePublicVerifyCustodyEvent = Math.random() < 0.2;
 
-    void appendCustodyEvent({
-      evidenceId: id,
-      eventType: prismaPkg.CustodyEventType.VERIFY_VIEWED,
-      payload: {
-        accessMode: "public_verify",
-      },
-      ip: req.ip,
-      userAgent: req.headers["user-agent"],
-    }).catch(() => null);
+if (shouldWritePublicVerifyCustodyEvent) {
+  void appendCustodyEvent({
+    evidenceId: id,
+    eventType: prismaPkg.CustodyEventType.TECHNICAL_VERIFICATION_CHECKED,
+    payload: {
+      source: "public_verify",
+      overallIntegrity,
+      canonicalHashMatches,
+      signatureValid,
+      custodyChainValid: custodyChain.valid,
+      custodyChainMode: custodyChain.mode,
+      custodyChainFailureReason: custodyChain.reason,
+      timestampDigestMatches,
+      timestampStatus: evidence.tsaStatus,
+      timestampAvailable: timestampStatusIsPositive,
+      timestampDigestCheckConclusive: timestampDigestMatches !== null,
+      otsHashMatches,
+      verificationStatus: responseVerificationStatus,
+      accessPolicyMode: publicVerifyAccessPolicy.mode,
+      sampled: true,
+    },
+    ip: req.ip,
+    userAgent: req.headers["user-agent"],
+  }).catch(() => null);
 
-    auditVerificationAction(req, {
-      userId: null,
-      action: "verification.page_opened",
-      resourceId: id,
-      metadata: {
-        evidenceId: id,
-        overallIntegrity,
-      },
-    });
+  void appendCustodyEvent({
+    evidenceId: id,
+    eventType: prismaPkg.CustodyEventType.VERIFY_VIEWED,
+    payload: {
+      accessMode: "public_verify",
+      sampled: true,
+    },
+    ip: req.ip,
+    userAgent: req.headers["user-agent"],
+  }).catch(() => null);
+}
+auditVerificationAction(req, {
+  userId: null,
+  action: "verification.page_opened",
+  resourceId: id,
+  metadata: {
+    evidenceId: id,
+    overallIntegrity,
+    custodyEventSampled: shouldWritePublicVerifyCustodyEvent,
+  },
+});
 
     const custodyDisplayContext = {
       itemCount: content.summary.itemCount,
@@ -5460,6 +5533,7 @@ verificationPackageVersion:
       anchor,
       contentSummary: content.summary,
       trustDecision,
+
     });
 
     const humanSummary = buildPublicVerifyHumanSummary({
@@ -5598,6 +5672,7 @@ const captureContext = hasCaptureLocationMetadata({
 return reply.code(200).send({
   evidenceId: evidence.id,
   trustDecision,
+trustDecisionConsistency,
   verificationPackageIntegrity,
 trustDecisionSource: trustDecision
   ? latestReport?.trustDecisionSnapshot
