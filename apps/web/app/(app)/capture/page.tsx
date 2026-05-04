@@ -39,6 +39,7 @@ type ChecklistStep = {
   id: string;
   title: string;
   description: string;
+  purposeLabel: string;
   required: boolean;
   acceptedKinds?: EvidenceType[];
 };
@@ -98,6 +99,7 @@ const COLLECTION_PLAN_TEMPLATES: CollectionPlanTemplate[] = [
         id: "primary_evidence",
         title: "Primary evidence file",
         description: "Upload the principal evidence item that establishes the record.",
+        purposeLabel: "Primary evidence",
         required: true,
         acceptedKinds: ["PHOTO", "VIDEO", "AUDIO", "DOCUMENT"],
       },
@@ -105,6 +107,7 @@ const COLLECTION_PLAN_TEMPLATES: CollectionPlanTemplate[] = [
         id: "supporting_context",
         title: "Supporting context",
         description: "Add supplemental evidence or context files that support the main record.",
+        purposeLabel: "Supporting context",
         required: false,
         acceptedKinds: ["PHOTO", "VIDEO", "AUDIO", "DOCUMENT"],
       },
@@ -112,6 +115,7 @@ const COLLECTION_PLAN_TEMPLATES: CollectionPlanTemplate[] = [
         id: "optional_statement",
         title: "Optional statement",
         description: "Add an optional audio or video statement for additional context.",
+        purposeLabel: "Optional statement",
         required: false,
         acceptedKinds: ["AUDIO", "VIDEO"],
       },
@@ -127,6 +131,7 @@ const COLLECTION_PLAN_TEMPLATES: CollectionPlanTemplate[] = [
         id: "overview_media",
         title: "Overview photo/video",
         description: "Capture a high-level image or video overview of the insured loss.",
+        purposeLabel: "Overview media",
         required: true,
         acceptedKinds: ["PHOTO", "VIDEO"],
       },
@@ -134,6 +139,7 @@ const COLLECTION_PLAN_TEMPLATES: CollectionPlanTemplate[] = [
         id: "damage_close_up",
         title: "Damage close-up",
         description: "Capture close-up evidence of damage or loss.",
+        purposeLabel: "Damage close-up",
         required: true,
         acceptedKinds: ["PHOTO", "VIDEO"],
       },
@@ -141,6 +147,7 @@ const COLLECTION_PLAN_TEMPLATES: CollectionPlanTemplate[] = [
         id: "ownership_document",
         title: "Ownership or policy document",
         description: "Upload documentation that proves ownership or policy coverage.",
+        purposeLabel: "Ownership or policy document",
         required: true,
         acceptedKinds: ["DOCUMENT"],
       },
@@ -148,6 +155,7 @@ const COLLECTION_PLAN_TEMPLATES: CollectionPlanTemplate[] = [
         id: "optional_audio",
         title: "Optional audio statement",
         description: "Add an optional audio statement describing the incident.",
+        purposeLabel: "Optional audio statement",
         required: false,
         acceptedKinds: ["AUDIO"],
       },
@@ -163,6 +171,7 @@ const COLLECTION_PLAN_TEMPLATES: CollectionPlanTemplate[] = [
         id: "primary_media",
         title: "Primary document/media",
         description: "Upload the main document or media item that is being preserved.",
+        purposeLabel: "Primary document/media",
         required: true,
         acceptedKinds: ["DOCUMENT", "PHOTO", "VIDEO", "AUDIO"],
       },
@@ -170,6 +179,7 @@ const COLLECTION_PLAN_TEMPLATES: CollectionPlanTemplate[] = [
         id: "supporting_exhibit",
         title: "Supporting exhibit",
         description: "Attach supporting exhibits or evidence items.",
+        purposeLabel: "Supporting exhibit",
         required: false,
         acceptedKinds: ["DOCUMENT", "PHOTO", "VIDEO", "AUDIO"],
       },
@@ -177,6 +187,7 @@ const COLLECTION_PLAN_TEMPLATES: CollectionPlanTemplate[] = [
         id: "source_context",
         title: "Source/context note",
         description: "Provide a source or context note for the evidence.",
+        purposeLabel: "Source/context note",
         required: false,
         acceptedKinds: ["DOCUMENT"],
       },
@@ -184,6 +195,7 @@ const COLLECTION_PLAN_TEMPLATES: CollectionPlanTemplate[] = [
         id: "optional_timeline",
         title: "Optional timeline evidence",
         description: "Attach timeline evidence such as logs or recordings.",
+        purposeLabel: "Optional timeline evidence",
         required: false,
         acceptedKinds: ["DOCUMENT", "PHOTO", "VIDEO", "AUDIO"],
       },
@@ -199,6 +211,7 @@ const COLLECTION_PLAN_TEMPLATES: CollectionPlanTemplate[] = [
         id: "scene_overview",
         title: "Scene overview",
         description: "Capture an overview image or video of the incident scene.",
+        purposeLabel: "Scene overview",
         required: true,
         acceptedKinds: ["PHOTO", "VIDEO"],
       },
@@ -206,6 +219,7 @@ const COLLECTION_PLAN_TEMPLATES: CollectionPlanTemplate[] = [
         id: "close_up_detail",
         title: "Close-up detail",
         description: "Capture close-up detail of the relevant evidence.",
+        purposeLabel: "Close-up detail",
         required: true,
         acceptedKinds: ["PHOTO", "VIDEO"],
       },
@@ -213,6 +227,7 @@ const COLLECTION_PLAN_TEMPLATES: CollectionPlanTemplate[] = [
         id: "witness_statement",
         title: "Witness/media statement",
         description: "Add a witness statement or media statement for context.",
+        purposeLabel: "Witness/media statement",
         required: false,
         acceptedKinds: ["AUDIO", "VIDEO", "DOCUMENT"],
       },
@@ -220,6 +235,7 @@ const COLLECTION_PLAN_TEMPLATES: CollectionPlanTemplate[] = [
         id: "supporting_file",
         title: "Supporting file/log",
         description: "Attach supporting files such as logs, extracts, or reports.",
+        purposeLabel: "Supporting file/log",
         required: false,
         acceptedKinds: ["DOCUMENT", "PHOTO", "VIDEO", "AUDIO"],
       },
@@ -235,6 +251,7 @@ const COLLECTION_PLAN_TEMPLATES: CollectionPlanTemplate[] = [
         id: "policy_document",
         title: "Policy / compliance document",
         description: "Upload the policy, audit document, or compliance file being preserved.",
+        purposeLabel: "Policy / compliance document",
         required: true,
         acceptedKinds: ["DOCUMENT"],
       },
@@ -242,6 +259,7 @@ const COLLECTION_PLAN_TEMPLATES: CollectionPlanTemplate[] = [
         id: "screenshot_export",
         title: "Export / supporting evidence",
         description: "Upload the export, screenshot, or supporting evidence file for the compliance record.",
+        purposeLabel: "Export / supporting evidence",
         required: true,
         acceptedKinds: ["PHOTO", "VIDEO", "DOCUMENT"],
       },
@@ -249,6 +267,7 @@ const COLLECTION_PLAN_TEMPLATES: CollectionPlanTemplate[] = [
         id: "supporting_evidence",
         title: "Supporting evidence",
         description: "Add any additional supporting evidence for the audit record.",
+        purposeLabel: "Supporting evidence",
         required: false,
         acceptedKinds: ["PHOTO", "VIDEO", "AUDIO", "DOCUMENT"],
       },
@@ -256,6 +275,7 @@ const COLLECTION_PLAN_TEMPLATES: CollectionPlanTemplate[] = [
         id: "reviewer_context",
         title: "Reviewer context note",
         description: "Provide an internal note for reviewer context and intake rationale.",
+        purposeLabel: "Reviewer context note",
         required: false,
         acceptedKinds: ["DOCUMENT"],
       },
@@ -271,6 +291,7 @@ const COLLECTION_PLAN_TEMPLATES: CollectionPlanTemplate[] = [
         id: "primary_media",
         title: "Primary media",
         description: "Upload the primary media item for the field report.",
+        purposeLabel: "Primary media",
         required: true,
         acceptedKinds: ["PHOTO", "VIDEO"],
       },
@@ -278,6 +299,7 @@ const COLLECTION_PLAN_TEMPLATES: CollectionPlanTemplate[] = [
         id: "scene_context",
         title: "Scene/context capture",
         description: "Capture scene context to support the primary media.",
+        purposeLabel: "Scene/context capture",
         required: true,
         acceptedKinds: ["PHOTO", "VIDEO"],
       },
@@ -285,6 +307,7 @@ const COLLECTION_PLAN_TEMPLATES: CollectionPlanTemplate[] = [
         id: "source_safe_note",
         title: "Source-safe note",
         description: "Add an optional source-safe note for the evidence record.",
+        purposeLabel: "Source-safe note",
         required: false,
         acceptedKinds: ["DOCUMENT"],
       },
@@ -292,6 +315,7 @@ const COLLECTION_PLAN_TEMPLATES: CollectionPlanTemplate[] = [
         id: "supporting_document",
         title: "Supporting document",
         description: "Attach any supporting documents or transcripts.",
+        purposeLabel: "Supporting document",
         required: false,
         acceptedKinds: ["DOCUMENT"],
       },
@@ -412,6 +436,42 @@ function formatEvidenceTypeLabel(kind: EvidenceType): string {
     default:
       return "Document";
   }
+}
+
+function getStepRequirementLabel(step: ChecklistStep): string {
+  return step.required ? "Required" : "Optional";
+}
+
+function getChecklistStepById(
+  plan: CollectionPlanTemplate | undefined,
+  stepId: string | null | undefined
+): ChecklistStep | null {
+  if (!plan || !stepId) return null;
+  return plan.steps.find((step) => step.id === stepId) ?? null;
+}
+
+function getChecklistStepStatus(params: {
+  item: SessionItem;
+  plan: CollectionPlanTemplate | undefined;
+}) {
+  const step = getChecklistStepById(params.plan, params.item.checklistStepId);
+
+  if (!step) {
+    return {
+      label: "Unassigned",
+      tone: "warning" as const,
+      title: "No collection step selected",
+      description:
+        "Assign this material to a collection plan step so reviewers understand why it was collected.",
+    };
+  }
+
+  return {
+    label: step.required ? "Requirement met" : "Optional context mapped",
+    tone: "success" as const,
+    title: step.title,
+    description: step.description,
+  };
 }
 
 function formatFileSize(bytes: number): string {
@@ -1247,23 +1307,25 @@ logCaptureClientError("web_capture_add_to_session", err, {
             templateName: selectedPlan.name,
             mode: planMode,
             locationRequirement: selectedPlan.locationRequirement,
-            requiredSteps: selectedPlan.steps
-              .filter((step) => step.required)
-              .map((step) => ({
-                id: step.id,
-                title: step.title,
-                description: step.description,
-                acceptedKinds: step.acceptedKinds,
-              })),
-            optionalSteps: selectedPlan.steps
-              .filter((step) => !step.required)
-              .map((step) => ({
-                id: step.id,
-                title: step.title,
-                description: step.description,
-                acceptedKinds: step.acceptedKinds,
-              })),
-            createdAt: new Date().toISOString(),
+requiredSteps: selectedPlan.steps
+  .filter((step) => step.required)
+  .map((step) => ({
+    id: step.id,
+    title: step.title,
+    description: step.description,
+    purposeLabel: step.purposeLabel,
+    acceptedKinds: step.acceptedKinds,
+  })),
+optionalSteps: selectedPlan.steps
+  .filter((step) => !step.required)
+  .map((step) => ({
+    id: step.id,
+    title: step.title,
+    description: step.description,
+    purposeLabel: step.purposeLabel,
+    acceptedKinds: step.acceptedKinds,
+  })),
+              createdAt: new Date().toISOString(),
             deviceTimeIso: new Date().toISOString(),
           }
         : undefined;
@@ -1938,6 +2000,20 @@ const handleDroppedFiles = async (fileList: FileList | File[] | null) => {
     [collectionPlanId]
   );
 
+  useEffect(() => {
+  const validStepIds = new Set(
+    selectedCollectionPlan?.steps.map((step) => step.id) ?? []
+  );
+
+  setSessionItems((prev) =>
+    prev.map((item) =>
+      item.checklistStepId && !validStepIds.has(item.checklistStepId)
+        ? { ...item, checklistStepId: null }
+        : item
+    )
+  );
+}, [selectedCollectionPlan?.id]);
+
   const checklistStepItemMap = useMemo(() => {
     const map = new Map<string, SessionItem[]>();
     sessionItems.forEach((item) => {
@@ -1991,24 +2067,20 @@ const handleDroppedFiles = async (fileList: FileList | File[] | null) => {
       };
     }
 
-    if (
-      planMode === "CHECKLIST_REQUIRED" &&
-      checklistValidation.missingRequiredSteps.length > 0
-    ) {
-      return {
-        reason: "Cannot finish yet",
-        missingStepTitles: checklistValidation.missingRequiredSteps.map(
-          (step) => step.title
-        ),
-      };
-    }
+if (checklistValidation.missingRequiredSteps.length > 0) {
+  return {
+    reason: "Cannot finish yet",
+    missingStepTitles: checklistValidation.missingRequiredSteps.map(
+      (step) => step.title
+    ),
+  };
+}
 
-    if (
-      planMode === "CHECKLIST_REQUIRED" &&
-      sessionDuplicateSignals &&
-      !duplicateWarningAcknowledged
-    ) {
-      return {
+if (
+  selectedCollectionPlan?.locationRequirement === "required" &&
+  !useLocation
+) {
+        return {
         reason: "A duplicate intake signal is present. Acknowledge before finishing.",
         missingStepTitles: [] as string[],
       };
@@ -3186,9 +3258,40 @@ Drop files or folders here.
                             <div>
                               Location: <strong>{locationStatusLabel}</strong>
                             </div>
-                            <div>
-                              Required steps: <strong>{checklistValidation.requiredSteps.length}</strong>
-                            </div>
+<div>
+  Required steps:{" "}
+  <strong>{checklistValidation.requiredSteps.length}</strong>
+</div>
+
+{checklistValidation.requiredSteps.length > 0 ? (
+  <div style={{ display: "grid", gap: 6, marginTop: 4 }}>
+    <strong style={{ color: "#23373b" }}>Required evidence:</strong>
+    <ol style={{ margin: 0, paddingLeft: 18, display: "grid", gap: 4 }}>
+      {checklistValidation.requiredSteps.map((step) => (
+        <li key={step.id}>
+          <strong>{step.title}</strong>
+          <span style={{ color: "#6b7780" }}> — {step.purposeLabel}</span>
+        </li>
+      ))}
+    </ol>
+  </div>
+) : null}
+
+{selectedCollectionPlan.steps.some((step) => !step.required) ? (
+  <div style={{ display: "grid", gap: 6, marginTop: 6 }}>
+    <strong style={{ color: "#23373b" }}>Optional context:</strong>
+    <ol style={{ margin: 0, paddingLeft: 18, display: "grid", gap: 4 }}>
+      {selectedCollectionPlan.steps
+        .filter((step) => !step.required)
+        .map((step) => (
+          <li key={step.id}>
+            <strong>{step.title}</strong>
+            <span style={{ color: "#6b7780" }}> — {step.purposeLabel}</span>
+          </li>
+        ))}
+    </ol>
+  </div>
+) : null}
                             {planMode === "CHECKLIST_REQUIRED" && checklistValidation.missingRequiredSteps.length > 0 ? (
                               <div style={{ color: "#8c4d2e" }}>
                                 {checklistValidation.missingRequiredSteps.length} required step
@@ -3432,17 +3535,22 @@ Drop files or folders here.
                             paddingRight: 2,
                           }}
                         >
-                          {sessionItems.map((item, index) => {
-                            const statusLabel = item.error
-                              ? "Failed"
-                              : item.uploading
-                                ? `Uploading ${item.uploadProgress}%`
-                                : item.uploadProgress === 100
-                                  ? "Uploaded"
-                                  : "Ready";
+{sessionItems.map((item, index) => {
+  const statusLabel = item.error
+    ? "Failed"
+    : item.uploading
+      ? `Uploading ${item.uploadProgress}%`
+      : item.uploadProgress === 100
+        ? "Uploaded"
+        : "Ready";
 
-                            return (
-                              <div
+  const requirementStatus = getChecklistStepStatus({
+    item,
+    plan: selectedCollectionPlan,
+  });
+
+  return (
+                                  <div
                                 key={item.id}
                                 style={{
                                   borderRadius: 18,
@@ -3688,14 +3796,54 @@ Drop files or folders here.
                                                 ? "Map to required collection step"
                                                 : "Map to collection plan step (optional)"}
                                             </option>
-                                            {selectedCollectionPlan.steps.map((step) => (
-                                              <option key={step.id} value={step.id}>
-                                                {step.title}
-                                                {step.required ? " — Required" : " — Optional"}
-                                              </option>
-                                            ))}
+{selectedCollectionPlan.steps.map((step) => (
+  <option key={step.id} value={step.id}>
+    {getStepRequirementLabel(step)}: {step.title} — {step.purposeLabel}
+  </option>
+))}
                                           </select>
                                         ) : null}
+                                        <div
+  style={{
+    display: "grid",
+    gap: 6,
+    padding: "10px 12px",
+    borderRadius: 14,
+    background:
+      requirementStatus.tone === "success"
+        ? "rgba(236,253,245,0.92)"
+        : "rgba(255,247,237,0.92)",
+    border:
+      requirementStatus.tone === "success"
+        ? "1px solid rgba(34,116,71,0.14)"
+        : "1px solid rgba(234,150,60,0.18)",
+  }}
+>
+  <div
+    style={{
+      display: "flex",
+      justifyContent: "space-between",
+      gap: 10,
+      fontSize: 12,
+      fontWeight: 800,
+      color:
+        requirementStatus.tone === "success" ? "#227447" : "#8c4d2e",
+    }}
+  >
+    <span>{requirementStatus.label}</span>
+    <span>{requirementStatus.title}</span>
+  </div>
+
+  <div
+    style={{
+      color: "#5f6f73",
+      fontSize: 12,
+      lineHeight: 1.5,
+    }}
+  >
+    Purpose: {requirementStatus.description}
+  </div>
+</div>
                                         {planMode === "CHECKLIST_REQUIRED" &&
                                         checklistValidation.requiredSteps.length > 0 &&
                                         !item.checklistStepId ? (
@@ -4134,7 +4282,98 @@ Drop files or folders here.
                           I acknowledge the session contains a preliminary duplicate intake signal.
                         </label>
                       ) : null}
+{selectedCollectionPlan && sessionItems.length > 0 ? (
+  <div
+    style={{
+      display: "grid",
+      gap: 10,
+      padding: 12,
+      borderRadius: 16,
+      background: "rgba(247,250,251,0.96)",
+      border: "1px solid rgba(105,122,130,0.10)",
+    }}
+  >
+    <div
+      style={{
+        display: "flex",
+        justifyContent: "space-between",
+        gap: 10,
+        color: "#21353a",
+        fontSize: 13,
+        fontWeight: 800,
+      }}
+    >
+      <span>Collection plan progress</span>
+      <span>
+        {checklistValidation.requiredSteps.length -
+          checklistValidation.missingRequiredSteps.length}
+        /{checklistValidation.requiredSteps.length} required completed
+      </span>
+    </div>
 
+    <div style={{ display: "grid", gap: 6 }}>
+      {checklistValidation.requiredSteps.map((step) => {
+        const mapped = checklistStepItemMap.has(step.id);
+
+        return (
+          <div
+            key={step.id}
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              gap: 10,
+              fontSize: 12,
+              color: mapped ? "#227447" : "#8c4d2e",
+            }}
+          >
+            <span>
+              {mapped ? "✅" : "❌"} {step.title}
+            </span>
+            <span>{mapped ? "Met" : "Missing"}</span>
+          </div>
+        );
+      })}
+    </div>
+
+    {selectedCollectionPlan.steps.some((step) => !step.required) ? (
+      <div
+        style={{
+          display: "grid",
+          gap: 6,
+          paddingTop: 8,
+          borderTop: "1px solid rgba(105,122,130,0.08)",
+        }}
+      >
+        <div style={{ fontSize: 12, fontWeight: 800, color: "#4b6269" }}>
+          Optional context
+        </div>
+        {selectedCollectionPlan.steps
+          .filter((step) => !step.required)
+          .map((step) => {
+            const mapped = checklistStepItemMap.has(step.id);
+
+            return (
+              <div
+                key={step.id}
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  gap: 10,
+                  fontSize: 12,
+                  color: mapped ? "#227447" : "#6b7780",
+                }}
+              >
+                <span>
+                  {mapped ? "✅" : "○"} {step.title}
+                </span>
+                <span>{mapped ? "Added" : "Optional"}</span>
+              </div>
+            );
+          })}
+      </div>
+    ) : null}
+  </div>
+) : null}
                       {busy ? (
                         <div
                           className="uploading-hint"
