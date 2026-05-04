@@ -67,6 +67,17 @@ const EvidenceTypeSchema = prismaPkg.EvidenceType
   ? z.nativeEnum(prismaPkg.EvidenceType)
   : z.enum(["PHOTO", "VIDEO", "AUDIO", "DOCUMENT"]);
 
+const JsonValueSchema: z.ZodType<Prisma.JsonValue> = z.lazy(() =>
+  z.union([
+    z.string(),
+    z.number(),
+    z.boolean(),
+    z.null(),
+    z.array(JsonValueSchema),
+    z.record(z.string(), JsonValueSchema),
+  ])
+);
+
 const CreateEvidenceBody = z.object({
   type: EvidenceTypeSchema,
   mimeType: z.string().min(1).max(128).optional(),
@@ -76,6 +87,7 @@ const CreateEvidenceBody = z.object({
   deviceTimeIso: z.string().min(1).max(64).optional(),
   checksumSha256Base64: z.string().min(1).max(128).optional(),
   contentMd5Base64: z.string().min(1).max(128).optional(),
+  intakePlanJson: JsonValueSchema.optional(),
   gps: z
     .object({
       lat: z.number().finite().min(-90).max(90),
@@ -101,6 +113,11 @@ const CreatePartBody = z.object({
   durationMs: z.number().int().positive().optional(),
   checksumSha256Base64: z.string().min(1).max(128).optional(),
   contentMd5Base64: z.string().min(1).max(128).optional(),
+  privateRole: z.string().trim().min(1).max(120).optional(),
+  privateNote: z.string().trim().max(1000).optional(),
+  checklistStepId: z.string().trim().min(1).max(120).optional(),
+  sourceLabel: z.string().trim().min(1).max(120).optional(),
+  clientSignals: JsonValueSchema.optional(),
 });
 
 const UpdateEvidenceLabelBody = z.object({
@@ -292,6 +309,7 @@ const SAFE_EVIDENCE_SELECT = {
   originalFileName: true,
   displayFileName: true,
   internalNotes: true,
+  intakePlanJson: true,
   type: true,
   status: true,
   verificationStatus: true,
@@ -400,6 +418,7 @@ type SafeEvidence = {
   originalFileName: string | null;
   displayFileName: string | null;
   internalNotes: string | null;
+  intakePlanJson: Prisma.JsonValue | null;
     tsaStatus: string | null;
   tsaProvider: string | null;
   tsaSerialNumber: string | null;
@@ -1380,6 +1399,7 @@ function toSafeEvidence(e: SelectedEvidence): SafeEvidence {
     organizationId: e.organizationId ?? null,
     type: e.type,
     internalNotes: e.internalNotes ?? null,
+    intakePlanJson: e.intakePlanJson ?? null,
     status: e.status,
     verificationStatus: e.verificationStatus ?? null,
     captureMethod: e.captureMethod ?? null,
@@ -2537,24 +2557,8 @@ const result = await createEvidence({
   gps: body.gps,
   checksumSha256Base64: normalizedChecksum,
   contentMd5Base64: normalizedContentMd5,
+  intakePlanJson: body.intakePlanJson,
 });
-
-      (req as FastifyRequest & { evidenceId?: string }).evidenceId = result.id;
-      req.log = req.log.child({ evidenceId: result.id });
-
-      fireEvidenceAnalyticsEvent({
-        eventType: "evidence_created",
-        userId: ownerUserId,
-        req,
-        entityType: "evidence",
-        entityId: result.id,
-        severity: "info",
-        metadata: {
-          type: body.type,
-          mimeType: body.mimeType ?? null,
-          hasGps: Boolean(body.gps),
-        },
-      });
 
       auditEvidenceAction(req, {
         userId: ownerUserId,
@@ -2819,6 +2823,16 @@ const key = `evidence/${id}/parts/${String(body.partIndex).padStart(3, "0")}-${f
               originalFileName: body.originalFileName?.trim() || null,
               mimeType: normalizedMimeType,
               durationMs: body.durationMs ?? null,
+              privateRole: body.privateRole?.trim() || null,
+              privateNote: body.privateNote?.trim() || null,
+              checklistStepId: body.checklistStepId?.trim() || null,
+              sourceLabel: body.sourceLabel?.trim() || null,
+              clientSignals:
+                body.clientSignals === undefined
+                  ? undefined
+                  : body.clientSignals === null
+                    ? prismaPkg.Prisma.JsonNull
+                    : body.clientSignals,
               uploadedByUserId: ownerUserId,
               uploadedAtUtc: new Date(),
             },
@@ -2949,6 +2963,11 @@ const previewable = isPreviewableEvidenceKind(kind);
 
 return {
   ...toJsonSafe(part),
+  privateRole: part.privateRole ?? null,
+  privateNote: part.privateNote ?? null,
+  checklistStepId: part.checklistStepId ?? null,
+  sourceLabel: part.sourceLabel ?? null,
+  clientSignals: part.clientSignals ?? null,
   url,
   publicUrl: previewable ? url : null,
   previewUrl: previewable ? url : null,

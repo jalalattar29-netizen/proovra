@@ -254,6 +254,11 @@ type EvidencePart = {
   displayName?: string | null;
   capturedAt?: string | null;
   createdAt?: string | null;
+  privateRole?: string | null;
+  privateNote?: string | null;
+  checklistStepId?: string | null;
+  sourceLabel?: string | null;
+  clientSignals?: Record<string, unknown> | null;
 };
 
 type PartsResponse = {
@@ -304,6 +309,7 @@ type EvidenceRecord = {
   lat?: number | null;
   lng?: number | null;
   accuracyMeters?: number | null;
+  intakePlanJson?: Record<string, unknown> | null;
 };
 
 type EvidenceResponse = {
@@ -502,6 +508,7 @@ export default function EvidenceDetailPage() {
   const [captureLng, setCaptureLng] = useState<number | null>(null);
   const [captureAccuracyMeters, setCaptureAccuracyMeters] = useState<number | null>(null);
   const [internalNotes, setInternalNotes] = useState<string | null>(null);
+  const [intakePlanJson, setIntakePlanJson] = useState<Record<string, unknown> | null>(null);
 
   const [label, setLabel] = useState<string>("Digital Evidence Record");
   const [displaySubtitle, setDisplaySubtitle] = useState<string>("");
@@ -777,6 +784,7 @@ else acc.otherCount += 1;
             typeof ev.accuracyMeters === "number" ? ev.accuracyMeters : null
           );
           setInternalNotes(ev.internalNotes ?? null);
+          setIntakePlanJson(ev.intakePlanJson ?? null);
           setLabel(resolveDisplayTitle(ev));
           setLabelDraft(resolveDisplayTitle(ev));
           setDisplaySubtitle(resolveDisplaySubtitle(ev));
@@ -918,6 +926,7 @@ else acc.otherCount += 1;
           typeof ev.accuracyMeters === "number" ? ev.accuracyMeters : null
         );
         setInternalNotes(ev.internalNotes ?? null);
+        setIntakePlanJson(ev.intakePlanJson ?? null);
         setLabel(resolveDisplayTitle(ev));
         setLabelDraft(resolveDisplayTitle(ev));
         setDisplaySubtitle(resolveDisplaySubtitle(ev));
@@ -1755,6 +1764,25 @@ else acc.otherCount += 1;
     [capturedAtUtc, createdAt, deviceTimeIso]
   );
 
+  const intakePlanSummary = useMemo(() => {
+    if (!intakePlanJson || typeof intakePlanJson !== "object") return null;
+    const name =
+      typeof intakePlanJson.templateName === "string"
+        ? intakePlanJson.templateName
+        : typeof intakePlanJson.templateId === "string"
+          ? intakePlanJson.templateId
+          : null;
+    const mode =
+      intakePlanJson.mode === "CHECKLIST_REQUIRED"
+        ? "Checklist required"
+        : intakePlanJson.mode === "FLEXIBLE"
+          ? "Flexible intake"
+          : "Flexible intake";
+
+    if (!name) return mode;
+    return `${name} • ${mode}`;
+  }, [intakePlanJson]);
+
   return (
     <div className="section app-section evidence-detail-page-shell">
       <div className="app-hero app-hero-full">
@@ -2196,6 +2224,17 @@ else acc.otherCount += 1;
                       {formatUtcDateTime(createdAt)}
                     </div>
                   </div>
+
+                  {intakePlanSummary ? (
+                    <div>
+                      <div className="text-[12px] uppercase tracking-[0.14em] text-[#9b826b]">
+                        Intake Plan
+                      </div>
+                      <div className="mt-2 text-[0.96rem] leading-[1.75] text-[#23373b]">
+                        {intakePlanSummary}
+                      </div>
+                    </div>
+                  ) : null}
 
                   <div>
                     <div className="text-[12px] uppercase tracking-[0.14em] text-[#9b826b]">
@@ -2977,6 +3016,22 @@ else acc.otherCount += 1;
                             {part.sha256 && (
                               <div>SHA-256: {shortId(part.sha256)}</div>
                             )}
+                            {part.privateRole ? (
+                              <div>
+                                Private role: <strong>{part.privateRole}</strong>
+                              </div>
+                            ) : null}
+                            {part.sourceLabel ? (
+                              <div>Source label: {part.sourceLabel}</div>
+                            ) : null}
+                            {part.checklistStepId ? (
+                              <div>Checklist step: {part.checklistStepId}</div>
+                            ) : null}
+                            {part.privateNote ? (
+                              <div style={{ color: "#4b6269" }}>
+                                Note: {part.privateNote}
+                              </div>
+                            ) : null}
                           </div>
 
                           <div

@@ -2,10 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import {
-  getReviewerEvidenceCategories,
-  getReviewerEvidenceTypeLabel,
-} from "@proovra/shared";
+import { getReviewerEvidenceCategories } from "@proovra/shared";
 import { Button, Card, useToast } from "../../../components/ui";
 import { ApiError, apiFetch } from "../../../lib/api";
 import { captureException } from "../../../lib/sentry";
@@ -20,17 +17,6 @@ type AudioRecorderState =
   | "preview_ready"
   | "uploading"
   | "failed";
-
-type SessionItem = {
-  id: string;
-  file: File;
-  previewUrl: string | null;
-  mimeType: string;
-  relativePath: string | null;
-  uploadProgress: number;
-  uploading: boolean;
-  error?: string | null;
-};
 
 type BillingWallLike = {
   type?: string;
@@ -48,6 +34,141 @@ type BillingWallLike = {
   suggestedActions?: string[];
   incomingBytes?: string | null;
 };
+
+type ChecklistStep = {
+  id: string;
+  label: string;
+  required: boolean;
+};
+
+type CollectionPlanTemplate = {
+  id: string;
+  name: string;
+  description: string;
+  locationRequirement: "optional" | "recommended" | "required";
+  steps: ChecklistStep[];
+};
+
+type SessionItemClientSignals = {
+  preliminaryClientSha256Base64?: string;
+  captureTimeUtc: string;
+  browserMediaCaptureAvailable: boolean;
+  folderPathPresent: boolean;
+  locationIncluded: boolean;
+  duplicateStatus?: "none" | "warning" | "duplicate";
+  screenshotLike?: boolean;
+  genericMime?: boolean;
+  oldLastModified?: boolean;
+};
+
+type SessionTimelineEvent = {
+  id: string;
+  atUtc: string;
+  title: string;
+  detail: string;
+  tone: "info" | "warning" | "danger";
+};
+
+type SessionItem = {
+  id: string;
+  file: File;
+  previewUrl: string | null;
+  mimeType: string;
+  relativePath: string | null;
+  uploadProgress: number;
+  uploading: boolean;
+  error?: string | null;
+  role?: string;
+  checklistStepId?: string | null;
+  privateNote?: string;
+  sourceLabel?: string;
+  clientSignals?: SessionItemClientSignals;
+};
+
+const COLLECTION_PLAN_TEMPLATES: CollectionPlanTemplate[] = [
+  {
+    id: "general-evidence-record",
+    name: "General Evidence Record",
+    description: "Balanced intake for primary evidence and supporting context.",
+    locationRequirement: "recommended",
+    steps: [
+      { id: "primary_evidence", label: "Primary evidence file", required: true },
+      { id: "supporting_context", label: "Supporting context", required: false },
+      { id: "optional_statement", label: "Optional video or audio statement", required: false },
+    ],
+  },
+  {
+    id: "insurance-claim",
+    name: "Insurance Claim",
+    description: "Capture damage, policy documentation, and ownership context.",
+    locationRequirement: "recommended",
+    steps: [
+      { id: "overview_media", label: "Overview photo/video", required: true },
+      { id: "damage_close_up", label: "Damage close-up", required: true },
+      { id: "ownership_document", label: "Ownership or policy document", required: true },
+      { id: "optional_audio", label: "Optional audio statement", required: false },
+    ],
+  },
+  {
+    id: "legal-matter",
+    name: "Legal Matter",
+    description: "Collect primary documents, supporting exhibits, and source notes.",
+    locationRequirement: "optional",
+    steps: [
+      { id: "primary_media", label: "Primary document/media", required: true },
+      { id: "supporting_exhibit", label: "Supporting exhibit", required: false },
+      { id: "source_context", label: "Source/context note", required: false },
+      { id: "optional_timeline", label: "Optional timeline evidence", required: false },
+    ],
+  },
+  {
+    id: "incident-investigation",
+    name: "Incident / Investigation",
+    description: "Capture scene overview, close-up detail, and witness media.",
+    locationRequirement: "required",
+    steps: [
+      { id: "scene_overview", label: "Scene overview", required: true },
+      { id: "close_up_detail", label: "Close-up detail", required: true },
+      { id: "witness_statement", label: "Witness/media statement", required: false },
+      { id: "supporting_file", label: "Supporting file/log", required: false },
+    ],
+  },
+  {
+    id: "compliance-audit",
+    name: "Compliance Audit",
+    description: "Collect policies, exports, and supporting evidence for review.",
+    locationRequirement: "recommended",
+    steps: [
+      { id: "policy_document", label: "Policy/document", required: true },
+      { id: "screenshot_export", label: "Screenshot/export/log", required: true },
+      { id: "supporting_evidence", label: "Supporting evidence", required: false },
+      { id: "reviewer_context", label: "Reviewer context note", required: false },
+    ],
+  },
+  {
+    id: "journalism-field-capture",
+    name: "Journalism / Field Capture",
+    description: "Collect primary media, scene context, and source-safe notes.",
+    locationRequirement: "recommended",
+    steps: [
+      { id: "primary_media", label: "Primary media", required: true },
+      { id: "scene_context", label: "Scene/context capture", required: true },
+      { id: "source_safe_note", label: "Source-safe note", required: false },
+      { id: "supporting_document", label: "Supporting document", required: false },
+    ],
+  },
+];
+
+const ROLE_SUGGESTIONS = [
+  "Primary evidence",
+  "Supporting document",
+  "Scene overview",
+  "Damage close-up",
+  "Identity / ownership proof",
+  "System log / export",
+  "Witness or audio statement",
+  "Other",
+];
 
 const GENERIC_EVIDENCE_UPLOAD_ACCEPT =
   "image/*,video/*,audio/*,application/pdf,text/*,application/json,application/xml,text/xml,application/zip,application/x-zip-compressed,application/octet-stream,.bin,.csv,.log,.txt,.rtf,.doc,.docx,.xls,.xlsx,.eml,.msg,.zip,.json,.xml";
@@ -89,6 +210,39 @@ function deriveBatchEvidenceType(files: File[]): EvidenceType {
   }
 
   return "DOCUMENT";
+}
+
+function isScreenshotLikeFileName(fileName: string): boolean {
+  return /screenshot|screen shot|bildschirmfoto|screen-recording|screenrecording|screencap/i.test(
+    fileName
+  );
+}
+
+function buildSessionItemSignals(
+  file: File,
+  relativePath: string | null,
+  existingItems: SessionItem[]
+): SessionItemClientSignals {
+  const now = Date.now();
+  const folderPathPresent = Boolean(relativePath);
+  const mimeType = normalizeClientMimeType(file.type);
+  const duplicateMatch = existingItems.some(
+    (existing) =>
+      existing.file.name === file.name &&
+      existing.file.size === file.size &&
+      existing.file.lastModified === file.lastModified
+  );
+
+  return {
+    captureTimeUtc: new Date().toISOString(),
+    browserMediaCaptureAvailable: typeof MediaRecorder !== "undefined",
+    folderPathPresent,
+    locationIncluded: false,
+    duplicateStatus: duplicateMatch ? "duplicate" : "none",
+    screenshotLike: isScreenshotLikeFileName(file.name),
+    genericMime: mimeType === "application/octet-stream" || mimeType === "",
+    oldLastModified: now - file.lastModified > 30 * 24 * 60 * 60 * 1000,
+  };
 }
 
 function deriveSessionItemTypeLabel(mimeType: string): string {
@@ -483,6 +637,11 @@ export default function CapturePage() {
   const [audioPreviewFile, setAudioPreviewFile] = useState<File | null>(null);
 
   const [sessionItems, setSessionItems] = useState<SessionItem[]>([]);
+  const [sessionTimeline, setSessionTimeline] = useState<SessionTimelineEvent[]>([]);
+  const [collectionPlanId, setCollectionPlanId] = useState("general-evidence-record");
+  const [planMode, setPlanMode] = useState<"FLEXIBLE" | "CHECKLIST_REQUIRED">("FLEXIBLE");
+  const [duplicateWarningAcknowledged, setDuplicateWarningAcknowledged] = useState(false);
+  const [locationAccuracyMeters, setLocationAccuracyMeters] = useState<number | null>(null);
   const [locationPermissionDenied, setLocationPermissionDenied] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -513,9 +672,33 @@ export default function CapturePage() {
     folderInput.setAttribute("directory", "");
   }, []);
 
+  const recordTimelineEvent = (
+    event: Omit<SessionTimelineEvent, "id" | "atUtc">
+  ) => {
+    setSessionTimeline((prev) => [
+      {
+        id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+        atUtc: new Date().toISOString(),
+        ...event,
+      },
+      ...prev,
+    ]);
+  };
+
+  const updateSessionItem = (
+    itemId: string,
+    updates: Partial<Pick<SessionItem, "role" | "privateNote" | "checklistStepId" | "sourceLabel">>
+  ) => {
+    setSessionItems((prev) =>
+      prev.map((item) =>
+        item.id === itemId ? { ...item, ...updates } : item
+      )
+    );
+  };
+
   const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
-const pollReport = async (evidenceId: string): Promise<boolean> => {
+  const pollReport = async (evidenceId: string): Promise<boolean> => {
   for (let attempt = 0; attempt < 8; attempt += 1) {
     try {
       await apiFetch(`/v1/evidence/${evidenceId}/report/latest`, { method: "GET" });
@@ -698,37 +881,66 @@ const pollReport = async (evidenceId: string): Promise<boolean> => {
     setSessionStatus(null);
 
     try {
-const nextItems: SessionItem[] = files.map((nextFile) => {
-  const normalizedMimeType = normalizeClientMimeType(nextFile.type);
-  const canPreview =
-    normalizedMimeType.startsWith("image/") ||
-    normalizedMimeType.startsWith("video/") ||
-    normalizedMimeType.startsWith("audio/");
+      const existingItems = sessionItemsRef.current;
 
-  const relativePath =
-    typeof (nextFile as File & { webkitRelativePath?: string }).webkitRelativePath ===
-      "string" &&
-    (nextFile as File & { webkitRelativePath?: string }).webkitRelativePath
-      ? (nextFile as File & { webkitRelativePath?: string }).webkitRelativePath ?? null
-      : null;
+      const nextItems: SessionItem[] = await Promise.all(
+        files.map(async (nextFile) => {
+          const normalizedMimeType = normalizeClientMimeType(nextFile.type);
+          const canPreview =
+            normalizedMimeType.startsWith("image/") ||
+            normalizedMimeType.startsWith("video/") ||
+            normalizedMimeType.startsWith("audio/");
 
-  return {
-    id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
-    file: nextFile,
-    previewUrl: canPreview ? URL.createObjectURL(nextFile) : null,
-    mimeType: normalizedMimeType,
-    relativePath,
-    uploadProgress: 0,
-    uploading: false,
-    error: null,
-  };
-});
+          const relativePath =
+            typeof (nextFile as File & { webkitRelativePath?: string }).webkitRelativePath ===
+              "string" &&
+            (nextFile as File & { webkitRelativePath?: string }).webkitRelativePath
+              ? (nextFile as File & { webkitRelativePath?: string }).webkitRelativePath ?? null
+              : null;
 
-if (sessionItemsRef.current.length === 0) {
-  setSessionStartedAt(new Date());
-}
+          const signals = buildSessionItemSignals(
+            nextFile,
+            relativePath,
+            existingItems
+          );
 
-setSessionItems((prev) => [...prev, ...nextItems]);
+          try {
+            const integrity = await computeIntegrityFromBlob(nextFile);
+            signals.preliminaryClientSha256Base64 = integrity.checksumSha256Base64;
+          } catch {
+            // Compute final integrity during evidence finalization.
+          }
+
+          return {
+            id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+            file: nextFile,
+            previewUrl: canPreview ? URL.createObjectURL(nextFile) : null,
+            mimeType: normalizedMimeType,
+            relativePath,
+            uploadProgress: 0,
+            uploading: false,
+            error: null,
+            clientSignals: signals,
+          };
+        })
+      );
+
+      if (sessionItemsRef.current.length === 0) {
+        setSessionStartedAt(new Date());
+      }
+
+      setSessionItems((prev) => [...prev, ...nextItems]);
+      const timelineTitle = options?.sessionEvidenceType
+        ? `${options.sessionEvidenceType} captured`
+        : "Materials staged";
+      const timelineDetail = options?.sessionEvidenceType
+        ? `A ${options.sessionEvidenceType.toLowerCase()} item was added to the session.`
+        : `${files.length} item${files.length > 1 ? "s" : ""} added to this session.`;
+      recordTimelineEvent({
+        title: timelineTitle,
+        detail: timelineDetail,
+        tone: "info",
+      });
       addToast(
         `${files.length} item${files.length > 1 ? "s" : ""} added to session`,
         "success"
@@ -783,6 +995,11 @@ logCaptureClientError("web_capture_add_to_session", err, {
     setError(null);
     setSessionStatus("Creating evidence record...");
     setProgress(0);
+    recordTimelineEvent({
+      title: "Finalization started",
+      detail: "Finish & Sign process started for the current session.",
+      tone: "info",
+    });
 
     try {
       const files = items.map((item) => item.file);
@@ -810,14 +1027,39 @@ logCaptureClientError("web_capture_add_to_session", err, {
             }
           );
           setLocationPermissionDenied(false);
+          setLocationAccuracyMeters(gps?.accuracyMeters ?? null);
+          recordTimelineEvent({
+            title: "Location recorded",
+            detail: "Device-reported GPS metadata was attached to the evidence record.",
+            tone: "info",
+          });
         } catch {
           setLocationPermissionDenied(true);
+          setLocationAccuracyMeters(null);
+          recordTimelineEvent({
+            title: "Location unavailable",
+            detail: "The browser denied or failed to provide device location metadata.",
+            tone: "warning",
+          });
           addToast("Location unavailable. Continuing without GPS.", "warning");
         }
       }
 
       const primaryMimeType = normalizeClientMimeType(primaryFile.type);
       const primaryIntegrity = await computeIntegrityFromBlob(primaryFile);
+      const selectedPlan = COLLECTION_PLAN_TEMPLATES.find(
+        (plan) => plan.id === collectionPlanId
+      );
+      const intakePlanJson = selectedPlan
+        ? {
+            templateId: selectedPlan.id,
+            templateName: selectedPlan.name,
+            mode: planMode,
+            locationRequirement: selectedPlan.locationRequirement,
+            steps: selectedPlan.steps,
+          }
+        : undefined;
+
       const created = await apiFetch("/v1/evidence", {
         method: "POST",
         body: JSON.stringify({
@@ -830,6 +1072,7 @@ logCaptureClientError("web_capture_add_to_session", err, {
           gps,
           checksumSha256Base64: primaryIntegrity.checksumSha256Base64,
           contentMd5Base64: primaryIntegrity.contentMd5Base64,
+          intakePlanJson,
         }),
       });
 
@@ -857,6 +1100,11 @@ const part = await apiFetch(`/v1/evidence/${evidenceId}/parts`, {
     originalFileName: item.relativePath || item.file.name,
     checksumSha256Base64: integrity.checksumSha256Base64,
     contentMd5Base64: integrity.contentMd5Base64,
+    privateRole: item.role?.trim() || undefined,
+    privateNote: item.privateNote?.trim() || undefined,
+    checklistStepId: item.checklistStepId || undefined,
+    sourceLabel: item.sourceLabel?.trim() || undefined,
+    clientSignals: item.clientSignals,
   }),
 });
 
@@ -967,17 +1215,20 @@ router.push(`/evidence/${evidenceId}`);
     }
   };
 
-  const openFilePicker = () => {
-    if (busy) return;
-    setError(null);
-    if (!fileInputRef.current) {
-      const pickerError = new Error("Evidence file input is unavailable");
-      logCaptureClientError("web_capture_open_file_picker", pickerError, {});
-      setError("File picker is unavailable in this browser session.");
-      return;
-    }
-    fileInputRef.current?.click();
-  };
+const openFilePicker = () => {
+  if (busy) return;
+  setError(null);
+
+  if (!fileInputRef.current) {
+    const pickerError = new Error("Evidence file input is unavailable");
+    logCaptureClientError("web_capture_open_file_picker", pickerError, {});
+    setError("File picker is unavailable in this browser session.");
+    return;
+  }
+
+  fileInputRef.current.value = "";
+  fileInputRef.current.click();
+};
 
   const openFolderPicker = () => {
     if (busy) return;
@@ -1474,20 +1725,79 @@ const handleDroppedFiles = async (fileList: FileList | File[] | null) => {
     );
   }, [sessionItems]);
 
-  const reviewerClassificationPreview = useMemo(
-    () =>
-      getReviewerEvidenceTypeLabel({
-        itemCount: sessionItems.length,
-        structure: sessionItems.length > 1 ? "multipart" : "single",
-        evidenceType:
-          sessionItems.length === 1
-            ? inferEvidenceTypeFromMimeType(sessionItems[0]?.mimeType)
-            : "DOCUMENT",
-        mimeType: sessionItems[0]?.mimeType ?? null,
-        ...sessionComposition,
-      }),
-    [sessionComposition, sessionItems]
+  const selectedCollectionPlan = useMemo(
+    () => COLLECTION_PLAN_TEMPLATES.find((plan) => plan.id === collectionPlanId),
+    [collectionPlanId]
   );
+
+  const checklistSatisfiedStepIds = useMemo(
+    () =>
+      new Set(sessionItems.map((item) => item.checklistStepId).filter(Boolean) as string[]),
+    [sessionItems]
+  );
+
+  const requiredChecklistSteps = useMemo(
+    () => selectedCollectionPlan?.steps.filter((step) => step.required) ?? [],
+    [selectedCollectionPlan]
+  );
+
+  const unsatisfiedRequiredSteps = useMemo(
+    () =>
+      requiredChecklistSteps.filter((step) => !checklistSatisfiedStepIds.has(step.id)),
+    [requiredChecklistSteps, checklistSatisfiedStepIds]
+  );
+
+  const sessionDuplicateSignals = useMemo(
+    () =>
+      sessionItems.some((item) => item.clientSignals?.duplicateStatus === "duplicate"),
+    [sessionItems]
+  );
+
+  const locationStatusLabel = useMemo(() => {
+    if (locationPermissionDenied) return "Unavailable / denied";
+    if (useLocation) return "Included";
+    if (selectedCollectionPlan?.locationRequirement === "required") {
+      return "Required by plan";
+    }
+    if (selectedCollectionPlan?.locationRequirement === "recommended") {
+      return "Recommended";
+    }
+    return "Optional";
+  }, [locationPermissionDenied, useLocation, selectedCollectionPlan]);
+
+  const finishDisabledReason = useMemo(() => {
+    if (sessionItems.length === 0) return "Add at least one item to finish.";
+    if (planMode === "CHECKLIST_REQUIRED" && unsatisfiedRequiredSteps.length > 0) {
+      return `Required collection steps not yet satisfied: ${unsatisfiedRequiredSteps
+        .map((step) => step.label)
+        .join(", ")}`;
+    }
+    if (
+      planMode === "CHECKLIST_REQUIRED" &&
+      sessionDuplicateSignals &&
+      !duplicateWarningAcknowledged
+    ) {
+      return "A duplicate intake signal is present. Acknowledge before finishing.";
+    }
+    if (
+      planMode === "CHECKLIST_REQUIRED" &&
+      selectedCollectionPlan?.locationRequirement === "required" &&
+      !useLocation
+    ) {
+      return "Location metadata is required by the selected plan.";
+    }
+    return undefined;
+  }, [
+    sessionItems.length,
+    planMode,
+    unsatisfiedRequiredSteps,
+    sessionDuplicateSignals,
+    duplicateWarningAcknowledged,
+    selectedCollectionPlan,
+    useLocation,
+  ]);
+
+  const finishDisabled = busy || Boolean(finishDisabledReason);
 
   const reviewerCategoryPreview = useMemo(
     () =>
@@ -1588,7 +1898,7 @@ const handleDroppedFiles = async (fileList: FileList | File[] | null) => {
       } as const;
     }
 
-    if (sessionItems.length === 0) {
+    if (finishDisabled) {
       return {
         borderColor: "rgba(148,163,184,0.18)",
         color: "#7a8892",
@@ -1605,7 +1915,7 @@ const handleDroppedFiles = async (fileList: FileList | File[] | null) => {
       boxShadow:
         "inset 0 1px 0 rgba(255,255,255,0.10), 0 18px 40px rgba(17,34,43,0.22)",
     } as const;
-  }, [busy, primaryButtonStyle, sessionItems.length]);
+  }, [busy, primaryButtonStyle, finishDisabled]);
 
   return (
     <div className="section app-section capture-page-shell">
@@ -1979,8 +2289,14 @@ const handleDroppedFiles = async (fileList: FileList | File[] | null) => {
               </div>
 
               <h1
-                className="mt-5 max-w-[760px] text-[1.72rem] font-medium leading-[1.02] tracking-[-0.045em] text-[#d9e2df] md:text-[2.22rem] lg:text-[2.72rem]"
-                style={{ margin: "20px 0 0" }}
+className="mt-5 max-w-[760px] text-[1.72rem] font-medium leading-[1.02] tracking-[-0.045em] md:text-[2.22rem] lg:text-[2.72rem]"
+style={{
+  margin: "20px 0 0",
+  background: "linear-gradient(90deg, #d9e2df 0%, #c7f4eb 72%, #b7eee3 100%)",
+  WebkitBackgroundClip: "text",
+  backgroundClip: "text",
+  color: "transparent",
+}}
               >
                 Create Evidence Record
               </h1>
@@ -2111,16 +2427,17 @@ const handleDroppedFiles = async (fileList: FileList | File[] | null) => {
                   aria-label="Upload evidence files"
                   multiple
                   accept={GENERIC_EVIDENCE_UPLOAD_ACCEPT}
-                  onChange={async (event) => {
-                    try {
-                      await handleDroppedFiles(event.target.files);
-                    } catch {
-                      // handled in addFilesToSession/logCaptureClientError
-                    }
-                    if (fileInputRef.current) {
-                      fileInputRef.current.value = "";
-                    }
-                  }}
+onChange={async (event) => {
+  const files = Array.from(event.currentTarget.files ?? []);
+
+  try {
+    await handleDroppedFiles(files);
+  } catch {
+    // handled in addFilesToSession/logCaptureClientError
+  } finally {
+    event.currentTarget.value = "";
+  }
+}}
                   ref={fileInputRef}
                   style={{ display: "none" }}
                 />
@@ -2141,6 +2458,11 @@ const handleDroppedFiles = async (fileList: FileList | File[] | null) => {
                   ref={folderInputRef}
                   style={{ display: "none" }}
                 />
+                <datalist id="role-suggestions">
+                  {ROLE_SUGGESTIONS.map((role) => (
+                    <option key={role} value={role} />
+                  ))}
+                </datalist>
 
                 <div className="capture-main-grid">
                   <div style={{ display: "grid", gap: 20 }}>
@@ -2480,6 +2802,158 @@ Drop files or folders here.
                       </div>
                     ) : null}
 
+                    <div
+                      style={{
+                        ...softCardStyle,
+                        padding: 18,
+                        borderRadius: 24,
+                        display: "grid",
+                        gap: 16,
+                      }}
+                    >
+                      <div style={{ display: "grid", gap: 6 }}>
+                        <div
+                          style={{
+                            fontSize: 12,
+                            fontWeight: 800,
+                            letterSpacing: "0.12em",
+                            textTransform: "uppercase",
+                            color: "#7e8d8f",
+                          }}
+                        >
+                          Collection Plan
+                        </div>
+                        <div
+                          style={{
+                            color: "#21353a",
+                            fontWeight: 700,
+                            fontSize: 14,
+                            lineHeight: 1.4,
+                          }}
+                        >
+                          Guided intake mode for enterprise capture and review.
+                        </div>
+                      </div>
+
+                      <div
+                        style={{
+                          display: "grid",
+                          gridTemplateColumns: "1fr 1fr",
+                          gap: 10,
+                        }}
+                      >
+                        {([
+                          { id: "FLEXIBLE", label: "Flexible intake" },
+                          { id: "CHECKLIST_REQUIRED", label: "Checklist required" },
+                        ] as const).map((option) => (
+                          <button
+                            key={option.id}
+                            type="button"
+                            onClick={() => setPlanMode(option.id)}
+                            disabled={busy}
+                            style={{
+                              width: "100%",
+                              padding: "12px 14px",
+                              borderRadius: 16,
+                              border:
+                                planMode === option.id
+                                  ? "1px solid rgba(39,75,90,0.24)"
+                                  : "1px solid rgba(105,122,130,0.15)",
+                              background:
+                                planMode === option.id
+                                  ? "rgba(195,235,226,0.16)"
+                                  : "rgba(248,250,251,0.96)",
+                              color: planMode === option.id ? "#17323a" : "#4b6269",
+                              fontWeight: 700,
+                              cursor: busy ? "not-allowed" : "pointer",
+                              textAlign: "center",
+                            }}
+                          >
+                            {option.label}
+                          </button>
+                        ))}
+                      </div>
+
+                      <div style={{ display: "grid", gap: 8 }}>
+                        <label
+                          style={{
+                            display: "grid",
+                            gap: 8,
+                            fontSize: 12,
+                            color: "#5f6f73",
+                          }}
+                        >
+                          Evidence intake template
+                        </label>
+                        <select
+                          value={collectionPlanId}
+                          onChange={(event) => setCollectionPlanId(event.target.value)}
+                          disabled={busy}
+                          style={{
+                            width: "100%",
+                            minHeight: 42,
+                            borderRadius: 14,
+                            border: "1px solid rgba(105,122,130,0.14)",
+                            background: "#fbfcfd",
+                            color: "#23373b",
+                            padding: "10px 12px",
+                            fontSize: 13,
+                            outline: "none",
+                          }}
+                        >
+                          {COLLECTION_PLAN_TEMPLATES.map((plan) => (
+                            <option key={plan.id} value={plan.id}>
+                              {plan.name}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      {selectedCollectionPlan ? (
+                        <div
+                          style={{
+                            display: "grid",
+                            gap: 8,
+                            padding: "14px 12px",
+                            borderRadius: 18,
+                            background: "rgba(243,246,248,0.92)",
+                            border: "1px solid rgba(123,138,145,0.12)",
+                          }}
+                        >
+                          <div
+                            style={{
+                              color: "#23373b",
+                              fontWeight: 700,
+                              fontSize: 13,
+                            }}
+                          >
+                            {selectedCollectionPlan.description}
+                          </div>
+                          <div
+                            style={{
+                              display: "grid",
+                              gap: 6,
+                              fontSize: 12,
+                              color: "#5f6f73",
+                            }}
+                          >
+                            <div>
+                              Location: <strong>{locationStatusLabel}</strong>
+                            </div>
+                            <div>
+                              Required steps: <strong>{requiredChecklistSteps.length}</strong>
+                            </div>
+                            {planMode === "CHECKLIST_REQUIRED" && unsatisfiedRequiredSteps.length > 0 ? (
+                              <div style={{ color: "#8c4d2e" }}>
+                                {unsatisfiedRequiredSteps.length} required step
+                                {unsatisfiedRequiredSteps.length > 1 ? "s" : ""} need mapping.
+                              </div>
+                            ) : null}
+                          </div>
+                        </div>
+                      ) : null}
+                    </div>
+
                     <label
                       style={{
                         ...softCardStyle,
@@ -2790,6 +3264,196 @@ Drop files or folders here.
                                       </div>
                                     ) : null}
 
+                                    <div
+                                      style={{
+                                        display: "grid",
+                                        gap: 10,
+                                        padding: "10px 0",
+                                        borderTop: "1px solid rgba(105,122,130,0.10)",
+                                      }}
+                                    >
+                                      <div
+                                        style={{
+                                          display: "grid",
+                                          gap: 8,
+                                        }}
+                                      >
+                                        <div
+                                          style={{
+                                            display: "grid",
+                                            gridTemplateColumns: "1fr 1fr",
+                                            gap: 10,
+                                          }}
+                                        >
+                                          <input
+                                            type="text"
+                                            value={item.role ?? ""}
+                                            onChange={(event) =>
+                                              updateSessionItem(item.id, {
+                                                role: event.target.value,
+                                              })
+                                            }
+                                            placeholder="Evidence role / purpose"
+                                            disabled={busy}
+                                            list="role-suggestions"
+                                            style={{
+                                              width: "100%",
+                                              minHeight: 38,
+                                              borderRadius: 12,
+                                              border: "1px solid rgba(105,122,130,0.14)",
+                                              background: "#fbfcfd",
+                                              color: "#23373b",
+                                              padding: "10px 12px",
+                                              fontSize: 12,
+                                              outline: "none",
+                                            }}
+                                          />
+                                          <input
+                                            type="text"
+                                            value={item.sourceLabel ?? ""}
+                                            onChange={(event) =>
+                                              updateSessionItem(item.id, {
+                                                sourceLabel: event.target.value,
+                                              })
+                                            }
+                                            placeholder="Source / context label"
+                                            disabled={busy}
+                                            style={{
+                                              width: "100%",
+                                              minHeight: 38,
+                                              borderRadius: 12,
+                                              border: "1px solid rgba(105,122,130,0.14)",
+                                              background: "#fbfcfd",
+                                              color: "#23373b",
+                                              padding: "10px 12px",
+                                              fontSize: 12,
+                                              outline: "none",
+                                            }}
+                                          />
+                                        </div>
+
+                                        {selectedCollectionPlan?.steps.length ? (
+                                          <select
+                                            value={item.checklistStepId ?? ""}
+                                            onChange={(event) =>
+                                              updateSessionItem(item.id, {
+                                                checklistStepId:
+                                                  event.target.value || null,
+                                              })
+                                            }
+                                            disabled={busy}
+                                            style={{
+                                              width: "100%",
+                                              minHeight: 38,
+                                              borderRadius: 12,
+                                              border: "1px solid rgba(105,122,130,0.14)",
+                                              background: "#fbfcfd",
+                                              color: "#23373b",
+                                              padding: "10px 12px",
+                                              fontSize: 12,
+                                              outline: "none",
+                                            }}
+                                          >
+                                            <option value="">
+                                              Map to collection plan step (optional)
+                                            </option>
+                                            {selectedCollectionPlan.steps.map((step) => (
+                                              <option key={step.id} value={step.id}>
+                                                {step.label}
+                                                {step.required ? " (required)" : ""}
+                                              </option>
+                                            ))}
+                                          </select>
+                                        ) : null}
+                                      </div>
+
+                                      <div>
+                                        <textarea
+                                          value={item.privateNote ?? ""}
+                                          onChange={(event) =>
+                                            updateSessionItem(item.id, {
+                                              privateNote: event.target.value,
+                                            })
+                                          }
+                                          disabled={busy}
+                                          placeholder="Private item note"
+                                          maxLength={1000}
+                                          style={{
+                                            width: "100%",
+                                            minHeight: 72,
+                                            borderRadius: 14,
+                                            border: "1px solid rgba(105,122,130,0.14)",
+                                            background: "#fbfcfd",
+                                            color: "#23373b",
+                                            padding: "10px 12px",
+                                            fontSize: 12,
+                                            lineHeight: 1.5,
+                                            outline: "none",
+                                            resize: "vertical",
+                                          }}
+                                        />
+                                      </div>
+
+                                      <div
+                                        style={{
+                                          display: "flex",
+                                          flexWrap: "wrap",
+                                          gap: 8,
+                                          fontSize: 11,
+                                          color: "#5f6f73",
+                                        }}
+                                      >
+                                        {item.clientSignals?.duplicateStatus === "duplicate" ? (
+                                          <span
+                                            style={{
+                                              padding: "6px 10px",
+                                              borderRadius: 999,
+                                              background: "rgba(237,137,95,0.12)",
+                                              color: "#8b4513",
+                                            }}
+                                          >
+                                            Duplicate intake signal
+                                          </span>
+                                        ) : null}
+                                        {item.clientSignals?.screenshotLike ? (
+                                          <span
+                                            style={{
+                                              padding: "6px 10px",
+                                              borderRadius: 999,
+                                              background: "rgba(232,231,77,0.14)",
+                                              color: "#6f5b00",
+                                            }}
+                                          >
+                                            Screenshot-like name
+                                          </span>
+                                        ) : null}
+                                        {item.clientSignals?.genericMime ? (
+                                          <span
+                                            style={{
+                                              padding: "6px 10px",
+                                              borderRadius: 999,
+                                              background: "rgba(224,219,255,0.18)",
+                                              color: "#4f3d8a",
+                                            }}
+                                          >
+                                            Generic MIME
+                                          </span>
+                                        ) : null}
+                                        {item.clientSignals?.oldLastModified ? (
+                                          <span
+                                            style={{
+                                              padding: "6px 10px",
+                                              borderRadius: 999,
+                                              background: "rgba(255,221,187,0.18)",
+                                              color: "#7f5000",
+                                            }}
+                                          >
+                                            Older file metadata
+                                          </span>
+                                        ) : null}
+                                      </div>
+                                    </div>
+
                                     {item.mimeType.startsWith("audio/") && item.previewUrl ? (
                                       <audio
                                         controls
@@ -2874,23 +3538,7 @@ Drop files or folders here.
                             );
                           })}
                         </div>
-                      ) : (
-                        <div
-                          style={{
-                            borderRadius: 18,
-                            border: "1px dashed rgba(123,138,145,0.20)",
-                            background: "#f9fbfc",
-                            padding: 18,
-                            color: "#5f6f73",
-                            fontSize: 13,
-                            lineHeight: 1.6,
-                          }}
-                        >
-                          No materials are staged yet. Add captured or uploaded evidence on
-                          the left, then review and sign the record from this panel.
-                        </div>
-                      )}
-
+) : null}
                       <div
                         style={{
                           display: "grid",
@@ -2961,9 +3609,21 @@ Drop files or folders here.
                           ["Item count", String(sessionItems.length)],
                           ["Total staged size", formatFileSize(totalStagedBytes)],
                           ["Capture/upload time", sessionStartedAt.toLocaleString()],
+                          ["Browser media capture available", typeof MediaRecorder !== "undefined" ? "Yes" : "No"],
+                          ["Folder paths present", folderPathsPresent ? "Yes" : "No"],
+                          ["Client-side SHA-256 computed before upload", "Yes"],
                           ["Location metadata", useLocation ? "Included" : "Not included"],
-                          ["Classification preview", reviewerClassificationPreview],
-                          ["Folder paths", folderPathsPresent ? "Present" : "Not present"],
+                          ["Location status", locationStatusLabel],
+                          [
+                            "GPS accuracy",
+                            locationAccuracyMeters !== null
+                              ? `${locationAccuracyMeters.toFixed(1)} m`
+                              : "Not available",
+                          ],
+                          [
+                            "Preliminary duplicate check",
+                            sessionDuplicateSignals ? "Warning" : "None detected",
+                          ],
                         ].map(([label, value]) => (
                           <div
                             key={label}
@@ -3014,6 +3674,122 @@ Drop files or folders here.
                           </div>
                         ) : null}
                       </div>
+
+                      <div
+                        style={{
+                          display: "grid",
+                          gap: 12,
+                          paddingTop: 14,
+                          borderTop: "1px solid rgba(105,122,130,0.10)",
+                        }}
+                      >
+                        <div
+                          style={{
+                            color: "#21353a",
+                            fontSize: 13,
+                            fontWeight: 700,
+                          }}
+                        >
+                          Local intake timeline
+                        </div>
+                        {sessionTimeline.length === 0 ? (
+                          <div
+                            style={{
+                              color: "#5f6f73",
+                              fontSize: 12,
+                            }}
+                          >
+                            Actions in this local evidence session will appear here.
+                          </div>
+                        ) : (
+                          <div
+                            style={{
+                              display: "grid",
+                              gap: 10,
+                            }}
+                          >
+                            {sessionTimeline.slice(0, 6).map((event) => (
+                              <div
+                                key={event.id}
+                                style={{
+                                  display: "grid",
+                                  gap: 4,
+                                  padding: 12,
+                                  borderRadius: 14,
+                                  background: "rgba(246,249,251,0.95)",
+                                  border: "1px solid rgba(105,122,130,0.08)",
+                                }}
+                              >
+                                <div
+                                  style={{
+                                    display: "flex",
+                                    alignItems: "center",
+                                    justifyContent: "space-between",
+                                    gap: 10,
+                                  }}
+                                >
+                                  <span
+                                    style={{
+                                      fontSize: 12,
+                                      fontWeight: 700,
+                                      color: "#21353a",
+                                    }}
+                                  >
+                                    {event.title}
+                                  </span>
+                                  <span
+                                    style={{
+                                      fontSize: 11,
+                                      color: "#6a777b",
+                                    }}
+                                  >
+                                    {new Date(event.atUtc).toLocaleTimeString()}
+                                  </span>
+                                </div>
+                                <div
+                                  style={{
+                                    fontSize: 12,
+                                    color: "#5f6f73",
+                                  }}
+                                >
+                                  {event.detail}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+
+                      {planMode === "CHECKLIST_REQUIRED" && sessionDuplicateSignals ? (
+                        <label
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 10,
+                            padding: 12,
+                            borderRadius: 16,
+                            background: "rgba(255,247,237,0.95)",
+                            border: "1px solid rgba(234,150,60,0.18)",
+                            color: "#7b4800",
+                            fontSize: 12,
+                          }}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={duplicateWarningAcknowledged}
+                            onChange={(event) =>
+                              setDuplicateWarningAcknowledged(event.target.checked)
+                            }
+                            disabled={busy}
+                            style={{
+                              width: 18,
+                              height: 18,
+                              accentColor: "#af6c23",
+                            }}
+                          />
+                          I acknowledge the session contains a preliminary duplicate intake signal.
+                        </label>
+                      ) : null}
 
                       {busy ? (
                         <div
@@ -3080,9 +3856,21 @@ Drop files or folders here.
                           </div>
                         ) : null}
 
+                        {finishDisabledReason ? (
+                          <div
+                            style={{
+                              color: "#7a8892",
+                              fontSize: 12,
+                              lineHeight: 1.6,
+                            }}
+                          >
+                            {finishDisabledReason}
+                          </div>
+                        ) : null}
+
                         <Button
                           onClick={finalizeSession}
-                          disabled={busy || sessionItems.length === 0}
+                          disabled={finishDisabled}
                           className="rounded-[999px] border px-5 py-3 text-[0.95rem] font-medium"
                           style={finishButtonStyle}
                         >

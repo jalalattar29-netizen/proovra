@@ -155,6 +155,7 @@ export async function createEvidence(params: {
   gps?: { lat: number; lng: number; accuracyMeters?: number };
   checksumSha256Base64?: string | null;
   contentMd5Base64?: string | null;
+  intakePlanJson?: prismaPkg.Prisma.JsonValue | null;
 })
 {
   const owner = await prisma.user.findUnique({
@@ -276,6 +277,12 @@ export async function createEvidence(params: {
         createdByUserId: params.ownerUserId,
         uploadedByUserId: params.ownerUserId,
         internalNotes: params.internalNotes?.trim() || null,
+        intakePlanJson:
+          params.intakePlanJson === undefined
+            ? undefined
+            : params.intakePlanJson === null
+              ? prismaPkg.Prisma.JsonNull
+              : params.intakePlanJson,
         workspaceNameSnapshot,
         organizationNameSnapshot,
         organizationVerifiedSnapshot,

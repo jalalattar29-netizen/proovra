@@ -10,6 +10,7 @@ model Evidence {
   id                                String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   title                             String?             @db.VarChar(160)
   internalNotes                     String?             @map("internal_notes")
+  intakePlanJson                    Json?              @map("intake_plan_json")
   type                              EvidenceType
   status                            EvidenceStatus      @default(CREATED)
   verificationStatus                VerificationStatus? @map("verification_status")
@@ -179,6 +180,11 @@ model EvidencePart {
   mimeType                         String?   @map("mime_type") @db.VarChar(128)
   sha256                           String?   @map("sha256") @db.VarChar(64)
   durationMs                       Int?      @map("duration_ms")
+  privateRole                      String?   @map("private_role") @db.VarChar(120)
+  privateNote                      String?   @map("private_note") @db.VarChar(1000)
+  checklistStepId                  String?   @map("checklist_step_id") @db.VarChar(120)
+  sourceLabel                      String?   @map("source_label") @db.VarChar(120)
+  clientSignals                    Json?     @map("client_signals")
   uploadedByUserId                 String?   @map("uploaded_by_user_id") @db.Uuid
   uploadedAtUtc                    DateTime? @map("uploaded_at_utc") @db.Timestamptz(6)
   createdAt                        DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
