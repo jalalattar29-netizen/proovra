@@ -37,8 +37,10 @@ type BillingWallLike = {
 
 type ChecklistStep = {
   id: string;
-  label: string;
+  title: string;
+  description: string;
   required: boolean;
+  acceptedKinds?: EvidenceType[];
 };
 
 type CollectionPlanTemplate = {
@@ -92,9 +94,27 @@ const COLLECTION_PLAN_TEMPLATES: CollectionPlanTemplate[] = [
     description: "Balanced intake for primary evidence and supporting context.",
     locationRequirement: "recommended",
     steps: [
-      { id: "primary_evidence", label: "Primary evidence file", required: true },
-      { id: "supporting_context", label: "Supporting context", required: false },
-      { id: "optional_statement", label: "Optional video or audio statement", required: false },
+      {
+        id: "primary_evidence",
+        title: "Primary evidence file",
+        description: "Upload the principal evidence item that establishes the record.",
+        required: true,
+        acceptedKinds: ["PHOTO", "VIDEO", "AUDIO", "DOCUMENT"],
+      },
+      {
+        id: "supporting_context",
+        title: "Supporting context",
+        description: "Add supplemental evidence or context files that support the main record.",
+        required: false,
+        acceptedKinds: ["PHOTO", "VIDEO", "AUDIO", "DOCUMENT"],
+      },
+      {
+        id: "optional_statement",
+        title: "Optional statement",
+        description: "Add an optional audio or video statement for additional context.",
+        required: false,
+        acceptedKinds: ["AUDIO", "VIDEO"],
+      },
     ],
   },
   {
@@ -103,10 +123,34 @@ const COLLECTION_PLAN_TEMPLATES: CollectionPlanTemplate[] = [
     description: "Capture damage, policy documentation, and ownership context.",
     locationRequirement: "recommended",
     steps: [
-      { id: "overview_media", label: "Overview photo/video", required: true },
-      { id: "damage_close_up", label: "Damage close-up", required: true },
-      { id: "ownership_document", label: "Ownership or policy document", required: true },
-      { id: "optional_audio", label: "Optional audio statement", required: false },
+      {
+        id: "overview_media",
+        title: "Overview photo/video",
+        description: "Capture a high-level image or video overview of the insured loss.",
+        required: true,
+        acceptedKinds: ["PHOTO", "VIDEO"],
+      },
+      {
+        id: "damage_close_up",
+        title: "Damage close-up",
+        description: "Capture close-up evidence of damage or loss.",
+        required: true,
+        acceptedKinds: ["PHOTO", "VIDEO"],
+      },
+      {
+        id: "ownership_document",
+        title: "Ownership or policy document",
+        description: "Upload documentation that proves ownership or policy coverage.",
+        required: true,
+        acceptedKinds: ["DOCUMENT"],
+      },
+      {
+        id: "optional_audio",
+        title: "Optional audio statement",
+        description: "Add an optional audio statement describing the incident.",
+        required: false,
+        acceptedKinds: ["AUDIO"],
+      },
     ],
   },
   {
@@ -115,10 +159,34 @@ const COLLECTION_PLAN_TEMPLATES: CollectionPlanTemplate[] = [
     description: "Collect primary documents, supporting exhibits, and source notes.",
     locationRequirement: "optional",
     steps: [
-      { id: "primary_media", label: "Primary document/media", required: true },
-      { id: "supporting_exhibit", label: "Supporting exhibit", required: false },
-      { id: "source_context", label: "Source/context note", required: false },
-      { id: "optional_timeline", label: "Optional timeline evidence", required: false },
+      {
+        id: "primary_media",
+        title: "Primary document/media",
+        description: "Upload the main document or media item that is being preserved.",
+        required: true,
+        acceptedKinds: ["DOCUMENT", "PHOTO", "VIDEO", "AUDIO"],
+      },
+      {
+        id: "supporting_exhibit",
+        title: "Supporting exhibit",
+        description: "Attach supporting exhibits or evidence items.",
+        required: false,
+        acceptedKinds: ["DOCUMENT", "PHOTO", "VIDEO", "AUDIO"],
+      },
+      {
+        id: "source_context",
+        title: "Source/context note",
+        description: "Provide a source or context note for the evidence.",
+        required: false,
+        acceptedKinds: ["DOCUMENT"],
+      },
+      {
+        id: "optional_timeline",
+        title: "Optional timeline evidence",
+        description: "Attach timeline evidence such as logs or recordings.",
+        required: false,
+        acceptedKinds: ["DOCUMENT", "PHOTO", "VIDEO", "AUDIO"],
+      },
     ],
   },
   {
@@ -127,22 +195,70 @@ const COLLECTION_PLAN_TEMPLATES: CollectionPlanTemplate[] = [
     description: "Capture scene overview, close-up detail, and witness media.",
     locationRequirement: "required",
     steps: [
-      { id: "scene_overview", label: "Scene overview", required: true },
-      { id: "close_up_detail", label: "Close-up detail", required: true },
-      { id: "witness_statement", label: "Witness/media statement", required: false },
-      { id: "supporting_file", label: "Supporting file/log", required: false },
+      {
+        id: "scene_overview",
+        title: "Scene overview",
+        description: "Capture an overview image or video of the incident scene.",
+        required: true,
+        acceptedKinds: ["PHOTO", "VIDEO"],
+      },
+      {
+        id: "close_up_detail",
+        title: "Close-up detail",
+        description: "Capture close-up detail of the relevant evidence.",
+        required: true,
+        acceptedKinds: ["PHOTO", "VIDEO"],
+      },
+      {
+        id: "witness_statement",
+        title: "Witness/media statement",
+        description: "Add a witness statement or media statement for context.",
+        required: false,
+        acceptedKinds: ["AUDIO", "VIDEO", "DOCUMENT"],
+      },
+      {
+        id: "supporting_file",
+        title: "Supporting file/log",
+        description: "Attach supporting files such as logs, extracts, or reports.",
+        required: false,
+        acceptedKinds: ["DOCUMENT", "PHOTO", "VIDEO", "AUDIO"],
+      },
     ],
   },
   {
     id: "compliance-audit",
     name: "Compliance Audit",
-    description: "Collect policies, exports, and supporting evidence for review.",
+    description: "Collect policy, audit evidence, and supporting records for review.",
     locationRequirement: "recommended",
     steps: [
-      { id: "policy_document", label: "Policy/document", required: true },
-      { id: "screenshot_export", label: "Screenshot/export/log", required: true },
-      { id: "supporting_evidence", label: "Supporting evidence", required: false },
-      { id: "reviewer_context", label: "Reviewer context note", required: false },
+      {
+        id: "policy_document",
+        title: "Policy / compliance document",
+        description: "Upload the policy, audit document, or compliance file being preserved.",
+        required: true,
+        acceptedKinds: ["DOCUMENT"],
+      },
+      {
+        id: "screenshot_export",
+        title: "Export / supporting evidence",
+        description: "Upload the export, screenshot, or supporting evidence file for the compliance record.",
+        required: true,
+        acceptedKinds: ["PHOTO", "VIDEO", "DOCUMENT"],
+      },
+      {
+        id: "supporting_evidence",
+        title: "Supporting evidence",
+        description: "Add any additional supporting evidence for the audit record.",
+        required: false,
+        acceptedKinds: ["PHOTO", "VIDEO", "AUDIO", "DOCUMENT"],
+      },
+      {
+        id: "reviewer_context",
+        title: "Reviewer context note",
+        description: "Provide an internal note for reviewer context and intake rationale.",
+        required: false,
+        acceptedKinds: ["DOCUMENT"],
+      },
     ],
   },
   {
@@ -151,10 +267,34 @@ const COLLECTION_PLAN_TEMPLATES: CollectionPlanTemplate[] = [
     description: "Collect primary media, scene context, and source-safe notes.",
     locationRequirement: "recommended",
     steps: [
-      { id: "primary_media", label: "Primary media", required: true },
-      { id: "scene_context", label: "Scene/context capture", required: true },
-      { id: "source_safe_note", label: "Source-safe note", required: false },
-      { id: "supporting_document", label: "Supporting document", required: false },
+      {
+        id: "primary_media",
+        title: "Primary media",
+        description: "Upload the primary media item for the field report.",
+        required: true,
+        acceptedKinds: ["PHOTO", "VIDEO"],
+      },
+      {
+        id: "scene_context",
+        title: "Scene/context capture",
+        description: "Capture scene context to support the primary media.",
+        required: true,
+        acceptedKinds: ["PHOTO", "VIDEO"],
+      },
+      {
+        id: "source_safe_note",
+        title: "Source-safe note",
+        description: "Add an optional source-safe note for the evidence record.",
+        required: false,
+        acceptedKinds: ["DOCUMENT"],
+      },
+      {
+        id: "supporting_document",
+        title: "Supporting document",
+        description: "Attach any supporting documents or transcripts.",
+        required: false,
+        acceptedKinds: ["DOCUMENT"],
+      },
     ],
   },
 ];
@@ -258,6 +398,20 @@ function deriveSessionItemTypeLabel(mimeType: string): string {
     return "Document";
   }
   return "File";
+}
+
+function formatEvidenceTypeLabel(kind: EvidenceType): string {
+  switch (kind) {
+    case "PHOTO":
+      return "Photo";
+    case "VIDEO":
+      return "Video";
+    case "AUDIO":
+      return "Audio";
+    case "DOCUMENT":
+    default:
+      return "Document";
+  }
 }
 
 function formatFileSize(bytes: number): string {
@@ -882,6 +1036,42 @@ export default function CapturePage() {
 
     try {
       const existingItems = sessionItemsRef.current;
+      const existingRequiredChecklistIds = new Set(
+        existingItems
+          .map((item) => item.checklistStepId)
+          .filter(Boolean) as string[]
+      );
+      const unmappedRequiredSteps =
+        planMode === "CHECKLIST_REQUIRED" && selectedCollectionPlan
+          ? selectedCollectionPlan.steps.filter(
+              (step) => step.required && !existingRequiredChecklistIds.has(step.id)
+            )
+          : [];
+      let availableRequiredSteps = [...unmappedRequiredSteps];
+
+      const assignChecklistStepId = (mimeType: string): string | null => {
+        if (availableRequiredSteps.length === 0) return null;
+
+        const fileKind = inferEvidenceTypeFromMimeType(mimeType);
+        const compatibleSteps = availableRequiredSteps.filter(
+          (step) =>
+            !step.acceptedKinds || step.acceptedKinds.includes(fileKind)
+        );
+
+        const chosenStep =
+          compatibleSteps.length === 1
+            ? compatibleSteps[0]
+            : availableRequiredSteps.length === 1
+            ? availableRequiredSteps[0]
+            : null;
+
+        if (!chosenStep) return null;
+
+        availableRequiredSteps = availableRequiredSteps.filter(
+          (step) => step.id !== chosenStep.id
+        );
+        return chosenStep.id;
+      };
 
       const nextItems: SessionItem[] = await Promise.all(
         files.map(async (nextFile) => {
@@ -920,6 +1110,7 @@ export default function CapturePage() {
             uploadProgress: 0,
             uploading: false,
             error: null,
+            checklistStepId: assignChecklistStepId(normalizedMimeType),
             clientSignals: signals,
           };
         })
@@ -1056,7 +1247,24 @@ logCaptureClientError("web_capture_add_to_session", err, {
             templateName: selectedPlan.name,
             mode: planMode,
             locationRequirement: selectedPlan.locationRequirement,
-            steps: selectedPlan.steps,
+            requiredSteps: selectedPlan.steps
+              .filter((step) => step.required)
+              .map((step) => ({
+                id: step.id,
+                title: step.title,
+                description: step.description,
+                acceptedKinds: step.acceptedKinds,
+              })),
+            optionalSteps: selectedPlan.steps
+              .filter((step) => !step.required)
+              .map((step) => ({
+                id: step.id,
+                title: step.title,
+                description: step.description,
+                acceptedKinds: step.acceptedKinds,
+              })),
+            createdAt: new Date().toISOString(),
+            deviceTimeIso: new Date().toISOString(),
           }
         : undefined;
 
@@ -1730,22 +1938,32 @@ const handleDroppedFiles = async (fileList: FileList | File[] | null) => {
     [collectionPlanId]
   );
 
-  const checklistSatisfiedStepIds = useMemo(
-    () =>
-      new Set(sessionItems.map((item) => item.checklistStepId).filter(Boolean) as string[]),
-    [sessionItems]
-  );
+  const checklistStepItemMap = useMemo(() => {
+    const map = new Map<string, SessionItem[]>();
+    sessionItems.forEach((item) => {
+      if (!item.checklistStepId) return;
+      const existing = map.get(item.checklistStepId) ?? [];
+      map.set(item.checklistStepId, [...existing, item]);
+    });
+    return map;
+  }, [sessionItems]);
 
-  const requiredChecklistSteps = useMemo(
-    () => selectedCollectionPlan?.steps.filter((step) => step.required) ?? [],
-    [selectedCollectionPlan]
-  );
+  const checklistValidation = useMemo(() => {
+    const requiredSteps = selectedCollectionPlan?.steps.filter((step) => step.required) ?? [];
+    const mappedRequiredStepIds = new Set(
+      sessionItems.map((item) => item.checklistStepId).filter(Boolean) as string[]
+    );
+    const missingRequiredSteps = requiredSteps.filter(
+      (step) => !mappedRequiredStepIds.has(step.id)
+    );
 
-  const unsatisfiedRequiredSteps = useMemo(
-    () =>
-      requiredChecklistSteps.filter((step) => !checklistSatisfiedStepIds.has(step.id)),
-    [requiredChecklistSteps, checklistSatisfiedStepIds]
-  );
+    return {
+      requiredSteps,
+      missingRequiredSteps,
+      isComplete: requiredSteps.length === 0 || missingRequiredSteps.length === 0,
+      mappedRequiredStepIds,
+    };
+  }, [selectedCollectionPlan, sessionItems]);
 
   const sessionDuplicateSignals = useMemo(
     () =>
@@ -1765,39 +1983,63 @@ const handleDroppedFiles = async (fileList: FileList | File[] | null) => {
     return "Optional";
   }, [locationPermissionDenied, useLocation, selectedCollectionPlan]);
 
-  const finishDisabledReason = useMemo(() => {
-    if (sessionItems.length === 0) return "Add at least one item to finish.";
-    if (planMode === "CHECKLIST_REQUIRED" && unsatisfiedRequiredSteps.length > 0) {
-      return `Required collection steps not yet satisfied: ${unsatisfiedRequiredSteps
-        .map((step) => step.label)
-        .join(", ")}`;
+  const finishValidation = useMemo(() => {
+    if (sessionItems.length === 0) {
+      return {
+        reason: "Add at least one material to finish.",
+        missingStepTitles: [] as string[],
+      };
     }
+
+    if (
+      planMode === "CHECKLIST_REQUIRED" &&
+      checklistValidation.missingRequiredSteps.length > 0
+    ) {
+      return {
+        reason: "Cannot finish yet",
+        missingStepTitles: checklistValidation.missingRequiredSteps.map(
+          (step) => step.title
+        ),
+      };
+    }
+
     if (
       planMode === "CHECKLIST_REQUIRED" &&
       sessionDuplicateSignals &&
       !duplicateWarningAcknowledged
     ) {
-      return "A duplicate intake signal is present. Acknowledge before finishing.";
+      return {
+        reason: "A duplicate intake signal is present. Acknowledge before finishing.",
+        missingStepTitles: [] as string[],
+      };
     }
+
     if (
       planMode === "CHECKLIST_REQUIRED" &&
       selectedCollectionPlan?.locationRequirement === "required" &&
       !useLocation
     ) {
-      return "Location metadata is required by the selected plan.";
+      return {
+        reason: "Location metadata is required by the selected plan.",
+        missingStepTitles: [] as string[],
+      };
     }
-    return undefined;
+
+    return {
+      reason: undefined,
+      missingStepTitles: [] as string[],
+    };
   }, [
     sessionItems.length,
     planMode,
-    unsatisfiedRequiredSteps,
+    checklistValidation.missingRequiredSteps,
     sessionDuplicateSignals,
     duplicateWarningAcknowledged,
     selectedCollectionPlan,
     useLocation,
   ]);
 
-  const finishDisabled = busy || Boolean(finishDisabledReason);
+  const finishDisabled = busy || Boolean(finishValidation.reason);
 
   const reviewerCategoryPreview = useMemo(
     () =>
@@ -2913,7 +3155,7 @@ Drop files or folders here.
                         <div
                           style={{
                             display: "grid",
-                            gap: 8,
+                            gap: 12,
                             padding: "14px 12px",
                             borderRadius: 18,
                             background: "rgba(243,246,248,0.92)",
@@ -2941,15 +3183,98 @@ Drop files or folders here.
                               Location: <strong>{locationStatusLabel}</strong>
                             </div>
                             <div>
-                              Required steps: <strong>{requiredChecklistSteps.length}</strong>
+                              Required steps: <strong>{checklistValidation.requiredSteps.length}</strong>
                             </div>
-                            {planMode === "CHECKLIST_REQUIRED" && unsatisfiedRequiredSteps.length > 0 ? (
+                            {planMode === "CHECKLIST_REQUIRED" && checklistValidation.missingRequiredSteps.length > 0 ? (
                               <div style={{ color: "#8c4d2e" }}>
-                                {unsatisfiedRequiredSteps.length} required step
-                                {unsatisfiedRequiredSteps.length > 1 ? "s" : ""} need mapping.
+                                {checklistValidation.missingRequiredSteps.length} required step
+                                {checklistValidation.missingRequiredSteps.length > 1 ? "s" : ""} are missing mapping.
                               </div>
                             ) : null}
                           </div>
+                          {planMode === "CHECKLIST_REQUIRED" ? (
+                            <div
+                              style={{
+                                display: "grid",
+                                gap: 12,
+                                padding: "14px",
+                                background: "rgba(255,255,255,0.95)",
+                                borderRadius: 16,
+                                border: "1px solid rgba(105,122,130,0.10)",
+                              }}
+                            >
+                              <div
+                                style={{
+                                  color: "#23373b",
+                                  fontWeight: 700,
+                                  fontSize: 13,
+                                }}
+                              >
+                                Required collection steps
+                              </div>
+                              {checklistValidation.requiredSteps.map((step, index) => {
+                                const mappedItems = checklistStepItemMap.get(step.id) ?? [];
+                                const mappedFile = mappedItems[0]?.file.name;
+                                return (
+                                  <div
+                                    key={step.id}
+                                    style={{
+                                      display: "grid",
+                                      gap: 6,
+                                      padding: "12px",
+                                      borderRadius: 16,
+                                      background: "rgba(247,250,251,0.96)",
+                                      border: "1px solid rgba(105,122,130,0.10)",
+                                    }}
+                                  >
+                                    <div
+                                      style={{
+                                        display: "flex",
+                                        alignItems: "center",
+                                        justifyContent: "space-between",
+                                        gap: 10,
+                                      }}
+                                    >
+                                      <div style={{ fontWeight: 700, color: "#23373b" }}>
+                                        {index + 1}. {step.title}
+                                      </div>
+                                      <div
+                                        style={{
+                                          fontSize: 11,
+                                          fontWeight: 700,
+                                          color: mappedFile ? "#227447" : "#8c4d2e",
+                                        }}
+                                      >
+                                        {mappedFile ? "Mapped" : "Missing"}
+                                      </div>
+                                    </div>
+                                    <div style={{ color: "#5f6f73", fontSize: 12 }}>
+                                      {step.description}
+                                    </div>
+                                    <div
+                                      style={{
+                                        display: "flex",
+                                        flexWrap: "wrap",
+                                        gap: 8,
+                                        fontSize: 11,
+                                        color: "#5f6f73",
+                                      }}
+                                    >
+                                      <span>
+                                        {step.required ? "Required" : "Optional"}
+                                      </span>
+                                      {step.acceptedKinds?.length ? (
+                                        <span>
+                                          Accepted: {step.acceptedKinds.map(formatEvidenceTypeLabel).join(", ")}
+                                        </span>
+                                      ) : null}
+                                      {mappedFile ? <span>File: {mappedFile}</span> : null}
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          ) : null}
                         </div>
                       ) : null}
                     </div>
@@ -3355,15 +3680,30 @@ Drop files or folders here.
                                             }}
                                           >
                                             <option value="">
-                                              Map to collection plan step (optional)
+                                              {planMode === "CHECKLIST_REQUIRED"
+                                                ? "Map to required collection step"
+                                                : "Map to collection plan step (optional)"}
                                             </option>
                                             {selectedCollectionPlan.steps.map((step) => (
                                               <option key={step.id} value={step.id}>
-                                                {step.label}
-                                                {step.required ? " (required)" : ""}
+                                                {step.title}
+                                                {step.required ? " — Required" : " — Optional"}
                                               </option>
                                             ))}
                                           </select>
+                                        ) : null}
+                                        {planMode === "CHECKLIST_REQUIRED" &&
+                                        checklistValidation.requiredSteps.length > 0 &&
+                                        !item.checklistStepId ? (
+                                          <div
+                                            style={{
+                                              fontSize: 12,
+                                              color: "#8c4d2e",
+                                              marginTop: 6,
+                                            }}
+                                          >
+                                            Choose a required collection step for this item.
+                                          </div>
                                         ) : null}
                                       </div>
 
@@ -3856,7 +4196,7 @@ Drop files or folders here.
                           </div>
                         ) : null}
 
-                        {finishDisabledReason ? (
+                        {finishValidation.reason ? (
                           <div
                             style={{
                               color: "#7a8892",
@@ -3864,7 +4204,26 @@ Drop files or folders here.
                               lineHeight: 1.6,
                             }}
                           >
-                            {finishDisabledReason}
+                            <div style={{ fontWeight: 700, color: "#23373b" }}>
+                              {finishValidation.reason}
+                            </div>
+                            {finishValidation.missingStepTitles.length > 0 ? (
+                              <div style={{ marginTop: 8 }}>
+                                <div>Map required collection steps before signing:</div>
+                                <ul
+                                  style={{
+                                    margin: "8px 0 0",
+                                    paddingLeft: 18,
+                                    display: "grid",
+                                    gap: 4,
+                                  }}
+                                >
+                                  {finishValidation.missingStepTitles.map((stepTitle) => (
+                                    <li key={stepTitle}>{stepTitle}</li>
+                                  ))}
+                                </ul>
+                              </div>
+                            ) : null}
                           </div>
                         ) : null}
 
