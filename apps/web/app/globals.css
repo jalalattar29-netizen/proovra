@@ -3845,3 +3845,191 @@ html[dir="rtl"] .legal-content a::after {
     width: 100%;
   }
 }
+
+/* =========================================================
+   PROOVRA ENTERPRISE FOOTER
+   ========================================================= */
+
+.proovra-enterprise-footer {
+  position: relative;
+  overflow: hidden;
+  color: #dce4e0;
+  border-top: 1px solid rgba(183, 157, 132, 0.14);
+}
+
+.proovra-enterprise-footer-bg {
+  position: absolute;
+  inset: 0;
+}
+
+.proovra-enterprise-footer-bg img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+  transform: scale(1.04);
+}
+
+.proovra-enterprise-footer-overlay {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle at 16% 16%, rgba(158,216,207,0.10), transparent 26%),
+    radial-gradient(circle at 86% 24%, rgba(214,184,157,0.07), transparent 22%),
+    linear-gradient(180deg, rgba(11,26,30,0.88) 0%, rgba(7,17,21,0.96) 62%, rgba(4,10,13,0.99) 100%);
+}
+
+.proovra-enterprise-footer::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.045;
+  background: repeating-linear-gradient(
+    0deg,
+    rgba(255,255,255,0.025) 0px,
+    rgba(255,255,255,0.025) 1px,
+    transparent 1px,
+    transparent 4px
+  );
+}
+
+.proovra-enterprise-footer-inner {
+  position: relative;
+  z-index: 2;
+  width: 100%;
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 68px 24px 34px;
+}
+
+.proovra-enterprise-footer-top {
+  display: grid;
+  grid-template-columns: minmax(0, 1.05fr) minmax(280px, 0.75fr);
+  gap: 48px;
+  align-items: stretch;
+}
+
+.proovra-enterprise-footer-brand {
+  min-width: 0;
+}
+
+.proovra-enterprise-footer-proof {
+  min-width: 0;
+}
+
+.proovra-footer-proof-card {
+  height: 100%;
+  border-radius: 28px;
+  padding: 24px;
+  border: 1px solid rgba(183,157,132,0.18);
+  background:
+    radial-gradient(circle at 18% 14%, rgba(158,216,207,0.08), transparent 28%),
+    linear-gradient(180deg, rgba(255,255,255,0.055), rgba(255,255,255,0.028));
+  box-shadow:
+    0 22px 42px rgba(0,0,0,0.18),
+    inset 0 1px 0 rgba(255,255,255,0.04);
+}
+
+.proovra-footer-proof-eyebrow {
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  color: #d6b89d;
+}
+
+.proovra-footer-proof-title {
+  margin-top: 12px;
+  color: #edf4f1;
+  font-size: 1.18rem;
+  line-height: 1.35;
+  font-weight: 750;
+  letter-spacing: -0.025em;
+}
+
+.proovra-footer-proof-list {
+  margin-top: 20px;
+  display: grid;
+  gap: 10px;
+  color: rgba(211,223,220,0.78);
+  font-size: 0.92rem;
+  line-height: 1.55;
+}
+
+.proovra-footer-proof-list span::before {
+  content: "✓";
+  color: #9ed8cf;
+  margin-right: 9px;
+}
+
+.proovra-footer-chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 36px;
+  padding: 8px 14px;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,0.10);
+  background: rgba(255,255,255,0.045);
+  color: #d7dfdc;
+  font-size: 0.84rem;
+  transition:
+    color 220ms ease,
+    border-color 220ms ease,
+    background-color 220ms ease,
+    transform 220ms ease,
+    box-shadow 220ms ease;
+}
+
+.proovra-footer-chip:hover {
+  transform: translateY(-1px);
+  color: #eef2ef;
+  border-color: rgba(158,216,207,0.28);
+  background: rgba(255,255,255,0.065);
+  box-shadow: 0 10px 24px rgba(0,0,0,0.12);
+}
+
+.proovra-enterprise-footer-links {
+  margin-top: 56px;
+  padding-top: 44px;
+  border-top: 1px solid rgba(255,255,255,0.10);
+  display: grid;
+  gap: 36px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.proovra-enterprise-footer-bottom {
+  margin-top: 44px;
+  padding-top: 24px;
+  border-top: 1px solid rgba(255,255,255,0.08);
+  display: flex;
+  justify-content: space-between;
+  gap: 18px;
+  flex-wrap: wrap;
+  color: #aebbb7;
+  font-size: 0.88rem;
+}
+
+@media (max-width: 980px) {
+  .proovra-enterprise-footer-top {
+    grid-template-columns: 1fr;
+  }
+
+  .proovra-enterprise-footer-links {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .proovra-enterprise-footer-inner {
+    padding: 52px 18px 28px;
+  }
+
+  .proovra-enterprise-footer-links {
+    grid-template-columns: 1fr;
+  }
+
+  .proovra-enterprise-footer-bottom {
+    flex-direction: column;
+  }
+}
