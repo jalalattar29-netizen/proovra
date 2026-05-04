@@ -106,6 +106,14 @@ function deriveSessionItemTypeLabel(mimeType: string): string {
   return "File";
 }
 
+function formatFileSize(bytes: number): string {
+  if (!Number.isFinite(bytes) || bytes <= 0) return "0 B";
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  if (bytes < 1024 * 1024 * 1024) return `${(bytes / 1024 / 1024).toFixed(2)} MB`;
+  return `${(bytes / 1024 / 1024 / 1024).toFixed(2)} GB`;
+}
+
 function buildAudioRecordingFileName(extension: string): string {
   return `proovra-audio-recording-${new Date()
     .toISOString()
@@ -336,13 +344,12 @@ export default function CapturePage() {
   const router = useRouter();
   const { addToast } = useToast();
 
-  const [type, setType] = useState<EvidenceType>("PHOTO");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [useLocation, setUseLocation] = useState(false);
   const [progress, setProgress] = useState<number>(0);
   const [sessionStatus, setSessionStatus] = useState<string | null>(null);
-  const [sessionStartedAt] = useState(() => new Date());
+const [sessionStartedAt, setSessionStartedAt] = useState(() => new Date());
   const [internalNotes, setInternalNotes] = useState("");
 
   const [cameraOpen, setCameraOpen] = useState(false);
@@ -394,16 +401,18 @@ export default function CapturePage() {
 
   const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
-  const pollReport = async (evidenceId: string) => {
-    for (let attempt = 0; attempt < 8; attempt += 1) {
-      try {
-        await apiFetch(`/v1/evidence/${evidenceId}/report/latest`, { method: "GET" });
-        return;
-      } catch {
-        await sleep(2000);
-      }
+const pollReport = async (evidenceId: string): Promise<boolean> => {
+  for (let attempt = 0; attempt < 8; attempt += 1) {
+    try {
+      await apiFetch(`/v1/evidence/${evidenceId}/report/latest`, { method: "GET" });
+      return true;
+    } catch {
+      await sleep(2000);
     }
-  };
+  }
+
+  return false;
+};
 
   const formatRecordingTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60)
@@ -575,36 +584,46 @@ export default function CapturePage() {
     setSessionStatus(null);
 
     try {
-      const nextItems: SessionItem[] = files.map((nextFile) => ({
-        id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
-        file: nextFile,
-        previewUrl:
-          nextFile.type.startsWith("image/") || nextFile.type.startsWith("video/")
-            ? URL.createObjectURL(nextFile)
-            : null,
-        mimeType: normalizeClientMimeType(nextFile.type),
-        relativePath:
-          typeof (nextFile as File & { webkitRelativePath?: string }).webkitRelativePath ===
-            "string" &&
-          (nextFile as File & { webkitRelativePath?: string }).webkitRelativePath
-            ? (nextFile as File & { webkitRelativePath?: string }).webkitRelativePath ?? null
-            : null,
-        uploadProgress: 0,
-        uploading: false,
-        error: null,
-      }));
+const nextItems: SessionItem[] = files.map((nextFile) => {
+  const normalizedMimeType = normalizeClientMimeType(nextFile.type);
+  const canPreview =
+    normalizedMimeType.startsWith("image/") ||
+    normalizedMimeType.startsWith("video/") ||
+    normalizedMimeType.startsWith("audio/");
 
-      setSessionItems((prev) => [...prev, ...nextItems]);
+  const relativePath =
+    typeof (nextFile as File & { webkitRelativePath?: string }).webkitRelativePath ===
+      "string" &&
+    (nextFile as File & { webkitRelativePath?: string }).webkitRelativePath
+      ? (nextFile as File & { webkitRelativePath?: string }).webkitRelativePath ?? null
+      : null;
+
+  return {
+    id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+    file: nextFile,
+    previewUrl: canPreview ? URL.createObjectURL(nextFile) : null,
+    mimeType: normalizedMimeType,
+    relativePath,
+    uploadProgress: 0,
+    uploading: false,
+    error: null,
+  };
+});
+
+if (sessionItemsRef.current.length === 0) {
+  setSessionStartedAt(new Date());
+}
+
+setSessionItems((prev) => [...prev, ...nextItems]);
       addToast(
         `${files.length} item${files.length > 1 ? "s" : ""} added to session`,
         "success"
       );
     } catch (err) {
-      logCaptureClientError("web_capture_add_to_session", err, {
-        type,
-        sessionEvidenceType: options?.sessionEvidenceType ?? null,
-        fileCount: files.length,
-      });
+logCaptureClientError("web_capture_add_to_session", err, {
+  sessionEvidenceType: options?.sessionEvidenceType ?? null,
+  fileCount: files.length,
+});
       const storageMessage = buildStorageLimitMessage(err);
       const message =
         storageMessage ||
@@ -633,6 +652,7 @@ export default function CapturePage() {
     setBusy(false);
     setInternalNotes("");
     setLocationPermissionDenied(false);
+    setSessionStartedAt(new Date());
     closeCamera();
     resetAudioRecorderState();
   };
@@ -787,14 +807,22 @@ const part = await apiFetch(`/v1/evidence/${evidenceId}/parts`, {
         body: JSON.stringify({}),
       });
 
-      setSessionStatus("Generating verification artifacts...");
-      await pollReport(evidenceId);
+setSessionStatus("Generating verification artifacts...");
+const reportReady = await pollReport(evidenceId);
 
-      setProgress(100);
-      addToast("Evidence record created successfully!", "success");
+setProgress(100);
 
-      resetCaptureState();
-      router.push(`/evidence/${evidenceId}`);
+if (reportReady) {
+  addToast("Evidence record created successfully!", "success");
+} else {
+  addToast(
+    "Evidence record created. Verification artifacts are still generating.",
+    "warning"
+  );
+}
+
+resetCaptureState();
+router.push(`/evidence/${evidenceId}`);
     } catch (err) {
       logCaptureClientError("web_capture_finalize_session", err, {
         itemCount: items.length,
@@ -947,7 +975,6 @@ const part = await apiFetch(`/v1/evidence/${evidenceId}/parts`, {
     setIsRecording(false);
     setRecordingSeconds(0);
     resetAudioRecorderState();
-    setType(mode);
     await startCameraStream(mode, facingMode);
   };
 
@@ -1117,7 +1144,6 @@ const recordedFile = new File(
 
   const openAudioRecorder = () => {
     closeCamera();
-    setType("AUDIO");
     setError(null);
     setAudioRecorderOpen(true);
     setAudioRecorderError(null);
@@ -1127,7 +1153,6 @@ const recordedFile = new File(
   };
 
   const startAudioRecording = async () => {
-    setType("AUDIO");
     setAudioRecorderOpen(true);
     setAudioRecorderError(null);
     clearAudioPreview();
@@ -1286,11 +1311,124 @@ const recordedFile = new File(
     }
   };
 
-  const handleDroppedFiles = async (fileList: FileList | null) => {
-    const files = Array.from(fileList ?? []);
-    if (!files.length) return;
+  type FileSystemEntryLike = {
+  isFile: boolean;
+  isDirectory: boolean;
+  name: string;
+};
+
+type FileSystemFileEntryLike = FileSystemEntryLike & {
+  file: (success: (file: File) => void, error?: (error: unknown) => void) => void;
+};
+
+type FileSystemDirectoryEntryLike = FileSystemEntryLike & {
+  createReader: () => {
+    readEntries: (
+      success: (entries: FileSystemEntryLike[]) => void,
+      error?: (error: unknown) => void
+    ) => void;
+  };
+};
+
+async function readAllDirectoryEntries(
+  directoryEntry: FileSystemDirectoryEntryLike
+): Promise<FileSystemEntryLike[]> {
+  const reader = directoryEntry.createReader();
+  const entries: FileSystemEntryLike[] = [];
+
+  let keepReading = true;
+
+  while (keepReading) {
+    const batch = await new Promise<FileSystemEntryLike[]>((resolve, reject) => {
+      reader.readEntries(resolve, reject);
+    });
+
+    if (!batch.length) {
+      keepReading = false;
+    } else {
+      entries.push(...batch);
+    }
+  }
+
+  return entries;
+}
+
+async function fileFromEntry(
+  fileEntry: FileSystemFileEntryLike,
+  relativePath: string
+): Promise<File> {
+  const file = await new Promise<File>((resolve, reject) => {
+    fileEntry.file(resolve, reject);
+  });
+
+  Object.defineProperty(file, "webkitRelativePath", {
+    value: relativePath,
+    configurable: true,
+  });
+
+  return file;
+}
+
+async function collectFilesFromEntry(
+  entry: FileSystemEntryLike,
+  parentPath = ""
+): Promise<File[]> {
+  const currentPath = parentPath ? `${parentPath}/${entry.name}` : entry.name;
+
+  if (entry.isFile) {
+    return [
+      await fileFromEntry(entry as FileSystemFileEntryLike, currentPath),
+    ];
+  }
+
+  if (entry.isDirectory) {
+    const children = await readAllDirectoryEntries(
+      entry as FileSystemDirectoryEntryLike
+    );
+
+    const nestedFiles = await Promise.all(
+      children.map((child) => collectFilesFromEntry(child, currentPath))
+    );
+
+    return nestedFiles.flat();
+  }
+
+  return [];
+}
+
+async function filesFromDataTransfer(dataTransfer: DataTransfer): Promise<File[]> {
+  const items = Array.from(dataTransfer.items ?? []);
+
+  if (!items.length) {
+    return Array.from(dataTransfer.files ?? []);
+  }
+
+  const entryFiles: File[] = [];
+
+  for (const item of items) {
+    const maybeEntry =
+      "webkitGetAsEntry" in item
+        ? (item as DataTransferItem & {
+            webkitGetAsEntry?: () => FileSystemEntryLike | null;
+          }).webkitGetAsEntry?.()
+        : null;
+
+    if (maybeEntry) {
+      entryFiles.push(...(await collectFilesFromEntry(maybeEntry)));
+      continue;
+    }
+
+    const file = item.getAsFile();
+    if (file) entryFiles.push(file);
+  }
+
+  return entryFiles.length ? entryFiles : Array.from(dataTransfer.files ?? []);
+}
+
+const handleDroppedFiles = async (fileList: FileList | File[] | null) => {
+  const files = Array.from(fileList ?? []);
+      if (!files.length) return;
     const batchType = deriveBatchEvidenceType(files);
-    setType(batchType);
     try {
       await addFilesToSession(files, { sessionEvidenceType: batchType });
     } catch (err) {
@@ -1374,9 +1512,9 @@ const recordedFile = new File(
   const outerCardStyle = useMemo(
     () =>
       ({
-        border: "1px solid rgba(79,112,107,0.16)",
-        boxShadow:
-          "0 18px 38px rgba(0,0,0,0.08), inset 0 1px 0 rgba(255,255,255,0.48)",
+        border: "1px solid rgba(105,122,130,0.14)",
+        background: "rgba(255,255,255,0.94)",
+        boxShadow: "0 22px 48px rgba(15,23,42,0.08)",
       }) as const,
     []
   );
@@ -1432,13 +1570,9 @@ const recordedFile = new File(
   const softCardStyle = useMemo(
     () =>
       ({
-        border: "1px solid rgba(79,112,107,0.10)",
-        background:
-          "linear-gradient(180deg, rgba(255,255,255,0.58) 0%, rgba(243,245,242,0.90) 100%)",
-        boxShadow:
-          "inset 0 1px 0 rgba(255,255,255,0.42), 0 12px 26px rgba(0,0,0,0.06)",
-        backdropFilter: "blur(8px)",
-        WebkitBackdropFilter: "blur(8px)",
+        border: "1px solid rgba(105,122,130,0.10)",
+        background: "rgba(255,255,255,0.96)",
+        boxShadow: "0 12px 28px rgba(15,23,42,0.05)",
       }) as const,
     []
   );
@@ -1468,6 +1602,18 @@ const recordedFile = new File(
           flex-wrap: wrap;
         }
 
+        .capture-page-shell .capture-main-grid {
+          display: grid;
+          grid-template-columns: minmax(0, 1.35fr) minmax(340px, 420px);
+          gap: 24px;
+          align-items: start;
+        }
+
+        .capture-page-shell .capture-session-column {
+          position: sticky;
+          top: 24px;
+        }
+
         .capture-page-shell .capture-finish-row {
           display: flex;
           gap: 10px;
@@ -1475,7 +1621,6 @@ const recordedFile = new File(
         }
 
         .capture-page-shell .capture-drop-zone {
-          cursor: pointer;
           transition: transform 0.2s ease, box-shadow 0.2s ease;
         }
 
@@ -1714,6 +1859,15 @@ const recordedFile = new File(
         }
 
         @media (max-width: 720px) {
+          .capture-page-shell .capture-main-grid {
+            grid-template-columns: 1fr;
+          }
+
+          .capture-page-shell .capture-session-column {
+            position: static;
+            top: auto;
+          }
+
           .capture-page-shell .capture-hero-side,
           .capture-page-shell .capture-actions-row,
           .capture-page-shell .capture-finish-row {
@@ -1903,39 +2057,16 @@ const recordedFile = new File(
       <div
         className="app-body app-body-full pt-8 md:pt-10"
         style={{
-          position: "relative",
-          overflow: "hidden",
-          background:
-            "linear-gradient(180deg, rgba(239,241,238,0.96) 0%, rgba(234,237,234,0.98) 100%)",
+          background: "linear-gradient(180deg, #f5f7f8 0%, #eef2f4 100%)",
         }}
       >
-        <div className="pointer-events-none absolute inset-0 z-0" aria-hidden="true">
-          <img
-            src="/images/landing-network-bg.png"
-            alt=""
-            className="absolute inset-0 h-full w-full object-cover object-top opacity-[0.12] saturate-[0.55] brightness-[1.02] contrast-[0.94]"
-          />
-          <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.08)_0%,rgba(255,255,255,0.03)_22%,rgba(255,255,255,0.03)_78%,rgba(255,255,255,0.08)_100%)]" />
-          <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(255,255,255,0.10)_0%,rgba(255,255,255,0.03)_12%,rgba(255,255,255,0.00)_24%,rgba(255,255,255,0.00)_76%,rgba(255,255,255,0.03)_88%,rgba(255,255,255,0.10)_100%)]" />
-        </div>
-
-        <div className="container relative z-10" style={{ paddingBottom: 72 }}>
+        <div className="container" style={{ paddingBottom: 72 }}>
           <Card
-            className="relative overflow-hidden rounded-[30px] border bg-transparent p-0 shadow-none"
+            className="rounded-[30px] border bg-white p-0 shadow-none"
             style={outerCardStyle}
           >
-            <div className="absolute inset-0">
-              <img
-                src="/images/panel-silver.webp.png"
-                alt=""
-                className="h-full w-full object-cover object-center"
-              />
-            </div>
-            <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.24)_0%,rgba(248,249,246,0.34)_42%,rgba(239,241,238,0.42)_100%)]" />
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_16%_12%,rgba(255,255,255,0.34),transparent_28%)] opacity-90" />
-
-            <div className="relative z-10 p-6 md:p-7">
-              <div style={{ display: "grid", gap: 18, padding: 2 }}>
+            <div className="p-5 md:p-6">
+              <div style={{ display: "grid", gap: 24 }}>
                 <input
                   type="file"
                   aria-label="Upload evidence files"
@@ -1972,182 +2103,285 @@ const recordedFile = new File(
                   style={{ display: "none" }}
                 />
 
-                <div style={{ display: "grid", gap: 18 }}>
-                  <div
-                    style={{
-                      ...softCardStyle,
-                      padding: 18,
-                      borderRadius: 24,
-                    }}
-                  >
+                <div className="capture-main-grid">
+                  <div style={{ display: "grid", gap: 20 }}>
                     <div
                       style={{
-                        display: "grid",
-                        gap: 8,
-                        marginBottom: 14,
-                      }}
-                    >
-                      <div
-                        style={{
-                          fontSize: 12,
-                          fontWeight: 800,
-                          letterSpacing: "0.12em",
-                          textTransform: "uppercase",
-                          color: "#7e8d8f",
-                        }}
-                      >
-                        Capture Evidence
-                      </div>
-                      <div
-                        style={{
-                          color: "#21353a",
-                          fontWeight: 800,
-                          fontSize: 17,
-                          letterSpacing: "-0.015em",
-                        }}
-                      >
-                        Record new evidence directly from this device.
-                      </div>
-                    </div>
-
-                    <div
-                      className="capture-type-grid"
-                      style={{
-                        display: "grid",
-                        gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))",
-                        gap: 12,
-                      }}
-                    >
-                      {[
-                        {
-                          title: "Capture Photo",
-                          body:
-                            "Take a photo and preserve it as a verifiable evidence record.",
-                          action: "Capture Photo",
-                          onClick: () => openCamera("PHOTO"),
-                        },
-                        {
-                          title: "Record Video",
-                          body:
-                            "Record video evidence with integrity and custody metadata.",
-                          action: "Record Video",
-                          onClick: () => openCamera("VIDEO"),
-                        },
-                        {
-                          title: "Record Audio",
-                          body:
-                            "Record audio evidence such as interviews, witness statements, voice notes, incident recordings, or legal review materials.",
-                          action: "Record Audio",
-                          onClick: openAudioRecorder,
-                        },
-                      ].map((card) => (
-                        <Button
-                          key={card.title}
-                          variant="secondary"
-                          onClick={card.onClick}
-                          disabled={busy}
-                          className="capture-type-pill rounded-[18px] border px-5 py-4 text-[0.95rem] font-semibold"
-                          style={{
-                            border: "1px solid rgba(79,112,107,0.12)",
-                            background:
-                              "linear-gradient(180deg, rgba(255,255,255,0.74) 0%, rgba(244,246,243,0.94) 100%)",
-                            boxShadow:
-                              "inset 0 1px 0 rgba(255,255,255,0.72), 0 14px 28px rgba(0,0,0,0.05)",
-                            color: card.title === "Record Audio" ? "#705f50" : "#23373b",
-                            minHeight: 58,
-                            justifyContent: "center",
-                          }}
-                        >
-                          {card.action}
-                        </Button>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div
-                    style={{
-                      ...softCardStyle,
-                      padding: 18,
-                      borderRadius: 24,
-                    }}
-                  >
-                    <div style={{ display: "grid", gap: 8, marginBottom: 14 }}>
-                      <div
-                        style={{
-                          fontSize: 12,
-                          fontWeight: 800,
-                          letterSpacing: "0.12em",
-                          textTransform: "uppercase",
-                          color: "#7e8d8f",
-                        }}
-                      >
-                        Upload Evidence
-                      </div>
-                      <div
-                        style={{
-                          color: "#21353a",
-                          fontWeight: 800,
-                          fontSize: 17,
-                          letterSpacing: "-0.015em",
-                        }}
-                      >
-                        Stage files or folders for this evidence record.
-                      </div>
-                      <div
-                        style={{
-                          color: "#5b6d71",
-                          fontSize: 13,
-                          lineHeight: 1.6,
-                        }}
-                      >
-                        Use local staging first. Materials are only created and signed
-                        when you finish the record.
-                      </div>
-                    </div>
-
-                    <div
-                      className="capture-drop-zone"
-                      onDragOver={(event) => event.preventDefault()}
-                      onDrop={async (event) => {
-                        event.preventDefault();
-                        try {
-                          await handleDroppedFiles(event.dataTransfer.files);
-                        } catch {
-                          // handled in addFilesToSession/logCaptureClientError
-                        }
-                      }}
-                      style={{
+                        ...softCardStyle,
+                        padding: 20,
                         borderRadius: 24,
-                        border: "1px dashed rgba(183,157,132,0.18)",
-                        background:
-                          "linear-gradient(180deg, rgba(255,255,255,0.54), rgba(244,246,243,0.86))",
-                        boxShadow:
-                          "inset 0 1px 0 rgba(255,255,255,0.58), 0 18px 38px rgba(0,0,0,0.05)",
-                        padding: "30px 22px",
                         display: "grid",
-                        gap: 14,
+                        gap: 16,
                       }}
                     >
-                      <div style={{ display: "grid", gap: 8 }}>
+                      <div style={{ display: "grid", gap: 6 }}>
                         <div
                           style={{
-                            color: "#23373b",
-                            fontWeight: 700,
-                            fontSize: 15,
+                            fontSize: 12,
+                            fontWeight: 800,
+                            letterSpacing: "0.12em",
+                            textTransform: "uppercase",
+                            color: "#7e8d8f",
                           }}
                         >
-                          Upload Evidence Files
+                          Capture Evidence
                         </div>
                         <div
-                          className="drop-hint"
                           style={{
-                            color: "#5b6d71",
-                            fontSize: 13,
-                            lineHeight: 1.6,
+                            color: "#21353a",
+                            fontWeight: 700,
+                            fontSize: 15,
+                            lineHeight: 1.5,
                           }}
                         >
-                          Drop files or folders here, or choose materials from this
-                          device.
+                          Add captured materials directly from this device.
+                        </div>
+                      </div>
+
+                      <div
+                        className="capture-type-grid"
+                        style={{
+                          display: "grid",
+                          gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))",
+                          gap: 12,
+                        }}
+                      >
+                        {[
+                          {
+                            title: "Capture Photo",
+                            note: "Still image",
+                            onClick: () => openCamera("PHOTO"),
+                            style: secondaryButtonStyle,
+                          },
+                          {
+                            title: "Record Video",
+                            note: "Camera recording",
+                            onClick: () => openCamera("VIDEO"),
+                            style: secondaryButtonStyle,
+                          },
+                          {
+                            title: "Record Audio",
+                            note: "Voice or interview",
+                            onClick: openAudioRecorder,
+                            style: tertiaryButtonStyle,
+                          },
+                        ].map((action) => (
+                          <Button
+                            key={action.title}
+                            variant="secondary"
+                            onClick={action.onClick}
+                            disabled={busy}
+                            className="capture-type-pill rounded-[18px] border px-4 py-4 text-left"
+                            style={{
+                              ...action.style,
+                              minHeight: 82,
+                              display: "grid",
+                              justifyContent: "start",
+                              alignContent: "center",
+                              gap: 4,
+                            }}
+                          >
+                            <span style={{ fontSize: 14, fontWeight: 700 }}>{action.title}</span>
+                            <span
+                              style={{
+                                fontSize: 12,
+                                fontWeight: 500,
+                                opacity: 0.78,
+                              }}
+                            >
+                              {action.note}
+                            </span>
+                          </Button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {audioRecorderOpen ? (
+                      <div
+                        style={{
+                          ...softCardStyle,
+                          padding: 20,
+                          borderRadius: 24,
+                          display: "grid",
+                          gap: 14,
+                        }}
+                      >
+                        <div style={{ display: "grid", gap: 6 }}>
+                          <div
+                            style={{
+                              fontSize: 12,
+                              fontWeight: 800,
+                              letterSpacing: "0.12em",
+                              textTransform: "uppercase",
+                              color: "#7e8d8f",
+                            }}
+                          >
+                            Record Audio
+                          </div>
+                          <div
+                            style={{
+                              color: "#21353a",
+                              fontWeight: 700,
+                              fontSize: 15,
+                              lineHeight: 1.55,
+                            }}
+                          >
+                            Only record audio where you have the right or permission to do
+                            so. PROOVRA preserves integrity state; it does not independently
+                            determine legality, consent, truth, or admissibility.
+                          </div>
+                        </div>
+
+                        <div
+                          style={{
+                            display: "grid",
+                            gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))",
+                            gap: 10,
+                          }}
+                        >
+                          {[
+                            ["Recording state", audioRecorderState.replace(/_/g, " ")],
+                            ["Timer", formatRecordingTime(audioRecordingSeconds)],
+                            [
+                              "Status",
+                              audioRecorderState === "preview_ready"
+                                ? "Preview ready"
+                                : audioRecorderState === "uploading"
+                                  ? "Adding to session"
+                                  : audioRecorderState === "failed"
+                                    ? "Recording failed"
+                                    : audioRecorderState === "recording"
+                                      ? "Recording"
+                                      : "Ready",
+                            ],
+                          ].map(([label, value]) => (
+                            <div
+                              key={label}
+                              style={{
+                                borderRadius: 16,
+                                border: "1px solid rgba(105,122,130,0.10)",
+                                background: "#f8fafb",
+                                padding: "12px 14px",
+                                display: "grid",
+                                gap: 4,
+                              }}
+                            >
+                              <div
+                                style={{
+                                  color: "#7e8d8f",
+                                  fontSize: 11,
+                                  fontWeight: 800,
+                                  textTransform: "uppercase",
+                                  letterSpacing: "0.08em",
+                                }}
+                              >
+                                {label}
+                              </div>
+                              <div style={{ color: "#21353a", fontWeight: 700 }}>{value}</div>
+                            </div>
+                          ))}
+                        </div>
+
+                        {audioPreviewUrl ? (
+                          <audio
+                            controls
+                            preload="metadata"
+                            src={audioPreviewUrl}
+                            style={{ width: "100%" }}
+                          >
+                            Your browser could not play this audio preview.
+                          </audio>
+                        ) : null}
+
+                        {audioRecorderError ? (
+                          <div
+                            style={{
+                              padding: 12,
+                              borderRadius: 14,
+                              background: "rgba(255,243,243,0.90)",
+                              border: "1px solid rgba(194,78,78,0.14)",
+                              color: "#b42318",
+                            }}
+                          >
+                            {audioRecorderError}
+                          </div>
+                        ) : null}
+
+                        <div className="capture-actions-row">
+                          <Button
+                            variant="secondary"
+                            onClick={startAudioRecording}
+                            disabled={busy || audioRecorderState === "recording"}
+                            className="rounded-[999px] border px-5 py-3 text-[0.95rem] font-medium"
+                            style={secondaryButtonStyle}
+                          >
+                            Start Recording
+                          </Button>
+                          <Button
+                            variant="secondary"
+                            onClick={stopAudioRecording}
+                            disabled={audioRecorderState !== "recording"}
+                            className="rounded-[999px] border px-5 py-3 text-[0.95rem] font-medium"
+                            style={tertiaryButtonStyle}
+                          >
+                            Stop Recording
+                          </Button>
+                          <Button
+                            variant="secondary"
+                            onClick={discardAudioRecording}
+                            disabled={
+                              audioRecorderState === "recording" ||
+                              audioRecorderState === "uploading"
+                            }
+                            className="rounded-[999px] border px-5 py-3 text-[0.95rem] font-medium"
+                            style={tertiaryButtonStyle}
+                          >
+                            Discard Recording
+                          </Button>
+                          <Button
+                            variant="primary"
+                            onClick={addAudioRecordingToSession}
+                            disabled={audioRecorderState !== "preview_ready"}
+                            className="rounded-[999px] border px-5 py-3 text-[0.95rem] font-medium"
+                            style={primaryButtonStyle}
+                          >
+                            Add to Evidence Session
+                          </Button>
+                        </div>
+                      </div>
+                    ) : null}
+
+                    <div
+                      style={{
+                        ...softCardStyle,
+                        padding: 20,
+                        borderRadius: 24,
+                        display: "grid",
+                        gap: 16,
+                      }}
+                    >
+                      <div style={{ display: "grid", gap: 6 }}>
+                        <div
+                          style={{
+                            fontSize: 12,
+                            fontWeight: 800,
+                            letterSpacing: "0.12em",
+                            textTransform: "uppercase",
+                            color: "#7e8d8f",
+                          }}
+                        >
+                          Upload Evidence
+                        </div>
+                        <div
+                          style={{
+                            color: "#21353a",
+                            fontWeight: 700,
+                            fontSize: 15,
+                            lineHeight: 1.55,
+                          }}
+                        >
+                          Stage files or folders locally before signing this evidence
+                          record.
                         </div>
                       </div>
 
@@ -2177,189 +2411,43 @@ const recordedFile = new File(
                           Upload Folder
                         </Button>
                       </div>
-                    </div>
-                  </div>
 
-                  <div
-                    style={{
-                      display: "grid",
-                      gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
-                      gap: 18,
-                    }}
-                  >
-                    <div
-                      style={{
-                        ...softCardStyle,
-                        padding: 18,
-                        borderRadius: 24,
-                        display: "grid",
-                        gap: 10,
-                      }}
-                    >
                       <div
+                        className="capture-drop-zone"
+                        onDragOver={(event) => event.preventDefault()}
+onDrop={async (event) => {
+  event.preventDefault();
+
+  try {
+    const files = await filesFromDataTransfer(event.dataTransfer);
+    await handleDroppedFiles(files);
+  } catch (err) {
+    logCaptureClientError("web_capture_drop_files_or_folder", err, {});
+    setError(
+      err instanceof Error
+        ? err.message
+        : "Dropped files or folder could not be added."
+    );
+  }
+}}
                         style={{
-                          fontSize: 12,
-                          fontWeight: 800,
-                          letterSpacing: "0.12em",
-                          textTransform: "uppercase",
-                          color: "#7e8d8f",
+                          borderRadius: 20,
+                          border: "1px dashed rgba(123,138,145,0.22)",
+                          background: "#f9fbfc",
+                          padding: "28px 22px",
+                          display: "grid",
+                          gap: 10,
+                          textAlign: "center",
                         }}
                       >
-                        Internal Notes (optional)
-                      </div>
-                      <div
-                        style={{
-                          color: "#21353a",
-                          fontWeight: 800,
-                          fontSize: 16,
-                          letterSpacing: "-0.015em",
-                        }}
-                      >
-                        Private intake context for authenticated review only.
-                      </div>
-                      <textarea
-                        value={internalNotes}
-                        onChange={(event) => setInternalNotes(event.target.value)}
-                        maxLength={4000}
-                        disabled={busy}
-                        placeholder="Add investigator, legal, insurance, or internal review context."
-                        style={{
-                          minHeight: 132,
-                          resize: "vertical",
-                          borderRadius: 18,
-                          border: "1px solid rgba(79,112,107,0.12)",
-                          background:
-                            "linear-gradient(180deg, rgba(255,255,255,0.78) 0%, rgba(244,246,243,0.94) 100%)",
-                          color: "#23373b",
-                          padding: "14px 16px",
-                          fontSize: 14,
-                          lineHeight: 1.6,
-                          outline: "none",
-                        }}
-                      />
-                      <div style={{ fontSize: 12, color: "#6a777b", lineHeight: 1.5 }}>
-                        Only visible in the authenticated app view. Internal notes are
-                        excluded from public verification, PDF reports, and verification
-                        packages.
-                      </div>
-                    </div>
-
-                    <div
-                      style={{
-                        ...softCardStyle,
-                        padding: 18,
-                        borderRadius: 24,
-                        display: "grid",
-                        gap: 12,
-                      }}
-                    >
-                      <div
-                        style={{
-                          fontSize: 12,
-                          fontWeight: 800,
-                          letterSpacing: "0.12em",
-                          textTransform: "uppercase",
-                          color: "#7e8d8f",
-                        }}
-                      >
-                        Automatically Recorded
-                      </div>
-
-                      {[
-                        ["Item count", String(sessionItems.length)],
-                        [
-                          "Total staged size",
-                          `${(totalStagedBytes / 1024 / 1024).toFixed(2)} MB`,
-                        ],
-                        [
-                          "Capture/upload time",
-                          sessionStartedAt.toLocaleString(),
-                        ],
-                        [
-                          "Location metadata",
-                          useLocation ? "Included" : "Not included",
-                        ],
-                        [
-                          "Evidence classification preview",
-                          reviewerClassificationPreview,
-                        ],
-                        [
-                          "Folder paths",
-                          folderPathsPresent ? "Present" : "Not present",
-                        ],
-                      ].map(([label, value]) => (
-                        <div
-                          key={label}
-                          style={{
-                            display: "grid",
-                            gap: 4,
-                            paddingBottom: 10,
-                            borderBottom: "1px solid rgba(79,112,107,0.08)",
-                          }}
-                        >
-                          <div
-                            style={{
-                              color: "#7e8d8f",
-                              fontSize: 11,
-                              fontWeight: 800,
-                              textTransform: "uppercase",
-                              letterSpacing: "0.08em",
-                            }}
-                          >
-                            {label}
-                          </div>
-                          <div style={{ color: "#21353a", fontWeight: 700, lineHeight: 1.5 }}>
-                            {value}
-                          </div>
-                        </div>
-                      ))}
-
-                      {reviewerCategoryPreview.length > 0 ? (
-                        <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-                          {reviewerCategoryPreview.map((category) => (
-                            <span
-                              key={category}
-                              style={{
-                                display: "inline-flex",
-                                alignItems: "center",
-                                minHeight: 28,
-                                padding: "0 10px",
-                                borderRadius: 999,
-                                background:
-                                  "linear-gradient(180deg, rgba(214,184,157,0.12) 0%, rgba(255,255,255,0.56) 100%)",
-                                border: "1px solid rgba(183,157,132,0.18)",
-                                color: "#8a6e57",
-                                fontSize: 12,
-                                fontWeight: 700,
-                              }}
-                            >
-                              {category}
-                            </span>
-                          ))}
-                        </div>
-                      ) : null}
-                    </div>
-                  </div>
-
-                  {audioRecorderOpen ? (
-                    <div
-                      style={{
-                        ...softCardStyle,
-                        padding: 18,
-                        borderRadius: 24,
-                        display: "grid",
-                        gap: 14,
-                      }}
-                    >
-                      <div style={{ display: "grid", gap: 8 }}>
                         <div
                           style={{
-                            color: "#21353a",
-                            fontWeight: 800,
-                            fontSize: 16,
+                            color: "#23373b",
+                            fontWeight: 700,
+                            fontSize: 15,
                           }}
                         >
-                          Record Audio
+                          Drop files or folders here, or choose materials from this device.
                         </div>
                         <div
                           style={{
@@ -2368,71 +2456,557 @@ const recordedFile = new File(
                             lineHeight: 1.6,
                           }}
                         >
-                          Only record audio where you have the right or permission
-                          to do so. PROOVRA preserves the recorded integrity state;
-                          it does not independently determine legality, consent,
-                          truth, or admissibility.
+                          No backend record is created until you finish and sign the staged
+                          evidence set.
                         </div>
+                      </div>
+                    </div>
+
+                    <label
+                      style={{
+                        ...softCardStyle,
+                        padding: "16px 18px",
+                        borderRadius: 20,
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        gap: 16,
+                        cursor: busy ? "not-allowed" : "pointer",
+                        opacity: busy ? 0.7 : 1,
+                      }}
+                    >
+                      <div style={{ display: "grid", gap: 4, minWidth: 0 }}>
+                        <div
+                          style={{
+                            color: "#21353a",
+                            fontSize: 14,
+                            fontWeight: 700,
+                            letterSpacing: "-0.01em",
+                          }}
+                        >
+                          Include capture location
+                        </div>
+                        <div
+                          style={{
+                            color: "#5f6f73",
+                            fontSize: 12,
+                            lineHeight: 1.55,
+                          }}
+                        >
+                          Attach device-reported location metadata to this evidence record.
+                        </div>
+                      </div>
+
+                      <input
+                        type="checkbox"
+                        checked={useLocation}
+                        onChange={(event) => setUseLocation(event.target.checked)}
+                        disabled={busy}
+                        style={{
+                          width: 18,
+                          height: 18,
+                          accentColor: "#39565d",
+                          cursor: busy ? "not-allowed" : "pointer",
+                          flexShrink: 0,
+                        }}
+                      />
+                    </label>
+
+                    {locationPermissionDenied ? (
+                      <div
+                        className="error-text"
+                        style={{
+                          padding: 12,
+                          borderRadius: 14,
+                          background: "rgba(255,243,243,0.90)",
+                          border: "1px solid rgba(194,78,78,0.14)",
+                          color: "#b42318",
+                        }}
+                      >
+                        Location was not granted. The current session will continue without
+                        GPS metadata.
+                      </div>
+                    ) : null}
+                  </div>
+
+                  <div className="capture-session-column">
+                    <div
+                      style={{
+                        ...softCardStyle,
+                        padding: 20,
+                        borderRadius: 24,
+                        display: "grid",
+                        gap: 18,
+                      }}
+                    >
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "flex-start",
+                          justifyContent: "space-between",
+                          gap: 12,
+                          flexWrap: "wrap",
+                        }}
+                      >
+                        <div style={{ display: "grid", gap: 6 }}>
+                          <div
+                            style={{
+                              fontSize: 12,
+                              fontWeight: 800,
+                              letterSpacing: "0.12em",
+                              textTransform: "uppercase",
+                              color: "#7e8d8f",
+                            }}
+                          >
+                            Evidence Session Review
+                          </div>
+                          <div
+                            style={{
+                              color: "#21353a",
+                              fontWeight: 700,
+                              fontSize: 15,
+                              lineHeight: 1.5,
+                            }}
+                          >
+                            Review staged materials, add private notes, and finish the signed
+                            evidence record.
+                          </div>
+                        </div>
+
+                        <div
+                          style={{
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: 8,
+                            padding: "7px 12px",
+                            borderRadius: 999,
+                            background: "#f3f6f8",
+                            border: "1px solid rgba(123,138,145,0.14)",
+                            color: "#4b6269",
+                            fontSize: 12,
+                            fontWeight: 800,
+                          }}
+                        >
+                          {sessionCountLabel}
+                        </div>
+                      </div>
+
+                      {sessionItems.length > 0 ? (
+                        <div
+                          style={{
+                            display: "grid",
+                            gap: 12,
+                            maxHeight: 420,
+                            overflowY: "auto",
+                            paddingRight: 2,
+                          }}
+                        >
+                          {sessionItems.map((item, index) => {
+                            const statusLabel = item.error
+                              ? "Failed"
+                              : item.uploading
+                                ? `Uploading ${item.uploadProgress}%`
+                                : item.uploadProgress === 100
+                                  ? "Uploaded"
+                                  : "Ready";
+
+                            return (
+                              <div
+                                key={item.id}
+                                style={{
+                                  borderRadius: 18,
+                                  border: "1px solid rgba(105,122,130,0.10)",
+                                  background: "#f9fbfc",
+                                  padding: 12,
+                                  display: "grid",
+                                  gap: 10,
+                                }}
+                              >
+                                <div
+                                  style={{
+                                    display: "grid",
+                                    gridTemplateColumns: "72px minmax(0, 1fr)",
+                                    gap: 12,
+                                    alignItems: "start",
+                                  }}
+                                >
+                                  <div
+                                    style={{
+                                      width: 72,
+                                      height: 72,
+                                      borderRadius: 14,
+                                      overflow: "hidden",
+                                      background: "#e8edf0",
+                                      display: "grid",
+                                      placeItems: "center",
+                                      color: "#55696d",
+                                      fontSize: 12,
+                                      fontWeight: 700,
+                                      textAlign: "center",
+                                      padding: 8,
+                                    }}
+                                  >
+                                    {item.previewUrl && item.mimeType.startsWith("image/") ? (
+                                      <img
+                                        src={item.previewUrl}
+                                        alt={item.file.name}
+                                        style={{
+                                          width: "100%",
+                                          height: "100%",
+                                          objectFit: "cover",
+                                        }}
+                                      />
+                                    ) : item.previewUrl && item.mimeType.startsWith("video/") ? (
+                                      <video
+                                        src={item.previewUrl}
+                                        muted
+                                        playsInline
+                                        controls={false}
+                                        style={{
+                                          width: "100%",
+                                          height: "100%",
+                                          objectFit: "cover",
+                                        }}
+                                      />
+                                    ) : item.mimeType.startsWith("audio/") ? (
+                                      "Audio"
+                                    ) : (
+                                      deriveSessionItemTypeLabel(item.mimeType)
+                                    )}
+                                  </div>
+
+                                  <div style={{ minWidth: 0, display: "grid", gap: 8 }}>
+                                    <div
+                                      style={{
+                                        display: "flex",
+                                        alignItems: "flex-start",
+                                        justifyContent: "space-between",
+                                        gap: 10,
+                                      }}
+                                    >
+                                      <div style={{ minWidth: 0, display: "grid", gap: 4 }}>
+                                        <div
+                                          style={{
+                                            color: "#7e8d8f",
+                                            fontSize: 11,
+                                            fontWeight: 800,
+                                            textTransform: "uppercase",
+                                            letterSpacing: "0.08em",
+                                          }}
+                                        >
+                                          Item {index + 1}
+                                        </div>
+                                        <div
+                                          style={{
+                                            color: "#23373b",
+                                            fontSize: 13,
+                                            fontWeight: 700,
+                                            whiteSpace: "nowrap",
+                                            overflow: "hidden",
+                                            textOverflow: "ellipsis",
+                                          }}
+                                          title={item.file.name}
+                                        >
+                                          {item.file.name}
+                                        </div>
+                                      </div>
+
+                                      {!busy ? (
+                                        <button
+                                          type="button"
+                                          onClick={() => removeSessionItem(item.id)}
+                                          style={{
+                                            border: "none",
+                                            background: "transparent",
+                                            color: "#8f4a4a",
+                                            fontWeight: 700,
+                                            cursor: "pointer",
+                                            padding: 0,
+                                            flexShrink: 0,
+                                          }}
+                                        >
+                                          Remove
+                                        </button>
+                                      ) : null}
+                                    </div>
+
+                                    <div
+                                      style={{
+                                        display: "flex",
+                                        flexWrap: "wrap",
+                                        gap: 8,
+                                        fontSize: 12,
+                                        color: "#5f6f73",
+                                      }}
+                                    >
+                                      <span>{deriveSessionItemTypeLabel(item.mimeType)}</span>
+                                      <span>•</span>
+                                      <span>{formatFileSize(item.file.size)}</span>
+                                      <span>•</span>
+                                      <span>{item.mimeType}</span>
+                                    </div>
+
+                                    {item.relativePath ? (
+                                      <div
+                                        style={{
+                                          fontSize: 12,
+                                          color: "#6a777b",
+                                          whiteSpace: "nowrap",
+                                          overflow: "hidden",
+                                          textOverflow: "ellipsis",
+                                        }}
+                                        title={item.relativePath}
+                                      >
+                                        {item.relativePath}
+                                      </div>
+                                    ) : null}
+
+                                    {item.mimeType.startsWith("audio/") && item.previewUrl ? (
+                                      <audio
+                                        controls
+                                        preload="metadata"
+                                        src={item.previewUrl}
+                                        style={{ width: "100%" }}
+                                      >
+                                        Your browser could not play this audio preview.
+                                      </audio>
+                                    ) : null}
+
+                                    <div
+                                      style={{
+                                        display: "flex",
+                                        alignItems: "center",
+                                        justifyContent: "space-between",
+                                        gap: 10,
+                                        flexWrap: "wrap",
+                                      }}
+                                    >
+                                      <span
+                                        style={{
+                                          display: "inline-flex",
+                                          alignItems: "center",
+                                          minHeight: 26,
+                                          padding: "0 10px",
+                                          borderRadius: 999,
+                                          background: item.error
+                                            ? "rgba(194,78,78,0.10)"
+                                            : item.uploadProgress === 100
+                                              ? "rgba(78,167,116,0.10)"
+                                              : "rgba(79,112,107,0.08)",
+                                          color: item.error
+                                            ? "#b42318"
+                                            : item.uploadProgress === 100
+                                              ? "#227447"
+                                              : "#4b6269",
+                                          fontSize: 12,
+                                          fontWeight: 700,
+                                        }}
+                                      >
+                                        {statusLabel}
+                                      </span>
+
+                                      {busy || item.uploadProgress > 0 ? (
+                                        <div
+                                          style={{
+                                            width: 112,
+                                            height: 7,
+                                            borderRadius: 999,
+                                            background: "rgba(79,112,107,0.10)",
+                                            overflow: "hidden",
+                                          }}
+                                        >
+                                          <div
+                                            style={{
+                                              width: `${item.uploadProgress}%`,
+                                              height: "100%",
+                                              background:
+                                                "linear-gradient(90deg, rgba(45,91,89,0.92), rgba(191,232,223,0.86))",
+                                              transition: "width 0.2s ease",
+                                            }}
+                                          />
+                                        </div>
+                                      ) : null}
+                                    </div>
+
+                                    {item.error ? (
+                                      <div
+                                        style={{
+                                          fontSize: 12,
+                                          color: "#b42318",
+                                          lineHeight: 1.5,
+                                        }}
+                                      >
+                                        {item.error}
+                                      </div>
+                                    ) : null}
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      ) : (
+                        <div
+                          style={{
+                            borderRadius: 18,
+                            border: "1px dashed rgba(123,138,145,0.20)",
+                            background: "#f9fbfc",
+                            padding: 18,
+                            color: "#5f6f73",
+                            fontSize: 13,
+                            lineHeight: 1.6,
+                          }}
+                        >
+                          No materials are staged yet. Add captured or uploaded evidence on
+                          the left, then review and sign the record from this panel.
+                        </div>
+                      )}
+
+                      <div
+                        style={{
+                          display: "grid",
+                          gap: 10,
+                          paddingTop: 16,
+                          borderTop: "1px solid rgba(105,122,130,0.10)",
+                        }}
+                      >
+                        <div
+                          style={{
+                            color: "#21353a",
+                            fontSize: 13,
+                            fontWeight: 700,
+                          }}
+                        >
+                          Internal Notes (private – not included in reports)
+                        </div>
+                        <textarea
+                          value={internalNotes}
+                          onChange={(event) => setInternalNotes(event.target.value)}
+                          maxLength={4000}
+                          disabled={busy}
+                          placeholder="Add investigator, legal, insurance, or internal review context."
+                          style={{
+                            minHeight: 96,
+                            resize: "vertical",
+                            borderRadius: 14,
+                            border: "1px solid rgba(105,122,130,0.14)",
+                            background: "#fbfcfd",
+                            color: "#23373b",
+                            padding: "12px 14px",
+                            fontSize: 13,
+                            lineHeight: 1.55,
+                            outline: "none",
+                          }}
+                        />
                       </div>
 
                       <div
                         style={{
                           display: "grid",
-                          gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))",
-                          gap: 12,
+                          gap: 10,
+                          paddingTop: 16,
+                          borderTop: "1px solid rgba(105,122,130,0.10)",
                         }}
                       >
+                        <div
+                          style={{
+                            color: "#21353a",
+                            fontSize: 13,
+                            fontWeight: 700,
+                          }}
+                        >
+                          Automatically Recorded
+                        </div>
+
                         {[
-                          ["Recording State", audioRecorderState.replace(/_/g, " ")],
-                          ["Timer", formatRecordingTime(audioRecordingSeconds)],
-                          [
-                            "Status",
-                            audioRecorderState === "preview_ready"
-                              ? "Preview ready"
-                              : audioRecorderState === "uploading"
-                                ? "Adding to evidence session"
-                                : audioRecorderState === "failed"
-                                  ? "Recording failed"
-                                  : audioRecorderState === "recording"
-                                    ? "Recording"
-                                    : "Ready",
-                          ],
+                          ["Item count", String(sessionItems.length)],
+                          ["Total staged size", formatFileSize(totalStagedBytes)],
+                          ["Capture/upload time", sessionStartedAt.toLocaleString()],
+                          ["Location metadata", useLocation ? "Included" : "Not included"],
+                          ["Classification preview", reviewerClassificationPreview],
+                          ["Folder paths", folderPathsPresent ? "Present" : "Not present"],
                         ].map(([label, value]) => (
                           <div
                             key={label}
                             style={{
-                              borderRadius: 18,
-                              border: "1px solid rgba(79,112,107,0.10)",
-                              background:
-                                "linear-gradient(180deg, rgba(255,255,255,0.72) 0%, rgba(243,245,242,0.94) 100%)",
-                              padding: "12px 14px",
+                              display: "flex",
+                              justifyContent: "space-between",
+                              gap: 12,
+                              alignItems: "flex-start",
+                              fontSize: 12,
                             }}
                           >
-                            <div
+                            <span style={{ color: "#7e8d8f", fontWeight: 700 }}>{label}</span>
+                            <span
                               style={{
-                                color: "#7e8d8f",
-                                fontSize: 11,
-                                fontWeight: 800,
-                                textTransform: "uppercase",
-                                letterSpacing: "0.08em",
-                                marginBottom: 6,
+                                color: "#23373b",
+                                fontWeight: 700,
+                                textAlign: "right",
                               }}
                             >
-                              {label}
-                            </div>
-                            <div style={{ color: "#21353a", fontWeight: 700 }}>{value}</div>
+                              {value}
+                            </span>
                           </div>
                         ))}
+
+                        {reviewerCategoryPreview.length > 0 ? (
+                          <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                            {reviewerCategoryPreview.map((category) => (
+                              <span
+                                key={category}
+                                style={{
+                                  display: "inline-flex",
+                                  alignItems: "center",
+                                  minHeight: 28,
+                                  padding: "0 10px",
+                                  borderRadius: 999,
+                                  background: "#f3f6f8",
+                                  border: "1px solid rgba(123,138,145,0.14)",
+                                  color: "#4b6269",
+                                  fontSize: 12,
+                                  fontWeight: 700,
+                                }}
+                              >
+                                {category}
+                              </span>
+                            ))}
+                          </div>
+                        ) : null}
                       </div>
 
-                      {audioPreviewUrl ? (
-                        <audio controls preload="metadata" src={audioPreviewUrl} style={{ width: "100%" }}>
-                          Your browser could not play this audio preview.
-                        </audio>
+                      {busy ? (
+                        <div
+                          className="uploading-hint"
+                          style={{
+                            padding: 12,
+                            borderRadius: 14,
+                            background: "#f7fafb",
+                            border: "1px solid rgba(105,122,130,0.10)",
+                            color: "#42565b",
+                          }}
+                        >
+                          {`Finishing evidence session… ${progress}%`}
+                        </div>
                       ) : null}
 
-                      {audioRecorderError ? (
+                      {sessionStatus ? (
                         <div
+                          className="uploading-hint"
+                          style={{
+                            padding: 12,
+                            borderRadius: 14,
+                            background: "#f7fafb",
+                            border: "1px solid rgba(105,122,130,0.10)",
+                            color: "#42565b",
+                          }}
+                        >
+                          {sessionStatus}
+                        </div>
+                      ) : null}
+
+                      {error ? (
+                        <div
+                          className="error-text"
                           style={{
                             padding: 12,
                             borderRadius: 14,
@@ -2441,495 +3015,38 @@ const recordedFile = new File(
                             color: "#b42318",
                           }}
                         >
-                          {audioRecorderError}
+                          {error}
                         </div>
                       ) : null}
 
-                      <div className="capture-actions-row">
+                      <div
+                        style={{
+                          display: "grid",
+                          gap: 10,
+                          paddingTop: 4,
+                        }}
+                      >
                         <Button
-                          variant="secondary"
-                          onClick={startAudioRecording}
-                          disabled={busy || audioRecorderState === "recording"}
-                          className="rounded-[999px] border px-5 py-3 text-[0.95rem] font-medium"
-                          style={secondaryButtonStyle}
-                        >
-                          Start Recording
-                        </Button>
-                        <Button
-                          variant="secondary"
-                          onClick={stopAudioRecording}
-                          disabled={audioRecorderState !== "recording"}
-                          className="rounded-[999px] border px-5 py-3 text-[0.95rem] font-medium"
-                          style={tertiaryButtonStyle}
-                        >
-                          Stop Recording
-                        </Button>
-                        <Button
-                          variant="secondary"
-                          onClick={discardAudioRecording}
-                          disabled={audioRecorderState === "recording" || audioRecorderState === "uploading"}
-                          className="rounded-[999px] border px-5 py-3 text-[0.95rem] font-medium"
-                          style={tertiaryButtonStyle}
-                        >
-                          Discard Recording
-                        </Button>
-                        <Button
-                          variant="primary"
-                          onClick={addAudioRecordingToSession}
-                          disabled={audioRecorderState !== "preview_ready"}
+                          onClick={finalizeSession}
+                          disabled={busy || sessionItems.length === 0}
                           className="rounded-[999px] border px-5 py-3 text-[0.95rem] font-medium"
                           style={primaryButtonStyle}
                         >
-                          Add to Evidence Session
+                          {busy ? "Finishing…" : "Finish & Sign Evidence Record"}
+                        </Button>
+
+                        <Button
+                          variant="secondary"
+                          onClick={resetCaptureState}
+                          disabled={busy || sessionItems.length === 0}
+                          className="rounded-[999px] border px-5 py-3 text-[0.95rem] font-medium"
+                          style={secondaryButtonStyle}
+                        >
+                          Clear Session
                         </Button>
                       </div>
                     </div>
-                  ) : null}
-                </div>
-
-<label
-  style={{
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: 16,
-    padding: "14px 16px",
-    borderRadius: 18,
-    border: "1px solid rgba(79,112,107,0.10)",
-    background:
-      "linear-gradient(180deg, rgba(255,255,255,0.58) 0%, rgba(243,245,242,0.90) 100%)",
-    boxShadow:
-      "inset 0 1px 0 rgba(255,255,255,0.42), 0 10px 22px rgba(0,0,0,0.04)",
-    cursor: busy ? "not-allowed" : "pointer",
-    opacity: busy ? 0.7 : 1,
-  }}
->
-  <div
-    style={{
-      display: "flex",
-      flexDirection: "column",
-      gap: 4,
-      minWidth: 0,
-    }}
-  >
-    <div
-      style={{
-        display: "flex",
-        alignItems: "center",
-        gap: 10,
-        flexWrap: "wrap",
-      }}
-    >
-      <span
-        style={{
-          color: "#21353a",
-          fontSize: 14,
-          fontWeight: 700,
-          letterSpacing: "-0.01em",
-        }}
-      >
-        📍 Include capture location
-      </span>
-
-      <span
-        style={{
-          display: "inline-flex",
-          alignItems: "center",
-          justifyContent: "center",
-          minHeight: 22,
-          padding: "0 10px",
-          borderRadius: 999,
-          fontSize: 11,
-          fontWeight: 800,
-          letterSpacing: "0.08em",
-          textTransform: "uppercase",
-          border: "1px solid rgba(183,157,132,0.16)",
-          background:
-            "linear-gradient(180deg, rgba(214,184,157,0.10) 0%, rgba(255,255,255,0.55) 100%)",
-          color: "#8a6e57",
-        }}
-      >
-        OPTIONAL
-      </span>
-    </div>
-
-    <div
-      style={{
-        color: "#5f6f73",
-        fontSize: 12,
-        lineHeight: 1.55,
-      }}
-    >
-      Attach device-reported location metadata to this evidence session.
-    </div>
-  </div>
-
-  <input
-    type="checkbox"
-    checked={useLocation}
-    onChange={(event) => setUseLocation(event.target.checked)}
-    disabled={busy}
-    style={{
-      width: 18,
-      height: 18,
-      accentColor: "#39565d",
-      cursor: busy ? "not-allowed" : "pointer",
-      flexShrink: 0,
-    }}
-  />
-</label>
-
-                {locationPermissionDenied ? (
-                  <div
-                    className="error-text"
-                    style={{
-                      padding: 12,
-                      borderRadius: 14,
-                      background: "rgba(255,243,243,0.90)",
-                      border: "1px solid rgba(194,78,78,0.14)",
-                      color: "#b42318",
-                    }}
-                  >
-                    Location was not granted. The current session will continue without GPS metadata.
                   </div>
-                ) : null}
-
-                {sessionItems.length > 0 ? (
-                  <div
-                    className="capture-preview-card"
-                    style={{
-                      padding: 18,
-                      borderRadius: 24,
-                      ...softCardStyle,
-                    }}
-                  >
-                    <div
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "space-between",
-                        gap: 12,
-                        flexWrap: "wrap",
-                        marginBottom: 14,
-                      }}
-                    >
-                      <div
-                        className="capture-preview-title"
-                        style={{
-                          color: "#21353a",
-                          fontWeight: 800,
-                          fontSize: 16,
-                        }}
-                      >
-                        Evidence Session Review
-                      </div>
-
-                      <div
-                        style={{
-                          display: "inline-flex",
-                          alignItems: "center",
-                          gap: 8,
-                          padding: "7px 12px",
-                          borderRadius: 999,
-                          background:
-                            "linear-gradient(180deg, rgba(214,184,157,0.12) 0%, rgba(255,255,255,0.56) 100%)",
-                          border: "1px solid rgba(183,157,132,0.18)",
-                          color: "#8a6e57",
-                          fontSize: 12,
-                          fontWeight: 800,
-                        }}
-                      >
-                        {sessionCountLabel}
-                      </div>
-                    </div>
-
-                    <div
-                      style={{
-                        display: "grid",
-                        gridTemplateColumns: "repeat(auto-fill, minmax(170px, 1fr))",
-                        gap: 12,
-                      }}
-                    >
-                      {sessionItems.map((item, index) => (
-                        <div
-                          key={item.id}
-                          style={{
-                            borderRadius: 18,
-                            overflow: "hidden",
-                            background:
-                              "linear-gradient(180deg, rgba(255,255,255,0.66) 0%, rgba(243,245,242,0.94) 100%)",
-                            border: "1px solid rgba(79,112,107,0.10)",
-                            boxShadow:
-                              "inset 0 1px 0 rgba(255,255,255,0.62), 0 12px 24px rgba(0,0,0,0.05)",
-                          }}
-                        >
-                          <div
-                            style={{
-                              position: "relative",
-                              aspectRatio: "1 / 1",
-                              background: "rgba(232,236,233,0.92)",
-                              display: "flex",
-                              alignItems: "center",
-                              justifyContent: "center",
-                            }}
-                          >
-                            <div
-                              style={{
-                                position: "absolute",
-                                top: 8,
-                                left: 8,
-                                zIndex: 2,
-                                minWidth: 28,
-                                height: 28,
-                                borderRadius: 999,
-                                background:
-                                  "linear-gradient(180deg, rgba(58,92,95,0.92) 0%, rgba(20,38,42,0.96) 100%)",
-                                border: "1px solid rgba(79,112,107,0.20)",
-                                color: "#eef3f1",
-                                display: "grid",
-                                placeItems: "center",
-                                fontSize: 12,
-                                fontWeight: 800,
-                                padding: "0 8px",
-                              }}
-                            >
-                              {index + 1}
-                            </div>
-
-                            {!busy ? (
-                              <button
-                                type="button"
-                                onClick={() => removeSessionItem(item.id)}
-                                style={{
-                                  position: "absolute",
-                                  top: 8,
-                                  right: 8,
-                                  zIndex: 2,
-                                  width: 30,
-                                  height: 30,
-                                  borderRadius: 999,
-                                  border: "1px solid rgba(194,78,78,0.20)",
-                                  background:
-                                    "linear-gradient(180deg, rgba(164,84,84,0.94) 0%, rgba(130,62,62,0.98) 100%)",
-                                  color: "#fff",
-                                  cursor: "pointer",
-                                  fontWeight: 800,
-                                }}
-                              >
-                                ×
-                              </button>
-                            ) : null}
-
-                            {item.previewUrl && item.mimeType.startsWith("image/") ? (
-                              <img
-                                src={item.previewUrl}
-                                alt={item.file.name}
-                                style={{
-                                  width: "100%",
-                                  height: "100%",
-                                  objectFit: "cover",
-                                }}
-                              />
-                            ) : item.previewUrl && item.mimeType.startsWith("video/") ? (
-                              <video
-                                src={item.previewUrl}
-                                muted
-                                playsInline
-                                controls={false}
-                                style={{
-                                  width: "100%",
-                                  height: "100%",
-                                  objectFit: "cover",
-                                }}
-                              />
-                            ) : item.mimeType.startsWith("audio/") ? (
-                              <div
-                                style={{
-                                  width: "100%",
-                                  height: "100%",
-                                  padding: 16,
-                                  display: "grid",
-                                  placeItems: "center",
-                                }}
-                              >
-                                <div
-                                  style={{
-                                    textAlign: "center",
-                                    color: "#55696d",
-                                    fontSize: 13,
-                                    lineHeight: 1.5,
-                                    fontWeight: 700,
-                                  }}
-                                >
-                                  Audio Evidence
-                                </div>
-                              </div>
-                            ) : (
-                              <div
-                                style={{
-                                  padding: 16,
-                                  textAlign: "center",
-                                  color: "#55696d",
-                                  fontSize: 13,
-                                  lineHeight: 1.5,
-                                  fontWeight: 600,
-                                }}
-                              >
-                                Evidence File
-                              </div>
-                            )}
-                          </div>
-
-                          <div style={{ padding: 12, display: "grid", gap: 8 }}>
-                            <div
-                              style={{
-                                color: "#23373b",
-                                fontSize: 13,
-                                fontWeight: 700,
-                                whiteSpace: "nowrap",
-                                overflow: "hidden",
-                                textOverflow: "ellipsis",
-                              }}
-                              title={item.file.name}
-                            >
-                              {item.file.name}
-                            </div>
-
-                            <div style={{ fontSize: 12, color: "#6a777b" }}>
-                              {deriveSessionItemTypeLabel(item.mimeType)} ·{" "}
-                              {(item.file.size / 1024 / 1024).toFixed(2)} MB
-                            </div>
-
-                            {item.relativePath ? (
-                              <div
-                                style={{
-                                  fontSize: 12,
-                                  color: "#6a777b",
-                                  whiteSpace: "nowrap",
-                                  overflow: "hidden",
-                                  textOverflow: "ellipsis",
-                                }}
-                                title={item.relativePath}
-                              >
-                                {item.relativePath}
-                              </div>
-                            ) : null}
-
-                            {busy || item.uploadProgress > 0 ? (
-                              <div
-                                style={{
-                                  height: 8,
-                                  borderRadius: 999,
-                                  background: "rgba(79,112,107,0.10)",
-                                  overflow: "hidden",
-                                }}
-                              >
-                                <div
-                                  style={{
-                                    width: `${item.uploadProgress}%`,
-                                    height: "100%",
-                                    background:
-                                      "linear-gradient(90deg, rgba(45,91,89,0.92), rgba(191,232,223,0.86))",
-                                    transition: "width 0.2s ease",
-                                  }}
-                                />
-                              </div>
-                            ) : null}
-
-                            <div style={{ fontSize: 12, color: "#55696d" }}>
-                              {item.uploading
-                                ? `Uploading ${item.uploadProgress}%`
-                                : item.uploadProgress === 100
-                                  ? "Uploaded"
-                                  : "Ready"}
-                            </div>
-
-                            {item.error ? (
-                              <div
-                                style={{
-                                  fontSize: 12,
-                                  color: "#b42318",
-                                  lineHeight: 1.5,
-                                }}
-                              >
-                                {item.error}
-                              </div>
-                            ) : null}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                ) : null}
-
-                {busy ? (
-                  <div
-                    className="uploading-hint"
-                    style={{
-                      padding: 12,
-                      borderRadius: 14,
-                      background:
-                        "linear-gradient(180deg, rgba(250,251,249,0.82) 0%, rgba(241,244,241,0.96) 100%)",
-                      border: "1px solid rgba(79,112,107,0.10)",
-                      color: "#42565b",
-                    }}
-                  >
-                    {`Finishing evidence session… ${progress}%`}
-                  </div>
-                ) : null}
-
-                {sessionStatus ? (
-                  <div
-                    className="uploading-hint"
-                    style={{
-                      padding: 12,
-                      borderRadius: 14,
-                      background:
-                        "linear-gradient(180deg, rgba(250,251,249,0.82) 0%, rgba(241,244,241,0.96) 100%)",
-                      border: "1px solid rgba(79,112,107,0.10)",
-                      color: "#42565b",
-                    }}
-                  >
-                    {sessionStatus}
-                  </div>
-                ) : null}
-
-                {error ? (
-                  <div
-                    className="error-text"
-                    style={{
-                      padding: 12,
-                      borderRadius: 14,
-                      background: "rgba(255,243,243,0.90)",
-                      border: "1px solid rgba(194,78,78,0.14)",
-                      color: "#b42318",
-                    }}
-                  >
-                    {error}
-                  </div>
-                ) : null}
-
-                <div style={{ display: "grid", gap: 10 }}>
-                <div className="capture-finish-row">
-                  <Button
-                    onClick={finalizeSession}
-                    disabled={busy || sessionItems.length === 0}
-                    className="rounded-[999px] border px-5 py-3 text-[0.95rem] font-medium"
-                    style={primaryButtonStyle}
-                  >
-                    {busy ? "Finishing…" : "Finish & Sign Evidence Record"}
-                  </Button>
-
-                  <Button
-                    variant="secondary"
-                    onClick={resetCaptureState}
-                    disabled={busy || sessionItems.length === 0}
-                    className="rounded-[999px] border px-5 py-3 text-[0.95rem] font-medium"
-                    style={secondaryButtonStyle}
-                  >
-                    Clear Session
-                  </Button>
-                </div>
                 </div>
               </div>
             </div>
