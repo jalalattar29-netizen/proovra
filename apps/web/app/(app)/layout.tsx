@@ -6,7 +6,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import { AppHeader } from "../../components/header";
 import { Icons } from "../../components/icons";
-import { Footer } from "../../components/Footer";
+import { AppFooter } from "../../components/AppFooter";
 import AnalyticsTracker from "../../components/analytics-tracker";
 import { apiFetch } from "../../lib/api";
 import { ProovraChatWidget } from "../../components/ai/ProovraChatWidget";
@@ -140,8 +140,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           </main>
 
           {!isAdminSurface ? <ProovraChatWidget /> : null}
-          {!isAdminSurface ? <Footer /> : null}
-
+{!isAdminSurface ? <AppFooter /> : null}
           {!isAdminSurface ? (
             <nav className="app-bottom-nav">
               <div className="container app-bottom-nav-inner">

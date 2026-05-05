@@ -19,8 +19,8 @@ export const AiFlagSchema = z.object({
   severity: z.enum(["info", "warning", "danger"]),
   title: z.string().min(1).max(200),
   detail: z.string().min(1).max(800),
-  affectedItemId: z.string().min(1).max(120).optional(),
-  affectedStepId: z.string().min(1).max(120).optional(),
+  affectedItemId: z.string().min(1).max(120).nullable().optional(),
+  affectedStepId: z.string().min(1).max(120).nullable().optional(),
 });
 
 export const AiResultSchema = z.object({

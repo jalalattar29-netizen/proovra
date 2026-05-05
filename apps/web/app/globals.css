@@ -4010,6 +4010,96 @@ html[dir="rtl"] .legal-content a::after {
   font-size: 0.88rem;
 }
 
+/* =========================================================
+   PROOVRA APP FOOTER — compact authenticated app footer
+   ========================================================= */
+
+.proovra-app-footer {
+  position: relative;
+  z-index: 2;
+  border-top: 1px solid rgba(183, 157, 132, 0.12);
+  background:
+    linear-gradient(180deg, rgba(8, 20, 24, 0.82), rgba(6, 14, 18, 0.94));
+  color: rgba(211, 223, 220, 0.72);
+}
+
+.proovra-app-footer-inner {
+  width: 100%;
+  max-width: 1280px;
+  min-height: 72px;
+  margin: 0 auto;
+  padding: 18px 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.proovra-app-footer-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  min-width: 0;
+  font-size: 0.86rem;
+  line-height: 1.5;
+}
+
+.proovra-app-footer-dot {
+  color: rgba(214, 184, 157, 0.7);
+}
+
+.proovra-app-footer-links {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 16px;
+  flex-wrap: wrap;
+  font-size: 0.84rem;
+}
+
+.proovra-app-footer-links a {
+  position: relative;
+  color: rgba(211, 223, 220, 0.78);
+  transition:
+    color 220ms ease,
+    text-shadow 220ms ease;
+}
+
+.proovra-app-footer-links a:hover {
+  color: #d6b89d;
+  text-shadow: 0 0 16px rgba(214, 184, 157, 0.16);
+}
+
+.proovra-app-footer-links a::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  bottom: -0.32rem;
+  width: 0;
+  height: 1px;
+  background: linear-gradient(90deg, #d6b89d, rgba(214, 184, 157, 0.08));
+  transition: width 220ms ease;
+}
+
+.proovra-app-footer-links a:hover::after {
+  width: 100%;
+}
+
+@media (max-width: 760px) {
+  .proovra-app-footer-inner {
+    min-height: auto;
+    padding: 18px;
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .proovra-app-footer-links {
+    justify-content: flex-start;
+    gap: 12px;
+  }
+}
+
 @media (max-width: 980px) {
   .proovra-enterprise-footer-top {
     grid-template-columns: 1fr;

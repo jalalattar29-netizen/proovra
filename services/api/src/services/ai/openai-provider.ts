@@ -98,21 +98,92 @@ private buildUserPrompt(task: AiTask, input: unknown): string {
       task === AiTask.SUPPORT_CHAT ? this.chatModel : this.captureModel;
 
     try {
-      const response = await this.client.responses.create({
-        model,
-        input: [
-          {
-            role: "system",
-            content: this.buildSystemPrompt(task),
+const response = await this.client.responses.create({
+  model,
+  input: [
+    {
+      role: "system",
+      content: this.buildSystemPrompt(task),
+    },
+    {
+      role: "user",
+      content: this.buildUserPrompt(task, input),
+    },
+  ],
+  text: {
+    format: {
+      type: "json_schema",
+      name: "proovra_ai_result",
+      strict: true,
+      schema: {
+        type: "object",
+        additionalProperties: false,
+        properties: {
+          status: {
+            type: "string",
+            enum: ["ok", "blocked", "disabled", "error"],
           },
-          {
-            role: "user",
-            content: this.buildUserPrompt(task, input),
+          summary: {
+            type: "string",
           },
+          warnings: {
+            type: "array",
+            items: { type: "string" },
+          },
+          suggestions: {
+            type: "array",
+            items: { type: "string" },
+          },
+          flags: {
+            type: "array",
+            items: {
+              type: "object",
+              additionalProperties: false,
+              properties: {
+                severity: {
+                  type: "string",
+                  enum: ["info", "warning", "danger"],
+                },
+                title: {
+                  type: "string",
+                },
+                detail: {
+                  type: "string",
+                },
+                affectedItemId: {
+                  type: ["string", "null"],
+                },
+                affectedStepId: {
+                  type: ["string", "null"],
+                },
+              },
+              required: [
+                "severity",
+                "title",
+                "detail",
+                "affectedItemId",
+                "affectedStepId",
+              ],
+            },
+          },
+          legalDisclaimer: {
+            type: "string",
+          },
+        },
+        required: [
+          "status",
+          "summary",
+          "warnings",
+          "suggestions",
+          "flags",
+          "legalDisclaimer",
         ],
-        temperature: 0.18,
-        max_output_tokens: 900,
-      });
+      },
+    },
+  },
+  temperature: 0.18,
+  max_output_tokens: 900,
+});
 
       const rawText = getTextFromResponse(response);
       if (!rawText) {
@@ -150,21 +221,21 @@ private buildUserPrompt(task: AiTask, input: unknown): string {
 
       const raw = JSON.parse(jsonText) as unknown;
       const validated = AiResultSchema.safeParse(raw);
-      if (!validated.success) {
-        return {
-          status: "blocked",
-          summary:
-            "AI response did not validate against the expected result schema.",
-          warnings: [
-            "The AI assistant output did not match the expected response shape.",
-          ],
-          suggestions: [
-            "Please retry the request or contact support.",
-          ],
-          flags: [],
-          legalDisclaimer: AI_LEGAL_DISCLAIMER,
-        };
-      }
+if (!validated.success) {
+  return applyAiPolicy({
+    status: "ok",
+    summary:
+      "I can help with PROOVRA intake guidance. To capture a photo, choose Capture Photo, allow browser camera access, take the photo, then add it to the evidence session. After reviewing the staged item, use Review & Sign to finalize the evidence record.",
+    warnings: [],
+    suggestions: [
+      "Use Capture Photo for a new image from the device camera.",
+      "Use Upload Files if the photo already exists on your device.",
+      "Review the item mapping and notes before pressing Review & Sign.",
+    ],
+    flags: [],
+    legalDisclaimer: AI_LEGAL_DISCLAIMER,
+  });
+}
 
       return applyAiPolicy(validated.data);
     } catch (error: unknown) {

@@ -80,8 +80,15 @@ function normalizeResult(result: Partial<AiResult>): AiResult {
           severity: flag?.severity as AiResult["flags"][number]["severity"],
           title: typeof flag?.title === "string" ? flag.title.trim() : "",
           detail: typeof flag?.detail === "string" ? flag.detail.trim() : "",
-          affectedItemId: typeof flag?.affectedItemId === "string" ? flag.affectedItemId.trim() : undefined,
-          affectedStepId: typeof flag?.affectedStepId === "string" ? flag.affectedStepId.trim() : undefined,
+affectedItemId:
+  typeof flag?.affectedItemId === "string" && flag.affectedItemId.trim()
+    ? flag.affectedItemId.trim()
+    : undefined,
+
+affectedStepId:
+  typeof flag?.affectedStepId === "string" && flag.affectedStepId.trim()
+    ? flag.affectedStepId.trim()
+    : undefined,
         }))
         .filter((flag) => flag.title && flag.detail)
     : [];
