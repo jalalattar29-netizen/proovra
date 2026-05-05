@@ -1,7 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { Button, Card } from "../ui";
+import { useState } from "react";
+import { Card } from "../ui";
 import { apiFetch, ApiError } from "../../lib/api";
 
 type ChatMessage = {
@@ -116,15 +116,6 @@ setMessages((prev) => [
       setBusy(false);
     }
   };
-
-  const emptyState = useMemo(
-    () => (
-      <div className="p-4 text-sm text-slate-300">
-        Start a short conversation about capture guidance, evidence intake quality, or metadata checks.
-      </div>
-    ),
-    []
-  );
 
   return (
     <div className="fixed right-4 bottom-[92px] z-50 flex flex-col items-end gap-3 sm:right-6 sm:bottom-6">

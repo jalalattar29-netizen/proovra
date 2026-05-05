@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Button, Card } from "../ui";
+import { Card } from "../ui";
 import { apiFetch, ApiError } from "../../lib/api";
 
 type EvidenceType = "PHOTO" | "VIDEO" | "AUDIO" | "DOCUMENT";
