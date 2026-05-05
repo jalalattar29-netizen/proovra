@@ -3,8 +3,6 @@
  * Handles analysis of multiple evidence items with progress tracking and aggregation
  */
 
-import { aiService } from "./ai.service.js";
-
 export enum BatchStatus {
   PENDING = "pending",
   PROCESSING = "processing",
@@ -121,23 +119,42 @@ class BatchAnalysisService {
           item.startedAt = new Date();
 
           try {
-            // Get evidence image URL
-            let imageUrl = `https://storage.example.com/evidence/${item.evidenceId}`;
-            if (evidenceGetter) {
-              const evidence = await evidenceGetter(item.evidenceId);
-              if (evidence?.storageBucket && evidence?.storageKey) {
-                imageUrl = `https://storage.example.com/${evidence.storageBucket}/${evidence.storageKey}`;
-              }
-            }
+// Privacy-safe legacy batch result.
+// Do not send raw files, image URLs, storage keys, PDFs, videos, or document
+// contents to AI from this legacy batch service. New AI analysis must go
+// through /v1/ai/capture/* metadata-only endpoints.
+let evidenceMetadata: Record<string, unknown> = {};
 
-            // Run analysis
-            const analysisResult = await aiService.analyzeEvidence(
-              imageUrl,
-              "evidence"
-            );
+if (evidenceGetter) {
+  const evidence = await evidenceGetter(item.evidenceId);
 
-            item.status = "completed";
-            item.result = analysisResult;
+  evidenceMetadata = {
+    id: item.evidenceId,
+    type: evidence?.type ?? null,
+    mimeType: evidence?.mimeType ?? null,
+    status: evidence?.status ?? null,
+    verificationStatus: evidence?.verificationStatus ?? null,
+    createdAt: evidence?.createdAt ?? null,
+    sizeBytes:
+      typeof evidence?.sizeBytes === "bigint"
+        ? evidence.sizeBytes.toString()
+        : evidence?.sizeBytes ?? null,
+    hasStorageObject: Boolean(evidence?.storageBucket && evidence?.storageKey),
+  };
+}
+
+item.status = "completed";
+item.result = {
+  status: "completed",
+  analysisMode: "metadata_only_legacy_batch",
+  summary:
+    "Legacy batch analysis completed without sending raw evidence content to AI.",
+  evidence: evidenceMetadata,
+  warnings: [
+    "This legacy batch service does not determine factual truth, authorship, authenticity, or legal admissibility.",
+    "Use the capture AI assistant for metadata-only intake review.",
+  ],
+};
             item.completedAt = new Date();
             job.processedItems++;
           } catch (error) {
