@@ -267,14 +267,14 @@ const missing = analysis.flags
           ) : null}
 
           <div className="grid gap-3">
-            <Button
-              onClick={handleAnalyze}
-              disabled={!canAnalyze || loading || unavailable}
-              variant="primary"
-              className="rounded-full border border-[rgba(183,157,132,0.24)] bg-[linear-gradient(180deg,#3a5d61,#203a3f)] px-4 py-3 text-sm font-extrabold text-[#f4f7f6] shadow-[0_14px_30px_rgba(15,23,42,0.16)]"
-            >
-              {loading ? "Analyzing…" : "Review session with AI"}
-            </Button>
+<button
+  type="button"
+  onClick={handleAnalyze}
+  disabled={!canAnalyze || loading || unavailable}
+  className="rounded-full border border-[rgba(183,157,132,0.28)] bg-[linear-gradient(180deg,#3a5d61,#203a3f)] px-4 py-3 text-sm font-extrabold text-[#f4f7f6] shadow-[0_14px_30px_rgba(15,23,42,0.16)] disabled:cursor-not-allowed disabled:opacity-50"
+>
+  {loading ? "Analyzing…" : "Review session with AI"}
+</button>
 
             <div className="grid gap-3">
               <div className="rounded-3xl border border-[rgba(58,93,97,0.12)] bg-white p-4 shadow-sm">

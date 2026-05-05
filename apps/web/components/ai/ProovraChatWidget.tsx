@@ -85,7 +85,6 @@ const assistantMessage = result
             .map((flag) => `• [${flag.severity}] ${flag.title}: ${flag.detail}`)
             .join("\n")}`
         : "",
-      result.legalDisclaimer,
     ]
       .filter(Boolean)
       .join("\n\n")
@@ -130,36 +129,47 @@ setMessages((prev) => [
   return (
     <div className="fixed right-4 bottom-[92px] z-50 flex flex-col items-end gap-3 sm:right-6 sm:bottom-6">
       {open ? (
-<Card className="w-screen max-w-[420px] overflow-hidden rounded-[28px] border border-[rgba(36,55,59,0.12)] bg-[#fbfcfb] p-0 shadow-[0_28px_70px_rgba(15,23,42,0.18)] sm:w-[420px]">
-<div className="flex items-center justify-between gap-3 border-b border-[rgba(36,55,59,0.10)] bg-[#f5f7f5] px-4 py-3">
-                <div>
-<div className="text-sm font-extrabold text-[#12252a]">PROOVRA AI chat</div>
-<div className="text-xs leading-5 text-[#647174]">
-                    Advisory support only. Not legal, admissibility, or authenticity verification.
+        <Card className="w-screen max-w-[420px] overflow-hidden rounded-[28px] border border-[rgba(58,93,97,0.18)] bg-[#fbfcfb] p-0 shadow-[0_24px_70px_rgba(15,23,42,0.20)] sm:w-[420px]">
+          <div className="border-b border-[rgba(36,55,59,0.10)] bg-[linear-gradient(180deg,#f9fbfa,#eef4f2)] px-4 py-4">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <div className="text-[0.95rem] font-extrabold tracking-[-0.02em] text-[#12252a]">
+                  PROOVRA AI Assistant
+                </div>
+                <div className="mt-1 text-[0.72rem] leading-5 text-[#6a777a]">
+                  Advisory support only. Not legal or factual determination.
+                </div>
               </div>
+
+              <button
+                type="button"
+                onClick={() => setOpen(false)}
+                className="rounded-full border border-[rgba(58,93,97,0.14)] bg-white px-3 py-1 text-xs font-bold text-[#3a5d61] shadow-sm"
+              >
+                Close
+              </button>
             </div>
-            <button
-              type="button"
-              onClick={() => setOpen(false)}
-className="rounded-full border border-[rgba(58,93,97,0.18)] bg-white px-3 py-1 text-xs font-bold text-[#3a5d61] shadow-sm hover:bg-[#edf8f6]"
-            >
-              Close
-            </button>
           </div>
 
-<div className="max-h-[360px] overflow-y-auto bg-[#fbfcfb] px-4 py-3">
-                {hasMessages ? (
+          <div className="max-h-[360px] overflow-y-auto bg-[#f7faf8] px-4 py-3">
+            {hasMessages ? (
               <div className="space-y-3">
                 {messages.map((message, index) => (
                   <div
                     key={`${message.role}-${index}`}
-                    className={`rounded-2xl border px-3 py-2 text-sm ${
-message.role === "assistant"
-  ? "border-[rgba(58,93,97,0.14)] bg-[#f1f6f4] text-[#24373b]"
-  : "self-end border-[rgba(183,157,132,0.22)] bg-[linear-gradient(180deg,#3a5d61,#203a3f)] text-[#f4f7f6]"
+                    className={`rounded-2xl border px-3 py-3 text-sm shadow-sm ${
+                      message.role === "assistant"
+                        ? "border-[rgba(58,93,97,0.14)] bg-white text-[#24373b]"
+                        : "border-[rgba(58,93,97,0.22)] bg-[linear-gradient(180deg,#3a5d61,#243f44)] text-[#f4f7f6]"
                     }`}
                   >
-                    <div className="text-[0.68rem] font-black uppercase tracking-[0.16em] text-[#8f745c]">
+                    <div
+                      className={`text-[0.68rem] font-black uppercase tracking-[0.16em] ${
+                        message.role === "assistant"
+                          ? "text-[#8f745c]"
+                          : "text-[#e6c9ae]"
+                      }`}
+                    >
                       {message.role === "assistant" ? "Assistant" : "You"}
                     </div>
                     <div className="mt-1 whitespace-pre-wrap leading-6">
@@ -169,19 +179,21 @@ message.role === "assistant"
                 ))}
               </div>
             ) : (
-              emptyState
+              <div className="rounded-2xl border border-[rgba(58,93,97,0.12)] bg-white p-4 text-sm leading-6 text-[#526164] shadow-sm">
+                Ask about capture steps, upload options, evidence intake quality, or metadata checks.
+              </div>
             )}
           </div>
 
-          <div className="border-t border-[rgba(36,55,59,0.10)] px-4 py-3">
+          <div className="border-t border-[rgba(36,55,59,0.10)] bg-white px-4 py-3">
             {error ? (
-              <div className="mb-3 rounded-2xl bg-slate-900 px-3 py-2 text-sm text-rose-200">
+              <div className="mb-3 rounded-2xl border border-rose-500/20 bg-rose-50 px-3 py-2 text-sm text-rose-800">
                 {error}
               </div>
             ) : null}
 
             {unavailable ? (
-              <div className="mb-3 rounded-2xl bg-slate-900 px-3 py-2 text-sm text-slate-300">
+              <div className="mb-3 rounded-2xl border border-[rgba(183,157,132,0.24)] bg-[#faf6f1] px-3 py-2 text-sm text-[#705f50]">
                 AI assistant unavailable. You can continue capture normally.
               </div>
             ) : null}
@@ -191,33 +203,37 @@ message.role === "assistant"
                 value={draft}
                 onChange={(event) => setDraft(event.target.value)}
                 rows={3}
-                placeholder="Ask the AI about your capture session..."
-className="w-full rounded-2xl border border-[rgba(36,55,59,0.12)] bg-white px-3 py-2 text-sm text-[#12252a] outline-none placeholder:text-[#8b989c] focus:border-[rgba(58,93,97,0.35)] focus:ring-4 focus:ring-[rgba(58,93,97,0.10)]"
+                placeholder="Ask about capture, upload, or review steps..."
+                className="w-full rounded-2xl border border-[rgba(58,93,97,0.16)] bg-[#fbfcfb] px-3 py-3 text-sm text-[#12252a] outline-none placeholder:text-[#8b989c] focus:border-[rgba(58,93,97,0.34)] focus:ring-4 focus:ring-[rgba(58,93,97,0.08)]"
                 disabled={busy || unavailable}
               />
+
               <div className="flex items-center justify-between gap-3">
-<div className="text-xs text-[#647174]">AI answers are advisory only.</div>
-                <Button
-                  variant="primary"
+                <div className="text-xs text-[#7a878a]">
+                  Advisory only.
+                </div>
+
+                <button
+                  type="button"
                   onClick={handleSend}
                   disabled={!canSend}
-                  className="rounded-full px-4 py-2 text-sm"
+                  className="rounded-full border border-[rgba(183,157,132,0.28)] bg-[linear-gradient(180deg,#3a5d61,#203a3f)] px-5 py-2.5 text-sm font-extrabold text-[#f4f7f6] shadow-[0_12px_26px_rgba(15,23,42,0.16)] disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {busy ? "Sending…" : "Send"}
-                </Button>
+                </button>
               </div>
             </div>
           </div>
         </Card>
       ) : null}
 
-      <Button
-        variant="secondary"
+      <button
+        type="button"
         onClick={() => setOpen((prev) => !prev)}
-className="rounded-full border border-[rgba(183,157,132,0.24)] bg-[linear-gradient(180deg,#3a5d61,#203a3f)] px-4 py-3 text-sm font-extrabold text-[#f4f7f6] shadow-[0_18px_42px_rgba(15,23,42,0.22)] hover:border-[rgba(214,184,157,0.36)]"
+        className="rounded-full border border-[rgba(183,157,132,0.28)] bg-[linear-gradient(180deg,#3a5d61,#203a3f)] px-5 py-3 text-sm font-extrabold text-[#f4f7f6] shadow-[0_16px_36px_rgba(15,23,42,0.22)] hover:brightness-105"
       >
-        {open ? "Hide AI" : "Open AI Chat"}
-      </Button>
+        {open ? "Hide AI" : "Open AI Assistant"}
+      </button>
     </div>
   );
 }
