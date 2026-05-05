@@ -130,36 +130,36 @@ setMessages((prev) => [
   return (
     <div className="fixed right-4 bottom-[92px] z-50 flex flex-col items-end gap-3 sm:right-6 sm:bottom-6">
       {open ? (
-        <Card className="max-w-[420px] w-screen sm:w-[420px] overflow-hidden border border-slate-700 bg-slate-950/95 shadow-2xl shadow-slate-900/30">
-          <div className="flex items-center justify-between gap-3 border-b border-slate-800 px-4 py-3">
-            <div>
-              <div className="text-sm font-semibold text-slate-50">PROOVRA AI chat</div>
-              <div className="text-xs text-slate-400">
-                Advisory support only. Not legal, admissibility, or authenticity verification.
+<Card className="w-screen max-w-[420px] overflow-hidden rounded-[28px] border border-[rgba(36,55,59,0.12)] bg-[#fbfcfb] p-0 shadow-[0_28px_70px_rgba(15,23,42,0.18)] sm:w-[420px]">
+<div className="flex items-center justify-between gap-3 border-b border-[rgba(36,55,59,0.10)] bg-[#f5f7f5] px-4 py-3">
+                <div>
+<div className="text-sm font-extrabold text-[#12252a]">PROOVRA AI chat</div>
+<div className="text-xs leading-5 text-[#647174]">
+                    Advisory support only. Not legal, admissibility, or authenticity verification.
               </div>
             </div>
             <button
               type="button"
               onClick={() => setOpen(false)}
-              className="rounded-full border border-slate-700 bg-slate-900 px-3 py-1 text-xs font-semibold text-slate-200"
+className="rounded-full border border-[rgba(58,93,97,0.18)] bg-white px-3 py-1 text-xs font-bold text-[#3a5d61] shadow-sm hover:bg-[#edf8f6]"
             >
               Close
             </button>
           </div>
 
-          <div className="max-h-[360px] overflow-y-auto px-4 py-3">
-            {hasMessages ? (
+<div className="max-h-[360px] overflow-y-auto bg-[#fbfcfb] px-4 py-3">
+                {hasMessages ? (
               <div className="space-y-3">
                 {messages.map((message, index) => (
                   <div
                     key={`${message.role}-${index}`}
                     className={`rounded-2xl border px-3 py-2 text-sm ${
-                      message.role === "assistant"
-                        ? "border-slate-700 bg-slate-900 text-slate-100"
-                        : "border-slate-800 bg-slate-950 text-slate-200 self-end"
+message.role === "assistant"
+  ? "border-[rgba(58,93,97,0.14)] bg-[#f1f6f4] text-[#24373b]"
+  : "self-end border-[rgba(183,157,132,0.22)] bg-[linear-gradient(180deg,#3a5d61,#203a3f)] text-[#f4f7f6]"
                     }`}
                   >
-                    <div className="font-semibold text-[0.75rem] uppercase tracking-[0.14em] text-slate-500">
+                    <div className="text-[0.68rem] font-black uppercase tracking-[0.16em] text-[#8f745c]">
                       {message.role === "assistant" ? "Assistant" : "You"}
                     </div>
                     <div className="mt-1 whitespace-pre-wrap leading-6">
@@ -173,7 +173,7 @@ setMessages((prev) => [
             )}
           </div>
 
-          <div className="border-t border-slate-800 px-4 py-3">
+          <div className="border-t border-[rgba(36,55,59,0.10)] px-4 py-3">
             {error ? (
               <div className="mb-3 rounded-2xl bg-slate-900 px-3 py-2 text-sm text-rose-200">
                 {error}
@@ -192,11 +192,11 @@ setMessages((prev) => [
                 onChange={(event) => setDraft(event.target.value)}
                 rows={3}
                 placeholder="Ask the AI about your capture session..."
-                className="w-full rounded-2xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none placeholder:text-slate-500"
+className="w-full rounded-2xl border border-[rgba(36,55,59,0.12)] bg-white px-3 py-2 text-sm text-[#12252a] outline-none placeholder:text-[#8b989c] focus:border-[rgba(58,93,97,0.35)] focus:ring-4 focus:ring-[rgba(58,93,97,0.10)]"
                 disabled={busy || unavailable}
               />
               <div className="flex items-center justify-between gap-3">
-                <div className="text-xs text-slate-500">AI answers are advisory only.</div>
+<div className="text-xs text-[#647174]">AI answers are advisory only.</div>
                 <Button
                   variant="primary"
                   onClick={handleSend}
@@ -214,7 +214,7 @@ setMessages((prev) => [
       <Button
         variant="secondary"
         onClick={() => setOpen((prev) => !prev)}
-        className="rounded-full border border-slate-700 bg-slate-950/95 px-4 py-3 text-sm font-semibold text-slate-100 shadow-xl shadow-slate-900/40"
+className="rounded-full border border-[rgba(183,157,132,0.24)] bg-[linear-gradient(180deg,#3a5d61,#203a3f)] px-4 py-3 text-sm font-extrabold text-[#f4f7f6] shadow-[0_18px_42px_rgba(15,23,42,0.22)] hover:border-[rgba(214,184,157,0.36)]"
       >
         {open ? "Hide AI" : "Open AI Chat"}
       </Button>

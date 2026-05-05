@@ -41,11 +41,28 @@ export class AiChatService {
       };
     }
 
-    const result = await this.provider.run(AiTask.SUPPORT_CHAT, payload);
-    if (result.status === "ok") {
-      this.costGuard.recordChatMessage(userId);
-    }
+const result = await this.provider.run(AiTask.SUPPORT_CHAT, payload);
 
-    return result;
-  }
+const cleanedResult: AiResult = {
+  ...result,
+  warnings:
+    result.status === "ok"
+      ? result.warnings.slice(0, 1)
+      : result.warnings,
+  suggestions:
+    result.status === "ok"
+      ? result.suggestions.slice(0, 2)
+      : result.suggestions,
+  flags:
+    result.status === "ok"
+      ? []
+      : result.flags,
+};
+
+if (cleanedResult.status === "ok") {
+  this.costGuard.recordChatMessage(userId);
+}
+
+return cleanedResult;
+}
 }

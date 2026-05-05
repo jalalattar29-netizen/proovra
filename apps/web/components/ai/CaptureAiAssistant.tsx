@@ -214,49 +214,54 @@ const missing = analysis.flags
   }, [analysis]);
 
   return (
-    <Card className="rounded-3xl border border-slate-700 bg-slate-950/95 p-0 shadow-xl shadow-slate-900/15">
+    <Card className="rounded-[28px] border border-[rgba(36,55,59,0.12)] bg-[#fbfcfb] p-0 shadow-[0_18px_46px_rgba(15,23,42,0.10)]">
       <button
         type="button"
         onClick={() => setOpen(!isOpen)}
-        className="w-full rounded-[24px] border-b border-slate-800 bg-slate-900 px-4 py-4 text-left text-sm font-semibold text-slate-100"
+        className="w-full rounded-[26px] border-b border-[rgba(36,55,59,0.10)] bg-[linear-gradient(180deg,#3a5d61,#203a3f)] px-4 py-4 text-left text-sm font-extrabold text-[#f4f7f6]"
       >
         <div className="flex items-center justify-between gap-4">
           <span>Capture AI assistant</span>
-          <span className="text-slate-400">{isOpen ? "Hide" : "Show"}</span>
+          <span className="text-[#e6c9ae]">{isOpen ? "Hide" : "Show"}</span>
         </div>
       </button>
 
       {isOpen ? (
         <div className="space-y-4 px-4 py-4">
-          <div className="rounded-3xl border border-slate-800 bg-slate-900/80 p-4 text-sm leading-6 text-slate-300">
+          <div className="rounded-3xl border border-[rgba(58,93,97,0.14)] bg-[#f1f6f4] p-4 text-sm leading-6 text-[#425458]">
             This assistant provides intake guidance only. It does not determine legal admissibility, authenticity, or the factual truth of an event.
           </div>
 
           <div className="grid gap-3 sm:grid-cols-2">
-            <div className="rounded-3xl border border-slate-800 bg-slate-900/80 p-4">
-              <div className="text-xs uppercase tracking-[0.18em] text-slate-400">Plan</div>
-              <div className="mt-2 text-sm font-semibold text-slate-100">
+            <div className="rounded-3xl border border-[rgba(58,93,97,0.12)] bg-white p-4 shadow-sm">
+              <div className="text-xs font-black uppercase tracking-[0.18em] text-[#8f745c]">Plan</div>
+              <div className="mt-2 text-sm font-extrabold text-[#12252a]">
                 {collectionPlan?.name ?? "No plan selected"}
               </div>
-              <div className="mt-1 text-sm text-slate-400">{collectionPlan?.locationRequirement ?? "optional"} location</div>
+              <div className="mt-1 text-sm text-[#647174]">
+                {collectionPlan?.locationRequirement ?? "optional"} location
+              </div>
             </div>
-            <div className="rounded-3xl border border-slate-800 bg-slate-900/80 p-4">
-              <div className="text-xs uppercase tracking-[0.18em] text-slate-400">Session</div>
-              <div className="mt-2 text-sm font-semibold text-slate-100">{summary.totalItems} item(s)</div>
-              <div className="mt-1 text-sm text-slate-400">
+
+            <div className="rounded-3xl border border-[rgba(58,93,97,0.12)] bg-white p-4 shadow-sm">
+              <div className="text-xs font-black uppercase tracking-[0.18em] text-[#8f745c]">Session</div>
+              <div className="mt-2 text-sm font-extrabold text-[#12252a]">
+                {summary.totalItems} item(s)
+              </div>
+              <div className="mt-1 text-sm text-[#647174]">
                 {summary.requiredStepsCompleted} / {summary.requiredStepsTotal} required steps complete
               </div>
             </div>
           </div>
 
           {error ? (
-            <div className="rounded-3xl border border-rose-500/30 bg-rose-500/5 p-3 text-sm text-rose-200">
+            <div className="rounded-3xl border border-rose-500/20 bg-rose-50 p-3 text-sm text-rose-800">
               {error}
             </div>
           ) : null}
 
           {unavailable ? (
-            <div className="rounded-3xl border border-slate-700 bg-slate-900/80 p-3 text-sm text-slate-300">
+            <div className="rounded-3xl border border-[rgba(183,157,132,0.22)] bg-[#faf6f1] p-3 text-sm text-[#705f50]">
               AI assistant unavailable. Continue capture and finish normally.
             </div>
           ) : null}
@@ -266,46 +271,47 @@ const missing = analysis.flags
               onClick={handleAnalyze}
               disabled={!canAnalyze || loading || unavailable}
               variant="primary"
-              className="rounded-full px-4 py-3 text-sm"
+              className="rounded-full border border-[rgba(183,157,132,0.24)] bg-[linear-gradient(180deg,#3a5d61,#203a3f)] px-4 py-3 text-sm font-extrabold text-[#f4f7f6] shadow-[0_14px_30px_rgba(15,23,42,0.16)]"
             >
               {loading ? "Analyzing…" : "Review session with AI"}
             </Button>
 
             <div className="grid gap-3">
-              <div className="rounded-3xl border border-slate-800 bg-slate-900/80 p-4">
-                <div className="text-xs uppercase tracking-[0.18em] text-slate-400">Missing requirements</div>
+              <div className="rounded-3xl border border-[rgba(58,93,97,0.12)] bg-white p-4 shadow-sm">
+                <div className="text-xs font-black uppercase tracking-[0.18em] text-[#8f745c]">Missing requirements</div>
                 {missingCard.map((item, index) => (
-                  <div key={index} className="mt-2 text-sm text-slate-200">
+                  <div key={index} className="mt-2 text-sm leading-6 text-[#24373b]">
                     • {item}
                   </div>
                 ))}
               </div>
 
-              <div className="rounded-3xl border border-slate-800 bg-slate-900/80 p-4">
-                <div className="text-xs uppercase tracking-[0.18em] text-slate-400">Risk flags</div>
+              <div className="rounded-3xl border border-[rgba(58,93,97,0.12)] bg-white p-4 shadow-sm">
+                <div className="text-xs font-black uppercase tracking-[0.18em] text-[#8f745c]">Risk flags</div>
                 {riskCard.map((item, index) => (
-                  <div key={index} className="mt-2 text-sm text-slate-200">
+                  <div key={index} className="mt-2 text-sm leading-6 text-[#24373b]">
                     • {item}
                   </div>
                 ))}
               </div>
-              {analysis?.flags?.length ? (
-  <div className="rounded-3xl border border-slate-800 bg-slate-900/80 p-4">
-    <div className="text-xs uppercase tracking-[0.18em] text-slate-400">
-      Detailed AI flags
-    </div>
-    {analysis.flags.map((flag, index) => (
-      <div key={`${flag.title}-${index}`} className="mt-2 text-sm text-slate-200">
-        • [{flag.severity}] {flag.title}: {flag.detail}
-      </div>
-    ))}
-  </div>
-) : null}
 
-              <div className="rounded-3xl border border-slate-800 bg-slate-900/80 p-4">
-                <div className="text-xs uppercase tracking-[0.18em] text-slate-400">Suggested next actions</div>
+              {analysis?.flags?.length ? (
+                <div className="rounded-3xl border border-[rgba(58,93,97,0.12)] bg-white p-4 shadow-sm">
+                  <div className="text-xs font-black uppercase tracking-[0.18em] text-[#8f745c]">
+                    Detailed AI flags
+                  </div>
+                  {analysis.flags.map((flag, index) => (
+                    <div key={`${flag.title}-${index}`} className="mt-2 text-sm leading-6 text-[#24373b]">
+                      • [{flag.severity}] {flag.title}: {flag.detail}
+                    </div>
+                  ))}
+                </div>
+              ) : null}
+
+              <div className="rounded-3xl border border-[rgba(58,93,97,0.12)] bg-white p-4 shadow-sm">
+                <div className="text-xs font-black uppercase tracking-[0.18em] text-[#8f745c]">Suggested next actions</div>
                 {actionCard.map((item, index) => (
-                  <div key={index} className="mt-2 text-sm text-slate-200">
+                  <div key={index} className="mt-2 text-sm leading-6 text-[#24373b]">
                     • {item}
                   </div>
                 ))}
