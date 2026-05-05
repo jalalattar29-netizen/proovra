@@ -1,0 +1,78 @@
+
+> proovra-api@1.0.0 prebuild D:\digital-witness\services\api
+> pnpm --filter @proovra/shared build && pnpm --filter @proovra/shared-evidence-presentation build && pnpm --filter @proovra/shared-billing build
+
+
+> @proovra/shared@1.0.0 build D:\digital-witness\packages\shared
+> tsc -p tsconfig.build.json
+
+
+> @proovra/shared-evidence-presentation@1.0.0 build D:\digital-witness\packages\shared-evidence-presentation
+> tsc -p tsconfig.build.json
+
+
+> @proovra/shared-billing@1.0.0 build D:\digital-witness\packages\shared-billing
+> pnpm exec tsc -p tsconfig.json
+
+
+> proovra-api@1.0.0 build D:\digital-witness\services\api
+> tsc -p tsconfig.build.json
+
+src/routes/ai.routes.ts(162,5): error TS2345: Argument of type '(req: AuthenticatedRequest<{ id: string; }>) => Promise<{ data: { id: string; evidenceId: string; classification: ClassificationResult; metadata: MetadataExtractionResult; description: DescriptionResult; moderation: ModerationResult; tags: TagSuggestionResult; createdAt: Date; }; }>' is not assignable to parameter of type 'RouteHandlerMethod<RawServerDefault, IncomingMessage, ServerResponse<IncomingMessage>, { Params: { id: string; }; }, unknown, FastifySchema, FastifyTypeProviderDefault, FastifyBaseLogger>'.
+  Types of parameters 'req' and 'request' are incompatible.
+    Type 'FastifyRequest<{ Params: { id: string; }; }, RawServerDefault, IncomingMessage, FastifySchema, FastifyTypeProviderDefault, unknown, FastifyBaseLogger, ResolveFastifyRequestType<...>>' is not assignable to type 'AuthenticatedRequest<{ id: string; }, unknown, unknown>'.
+      Type 'FastifyRequest<{ Params: { id: string; }; }, RawServerDefault, IncomingMessage, FastifySchema, FastifyTypeProviderDefault, unknown, FastifyBaseLogger, ResolveFastifyRequestType<...>>' is not assignable to type 'FastifyRequest<{ Params: { id: string; }; Body: unknown; Querystring: unknown; }, RawServerDefault, IncomingMessage, FastifySchema, FastifyTypeProviderDefault, unknown, FastifyBaseLogger, ResolveFastifyRequestType<...>>'.
+        Type '{ Params: { id: string; }; }' is missing the following properties from type '{ Params: { id: string; }; Body: unknown; Querystring: unknown; }': Body, Querystring
+src/routes/ai.routes.ts(251,5): error TS2345: Argument of type '(req: AuthenticatedRequest<{ id: string; }>) => Promise<{ data: null; message: string; } | { data: EvidenceAnalysisCacheEntry; message?: undefined; }>' is not assignable to parameter of type 'RouteHandlerMethod<RawServerDefault, IncomingMessage, ServerResponse<IncomingMessage>, { Params: { id: string; }; }, unknown, FastifySchema, FastifyTypeProviderDefault, FastifyBaseLogger>'.
+  Types of parameters 'req' and 'request' are incompatible.
+    Type 'FastifyRequest<{ Params: { id: string; }; }, RawServerDefault, IncomingMessage, FastifySchema, FastifyTypeProviderDefault, unknown, FastifyBaseLogger, ResolveFastifyRequestType<...>>' is not assignable to type 'AuthenticatedRequest<{ id: string; }, unknown, unknown>'.
+      Type 'FastifyRequest<{ Params: { id: string; }; }, RawServerDefault, IncomingMessage, FastifySchema, FastifyTypeProviderDefault, unknown, FastifyBaseLogger, ResolveFastifyRequestType<...>>' is not assignable to type 'FastifyRequest<{ Params: { id: string; }; Body: unknown; Querystring: unknown; }, RawServerDefault, IncomingMessage, FastifySchema, FastifyTypeProviderDefault, unknown, FastifyBaseLogger, ResolveFastifyRequestType<...>>'.
+        Type '{ Params: { id: string; }; }' is missing the following properties from type '{ Params: { id: string; }; Body: unknown; Querystring: unknown; }': Body, Querystring
+src/routes/ai.routes.ts(303,5): error TS2345: Argument of type '(req: AuthenticatedRequest<{ id: string; }>) => Promise<{ data: { tags: string[]; confidence: Record<string, number>; }; }>' is not assignable to parameter of type 'RouteHandlerMethod<RawServerDefault, IncomingMessage, ServerResponse<IncomingMessage>, { Params: { id: string; }; }, unknown, FastifySchema, FastifyTypeProviderDefault, FastifyBaseLogger>'.
+  Types of parameters 'req' and 'request' are incompatible.
+    Type 'FastifyRequest<{ Params: { id: string; }; }, RawServerDefault, IncomingMessage, FastifySchema, FastifyTypeProviderDefault, unknown, FastifyBaseLogger, ResolveFastifyRequestType<...>>' is not assignable to type 'AuthenticatedRequest<{ id: string; }, unknown, unknown>'.
+      Type 'FastifyRequest<{ Params: { id: string; }; }, RawServerDefault, IncomingMessage, FastifySchema, FastifyTypeProviderDefault, unknown, FastifyBaseLogger, ResolveFastifyRequestType<...>>' is not assignable to type 'FastifyRequest<{ Params: { id: string; }; Body: unknown; Querystring: unknown; }, RawServerDefault, IncomingMessage, FastifySchema, FastifyTypeProviderDefault, unknown, FastifyBaseLogger, ResolveFastifyRequestType<...>>'.
+        Type '{ Params: { id: string; }; }' is missing the following properties from type '{ Params: { id: string; }; Body: unknown; Querystring: unknown; }': Body, Querystring
+src/routes/ai.routes.ts(374,5): error TS2345: Argument of type '(req: AuthenticatedRequest) => Promise<{ data: { total_analyzed: number; total_evidence: number; classification_distribution: Record<string, number>; moderation_distribution: Record<...>; top_tags: { ...; }[]; api_usage: { ...; }; recent_analyses: { ...; }[]; }; }>' is not assignable to parameter of type 'RouteHandlerMethod<RawServerDefault, IncomingMessage, ServerResponse<IncomingMessage>, RouteGenericInterface, unknown, FastifySchema, FastifyTypeProviderDefault, FastifyBaseLogger>'.
+  Types of parameters 'req' and 'request' are incompatible.
+    Type 'FastifyRequest<RouteGenericInterface, RawServerDefault, IncomingMessage, FastifySchema, FastifyTypeProviderDefault, unknown, FastifyBaseLogger, ResolveFastifyRequestType<...>>' is not assignable to type 'AuthenticatedRequest<Record<string, unknown>, unknown, unknown>'.
+      Type 'FastifyRequest<RouteGenericInterface, RawServerDefault, IncomingMessage, FastifySchema, FastifyTypeProviderDefault, unknown, FastifyBaseLogger, ResolveFastifyRequestType<...>>' is not assignable to type 'FastifyRequest<{ Params: Record<string, unknown>; Body: unknown; Querystring: unknown; }, RawServerDefault, IncomingMessage, FastifySchema, FastifyTypeProviderDefault, unknown, FastifyBaseLogger, ResolveFastifyRequestType<...>>'.
+        Type 'RouteGenericInterface' is not assignable to type '{ Params: Record<string, unknown>; Body: unknown; Querystring: unknown; }'.
+          Types of property 'Params' are incompatible.
+            Type 'unknown' is not assignable to type 'Record<string, unknown>'.
+src/routes/ai.routes.ts(485,5): error TS2345: Argument of type '(req: AuthenticatedRequest<{ id: string; }>) => Promise<{ data: { is_safe: boolean; risk_level: "safe" | "low_risk" | "medium_risk" | "high_risk"; flags: string[]; confidence: number; recommendation: string; }; }>' is not assignable to parameter of type 'RouteHandlerMethod<RawServerDefault, IncomingMessage, ServerResponse<IncomingMessage>, { Params: { id: string; }; }, unknown, FastifySchema, FastifyTypeProviderDefault, FastifyBaseLogger>'.
+  Types of parameters 'req' and 'request' are incompatible.
+    Type 'FastifyRequest<{ Params: { id: string; }; }, RawServerDefault, IncomingMessage, FastifySchema, FastifyTypeProviderDefault, unknown, FastifyBaseLogger, ResolveFastifyRequestType<...>>' is not assignable to type 'AuthenticatedRequest<{ id: string; }, unknown, unknown>'.
+      Type 'FastifyRequest<{ Params: { id: string; }; }, RawServerDefault, IncomingMessage, FastifySchema, FastifyTypeProviderDefault, unknown, FastifyBaseLogger, ResolveFastifyRequestType<...>>' is not assignable to type 'FastifyRequest<{ Params: { id: string; }; Body: unknown; Querystring: unknown; }, RawServerDefault, IncomingMessage, FastifySchema, FastifyTypeProviderDefault, unknown, FastifyBaseLogger, ResolveFastifyRequestType<...>>'.
+        Type '{ Params: { id: string; }; }' is missing the following properties from type '{ Params: { id: string; }; Body: unknown; Querystring: unknown; }': Body, Querystring
+src/routes/ai.routes.ts(628,66): error TS2345: Argument of type '(req: AuthenticatedRequest) => Promise<{ data: { status: "error" | "ok" | "blocked" | "disabled"; summary: string; warnings: string[]; suggestions: string[]; flags: { severity: "info" | "warning" | "danger"; title: string; detail: string; affectedItemId?: string | undefined; affectedStepId?: string | undefined; }[];...' is not assignable to parameter of type 'RouteHandlerMethod<RawServerDefault, IncomingMessage, ServerResponse<IncomingMessage>, RouteGenericInterface, unknown, FastifySchema, FastifyTypeProviderDefault, FastifyBaseLogger>'.
+  Types of parameters 'req' and 'request' are incompatible.
+    Type 'FastifyRequest<RouteGenericInterface, RawServerDefault, IncomingMessage, FastifySchema, FastifyTypeProviderDefault, unknown, FastifyBaseLogger, ResolveFastifyRequestType<...>>' is not assignable to type 'AuthenticatedRequest<Record<string, unknown>, unknown, unknown>'.
+      Type 'FastifyRequest<RouteGenericInterface, RawServerDefault, IncomingMessage, FastifySchema, FastifyTypeProviderDefault, unknown, FastifyBaseLogger, ResolveFastifyRequestType<...>>' is not assignable to type 'FastifyRequest<{ Params: Record<string, unknown>; Body: unknown; Querystring: unknown; }, RawServerDefault, IncomingMessage, FastifySchema, FastifyTypeProviderDefault, unknown, FastifyBaseLogger, ResolveFastifyRequestType<...>>'.
+        Type 'RouteGenericInterface' is not assignable to type '{ Params: Record<string, unknown>; Body: unknown; Querystring: unknown; }'.
+          Types of property 'Params' are incompatible.
+            Type 'unknown' is not assignable to type 'Record<string, unknown>'.
+src/routes/ai.routes.ts(657,85): error TS2345: Argument of type '(req: AuthenticatedRequest) => Promise<{ data: { status: "error" | "ok" | "blocked" | "disabled"; summary: string; warnings: string[]; suggestions: string[]; flags: { severity: "info" | "warning" | "danger"; title: string; detail: string; affectedItemId?: string | undefined; affectedStepId?: string | undefined; }[];...' is not assignable to parameter of type 'RouteHandlerMethod<RawServerDefault, IncomingMessage, ServerResponse<IncomingMessage>, RouteGenericInterface, unknown, FastifySchema, FastifyTypeProviderDefault, FastifyBaseLogger>'.
+  Types of parameters 'req' and 'request' are incompatible.
+    Type 'FastifyRequest<RouteGenericInterface, RawServerDefault, IncomingMessage, FastifySchema, FastifyTypeProviderDefault, unknown, FastifyBaseLogger, ResolveFastifyRequestType<...>>' is not assignable to type 'AuthenticatedRequest<Record<string, unknown>, unknown, unknown>'.
+      Type 'FastifyRequest<RouteGenericInterface, RawServerDefault, IncomingMessage, FastifySchema, FastifyTypeProviderDefault, unknown, FastifyBaseLogger, ResolveFastifyRequestType<...>>' is not assignable to type 'FastifyRequest<{ Params: Record<string, unknown>; Body: unknown; Querystring: unknown; }, RawServerDefault, IncomingMessage, FastifySchema, FastifyTypeProviderDefault, unknown, FastifyBaseLogger, ResolveFastifyRequestType<...>>'.
+        Type 'RouteGenericInterface' is not assignable to type '{ Params: Record<string, unknown>; Body: unknown; Querystring: unknown; }'.
+          Types of property 'Params' are incompatible.
+            Type 'unknown' is not assignable to type 'Record<string, unknown>'.
+src/routes/ai.routes.ts(686,82): error TS2345: Argument of type '(req: AuthenticatedRequest) => Promise<{ data: { status: "error" | "ok" | "blocked" | "disabled"; summary: string; warnings: string[]; suggestions: string[]; flags: { severity: "info" | "warning" | "danger"; title: string; detail: string; affectedItemId?: string | undefined; affectedStepId?: string | undefined; }[];...' is not assignable to parameter of type 'RouteHandlerMethod<RawServerDefault, IncomingMessage, ServerResponse<IncomingMessage>, RouteGenericInterface, unknown, FastifySchema, FastifyTypeProviderDefault, FastifyBaseLogger>'.
+  Types of parameters 'req' and 'request' are incompatible.
+    Type 'FastifyRequest<RouteGenericInterface, RawServerDefault, IncomingMessage, FastifySchema, FastifyTypeProviderDefault, unknown, FastifyBaseLogger, ResolveFastifyRequestType<...>>' is not assignable to type 'AuthenticatedRequest<Record<string, unknown>, unknown, unknown>'.
+      Type 'FastifyRequest<RouteGenericInterface, RawServerDefault, IncomingMessage, FastifySchema, FastifyTypeProviderDefault, unknown, FastifyBaseLogger, ResolveFastifyRequestType<...>>' is not assignable to type 'FastifyRequest<{ Params: Record<string, unknown>; Body: unknown; Querystring: unknown; }, RawServerDefault, IncomingMessage, FastifySchema, FastifyTypeProviderDefault, unknown, FastifyBaseLogger, ResolveFastifyRequestType<...>>'.
+        Type 'RouteGenericInterface' is not assignable to type '{ Params: Record<string, unknown>; Body: unknown; Querystring: unknown; }'.
+          Types of property 'Params' are incompatible.
+            Type 'unknown' is not assignable to type 'Record<string, unknown>'.
+src/routes/ai.routes.ts(722,5): error TS2345: Argument of type '(req: AuthenticatedRequest) => Promise<{ data: { total_calls: number; total_cost_usd: string; average_cost_per_call: string; calls_by_type: Record<string, number>; }; }>' is not assignable to parameter of type 'RouteHandlerMethod<RawServerDefault, IncomingMessage, ServerResponse<IncomingMessage>, RouteGenericInterface, unknown, FastifySchema, FastifyTypeProviderDefault, FastifyBaseLogger>'.
+  Types of parameters 'req' and 'request' are incompatible.
+    Type 'FastifyRequest<RouteGenericInterface, RawServerDefault, IncomingMessage, FastifySchema, FastifyTypeProviderDefault, unknown, FastifyBaseLogger, ResolveFastifyRequestType<...>>' is not assignable to type 'AuthenticatedRequest<Record<string, unknown>, unknown, unknown>'.
+      Type 'FastifyRequest<RouteGenericInterface, RawServerDefault, IncomingMessage, FastifySchema, FastifyTypeProviderDefault, unknown, FastifyBaseLogger, ResolveFastifyRequestType<...>>' is not assignable to type 'FastifyRequest<{ Params: Record<string, unknown>; Body: unknown; Querystring: unknown; }, RawServerDefault, IncomingMessage, FastifySchema, FastifyTypeProviderDefault, unknown, FastifyBaseLogger, ResolveFastifyRequestType<...>>'.
+        Type 'RouteGenericInterface' is not assignable to type '{ Params: Record<string, unknown>; Body: unknown; Querystring: unknown; }'.
+          Types of property 'Params' are incompatible.
+            Type 'unknown' is not assignable to type 'Record<string, unknown>'.
+D:\digital-witness\services\api:
+ÔÇëERR_PNPM_RECURSIVE_RUN_FIRST_FAILÔÇë proovra-api@1.0.0 build: `tsc -p tsconfig.build.json`
+Exit status 2

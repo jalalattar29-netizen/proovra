@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button, useToast } from "../../../components/ui";
 import { ApiError, apiFetch } from "../../../lib/api";
+import { CaptureAiAssistant } from "../../../components/ai/CaptureAiAssistant";
 import { captureException } from "../../../lib/sentry";
 
 type EvidenceType = "PHOTO" | "VIDEO" | "AUDIO" | "DOCUMENT";
@@ -52,7 +53,7 @@ type CollectionPlanTemplate = {
 };
 
 type SessionItemClientSignals = {
-  preliminaryClientSha256Base64?: string;
+  clientHintSha256Base64?: string;
   captureTimeUtc: string;
   browserMediaCaptureAvailable: boolean;
   folderPathPresent: boolean;
@@ -333,8 +334,12 @@ const ROLE_SUGGESTIONS = [
   "Other",
 ];
 
+const MAX_SESSION_FILES = 50;
+const MAX_SINGLE_FILE_BYTES = 500 * 1024 * 1024; // 500 MB frontend guard only
+const MAX_SESSION_BYTES = 2 * 1024 * 1024 * 1024; // 2 GB frontend guard only
+
 const GENERIC_EVIDENCE_UPLOAD_ACCEPT =
-  "image/*,video/*,audio/*,application/pdf,text/*,application/json,application/xml,text/xml,application/zip,application/x-zip-compressed,application/octet-stream,.bin,.csv,.log,.txt,.rtf,.doc,.docx,.xls,.xlsx,.eml,.msg,.zip,.json,.xml";
+  "image/*,video/*,audio/*,application/pdf,text/*,application/json,application/xml,text/xml,application/zip,application/x-zip-compressed,.csv,.log,.txt,.rtf,.doc,.docx,.xls,.xlsx,.eml,.msg,.zip,.json,.xml";
 
 function normalizeClientMimeType(
   mimeType: string | null | undefined,
@@ -505,8 +510,9 @@ function getItemQualityStatus(params: {
     if (!item.mimeType.startsWith("image/") && !item.mimeType.startsWith("video/")) {
       return {
         tone: "danger" as const,
-        label: "Not valid close-up",
-        detail: "Close-up requirements must be mapped to a photo or video item.",
+        label: "Close-up requirement not satisfied (metadata-based)",
+detail:
+  "This metadata-based check only verifies file type. It does not visually confirm close-up quality.",
       };
     }
   }
@@ -529,8 +535,9 @@ function getItemQualityStatus(params: {
 
   return {
     tone: "success" as const,
-    label: "Validated",
-    detail: "The item matches the selected intake requirement.",
+label: "Matches selected requirement",
+detail:
+  "The item metadata matches the selected intake requirement. This is not a factual, visual, or legal validation.",
   };
 }
 
@@ -540,6 +547,40 @@ function formatFileSize(bytes: number): string {
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
   if (bytes < 1024 * 1024 * 1024) return `${(bytes / 1024 / 1024).toFixed(2)} MB`;
   return `${(bytes / 1024 / 1024 / 1024).toFixed(2)} GB`;
+}
+
+function roundGpsCoordinate(value: number, precision = 3): number {
+  const factor = Math.pow(10, precision);
+  return Math.round(value * factor) / factor;
+}
+
+function validateIncomingFiles(
+  incomingFiles: File[],
+  existingItems: SessionItem[]
+): string | null {
+  if (incomingFiles.length === 0) return null;
+
+  if (existingItems.length + incomingFiles.length > MAX_SESSION_FILES) {
+    return `Too many files. Add up to ${MAX_SESSION_FILES} items per evidence session.`;
+  }
+
+  const tooLarge = incomingFiles.find((file) => file.size > MAX_SINGLE_FILE_BYTES);
+  if (tooLarge) {
+    return `${tooLarge.name} is too large. Maximum single file size is ${formatFileSize(
+      MAX_SINGLE_FILE_BYTES
+    )}.`;
+  }
+
+  const existingBytes = existingItems.reduce((sum, item) => sum + item.file.size, 0);
+  const incomingBytes = incomingFiles.reduce((sum, file) => sum + file.size, 0);
+
+  if (existingBytes + incomingBytes > MAX_SESSION_BYTES) {
+    return `Session is too large. Maximum staged session size is ${formatFileSize(
+      MAX_SESSION_BYTES
+    )}.`;
+  }
+
+  return null;
 }
 
 function buildAudioRecordingFileName(extension: string): string {
@@ -914,7 +955,6 @@ export default function CapturePage() {
 const [, setSessionTimeline] = useState<SessionTimelineEvent[]>([]);
   const [collectionPlanId, setCollectionPlanId] = useState("general-evidence-record");
   const [planMode, setPlanMode] = useState<"FLEXIBLE" | "CHECKLIST_REQUIRED">("FLEXIBLE");
-  const [duplicateWarningAcknowledged] = useState(false);
 const [, setLocationAccuracyMeters] = useState<number | null>(null);
   const [locationPermissionDenied, setLocationPermissionDenied] = useState(false);
   const [aiPanelOpen, setAiPanelOpen] = useState(false);
@@ -1194,6 +1234,13 @@ const [, setLocationAccuracyMeters] = useState<number | null>(null);
         return chosenStep.id;
       };
 
+const limitError = validateIncomingFiles(files, existingItems);
+if (limitError) {
+  setError(limitError);
+  addToast(limitError, "error");
+  return;
+}
+
       const nextItems: SessionItem[] = await Promise.all(
         files.map(async (nextFile) => {
           const normalizedMimeType = normalizeClientMimeType(nextFile.type);
@@ -1209,18 +1256,25 @@ const [, setLocationAccuracyMeters] = useState<number | null>(null);
               ? (nextFile as File & { webkitRelativePath?: string }).webkitRelativePath ?? null
               : null;
 
-          const signals = buildSessionItemSignals(
-            nextFile,
-            relativePath,
-            existingItems
-          );
+const signals = buildSessionItemSignals(nextFile, relativePath, existingItems);
 
-          try {
-            const integrity = await computeIntegrityFromBlob(nextFile);
-            signals.preliminaryClientSha256Base64 = integrity.checksumSha256Base64;
-          } catch {
-            // Compute final integrity during evidence finalization.
-          }
+try {
+  const integrity = await computeIntegrityFromBlob(nextFile);
+  signals.clientHintSha256Base64 = integrity.checksumSha256Base64;
+
+  const hashDuplicate = existingItems.some(
+    (existing) =>
+      existing.clientSignals?.clientHintSha256Base64 ===
+      integrity.checksumSha256Base64
+  );
+
+  if (hashDuplicate) {
+    signals.duplicateStatus = "duplicate";
+  }
+} catch {
+  // Final server-side integrity is computed during evidence finalization.
+  // Client hash is only an advisory hint and must not be treated as proof.
+}
 
           return {
             id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
@@ -1321,38 +1375,52 @@ logCaptureClientError("web_capture_add_to_session", err, {
         throw new Error("No evidence items are available to finalize.");
       }
 
-      let gps: { lat: number; lng: number; accuracyMeters?: number } | undefined;
-if (useLocation && typeof navigator !== "undefined" && navigator.geolocation) {
-  try {
-    gps = await new Promise<{
+            const selectedPlan = COLLECTION_PLAN_TEMPLATES.find(
+        (plan) => plan.id === collectionPlanId
+      );
+
+let gps:
+  | {
       lat: number;
       lng: number;
       accuracyMeters?: number;
-    }>((resolve, reject) => {
+    }
+  | undefined;
+  
+const locationRequired = selectedPlan?.locationRequirement === "required";
+const shouldUsePreciseGps = locationRequired;
+
+if (useLocation && typeof navigator !== "undefined" && navigator.geolocation) {
+  try {
+    gps = await new Promise<typeof gps>((resolve, reject) => {
       navigator.geolocation.getCurrentPosition(
         (pos) =>
-          resolve({
-            lat: pos.coords.latitude,
-            lng: pos.coords.longitude,
-            accuracyMeters: pos.coords.accuracy,
-          }),
+resolve({
+  lat: shouldUsePreciseGps
+    ? pos.coords.latitude
+    : roundGpsCoordinate(pos.coords.latitude, 3),
+  lng: shouldUsePreciseGps
+    ? pos.coords.longitude
+    : roundGpsCoordinate(pos.coords.longitude, 3),
+  accuracyMeters: pos.coords.accuracy,
+}),
         (geoErr) => reject(geoErr),
         { enableHighAccuracy: true, timeout: 8000 }
       );
     });
 
-    setLocationAccuracyMeters(gps.accuracyMeters ?? null);
-
+    setLocationAccuracyMeters(gps?.accuracyMeters ?? null);
     setLocationPermissionDenied(false);
 
     recordTimelineEvent({
       title: "Location recorded",
-      detail: "Device-reported GPS metadata was attached to the evidence record.",
-      tone: "info",
+detail: shouldUsePreciseGps
+  ? "Precise device location metadata was attached with user consent because the selected intake plan requires location context."
+  : "Reduced-precision device location metadata was attached with user consent.",
+        tone: "info",
     });
   } catch {
     setLocationAccuracyMeters(null);
-
     setLocationPermissionDenied(true);
 
     recordTimelineEvent({
@@ -1361,22 +1429,42 @@ if (useLocation && typeof navigator !== "undefined" && navigator.geolocation) {
       tone: "warning",
     });
 
+    if (locationRequired) {
+      throw new Error(
+        "Location metadata is required by the selected plan, but browser location was not granted."
+      );
+    }
+
     addToast("Location unavailable. Continuing without GPS.", "warning");
   }
 }
 
+if (locationRequired && !gps) {
+  throw new Error(
+    "Location metadata is required by the selected plan. Enable location and grant browser permission before finishing."
+  );
+}
+
       const primaryMimeType = normalizeClientMimeType(primaryFile.type);
       const primaryIntegrity = await computeIntegrityFromBlob(primaryFile);
-      const selectedPlan = COLLECTION_PLAN_TEMPLATES.find(
-        (plan) => plan.id === collectionPlanId
-      );
-      const intakePlanJson = selectedPlan
-        ? {
-            templateId: selectedPlan.id,
-            templateName: selectedPlan.name,
-            mode: planMode,
-            locationRequirement: selectedPlan.locationRequirement,
-requiredSteps: selectedPlan.steps
+const intakePlanJson = selectedPlan
+  ? {
+      templateId: selectedPlan.id,
+      templateName: selectedPlan.name,
+      mode: planMode,
+      locationRequirement: selectedPlan.locationRequirement,
+      gpsConsent: Boolean(gps),
+      gpsPurpose: gps
+        ? locationRequired
+          ? "evidence_context_required"
+          : "evidence_context_optional"
+        : undefined,
+gpsPrecision: gps
+  ? shouldUsePreciseGps
+    ? "precise"
+    : "reduced_3_decimal_places"
+  : undefined,
+        requiredSteps: selectedPlan.steps
   .filter((step) => step.required)
   .map((step) => ({
     id: step.id,
@@ -1443,7 +1531,20 @@ const part = await apiFetch(`/v1/evidence/${evidenceId}/parts`, {
     privateNote: item.privateNote?.trim() || undefined,
     checklistStepId: item.checklistStepId || undefined,
     sourceLabel: item.sourceLabel?.trim() || undefined,
-    clientSignals: item.clientSignals,
+clientSignals: item.clientSignals
+  ? {
+      captureTimeUtc: item.clientSignals.captureTimeUtc,
+      browserMediaCaptureAvailable:
+        item.clientSignals.browserMediaCaptureAvailable,
+      folderPathPresent: item.clientSignals.folderPathPresent,
+      locationIncluded: Boolean(gps),
+      duplicateStatus: item.clientSignals.duplicateStatus,
+      screenshotLike: item.clientSignals.screenshotLike,
+      genericMime: item.clientSignals.genericMime,
+      oldLastModified: item.clientSignals.oldLastModified,
+      clientHintSha256Base64: item.clientSignals.clientHintSha256Base64,
+    }
+  : undefined,
   }),
 });
 
@@ -2080,12 +2181,6 @@ const handleDroppedFiles = async (fileList: FileList | File[] | null) => {
     };
   }, [selectedCollectionPlan, sessionItems]);
 
-  const sessionDuplicateSignals = useMemo(
-    () =>
-      sessionItems.some((item) => item.clientSignals?.duplicateStatus === "duplicate"),
-    [sessionItems]
-  );
-
 const finishValidation = useMemo(() => {
   if (sessionItems.length === 0) {
     return {
@@ -2103,17 +2198,6 @@ const finishValidation = useMemo(() => {
       missingStepTitles: checklistValidation.missingRequiredSteps.map(
         (step) => step.title
       ),
-    };
-  }
-
-  if (
-    planMode === "CHECKLIST_REQUIRED" &&
-    sessionDuplicateSignals &&
-    !duplicateWarningAcknowledged
-  ) {
-    return {
-      reason: "A duplicate intake signal is present. Acknowledge before finishing.",
-      missingStepTitles: [] as string[],
     };
   }
 
@@ -2148,17 +2232,36 @@ const finishValidation = useMemo(() => {
 
   const activeWorkflowStep = busy ? 3 : sessionItems.length > 0 ? 2 : 1;
   const completedRequiredCount =
-  checklistValidation.requiredSteps.length -
-  checklistValidation.missingRequiredSteps.length;
+    checklistValidation.requiredSteps.length -
+    checklistValidation.missingRequiredSteps.length;
 
-const requiredProgressPercent =
-  checklistValidation.requiredSteps.length > 0
-    ? Math.round(
-        (completedRequiredCount / checklistValidation.requiredSteps.length) * 100
-      )
-    : 100;
+  const requiredProgressPercent =
+    checklistValidation.requiredSteps.length > 0
+      ? Math.round(
+          (completedRequiredCount / checklistValidation.requiredSteps.length) * 100
+        )
+      : 100;
 
-const currentSessionId = useMemo(() => {
+  const captureAiSummary = useMemo(
+    () => ({
+      totalItems: sessionItems.length,
+      totalSizeBytes: totalStagedBytes,
+      requiredStepsCompleted: completedRequiredCount,
+      requiredStepsTotal: checklistValidation.requiredSteps.length,
+      planMode,
+      useLocation,
+      locationRequirement: selectedCollectionPlan?.locationRequirement ?? "optional",
+    }), [
+      sessionItems.length,
+      totalStagedBytes,
+      completedRequiredCount,
+      checklistValidation.requiredSteps.length,
+      planMode,
+      useLocation,
+      selectedCollectionPlan?.locationRequirement,
+    ]);
+
+  const currentSessionId = useMemo(() => {
   const date = sessionStartedAt;
   const y = date.getFullYear();
   const m = String(date.getMonth() + 1).padStart(2, "0");
@@ -2751,7 +2854,7 @@ return (
               planMode === "CHECKLIST_REQUIRED" ? "active" : ""
             }`}
             onClick={() => setPlanMode("CHECKLIST_REQUIRED")}
-            disabled={busy}
+disabled={busy || sessionItems.length > 0}
           >
             <strong style={{ color: "#1c3035" }}>Guided checklist</strong>
             <span className="capture-card-muted">
@@ -2765,13 +2868,18 @@ return (
               planMode === "FLEXIBLE" ? "active" : ""
             }`}
             onClick={() => setPlanMode("FLEXIBLE")}
-            disabled={busy}
+disabled={busy || sessionItems.length > 0}
           >
             <strong style={{ color: "#1c3035" }}>Flexible intake</strong>
             <span className="capture-card-muted">
               Upload any materials without blocking completion.
             </span>
           </button>
+          {sessionItems.length > 0 ? (
+  <div className="capture-card-muted">
+    Intake mode and template are locked after adding materials to preserve review context.
+  </div>
+) : null}
 
           <div
             style={{
@@ -2814,7 +2922,7 @@ return (
                 Include location
               </span>
               <span className="capture-card-muted">
-                Device-reported GPS metadata.
+Device location metadata, used only for evidence context. Required investigation plans preserve precise GPS; other plans reduce precision.
               </span>
             </span>
             <input
@@ -2850,7 +2958,7 @@ return (
             <select
               value={collectionPlanId}
               onChange={(event) => setCollectionPlanId(event.target.value)}
-              disabled={busy}
+              disabled={busy || sessionItems.length > 0}
               style={{
                 minHeight: 42,
                 borderRadius: 14,
@@ -3158,50 +3266,29 @@ return (
               </div>
             </div>
 
-            <div
-              style={{
-                borderRadius: 18,
-                border: "1px solid rgba(36,55,59,0.09)",
-                background: "#f9fbfa",
-                overflow: "hidden",
-              }}
-            >
-              <button
-                type="button"
-                onClick={() => setAiPanelOpen((prev) => !prev)}
-                style={{
-                  width: "100%",
-                  border: "none",
-                  background: "transparent",
-                  padding: 14,
-                  display: "flex",
-                  justifyContent: "space-between",
-                  gap: 12,
-                  cursor: "pointer",
-                  color: "#1c3035",
-                  fontWeight: 850,
-                }}
-              >
-                <span>Intake quality assistant</span>
-                <span>{aiPanelOpen ? "−" : "+"}</span>
-              </button>
-
-              {aiPanelOpen ? (
-                <div
-                  style={{
-                    padding: "0 14px 14px",
-                    display: "grid",
-                    gap: 8,
-                    color: "#607074",
-                    fontSize: 12,
-                    lineHeight: 1.6,
-                  }}
-                >
-                  <div>Checks file type, mapping, duplicate signals, and required-step coverage.</div>
-                  <div>AI visual validation can be added later as a separate backend review layer.</div>
-                </div>
-              ) : null}
-            </div>
+            <CaptureAiAssistant
+              isOpen={aiPanelOpen}
+              setOpen={setAiPanelOpen}
+              collectionPlan={selectedCollectionPlan ?? null}
+              summary={captureAiSummary}
+              sessionItems={sessionItems.map((item) => ({
+                id: item.id,
+                fileName: item.file.name,
+                mimeType: item.mimeType,
+                sizeBytes: item.file.size,
+                checklistStepId: item.checklistStepId ?? null,
+                role: item.role ?? undefined,
+                sourceLabel: item.sourceLabel ?? undefined,
+                clientSignals: {
+                  duplicateStatus: item.clientSignals?.duplicateStatus,
+                  screenshotLike: item.clientSignals?.screenshotLike,
+                  genericMime: item.clientSignals?.genericMime,
+                  oldLastModified: item.clientSignals?.oldLastModified,
+                  folderPathPresent: item.clientSignals?.folderPathPresent,
+                  locationIncluded: item.clientSignals?.locationIncluded,
+                },
+              }))}
+            />
 
             {sessionItems.length > 0 ? (
               <div className="capture-session-list">
@@ -3493,142 +3580,143 @@ return (
         </div>
       </div>
     </div>
-          {cameraOpen ? (
-        <div className={`camera-overlay ${flashEnabled ? "camera-overlay-flash" : ""}`}>
-          <video
-            ref={videoPreviewRef}
-            autoPlay
-            muted={cameraMode !== "VIDEO" || !isRecording}
-            playsInline
-            className="camera-preview"
-          />
 
-          <div className="camera-topbar">
-            <div className="camera-topbar-group">
+    {cameraOpen ? (
+      <div className={`camera-overlay ${flashEnabled ? "camera-overlay-flash" : ""}`}>
+        <video
+          ref={videoPreviewRef}
+          autoPlay
+          muted={cameraMode !== "VIDEO" || !isRecording}
+          playsInline
+          className="camera-preview"
+        />
+
+        <div className="camera-topbar">
+          <div className="camera-topbar-group">
+            <button
+              type="button"
+              className="camera-icon-btn"
+              onClick={closeCamera}
+              disabled={busy || cameraStarting}
+            >
+              Close
+            </button>
+          </div>
+
+          <div className="camera-topbar-title-group">
+            <div className="camera-title">
+              {cameraMode === "PHOTO" ? "Capture Photo" : "Record Video"}
+            </div>
+
+            {cameraMode === "VIDEO" && isRecording ? (
+              <div className="camera-recording-indicator">
+                <span className="camera-recording-dot" />
+                REC {formatRecordingTime(recordingSeconds)}
+              </div>
+            ) : (
+              <div className="camera-subtitle">
+                {facingMode === "environment" ? "Rear camera" : "Front camera"}
+              </div>
+            )}
+          </div>
+
+          <div className="camera-topbar-group camera-topbar-group-right">
+            {cameraMode === "PHOTO" ? (
               <button
                 type="button"
-                className="camera-icon-btn"
-                onClick={closeCamera}
+                className={`camera-icon-btn ${flashEnabled ? "active" : ""}`}
+                onClick={handleToggleFlash}
                 disabled={busy || cameraStarting}
               >
-                Close
+                Flash
               </button>
-            </div>
+            ) : null}
 
-            <div className="camera-topbar-title-group">
-              <div className="camera-title">
-                {cameraMode === "PHOTO" ? "Capture Photo" : "Record Video"}
-              </div>
-
-              {cameraMode === "VIDEO" && isRecording ? (
-                <div className="camera-recording-indicator">
-                  <span className="camera-recording-dot" />
-                  REC {formatRecordingTime(recordingSeconds)}
-                </div>
-              ) : (
-                <div className="camera-subtitle">
-                  {facingMode === "environment" ? "Rear camera" : "Front camera"}
-                </div>
-              )}
-            </div>
-
-            <div className="camera-topbar-group camera-topbar-group-right">
-              {cameraMode === "PHOTO" ? (
-                <button
-                  type="button"
-                  className={`camera-icon-btn ${flashEnabled ? "active" : ""}`}
-                  onClick={handleToggleFlash}
-                  disabled={busy || cameraStarting}
-                >
-                  Flash
-                </button>
-              ) : null}
-
-              <button
-                type="button"
-                className="camera-icon-btn"
-                onClick={handleFlipCamera}
-                disabled={busy || cameraStarting || isRecording}
-              >
-                Flip
-              </button>
-            </div>
-          </div>
-
-          <div
-            style={{
-              position: "absolute",
-              right: 20,
-              bottom: 140,
-              zIndex: 30,
-              display: "inline-flex",
-              alignItems: "center",
-              gap: 8,
-              padding: "10px 14px",
-              borderRadius: 999,
-              background: "rgba(2, 6, 23, 0.82)",
-              border: "1px solid rgba(214,184,157,0.22)",
-              color: "#f2e0cf",
-              fontSize: 13,
-              fontWeight: 800,
-              backdropFilter: "blur(10px)",
-            }}
-          >
-            {sessionItems.length} added
-          </div>
-
-          <div className="camera-bottombar">
-            <div className="camera-bottombar-meta">
-              {cameraError ? (
-                <div className="camera-inline-error">{cameraError}</div>
-              ) : cameraMode === "PHOTO" ? (
-                <div className="camera-helper-text">
-                  Capture repeatedly to add multiple photos into one evidence record.
-                </div>
-              ) : !isRecording ? (
-                <div className="camera-helper-text">
-                  Record a clip, it will be auto-added to the same evidence session.
-                </div>
-              ) : (
-                <div className="camera-helper-text">
-                  Recording… {formatRecordingTime(recordingSeconds)}
-                </div>
-              )}
-            </div>
-
-            <div className="camera-bottombar-actions">
-              {cameraMode === "PHOTO" ? (
-                <button
-                  type="button"
-                  className="camera-capture-btn"
-                  onClick={capturePhotoFromCamera}
-                  disabled={busy || cameraStarting}
-                >
-                  Add to Evidence Session
-                </button>
-              ) : !isRecording ? (
-                <button
-                  type="button"
-                  className="camera-capture-btn"
-                  onClick={startVideoRecording}
-                  disabled={busy || cameraStarting}
-                >
-                  Record
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  className="camera-capture-btn danger"
-                  onClick={stopVideoRecording}
-                  disabled={busy}
-                >
-                  Stop & Add
-                </button>
-              )}
-            </div>
+            <button
+              type="button"
+              className="camera-icon-btn"
+              onClick={handleFlipCamera}
+              disabled={busy || cameraStarting || isRecording}
+            >
+              Flip
+            </button>
           </div>
         </div>
-      ) : null}
-    </div>
-  );
+
+        <div
+          style={{
+            position: "absolute",
+            right: 20,
+            bottom: 140,
+            zIndex: 30,
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 8,
+            padding: "10px 14px",
+            borderRadius: 999,
+            background: "rgba(2, 6, 23, 0.82)",
+            border: "1px solid rgba(214,184,157,0.22)",
+            color: "#f2e0cf",
+            fontSize: 13,
+            fontWeight: 800,
+            backdropFilter: "blur(10px)",
+          }}
+        >
+          {sessionItems.length} added
+        </div>
+
+        <div className="camera-bottombar">
+          <div className="camera-bottombar-meta">
+            {cameraError ? (
+              <div className="camera-inline-error">{cameraError}</div>
+            ) : cameraMode === "PHOTO" ? (
+              <div className="camera-helper-text">
+                Capture repeatedly to add multiple photos into one evidence record.
+              </div>
+            ) : !isRecording ? (
+              <div className="camera-helper-text">
+                Record a clip, it will be auto-added to the same evidence session.
+              </div>
+            ) : (
+              <div className="camera-helper-text">
+                Recording… {formatRecordingTime(recordingSeconds)}
+              </div>
+            )}
+          </div>
+
+          <div className="camera-bottombar-actions">
+            {cameraMode === "PHOTO" ? (
+              <button
+                type="button"
+                className="camera-capture-btn"
+                onClick={capturePhotoFromCamera}
+                disabled={busy || cameraStarting}
+              >
+                Add to Evidence Session
+              </button>
+            ) : !isRecording ? (
+              <button
+                type="button"
+                className="camera-capture-btn"
+                onClick={startVideoRecording}
+                disabled={busy || cameraStarting}
+              >
+                Record
+              </button>
+            ) : (
+              <button
+                type="button"
+                className="camera-capture-btn danger"
+                onClick={stopVideoRecording}
+                disabled={busy}
+              >
+                Stop & Add
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+    ) : null}
+  </div>
+);
 }

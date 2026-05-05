@@ -9,6 +9,7 @@ import { Icons } from "../../components/icons";
 import { Footer } from "../../components/Footer";
 import AnalyticsTracker from "../../components/analytics-tracker";
 import { apiFetch } from "../../lib/api";
+import { ProovraChatWidget } from "../../components/ai/ProovraChatWidget";
 import { useAuth } from "../providers";
 
 const BOTTOM_NAV = [
@@ -138,6 +139,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             {children}
           </main>
 
+          {!isAdminSurface ? <ProovraChatWidget /> : null}
           {!isAdminSurface ? <Footer /> : null}
 
           {!isAdminSurface ? (
