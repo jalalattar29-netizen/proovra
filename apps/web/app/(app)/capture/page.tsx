@@ -41,7 +41,6 @@ import {
   formatEvidenceTypeLabel,
   formatFileSize,
   getChecklistStepById,
-  getChecklistStepStatus,
   getItemQualityStatus,
   getStepRequirementLabel,
   normalizeClientMimeType,
@@ -1828,7 +1827,7 @@ const FileIcon = item.relativePath
       : item.mimeType.startsWith("image/")
         ? ImageIcon
         : FileText;
-        
+
         return (
           <div key={item.id} className="capture-material-card">
 <div className="capture-material-preview">
