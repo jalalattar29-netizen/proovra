@@ -2344,6 +2344,8 @@ const finishValidation = useMemo(() => {
     } as const;
   }, [busy, primaryButtonStyle, finishDisabled]);
 
+  const [planDropdownOpen, setPlanDropdownOpen] = useState(false);
+
 return (
   <div className="section app-section capture-page-shell capture-enterprise-page">
     <style jsx global>{`
@@ -2955,28 +2957,37 @@ Device location metadata, used only for evidence context. Required investigation
               </div>
             </div>
 
-            <select
-              value={collectionPlanId}
-              onChange={(event) => setCollectionPlanId(event.target.value)}
-              disabled={busy || sessionItems.length > 0}
-              style={{
-                minHeight: 42,
-                borderRadius: 14,
-                border: "1px solid rgba(36,55,59,0.12)",
-                background: "#fbfcfd",
-                color: "#23373b",
-                padding: "10px 12px",
-                fontSize: 13,
-                outline: "none",
-                minWidth: 230,
-              }}
-            >
-              {COLLECTION_PLAN_TEMPLATES.map((plan) => (
-                <option key={plan.id} value={plan.id}>
-                  {plan.name}
-                </option>
-              ))}
-            </select>
+<div className="capture-plan-dropdown">
+  <button
+    type="button"
+    className="capture-plan-dropdown-trigger"
+    disabled={busy || sessionItems.length > 0}
+    onClick={() => setPlanDropdownOpen((prev) => !prev)}
+  >
+    <span>{selectedCollectionPlan?.name ?? "Select plan"}</span>
+    <span>⌄</span>
+  </button>
+
+  {planDropdownOpen && !(busy || sessionItems.length > 0) ? (
+    <div className="capture-plan-dropdown-menu">
+      {COLLECTION_PLAN_TEMPLATES.map((plan) => (
+        <button
+          key={plan.id}
+          type="button"
+          className={`capture-plan-dropdown-item ${
+            collectionPlanId === plan.id ? "active" : ""
+          }`}
+          onClick={() => {
+            setCollectionPlanId(plan.id);
+            setPlanDropdownOpen(false);
+          }}
+        >
+          {plan.name}
+        </button>
+      ))}
+    </div>
+  ) : null}
+</div>
           </div>
 
           {selectedCollectionPlan ? (
