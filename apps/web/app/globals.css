@@ -2,6 +2,7 @@
 @tailwind components;
 @tailwind utilities;
 @import "vanilla-cookieconsent/dist/cookieconsent.css";
+@import "../components/app-shell-v2/app-shell-v2.css";
 
 /* =========================================================
    PROOVRA GLOBALS
