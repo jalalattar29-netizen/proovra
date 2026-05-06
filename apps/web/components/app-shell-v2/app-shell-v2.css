@@ -906,3 +906,68 @@
 .app-sidebar-v2-help:hover svg {
   color: #d6b89d;
 }
+
+/* FINAL HEADER BRAND FIX */
+.app-topbar-v2-inner {
+  grid-template-columns: 330px minmax(0, 1fr) auto !important;
+  padding-left: 56px !important;
+  padding-right: 30px !important;
+}
+
+.app-topbar-v2-brand {
+  gap: 14px !important;
+  transform: translateX(10px);
+}
+
+.app-topbar-v2-brand-icon {
+  width: 52px !important;
+  height: 52px !important;
+  object-fit: contain;
+}
+
+.app-topbar-v2-brand-text strong {
+  font-family: Inter, "Plus Jakarta Sans", system-ui, sans-serif !important;
+  font-size: 1.22rem !important;
+  font-weight: 900 !important;
+  letter-spacing: -0.02em !important;
+  line-height: 0.95 !important;
+  color: #f4f7f5 !important;
+}
+
+.app-topbar-v2-brand-text small {
+  margin-top: 3px !important;
+  font-size: 0.62rem !important;
+  font-weight: 850 !important;
+  letter-spacing: 0.22em !important;
+  color: rgba(232, 238, 236, 0.72) !important;
+}
+
+/* FINAL FOOTER ALIGNMENT FIX */
+.app-footer-v2,
+.app-shell-footer,
+.app-footer {
+  padding-left: 42px !important;
+  padding-right: 42px !important;
+}
+
+.app-footer-v2-inner,
+.app-shell-footer-inner,
+.app-footer-inner {
+  width: 100% !important;
+  max-width: 1480px !important;
+
+  margin: 0 auto !important;
+
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+
+  gap: 48px !important;
+}
+
+.app-footer-v2-links,
+.app-footer-links {
+  display: flex !important;
+  align-items: center !important;
+  gap: 22px !important;
+}
