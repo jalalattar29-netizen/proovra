@@ -168,7 +168,7 @@ body {
   min-height: 100%;
   background: var(--color-bg);
   color: var(--color-text);
-  font-family: var(--font-inter), system-ui, -apple-system, sans-serif;
+  font-family: var(--font-jakarta);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   overflow-x: hidden;
@@ -237,7 +237,7 @@ input,
 select,
 textarea,
 button {
-  font-family: var(--font-inter), system-ui, -apple-system, sans-serif;
+font-family: var(--font-jakarta), system-ui, -apple-system, sans-serif;
   letter-spacing: 0.1px;
 }
 
@@ -4121,5 +4121,54 @@ html[dir="rtl"] .legal-content a::after {
 
   .proovra-enterprise-footer-bottom {
     flex-direction: column;
+  }
+}
+
+.proovra-chat-hint {
+  position: absolute;
+  right: 60px;
+  bottom: 6px;
+  white-space: nowrap;
+  border-radius: 999px;
+  border: 1px solid rgba(36, 55, 59, 0.1);
+  background: rgba(255, 255, 255, 0.96);
+  padding: 8px 12px;
+  color: #425458;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+  box-shadow: 0 14px 34px rgba(15, 23, 42, 0.14);
+  animation: proovra-chat-hint-in 220ms ease-out both;
+  pointer-events: none;
+}
+
+.proovra-chat-hint::after {
+  content: "";
+  position: absolute;
+  right: -5px;
+  top: 50%;
+  width: 10px;
+  height: 10px;
+  transform: translateY(-50%) rotate(45deg);
+  border-top: 1px solid rgba(36, 55, 59, 0.1);
+  border-right: 1px solid rgba(36, 55, 59, 0.1);
+  background: rgba(255, 255, 255, 0.96);
+}
+
+@keyframes proovra-chat-hint-in {
+  from {
+    opacity: 0;
+    transform: translateX(8px) translateY(4px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(0) translateY(0);
+  }
+}
+
+@media (max-width: 640px) {
+  .proovra-chat-hint {
+    display: none;
   }
 }

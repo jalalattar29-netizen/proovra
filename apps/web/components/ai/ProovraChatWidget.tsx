@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Card } from "../ui";
 import { apiFetch, ApiError } from "../../lib/api";
 
@@ -37,6 +37,24 @@ export function ProovraChatWidget() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [unavailable, setUnavailable] = useState(false);
+  const [showHint, setShowHint] = useState(false);
+
+useEffect(() => {
+  if (typeof window === "undefined") return;
+
+  const seen = window.localStorage.getItem("proovra-chat-hint-seen");
+
+  if (seen) return;
+
+  setShowHint(true);
+
+  const timer = window.setTimeout(() => {
+    setShowHint(false);
+    window.localStorage.setItem("proovra-chat-hint-seen", "1");
+  }, 3000);
+
+  return () => window.clearTimeout(timer);
+}, []);
 
   const hasMessages = messages.length > 0;
   const canSend = Boolean(draft.trim()) && !busy && !unavailable;
@@ -125,7 +143,7 @@ setMessages((prev) => [
             <div className="flex items-start justify-between gap-3">
               <div>
                 <div className="text-[0.95rem] font-extrabold tracking-[-0.02em] text-[#12252a]">
-                  PROOVRA AI Assistant
+PROOVRA Assistant
                 </div>
                 <div className="mt-1 text-[0.72rem] leading-5 text-[#6a777a]">
                   Advisory support only. Not legal or factual determination.
@@ -171,7 +189,7 @@ setMessages((prev) => [
               </div>
             ) : (
               <div className="rounded-2xl border border-[rgba(58,93,97,0.12)] bg-white p-4 text-sm leading-6 text-[#526164] shadow-sm">
-                Ask about capture steps, upload options, evidence intake quality, or metadata checks.
+Ask about PROOVRA, upload steps, reports, verification, billing, or account support.
               </div>
             )}
           </div>
@@ -194,7 +212,7 @@ setMessages((prev) => [
                 value={draft}
                 onChange={(event) => setDraft(event.target.value)}
                 rows={3}
-                placeholder="Ask about capture, upload, or review steps..."
+                placeholder="Ask a question..."
                 className="w-full rounded-2xl border border-[rgba(58,93,97,0.16)] bg-[#fbfcfb] px-3 py-3 text-sm text-[#12252a] outline-none placeholder:text-[#8b989c] focus:border-[rgba(58,93,97,0.34)] focus:ring-4 focus:ring-[rgba(58,93,97,0.08)]"
                 disabled={busy || unavailable}
               />
@@ -218,13 +236,36 @@ setMessages((prev) => [
         </Card>
       ) : null}
 
-      <button
-        type="button"
-        onClick={() => setOpen((prev) => !prev)}
-        className="rounded-full border border-[rgba(183,157,132,0.28)] bg-[linear-gradient(180deg,#3a5d61,#203a3f)] px-5 py-3 text-sm font-extrabold text-[#f4f7f6] shadow-[0_16px_36px_rgba(15,23,42,0.22)] hover:brightness-105"
-      >
-        {open ? "Hide AI" : "Open AI Assistant"}
-      </button>
+<div className="relative">
+  {showHint && !open ? (
+    <div className="proovra-chat-hint" role="status">
+      Need help?
+    </div>
+  ) : null}
+
+  <button
+    type="button"
+    onClick={() => setOpen((prev) => !prev)}
+    aria-label={open ? "Close support chat" : "Open support chat"}
+    className={[
+      "flex h-12 w-12 items-center justify-center rounded-full",
+      "border border-[rgba(36,55,59,0.14)] bg-white/95",
+      "shadow-[0_18px_46px_rgba(15,23,42,0.18)] backdrop-blur",
+      "transition hover:-translate-y-0.5 hover:shadow-[0_22px_58px_rgba(15,23,42,0.22)]",
+      "focus:outline-none focus:ring-4 focus:ring-[rgba(58,93,97,0.12)]",
+    ].join(" ")}
+  >
+    <span
+      aria-hidden="true"
+      className="relative h-6 w-7 rounded-[9px] border-2 border-[#3a5d61]"
+    >
+      <span className="absolute -bottom-[5px] left-2 h-2 w-2 rotate-45 border-b-2 border-r-2 border-[#3a5d61] bg-white" />
+      <span className="absolute left-[6px] top-[8px] h-1 w-1 rounded-full bg-[#3a5d61]" />
+      <span className="absolute left-[12px] top-[8px] h-1 w-1 rounded-full bg-[#3a5d61]" />
+      <span className="absolute left-[18px] top-[8px] h-1 w-1 rounded-full bg-[#3a5d61]" />
+    </span>
+  </button>
+</div>
     </div>
   );
 }

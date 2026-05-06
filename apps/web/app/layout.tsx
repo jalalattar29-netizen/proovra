@@ -1,13 +1,18 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
-import { Inter, Inter_Tight, Noto_Sans_Arabic } from "next/font/google";
+import {
+  Inter_Tight,
+  Noto_Sans_Arabic,
+  Plus_Jakarta_Sans,
+} from "next/font/google";
 import "./globals.css";
 import { Providers } from "./providers";
 import CookieConsentInit from "./CookieConsentInit";
 
-const inter = Inter({
+const jakarta = Plus_Jakarta_Sans({
   subsets: ["latin"],
-  variable: "--font-inter",
+  weight: ["400", "500", "600", "700", "800"],
+  variable: "--font-jakarta",
   display: "swap",
 });
 
@@ -43,14 +48,14 @@ export default function RootLayout({
     <html
       lang="en"
       dir="ltr"
-      className={`${inter.variable} ${headerFont.variable} ${notoArabic.variable}`}
+      className={`${jakarta.variable} ${headerFont.variable} ${notoArabic.variable}`}
     >
       <head>
         <meta name="theme-color" content="#13252a" />
       </head>
 
-      <body className="font-sans antialiased">
-        <CookieConsentInit />
+<body className="antialiased" style={{ fontFamily: "var(--font-jakarta)" }}>
+          <CookieConsentInit />
         <Providers>{children}</Providers>
       </body>
     </html>
