@@ -95,6 +95,8 @@ export default function CapturePage() {
   const [locationPermissionDenied, setLocationPermissionDenied] = useState(false);
   const [aiPanelOpen, setAiPanelOpen] = useState(false);
   const [planDropdownOpen, setPlanDropdownOpen] = useState(false);
+  const [materialDropdownOpenId, setMaterialDropdownOpenId] =
+  useState<string | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const folderInputRef = useRef<HTMLInputElement | null>(null);
@@ -1470,6 +1472,10 @@ export default function CapturePage() {
     return `CAP-${y}-${m}-${d}`;
   }, [sessionStartedAt]);
 
+  const closeMaterialDropdown = () => {
+  setMaterialDropdownOpenId(null);
+};
+
   return (
     <div className="section app-section capture-page-shell capture-enterprise-page">
       <input
@@ -1858,30 +1864,57 @@ const FileIcon = item.relativePath
                 ) : null}
               </div>
 
-              <select
-                value={item.checklistStepId ?? ""}
-                onChange={(event) =>
-                  updateSessionItem(item.id, {
-                    checklistStepId: event.target.value || null,
-                  })
-                }
-                disabled={busy}
-                className="capture-material-select"
-              >
-                <option value="">
-                  {planMode === "CHECKLIST_REQUIRED"
-                    ? "Map to required collection step"
-                    : "Map to collection step"}
-                </option>
+<div className="capture-material-dropdown">
+  <button
+    type="button"
+    className="capture-material-dropdown-trigger"
+    disabled={busy}
+    onClick={() =>
+      setMaterialDropdownOpenId((current) =>
+        current === item.id ? null : item.id
+      )
+    }
+  >
+    <span>
+      {mappedStep
+        ? `${getStepRequirementLabel(mappedStep)}: ${mappedStep.title}`
+        : planMode === "CHECKLIST_REQUIRED"
+          ? "Map to required collection step"
+          : "Map to collection step"}
+    </span>
+    <span className="capture-material-dropdown-chevron">⌄</span>
+  </button>
 
-                {selectedCollectionPlan?.steps.map((step) => (
-                  <option key={step.id} value={step.id}>
-                    {getStepRequirementLabel(step)}: {step.title} —{" "}
-                    {step.purposeLabel}
-                  </option>
-                ))}
-              </select>
+  {materialDropdownOpenId === item.id ? (
+    <div className="capture-material-dropdown-menu">
+      <button
+        type="button"
+        className={!item.checklistStepId ? "active" : ""}
+        onClick={() => {
+          updateSessionItem(item.id, { checklistStepId: null });
+          closeMaterialDropdown();
+        }}
+      >
+        Map to collection step
+      </button>
 
+      {selectedCollectionPlan?.steps.map((step) => (
+        <button
+          key={step.id}
+          type="button"
+          className={item.checklistStepId === step.id ? "active" : ""}
+          onClick={() => {
+            updateSessionItem(item.id, { checklistStepId: step.id });
+            closeMaterialDropdown();
+          }}
+        >
+          <span>{getStepRequirementLabel(step)}: {step.title}</span>
+          <small>{step.purposeLabel}</small>
+        </button>
+      ))}
+    </div>
+  ) : null}
+</div>
               <div
                 className={
                   qualityStatus.tone === "success"

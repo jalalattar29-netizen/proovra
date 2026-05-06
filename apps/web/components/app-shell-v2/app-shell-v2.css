@@ -559,7 +559,7 @@
   position: relative;
   overflow: hidden;
   border-top: 1px solid rgba(255,255,255,0.08);
-  margin-top: 32px;
+  margin-top: 0;
 }
 
 .app-footer-v2-bg {
@@ -838,4 +838,29 @@
 
 .app-shell-v2-content {
   min-height: calc(100vh - 68px);
+}
+
+.app-shell-v2-main {
+  flex: 1;
+  display: grid;
+  grid-template-columns: 270px minmax(0, 1fr);
+  align-items: stretch;
+}
+
+.app-sidebar-v2 {
+  position: relative !important;
+  top: auto !important;
+  align-self: stretch !important;
+  height: auto !important;
+  min-height: 100% !important;
+  overflow: hidden !important;
+}
+
+.app-sidebar-v2-inner {
+  height: 100% !important;
+  min-height: 100% !important;
+}
+
+.app-footer-v2 {
+  margin-top: 0 !important;
 }
