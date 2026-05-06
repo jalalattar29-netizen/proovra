@@ -1,13 +1,17 @@
 "use client";
 
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
-  Bell,
   ChevronDown,
   Globe2,
   LogOut,
+  Settings,
   ShieldCheck,
+  UserCircle,
+  CreditCard,
+  LifeBuoy,
 } from "lucide-react";
 import { LanguageSwitcher } from "../language-switcher";
 
@@ -43,10 +47,12 @@ function getUserDisplayName(user: AppShellUserV2 | null) {
 function getInitials(user: AppShellUserV2 | null) {
   const name = getUserDisplayName(user);
   const parts = name.split(/[.\s@_-]+/).filter(Boolean);
-  return parts
-    .slice(0, 2)
-    .map((part) => part[0]?.toUpperCase())
-    .join("") || "P";
+  return (
+    parts
+      .slice(0, 2)
+      .map((part) => part[0]?.toUpperCase())
+      .join("") || "P"
+  );
 }
 
 export function AppTopbarV2({
@@ -59,10 +65,28 @@ export function AppTopbarV2({
   isPlatformAdmin?: boolean;
 }) {
   const pathname = usePathname();
+  const [accountOpen, setAccountOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement | null>(null);
 
   const navItems = isPlatformAdmin
     ? [...TOP_NAV, { href: "/admin", label: "Admin" }]
     : TOP_NAV;
+
+  useEffect(() => {
+    const onPointerDown = (event: PointerEvent) => {
+      if (!menuRef.current) return;
+      if (!menuRef.current.contains(event.target as Node)) {
+        setAccountOpen(false);
+      }
+    };
+
+    window.addEventListener("pointerdown", onPointerDown);
+    return () => window.removeEventListener("pointerdown", onPointerDown);
+  }, []);
+
+  useEffect(() => {
+    setAccountOpen(false);
+  }, [pathname]);
 
   return (
     <header className="app-topbar-v2">
@@ -98,58 +122,78 @@ export function AppTopbarV2({
         </nav>
 
         <div className="app-topbar-v2-actions">
-          <button
-            type="button"
-            className="app-topbar-v2-icon-button"
-            aria-label="Notifications"
-          >
-            <Bell size={18} strokeWidth={1.9} />
-            <span className="app-topbar-v2-notification-dot">3</span>
-          </button>
-
           <div className="app-topbar-v2-language">
             <Globe2 size={16} strokeWidth={1.9} />
             <LanguageSwitcher />
           </div>
 
-          <div className="app-topbar-v2-user">
-            {user?.avatarUrl ? (
-              <img
-                src={user.avatarUrl}
-                alt=""
-                className="app-topbar-v2-avatar"
-              />
-            ) : (
-              <div className="app-topbar-v2-avatar-fallback">
-                {getInitials(user)}
-              </div>
-            )}
+          <div ref={menuRef} className="app-topbar-v2-account">
+            <button
+              type="button"
+              className={`app-topbar-v2-user ${accountOpen ? "is-open" : ""}`}
+              onClick={() => setAccountOpen((prev) => !prev)}
+              aria-haspopup="menu"
+              aria-expanded={accountOpen}
+            >
+              {user?.avatarUrl ? (
+                <img src={user.avatarUrl} alt="" className="app-topbar-v2-avatar" />
+              ) : (
+                <span className="app-topbar-v2-avatar-fallback">
+                  {getInitials(user)}
+                </span>
+              )}
 
-            <div className="app-topbar-v2-user-copy">
-              <strong>{getUserDisplayName(user)}</strong>
-              <span>
-                {isPlatformAdmin ? (
-                  <>
-                    <ShieldCheck size={12} strokeWidth={2} />
-                    Admin
-                  </>
-                ) : (
-                  "Workspace"
-                )}
+              <span className="app-topbar-v2-user-copy">
+                <strong>{getUserDisplayName(user)}</strong>
+                <span>
+                  {isPlatformAdmin ? (
+                    <>
+                      <ShieldCheck size={12} strokeWidth={2} />
+                      Admin
+                    </>
+                  ) : (
+                    "Workspace"
+                  )}
+                </span>
               </span>
-            </div>
 
-            <ChevronDown size={16} strokeWidth={1.9} />
+              <ChevronDown size={16} strokeWidth={1.9} />
+            </button>
+
+            {accountOpen ? (
+              <div className="app-topbar-v2-account-menu" role="menu">
+                <div className="app-topbar-v2-account-menu-header">
+                  <strong>{getUserDisplayName(user)}</strong>
+                  <span>{user?.email ?? "Signed in"}</span>
+                </div>
+
+                <Link href="/settings" role="menuitem">
+                  <UserCircle size={16} strokeWidth={1.9} />
+                  Profile
+                </Link>
+
+                <Link href="/settings" role="menuitem">
+                  <Settings size={16} strokeWidth={1.9} />
+                  Account settings
+                </Link>
+
+                <Link href="/billing" role="menuitem">
+                  <CreditCard size={16} strokeWidth={1.9} />
+                  Billing
+                </Link>
+
+                <Link href="/legal/support" role="menuitem">
+                  <LifeBuoy size={16} strokeWidth={1.9} />
+                  Support
+                </Link>
+
+                <button type="button" onClick={onLogout} role="menuitem">
+                  <LogOut size={16} strokeWidth={1.9} />
+                  Sign out
+                </button>
+              </div>
+            ) : null}
           </div>
-
-          <button
-            type="button"
-            className="app-topbar-v2-logout"
-            onClick={onLogout}
-          >
-            <LogOut size={16} strokeWidth={1.9} />
-            <span>Sign out</span>
-          </button>
         </div>
       </div>
     </header>
