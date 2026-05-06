@@ -2788,34 +2788,6 @@ return (
             audit trail.
           </p>
         </div>
-
-        <div className="capture-enterprise-security-card">
-          <div style={{ display: "flex", gap: 14, alignItems: "flex-start" }}>
-            <div
-              style={{
-                width: 52,
-                height: 52,
-                borderRadius: 18,
-                display: "grid",
-                placeItems: "center",
-                background: "rgba(158,216,207,0.12)",
-                border: "1px solid rgba(158,216,207,0.18)",
-                fontSize: 24,
-              }}
-            >
-              ◈
-            </div>
-            <div style={{ display: "grid", gap: 8 }}>
-              <div style={{ fontWeight: 850, color: "#edf4f1" }}>
-                End-to-end protected intake
-              </div>
-              <div style={{ color: "rgba(211,223,220,0.78)", fontSize: 13, lineHeight: 1.65 }}>
-                Client-side fingerprints, encrypted storage workflow, structured
-                custody context, and verification artifacts after signing.
-              </div>
-            </div>
-          </div>
-        </div>
       </div>
 
       <div className="capture-enterprise-steps">
