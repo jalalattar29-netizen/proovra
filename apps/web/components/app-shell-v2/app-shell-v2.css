@@ -971,3 +971,15 @@
   align-items: center !important;
   gap: 22px !important;
 }
+
+.app-topbar-v2-brand {
+  display: inline-flex !important;
+  align-items: center !important;
+}
+
+.app-topbar-v2-wordmark-image {
+  width: 210px !important;
+  height: auto !important;
+  object-fit: contain !important;
+  display: block !important;
+}
