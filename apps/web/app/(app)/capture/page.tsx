@@ -7,11 +7,9 @@ import { apiFetch } from "../../../lib/api";
 import { CaptureAiAssistant } from "../../../components/ai/CaptureAiAssistant";
 import {
   Camera,
-  CheckCircle2,
   ClipboardCheck,
   FileText,
   FolderOpen,
-  MapPin,
   Mic,
   ShieldCheck,
   Upload,
