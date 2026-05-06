@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -9,7 +9,7 @@ import {
   LogOut,
   Settings,
   ShieldCheck,
-  UserRound,
+  UserCircle,
 } from "lucide-react";
 import { LanguageSwitcher } from "../language-switcher";
 
@@ -59,6 +59,18 @@ export function AppTopbarV2({
 }) {
   const pathname = usePathname();
   const [accountOpen, setAccountOpen] = useState(false);
+  const accountRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    const onPointerDown = (event: PointerEvent) => {
+      if (!accountRef.current?.contains(event.target as Node)) {
+        setAccountOpen(false);
+      }
+    };
+
+    document.addEventListener("pointerdown", onPointerDown);
+    return () => document.removeEventListener("pointerdown", onPointerDown);
+  }, []);
 
   const navItems = isPlatformAdmin
     ? [...TOP_NAV, { href: "/admin", label: "Admin" }]
@@ -101,11 +113,12 @@ export function AppTopbarV2({
             <LanguageSwitcher />
           </div>
 
-          <div className="app-topbar-v2-account">
+          <div className="app-topbar-v2-account" ref={accountRef}>
             <button
               type="button"
-              className="app-topbar-v2-user"
+              className={`app-topbar-v2-user ${accountOpen ? "is-open" : ""}`}
               onClick={() => setAccountOpen((prev) => !prev)}
+              aria-haspopup="menu"
               aria-expanded={accountOpen}
             >
               {user?.avatarUrl ? (
@@ -132,18 +145,23 @@ export function AppTopbarV2({
             </button>
 
             {accountOpen ? (
-              <div className="app-topbar-v2-account-menu">
-                <Link href="/settings" onClick={() => setAccountOpen(false)}>
+              <div className="app-topbar-v2-account-menu" role="menu">
+                <div className="app-topbar-v2-account-menu-header">
+                  <strong>{getUserDisplayName(user)}</strong>
+                  <span>{user?.email ?? "Signed in account"}</span>
+                </div>
+
+                <Link href="/settings" role="menuitem" onClick={() => setAccountOpen(false)}>
                   <Settings size={16} strokeWidth={1.9} />
                   Settings
                 </Link>
 
-                <Link href="/home" onClick={() => setAccountOpen(false)}>
-                  <UserRound size={16} strokeWidth={1.9} />
+                <Link href="/home" role="menuitem" onClick={() => setAccountOpen(false)}>
+                  <UserCircle size={16} strokeWidth={1.9} />
                   Workspace
                 </Link>
 
-                <button type="button" onClick={onLogout}>
+                <button type="button" role="menuitem" onClick={onLogout}>
                   <LogOut size={16} strokeWidth={1.9} />
                   Sign out
                 </button>

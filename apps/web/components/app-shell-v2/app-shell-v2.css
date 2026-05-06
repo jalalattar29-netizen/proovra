@@ -646,14 +646,14 @@
 }
 
 /* =========================================================
-   APP SHELL V2 — FINAL CLEAN OVERRIDES
+   APP SHELL V2 — CLEAN FINAL OVERRIDES
 ========================================================= */
 
 .app-shell-v2 {
   min-height: 100vh;
   font-family:
-    Inter,
     "Plus Jakarta Sans",
+    Inter,
     ui-sans-serif,
     system-ui,
     -apple-system,
@@ -663,13 +663,13 @@
 }
 
 .app-topbar-v2 {
-  min-height: 64px;
+  min-height: 68px;
 }
 
 .app-topbar-v2-inner {
-  min-height: 64px;
-  padding: 0 26px;
-  grid-template-columns: 270px minmax(0, 1fr) auto;
+  min-height: 68px;
+  padding: 0 30px;
+  grid-template-columns: 285px minmax(0, 1fr) auto;
 }
 
 .app-topbar-v2-brand {
@@ -677,13 +677,25 @@
 }
 
 .app-topbar-v2-brand-icon {
-  width: 44px;
-  height: 44px;
+  width: 46px;
+  height: 46px;
 }
 
 .app-topbar-v2-brand-text strong {
-  font-size: 1.12rem;
-  font-weight: 850;
+  font-size: 1.14rem;
+  font-weight: 900;
+  letter-spacing: -0.035em;
+  font-family:
+    "Plus Jakarta Sans",
+    Inter,
+    ui-sans-serif,
+    system-ui,
+    sans-serif;
+}
+
+.app-topbar-v2-brand-text small {
+  font-size: 0.6rem;
+  letter-spacing: 0.2em;
 }
 
 .app-topbar-v2-nav-link:hover,
@@ -698,94 +710,78 @@
   background: linear-gradient(90deg, #d6b89d, rgba(214, 184, 157, 0.1));
 }
 
-/* إذا الإشعارات وهمية نخفيها */
-.app-topbar-v2-icon-button {
+.app-topbar-v2-icon-button,
+.app-topbar-v2-logout {
   display: none;
 }
 
-/* السايدبار يطول مع الصفحة */
-.app-shell-v2-main {
-  flex: 1;
-  display: grid;
-  grid-template-columns: 260px minmax(0, 1fr);
-  align-items: stretch;
-}
-
-.app-sidebar-v2 {
-  position: relative;
-  top: auto;
-  align-self: stretch;
-  min-height: calc(100vh - 64px);
-  height: auto;
-  overflow: visible;
-}
-
-.app-sidebar-v2-inner {
-  min-height: calc(100vh - 64px);
-  height: 100%;
-}
-
-.app-sidebar-v2-scroll {
-  overflow-y: visible;
-}
-
-.app-sidebar-v2-link.is-active {
-  color: #d6b89d;
-  border-color: rgba(214, 184, 157, 0.26);
-  box-shadow: inset 3px 0 0 rgba(214, 184, 157, 0.78);
-}
-
-.app-sidebar-v2-link-icon {
-  color: currentColor;
-}
-
-/* لا تخلي كل الأيقونات برونزي، فقط hover/active */
-.app-sidebar-v2-link:hover .app-sidebar-v2-link-icon,
-.app-sidebar-v2-link.is-active .app-sidebar-v2-link-icon {
-  color: #d6b89d;
-}
-
-/* dropdown الحساب */
 .app-topbar-v2-account {
   position: relative;
 }
 
 .app-topbar-v2-user {
+  border: 1px solid rgba(214, 184, 157, 0.16);
+  background: rgba(255, 255, 255, 0.055);
   cursor: pointer;
 }
 
 .app-topbar-v2-user:hover,
 .app-topbar-v2-user.is-open {
-  border-color: rgba(214, 184, 157, 0.3);
-  background: rgba(183, 157, 132, 0.09);
+  border-color: rgba(214, 184, 157, 0.34);
+  background: rgba(183, 157, 132, 0.10);
 }
 
 .app-topbar-v2-account-menu {
   position: absolute;
-  right: 0;
   top: calc(100% + 10px);
-  z-index: 120;
-  width: 230px;
+  right: 0;
+  z-index: 200;
+  width: 250px;
   padding: 8px;
-  border-radius: 18px;
+  border-radius: 20px;
   border: 1px solid rgba(214, 184, 157, 0.22);
-  background: rgba(8, 20, 24, 0.98);
-  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.28);
+  background:
+    linear-gradient(180deg, rgba(13, 29, 32, 0.98), rgba(7, 18, 22, 0.98)),
+    url("/brand/site-velvet-bg.webp.png");
+  background-size: cover;
+  box-shadow: 0 24px 58px rgba(0, 0, 0, 0.34);
+}
+
+.app-topbar-v2-account-menu-header {
+  display: grid;
+  gap: 3px;
+  padding: 12px 12px 10px;
+  margin-bottom: 6px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.app-topbar-v2-account-menu-header strong {
+  color: #f4f7f5;
+  font-size: 0.88rem;
+  font-weight: 850;
+}
+
+.app-topbar-v2-account-menu-header span {
+  color: rgba(220, 229, 225, 0.62);
+  font-size: 0.76rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .app-topbar-v2-account-menu a,
 .app-topbar-v2-account-menu button {
   width: 100%;
   min-height: 42px;
-  border: 0;
-  border-radius: 13px;
-  background: transparent;
-  color: rgba(232, 238, 236, 0.86);
   display: flex;
   align-items: center;
   gap: 10px;
+  border: 0;
+  border-radius: 13px;
+  background: transparent;
+  color: rgba(229, 237, 234, 0.82);
   padding: 0 12px;
-  font-size: 0.86rem;
+  font-size: 0.85rem;
   font-weight: 800;
   text-align: left;
   cursor: pointer;
@@ -794,5 +790,57 @@
 .app-topbar-v2-account-menu a:hover,
 .app-topbar-v2-account-menu button:hover {
   color: #d6b89d;
-  background: rgba(255, 255, 255, 0.06);
+  background: rgba(183, 157, 132, 0.10);
+}
+
+.app-topbar-v2-account-menu button {
+  color: #fecaca;
+  margin-top: 6px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+/* sidebar flexible بدون تكرار صورة تحت */
+.app-shell-v2-main {
+  flex: 1;
+  display: grid;
+  grid-template-columns: 270px minmax(0, 1fr);
+  align-items: stretch;
+}
+
+.app-sidebar-v2 {
+  position: sticky;
+  top: 68px;
+  align-self: stretch;
+  height: calc(100vh - 68px);
+  min-height: calc(100vh - 68px);
+  overflow: hidden;
+}
+
+.app-sidebar-v2-inner {
+  min-height: calc(100vh - 68px);
+}
+
+.app-sidebar-v2-link.is-active {
+  color: #d6b89d;
+  border-color: rgba(214, 184, 157, 0.26);
+  box-shadow: inset 3px 0 0 rgba(214, 184, 157, 0.78);
+}
+
+.app-sidebar-v2-link:hover .app-sidebar-v2-link-icon,
+.app-sidebar-v2-trust-icon,
+.app-sidebar-v2-trust-card a {
+  color: #d6b89d;
+}
+
+.app-shell-v2-content {
+  min-height: calc(100vh - 68px);
+  font-family:
+    "Plus Jakarta Sans",
+    Inter,
+    ui-sans-serif,
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    sans-serif;
 }

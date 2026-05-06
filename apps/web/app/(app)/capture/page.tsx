@@ -9,7 +9,9 @@ import {
   Camera,
   ClipboardCheck,
   FileText,
+  Folder,
   FolderOpen,
+  ImageIcon,
   Mic,
   ShieldCheck,
   Upload,
@@ -1790,6 +1792,129 @@ export default function CapturePage() {
   Record Audio
 </Button>
               </div>
+              {sessionItems.length > 0 ? (
+  <div className="capture-materials-board">
+    <div className="capture-materials-header">
+      <div>
+        <div className="capture-section-label">Added materials</div>
+        <div className="capture-card-title">{sessionCountLabel}</div>
+      </div>
+
+      <div className="capture-materials-meta">
+        {formatFileSize(totalStagedBytes)}
+      </div>
+    </div>
+
+    <div className="capture-materials-grid">
+      {sessionItems.map((item, index) => {
+        const mappedStep = getChecklistStepById(
+          selectedCollectionPlan,
+          item.checklistStepId
+        );
+
+        const qualityStatus = getItemQualityStatus({
+          item,
+          step: mappedStep,
+        });
+
+        const typeLabel = deriveSessionItemTypeLabel(item.mimeType);
+
+const FileIcon = item.relativePath
+  ? Folder
+  : item.mimeType.startsWith("audio/")
+    ? Mic
+    : item.mimeType.startsWith("video/")
+      ? Video
+      : item.mimeType.startsWith("image/")
+        ? ImageIcon
+        : FileText;
+        
+        return (
+          <div key={item.id} className="capture-material-card">
+<div className="capture-material-preview">
+  {item.previewUrl && item.mimeType.startsWith("image/") ? (
+    <img src={item.previewUrl} alt={item.file.name} />
+  ) : item.previewUrl && item.mimeType.startsWith("video/") ? (
+    <video src={item.previewUrl} muted playsInline controls={false} />
+  ) : (
+    <div className="capture-material-file-icon">
+      <FileIcon size={34} strokeWidth={1.9} />
+    </div>
+  )}
+</div>
+            <div className="capture-material-body">
+              <div className="capture-material-top">
+                <div>
+                  <small>Item {index + 1}</small>
+                  <strong title={item.file.name}>{item.file.name}</strong>
+                  <span>
+                    {typeLabel} • {formatFileSize(item.file.size)}
+                  </span>
+                </div>
+
+                {!busy ? (
+                  <button type="button" onClick={() => removeSessionItem(item.id)}>
+                    Remove
+                  </button>
+                ) : null}
+              </div>
+
+              <select
+                value={item.checklistStepId ?? ""}
+                onChange={(event) =>
+                  updateSessionItem(item.id, {
+                    checklistStepId: event.target.value || null,
+                  })
+                }
+                disabled={busy}
+                className="capture-material-select"
+              >
+                <option value="">
+                  {planMode === "CHECKLIST_REQUIRED"
+                    ? "Map to required collection step"
+                    : "Map to collection step"}
+                </option>
+
+                {selectedCollectionPlan?.steps.map((step) => (
+                  <option key={step.id} value={step.id}>
+                    {getStepRequirementLabel(step)}: {step.title} —{" "}
+                    {step.purposeLabel}
+                  </option>
+                ))}
+              </select>
+
+              <div
+                className={
+                  qualityStatus.tone === "success"
+                    ? "capture-quality-success"
+                    : qualityStatus.tone === "danger"
+                      ? "capture-quality-danger"
+                      : "capture-quality-warning"
+                }
+              >
+                <strong>{qualityStatus.label}</strong>
+                <div>{qualityStatus.detail}</div>
+              </div>
+
+              <textarea
+                value={item.privateNote ?? ""}
+                onChange={(event) =>
+                  updateSessionItem(item.id, {
+                    privateNote: event.target.value,
+                  })
+                }
+                disabled={busy}
+                placeholder="Private item note"
+                maxLength={1000}
+                className="capture-material-note"
+              />
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  </div>
+) : null}
 
               <strong>Drag & drop files here or choose a capture method</strong>
               <p>Nothing is signed or submitted until you finish the evidence record.</p>
@@ -1922,136 +2047,9 @@ export default function CapturePage() {
                 }))}
               />
 
-              {sessionItems.length > 0 ? (
-                <div className="capture-session-list">
-                  {sessionItems.map((item, index) => {
-                    const mappedStep = getChecklistStepById(
-                      selectedCollectionPlan,
-                      item.checklistStepId
-                    );
-
-                    const requirementStatus = getChecklistStepStatus({
-                      item,
-                      plan: selectedCollectionPlan,
-                    });
-
-                    const qualityStatus = getItemQualityStatus({
-                      item,
-                      step: mappedStep,
-                    });
-
-                    const statusLabel = item.error
-                      ? "Failed"
-                      : item.uploading
-                        ? `Uploading ${item.uploadProgress}%`
-                        : item.uploadProgress === 100
-                          ? "Uploaded"
-                          : "Ready";
-
-                    return (
-                      <div key={item.id} className="capture-session-item">
-                        <div className="capture-session-preview">
-                          {item.previewUrl && item.mimeType.startsWith("image/") ? (
-                            <img src={item.previewUrl} alt={item.file.name} />
-                          ) : item.previewUrl && item.mimeType.startsWith("video/") ? (
-                            <video
-                              src={item.previewUrl}
-                              muted
-                              playsInline
-                              controls={false}
-                            />
-                          ) : item.mimeType.startsWith("audio/") ? (
-                            "Audio"
-                          ) : (
-                            deriveSessionItemTypeLabel(item.mimeType)
-                          )}
-                        </div>
-
-                        <div className="capture-session-item-body">
-                          <div className="capture-session-item-top">
-                            <div>
-                              <small>Item {index + 1}</small>
-                              <strong title={item.file.name}>{item.file.name}</strong>
-                              <span>
-                                {deriveSessionItemTypeLabel(item.mimeType)} •{" "}
-                                {formatFileSize(item.file.size)}
-                              </span>
-                            </div>
-
-                            {!busy ? (
-                              <button
-                                type="button"
-                                onClick={() => removeSessionItem(item.id)}
-                              >
-                                Remove
-                              </button>
-                            ) : null}
-                          </div>
-
-                          <select
-                            value={item.checklistStepId ?? ""}
-                            onChange={(event) =>
-                              updateSessionItem(item.id, {
-                                checklistStepId: event.target.value || null,
-                              })
-                            }
-                            disabled={busy}
-                          >
-                            <option value="">
-                              {planMode === "CHECKLIST_REQUIRED"
-                                ? "Map to required collection step"
-                                : "Map to collection step"}
-                            </option>
-
-                            {selectedCollectionPlan?.steps.map((step) => (
-                              <option key={step.id} value={step.id}>
-                                {getStepRequirementLabel(step)}: {step.title} —{" "}
-                                {step.purposeLabel}
-                              </option>
-                            ))}
-                          </select>
-
-                          <div
-                            className={
-                              qualityStatus.tone === "success"
-                                ? "capture-quality-success"
-                                : qualityStatus.tone === "danger"
-                                  ? "capture-quality-danger"
-                                  : "capture-quality-warning"
-                            }
-                          >
-                            <strong>{qualityStatus.label}</strong>
-                            <p>{qualityStatus.detail}</p>
-                          </div>
-
-                          <textarea
-                            value={item.privateNote ?? ""}
-                            onChange={(event) =>
-                              updateSessionItem(item.id, {
-                                privateNote: event.target.value,
-                              })
-                            }
-                            disabled={busy}
-                            placeholder="Private item note"
-                            maxLength={1000}
-                          />
-
-                          <div className="capture-session-item-footer">
-                            <strong>{statusLabel}</strong>
-                            <span>{requirementStatus.label}</span>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              ) : (
-                <div className="capture-empty-state">
-                  Added materials will appear here for mapping, notes, and quality
-                  review.
-                </div>
-              )}
-
+<div className="capture-empty-state">
+  Added materials appear below the upload workspace for mapping, notes, and quality review.
+</div>
               <div className="capture-notes-card">
                 <div className="capture-card-title">Private Internal Notes</div>
                 <p>
