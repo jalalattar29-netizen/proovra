@@ -4,11 +4,12 @@
 @import "vanilla-cookieconsent/dist/cookieconsent.css";
 @import "../components/app-shell-v2/app-shell-v2.css";
 @import "../components/capture-v2/capture-v2.css";
+@import url("https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&display=swap");
 
 html,
 body {
   font-family:
-    "Aptos", "Satoshi", "Inter", "SF Pro Display", "SF Pro Text",
+    "Plus Jakarta Sans", "Aptos", "Satoshi", "Inter", "SF Pro Display", "SF Pro Text",
     ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
     "Segoe UI", sans-serif;
 }

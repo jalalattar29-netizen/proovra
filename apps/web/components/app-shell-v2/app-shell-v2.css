@@ -646,11 +646,13 @@
 }
 
 /* =========================================================
-   APP SHELL V2 — CLEAN FINAL OVERRIDES
+   APP SHELL V2 — FINAL FIX
 ========================================================= */
 
 .app-shell-v2 {
   min-height: 100vh;
+  display: flex;
+  flex-direction: column;
   font-family:
     "Plus Jakarta Sans",
     Inter,
@@ -664,16 +666,17 @@
 
 .app-topbar-v2 {
   min-height: 68px;
+  overflow: visible;
 }
 
 .app-topbar-v2-inner {
   min-height: 68px;
-  padding: 0 30px;
-  grid-template-columns: 285px minmax(0, 1fr) auto;
+  padding: 0 36px;
+  grid-template-columns: 300px minmax(0, 1fr) auto;
 }
 
 .app-topbar-v2-brand {
-  gap: 12px;
+  gap: 13px;
 }
 
 .app-topbar-v2-brand-icon {
@@ -682,20 +685,22 @@
 }
 
 .app-topbar-v2-brand-text strong {
-  font-size: 1.14rem;
-  font-weight: 900;
-  letter-spacing: -0.035em;
   font-family:
     "Plus Jakarta Sans",
     Inter,
     ui-sans-serif,
     system-ui,
     sans-serif;
+  font-size: 1.16rem;
+  font-weight: 950;
+  letter-spacing: -0.045em;
+  color: #f4f7f5;
 }
 
 .app-topbar-v2-brand-text small {
   font-size: 0.6rem;
-  letter-spacing: 0.2em;
+  font-weight: 900;
+  letter-spacing: 0.22em;
 }
 
 .app-topbar-v2-nav-link:hover,
@@ -720,9 +725,8 @@
 }
 
 .app-topbar-v2-user {
-  border: 1px solid rgba(214, 184, 157, 0.16);
-  background: rgba(255, 255, 255, 0.055);
   cursor: pointer;
+  border-color: rgba(214, 184, 157, 0.16);
 }
 
 .app-topbar-v2-user:hover,
@@ -735,8 +739,8 @@
   position: absolute;
   top: calc(100% + 10px);
   right: 0;
-  z-index: 200;
-  width: 250px;
+  z-index: 500;
+  width: 260px;
   padding: 8px;
   border-radius: 20px;
   border: 1px solid rgba(214, 184, 157, 0.22);
@@ -758,7 +762,7 @@
 .app-topbar-v2-account-menu-header strong {
   color: #f4f7f5;
   font-size: 0.88rem;
-  font-weight: 850;
+  font-weight: 900;
 }
 
 .app-topbar-v2-account-menu-header span {
@@ -779,7 +783,7 @@
   border: 0;
   border-radius: 13px;
   background: transparent;
-  color: rgba(229, 237, 234, 0.82);
+  color: rgba(229, 237, 234, 0.84);
   padding: 0 12px;
   font-size: 0.85rem;
   font-weight: 800;
@@ -799,7 +803,6 @@
   border-top: 1px solid rgba(255, 255, 255, 0.08);
 }
 
-/* sidebar flexible بدون تكرار صورة تحت */
 .app-shell-v2-main {
   flex: 1;
   display: grid;
@@ -808,16 +811,17 @@
 }
 
 .app-sidebar-v2 {
-  position: sticky;
-  top: 68px;
+  position: relative;
+  top: auto;
   align-self: stretch;
-  height: calc(100vh - 68px);
-  min-height: calc(100vh - 68px);
+  height: auto;
+  min-height: 100%;
   overflow: hidden;
 }
 
 .app-sidebar-v2-inner {
   min-height: calc(100vh - 68px);
+  height: 100%;
 }
 
 .app-sidebar-v2-link.is-active {
@@ -834,13 +838,4 @@
 
 .app-shell-v2-content {
   min-height: calc(100vh - 68px);
-  font-family:
-    "Plus Jakarta Sans",
-    Inter,
-    ui-sans-serif,
-    system-ui,
-    -apple-system,
-    BlinkMacSystemFont,
-    "Segoe UI",
-    sans-serif;
 }

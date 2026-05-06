@@ -27,7 +27,7 @@
   --capture-blue-soft: rgba(59, 130, 246, 0.1);
 
   min-height: 100%;
-padding: 42px 28px 28px;
+padding: 72px 28px 28px;
   color: var(--capture-ink);
 background:
   radial-gradient(circle at 18% 10%, rgba(20, 184, 166, 0.08), transparent 24%),
@@ -221,23 +221,20 @@ background:
   font-size: 0.82rem;
 }
 
-.capture-enterprise-step-number {
-  width: 36px;
-  height: 36px;
-  border-radius: 999px;
-  display: grid;
-  place-items: center;
-  flex-shrink: 0;
-  color: #ffffff;
-  background: linear-gradient(180deg, #19b39f, #0f8f81);
-  font-weight: 950;
+.capture-enterprise-step-number,
+.capture-requirement-index {
+  color: var(--capture-teal-strong);
+  background: rgba(255, 255, 255, 0.24);
+  border: 2px solid var(--capture-teal);
   box-shadow:
-    0 10px 22px rgba(20, 184, 166, 0.22),
-    inset 0 1px 0 rgba(255, 255, 255, 0.22);
+    0 10px 22px rgba(20, 184, 166, 0.12),
+    inset 0 1px 0 rgba(255, 255, 255, 0.36);
 }
 
 .capture-enterprise-step.active .capture-enterprise-step-number {
-  background: linear-gradient(180deg, var(--capture-teal), var(--capture-teal-strong));
+  color: var(--capture-teal-strong);
+  background: rgba(255, 255, 255, 0.28);
+  border-color: var(--capture-teal);
 }
 
 /* =========================
@@ -1299,7 +1296,7 @@ background:
 
 @media (max-width: 700px) {
   .capture-enterprise-page {
-padding: 42px 28px 28px;
+padding: 72px 28px 28px;
   }
 
   .capture-enterprise-title-card,
@@ -1338,15 +1335,6 @@ padding: 42px 28px 28px;
     width: 100%;
     height: 200px;
   }
-}
-
-.capture-materials-board {
-  margin-top: 18px;
-  border-radius: 28px;
-  padding: 20px;
-  border: 1px solid rgba(15, 23, 42, 0.08);
-  background: rgba(255, 255, 255, 0.24);
-  backdrop-filter: blur(16px);
 }
 
 .capture-materials-header {
@@ -1601,4 +1589,118 @@ padding: 42px 28px 28px;
 .capture-material-note {
   min-height: 78px;
   resize: vertical;
+}
+
+.capture-material-card {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.capture-material-preview {
+  position: relative;
+  height: 168px;
+  flex: 0 0 168px;
+  overflow: hidden;
+  border-bottom: 1px solid rgba(22, 34, 39, 0.08);
+  background: rgba(248, 250, 252, 0.72);
+}
+
+.capture-material-preview img,
+.capture-material-preview video {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.capture-material-body {
+  position: relative;
+  z-index: 2;
+  background: rgba(255, 255, 255, 0.78);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+}
+
+.capture-material-top {
+  position: relative;
+  z-index: 3;
+}
+
+.capture-material-top strong,
+.capture-material-top span,
+.capture-material-top small {
+  text-shadow: none;
+}
+
+.capture-material-select,
+.capture-material-note,
+.capture-material-body .capture-quality-warning,
+.capture-material-body .capture-quality-success,
+.capture-material-body .capture-quality-danger {
+  position: relative;
+  z-index: 3;
+}
+
+/* =========================
+   MATERIAL CARD SELECT — PREMIUM
+========================= */
+
+.capture-material-select {
+  width: 100%;
+  min-height: 42px;
+  border-radius: 14px;
+  border: 1px solid rgba(16, 24, 40, 0.10);
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.96), rgba(248,250,252,0.94));
+  color: #101828;
+  padding: 0 42px 0 14px;
+  font-size: 0.84rem;
+  font-weight: 850;
+  line-height: 42px;
+  cursor: pointer;
+  outline: none;
+
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+
+  background-image:
+    linear-gradient(45deg, transparent 50%, #667085 50%),
+    linear-gradient(135deg, #667085 50%, transparent 50%),
+    linear-gradient(180deg, rgba(255,255,255,0.96), rgba(248,250,252,0.94));
+  background-position:
+    calc(100% - 18px) 18px,
+    calc(100% - 13px) 18px,
+    0 0;
+  background-size:
+    5px 5px,
+    5px 5px,
+    100% 100%;
+  background-repeat: no-repeat;
+
+  box-shadow:
+    0 8px 18px rgba(16, 24, 40, 0.045),
+    inset 0 1px 0 rgba(255,255,255,0.80);
+}
+
+.capture-material-select:hover {
+  border-color: rgba(19, 169, 154, 0.26);
+  background-image:
+    linear-gradient(45deg, transparent 50%, #08796f 50%),
+    linear-gradient(135deg, #08796f 50%, transparent 50%),
+    linear-gradient(180deg, #ffffff, #f8fffd);
+}
+
+.capture-material-select:focus {
+  border-color: rgba(19, 169, 154, 0.42);
+  box-shadow:
+    0 0 0 4px rgba(19, 169, 154, 0.10),
+    0 10px 22px rgba(16, 24, 40, 0.06);
+}
+
+.capture-material-select option {
+  color: #101828;
+  background: #ffffff;
+  font-weight: 750;
 }
