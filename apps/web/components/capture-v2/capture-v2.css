@@ -221,16 +221,6 @@ background:
   font-size: 0.82rem;
 }
 
-.capture-enterprise-step-number,
-.capture-requirement-index {
-  color: var(--capture-teal-strong);
-  background: rgba(255, 255, 255, 0.24);
-  border: 2px solid var(--capture-teal);
-  box-shadow:
-    0 10px 22px rgba(20, 184, 166, 0.12),
-    inset 0 1px 0 rgba(255, 255, 255, 0.36);
-}
-
 /* =========================
    GRID
 ========================= */
@@ -1118,7 +1108,7 @@ background:
   background:
     linear-gradient(
       180deg,
-      #14b8a6,
+      #0F766E,
       #0f766e
     ) !important;
 
@@ -1699,23 +1689,6 @@ padding: 72px 28px 28px;
   font-weight: 750;
 }
 
-.capture-enterprise-step-number,
-.capture-requirement-index {
-  width: 36px !important;
-  height: 36px !important;
-  border-radius: 999px !important;
-  color: var(--capture-teal-strong) !important;
-  background: rgba(255, 255, 255, 0.35) !important;
-  border: 2px solid var(--capture-teal) !important;
-  box-shadow: none !important;
-}
-
-.capture-enterprise-step.active .capture-enterprise-step-number {
-  color: var(--capture-teal-strong) !important;
-  background: rgba(255, 255, 255, 0.42) !important;
-  border: 2px solid var(--capture-teal) !important;
-}
-
 .capture-material-dropdown {
   position: relative;
   width: 100%;
@@ -1812,4 +1785,32 @@ padding: 72px 28px 28px;
 /* يلغي شكل select القديم إذا بقي شي بالكاش */
 .capture-material-select {
   display: none !important;
+}
+
+.capture-enterprise-step-number,
+.capture-requirement-index {
+  width: 36px;
+  height: 36px;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+
+  color: #0f8f81 !important;
+  background: rgba(255, 255, 255, 0.34) !important;
+  border: 2px solid #13a99a !important;
+
+  font-weight: 950;
+  font-size: 0.95rem;
+  line-height: 1;
+
+  box-shadow:
+    0 10px 22px rgba(20, 184, 166, 0.10),
+    inset 0 1px 0 rgba(255, 255, 255, 0.42) !important;
+}
+
+.capture-enterprise-step.active .capture-enterprise-step-number {
+  color: #0f8f81 !important;
+  background: rgba(255, 255, 255, 0.38) !important;
+  border-color: #13a99a !important;
 }

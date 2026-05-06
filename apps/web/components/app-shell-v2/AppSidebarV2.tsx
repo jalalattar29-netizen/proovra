@@ -4,16 +4,12 @@ import type { ForwardRefExoticComponent, RefAttributes } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
-  Archive,
-  BarChart3,
   BriefcaseBusiness,
   Camera,
   CreditCard,
-  FileCheck2,
   FileText,
   Gauge,
   Headphones,
-  LayoutTemplate,
   Settings,
   ShieldCheck,
   Users,
@@ -33,22 +29,17 @@ type SidebarItem = {
 const WORKSPACE_NAV: SidebarItem[] = [
   { href: "/home", label: "Dashboard", Icon: Gauge },
   { href: "/capture", label: "Capture", Icon: Camera },
-  { href: "/sessions", label: "Sessions", Icon: Archive },
-  { href: "/cases", label: "Evidence", Icon: FileCheck2 },
   { href: "/reports", label: "Reports", Icon: FileText },
 ];
 
 const MANAGE_NAV: SidebarItem[] = [
   { href: "/cases", label: "Cases", Icon: BriefcaseBusiness },
-  { href: "/templates", label: "Templates", Icon: LayoutTemplate },
   { href: "/teams", label: "Teams", Icon: Users },
   { href: "/billing", label: "Billing", Icon: CreditCard },
 ];
 
 const ADMIN_NAV: SidebarItem[] = [
   { href: "/settings", label: "Settings", Icon: Settings },
-  { href: "/audit-log", label: "Audit Log", Icon: BarChart3 },
-  { href: "/integrations", label: "Integrations", Icon: ShieldCheck },
 ];
 
 function isActiveRoute(pathname: string | null, href: string) {
@@ -119,13 +110,13 @@ export function AppSidebarV2({
           <Link href="/legal/verification-methodology">Learn more →</Link>
         </div>
 
-        <div className="app-sidebar-v2-help">
-          <Headphones size={18} strokeWidth={1.9} />
-          <span>
-            <strong>Need help?</strong>
-            <small>Contact support</small>
-          </span>
-        </div>
+<Link href="/support" className="app-sidebar-v2-help">
+  <Headphones size={18} strokeWidth={1.9} />
+  <span>
+    <strong>Need help?</strong>
+    <small>Contact support</small>
+  </span>
+</Link>
       </div>
     </aside>
   );

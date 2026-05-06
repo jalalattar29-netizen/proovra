@@ -864,3 +864,45 @@
 .app-footer-v2 {
   margin-top: 0 !important;
 }
+
+.app-topbar-v2-brand {
+  gap: 12px;
+  padding-left: 0;
+}
+
+.app-topbar-v2-inner {
+  padding-left: 38px;
+  grid-template-columns: 300px minmax(0, 1fr) auto;
+}
+
+.app-topbar-v2-brand-text strong {
+  font-family:
+    Inter,
+    "Plus Jakarta Sans",
+    ui-sans-serif,
+    system-ui,
+    sans-serif !important;
+  font-size: 1.16rem !important;
+  font-weight: 760 !important;
+  letter-spacing: 0.015em !important;
+  line-height: 1 !important;
+  color: #f4f7f5 !important;
+}
+
+.app-topbar-v2-brand-text small {
+  font-size: 0.58rem !important;
+  font-weight: 800 !important;
+  letter-spacing: 0.24em !important;
+  color: rgba(220, 229, 225, 0.72) !important;
+}
+
+.app-sidebar-v2-help {
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.app-sidebar-v2-help:hover strong,
+.app-sidebar-v2-help:hover small,
+.app-sidebar-v2-help:hover svg {
+  color: #d6b89d;
+}
