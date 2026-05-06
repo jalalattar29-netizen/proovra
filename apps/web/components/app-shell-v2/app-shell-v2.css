@@ -261,14 +261,15 @@
   min-height: 0;
   display: grid;
   grid-template-columns: 260px minmax(0, 1fr);
+  align-items: stretch;
 }
 
 .app-sidebar-v2 {
-  position: sticky;
-  top: 68px;
-  align-self: start;
-  height: calc(100vh - 68px);
-  overflow: hidden;
+  position: relative;
+  top: auto;
+  min-height: calc(100vh - 64px);
+  height: auto;
+  overflow: visible;
   border-right: 1px solid rgba(214, 184, 157, 0.16);
   color: #edf4f1;
 }
@@ -277,7 +278,7 @@
   position: relative;
   z-index: 1;
   height: 100%;
-  min-height: 0;
+  min-height: calc(100vh - 64px);
   padding: 18px 14px;
   display: flex;
   flex-direction: column;
@@ -645,11 +646,11 @@
 }
 
 /* =========================================================
-   APP SHELL V2 — PREMIUM POLISH FIX
-   Header / Sidebar / Footer / Typography
-   ========================================================= */
+   APP SHELL V2 — FINAL CLEAN OVERRIDES
+========================================================= */
 
 .app-shell-v2 {
+  min-height: 100vh;
   font-family:
     Inter,
     "Plus Jakarta Sans",
@@ -659,10 +660,6 @@
     BlinkMacSystemFont,
     "Segoe UI",
     sans-serif;
-  background:
-    radial-gradient(circle at 18% 8%, rgba(183,157,132,0.055), transparent 26%),
-    radial-gradient(circle at 86% 18%, rgba(58,93,97,0.035), transparent 22%),
-    linear-gradient(180deg, #f7f9f8 0%, #eef3f4 100%);
 }
 
 .app-topbar-v2 {
@@ -671,196 +668,84 @@
 
 .app-topbar-v2-inner {
   min-height: 64px;
-  padding: 0 24px;
-  grid-template-columns: 250px minmax(0, 1fr) auto;
+  padding: 0 26px;
+  grid-template-columns: 270px minmax(0, 1fr) auto;
 }
 
 .app-topbar-v2-brand {
   gap: 12px;
-  padding-left: 4px;
 }
 
 .app-topbar-v2-brand-icon {
-  width: 42px;
-  height: 42px;
+  width: 44px;
+  height: 44px;
 }
 
 .app-topbar-v2-brand-text strong {
-  font-size: 1.02rem;
+  font-size: 1.12rem;
   font-weight: 850;
-  letter-spacing: -0.025em;
 }
 
-.app-topbar-v2-brand-text small {
-  font-size: 0.58rem;
-  letter-spacing: 0.2em;
-  color: rgba(235, 242, 239, 0.68);
-}
-
-.app-topbar-v2-nav-link {
-  min-height: 36px;
-  padding: 0 13px;
-  font-size: 0.84rem;
-  font-weight: 760;
-  color: rgba(229, 237, 234, 0.74);
-}
-
-.app-topbar-v2-nav-link:hover {
-  color: #f2e2d2;
-  background: rgba(183,157,132,0.08);
-}
-
-.app-topbar-v2-nav-link.is-active {
-  color: #e6c9ae;
+.app-topbar-v2-nav-link:hover,
+.app-topbar-v2-nav-link.is-active,
+.app-sidebar-v2-link:hover,
+.app-sidebar-v2-link.is-active,
+.app-footer-v2-links a:hover {
+  color: #d6b89d;
 }
 
 .app-topbar-v2-nav-link.is-active::after {
-  background: linear-gradient(90deg, #d6b89d, rgba(214,184,157,0.08));
-  height: 2px;
-  bottom: 3px;
+  background: linear-gradient(90deg, #d6b89d, rgba(214, 184, 157, 0.1));
 }
 
-/* remove fake-looking notification if it is not wired yet */
-.app-topbar-v2-icon-button:has(.app-topbar-v2-notification-dot) {
+/* إذا الإشعارات وهمية نخفيها */
+.app-topbar-v2-icon-button {
   display: none;
 }
 
-.app-topbar-v2-language,
-.app-topbar-v2-user,
-.app-topbar-v2-icon-button,
-.app-topbar-v2-logout {
-  min-height: 36px;
-  border-color: rgba(214,184,157,0.14);
-  background: rgba(255,255,255,0.045);
-}
-
-.app-topbar-v2-user {
-  min-height: 40px;
-  padding: 4px 10px 4px 4px;
-}
-
-.app-topbar-v2-avatar,
-.app-topbar-v2-avatar-fallback {
-  width: 32px;
-  height: 32px;
-}
-
-.app-topbar-v2-user-copy strong {
-  font-size: 0.8rem;
-  max-width: 140px;
-}
-
-.app-topbar-v2-user-copy span {
-  font-size: 0.66rem;
-}
-
-/* hide standalone sign out button until moved into user dropdown */
-.app-topbar-v2-logout {
-  display: none;
-}
-
-/* Sidebar full-height + more global spacing */
+/* السايدبار يطول مع الصفحة */
 .app-shell-v2-main {
-  grid-template-columns: 270px minmax(0, 1fr);
+  flex: 1;
+  display: grid;
+  grid-template-columns: 260px minmax(0, 1fr);
   align-items: stretch;
 }
 
 .app-sidebar-v2 {
-  top: 64px;
-  height: calc(100vh - 64px);
-  min-height: calc(100vh - 64px);
+  position: relative;
+  top: auto;
   align-self: stretch;
+  min-height: calc(100vh - 64px);
+  height: auto;
+  overflow: visible;
 }
 
 .app-sidebar-v2-inner {
   min-height: calc(100vh - 64px);
-  padding: 18px 14px 20px;
+  height: 100%;
 }
 
-.app-sidebar-v2-link {
-  min-height: 44px;
-  border-radius: 15px;
-  font-size: 0.86rem;
-  font-weight: 780;
-}
-
-.app-sidebar-v2-link:hover {
-  color: #f3dfca;
-  background: rgba(183,157,132,0.075);
-  border-color: rgba(214,184,157,0.14);
+.app-sidebar-v2-scroll {
+  overflow-y: visible;
 }
 
 .app-sidebar-v2-link.is-active {
-  color: #f1dcc7;
-  background:
-    radial-gradient(circle at 18% 20%, rgba(214,184,157,0.15), transparent 38%),
-    rgba(255,255,255,0.075);
-  border-color: rgba(214,184,157,0.22);
-  box-shadow: inset 3px 0 0 rgba(214,184,157,0.8);
+  color: #d6b89d;
+  border-color: rgba(214, 184, 157, 0.26);
+  box-shadow: inset 3px 0 0 rgba(214, 184, 157, 0.78);
 }
 
 .app-sidebar-v2-link-icon {
   color: currentColor;
-  background: rgba(255,255,255,0.055);
 }
 
-.app-sidebar-v2-trust-card {
-  border-color: rgba(214,184,157,0.18);
-  background:
-    radial-gradient(circle at 18% 14%, rgba(214,184,157,0.12), transparent 34%),
-    rgba(255,255,255,0.06);
+/* لا تخلي كل الأيقونات برونزي، فقط hover/active */
+.app-sidebar-v2-link:hover .app-sidebar-v2-link-icon,
+.app-sidebar-v2-link.is-active .app-sidebar-v2-link-icon {
+  color: #d6b89d;
 }
 
-.app-sidebar-v2-trust-icon {
-  color: #e6c9ae;
-  background: rgba(183,157,132,0.12);
-  border-color: rgba(214,184,157,0.18);
-}
-
-.app-sidebar-v2-trust-card a {
-  color: #e6c9ae;
-}
-
-.app-shell-v2-content {
-  min-height: calc(100vh - 64px);
-  font-family:
-    Inter,
-    "Plus Jakarta Sans",
-    ui-sans-serif,
-    system-ui,
-    -apple-system,
-    BlinkMacSystemFont,
-    "Segoe UI",
-    sans-serif;
-}
-
-/* Footer a bit taller / premium */
-.app-footer-v2 {
-  min-height: 92px;
-  margin-top: 38px;
-}
-
-.app-footer-v2-inner {
-  min-height: 92px;
-  padding: 0 28px;
-}
-
-/* remove harsh teal globally inside app shell */
-.app-shell-v2 * {
-  --app-active-accent: #d6b89d;
-}
-
-/* smoother text rendering */
-.app-shell-v2,
-.app-shell-v2 button,
-.app-shell-v2 input,
-.app-shell-v2 select,
-.app-shell-v2 textarea {
-  -webkit-font-smoothing: antialiased;
-  text-rendering: geometricPrecision;
-}
-
-/* Account dropdown */
+/* dropdown الحساب */
 .app-topbar-v2-account {
   position: relative;
 }
@@ -869,141 +754,45 @@
   cursor: pointer;
 }
 
-.app-topbar-v2-user.is-open,
-.app-topbar-v2-user:hover {
-  border-color: rgba(214,184,157,0.30);
-  background: rgba(183,157,132,0.09);
+.app-topbar-v2-user:hover,
+.app-topbar-v2-user.is-open {
+  border-color: rgba(214, 184, 157, 0.3);
+  background: rgba(183, 157, 132, 0.09);
 }
 
 .app-topbar-v2-account-menu {
   position: absolute;
-  top: calc(100% + 10px);
   right: 0;
+  top: calc(100% + 10px);
   z-index: 120;
-  width: 250px;
-  overflow: hidden;
-  border-radius: 20px;
-  border: 1px solid rgba(214,184,157,0.20);
-  background:
-    linear-gradient(180deg, rgba(13,29,32,0.96), rgba(7,18,22,0.98)),
-    url("/brand/site-velvet-bg.webp.png");
-  background-size: cover;
-  box-shadow: 0 24px 58px rgba(0,0,0,0.34);
+  width: 230px;
   padding: 8px;
-}
-
-.app-topbar-v2-account-menu-header {
-  display: grid;
-  gap: 3px;
-  padding: 12px 12px 10px;
-  border-bottom: 1px solid rgba(255,255,255,0.08);
-  margin-bottom: 6px;
-}
-
-.app-topbar-v2-account-menu-header strong {
-  color: #f4f7f5;
-  font-size: 0.88rem;
-}
-
-.app-topbar-v2-account-menu-header span {
-  color: rgba(220,229,225,0.62);
-  font-size: 0.76rem;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  border-radius: 18px;
+  border: 1px solid rgba(214, 184, 157, 0.22);
+  background: rgba(8, 20, 24, 0.98);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.28);
 }
 
 .app-topbar-v2-account-menu a,
 .app-topbar-v2-account-menu button {
   width: 100%;
-  min-height: 40px;
-  display: flex;
-  align-items: center;
-  gap: 10px;
+  min-height: 42px;
   border: 0;
   border-radius: 13px;
   background: transparent;
-  color: rgba(229,237,234,0.78);
-  padding: 0 11px;
-  font-size: 0.84rem;
-  font-weight: 750;
+  color: rgba(232, 238, 236, 0.86);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 12px;
+  font-size: 0.86rem;
+  font-weight: 800;
   text-align: left;
   cursor: pointer;
 }
 
 .app-topbar-v2-account-menu a:hover,
 .app-topbar-v2-account-menu button:hover {
-  color: #f2e2d2;
-  background: rgba(183,157,132,0.10);
-}
-
-.app-topbar-v2-account-menu button {
-  color: #f1c8c8;
-  border-top: 1px solid rgba(255,255,255,0.08);
-  margin-top: 6px;
-  padding-top: 2px;
-}
-
-/* Bronze hover/active polish */
-.app-topbar-v2-nav-link:hover,
-.app-sidebar-v2-link:hover,
-.app-footer-v2-links a:hover {
-  color: #e6c9ae;
-}
-
-.app-topbar-v2-nav-link.is-active,
-.app-sidebar-v2-link.is-active {
-  color: #e6c9ae;
-}
-
-.app-topbar-v2-nav-link.is-active::after {
-  background: linear-gradient(90deg, #d6b89d, rgba(214,184,157,0.10));
-}
-
-.app-sidebar-v2-link.is-active {
-  background:
-    radial-gradient(circle at 18% 20%, rgba(214,184,157,0.16), transparent 38%),
-    rgba(255,255,255,0.075);
-  border-color: rgba(214,184,157,0.24);
-  box-shadow: inset 3px 0 0 rgba(214,184,157,0.82);
-}
-
-/* Header brand slightly bigger and not glued */
-.app-topbar-v2-inner {
-  grid-template-columns: 270px minmax(0, 1fr) auto;
-  padding-left: 26px;
-  padding-right: 26px;
-}
-
-.app-topbar-v2-brand-icon {
-  width: 46px;
-  height: 46px;
-}
-
-.app-topbar-v2-brand-text strong {
-  font-size: 1.08rem;
-}
-
-.app-topbar-v2-brand-text small {
-  font-size: 0.6rem;
-}
-
-/* Sidebar full visual height */
-.app-shell-v2-main {
-  align-items: stretch;
-}
-
-.app-sidebar-v2 {
-  height: auto;
-  min-height: calc(100vh - 64px);
-  align-self: stretch;
-}
-
-.app-sidebar-v2-inner {
-  min-height: calc(100vh - 64px);
-}
-
-/* Remove fake notification button if still in old DOM/cache */
-.app-topbar-v2-icon-button {
-  display: none;
+  color: #d6b89d;
+  background: rgba(255, 255, 255, 0.06);
 }

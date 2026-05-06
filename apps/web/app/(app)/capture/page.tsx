@@ -5,6 +5,18 @@ import { useRouter } from "next/navigation";
 import { Button, useToast } from "../../../components/ui";
 import { apiFetch } from "../../../lib/api";
 import { CaptureAiAssistant } from "../../../components/ai/CaptureAiAssistant";
+import {
+  Camera,
+  CheckCircle2,
+  ClipboardCheck,
+  FileText,
+  FolderOpen,
+  MapPin,
+  Mic,
+  ShieldCheck,
+  Upload,
+  Video,
+} from "lucide-react";
 
 import type {
   AudioRecorderState,
@@ -1509,8 +1521,9 @@ export default function CapturePage() {
       <div className="capture-enterprise-shell">
         <section className="capture-enterprise-top">
           <div className="capture-enterprise-title-card">
-            <div className="capture-enterprise-icon">⌖</div>
-
+<div className="capture-enterprise-icon">
+  <Camera size={28} strokeWidth={2.1} />
+</div>
             <div>
               <div className="capture-enterprise-eyebrow">Evidence intake workspace</div>
               <h1 className="capture-enterprise-title">Capture Evidence</h1>
@@ -1523,7 +1536,9 @@ export default function CapturePage() {
           </div>
 
           <div className="capture-enterprise-security-card">
-            <div className="capture-security-shield">▣</div>
+<div className="capture-security-shield">
+  <ShieldCheck size={28} strokeWidth={2.1} />
+</div>
             <div>
               <strong>End-to-end protected</strong>
               <p>
@@ -1576,7 +1591,9 @@ export default function CapturePage() {
               onClick={() => setPlanMode("CHECKLIST_REQUIRED")}
               disabled={busy || sessionItems.length > 0}
             >
-              <span className="capture-method-icon">✓</span>
+<span className="capture-method-icon">
+  <ClipboardCheck size={22} strokeWidth={2.1} />
+</span>
               <span>
                 <strong>Guided checklist</strong>
                 <small>
@@ -1593,7 +1610,9 @@ export default function CapturePage() {
               onClick={() => setPlanMode("FLEXIBLE")}
               disabled={busy || sessionItems.length > 0}
             >
-              <span className="capture-method-icon bronze">≡</span>
+<span className="capture-method-icon bronze">
+  <FolderOpen size={22} strokeWidth={2.1} />
+</span>
               <span>
                 <strong>Flexible intake</strong>
                 <small>Upload any materials without blocking completion.</small>
@@ -1689,13 +1708,17 @@ export default function CapturePage() {
                   return (
                     <div key={step.id} className="capture-requirement-row">
                       <div className="capture-requirement-index">{index + 1}</div>
-                      <div className="capture-requirement-icon">
-                        {step.acceptedKinds?.includes("DOCUMENT")
-                          ? "□"
-                          : step.acceptedKinds?.includes("AUDIO")
-                            ? "◌"
-                            : "▣"}
-                      </div>
+<div className="capture-requirement-icon">
+  {step.acceptedKinds?.includes("DOCUMENT") ? (
+    <FileText size={18} strokeWidth={2.1} />
+  ) : step.acceptedKinds?.includes("AUDIO") ? (
+    <Mic size={18} strokeWidth={2.1} />
+  ) : step.acceptedKinds?.includes("VIDEO") ? (
+    <Video size={18} strokeWidth={2.1} />
+  ) : (
+    <Camera size={18} strokeWidth={2.1} />
+  )}
+</div>
 
                       <div className="capture-requirement-copy">
                         <div>
@@ -1748,29 +1771,26 @@ export default function CapturePage() {
               }}
             >
               <div className="capture-upload-actions">
-                <Button variant="secondary" onClick={openFilePicker} disabled={busy}>
-                  Upload Files
-                </Button>
-                <Button variant="secondary" onClick={openFolderPicker} disabled={busy}>
-                  Upload Folder
-                </Button>
-                <Button
-                  variant="secondary"
-                  onClick={() => openCamera("PHOTO")}
-                  disabled={busy}
-                >
-                  Capture Photo
-                </Button>
-                <Button
-                  variant="secondary"
-                  onClick={() => openCamera("VIDEO")}
-                  disabled={busy}
-                >
-                  Record Video
-                </Button>
-                <Button variant="secondary" onClick={openAudioRecorder} disabled={busy}>
-                  Record Audio
-                </Button>
+<Button variant="secondary" onClick={openFilePicker} disabled={busy}>
+  <Upload size={17} strokeWidth={2.1} />
+  Upload Files
+</Button>
+<Button variant="secondary" onClick={openFolderPicker} disabled={busy}>
+  <FolderOpen size={17} strokeWidth={2.1} />
+  Upload Folder
+</Button>
+<Button variant="secondary" onClick={() => openCamera("PHOTO")} disabled={busy}>
+  <Camera size={17} strokeWidth={2.1} />
+  Capture Photo
+</Button>
+<Button variant="secondary" onClick={() => openCamera("VIDEO")} disabled={busy}>
+  <Video size={17} strokeWidth={2.1} />
+  Record Video
+</Button>
+<Button variant="secondary" onClick={openAudioRecorder} disabled={busy}>
+  <Mic size={17} strokeWidth={2.1} />
+  Record Audio
+</Button>
               </div>
 
               <strong>Drag & drop files here or choose a capture method</strong>
