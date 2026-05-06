@@ -1016,3 +1016,66 @@
   padding-left: 22px !important;
   padding-right: 28px !important;
 }
+
+.app-topbar-v2-brand {
+  text-decoration: none;
+  gap: 14px !important;
+}
+
+.app-topbar-v2-brand-icon {
+  width: 52px !important;
+  height: 52px !important;
+  object-fit: contain;
+  display: block;
+}
+
+.app-topbar-v2-brand-text {
+  display: flex !important;
+  align-items: center !important;
+  line-height: 1 !important;
+}
+
+.proovra-wordmark {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.015em;
+  color: #f5f7fa !important;
+  font-family: Inter, "Plus Jakarta Sans", system-ui, sans-serif !important;
+  font-size: 1.42rem !important;
+  font-weight: 760 !important;
+  letter-spacing: -0.045em !important;
+  line-height: 1 !important;
+}
+
+.proovra-check {
+  position: relative;
+  display: inline-block;
+  width: 0.74em;
+  height: 0.72em;
+  margin-inline: -0.035em;
+  transform: translateY(0.03em);
+}
+
+.proovra-check::before {
+  content: "";
+  position: absolute;
+  left: 0.04em;
+  top: 0.39em;
+  width: 0.26em;
+  height: 0.105em;
+  border-radius: 999px;
+  background: currentColor;
+  transform: rotate(42deg);
+}
+
+.proovra-check::after {
+  content: "";
+  position: absolute;
+  left: 0.22em;
+  top: 0.25em;
+  width: 0.5em;
+  height: 0.105em;
+  border-radius: 999px;
+  background: currentColor;
+  transform: rotate(-48deg);
+}

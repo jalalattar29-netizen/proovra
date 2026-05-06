@@ -81,16 +81,18 @@ export function AppTopbarV2({
       <div className="app-topbar-v2-bg" />
 
       <div className="app-topbar-v2-inner">
-<Link
-  href="/home"
-  className="app-topbar-v2-brand"
-  aria-label="PROOVRA home"
->
+<Link href="/home" className="app-topbar-v2-brand" aria-label="PROOVRA home">
   <img
-    src="/brand/proovra-wordmark.png?v=3"
-    alt="PROOVRA"
-    className="app-topbar-v2-wordmark-image"
+    src="/brand/icon-512.png?v=2"
+    alt=""
+    className="app-topbar-v2-brand-icon"
   />
+
+  <span className="app-topbar-v2-brand-text" aria-label="PROOVRA">
+    <strong className="proovra-wordmark">
+      PROO<span className="proovra-check" />RA
+    </strong>
+  </span>
 </Link>
         <nav className="app-topbar-v2-nav" aria-label="Primary app navigation">
           {navItems.map((item) => (
