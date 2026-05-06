@@ -1341,14 +1341,6 @@ padding: 72px 28px 28px;
   gap: 14px;
 }
 
-.capture-material-card {
-  border-radius: 22px;
-  border: 1px solid rgba(15, 23, 42, 0.08);
-  background: rgba(255, 255, 255, 0.62);
-  overflow: hidden;
-  box-shadow: 0 14px 34px rgba(15, 23, 42, 0.06);
-}
-
 .capture-material-preview {
   height: 150px;
   display: grid;
@@ -1465,15 +1457,6 @@ padding: 72px 28px 28px;
   gap: 14px;
 }
 
-.capture-material-card {
-  border-radius: 22px;
-  border: 1px solid rgba(22, 34, 39, 0.09);
-  background: rgba(255, 255, 255, 0.54);
-  backdrop-filter: blur(14px);
-  box-shadow: 0 14px 34px rgba(15, 23, 42, 0.055);
-  overflow: hidden;
-}
-
 .capture-material-preview {
   height: 132px;
   display: grid;
@@ -1573,12 +1556,6 @@ padding: 72px 28px 28px;
 .capture-material-note {
   min-height: 78px;
   resize: vertical;
-}
-
-.capture-material-card {
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
 }
 
 .capture-material-preview {
@@ -1855,4 +1832,103 @@ padding: 72px 28px 28px;
 .capture-finish-button,
 .capture-right-panel > .card > button {
   background: linear-gradient(180deg, #0f5c56, #0b403d) !important;
+}
+
+/* FINAL MATERIAL CARDS — transparent glass */
+.capture-materials-board,
+.capture-material-card {
+  background: rgba(255, 255, 255, 0.16) !important;
+  border-color: rgba(255, 255, 255, 0.34) !important;
+  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.035) !important;
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+}
+
+.capture-material-card {
+  overflow: visible !important;
+}
+
+.capture-material-preview {
+  background: rgba(255, 255, 255, 0.10) !important;
+}
+
+.capture-material-body {
+  background: transparent !important;
+}
+
+/* stop dropdown clipping */
+.capture-drop-zone-enterprise,
+.capture-materials-board,
+.capture-materials-grid,
+.capture-material-card,
+.capture-material-body {
+  overflow: visible !important;
+}
+
+.capture-material-card:has(.capture-material-dropdown-menu) {
+  z-index: 80;
+}
+
+.capture-material-dropdown {
+  position: relative;
+  z-index: 90;
+}
+
+/* match General Evidence Record dropdown style */
+.capture-material-dropdown-trigger {
+  min-height: 42px !important;
+  border-radius: 14px !important;
+  border: 1px solid rgba(16, 24, 40, 0.10) !important;
+  background: rgba(255, 255, 255, 0.72) !important;
+  color: #101828 !important;
+  box-shadow: 0 8px 18px rgba(16, 24, 40, 0.04) !important;
+}
+
+.capture-material-dropdown-menu {
+  top: calc(100% + 8px) !important;
+  width: 300px !important;
+  max-height: 280px !important;
+  overflow-y: auto !important;
+  border-radius: 18px !important;
+  background: rgba(255, 255, 255, 0.98) !important;
+  z-index: 9999 !important;
+}
+
+.capture-material-dropdown-menu button {
+  color: #344054 !important;
+  background: transparent !important;
+}
+
+.capture-material-dropdown-menu button:hover,
+.capture-material-dropdown-menu button.active {
+  color: #ffffff !important;
+  background: linear-gradient(180deg, #0f766e, #0b5f59) !important;
+}
+
+.capture-drop-zone-enterprise,
+.capture-materials-board,
+.capture-materials-grid,
+.capture-material-card,
+.capture-material-body {
+  overflow: visible !important;
+}
+
+.capture-material-card {
+  position: relative;
+  z-index: 1;
+}
+
+.capture-material-card:has(.capture-material-dropdown-menu) {
+  z-index: 80;
+}
+
+.capture-material-dropdown {
+  position: relative;
+  z-index: 90;
+}
+
+.capture-material-dropdown-menu {
+  z-index: 9999 !important;
+  max-height: 260px;
+  overflow-y: auto;
 }

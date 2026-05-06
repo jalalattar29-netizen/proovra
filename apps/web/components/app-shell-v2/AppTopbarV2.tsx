@@ -81,9 +81,13 @@ export function AppTopbarV2({
       <div className="app-topbar-v2-bg" />
 
       <div className="app-topbar-v2-inner">
-<Link href="/home" className="app-topbar-v2-brand" aria-label="PROOVRA home">
+<Link
+  href="/home"
+  className="app-topbar-v2-brand"
+  aria-label="PROOVRA home"
+>
   <img
-    src="/brand/proovra-wordmark.png"
+    src="/brand/proovra-wordmark.png?v=3"
     alt="PROOVRA"
     className="app-topbar-v2-wordmark-image"
   />

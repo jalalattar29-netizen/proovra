@@ -983,3 +983,36 @@
   object-fit: contain !important;
   display: block !important;
 }
+
+/* FINAL WORDMARK FIX */
+
+.app-topbar-v2-brand {
+  display: flex !important;
+  align-items: center !important;
+
+  padding-left: 0 !important;
+  margin-left: 0 !important;
+
+  transform: translateX(-4px) !important;
+}
+
+.app-topbar-v2-wordmark-image {
+  display: block !important;
+
+  width: 178px !important;
+  height: auto !important;
+
+  object-fit: contain !important;
+
+  filter:
+    drop-shadow(0 10px 24px rgba(0,0,0,0.34));
+
+  image-rendering: -webkit-optimize-contrast;
+}
+
+.app-topbar-v2-inner {
+  grid-template-columns: 240px minmax(0,1fr) auto !important;
+
+  padding-left: 22px !important;
+  padding-right: 28px !important;
+}

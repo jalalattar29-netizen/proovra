@@ -1476,6 +1476,30 @@ export default function CapturePage() {
   setMaterialDropdownOpenId(null);
 };
 
+useEffect(() => {
+  const handleOutsideClick = (event: PointerEvent) => {
+    const target = event.target as HTMLElement | null;
+    if (!target) return;
+
+    const clickedInsidePlanDropdown = target.closest(".capture-plan-dropdown");
+    const clickedInsideMaterialDropdown = target.closest(".capture-material-dropdown");
+
+    if (!clickedInsidePlanDropdown) {
+      setPlanDropdownOpen(false);
+    }
+
+    if (!clickedInsideMaterialDropdown) {
+      setMaterialDropdownOpenId(null);
+    }
+  };
+
+  document.addEventListener("pointerdown", handleOutsideClick);
+
+  return () => {
+    document.removeEventListener("pointerdown", handleOutsideClick);
+  };
+}, []);
+
   return (
     <div className="section app-section capture-page-shell capture-enterprise-page">
       <input
