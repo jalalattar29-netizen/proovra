@@ -48,13 +48,15 @@ export function CaptureAudioRecorder({
       <div className="capture-audio-header">
         <strong>Audio Recorder</strong>
 
-        <span className="capture-card-muted">
-          {audioRecorderState === "recording"
-            ? `Recording · ${formatRecordingTime(audioRecordingSeconds)}`
-            : audioRecorderState === "preview_ready"
-              ? "Preview ready"
-              : "Ready"}
-        </span>
+{audioRecorderState === "recording" ? (
+  <span className="capture-card-muted">
+    Recording · {formatRecordingTime(audioRecordingSeconds)}
+  </span>
+) : audioRecorderState === "preview_ready" ? (
+  <span className="capture-card-muted">
+    Preview ready
+  </span>
+) : null}
       </div>
 
       {audioPreviewUrl ? (

@@ -5,7 +5,6 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   ChevronDown,
-  Globe2,
   LogOut,
   Menu,
   X,
@@ -123,7 +122,6 @@ export function AppTopbarV2({
 
         <div className="app-topbar-v2-actions">
           <div className="app-topbar-v2-language">
-            <Globe2 size={16} strokeWidth={1.9} />
             <LanguageSwitcher />
           </div>
 
