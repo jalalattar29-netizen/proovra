@@ -186,17 +186,19 @@ function HeaderShell({
 
 function Brand({ href }: { href: string }) {
   return (
-<Link href="/home" className="app-topbar-v2-brand app-topbar-v2-brand-marketing" aria-label="PROOVRA home">
-  <div className="app-topbar-v2-brand-icon-wrap">
-    <img
-      src="/brand/icon-512.png?v=2"
-      alt="PROOVRA"
-      className="app-topbar-v2-brand-icon"
-    />
-  </div>
+    <Link href={href} className="flex min-w-0 items-center gap-2.5 sm:gap-3">
+      <div className="flex shrink-0 items-center justify-center">
+        <img
+          src="/brand/icon-512.png?v=2"
+          alt="PROOVRA"
+          className="h-11 w-11 object-contain drop-shadow-[0_10px_28px_rgba(0,0,0,0.65)] sm:h-14 sm:w-14 lg:h-[72px] lg:w-[72px]"
+        />
+      </div>
 
-  <span className="app-topbar-v2-brand-name">PROO✓RA</span>
-</Link>
+      <span className="whitespace-nowrap text-[1.02rem] font-semibold tracking-[-0.02em] text-[#dce1de] sm:text-[1.16rem] lg:text-[1.42rem]">
+        PROO✓RA
+      </span>
+    </Link>
   );
 }
 
@@ -307,7 +309,7 @@ function MobilePanel({
   onNavigate: () => void;
   activeHref?: string;
 }) {
-  return (
+    return (
     <div className="overflow-hidden rounded-[20px] border border-white/10 bg-[linear-gradient(180deg,rgba(8,18,22,0.90)_0%,rgba(6,14,18,0.95)_100%)] shadow-[0_16px_36px_rgba(0,0,0,0.22)] backdrop-blur-xl">
       <nav className="flex flex-col p-2.5" aria-label="Mobile navigation">
         {navItems.map((item) => {
