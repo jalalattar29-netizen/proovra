@@ -3244,18 +3244,20 @@ box-shadow:
   }
 }
 
-/* FINAL FIX — fixed finish bar desktop + mobile */
+/* FINAL FIX — finish bar at page bottom, not screen-fixed */
 
 .capture-enterprise-page {
-  padding-bottom: 170px !important;
+  padding-bottom: 28px !important;
 }
 
 .capture-bottom-bar {
-  position: fixed !important;
-  left: calc(270px + 28px) !important;
-  right: 28px !important;
-  bottom: 18px !important;
-  z-index: 900 !important;
+  position: relative !important;
+  left: auto !important;
+  right: auto !important;
+  bottom: auto !important;
+  z-index: 10 !important;
+  width: 100% !important;
+  margin-top: 20px !important;
 }
 
 .capture-bottom-bar-inner {
@@ -3265,18 +3267,21 @@ box-shadow:
 
 @media (max-width: 980px) {
   .capture-enterprise-page {
-    padding-bottom: 210px !important;
+    padding: 16px 12px 28px !important;
+    overflow-x: hidden !important;
   }
 
   .capture-bottom-bar {
-    left: 10px !important;
-    right: 10px !important;
-    bottom: 10px !important;
+    position: relative !important;
+    left: auto !important;
+    right: auto !important;
+    bottom: auto !important;
+    margin-top: 16px !important;
   }
 
   .capture-bottom-bar-inner {
-    max-height: 42vh !important;
-    overflow-y: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
   }
 }
 
@@ -3302,17 +3307,7 @@ box-shadow:
   width: 100% !important;
   max-height: 260px !important;
   overflow-y: auto !important;
-  z-index: 1000 !important;
+  z-index: 7000 !important;
   background: #ffffff !important;
   box-shadow: 0 24px 64px rgba(16, 24, 40, 0.24) !important;
-}
-
-.capture-main-panel,
-.capture-drop-zone-enterprise,
-.capture-materials-board,
-.capture-materials-grid,
-.capture-material-card,
-.capture-material-body,
-.capture-material-review-panel {
-  overflow: visible !important;
 }
