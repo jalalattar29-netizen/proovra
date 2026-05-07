@@ -2216,12 +2216,6 @@ padding: 72px 28px 28px;
   padding: 8px 10px !important;
 }
 
-.capture-material-dropdown-menu button:hover,
-.capture-material-dropdown-menu button.active {
-  color: #ffffff !important;
-  background: linear-gradient(180deg, #0f5c56, #0b403d) !important;
-}
-
 /* make integrity card stop looking pure white */
 .capture-integrity-block {
   background: rgba(255, 255, 255, 0.22) !important;
@@ -2272,26 +2266,43 @@ padding: 72px 28px 28px;
 .capture-ai-modal-backdrop {
   position: fixed;
   inset: 0;
-  z-index: 300;
-  display: grid;
-  place-items: center;
+  z-index: 5000;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
   padding: 28px;
-  background: rgba(7, 18, 22, 0.48);
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
+
+  background: rgba(6, 14, 20, 0.42);
+
+  backdrop-filter: blur(10px);
 }
 
 .capture-ai-modal {
-  width: min(980px, 100%);
-  max-height: min(820px, 88vh);
-  overflow: auto;
+  width: min(1100px, calc(100vw - 64px));
+  max-height: calc(100vh - 72px);
+
+  overflow-y: auto;
+
   border-radius: 28px;
-  padding: 24px;
+
   background:
-    radial-gradient(circle at 18% 10%, rgba(15, 92, 86, 0.08), transparent 28%),
-    rgba(255, 255, 255, 0.90);
-  border: 1px solid rgba(255, 255, 255, 0.56);
-  box-shadow: 0 32px 90px rgba(7, 18, 22, 0.28);
+    linear-gradient(
+      180deg,
+      rgba(255,255,255,0.96),
+      rgba(248,250,250,0.94)
+    );
+
+  backdrop-filter: blur(18px);
+
+  border: 1px solid rgba(20, 55, 60, 0.12);
+
+  box-shadow:
+    0 40px 120px rgba(15, 23, 42, 0.22),
+    0 10px 30px rgba(15, 23, 42, 0.10);
+
+  position: relative;
 }
 
 .capture-ai-modal-header {
@@ -2809,4 +2820,47 @@ padding: 72px 28px 28px;
 
 .capture-material-dropdown-menu button:hover:not(.active) small {
   color: #667085 !important;
+}
+
+.capture-ai-review-button {
+  width: 100%;
+
+  min-height: 54px;
+
+  border: 0;
+  border-radius: 18px;
+
+  cursor: pointer;
+
+  font-size: 0.95rem;
+  font-weight: 800;
+
+  color: #ffffff;
+
+background:
+  linear-gradient(
+    180deg,
+    #135e57,
+    #0f4f4a
+  );
+
+box-shadow:
+  0 16px 34px rgba(15, 79, 74, 0.24);
+
+  transition:
+    transform 160ms ease,
+    box-shadow 160ms ease,
+    opacity 160ms ease;
+}
+
+.capture-ai-review-button:hover {
+  transform: translateY(-2px);
+
+box-shadow:
+  0 22px 44px rgba(15, 79, 74, 0.30);
+}
+
+.capture-ai-review-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
