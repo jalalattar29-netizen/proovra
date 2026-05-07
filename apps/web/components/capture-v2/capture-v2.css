@@ -2414,12 +2414,6 @@ padding: 72px 28px 28px;
   border: 1px solid rgba(15, 92, 86, 0.18);
 }
 
-.capture-material-status-pill.unmapped {
-  color: #b54708;
-  background: rgba(247, 144, 9, 0.11);
-  border: 1px solid rgba(247, 144, 9, 0.18);
-}
-
 .capture-material-risk-pill.success {
   color: #15803d;
   background: rgba(22, 163, 74, 0.09);
@@ -2493,12 +2487,6 @@ padding: 72px 28px 28px;
   color: #0b403d;
   background: rgba(15, 92, 86, 0.1);
   border: 1px solid rgba(15, 92, 86, 0.18);
-}
-
-.capture-material-status-pill.unmapped {
-  color: #b54708;
-  background: rgba(247, 144, 9, 0.11);
-  border: 1px solid rgba(247, 144, 9, 0.18);
 }
 
 .capture-material-risk-pill.success {
@@ -2846,16 +2834,28 @@ box-shadow:
   border: 1px solid rgba(15, 92, 86, 0.18) !important;
 }
 
-/* optional mapping should look softer */
-.capture-material-status-pill.unmapped {
-  color: #5f6f73 !important;
-  background: rgba(95, 111, 115, 0.08) !important;
-  border-color: rgba(95, 111, 115, 0.16) !important;
+/* FINAL — same soft background for Optional mapping + Needs mapping */
+.capture-material-status-pill.unmapped,
+.capture-material-risk-pill.warning {
+  color: #8f3f35 !important;
+  background: rgba(143, 63, 53, 0.08) !important;
+  border: 1px solid rgba(143, 63, 53, 0.18) !important;
 }
 
-/* needs mapping should be visible but not orange */
-.capture-material-risk-pill.warning {
-  color: #0b403d !important;
-  background: rgba(15, 92, 86, 0.10) !important;
-  border-color: rgba(15, 92, 86, 0.22) !important;
+/* FINAL FIX — prevent single evidence card from stretching full width */
+.capture-materials-grid {
+  grid-template-columns: repeat(auto-fill, minmax(300px, 340px)) !important;
+  justify-content: start !important;
+  gap: 16px !important;
+}
+
+.capture-material-card {
+  width: 100% !important;
+  max-width: 340px !important;
+}
+
+/* hide empty quality pill/card after removing Needs mapping text */
+.capture-material-risk-pill:empty,
+.capture-material-review-panel .capture-quality-warning:has(strong:empty) {
+  display: none !important;
 }

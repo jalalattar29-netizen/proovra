@@ -159,7 +159,7 @@ export function getItemQualityStatus(params: {
 if (!step) {
   return {
     tone: "warning",
-    label: "Needs mapping",
+    label: "",
     detail: "",
   };
 }
