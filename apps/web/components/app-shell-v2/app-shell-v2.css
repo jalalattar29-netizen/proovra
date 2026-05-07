@@ -1609,3 +1609,30 @@
     color: #d6b89d !important;
   }
 }
+
+/* FINAL FIX — remove desktop language oval wrapper */
+.app-topbar-v2-language {
+  width: 42px !important;
+  height: 42px !important;
+  min-width: 42px !important;
+  padding: 0 !important;
+  border-radius: 14px !important;
+  display: grid !important;
+  place-items: center !important;
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+}
+
+.app-topbar-v2-language button,
+.app-topbar-v2-language select,
+.app-topbar-v2-language [role="button"] {
+  width: 42px !important;
+  height: 42px !important;
+  min-width: 42px !important;
+  border-radius: 14px !important;
+  background: rgba(255, 255, 255, 0.075) !important;
+  border: 1px solid rgba(214, 184, 157, 0.22) !important;
+  color: #d6b89d !important;
+  font-weight: 900 !important;
+}
