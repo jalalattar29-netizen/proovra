@@ -2125,13 +2125,12 @@ useEffect(() => {
                 ) : null}
 
                 <div className="capture-upload-actions">
-                  <Button
-                    variant="secondary"
-                    onClick={startAudioRecording}
-                    disabled={busy || audioRecorderState === "recording"}
-                  >
-                    Start Recording
-                  </Button>
+<Button
+  onClick={startAudioRecording}
+  disabled={busy || audioRecorderState === "recording"}
+>
+  Start Recording
+</Button>
                   <Button
                     variant="secondary"
                     onClick={stopAudioRecording}
