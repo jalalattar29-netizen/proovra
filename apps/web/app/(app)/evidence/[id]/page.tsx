@@ -13,7 +13,7 @@ import {
   getReviewerEvidenceTypeLabel,
   hasCaptureLocationMetadata,
 } from "@proovra/shared";
-import { Button, Card, Modal, useToast } from "../../../../components/ui";
+import { Button, Modal, useToast } from "../../../../components/ui";
 import CaptureLocationMapPanel from "../../../../components/capture-location/CaptureLocationMapPanel";
 import { useLocale } from "../../../providers";
 import { apiFetch } from "../../../../lib/api";
@@ -365,23 +365,6 @@ function resolveDisplayTitle(evidence: EvidenceRecord | undefined): string {
 
 function resolveDisplaySubtitle(evidence: EvidenceRecord | undefined): string {
   return evidence?.displaySubtitle?.trim() || "";
-}
-
-function renderAccentLastWord(text: string) {
-  const trimmed = text.trim();
-  if (!trimmed) return "Digital Evidence Record";
-
-  const parts = trimmed.split(/\s+/);
-  if (parts.length === 1) {
-    return <span style={{ color: "#c3ebe2" }}>{parts[0]}</span>;
-  }
-
-  const last = parts.pop() ?? "";
-  return (
-    <>
-      {parts.join(" ")} <span style={{ color: "#c3ebe2" }}>{last}</span>
-    </>
-  );
 }
 
 async function tryDownloadFile(url: string, filename: string) {
@@ -1475,64 +1458,6 @@ else acc.otherCount += 1;
     }
   };
 
-  const outerCardStyle = useMemo(
-    () =>
-      ({
-        border: "1px solid rgba(79,112,107,0.16)",
-        boxShadow:
-          "0 18px 38px rgba(0,0,0,0.08), inset 0 1px 0 rgba(255,255,255,0.48)",
-      }) as const,
-    []
-  );
-
-  const heroEditButtonStyle = useMemo(
-    () =>
-      ({
-        borderColor: "rgba(79,112,107,0.22)",
-        color: "#eef3f1",
-        background:
-          "linear-gradient(180deg, rgba(58,92,95,0.96) 0%, rgba(20,38,42,0.98) 100%)",
-        boxShadow:
-          "inset 0 1px 0 rgba(255,255,255,0.08), 0 16px 34px rgba(18,40,44,0.22)",
-        textShadow: "0 1px 0 rgba(0,0,0,0.22)",
-        backdropFilter: "blur(6px)",
-        WebkitBackdropFilter: "blur(6px)",
-      }) as const,
-    []
-  );
-
-  const heroPrimaryButtonStyle = useMemo(
-    () =>
-      ({
-        borderColor: "rgba(158,216,207,0.14)",
-        color: "#aebbb6",
-        background:
-          "linear-gradient(180deg, rgba(62,98,96,0.26) 0%, rgba(14,30,34,0.38) 100%)",
-        boxShadow:
-          "inset 0 1px 0 rgba(255,255,255,0.04), 0 14px 28px rgba(0,0,0,0.08)",
-        backdropFilter: "blur(10px)",
-        WebkitBackdropFilter: "blur(10px)",
-      }) as const,
-    []
-  );
-
-  const heroSecondaryButtonStyle = useMemo(
-    () =>
-      ({
-        borderColor: "rgba(79,112,107,0.18)",
-        color: "#aebbb6",
-        backgroundImage:
-          "linear-gradient(180deg, rgba(8,20,24,0.78) 0%, rgba(7,18,22,0.88) 100%), url('/images/site-velvet-bg.webp.png')",
-        backgroundSize: "cover",
-        backgroundPosition: "center",
-        boxShadow:
-          "inset 0 1px 0 rgba(255,255,255,0.03), 0 14px 28px rgba(0,0,0,0.10)",
-        backdropFilter: "blur(10px)",
-        WebkitBackdropFilter: "blur(10px)",
-      }) as const,
-    []
-  );
-
   const landingPrimaryButtonStyle = useMemo(
     () =>
       ({
@@ -1612,113 +1537,6 @@ else acc.otherCount += 1;
       }) as const,
     []
   );
-
-  const softCardStyle = useMemo(
-    () =>
-      ({
-        border: "1px solid rgba(79,112,107,0.10)",
-        background:
-          "linear-gradient(180deg, rgba(255,255,255,0.58) 0%, rgba(243,245,242,0.90) 100%)",
-        boxShadow:
-          "inset 0 1px 0 rgba(255,255,255,0.42), 0 12px 26px rgba(0,0,0,0.06)",
-        backdropFilter: "blur(8px)",
-        WebkitBackdropFilter: "blur(8px)",
-      }) as const,
-    []
-  );
-
-  const heroReportReadyStyle = {
-    border: "1px solid rgba(158,216,207,0.18)",
-    background:
-      "linear-gradient(180deg, rgba(191,232,223,0.16) 0%, rgba(255,255,255,0.05) 100%)",
-    color: "#dff4ef",
-    boxShadow:
-      "inset 0 1px 0 rgba(255,255,255,0.16), 0 4px 10px rgba(60,110,102,0.10)",
-  } as const;
-
-  const silverReportReadyStyle = {
-    border: "1px solid rgba(79,112,107,0.14)",
-    background:
-      "linear-gradient(180deg, rgba(191,232,223,0.24) 0%, rgba(255,255,255,0.55) 100%)",
-    color: "#2d5b59",
-    boxShadow:
-      "inset 0 1px 0 rgba(255,255,255,0.55), 0 6px 14px rgba(41,83,85,0.05)",
-  } as const;
-
-  const heroSignedStyle = {
-    border: "1px solid rgba(132, 211, 190, 0.22)",
-    background:
-      "linear-gradient(180deg, rgba(74, 124, 116, 0.34) 0%, rgba(19, 44, 41, 0.56) 100%)",
-    color: "#e4f6f0",
-    boxShadow:
-      "inset 0 1px 0 rgba(255,255,255,0.10), 0 8px 18px rgba(24,68,62,0.18)",
-    textShadow: "0 1px 0 rgba(0,0,0,0.20)",
-  } as const;
-
-  const silverSignedStyle = {
-    border: "1px solid rgba(93, 148, 138, 0.16)",
-    background:
-      "linear-gradient(180deg, rgba(213, 237, 230, 0.88) 0%, rgba(255,255,255,0.66) 100%)",
-    color: "#2f625d",
-    boxShadow:
-      "inset 0 1px 0 rgba(255,255,255,0.62), 0 6px 14px rgba(41,83,85,0.05)",
-  } as const;
-
-  const heroProcessingStyle = {
-    border: "1px solid rgba(245, 193, 94, 0.24)",
-    background:
-      "linear-gradient(180deg, rgba(168, 122, 32, 0.34) 0%, rgba(88, 60, 16, 0.56) 100%)",
-    color: "#fff3cf",
-    boxShadow:
-      "inset 0 1px 0 rgba(255,255,255,0.10), 0 8px 18px rgba(90,62,14,0.18)",
-    textShadow: "0 1px 0 rgba(0,0,0,0.20)",
-  } as const;
-
-  const silverProcessingStyle = {
-    border: "1px solid rgba(214, 170, 74, 0.18)",
-    background:
-      "linear-gradient(180deg, rgba(255, 239, 196, 0.92) 0%, rgba(255,255,255,0.68) 100%)",
-    color: "#9a6a10",
-    boxShadow:
-      "inset 0 1px 0 rgba(255,255,255,0.62), 0 6px 14px rgba(120,88,24,0.06)",
-  } as const;
-
-  const heroReadyStyle = {
-    border: "1px solid rgba(190, 198, 201, 0.18)",
-    background:
-      "linear-gradient(180deg, rgba(148, 163, 168, 0.20) 0%, rgba(255,255,255,0.05) 100%)",
-    color: "#edf2f1",
-    boxShadow:
-      "inset 0 1px 0 rgba(255,255,255,0.10), 0 8px 18px rgba(40,52,56,0.12)",
-    textShadow: "0 1px 0 rgba(0,0,0,0.18)",
-  } as const;
-
-  const silverReadyStyle = {
-    border: "1px solid rgba(79,112,107,0.12)",
-    background:
-      "linear-gradient(180deg, rgba(240,243,241,0.92) 0%, rgba(255,255,255,0.68) 100%)",
-    color: "#4a6064",
-    boxShadow:
-      "inset 0 1px 0 rgba(255,255,255,0.58), 0 6px 14px rgba(0,0,0,0.03)",
-  } as const;
-
-  const heroStatusStyle =
-    displayStatusMeta.tone === "reportReady"
-      ? heroReportReadyStyle
-      : displayStatusMeta.tone === "signed"
-        ? heroSignedStyle
-        : displayStatusMeta.tone === "processing"
-          ? heroProcessingStyle
-          : heroReadyStyle;
-
-  const silverStatusStyle =
-    displayStatusMeta.tone === "reportReady"
-      ? silverReportReadyStyle
-      : displayStatusMeta.tone === "signed"
-        ? silverSignedStyle
-        : displayStatusMeta.tone === "processing"
-          ? silverProcessingStyle
-          : silverReadyStyle;
 
   const canAssignToCase = ownedCases.length > 0 && !isDeleted;
   const workspaceBillingSummary =
