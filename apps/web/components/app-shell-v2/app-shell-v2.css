@@ -1177,3 +1177,24 @@
   font-weight: 560 !important;
   letter-spacing: -0.01em !important;
 }
+
+.app-sidebar-v2-trust-card {
+  margin-top: auto;
+  margin-bottom: 34px !important;
+}
+
+.app-sidebar-v2 {
+  border-bottom: 0 !important;
+}
+
+.app-sidebar-v2::before {
+  display: none !important;
+}
+
+.app-sidebar-v2-inner {
+  padding-bottom: 28px !important;
+}
+
+.capture-integrity-grid strong {
+  font-weight: 720 !important;
+}

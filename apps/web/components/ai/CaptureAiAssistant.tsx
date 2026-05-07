@@ -78,6 +78,8 @@ type AiResult = {
   legalDisclaimer: string;
 };
 
+
+
 export function CaptureAiAssistant({
   isOpen,
   setOpen,
@@ -89,7 +91,7 @@ export function CaptureAiAssistant({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [unavailable, setUnavailable] = useState(false);
-  const [detailsOpen, setDetailsOpen] = useState(false);
+  const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
 
   const canAnalyze = summary.totalItems > 0 && Boolean(collectionPlan);
 
@@ -225,6 +227,23 @@ const missing = analysis.flags
     ];
   }, [analysis]);
 
+  const groupedActions = useMemo(() => {
+  return {
+    high: actionCard.filter((item) =>
+      /zip|required|missing|confirm|verify|review/i.test(item)
+    ),
+    recommended: actionCard.filter((item) =>
+      /location|collect|add|assign|map|label/i.test(item)
+    ),
+    info: actionCard.filter(
+      (item) =>
+        !/zip|required|missing|confirm|verify|review|location|collect|add|assign|map|label/i.test(
+          item
+        )
+    ),
+  };
+}, [actionCard]);
+
   return (
     <Card className="rounded-[18px] border border-[rgba(36,55,59,0.12)] bg-[#fbfcfb] p-0 shadow-[0_14px_34px_rgba(15,23,42,0.08)]">
       <button
@@ -281,73 +300,167 @@ const missing = analysis.flags
           <div className="grid gap-3">
 <button
   type="button"
-  onClick={handleAnalyze}
-  disabled={!canAnalyze || loading || unavailable}
-  className="rounded-full border border-[rgba(183,157,132,0.28)] bg-[linear-gradient(180deg,#3a5d61,#203a3f)] px-4 py-3 text-sm font-extrabold text-[#f4f7f6] shadow-[0_14px_30px_rgba(15,23,42,0.16)] disabled:cursor-not-allowed disabled:opacity-50"
+  className="capture-ai-review-button"
+  disabled={!canAnalyze || loading}
+  onClick={async () => {
+    setIsReviewModalOpen(true);
+
+    if (!analysis) {
+      await handleAnalyze();
+    }
+  }}
 >
-  {loading ? "Analyzing…" : "Review session with AI"}
+  {loading ? "Reviewing session..." : "Review session with AI"}
 </button>
 
-            <div className="grid gap-3">
-              <div className="rounded-3xl border border-[rgba(58,93,97,0.12)] bg-white p-4 shadow-sm">
-                <div className="text-xs font-black uppercase tracking-[0.18em] text-[#8f745c]">Missing requirements</div>
-                {missingCard.map((item, index) => (
-                  <div key={index} className="mt-2 text-sm leading-6 text-[#24373b]">
-                    • {item}
-                  </div>
-                ))}
-              </div>
-
-              <div className="rounded-3xl border border-[rgba(58,93,97,0.12)] bg-white p-4 shadow-sm">
-                <div className="text-xs font-black uppercase tracking-[0.18em] text-[#8f745c]">Risk flags</div>
-                {riskCard.map((item, index) => (
-                  <div key={index} className="mt-2 text-sm leading-6 text-[#24373b]">
-                    • {item}
-                  </div>
-                ))}
-              </div>
-
-              {analysis?.flags?.length ? (
-                <div className="rounded-3xl border border-[rgba(58,93,97,0.12)] bg-white p-4 shadow-sm">
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="text-xs font-black uppercase tracking-[0.18em] text-[#8f745c]">
-                      Metadata review
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => setDetailsOpen((current) => !current)}
-                      className="text-sm font-semibold text-[#0f5c56] underline-offset-2 hover:underline"
-                    >
-                      {detailsOpen
-                        ? "Hide detailed review"
-                        : `View detailed metadata review (${analysis.flags.length})`}
-                    </button>
-                  </div>
-                  {(detailsOpen ? sortedAiFlags : sortedAiFlags.slice(0, 3)).map(
-                    (flag, index) => (
-                      <div
-                        key={`${flag.title}-${index}`}
-                        className="mt-2 text-sm leading-6 text-[#24373b]"
-                      >
-                        • [{flag.severity}] {flag.title}: {flag.detail}
-                      </div>
-                    )
-                  )}
-                </div>
-              ) : null}
-
-              <div className="rounded-3xl border border-[rgba(58,93,97,0.12)] bg-white p-4 shadow-sm">
-                <div className="text-xs font-black uppercase tracking-[0.18em] text-[#8f745c]">Suggested next actions</div>
-                {actionCard.map((item, index) => (
-                  <div key={index} className="mt-2 text-sm leading-6 text-[#24373b]">
-                    • {item}
-                  </div>
-                ))}
-              </div>
-            </div>
           </div>
         </div>
       ) : null}
+      {isReviewModalOpen ? (
+  <div
+    className="capture-ai-modal-backdrop"
+    onClick={() => setIsReviewModalOpen(false)}
+  >
+    <div
+      className="capture-ai-modal"
+      onClick={(event) => event.stopPropagation()}
+    >
+      <div className="capture-ai-modal-header">
+        <div>
+          <div className="capture-section-label">AI intake review</div>
+          <h2>Session readiness review</h2>
+          <p>
+            Advisory metadata-based review only. This assistant does not determine
+            factual truth, authenticity, authorship, or legal admissibility.
+          </p>
+        </div>
+
+        <button
+          type="button"
+          className="capture-ai-modal-close"
+          onClick={() => setIsReviewModalOpen(false)}
+        >
+          Close
+        </button>
+      </div>
+
+      <div className="capture-ai-modal-body">
+        {loading ? (
+          <div className="capture-ai-section">
+            <h3>Reviewing session…</h3>
+            <p>Checking metadata, mappings, missing requirements, and risk flags.</p>
+          </div>
+        ) : error ? (
+          <div className="capture-ai-section">
+            <h3>AI unavailable</h3>
+            <p>{error}</p>
+          </div>
+        ) : (
+          <>
+            <div className="capture-ai-severity-grid">
+              <div className="capture-ai-severity-card success">
+                <strong>Requirements</strong>
+                <span>{missingCard[0]}</span>
+              </div>
+
+              <div className="capture-ai-severity-card warning">
+                <strong>Warnings</strong>
+                <span>{riskCard.length} item(s) need review.</span>
+              </div>
+
+              <div className="capture-ai-severity-card info">
+                <strong>Metadata review</strong>
+                <span>{sortedAiFlags.length} metadata flag(s).</span>
+              </div>
+
+              <div className="capture-ai-severity-card critical">
+                <strong>Human review</strong>
+                <span>Reviewer confirmation is still required.</span>
+              </div>
+            </div>
+
+            <div className="capture-ai-section">
+              <h3>Missing requirements</h3>
+              <ul>
+                {missingCard.map((item, index) => (
+                  <li key={index}>{item}</li>
+                ))}
+              </ul>
+            </div>
+
+            <div className="capture-ai-section">
+              <h3>Risk flags</h3>
+              <ul>
+                {riskCard.map((item, index) => (
+                  <li key={index}>{item}</li>
+                ))}
+              </ul>
+            </div>
+
+            {sortedAiFlags.length > 0 ? (
+              <div className="capture-ai-section">
+                <h3>Metadata review</h3>
+                <ul>
+                  {sortedAiFlags.map((flag, index) => (
+                    <li key={`${flag.title}-${index}`}>
+                      [{flag.severity}] {flag.title}: {flag.detail}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
+
+<div className="capture-ai-section">
+  <h3>Suggested next actions</h3>
+
+  <div className="capture-ai-action-groups">
+    {groupedActions.high.length > 0 ? (
+      <div className="capture-ai-action-group high">
+        <strong>High priority</strong>
+        <ul>
+          {groupedActions.high.map((item, index) => (
+            <li key={`high-${index}`}>{item}</li>
+          ))}
+        </ul>
+      </div>
+    ) : null}
+
+    {groupedActions.recommended.length > 0 ? (
+      <div className="capture-ai-action-group recommended">
+        <strong>Recommended</strong>
+        <ul>
+          {groupedActions.recommended.map((item, index) => (
+            <li key={`recommended-${index}`}>{item}</li>
+          ))}
+        </ul>
+      </div>
+    ) : null}
+
+    {groupedActions.info.length > 0 ? (
+      <div className="capture-ai-action-group info">
+        <strong>Informational</strong>
+        <ul>
+          {groupedActions.info.map((item, index) => (
+            <li key={`info-${index}`}>{item}</li>
+          ))}
+        </ul>
+      </div>
+    ) : null}
+  </div>
+</div>
+            <div className="capture-ai-section">
+              <h3>Legal limitation</h3>
+              <p>
+                {analysis?.legalDisclaimer ??
+                  "AI assistance is advisory and does not determine factual truth, authorship, authenticity, or legal admissibility."}
+              </p>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  </div>
+) : null}
     </Card>
   );
 }

@@ -97,6 +97,7 @@ export default function CapturePage() {
   const [planDropdownOpen, setPlanDropdownOpen] = useState(false);
   const [materialDropdownOpenId, setMaterialDropdownOpenId] =
   useState<string | null>(null);
+  const [expandedMaterialId, setExpandedMaterialId] = useState<string | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const folderInputRef = useRef<HTMLInputElement | null>(null);
@@ -1605,6 +1606,53 @@ useEffect(() => {
             );
           })}
         </section>
+{sessionItems.length > 0 ? (
+  <div className="capture-sticky-intake-bar">
+    <div className="capture-sticky-session">
+      <strong>{sessionItems.length} materials</strong>
+      <span>{formatFileSize(totalStagedBytes)}</span>
+      <span>{selectedCollectionPlan?.name}</span>
+    </div>
+
+    <div className="capture-sticky-actions">
+      <button type="button" onClick={openFilePicker}>
+        Upload
+      </button>
+
+      <button type="button" onClick={openFolderPicker}>
+        Folder
+      </button>
+
+      <button type="button" onClick={() => openCamera("PHOTO")}>
+        Photo
+      </button>
+
+      <button type="button" onClick={() => openCamera("VIDEO")}>
+        Video
+      </button>
+
+      <button type="button" onClick={openAudioRecorder}>
+        Audio
+      </button>
+    </div>
+
+    <div className="capture-sticky-review">
+      <button
+        type="button"
+        onClick={() => setAiPanelOpen(true)}
+      >
+        AI Review
+      </button>
+
+      <Button
+        onClick={finalizeSession}
+        disabled={finishDisabled}
+      >
+        Review & Sign
+      </Button>
+    </div>
+  </div>
+) : null}
 
         <section className="capture-enterprise-grid">
           <aside className="capture-enterprise-card capture-left-panel">
@@ -1826,7 +1874,7 @@ useEffect(() => {
   Record Audio
 </Button>
               </div>
-              {sessionItems.length > 0 ? (
+{sessionItems.length > 0 ? (
   <div className="capture-materials-board">
     <div className="capture-materials-header">
       <div>
@@ -1851,6 +1899,21 @@ useEffect(() => {
           step: mappedStep,
         });
 
+        const isExpanded = expandedMaterialId === item.id;
+
+        const riskTone =
+          qualityStatus.tone === "danger"
+            ? "critical"
+            : qualityStatus.tone === "success"
+              ? "success"
+              : "warning";
+
+        const mappedLabel = mappedStep
+          ? getStepRequirementLabel(mappedStep)
+          : planMode === "CHECKLIST_REQUIRED"
+            ? "Unmapped"
+            : "Optional mapping";
+
         const typeLabel = deriveSessionItemTypeLabel(item.mimeType);
 
         const previewTypeLabel = item.relativePath
@@ -1865,132 +1928,174 @@ useEffect(() => {
                   ? "PDF"
                   : "FILE";
 
-const FileIcon = item.relativePath
-  ? Folder
-  : item.mimeType.startsWith("audio/")
-    ? Mic
-    : item.mimeType.startsWith("video/")
-      ? Video
-      : item.mimeType.startsWith("image/")
-        ? ImageIcon
-        : FileText;
+        const FileIcon = item.relativePath
+          ? Folder
+          : item.mimeType.startsWith("audio/")
+            ? Mic
+            : item.mimeType.startsWith("video/")
+              ? Video
+              : item.mimeType.startsWith("image/")
+                ? ImageIcon
+                : FileText;
 
         return (
-<div
-  key={item.id}
-  className={`capture-material-card ${
-    materialDropdownOpenId === item.id ? "is-open" : ""
-  }`}
->
-  <div className="capture-material-preview">
-  <div className="capture-material-badge">{previewTypeLabel}</div>
-  {item.previewUrl && item.mimeType.startsWith("image/") ? (
-    <img src={item.previewUrl} alt={item.file.name} />
-  ) : item.previewUrl && item.mimeType.startsWith("video/") ? (
-    <video src={item.previewUrl} muted playsInline controls={false} />
-  ) : (
-    <div className="capture-material-file-icon">
-      <FileIcon size={34} strokeWidth={1.9} />
-    </div>
-  )}
-</div>
+          <div
+            key={item.id}
+            className={`capture-material-card ${
+              materialDropdownOpenId === item.id ? "is-open" : ""
+            }`}
+          >
+            <div className="capture-material-preview">
+              <div className="capture-material-badge">{previewTypeLabel}</div>
+
+              {item.previewUrl && item.mimeType.startsWith("image/") ? (
+                <img src={item.previewUrl} alt={item.file.name} />
+              ) : item.previewUrl && item.mimeType.startsWith("video/") ? (
+                <video src={item.previewUrl} muted playsInline controls={false} />
+              ) : (
+                <div className="capture-material-file-icon">
+                  <FileIcon size={34} strokeWidth={1.9} />
+                </div>
+              )}
+            </div>
+
             <div className="capture-material-body">
-              <div className="capture-material-top">
-                <div>
-                  <small>Item {index + 1}</small>
-                  <strong title={item.file.name}>{item.file.name}</strong>
-                  <span>
-                    {typeLabel} • {formatFileSize(item.file.size)}
+              <div className="capture-material-compact">
+                <div className="capture-material-top">
+                  <div>
+                    <small>Item {index + 1}</small>
+                    <strong title={item.file.name}>{item.file.name}</strong>
+                    <span>
+                      {typeLabel} • {formatFileSize(item.file.size)}
+                    </span>
+                  </div>
+
+                  {!busy ? (
+                    <button type="button" onClick={() => removeSessionItem(item.id)}>
+                      Remove
+                    </button>
+                  ) : null}
+                </div>
+
+                <div className="capture-material-pill-row">
+                  <span
+                    className={`capture-material-status-pill ${
+                      mappedStep ? "mapped" : "unmapped"
+                    }`}
+                  >
+                    {mappedLabel}
+                  </span>
+
+                  <span className={`capture-material-risk-pill ${riskTone}`}>
+                    {qualityStatus.label}
                   </span>
                 </div>
 
-                {!busy ? (
-                  <button type="button" onClick={() => removeSessionItem(item.id)}>
-                    Remove
-                  </button>
-                ) : null}
+                <button
+                  type="button"
+                  className="capture-material-expand-button"
+                  onClick={() =>
+                    setExpandedMaterialId((current) =>
+                      current === item.id ? null : item.id
+                    )
+                  }
+                >
+                  {isExpanded ? "Hide review details" : "Expand review"}
+                  <span>{isExpanded ? "⌃" : "⌄"}</span>
+                </button>
               </div>
 
-<div
-  className={`capture-material-dropdown ${
-    materialDropdownOpenId === item.id ? "is-open" : ""
-  }`}
->
-    <button
-    type="button"
-    className="capture-material-dropdown-trigger"
-    disabled={busy}
-    onClick={() =>
-      setMaterialDropdownOpenId((current) =>
-        current === item.id ? null : item.id
-      )
-    }
-  >
-    <span>
-      {mappedStep
-        ? `Mapped: ${getStepRequirementLabel(mappedStep)}`
-        : planMode === "CHECKLIST_REQUIRED"
-          ? "Map to requirement"
-          : "Map to collection step"}
-    </span>
-    <span className="capture-material-dropdown-chevron">⌄</span>
-  </button>
+              {isExpanded ? (
+                <div className="capture-material-review-panel">
+                  <div
+                    className={`capture-material-dropdown ${
+                      materialDropdownOpenId === item.id ? "is-open" : ""
+                    }`}
+                  >
+                    <button
+                      type="button"
+                      className="capture-material-dropdown-trigger"
+                      disabled={busy}
+                      onClick={() =>
+                        setMaterialDropdownOpenId((current) =>
+                          current === item.id ? null : item.id
+                        )
+                      }
+                    >
+                      <span>
+                        {mappedStep
+                          ? `Mapped: ${getStepRequirementLabel(mappedStep)}`
+                          : planMode === "CHECKLIST_REQUIRED"
+                            ? "Map to requirement"
+                            : "Map to collection step"}
+                      </span>
+                      <span className="capture-material-dropdown-chevron">⌄</span>
+                    </button>
 
-  {materialDropdownOpenId === item.id ? (
-    <div className="capture-material-dropdown-menu">
-      <button
-        type="button"
-        className={!item.checklistStepId ? "active" : ""}
-        onClick={() => {
-          updateSessionItem(item.id, { checklistStepId: null });
-          closeMaterialDropdown();
-        }}
-      >
-        Map to collection step
-      </button>
+                    {materialDropdownOpenId === item.id ? (
+                      <div className="capture-material-dropdown-menu">
+                        <button
+                          type="button"
+                          className={!item.checklistStepId ? "active" : ""}
+                          onClick={() => {
+                            updateSessionItem(item.id, { checklistStepId: null });
+                            closeMaterialDropdown();
+                          }}
+                        >
+                          Map to collection step
+                        </button>
 
-      {selectedCollectionPlan?.steps.map((step) => (
-        <button
-          key={step.id}
-          type="button"
-          className={item.checklistStepId === step.id ? "active" : ""}
-          onClick={() => {
-            updateSessionItem(item.id, { checklistStepId: step.id });
-            closeMaterialDropdown();
-          }}
-        >
-          <span>{getStepRequirementLabel(step)}: {step.title}</span>
-          <small>{step.purposeLabel}</small>
-        </button>
-      ))}
-    </div>
-  ) : null}
-</div>
-              <div
-                className={
-                  qualityStatus.tone === "success"
-                    ? "capture-quality-success"
-                    : qualityStatus.tone === "danger"
-                      ? "capture-quality-danger"
-                      : "capture-quality-warning"
-                }
-              >
-                <strong>{qualityStatus.label}</strong>
-                <div>{qualityStatus.detail}</div>
-              </div>
+                        {selectedCollectionPlan?.steps.map((step) => (
+                          <button
+                            key={step.id}
+                            type="button"
+                            className={
+                              item.checklistStepId === step.id ? "active" : ""
+                            }
+                            onClick={() => {
+                              updateSessionItem(item.id, {
+                                checklistStepId: step.id,
+                              });
+                              closeMaterialDropdown();
+                            }}
+                          >
+                            <span>
+                              {getStepRequirementLabel(step)}: {step.title}
+                            </span>
+                            <small>{step.purposeLabel}</small>
+                          </button>
+                        ))}
+                      </div>
+                    ) : null}
+                  </div>
 
-              <textarea
-                value={item.privateNote ?? ""}
-                onChange={(event) =>
-                  updateSessionItem(item.id, {
-                    privateNote: event.target.value,
-                  })
-                }
-                disabled={busy}
-                placeholder="Private item note"
-                maxLength={1000}
-                className="capture-material-note"
-              />
+                  <div
+                    className={
+                      qualityStatus.tone === "success"
+                        ? "capture-quality-success"
+                        : qualityStatus.tone === "danger"
+                          ? "capture-quality-danger"
+                          : "capture-quality-warning"
+                    }
+                  >
+                    <strong>{qualityStatus.label}</strong>
+                    <div>{qualityStatus.detail}</div>
+                  </div>
+
+                  <textarea
+                    value={item.privateNote ?? ""}
+                    onChange={(event) =>
+                      updateSessionItem(item.id, {
+                        privateNote: event.target.value,
+                      })
+                    }
+                    disabled={busy}
+                    placeholder="Private item note"
+                    maxLength={1000}
+                    className="capture-material-note"
+                  />
+                </div>
+              ) : null}
             </div>
           </div>
         );
