@@ -52,6 +52,7 @@ import {
   evaluateCustodyChain,
   classifyCustodyEventType,
 } from "../services/custody-events.service.js";
+import { buildEvidenceIntelligence } from "../services/evidence-intelligence.service.js";
 import {
   attestEvidenceCertification,
   listEvidenceCertifications,
@@ -413,6 +414,7 @@ const SAFE_EVIDENCE_SELECT = {
   deletedAt: true,
   deletedAtUtc: true,
   deleteScheduledForUtc: true,
+  retentionUntilUtc: true,
 } as const;
 
 type SelectedEvidence = prismaPkg.Prisma.EvidenceGetPayload<{
@@ -512,6 +514,7 @@ type SafeEvidence = {
   signingKeyId: string | null;
   signingKeyVersion: number | null;
   deletedByUserId: string | null;
+  retentionUntilUtc: string | null;
   lockedAt: string | null;
   lockedByUserId: string | null;
   archivedAt: string | null;
@@ -1503,6 +1506,9 @@ function toSafeEvidence(e: SelectedEvidence): SafeEvidence {
     deletedAtUtc: e.deletedAtUtc ? e.deletedAtUtc.toISOString() : null,
     deleteScheduledForUtc: e.deleteScheduledForUtc
       ? e.deleteScheduledForUtc.toISOString()
+      : null,
+    retentionUntilUtc: e.retentionUntilUtc
+      ? e.retentionUntilUtc.toISOString()
       : null,
   };
 }
@@ -3938,6 +3944,13 @@ displayFileName: true,
         );
         const anchor = await getAnchorStatus(id);
 
+        const evidenceIntelligence = await buildEvidenceIntelligence({
+          evidenceId: id,
+          evidence,
+          anchor,
+          storage,
+        });
+
         auditEvidenceAction(req, {
           userId: ownerUserId,
           action: "evidence.view",
@@ -3950,7 +3963,7 @@ displayFileName: true,
           },
         });
 
-                const parts = await prisma.evidencePart.findMany({
+        const parts = await prisma.evidencePart.findMany({
           where: { evidenceId: id },
           orderBy: { partIndex: "asc" },
           select: {
@@ -4025,6 +4038,7 @@ title: evidence.title ?? evidence.displayFileName ?? evidence.originalFileName ?
             contentItems: content.items,
             primaryContentItem: content.primaryItem,
             previewPolicy: content.previewPolicy,
+            evidenceIntelligence,
           }),
         });
                   } catch (err) {

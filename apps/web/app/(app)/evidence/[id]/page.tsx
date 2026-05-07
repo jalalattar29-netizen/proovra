@@ -23,6 +23,7 @@ import type {
   PersonalWorkspaceSummary,
   TeamWorkspaceSummary,
 } from "../../../../components/billing/types";
+import type { EvidenceIntelligence } from "@proovra/shared";
 import "./evidence-detail.css";
 
 function formatBytes(sizeBytes: string | number | null | undefined): string {
@@ -311,6 +312,7 @@ type EvidenceRecord = {
   lng?: number | null;
   accuracyMeters?: number | null;
   intakePlanJson?: Record<string, unknown> | null;
+  evidenceIntelligence?: EvidenceIntelligence | null;
 };
 
 type EvidenceResponse = {
@@ -528,6 +530,7 @@ export default function EvidenceDetailPage() {
   const [originalFileName, setOriginalFileName] = useState<string | null>(null);
 
   const [parts, setParts] = useState<EvidencePart[]>([]);
+  const [evidenceIntelligence, setEvidenceIntelligence] = useState<EvidenceIntelligence | null>(null);
   const [reportAvailable, setReportAvailable] = useState(false);
   const [verificationPackageAvailable, setVerificationPackageAvailable] = useState(false);
 
@@ -772,6 +775,7 @@ else acc.otherCount += 1;
           setLabelDraft(resolveDisplayTitle(ev));
           setDisplaySubtitle(resolveDisplaySubtitle(ev));
           setItemCount(typeof ev.itemCount === "number" && ev.itemCount > 0 ? ev.itemCount : 1);
+          setEvidenceIntelligence(ev.evidenceIntelligence ?? null);
         } else {
           throw evidenceRes.reason;
         }
@@ -914,6 +918,7 @@ else acc.otherCount += 1;
         setLabelDraft(resolveDisplayTitle(ev));
         setDisplaySubtitle(resolveDisplaySubtitle(ev));
         setItemCount(typeof ev.itemCount === "number" && ev.itemCount > 0 ? ev.itemCount : 1);
+        setEvidenceIntelligence(ev.evidenceIntelligence ?? null);
       }
 
       if (billingData.status === "fulfilled") {
@@ -1057,6 +1062,21 @@ else acc.otherCount += 1;
       addToast("Failed to copy verification link", "error");
     } finally {
       setShareActionBusy(false);
+    }
+  };
+
+  const handleCopySha256 = async (value: string | null | undefined) => {
+    if (!value) return;
+
+    try {
+      await navigator.clipboard.writeText(value);
+      addToast("SHA-256 copied", "success");
+    } catch (err) {
+      captureException(err, {
+        feature: "web_evidence_copy_sha256",
+        evidenceId: params.id,
+      });
+      addToast("Failed to copy SHA-256", "error");
     }
   };
 
@@ -1611,7 +1631,7 @@ else acc.otherCount += 1;
     { label: "PDF report", value: reportAvailable ? "Available" : "Not available", ok: reportAvailable },
     { label: "Verification package", value: verificationPackageAvailable ? "Available" : "Not available", ok: verificationPackageAvailable },
     { label: "Public verification", value: canUsePublicVerification ? "Enabled" : "Not enabled", ok: canUsePublicVerification },
-    { label: "Case context", value: caseId ? "Attached" : "Not assigned", ok: Boolean(caseId) },
+    { label: "Case Context", value: caseId ? "Attached" : "Not assigned", ok: Boolean(caseId) },
     { label: "Capture location", value: hasCaptureLocation ? "Recorded" : "Not recorded", ok: hasCaptureLocation },
     { label: "Record lock", value: isLocked ? "Locked" : "Not locked", ok: isLocked },
   ];
@@ -1631,6 +1651,110 @@ else acc.otherCount += 1;
     { label: "Capture context", value: hasCaptureLocation ? "Capture location metadata recorded." : "No capture location metadata recorded.", ok: hasCaptureLocation },
     { label: "Package structure", value: isMultipart ? "Multipart evidence package." : "Single-file evidence record.", ok: true },
   ];
+
+  const evidenceReviewDecision = evidenceIntelligence?.reviewerDecision;
+  const evidenceVerificationProofRows: ReviewRow[] = evidenceIntelligence
+    ? [
+        {
+          label: "Hash verification",
+          value: evidenceIntelligence.verificationProof.hashMatch,
+          ok: evidenceIntelligence.verificationProof.hashMatch === "MATCH",
+        },
+        {
+          label: "SHA-256 recorded",
+          value: evidenceIntelligence.verificationProof.sha256Recorded ? "Yes" : "No",
+          ok: evidenceIntelligence.verificationProof.sha256Recorded,
+        },
+        {
+          label: "Signature status",
+          value: evidenceIntelligence.verificationProof.signatureStatus,
+          ok: evidenceIntelligence.verificationProof.signatureStatus === "APPLIED",
+        },
+        {
+          label: "TSA status",
+          value: evidenceIntelligence.verificationProof.tsaStatus,
+          ok: evidenceIntelligence.verificationProof.tsaStatus === "RECORDED",
+        },
+        {
+          label: "OTS status",
+          value: evidenceIntelligence.verificationProof.otsStatus,
+          ok: evidenceIntelligence.verificationProof.otsStatus === "ANCHORED",
+        },
+      ]
+    : [];
+
+  const evidenceArtifactRows: ReviewRow[] = evidenceIntelligence
+    ? [
+        {
+          label: "PDF report",
+          value: evidenceIntelligence.artifacts.report.available
+            ? `Ready${evidenceIntelligence.artifacts.report.version ? ` · v${evidenceIntelligence.artifacts.report.version}` : ""}`
+            : "Unavailable",
+          ok: evidenceIntelligence.artifacts.report.available,
+        },
+        {
+          label: "Verification package",
+          value: evidenceIntelligence.artifacts.verificationPackage.available
+            ? `Ready${evidenceIntelligence.artifacts.verificationPackage.version ? ` · v${evidenceIntelligence.artifacts.verificationPackage.version}` : ""}`
+            : "Unavailable",
+          ok: evidenceIntelligence.artifacts.verificationPackage.available,
+        },
+        {
+          label: "Verification proof artifacts",
+          value: evidenceIntelligence.artifacts.verificationProofArtifacts.available
+            ? "Ready"
+            : "Unavailable",
+          ok: evidenceIntelligence.artifacts.verificationProofArtifacts.available,
+        },
+      ]
+    : [];
+
+  const evidenceAccessEvents = evidenceIntelligence?.accessActivity.recentEvents ?? [];
+  const evidenceCustodyTimeline = evidenceIntelligence?.custodyTimeline ?? [];
+
+  const evidenceIntelligenceRows: ReviewRow[] = evidenceIntelligence
+    ? [
+        {
+          label: "Review decision",
+          value: evidenceReviewDecision?.label ?? "Unavailable",
+          ok: evidenceReviewDecision?.status === "READY_FOR_EXTERNAL_REVIEW",
+        },
+        {
+          label: "Evidence score",
+          value:
+            typeof evidenceIntelligence.librarySummary.score === "number"
+              ? `${evidenceIntelligence.librarySummary.score}%`
+              : "Not scored",
+          ok: evidenceIntelligence.librarySummary.score !== null,
+        },
+        {
+          label: "Custody chain",
+          value: evidenceIntelligence.events.chainIntegrity.valid
+            ? `Valid (${evidenceIntelligence.events.chainIntegrity.mode})`
+            : `Invalid (${evidenceIntelligence.events.chainIntegrity.reason ?? "unknown"})`,
+          ok: evidenceIntelligence.events.chainIntegrity.valid,
+        },
+        {
+          label: "Public verification",
+          value: evidenceIntelligence.anchor.published
+            ? "Publishing enabled"
+            : evidenceIntelligence.anchor.configured
+            ? "Configured"
+            : "Not enabled",
+          ok: evidenceIntelligence.anchor.published,
+        },
+        {
+          label: "Access events",
+          value: String(evidenceIntelligence.events.access),
+          ok: true,
+        },
+        {
+          label: "Forensic events",
+          value: String(evidenceIntelligence.events.forensic),
+          ok: true,
+        },
+      ]
+    : [];
 
   return (
     <div className="evidence-enterprise-page">
@@ -1837,15 +1961,33 @@ else acc.otherCount += 1;
                             <details className="evidence-technical-details">
                               <summary>View technical metadata</summary>
                               <div className="evidence-item-meta">
-                                <div>Type: {part.mimeType ?? "Unknown"}</div>
+                                {part.originalFileName ? <div>Original filename: {part.originalFileName}</div> : null}
+                                {(part.displayName || part.fileName) ? <div>Displayed filename: {part.displayName ?? part.fileName}</div> : null}
+                                <div>MIME type: {part.mimeType ?? "Unknown"}</div>
                                 <div>Kind: {kind === "pdf" ? "document" : kind}</div>
                                 <div>Size: {formatBytes(part.sizeBytes ?? null)}</div>
                                 {part.durationMs && part.durationMs > 0 ? <div>Duration: {(part.durationMs / 1000).toFixed(1)} sec</div> : null}
-                                {part.sha256 ? <div>SHA-256: {shortId(part.sha256)}</div> : null}
-                                {part.privateRole ? <div>Role: {part.privateRole}</div> : null}
-                                {part.sourceLabel ? <div>Source: {part.sourceLabel}</div> : null}
+                                {part.capturedAt ? <div>Captured at: {formatUtcDateTime(part.capturedAt)}</div> : null}
+                                {part.createdAt ? <div>Created at: {formatUtcDateTime(part.createdAt)}</div> : null}
+                                {part.sha256 ? (
+                                  <div className="evidence-item-meta-row">
+                                    <span>SHA-256:</span>
+                                    <strong>{part.sha256}</strong>
+                                    <Button variant="secondary" onClick={() => handleCopySha256(part.sha256)} className="evidence-mini-btn">
+                                      Copy SHA-256
+                                    </Button>
+                                  </div>
+                                ) : null}
+                                {part.privateRole ? <div>Storage role: {part.privateRole}</div> : null}
                                 {part.checklistStepId ? <div>Checklist step: {part.checklistStepId}</div> : null}
-                                {part.privateNote ? <div>Note: {part.privateNote}</div> : null}
+                                {part.sourceLabel ? <div>Source label: {part.sourceLabel}</div> : null}
+                                {part.privateNote ? <div>Private note: {part.privateNote}</div> : null}
+                                {part.clientSignals ? (
+                                  <div>
+                                    <div>Client signals summary:</div>
+                                    <pre>{JSON.stringify(part.clientSignals, null, 2)}</pre>
+                                  </div>
+                                ) : null}
                               </div>
                             </details>
                           ) : null}
@@ -1856,6 +1998,121 @@ else acc.otherCount += 1;
                 </div>
               )}
             </section>
+
+            {evidenceIntelligence ? (
+              <section className="evidence-card evidence-intelligence-card">
+                <div className="evidence-card-inner">
+                  <p className="evidence-section-label">Evidence Intelligence</p>
+                  <h2 className="evidence-section-title">Review-ready evidence summary</h2>
+                  <p className="evidence-section-muted">
+                    Enterprise intelligence signals from custody, verification artifacts, and preservation status.
+                  </p>
+
+                  <div className="evidence-intelligence-grid">
+                    <div className="evidence-intelligence-panel">
+                      <div className="evidence-intelligence-panel-header">
+                        <span>Reviewer Decision</span>
+                        <strong>{evidenceReviewDecision?.label ?? "Unavailable"}</strong>
+                      </div>
+                      <div className="evidence-intelligence-panel-summary">
+                        {evidenceReviewDecision?.summary ?? "Review decision data is not available."}
+                      </div>
+                      {evidenceReviewDecision?.reasons?.length ? (
+                        <div className="evidence-intelligence-list">
+                          {evidenceReviewDecision.reasons.map((reason) => (
+                            <div key={reason} className="evidence-intelligence-badge">
+                              {reason}
+                            </div>
+                          ))}
+                        </div>
+                      ) : null}
+                      {evidenceReviewDecision?.nextActions?.length ? (
+                        <div className="evidence-intelligence-actions">
+                          <strong>Next actions</strong>
+                          <ul>
+                            {evidenceReviewDecision.nextActions.map((action) => (
+                              <li key={action}>{action}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      ) : null}
+                    </div>
+
+                    <div className="evidence-intelligence-panel">
+                      <div className="evidence-intelligence-panel-header">
+                        <span>Verification proof</span>
+                        <strong>Integrity signals</strong>
+                      </div>
+                      <div className="evidence-summary-list evidence-summary-compact">
+                        {evidenceVerificationProofRows.map((row) => (
+                          <div key={row.label} className="evidence-kv">
+                            <span>{row.label}</span>
+                            <strong>{row.value}</strong>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="evidence-intelligence-panel">
+                      <div className="evidence-intelligence-panel-header">
+                        <span>Artifacts & Versions</span>
+                        <strong>Available review materials</strong>
+                      </div>
+                      <div className="evidence-summary-list evidence-summary-compact">
+                        {evidenceArtifactRows.map((row) => (
+                          <div key={row.label} className="evidence-kv">
+                            <span>{row.label}</span>
+                            <strong>{row.value}</strong>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="evidence-intelligence-panel">
+                      <div className="evidence-intelligence-panel-header">
+                        <span>Access & Security Activity</span>
+                        <strong>Custody & Activity Timeline</strong>
+                      </div>
+                      <div className="evidence-activity-list">
+                        {evidenceAccessEvents.length > 0 ? (
+                          evidenceAccessEvents.map((event) => (
+                            <div key={`${event.eventType}-${event.timestampUtc}`} className="evidence-activity-item">
+                              <div className="evidence-activity-top">
+                                <strong>{event.label}</strong>
+                                <span>{new Date(event.timestampUtc).toLocaleString("en-GB", { timeZone: "UTC", hour12: false })} UTC</span>
+                              </div>
+                              <div className="evidence-activity-meta">
+                                <span>{event.actorLabel}</span>
+                                <span>{event.description}</span>
+                              </div>
+                            </div>
+                          ))
+                        ) : (
+                          <div className="evidence-empty-preview">No recent access events available.</div>
+                        )}
+                      </div>
+                      {evidenceCustodyTimeline.length > 0 ? (
+                        <div className="evidence-intelligence-timeline">
+                          <h3>Recent custody timeline</h3>
+                          {evidenceCustodyTimeline.map((event) => (
+                            <div key={`${event.eventType}-${event.timestampUtc}-timeline`} className="evidence-activity-item">
+                              <div className="evidence-activity-top">
+                                <strong>{event.label}</strong>
+                                <span>{new Date(event.timestampUtc).toLocaleString("en-GB", { timeZone: "UTC", hour12: false })} UTC</span>
+                              </div>
+                              <div className="evidence-activity-meta">
+                                <span>{event.actorLabel}</span>
+                                <span>{event.description}</span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      ) : null}
+                    </div>
+                  </div>
+                </div>
+              </section>
+            ) : null}
 
             <section className="evidence-card evidence-technical-card">
               <div className="evidence-card-inner">
@@ -1973,6 +2230,25 @@ else acc.otherCount += 1;
                 </div>
               </div>
             </section>
+
+            {evidenceIntelligenceRows.length > 0 ? (
+              <section className="evidence-card">
+                <div className="evidence-card-inner">
+                  <h2 className="evidence-section-title">Evidence Intelligence</h2>
+                  <div className="evidence-summary-list evidence-summary-compact">
+                    {evidenceIntelligenceRows.map((row) => (
+                      <div key={row.label} className="evidence-kv">
+                        <span>{row.label}</span>
+                        <strong>{row.value}</strong>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="evidence-alert info">
+                    Intelligence metrics are derived from custody activity, preservation state, and verified evidence metadata.
+                  </div>
+                </div>
+              </section>
+            ) : null}
 
             <section className="evidence-card">
               <div className="evidence-card-inner">

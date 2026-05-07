@@ -65,6 +65,8 @@ export {
 } from "./report-queue.js";
 
 export type { CustodyEventCategory } from "./custody.js";
+export type { EvidenceIntelligence } from "./evidence-intelligence.js";
+export { buildEvidenceLibraryIntelligenceSummary } from "./evidence-intelligence.js";
 
 export {
   classifyCustodyEventType,

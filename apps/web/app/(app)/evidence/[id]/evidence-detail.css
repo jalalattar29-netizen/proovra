@@ -647,6 +647,135 @@
   text-align: right;
 }
 
+.evidence-intelligence-card {
+  padding: 0;
+}
+
+.evidence-intelligence-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+  margin-top: 20px;
+}
+
+.evidence-intelligence-panel {
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.68);
+  border: 1px solid rgba(16, 24, 40, 0.06);
+  padding: 20px;
+  display: grid;
+  gap: 12px;
+}
+
+.evidence-intelligence-panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+}
+
+.evidence-intelligence-panel-header span {
+  color: var(--evidence-muted);
+  font-size: 0.76rem;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.evidence-intelligence-panel-header strong {
+  color: var(--evidence-ink);
+  font-size: 0.9rem;
+  font-weight: 950;
+}
+
+.evidence-intelligence-panel-summary {
+  color: #334155;
+  line-height: 1.7;
+  font-size: 0.92rem;
+}
+
+.evidence-intelligence-list {
+  display: grid;
+  gap: 10px;
+}
+
+.evidence-intelligence-badge {
+  display: inline-flex;
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: rgba(15, 92, 86, 0.08);
+  border: 1px solid rgba(15, 92, 86, 0.12);
+  color: var(--evidence-teal-strong);
+  font-size: 0.78rem;
+  font-weight: 900;
+}
+
+.evidence-intelligence-actions {
+  padding-top: 10px;
+}
+
+.evidence-intelligence-actions strong {
+  display: block;
+  margin-bottom: 8px;
+  color: var(--evidence-ink);
+  font-size: 0.82rem;
+}
+
+.evidence-intelligence-actions ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 6px;
+}
+
+.evidence-intelligence-actions li {
+  color: var(--evidence-muted);
+  font-size: 0.82rem;
+  line-height: 1.6;
+}
+
+.evidence-activity-list {
+  display: grid;
+  gap: 12px;
+}
+
+.evidence-activity-item {
+  padding: 14px;
+  border-radius: 16px;
+  background: rgba(248, 250, 252, 0.82);
+  border: 1px solid rgba(16, 24, 40, 0.06);
+}
+
+.evidence-activity-top {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.evidence-activity-top strong {
+  color: var(--evidence-ink);
+  font-size: 0.9rem;
+  font-weight: 950;
+}
+
+.evidence-activity-top span {
+  color: var(--evidence-muted);
+  font-size: 0.76rem;
+}
+
+.evidence-activity-meta {
+  display: grid;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.evidence-activity-meta span {
+  color: var(--evidence-muted);
+  font-size: 0.82rem;
+}
+
 .evidence-location-grid {
   display: grid;
   grid-template-columns: minmax(0, 1.1fr) minmax(320px, 0.9fr);
