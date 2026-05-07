@@ -2167,25 +2167,6 @@ padding: 72px 28px 28px;
   box-shadow: 0 8px 18px rgba(16, 24, 40, 0.04) !important;
 }
 
-.capture-material-dropdown-menu {
-  position: absolute !important;
-  top: calc(100% + 8px) !important;
-  left: 0 !important;
-  right: auto !important;
-  z-index: 10001 !important;
-
-  width: 100% !important;
-  max-height: 220px !important;
-  overflow-y: auto !important;
-
-  padding: 8px !important;
-  border-radius: 18px !important;
-  border: 1px solid var(--capture-line) !important;
-  background: rgba(255, 255, 255, 0.98) !important;
-  box-shadow: 0 22px 54px rgba(16, 24, 40, 0.18) !important;
-  backdrop-filter: blur(18px) !important;
-  -webkit-backdrop-filter: blur(18px) !important;
-}
 
 .capture-material-dropdown-menu button {
   min-height: 38px !important;
@@ -2214,22 +2195,12 @@ padding: 72px 28px 28px;
   display: none !important;
 }
 
-.capture-material-dropdown-menu {
-  width: 100% !important;
-  min-width: 0 !important;
-  max-width: 100% !important;
-}
-
 .capture-material-card.is-open {
   z-index: 99999 !important;
 }
 
 .capture-material-dropdown.is-open {
   z-index: 100000 !important;
-}
-
-.capture-material-dropdown-menu {
-  z-index: 100001 !important;
 }
 
 .capture-integrity-block {
@@ -2878,10 +2849,6 @@ box-shadow:
   z-index: 6000 !important;
 }
 
-.capture-material-dropdown-menu {
-  z-index: 7000 !important;
-}
-
 .capture-main-panel,
 .capture-drop-zone-enterprise,
 .capture-materials-board {
@@ -3069,9 +3036,6 @@ box-shadow:
   z-index: 100000 !important;
 }
 
-.capture-material-dropdown-menu {
-  z-index: 100001 !important;
-}
 
 /* =========================================================
    FINAL CAPTURE MOBILE ENTERPRISE FIX — REAL
@@ -3226,15 +3190,6 @@ box-shadow:
     max-width: 210px !important;
   }
 
-  .capture-material-dropdown-menu {
-    position: relative !important;
-    top: auto !important;
-    left: auto !important;
-    width: 100% !important;
-    max-height: 260px !important;
-    margin-top: 8px !important;
-  }
-
   .capture-session-column {
     position: static !important;
   }
@@ -3309,4 +3264,123 @@ box-shadow:
     width: 100% !important;
     min-height: 44px !important;
   }
+}
+
+/* =========================================================
+   FINAL GLOBAL FIX — desktop + mobile
+========================================================= */
+
+.capture-enterprise-page {
+  padding-bottom: 150px !important;
+}
+
+/* fixed finish bar everywhere */
+.capture-bottom-bar {
+  position: fixed !important;
+  left: 10px !important;
+  right: 10px !important;
+  bottom: 10px !important;
+  z-index: 900 !important;
+}
+
+.capture-bottom-bar-inner {
+  max-height: none !important;
+  overflow: visible !important;
+}
+
+/* dropdown above finish bar */
+.capture-material-card.is-open {
+  position: relative !important;
+  z-index: 5000 !important;
+}
+
+.capture-material-dropdown {
+  position: relative !important;
+}
+
+.capture-material-dropdown.is-open {
+  z-index: 6000 !important;
+}
+
+.capture-material-dropdown-menu {
+  position: absolute !important;
+  top: auto !important;
+  bottom: calc(100% + 8px) !important;
+  left: 0 !important;
+  right: auto !important;
+
+  width: 100% !important;
+  max-height: 260px !important;
+  overflow-y: auto !important;
+
+  z-index: 7000 !important;
+
+  background: rgba(255, 255, 255, 0.98) !important;
+
+  box-shadow:
+    0 24px 64px rgba(16, 24, 40, 0.24) !important;
+}
+
+/* prevent clipping */
+.capture-main-panel,
+.capture-drop-zone-enterprise,
+.capture-materials-board,
+.capture-materials-grid,
+.capture-material-card,
+.capture-material-body,
+.capture-material-review-panel {
+  overflow: visible !important;
+}
+
+/* =========================================================
+   FINAL GLOBAL FIX — readable plan dropdown
+========================================================= */
+
+.capture-plan-dropdown-trigger {
+  background: #ffffff !important;
+
+  border: 1px solid rgba(16, 24, 40, 0.10) !important;
+
+  color: #101828 !important;
+
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+
+  box-shadow:
+    0 10px 24px rgba(16, 24, 40, 0.08) !important;
+}
+
+.capture-plan-dropdown-menu {
+  background: #ffffff !important;
+
+  border: 1px solid rgba(16, 24, 40, 0.10) !important;
+
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+
+  box-shadow:
+    0 24px 64px rgba(16, 24, 40, 0.18) !important;
+
+  z-index: 100002 !important;
+}
+
+.capture-plan-dropdown-item {
+  background: transparent !important;
+  color: #344054 !important;
+}
+
+.capture-plan-dropdown-item:hover {
+  background: rgba(15, 92, 86, 0.08) !important;
+  color: #0b403d !important;
+}
+
+.capture-plan-dropdown-item.active {
+  background:
+    linear-gradient(
+      180deg,
+      #0f5c56,
+      #0b403d
+    ) !important;
+
+  color: #ffffff !important;
 }
