@@ -1154,3 +1154,26 @@
 .app-topbar-v2-actions {
   gap: 12px !important;
 }
+
+/* FINAL — unify app shell typography */
+
+.app-sidebar-v2,
+.app-sidebar-v2 *,
+.app-footer-v2,
+.app-footer-v2 * {
+  font-family:
+    "Plus Jakarta Sans",
+    Inter,
+    system-ui,
+    sans-serif !important;
+}
+
+.app-sidebar-v2-link,
+.app-sidebar-v2-help,
+.app-sidebar-v2-trust-card,
+.app-footer-v2-left,
+.app-footer-v2-links a {
+  font-size: 0.93rem !important;
+  font-weight: 560 !important;
+  letter-spacing: -0.01em !important;
+}
