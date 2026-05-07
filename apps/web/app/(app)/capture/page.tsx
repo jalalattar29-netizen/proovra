@@ -1583,12 +1583,18 @@ useEffect(() => {
             ["3", "Evidence capture", "Upload or record source material"],
             ["4", "Review & Sign", "Finalize the evidence session"],
           ].map(([step, title, detail], index) => {
-            const active = activeWorkflowStep === index + 1;
+            const stepNumber = index + 1;
+            const stepState =
+              activeWorkflowStep > stepNumber
+                ? "completed"
+                : activeWorkflowStep === stepNumber
+                  ? "active"
+                  : "future";
 
             return (
               <div
                 key={step}
-                className={`capture-enterprise-step ${active ? "active" : ""}`}
+                className={`capture-enterprise-step ${stepState}`}
               >
                 <div className="capture-enterprise-step-number">{step}</div>
                 <div>
@@ -1670,8 +1676,8 @@ useEffect(() => {
               <span>
                 <strong>Include location</strong>
                 <small>
-                  Required investigation plans preserve precise GPS; other plans reduce
-                  precision.
+                  Investigation plans preserve precise GPS metadata, while other intake
+                  workflows reduce location precision by default.
                 </small>
               </span>
               <input
@@ -1847,6 +1853,18 @@ useEffect(() => {
 
         const typeLabel = deriveSessionItemTypeLabel(item.mimeType);
 
+        const previewTypeLabel = item.relativePath
+          ? "FOLDER"
+          : item.mimeType.startsWith("audio/")
+            ? "AUDIO"
+            : item.mimeType.startsWith("video/")
+              ? "VIDEO"
+              : item.mimeType.startsWith("image/")
+                ? "IMAGE"
+                : item.mimeType === "application/pdf"
+                  ? "PDF"
+                  : "FILE";
+
 const FileIcon = item.relativePath
   ? Folder
   : item.mimeType.startsWith("audio/")
@@ -1860,6 +1878,7 @@ const FileIcon = item.relativePath
         return (
           <div key={item.id} className="capture-material-card">
 <div className="capture-material-preview">
+  <div className="capture-material-badge">{previewTypeLabel}</div>
   {item.previewUrl && item.mimeType.startsWith("image/") ? (
     <img src={item.previewUrl} alt={item.file.name} />
   ) : item.previewUrl && item.mimeType.startsWith("video/") ? (

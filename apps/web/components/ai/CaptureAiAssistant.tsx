@@ -89,6 +89,7 @@ export function CaptureAiAssistant({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [unavailable, setUnavailable] = useState(false);
+  const [detailsOpen, setDetailsOpen] = useState(false);
 
   const canAnalyze = summary.totalItems > 0 && Boolean(collectionPlan);
 
@@ -154,6 +155,17 @@ try {
       setLoading(false);
     }
   };
+
+  const sortedAiFlags = useMemo(() => {
+    const priority = { danger: 0, warning: 1, info: 2 };
+    return (analysis?.flags ?? [])
+      .slice()
+      .sort(
+        (a, b) =>
+          priority[a.severity] - priority[b.severity] ||
+          a.title.localeCompare(b.title)
+      );
+  }, [analysis?.flags]);
 
   const missingCard = useMemo(() => {
     if (analysis?.flags?.length) {
@@ -297,14 +309,30 @@ const missing = analysis.flags
 
               {analysis?.flags?.length ? (
                 <div className="rounded-3xl border border-[rgba(58,93,97,0.12)] bg-white p-4 shadow-sm">
-                  <div className="text-xs font-black uppercase tracking-[0.18em] text-[#8f745c]">
-                    Detailed AI flags
-                  </div>
-                  {analysis.flags.map((flag, index) => (
-                    <div key={`${flag.title}-${index}`} className="mt-2 text-sm leading-6 text-[#24373b]">
-                      • [{flag.severity}] {flag.title}: {flag.detail}
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="text-xs font-black uppercase tracking-[0.18em] text-[#8f745c]">
+                      Metadata review
                     </div>
-                  ))}
+                    <button
+                      type="button"
+                      onClick={() => setDetailsOpen((current) => !current)}
+                      className="text-sm font-semibold text-[#0f5c56] underline-offset-2 hover:underline"
+                    >
+                      {detailsOpen
+                        ? "Hide detailed review"
+                        : `View detailed metadata review (${analysis.flags.length})`}
+                    </button>
+                  </div>
+                  {(detailsOpen ? sortedAiFlags : sortedAiFlags.slice(0, 3)).map(
+                    (flag, index) => (
+                      <div
+                        key={`${flag.title}-${index}`}
+                        className="mt-2 text-sm leading-6 text-[#24373b]"
+                      >
+                        • [{flag.severity}] {flag.title}: {flag.detail}
+                      </div>
+                    )
+                  )}
                 </div>
               ) : null}
 

@@ -197,9 +197,19 @@ background:
   align-items: center;
 }
 
+.capture-enterprise-step.completed {
+  border-color: rgba(15, 92, 86, 0.24);
+  background: rgba(239, 250, 248, 0.82);
+}
+
 .capture-enterprise-step.active {
   border-color: var(--capture-teal-line);
-  background: rgba(15, 92, 86, 0.08);
+  background: rgba(15, 92, 86, 0.10);
+}
+
+.capture-enterprise-step.future {
+  border-color: rgba(16, 24, 40, 0.10);
+  background: #ffffff;
 }
 
 .capture-enterprise-step strong {
@@ -208,6 +218,15 @@ background:
   font-weight: 900;
   letter-spacing: -0.02em;
   margin-right: 6px;
+}
+
+.capture-enterprise-step.future strong {
+  color: var(--capture-muted);
+}
+
+.capture-enterprise-step.completed strong,
+.capture-enterprise-step.active strong {
+  color: var(--capture-ink);
 }
 
 .capture-enterprise-step span {
@@ -812,12 +831,13 @@ background:
 }
 
 .capture-integrity-block {
-  border-radius: 16px;
-  background: #ffffff;
-  border: 1px solid var(--capture-line);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.28);
+  border: 1px solid rgba(15, 92, 86, 0.14);
   padding: 16px;
   display: grid;
   gap: 12px;
+  box-shadow: 0 10px 20px rgba(15, 23, 42, 0.04);
 }
 
 .capture-integrity-grid {
@@ -1874,14 +1894,45 @@ padding: 72px 28px 28px;
 .capture-material-card {
   overflow: visible !important;
   border-radius: 18px !important;
+  background: rgba(255, 255, 255, 0.90) !important;
+  border: 1px solid rgba(15, 92, 86, 0.12) !important;
+  box-shadow: 0 10px 20px rgba(15, 23, 42, 0.04) !important;
 }
 
 .capture-material-preview {
-  background: rgba(255, 255, 255, 0.10) !important;
+  position: relative !important;
+  width: 100% !important;
+  height: auto !important;
+  min-height: 168px !important;
+  aspect-ratio: 4 / 3 !important;
+  flex: none !important;
+  overflow: hidden !important;
+  background: rgba(248, 250, 252, 0.88) !important;
+  border-radius: 14px !important;
 }
 
 .capture-material-body {
   background: transparent !important;
+  padding: 12px !important;
+  gap: 10px !important;
+}
+
+.capture-material-badge {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  z-index: 10;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid rgba(15, 92, 86, 0.16);
+  color: var(--capture-teal);
+  font-size: 0.68rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
 }
 
 /* stop dropdown clipping */
