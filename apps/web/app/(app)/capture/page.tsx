@@ -1606,54 +1606,7 @@ useEffect(() => {
             );
           })}
         </section>
-{sessionItems.length > 0 ? (
-  <div className="capture-sticky-intake-bar">
-    <div className="capture-sticky-session">
-      <strong>{sessionItems.length} materials</strong>
-      <span>{formatFileSize(totalStagedBytes)}</span>
-      <span>{selectedCollectionPlan?.name}</span>
-    </div>
-
-    <div className="capture-sticky-actions">
-      <button type="button" onClick={openFilePicker}>
-        Upload
-      </button>
-
-      <button type="button" onClick={openFolderPicker}>
-        Folder
-      </button>
-
-      <button type="button" onClick={() => openCamera("PHOTO")}>
-        Photo
-      </button>
-
-      <button type="button" onClick={() => openCamera("VIDEO")}>
-        Video
-      </button>
-
-      <button type="button" onClick={openAudioRecorder}>
-        Audio
-      </button>
-    </div>
-
-    <div className="capture-sticky-review">
-      <button
-        type="button"
-        onClick={() => setAiPanelOpen(true)}
-      >
-        AI Review
-      </button>
-
-      <Button
-        onClick={finalizeSession}
-        disabled={finishDisabled}
-      >
-        Review & Sign
-      </Button>
-    </div>
-  </div>
-) : null}
-
+        
         <section className="capture-enterprise-grid">
           <aside className="capture-enterprise-card capture-left-panel">
             <div>
