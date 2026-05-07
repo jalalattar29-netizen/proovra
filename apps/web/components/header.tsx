@@ -186,19 +186,17 @@ function HeaderShell({
 
 function Brand({ href }: { href: string }) {
   return (
-    <Link href={href} className="flex min-w-0 items-center gap-2.5 sm:gap-3">
-      <div className="flex shrink-0 items-center justify-center">
-        <img
-          src="/brand/icon-512.png?v=2"
-          alt="PROOVRA"
-          className="h-11 w-11 object-contain drop-shadow-[0_10px_28px_rgba(0,0,0,0.65)] sm:h-14 sm:w-14 lg:h-[72px] lg:w-[72px]"
-        />
-      </div>
+<Link href="/home" className="app-topbar-v2-brand app-topbar-v2-brand-marketing" aria-label="PROOVRA home">
+  <div className="app-topbar-v2-brand-icon-wrap">
+    <img
+      src="/brand/icon-512.png?v=2"
+      alt="PROOVRA"
+      className="app-topbar-v2-brand-icon"
+    />
+  </div>
 
-      <span className="whitespace-nowrap text-[1.02rem] font-semibold tracking-[-0.02em] text-[#dce1de] sm:text-[1.16rem] lg:text-[1.42rem]">
-        PROO✓RA
-      </span>
-    </Link>
+  <span className="app-topbar-v2-brand-name">PROO✓RA</span>
+</Link>
   );
 }
 
