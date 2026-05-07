@@ -118,6 +118,16 @@ type LoadedEvidenceArtifact = {
   buffer: Buffer;
 };
 
+type VerificationPackageArtifactPresence = {
+  manifestPresent: boolean;
+  signedManifestPresent: boolean;
+  checksumIndexPresent: boolean;
+  offlineVerifierIncluded: boolean;
+  auditExportIncluded?: boolean;
+  custodyExportIncluded?: boolean;
+  accessExportIncluded?: boolean;
+};
+
 type EvidenceStorageSnapshot = {
   storageRegion: string | null;
   storageObjectLockMode: string | null;
