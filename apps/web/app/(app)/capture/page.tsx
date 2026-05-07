@@ -98,6 +98,7 @@ export default function CapturePage() {
   const [materialDropdownOpenId, setMaterialDropdownOpenId] =
   useState<string | null>(null);
   const [expandedMaterialId, setExpandedMaterialId] = useState<string | null>(null);
+  const [clearConfirmOpen, setClearConfirmOpen] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const folderInputRef = useRef<HTMLInputElement | null>(null);
@@ -1692,7 +1693,20 @@ useEffect(() => {
 
             <label className="capture-location-card">
               <span>
-                <strong>Include location</strong>
+<strong className="capture-inline-heading">
+  <span className="capture-inline-heading-icon">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+      <path
+        d="M12 21s-6-5.2-6-11a6 6 0 1 1 12 0c0 5.8-6 11-6 11Z"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <circle cx="12" cy="10" r="2.4" fill="currentColor" stroke="none" />
+    </svg>
+  </span>
+  Include location
+</strong>
                 <small>
                   Investigation plans preserve precise GPS metadata, while other intake
                   workflows reduce location precision by default.
@@ -2157,7 +2171,7 @@ useEffect(() => {
 
                 <button
                   type="button"
-                  onClick={resetCaptureState}
+                  onClick={() => setClearConfirmOpen(true)}
                   disabled={busy || sessionItems.length === 0}
                   className="capture-small-button"
                 >
@@ -2245,7 +2259,37 @@ useEffect(() => {
   Added materials appear below the upload workspace for mapping, notes, and quality review.
 </div>
               <div className="capture-notes-card">
-                <div className="capture-card-title">Private Internal Notes</div>
+<div className="capture-card-title capture-inline-heading">
+  <span className="capture-inline-heading-icon">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+      <path
+        d="M8 3h8l5 5v13H3V3h5Z"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M16 3v5h5"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M8 13h8"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M8 17h5"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  </span>
+  Private Internal Notes
+</div>
                 <p>
                   Visible only inside the authenticated app. Excluded from public
                   verification, reports, and verification packages.
@@ -2289,7 +2333,7 @@ useEffect(() => {
 
             <Button
               variant="secondary"
-              onClick={resetCaptureState}
+              onClick={() => setClearConfirmOpen(true)}
               disabled={busy || sessionItems.length === 0}
               className="capture-clear-button"
             >
@@ -2306,6 +2350,42 @@ useEffect(() => {
           </div>
         </section>
       </div>
+{clearConfirmOpen ? (
+  <div className="capture-confirm-backdrop">
+    <div className="capture-confirm-modal">
+      <div className="capture-confirm-icon">!</div>
+
+      <div>
+        <div className="capture-confirm-title">Clear this evidence session?</div>
+        <p className="capture-confirm-text">
+          This will remove all staged materials, mapping, private notes, and local
+          review progress. No evidence record has been created yet.
+        </p>
+      </div>
+
+      <div className="capture-confirm-actions">
+        <button
+          type="button"
+          className="capture-confirm-cancel"
+          onClick={() => setClearConfirmOpen(false)}
+        >
+          Keep Session
+        </button>
+
+        <button
+          type="button"
+          className="capture-confirm-danger"
+          onClick={() => {
+            setClearConfirmOpen(false);
+            resetCaptureState();
+          }}
+        >
+          Clear Session
+        </button>
+      </div>
+    </div>
+  </div>
+) : null}
 
       {cameraOpen ? (
         <div className={`camera-overlay ${flashEnabled ? "camera-overlay-flash" : ""}`}>
