@@ -1876,8 +1876,13 @@ const FileIcon = item.relativePath
         : FileText;
 
         return (
-          <div key={item.id} className="capture-material-card">
-<div className="capture-material-preview">
+<div
+  key={item.id}
+  className={`capture-material-card ${
+    materialDropdownOpenId === item.id ? "is-open" : ""
+  }`}
+>
+  <div className="capture-material-preview">
   <div className="capture-material-badge">{previewTypeLabel}</div>
   {item.previewUrl && item.mimeType.startsWith("image/") ? (
     <img src={item.previewUrl} alt={item.file.name} />
@@ -1906,8 +1911,12 @@ const FileIcon = item.relativePath
                 ) : null}
               </div>
 
-<div className="capture-material-dropdown">
-  <button
+<div
+  className={`capture-material-dropdown ${
+    materialDropdownOpenId === item.id ? "is-open" : ""
+  }`}
+>
+    <button
     type="button"
     className="capture-material-dropdown-trigger"
     disabled={busy}

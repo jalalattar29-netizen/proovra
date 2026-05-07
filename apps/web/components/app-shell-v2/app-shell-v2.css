@@ -274,17 +274,6 @@
   color: #edf4f1;
 }
 
-.app-sidebar-v2-inner {
-  position: relative;
-  z-index: 1;
-  height: 100%;
-  min-height: calc(100vh - 64px);
-  padding: 18px 14px;
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-
 .app-sidebar-v2-scroll {
   min-height: 0;
   overflow-y: auto;
@@ -298,31 +287,9 @@
   gap: 8px;
 }
 
-.app-sidebar-v2-group-title {
-  padding: 0 8px;
-  font-size: 0.68rem;
-  font-weight: 900;
-  text-transform: uppercase;
-  letter-spacing: 0.18em;
-  color: rgba(220, 229, 225, 0.52);
-}
-
 .app-sidebar-v2-nav {
   display: grid;
   gap: 5px;
-}
-
-.app-sidebar-v2-link {
-  min-height: 42px;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 0 10px;
-  border-radius: 14px;
-  color: rgba(220, 229, 225, 0.76);
-  font-size: 0.9rem;
-  font-weight: 750;
-  border: 1px solid transparent;
 }
 
 .app-sidebar-v2-link:hover {
@@ -341,8 +308,8 @@
 }
 
 .app-sidebar-v2-link-icon {
-  width: 28px;
-  height: 28px;
+  width: 30px;
+  height: 30px;
   border-radius: 10px;
   display: grid;
   place-items: center;
@@ -391,15 +358,6 @@
   color: #bfe8df;
   font-size: 0.8rem;
   font-weight: 850;
-}
-
-.app-sidebar-v2-help {
-  min-height: 46px;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  color: rgba(220, 229, 225, 0.76);
-  font-size: 0.8rem;
 }
 
 .app-sidebar-v2-help span {
@@ -646,23 +604,8 @@
 }
 
 /* =========================================================
-   APP SHELL V2 — FINAL FIX
+   APP SHELL V2 — FINAL CLEAN OVERRIDE
 ========================================================= */
-
-.app-shell-v2 {
-  min-height: 100vh;
-  display: flex;
-  flex-direction: column;
-  font-family:
-    "Plus Jakarta Sans",
-    Inter,
-    ui-sans-serif,
-    system-ui,
-    -apple-system,
-    BlinkMacSystemFont,
-    "Segoe UI",
-    sans-serif;
-}
 
 .app-topbar-v2 {
   min-height: 68px;
@@ -671,36 +614,80 @@
 
 .app-topbar-v2-inner {
   min-height: 68px;
-  padding: 0 36px;
-  grid-template-columns: 300px minmax(0, 1fr) auto;
+  padding: 0 28px;
+  grid-template-columns: 240px minmax(0, 1fr) auto !important;
 }
 
 .app-topbar-v2-brand {
-  gap: 13px;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 12px !important;
+  transform: none !important;
+  text-decoration: none;
 }
 
 .app-topbar-v2-brand-icon {
-  width: 46px;
-  height: 46px;
+  width: 44px !important;
+  height: 44px !important;
+  object-fit: contain;
 }
 
-.app-topbar-v2-brand-text strong {
-  font-family:
-    "Plus Jakarta Sans",
-    Inter,
-    ui-sans-serif,
-    system-ui,
-    sans-serif;
-  font-size: 1.16rem;
-  font-weight: 950;
-  letter-spacing: -0.045em;
-  color: #f4f7f5;
+.app-topbar-v2-brand-text {
+  display: flex !important;
+  align-items: center !important;
+  line-height: 1 !important;
 }
 
-.app-topbar-v2-brand-text small {
-  font-size: 0.6rem;
-  font-weight: 900;
-  letter-spacing: 0.22em;
+.proovra-wordmark {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.015em;
+  color: #f5f7fa !important;
+  font-family: Inter, "Plus Jakarta Sans", system-ui, sans-serif !important;
+  font-size: 1.32rem !important;
+  font-weight: 650 !important;
+  letter-spacing: -0.035em !important;
+  line-height: 1 !important;
+}
+
+.proovra-check {
+  position: relative;
+  display: inline-block;
+  width: 0.74em;
+  height: 0.72em;
+  margin-inline: -0.035em;
+  transform: translateY(0.03em);
+}
+
+.proovra-check::before {
+  content: "";
+  position: absolute;
+  left: 0.04em;
+  top: 0.39em;
+  width: 0.26em;
+  height: 0.105em;
+  border-radius: 999px;
+  background: currentColor;
+  transform: rotate(42deg);
+}
+
+.proovra-check::after {
+  content: "";
+  position: absolute;
+  left: 0.22em;
+  top: 0.25em;
+  width: 0.5em;
+  height: 0.105em;
+  border-radius: 999px;
+  background: currentColor;
+  transform: rotate(-48deg);
+}
+
+.app-topbar-v2-nav-link,
+.app-sidebar-v2-link,
+.app-footer-v2-links a {
+  font-weight: 560 !important;
+  letter-spacing: -0.005em !important;
 }
 
 .app-topbar-v2-nav-link:hover,
@@ -713,6 +700,37 @@
 
 .app-topbar-v2-nav-link.is-active::after {
   background: linear-gradient(90deg, #d6b89d, rgba(214, 184, 157, 0.1));
+}
+
+.app-sidebar-v2-link.is-active {
+  color: #d6b89d;
+  border-color: rgba(214, 184, 157, 0.26);
+  box-shadow: inset 3px 0 0 rgba(214, 184, 157, 0.78);
+}
+
+.app-sidebar-v2-link:hover .app-sidebar-v2-link-icon,
+.app-sidebar-v2-trust-icon,
+.app-sidebar-v2-trust-card a {
+  color: #d6b89d;
+}
+
+.app-sidebar-v2-link {
+  min-height: 44px;
+
+  display: flex;
+  align-items: center;
+  gap: 11px;
+
+  padding: 0 12px;
+
+  border-radius: 14px;
+
+  color: rgba(232, 238, 236, 0.82);
+
+  font-size: 0.96rem;
+  font-weight: 640;
+
+  border: 1px solid transparent;
 }
 
 .app-topbar-v2-icon-button,
@@ -762,7 +780,7 @@
 .app-topbar-v2-account-menu-header strong {
   color: #f4f7f5;
   font-size: 0.88rem;
-  font-weight: 900;
+  font-weight: 700;
 }
 
 .app-topbar-v2-account-menu-header span {
@@ -786,7 +804,7 @@
   color: rgba(229, 237, 234, 0.84);
   padding: 0 12px;
   font-size: 0.85rem;
-  font-weight: 800;
+  font-weight: 650;
   text-align: left;
   cursor: pointer;
 }
@@ -811,43 +829,6 @@
 }
 
 .app-sidebar-v2 {
-  position: relative;
-  top: auto;
-  align-self: stretch;
-  height: auto;
-  min-height: 100%;
-  overflow: hidden;
-}
-
-.app-sidebar-v2-inner {
-  min-height: calc(100vh - 68px);
-  height: 100%;
-}
-
-.app-sidebar-v2-link.is-active {
-  color: #d6b89d;
-  border-color: rgba(214, 184, 157, 0.26);
-  box-shadow: inset 3px 0 0 rgba(214, 184, 157, 0.78);
-}
-
-.app-sidebar-v2-link:hover .app-sidebar-v2-link-icon,
-.app-sidebar-v2-trust-icon,
-.app-sidebar-v2-trust-card a {
-  color: #d6b89d;
-}
-
-.app-shell-v2-content {
-  min-height: calc(100vh - 68px);
-}
-
-.app-shell-v2-main {
-  flex: 1;
-  display: grid;
-  grid-template-columns: 270px minmax(0, 1fr);
-  align-items: stretch;
-}
-
-.app-sidebar-v2 {
   position: relative !important;
   top: auto !important;
   align-self: stretch !important;
@@ -857,46 +838,57 @@
 }
 
 .app-sidebar-v2-inner {
+  position: relative;
+  z-index: 1;
+
   height: 100% !important;
   min-height: 100% !important;
+
+  padding: 18px 14px 0;
+
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.app-shell-v2-content {
+  min-height: calc(100vh - 68px);
 }
 
 .app-footer-v2 {
   margin-top: 0 !important;
+  padding-left: 42px !important;
+  padding-right: 42px !important;
 }
 
-.app-topbar-v2-brand {
-  gap: 12px;
-  padding-left: 0;
+.app-footer-v2-inner {
+  width: 100% !important;
+  max-width: 1480px !important;
+  margin: 0 auto !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 48px !important;
 }
 
-.app-topbar-v2-inner {
-  padding-left: 38px;
-  grid-template-columns: 300px minmax(0, 1fr) auto;
-}
-
-.app-topbar-v2-brand-text strong {
-  font-family:
-    Inter,
-    "Plus Jakarta Sans",
-    ui-sans-serif,
-    system-ui,
-    sans-serif !important;
-  font-size: 1.16rem !important;
-  font-weight: 760 !important;
-  letter-spacing: 0.015em !important;
-  line-height: 1 !important;
-  color: #f4f7f5 !important;
-}
-
-.app-topbar-v2-brand-text small {
-  font-size: 0.58rem !important;
-  font-weight: 800 !important;
-  letter-spacing: 0.24em !important;
-  color: rgba(220, 229, 225, 0.72) !important;
+.app-footer-v2-links {
+  display: flex !important;
+  align-items: center !important;
+  gap: 22px !important;
 }
 
 .app-sidebar-v2-help {
+  min-height: 46px;
+
+  display: flex;
+  align-items: center;
+  gap: 10px;
+
+  padding-bottom: 18px;
+
+  color: rgba(220, 229, 225, 0.76);
+  font-size: 0.8rem;
+
   text-decoration: none;
   cursor: pointer;
 }
@@ -905,177 +897,4 @@
 .app-sidebar-v2-help:hover small,
 .app-sidebar-v2-help:hover svg {
   color: #d6b89d;
-}
-
-/* FINAL HEADER BRAND FIX */
-.app-topbar-v2-inner {
-  grid-template-columns: 330px minmax(0, 1fr) auto !important;
-  padding-left: 56px !important;
-  padding-right: 30px !important;
-}
-
-.app-topbar-v2-brand {
-  gap: 14px !important;
-  transform: translateX(10px);
-}
-
-.app-topbar-v2-brand-icon {
-  width: 52px !important;
-  height: 52px !important;
-  object-fit: contain;
-}
-
-.app-topbar-v2-brand-text strong {
-  font-family: Inter, "Plus Jakarta Sans", system-ui, sans-serif !important;
-  font-size: 1.22rem !important;
-  font-weight: 900 !important;
-  letter-spacing: -0.02em !important;
-  line-height: 0.95 !important;
-  color: #f4f7f5 !important;
-}
-
-.app-topbar-v2-brand-text small {
-  margin-top: 3px !important;
-  font-size: 0.62rem !important;
-  font-weight: 850 !important;
-  letter-spacing: 0.22em !important;
-  color: rgba(232, 238, 236, 0.72) !important;
-}
-
-/* FINAL FOOTER ALIGNMENT FIX */
-.app-footer-v2,
-.app-shell-footer,
-.app-footer {
-  padding-left: 42px !important;
-  padding-right: 42px !important;
-}
-
-.app-footer-v2-inner,
-.app-shell-footer-inner,
-.app-footer-inner {
-  width: 100% !important;
-  max-width: 1480px !important;
-
-  margin: 0 auto !important;
-
-  display: flex !important;
-  align-items: center !important;
-  justify-content: space-between !important;
-
-  gap: 48px !important;
-}
-
-.app-footer-v2-links,
-.app-footer-links {
-  display: flex !important;
-  align-items: center !important;
-  gap: 22px !important;
-}
-
-.app-topbar-v2-brand {
-  display: inline-flex !important;
-  align-items: center !important;
-}
-
-.app-topbar-v2-wordmark-image {
-  width: 210px !important;
-  height: auto !important;
-  object-fit: contain !important;
-  display: block !important;
-}
-
-/* FINAL WORDMARK FIX */
-
-.app-topbar-v2-brand {
-  display: flex !important;
-  align-items: center !important;
-
-  padding-left: 0 !important;
-  margin-left: 0 !important;
-
-  transform: translateX(-4px) !important;
-}
-
-.app-topbar-v2-wordmark-image {
-  display: block !important;
-
-  width: 178px !important;
-  height: auto !important;
-
-  object-fit: contain !important;
-
-  filter:
-    drop-shadow(0 10px 24px rgba(0,0,0,0.34));
-
-  image-rendering: -webkit-optimize-contrast;
-}
-
-.app-topbar-v2-inner {
-  grid-template-columns: 240px minmax(0,1fr) auto !important;
-
-  padding-left: 22px !important;
-  padding-right: 28px !important;
-}
-
-.app-topbar-v2-brand {
-  text-decoration: none;
-  gap: 14px !important;
-}
-
-.app-topbar-v2-brand-icon {
-  width: 52px !important;
-  height: 52px !important;
-  object-fit: contain;
-  display: block;
-}
-
-.app-topbar-v2-brand-text {
-  display: flex !important;
-  align-items: center !important;
-  line-height: 1 !important;
-}
-
-.proovra-wordmark {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.015em;
-  color: #f5f7fa !important;
-  font-family: Inter, "Plus Jakarta Sans", system-ui, sans-serif !important;
-  font-size: 1.42rem !important;
-  font-weight: 760 !important;
-  letter-spacing: -0.045em !important;
-  line-height: 1 !important;
-}
-
-.proovra-check {
-  position: relative;
-  display: inline-block;
-  width: 0.74em;
-  height: 0.72em;
-  margin-inline: -0.035em;
-  transform: translateY(0.03em);
-}
-
-.proovra-check::before {
-  content: "";
-  position: absolute;
-  left: 0.04em;
-  top: 0.39em;
-  width: 0.26em;
-  height: 0.105em;
-  border-radius: 999px;
-  background: currentColor;
-  transform: rotate(42deg);
-}
-
-.proovra-check::after {
-  content: "";
-  position: absolute;
-  left: 0.22em;
-  top: 0.25em;
-  width: 0.5em;
-  height: 0.105em;
-  border-radius: 999px;
-  background: currentColor;
-  transform: rotate(-48deg);
 }
