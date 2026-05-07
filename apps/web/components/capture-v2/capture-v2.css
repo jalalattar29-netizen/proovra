@@ -3464,9 +3464,9 @@ box-shadow:
 }
 
 .capture-inline-heading-icon {
-  width: 32px;
-  height: 32px;
-  border-radius: 11px;
+  width: 42px;
+  height: 42px;
+  border-radius: 14px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -3490,8 +3490,8 @@ box-shadow:
 }
 
 .capture-inline-heading-icon svg {
-  width: 17px;
-  height: 17px;
+  width: 22px;
+  height: 22px;
 }
 
 /* FINAL AI MODAL MOBILE/DESKTOP FIX */
