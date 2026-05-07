@@ -2011,3 +2011,264 @@ padding: 72px 28px 28px;
   max-height: 260px;
   overflow-y: auto;
 }
+
+/* FINAL CAPTURE SURFACE + MATERIAL CARD FIX */
+
+.capture-enterprise-page {
+  --capture-glass-card: rgba(255, 255, 255, 0.34);
+  --capture-glass-card-strong: rgba(255, 255, 255, 0.48);
+  --capture-glass-border: rgba(255, 255, 255, 0.42);
+  --capture-evidence-surface: rgba(255, 255, 255, 0.38);
+}
+
+/* unify white side cards */
+.capture-integrity-block,
+.capture-notes-card,
+.capture-bottom-bar-inner,
+.capture-right-panel > .card,
+.capture-right-panel > .card .rounded-2xl,
+.capture-right-panel > .card .rounded-3xl {
+  background: var(--capture-glass-card) !important;
+  border: 1px solid var(--capture-glass-border) !important;
+  box-shadow:
+    0 8px 24px rgba(15, 23, 42, 0.035),
+    inset 0 1px 0 rgba(255, 255, 255, 0.28) !important;
+  backdrop-filter: blur(10px) !important;
+  -webkit-backdrop-filter: blur(10px) !important;
+}
+
+/* keep AI header dark */
+.capture-right-panel > .card > button {
+  background: linear-gradient(180deg, #0f5c56, #0b403d) !important;
+}
+
+/* evidence board should not look like a big white card */
+.capture-materials-board {
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+/* compact evidence cards */
+.capture-materials-grid {
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)) !important;
+  gap: 12px !important;
+}
+
+.capture-material-card {
+  background: var(--capture-evidence-surface) !important;
+  border: 1px solid var(--capture-glass-border) !important;
+  border-radius: 16px !important;
+  box-shadow:
+    0 8px 18px rgba(15, 23, 42, 0.035),
+    inset 0 1px 0 rgba(255, 255, 255, 0.22) !important;
+  overflow: visible !important;
+  backdrop-filter: blur(10px) !important;
+  -webkit-backdrop-filter: blur(10px) !important;
+}
+
+/* smaller media preview, no giant cards */
+.capture-material-preview {
+  height: 128px !important;
+  min-height: 128px !important;
+  max-height: 128px !important;
+  aspect-ratio: auto !important;
+  flex: none !important;
+  border-radius: 14px 14px 0 0 !important;
+  background:
+    radial-gradient(circle at 50% 0%, rgba(15, 92, 86, 0.08), transparent 42%),
+    rgba(248, 250, 252, 0.52) !important;
+}
+
+/* show whole image/video instead of awkward crop */
+.capture-material-preview img,
+.capture-material-preview video {
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: contain !important;
+  background: rgba(248, 250, 252, 0.36) !important;
+}
+
+/* compact card body */
+.capture-material-body {
+  padding: 10px !important;
+  gap: 8px !important;
+  background: transparent !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+.capture-material-top strong {
+  max-width: 150px !important;
+  font-size: 0.86rem !important;
+}
+
+.capture-material-top span {
+  font-size: 0.74rem !important;
+}
+
+.capture-material-dropdown-trigger {
+  min-height: 38px !important;
+  font-size: 0.8rem !important;
+}
+
+.capture-quality-success,
+.capture-quality-warning,
+.capture-quality-danger {
+  padding: 9px 10px !important;
+  font-size: 0.78rem !important;
+  line-height: 1.42 !important;
+}
+
+.capture-material-note {
+  min-height: 58px !important;
+  font-size: 0.78rem !important;
+}
+
+/* less harsh bottom bar */
+.capture-bottom-bar-inner {
+  background: rgba(255, 255, 255, 0.58) !important;
+}
+
+/* right panel cards less white */
+.capture-empty-state {
+  background: transparent !important;
+}
+
+/* integrity grid cleaner */
+.capture-integrity-grid div {
+  background: rgba(255, 255, 255, 0.22) !important;
+  border: 1px solid rgba(255, 255, 255, 0.34) !important;
+}
+
+.capture-integrity-grid strong {
+  font-size: 0.8rem !important;
+  line-height: 1.35 !important;
+}
+
+/* mobile safety */
+@media (max-width: 700px) {
+  .capture-materials-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  .capture-material-preview {
+    height: 150px !important;
+    max-height: 150px !important;
+  }
+}
+
+/* FINAL SURFACE CONSISTENCY PASS */
+
+.capture-enterprise-title-card,
+.capture-enterprise-security-card,
+.capture-enterprise-card,
+.capture-requirement-row,
+.capture-soft-note,
+.capture-benefits-card,
+.capture-location-card,
+.capture-integrity-block,
+.capture-notes-card,
+.capture-bottom-bar-inner,
+.capture-right-panel > .card,
+.capture-right-panel > .card .rounded-2xl,
+.capture-right-panel > .card .rounded-3xl,
+.capture-audio-card {
+  background: rgba(255, 255, 255, 0.34) !important;
+  border: 1px solid rgba(255, 255, 255, 0.42) !important;
+  box-shadow:
+    0 8px 24px rgba(15, 23, 42, 0.035),
+    inset 0 1px 0 rgba(255, 255, 255, 0.28) !important;
+  backdrop-filter: blur(10px) !important;
+  -webkit-backdrop-filter: blur(10px) !important;
+}
+
+/* inner cards: a bit lighter/softer than main cards */
+.capture-integrity-grid div,
+.capture-right-panel > .card .rounded-2xl,
+.capture-right-panel > .card .rounded-3xl,
+.capture-material-card {
+  background: rgba(255, 255, 255, 0.24) !important;
+  border: 1px solid rgba(255, 255, 255, 0.36) !important;
+}
+
+/* keep important controls readable */
+.capture-plan-dropdown-trigger,
+.capture-plan-dropdown-menu,
+.capture-material-dropdown-trigger,
+.capture-material-dropdown-menu,
+.capture-upload-actions .btn,
+.capture-drop-actions .btn,
+.capture-audio-actions .btn,
+.capture-small-button,
+.capture-notes-card textarea,
+.capture-material-note {
+  background: rgba(255, 255, 255, 0.82) !important;
+  border-color: rgba(16, 24, 40, 0.10) !important;
+}
+
+/* keep AI header and primary buttons dark */
+.capture-right-panel > .card > button,
+.capture-finish-button {
+  background: linear-gradient(180deg, #0f5c56, #0b403d) !important;
+  color: #ffffff !important;
+}
+
+/* keep status badges colored */
+.capture-status-met,
+.capture-quality-success {
+  background: rgba(22, 163, 74, 0.09) !important;
+}
+
+.capture-status-missing,
+.capture-quality-danger {
+  background: rgba(240, 68, 56, 0.10) !important;
+}
+
+.capture-quality-warning {
+  background: rgba(247, 144, 9, 0.11) !important;
+}
+
+/* VIDEO PREVIEW FIX */
+
+.capture-material-preview video {
+  width: 100% !important;
+  height: 100% !important;
+
+  object-fit: contain !important;
+
+  background: #eaf1ef !important;
+
+  padding: 10px !important;
+}
+
+/* make videos visually different from images */
+.capture-material-preview:has(video) {
+  background:
+    radial-gradient(circle at top, rgba(15, 92, 86, 0.08), transparent 42%),
+    linear-gradient(180deg, #eef4f2, #e6edeb) !important;
+}
+
+/* optional subtle video badge */
+.capture-material-preview:has(video)::after {
+  content: "VIDEO";
+  position: absolute;
+  top: 10px;
+  right: 10px;
+
+  padding: 4px 8px;
+
+  border-radius: 999px;
+
+  background: rgba(7, 18, 22, 0.72);
+
+  color: #ffffff;
+
+  font-size: 0.65rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+
+  z-index: 5;
+}
