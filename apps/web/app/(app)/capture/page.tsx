@@ -2124,14 +2124,15 @@ useEffect(() => {
                   <div className="capture-quality-danger">{audioRecorderError}</div>
                 ) : null}
 
-                <div className="capture-upload-actions">
-<Button
-  onClick={startAudioRecording}
-  disabled={busy || audioRecorderState === "recording"}
->
-  Start Recording
-</Button>
-                  <Button
+<div className="capture-audio-actions">
+  <Button
+    onClick={startAudioRecording}
+    disabled={busy || audioRecorderState === "recording"}
+    className="capture-audio-start-button"
+  >
+    Start Recording
+  </Button>
+                    <Button
                     variant="secondary"
                     onClick={stopAudioRecording}
                     disabled={audioRecorderState !== "recording"}

@@ -35,7 +35,7 @@ export function AppFooterV2() {
           <span className="app-footer-v2-dot">•</span>
 
           <span>
-            Verification-first digital evidence platform.
+            Verification digital evidence platform.
           </span>
         </div>
 

@@ -1392,3 +1392,42 @@
     gap: 14px !important;
   }
 }
+
+.app-user-menu-signout {
+  width: 100%;
+  min-height: 42px;
+
+  display: flex;
+  align-items: center;
+  gap: 10px;
+
+  border-radius: 14px;
+  border: 1px solid rgba(243, 199, 189, 0.14);
+
+  background: rgba(255, 255, 255, 0.04);
+
+  color: #f3c7bd;
+
+  padding: 0 14px;
+
+  font-weight: 850;
+
+  transition:
+    background 180ms ease,
+    border-color 180ms ease,
+    color 180ms ease,
+    transform 180ms ease;
+}
+
+.app-user-menu-signout:hover {
+  background: rgba(143, 63, 53, 0.18);
+  border-color: rgba(243, 199, 189, 0.24);
+
+  color: #ffffff;
+
+  transform: translateX(2px);
+}
+
+.app-user-menu-signout svg {
+  flex-shrink: 0;
+}

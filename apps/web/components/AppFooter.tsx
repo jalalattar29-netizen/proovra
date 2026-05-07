@@ -18,7 +18,7 @@ export function AppFooter() {
         <div className="proovra-app-footer-brand">
           <span>© {currentYear} PROO✓RA</span>
           <span className="proovra-app-footer-dot">•</span>
-          <span>Verification-first digital evidence platform.</span>
+          <span>Verification digital evidence platform.</span>
         </div>
 
         <nav className="proovra-app-footer-links" aria-label="App footer links">

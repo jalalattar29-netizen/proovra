@@ -3493,3 +3493,73 @@ box-shadow:
   width: 17px;
   height: 17px;
 }
+
+/* FINAL AI MODAL MOBILE/DESKTOP FIX */
+
+.capture-ai-modal-backdrop {
+  position: fixed !important;
+  inset: 0 !important;
+  z-index: 2147483647 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 18px !important;
+  background: rgba(6, 14, 20, 0.55) !important;
+  backdrop-filter: blur(14px) !important;
+  -webkit-backdrop-filter: blur(14px) !important;
+}
+
+.capture-ai-modal {
+  width: min(960px, calc(100vw - 36px)) !important;
+  max-width: calc(100vw - 36px) !important;
+  max-height: calc(100dvh - 36px) !important;
+  overflow-y: auto !important;
+  padding: 24px !important;
+  border-radius: 28px !important;
+  background: #ffffff !important;
+  box-shadow: 0 40px 120px rgba(7, 18, 22, 0.36) !important;
+}
+
+@media (max-width: 700px) {
+  .capture-ai-modal-backdrop {
+    align-items: flex-start !important;
+    padding: 10px !important;
+  }
+
+  .capture-ai-modal {
+    width: calc(100vw - 20px) !important;
+    max-width: calc(100vw - 20px) !important;
+    max-height: calc(100dvh - 20px) !important;
+    padding: 14px !important;
+    border-radius: 20px !important;
+  }
+
+  .capture-ai-modal-header {
+    flex-direction: column !important;
+    gap: 12px !important;
+  }
+
+  .capture-ai-modal-close {
+    width: 100% !important;
+  }
+
+  .capture-ai-severity-grid {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+/* FINAL FIX — Start Recording green like Stop/Add */
+
+.capture-audio-start-button:not(:disabled) {
+  background: linear-gradient(180deg, #0f5c56, #0b403d) !important;
+  border-color: rgba(15, 92, 86, 0.34) !important;
+  color: #ffffff !important;
+  box-shadow: 0 14px 28px rgba(15, 92, 86, 0.20) !important;
+}
+
+.capture-audio-start-button:not(:disabled):hover {
+  transform: translateY(-2px) scale(1.045) !important;
+  background: linear-gradient(180deg, #136b64, #0f5c56) !important;
+  color: #ffffff !important;
+  box-shadow: 0 18px 34px rgba(15, 92, 86, 0.28) !important;
+}

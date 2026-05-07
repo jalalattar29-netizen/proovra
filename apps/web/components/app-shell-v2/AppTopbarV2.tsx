@@ -175,10 +175,15 @@ export function AppTopbarV2({
                   Workspace
                 </Link>
 
-                <button type="button" role="menuitem" onClick={onLogout}>
-                  <LogOut size={16} strokeWidth={1.9} />
-                  Sign out
-                </button>
+<button
+  type="button"
+  role="menuitem"
+  onClick={onLogout}
+  className="app-user-menu-signout"
+>
+  <LogOut size={16} strokeWidth={1.9} />
+  Sign out
+</button>
               </div>
             ) : null}
           </div>

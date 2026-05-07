@@ -136,10 +136,10 @@ setMessages((prev) => [
   };
 
   return (
-    <div className="fixed right-4 bottom-[92px] z-50 flex flex-col items-end gap-3 sm:right-6 sm:bottom-6">
-      {open ? (
-        <Card className="w-screen max-w-[420px] overflow-hidden rounded-[28px] border border-[rgba(58,93,97,0.18)] bg-[#fbfcfb] p-0 shadow-[0_24px_70px_rgba(15,23,42,0.20)] sm:w-[420px]">
-          <div className="border-b border-[rgba(36,55,59,0.10)] bg-[linear-gradient(180deg,#f9fbfa,#eef4f2)] px-4 py-4">
+<div className="fixed inset-x-3 bottom-4 z-50 flex flex-col items-end gap-3 sm:inset-x-auto sm:right-6 sm:bottom-6">
+        {open ? (
+<Card className="w-full max-w-[420px] overflow-hidden rounded-[24px] border border-[rgba(58,93,97,0.18)] bg-[#fbfcfb] p-0 shadow-[0_24px_70px_rgba(15,23,42,0.20)] sm:w-[420px] sm:rounded-[28px]">
+            <div className="border-b border-[rgba(36,55,59,0.10)] bg-[linear-gradient(180deg,#f9fbfa,#eef4f2)] px-4 py-4">
             <div className="flex items-start justify-between gap-3">
               <div>
                 <div className="text-[0.95rem] font-extrabold tracking-[-0.02em] text-[#12252a]">
@@ -160,8 +160,8 @@ PROOVRA Assistant
             </div>
           </div>
 
-          <div className="max-h-[360px] overflow-y-auto bg-[#f7faf8] px-4 py-3">
-            {hasMessages ? (
+<div className="max-h-[42dvh] overflow-y-auto bg-[#f7faf8] px-4 py-3 sm:max-h-[360px]">
+              {hasMessages ? (
               <div className="space-y-3">
                 {messages.map((message, index) => (
                   <div

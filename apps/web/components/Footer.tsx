@@ -114,7 +114,7 @@ export function Footer() {
             </Link>
 
             <p className="mt-5 max-w-[460px] text-[0.98rem] leading-7 text-[#c7d1ce] [overflow-wrap:anywhere] sm:text-[1rem] sm:leading-8">
-              Verification-first digital evidence workflows for legal, compliance,
+              Verification digital evidence workflows for legal, compliance,
               investigations, claims, and review-sensitive enterprise use.
             </p>
 
@@ -167,7 +167,7 @@ export function Footer() {
 
         <div className="mt-6 flex flex-col gap-2 text-[0.88rem] text-[#aebbb7] sm:flex-row sm:items-center sm:justify-between">
           <span>© {currentYear} PROO✓RA</span>
-          <span>Verification-first digital evidence platform.</span>
+          <span>Verification digital evidence platform.</span>
         </div>
       </div>
     </footer>
