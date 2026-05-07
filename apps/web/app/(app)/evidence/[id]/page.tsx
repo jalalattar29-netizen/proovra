@@ -1651,14 +1651,18 @@ else acc.otherCount += 1;
     { label: "Capture context", value: hasCaptureLocation ? "Capture location metadata recorded." : "No capture location metadata recorded.", ok: hasCaptureLocation },
     { label: "Package structure", value: isMultipart ? "Multipart evidence package." : "Single-file evidence record.", ok: true },
   ];
-
   const evidenceReviewDecision = evidenceIntelligence?.reviewerDecision;
+    const selectedCase = useMemo(
+    () => ownedCases.find((item) => item.id === caseId) ?? null,
+    [ownedCases, caseId]
+  );
+
   const evidenceVerificationProofRows: ReviewRow[] = evidenceIntelligence
     ? [
         {
           label: "Hash verification",
           value: evidenceIntelligence.verificationProof.hashMatch,
-          ok: evidenceIntelligence.verificationProof.hashMatch === "MATCH",
+ok: evidenceIntelligence.verificationProof.hashMatch === "MATCH",
         },
         {
           label: "SHA-256 recorded",
@@ -1709,52 +1713,23 @@ else acc.otherCount += 1;
       ]
     : [];
 
-  const evidenceAccessEvents = evidenceIntelligence?.accessActivity.recentEvents ?? [];
+      const evidenceAccessEvents = evidenceIntelligence?.accessActivity.recentEvents ?? [];
   const evidenceCustodyTimeline = evidenceIntelligence?.custodyTimeline ?? [];
 
-  const evidenceIntelligenceRows: ReviewRow[] = evidenceIntelligence
-    ? [
-        {
-          label: "Review decision",
-          value: evidenceReviewDecision?.label ?? "Unavailable",
-          ok: evidenceReviewDecision?.status === "READY_FOR_EXTERNAL_REVIEW",
-        },
-        {
-          label: "Evidence score",
-          value:
-            typeof evidenceIntelligence.librarySummary.score === "number"
-              ? `${evidenceIntelligence.librarySummary.score}%`
-              : "Not scored",
-          ok: evidenceIntelligence.librarySummary.score !== null,
-        },
-        {
-          label: "Custody chain",
-          value: evidenceIntelligence.events.chainIntegrity.valid
-            ? `Valid (${evidenceIntelligence.events.chainIntegrity.mode})`
-            : `Invalid (${evidenceIntelligence.events.chainIntegrity.reason ?? "unknown"})`,
-          ok: evidenceIntelligence.events.chainIntegrity.valid,
-        },
-        {
-          label: "Public verification",
-          value: evidenceIntelligence.anchor.published
-            ? "Publishing enabled"
-            : evidenceIntelligence.anchor.configured
-            ? "Configured"
-            : "Not enabled",
-          ok: evidenceIntelligence.anchor.published,
-        },
-        {
-          label: "Access events",
-          value: String(evidenceIntelligence.events.access),
-          ok: true,
-        },
-        {
-          label: "Forensic events",
-          value: String(evidenceIntelligence.events.forensic),
-          ok: true,
-        },
-      ]
-    : [];
+  const visibleAccessEvents = evidenceAccessEvents.slice(0, 6);
+  const visibleCustodyTimeline = evidenceCustodyTimeline.slice(0, 10);
+
+  const intelligenceLimitationText =
+    "PROOVRA verifies recorded integrity state. It does not determine factual truth, authorship, or legal admissibility.";
+
+  const reviewerDecisionToneClass =
+    evidenceReviewDecision?.tone === "success"
+      ? "success"
+      : evidenceReviewDecision?.tone === "danger"
+        ? "danger"
+        : evidenceReviewDecision?.tone === "warning"
+          ? "warning"
+          : "neutral";
 
   return (
     <div className="evidence-enterprise-page">
@@ -1902,13 +1877,7 @@ else acc.otherCount += 1;
                         : part.previewUrl ?? part.publicUrl ?? part.url ?? null;
                     const downloadUrl = part.url ?? part.publicUrl ?? null;
                     const displayName = getPartDisplayName(part, createdAt, true);
-                    const hasTechnicalMetadata =
-                      Boolean(part.sha256) ||
-                      Boolean(part.durationMs) ||
-                      Boolean(part.privateRole) ||
-                      Boolean(part.sourceLabel) ||
-                      Boolean(part.checklistStepId) ||
-                      Boolean(part.privateNote);
+                    const hasTechnicalMetadata = true;
 
                     return (
                       <article key={part.id} className={`evidence-item-card evidence-item-${kind}`}>
@@ -1999,121 +1968,6 @@ else acc.otherCount += 1;
               )}
             </section>
 
-            {evidenceIntelligence ? (
-              <section className="evidence-card evidence-intelligence-card">
-                <div className="evidence-card-inner">
-                  <p className="evidence-section-label">Evidence Intelligence</p>
-                  <h2 className="evidence-section-title">Review-ready evidence summary</h2>
-                  <p className="evidence-section-muted">
-                    Enterprise intelligence signals from custody, verification artifacts, and preservation status.
-                  </p>
-
-                  <div className="evidence-intelligence-grid">
-                    <div className="evidence-intelligence-panel">
-                      <div className="evidence-intelligence-panel-header">
-                        <span>Reviewer Decision</span>
-                        <strong>{evidenceReviewDecision?.label ?? "Unavailable"}</strong>
-                      </div>
-                      <div className="evidence-intelligence-panel-summary">
-                        {evidenceReviewDecision?.summary ?? "Review decision data is not available."}
-                      </div>
-                      {evidenceReviewDecision?.reasons?.length ? (
-                        <div className="evidence-intelligence-list">
-                          {evidenceReviewDecision.reasons.map((reason) => (
-                            <div key={reason} className="evidence-intelligence-badge">
-                              {reason}
-                            </div>
-                          ))}
-                        </div>
-                      ) : null}
-                      {evidenceReviewDecision?.nextActions?.length ? (
-                        <div className="evidence-intelligence-actions">
-                          <strong>Next actions</strong>
-                          <ul>
-                            {evidenceReviewDecision.nextActions.map((action) => (
-                              <li key={action}>{action}</li>
-                            ))}
-                          </ul>
-                        </div>
-                      ) : null}
-                    </div>
-
-                    <div className="evidence-intelligence-panel">
-                      <div className="evidence-intelligence-panel-header">
-                        <span>Verification proof</span>
-                        <strong>Integrity signals</strong>
-                      </div>
-                      <div className="evidence-summary-list evidence-summary-compact">
-                        {evidenceVerificationProofRows.map((row) => (
-                          <div key={row.label} className="evidence-kv">
-                            <span>{row.label}</span>
-                            <strong>{row.value}</strong>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-
-                    <div className="evidence-intelligence-panel">
-                      <div className="evidence-intelligence-panel-header">
-                        <span>Artifacts & Versions</span>
-                        <strong>Available review materials</strong>
-                      </div>
-                      <div className="evidence-summary-list evidence-summary-compact">
-                        {evidenceArtifactRows.map((row) => (
-                          <div key={row.label} className="evidence-kv">
-                            <span>{row.label}</span>
-                            <strong>{row.value}</strong>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-
-                    <div className="evidence-intelligence-panel">
-                      <div className="evidence-intelligence-panel-header">
-                        <span>Access & Security Activity</span>
-                        <strong>Custody & Activity Timeline</strong>
-                      </div>
-                      <div className="evidence-activity-list">
-                        {evidenceAccessEvents.length > 0 ? (
-                          evidenceAccessEvents.map((event) => (
-                            <div key={`${event.eventType}-${event.timestampUtc}`} className="evidence-activity-item">
-                              <div className="evidence-activity-top">
-                                <strong>{event.label}</strong>
-                                <span>{new Date(event.timestampUtc).toLocaleString("en-GB", { timeZone: "UTC", hour12: false })} UTC</span>
-                              </div>
-                              <div className="evidence-activity-meta">
-                                <span>{event.actorLabel}</span>
-                                <span>{event.description}</span>
-                              </div>
-                            </div>
-                          ))
-                        ) : (
-                          <div className="evidence-empty-preview">No recent access events available.</div>
-                        )}
-                      </div>
-                      {evidenceCustodyTimeline.length > 0 ? (
-                        <div className="evidence-intelligence-timeline">
-                          <h3>Recent custody timeline</h3>
-                          {evidenceCustodyTimeline.map((event) => (
-                            <div key={`${event.eventType}-${event.timestampUtc}-timeline`} className="evidence-activity-item">
-                              <div className="evidence-activity-top">
-                                <strong>{event.label}</strong>
-                                <span>{new Date(event.timestampUtc).toLocaleString("en-GB", { timeZone: "UTC", hour12: false })} UTC</span>
-                              </div>
-                              <div className="evidence-activity-meta">
-                                <span>{event.actorLabel}</span>
-                                <span>{event.description}</span>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      ) : null}
-                    </div>
-                  </div>
-                </div>
-              </section>
-            ) : null}
-
             <section className="evidence-card evidence-technical-card">
               <div className="evidence-card-inner">
                 <p className="evidence-section-label">Technical / Context Area</p>
@@ -2138,6 +1992,139 @@ else acc.otherCount += 1;
                 </div>
               </div>
             </section>
+
+                        {evidenceIntelligence ? (
+              <>
+                <section className="evidence-card evidence-technical-card">
+                  <div className="evidence-card-inner">
+                    <p className="evidence-section-label">Technical / Context Area</p>
+                    <h2 className="evidence-section-title">Custody & Activity Timeline</h2>
+                    <p className="evidence-section-muted">
+                      Recent lifecycle and integrity-relevant activity for this evidence record.
+                    </p>
+
+                    <div className="evidence-timeline">
+                      {visibleCustodyTimeline.length > 0 ? (
+                        visibleCustodyTimeline.map((event) => (
+                          <div key={`${event.eventType}-${event.timestampUtc}`} className="evidence-timeline-item">
+                            <div className={`evidence-timeline-dot ${event.tone}`} />
+                            <div>
+                              <strong>{event.label}</strong>
+                              <span>
+                                {formatUtcDateTime(event.timestampUtc)} · {event.actorLabel} · {event.source}
+                              </span>
+                              <p>{event.description}</p>
+                            </div>
+                          </div>
+                        ))
+                      ) : (
+                        <div className="evidence-alert info">
+                          No custody timeline events are available for this record yet.
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </section>
+
+                <section className="evidence-card evidence-technical-card">
+                  <div className="evidence-card-inner">
+                    <p className="evidence-section-label">Technical / Context Area</p>
+                    <h2 className="evidence-section-title">Artifacts & Versions</h2>
+
+                    <div className="evidence-artifact-grid">
+                      {evidenceArtifactRows.map((row) => (
+                        <div key={row.label} className="evidence-artifact-card">
+                          <span>{row.label}</span>
+                          <strong>{row.value}</strong>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </section>
+
+                <section className="evidence-card evidence-technical-card">
+                  <div className="evidence-card-inner">
+                    <p className="evidence-section-label">Technical / Context Area</p>
+                    <h2 className="evidence-section-title">Case Context</h2>
+
+                    <div className="evidence-case-context">
+                      {caseId ? (
+                        <>
+                          <div className="evidence-kv">
+                            <span>Case</span>
+                            <strong>{selectedCase?.name ?? "Attached case"}</strong>
+                          </div>
+                          <div className="evidence-kv">
+                            <span>Case ID</span>
+                            <strong>{shortId(caseId)}</strong>
+                          </div>
+                          <div className="evidence-action-stack">
+                            <Button
+                              variant="secondary"
+                              onClick={handleOpenAssignCase}
+                              disabled={actionBusy || !canAssignToCase}
+                              className="evidence-btn evidence-btn-secondary"
+                            >
+                              Move to Case
+                            </Button>
+                            <Button
+                              variant="secondary"
+                              onClick={handleRemoveFromCase}
+                              disabled={actionBusy || isDeleted}
+                              className="evidence-btn evidence-btn-bronze"
+                            >
+                              Remove from Case
+                            </Button>
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          <div className="evidence-alert info">
+                            <strong>No case assigned.</strong> Cases group related evidence, notes, reviewer tasks, and investigation timeline.
+                          </div>
+                          <Button
+                            variant="secondary"
+                            onClick={handleOpenAssignCase}
+                            disabled={actionBusy || !canAssignToCase}
+                            className="evidence-btn evidence-btn-secondary"
+                          >
+                            Add to Case
+                          </Button>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                </section>
+
+                <section className="evidence-card evidence-technical-card">
+                  <div className="evidence-card-inner">
+                    <p className="evidence-section-label">Technical / Context Area</p>
+                    <h2 className="evidence-section-title">Access & Security Activity</h2>
+
+                    {visibleAccessEvents.length > 0 ? (
+                      <div className="evidence-access-grid">
+                        {visibleAccessEvents.map((event) => (
+                          <div key={`${event.eventType}-${event.timestampUtc}`} className="evidence-activity-item">
+                            <div className="evidence-activity-top">
+                              <strong>{event.label}</strong>
+                              <span>{formatUtcDateTime(event.timestampUtc)}</span>
+                            </div>
+                            <div className="evidence-activity-meta">
+                              <span>{event.actorLabel} · {event.source}</span>
+                              <span>{event.description}</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="evidence-alert info">
+Detailed live access activity is not exposed in this view yet.
+                      </div>
+                    )}
+                  </div>
+                </section>
+              </>
+            ) : null}
 
             {hasCaptureLocation ? (
               <section className="evidence-card evidence-technical-card">
@@ -2195,8 +2182,43 @@ else acc.otherCount += 1;
           </main>
 
           <aside className="evidence-review-sidebar">
+            {evidenceReviewDecision ? (
+              <section className={`evidence-card evidence-decision-card ${reviewerDecisionToneClass}`}>
+                <div className="evidence-card-inner">
+                  <p className="evidence-section-label">Reviewer Decision</p>
+                  <h2 className="evidence-section-title">
+                    {evidenceReviewDecision.label}
+                  </h2>
+                  <p className="evidence-section-muted">
+                    {evidenceReviewDecision.summary}
+                  </p>
+
+                  {evidenceReviewDecision.reasons.length > 0 ? (
+                    <div className="evidence-alert-list">
+                      {evidenceReviewDecision.reasons.slice(0, 4).map((reason) => (
+                        <div key={reason} className="evidence-alert-chip">
+                          {reason}
+                        </div>
+                      ))}
+                    </div>
+                  ) : null}
+
+                  {evidenceReviewDecision.nextActions.length > 0 ? (
+                    <div className="evidence-next-actions">
+                      <strong>Recommended next actions</strong>
+                      <ol>
+                        {evidenceReviewDecision.nextActions.slice(0, 3).map((action) => (
+                          <li key={action}>{action}</li>
+                        ))}
+                      </ol>
+                    </div>
+                  ) : null}
+                </div>
+              </section>
+            ) : null}
+
             <section className="evidence-card evidence-sticky-panel">
-              <div className="evidence-card-inner">
+                            <div className="evidence-card-inner">
                 <p className="evidence-section-label">Legal Review Assistant</p>
                 <h2 className="evidence-section-title">Review Readiness</h2>
 
@@ -2214,41 +2236,35 @@ else acc.otherCount += 1;
 
             <section className="evidence-card">
               <div className="evidence-card-inner">
-                <h2 className="evidence-section-title">Integrity State</h2>
-                <div className="evidence-integrity-list">
-                  {integrityRows.map((row) => (
-                    <div key={row.label} className="evidence-check-row">
-                      <div className={`evidence-check-dot ${row.ok ? "ok" : "warn"}`}>{row.ok ? "✓" : "!"}</div>
-                      <strong>{row.label}</strong>
-                      <span>{row.value}</span>
-                    </div>
-                  ))}
+                <h2 className="evidence-section-title">Verification Proof</h2>
+
+                <div className="evidence-proof-list">
+                  {evidenceVerificationProofRows.length > 0
+                    ? evidenceVerificationProofRows.map((row) => (
+                        <div key={row.label} className="evidence-check-row">
+                          <div className={`evidence-check-dot ${row.ok ? "ok" : "warn"}`}>
+                            {row.ok ? "✓" : "!"}
+                          </div>
+                          <strong>{row.label}</strong>
+                          <span>{row.value}</span>
+                        </div>
+                      ))
+                    : integrityRows.map((row) => (
+                        <div key={row.label} className="evidence-check-row">
+                          <div className={`evidence-check-dot ${row.ok ? "ok" : "warn"}`}>
+                            {row.ok ? "✓" : "!"}
+                          </div>
+                          <strong>{row.label}</strong>
+                          <span>{row.value}</span>
+                        </div>
+                      ))}
                 </div>
 
                 <div className="evidence-alert legal">
-                  PROOVRA preserves and verifies recorded evidence integrity state. It does not independently determine factual truth, authorship, or legal admissibility.
+                  {intelligenceLimitationText}
                 </div>
               </div>
             </section>
-
-            {evidenceIntelligenceRows.length > 0 ? (
-              <section className="evidence-card">
-                <div className="evidence-card-inner">
-                  <h2 className="evidence-section-title">Evidence Intelligence</h2>
-                  <div className="evidence-summary-list evidence-summary-compact">
-                    {evidenceIntelligenceRows.map((row) => (
-                      <div key={row.label} className="evidence-kv">
-                        <span>{row.label}</span>
-                        <strong>{row.value}</strong>
-                      </div>
-                    ))}
-                  </div>
-                  <div className="evidence-alert info">
-                    Intelligence metrics are derived from custody activity, preservation state, and verified evidence metadata.
-                  </div>
-                </div>
-              </section>
-            ) : null}
 
             <section className="evidence-card">
               <div className="evidence-card-inner">
