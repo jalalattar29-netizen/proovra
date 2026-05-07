@@ -1557,9 +1557,8 @@ useEffect(() => {
               <div className="capture-enterprise-eyebrow">Evidence intake workspace</div>
               <h1 className="capture-enterprise-title">Capture Evidence</h1>
               <p className="capture-enterprise-subtitle">
-                Collect, organize, fingerprint, and preserve evidence with guided
-                requirements, local review, device capture, and a reviewer-ready audit
-                trail.
+                Collect, map, fingerprint, and prepare evidence materials before Review
+                & Sign.
               </p>
             </div>
           </div>
@@ -1579,10 +1578,10 @@ useEffect(() => {
 
         <section className="capture-enterprise-steps">
           {[
-            ["1", "Select method", "Choose how to collect"],
-            ["2", "Configure", "Template & requirements"],
-            ["3", "Capture", "Upload or record evidence"],
-            ["4", "Review & sign", "Verify and finalize"],
+            ["1", "Intake method", "Choose how to collect"],
+            ["2", "Requirements", "Configure collection and mapping"],
+            ["3", "Evidence capture", "Upload or record source material"],
+            ["4", "Review & Sign", "Finalize the evidence session"],
           ].map(([step, title, detail], index) => {
             const active = activeWorkflowStep === index + 1;
 
@@ -1772,7 +1771,7 @@ useEffect(() => {
                               : ""
                         }`}
                       >
-                        {mapped ? "Added" : step.required ? "Not added" : "Optional"}
+                        {mapped ? "Mapped" : step.required ? "Not mapped" : "Optional"}
                       </div>
                     </div>
                   );
@@ -1901,9 +1900,9 @@ const FileIcon = item.relativePath
   >
     <span>
       {mappedStep
-        ? `${getStepRequirementLabel(mappedStep)}: ${mappedStep.title}`
+        ? `Mapped: ${getStepRequirementLabel(mappedStep)}`
         : planMode === "CHECKLIST_REQUIRED"
-          ? "Map to required collection step"
+          ? "Map to requirement"
           : "Map to collection step"}
     </span>
     <span className="capture-material-dropdown-chevron">⌄</span>
@@ -1972,10 +1971,19 @@ const FileIcon = item.relativePath
   </div>
 ) : null}
 
-              <strong>Drag & drop files here or choose a capture method</strong>
-              <p>Nothing is signed or submitted until you finish the evidence record.</p>
-            </div>
-
+              {sessionItems.length === 0 ? (
+                <>
+                  <strong>Drag & drop files here or choose a capture method</strong>
+                  <p>
+                    Files staged locally before Review & Sign. Nothing is signed or
+                    submitted until the evidence record is finalized.
+                  </p>
+                  <p className="capture-drop-zone-note">
+                    Integrity metadata is prepared during intake. Verification artifacts
+                    are generated after finalization.
+                  </p>
+                </>
+              ) : null}
             {audioRecorderOpen ? (
               <div className="capture-audio-card">
                 <div className="capture-panel-heading">
@@ -2033,6 +2041,7 @@ const FileIcon = item.relativePath
                 </div>
               </div>
             ) : null}
+            </div>
           </main>
 
           <aside className="capture-session-column">
@@ -2076,6 +2085,32 @@ const FileIcon = item.relativePath
 
                 <div className="capture-progress-track">
                   <div style={{ width: `${requiredProgressPercent}%` }} />
+                </div>
+              </div>
+
+              <div className="capture-integrity-block">
+                <div className="capture-card-title">Integrity preparation</div>
+                <div className="capture-integrity-grid">
+                  <div>
+                    <span>Local fingerprint</span>
+                    <strong>Queued with staged material</strong>
+                  </div>
+                  <div>
+                    <span>Chain of custody</span>
+                    <strong>Initialized</strong>
+                  </div>
+                  <div>
+                    <span>Verification package</span>
+                    <strong>Generated after Review & Sign</strong>
+                  </div>
+                  <div>
+                    <span>Timestamping</span>
+                    <strong>Queued after finalization</strong>
+                  </div>
+                  <div>
+                    <span>Location metadata</span>
+                    <strong>{useLocation ? "Included" : "Not included"}</strong>
+                  </div>
                 </div>
               </div>
 
@@ -2141,7 +2176,7 @@ const FileIcon = item.relativePath
                 {busy
                   ? `Finishing evidence session… ${progress}%`
                   : sessionStatus ??
-                    "Creates the evidence record, uploads staged materials, signs integrity data, and starts verification artifact generation."}
+                    "Materials are staged locally before finalization. Review & Sign preserves recorded integrity metadata and starts verification artifact generation."}
               </p>
 
               {finishValidation.missingStepTitles.length > 0 ? (

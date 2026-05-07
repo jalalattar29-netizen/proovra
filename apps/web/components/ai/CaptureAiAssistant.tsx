@@ -214,11 +214,11 @@ const missing = analysis.flags
   }, [analysis]);
 
   return (
-    <Card className="rounded-[28px] border border-[rgba(36,55,59,0.12)] bg-[#fbfcfb] p-0 shadow-[0_18px_46px_rgba(15,23,42,0.10)]">
+    <Card className="rounded-[18px] border border-[rgba(36,55,59,0.12)] bg-[#fbfcfb] p-0 shadow-[0_14px_34px_rgba(15,23,42,0.08)]">
       <button
         type="button"
         onClick={() => setOpen(!isOpen)}
-        className="w-full rounded-[26px] border-b border-[rgba(36,55,59,0.10)] bg-[linear-gradient(180deg,#3a5d61,#203a3f)] px-4 py-4 text-left text-sm font-extrabold text-[#f4f7f6]"
+        className="w-full rounded-t-[18px] border-b border-[rgba(36,55,59,0.10)] bg-[linear-gradient(180deg,#3a5d61,#203a3f)] px-4 py-3 text-left text-sm font-semibold text-[#f4f7f6]"
       >
         <div className="flex items-center justify-between gap-4">
           <span>Capture AI assistant</span>
@@ -227,13 +227,13 @@ const missing = analysis.flags
       </button>
 
       {isOpen ? (
-        <div className="space-y-4 px-4 py-4">
-          <div className="rounded-3xl border border-[rgba(58,93,97,0.14)] bg-[#f1f6f4] p-4 text-sm leading-6 text-[#425458]">
+        <div className="space-y-3 px-4 py-3">
+          <div className="rounded-2xl border border-[rgba(58,93,97,0.14)] bg-[#f1f6f4] p-3 text-sm leading-5 text-[#425458]">
             This assistant provides intake guidance only. It does not determine legal admissibility, authenticity, or the factual truth of an event.
           </div>
 
           <div className="grid gap-3 sm:grid-cols-2">
-            <div className="rounded-3xl border border-[rgba(58,93,97,0.12)] bg-white p-4 shadow-sm">
+            <div className="rounded-2xl border border-[rgba(58,93,97,0.12)] bg-white p-3 shadow-sm">
               <div className="text-xs font-black uppercase tracking-[0.18em] text-[#8f745c]">Plan</div>
               <div className="mt-2 text-sm font-extrabold text-[#12252a]">
                 {collectionPlan?.name ?? "No plan selected"}
@@ -243,7 +243,7 @@ const missing = analysis.flags
               </div>
             </div>
 
-            <div className="rounded-3xl border border-[rgba(58,93,97,0.12)] bg-white p-4 shadow-sm">
+            <div className="rounded-2xl border border-[rgba(58,93,97,0.12)] bg-white p-3 shadow-sm">
               <div className="text-xs font-black uppercase tracking-[0.18em] text-[#8f745c]">Session</div>
               <div className="mt-2 text-sm font-extrabold text-[#12252a]">
                 {summary.totalItems} item(s)
