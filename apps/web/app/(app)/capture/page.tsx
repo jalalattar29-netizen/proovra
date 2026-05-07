@@ -1686,7 +1686,7 @@ useEffect(() => {
                 "Improves claim and legal readiness",
                 "Creates clearer audit context",
               ].map((text) => (
-                <div key={text}>✓ {text}</div>
+<div key={text}>{text}</div>
               ))}
             </div>
 
