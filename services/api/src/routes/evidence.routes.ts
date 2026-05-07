@@ -5167,14 +5167,14 @@ const verificationPackageIntegrity: PublicVerificationPackageIntegrity = {
     : null,
   packageType: latestVerificationPackage?.packageType ?? null,
 
-  manifestPresent: verificationPackageAvailable ? null : false,
-  signedManifestPresent: verificationPackageAvailable ? null : false,
-  manifestDigestPresent: verificationPackageAvailable ? null : false,
-  checksumIndexPresent: verificationPackageAvailable ? null : false,
-  offlineVerifierIncluded: verificationPackageAvailable ? null : false,
-  auditExportIncluded: verificationPackageAvailable ? null : false,
-  custodyExportIncluded: verificationPackageAvailable ? null : false,
-  accessExportIncluded: verificationPackageAvailable ? null : false,
+  manifestPresent: verificationPackageAvailable,
+  signedManifestPresent: verificationPackageAvailable,
+  manifestDigestPresent: verificationPackageAvailable,
+  checksumIndexPresent: verificationPackageAvailable,
+  offlineVerifierIncluded: verificationPackageAvailable,
+  auditExportIncluded: verificationPackageAvailable,
+  custodyExportIncluded: verificationPackageAvailable,
+  accessExportIncluded: verificationPackageAvailable,
 };
 
 const snapshotTrustDecision =
