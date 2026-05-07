@@ -541,7 +541,6 @@ export default function EvidenceDetailPage() {
     [sortedParts.length, itemCount]
   );
 
-  const hasCase = Boolean(caseId);
   const isLocked = Boolean(lockedAt);
   const isArchived = Boolean(archivedAt);
   const isDeleted = Boolean(deletedAt);
@@ -1539,13 +1538,6 @@ else acc.otherCount += 1;
   );
 
   const canAssignToCase = ownedCases.length > 0 && !isDeleted;
-  const workspaceBillingSummary =
-    activeWorkspaceType === "TEAM"
-      ? `${activeWorkspaceName} · ${activePlan}${
-          workspaceSnapshot.billingStatus ? ` · ${workspaceSnapshot.billingStatus}` : ""
-        }`
-      : `${activeWorkspaceName} · ${activePlan}`;
-
   const reportCapabilityHint = canAccessReports
     ? reportAvailable && reportGeneratedAtUtc
       ? `PDF reports are enabled for this workspace. Latest report generated at ${formatUtcDateTime(
