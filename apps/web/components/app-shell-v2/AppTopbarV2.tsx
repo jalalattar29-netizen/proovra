@@ -81,17 +81,17 @@ export function AppTopbarV2({
       <div className="app-topbar-v2-bg" />
 
       <div className="app-topbar-v2-inner">
-        <Link href="/home" className="app-topbar-v2-brand">
-          <img
-            src="/brand/icon-512.png?v=2"
-            alt="PROOVRA"
-            className="app-topbar-v2-brand-icon"
-          />
-          <span className="app-topbar-v2-brand-text">
-            <strong>PROOVRA</strong>
-            <small>VERIFICATION-FIRST</small>
-          </span>
-        </Link>
+<Link href="/home" className="app-topbar-v2-brand" aria-label="PROOVRA home">
+  <span className="app-topbar-v2-brand-icon-wrap">
+    <img
+      src="/brand/icon-512.png?v=2"
+      alt=""
+      className="app-topbar-v2-brand-icon"
+    />
+  </span>
+
+  <span className="app-topbar-v2-brand-name">PROO✓RA</span>
+</Link>
 
         <nav className="app-topbar-v2-nav" aria-label="Primary app navigation">
           {navItems.map((item) => (
