@@ -1533,3 +1533,79 @@
     width: min(280px, calc(100vw - 24px)) !important;
   }
 }
+
+/* FINAL MOBILE TOPBAR FIX */
+@media (max-width: 980px) {
+  .app-topbar-v2-inner {
+    grid-template-columns: 42px minmax(0, 1fr) auto !important;
+    gap: 8px !important;
+    padding: 0 10px !important;
+  }
+
+  .app-topbar-v2-brand {
+    gap: 8px !important;
+    overflow: hidden !important;
+  }
+
+  .app-topbar-v2-brand-icon {
+    width: 38px !important;
+    height: 38px !important;
+  }
+
+  .app-topbar-v2-brand-name {
+    max-width: 96px !important;
+    font-size: 0.88rem !important;
+    overflow: hidden !important;
+    white-space: nowrap !important;
+  }
+
+  .app-topbar-v2-actions {
+    display: flex !important;
+    gap: 6px !important;
+  }
+
+  .app-topbar-v2-language {
+    width: 38px !important;
+    height: 38px !important;
+    min-width: 38px !important;
+    padding: 0 !important;
+    border-radius: 13px !important;
+  }
+
+  .app-topbar-v2-language button,
+  .app-topbar-v2-language select,
+  .app-topbar-v2-language [role="button"] {
+    width: 38px !important;
+    height: 38px !important;
+    min-width: 38px !important;
+    border-radius: 13px !important;
+    padding: 0 !important;
+    background: transparent !important;
+    border: 0 !important;
+    box-shadow: none !important;
+    color: #d6b89d !important;
+  }
+
+  .app-topbar-v2-language * {
+    color: #d6b89d !important;
+  }
+
+  .app-topbar-v2-user {
+    max-width: 148px !important;
+    height: 42px !important;
+    padding: 4px 7px !important;
+    gap: 7px !important;
+  }
+
+  .app-topbar-v2-avatar,
+  .app-topbar-v2-avatar-fallback {
+    width: 31px !important;
+    height: 31px !important;
+  }
+
+  .app-topbar-v2-user-copy strong {
+    max-width: 74px !important;
+    font-size: 0.7rem !important;
+    color: #d6b89d !important;
+  }
+}
