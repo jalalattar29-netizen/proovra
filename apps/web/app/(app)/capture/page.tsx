@@ -2049,7 +2049,7 @@ useEffect(() => {
                     }
                   >
                     <strong>{qualityStatus.label}</strong>
-                    <div>{qualityStatus.detail}</div>
+{qualityStatus.detail ? <div>{qualityStatus.detail}</div> : null}
                   </div>
 
                   <textarea
@@ -2279,7 +2279,7 @@ useEffect(() => {
                 {busy
                   ? `Finishing evidence session… ${progress}%`
                   : sessionStatus ??
-                    "Materials are staged locally before finalization. Review & Sign preserves recorded integrity metadata and starts verification artifact generation."}
+                    "Complete the intake when all required materials are mapped. Review & Sign locks the session, records integrity metadata, and starts verification artifact generation."}
               </p>
 
               {finishValidation.missingStepTitles.length > 0 ? (

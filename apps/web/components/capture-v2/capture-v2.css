@@ -2691,3 +2691,171 @@ box-shadow:
   background: rgba(255, 255, 255, 0.96) !important;
   box-shadow: 0 40px 120px rgba(7, 18, 22, 0.36) !important;
 }
+
+/* FINAL — bronze hierarchy + cleaner right panel */
+
+.capture-enterprise-page {
+  --capture-bronze: #9a7a56;
+  --capture-bronze-soft: rgba(154, 122, 86, 0.12);
+  --capture-bronze-line: rgba(154, 122, 86, 0.22);
+}
+
+/* bronze important titles */
+.capture-card-title,
+.capture-enterprise-security-card strong,
+.capture-method-button strong,
+.capture-benefits-card .capture-card-title,
+.capture-location-card strong,
+.capture-notes-card .capture-card-title,
+.capture-integrity-block .capture-card-title,
+.capture-bottom-bar-inner strong {
+  color: var(--capture-bronze) !important;
+}
+
+/* keep main page title dark */
+.capture-enterprise-title {
+  color: #101828 !important;
+}
+
+/* sidebar/right card values cleaner */
+.capture-session-meta strong,
+.capture-integrity-grid strong {
+  color: #101828 !important;
+  font-weight: 950 !important;
+}
+
+.capture-session-meta span,
+.capture-integrity-grid span {
+  color: #7a8597 !important;
+}
+
+/* integrity card redesign */
+.capture-integrity-block {
+  padding: 18px !important;
+  border-radius: 22px !important;
+  background:
+    radial-gradient(circle at 12% 0%, rgba(154, 122, 86, 0.12), transparent 34%),
+    rgba(255, 255, 255, 0.30) !important;
+}
+
+.capture-integrity-grid {
+  grid-template-columns: 1fr !important;
+  gap: 8px !important;
+}
+
+.capture-integrity-grid div {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) auto !important;
+  gap: 12px !important;
+  align-items: center !important;
+
+  padding: 10px 12px !important;
+  border-radius: 14px !important;
+
+  background: rgba(255, 255, 255, 0.38) !important;
+  border: 1px solid rgba(154, 122, 86, 0.12) !important;
+}
+
+.capture-integrity-grid span {
+  font-size: 0.76rem !important;
+  font-weight: 850 !important;
+}
+
+.capture-integrity-grid strong {
+  text-align: right !important;
+  font-size: 0.78rem !important;
+  line-height: 1.25 !important;
+  max-width: 150px !important;
+}
+
+/* bottom finish bar stronger */
+.capture-bottom-bar-inner {
+  min-height: 86px !important;
+  padding: 20px 22px !important;
+
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.82), rgba(255,255,255,0.66)) !important;
+
+  border: 1px solid var(--capture-bronze-line) !important;
+  box-shadow:
+    0 18px 44px rgba(15, 23, 42, 0.10),
+    inset 0 1px 0 rgba(255, 255, 255, 0.44) !important;
+}
+
+.capture-bottom-bar-inner strong {
+  display: block !important;
+  font-size: 1rem !important;
+  font-weight: 950 !important;
+  letter-spacing: -0.025em !important;
+}
+
+.capture-bottom-bar-inner p {
+  max-width: 860px !important;
+  color: #667085 !important;
+  font-size: 0.86rem !important;
+}
+
+/* make disabled finish button clearer */
+.capture-finish-button:disabled {
+  background: linear-gradient(180deg, #8ba3a0, #6f8985) !important;
+  color: rgba(255,255,255,0.82) !important;
+  opacity: 1 !important;
+}
+
+/* FINAL FIX — evidence cards balanced width */
+.capture-materials-grid {
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)) !important;
+  gap: 16px !important;
+}
+
+.capture-material-card {
+  max-width: 100% !important;
+}
+
+/* keep preview reasonable, not huge full-row */
+.capture-material-preview {
+  height: 155px !important;
+  min-height: 155px !important;
+  max-height: 155px !important;
+}
+
+/* fix cut dropdown trigger */
+.capture-material-dropdown-trigger {
+  width: 100% !important;
+  min-height: 44px !important;
+  padding: 0 14px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 10px !important;
+}
+
+.capture-material-dropdown-trigger span:first-child {
+  min-width: 0 !important;
+  flex: 1 !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+}
+
+/* replace ugly orange mapping badges */
+.capture-material-status-pill.unmapped,
+.capture-material-risk-pill.warning {
+  color: #0f5c56 !important;
+  background: rgba(15, 92, 86, 0.08) !important;
+  border: 1px solid rgba(15, 92, 86, 0.18) !important;
+}
+
+/* optional mapping should look softer */
+.capture-material-status-pill.unmapped {
+  color: #5f6f73 !important;
+  background: rgba(95, 111, 115, 0.08) !important;
+  border-color: rgba(95, 111, 115, 0.16) !important;
+}
+
+/* needs mapping should be visible but not orange */
+.capture-material-risk-pill.warning {
+  color: #0b403d !important;
+  background: rgba(15, 92, 86, 0.10) !important;
+  border-color: rgba(15, 92, 86, 0.22) !important;
+}

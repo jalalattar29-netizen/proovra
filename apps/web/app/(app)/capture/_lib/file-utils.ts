@@ -156,13 +156,13 @@ export function getItemQualityStatus(params: {
 }): ItemQualityStatus {
   const { item, step } = params;
 
-  if (!step) {
-    return {
-      tone: "warning",
-      label: "Needs mapping",
-      detail: "This item is not mapped to a collection requirement.",
-    };
-  }
+if (!step) {
+  return {
+    tone: "warning",
+    label: "Needs mapping",
+    detail: "",
+  };
+}
 
   const itemKind = inferEvidenceTypeFromMimeType(item.mimeType);
 
