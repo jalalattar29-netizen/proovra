@@ -114,6 +114,8 @@ export type {
   OtsAnchorCompletenessInput,
 } from "./ots.js";
 
+export type { VerificationPackageMetadata } from "./verification-package-metadata.js";
+
 export {
   isCompleteOtsAnchor,
   isValidOtsBitcoinTxid,

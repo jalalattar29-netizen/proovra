@@ -502,3 +502,43 @@ export async function getObjectStream(params: {
   if (!res.Body) throw new Error("S3 returned empty body");
   return res.Body as unknown as NodeJS.ReadableStream;
 }
+
+export async function getObjectRange(params: {
+  bucket: string;
+  key: string;
+  range: string;
+}): Promise<Buffer> {
+  const bucket = clean(params.bucket);
+  const key = clean(params.key);
+
+  if (!bucket || !key || !params.range) {
+    throw new Error("getObjectRange: bucket/key/range are required");
+  }
+
+  const res = await s3.send(
+    new GetObjectCommand({
+      Bucket: bucket,
+      Key: key,
+      Range: params.range,
+    })
+  );
+
+  if (!res.Body) throw new Error("S3 returned empty body");
+  return streamToBuffer(res.Body as unknown as NodeJS.ReadableStream);
+}
+
+async function streamToBuffer(stream: NodeJS.ReadableStream): Promise<Buffer> {
+  const chunks: Buffer[] = [];
+
+  for await (const chunk of stream) {
+    if (typeof chunk === "string") {
+      chunks.push(Buffer.from(chunk));
+    } else if (Buffer.isBuffer(chunk)) {
+      chunks.push(chunk);
+    } else {
+      chunks.push(Buffer.from(chunk));
+    }
+  }
+
+  return Buffer.concat(chunks);
+}

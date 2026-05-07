@@ -46,6 +46,7 @@ model Evidence {
   lastVerifiedSource                VerificationSource? @map("last_verified_source")
   verificationPackageGeneratedAtUtc DateTime?           @map("verification_package_generated_at_utc") @db.Timestamptz(6)
   verificationPackageVersion        Int?                @map("verification_package_version")
+  verificationPackageMetadata       Json?               @map("verification_package_metadata")
   latestReportVersion               Int?                @map("latest_report_version")
   reviewReadyAtUtc                  DateTime?           @map("review_ready_at_utc") @db.Timestamptz(6)
   reviewerSummaryVersion            Int?                @map("reviewer_summary_version")

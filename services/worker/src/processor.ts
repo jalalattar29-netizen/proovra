@@ -3137,6 +3137,7 @@ export async function processGenerateReport(job: Job<GenerateReportJobData>) {
     );
 
     let finalizedVerificationZip: Buffer | null = null;
+    let finalizedVerificationArtifactPresence: VerificationPackageArtifactPresence | null = null;
 
     if (
       !finalized.skipped &&
@@ -3159,8 +3160,8 @@ const finalizedAnchorPayload = buildFinalizedAnchorPayload({
   otsBitcoinTxid: prepared.reportEvidencePayload.otsBitcoinTxid ?? null,
   otsAnchoredAtUtc: prepared.reportEvidencePayload.otsAnchoredAtUtc ?? null,
 });
-        finalizedVerificationZip = await createVerificationPackage({
-evidenceFiles: prepared.verificationEvidenceFiles,
+        const finalizedVerificationPackage = await createVerificationPackage({
+          evidenceFiles: prepared.verificationEvidenceFiles,
           reportPdf: finalized.finalizedReportPdf,
           reportFileName: `proovra-verification-report-v${prepared.version}.pdf`,
           fingerprint: prepared.fingerprintCanonicalJson,
@@ -3278,6 +3279,9 @@ ownerUserId: prepared.packageMetadataContext.ownerUserId,
               finalized.effectiveRecordedIntegrityVerifiedAtUtc ?? null,
           },
         });
+        finalizedVerificationZip = finalizedVerificationPackage.buffer;
+        finalizedVerificationArtifactPresence =
+          finalizedVerificationPackage.artifactPresence;
       } catch (verificationError) {
         captureException(verificationError, {
           evidenceId,
@@ -3362,6 +3366,25 @@ trustDecisionSnapshot:
             data: {
               verificationPackageGeneratedAtUtc: prepared.now,
               verificationPackageVersion: prepared.version,
+              verificationPackageMetadata: {
+                manifestPresent:
+                  finalizedVerificationArtifactPresence?.manifestPresent === true,
+                signedManifestPresent:
+                  finalizedVerificationArtifactPresence?.signedManifestPresent === true,
+                checksumIndexPresent:
+                  finalizedVerificationArtifactPresence?.checksumIndexPresent === true,
+                offlineVerifierIncluded:
+                  finalizedVerificationArtifactPresence?.offlineVerifierIncluded === true,
+                auditExportIncluded:
+                  finalizedVerificationArtifactPresence?.auditExportIncluded === true,
+                custodyExportIncluded:
+                  finalizedVerificationArtifactPresence?.custodyExportIncluded === true,
+                accessExportIncluded:
+                  finalizedVerificationArtifactPresence?.accessExportIncluded === true,
+                packageVersion: "v1",
+                generatedAtUtc: prepared.now.toISOString(),
+                source: "GENERATION",
+              },
             },
           });
 

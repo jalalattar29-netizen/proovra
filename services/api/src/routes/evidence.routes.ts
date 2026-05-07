@@ -11,6 +11,7 @@ import {
   hasCaptureLocationMetadata,
   resolveEffectiveOtsStatus,
   type TrustDecision,
+  type VerificationPackageMetadata,
 } from "@proovra/shared";
 import {
   type EvidenceAssetKind as PublicEvidenceAssetKind,
@@ -44,6 +45,7 @@ import {
   presignGetObject,
   presignPutObject,
   headObject,
+  getObjectRange,
 } from "../storage.js";
 import { verifyJwt } from "../services/jwt.js";
 import { enforceRateLimit } from "../services/rate-limit.js";
@@ -250,15 +252,160 @@ type PublicVerificationPackageIntegrity = {
   version: number | null;
   generatedAtUtc: string | null;
   packageType: string | null;
-  manifestPresent: boolean | null;
-  signedManifestPresent: boolean | null;
-  manifestDigestPresent: boolean | null;
-  checksumIndexPresent: boolean | null;
-  offlineVerifierIncluded: boolean | null;
-  auditExportIncluded: boolean | null;
-  custodyExportIncluded: boolean | null;
-  accessExportIncluded: boolean | null;
+  manifestPresent: boolean;
+  signedManifestPresent: boolean;
+  manifestDigestPresent: boolean;
+  checksumIndexPresent: boolean;
+  offlineVerifierIncluded: boolean;
+  auditExportIncluded: boolean;
+  custodyExportIncluded: boolean;
+  accessExportIncluded: boolean;
 };
+
+type VerificationPackageArtifactPresence = {
+  manifestPresent: boolean;
+  signedManifestPresent: boolean;
+  manifestDigestPresent: boolean;
+  checksumIndexPresent: boolean;
+  offlineVerifierIncluded: boolean;
+  auditExportIncluded: boolean;
+  custodyExportIncluded: boolean;
+  accessExportIncluded: boolean;
+};
+
+const PACKAGE_ARTIFACT_FILE_NAMES = {
+  packageManifest: "package-manifest.json",
+  packageManifestSignature: "package-manifest.sig",
+  checksumIndex: "package-checksums.json",
+  offlineVerifier: "verify-package.mjs",
+  auditExport: "audit-access-report.json",
+  custodyExport: "custody.json",
+  accessExport: "access-activity.json",
+} as const;
+
+function parseZipCentralDirectoryEntries(buffer: Buffer): Set<string> {
+  const entries = new Set<string>();
+  let offset = 0;
+  const CENTRAL_FILE_HEADER_SIG = 0x02014b50;
+
+  while (offset + 46 <= buffer.length) {
+    if (buffer.readUInt32LE(offset) !== CENTRAL_FILE_HEADER_SIG) {
+      break;
+    }
+
+    const fileNameLength = buffer.readUInt16LE(offset + 28);
+    const extraFieldLength = buffer.readUInt16LE(offset + 30);
+    const fileCommentLength = buffer.readUInt16LE(offset + 32);
+    const nameStart = offset + 46;
+    const nameEnd = nameStart + fileNameLength;
+
+    if (nameEnd > buffer.length) {
+      break;
+    }
+
+    const name = buffer.toString("utf8", nameStart, nameEnd);
+    entries.add(name);
+
+    offset = nameEnd + extraFieldLength + fileCommentLength;
+  }
+
+  return entries;
+}
+
+function findEndOfCentralDirectory(buffer: Buffer): number {
+  const EOCD_SIG = 0x06054b50;
+  for (let offset = buffer.length - 22; offset >= 0; offset -= 1) {
+    if (buffer.readUInt32LE(offset) === EOCD_SIG) {
+      return offset;
+    }
+  }
+  return -1;
+}
+
+async function listZipEntryNames(bucket: string, key: string): Promise<Set<string>> {
+  const meta = await headObject({ bucket, key });
+  const sizeBytes = meta.sizeBytes ?? 0;
+  if (sizeBytes === 0) return new Set();
+
+  const tailLength = Math.min(Number(sizeBytes), 128 * 1024);
+  const tailStart = Number(sizeBytes) - tailLength;
+  const tail = await getObjectRange({
+    bucket,
+    key,
+    range: `bytes=${tailStart}-${Number(sizeBytes) - 1}`,
+  });
+
+  const eocdOffset = findEndOfCentralDirectory(tail);
+  if (eocdOffset < 0 || eocdOffset + 22 > tail.length) {
+    throw new Error("Unable to locate ZIP end of central directory");
+  }
+
+  const commentLength = tail.readUInt16LE(eocdOffset + 20);
+  const centralDirectorySize = tail.readUInt32LE(eocdOffset + 12);
+  const centralDirectoryOffset = tail.readUInt32LE(eocdOffset + 16);
+
+  const cdEnd = centralDirectoryOffset + centralDirectorySize - 1;
+  const cdBuffer =
+    centralDirectoryOffset >= tailStart
+      ? tail.subarray(centralDirectoryOffset - tailStart, centralDirectoryOffset - tailStart + centralDirectorySize)
+      : await getObjectRange({
+          bucket,
+          key,
+          range: `bytes=${centralDirectoryOffset}-${cdEnd}`,
+        });
+
+  return parseZipCentralDirectoryEntries(cdBuffer);
+}
+
+async function inspectVerificationPackageArtifacts(
+  bucket: string | null,
+  key: string | null
+): Promise<VerificationPackageArtifactPresence | null> {
+  if (!bucket || !key) {
+    return null;
+  }
+
+  try {
+    const entries = await listZipEntryNames(bucket, key);
+
+    return {
+      manifestPresent: entries.has(PACKAGE_ARTIFACT_FILE_NAMES.packageManifest),
+      signedManifestPresent: entries.has(PACKAGE_ARTIFACT_FILE_NAMES.packageManifestSignature),
+      manifestDigestPresent: entries.has(PACKAGE_ARTIFACT_FILE_NAMES.packageManifestSignature),
+      checksumIndexPresent: entries.has(PACKAGE_ARTIFACT_FILE_NAMES.checksumIndex),
+      offlineVerifierIncluded: entries.has(PACKAGE_ARTIFACT_FILE_NAMES.offlineVerifier),
+      auditExportIncluded: entries.has(PACKAGE_ARTIFACT_FILE_NAMES.auditExport),
+      custodyExportIncluded: entries.has(PACKAGE_ARTIFACT_FILE_NAMES.custodyExport),
+      accessExportIncluded: entries.has(PACKAGE_ARTIFACT_FILE_NAMES.accessExport),
+    };
+  } catch (error) {
+    console.warn(
+      "Unable to inspect verification package contents for artifact presence:",
+      error
+    );
+    return null;
+  }
+}
+
+function isVerificationPackageMetadata(
+  value: unknown
+): value is VerificationPackageMetadata {
+  if (!value || typeof value !== "object") return false;
+  const candidate = value as Record<string, unknown>;
+  return (
+    candidate.manifestPresent === true || candidate.manifestPresent === false
+  ) &&
+    (candidate.signedManifestPresent === true ||
+      candidate.signedManifestPresent === false) &&
+    (candidate.checksumIndexPresent === true ||
+      candidate.checksumIndexPresent === false) &&
+    (candidate.offlineVerifierIncluded === true ||
+      candidate.offlineVerifierIncluded === false) &&
+    candidate.packageVersion === "v1" &&
+    typeof candidate.generatedAtUtc === "string" &&
+    (candidate.source === "GENERATION" ||
+      candidate.source === "ZIP_INSPECTION");
+}
 
 type PublicCustodyLifecycle = {
   forensicEventCount: number;
@@ -362,6 +509,7 @@ const SAFE_EVIDENCE_SELECT = {
   lastVerifiedSource: true,
   verificationPackageGeneratedAtUtc: true,
   verificationPackageVersion: true,
+  verificationPackageMetadata: true,
   latestReportVersion: true,
   reviewReadyAtUtc: true,
   reviewerSummaryVersion: true,
@@ -4926,6 +5074,7 @@ action: "evidence.certification_requested",
         identityLevelSnapshot: true,
         submittedByEmail: true,
         submittedByAuthProvider: true,
+        verificationPackageMetadata: true,
         submittedByUserId: true,
         workspaceNameSnapshot: true,
         organizationNameSnapshot: true,
@@ -5159,23 +5308,126 @@ const latestVerificationPackage = await prisma.verificationPackage.findFirst({
 
 const verificationPackageAvailable = Boolean(latestVerificationPackage);
 
-const verificationPackageIntegrity: PublicVerificationPackageIntegrity = {
-  available: verificationPackageAvailable,
-  version: latestVerificationPackage?.version ?? null,
-  generatedAtUtc: latestVerificationPackage?.generatedAtUtc
-    ? latestVerificationPackage.generatedAtUtc.toISOString()
-    : null,
-  packageType: latestVerificationPackage?.packageType ?? null,
+const persistedVerificationPackageMetadata =
+  isVerificationPackageMetadata(evidence.verificationPackageMetadata)
+    ? evidence.verificationPackageMetadata
+    : null;
 
-  manifestPresent: verificationPackageAvailable,
-  signedManifestPresent: verificationPackageAvailable,
-  manifestDigestPresent: verificationPackageAvailable,
-  checksumIndexPresent: verificationPackageAvailable,
-  offlineVerifierIncluded: verificationPackageAvailable,
-  auditExportIncluded: verificationPackageAvailable,
-  custodyExportIncluded: verificationPackageAvailable,
-  accessExportIncluded: verificationPackageAvailable,
-};
+let verificationPackageIntegrity: PublicVerificationPackageIntegrity;
+
+if (persistedVerificationPackageMetadata) {
+  verificationPackageIntegrity = {
+    available: verificationPackageAvailable,
+    version: latestVerificationPackage?.version ?? null,
+    generatedAtUtc: latestVerificationPackage?.generatedAtUtc
+      ? latestVerificationPackage.generatedAtUtc.toISOString()
+      : null,
+    packageType: latestVerificationPackage?.packageType ?? null,
+
+    manifestPresent: persistedVerificationPackageMetadata.manifestPresent,
+    signedManifestPresent:
+      persistedVerificationPackageMetadata.signedManifestPresent,
+    manifestDigestPresent:
+      persistedVerificationPackageMetadata.signedManifestPresent,
+    checksumIndexPresent:
+      persistedVerificationPackageMetadata.checksumIndexPresent,
+    offlineVerifierIncluded:
+      persistedVerificationPackageMetadata.offlineVerifierIncluded,
+    auditExportIncluded:
+      persistedVerificationPackageMetadata.auditExportIncluded ?? false,
+    custodyExportIncluded:
+      persistedVerificationPackageMetadata.custodyExportIncluded ?? false,
+    accessExportIncluded:
+      persistedVerificationPackageMetadata.accessExportIncluded ?? false,
+  };
+} else if (verificationPackageAvailable) {
+  const inspectedVerificationPackageArtifacts =
+    await inspectVerificationPackageArtifacts(
+      latestVerificationPackage?.storageBucket ?? null,
+      latestVerificationPackage?.storageKey ?? null
+    );
+
+  verificationPackageIntegrity = {
+    available: true,
+    version: latestVerificationPackage?.version ?? null,
+    generatedAtUtc: latestVerificationPackage?.generatedAtUtc
+      ? latestVerificationPackage.generatedAtUtc.toISOString()
+      : null,
+    packageType: latestVerificationPackage?.packageType ?? null,
+
+    manifestPresent:
+      inspectedVerificationPackageArtifacts?.manifestPresent ?? false,
+    signedManifestPresent:
+      inspectedVerificationPackageArtifacts?.signedManifestPresent ?? false,
+    manifestDigestPresent:
+      inspectedVerificationPackageArtifacts?.manifestDigestPresent ?? false,
+    checksumIndexPresent:
+      inspectedVerificationPackageArtifacts?.checksumIndexPresent ?? false,
+    offlineVerifierIncluded:
+      inspectedVerificationPackageArtifacts?.offlineVerifierIncluded ?? false,
+    auditExportIncluded:
+      inspectedVerificationPackageArtifacts?.auditExportIncluded ?? false,
+    custodyExportIncluded:
+      inspectedVerificationPackageArtifacts?.custodyExportIncluded ?? false,
+    accessExportIncluded:
+      inspectedVerificationPackageArtifacts?.accessExportIncluded ?? false,
+  };
+
+  if (inspectedVerificationPackageArtifacts) {
+    try {
+      await prisma.evidence.update({
+        where: { id: evidence.id },
+        data: {
+          verificationPackageMetadata: {
+            manifestPresent:
+              inspectedVerificationPackageArtifacts.manifestPresent,
+            signedManifestPresent:
+              inspectedVerificationPackageArtifacts.signedManifestPresent,
+            checksumIndexPresent:
+              inspectedVerificationPackageArtifacts.checksumIndexPresent,
+            offlineVerifierIncluded:
+              inspectedVerificationPackageArtifacts.offlineVerifierIncluded,
+            auditExportIncluded:
+              inspectedVerificationPackageArtifacts.auditExportIncluded,
+            custodyExportIncluded:
+              inspectedVerificationPackageArtifacts.custodyExportIncluded,
+            accessExportIncluded:
+              inspectedVerificationPackageArtifacts.accessExportIncluded,
+            packageVersion: "v1",
+            generatedAtUtc:
+              evidence.verificationPackageGeneratedAtUtc?.toISOString() ??
+              latestVerificationPackage?.generatedAtUtc?.toISOString() ??
+              new Date().toISOString(),
+            inspectedAtUtc: new Date().toISOString(),
+            source: "ZIP_INSPECTION",
+          },
+        },
+      });
+    } catch (updateError) {
+      console.warn(
+        "Unable to backfill verification package metadata after ZIP inspection:",
+        updateError
+      );
+    }
+  }
+} else {
+  verificationPackageIntegrity = {
+    available: false,
+    version: latestVerificationPackage?.version ?? null,
+    generatedAtUtc: latestVerificationPackage?.generatedAtUtc
+      ? latestVerificationPackage.generatedAtUtc.toISOString()
+      : null,
+    packageType: latestVerificationPackage?.packageType ?? null,
+    manifestPresent: false,
+    signedManifestPresent: false,
+    manifestDigestPresent: false,
+    checksumIndexPresent: false,
+    offlineVerifierIncluded: false,
+    auditExportIncluded: false,
+    custodyExportIncluded: false,
+    accessExportIncluded: false,
+  };
+}
 
 const snapshotTrustDecision =
   normalizeTrustDecisionSnapshot(latestReport?.trustDecisionSnapshot) ??

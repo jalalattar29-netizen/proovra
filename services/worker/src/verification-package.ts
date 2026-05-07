@@ -34,6 +34,16 @@ type VerificationEvidenceFile = {
   storageObjectLockLegalHoldStatus?: string | null;
 };
 
+type VerificationPackageArtifactPresence = {
+  manifestPresent: boolean;
+  signedManifestPresent: boolean;
+  checksumIndexPresent: boolean;
+  offlineVerifierIncluded: boolean;
+  auditExportIncluded: boolean;
+  custodyExportIncluded: boolean;
+  accessExportIncluded: boolean;
+};
+
 type VerificationCertificationRecord = {
   declarationType: "CUSTODIAN" | "QUALIFIED_PERSON";
   status: "DRAFT" | "REQUESTED" | "ATTESTED" | "REVOKED";
@@ -2019,12 +2029,21 @@ export async function createVerificationPackage(data: {
   reportPdf?: Buffer | null;
   reportFileName?: string | null;
   metadata?: VerificationPackageMetadata;
-}) {
-  return new Promise<Buffer>((resolve, reject) => {
+}): Promise<{ buffer: Buffer; artifactPresence: VerificationPackageArtifactPresence }> {
+  return new Promise((resolve, reject) => {
     const archive = archiver("zip", { zlib: { level: 9 } });
     const stream = new PassThrough();
     const chunks: Buffer[] = [];
     const packageEntries: PackageEntry[] = [];
+    const artifactPresence: VerificationPackageArtifactPresence = {
+      manifestPresent: false,
+      signedManifestPresent: false,
+      checksumIndexPresent: false,
+      offlineVerifierIncluded: false,
+      auditExportIncluded: false,
+      custodyExportIncluded: false,
+      accessExportIncluded: false,
+    };
 
     let settled = false;
 
@@ -2037,7 +2056,7 @@ export async function createVerificationPackage(data: {
     const succeed = () => {
       if (settled) return;
       settled = true;
-      resolve(Buffer.concat(chunks));
+      resolve({ buffer: Buffer.concat(chunks), artifactPresence });
     };
 
     stream.on("data", (chunk) => {
@@ -2202,6 +2221,7 @@ export async function createVerificationPackage(data: {
       jsonBuffer(data.custody),
       "application/json"
     );
+    artifactPresence.custodyExportIncluded = true;
 
     appendPackageEntry(
       archive,
@@ -2218,6 +2238,7 @@ export async function createVerificationPackage(data: {
       jsonBuffer(custodySplit.access),
       "application/json"
     );
+    artifactPresence.accessExportIncluded = true;
 
     if (data.anchor) {
       appendPackageEntry(
@@ -2262,6 +2283,7 @@ export async function createVerificationPackage(data: {
       packageManifestBuffer,
       "application/json"
     );
+    artifactPresence.manifestPresent = true;
 
     appendPackageEntry(
   archive,
@@ -2284,6 +2306,7 @@ appendPackageEntry(
   ),
   "application/json"
 );
+    artifactPresence.signedManifestPresent = true;
 
     appendPackageEntry(
       archive,
@@ -2387,6 +2410,7 @@ The result must match the expected SHA-256 above and the manifestSha256 field in
       ),
       "application/json"
     );
+    artifactPresence.auditExportIncluded = true;
 
     appendPackageEntry(
       archive,
@@ -2410,6 +2434,7 @@ The result must match the expected SHA-256 above and the manifestSha256 field in
       textBuffer(buildVerifyPackageScript()),
       "text/javascript"
     );
+    artifactPresence.offlineVerifierIncluded = true;
 
     appendPackageEntry(
       archive,
@@ -2586,6 +2611,7 @@ The result must match the expected SHA-256 above and the manifestSha256 field in
       jsonBuffer(buildPackageChecksums(packageEntries)),
       "application/json"
     );
+    artifactPresence.checksumIndexPresent = true;
 
     await archive.finalize();
   } catch (error) {
