@@ -1365,11 +1365,6 @@ padding: 72px 28px 28px;
   font-weight: 800;
 }
 
-.capture-materials-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-  gap: 14px;
-}
 
 .capture-material-preview {
   height: 150px;
@@ -1479,12 +1474,6 @@ padding: 72px 28px 28px;
   color: var(--capture-muted);
   font-size: 0.86rem;
   font-weight: 800;
-}
-
-.capture-materials-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(235px, 1fr));
-  gap: 14px;
 }
 
 .capture-material-preview {
@@ -1929,10 +1918,6 @@ padding: 72px 28px 28px;
 }
 
 /* compact evidence cards */
-.capture-materials-grid {
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)) !important;
-  gap: 12px !important;
-}
 
 .capture-material-card {
   background: var(--capture-evidence-surface) !important;
@@ -1978,7 +1963,7 @@ padding: 72px 28px 28px;
 }
 
 .capture-material-top strong {
-  max-width: 150px !important;
+  max-width: 210px !important;
   font-size: 0.86rem !important;
 }
 
@@ -2020,10 +2005,11 @@ padding: 72px 28px 28px;
     grid-template-columns: 1fr !important;
   }
 
-  .capture-material-preview {
-    height: 150px !important;
-    max-height: 150px !important;
-  }
+.capture-material-preview {
+  height: 150px !important;
+  min-height: 150px !important;
+  max-height: 150px !important;
+}
 }
 
 /* FINAL SURFACE CONSISTENCY PASS */
@@ -2160,8 +2146,8 @@ padding: 72px 28px 28px;
 /* FINAL FIX — material dropdown + integrity surface */
 
 .capture-materials-grid {
-  isolation: isolate !important;
-  align-items: start !important;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)) !important;
+  gap: 16px !important;
 }
 
 .capture-material-card {
