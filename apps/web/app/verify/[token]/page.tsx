@@ -4785,8 +4785,14 @@ const glassPanelStyle: CSSProperties = {
   };
 
   return (
-        <div className="page" style={VERIFY_TYPO.page}>
-      <section
+<div
+  className="page verify-enterprise-font"
+  style={{
+    ...VERIFY_TYPO.page,
+    fontFamily: "var(--font-jakarta), ui-sans-serif, system-ui, sans-serif",
+  }}
+>
+        <section
         className="section"
         style={{
           position: "relative",
@@ -4828,7 +4834,7 @@ const glassPanelStyle: CSSProperties = {
               <div>
                 <div
                   style={{
-                    fontFamily: 'Georgia, "Times New Roman", serif',
+fontFamily: "var(--font-jakarta), ui-sans-serif, system-ui, sans-serif",
                     fontSize: 20,
                     fontWeight: 900,
                     letterSpacing: "0.075em",

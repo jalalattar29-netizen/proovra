@@ -91,6 +91,91 @@ type EventLabelInfo = {
 };
 
 const EVENT_TYPE_LABELS: Record<string, EventLabelInfo> = {
+  EVIDENCE_CREATED: {
+    label: "Evidence created",
+    source: "SYSTEM",
+    tone: "success",
+    description: "The evidence record was created.",
+  },
+  UPLOAD_STARTED: {
+    label: "Upload started",
+    source: "SYSTEM",
+    tone: "neutral",
+    description: "The evidence upload session started.",
+  },
+  UPLOAD_COMPLETED: {
+    label: "Upload completed",
+    source: "SYSTEM",
+    tone: "success",
+    description: "The evidence file materials were uploaded and recorded.",
+  },
+  EVIDENCE_COMPLETED: {
+    label: "Evidence completed",
+    source: "SYSTEM",
+    tone: "success",
+    description: "The evidence record was completed before report generation.",
+  },
+  SIGNATURE_APPLIED: {
+    label: "Digital signature applied",
+    source: "SYSTEM",
+    tone: "success",
+    description: "A cryptographic signature was applied to the recorded fingerprint.",
+  },
+  TIMESTAMP_APPLIED: {
+    label: "Trusted timestamp recorded",
+    source: "SYSTEM",
+    tone: "success",
+    description: "A trusted timestamp was recorded for the preserved integrity state.",
+  },
+  TIMESTAMP_FAILED: {
+    label: "Trusted timestamp failed",
+    source: "SYSTEM",
+    tone: "warning",
+    description: "A trusted timestamp could not be obtained for this record.",
+  },
+  OTS_APPLIED: {
+    label: "OpenTimestamp proof recorded",
+    source: "SYSTEM",
+    tone: "warning",
+    description: "OpenTimestamp proof material was recorded. Public anchoring may still be pending.",
+  },
+  OTS_FAILED: {
+    label: "OpenTimestamp failed",
+    source: "SYSTEM",
+    tone: "warning",
+    description: "OpenTimestamp proof creation failed or could not be completed.",
+  },
+  IDENTITY_SNAPSHOT_RECORDED: {
+    label: "Identity snapshot recorded",
+    source: "SYSTEM",
+    tone: "success",
+    description: "Submitter and workspace identity context was recorded for reviewer reference.",
+  },
+  REPORT_GENERATED: {
+    label: "Report generated",
+    source: "SYSTEM",
+    tone: "success",
+    description: "A PDF verification report was generated for this evidence record.",
+  },
+  REVIEW_READY: {
+    label: "Review ready",
+    source: "SYSTEM",
+    tone: "success",
+    description: "The evidence record was marked ready for reviewer inspection.",
+  },
+  VERIFICATION_PACKAGE_GENERATED: {
+    label: "Verification package generated",
+    source: "SYSTEM",
+    tone: "success",
+    description: "An offline verification package was generated for independent technical review.",
+  },
+  EVIDENCE_LOCKED: {
+    label: "Evidence locked",
+    source: "SYSTEM",
+    tone: "success",
+    description: "The evidence record was locked or sealed in the preservation workflow.",
+  },
+
   EVIDENCE_VIEWED: {
     label: "Evidence viewed",
     source: "USER",
@@ -237,14 +322,22 @@ function buildVerificationProof(params: EvidenceIntelligenceInput["evidence"]): 
     sha256Recorded: Boolean(params.fileSha256),
     signatureStatus: signaturePresent ? "APPLIED" : "MISSING",
     tsaStatus:
-      tsaStatus === "RECORDED" || tsaStatus === "SIGNED" || tsaStatus === "COMPLETE"
+      [
+        "RECORDED",
+        "SIGNED",
+        "COMPLETE",
+        "STAMPED",
+        "GRANTED",
+        "VERIFIED",
+        "SUCCEEDED",
+      ].includes(tsaStatus)
         ? "RECORDED"
-        : tsaStatus === "FAILED"
+        : tsaStatus === "FAILED" || tsaStatus === "ERROR" || tsaStatus === "UNAVAILABLE"
           ? "FAILED"
           : tsaStatus === "PENDING"
             ? "PENDING"
             : "UNKNOWN",
-    otsStatus,
+                otsStatus,
   };
 }
 
@@ -298,7 +391,11 @@ function buildAccessActivitySummary(params: {
     eventHash: string | null;
   }>;
 }): EvidenceIntelligence["accessActivity"] {
-  const recentEvents = params.records
+  const accessRecords = params.records.filter((event) =>
+    isAccessCustodyEventType(event.eventType)
+  );
+
+  const recentEvents = accessRecords
     .slice(-6)
     .reverse()
     .map((event) => {
@@ -307,26 +404,47 @@ function buildAccessActivitySummary(params: {
         eventType: event.eventType,
         label: info.label,
         timestampUtc: event.atUtc.toISOString(),
-        actorLabel: info.source === "PUBLIC_VERIFY" ? "External reviewer" : info.source === "SYSTEM" ? "System process" : "Authorized user",
+        actorLabel:
+          info.source === "PUBLIC_VERIFY"
+            ? "External reviewer"
+            : info.source === "SYSTEM"
+              ? "System process"
+              : "Authorized user",
         source: info.source,
         tone: info.tone,
         description: info.description,
       };
     });
 
-  const publicVerifyViews = params.records.filter((event) => String(event.eventType).toUpperCase() === "VERIFY_VIEWED").length;
-  const reportDownloads = params.records.filter((event) => String(event.eventType).toUpperCase() === "REPORT_DOWNLOADED").length;
-  const verificationPackageDownloads = params.records.filter((event) => String(event.eventType).toUpperCase() === "VERIFICATION_PACKAGE_DOWNLOADED").length;
-  const lastViewedAtUtc = params.records
-    .filter((event) => isAccessCustodyEventType(event.eventType))
-    .map((event) => event.atUtc.toISOString())
-    .sort()
-    .pop() ?? null;
-  const lastDownloadedAtUtc = params.records
-    .filter((event) => ["EVIDENCE_DOWNLOADED", "REPORT_DOWNLOADED", "VERIFICATION_PACKAGE_DOWNLOADED"].includes(String(event.eventType).toUpperCase()))
-    .map((event) => event.atUtc.toISOString())
-    .sort()
-    .pop() ?? null;
+  const publicVerifyViews = accessRecords.filter(
+    (event) => String(event.eventType).toUpperCase() === "VERIFY_VIEWED"
+  ).length;
+
+  const reportDownloads = accessRecords.filter(
+    (event) => String(event.eventType).toUpperCase() === "REPORT_DOWNLOADED"
+  ).length;
+
+  const verificationPackageDownloads = accessRecords.filter(
+    (event) =>
+      String(event.eventType).toUpperCase() ===
+      "VERIFICATION_PACKAGE_DOWNLOADED"
+  ).length;
+
+  const lastViewedAtUtc =
+    accessRecords.map((event) => event.atUtc.toISOString()).sort().pop() ?? null;
+
+  const lastDownloadedAtUtc =
+    accessRecords
+      .filter((event) =>
+        [
+          "EVIDENCE_DOWNLOADED",
+          "REPORT_DOWNLOADED",
+          "VERIFICATION_PACKAGE_DOWNLOADED",
+        ].includes(String(event.eventType).toUpperCase())
+      )
+      .map((event) => event.atUtc.toISOString())
+      .sort()
+      .pop() ?? null;
 
   return {
     publicVerifyViews: publicVerifyViews || null,
@@ -426,8 +544,12 @@ function buildCustodyTimeline(params: {
     eventHash: string | null;
   }>;
 }): EvidenceIntelligence["custodyTimeline"] {
-  return params.records
-    .slice(-8)
+  const forensicRecords = params.records.filter(
+    (record) => !isAccessCustodyEventType(record.eventType)
+  );
+
+  return forensicRecords
+    .slice(-10)
     .reverse()
     .map((record) => {
       const info = resolveEventLabelInfo(record.eventType);

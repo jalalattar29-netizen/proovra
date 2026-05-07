@@ -1644,13 +1644,7 @@ else acc.otherCount += 1;
     { label: "Retention state", value: isDeleted ? "Secure trash" : isLocked ? "Locked" : isArchived ? "Archived" : "Active", ok: !isDeleted },
   ];
 
-  const reviewerAlerts: ReviewRow[] = [
-    { label: "Case assignment", value: caseId ? "Evidence is linked to a case." : "Missing case assignment.", ok: Boolean(caseId) },
-    { label: "Permanent lock", value: isLocked ? "Record is permanently locked." : "Record is not permanently locked.", ok: isLocked },
-    { label: "Public verification", value: canUsePublicVerification ? "Public verification is enabled." : "Public verification is not enabled.", ok: canUsePublicVerification },
-    { label: "Capture context", value: hasCaptureLocation ? "Capture location metadata recorded." : "No capture location metadata recorded.", ok: hasCaptureLocation },
-    { label: "Package structure", value: isMultipart ? "Multipart evidence package." : "Single-file evidence record.", ok: true },
-  ];
+const reviewerAlertsFromIntelligence = evidenceIntelligence?.reviewerAlerts ?? [];
   const evidenceReviewDecision = evidenceIntelligence?.reviewerDecision;
     const selectedCase = useMemo(
     () => ownedCases.find((item) => item.id === caseId) ?? null,
@@ -1766,7 +1760,7 @@ ok: evidenceIntelligence.verificationProof.hashMatch === "MATCH",
             <div className="evidence-hero-meta">
               <span className={`evidence-pill ${statusToneClass}`}>{displayStatusMeta.label}</span>
               <span className="evidence-pill teal">{recordTypeLabel}</span>
-              <span className="evidence-pill neutral">{isMultipart ? `${sortedParts.length || itemCount} items` : "Single file"}</span>
+{isMultipart ? `${Math.max(sortedParts.length, itemCount)} items` : "Single file"}
               <span className="evidence-pill neutral">Recorded: {formatUtcDateTime(createdAt)}</span>
               <span className="evidence-pill neutral">{activeWorkspaceName} · {activePlan}</span>
               {isLocked ? <span className="evidence-pill success">Locked</span> : null}
@@ -1978,7 +1972,7 @@ ok: evidenceIntelligence.verificationProof.hashMatch === "MATCH",
                   <div className="evidence-kv full"><span>Original submitted file</span><strong>{effectiveOriginalSummaryName}</strong></div>
                   <div className="evidence-kv full"><span>Record ID</span><strong>{evidenceId}</strong></div>
                   <div className="evidence-kv"><span>Evidence type</span><strong>{recordTypeLabel}</strong></div>
-                  <div className="evidence-kv"><span>Structure</span><strong>{isMultipart ? `Multipart (${sortedParts.length || itemCount})` : "Single-file"}</strong></div>
+<strong>{isMultipart ? `Multipart (${Math.max(sortedParts.length, itemCount)})` : "Single-file"}</strong>
                   <div className="evidence-kv"><span>Composition</span><strong>{compositionSummary}</strong></div>
                   <div className="evidence-kv"><span>Workspace</span><strong>{activeWorkspaceName}</strong></div>
                   <div className="evidence-kv"><span>Active plan</span><strong>{activePlan}</strong></div>
@@ -1998,10 +1992,10 @@ ok: evidenceIntelligence.verificationProof.hashMatch === "MATCH",
                 <section className="evidence-card evidence-technical-card">
                   <div className="evidence-card-inner">
                     <p className="evidence-section-label">Technical / Context Area</p>
-                    <h2 className="evidence-section-title">Custody & Activity Timeline</h2>
-                    <p className="evidence-section-muted">
-                      Recent lifecycle and integrity-relevant activity for this evidence record.
-                    </p>
+<h2 className="evidence-section-title">Forensic Custody Timeline</h2>
+<p className="evidence-section-muted">
+  Recent lifecycle and integrity-relevant custody events for this evidence record. Access activity is shown separately.
+</p>
 
                     <div className="evidence-timeline">
                       {visibleCustodyTimeline.length > 0 ? (
@@ -2118,7 +2112,7 @@ ok: evidenceIntelligence.verificationProof.hashMatch === "MATCH",
                       </div>
                     ) : (
                       <div className="evidence-alert info">
-Detailed live access activity is not exposed in this view yet.
+No recent access activity has been recorded for this evidence record.
                       </div>
                     )}
                   </div>
@@ -2266,20 +2260,43 @@ Detailed live access activity is not exposed in this view yet.
               </div>
             </section>
 
-            <section className="evidence-card">
-              <div className="evidence-card-inner">
-                <h2 className="evidence-section-title">Reviewer Alerts</h2>
-                <div className="evidence-integrity-list">
-                  {reviewerAlerts.map((row) => (
-                    <div key={row.label} className="evidence-check-row">
-                      <div className={`evidence-check-dot ${row.ok ? "ok" : "warn"}`}>{row.ok ? "✓" : "!"}</div>
-                      <strong>{row.label}</strong>
-                      <span>{row.value}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </section>
+<section className="evidence-card">
+  <div className="evidence-card-inner">
+    <h2 className="evidence-section-title">Reviewer Alerts</h2>
+
+    <div className="evidence-integrity-list">
+      {reviewerAlertsFromIntelligence.length > 0 ? (
+        reviewerAlertsFromIntelligence.map((alert) => (
+          <div
+            key={`${alert.label}-${alert.detail}`}
+            className="evidence-check-row"
+          >
+            <div
+              className={`evidence-check-dot ${
+                alert.severity === "danger" ||
+                alert.severity === "warning"
+                  ? "warn"
+                  : "ok"
+              }`}
+            >
+              {alert.severity === "danger" ||
+              alert.severity === "warning"
+                ? "!"
+                : "✓"}
+            </div>
+
+            <strong>{alert.label}</strong>
+            <span>{alert.detail}</span>
+          </div>
+        ))
+      ) : (
+        <div className="evidence-alert info">
+          No reviewer alerts are currently recorded for this evidence.
+        </div>
+      )}
+    </div>
+  </div>
+</section>
 
             <section className="evidence-card">
               <div className="evidence-card-inner">

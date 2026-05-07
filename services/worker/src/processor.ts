@@ -2848,11 +2848,16 @@ export async function processGenerateReport(job: Job<GenerateReportJobData>) {
           ...prepared.identitySnapshot,
           verificationStatus: effectiveVerificationStatus,
         };
-        const effectiveReportEvidencePayload = {
-          ...prepared.reportEvidencePayload,
-          verificationStatus: effectiveVerificationStatus,
-          recordedIntegrityVerifiedAtUtc: effectiveRecordedIntegrityVerifiedAtUtc,
-        };
+const effectiveReportEvidencePayload = {
+  ...prepared.reportEvidencePayload,
+  status: EvidenceStatus.REPORTED,
+  verificationStatus: effectiveVerificationStatus,
+  recordedIntegrityVerifiedAtUtc: effectiveRecordedIntegrityVerifiedAtUtc,
+  reportGeneratedAtUtc: prepared.now.toISOString(),
+  latestReportVersion: prepared.version,
+  reviewReadyAtUtc: prepared.now.toISOString(),
+  reviewerSummaryVersion: effectiveIdentitySnapshot.reviewerSummaryVersion,
+};
         const effectiveReviewGuidance = buildReportReviewGuidance({
           itemCount: prepared.contentSummary.itemCount,
           previewableItemCount: prepared.contentSummary.previewableItemCount,

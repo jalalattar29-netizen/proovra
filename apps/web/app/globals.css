@@ -3710,6 +3710,19 @@ html[dir="rtl"] .legal-content a::after {
   height: auto;
 }
 
+.verify-enterprise-font,
+.verify-enterprise-font * {
+  font-family: var(--font-jakarta), ui-sans-serif, system-ui, sans-serif !important;
+}
+
+.verify-enterprise-font input,
+.verify-enterprise-font button,
+.verify-enterprise-font a,
+.verify-enterprise-font textarea,
+.verify-enterprise-font select {
+  font-family: var(--font-jakarta), ui-sans-serif, system-ui, sans-serif !important;
+}
+
 @media (min-width: 1280px) {
   .app-hero-responsive {
     flex-direction: row;
