@@ -2168,15 +2168,6 @@ useEffect(() => {
                   <div className="capture-section-label">Session overview</div>
                   <div className="capture-card-title">{sessionCountLabel}</div>
                 </div>
-
-                <button
-                  type="button"
-                  onClick={() => setClearConfirmOpen(true)}
-                  disabled={busy || sessionItems.length === 0}
-                  className="capture-small-button"
-                >
-                  New Session
-                </button>
               </div>
 
               <div className="capture-session-meta">
