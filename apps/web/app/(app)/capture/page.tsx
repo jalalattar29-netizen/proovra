@@ -1478,6 +1478,23 @@ export default function CapturePage() {
 };
 
 useEffect(() => {
+  const hasStagedMaterials = sessionItems.length > 0 && !busy;
+
+  const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+    if (!hasStagedMaterials) return;
+
+    event.preventDefault();
+    event.returnValue = "";
+  };
+
+  window.addEventListener("beforeunload", handleBeforeUnload);
+
+  return () => {
+    window.removeEventListener("beforeunload", handleBeforeUnload);
+  };
+}, [sessionItems.length, busy]);
+
+useEffect(() => {
   const handleOutsideClick = (event: PointerEvent) => {
     const target = event.target as HTMLElement | null;
     if (!target) return;
@@ -1606,7 +1623,7 @@ useEffect(() => {
             );
           })}
         </section>
-        
+
         <section className="capture-enterprise-grid">
           <aside className="capture-enterprise-card capture-left-panel">
             <div>

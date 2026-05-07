@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import { Card } from "../ui";
 import { apiFetch, ApiError } from "../../lib/api";
 
@@ -316,16 +317,17 @@ const missing = analysis.flags
           </div>
         </div>
       ) : null}
-      {isReviewModalOpen ? (
-  <div
-    className="capture-ai-modal-backdrop"
-    onClick={() => setIsReviewModalOpen(false)}
-  >
-    <div
-      className="capture-ai-modal"
-      onClick={(event) => event.stopPropagation()}
-    >
-      <div className="capture-ai-modal-header">
+{isReviewModalOpen && typeof document !== "undefined"
+  ? createPortal(
+      <div
+        className="capture-ai-modal-backdrop"
+        onClick={() => setIsReviewModalOpen(false)}
+      >
+        <div
+          className="capture-ai-modal"
+          onClick={(event) => event.stopPropagation()}
+        >
+                <div className="capture-ai-modal-header">
         <div>
           <div className="capture-section-label">AI intake review</div>
           <h2>Session readiness review</h2>
@@ -458,9 +460,11 @@ const missing = analysis.flags
           </>
         )}
       </div>
-    </div>
-  </div>
-) : null}
-    </Card>
+        </div>
+      </div>,
+      document.body
+    )
+  : null}
+</Card>
   );
 }
