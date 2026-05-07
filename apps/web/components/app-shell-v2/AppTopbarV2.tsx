@@ -7,6 +7,8 @@ import {
   ChevronDown,
   Globe2,
   LogOut,
+  Menu,
+  X,
   Settings,
   ShieldCheck,
   UserCircle,
@@ -52,10 +54,14 @@ export function AppTopbarV2({
   user,
   onLogout,
   isPlatformAdmin = false,
+  mobileSidebarOpen = false,
+  onToggleMobileSidebar,
 }: {
   user: AppShellUserV2 | null;
   onLogout: () => void;
   isPlatformAdmin?: boolean;
+  mobileSidebarOpen?: boolean;
+  onToggleMobileSidebar?: () => void;
 }) {
   const pathname = usePathname();
   const [accountOpen, setAccountOpen] = useState(false);
@@ -81,6 +87,14 @@ export function AppTopbarV2({
       <div className="app-topbar-v2-bg" />
 
       <div className="app-topbar-v2-inner">
+        <button
+  type="button"
+  className="app-topbar-v2-mobile-menu"
+  onClick={onToggleMobileSidebar}
+  aria-label={mobileSidebarOpen ? "Close navigation" : "Open navigation"}
+>
+  {mobileSidebarOpen ? <X size={22} /> : <Menu size={22} />}
+</button>
 <Link href="/home" className="app-topbar-v2-brand" aria-label="PROOVRA home">
   <span className="app-topbar-v2-brand-icon-wrap">
     <img

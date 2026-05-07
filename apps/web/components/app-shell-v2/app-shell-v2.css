@@ -1198,3 +1198,197 @@
 .capture-integrity-grid strong {
   font-weight: 720 !important;
 }
+
+/* FINAL FIX — sidebar/header/footer shell integration */
+
+.app-shell-v2 {
+  min-height: 100vh !important;
+  display: flex !important;
+  flex-direction: column !important;
+}
+
+.app-shell-v2-main {
+  flex: 1 1 auto !important;
+  display: grid !important;
+  grid-template-columns: 270px minmax(0, 1fr) !important;
+  min-height: calc(100vh - 76px) !important;
+  align-items: stretch !important;
+}
+
+.app-shell-v2-content-wrap {
+  min-width: 0 !important;
+  min-height: 100% !important;
+  display: flex !important;
+  flex-direction: column !important;
+}
+
+.app-shell-v2-content {
+  flex: 1 1 auto !important;
+  min-height: auto !important;
+}
+
+.app-footer-v2 {
+  margin-top: 0 !important;
+  padding-left: 0 !important;
+  padding-right: 0 !important;
+}
+
+.app-footer-v2-inner {
+  max-width: 1480px !important;
+  margin: 0 auto !important;
+}
+
+/* =========================================================
+   ENTERPRISE MOBILE APP SHELL — FINAL
+========================================================= */
+
+.app-shell-v2-desktop-sidebar {
+  min-width: 270px;
+  display: flex;
+}
+
+.app-topbar-v2-mobile-menu {
+  display: none;
+}
+
+.app-shell-v2-mobile-overlay,
+.app-shell-v2-mobile-drawer {
+  display: none;
+}
+
+@media (max-width: 980px) {
+  .app-shell-v2-main {
+    display: block !important;
+    min-height: auto !important;
+  }
+
+  .app-shell-v2-desktop-sidebar {
+    display: none !important;
+  }
+
+  .app-topbar-v2 {
+    height: 68px !important;
+    min-height: 68px !important;
+  }
+
+  .app-topbar-v2-inner {
+    height: 68px !important;
+    min-height: 68px !important;
+    max-width: none !important;
+    grid-template-columns: auto minmax(0, 1fr) auto !important;
+    gap: 12px !important;
+    padding: 0 14px !important;
+  }
+
+  .app-topbar-v2-mobile-menu {
+    width: 42px;
+    height: 42px;
+    border-radius: 14px;
+    border: 1px solid rgba(214, 184, 157, 0.18);
+    background: rgba(255, 255, 255, 0.075);
+    color: #edf4f1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    z-index: 5;
+  }
+
+  .app-topbar-v2-brand {
+    min-width: 0 !important;
+    gap: 10px !important;
+  }
+
+  .app-topbar-v2-brand-icon {
+    width: 42px !important;
+    height: 42px !important;
+  }
+
+  .app-topbar-v2-brand-name {
+    font-size: 1.05rem !important;
+  }
+
+  .app-topbar-v2-nav {
+    display: none !important;
+  }
+
+  .app-topbar-v2-actions {
+    display: none !important;
+  }
+
+  .app-shell-v2-content-wrap {
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+
+  .app-shell-v2-content {
+    width: 100% !important;
+    min-width: 0 !important;
+    min-height: calc(100vh - 68px) !important;
+  }
+
+  .app-shell-v2-mobile-overlay {
+    position: fixed;
+    inset: 68px 0 0;
+    z-index: 899;
+    display: block;
+    pointer-events: none;
+    opacity: 0;
+    background: rgba(4, 12, 16, 0.50);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    transition: opacity 180ms ease;
+  }
+
+  .app-shell-v2-mobile-overlay.is-open {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  .app-shell-v2-mobile-drawer {
+    position: fixed;
+    top: 68px;
+    left: 0;
+    bottom: 0;
+    z-index: 900;
+
+    display: block;
+    width: min(320px, 86vw);
+
+    transform: translateX(-105%);
+    transition: transform 220ms ease;
+  }
+
+  .app-shell-v2-mobile-drawer.is-open {
+    transform: translateX(0);
+  }
+
+  .app-shell-v2-mobile-drawer .app-sidebar-v2 {
+    width: 100% !important;
+    height: 100% !important;
+    min-height: 100% !important;
+  }
+
+  .app-shell-v2-mobile-drawer .app-sidebar-v2-inner {
+    height: 100% !important;
+    min-height: 100% !important;
+    padding: 18px 14px 24px !important;
+  }
+
+  body.app-mobile-sidebar-open {
+    overflow: hidden;
+  }
+
+  .app-footer-v2 {
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+  }
+
+  .app-footer-v2-inner {
+    max-width: none !important;
+    padding: 18px 20px !important;
+    align-items: flex-start !important;
+    flex-direction: column !important;
+    gap: 14px !important;
+  }
+}
