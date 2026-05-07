@@ -2859,3 +2859,206 @@ box-shadow:
 .capture-material-review-panel .capture-quality-warning:has(strong:empty) {
   display: none !important;
 }
+
+/* hide large mapping warning panel but keep small badge */
+.capture-material-review-panel .capture-quality-warning {
+  display: none !important;
+}
+
+/* FIX — material dropdown above bottom finish bar */
+
+.capture-bottom-bar {
+  z-index: 40 !important;
+}
+
+.capture-material-card,
+.capture-material-dropdown,
+.capture-material-dropdown.is-open {
+  position: relative !important;
+}
+
+.capture-material-card.is-open {
+  z-index: 5000 !important;
+}
+
+.capture-material-dropdown.is-open {
+  z-index: 6000 !important;
+}
+
+.capture-material-dropdown-menu {
+  z-index: 7000 !important;
+}
+
+.capture-main-panel,
+.capture-drop-zone-enterprise,
+.capture-materials-board {
+  overflow: visible !important;
+}
+
+/* FINAL — upload action buttons hover improvement */
+
+.capture-upload-actions .btn,
+.capture-drop-actions .btn,
+.capture-audio-actions .btn {
+  transition:
+    transform 180ms ease,
+    background 180ms ease,
+    border-color 180ms ease,
+    box-shadow 180ms ease,
+    color 180ms ease !important;
+}
+
+.capture-upload-actions .btn:hover,
+.capture-drop-actions .btn:hover,
+.capture-audio-actions .btn:hover {
+  transform: translateY(-2px) scale(1.045) !important;
+
+  background:
+    linear-gradient(
+      180deg,
+      rgba(15, 92, 86, 0.10),
+      rgba(15, 92, 86, 0.06)
+    ) !important;
+
+  border-color: rgba(15, 92, 86, 0.34) !important;
+
+  color: #0b403d !important;
+
+  box-shadow:
+    0 14px 28px rgba(15, 92, 86, 0.12),
+    inset 0 1px 0 rgba(255,255,255,0.75) !important;
+}
+
+.capture-upload-actions .btn:hover svg,
+.capture-drop-actions .btn:hover svg,
+.capture-audio-actions .btn:hover svg {
+  color: #0f5c56 !important;
+}
+
+/* FINAL — audio recorder styling consistency */
+
+.capture-audio-card strong,
+.capture-audio-header strong,
+.capture-audio-card h3,
+.capture-audio-recorder h3 {
+  color: var(--capture-bronze) !important;
+}
+
+/* Ready status */
+.capture-audio-header span,
+.capture-audio-status,
+.capture-audio-card .ready {
+  color: var(--capture-bronze) !important;
+  font-weight: 900 !important;
+  letter-spacing: 0.02em !important;
+}
+
+/* audio action buttons */
+.capture-audio-actions .btn,
+.capture-audio-card button {
+  transition:
+    transform 180ms ease,
+    background 180ms ease,
+    border-color 180ms ease,
+    box-shadow 180ms ease,
+    color 180ms ease !important;
+
+  border: 1px solid rgba(15, 92, 86, 0.12) !important;
+
+  background:
+    linear-gradient(
+      180deg,
+      rgba(255,255,255,0.92),
+      rgba(248,250,252,0.82)
+    ) !important;
+
+  color: #344054 !important;
+
+  box-shadow:
+    0 8px 18px rgba(16,24,40,0.04),
+    inset 0 1px 0 rgba(255,255,255,0.75) !important;
+}
+
+/* same hover as upload buttons */
+.capture-audio-actions .btn:hover,
+.capture-audio-card button:hover {
+  transform: translateY(-2px) scale(1.045) !important;
+
+  background:
+    linear-gradient(
+      180deg,
+      rgba(15, 92, 86, 0.10),
+      rgba(15, 92, 86, 0.06)
+    ) !important;
+
+  border-color: rgba(15, 92, 86, 0.34) !important;
+
+  color: #0b403d !important;
+
+  box-shadow:
+    0 14px 28px rgba(15, 92, 86, 0.12),
+    inset 0 1px 0 rgba(255,255,255,0.75) !important;
+}
+
+/* FINAL — active audio recorder buttons */
+
+.capture-audio-actions .btn:disabled,
+.capture-audio-card button:disabled {
+  opacity: 0.45 !important;
+  cursor: not-allowed !important;
+  transform: none !important;
+}
+
+/* STOP button while recording */
+.capture-audio-actions .btn:nth-child(2):not(:disabled),
+.capture-audio-card button:nth-child(2):not(:disabled) {
+  background:
+    linear-gradient(
+      180deg,
+      #0f5c56,
+      #0b403d
+    ) !important;
+
+  border-color: rgba(15, 92, 86, 0.34) !important;
+
+  color: #ffffff !important;
+
+  box-shadow:
+    0 14px 28px rgba(15, 92, 86, 0.22) !important;
+}
+
+/* Add to Session when enabled */
+.capture-audio-actions .btn:last-child:not(:disabled),
+.capture-audio-card button:last-child:not(:disabled) {
+  background:
+    linear-gradient(
+      180deg,
+      #0f5c56,
+      #0b403d
+    ) !important;
+
+  border-color: rgba(15, 92, 86, 0.34) !important;
+
+  color: #ffffff !important;
+
+  box-shadow:
+    0 14px 28px rgba(15, 92, 86, 0.20) !important;
+}
+
+/* hover on active green buttons */
+.capture-audio-actions .btn:nth-child(2):not(:disabled):hover,
+.capture-audio-card button:nth-child(2):not(:disabled):hover,
+.capture-audio-actions .btn:last-child:not(:disabled):hover,
+.capture-audio-card button:last-child:not(:disabled):hover {
+  transform: translateY(-2px) scale(1.045) !important;
+
+  background:
+    linear-gradient(
+      180deg,
+      #136b64,
+      #0f5c56
+    ) !important;
+
+  box-shadow:
+    0 18px 34px rgba(15, 92, 86, 0.28) !important;
+}
