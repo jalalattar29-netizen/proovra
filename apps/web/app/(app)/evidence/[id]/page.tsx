@@ -1603,112 +1603,57 @@ else acc.otherCount += 1;
   }, [intakePlanJson]);
 
   const statusToneClass =
-  displayStatusMeta.tone === "reportReady" || displayStatusMeta.tone === "signed"
-    ? "success"
-    : displayStatusMeta.tone === "processing"
-      ? "warning"
-      : "neutral";
+    displayStatusMeta.tone === "reportReady" || displayStatusMeta.tone === "signed"
+      ? "success"
+      : displayStatusMeta.tone === "processing"
+        ? "warning"
+        : "neutral";
 
-const reviewReadinessRows: Array<{
-  label: string;
-  value: string;
-  ok: boolean;
-}> = [
-  {
-    label: "PDF report",
-    value: reportAvailable ? "Available" : "Not available",
-    ok: reportAvailable,
-  },
-  {
-    label: "Verification package",
-    value: verificationPackageAvailable ? "Available" : "Not available",
-    ok: verificationPackageAvailable,
-  },
-  {
-    label: "Public verification",
-    value: canUsePublicVerification ? "Enabled" : "Not enabled",
-    ok: canUsePublicVerification,
-  },
-  {
-    label: "Case context",
-    value: caseId ? "Attached" : "Not assigned",
-    ok: Boolean(caseId),
-  },
-  {
-    label: "Capture location",
-    value: hasCaptureLocation ? "Recorded" : "Not recorded",
-    ok: hasCaptureLocation,
-  },
-  {
-    label: "Record lock",
-    value: isLocked ? "Locked" : "Not locked",
-    ok: isLocked,
-  },
-];
+  type ReviewRow = {
+    label: string;
+    value: string;
+    ok: boolean;
+  };
 
-const integrityRows: Array<{
-  label: string;
-  value: string;
-  ok: boolean;
-}> = [
-  {
-    label: "Record state",
-    value: displayStatusMeta.label,
-    ok: status === "SIGNED" || status === "REPORTED",
-  },
-  {
-    label: "SHA-256 fingerprint",
-    value: sortedParts.some((part) => Boolean(part.sha256))
-      ? "Recorded"
-      : "Not exposed",
-    ok: sortedParts.some((part) => Boolean(part.sha256)),
-  },
-  {
-    label: "Report artifact",
-    value: reportAvailable ? "Ready" : "Unavailable",
-    ok: reportAvailable,
-  },
-  {
-    label: "Verification package",
-    value: verificationPackageAvailable ? "Ready" : "Unavailable",
-    ok: verificationPackageAvailable,
-  },
-  {
-    label: "Retention state",
-    value: isDeleted
-      ? "Secure trash"
-      : isLocked
-        ? "Locked"
-        : isArchived
-          ? "Archived"
-          : "Active",
-    ok: !isDeleted,
-  },
-];
+  const reviewReadinessRows: ReviewRow[] = [
+    { label: "PDF report", value: reportAvailable ? "Available" : "Not available", ok: reportAvailable },
+    { label: "Verification package", value: verificationPackageAvailable ? "Available" : "Not available", ok: verificationPackageAvailable },
+    { label: "Public verification", value: canUsePublicVerification ? "Enabled" : "Not enabled", ok: canUsePublicVerification },
+    { label: "Case context", value: caseId ? "Attached" : "Not assigned", ok: Boolean(caseId) },
+    { label: "Capture location", value: hasCaptureLocation ? "Recorded" : "Not recorded", ok: hasCaptureLocation },
+    { label: "Record lock", value: isLocked ? "Locked" : "Not locked", ok: isLocked },
+  ];
+
+  const integrityRows: ReviewRow[] = [
+    { label: "Record state", value: displayStatusMeta.label, ok: status === "SIGNED" || status === "REPORTED" },
+    { label: "SHA-256 fingerprint", value: sortedParts.some((part) => Boolean(part.sha256)) ? "Recorded" : "Not exposed", ok: sortedParts.some((part) => Boolean(part.sha256)) },
+    { label: "Report artifact", value: reportAvailable ? "Ready" : "Unavailable", ok: reportAvailable },
+    { label: "Verification package", value: verificationPackageAvailable ? "Ready" : "Unavailable", ok: verificationPackageAvailable },
+    { label: "Retention state", value: isDeleted ? "Secure trash" : isLocked ? "Locked" : isArchived ? "Archived" : "Active", ok: !isDeleted },
+  ];
+
+  const reviewerAlerts: ReviewRow[] = [
+    { label: "Case assignment", value: caseId ? "Evidence is linked to a case." : "Missing case assignment.", ok: Boolean(caseId) },
+    { label: "Permanent lock", value: isLocked ? "Record is permanently locked." : "Record is not permanently locked.", ok: isLocked },
+    { label: "Public verification", value: canUsePublicVerification ? "Public verification is enabled." : "Public verification is not enabled.", ok: canUsePublicVerification },
+    { label: "Capture context", value: hasCaptureLocation ? "Capture location metadata recorded." : "No capture location metadata recorded.", ok: hasCaptureLocation },
+    { label: "Package structure", value: isMultipart ? "Multipart evidence package." : "Single-file evidence record.", ok: true },
+  ];
 
   return (
     <div className="evidence-enterprise-page">
       <div className="evidence-enterprise-shell">
-        <div className="evidence-top">
-          <section className="evidence-card evidence-hero-card">
+        {error ? <div className="evidence-error">{error}</div> : null}
+
+        <section className="evidence-card evidence-hero-card">
+          <div className="evidence-hero-left">
             <p className="evidence-hero-kicker">Evidence Record</p>
 
             {!isEditingLabel ? (
-              <div className="evidence-title-row">
-                <div className="evidence-title-copy">
-                  <h1 className="evidence-title">{label}</h1>
-                  <p className="evidence-subtitle">{effectiveHeroSubtitle}</p>
-                </div>
-
-                <Button
-                  variant="secondary"
-                  onClick={handleStartEditLabel}
-                  disabled={loading || actionBusy || labelBusy || isDeleted}
-                  className="evidence-btn evidence-btn-secondary"
-                >
-                  Edit Label
-                </Button>
-              </div>
+              <>
+                <h1 className="evidence-title">{label}</h1>
+                <p className="evidence-subtitle">{effectiveHeroSubtitle}</p>
+              </>
             ) : (
               <div className="evidence-label-edit-row">
                 <input
@@ -1718,315 +1663,103 @@ const integrityRows: Array<{
                   disabled={labelBusy}
                   className="evidence-label-input"
                 />
-
-                <Button
-                  onClick={handleSaveLabel}
-                  disabled={labelBusy}
-                  className="evidence-btn evidence-btn-primary"
-                >
+                <Button onClick={handleSaveLabel} disabled={labelBusy} className="evidence-btn evidence-btn-primary">
                   {labelBusy ? "Saving..." : "Save"}
                 </Button>
-
-                <Button
-                  variant="secondary"
-                  onClick={handleCancelEditLabel}
-                  disabled={labelBusy}
-                  className="evidence-btn evidence-btn-secondary"
-                >
+                <Button variant="secondary" onClick={handleCancelEditLabel} disabled={labelBusy} className="evidence-btn evidence-btn-secondary">
                   Cancel
                 </Button>
               </div>
             )}
 
             <div className="evidence-hero-meta">
-              <span className={`evidence-pill ${statusToneClass}`}>
-                {displayStatusMeta.label}
-              </span>
-
-              <span className="evidence-pill teal">
-                {activeWorkspaceType === "TEAM" ? "Team Workspace" : "Personal Workspace"}
-              </span>
-
-              <span className="evidence-pill neutral">
-                {isMultipart ? `${sortedParts.length || itemCount} items` : "Single file"}
-              </span>
-
-              <span className="evidence-pill bronze">{recordTypeLabel}</span>
-
-              {hasCase ? <span className="evidence-pill success">Case Attached</span> : null}
+              <span className={`evidence-pill ${statusToneClass}`}>{displayStatusMeta.label}</span>
+              <span className="evidence-pill teal">{recordTypeLabel}</span>
+              <span className="evidence-pill neutral">{isMultipart ? `${sortedParts.length || itemCount} items` : "Single file"}</span>
+              <span className="evidence-pill neutral">Recorded: {formatUtcDateTime(createdAt)}</span>
+              <span className="evidence-pill neutral">{activeWorkspaceName} · {activePlan}</span>
               {isLocked ? <span className="evidence-pill success">Locked</span> : null}
-              {isArchived ? <span className="evidence-pill warning">Archived</span> : null}
               {isDeleted ? <span className="evidence-pill danger">In Trash</span> : null}
             </div>
 
-            <div className="evidence-hero-meta">
-              <span className="evidence-pill neutral">Record ID: {shortId(evidenceId)}</span>
-              <span className="evidence-pill neutral">{workspaceBillingSummary}</span>
-              <span className="evidence-pill neutral">
-                Recorded: {formatUtcDateTime(createdAt)}
-              </span>
+            <div className="evidence-hero-meta evidence-hero-meta-secondary">
+              <span>Record ID: {shortId(evidenceId)}</span>
+              <span>{activeWorkspaceType === "TEAM" ? "Team Workspace" : "Personal Workspace"}</span>
+              <span>{compositionSummary}</span>
             </div>
+          </div>
 
-            {isDeleted ? (
-              <div className="evidence-alert danger">
-                <strong>Secure trash retention active.</strong> This evidence remains
-                recoverable until <strong>{formatUtcDateTime(deleteScheduledForUtc)}</strong>.
-                After that date, it is scheduled for permanent deletion.
-              </div>
-            ) : null}
-          </section>
+          <div className="evidence-hero-actions">
+            <Button onClick={handleDownloadReport} disabled={actionBusy || !canAccessReports || !reportAvailable || isDeleted} className="evidence-btn evidence-btn-primary">
+              {t("downloadReport")}
+            </Button>
 
-          <aside className="evidence-card evidence-status-card">
-            <div className="evidence-status-main">
-              <div className="evidence-status-icon">✓</div>
-              <div>
-                <strong>Reviewer Readiness</strong>
-                <p>
-                  Operational snapshot for report, package, case context, and preservation state.
-                </p>
-              </div>
+            <Button variant="secondary" onClick={handleDownloadVerificationPackage} disabled={actionBusy || !canAccessVerificationPackage || !verificationPackageAvailable || isDeleted} className="evidence-btn evidence-btn-secondary">
+              Verification Package
+            </Button>
+
+            <Button variant="secondary" onClick={handleOpenShareModal} disabled={!canShareEvidence} className="evidence-btn evidence-btn-secondary">
+              Share
+            </Button>
+
+            <Button onClick={handleLock} disabled={actionBusy || !canLockEvidence} className={isLocked ? "evidence-btn evidence-btn-secondary" : "evidence-btn evidence-btn-danger"}>
+              {isLocked ? "Locked" : "Lock"}
+            </Button>
+
+            <Button variant="secondary" onClick={handleStartEditLabel} disabled={loading || actionBusy || labelBusy || isDeleted} className="evidence-btn evidence-btn-quiet">
+              Edit Label
+            </Button>
+          </div>
+
+          {isDeleted ? (
+            <div className="evidence-alert danger evidence-hero-alert">
+              <strong>Secure trash retention active.</strong> Recoverable until{" "}
+              <strong>{formatUtcDateTime(deleteScheduledForUtc)}</strong>.
             </div>
+          ) : null}
+        </section>
 
-            <div className="evidence-status-metrics">
-              <div className="evidence-status-metric">
-                <span>Report</span>
-                <strong>{reportAvailable ? "Ready" : "Unavailable"}</strong>
-              </div>
-
-              <div className="evidence-status-metric">
-                <span>Package</span>
-                <strong>{verificationPackageAvailable ? "Ready" : "Unavailable"}</strong>
-              </div>
-
-              <div className="evidence-status-metric">
-                <span>Case</span>
-                <strong>{caseId ? "Attached" : "Missing"}</strong>
-              </div>
-
-              <div className="evidence-status-metric">
-                <span>Location</span>
-                <strong>{hasCaptureLocation ? "Recorded" : "Not recorded"}</strong>
-              </div>
-            </div>
-          </aside>
-        </div>
-
-        {error ? <div className="evidence-error">{error}</div> : null}
-
-        <div className="evidence-main-grid">
-          <aside className="evidence-column">
-            <section className="evidence-card">
-              <div className="evidence-card-inner">
-                <h2 className="evidence-section-title">Record Summary</h2>
-                <p className="evidence-section-muted">
-                  Authenticated workspace view of the evidence record, ownership context,
-                  plan capabilities, and lifecycle state.
-                </p>
-
-                <div className="evidence-summary-list">
-                  <div className="evidence-kv full">
-                    <span>User label</span>
-                    <strong>{label}</strong>
-                  </div>
-
-                  <div className="evidence-kv full">
-                    <span>Original submitted file</span>
-                    <strong>{effectiveOriginalSummaryName}</strong>
-                  </div>
-
-                  <div className="evidence-kv full">
-                    <span>Record ID</span>
-                    <strong>{evidenceId}</strong>
-                  </div>
-
-                  <div className="evidence-kv">
-                    <span>Evidence type</span>
-                    <strong>{recordTypeLabel}</strong>
-                  </div>
-
-                  <div className="evidence-kv">
-                    <span>Structure</span>
-                    <strong>
-                      {isMultipart
-                        ? `Multipart (${sortedParts.length || itemCount})`
-                        : "Single-file"}
-                    </strong>
-                  </div>
-
-                  <div className="evidence-kv">
-                    <span>Composition</span>
-                    <strong>{compositionSummary}</strong>
-                  </div>
-
-                  <div className="evidence-kv">
-                    <span>Current status</span>
-                    <strong>{displayStatusMeta.label}</strong>
-                  </div>
-
-                  <div className="evidence-kv">
-                    <span>Workspace</span>
-                    <strong>{activeWorkspaceName}</strong>
-                  </div>
-
-                  <div className="evidence-kv">
-                    <span>Workspace type</span>
-                    <strong>
-                      {activeWorkspaceType === "TEAM" ? "Team" : "Personal"}
-                    </strong>
-                  </div>
-
-                  <div className="evidence-kv">
-                    <span>Active plan</span>
-                    <strong>
-                      {activePlan}
-                      {workspaceSnapshot.billingStatus
-                        ? ` · ${workspaceSnapshot.billingStatus}`
-                        : ""}
-                    </strong>
-                  </div>
-
-                  <div className="evidence-kv">
-                    <span>Case assignment</span>
-                    <strong>{caseId ? "Attached" : "Not assigned"}</strong>
-                  </div>
-
-                  <div className="evidence-kv">
-                    <span>Storage</span>
-                    <strong>
-                      {workspaceSnapshot.storageUsedLabel ?? "—"} used ·{" "}
-                      {workspaceSnapshot.storageRemainingLabel ?? "—"} left
-                    </strong>
-                  </div>
-
-                  {activeWorkspaceType === "TEAM" ? (
-                    <div className="evidence-kv">
-                      <span>Team seats</span>
-                      <strong>
-                        {workspaceSnapshot.seatsUsed ?? 0} /{" "}
-                        {workspaceSnapshot.seatsIncluded ?? 0}
-                      </strong>
-                    </div>
-                  ) : null}
-
-                  {intakePlanSummary ? (
-                    <div className="evidence-kv full">
-                      <span>Intake plan</span>
-                      <strong>{intakePlanSummary}</strong>
-                    </div>
-                  ) : null}
-
-                  <div className="evidence-kv">
-                    <span>Recorded at</span>
-                    <strong>{formatUtcDateTime(createdAt)}</strong>
-                  </div>
-
-                  <div className="evidence-kv">
-                    <span>Locked at</span>
-                    <strong>{formatUtcDateTime(lockedAt)}</strong>
-                  </div>
-
-                  <div className="evidence-kv">
-                    <span>Archived at</span>
-                    <strong>{formatUtcDateTime(archivedAt)}</strong>
-                  </div>
-
-                  <div className="evidence-kv">
-                    <span>Deleted at</span>
-                    <strong>{formatUtcDateTime(deletedAt)}</strong>
-                  </div>
-
-                  <div className="evidence-kv full">
-                    <span>Feature entitlements</span>
-                    <strong>
-                      Reports: {canAccessReports ? "Included" : "Not included"} ·
-                      Verification package:{" "}
-                      {canAccessVerificationPackage ? "Included" : "Not included"} ·
-                      Public verification:{" "}
-                      {canUsePublicVerification ? "Included" : "Not included"}
-                    </strong>
-                  </div>
-                </div>
-              </div>
-            </section>
-
-            {internalNotes?.trim() ? (
-              <section className="evidence-card">
-                <div className="evidence-card-inner">
-                  <h2 className="evidence-section-title">Internal Notes</h2>
-                  <p className="evidence-section-muted">
-                    Only visible in authenticated app view.
-                  </p>
-                  <div className="evidence-note-box">{internalNotes.trim()}</div>
-                </div>
-              </section>
-            ) : null}
-          </aside>
-
-          <main className="evidence-column">
+        <div className="evidence-review-layout">
+          <main className="evidence-review-main">
             <section className="evidence-card evidence-preview-card">
               <div className="evidence-preview-header">
                 <div>
+                  <p className="evidence-section-label">Main Review Workspace</p>
                   <h2 className="evidence-section-title">
                     {isMultipart ? "Evidence Items" : "Original Evidence"}
                   </h2>
                   <p className="evidence-section-muted">
-                    Preserved evidence material with preview, file metadata, and item-level
-                    download actions.
+                    Reviewer-facing evidence material with compact previews, core metadata, and item actions.
                   </p>
                 </div>
 
-                <div className="evidence-preview-actions">
-                  {!isMultipart ? (
-                    <>
-                      <Button
-                        variant="secondary"
-                        onClick={handleOpenOriginal}
-                        disabled={!originalDownloadUrl || isDeleted}
-                        className="evidence-mini-btn"
-                      >
-                        Open Original
-                      </Button>
-
-                      <Button
-                        variant="secondary"
-                        onClick={handleDownloadOriginal}
-                        disabled={!originalDownloadUrl || isDeleted}
-                        className="evidence-mini-btn"
-                      >
-                        Download
-                      </Button>
-                    </>
-                  ) : null}
-                </div>
+                {!isMultipart ? (
+                  <div className="evidence-preview-actions">
+                    <Button variant="secondary" onClick={handleOpenOriginal} disabled={!originalDownloadUrl || isDeleted} className="evidence-mini-btn">
+                      Open Original
+                    </Button>
+                    <Button variant="secondary" onClick={handleDownloadOriginal} disabled={!originalDownloadUrl || isDeleted} className="evidence-mini-btn">
+                      Download
+                    </Button>
+                  </div>
+                ) : null}
               </div>
 
               {!isMultipart ? (
                 <>
                   <div className="evidence-original-summary">
-                    <div>
-                      <strong>Original file:</strong> {effectiveOriginalSummaryName}
-                    </div>
-                    {originalMimeType ? (
-                      <div>
-                        <strong>Type:</strong> {originalMimeType}
-                      </div>
-                    ) : null}
-                    {originalSizeBytes ? (
-                      <div>
-                        <strong>Size:</strong> {formatBytes(originalSizeBytes)}
-                      </div>
-                    ) : null}
+                    <span>{effectiveOriginalSummaryName}</span>
+                    {originalMimeType ? <span>{originalMimeType}</span> : null}
+                    {originalSizeBytes ? <span>{formatBytes(originalSizeBytes)}</span> : null}
                   </div>
 
                   <div className="evidence-media-frame">
-                    {originalRenderableUrl && originalKind === "image" ? (
-                      <img src={originalRenderableUrl} alt={effectiveOriginalSummaryName} />
-                    ) : null}
+                    {originalRenderableUrl && originalKind === "image" ? <img src={originalRenderableUrl} alt={effectiveOriginalSummaryName} /> : null}
 
                     {originalRenderableUrl && originalKind === "video" ? (
                       <video controls playsInline preload="metadata">
                         <source src={originalRenderableUrl} type={originalMimeType ?? "video/mp4"} />
-                        Your browser could not play this video. Use Open Original or Download Original.
+                        Your browser could not play this video.
                       </video>
                     ) : null}
 
@@ -2039,15 +1772,8 @@ const integrityRows: Array<{
                       </div>
                     ) : null}
 
-                    {originalRenderableUrl && originalKind === "pdf" ? (
-                      <iframe src={originalRenderableUrl} title="Original PDF evidence" />
-                    ) : null}
-
-                    {!originalRenderableUrl ? (
-                      <div className="evidence-empty-preview">
-                        Preview is not available for this evidence right now.
-                      </div>
-                    ) : null}
+                    {originalRenderableUrl && originalKind === "pdf" ? <iframe src={originalRenderableUrl} title="Original PDF evidence" /> : null}
+                    {!originalRenderableUrl ? <div className="evidence-empty-preview">Preview is not available.</div> : null}
                   </div>
                 </>
               ) : (
@@ -2060,13 +1786,18 @@ const integrityRows: Array<{
                         : part.previewUrl ?? part.publicUrl ?? part.url ?? null;
                     const downloadUrl = part.url ?? part.publicUrl ?? null;
                     const displayName = getPartDisplayName(part, createdAt, true);
+                    const hasTechnicalMetadata =
+                      Boolean(part.sha256) ||
+                      Boolean(part.durationMs) ||
+                      Boolean(part.privateRole) ||
+                      Boolean(part.sourceLabel) ||
+                      Boolean(part.checklistStepId) ||
+                      Boolean(part.privateNote);
 
                     return (
-                      <article key={part.id} className="evidence-item-card">
+                      <article key={part.id} className={`evidence-item-card evidence-item-${kind}`}>
                         <div className="evidence-item-preview">
-                          {previewUrl && kind === "image" ? (
-                            <img src={previewUrl} alt={displayName} />
-                          ) : null}
+                          {previewUrl && kind === "image" ? <img src={previewUrl} alt={displayName} /> : null}
 
                           {previewUrl && kind === "video" ? (
                             <video controls playsInline preload="metadata">
@@ -2082,77 +1813,49 @@ const integrityRows: Array<{
                             </audio>
                           ) : null}
 
-                          {previewUrl && kind === "pdf" ? (
-                            <iframe src={previewUrl} title={displayName} />
-                          ) : null}
-
-                          {!previewUrl ? (
-                            <div className="evidence-empty-preview">
-                              Preview not available.
-                            </div>
-                          ) : null}
+                          {previewUrl && kind === "pdf" ? <iframe src={previewUrl} title={displayName} /> : null}
+                          {!previewUrl ? <div className="evidence-empty-preview">Preview not available.</div> : null}
                         </div>
 
                         <div className="evidence-item-body">
                           <div className="evidence-item-top">
-                            <div>
-                              <small>
-                                Item {part.partIndex + 1}
-                                {part.isPrimary ? " · Primary" : ""}
-                              </small>
-                              <strong>{displayName}</strong>
+                            <div className="evidence-item-title-wrap">
+                              <small>Item {part.partIndex + 1}{part.isPrimary ? " · Primary" : ""}</small>
+                              <strong title={displayName}>{displayName}</strong>
                             </div>
 
-                            <div className="evidence-item-actions">
-                              <Button
-                                variant="secondary"
-                                onClick={() => handleOpenPart(part)}
-                                disabled={!downloadUrl || isDeleted}
-                                className="evidence-mini-btn"
-                              >
-                                Open
-                              </Button>
-
-                              <Button
-                                variant="secondary"
-                                onClick={() => handleDownloadPart(part)}
-                                disabled={!downloadUrl || isDeleted}
-                                className="evidence-mini-btn"
-                              >
-                                Download
-                              </Button>
-                            </div>
+                            <span className="evidence-type-badge">{kind === "pdf" ? "document" : kind}</span>
                           </div>
 
-                          <div className="evidence-item-meta">
-                            <div>Type: {part.mimeType ?? "Unknown"}</div>
-                            <div>Kind: {kind === "pdf" ? "document" : kind}</div>
-                            <div>Size: {formatBytes(part.sizeBytes ?? null)}</div>
-                            {part.durationMs && part.durationMs > 0 ? (
-                              <div>Duration: {(part.durationMs / 1000).toFixed(1)} sec</div>
-                            ) : null}
-                            {part.sha256 ? <div>SHA-256: {shortId(part.sha256)}</div> : null}
+                          <div className="evidence-item-compact">
+                            <span>{part.mimeType ?? "Unknown type"}</span>
+                            <span>{formatBytes(part.sizeBytes ?? null)}</span>
                           </div>
 
-                          {part.privateRole ||
-                          part.sourceLabel ||
-                          part.checklistStepId ||
-                          part.privateNote ? (
-                            <div className="evidence-private-meta">
-                              <div className="evidence-private-meta-label">
-                                Private Intake Metadata
+                          <div className="evidence-item-actions">
+                            <Button variant="secondary" onClick={() => handleOpenPart(part)} disabled={!downloadUrl || isDeleted} className="evidence-mini-btn">
+                              Open
+                            </Button>
+                            <Button variant="secondary" onClick={() => handleDownloadPart(part)} disabled={!downloadUrl || isDeleted} className="evidence-mini-btn">
+                              Download
+                            </Button>
+                          </div>
+
+                          {hasTechnicalMetadata ? (
+                            <details className="evidence-technical-details">
+                              <summary>View technical metadata</summary>
+                              <div className="evidence-item-meta">
+                                <div>Type: {part.mimeType ?? "Unknown"}</div>
+                                <div>Kind: {kind === "pdf" ? "document" : kind}</div>
+                                <div>Size: {formatBytes(part.sizeBytes ?? null)}</div>
+                                {part.durationMs && part.durationMs > 0 ? <div>Duration: {(part.durationMs / 1000).toFixed(1)} sec</div> : null}
+                                {part.sha256 ? <div>SHA-256: {shortId(part.sha256)}</div> : null}
+                                {part.privateRole ? <div>Role: {part.privateRole}</div> : null}
+                                {part.sourceLabel ? <div>Source: {part.sourceLabel}</div> : null}
+                                {part.checklistStepId ? <div>Checklist step: {part.checklistStepId}</div> : null}
+                                {part.privateNote ? <div>Note: {part.privateNote}</div> : null}
                               </div>
-                              {part.privateRole ? (
-                                <div>
-                                  Role: <strong>{part.privateRole}</strong>
-                                </div>
-                              ) : null}
-                              {part.sourceLabel ? <div>Source: {part.sourceLabel}</div> : null}
-                              {part.checklistStepId ? (
-                                <div>Checklist step: {part.checklistStepId}</div>
-                              ) : null}
-                              {part.privateNote ? <div>Note: {part.privateNote}</div> : null}
-                            </div>
+                            </details>
                           ) : null}
                         </div>
                       </article>
@@ -2162,13 +1865,37 @@ const integrityRows: Array<{
               )}
             </section>
 
+            <section className="evidence-card evidence-technical-card">
+              <div className="evidence-card-inner">
+                <p className="evidence-section-label">Technical / Context Area</p>
+                <h2 className="evidence-section-title">Record Metadata & Lifecycle</h2>
+
+                <div className="evidence-summary-list evidence-summary-compact">
+                  <div className="evidence-kv full"><span>User label</span><strong>{label}</strong></div>
+                  <div className="evidence-kv full"><span>Original submitted file</span><strong>{effectiveOriginalSummaryName}</strong></div>
+                  <div className="evidence-kv full"><span>Record ID</span><strong>{evidenceId}</strong></div>
+                  <div className="evidence-kv"><span>Evidence type</span><strong>{recordTypeLabel}</strong></div>
+                  <div className="evidence-kv"><span>Structure</span><strong>{isMultipart ? `Multipart (${sortedParts.length || itemCount})` : "Single-file"}</strong></div>
+                  <div className="evidence-kv"><span>Composition</span><strong>{compositionSummary}</strong></div>
+                  <div className="evidence-kv"><span>Workspace</span><strong>{activeWorkspaceName}</strong></div>
+                  <div className="evidence-kv"><span>Active plan</span><strong>{activePlan}</strong></div>
+                  <div className="evidence-kv"><span>Case assignment</span><strong>{caseId ? "Attached" : "Not assigned"}</strong></div>
+                  <div className="evidence-kv"><span>Storage</span><strong>{workspaceSnapshot.storageUsedLabel ?? "—"} used · {workspaceSnapshot.storageRemainingLabel ?? "—"} left</strong></div>
+                  {intakePlanSummary ? <div className="evidence-kv full"><span>Intake plan</span><strong>{intakePlanSummary}</strong></div> : null}
+                  <div className="evidence-kv"><span>Recorded at</span><strong>{formatUtcDateTime(createdAt)}</strong></div>
+                  <div className="evidence-kv"><span>Locked at</span><strong>{formatUtcDateTime(lockedAt)}</strong></div>
+                  <div className="evidence-kv"><span>Archived at</span><strong>{formatUtcDateTime(archivedAt)}</strong></div>
+                  <div className="evidence-kv"><span>Deleted at</span><strong>{formatUtcDateTime(deletedAt)}</strong></div>
+                </div>
+              </div>
+            </section>
+
             {hasCaptureLocation ? (
-              <section className="evidence-card">
+              <section className="evidence-card evidence-technical-card">
                 <div className="evidence-card-inner">
-                  <h2 className="evidence-section-title">Capture Context</h2>
-                  <p className="evidence-section-muted">
-                    {CAPTURE_LOCATION_CONTEXT_DESCRIPTION}
-                  </p>
+                  <p className="evidence-section-label">Capture Context</p>
+                  <h2 className="evidence-section-title">Location Metadata</h2>
+                  <p className="evidence-section-muted">{CAPTURE_LOCATION_CONTEXT_DESCRIPTION}</p>
 
                   <div className="evidence-location-grid">
                     <div className="evidence-map-frame">
@@ -2206,73 +1933,28 @@ const integrityRows: Array<{
                 </div>
               </section>
             ) : null}
+
+            {internalNotes?.trim() ? (
+              <section className="evidence-card evidence-technical-card">
+                <div className="evidence-card-inner">
+                  <p className="evidence-section-label">Internal Notes</p>
+                  <h2 className="evidence-section-title">Authenticated Workspace Note</h2>
+                  <div className="evidence-note-box">{internalNotes.trim()}</div>
+                </div>
+              </section>
+            ) : null}
           </main>
 
-          <aside className="evidence-column">
-            <section className="evidence-card">
+          <aside className="evidence-review-sidebar">
+            <section className="evidence-card evidence-sticky-panel">
               <div className="evidence-card-inner">
-                <h2 className="evidence-section-title">Record Actions</h2>
-                <p className="evidence-section-muted">
-                  Export, share, case assignment, and preservation controls.
-                </p>
-
-                <div className="evidence-action-stack">
-                  <Button
-                    onClick={handleDownloadReport}
-                    disabled={actionBusy || !canAccessReports || !reportAvailable || isDeleted}
-                    className="evidence-btn evidence-btn-primary"
-                  >
-                    {t("downloadReport")}
-                  </Button>
-
-                  <Button
-                    variant="secondary"
-                    onClick={handleDownloadVerificationPackage}
-                    disabled={
-                      actionBusy ||
-                      !canAccessVerificationPackage ||
-                      !verificationPackageAvailable ||
-                      isDeleted
-                    }
-                    className="evidence-btn evidence-btn-secondary"
-                  >
-                    Download Verification Package
-                  </Button>
-
-                  <Button
-                    variant="secondary"
-                    onClick={handleOpenShareModal}
-                    disabled={!canShareEvidence}
-                    className="evidence-btn evidence-btn-bronze"
-                  >
-                    Share Evidence
-                  </Button>
-                </div>
-
-                <div className="evidence-alert info">{reportCapabilityHint}</div>
-                <div className="evidence-alert info">{packageCapabilityHint}</div>
-
-                {!canUsePublicVerification ? (
-                  <div className="evidence-alert warning">
-                    Public verification is not currently enabled for this workspace.
-                  </div>
-                ) : null}
-              </div>
-            </section>
-
-            <section className="evidence-card">
-              <div className="evidence-card-inner">
+                <p className="evidence-section-label">Legal Review Assistant</p>
                 <h2 className="evidence-section-title">Review Readiness</h2>
-                <p className="evidence-section-muted">
-                  Quick reviewer checklist before external sharing or legal review.
-                </p>
 
                 <div className="evidence-readiness-list">
                   {reviewReadinessRows.map((row) => (
                     <div key={row.label} className="evidence-check-row">
-                      <div className={`evidence-check-dot ${row.ok ? "ok" : "warn"}`}>
-                        {row.ok ? "✓" : "!"}
-                      </div>
+                      <div className={`evidence-check-dot ${row.ok ? "ok" : "warn"}`}>{row.ok ? "✓" : "!"}</div>
                       <strong>{row.label}</strong>
                       <span>{row.value}</span>
                     </div>
@@ -2284,16 +1966,10 @@ const integrityRows: Array<{
             <section className="evidence-card">
               <div className="evidence-card-inner">
                 <h2 className="evidence-section-title">Integrity State</h2>
-                <p className="evidence-section-muted">
-                  Current integrity-facing state exposed to this authenticated view.
-                </p>
-
                 <div className="evidence-integrity-list">
                   {integrityRows.map((row) => (
                     <div key={row.label} className="evidence-check-row">
-                      <div className={`evidence-check-dot ${row.ok ? "ok" : "warn"}`}>
-                        {row.ok ? "✓" : "!"}
-                      </div>
+                      <div className={`evidence-check-dot ${row.ok ? "ok" : "warn"}`}>{row.ok ? "✓" : "!"}</div>
                       <strong>{row.label}</strong>
                       <span>{row.value}</span>
                     </div>
@@ -2301,105 +1977,93 @@ const integrityRows: Array<{
                 </div>
 
                 <div className="evidence-alert legal">
-                  PROOVRA preserves and verifies recorded evidence integrity state. It does
-                  not independently determine factual truth, authorship, or legal admissibility.
+                  PROOVRA preserves and verifies recorded evidence integrity state. It does not independently determine factual truth, authorship, or legal admissibility.
                 </div>
               </div>
             </section>
 
             <section className="evidence-card">
               <div className="evidence-card-inner">
-                <h2 className="evidence-section-title">Case & Preservation</h2>
+                <h2 className="evidence-section-title">Reviewer Alerts</h2>
+                <div className="evidence-integrity-list">
+                  {reviewerAlerts.map((row) => (
+                    <div key={row.label} className="evidence-check-row">
+                      <div className={`evidence-check-dot ${row.ok ? "ok" : "warn"}`}>{row.ok ? "✓" : "!"}</div>
+                      <strong>{row.label}</strong>
+                      <span>{row.value}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </section>
 
+            <section className="evidence-card">
+              <div className="evidence-card-inner">
+                <h2 className="evidence-section-title">Sharing & Export</h2>
                 <div className="evidence-action-stack">
-                  <Button
-                    variant="secondary"
-                    onClick={handleOpenAssignCase}
-                    disabled={actionBusy || !canAssignToCase}
-                    className="evidence-btn evidence-btn-secondary"
-                  >
+                  <Button onClick={handleDownloadReport} disabled={actionBusy || !canAccessReports || !reportAvailable || isDeleted} className="evidence-btn evidence-btn-primary">
+                    {t("downloadReport")}
+                  </Button>
+                  <Button variant="secondary" onClick={handleDownloadVerificationPackage} disabled={actionBusy || !canAccessVerificationPackage || !verificationPackageAvailable || isDeleted} className="evidence-btn evidence-btn-secondary">
+                    Download Verification Package
+                  </Button>
+                  <Button variant="secondary" onClick={handleOpenShareModal} disabled={!canShareEvidence} className="evidence-btn evidence-btn-bronze">
+                    Share Evidence
+                  </Button>
+                </div>
+                <div className="evidence-alert info">{reportCapabilityHint}</div>
+                <div className="evidence-alert info">{packageCapabilityHint}</div>
+              </div>
+            </section>
+
+            <section className="evidence-card">
+              <div className="evidence-card-inner">
+                <h2 className="evidence-section-title">Preservation Actions</h2>
+                <div className="evidence-action-stack">
+                  <Button variant="secondary" onClick={handleOpenAssignCase} disabled={actionBusy || !canAssignToCase} className="evidence-btn evidence-btn-secondary">
                     {caseId ? "Move to Case" : "Add to Case"}
                   </Button>
 
                   {caseId ? (
-                    <Button
-                      variant="secondary"
-                      onClick={handleRemoveFromCase}
-                      disabled={actionBusy || isDeleted}
-                      className="evidence-btn evidence-btn-bronze"
-                    >
+                    <Button variant="secondary" onClick={handleRemoveFromCase} disabled={actionBusy || isDeleted} className="evidence-btn evidence-btn-bronze">
                       Remove from Case
                     </Button>
                   ) : null}
 
-                  <Button
-                    onClick={handleLock}
-                    disabled={actionBusy || !canLockEvidence}
-                    className={
-                      isLocked
-                        ? "evidence-btn evidence-btn-secondary"
-                        : "evidence-btn evidence-btn-danger"
-                    }
-                  >
+                  <Button onClick={handleLock} disabled={actionBusy || !canLockEvidence} className={isLocked ? "evidence-btn evidence-btn-secondary" : "evidence-btn evidence-btn-danger"}>
                     {isLocked ? "Permanently Locked" : "Lock Evidence Permanently"}
                   </Button>
 
                   {isArchived ? (
-                    <Button
-                      variant="secondary"
-                      onClick={handleUnarchive}
-                      disabled={actionBusy || isDeleted}
-                      className="evidence-btn evidence-btn-secondary"
-                    >
+                    <Button variant="secondary" onClick={handleUnarchive} disabled={actionBusy || isDeleted} className="evidence-btn evidence-btn-secondary">
                       Restore Evidence
                     </Button>
                   ) : (
-                    <Button
-                      variant="secondary"
-                      onClick={handleArchive}
-                      disabled={actionBusy || isDeleted}
-                      className="evidence-btn evidence-btn-secondary"
-                    >
+                    <Button variant="secondary" onClick={handleArchive} disabled={actionBusy || isDeleted} className="evidence-btn evidence-btn-secondary">
                       Archive Evidence
                     </Button>
                   )}
 
                   {!isDeleted ? (
-                    <Button
-                      onClick={handleDelete}
-                      disabled={actionBusy || !canDelete}
-                      className="evidence-btn evidence-btn-danger"
-                    >
+                    <Button onClick={handleDelete} disabled={actionBusy || !canDelete} className="evidence-btn evidence-btn-danger">
                       Delete Evidence
                     </Button>
                   ) : (
-                    <Button
-                      variant="secondary"
-                      onClick={handleRestoreDeleted}
-                      disabled={actionBusy}
-                      className="evidence-btn evidence-btn-secondary"
-                    >
+                    <Button variant="secondary" onClick={handleRestoreDeleted} disabled={actionBusy} className="evidence-btn evidence-btn-secondary">
                       Restore from Trash
                     </Button>
                   )}
                 </div>
 
                 <div className="evidence-alert legal">
-                  <strong>Trash retention:</strong> When moved to trash, this record stays
-                  recoverable for 90 days before permanent deletion.
+                  <strong>Trash retention:</strong> When moved to trash, this record stays recoverable for 90 days before permanent deletion.
                 </div>
-
-                {activeWorkspaceType === "TEAM" && workspaceSnapshot.overSeatLimit ? (
-                  <div className="evidence-alert danger">
-                    This team workspace is currently over its included seat limit.
-                  </div>
-                ) : null}
               </div>
             </section>
           </aside>
         </div>
       </div>
-            <Modal
+                  <Modal
         isOpen={shareModalOpen}
         onClose={() => setShareModalOpen(false)}
         title="Share Evidence"
