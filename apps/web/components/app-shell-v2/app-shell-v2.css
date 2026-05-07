@@ -874,43 +874,43 @@
   background: linear-gradient(90deg, #d6b89d, rgba(214, 184, 157, 0.12)) !important;
 }
 
-/* FINAL TOPBAR BRAND — match marketing header */
+/* FINAL APP TOPBAR — compact */
 
-.app-topbar-v2-inner {
-  grid-template-columns: 300px minmax(0, 1fr) auto !important;
-  padding-left: 52px !important;
-  padding-right: 30px !important;
+.app-topbar-v2 {
+  min-height: 68px !important;
+  height: 68px !important;
+  overflow: visible !important;
 }
 
+.app-topbar-v2-inner {
+  min-height: 68px !important;
+  height: 68px !important;
+  grid-template-columns: 260px minmax(0, 1fr) auto !important;
+  padding: 0 28px !important;
+  align-items: center !important;
+}
+
+.app-topbar-v2-brand,
 .app-topbar-v2-brand-marketing {
   display: inline-flex !important;
   align-items: center !important;
-  gap: 12px !important;
+  gap: 10px !important;
   transform: none !important;
-  margin-left: 0 !important;
-  padding-left: 0 !important;
-  text-decoration: none !important;
-}
-
-.app-topbar-v2-brand-icon-wrap {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
 }
 
 .app-topbar-v2-brand-icon {
-  width: 54px !important;
-  height: 54px !important;
-  object-fit: contain !important;
-  filter: drop-shadow(0 10px 28px rgba(0, 0, 0, 0.55)) !important;
+  width: 42px !important;
+  height: 42px !important;
 }
 
 .app-topbar-v2-brand-name {
-  white-space: nowrap;
-  color: #dce1de;
-  font-size: 1.28rem;
-  font-weight: 620;
-  letter-spacing: -0.02em;
-  line-height: 1;
+  font-size: 1.08rem !important;
+  font-weight: 650 !important;
+  letter-spacing: -0.02em !important;
+  color: #dce1de !important;
+}
+
+.app-topbar-v2-nav-link {
+  font-size: 0.9rem !important;
+  font-weight: 640 !important;
 }
