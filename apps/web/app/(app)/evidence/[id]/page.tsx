@@ -1546,21 +1546,6 @@ else acc.otherCount += 1;
   );
 
   const canAssignToCase = ownedCases.length > 0 && !isDeleted;
-  const reportCapabilityHint = canAccessReports
-    ? reportAvailable && reportGeneratedAtUtc
-      ? `PDF reports are enabled for this workspace. Latest report generated at ${formatUserDateTime(
-          reportGeneratedAtUtc
-        )}.`
-      : "PDF reports are enabled, but no downloadable report artifact is available yet."
-    : `${activeWorkspaceName} does not include PDF reports on the current plan.`;
-
-  const packageCapabilityHint = canAccessVerificationPackage
-    ? verificationPackageAvailable && verificationPackageGeneratedAtUtc
-      ? `Verification packages are enabled. Latest package generated at ${formatUserDateTime(
-          verificationPackageGeneratedAtUtc
-        )}.`
-      : "Verification packages are enabled, but no downloadable package artifact is available yet."
-    : `${activeWorkspaceName} does not include verification packages on the current plan.`;
 
   const originalRenderableUrl = useMemo(() => {
     if (originalKind === "video" || originalKind === "audio") {
