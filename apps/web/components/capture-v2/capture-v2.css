@@ -3986,3 +3986,74 @@ box-shadow:
   color: #d97706 !important;
   border: 1px solid rgba(251, 191, 36, 0.2) !important;
 }
+
+/* =========================================================
+   FINAL HARD FIX — upload button icons + plus + optional badges
+========================================================= */
+
+/* 1) Upload action icons: force every SVG child */
+.capture-upload-actions button svg,
+.capture-upload-actions button svg *,
+.capture-drop-actions button svg,
+.capture-drop-actions button svg * {
+  color: #17857b !important;
+  stroke: #17857b !important;
+  fill: none !important;
+}
+
+/* Some icons like mic/camera may have filled parts */
+.capture-upload-actions button svg [fill]:not([fill="none"]),
+.capture-drop-actions button svg [fill]:not([fill="none"]) {
+  fill: #17857b !important;
+}
+
+/* 2) Plus button: same icon color, perfectly centered */
+.capture-dropzone-plus {
+  background: rgba(23, 133, 123, 0.08) !important;
+  border: 1px solid rgba(23, 133, 123, 0.18) !important;
+  color: #17857b !important;
+
+  display: grid !important;
+  place-items: center !important;
+
+  line-height: 1 !important;
+}
+
+.capture-dropzone-plus,
+.capture-dropzone-plus span {
+  color: #17857b !important;
+}
+
+.capture-dropzone-plus span {
+  display: block !important;
+  position: relative !important;
+  top: -2px !important;
+
+  font-size: 2rem !important;
+  font-weight: 350 !important;
+  line-height: 1 !important;
+}
+
+/* 3) Optional badges: all optional labels same yellow/orange style */
+.capture-requirement-copy span.optional,
+.capture-requirement-status:not(.capture-status-met):not(.capture-status-missing) {
+  background: rgba(251, 191, 36, 0.16) !important;
+  color: #d97706 !important;
+  border: 1px solid rgba(251, 191, 36, 0.22) !important;
+  font-weight: 800 !important;
+}
+
+/* 4) Not mapped same red family as Required */
+.capture-requirement-status.capture-status-missing {
+  background: rgba(240, 68, 56, 0.10) !important;
+  color: #b42318 !important;
+  border: 1px solid rgba(240, 68, 56, 0.16) !important;
+  font-weight: 800 !important;
+}
+
+.capture-requirement-copy span.required {
+  background: rgba(240, 68, 56, 0.10) !important;
+  color: #b42318 !important;
+  border: 1px solid rgba(240, 68, 56, 0.16) !important;
+  font-weight: 800 !important;
+}
