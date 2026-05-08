@@ -3563,3 +3563,61 @@ box-shadow:
   color: #ffffff !important;
   box-shadow: 0 18px 34px rgba(15, 92, 86, 0.28) !important;
 }
+
+/* FINAL — bronze expand icon */
+
+.capture-expand-icon {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+
+  width: 20px !important;
+  height: 20px !important;
+
+  border-radius: 999px !important;
+
+  background: rgba(180, 122, 58, 0.12) !important;
+  border: 1px solid rgba(180, 122, 58, 0.22) !important;
+
+  color: #b47a3a !important;
+
+  font-size: 0.95rem !important;
+  font-weight: 700 !important;
+  line-height: 1 !important;
+
+  transition:
+    background 0.18s ease,
+    border-color 0.18s ease,
+    transform 0.18s ease;
+}
+
+.capture-material-expand-button:hover .capture-expand-icon {
+  background: rgba(180, 122, 58, 0.18) !important;
+  border-color: rgba(180, 122, 58, 0.34) !important;
+
+  transform: scale(1.05);
+}
+
+/* FINAL — exact capture icon teal */
+
+.capture-enterprise-page .capture-enterprise-icon,
+.capture-enterprise-page .capture-security-shield,
+.capture-enterprise-page .capture-method-icon,
+.capture-enterprise-page .capture-requirement-icon,
+.capture-enterprise-page .capture-inline-heading-icon,
+.capture-enterprise-page .capture-material-file-icon {
+  color: #238b84 !important;
+  background: linear-gradient(180deg, #2f9c94 0%, #16766f 100%) !important;
+  border-color: rgba(35, 139, 132, 0.32) !important;
+}
+
+.capture-enterprise-page .capture-enterprise-icon svg,
+.capture-enterprise-page .capture-security-shield svg,
+.capture-enterprise-page .capture-method-icon svg,
+.capture-enterprise-page .capture-requirement-icon svg,
+.capture-enterprise-page .capture-inline-heading-icon svg,
+.capture-enterprise-page .capture-material-file-icon svg,
+.capture-enterprise-page .capture-upload-actions svg {
+  color: #ffffff !important;
+  stroke: #ffffff !important;
+}

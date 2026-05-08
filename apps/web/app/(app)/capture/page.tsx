@@ -1985,7 +1985,9 @@ useEffect(() => {
                   }
                 >
                   {isExpanded ? "Hide review details" : "Expand review"}
-                  <span>{isExpanded ? "⌃" : "⌄"}</span>
+<span className="capture-expand-icon">
+  {isExpanded ? "−" : "+"}
+</span>
                 </button>
               </div>
 
