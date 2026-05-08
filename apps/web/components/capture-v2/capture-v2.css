@@ -3919,3 +3919,70 @@ box-shadow:
 .capture-bottom-bar {
   margin-bottom: 34px !important;
 }
+
+/* Session overview labels + values */
+
+.capture-session-meta span,
+.capture-integrity-grid span {
+  color: #111827 !important;
+  font-weight: 700 !important;
+}
+
+.capture-session-meta strong,
+.capture-integrity-grid strong {
+  color: #0f5c53 !important;
+  font-weight: 800 !important;
+}
+
+/* =========================
+   Capture action icons
+========================= */
+
+.capture-upload-actions button svg,
+.capture-upload-actions button svg path,
+.capture-upload-actions button svg circle,
+.capture-upload-actions button svg line {
+  color: #17857b !important;
+  stroke: #17857b !important;
+}
+
+/* =========================
+   Center plus button
+========================= */
+
+.capture-dropzone-plus,
+.capture-dropzone-plus svg {
+  color: #17857b !important;
+  stroke: #17857b !important;
+}
+
+.capture-dropzone-plus {
+  background: rgba(23, 133, 123, 0.08) !important;
+  border: 1px solid rgba(23, 133, 123, 0.14) !important;
+
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+
+/* =========================
+   Not mapped badge
+========================= */
+
+.capture-status-missing,
+.capture-requirement-status.capture-status-missing {
+  background: rgba(239, 68, 68, 0.12) !important;
+  color: #dc2626 !important;
+  border: 1px solid rgba(239, 68, 68, 0.16) !important;
+}
+
+/* =========================
+   Optional badges
+========================= */
+
+.optional,
+.capture-requirement-status:not(.capture-status-met):not(.capture-status-missing) {
+  background: rgba(251, 191, 36, 0.16) !important;
+  color: #d97706 !important;
+  border: 1px solid rgba(251, 191, 36, 0.2) !important;
+}
