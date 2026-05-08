@@ -4346,27 +4346,6 @@ box-shadow:
   border-color: #0f5c56 !important;
 }
 
-/* =========================================================
-   ENTERPRISE CONTRAST TUNING
-   Softer silver -> premium readable gray
-========================================================= */
-
-/* Secondary text across app */
-.app-shell-v2,
-.app-shell-v2 p,
-.app-shell-v2 small,
-.app-shell-v2 span {
-  color: #5f6b76;
-}
-
-/* Descriptions + helper text */
-.app-shell-v2 .text-muted,
-.app-shell-v2 .muted,
-.app-shell-v2 .helper-text,
-.app-shell-v2 .description {
-  color: #66727f !important;
-}
-
 /* Intake descriptions */
 .capture-page-v2-description,
 .capture-page-v2-subtitle,
@@ -4515,7 +4494,7 @@ box-shadow:
 }
 
 /* =========================================================
-   FINAL HARD FIX — AI assistant header + sidebar icons
+   FINAL HARD FIX — AI assistant header 
 ========================================================= */
 
 /* AI assistant button/header inside right panel */
@@ -4545,36 +4524,6 @@ box-shadow:
   color: #ffffff !important;
   -webkit-text-fill-color: #ffffff !important;
   opacity: 1 !important;
-}
-
-/* Sidebar icons same family as header icons */
-.app-sidebar-v2-link-icon {
-  color: #bfe8df !important;
-  background: rgba(158, 216, 207, 0.10) !important;
-  border: 1px solid rgba(158, 216, 207, 0.16) !important;
-}
-
-.app-sidebar-v2-link-icon svg,
-.app-sidebar-v2-link-icon svg * {
-  color: #bfe8df !important;
-  stroke: #bfe8df !important;
-  fill: none !important;
-  opacity: 1 !important;
-}
-
-.app-sidebar-v2-link:hover .app-sidebar-v2-link-icon,
-.app-sidebar-v2-link.is-active .app-sidebar-v2-link-icon {
-  color: #d6b89d !important;
-  background: rgba(214, 184, 157, 0.11) !important;
-  border-color: rgba(214, 184, 157, 0.22) !important;
-}
-
-.app-sidebar-v2-link:hover .app-sidebar-v2-link-icon svg,
-.app-sidebar-v2-link:hover .app-sidebar-v2-link-icon svg *,
-.app-sidebar-v2-link.is-active .app-sidebar-v2-link-icon svg,
-.app-sidebar-v2-link.is-active .app-sidebar-v2-link-icon svg * {
-  color: #d6b89d !important;
-  stroke: #d6b89d !important;
 }
 
 /* =========================================================
@@ -4619,4 +4568,39 @@ box-shadow:
   background: rgba(251, 191, 36, 0.16) !important;
   color: #d97706 !important;
   border: 1px solid rgba(251, 191, 36, 0.22) !important;
+}
+
+/* =========================================================
+   HARD FIX — Capture AI assistant header/button
+========================================================= */
+
+.capture-right-panel > .card > button {
+  background: linear-gradient(180deg, #0f5c56, #0b403d) !important;
+  border: 1px solid rgba(15, 92, 86, 0.28) !important;
+  border-radius: 16px !important;
+  box-shadow: 0 14px 28px rgba(15, 92, 86, 0.16) !important;
+
+  color: #ffffff !important;
+
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+}
+
+.capture-right-panel > .card > button * {
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.capture-right-panel > .card > button span,
+.capture-right-panel > .card > button strong,
+.capture-right-panel > .card > button div {
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+}
+
+.capture-right-panel > .card > button span:last-child,
+.capture-right-panel > .card > button strong:last-child {
+  color: #d6b89d !important;
+  -webkit-text-fill-color: #d6b89d !important;
 }
