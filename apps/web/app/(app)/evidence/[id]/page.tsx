@@ -18,7 +18,7 @@ import CaptureLocationMapPanel from "../../../../components/capture-location/Cap
 import { useLocale } from "../../../providers";
 import { apiFetch } from "../../../../lib/api";
 import { captureException } from "../../../../lib/sentry";
-import { formatUserDateTime, formatUtcAuditDateTime } from "../../../../lib/date";
+import { formatUserDateTime } from "../../../../lib/date";
 import type {
   BillingOverviewResponse,
   PersonalWorkspaceSummary,
@@ -1966,10 +1966,10 @@ ok: evidenceIntelligence.verificationProof.hashMatch === "MATCH",
                   <div className="evidence-kv"><span>Case assignment</span><strong>{caseId ? "Attached" : "Not assigned"}</strong></div>
                   <div className="evidence-kv"><span>Storage</span><strong>{workspaceSnapshot.storageUsedLabel ?? "—"} used · {workspaceSnapshot.storageRemainingLabel ?? "—"} left</strong></div>
                   {intakePlanSummary ? <div className="evidence-kv full"><span>Intake plan</span><strong>{intakePlanSummary}</strong></div> : null}
-                  <div className="evidence-kv"><span>Recorded at (UTC)</span><strong>{formatUtcAuditDateTime(createdAt)}</strong></div>
-                  <div className="evidence-kv"><span>Locked at (UTC)</span><strong>{formatUtcAuditDateTime(lockedAt)}</strong></div>
-                  <div className="evidence-kv"><span>Archived at (UTC)</span><strong>{formatUtcAuditDateTime(archivedAt)}</strong></div>
-                  <div className="evidence-kv"><span>Deleted at (UTC)</span><strong>{formatUtcAuditDateTime(deletedAt)}</strong></div>
+                  <div className="evidence-kv"><span>Recorded at</span><strong>{formatUserDateTime(createdAt)}</strong></div>
+                  <div className="evidence-kv"><span>Locked at</span><strong>{formatUserDateTime(lockedAt)}</strong></div>
+                  <div className="evidence-kv"><span>Archived at</span><strong>{formatUserDateTime(archivedAt)}</strong></div>
+                  <div className="evidence-kv"><span>Deleted at</span><strong>{formatUserDateTime(deletedAt)}</strong></div>
                 </div>
               </div>
             </section>

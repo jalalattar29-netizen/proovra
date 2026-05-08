@@ -12,6 +12,7 @@ import {
 } from "../../../../components/ui";
 import { apiFetch } from "../../../../lib/api";
 import { captureException } from "../../../../lib/sentry";
+import { formatUserDateTime } from "../../../../lib/date";
 
 type TeamMemberUser = {
   id?: string;
@@ -120,12 +121,7 @@ const MANAGEABLE_ROLE_OPTIONS = ["ADMIN", "MEMBER", "VIEWER"] as const;
 const INVITE_ROLE_OPTIONS = ["ADMIN", "MEMBER", "VIEWER"] as const;
 
 function formatLocalDateTime(value: string | null | undefined): string {
-  if (!value) return "Not available";
-
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "Not available";
-
-  return date.toLocaleString();
+  return formatUserDateTime(value);
 }
 
 function normalizePlanLabel(value?: string | null, fallback = "FREE"): string {
@@ -2174,7 +2170,7 @@ export default function TeamDetailPage() {
                             >
                               {invite.role}
                               {invite.expiresAt
-                                ? ` • expires ${new Date(invite.expiresAt).toLocaleString()}`
+                                ? ` • expires ${formatUserDateTime(invite.expiresAt)}`
                                 : ""}
                             </div>
                           </div>
@@ -2299,7 +2295,7 @@ export default function TeamDetailPage() {
                             }}
                           >
                             {item.createdAt
-                              ? new Date(item.createdAt).toLocaleString()
+                              ? formatUserDateTime(item.createdAt)
                               : "Creation date not available"}
                           </div>
                         </div>
@@ -2382,7 +2378,7 @@ export default function TeamDetailPage() {
                                 }}
                               >
                                 {item.createdAt
-                                  ? new Date(item.createdAt).toLocaleString()
+                                  ? formatUserDateTime(item.createdAt)
                                   : ""}
                               </div>
                             </div>

@@ -5,6 +5,7 @@ import { Button, Card, useToast } from "../ui";
 import { apiFetch } from "../../lib/api";
 import { captureException } from "../../lib/sentry";
 import { detectCurrency, type SupportedCurrency } from "../../lib/currency";
+import { formatUserDate } from "../../lib/date";
 import type { WorkspaceStorageAddonSummary } from "./types";
 
 function formatAddonStatus(status?: string | null) {
@@ -88,13 +89,8 @@ function formatBytesCompact(value?: string | number | null): string {
 }
 
 function formatDateLabel(value?: string | null): string {
-  const text = String(value ?? "").trim();
-  if (!text) return "—";
-
-  const date = new Date(text);
-  if (Number.isNaN(date.getTime())) return text;
-
-  return date.toLocaleString();
+  const formatted = formatUserDate(value);
+  return formatted === "Not available" ? "—" : formatted;
 }
 
 function normalizeCurrency(

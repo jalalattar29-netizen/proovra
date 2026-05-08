@@ -12,6 +12,7 @@ import {
 import { Icons } from "../../../components/icons";
 import { apiFetch } from "../../../lib/api";
 import { captureException } from "../../../lib/sentry";
+import { formatUserDateTime } from "../../../lib/date";
 
 type TeamListItem = {
   id: string;
@@ -24,12 +25,7 @@ type TeamListItem = {
 };
 
 function formatLocalDateTime(value: string | null | undefined): string {
-  if (!value) return "Not available";
-
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "Not available";
-
-  return date.toLocaleString();
+  return formatUserDateTime(value);
 }
 
 function roleTone(role?: string) {

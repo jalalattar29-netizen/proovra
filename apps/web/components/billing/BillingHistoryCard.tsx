@@ -1,6 +1,7 @@
 "use client";
 
 import { Card } from "../../components/ui";
+import { formatUserDateTime } from "../../lib/date";
 import type { BillingPaymentSummary } from "./types";
 
 type Props = {
@@ -15,12 +16,8 @@ function formatMoney(amountCents: number, currency: string) {
 }
 
 function formatDate(value: string) {
-  const d = new Date(value);
-  if (Number.isNaN(d.getTime())) return "—";
-  return d.toLocaleString("en-GB", {
-    dateStyle: "medium",
-    timeStyle: "short",
-  });
+  const formatted = formatUserDateTime(value);
+  return formatted === "Not available" ? "—" : formatted;
 }
 
 function toneForStatus(status: string) {

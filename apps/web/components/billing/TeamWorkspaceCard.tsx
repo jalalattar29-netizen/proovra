@@ -1,6 +1,7 @@
 "use client";
 
 import { Button, Card } from "../../components/ui";
+import { formatUserDate } from "../../lib/date";
 import type { TeamWorkspaceSummary } from "./types";
 
 type Props = {
@@ -117,12 +118,8 @@ function formatBytesCompact(value?: string | number | null): string {
 }
 
 function formatDateLabel(value?: string | null): string {
-  const text = String(value ?? "").trim();
-  if (!text) return "—";
-
-  const date = new Date(text);
-  if (Number.isNaN(date.getTime())) return text;
-  return date.toLocaleString();
+  const formatted = formatUserDate(value);
+  return formatted === "Not available" ? "—" : formatted;
 }
 
 export function TeamWorkspaceCard({

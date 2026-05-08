@@ -30,6 +30,7 @@ import CaptureLocationMapPanel from "../../../components/capture-location/Captur
 import { useLocale } from "../../providers";
 import { apiFetch } from "../../../lib/api";
 import { captureException } from "../../../lib/sentry";
+import { formatUserDateTime } from "../../../lib/date";
 
 type VerifyTimelineEvent = {
   sequence?: number | null;
@@ -599,9 +600,7 @@ const BRONZE_RAIL_STYLE: CSSProperties = {
 
 function formatDateTime(value?: string | null): string {
   if (!value) return "N/A";
-  const d = new Date(value);
-  if (Number.isNaN(d.getTime())) return value;
-  return d.toLocaleString();
+  return formatUserDateTime(value);
 }
 
 function normalizeEventLabel(value?: string | null): string {
