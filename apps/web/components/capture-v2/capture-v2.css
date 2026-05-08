@@ -30,9 +30,9 @@
 padding: 72px 28px 28px;
   color: var(--capture-ink);
 background:
-  radial-gradient(circle at 18% 10%, rgba(15, 92, 86, 0.08), transparent 24%),
-  radial-gradient(circle at 86% 18%, rgba(183, 157, 132, 0.10), transparent 20%),
-  linear-gradient(180deg, #f7faf9 0%, #edf4f2 100%);
+  radial-gradient(circle at 18% 10%, rgba(15, 92, 86, 0.018), transparent 24%),
+  radial-gradient(circle at 86% 18%, rgba(183, 157, 132, 0.035), transparent 20%),
+  linear-gradient(180deg, #fcfdfd 0%, #f7f9f9 100%) !important;
 }
 
 .capture-enterprise-page button,
@@ -4174,4 +4174,9 @@ box-shadow:
 .capture-empty-dropzone-panel > p {
   max-width: 780px;
   margin: 0;
+}
+
+.capture-session-meta strong,
+.capture-integrity-grid strong {
+  color: #0b4f49 !important;
 }
