@@ -37,7 +37,6 @@ type EvidenceDetailTab =
 
 const DETAIL_TABS: Array<{ id: EvidenceDetailTab; label: string }> = [
   { id: "overview", label: "Overview" },
-  { id: "evidence", label: "Evidence" },
   { id: "integrity", label: "Integrity" },
   { id: "custody", label: "Custody" },
   { id: "review", label: "Review" },
@@ -885,9 +884,13 @@ export default function EvidenceDetailPage() {
       <div className="evidence-detail-shell">
         <section className="evidence-detail-hero">
           <div className="evidence-detail-hero-main">
-            <Button variant="secondary" onClick={() => router.push("/evidence")}>
-              Back to Evidence Library
-            </Button>
+<button
+  type="button"
+  className="evidence-detail-back-link"
+  onClick={() => router.push("/evidence")}
+>
+  ← Evidence Library
+</button>
 
             <p className="evidence-detail-kicker">Evidence Review &amp; Defensibility Workspace</p>
 
