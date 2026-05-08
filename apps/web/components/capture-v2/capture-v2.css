@@ -4193,3 +4193,34 @@ box-shadow:
 .capture-integrity-grid strong {
   color: #0b4f49 !important;
 }
+
+/* FINAL HARD OVERRIDE — lighter capture page background */
+.capture-enterprise-page {
+  background:
+    radial-gradient(
+      circle at 18% 10%,
+      rgba(15, 92, 86, 0.006),
+      transparent 24%
+    ),
+    radial-gradient(
+      circle at 86% 18%,
+      rgba(183, 157, 132, 0.012),
+      transparent 20%
+    ),
+    linear-gradient(
+      180deg,
+      #ffffff 0%,
+      #fdfefe 45%,
+      #fbfcfc 100%
+    ) !important;
+}
+
+/* RIGHT PANEL STATUS VALUES — darker enterprise green */
+.capture-session-sidebar .status-value,
+.capture-session-sidebar .session-value,
+.capture-session-sidebar .integrity-value,
+.capture-session-sidebar .sidebar-value,
+.capture-session-sidebar .meta-value {
+  color: #0d5c56 !important;
+  font-weight: 700 !important;
+}
