@@ -7,7 +7,6 @@ import {
   BriefcaseBusiness,
   Camera,
   CreditCard,
-  FileSearch,
   FileText,
   Gauge,
   Headphones,
