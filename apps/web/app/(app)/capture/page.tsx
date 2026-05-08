@@ -82,7 +82,7 @@ export default function CapturePage() {
   const [audioRecorderState, setAudioRecorderState] =
     useState<AudioRecorderState>("idle");
   const [audioRecorderError, setAudioRecorderError] = useState<string | null>(null);
-  const [audioRecordingSeconds, setAudioRecordingSeconds] = useState(0);
+  const [, setAudioRecordingSeconds] = useState(0);
   const [audioPreviewUrl, setAudioPreviewUrl] = useState<string | null>(null);
   const [audioPreviewFile, setAudioPreviewFile] = useState<File | null>(null);
 
