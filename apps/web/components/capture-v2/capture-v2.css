@@ -30,9 +30,22 @@
 padding: 72px 28px 28px;
   color: var(--capture-ink);
 background:
-  radial-gradient(circle at 18% 10%, rgba(15, 92, 86, 0.018), transparent 24%),
-  radial-gradient(circle at 86% 18%, rgba(183, 157, 132, 0.035), transparent 20%),
-  linear-gradient(180deg, #fcfdfd 0%, #f7f9f9 100%) !important;
+  radial-gradient(
+    circle at 18% 10%,
+    rgba(15, 92, 86, 0.012),
+    transparent 24%
+  ),
+  radial-gradient(
+    circle at 86% 18%,
+    rgba(183, 157, 132, 0.022),
+    transparent 20%
+  ),
+  linear-gradient(
+    180deg,
+    #fdfefe 0%,
+    #fafcfb 45%,
+    #f7faf9 100%
+  ) !important;
 }
 
 .capture-enterprise-page button,
