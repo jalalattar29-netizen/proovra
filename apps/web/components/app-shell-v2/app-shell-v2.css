@@ -1636,3 +1636,127 @@
   color: #d6b89d !important;
   font-weight: 900 !important;
 }
+
+/* =========================================================
+   FINAL SIDEBAR SIZE + BOTTOM POSITION TUNING
+========================================================= */
+
+/* Desktop sidebar: enterprise width, not too thin */
+.app-shell-v2-main {
+  grid-template-columns: 232px minmax(0, 1fr) !important;
+}
+
+.app-shell-v2-desktop-sidebar {
+  min-width: 232px !important;
+  width: 232px !important;
+}
+
+/* Sidebar inner spacing after width reduction */
+.app-sidebar-v2-inner {
+  padding: 22px 12px 20px !important;
+  gap: 14px !important;
+}
+
+/* Slightly denser groups, still readable */
+.app-sidebar-v2-scroll {
+  gap: 20px !important;
+}
+
+.app-sidebar-v2-group {
+  gap: 7px !important;
+}
+
+.app-sidebar-v2-nav {
+  gap: 4px !important;
+}
+
+.app-sidebar-v2-group-title {
+  padding: 0 8px !important;
+  font-size: 0.66rem !important;
+  letter-spacing: 0.15em !important;
+}
+
+/* Links: global SaaS / enterprise size */
+.app-sidebar-v2-link {
+  min-height: 42px !important;
+  padding: 0 10px !important;
+  gap: 10px !important;
+  border-radius: 13px !important;
+  font-size: 0.88rem !important;
+}
+
+.app-sidebar-v2-link-icon {
+  width: 28px !important;
+  height: 28px !important;
+  border-radius: 9px !important;
+}
+
+/* Raise Verification-first a bit */
+.app-sidebar-v2-trust-card {
+  margin-top: auto !important;
+  margin-bottom: 16px !important;
+  padding: 14px !important;
+  border-radius: 18px !important;
+}
+
+.app-sidebar-v2-trust-icon {
+  width: 34px !important;
+  height: 34px !important;
+  border-radius: 13px !important;
+  margin-bottom: 9px !important;
+}
+
+.app-sidebar-v2-trust-card strong {
+  font-size: 0.84rem !important;
+}
+
+.app-sidebar-v2-trust-card p {
+  font-size: 0.74rem !important;
+  line-height: 1.5 !important;
+  margin: 6px 0 9px !important;
+}
+
+.app-sidebar-v2-trust-card a {
+  font-size: 0.76rem !important;
+}
+
+/* Push Need help slightly lower */
+.app-sidebar-v2-help {
+  min-height: 42px !important;
+  margin-top: 4px !important;
+  margin-bottom: 34px !important;
+  gap: 9px !important;
+  font-size: 0.78rem !important;
+}
+
+.app-sidebar-v2-help strong {
+  font-size: 0.78rem !important;
+}
+
+.app-sidebar-v2-help small {
+  font-size: 0.7rem !important;
+}
+
+/* Mobile drawer keeps wider usable size */
+@media (max-width: 980px) {
+  .app-shell-v2-main {
+    display: block !important;
+  }
+
+  .app-shell-v2-desktop-sidebar {
+    display: none !important;
+  }
+
+  .app-shell-v2-mobile-drawer {
+    width: min(320px, 86vw) !important;
+  }
+}
+
+.app-shell-v2-main {
+  grid-template-columns: 245px minmax(0, 1fr) !important;
+}
+
+.app-shell-v2-desktop-sidebar {
+  min-width: 245px !important;
+  width: 245px !important;
+}
