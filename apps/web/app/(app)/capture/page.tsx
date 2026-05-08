@@ -1838,23 +1838,26 @@ useEffect(() => {
             >
               <div className="capture-upload-actions">
 <Button variant="secondary" onClick={openFilePicker} disabled={busy}>
-  <Upload size={17} strokeWidth={2.1} />
-  Upload Files
+<Upload
+  size={17}
+  strokeWidth={2.1}
+  color="#1C8C84"
+/>  Upload Files
 </Button>
 <Button variant="secondary" onClick={openFolderPicker} disabled={busy}>
-  <FolderOpen size={17} strokeWidth={2.1} />
+  <FolderOpen size={17} strokeWidth={2.1} color="#1C8C84" />
   Upload Folder
 </Button>
 <Button variant="secondary" onClick={() => openCamera("PHOTO")} disabled={busy}>
-  <Camera size={17} strokeWidth={2.1} />
+  <Camera size={17} strokeWidth={2.1} color="#1C8C84" />
   Capture Photo
 </Button>
 <Button variant="secondary" onClick={() => openCamera("VIDEO")} disabled={busy}>
-  <Video size={17} strokeWidth={2.1} />
+  <Video size={17} strokeWidth={2.1} color="#1C8C84" />
   Record Video
 </Button>
 <Button variant="secondary" onClick={openAudioRecorder} disabled={busy}>
-  <Mic size={17} strokeWidth={2.1} />
+  <Mic size={17} strokeWidth={2.1} color="#1C8C84" />
   Record Audio
 </Button>
               </div>
@@ -2107,13 +2110,6 @@ useEffect(() => {
               <div className="capture-audio-card">
                 <div className="capture-panel-heading">
                   <strong>Audio Recorder</strong>
-                  <span>
-                    {audioRecorderState === "recording"
-                      ? `Recording · ${formatRecordingTime(audioRecordingSeconds)}`
-                      : audioRecorderState === "preview_ready"
-                        ? "Preview ready"
-                        : "Ready"}
-                  </span>
                 </div>
 
                 {audioPreviewUrl ? (

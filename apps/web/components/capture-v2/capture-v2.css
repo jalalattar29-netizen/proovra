@@ -3621,3 +3621,149 @@ box-shadow:
   color: #ffffff !important;
   stroke: #ffffff !important;
 }
+
+/* =========================================================
+   FINAL — CAPTURE PAGE SINGLE SURFACE, NOT CARDS
+   Keeps layout/content, removes nested-card feeling
+========================================================= */
+
+.capture-enterprise-title-card,
+.capture-enterprise-security-card,
+.capture-enterprise-card,
+.capture-soft-note,
+.capture-benefits-card,
+.capture-location-card,
+.capture-requirement-row,
+.capture-drop-zone-enterprise,
+.capture-integrity-block,
+.capture-notes-card,
+.capture-right-panel > .card,
+.capture-right-panel > .card .rounded-2xl,
+.capture-right-panel > .card .rounded-3xl {
+  background: transparent !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+/* Main page sections become subtle panels, not cards */
+.capture-enterprise-title-card,
+.capture-enterprise-security-card,
+.capture-enterprise-card {
+  border-radius: 0 !important;
+  border: 0 !important;
+}
+
+/* Keep the page readable with separators instead of cards */
+.capture-enterprise-top {
+  padding-bottom: 18px !important;
+  border-bottom: 1px solid rgba(16, 24, 40, 0.08) !important;
+}
+
+.capture-enterprise-grid {
+  padding-top: 6px !important;
+}
+
+/* Left / center / right are columns, not cards */
+.capture-left-panel,
+.capture-main-panel,
+.capture-right-panel {
+  padding: 0 !important;
+  border-radius: 0 !important;
+}
+
+/* Column separation only */
+.capture-main-panel {
+  padding-inline: 22px !important;
+  border-left: 1px solid rgba(16, 24, 40, 0.07) !important;
+  border-right: 1px solid rgba(16, 24, 40, 0.07) !important;
+}
+
+.capture-left-panel {
+  padding-right: 4px !important;
+}
+
+.capture-right-panel {
+  padding-left: 4px !important;
+}
+
+/* Requirements become rows on the surface */
+.capture-requirement-row {
+  border-radius: 0 !important;
+  border: 0 !important;
+  border-bottom: 1px solid rgba(16, 24, 40, 0.075) !important;
+  padding: 18px 0 !important;
+}
+
+.capture-requirement-row:last-child {
+  border-bottom: 0 !important;
+}
+
+.capture-requirement-row:hover {
+  background: rgba(255, 255, 255, 0.22) !important;
+}
+
+/* Upload area stays visible but not as a card */
+.capture-drop-zone-enterprise {
+  border-radius: 0 !important;
+  border: 0 !important;
+  border-top: 1px solid rgba(16, 24, 40, 0.08) !important;
+  margin-top: 8px !important;
+  padding: 22px 0 0 !important;
+}
+
+/* Left side small blocks become clean sections */
+.capture-soft-note,
+.capture-benefits-card,
+.capture-location-card {
+  border-radius: 0 !important;
+  border: 0 !important;
+  border-top: 1px solid rgba(16, 24, 40, 0.08) !important;
+  padding: 18px 0 !important;
+}
+
+/* Keep method choices clickable, but less card-like */
+.capture-method-button {
+  border-radius: 14px !important;
+  box-shadow: none !important;
+  background: rgba(255, 255, 255, 0.34) !important;
+}
+
+.capture-method-button.active {
+  background: rgba(15, 92, 86, 0.07) !important;
+}
+
+/* Right panel becomes data rail */
+.capture-session-meta > div:not(.capture-session-progress):not(.capture-progress-track),
+.capture-integrity-grid div {
+  border-radius: 0 !important;
+  background: transparent !important;
+  border: 0 !important;
+  border-bottom: 1px solid rgba(16, 24, 40, 0.07) !important;
+  padding: 10px 0 !important;
+}
+
+/* Notes still usable but not card-ish */
+.capture-notes-card {
+  border-top: 1px solid rgba(16, 24, 40, 0.08) !important;
+  padding: 18px 0 0 !important;
+}
+
+.capture-notes-card textarea,
+.capture-internal-notes textarea {
+  background: rgba(255, 255, 255, 0.62) !important;
+}
+
+/* Keep uploaded evidence cards unchanged */
+.capture-material-card {
+  background: inherit;
+}
+
+/* Smaller select text — keep same weight/style */
+
+.capture-plan-dropdown-trigger,
+.capture-material-dropdown-trigger,
+.capture-material-dropdown-menu button,
+.capture-plan-dropdown-item {
+  font-size: 0.84rem !important;
+}
