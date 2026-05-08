@@ -29,23 +29,6 @@
   min-height: 100%;
 padding: 72px 28px 28px;
   color: var(--capture-ink);
-background:
-  radial-gradient(
-    circle at 18% 10%,
-    rgba(15, 92, 86, 0.012),
-    transparent 24%
-  ),
-  radial-gradient(
-    circle at 86% 18%,
-    rgba(183, 157, 132, 0.022),
-    transparent 20%
-  ),
-  linear-gradient(
-    180deg,
-    #fdfefe 0%,
-    #fafcfb 45%,
-    #f7faf9 100%
-  ) !important;
 }
 
 .capture-enterprise-page button,
@@ -4193,28 +4176,6 @@ box-shadow:
 .capture-integrity-grid strong {
   color: #0b4f49 !important;
 }
-
-/* FINAL HARD OVERRIDE — lighter capture page background */
-.capture-enterprise-page {
-  background:
-    radial-gradient(
-      circle at 18% 10%,
-      rgba(15, 92, 86, 0.006),
-      transparent 24%
-    ),
-    radial-gradient(
-      circle at 86% 18%,
-      rgba(183, 157, 132, 0.012),
-      transparent 20%
-    ),
-    linear-gradient(
-      180deg,
-      #ffffff 0%,
-      #fdfefe 45%,
-      #fbfcfc 100%
-    ) !important;
-}
-
 /* RIGHT PANEL STATUS VALUES — darker enterprise green */
 .capture-session-sidebar .status-value,
 .capture-session-sidebar .session-value,
@@ -4353,4 +4314,17 @@ box-shadow:
 .capture-material-type-overlay.pdf svg * {
   stroke: #17857b !important;
   color: #17857b !important;
+}
+
+.capture-material-card {
+  border: 1px solid rgba(15, 23, 42, 0.08) !important;
+  box-shadow:
+    0 1px 2px rgba(15, 23, 42, 0.03),
+    0 8px 24px rgba(15, 23, 42, 0.04) !important;
+}
+
+.capture-enterprise-page .muted,
+.capture-enterprise-page .secondary-text,
+.capture-enterprise-page p {
+  color: #5f6b76 !important;
 }
