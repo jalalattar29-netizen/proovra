@@ -104,6 +104,10 @@ model Evidence {
   parts                             EvidencePart[]
   reports                           Report[]
   certifications                    EvidenceCertification[]
+  annotations                       EvidenceAnnotation[]
+  aiCategorizations                 EvidenceAiCategorization[]
+  legalNotes                        EvidenceLegalNote[]
+  reviewerComments                  EvidenceReviewerComment[]
   verificationPackages              VerificationPackage[]
   verificationViews                 VerificationView[]
   anchor                            EvidenceAnchor?
@@ -189,6 +193,7 @@ model EvidencePart {
   uploadedByUserId                 String?   @map("uploaded_by_user_id") @db.Uuid
   uploadedAtUtc                    DateTime? @map("uploaded_at_utc") @db.Timestamptz(6)
   createdAt                        DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  annotations                      EvidenceAnnotation[]
   evidence                         Evidence  @relation(fields: [evidenceId], references: [id], onDelete: Cascade)
 
   @@unique([evidenceId, partIndex])
@@ -441,6 +446,11 @@ model User {
   cookieConsentRecords          CookieConsentRecord[]
   legalAcceptances              UserLegalAcceptance[]
   storageAddons                 WorkspaceStorageAddon[]
+  evidenceAiCategorizations     EvidenceAiCategorization[]
+  evidenceAnnotations           EvidenceAnnotation[]
+  evidenceLegalNotes            EvidenceLegalNote[]
+  evidenceReviewerComments      EvidenceReviewerComment[]
+  evidenceSavedViews            EvidenceSavedView[]
 
   ownedTeams                    Team[]                         @relation("TeamOwner")
   billingOwnedTeams             Team[]                         @relation("TeamBillingOwner")
@@ -496,6 +506,112 @@ model Team {
   @@index([verificationState])
   @@index([verifiedAtUtc])
   @@map("teams")
+}
+
+model EvidenceSavedView {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  ownerUserId String   @map("owner_user_id") @db.Uuid
+  teamId      String?  @map("team_id") @db.Uuid
+  name        String   @db.VarChar(120)
+  description String?  @db.VarChar(400)
+  filtersJson Json     @map("filters_json")
+  sortKey     String?  @map("sort_key") @db.VarChar(64)
+  scope       String   @db.VarChar(32)
+  isDefault   Boolean  @default(false) @map("is_default")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  owner       User     @relation(fields: [ownerUserId], references: [id], onDelete: Cascade)
+
+  @@index([ownerUserId, createdAt(sort: Desc)])
+  @@index([teamId, createdAt(sort: Desc)])
+  @@index([ownerUserId, isDefault])
+  @@map("evidence_saved_views")
+}
+
+model EvidenceReviewerComment {
+  id           String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  evidenceId   String                  @map("evidence_id") @db.Uuid
+  authorUserId String                  @map("author_user_id") @db.Uuid
+  visibility   EvidenceCommentVisibility @default(INTERNAL)
+  body         String
+  createdAt    DateTime                @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime                @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt    DateTime?               @map("deleted_at") @db.Timestamptz(6)
+  author       User                    @relation(fields: [authorUserId], references: [id], onDelete: Cascade)
+  evidence     Evidence                @relation(fields: [evidenceId], references: [id], onDelete: Cascade)
+
+  @@index([evidenceId, createdAt(sort: Desc)])
+  @@index([authorUserId])
+  @@index([deletedAt])
+  @@map("evidence_reviewer_comments")
+}
+
+model EvidenceLegalNote {
+  id           String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  evidenceId   String               @map("evidence_id") @db.Uuid
+  authorUserId String               @map("author_user_id") @db.Uuid
+  noteType     EvidenceLegalNoteType @default(GENERAL) @map("note_type")
+  body         String
+  createdAt    DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime             @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt    DateTime?            @map("deleted_at") @db.Timestamptz(6)
+  author       User                 @relation(fields: [authorUserId], references: [id], onDelete: Cascade)
+  evidence     Evidence             @relation(fields: [evidenceId], references: [id], onDelete: Cascade)
+
+  @@index([evidenceId, createdAt(sort: Desc)])
+  @@index([authorUserId])
+  @@index([deletedAt])
+  @@map("evidence_legal_notes")
+}
+
+model EvidenceAnnotation {
+  id                String                     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  evidenceId        String                     @map("evidence_id") @db.Uuid
+  evidencePartId    String?                    @map("evidence_part_id") @db.Uuid
+  authorUserId      String                     @map("author_user_id") @db.Uuid
+  annotationType    EvidenceAnnotationType     @map("annotation_type")
+  body              String?
+  pageNumber        Int?                       @map("page_number")
+  mediaTimestampMs  Int?                       @map("media_timestamp_ms")
+  x                 Float?
+  y                 Float?
+  width             Float?
+  height            Float?
+  coordinateSpace   EvidenceAnnotationCoordinateSpace @map("coordinate_space")
+  createdAt         DateTime                   @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime                   @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt         DateTime?                  @map("deleted_at") @db.Timestamptz(6)
+  author            User                       @relation(fields: [authorUserId], references: [id], onDelete: Cascade)
+  evidence          Evidence                   @relation(fields: [evidenceId], references: [id], onDelete: Cascade)
+  evidencePart      EvidencePart?              @relation(fields: [evidencePartId], references: [id], onDelete: SetNull)
+
+  @@index([evidenceId, createdAt(sort: Desc)])
+  @@index([evidencePartId])
+  @@index([authorUserId])
+  @@index([deletedAt])
+  @@map("evidence_annotations")
+}
+
+model EvidenceAiCategorization {
+  id               String                      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  evidenceId       String                      @map("evidence_id") @db.Uuid
+  requestedByUserId String                     @map("requested_by_user_id") @db.Uuid
+  status           EvidenceAiCategorizationStatus @default(PENDING)
+  categoriesJson   Json?                       @map("categories_json")
+  suggestedTagsJson Json?                      @map("suggested_tags_json")
+  riskFlagsJson    Json?                       @map("risk_flags_json")
+  summary          String?
+  legalDisclaimer  String                      @map("legal_disclaimer")
+  model            String?                     @db.VarChar(120)
+  createdAt        DateTime                    @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime                    @updatedAt @map("updated_at") @db.Timestamptz(6)
+  evidence         Evidence                    @relation(fields: [evidenceId], references: [id], onDelete: Cascade)
+  requestedBy      User                        @relation(fields: [requestedByUserId], references: [id], onDelete: Cascade)
+
+  @@index([evidenceId, createdAt(sort: Desc)])
+  @@index([requestedByUserId, createdAt(sort: Desc)])
+  @@index([status])
+  @@map("evidence_ai_categorizations")
 }
 
 model WorkspaceStorageAddon {
@@ -1123,6 +1239,41 @@ enum TeamRole {
   ADMIN
   MEMBER
   VIEWER
+}
+
+enum EvidenceCommentVisibility {
+  INTERNAL
+  TEAM
+}
+
+enum EvidenceLegalNoteType {
+  GENERAL
+  PRIVILEGED
+  DISCLOSURE
+  REVIEW_BOUNDARY
+  HANDOFF
+}
+
+enum EvidenceAnnotationType {
+  POINT
+  BOX
+  REGION
+  TIMESTAMP
+  TEXT
+}
+
+enum EvidenceAnnotationCoordinateSpace {
+  NORMALIZED
+  PIXEL
+  TIME_ONLY
+  DOCUMENT_PAGE
+}
+
+enum EvidenceAiCategorizationStatus {
+  DISABLED
+  PENDING
+  COMPLETED
+  FAILED
 }
 
 enum RetentionPolicy {

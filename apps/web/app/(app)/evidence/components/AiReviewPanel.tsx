@@ -1,39 +1,30 @@
 import type { DetailWorkspaceState } from "../lib/evidence-library-types";
+import { ComparisonPanel } from "./ComparisonPanel";
+import { DuplicateDetectionPanel } from "./DuplicateDetectionPanel";
+import { AiCategorizationPanel } from "./AiCategorizationPanel";
 
 export function AiReviewPanel({ detail }: { detail: DetailWorkspaceState }) {
-  const reviewerDecision = detail.evidence?.evidenceIntelligence?.reviewerDecision ?? null;
+  if (!detail.evidence?.id) {
+    return null;
+  }
 
   return (
-    <section className="evidence-library-panel">
+    <>
+      <section className="evidence-library-panel">
       <div className="evidence-library-panel__header">
         <div>
-          <strong>AI and comparison workspace</strong>
-          <p>No new AI endpoints or duplicate-analysis services are called from this page.</p>
+          <strong>Advanced review tools</strong>
+          <p>
+            Comparison, duplicate detection, and AI categorization are loaded only when opened so the review
+            workspace stays fast for high-volume evidence operations.
+          </p>
         </div>
       </div>
+      </section>
 
-      {reviewerDecision ? (
-        <div className="evidence-library-note-card">
-          <strong>{reviewerDecision.label}</strong>
-          <p>{reviewerDecision.summary}</p>
-        </div>
-      ) : (
-        <div className="evidence-library-note-card is-disabled">
-          <strong>AI review assistant</strong>
-          <p>AI review assistant is not enabled for this evidence library view.</p>
-        </div>
-      )}
-
-      <div className="evidence-library-note-grid">
-        <div className="evidence-library-note-card is-disabled">
-          <strong>Duplicate detection</strong>
-          <p>Duplicate analysis is not configured for this workspace.</p>
-        </div>
-        <div className="evidence-library-note-card is-disabled">
-          <strong>Evidence comparison</strong>
-          <p>Original/export comparison requires opening the full evidence record.</p>
-        </div>
-      </div>
-    </section>
+      <ComparisonPanel evidenceId={detail.evidence.id} />
+      <DuplicateDetectionPanel evidenceId={detail.evidence.id} />
+      <AiCategorizationPanel evidenceId={detail.evidence.id} />
+    </>
   );
 }

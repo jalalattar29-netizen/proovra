@@ -7,6 +7,18 @@ import type {
 
 export type EvidenceListScope = "active" | "archived" | "deleted" | "locked";
 
+export type SavedViewFilters = {
+  search: string;
+  scope: EvidenceListScope;
+  status: string;
+  type: string;
+  review: string;
+  exportReadiness: string;
+  caseAssignment: string;
+  retention: string;
+  sort: string;
+};
+
 export type EvidenceListQuery = {
   scope: EvidenceListScope;
   limit: number;
@@ -96,6 +108,25 @@ export type CaseOption = {
 
 export type CasesListResponse = {
   items?: CaseOption[];
+};
+
+export type EvidenceSavedView = {
+  id: string;
+  ownerUserId: string;
+  teamId: string | null;
+  name: string;
+  description: string | null;
+  filters: SavedViewFilters;
+  sortKey: string | null;
+  scope: EvidenceListScope;
+  isDefault: boolean;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type EvidenceSavedViewsResponse = {
+  items?: EvidenceSavedView[];
+  savedView?: EvidenceSavedView;
 };
 
 export type EvidenceContentItem = {
@@ -291,6 +322,127 @@ export type VerificationPackageResponse = {
   trustDecision?: unknown;
 };
 
+export type CollaborativeAuthor = {
+  id: string;
+  displayName: string | null;
+  email: string | null;
+};
+
+export type ReviewerComment = {
+  id: string;
+  evidenceId: string;
+  visibility: "INTERNAL" | "TEAM";
+  body: string;
+  createdAt: string;
+  updatedAt: string;
+  edited: boolean;
+  author: CollaborativeAuthor;
+};
+
+export type ReviewerCommentsResponse = {
+  items?: ReviewerComment[];
+  comment?: ReviewerComment;
+};
+
+export type LegalNote = {
+  id: string;
+  evidenceId: string;
+  noteType: "GENERAL" | "PRIVILEGED" | "DISCLOSURE" | "REVIEW_BOUNDARY" | "HANDOFF";
+  body: string;
+  createdAt: string;
+  updatedAt: string;
+  edited: boolean;
+  author: CollaborativeAuthor;
+};
+
+export type LegalNotesResponse = {
+  items?: LegalNote[];
+  legalNote?: LegalNote;
+};
+
+export type EvidenceAnnotation = {
+  id: string;
+  evidenceId: string;
+  evidencePartId: string | null;
+  annotationType: "POINT" | "BOX" | "REGION" | "TIMESTAMP" | "TEXT";
+  body: string | null;
+  pageNumber: number | null;
+  mediaTimestampMs: number | null;
+  x: number | null;
+  y: number | null;
+  width: number | null;
+  height: number | null;
+  coordinateSpace: "NORMALIZED" | "PIXEL" | "TIME_ONLY" | "DOCUMENT_PAGE";
+  createdAt: string;
+  updatedAt: string;
+  edited: boolean;
+  author: CollaborativeAuthor;
+};
+
+export type EvidenceAnnotationsResponse = {
+  items?: EvidenceAnnotation[];
+  annotation?: EvidenceAnnotation;
+};
+
+export type EvidenceComparisonResponse = {
+  evidenceId?: string;
+  original?: Record<string, unknown> | null;
+  previewRepresentation?: Record<string, unknown> | null;
+  reportArtifact?: Record<string, unknown> | null;
+  verificationPackage?: Record<string, unknown> | null;
+  contentItems?: Array<Record<string, unknown>>;
+  mismatchFlags?: Record<string, unknown> | null;
+};
+
+export type EvidenceDuplicatesResponse = {
+  exactHashMatches?: EvidenceListItem[];
+  fingerprintMatches?: EvidenceListItem[];
+  partHashMatches?: EvidenceListItem[];
+  possibleMetadataMatches?: EvidenceListItem[];
+  limitation?: string;
+};
+
+export type EvidenceBulkAction =
+  | "ADD_TO_CASE"
+  | "REMOVE_FROM_CASE"
+  | "ARCHIVE"
+  | "RESTORE_ARCHIVED"
+  | "TRASH"
+  | "RESTORE_TRASH"
+  | "EXPORT_METADATA_CSV";
+
+export type EvidenceBulkActionResult = {
+  evidenceId: string;
+  ok: boolean;
+  reason?: string;
+};
+
+export type EvidenceBulkActionResponse = {
+  successCount: number;
+  failedCount: number;
+  results: EvidenceBulkActionResult[];
+  items?: EvidenceListItem[];
+  csv?: string;
+  fileName?: string;
+};
+
+export type EvidenceAiCategorization = {
+  status: "DISABLED" | "PENDING" | "COMPLETED" | "FAILED";
+  summary: string | null;
+  categories: string[];
+  suggestedTags: string[];
+  riskFlags: Array<{ severity: string; title: string; detail: string }>;
+  legalDisclaimer: string;
+  model: string | null;
+  createdAt: string | null;
+  updatedAt: string | null;
+  nextActions?: string[];
+};
+
+export type EvidenceAiCategorizationResponse = {
+  categorization?: EvidenceAiCategorization;
+};
+
 export type WorkspaceCapabilitySnapshot = {
   workspaceType: "PERSONAL" | "TEAM";
   workspaceName: string;
@@ -315,6 +467,7 @@ export type LibraryLoadState = {
   personalWorkspace: PersonalWorkspaceSummary | null;
   teamWorkspaces: TeamWorkspaceSummary[];
   cases: CaseOption[];
+  savedViews: EvidenceSavedView[];
   items: EvidenceListItem[];
   pageInfo: EvidenceListPageInfo | null;
   totalCount?: number;

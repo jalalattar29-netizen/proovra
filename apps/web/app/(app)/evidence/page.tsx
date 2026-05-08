@@ -13,14 +13,20 @@ import {
 } from "./components/EvidenceFilters";
 import { EvidenceList } from "./components/EvidenceList";
 import { ReviewWorkspace } from "./components/ReviewWorkspace";
+import { SavedViewsMenu } from "./components/SavedViewsMenu";
+import { BulkActionsToolbar } from "./components/BulkActionsToolbar";
 import "./evidence-library.css";
 import type {
+  EvidenceBulkAction,
+  EvidenceBulkActionResponse,
   CasesListResponse,
   DetailWorkspaceState,
   EvidenceListItem,
   EvidenceListQuery,
   EvidenceListResponse,
   EvidenceResponse,
+  EvidenceSavedView,
+  EvidenceSavedViewsResponse,
   LibraryLoadState,
   OriginalResponse,
   PartsResponse,
@@ -82,6 +88,7 @@ export default function EvidenceLibraryPage() {
     personalWorkspace: null,
     teamWorkspaces: [],
     cases: [],
+    savedViews: [],
     items: [],
     pageInfo: null,
   });
@@ -100,6 +107,8 @@ export default function EvidenceLibraryPage() {
   const [selectedCaseId, setSelectedCaseId] = useState("");
   const [assigningCase, setAssigningCase] = useState(false);
   const [removingCase, setRemovingCase] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const defaultSavedViewAppliedRef = useRef(false);
 
   useEffect(() => {
     const timeout = window.setTimeout(() => {
@@ -154,6 +163,7 @@ export default function EvidenceLibraryPage() {
     setCurrentCursor(null);
     setCursorHistory([]);
     setPageNumber(1);
+    setSelectedIds(new Set());
   }, []);
 
   const loadSupportData = useCallback(
@@ -162,9 +172,10 @@ export default function EvidenceLibraryPage() {
         return;
       }
 
-      const [casesRes, billingRes] = await Promise.allSettled([
+      const [casesRes, billingRes, savedViewsRes] = await Promise.allSettled([
         apiFetch("/v1/cases") as Promise<CasesListResponse>,
         apiFetch("/v1/billing/overview"),
+        apiFetch("/v1/evidence/saved-views") as Promise<EvidenceSavedViewsResponse>,
       ]);
 
       setLibrary((current) => ({
@@ -183,6 +194,10 @@ export default function EvidenceLibraryPage() {
           billingRes.status === "fulfilled" && Array.isArray(billingRes.value?.workspaces?.teams)
             ? billingRes.value.workspaces.teams
             : current.teamWorkspaces,
+        savedViews:
+          savedViewsRes.status === "fulfilled" && Array.isArray(savedViewsRes.value.items)
+            ? savedViewsRes.value.items
+            : current.savedViews,
       }));
       setSupportLoaded(true);
     },
@@ -305,6 +320,32 @@ export default function EvidenceLibraryPage() {
   useEffect(() => {
     void loadSupportData();
   }, [loadSupportData]);
+
+  useEffect(() => {
+    if (defaultSavedViewAppliedRef.current) {
+      return;
+    }
+
+    const defaultView = library.savedViews.find((view) => view.isDefault);
+    if (!defaultView) {
+      defaultSavedViewAppliedRef.current = true;
+      return;
+    }
+
+    const hasCustomFilters =
+      JSON.stringify(filters) !== JSON.stringify(DEFAULT_FILTERS);
+    if (hasCustomFilters) {
+      defaultSavedViewAppliedRef.current = true;
+      return;
+    }
+
+    defaultSavedViewAppliedRef.current = true;
+    updateFilters({
+      ...DEFAULT_FILTERS,
+      ...defaultView.filters,
+      scope: defaultView.scope,
+    });
+  }, [filters, library.savedViews, updateFilters]);
 
   useEffect(() => {
     let cancelled = false;
@@ -454,6 +495,153 @@ export default function EvidenceLibraryPage() {
     return `${visibleItems.length} page results`;
   }, [library.totalCount, visibleItems.length]);
 
+  const allCurrentPageSelected = useMemo(
+    () => visibleItems.length > 0 && visibleItems.every((item) => selectedIds.has(item.id)),
+    [selectedIds, visibleItems]
+  );
+
+  const teamOptions = useMemo(
+    () => library.teamWorkspaces.map((team) => ({ id: team.id, name: team.name })),
+    [library.teamWorkspaces]
+  );
+
+  const applySavedView = useCallback(
+    (view: EvidenceSavedView) => {
+      updateFilters({
+        ...DEFAULT_FILTERS,
+        ...view.filters,
+        scope: view.scope,
+      });
+      addToast(`Loaded saved view: ${view.name}`, "success");
+    },
+    [addToast, updateFilters]
+  );
+
+  const createSavedView = useCallback(
+    async ({
+      name,
+      description,
+      isDefault,
+      teamId,
+    }: {
+      name: string;
+      description: string;
+      isDefault: boolean;
+      teamId?: string | null;
+    }) => {
+      const response = (await apiFetch("/v1/evidence/saved-views", {
+        method: "POST",
+        body: JSON.stringify({
+          name,
+          description: description || null,
+          isDefault,
+          teamId: teamId ?? null,
+          scope: filters.scope,
+          sortKey: filters.sort,
+          filters,
+        }),
+      })) as EvidenceSavedViewsResponse;
+
+      if (response.savedView) {
+        setLibrary((current) => ({
+          ...current,
+          savedViews: [response.savedView!, ...current.savedViews.filter((view) => view.id !== response.savedView!.id)],
+        }));
+        addToast("Saved view created", "success");
+      }
+    },
+    [addToast, filters]
+  );
+
+  const updateSavedView = useCallback(
+    async (id: string, input: { name?: string; description?: string; isDefault?: boolean }) => {
+      const response = (await apiFetch(`/v1/evidence/saved-views/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify(input),
+      })) as EvidenceSavedViewsResponse;
+
+      if (response.savedView) {
+        setLibrary((current) => ({
+          ...current,
+          savedViews: current.savedViews.map((view) => {
+            if (response.savedView?.isDefault && view.id !== response.savedView.id && view.teamId === response.savedView.teamId) {
+              return { ...view, isDefault: false };
+            }
+            return view.id === response.savedView?.id ? response.savedView : view;
+          }),
+        }));
+        addToast("Saved view updated", "success");
+      }
+    },
+    [addToast]
+  );
+
+  const deleteSavedView = useCallback(
+    async (id: string) => {
+      await apiFetch(`/v1/evidence/saved-views/${id}`, { method: "DELETE" });
+      setLibrary((current) => ({
+        ...current,
+        savedViews: current.savedViews.filter((view) => view.id !== id),
+      }));
+      addToast("Saved view deleted", "success");
+    },
+    [addToast]
+  );
+
+  const setDefaultSavedView = useCallback(
+    async (id: string) => {
+      const response = (await apiFetch(`/v1/evidence/saved-views/${id}/default`, {
+        method: "POST",
+      })) as EvidenceSavedViewsResponse;
+
+      if (response.savedView) {
+        setLibrary((current) => ({
+          ...current,
+          savedViews: current.savedViews.map((view) =>
+            view.teamId === response.savedView?.teamId
+              ? { ...view, isDefault: view.id === response.savedView.id }
+              : view
+          ),
+        }));
+        addToast("Default saved view updated", "success");
+      }
+    },
+    [addToast]
+  );
+
+  const toggleSelected = useCallback((id: string, checked: boolean) => {
+    setSelectedIds((current) => {
+      const next = new Set(current);
+      if (checked) {
+        next.add(id);
+      } else {
+        next.delete(id);
+      }
+      return next;
+    });
+  }, []);
+
+  const toggleSelectAllCurrentPage = useCallback(
+    (checked: boolean) => {
+      setSelectedIds((current) => {
+        const next = new Set(current);
+        visibleItems.forEach((item) => {
+          if (checked) {
+            next.add(item.id);
+          } else {
+            next.delete(item.id);
+          }
+        });
+        return next;
+      });
+    },
+    [visibleItems]
+  );
+
+  const clearSelection = useCallback(() => {
+    setSelectedIds(new Set());
+  }, []);
+
   const openRecord = (evidenceId: string) => {
     router.push(`/evidence/${evidenceId}`);
   };
@@ -591,6 +779,61 @@ export default function EvidenceLibraryPage() {
     }
   };
 
+  const runBulkAction = useCallback(
+    async (
+      action: EvidenceBulkAction,
+      caseId?: string
+    ): Promise<EvidenceBulkActionResponse> => {
+      const evidenceIds = Array.from(selectedIds);
+      const response = (await apiFetch("/v1/evidence/bulk", {
+        method: "POST",
+        body: JSON.stringify({
+          action,
+          evidenceIds,
+          caseId: caseId ?? null,
+        }),
+      })) as EvidenceBulkActionResponse;
+
+      if (response.csv) {
+        const blob = new Blob([response.csv], { type: "text/csv;charset=utf-8" });
+        const url = URL.createObjectURL(blob);
+        const anchor = document.createElement("a");
+        anchor.href = url;
+        anchor.download = response.fileName ?? "evidence-metadata.csv";
+        anchor.click();
+        URL.revokeObjectURL(url);
+      }
+
+      if (Array.isArray(response.items) && response.items.length > 0) {
+        setLibrary((current) => {
+          const updates = new Map(response.items?.map((item) => [item.id, item] as const));
+          return {
+            ...current,
+            items: current.items.map((item) => updates.get(item.id) ?? item),
+          };
+        });
+      }
+
+      if (action !== "EXPORT_METADATA_CSV") {
+        await loadLibraryPage(serverQuery);
+      }
+
+      if (selectedId && selectedIds.has(selectedId)) {
+        delete detailCacheRef.current[selectedId];
+        await loadDetail(selectedId, true);
+      }
+
+      const summaryMessage =
+        response.failedCount > 0
+          ? `${response.successCount} completed, ${response.failedCount} failed`
+          : `${response.successCount} records updated`;
+      addToast(summaryMessage, response.failedCount > 0 ? "warning" : "success");
+
+      return response;
+    },
+    [addToast, loadDetail, loadLibraryPage, selectedId, selectedIds, serverQuery]
+  );
+
   const goToPreviousPage = () => {
     if (cursorHistory.length === 0) return;
 
@@ -613,7 +856,21 @@ export default function EvidenceLibraryPage() {
       <div className="evidence-library-shell">
         <EvidenceLibraryHeader refreshing={refreshing} onRefresh={refreshCurrentScope} />
         <EvidenceMetrics items={metrics} />
-        <EvidenceFilters value={filters} onChange={updateFilters} />
+        <EvidenceFilters
+          value={filters}
+          onChange={updateFilters}
+          headerActions={
+            <SavedViewsMenu
+              views={library.savedViews}
+              teamOptions={teamOptions}
+              onApplyView={applySavedView}
+              onCreateView={createSavedView}
+              onUpdateView={updateSavedView}
+              onDeleteView={deleteSavedView}
+              onSetDefault={setDefaultSavedView}
+            />
+          }
+        />
 
         <div className="evidence-library-main">
           <EvidenceList
@@ -625,9 +882,23 @@ export default function EvidenceLibraryPage() {
             currentScope={filters.scope}
             pageLabel={pageLabel}
             resultsLabel={resultsLabel}
+            toolbar={
+              selectedIds.size > 0 ? (
+                <BulkActionsToolbar
+                  selectedCount={selectedIds.size}
+                  availableCases={library.cases}
+                  onClear={clearSelection}
+                  onRun={runBulkAction}
+                />
+              ) : null
+            }
+            selectedIds={selectedIds}
+            allCurrentPageSelected={allCurrentPageSelected}
             hasNextPage={Boolean(library.pageInfo?.hasMore && library.pageInfo?.nextCursor)}
             hasPreviousPage={cursorHistory.length > 0}
             onSelect={setSelectedId}
+            onToggleSelected={toggleSelected}
+            onToggleSelectAllCurrentPage={toggleSelectAllCurrentPage}
             onRetry={refreshCurrentScope}
             onOpenRecord={openRecord}
             onDownloadReport={downloadReport}

@@ -7,6 +7,7 @@ type OpenAiProviderConfig = {
   apiKey: string;
   chatModel: string;
   captureModel: string;
+  evidenceCategorizationModel: string;
 };
 
 function extractJsonText(raw: string): string | null {
@@ -56,11 +57,13 @@ export class OpenAiProvider implements AiProvider {
   private client: OpenAI;
   private chatModel: string;
   private captureModel: string;
+  private evidenceCategorizationModel: string;
 
   constructor(config: OpenAiProviderConfig) {
     this.client = new OpenAI({ apiKey: config.apiKey });
     this.chatModel = config.chatModel;
     this.captureModel = config.captureModel;
+    this.evidenceCategorizationModel = config.evidenceCategorizationModel;
   }
 
 private buildSystemPrompt(task: AiTask): string {
@@ -92,6 +95,17 @@ private buildSystemPrompt(task: AiTask): string {
     ].join(" ");
   }
 
+  if (task === AiTask.EVIDENCE_METADATA_CATEGORIZATION) {
+    return [
+      ...sharedRules,
+      "This is evidence metadata categorization mode.",
+      "Use metadata only. Do not infer image contents, document contents, identities, events, fault, authorship, or legal outcome.",
+      "Produce cautious suggested categories, suggested tags, metadata-derived risk flags, and next actions.",
+      "Do not state that AI verified anything.",
+      "Do not use exact GPS coordinates or private note content even if mentioned in the input.",
+    ].join(" ");
+  }
+
   return [
     ...sharedRules,
     "This is capture review mode.",
@@ -119,6 +133,17 @@ private buildUserPrompt(task: AiTask, input: unknown): string {
     ].join("\n");
   }
 
+  if (task === AiTask.EVIDENCE_METADATA_CATEGORIZATION) {
+    return [
+      `Task: ${task}.`,
+      "Provide a concise metadata-only evidence categorization result.",
+      "Use only the supplied metadata and structured fields.",
+      "Do not infer underlying media content.",
+      "Input JSON:",
+      JSON.stringify(input, null, 2),
+    ].join("\n");
+  }
+
   return [
     `Task: ${task}.`,
     "Provide a concise, structured advisory review.",
@@ -131,7 +156,11 @@ private buildUserPrompt(task: AiTask, input: unknown): string {
 
   async run(task: AiTask, input: unknown): Promise<AiResult> {
     const model =
-      task === AiTask.SUPPORT_CHAT ? this.chatModel : this.captureModel;
+      task === AiTask.SUPPORT_CHAT
+        ? this.chatModel
+        : task === AiTask.EVIDENCE_METADATA_CATEGORIZATION
+          ? this.evidenceCategorizationModel
+          : this.captureModel;
 
     try {
 const response = await this.client.responses.create({

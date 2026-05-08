@@ -65,6 +65,10 @@ import { appendPlatformAuditLog } from "../services/platform-audit-log.service.j
 import { ed25519VerifyHexSignature, sha256Hex } from "../crypto.js";
 import { writeAnalyticsEvent } from "../services/analytics-event.service.js";
 import { readBillingOverview } from "../services/billing-overview.service.js";
+import { createAiProvider } from "../services/ai/ai-provider.js";
+import { AiCostGuard } from "../services/ai/ai-cost-guard.js";
+import { AI_LEGAL_DISCLAIMER } from "../services/ai/ai-policy.js";
+import { AiTask } from "../services/ai/ai-types.js";
 
 const EvidenceTypeSchema = prismaPkg.EvidenceType
   ? z.nativeEnum(prismaPkg.EvidenceType)
@@ -131,6 +135,86 @@ const RestoreDeletedEvidenceBody = z.object({
   restore: z.boolean().optional().default(true),
 });
 
+const SavedViewFiltersSchema = z.object({
+  search: z.string().max(160).optional().default(""),
+  scope: z.enum(["active", "archived", "deleted", "locked"]).optional().default("active"),
+  status: z.string().max(64).optional().default("all"),
+  type: z.string().max(64).optional().default("all"),
+  review: z.string().max(64).optional().default("all"),
+  exportReadiness: z.string().max(64).optional().default("all"),
+  caseAssignment: z.string().max(64).optional().default("all"),
+  retention: z.string().max(64).optional().default("all"),
+  sort: z.string().max(64).optional().default("newest"),
+});
+
+const CreateSavedViewBody = z.object({
+  name: z.string().trim().min(1).max(120),
+  description: z.string().trim().max(400).optional().nullable(),
+  teamId: z.string().uuid().optional().nullable(),
+  scope: z.enum(["active", "archived", "deleted", "locked"]),
+  filters: SavedViewFiltersSchema,
+  sortKey: z.string().trim().max(64).optional().nullable(),
+  isDefault: z.boolean().optional().default(false),
+});
+
+const UpdateSavedViewBody = z.object({
+  name: z.string().trim().min(1).max(120).optional(),
+  description: z.string().trim().max(400).optional().nullable(),
+  scope: z.enum(["active", "archived", "deleted", "locked"]).optional(),
+  filters: SavedViewFiltersSchema.optional(),
+  sortKey: z.string().trim().max(64).optional().nullable(),
+  isDefault: z.boolean().optional(),
+});
+
+const BulkEvidenceActionBody = z.object({
+  action: z.enum([
+    "ADD_TO_CASE",
+    "REMOVE_FROM_CASE",
+    "ARCHIVE",
+    "RESTORE_ARCHIVED",
+    "TRASH",
+    "RESTORE_TRASH",
+    "EXPORT_METADATA_CSV",
+  ]),
+  evidenceIds: z.array(z.string().uuid()).min(1).max(100),
+  caseId: z.string().uuid().optional(),
+});
+
+const ReviewerCommentBody = z.object({
+  body: z.string().trim().min(1).max(4000),
+  visibility: z.nativeEnum(prismaPkg.EvidenceCommentVisibility).optional().default(prismaPkg.EvidenceCommentVisibility.INTERNAL),
+});
+
+const ReviewerCommentUpdateBody = z.object({
+  body: z.string().trim().min(1).max(4000).optional(),
+  visibility: z.nativeEnum(prismaPkg.EvidenceCommentVisibility).optional(),
+});
+
+const LegalNoteBody = z.object({
+  body: z.string().trim().min(1).max(6000),
+  noteType: z.nativeEnum(prismaPkg.EvidenceLegalNoteType),
+});
+
+const LegalNoteUpdateBody = z.object({
+  body: z.string().trim().min(1).max(6000).optional(),
+  noteType: z.nativeEnum(prismaPkg.EvidenceLegalNoteType).optional(),
+});
+
+const AnnotationBody = z.object({
+  evidencePartId: z.string().uuid().optional().nullable(),
+  annotationType: z.nativeEnum(prismaPkg.EvidenceAnnotationType),
+  body: z.string().trim().max(4000).optional().nullable(),
+  pageNumber: z.number().int().min(1).max(100000).optional().nullable(),
+  mediaTimestampMs: z.number().int().min(0).max(864000000).optional().nullable(),
+  x: z.number().finite().optional().nullable(),
+  y: z.number().finite().optional().nullable(),
+  width: z.number().finite().optional().nullable(),
+  height: z.number().finite().optional().nullable(),
+  coordinateSpace: z.nativeEnum(prismaPkg.EvidenceAnnotationCoordinateSpace),
+});
+
+const AnnotationUpdateBody = AnnotationBody.partial();
+
 const RequestEvidenceCertificationBody = z.object({
   declarationType: z.nativeEnum(PrismaCertificationType),
 });
@@ -155,6 +239,8 @@ type ParamsId = { id: string };
 
 const { EvidenceStatus, PlanType, VerificationSource, VerificationViewerType } =
   prismaPkg;
+const evidenceAiProvider = createAiProvider();
+const evidenceAiCostGuard = new AiCostGuard();
 
 type PublicCustodyEventCategory = "forensic" | "access";
 
@@ -2192,6 +2278,157 @@ async function getEvidenceWithOwnerAccess(
   }
 
   return evidence;
+}
+
+async function getTeamMembershipRole(teamId: string, userId: string) {
+  const membership = await prisma.teamMember.findUnique({
+    where: { teamId_userId: { teamId, userId } },
+    select: { role: true },
+  });
+
+  return membership?.role ?? null;
+}
+
+async function canManageEvidenceCollaborativeContent(
+  userId: string,
+  evidence: SelectedEvidence
+) {
+  if (evidence.ownerUserId === userId) {
+    return true;
+  }
+
+  if (!evidence.teamId) {
+    return false;
+  }
+
+  const role = await getTeamMembershipRole(evidence.teamId, userId);
+  return role === prismaPkg.TeamRole.OWNER || role === prismaPkg.TeamRole.ADMIN;
+}
+
+async function assertSavedViewAccess(
+  userId: string,
+  savedViewId: string
+) {
+  const savedView = await prisma.evidenceSavedView.findUnique({
+    where: { id: savedViewId },
+  });
+
+  if (!savedView) {
+    const err: Error & { statusCode?: number } = new Error("Saved view not found");
+    err.statusCode = 404;
+    throw err;
+  }
+
+  if (savedView.ownerUserId === userId) {
+    return savedView;
+  }
+
+  if (savedView.teamId) {
+    const role = await getTeamMembershipRole(savedView.teamId, userId);
+    if (role) {
+      return savedView;
+    }
+  }
+
+  const err: Error & { statusCode?: number } = new Error("Forbidden");
+  err.statusCode = 403;
+  throw err;
+}
+
+function normalizeUserHeader(req: FastifyRequest) {
+  const userAgent = req.headers["user-agent"];
+  return Array.isArray(userAgent) ? userAgent[0] ?? null : userAgent ?? null;
+}
+
+function mapEvidenceSavedView(savedView: {
+  id: string;
+  ownerUserId: string;
+  teamId: string | null;
+  name: string;
+  description: string | null;
+  filtersJson: Prisma.JsonValue;
+  sortKey: string | null;
+  scope: string;
+  isDefault: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}) {
+  return {
+    id: savedView.id,
+    ownerUserId: savedView.ownerUserId,
+    teamId: savedView.teamId,
+    name: savedView.name,
+    description: savedView.description ?? null,
+    filters: toJsonSafe(savedView.filtersJson),
+    sortKey: savedView.sortKey ?? null,
+    scope: savedView.scope,
+    isDefault: savedView.isDefault,
+    createdAt: savedView.createdAt.toISOString(),
+    updatedAt: savedView.updatedAt.toISOString(),
+  };
+}
+
+function mapCollaborativeAuthor(user: { id: string; displayName: string | null; email: string | null }) {
+  return {
+    id: user.id,
+    displayName: user.displayName ?? null,
+    email: user.email ?? null,
+  };
+}
+
+function escapeCsvCell(value: string | null | undefined) {
+  const text = String(value ?? "");
+  if (/[",\n]/.test(text)) {
+    return `"${text.replace(/"/g, "\"\"")}"`;
+  }
+  return text;
+}
+
+function buildMetadataCsv(
+  items: Array<{
+    id: string;
+    title: string;
+    status: string;
+    verificationStatus: string | null;
+    type: string;
+    mimeType: string | null;
+    caseId: string | null;
+    createdAt: string;
+    archivedAt: string | null;
+    deletedAt: string | null;
+    latestReportVersion: number | null;
+  }>
+) {
+  const rows = [
+    [
+      "Evidence ID",
+      "Title",
+      "Status",
+      "Verification Status",
+      "Type",
+      "MIME Type",
+      "Case ID",
+      "Created At UTC",
+      "Archived At UTC",
+      "Deleted At UTC",
+      "Report Version",
+    ],
+    ...items.map((item) => [
+      item.id,
+      item.title,
+      item.status,
+      item.verificationStatus ?? "",
+      item.type,
+      item.mimeType ?? "",
+      item.caseId ?? "",
+      item.createdAt,
+      item.archivedAt ?? "",
+      item.deletedAt ?? "",
+      item.latestReportVersion ? String(item.latestReportVersion) : "",
+    ]),
+  ];
+
+  return rows.map((row) => row.map((cell) => escapeCsvCell(cell)).join(",")).join("\n");
 }
 
 function must(name: string): string {
@@ -4391,6 +4628,1122 @@ await appendCustodyEvent({
       },
     });
   });
+
+  app.get("/v1/evidence/saved-views", { preHandler: requireAuth }, async (req, reply) => {
+    const userId = getAuthUserId(req);
+    const memberTeams = await prisma.teamMember.findMany({
+      where: { userId },
+      select: { teamId: true },
+    });
+    const memberTeamIds = memberTeams.map((item) => item.teamId);
+
+    const items = await prisma.evidenceSavedView.findMany({
+      where: {
+        OR: [
+          { ownerUserId: userId },
+          ...(memberTeamIds.length > 0 ? [{ teamId: { in: memberTeamIds } }] : []),
+        ],
+      },
+      orderBy: [{ isDefault: "desc" }, { updatedAt: "desc" }],
+    });
+
+    return reply.code(200).send({
+      items: items.map(mapEvidenceSavedView),
+    });
+  });
+
+  app.post("/v1/evidence/saved-views", { preHandler: requireAuth }, async (req, reply) => {
+    const userId = getAuthUserId(req);
+    const body = CreateSavedViewBody.parse(req.body);
+
+    if (body.teamId) {
+      const membership = await prisma.teamMember.findUnique({
+        where: { teamId_userId: { teamId: body.teamId, userId } },
+      });
+      if (!membership) {
+        return reply.code(403).send({ message: "Forbidden" });
+      }
+    }
+
+    if (body.isDefault) {
+      await prisma.evidenceSavedView.updateMany({
+        where: {
+          ownerUserId: userId,
+          teamId: body.teamId ?? null,
+          isDefault: true,
+        },
+        data: { isDefault: false },
+      });
+    }
+
+    const created = await prisma.evidenceSavedView.create({
+      data: {
+        ownerUserId: userId,
+        teamId: body.teamId ?? null,
+        name: body.name,
+        description: body.description ?? null,
+        filtersJson: body.filters as Prisma.InputJsonValue,
+        sortKey: body.sortKey ?? null,
+        scope: body.scope,
+        isDefault: body.isDefault,
+      },
+    });
+
+    return reply.code(201).send({ savedView: mapEvidenceSavedView(created) });
+  });
+
+  app.patch("/v1/evidence/saved-views/:id", { preHandler: requireAuth }, async (req, reply) => {
+    const userId = getAuthUserId(req);
+    const id = z.string().uuid().parse((req.params as ParamsId).id);
+    const body = UpdateSavedViewBody.parse(req.body);
+    const savedView = await assertSavedViewAccess(userId, id);
+
+    if (body.isDefault === true) {
+      await prisma.evidenceSavedView.updateMany({
+        where: {
+          ownerUserId: savedView.ownerUserId,
+          teamId: savedView.teamId,
+          isDefault: true,
+        },
+        data: { isDefault: false },
+      });
+    }
+
+    const updated = await prisma.evidenceSavedView.update({
+      where: { id },
+      data: {
+        ...(body.name !== undefined ? { name: body.name } : {}),
+        ...(body.description !== undefined ? { description: body.description ?? null } : {}),
+        ...(body.scope !== undefined ? { scope: body.scope } : {}),
+        ...(body.filters !== undefined
+          ? { filtersJson: body.filters as Prisma.InputJsonValue }
+          : {}),
+        ...(body.sortKey !== undefined ? { sortKey: body.sortKey ?? null } : {}),
+        ...(body.isDefault !== undefined ? { isDefault: body.isDefault } : {}),
+      },
+    });
+
+    return reply.code(200).send({ savedView: mapEvidenceSavedView(updated) });
+  });
+
+  app.delete("/v1/evidence/saved-views/:id", { preHandler: requireAuth }, async (req, reply) => {
+    const userId = getAuthUserId(req);
+    const id = z.string().uuid().parse((req.params as ParamsId).id);
+    await assertSavedViewAccess(userId, id);
+    await prisma.evidenceSavedView.delete({ where: { id } });
+    return reply.code(200).send({ deleted: true });
+  });
+
+  app.post(
+    "/v1/evidence/saved-views/:id/default",
+    { preHandler: requireAuth },
+    async (req, reply) => {
+      const userId = getAuthUserId(req);
+      const id = z.string().uuid().parse((req.params as ParamsId).id);
+      const savedView = await assertSavedViewAccess(userId, id);
+
+      await prisma.$transaction([
+        prisma.evidenceSavedView.updateMany({
+          where: {
+            ownerUserId: savedView.ownerUserId,
+            teamId: savedView.teamId,
+            isDefault: true,
+          },
+          data: { isDefault: false },
+        }),
+        prisma.evidenceSavedView.update({
+          where: { id },
+          data: { isDefault: true },
+        }),
+      ]);
+
+      const updated = await prisma.evidenceSavedView.findUniqueOrThrow({ where: { id } });
+      return reply.code(200).send({ savedView: mapEvidenceSavedView(updated) });
+    }
+  );
+
+  app.post("/v1/evidence/bulk", { preHandler: requireAuth }, async (req, reply) => {
+    const userId = getAuthUserId(req);
+    const body = BulkEvidenceActionBody.parse(req.body);
+    const uniqueIds = [...new Set(body.evidenceIds)];
+    const results: Array<{ evidenceId: string; ok: boolean; reason?: string }> = [];
+    const updatedItems: Array<ReturnType<typeof mapEvidenceListItem>> = [];
+
+    let caseItem:
+      | {
+          id: string;
+          ownerUserId: string;
+          teamId: string | null;
+        }
+      | null = null;
+
+    if (body.action === "ADD_TO_CASE") {
+      if (!body.caseId) {
+        return reply.code(400).send({ message: "caseId is required for ADD_TO_CASE" });
+      }
+      caseItem = await prisma.case.findUnique({
+        where: { id: body.caseId },
+        select: { id: true, ownerUserId: true, teamId: true },
+      });
+      if (!caseItem) {
+        return reply.code(404).send({ message: "Case not found" });
+      }
+
+      let canAccessCase = caseItem.ownerUserId === userId;
+      if (!canAccessCase && caseItem.teamId) {
+        canAccessCase = Boolean(
+          await prisma.teamMember.findUnique({
+            where: { teamId_userId: { teamId: caseItem.teamId, userId } },
+          })
+        );
+      }
+      if (!canAccessCase) {
+        return reply.code(403).send({ message: "Forbidden" });
+      }
+    }
+
+    for (const evidenceId of uniqueIds) {
+      try {
+        const evidence =
+          body.action === "ADD_TO_CASE" ||
+          body.action === "REMOVE_FROM_CASE" ||
+          body.action === "ARCHIVE" ||
+          body.action === "RESTORE_ARCHIVED" ||
+          body.action === "TRASH" ||
+          body.action === "RESTORE_TRASH"
+            ? await getEvidenceWithOwnerAccess(userId, evidenceId)
+            : await getEvidenceWithReadAccess(userId, evidenceId);
+
+        switch (body.action) {
+          case "ADD_TO_CASE": {
+            if (!caseItem) {
+              throw new Error("Case not found");
+            }
+            if (evidence.deletedAt) {
+              throw new Error("Cannot add deleted evidence to a case");
+            }
+            const updated = await prisma.evidence.update({
+              where: { id: evidenceId },
+              data: { caseId: caseItem.id, teamId: caseItem.teamId ?? null },
+              select: EVIDENCE_LIST_SELECT,
+            });
+            updatedItems.push(mapEvidenceListItem(updated));
+            break;
+          }
+          case "REMOVE_FROM_CASE": {
+            if (!evidence.caseId) {
+              throw new Error("Evidence is not assigned to a case");
+            }
+            const updated = await prisma.evidence.update({
+              where: { id: evidenceId },
+              data: { caseId: null, teamId: null },
+              select: EVIDENCE_LIST_SELECT,
+            });
+            updatedItems.push(mapEvidenceListItem(updated));
+            break;
+          }
+          case "ARCHIVE": {
+            assertEvidenceNotLocked(evidence);
+            const updated = await prisma.evidence.update({
+              where: { id: evidenceId },
+              data: { archivedAt: new Date() },
+              select: EVIDENCE_LIST_SELECT,
+            });
+            await appendCustodyEvent({
+              evidenceId,
+              eventType: prismaPkg.CustodyEventType.EVIDENCE_ARCHIVED,
+              payload: { archivedByUserId: userId, source: "bulk" },
+              ip: req.ip,
+              userAgent: normalizeUserHeader(req),
+            }).catch(() => null);
+            updatedItems.push(mapEvidenceListItem(updated));
+            break;
+          }
+          case "RESTORE_ARCHIVED": {
+            assertEvidenceNotLocked(evidence);
+            const updated = await prisma.evidence.update({
+              where: { id: evidenceId },
+              data: { archivedAt: null },
+              select: EVIDENCE_LIST_SELECT,
+            });
+            await appendCustodyEvent({
+              evidenceId,
+              eventType: prismaPkg.CustodyEventType.EVIDENCE_RESTORED,
+              payload: { restoredByUserId: userId, restoreSource: "archive_bulk" },
+              ip: req.ip,
+              userAgent: normalizeUserHeader(req),
+            }).catch(() => null);
+            updatedItems.push(mapEvidenceListItem(updated));
+            break;
+          }
+          case "TRASH": {
+            assertEvidenceNotLocked(evidence);
+            assertEvidenceDeletionAllowedByRetention(evidence);
+            const now = new Date();
+            const deleteScheduledForUtc = addDays(now, 90);
+            const updated = await prisma.evidence.update({
+              where: { id: evidenceId },
+              data: {
+                deletedAt: now,
+                deletedAtUtc: now,
+                deletedByUserId: userId,
+                deleteScheduledForUtc,
+              },
+              select: EVIDENCE_LIST_SELECT,
+            });
+            await appendCustodyEvent({
+              evidenceId,
+              eventType: prismaPkg.CustodyEventType.EVIDENCE_DELETE_SCHEDULED,
+              payload: {
+                deletedByUserId: userId,
+                deletedAtUtc: now.toISOString(),
+                deleteScheduledForUtc: deleteScheduledForUtc.toISOString(),
+                source: "bulk",
+              },
+              ip: req.ip,
+              userAgent: normalizeUserHeader(req),
+            }).catch(() => null);
+            updatedItems.push(mapEvidenceListItem(updated));
+            break;
+          }
+          case "RESTORE_TRASH": {
+            if (!evidence.deletedAt) {
+              throw new Error("Evidence is not deleted");
+            }
+            assertEvidenceNotLocked(evidence);
+            const updated = await prisma.evidence.update({
+              where: { id: evidenceId },
+              data: {
+                deletedAt: null,
+                deletedAtUtc: null,
+                deletedByUserId: null,
+                deleteScheduledForUtc: null,
+              },
+              select: EVIDENCE_LIST_SELECT,
+            });
+            await appendCustodyEvent({
+              evidenceId,
+              eventType: prismaPkg.CustodyEventType.EVIDENCE_RESTORED,
+              payload: { restoredByUserId: userId, restoreSource: "trash_bulk" },
+              ip: req.ip,
+              userAgent: normalizeUserHeader(req),
+            }).catch(() => null);
+            updatedItems.push(mapEvidenceListItem(updated));
+            break;
+          }
+          case "EXPORT_METADATA_CSV": {
+            const exportItem = await prisma.evidence.findUnique({
+              where: { id: evidenceId },
+              select: EVIDENCE_LIST_SELECT,
+            });
+            if (!exportItem) {
+              throw new Error("Evidence not found");
+            }
+            updatedItems.push(mapEvidenceListItem(exportItem));
+            break;
+          }
+          default:
+            throw new Error("Unsupported bulk action");
+        }
+
+        results.push({ evidenceId, ok: true });
+      } catch (error) {
+        results.push({
+          evidenceId,
+          ok: false,
+          reason: error instanceof Error ? error.message : "Operation failed",
+        });
+      }
+    }
+
+    if (body.action === "EXPORT_METADATA_CSV") {
+      const csvItems = results
+        .filter((result) => result.ok)
+        .map((result) => updatedItems.find((item) => item.id === result.evidenceId))
+        .filter((item): item is ReturnType<typeof mapEvidenceListItem> => Boolean(item));
+
+      const csv = buildMetadataCsv(csvItems);
+      return reply.code(200).send({
+        successCount: results.filter((item) => item.ok).length,
+        failedCount: results.filter((item) => !item.ok).length,
+        results,
+        fileName: `evidence-metadata-${new Date().toISOString().slice(0, 10)}.csv`,
+        csv,
+      });
+    }
+
+    return reply.code(200).send({
+      successCount: results.filter((item) => item.ok).length,
+      failedCount: results.filter((item) => !item.ok).length,
+      results,
+      items: updatedItems,
+    });
+  });
+
+  app.get("/v1/evidence/:id/comments", { preHandler: requireAuth }, async (req, reply) => {
+    const userId = getAuthUserId(req);
+    const id = z.string().uuid().parse((req.params as ParamsId).id);
+    await getEvidenceWithReadAccess(userId, id);
+
+    const comments = await prisma.evidenceReviewerComment.findMany({
+      where: { evidenceId: id, deletedAt: null },
+      include: { author: { select: { id: true, displayName: true, email: true } } },
+      orderBy: { createdAt: "desc" },
+    });
+
+    return reply.code(200).send({
+      items: comments.map((comment) => ({
+        id: comment.id,
+        evidenceId: comment.evidenceId,
+        visibility: comment.visibility,
+        body: comment.body,
+        createdAt: comment.createdAt.toISOString(),
+        updatedAt: comment.updatedAt.toISOString(),
+        edited: comment.updatedAt.getTime() !== comment.createdAt.getTime(),
+        author: mapCollaborativeAuthor(comment.author),
+      })),
+    });
+  });
+
+  app.post("/v1/evidence/:id/comments", { preHandler: requireAuth }, async (req, reply) => {
+    const userId = getAuthUserId(req);
+    const id = z.string().uuid().parse((req.params as ParamsId).id);
+    const body = ReviewerCommentBody.parse(req.body);
+    await getEvidenceWithReadAccess(userId, id);
+
+    const created = await prisma.evidenceReviewerComment.create({
+      data: {
+        evidenceId: id,
+        authorUserId: userId,
+        body: body.body,
+        visibility: body.visibility,
+      },
+      include: { author: { select: { id: true, displayName: true, email: true } } },
+    });
+
+    return reply.code(201).send({
+      comment: {
+        id: created.id,
+        evidenceId: created.evidenceId,
+        visibility: created.visibility,
+        body: created.body,
+        createdAt: created.createdAt.toISOString(),
+        updatedAt: created.updatedAt.toISOString(),
+        edited: false,
+        author: mapCollaborativeAuthor(created.author),
+      },
+    });
+  });
+
+  app.patch(
+    "/v1/evidence/:id/comments/:commentId",
+    { preHandler: requireAuth },
+    async (req, reply) => {
+      const userId = getAuthUserId(req);
+      const id = z.string().uuid().parse((req.params as ParamsId).id);
+      const commentId = z.string().uuid().parse((req.params as { commentId: string }).commentId);
+      const body = ReviewerCommentUpdateBody.parse(req.body);
+      const evidence = await getEvidenceWithReadAccess(userId, id);
+      const comment = await prisma.evidenceReviewerComment.findUnique({ where: { id: commentId } });
+
+      if (!comment || comment.evidenceId !== id || comment.deletedAt) {
+        return reply.code(404).send({ message: "Comment not found" });
+      }
+
+      const canManage =
+        comment.authorUserId === userId ||
+        (await canManageEvidenceCollaborativeContent(userId, evidence));
+      if (!canManage) {
+        return reply.code(403).send({ message: "Forbidden" });
+      }
+
+      const updated = await prisma.evidenceReviewerComment.update({
+        where: { id: commentId },
+        data: {
+          ...(body.body !== undefined ? { body: body.body } : {}),
+          ...(body.visibility !== undefined ? { visibility: body.visibility } : {}),
+        },
+        include: { author: { select: { id: true, displayName: true, email: true } } },
+      });
+
+      return reply.code(200).send({
+        comment: {
+          id: updated.id,
+          evidenceId: updated.evidenceId,
+          visibility: updated.visibility,
+          body: updated.body,
+          createdAt: updated.createdAt.toISOString(),
+          updatedAt: updated.updatedAt.toISOString(),
+          edited: updated.updatedAt.getTime() !== updated.createdAt.getTime(),
+          author: mapCollaborativeAuthor(updated.author),
+        },
+      });
+    }
+  );
+
+  app.delete(
+    "/v1/evidence/:id/comments/:commentId",
+    { preHandler: requireAuth },
+    async (req, reply) => {
+      const userId = getAuthUserId(req);
+      const id = z.string().uuid().parse((req.params as ParamsId).id);
+      const commentId = z.string().uuid().parse((req.params as { commentId: string }).commentId);
+      const evidence = await getEvidenceWithReadAccess(userId, id);
+      const comment = await prisma.evidenceReviewerComment.findUnique({ where: { id: commentId } });
+
+      if (!comment || comment.evidenceId !== id || comment.deletedAt) {
+        return reply.code(404).send({ message: "Comment not found" });
+      }
+
+      const canManage =
+        comment.authorUserId === userId ||
+        (await canManageEvidenceCollaborativeContent(userId, evidence));
+      if (!canManage) {
+        return reply.code(403).send({ message: "Forbidden" });
+      }
+
+      await prisma.evidenceReviewerComment.update({
+        where: { id: commentId },
+        data: { deletedAt: new Date() },
+      });
+
+      return reply.code(200).send({ deleted: true });
+    }
+  );
+
+  app.get("/v1/evidence/:id/legal-notes", { preHandler: requireAuth }, async (req, reply) => {
+    const userId = getAuthUserId(req);
+    const id = z.string().uuid().parse((req.params as ParamsId).id);
+    await getEvidenceWithReadAccess(userId, id);
+
+    const items = await prisma.evidenceLegalNote.findMany({
+      where: { evidenceId: id, deletedAt: null },
+      include: { author: { select: { id: true, displayName: true, email: true } } },
+      orderBy: { createdAt: "desc" },
+    });
+
+    return reply.code(200).send({
+      items: items.map((note) => ({
+        id: note.id,
+        evidenceId: note.evidenceId,
+        noteType: note.noteType,
+        body: note.body,
+        createdAt: note.createdAt.toISOString(),
+        updatedAt: note.updatedAt.toISOString(),
+        edited: note.updatedAt.getTime() !== note.createdAt.getTime(),
+        author: mapCollaborativeAuthor(note.author),
+      })),
+    });
+  });
+
+  app.post("/v1/evidence/:id/legal-notes", { preHandler: requireAuth }, async (req, reply) => {
+    const userId = getAuthUserId(req);
+    const id = z.string().uuid().parse((req.params as ParamsId).id);
+    const body = LegalNoteBody.parse(req.body);
+    await getEvidenceWithReadAccess(userId, id);
+
+    const created = await prisma.evidenceLegalNote.create({
+      data: {
+        evidenceId: id,
+        authorUserId: userId,
+        noteType: body.noteType,
+        body: body.body,
+      },
+      include: { author: { select: { id: true, displayName: true, email: true } } },
+    });
+
+    return reply.code(201).send({
+      legalNote: {
+        id: created.id,
+        evidenceId: created.evidenceId,
+        noteType: created.noteType,
+        body: created.body,
+        createdAt: created.createdAt.toISOString(),
+        updatedAt: created.updatedAt.toISOString(),
+        edited: false,
+        author: mapCollaborativeAuthor(created.author),
+      },
+    });
+  });
+
+  app.patch(
+    "/v1/evidence/:id/legal-notes/:noteId",
+    { preHandler: requireAuth },
+    async (req, reply) => {
+      const userId = getAuthUserId(req);
+      const id = z.string().uuid().parse((req.params as ParamsId).id);
+      const noteId = z.string().uuid().parse((req.params as { noteId: string }).noteId);
+      const body = LegalNoteUpdateBody.parse(req.body);
+      const evidence = await getEvidenceWithReadAccess(userId, id);
+      const note = await prisma.evidenceLegalNote.findUnique({ where: { id: noteId } });
+
+      if (!note || note.evidenceId !== id || note.deletedAt) {
+        return reply.code(404).send({ message: "Legal note not found" });
+      }
+
+      const canManage =
+        note.authorUserId === userId ||
+        (await canManageEvidenceCollaborativeContent(userId, evidence));
+      if (!canManage) {
+        return reply.code(403).send({ message: "Forbidden" });
+      }
+
+      const updated = await prisma.evidenceLegalNote.update({
+        where: { id: noteId },
+        data: {
+          ...(body.body !== undefined ? { body: body.body } : {}),
+          ...(body.noteType !== undefined ? { noteType: body.noteType } : {}),
+        },
+        include: { author: { select: { id: true, displayName: true, email: true } } },
+      });
+
+      return reply.code(200).send({
+        legalNote: {
+          id: updated.id,
+          evidenceId: updated.evidenceId,
+          noteType: updated.noteType,
+          body: updated.body,
+          createdAt: updated.createdAt.toISOString(),
+          updatedAt: updated.updatedAt.toISOString(),
+          edited: updated.updatedAt.getTime() !== updated.createdAt.getTime(),
+          author: mapCollaborativeAuthor(updated.author),
+        },
+      });
+    }
+  );
+
+  app.delete(
+    "/v1/evidence/:id/legal-notes/:noteId",
+    { preHandler: requireAuth },
+    async (req, reply) => {
+      const userId = getAuthUserId(req);
+      const id = z.string().uuid().parse((req.params as ParamsId).id);
+      const noteId = z.string().uuid().parse((req.params as { noteId: string }).noteId);
+      const evidence = await getEvidenceWithReadAccess(userId, id);
+      const note = await prisma.evidenceLegalNote.findUnique({ where: { id: noteId } });
+
+      if (!note || note.evidenceId !== id || note.deletedAt) {
+        return reply.code(404).send({ message: "Legal note not found" });
+      }
+
+      const canManage =
+        note.authorUserId === userId ||
+        (await canManageEvidenceCollaborativeContent(userId, evidence));
+      if (!canManage) {
+        return reply.code(403).send({ message: "Forbidden" });
+      }
+
+      await prisma.evidenceLegalNote.update({
+        where: { id: noteId },
+        data: { deletedAt: new Date() },
+      });
+
+      return reply.code(200).send({ deleted: true });
+    }
+  );
+
+  app.get("/v1/evidence/:id/annotations", { preHandler: requireAuth }, async (req, reply) => {
+    const userId = getAuthUserId(req);
+    const id = z.string().uuid().parse((req.params as ParamsId).id);
+    await getEvidenceWithReadAccess(userId, id);
+
+    const items = await prisma.evidenceAnnotation.findMany({
+      where: { evidenceId: id, deletedAt: null },
+      include: { author: { select: { id: true, displayName: true, email: true } } },
+      orderBy: { createdAt: "desc" },
+    });
+
+    return reply.code(200).send({
+      items: items.map((annotation) => ({
+        id: annotation.id,
+        evidenceId: annotation.evidenceId,
+        evidencePartId: annotation.evidencePartId ?? null,
+        annotationType: annotation.annotationType,
+        body: annotation.body ?? null,
+        pageNumber: annotation.pageNumber ?? null,
+        mediaTimestampMs: annotation.mediaTimestampMs ?? null,
+        x: annotation.x ?? null,
+        y: annotation.y ?? null,
+        width: annotation.width ?? null,
+        height: annotation.height ?? null,
+        coordinateSpace: annotation.coordinateSpace,
+        createdAt: annotation.createdAt.toISOString(),
+        updatedAt: annotation.updatedAt.toISOString(),
+        edited: annotation.updatedAt.getTime() !== annotation.createdAt.getTime(),
+        author: mapCollaborativeAuthor(annotation.author),
+      })),
+    });
+  });
+
+  app.post("/v1/evidence/:id/annotations", { preHandler: requireAuth }, async (req, reply) => {
+    const userId = getAuthUserId(req);
+    const id = z.string().uuid().parse((req.params as ParamsId).id);
+    const body = AnnotationBody.parse(req.body);
+    await getEvidenceWithReadAccess(userId, id);
+
+    if (body.evidencePartId) {
+      const part = await prisma.evidencePart.findUnique({ where: { id: body.evidencePartId } });
+      if (!part || part.evidenceId !== id) {
+        return reply.code(400).send({ message: "Annotation part does not belong to this evidence" });
+      }
+    }
+
+    const created = await prisma.evidenceAnnotation.create({
+      data: {
+        evidenceId: id,
+        evidencePartId: body.evidencePartId ?? null,
+        authorUserId: userId,
+        annotationType: body.annotationType,
+        body: body.body ?? null,
+        pageNumber: body.pageNumber ?? null,
+        mediaTimestampMs: body.mediaTimestampMs ?? null,
+        x: body.x ?? null,
+        y: body.y ?? null,
+        width: body.width ?? null,
+        height: body.height ?? null,
+        coordinateSpace: body.coordinateSpace,
+      },
+      include: { author: { select: { id: true, displayName: true, email: true } } },
+    });
+
+    return reply.code(201).send({
+      annotation: {
+        id: created.id,
+        evidenceId: created.evidenceId,
+        evidencePartId: created.evidencePartId ?? null,
+        annotationType: created.annotationType,
+        body: created.body ?? null,
+        pageNumber: created.pageNumber ?? null,
+        mediaTimestampMs: created.mediaTimestampMs ?? null,
+        x: created.x ?? null,
+        y: created.y ?? null,
+        width: created.width ?? null,
+        height: created.height ?? null,
+        coordinateSpace: created.coordinateSpace,
+        createdAt: created.createdAt.toISOString(),
+        updatedAt: created.updatedAt.toISOString(),
+        edited: false,
+        author: mapCollaborativeAuthor(created.author),
+      },
+    });
+  });
+
+  app.patch(
+    "/v1/evidence/:id/annotations/:annotationId",
+    { preHandler: requireAuth },
+    async (req, reply) => {
+      const userId = getAuthUserId(req);
+      const id = z.string().uuid().parse((req.params as ParamsId).id);
+      const annotationId = z
+        .string()
+        .uuid()
+        .parse((req.params as { annotationId: string }).annotationId);
+      const body = AnnotationUpdateBody.parse(req.body);
+      const evidence = await getEvidenceWithReadAccess(userId, id);
+      const annotation = await prisma.evidenceAnnotation.findUnique({ where: { id: annotationId } });
+
+      if (!annotation || annotation.evidenceId !== id || annotation.deletedAt) {
+        return reply.code(404).send({ message: "Annotation not found" });
+      }
+
+      const canManage =
+        annotation.authorUserId === userId ||
+        (await canManageEvidenceCollaborativeContent(userId, evidence));
+      if (!canManage) {
+        return reply.code(403).send({ message: "Forbidden" });
+      }
+
+      const updated = await prisma.evidenceAnnotation.update({
+        where: { id: annotationId },
+        data: {
+          ...(body.evidencePartId !== undefined ? { evidencePartId: body.evidencePartId ?? null } : {}),
+          ...(body.annotationType !== undefined ? { annotationType: body.annotationType } : {}),
+          ...(body.body !== undefined ? { body: body.body ?? null } : {}),
+          ...(body.pageNumber !== undefined ? { pageNumber: body.pageNumber ?? null } : {}),
+          ...(body.mediaTimestampMs !== undefined
+            ? { mediaTimestampMs: body.mediaTimestampMs ?? null }
+            : {}),
+          ...(body.x !== undefined ? { x: body.x ?? null } : {}),
+          ...(body.y !== undefined ? { y: body.y ?? null } : {}),
+          ...(body.width !== undefined ? { width: body.width ?? null } : {}),
+          ...(body.height !== undefined ? { height: body.height ?? null } : {}),
+          ...(body.coordinateSpace !== undefined
+            ? { coordinateSpace: body.coordinateSpace }
+            : {}),
+        },
+        include: { author: { select: { id: true, displayName: true, email: true } } },
+      });
+
+      return reply.code(200).send({
+        annotation: {
+          id: updated.id,
+          evidenceId: updated.evidenceId,
+          evidencePartId: updated.evidencePartId ?? null,
+          annotationType: updated.annotationType,
+          body: updated.body ?? null,
+          pageNumber: updated.pageNumber ?? null,
+          mediaTimestampMs: updated.mediaTimestampMs ?? null,
+          x: updated.x ?? null,
+          y: updated.y ?? null,
+          width: updated.width ?? null,
+          height: updated.height ?? null,
+          coordinateSpace: updated.coordinateSpace,
+          createdAt: updated.createdAt.toISOString(),
+          updatedAt: updated.updatedAt.toISOString(),
+          edited: updated.updatedAt.getTime() !== updated.createdAt.getTime(),
+          author: mapCollaborativeAuthor(updated.author),
+        },
+      });
+    }
+  );
+
+  app.delete(
+    "/v1/evidence/:id/annotations/:annotationId",
+    { preHandler: requireAuth },
+    async (req, reply) => {
+      const userId = getAuthUserId(req);
+      const id = z.string().uuid().parse((req.params as ParamsId).id);
+      const annotationId = z
+        .string()
+        .uuid()
+        .parse((req.params as { annotationId: string }).annotationId);
+      const evidence = await getEvidenceWithReadAccess(userId, id);
+      const annotation = await prisma.evidenceAnnotation.findUnique({ where: { id: annotationId } });
+
+      if (!annotation || annotation.evidenceId !== id || annotation.deletedAt) {
+        return reply.code(404).send({ message: "Annotation not found" });
+      }
+
+      const canManage =
+        annotation.authorUserId === userId ||
+        (await canManageEvidenceCollaborativeContent(userId, evidence));
+      if (!canManage) {
+        return reply.code(403).send({ message: "Forbidden" });
+      }
+
+      await prisma.evidenceAnnotation.update({
+        where: { id: annotationId },
+        data: { deletedAt: new Date() },
+      });
+
+      return reply.code(200).send({ deleted: true });
+    }
+  );
+
+  app.get("/v1/evidence/:id/comparison", { preHandler: requireAuth }, async (req, reply) => {
+    const userId = getAuthUserId(req);
+    const id = z.string().uuid().parse((req.params as ParamsId).id);
+    const evidence = await getEvidenceWithReadAccess(userId, id);
+    const parts = await prisma.evidencePart.findMany({
+      where: { evidenceId: id },
+      orderBy: { partIndex: "asc" },
+      select: {
+        id: true,
+        partIndex: true,
+        originalFileName: true,
+        mimeType: true,
+        sha256: true,
+        sizeBytes: true,
+      },
+    });
+    const latestReport = await prisma.report.findFirst({
+      where: { evidenceId: id },
+      orderBy: { version: "desc" },
+      select: { version: true, generatedAtUtc: true, verificationPackageVersion: true },
+    });
+    const latestPackage = await prisma.verificationPackage.findFirst({
+      where: { evidenceId: id },
+      orderBy: { version: "desc" },
+      select: { version: true, generatedAtUtc: true, packageType: true, trustDecisionSnapshot: true },
+    });
+
+    return reply.code(200).send({
+      evidenceId: id,
+      original: {
+        mimeType: evidence.mimeType ?? null,
+        sizeBytes: bigintToString(evidence.sizeBytes),
+        originalFileName: evidence.originalFileName ?? null,
+        displayFileName: evidence.displayFileName ?? null,
+        fileSha256: evidence.fileSha256 ?? null,
+        fingerprintHash: evidence.fingerprintHash ?? null,
+      },
+      previewRepresentation: {
+        mimeType: evidence.mimeType ?? null,
+        primaryKind: detectEvidenceAssetKind(evidence.mimeType ?? null),
+        previewable: isPreviewableEvidenceKind(detectEvidenceAssetKind(evidence.mimeType ?? null)),
+      },
+      reportArtifact: latestReport
+        ? {
+            version: latestReport.version,
+            generatedAtUtc: latestReport.generatedAtUtc.toISOString(),
+            verificationPackageVersion: latestReport.verificationPackageVersion ?? null,
+          }
+        : null,
+      verificationPackage: latestPackage
+        ? {
+            version: latestPackage.version,
+            generatedAtUtc: latestPackage.generatedAtUtc.toISOString(),
+            packageType: latestPackage.packageType ?? null,
+            manifestDigest: null,
+            trustDecisionSnapshot: toJsonSafe(latestPackage.trustDecisionSnapshot),
+          }
+        : null,
+      contentItems: parts.map((part) => ({
+        id: part.id,
+        partIndex: part.partIndex,
+        originalFileName: part.originalFileName ?? null,
+        mimeType: part.mimeType ?? null,
+        sha256: part.sha256 ?? null,
+        sizeBytes: bigintToString(part.sizeBytes),
+      })),
+      mismatchFlags: {
+        originalVsRecordedHash: evidence.fileSha256 ? null : null,
+        originalVsVerificationPackageManifest: null,
+        previewVsOriginal: null,
+      },
+    });
+  });
+
+  app.get("/v1/evidence/:id/duplicates", { preHandler: requireAuth }, async (req, reply) => {
+    const userId = getAuthUserId(req);
+    const id = z.string().uuid().parse((req.params as ParamsId).id);
+    const evidence = await getEvidenceWithReadAccess(userId, id);
+    const accessContext = await getAccessibleEvidenceContext(userId);
+    const accessWhere = buildEvidenceListBaseWhere({
+      query: {
+        caseId: null,
+        scope: "all",
+        limit: 100,
+        cursor: null,
+        search: null,
+        status: null,
+        type: null,
+        caseAssignment: "all",
+        reportReady: "all",
+        sort: "newest",
+      },
+      userId,
+      memberTeamIds: accessContext.memberTeamIds,
+      accessibleCaseIds: accessContext.accessibleCaseIds,
+    });
+
+    const partHashes = await prisma.evidencePart.findMany({
+      where: { evidenceId: id, sha256: { not: null } },
+      select: { sha256: true },
+    });
+    const partHashValues = partHashes.map((part) => part.sha256).filter((value): value is string => Boolean(value));
+
+    const [exactHashMatches, fingerprintMatches, partHashMatches, possibleMetadataMatches] =
+      await Promise.all([
+        evidence.fileSha256
+          ? prisma.evidence.findMany({
+              where: {
+                AND: [
+                  accessWhere,
+                  { id: { not: id } },
+                  { fileSha256: evidence.fileSha256 },
+                ],
+              },
+              select: EVIDENCE_LIST_SELECT,
+              take: 20,
+            })
+          : Promise.resolve([]),
+        evidence.fingerprintHash
+          ? prisma.evidence.findMany({
+              where: {
+                AND: [
+                  accessWhere,
+                  { id: { not: id } },
+                  { fingerprintHash: evidence.fingerprintHash },
+                ],
+              },
+              select: EVIDENCE_LIST_SELECT,
+              take: 20,
+            })
+          : Promise.resolve([]),
+        partHashValues.length > 0
+          ? prisma.evidence.findMany({
+              where: {
+                AND: [
+                  accessWhere,
+                  { id: { not: id } },
+                  { parts: { some: { sha256: { in: partHashValues } } } },
+                ],
+              },
+              select: EVIDENCE_LIST_SELECT,
+              take: 20,
+            })
+          : Promise.resolve([]),
+        evidence.originalFileName && evidence.mimeType && evidence.sizeBytes
+          ? prisma.evidence.findMany({
+              where: {
+                AND: [
+                  accessWhere,
+                  { id: { not: id } },
+                  { originalFileName: evidence.originalFileName },
+                  { mimeType: evidence.mimeType },
+                  { sizeBytes: evidence.sizeBytes },
+                ],
+              },
+              select: EVIDENCE_LIST_SELECT,
+              take: 20,
+            })
+          : Promise.resolve([]),
+      ]);
+
+    return reply.code(200).send({
+      exactHashMatches: exactHashMatches.map(mapEvidenceListItem),
+      fingerprintMatches: fingerprintMatches.map(mapEvidenceListItem),
+      partHashMatches: partHashMatches.map(mapEvidenceListItem),
+      possibleMetadataMatches: possibleMetadataMatches.map(mapEvidenceListItem),
+      limitation:
+        "Duplicate detection is limited to accessible records and recorded hashes or metadata.",
+    });
+  });
+
+  app.get(
+    "/v1/evidence/:id/ai-categorization",
+    { preHandler: requireAuth },
+    async (req, reply) => {
+      const userId = getAuthUserId(req);
+      const id = z.string().uuid().parse((req.params as ParamsId).id);
+      await getEvidenceWithReadAccess(userId, id);
+
+      const latest = await prisma.evidenceAiCategorization.findFirst({
+        where: { evidenceId: id },
+        orderBy: { createdAt: "desc" },
+      });
+
+      if (!latest) {
+        return reply.code(200).send({
+          categorization: {
+            status: prismaPkg.EvidenceAiCategorizationStatus.DISABLED,
+            summary: null,
+            categories: [],
+            suggestedTags: [],
+            riskFlags: [],
+            legalDisclaimer: AI_LEGAL_DISCLAIMER,
+            model: null,
+            createdAt: null,
+            updatedAt: null,
+          },
+        });
+      }
+
+      return reply.code(200).send({
+        categorization: {
+          status: latest.status,
+          summary: latest.summary ?? null,
+          categories: toJsonSafe(latest.categoriesJson ?? []),
+          suggestedTags: toJsonSafe(latest.suggestedTagsJson ?? []),
+          riskFlags: toJsonSafe(latest.riskFlagsJson ?? []),
+          legalDisclaimer: latest.legalDisclaimer,
+          model: latest.model ?? null,
+          createdAt: latest.createdAt.toISOString(),
+          updatedAt: latest.updatedAt.toISOString(),
+        },
+      });
+    }
+  );
+
+  app.post(
+    "/v1/evidence/:id/ai-categorization/run",
+    { preHandler: requireAuth },
+    async (req, reply) => {
+      const userId = getAuthUserId(req);
+      const id = z.string().uuid().parse((req.params as ParamsId).id);
+      const evidence = await getEvidenceWithReadAccess(userId, id);
+
+      const guard = evidenceAiCostGuard.canCategorizeEvidence(userId, id);
+      if (!guard.allowed) {
+        return reply.code(429).send({
+          message: guard.reason ?? "AI categorization is temporarily unavailable",
+        });
+      }
+
+      const itemCount = await getEvidenceItemCount(id);
+      const metadataPayload = {
+        evidenceId: id,
+        title: resolveEvidenceTitle(evidence.title),
+        type: evidence.type,
+        mimeType: evidence.mimeType ?? null,
+        itemCount,
+        sizeBytes: bigintToString(evidence.sizeBytes),
+        captureMethod: evidence.captureMethod ?? null,
+        verificationStatus: evidence.verificationStatus ?? null,
+        reportReady: Boolean(evidence.latestReportVersion || evidence.reportGeneratedAtUtc),
+        verificationPackageReady: Boolean(
+          evidence.verificationPackageVersion || evidence.verificationPackageGeneratedAtUtc
+        ),
+        caseLinked: Boolean(evidence.caseId),
+        workspaceLabel: evidence.workspaceNameSnapshot ?? null,
+        checklistMetadataOnly: true,
+      };
+
+      const aiResult = await evidenceAiProvider.run(
+        AiTask.EVIDENCE_METADATA_CATEGORIZATION,
+        metadataPayload
+      );
+
+      const deterministicCategories = [
+        evidence.type,
+        itemCount > 1 ? "MULTIPART" : "SINGLE_ITEM",
+        evidence.captureMethod ?? "CAPTURE_METHOD_UNRECORDED",
+      ];
+      const suggestedTags = [
+        evidence.mimeType ?? "mime-unrecorded",
+        evidence.verificationStatus ?? "verification-unrecorded",
+        evidence.latestReportVersion || evidence.reportGeneratedAtUtc ? "report-ready" : "report-missing",
+        evidence.caseId ? "case-linked" : "case-unassigned",
+      ];
+      const riskFlags = aiResult.flags.map((flag) => ({
+        severity: flag.severity,
+        title: flag.title,
+        detail: flag.detail,
+      }));
+
+      const persisted = await prisma.evidenceAiCategorization.create({
+        data: {
+          evidenceId: id,
+          requestedByUserId: userId,
+          status:
+            aiResult.status === "ok"
+              ? prismaPkg.EvidenceAiCategorizationStatus.COMPLETED
+              : aiResult.status === "disabled"
+                ? prismaPkg.EvidenceAiCategorizationStatus.DISABLED
+                : prismaPkg.EvidenceAiCategorizationStatus.FAILED,
+          categoriesJson: deterministicCategories as Prisma.InputJsonValue,
+          suggestedTagsJson: suggestedTags as Prisma.InputJsonValue,
+          riskFlagsJson: riskFlags as Prisma.InputJsonValue,
+          summary: aiResult.summary,
+          legalDisclaimer: AI_LEGAL_DISCLAIMER,
+          model:
+            aiResult.status === "disabled"
+              ? null
+              : process.env.OPENAI_EVIDENCE_CATEGORIZATION_MODEL?.trim() ??
+                process.env.OPENAI_MODEL?.trim() ??
+                "gpt-4.1-mini",
+        },
+      });
+
+      evidenceAiCostGuard.recordEvidenceCategorization(userId, id);
+
+      return reply.code(200).send({
+        categorization: {
+          status: persisted.status,
+          summary: persisted.summary ?? null,
+          categories: deterministicCategories,
+          suggestedTags,
+          riskFlags,
+          legalDisclaimer: persisted.legalDisclaimer,
+          model: persisted.model ?? null,
+          createdAt: persisted.createdAt.toISOString(),
+          updatedAt: persisted.updatedAt.toISOString(),
+          nextActions: aiResult.suggestions,
+        },
+      });
+    }
+  );
 
   app.get(
     "/v1/evidence/:id",

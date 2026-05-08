@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import type { EvidenceListScope } from "../lib/evidence-library-types";
 
 export type EvidenceFilterState = {
@@ -15,9 +16,11 @@ export type EvidenceFilterState = {
 export function EvidenceFilters({
   value,
   onChange,
+  headerActions,
 }: {
   value: EvidenceFilterState;
   onChange: (next: EvidenceFilterState) => void;
+  headerActions?: ReactNode;
 }) {
   const update = <K extends keyof EvidenceFilterState>(key: K, nextValue: EvidenceFilterState[K]) => {
     onChange({ ...value, [key]: nextValue });
@@ -30,14 +33,7 @@ export function EvidenceFilters({
           <strong>Smart filters</strong>
           <p>Group filters by operational review, integrity, export, case, and retention context.</p>
         </div>
-        <div className="evidence-library-placeholder-strip">
-          <span className="evidence-library-placeholder-pill" aria-disabled="true">
-            Saved views not configured
-          </span>
-          <span className="evidence-library-placeholder-pill" aria-disabled="true">
-            Bulk actions not configured
-          </span>
-        </div>
+        {headerActions ? <div className="evidence-library-placeholder-strip">{headerActions}</div> : null}
       </div>
 
       <div className="evidence-library-filters__grid">

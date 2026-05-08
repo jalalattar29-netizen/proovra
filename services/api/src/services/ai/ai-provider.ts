@@ -9,6 +9,7 @@ export type AiProviderConfig = {
   apiKey?: string;
   chatModel: string;
   captureModel: string;
+  evidenceCategorizationModel: string;
 };
 
 export function createAiProvider(): AiProvider {
@@ -25,6 +26,11 @@ export function createAiProvider(): AiProvider {
     process.env.OPENAI_MODEL?.trim() ||
     "gpt-4.1-mini";
 
+  const evidenceCategorizationModel =
+    process.env.OPENAI_EVIDENCE_CATEGORIZATION_MODEL?.trim() ||
+    process.env.OPENAI_MODEL?.trim() ||
+    "gpt-4.1-mini";
+
   if (!enabled) {
     return new NoopAiProvider();
   }
@@ -33,5 +39,6 @@ export function createAiProvider(): AiProvider {
     apiKey: apiKey!,
     chatModel,
     captureModel,
+    evidenceCategorizationModel,
   });
 }

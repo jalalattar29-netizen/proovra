@@ -43,6 +43,7 @@ export class AiCostGuard {
     switch (task) {
       case "CAPTURE_SESSION_REVIEW":
       case "CAPTURE_ITEM_REVIEW":
+      case "EVIDENCE_METADATA_CATEGORIZATION":
         return 0.25;
       case "SUPPORT_CHAT":
       default:
@@ -139,5 +140,13 @@ export class AiCostGuard {
       this.captureAnalysisCount.set(key, { day, count: 1 });
     }
     this.monthlySpend.eur += this.estimateCost("CAPTURE_SESSION_REVIEW");
+  }
+
+  canCategorizeEvidence(userId: string, evidenceId: string): AiCostGuardResult {
+    return this.canAnalyzeCapture(userId, evidenceId);
+  }
+
+  recordEvidenceCategorization(userId: string, evidenceId: string): void {
+    this.recordCaptureAnalysis(userId, evidenceId);
   }
 }

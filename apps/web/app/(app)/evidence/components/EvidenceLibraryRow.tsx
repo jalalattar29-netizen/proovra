@@ -17,16 +17,20 @@ export function EvidenceLibraryRow({
   item,
   caseName,
   selected,
+  checked,
   canDownloadReport,
   onSelect,
+  onToggleChecked,
   onOpenRecord,
   onDownloadReport,
 }: {
   item: EvidenceListItem;
   caseName: string | null;
   selected: boolean;
+  checked: boolean;
   canDownloadReport: boolean;
   onSelect: (id: string) => void;
+  onToggleChecked: (id: string, checked: boolean) => void;
   onOpenRecord: (id: string) => void;
   onDownloadReport: (id: string) => void;
 }) {
@@ -35,6 +39,17 @@ export function EvidenceLibraryRow({
 
   return (
     <div className={`evidence-library-row ${selected ? "is-selected" : ""}`}>
+      <div className="evidence-library-row__selection">
+        <label className="evidence-library-checkbox">
+          <input
+            type="checkbox"
+            checked={checked}
+            onChange={(event) => onToggleChecked(item.id, event.target.checked)}
+            aria-label={`Select evidence record ${getDisplayTitle(item)}`}
+          />
+          <span>Select</span>
+        </label>
+      </div>
       <button
         type="button"
         className="evidence-library-row__select"

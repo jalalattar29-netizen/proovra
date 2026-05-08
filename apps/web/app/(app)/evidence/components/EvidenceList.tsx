@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import type { EvidenceListItem } from "../lib/evidence-library-types";
 import { EvidenceLibraryRow } from "./EvidenceLibraryRow";
 import { EmptyState } from "./EmptyState";
@@ -13,9 +14,14 @@ export function EvidenceList({
   currentScope,
   pageLabel,
   resultsLabel,
+  toolbar,
+  selectedIds,
+  allCurrentPageSelected,
   hasNextPage,
   hasPreviousPage,
   onSelect,
+  onToggleSelected,
+  onToggleSelectAllCurrentPage,
   onRetry,
   onOpenRecord,
   onDownloadReport,
@@ -31,9 +37,14 @@ export function EvidenceList({
   currentScope: string;
   pageLabel: string;
   resultsLabel: string;
+  toolbar?: ReactNode;
+  selectedIds: Set<string>;
+  allCurrentPageSelected: boolean;
   hasNextPage: boolean;
   hasPreviousPage: boolean;
   onSelect: (id: string) => void;
+  onToggleSelected: (id: string, checked: boolean) => void;
+  onToggleSelectAllCurrentPage: (checked: boolean) => void;
   onRetry: () => void;
   onOpenRecord: (id: string) => void;
   onDownloadReport: (id: string) => void;
@@ -54,6 +65,19 @@ export function EvidenceList({
           <span>{currentScope}</span>
           <span>Results are loaded from the server using the selected filters.</span>
         </div>
+      </div>
+
+      <div className="evidence-library-list-toolbar">
+        <label className="evidence-library-checkbox">
+          <input
+            type="checkbox"
+            checked={allCurrentPageSelected}
+            onChange={(event) => onToggleSelectAllCurrentPage(event.target.checked)}
+            disabled={items.length === 0}
+          />
+          <span>Select loaded page</span>
+        </label>
+        {toolbar}
       </div>
 
       {loading ? (
@@ -86,8 +110,10 @@ export function EvidenceList({
                 item={item}
                 caseName={item.caseId ? caseMap.get(item.caseId) ?? null : null}
                 selected={item.id === selectedId}
+                checked={selectedIds.has(item.id)}
                 canDownloadReport={canDownloadReport(item)}
                 onSelect={onSelect}
+                onToggleChecked={onToggleSelected}
                 onOpenRecord={onOpenRecord}
                 onDownloadReport={onDownloadReport}
               />
