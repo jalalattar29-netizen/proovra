@@ -7,9 +7,11 @@ import {
   BriefcaseBusiness,
   Camera,
   CreditCard,
+  FileSearch,
   FileText,
   Gauge,
   Headphones,
+  LibraryBig,
   Settings,
   ShieldCheck,
   Users,
@@ -30,6 +32,7 @@ const WORKSPACE_NAV: SidebarItem[] = [
   { href: "/home", label: "Dashboard", Icon: Gauge },
   { href: "/capture", label: "Capture", Icon: Camera },
   { href: "/reports", label: "Reports", Icon: FileText },
+  { href: "/evidence", label: "Evidence", Icon: LibraryBig },
 ];
 
 const MANAGE_NAV: SidebarItem[] = [

@@ -26,6 +26,7 @@ export type AppShellUserV2 = {
 const TOP_NAV = [
   { href: "/home", label: "Workspace" },
   { href: "/capture", label: "Capture" },
+  { href: "/evidence", label: "Evidence" },
   { href: "/cases", label: "Cases" },
   { href: "/teams", label: "Teams" },
   { href: "/reports", label: "Reports" },
