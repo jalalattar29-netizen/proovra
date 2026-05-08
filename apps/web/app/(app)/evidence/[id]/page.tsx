@@ -2290,26 +2290,6 @@ No recent access activity has been recorded for this evidence record.
     </div>
   </div>
 </section>
-
-            <section className="evidence-card">
-              <div className="evidence-card-inner">
-                <h2 className="evidence-section-title">Sharing & Export</h2>
-                <div className="evidence-action-stack">
-                  <Button onClick={handleDownloadReport} disabled={actionBusy || !canAccessReports || !reportAvailable || isDeleted} className="evidence-btn evidence-btn-primary">
-                    {t("downloadReport")}
-                  </Button>
-                  <Button variant="secondary" onClick={handleDownloadVerificationPackage} disabled={actionBusy || !canAccessVerificationPackage || !verificationPackageAvailable || isDeleted} className="evidence-btn evidence-btn-secondary">
-                    Download Verification Package
-                  </Button>
-                  <Button variant="secondary" onClick={handleOpenShareModal} disabled={!canShareEvidence} className="evidence-btn evidence-btn-bronze">
-                    Share Evidence
-                  </Button>
-                </div>
-                <div className="evidence-alert info">{reportCapabilityHint}</div>
-                <div className="evidence-alert info">{packageCapabilityHint}</div>
-              </div>
-            </section>
-
             <section className="evidence-card">
               <div className="evidence-card-inner">
                 <h2 className="evidence-section-title">Preservation Actions</h2>

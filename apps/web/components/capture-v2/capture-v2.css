@@ -4604,3 +4604,16 @@ box-shadow:
   color: #d6b89d !important;
   -webkit-text-fill-color: #d6b89d !important;
 }
+
+/* Space between Capture AI assistant title and Show/Hide */
+.capture-right-panel > .card > button {
+  gap: 18px !important;
+  padding: 0 18px !important;
+}
+
+.capture-right-panel > .card > button span:last-child,
+.capture-right-panel > .card > button strong:last-child,
+.capture-right-panel > .card > button div:last-child {
+  margin-left: 16px !important;
+  flex-shrink: 0 !important;
+}
