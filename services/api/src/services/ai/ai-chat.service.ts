@@ -2,6 +2,7 @@ import type { AiProvider } from "./ai-provider.js";
 import { AiResult, AiTask } from "./ai-types.js";
 import { AiCostGuard } from "./ai-cost-guard.js";
 import { AI_LEGAL_DISCLAIMER } from "./ai-policy.js";
+import { answerProductKnowledge } from "./proovra-product-knowledge.js";
 
 export type SupportChatMessage = {
   role: "user" | "assistant";
@@ -41,6 +42,13 @@ export class AiChatService {
       };
     }
 
+const productAnswer = answerProductKnowledge(payload.messages);
+
+if (productAnswer) {
+  this.costGuard.recordChatMessage(userId);
+  return productAnswer;
+}
+    
 const result = await this.provider.run(AiTask.SUPPORT_CHAT, payload);
 
 const cleanedResult: AiResult = {

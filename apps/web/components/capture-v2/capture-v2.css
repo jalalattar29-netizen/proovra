@@ -4328,3 +4328,149 @@ box-shadow:
 .capture-enterprise-page p {
   color: #5f6b76 !important;
 }
+
+/* Completed workflow step number = same icon color */
+.capture-enterprise-step.completed .capture-enterprise-step-number {
+  color: #ffffff !important;
+  background: linear-gradient(180deg, #2f9e92 0%, #15756b 100%) !important;
+  border-color: rgba(21, 117, 107, 0.35) !important;
+  box-shadow:
+    0 10px 22px rgba(21, 117, 107, 0.18),
+    inset 0 1px 0 rgba(255, 255, 255, 0.28) !important;
+}
+
+/* active step stays outlined, not filled */
+.capture-enterprise-step.active .capture-enterprise-step-number {
+  color: #0f5c56 !important;
+  background: rgba(255, 255, 255, 0.38) !important;
+  border-color: #0f5c56 !important;
+}
+
+/* =========================================================
+   ENTERPRISE CONTRAST TUNING
+   Softer silver -> premium readable gray
+========================================================= */
+
+/* Secondary text across app */
+.app-shell-v2,
+.app-shell-v2 p,
+.app-shell-v2 small,
+.app-shell-v2 span {
+  color: #5f6b76;
+}
+
+/* Descriptions + helper text */
+.app-shell-v2 .text-muted,
+.app-shell-v2 .muted,
+.app-shell-v2 .helper-text,
+.app-shell-v2 .description {
+  color: #66727f !important;
+}
+
+/* Intake descriptions */
+.capture-page-v2-description,
+.capture-page-v2-subtitle,
+.capture-page-v2-helper,
+.capture-page-v2-note {
+  color: #66727f !important;
+}
+
+/* Evidence metadata */
+.capture-evidence-card-meta,
+.capture-evidence-card-size,
+.capture-evidence-card-type,
+.capture-evidence-card-date {
+  color: #74808c !important;
+}
+
+/* Accepted file type lines */
+.capture-requirement-accepted,
+.capture-requirement-supported {
+  color: #74808c !important;
+}
+
+/* Right sidebar labels */
+.capture-sidebar-label,
+.capture-session-label,
+.capture-integrity-label {
+  color: #5f6b76 !important;
+}
+
+/* AI assistant secondary text */
+.capture-ai-panel p,
+.capture-ai-panel small,
+.capture-ai-panel li {
+  color: #66727f !important;
+}
+
+/* Slightly stronger section titles */
+.capture-section-title,
+.capture-block-title,
+.capture-card-title {
+  color: #17222d !important;
+}
+
+/* Borders slightly cleaner */
+.capture-page-v2 *,
+.app-shell-v2 * {
+  border-color: rgba(15, 23, 32, 0.08);
+}
+
+/* =========================================================
+   FIX — Evidence material pills colors
+   Required / Optional / Mapped must not share one color
+========================================================= */
+
+/* Mapped badge: green */
+.capture-requirement-status.capture-status-met,
+.capture-material-status-pill.mapped {
+  background: rgba(22, 163, 74, 0.10) !important;
+  color: #0f7a3b !important;
+  border: 1px solid rgba(22, 163, 74, 0.18) !important;
+}
+
+/* Required badge inside evidence cards */
+.capture-material-status-pill.required,
+.capture-material-status-pill:has-text("Required") {
+  background: rgba(240, 68, 56, 0.10) !important;
+  color: #b42318 !important;
+  border: 1px solid rgba(240, 68, 56, 0.16) !important;
+}
+
+/* Optional badge inside evidence cards */
+.capture-material-status-pill.unmapped,
+.capture-material-status-pill.optional {
+  background: rgba(251, 191, 36, 0.16) !important;
+  color: #d97706 !important;
+  border: 1px solid rgba(251, 191, 36, 0.22) !important;
+}
+
+/* Matches selected requirement: green success */
+.capture-material-risk-pill.success {
+  background: rgba(22, 163, 74, 0.10) !important;
+  color: #0f7a3b !important;
+  border: 1px solid rgba(22, 163, 74, 0.18) !important;
+}
+
+/* Mapped required = red required */
+.capture-material-status-pill.required {
+  background: rgba(240, 68, 56, 0.10) !important;
+  color: #b42318 !important;
+  border: 1px solid rgba(240, 68, 56, 0.16) !important;
+}
+
+/* Mapped optional = orange optional */
+.capture-material-status-pill.optional,
+.capture-material-status-pill.unmapped {
+  background: rgba(251, 191, 36, 0.16) !important;
+  color: #d97706 !important;
+  border: 1px solid rgba(251, 191, 36, 0.22) !important;
+}
+
+/* Matches selected requirement = green */
+.capture-material-risk-pill.success,
+.capture-requirement-status.capture-status-met {
+  background: rgba(22, 163, 74, 0.10) !important;
+  color: #0f7a3b !important;
+  border: 1px solid rgba(22, 163, 74, 0.18) !important;
+}

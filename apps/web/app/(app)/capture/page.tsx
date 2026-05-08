@@ -1986,13 +1986,17 @@ useEffect(() => {
                 </div>
 
                 <div className="capture-material-pill-row">
-                  <span
-                    className={`capture-material-status-pill ${
-                      mappedStep ? "mapped" : "unmapped"
-                    }`}
-                  >
-                    {mappedLabel}
-                  </span>
+<span
+  className={`capture-material-status-pill ${
+    mappedStep
+      ? mappedStep.required
+        ? "required"
+        : "optional"
+      : "unmapped"
+  }`}
+>
+  {mappedLabel}
+</span>
 
                   <span className={`capture-material-risk-pill ${riskTone}`}>
                     {qualityStatus.label}
